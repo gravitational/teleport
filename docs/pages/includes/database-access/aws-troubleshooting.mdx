@@ -1,6 +1,6 @@
 ### Certificate error
 
-If your `tsh db connect` error includes the following text, you likely have an RDS database created before July 28, 2020, which presents an X.509 certificate that is incompatible with Teleport:
+If your `tsh db connect` error includes the following text, you likely have an RDS or DocumentDB database created before July 28, 2020, which presents an X.509 certificate that is incompatible with Teleport:
 
 ```text
 x509: certificate relies on legacy Common Name field, use SANs instead
@@ -25,133 +25,35 @@ $ nc -zv postgres-instance-1.sadas.us-east-1.rds.amazonaws.com 5432
 
 The Database Service assumes an IAM role in one of following situations:
 
-- An IAM role is used as `db_user` when accessing AWS services that require IAM
-  roles as database users, such as DynamoDB, Keyspaces, Opensearch, and
-  Redshift Serverless.
+- A Teleport user specifies an IAM role as the database user they wish to use
+  when accessing AWS services that require IAM roles as database users.
+  Databases that support using an IAM role as a database user include: DynamoDB,
+  Keyspaces, Opensearch, Redshift, and Redshift Serverless.
 - The `assume_role_arn` field is specified for the database resources or
   dynamic resource matchers.
 
-<Details title="Role chaining">
+<Details title="What if both situations apply? (role chaining)">
 When both of the above conditions are true for a database connection, the
 Database Service performs a role chaining by assuming the IAM role specified
-`assume_role_arn` first then using that IAM role to assume the IAM role for
-`db_user`.
+in `assume_role_arn` first, then using that IAM role to assume the IAM role for
+the database user.
 </Details>
 
 You may encounter the following error if the trust relationship is not
 configured properly between the IAM roles:
 ```text
-AccessDenied: User: arn:aws:sts::111111111111:assumed-role/database-service-role/i-* is not authorized to perform: sts:AssumeRole on resource: arn:aws:iam::111111111111:role/database-user-role
+AccessDenied: User: arn:aws:sts::111111111111:assumed-role/teleport-db-service-role/i-* is not authorized to perform: sts:AssumeRole on resource: arn:aws:iam::111111111111:role/db-user-role
 ```
 
-To allow IAM Role `role1` to assume IAM Role `role2`, the following is
-generally required:
+<Details title="how to properly configure the trust relationship?">
 
-<Details title="1. Configure Trust Relationships on role2">
-`role1` or its AWS account should be set as `Principal` in `role2`'s trust
-policy.
-<Tabs>
-<TabItem label="Role as principal">
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "AWS": "arn:aws:iam::111111111111:role/role1"
-      },
-      "Action": "sts:AssumeRole"
-    }
-  ]
-}
-```
-</TabItem>
-<TabItem label="Account as principal">
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "AWS": "arn:aws:iam::111111111111:root"
-      },
-      "Action": "sts:AssumeRole"
-    }
-  ]
-}
-```
-</TabItem>
-<TabItem label="Cross-account with external-id">
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "AWS": "arn:aws:iam::123456789012:role/role1"
-      },
-      "Action": "sts:AssumeRole",
-      "Condition": {
-        "StringEquals": {
-          "sts:ExternalId": "example-external-id"
-        }
-      }
-    }
-  ]
-}
-```
-</TabItem>
-
-</Tabs>
-</Details>
-
-<Details title="2. Configure Permissions Policies on role1">
-`role1` requires `sts:AssumeRole` permissions, for example:
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Action": "sts:AssumeRole",
-            "Effect": "Allow",
-            "Resource": "arn:aws:iam::111111111111:role/role2"
-        }
-    ]
-}
-```
-
-Note that this policy can be omitted when `role1` and `role2` are in the same
-AWS account and `role1`'s full ARN is configured as Principal in `role2`'s
-trust policy.
+(!docs/pages/includes/database-access/iam_role_trust_relationship.mdx role1="teleport-db-service-role" role2="db-user-role" !)
 
 </Details>
 
-<Details title="3. Configure Permissions Boundary on role1">
-`role1` also requires `sts:AssumeRole` permissions in its boundary policy, for
-example:
-
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Action": "sts:AssumeRole",
-            "Effect": "Allow",
-            "Resource": "*"
-        }
-    ]
-}
-```
-
-Note that this is only required when a boundary policy is attached to `role1`.
-</Details>
-
-You can test the trust relationship by running this AWS CLI command as `role1`:
+You can test the trust relationship by running this AWS CLI command as `teleport-db-service-role`:
 ```code
-aws sts assume-role --role-arn arn:aws:iam::111111111111:role/role2 --role-session-name test-trust-relationship
+$ aws sts assume-role --role-arn arn:aws:iam::111111111111:role/db-user-role --role-session-name test-trust-relationship
 ```
 
 Learn more on [how to use trust policies with IAM

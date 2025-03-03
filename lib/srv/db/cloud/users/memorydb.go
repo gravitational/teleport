@@ -22,18 +22,25 @@ import (
 	"context"
 	"slices"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/memorydb"
-	"github.com/aws/aws-sdk-go/service/memorydb/memorydbiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	memorydb "github.com/aws/aws-sdk-go-v2/service/memorydb"
+	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	libaws "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	libsecrets "github.com/gravitational/teleport/lib/srv/db/secrets"
 	libutils "github.com/gravitational/teleport/lib/utils"
 )
+
+type memoryDBClient interface {
+	memorydb.DescribeUsersAPIClient
+
+	ListTags(ctx context.Context, in *memorydb.ListTagsInput, optFns ...func(*memorydb.Options)) (*memorydb.ListTagsOutput, error)
+	UpdateUser(ctx context.Context, in *memorydb.UpdateUserInput, optFns ...func(*memorydb.Options)) (*memorydb.UpdateUserOutput, error)
+}
 
 // memoryDBFetcher is a fetcher for discovering MemoryDB users.
 type memoryDBFetcher struct {
@@ -75,27 +82,29 @@ func (f *memoryDBFetcher) FetchDatabaseUsers(ctx context.Context, database types
 		return nil, nil
 	}
 
-	client, err := f.cfg.Clients.GetAWSMemoryDBClient(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
+	awsCfg, err := f.cfg.AWSConfigProvider.GetConfig(ctx, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	secrets, err := newSecretStore(ctx, database, f.cfg.Clients)
+	smClt := f.cfg.awsClients.getSecretsManagerClient(awsCfg)
+	secrets, err := newSecretStore(database.GetSecretStore(), smClt, f.cfg.ClusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt := f.cfg.awsClients.getMemoryDBClient(awsCfg)
+	mdbUsers, err := f.getManagedUsersForACL(ctx, meta.Region, meta.MemoryDB.ACLName, clt)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	users := []User{}
-	mdbUsers, err := f.getManagedUsersForACL(ctx, meta.Region, meta.MemoryDB.ACLName, client)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	for _, mdbUser := range mdbUsers {
-		user, err := f.createUser(mdbUser, client, secrets)
+		user, err := f.createUser(&mdbUser, clt, secrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -106,33 +115,33 @@ func (f *memoryDBFetcher) FetchDatabaseUsers(ctx context.Context, database types
 }
 
 // getManagedUsersForACL returns all managed users for specified ACL.
-func (f *memoryDBFetcher) getManagedUsersForACL(ctx context.Context, region, aclName string, client memorydbiface.MemoryDBAPI) ([]*memorydb.User, error) {
+func (f *memoryDBFetcher) getManagedUsersForACL(ctx context.Context, region, aclName string, client memoryDBClient) ([]memorydbtypes.User, error) {
 	allUsers, err := f.getUsersForRegion(ctx, region, client)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	managedUsers := []*memorydb.User{}
+	managedUsers := []memorydbtypes.User{}
 	for _, user := range allUsers {
 		// Match ACL.
-		if !slices.Contains(aws.StringValueSlice(user.ACLNames), aclName) {
+		if !slices.Contains(user.ACLNames, aclName) {
 			continue
 		}
 
 		// Match special Teleport "managed" tag.
 		// If failed to get tags for some users, log the errors instead of failing the function.
-		userTags, err := f.getUserTags(ctx, user, client)
+		userTags, err := f.getUserTags(ctx, &user, client)
 		if err != nil {
 			if trace.IsAccessDenied(err) {
-				f.cfg.Log.WithError(err).Debugf("No Permission to get tags for user %v", aws.StringValue(user.ARN))
+				f.cfg.Log.DebugContext(ctx, "No Permission to get tags.", "user", aws.ToString(user.ARN), "error", err)
 			} else {
-				f.cfg.Log.WithError(err).Warnf("Failed to get tags for user %v", aws.StringValue(user.ARN))
+				f.cfg.Log.WarnContext(ctx, "Failed to get tags.", "user", aws.ToString(user.ARN), "error", err)
 			}
 			continue
 		}
 		for _, tag := range userTags {
-			if aws.StringValue(tag.Key) == libaws.TagKeyTeleportManaged &&
-				libaws.IsTagValueTrue(aws.StringValue(tag.Value)) {
+			if aws.ToString(tag.Key) == libaws.TagKeyTeleportManaged &&
+				libaws.IsTagValueTrue(aws.ToString(tag.Value)) {
 				managedUsers = append(managedUsers, user)
 				break
 			}
@@ -142,22 +151,21 @@ func (f *memoryDBFetcher) getManagedUsersForACL(ctx context.Context, region, acl
 }
 
 // getUsersForRegion discovers all MemoryDB users for provided region.
-func (f *memoryDBFetcher) getUsersForRegion(ctx context.Context, region string, client memorydbiface.MemoryDBAPI) ([]*memorydb.User, error) {
-	getFunc := func(ctx context.Context) ([]*memorydb.User, error) {
-		var users []*memorydb.User
-		var nextToken *string
-		for pageNum := 0; pageNum < common.MaxPages; pageNum++ {
-			output, err := client.DescribeUsersWithContext(ctx, &memorydb.DescribeUsersInput{
-				NextToken: nextToken,
-			})
+func (f *memoryDBFetcher) getUsersForRegion(ctx context.Context, region string, client memoryDBClient) ([]memorydbtypes.User, error) {
+	getFunc := func(ctx context.Context) ([]memorydbtypes.User, error) {
+		pager := memorydb.NewDescribeUsersPaginator(client,
+			&memorydb.DescribeUsersInput{},
+			func(opts *memorydb.DescribeUsersPaginatorOptions) {
+				opts.StopOnDuplicateToken = true
+			},
+		)
+		var users []memorydbtypes.User
+		for i := 0; i < common.MaxPages && pager.HasMorePages(); i++ {
+			page, err := pager.NextPage(ctx)
 			if err != nil {
 				return nil, trace.Wrap(libaws.ConvertRequestFailureError(err))
 			}
-
-			users = append(users, output.Users...)
-			if nextToken = output.NextToken; nextToken == nil {
-				break
-			}
+			users = append(users, page.Users...)
 		}
 		return users, nil
 	}
@@ -171,9 +179,9 @@ func (f *memoryDBFetcher) getUsersForRegion(ctx context.Context, region string, 
 }
 
 // getUserTags discovers resource tags for provided user.
-func (f *memoryDBFetcher) getUserTags(ctx context.Context, user *memorydb.User, client memorydbiface.MemoryDBAPI) ([]*memorydb.Tag, error) {
-	getFunc := func(ctx context.Context) ([]*memorydb.Tag, error) {
-		output, err := client.ListTagsWithContext(ctx, &memorydb.ListTagsInput{
+func (f *memoryDBFetcher) getUserTags(ctx context.Context, user *memorydbtypes.User, client memoryDBClient) ([]memorydbtypes.Tag, error) {
+	getFunc := func(ctx context.Context) ([]memorydbtypes.Tag, error) {
+		output, err := client.ListTags(ctx, &memorydb.ListTagsInput{
 			ResourceArn: user.ARN,
 		})
 		if err != nil {
@@ -182,7 +190,7 @@ func (f *memoryDBFetcher) getUserTags(ctx context.Context, user *memorydb.User, 
 		return output.TagList, nil
 	}
 
-	userTags, err := libutils.FnCacheGet(ctx, f.cache, aws.StringValue(user.ARN), getFunc)
+	userTags, err := libutils.FnCacheGet(ctx, f.cache, aws.ToString(user.ARN), getFunc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -191,8 +199,8 @@ func (f *memoryDBFetcher) getUserTags(ctx context.Context, user *memorydb.User, 
 }
 
 // createUser creates an MemoryDB User.
-func (f *memoryDBFetcher) createUser(mdbUser *memorydb.User, client memorydbiface.MemoryDBAPI, secrets libsecrets.Secrets) (User, error) {
-	secretKey, err := secretKeyFromAWSARN(aws.StringValue(mdbUser.ARN))
+func (f *memoryDBFetcher) createUser(mdbUser *memorydbtypes.User, client memoryDBClient, secrets libsecrets.Secrets) (User, error) {
+	secretKey, err := secretKeyFromAWSARN(aws.ToString(mdbUser.ARN))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -202,7 +210,7 @@ func (f *memoryDBFetcher) createUser(mdbUser *memorydb.User, client memorydbifac
 		secretKey:                   secretKey,
 		secrets:                     secrets,
 		secretTTL:                   f.cfg.Interval,
-		databaseUsername:            aws.StringValue(mdbUser.Name),
+		databaseUsername:            aws.ToString(mdbUser.Name),
 		clock:                       f.cfg.Clock,
 		maxPasswordLength:           128,
 		usePreviousPasswordForLogin: true,
@@ -219,29 +227,24 @@ func (f *memoryDBFetcher) createUser(mdbUser *memorydb.User, client memorydbifac
 
 // memoryDBUserResource implements cloudResource interface for a MemoryDB user.
 type memoryDBUserResource struct {
-	user   *memorydb.User
-	client memorydbiface.MemoryDBAPI
+	user   *memorydbtypes.User
+	client memoryDBClient
 }
 
 // ModifyUserPassword updates passwords of an MemoryDB user.
 func (r *memoryDBUserResource) ModifyUserPassword(ctx context.Context, oldPassword, newPassword string) error {
 	input := &memorydb.UpdateUserInput{
-		UserName:           r.user.Name,
-		AuthenticationMode: &memorydb.AuthenticationMode{},
+		UserName: r.user.Name,
+		AuthenticationMode: &memorydbtypes.AuthenticationMode{
+			Type: memorydbtypes.InputAuthenticationTypePassword,
+		},
 	}
 	if oldPassword != "" {
-		input.AuthenticationMode.Passwords = append(input.AuthenticationMode.Passwords, aws.String(oldPassword))
+		input.AuthenticationMode.Passwords = append(input.AuthenticationMode.Passwords, oldPassword)
 	}
-	if newPassword != "" {
-		input.AuthenticationMode.Passwords = append(input.AuthenticationMode.Passwords, aws.String(newPassword))
-	}
-	if len(input.AuthenticationMode.Passwords) == 0 {
-		input.AuthenticationMode.SetType("no-password")
-	} else {
-		input.AuthenticationMode.SetType("password")
-	}
+	input.AuthenticationMode.Passwords = append(input.AuthenticationMode.Passwords, newPassword)
 
-	if _, err := r.client.UpdateUserWithContext(ctx, input); err != nil {
+	if _, err := r.client.UpdateUser(ctx, input); err != nil {
 		return trace.Wrap(libaws.ConvertRequestFailureError(err))
 	}
 	return nil

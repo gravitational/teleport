@@ -31,6 +31,13 @@
   }
 }
 
+.BulkActionText {
+  display: none;
+  @container (min-width: 700px) {
+    display: block;
+  }
+}
+
 .ListContainer {
   display: flex;
   flex-direction: column;

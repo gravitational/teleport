@@ -19,14 +19,14 @@
 package services
 
 import (
+	"context"
 	"fmt"
-	"io"
+	"log/slog"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
 	"github.com/vulcand/predicate/builder"
 
@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/session"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
@@ -231,34 +232,41 @@ func NewActionsParser(ctx RuleContext) (predicate.Parser, error) {
 // NewLogActionFn creates logger functions
 func NewLogActionFn(ctx RuleContext) interface{} {
 	l := &LogAction{ctx: ctx}
-	writer, ok := ctx.(io.Writer)
-	if ok && writer != nil {
-		l.writer = writer
-	}
+
 	return l.Log
 }
 
 // LogAction represents action that will emit log entry
 // when specified in the actions of a matched rule
 type LogAction struct {
-	ctx    RuleContext
-	writer io.Writer
+	ctx RuleContext
 }
 
-// Log logs with specified level and formatting string with arguments
-func (l *LogAction) Log(level, format string, args ...interface{}) predicate.BoolPredicate {
+// Log logs with specified level and message string and attributes
+func (l *LogAction) Log(level, msg string, args ...any) predicate.BoolPredicate {
 	return func() bool {
-		ilevel, err := log.ParseLevel(level)
-		if err != nil {
-			ilevel = log.DebugLevel
+		slevel := slog.LevelDebug
+		switch strings.ToLower(level) {
+		case "error":
+			slevel = slog.LevelError
+		case "warn", "warning":
+			slevel = slog.LevelWarn
+		case "info":
+			slevel = slog.LevelInfo
+		case "debug":
+			slevel = slog.LevelDebug
+		case "trace":
+			slevel = logutils.TraceLevel
 		}
-		var writer io.Writer
-		if l.writer != nil {
-			writer = l.writer
-		} else {
-			writer = log.StandardLogger().WriterLevel(ilevel)
+
+		ctx := context.Background()
+		// Expicitly check whether logging is enabled for the level
+		// to avoid formatting the message if the log won't be sampled.
+		if !slog.Default().Handler().Enabled(ctx, slevel) {
+			//nolint:sloglint // msg cannot be constant
+			slog.Log(context.Background(), slevel, fmt.Sprintf(msg, args...))
 		}
-		writer.Write([]byte(fmt.Sprintf(format, args...)))
+
 		return true
 	}
 }
@@ -531,16 +539,6 @@ func (r *EmptyResource) GetKind() string {
 	return r.Kind
 }
 
-// GetResourceID returns resource ID
-func (r *EmptyResource) GetResourceID() int64 {
-	return r.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (r *EmptyResource) SetResourceID(id int64) {
-	r.Metadata.ID = id
-}
-
 // GetRevision returns the revision
 func (r *EmptyResource) GetRevision() string {
 	return r.Metadata.GetRevision()
@@ -577,55 +575,6 @@ func (r *EmptyResource) GetMetadata() types.Metadata {
 }
 
 func (r *EmptyResource) CheckAndSetDefaults() error { return nil }
-
-// BoolPredicateParser extends predicate.Parser with a convenience method
-// for evaluating bool predicates.
-type BoolPredicateParser interface {
-	predicate.Parser
-	EvalBoolPredicate(string) (bool, error)
-}
-
-type boolPredicateParser struct {
-	predicate.Parser
-}
-
-func (p boolPredicateParser) EvalBoolPredicate(expr string) (bool, error) {
-	ifn, err := p.Parse(expr)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	fn, ok := ifn.(predicate.BoolPredicate)
-	if !ok {
-		return false, trace.BadParameter("expected boolean predicate, got unsupported type: %T", ifn)
-	}
-
-	return fn(), nil
-}
-
-// NewJSONBoolParser returns a generic parser for boolean expressions based on a
-// json-serializable context.
-func NewJSONBoolParser(ctx interface{}) (BoolPredicateParser, error) {
-	p, err := predicate.NewParser(predicate.Def{
-		Operators: predicate.Operators{
-			AND: predicate.And,
-			OR:  predicate.Or,
-			NOT: predicate.Not,
-		},
-		Functions: map[string]interface{}{
-			"equals":   predicate.Equals,
-			"contains": predicate.Contains,
-		},
-		GetIdentifier: func(fields []string) (interface{}, error) {
-			return predicate.GetFieldByTag(ctx, teleport.JSON, fields)
-		},
-		GetProperty: GetStringMapValue,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return boolPredicateParser{Parser: p}, nil
-}
 
 // newParserForIdentifierSubcondition returns a parser customized for
 // extracting the largest admissible subexpression of a `where` condition that

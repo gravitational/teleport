@@ -16,7 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MutableRefObject, useEffect, useRef, useCallback } from 'react';
+import { MutableRefObject, useCallback, useEffect, useRef } from 'react';
+
+// IGNORE_CLICK_CLASSNAME is the className that should be on elements which shouldn't trigger setOpen(false).
+export const IGNORE_CLICK_CLASSNAME = 'ignore-click';
 
 /**
  * useRefClickOutside adds a `mousedown` event listener (and cleanup)
@@ -35,7 +38,13 @@ export function useRefClickOutside<
 
   const handleClickOutside = useCallback(
     (event: MouseEvent) => {
-      if (ref.current && !ref.current.contains(event.target as HTMLElement)) {
+      if (
+        ref.current &&
+        !(
+          ref.current.contains(event.target as HTMLElement) ||
+          (event.target as HTMLElement).closest('.' + IGNORE_CLICK_CLASSNAME)
+        )
+      ) {
         setOpen(false);
       }
     },

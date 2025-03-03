@@ -16,36 +16,47 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import * as tshdEventsApi from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 import { useStore } from 'shared/libs/stores';
 
 import * as types from 'teleterm/services/tshd/types';
-import { RootClusterUri } from 'teleterm/ui/uri';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
-
-import { PromptMfaRequest } from 'teleterm/services/tshdEvents';
+import { RootClusterUri } from 'teleterm/ui/uri';
+import type * as uri from 'teleterm/ui/uri';
 
 import { ImmutableStore } from '../immutableStore';
 
-import type * as uri from 'teleterm/ui/uri';
-
 type State = {
-  // At most two modals can be displayed at the same time.
-  // The important dialog is displayed above the regular one. This is to avoid losing the state of
+  // One regular dialog and multiple important dialogs can be rendered at the same time.
+  // The rule is that the regular dialogs are opened from user actions in the Electron app, while
+  // the important ones are reserved for tshd events.
+  // We allow multiple important dialogs because sometimes completing an action requires
+  // opening another important dialog.
+  // As of now, this happens when the user needs to unlock a hardware key during a relogin process
+  // (initiated from tshd).
+  //
+  // The important dialogs are displayed above the regular one. This is to avoid losing the state of
   // the regular modal if we happen to need to interrupt whatever the user is doing and display an
   // important modal.
-  important: Dialog;
-  regular: Dialog;
+  // `close` function closes the dialog and unregisters event listeners.
+  important: { dialog: Dialog; id: string; close(): void }[];
+  regular: { dialog: Dialog; close(): void } | undefined;
 };
 
 export class ModalsService extends ImmutableStore<State> {
   state: State = {
-    important: {
-      kind: 'none',
-    },
-    regular: {
-      kind: 'none',
-    },
+    important: [],
+    regular: undefined,
   };
+
+  private allDialogsController = new AbortController();
+
+  private getSharedAbortSignal(dialogSignal?: AbortSignal): AbortSignal {
+    if (!dialogSignal) {
+      return this.allDialogsController.signal;
+    }
+    return AbortSignal.any([dialogSignal, this.allDialogsController.signal]);
+  }
 
   /**
    * openRegularDialog opens the given dialog as a regular dialog. A regular dialog can get covered
@@ -56,20 +67,52 @@ export class ModalsService extends ImmutableStore<State> {
    * old dialog with the new one.
    * The old dialog is canceled, if possible.
    *
-   * The returned closeDialog function can be used to close the dialog and automatically call the
-   * dialog's onCancel callback (if present).
+   * The passed `abortSignal` or the returned `closeDialog` function can be used to close the dialog
+   * and automatically call the dialog's onCancel callback (if present).
+   * The onCancel function can be called without a user interaction. As of now,
+   * this happens when the user launches a deep link while a regular dialog is open.
+   * As such, if the dialog presents the user with a decision, onCancel should be
+   * treated as no decision being made.
+   * If possible, the user should be prompted again to make the decision later on.
    */
-  openRegularDialog(dialog: Dialog): { closeDialog: () => void } {
-    this.state.regular['onCancel']?.();
+  openRegularDialog(
+    dialog: Dialog,
+    abortSignal?: AbortSignal
+  ): {
+    closeDialog: () => void;
+  } {
+    const onCancelDialog = () => dialog['onCancel']?.();
+    const sharedSignal = this.getSharedAbortSignal(abortSignal);
+    if (sharedSignal.aborted) {
+      onCancelDialog();
+      return {
+        closeDialog: () => {},
+      };
+    }
+
+    // If there's a previous dialog, cancel and close it.
+    const previousDialog = this.state.regular;
+    if (previousDialog) {
+      previousDialog.dialog['onCancel']?.();
+      previousDialog.close();
+    }
+
+    const close = () => {
+      sharedSignal.removeEventListener('abort', cancelAndClose);
+      this.closeRegularDialog();
+    };
+    const cancelAndClose = () => {
+      close();
+      onCancelDialog();
+    };
+    sharedSignal.addEventListener('abort', cancelAndClose);
+
     this.setState(draftState => {
-      draftState.regular = dialog;
+      draftState.regular = { dialog, close };
     });
 
     return {
-      closeDialog: () => {
-        this.closeRegularDialog();
-        dialog['onCancel']?.();
-      },
+      closeDialog: cancelAndClose,
     };
   }
 
@@ -82,50 +125,61 @@ export class ModalsService extends ImmutableStore<State> {
    * One example of such scenario is showing the modal to relogin after the user attempts to make a
    * database connection through a gateway with expired user and db certs.
    *
-   * Calling openImportantDialog while another important dialog is displayed will simply overwrite
-   * the old dialog with the new one.
-   * The old dialog is canceled, if possible.
+   * Calling openImportantDialog while another important dialog is displayed will open it
+   * on top of that dialog.
+   * Dialogs are displayed in the order they arrive, with the most recent one on top.
+   * This allows actions that need further steps to be completed.
    *
    * The returned closeDialog function can be used to close the dialog and automatically call the
    * dialog's onCancel callback (if present).
    */
-  openImportantDialog(dialog: Dialog): { closeDialog: () => void } {
-    this.state.important['onCancel']?.();
+  openImportantDialog(dialog: Dialog): { closeDialog: () => void; id: string } {
+    const onCancelDialog = () => dialog['onCancel']?.();
+    const allDialogsSignal = this.allDialogsController.signal;
+    const id = crypto.randomUUID();
+
+    const close = () => {
+      allDialogsSignal.removeEventListener('abort', cancelAndClose);
+      this.closeImportantDialog(id);
+    };
+    const cancelAndClose = () => {
+      close();
+      onCancelDialog();
+    };
+    allDialogsSignal.addEventListener('abort', cancelAndClose);
     this.setState(draftState => {
-      draftState.important = dialog;
+      draftState.important.push({ dialog, id, close });
     });
 
     return {
-      closeDialog: () => {
-        this.closeImportantDialog();
-        dialog['onCancel']?.();
-      },
+      id,
+      closeDialog: cancelAndClose,
     };
   }
 
-  closeRegularDialog() {
+  private closeRegularDialog() {
     this.setState(draftState => {
-      draftState.regular = {
-        kind: 'none',
-      };
+      draftState.regular = undefined;
     });
   }
 
-  closeImportantDialog() {
+  private closeImportantDialog(id: string) {
     this.setState(draftState => {
-      draftState.important = {
-        kind: 'none',
-      };
+      const index = draftState.important.findIndex(d => d.id === id);
+      if (index >= 0) {
+        draftState.important.splice(index, 1);
+      }
     });
+  }
+
+  cancelAndCloseAll(): void {
+    this.allDialogsController.abort();
+    this.allDialogsController = new AbortController();
   }
 
   useState() {
     return useStore(this).state;
   }
-}
-
-export interface DialogNone {
-  kind: 'none';
 }
 
 export interface DialogClusterConnect {
@@ -149,7 +203,13 @@ export interface ClusterConnectReasonGatewayCertExpired {
   gateway: types.Gateway | undefined;
 }
 
-export type ClusterConnectReason = ClusterConnectReasonGatewayCertExpired;
+export type ClusterConnectReasonVnetCertExpired = {
+  kind: 'reason.vnet-cert-expired';
+} & tshdEventsApi.VnetCertExpired;
+
+export type ClusterConnectReason =
+  | ClusterConnectReasonGatewayCertExpired
+  | ClusterConnectReasonVnetCertExpired;
 
 export interface DialogClusterLogout {
   kind: 'cluster-logout';
@@ -162,6 +222,8 @@ export interface DialogDocumentsReopen {
   rootClusterUri: RootClusterUri;
   numberOfDocuments: number;
   onConfirm?(): void;
+  onDiscard?(): void;
+  /** Cancels the dialog, without discarding documents. */
   onCancel?(): void;
 }
 
@@ -197,8 +259,42 @@ export interface DialogHeadlessAuthentication {
 
 export interface DialogReAuthenticate {
   kind: 'reauthenticate';
-  promptMfaRequest: PromptMfaRequest;
+  promptMfaRequest: tshdEventsApi.PromptMFARequest;
   onSuccess(totpCode: string): void;
+  onSsoContinue(redirectUrl: string): void;
+  onCancel(): void;
+}
+
+export interface DialogChangeAccessRequestKind {
+  kind: 'change-access-request-kind';
+  onConfirm(): void;
+  onCancel(): void;
+}
+
+export interface DialogHardwareKeyPin {
+  kind: 'hardware-key-pin';
+  req: tshdEventsApi.PromptHardwareKeyPINRequest;
+  onSuccess(pin: string): void;
+  onCancel(): void;
+}
+
+export interface DialogHardwareKeyTouch {
+  kind: 'hardware-key-touch';
+  req: tshdEventsApi.PromptHardwareKeyTouchRequest;
+  onCancel(): void;
+}
+
+export interface DialogHardwareKeyPinChange {
+  kind: 'hardware-key-pin-change';
+  req: tshdEventsApi.PromptHardwareKeyPINChangeRequest;
+  onSuccess(res: tshdEventsApi.PromptHardwareKeyPINChangeResponse): void;
+  onCancel(): void;
+}
+
+export interface DialogHardwareKeySlotOverwrite {
+  kind: 'hardware-key-slot-overwrite';
+  req: tshdEventsApi.ConfirmHardwareKeySlotOverwriteRequest;
+  onConfirm(): void;
   onCancel(): void;
 }
 
@@ -211,4 +307,8 @@ export type Dialog =
   | DialogResourceSearchErrors
   | DialogHeadlessAuthentication
   | DialogReAuthenticate
-  | DialogNone;
+  | DialogChangeAccessRequestKind
+  | DialogHardwareKeyPin
+  | DialogHardwareKeyTouch
+  | DialogHardwareKeyPinChange
+  | DialogHardwareKeySlotOverwrite;

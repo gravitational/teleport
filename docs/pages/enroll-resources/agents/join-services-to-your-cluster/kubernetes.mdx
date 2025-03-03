@@ -1,0 +1,246 @@
+---
+title: Joining Services via Kubernetes ServiceAccount Token
+description: Use Kubernetes ServiceAccount tokens to join services running in the same Kubernetes cluster as the Auth Service.
+---
+
+This guide will explain how to use the **Kubernetes join method** to configure
+Teleport services to join your Teleport cluster without sharing any
+secrets when running in the same Kubernetes cluster as the Auth Service.
+
+When a Teleport service wants to be part of the cluster, it needs to prove
+its identity to the Teleport Auth Service before receiving its certificates.
+Kubernetes issues signed proof to each pod describing which Kubernetes
+ServiceAccount they can assume. When using the Kubernetes join
+method, Teleport uses this Kubernetes proof to become part of the cluster.
+
+<Notice type="warning">
+
+The Kubernetes join method is not available in Teleport Enterprise Cloud as it requires the
+joining service to run in the same Kubernetes cluster as the Auth Service.
+
+</Notice>
+
+The Kubernetes join method is available in self-hosted versions of Teleport.
+It supports joining any Teleport service running in the same Kubernetes cluster
+as the Auth Service.
+
+## Prerequisites
+
+- A running Teleport cluster in Kubernetes. For details on how to set this up,
+  see [Guides for running Teleport using Helm](../../../admin-guides/deploy-a-cluster/helm-deployments/helm-deployments.mdx).
+- Editor access to the Kubernetes cluster running the Teleport cluster.
+  You must be able to create Namespaces and Deployments.
+- A Teleport user with `access` role, or any other role that allows access to
+  applications with the label `app: demo-app`
+- Either the Teleport `editor` role or the ability to `kubectl exec` into your
+  existing Teleport Auth Service pods.
+- The Auth Service ServiceAccount must be granted the `system:auth-delegator`
+  ClusterRole. Clusters deployed with the [`teleport-cluster` Helm
+  chart](../../../reference/helm-reference/teleport-cluster.mdx) 
+  have the correct role by default.
+
+## Step 1/5. Create a Kubernetes join token
+
+Configure your Teleport Auth Service with a join token (also called provision
+token) to allow Teleport services hosted in the Kubernetes cluster to
+join your Teleport cluster.
+
+Under the hood, Teleport instances will prove to the Auth Service that
+they are running in the same Kubernetes cluster by sending a signed ServiceAccount
+token that matches an `allow` rule configured in your Kubernetes join token.
+
+Create a file called `token.yaml` with the following content, which includes
+an `allow` rule specifying the Kubernetes namespace and Kubernetes
+ServiceAccount in which your Teleport services are running.
+
+(!docs/pages/includes/provision-token/kubernetes-in-cluster-spec.mdx!)
+
+Kubernetes join tokens can be used by any Teleport service besides the Auth Service, such as the Proxy Service and SSH Service. In this
+guide, we restrict the token to joining an Application Service instance.
+
+It is not recommended to use a single token that can join everything. You should
+restrict the token to the roles used by the joining instance. For example, a Teleport
+instance running both the Application Service and Database Service should use a token with
+`roles: [App, Db]`.
+Follow the instructions below to create the token depending on whether you have administrative access to the Auth Service pod:
+<Tabs>
+<TabItem label="Using tctl locally as your current user">
+
+Create the token:
+
+```code
+$ tctl create token.yaml
+```
+
+Finally, validate the token was created:
+
+```code
+$ tctl get token/kubernetes-token
+
+kind: token
+metadata:
+  expires: "3000-01-01T00:00:00Z"
+  name: kubernetes-token
+spec:
+  join_method: kubernetes
+  roles:
+  - App
+version: v2
+```
+
+</TabItem>
+<TabItem label="Using tctl on the Auth Service as an admin">
+Retrieve the name and namespace of the Auth Service deployment:
+
+```code
+$ kubectl get namespaces
+NAME              STATUS   AGE
+cert-manager      Active   40d
+default           Active   40d
+kube-system       Active   40d
+teleport          Active   40d
+
+# We look for deployments in the "teleport" namespace
+$ kubectl get deployments -n teleport
+NAME             READY   UP-TO-DATE   AVAILABLE   AGE
+teleport-auth    2/2     2            2           6d20h
+teleport-proxy   2/2     2            2           6d20h
+
+# Here, the deployment name is "teleport-auth".
+```
+
+Then run the following command to execute the `tctl create` command from inside
+one of the Auth Service pods:
+
+```code
+$ kubectl exec -i -n teleport deployment/teleport-auth -- tctl create < token.yaml
+```
+
+Finally, validate the token was successfully created:
+
+```code
+$ kubectl exec -i -n teleport deployment/teleport-auth tctl get token/kubernetes-token
+
+kind: token
+metadata:
+  expires: "3000-01-01T00:00:00Z"
+  name: kubernetes-token
+spec:
+  join_method: kubernetes
+  roles:
+  - App
+version: v2
+```
+
+</TabItem>
+</Tabs>
+
+## Step 2/5. Deploy a demonstration HTTP app
+
+In this step, we deploy a demonstration HTTP application and don't expose it
+publicly. Instead, we will manage access to this application with the Teleport
+Application Service, which we will register with Teleport using the Kubernetes
+join method.
+
+```code
+$ kubectl create namespace demo-app
+namespace/demo-app created
+
+$ kubectl create deployment --image=nginx --namespace demo-app --port=80 demo-app
+deployment.apps/demo-app created
+
+$ kubectl expose deployment demo-app -n demo-app --port=80 --target-port=80 --selector='app=demo-app'
+service/demo-app exposed
+```
+
+Validate the application pods are running and ready with the following command:
+
+```code
+$ kubectl get pods -n demo-app
+NAME                        READY   STATUS    RESTARTS   AGE
+demo-app-7664d59cb8-bv888   1/1     Running   0          67s
+```
+
+## Step 3/5. Configure the Application Service
+
+
+Configure the `teleport-kube-agent` chart to deploy Teleport instances running
+the Application Service by creating a `values.yaml` file with the
+following content:
+
+```yaml
+# values.yaml
+
+# Public address of the Teleport cluster with port.
+# You must replace the placeholder with your proxy address.
+proxyAddr: "teleport.example.com:443"
+
+# Comma-separated list of services the `teleport-kube-agent` chart must run
+# (supported values are: kube,db,app,discovery)
+# In this guide we only deploy app access.
+# Adding more services here also requires to add role to the provision token created in step 1.
+roles: app
+
+joinParams:
+  method: "kubernetes"
+  # this must match the provision token created in Step 1.
+  tokenName: "kubernetes-token"
+  
+apps:
+  - name: demo-app
+    uri: "http://demo-app.demo-app.svc.cluster.local:80"
+```
+
+## Step 4/5. Deploy the Application Service
+
+To use the token created in Step 1, the joining instance must run in the same
+Kubernetes cluster as the Auth Service and have a Kubernetes ServiceAccount
+token mounted.
+The `teleport-kube-agent` chart that you will install in this section will take care of this by default.
+
+Deploy the Teleport Application Service by running the following command:
+
+```code
+$ helm install teleport-app-service teleport/teleport-kube-agent -n teleport-agent --create-namespace -f values.yaml
+```
+
+Then, validate the pod is running after a couple of seconds:
+
+```code
+$ kubectl get pods -n teleport-agent
+NAME                  READY   STATUS    RESTARTS   AGE
+teleport-app-service-0   1/1     Running   0          23s
+```
+
+Finally, validate you can see the application in the Teleport Web UI, or using
+the command line:
+
+```code
+$ tsh apps ls
+Application Description Type Public Address       Labels              
+----------- ----------- ---- -------------------- ------------------- 
+demo-app                HTTP teleport.example.com teleport.dev/origin 
+```
+
+## Step 5/5. Clean up
+
+Uninstall the `teleport-app-service` Helm release and delete both the `demo-app`
+and `teleport-agent` namespaces.
+
+```code
+$ helm delete -n teleport-agent teleport-app-service
+release "teleport-app-service" uninstalled
+
+$ kubectl delete namespaces demo-app teleport-agent
+namespace "demo-app" deleted
+namespace "teleport-agent" deleted
+```
+
+## Going further
+
+{/* vale messaging.protocol-products = NO */}
+- The possible values for `teleport-kube-agent` chart are documented
+  [in its reference](../../../reference/helm-reference/teleport-kube-agent.mdx).
+- See [Application Access Guides](../../application-access/guides/guides.mdx)
+- See [Database Access Guides](../../database-access/guides/guides.mdx)
+{/* vale messaging.protocol-products = YES */}

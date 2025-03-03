@@ -22,18 +22,30 @@ package rdpclient
 import (
 	"context"
 	"image/png"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 )
+
+// LicenseStore implements client-side license storage for Microsoft
+// Remote Desktop Services (RDS) licenses.
+type LicenseStore interface {
+	WriteRDPLicense(ctx context.Context, key *types.RDPLicenseKey, license []byte) error
+	ReadRDPLicense(ctx context.Context, key *types.RDPLicenseKey) ([]byte, error)
+}
 
 // Config for creating a new Client.
 type Config struct {
 	// Addr is the network address of the RDP server, in the form host:port.
 	Addr string
+
+	LicenseStore LicenseStore
+	HostID       string
+
 	// UserCertGenerator generates user certificates for RDP authentication.
 	GenerateUserCert GenerateUserCertFn
 	CertTTL          time.Duration
@@ -60,12 +72,29 @@ type Config struct {
 	// user-selected wallpaper vs a system-default, single-color wallpaper.
 	ShowDesktopWallpaper bool
 
+	// NLA indicates whether the client should perform Network Level Authentication
+	// (NLA) when initiating the RDP session.
+	NLA bool
+
 	// Width and Height optionally override the dimensions received from
 	// the browser and force the session to use a particular size.
 	Width, Height uint32
 
-	// Log is the logger for status messages.
-	Log logrus.FieldLogger
+	// Logger is the logger for status messages.
+	Logger *slog.Logger
+
+	// ComputerName is the name used to communicate with KDC.
+	// Used for NLA support when AD is true.
+	ComputerName string
+
+	// KDCAddr is the address of Key Distribution Center.
+	// This is used to support RDP Network Level Authentication (NLA)
+	// when connecting to hosts enrolled in Active Directory.
+	// This filed is not used when AD is false.
+	KDCAddr string
+
+	// AD indicates whether the desktop is part of an Active Directory domain.
+	AD bool
 }
 
 // GenerateUserCertFn generates user certificates for RDP authentication.
@@ -85,12 +114,19 @@ func (c *Config) checkAndSetDefaults() error {
 	if c.AuthorizeFn == nil {
 		return trace.BadParameter("missing AuthorizeFn in rdpclient.Config")
 	}
+	if c.Logger == nil {
+		return trace.BadParameter("missing Logger in rdpclient.Config")
+	}
 	if c.Encoder == nil {
 		c.Encoder = tdp.PNGEncoder()
 	}
-	if c.Log == nil {
-		c.Log = logrus.New()
-	}
-	c.Log = c.Log.WithField("rdp-addr", c.Addr)
+	c.Logger = c.Logger.With("rdp_addr", c.Addr)
 	return nil
+}
+
+// hasSizeOverride returns true if the width and height have been set.
+// This will be true when a user has specified a fixed `screen_size` for
+// a given desktop.
+func (c *Config) hasSizeOverride() bool { //nolint:unused // used in client.go that is behind desktop_access_rdp build flag
+	return c.Width != 0 && c.Height != 0
 }

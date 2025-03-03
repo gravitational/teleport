@@ -1,5 +1,6 @@
 {{- if .Values.updater.enabled -}}
 {{- $updater := mustMergeOverwrite (mustDeepCopy .Values) .Values.updater -}}
+{{- $versionServerOverride := and $updater.versionServer (ne $updater.versionServer "https://{{ .Values.proxyAddr }}/v1/webapi/automaticupgrades/channel") }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -56,17 +57,22 @@ spec:
   {{- if $updater.tls.existingCASecretName }}
         - name: SSL_CERT_FILE
           value: /etc/teleport-tls-ca/ca.pem
-        # Used to track whether a Teleport agent was installed using this method.
-        - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-          value: "true"
   {{- end }}
 {{- end }}
         args:
           - "--agent-name={{ .Release.Name }}"
           - "--agent-namespace={{ .Release.Namespace }}"
           - "--base-image={{ include "teleport-kube-agent.baseImage" . }}"
+  {{- if $updater.versionServer}}
           - "--version-server={{ tpl $updater.versionServer . }}"
           - "--version-channel={{ $updater.releaseChannel }}"
+  {{- end }}
+  {{- /* We don't want to enable the RFD-184 update protocol if the user has set a custom versionServer as this
+    would be a breaking change when the teleport proxy starts override the explicitly set RFD-109 version server */ -}}
+  {{- if and $updater.proxyAddr (not $versionServerOverride)}}
+          - "--proxy-address={{ $updater.proxyAddr }}"
+          - "--update-group={{ default $updater.releaseChannel $updater.group }}"
+  {{- end }}
 {{- if $updater.pullCredentials }}
           - "--pull-credentials={{ $updater.pullCredentials }}"
 {{- end }}
@@ -102,15 +108,27 @@ spec:
 {{- if $updater.resources }}
         resources: {{- toYaml $updater.resources | nindent 10 }}
 {{- end }}
-{{- if $updater.tls.existingCASecretName }}
+{{- if or $updater.tls.existingCASecretName .Values.updater.extraVolumeMounts }}
         volumeMounts:
-        - mountPath: /etc/teleport-tls-ca
-          name: "teleport-tls-ca"
-          readOnly: true
+  {{- if $updater.tls.existingCASecretName }}
+          - mountPath: /etc/teleport-tls-ca
+            name: "teleport-tls-ca"
+            readOnly: true
+  {{- end }}
+  {{- if .Values.updater.extraVolumeMounts }}
+          {{- toYaml .Values.updater.extraVolumeMounts | nindent 10 }}
+  {{- end }}
+{{- end }}
+{{- if or $updater.tls.existingCASecretName .Values.updater.extraVolumes }}
       volumes:
-      - name: "teleport-tls-ca"
-        secret:
-          secretName: {{ $updater.tls.existingCASecretName }}
+  {{- if .Values.updater.extraVolumes }}
+        {{- toYaml $updater.extraVolumes | nindent 8 }}
+  {{- end }}
+  {{- if $updater.tls.existingCASecretName }}
+        - name: "teleport-tls-ca"
+          secret:
+            secretName: {{ $updater.tls.existingCASecretName }}
+  {{- end }}
 {{- end }}
 {{- if $updater.priorityClassName }}
       priorityClassName: {{ $updater.priorityClassName }}

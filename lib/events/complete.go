@@ -19,17 +19,20 @@
 package events
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"log/slog"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -48,10 +51,20 @@ type UploadCompleterConfig struct {
 	// SessionTracker is used to discover the current state of a
 	// sesssions with active uploads.
 	SessionTracker services.SessionTrackerService
+	// Semaphores is used to optionally acquire a semaphore prior to completing
+	// uploads. When specified, ServerID must also be provided.
+	Semaphores types.Semaphores
+	// ServerID identifies the server running the upload completer.
+	ServerID string
 	// Component is a component used in logging
 	Component string
 	// CheckPeriod is a period for checking the upload
 	CheckPeriod time.Duration
+	// GracePeriod is the period after which an upload's session tracker will be
+	// checked to see if it's an abandoned upload. A duration of zero will
+	// result in a sensible default, any negative value will result in no grace
+	// period.
+	GracePeriod time.Duration
 	// Clock is used to override clock in tests
 	Clock clockwork.Clock
 	// ClusterName identifies the originating teleport cluster
@@ -68,6 +81,9 @@ func (cfg *UploadCompleterConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.ClusterName == "" {
 		return trace.BadParameter("missing parameter ClusterName")
+	}
+	if cfg.Semaphores != nil && cfg.ServerID == "" {
+		return trace.BadParameter("a server ID must be specified in order to use semaphores")
 	}
 	if cfg.Component == "" {
 		cfg.Component = teleport.ComponentProcess
@@ -95,10 +111,8 @@ func NewUploadCompleter(cfg UploadCompleterConfig) (*UploadCompleter, error) {
 		return nil, trace.Wrap(err)
 	}
 	u := &UploadCompleter{
-		cfg: cfg,
-		log: log.WithFields(log.Fields{
-			teleport.ComponentKey: teleport.Component(cfg.Component, "completer"),
-		}),
+		cfg:    cfg,
+		log:    slog.With(teleport.ComponentKey, teleport.Component(cfg.Component, "completer")),
 		closeC: make(chan struct{}),
 	}
 
@@ -125,7 +139,7 @@ func StartNewUploadCompleter(ctx context.Context, cfg UploadCompleterConfig) err
 // and completes them
 type UploadCompleter struct {
 	cfg    UploadCompleterConfig
-	log    *log.Entry
+	log    *slog.Logger
 	closeC chan struct{}
 }
 
@@ -134,30 +148,65 @@ func (u *UploadCompleter) Close() {
 	close(u.closeC)
 }
 
+const (
+	semaphoreName      = "upload-completer"
+	semaphoreMaxLeases = 1 // allow one upload completer to operate at a time
+)
+
 // Serve runs the upload completer until closed or until ctx is canceled.
 func (u *UploadCompleter) Serve(ctx context.Context) error {
 	periodic := interval.New(interval.Config{
+		Clock:         u.cfg.Clock,
 		Duration:      u.cfg.CheckPeriod,
-		FirstDuration: utils.HalfJitter(u.cfg.CheckPeriod),
-		Jitter:        retryutils.NewSeventhJitter(),
+		FirstDuration: retryutils.HalfJitter(u.cfg.CheckPeriod),
+		Jitter:        retryutils.SeventhJitter,
 	})
 	defer periodic.Stop()
-	u.log.Infof("upload completer will run every %v", u.cfg.CheckPeriod.String())
+	u.log.InfoContext(ctx, "upload completer starting", "check_interval", u.cfg.CheckPeriod.String())
 
 	for {
 		select {
 		case <-periodic.Next():
-			if err := u.CheckUploads(ctx); trace.IsAccessDenied(err) {
-				u.log.Warn("Teleport does not have permission to list uploads. " +
-					"The upload completer will be unable to complete uploads of partial session recordings.")
-			} else if err != nil {
-				u.log.WithError(err).Warn("Failed to check uploads.")
-			}
+			u.PerformPeriodicCheck(ctx)
 		case <-u.closeC:
 			return nil
 		case <-ctx.Done():
 			return nil
 		}
+	}
+}
+
+func (u *UploadCompleter) PerformPeriodicCheck(ctx context.Context) {
+	// If configured with a server ID, then acquire a semaphore prior to completing uploads.
+	// This is used for auth's upload completer and ensures that multiple auth servers do not
+	// attempt to complete the same uploads at the same time.
+	// TODO(zmb3): remove the env var check once the semaphore is proven to be reliable
+	if u.cfg.Semaphores != nil && os.Getenv("TELEPORT_DISABLE_UPLOAD_COMPLETER_SEMAPHORE") == "" {
+		u.log.DebugContext(ctx, "acquiring semaphore in order to complete uploads", "server_id", u.cfg.ServerID)
+
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		_, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
+			Service: u.cfg.Semaphores,
+			Clock:   u.cfg.Clock,
+			Expiry:  (u.cfg.CheckPeriod / 2) + 1,
+			Params: types.AcquireSemaphoreRequest{
+				SemaphoreKind: types.SemaphoreKindUploadCompleter,
+				SemaphoreName: semaphoreName,
+				MaxLeases:     semaphoreMaxLeases,
+				Holder:        u.cfg.ServerID,
+			},
+		})
+		if err != nil {
+			u.log.DebugContext(ctx, "unable to acquire semaphore, will skip this round of uploads", "server_id", u.cfg.ServerID)
+			return
+		}
+	}
+	if err := u.CheckUploads(ctx); trace.IsAccessDenied(err) {
+		u.log.WarnContext(ctx, "Teleport does not have permission to list uploads. The upload completer will be unable to complete uploads of partial session recordings.")
+	} else if err != nil {
+		u.log.WarnContext(ctx, "Failed to check uploads.", "error", err)
 	}
 }
 
@@ -171,46 +220,66 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 	completed := 0
 	defer func() {
 		if completed > 0 {
-			u.log.Debugf("Found %v active uploads, completed %v.", len(uploads), completed)
+			u.log.DebugContext(ctx, "Found active uploads", "active", len(uploads), "completed", completed)
 		}
 	}()
 
+	gracePeriod := cmp.Or(u.cfg.GracePeriod, UploadCompleterGracePeriod)
 	incompleteSessionUploads.Set(float64(len(uploads)))
 	// Complete upload for any uploads without an active session tracker
 	for _, upload := range uploads {
-		log := u.log.WithField("upload", upload.ID).WithField("session", upload.SessionID)
+		log := u.log.With("upload", upload.ID, "session", upload.SessionID)
+
+		if gracePeriod > 0 && u.cfg.Clock.Since(upload.Initiated) <= gracePeriod {
+			log.DebugContext(ctx, "Found incomplete upload within grace period, terminating check early.")
+			// not only we can skip this upload, but since uploads are sorted by
+			// Initiated oldest-to-newest, we can actually just stop checking as
+			// all further uploads will be closer in time to now and thus they
+			// will all be within the grace period
+			break
+		}
 
 		switch _, err := u.cfg.SessionTracker.GetSessionTracker(ctx, upload.SessionID.String()); {
 		case err == nil: // session is still in progress, continue to other uploads
-			log.Debug("session has active tracker and is not ready to be uploaded")
+			log.DebugContext(ctx, "session has active tracker and is not ready to be uploaded")
 			continue
 		case trace.IsNotFound(err): // upload abandoned, complete upload
 		default: // aka err != nil
-			log.Warn("could not get session tracker, skipping upload")
+			log.WarnContext(ctx, "could not get session tracker, skipping upload")
 			continue
 		}
 
-		log.Debug("Upload was abandoned, trying to complete")
+		log.DebugContext(ctx, "Upload was abandoned, trying to complete")
 
 		parts, err := u.cfg.Uploader.ListParts(ctx, upload)
 		if err != nil {
 			if trace.IsNotFound(err) {
-				log.WithError(err).Warn("Missing parts, moving on to next upload")
+				log.WarnContext(ctx, "Missing parts, moving on to next upload", "error", err)
 				incompleteSessionUploads.Dec()
 				continue
 			}
 			return trace.Wrap(err, "listing parts")
 		}
+		var lastModified time.Time
+		for _, part := range parts {
+			if part.LastModified.After(lastModified) {
+				lastModified = part.LastModified
+			}
+		}
+		if u.cfg.Clock.Since(lastModified) <= gracePeriod {
+			log.DebugContext(ctx, "Found incomplete upload with recently uploaded part, skipping.")
+			continue
+		}
 
-		log.Debugf("upload has %d parts", len(parts))
+		log.DebugContext(ctx, "found upload with parts", "part_count", len(parts))
 
 		if err := u.cfg.Uploader.CompleteUpload(ctx, upload, parts); trace.IsNotFound(err) {
-			log.WithError(err).Debug("Upload not found, moving on to next upload")
+			log.DebugContext(ctx, "Upload not found, moving on to next upload", "error", err)
 			continue
 		} else if err != nil {
 			return trace.Wrap(err, "completing upload %v for session %v", upload.ID, upload.SessionID)
 		}
-		log.Debug("Completed upload")
+		log.DebugContext(ctx, "Completed upload")
 		completed++
 		incompleteSessionUploads.Dec()
 
@@ -228,7 +297,7 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		// If this is the case, there's no work left to do, and we can
 		// proceed to the next upload.
 		if uploadData.SessionID == "" {
-			log.Debug("No session ID in metadata skipping session end check")
+			log.DebugContext(ctx, "No session ID in metadata skipping session end check")
 			continue
 		}
 
@@ -241,9 +310,9 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 			case <-ctx.Done():
 				return
 			case <-u.cfg.Clock.After(2 * time.Minute):
-				log.Debug("checking for session end event")
+				log.DebugContext(ctx, "checking for session end event")
 				if err := u.ensureSessionEndEvent(ctx, uploadData); err != nil {
-					log.WithError(err).Warning("failed to ensure session end event")
+					log.WarnContext(ctx, "failed to ensure session end event", "error", err)
 				}
 			}
 		}()
@@ -277,9 +346,10 @@ func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData 
 	var desktopSessionEnd events.WindowsDesktopSessionEnd
 
 	// We use the streaming events API to search through the session events, because it works
-	// for both Desktop and SSH sessions, where as the GetSessionEvents API relies on downloading
-	// a copy of the session and using the SSH-specific index to iterate through events.
+	// for both Desktop and SSH sessions
 	var lastEvent events.AuditEvent
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	evts, errors := u.cfg.AuditLog.StreamSessionEvents(ctx, uploadData.SessionID, 0)
 
 loop:
@@ -357,7 +427,11 @@ loop:
 		return trace.BadParameter("invalid session, could not find session start")
 	}
 
-	u.log.Infof("emitting %T event for completed session %v", sessionEndEvent, uploadData.SessionID)
+	u.log.InfoContext(ctx, "emitting event for completed session",
+		"event_type", sessionEndEvent.GetType(),
+		"event_code", sessionEndEvent.GetCode(),
+		"session_id", uploadData.SessionID,
+	)
 
 	sessionEndEvent.SetTime(lastEvent.GetTime())
 

@@ -1,0 +1,418 @@
+---
+title: Teleport Authentication with Azure Active Directory (AD)
+description: How to configure Teleport access with Azure Active Directory.
+---
+
+This guide will cover how to configure Microsoft Entra ID to issue credentials
+to specific groups of users with a SAML Authentication Connector. When used in
+combination with role-based access control (RBAC), it allows Teleport
+administrators to define policies like:
+
+- Only members of the "DBA" Microsoft Entra ID group can connect to PostgreSQL
+  databases.
+- Developers must never SSH into production servers.
+
+The following steps configure an example SAML authentication connector matching
+Microsoft Entra ID groups with security roles. You can choose to configure other
+options.
+
+## Prerequisites
+
+Before you get started, you’ll need:
+
+- A Microsoft Entra ID admin account with access to creating non-gallery
+  applications (P2 License).
+- To register one or more users in the directory.
+- To create at least two security groups in Microsoft Entra ID and assign one or
+  more users to each group.
+- A Teleport role with access to maintaining `saml` resources. This is available
+  in the default `editor` role.
+
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+
+## Step 1/3. Configure Microsoft Entra ID
+
+### Create an enterprise application
+
+1. Select **Azure AD -> Enterprise Applications**
+
+   ![Select Enterprise Applications From Manage](../../../../img/azuread/azuread-1-home.png)
+
+1. Select **New application**
+
+   ![Select New Applications From Manage](../../../../img/azuread/azuread-2-newapp.png)
+
+1. Select **Create your own application**, enter the application name (for example,
+   Teleport), and select **Integrate any other application you don't find in
+   the gallery (Non-gallery)**.
+
+   ![Select Non-gallery application](../../../../img/azuread/azuread-3-createnongalleryapp.png)
+
+1. Select **Properties** under **Manage** and set **Assignment required?** to **No**
+
+   ![Turn off user assignment](../../../../img/azuread/azuread-4-turnoffuserassign.png)
+
+   Click **Save** before proceeding to the next step.
+
+### Configure SAML
+
+1. Select **Single sign-on** under **Manage** and choose **SAML**
+
+   ![Select SAML](../../../../img/azuread/azuread-5-selectsaml.png)
+
+1. Edit the **Basic SAML Configuration**
+
+   ![Edit Basic SAML Configuration](../../../../img/azuread/azuread-6-editbasicsaml.png)
+
+1. Enter the URL for your Teleport Proxy Service host in the **Entity ID** and
+   **Reply URL**  fields, for example:
+
+   ```code
+   https://mytenant.teleport.sh:443/v1/webapi/saml/acs/ad
+   ```
+
+   ![Put in Entity ID and Reply URL](../../../../img/azuread/azuread-7-entityandreplyurl.png)
+
+   Click **Save** before proceeding to the next step.
+
+1. In **SAML Certificates** section, copy the **App Federation
+   Metadata URL** link and save it for use in our Teleport connector configuration:
+
+   ![Download Federation Metadata XML](../../../../img/azuread/azuread-9-fedmeatadataxml.png)
+
+### Edit attributes & claims
+
+1. Click on **Unique User Identifier (Name ID)** under **Required claim**.
+
+1. Change the "name identifier format" to **Default**. Make sure the source
+  attribute is `user.userprincipalname`.
+
+   ![Confirm Name Identifier](../../../../img/azuread/azuread-8a-nameidentifier.png)
+
+1. Add a group claim to make user security groups available to the connector:
+
+   ![Put in Security group claim](../../../../img/azuread/azuread-8b-groupclaim.png)
+
+1. (optional) Add a claim that transforms the format of the Azure AD username to lower case, in order to use it inside
+   Teleport roles as the `{{external.username}}` property.
+
+   Set the Source to "Transformation". In the new panel:
+
+   - Set the Transformation value to "Extract()"
+
+   - Set the Attribute name to `user.userprincipalname`.
+
+   - Set the Value to `@`.
+
+   - Click "Add Transformation" and set the Transformation to `ToLowercase()`.
+
+     ![Add a transformed username](../../../../img/azuread/azuread-8c-usernameclaim.png)
+
+## Step 2/3. Create a SAML connector
+
+Now, create a SAML connector resource using `tctl`.
+
+```code
+$ tctl sso configure saml --preset ad \
+--entity-descriptor https://login.microsoftonline.com/ff882432.../federationmetadata/2007-06/federationmetadata.xml\?appid\=b8d06e01... \
+--attributes-to-roles http://schemas.microsoft.com/ws/2008/06/identity/claims/groups,41c94563...,dev \
+--attributes-to-roles http://schemas.microsoft.com/ws/2008/06/identity/claims/groups,8adac502...,access > azure-connector.yaml
+```
+
+In the example above:
+
+- `--entity-descriptor` specifies the app federation metadata URL saved in the
+  previous step.
+- Each `--attributes-to-roles` specifies the name of the schema definition for groups,
+  groups, the UUID of an AD group, and the Teleport role that members of the group
+  will be assigned.
+
+The file `azure-connector.yaml` should now resemble the following:
+
+```yaml
+kind: saml
+metadata:
+  name: ad
+spec:
+  acs: https://mytenant.teleport.sh/v1/webapi/saml/acs/ad
+  attributes_to_roles:
+  - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
+    roles:
+    - dev
+    value: 41c94563...
+  - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
+    roles:
+    - access
+    value: 8adac502...
+  audience: https://mytenant.teleport.sh/v1/webapi/saml/acs/ad
+  cert: ""
+  display: Microsoft
+  entity_descriptor: ""
+  entity_descriptor_url: https://login.microsoftonline.com/ff882432.../federationmetadata/2007-06/federationmetadata.xml?appid=b8d06e01...
+  issuer: ""
+  service_provider_issuer: https://mytenant.teleport.sh/v1/webapi/saml/acs/ad
+  sso: ""
+version: v2
+
+```
+
+With the connector in place on the cluster, you can test it with `tctl`:
+
+```code
+$ cat azure-connector.yaml | tctl sso test
+```
+
+Your browser should open and log you in to the Teleport cluster using your
+Azure AD credentials. If there are any problems, the CLI output will help you
+debug the connector configuration.
+
+
+To create the connector using the `tctl` tool, run the following command:
+
+```code
+$ tctl create -f azure-connector.yaml
+```
+
+## Step 3/3. Create a new Teleport role
+
+Create a Teleport role resource that will use external username data from the
+Azure AD connector to determine which Linux logins to allow on a host.
+
+Create a file called `dev.yaml` with the following content:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: dev
+spec:
+  options:
+    max_session_ttl: 24h
+  allow:
+    # only allow login as either ubuntu or the 'windowsaccountname' claim
+    logins: [ '{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}', ubuntu ]
+    node_labels:
+      access: relaxed
+```
+
+Users with the `dev` role are only allowed to log in to nodes with the `access:
+relaxed` Teleport label. They can log in as either `ubuntu` or a username that
+is passed in from the Azure AD connector using the `windowsaccountname`
+attribute.
+
+The login
+<nobr>`{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}`</nobr>
+configures Teleport to look at the
+`http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname`
+attribute and use that field as an allowed login for each user. Since the name
+of the attribute contains characters besides letters, numbers, and underscores,
+you must use double quotes (`"`) and square brackets (`[]`) around the name of
+the attribute.
+
+Create the role:
+
+```code
+$ tctl create dev.yaml
+```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
+
+(!docs/pages/includes/enterprise/samlauthentication.mdx!)
+
+## Token encryption (Optional)
+
+Azure AD's SAML token encryption encrypts the SAML assertions sent to Teleport
+during SSO redirect.
+
+Token encryption is an Azure Active Directory premium feature and requires a
+separate license. Since traffic between Azure AD and the Teleport Proxy Service
+already uses HTTPS, token encryption is optional. To determine whether you
+should enable token encryption, read the Azure AD
+[documentation](https://docs.microsoft.com/en-us/azure/active-directory/manage-apps/howto-saml-token-encryption).
+
+### Set up Teleport token encryption
+
+Start with generating a public/private key and a certificate. You will set up
+the public certificate with Azure AD and the private key with Teleport.
+
+```code
+$ openssl req -nodes -new -x509 -keyout server.key -out server.cer
+```
+
+If you are modifying the existing connector, open it in your editor:
+
+```code
+$ tctl edit saml
+```
+
+You will notice that Teleport has generated a `signing_key_pair`. This key pair
+is used to sign responses.
+
+```yaml
+kind: saml
+metadata:
+  name: ad
+spec:
+  acs: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
+  attributes_to_roles:
+  - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
+    roles:
+    - editor
+    - access
+    - auditor
+    value: '*'
+  audience: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
+  cert: ""
+  display: Microsoft
+  entity_descriptor:
+  entity_descriptor_url: https://login.microsoftonline.com/ff882432.../federationmetadata/2007-06/federationmetadata.xml?appid=b8d06e01...
+  issuer: https://sts.windows.net/your-id-here/
+  service_provider_issuer: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
+  signing_key_pair:
+    cert: |
+      -----BEGIN CERTIFICATE-----
+      ...
+      -----END CERTIFICATE-----
+    private_key: |
+      -----BEGIN RSA PRIVATE KEY-----
+      ...
+      -----END RSA PRIVATE KEY-----
+  sso: https://login.microsoftonline.com/your-id-here/saml2
+version: v2
+```
+
+Add `assertion_key_pair` using the data from `server.key` and `server.cer`.
+
+```yaml
+kind: saml
+metadata:
+  name: azure-saml
+spec:
+  acs: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
+  attributes_to_roles:
+  - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
+    roles:
+    - editor
+    - access
+    - auditor
+    value: '*'
+  audience: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
+  cert: ""
+  display: Microsoft
+  entity_descriptor:
+  entity_descriptor_url: https://login.microsoftonline.com/ff882432.../federationmetadata/2007-06/federationmetadata.xml?appid=b8d06e01...
+  issuer: https://sts.windows.net/your-id-here/
+  service_provider_issuer: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
+  signing_key_pair:
+    cert: |
+      -----BEGIN CERTIFICATE-----
+      ...
+      -----END CERTIFICATE-----
+    private_key: |
+      -----BEGIN RSA PRIVATE KEY-----
+      ...
+      -----END RSA PRIVATE KEY-----
+  sso: https://login.microsoftonline.com/your-id-here/saml2
+version: v2
+```
+
+<Admonition
+  type="warning"
+  title="Warning"
+>
+  Make sure to have the same indentation for all lines of the certificate and key, otherwise
+  Teleport will not parse the YAML file.
+</Admonition>
+
+After your edits, the file will look like this:
+
+```yaml
+kind: saml
+metadata:
+  name: azure-saml
+spec:
+  acs: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
+  attributes_to_roles:
+  - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
+    roles:
+    - editor
+    - access
+    - auditor
+    value: '*'
+  audience: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
+  cert: ""
+  display: Microsoft
+  entity_descriptor:
+  entity_descriptor_url: https://login.microsoftonline.com/ff882432.../federationmetadata/2007-06/federationmetadata.xml?appid=b8d06e01...
+  issuer: https://sts.windows.net/your-id-here/
+  service_provider_issuer: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
+  assertion_key_pair:
+    cert: |
+      -----BEGIN CERTIFICATE-----
+      New CERT
+      -----END CERTIFICATE-----
+    private_key: |
+      -----BEGIN RSA PRIVATE KEY-----
+      New private key
+      -----END RSA PRIVATE KEY-----
+  signing_key_pair:
+    cert: |
+      -----BEGIN CERTIFICATE-----
+      ...
+      -----END CERTIFICATE-----
+    private_key: |
+      -----BEGIN RSA PRIVATE KEY-----
+      ...
+      -----END RSA PRIVATE KEY-----
+  sso: https://login.microsoftonline.com/your-id-here/saml2
+version: v2
+```
+
+Update the connector by saving and closing the file in your editor.
+
+### Activate token encryption
+
+- Navigate to **Token Encryption**:
+
+![Navigate to token encryption](../../../../img/azuread/azuread-token-encryption-0.png)
+
+- Import certificate
+
+![Import certificate](../../../../img/azuread/azuread-token-encryption-1-import.png)
+
+- Activate it
+
+![Activate certificate](../../../../img/azuread/azuread-token-encryption-2-activate.png)
+
+If the SSO login with this connector is successful, the encryption works.
+
+## Troubleshooting
+
+(!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
+
+### Failed to process SAML callback
+
+If you encounter a "Failed to process SAML callback" error, take a look at the audit log.
+
+```text
+Special characters are not allowed in resource names. Use a name composed only from
+alphanumeric characters, hyphens, and dots: /web/users/ops_example.com#EXT#@opsexample.onmicrosoft.com/params
+```
+
+The error above is caused by a Name ID format that is not compatible with Teleport's naming conventions.
+
+Change the Name ID format to use email instead:
+
+![Change NameID format to use email](../../../../img/azuread/azuread-nameid.png)
+
+## Further reading
+
+- [Teleport Configuration Resources Reference](../../../reference/resources.mdx)
+- In the Teleport role we illustrated in this guide, `external` traits
+  are replaced with values from the single sign-on provider that the
+  user used to authenticate to Teleport. For full details on how traits
+  work in Teleport roles, see the [Teleport Access Controls
+  Reference](../../../reference/access-controls/roles.mdx).
+

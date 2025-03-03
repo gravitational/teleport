@@ -33,9 +33,9 @@ RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.3 &&
     make clean
 
 # Install libcbor.
-RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
+RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.11.0 && \
     cd libcbor && \
-    [ "$(git rev-parse HEAD)" = 'efa6c0886bae46bdaef9b679f61f4b9d8bc296ae' ] && \
+    [ "$(git rev-parse HEAD)" = '170bee2b82cdb7b2ed25af301f62cb6efdd40ec1' ] && \
     cmake \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
@@ -46,9 +46,9 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
 
 # Install openssl.
 # install_sw install only binaries, skips docs.
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.13 && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.16 && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = '85cf92f55d9e2ac5aacf92bedd33fb890b9f8b4c' ] && \
+    [ "$(git rev-parse HEAD)" = 'fa1e5dfb142bb1c26c3c38a10aafa7a095df52e5' ] && \
     ./config --release -fPIC --libdir=/usr/local/lib && \
     make -j"$(nproc)" && \
     make install_sw
@@ -56,9 +56,9 @@ RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.13
 # Install libfido2.
 # Depends on libcbor, libcrypto (OpenSSL 3.x), libudev and zlib1g-dev.
 # Keep the version below synced with devbox.json
-RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.14.0 && \
+RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.15.0 && \
     cd libfido2 && \
-    [ "$(git rev-parse HEAD)" = '1a9d335c8f0e821f9eff27482fdda96e59a4f577' ] && \
+    [ "$(git rev-parse HEAD)" = 'f87c19c9487c0131531314d9ccb475ea5325794e' ] && \
     CFLAGS=-pthread cmake \
         -DBUILD_EXAMPLES=OFF \
         -DBUILD_MANPAGES=OFF \
@@ -226,7 +226,7 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
     rustc --version && \
     rustup component add rustfmt clippy && \
     rustup target add wasm32-unknown-unknown && \
-    if [ "$BUILDARCH" = "amd64" ]; then rustup target add aarch64-unknown-linux-gnu; fi
+    if [ "$BUILDARCH" = "amd64" ]; then rustup target add aarch64-unknown-linux-gnu i686-unknown-linux-gnu; fi
 
 ARG WASM_PACK_VERSION
 # Install wasm-pack for targeting WebAssembly from Rust.
@@ -245,7 +245,7 @@ RUN export NODE_ARCH=$(if [ "$BUILDARCH" = "amd64" ]; then echo "x64"; else echo
     mkdir -p ${NODE_PATH} && \
     curl -o /tmp/nodejs.tar.xz -fsSL ${NODE_URL} && \
     tar -xJf /tmp/nodejs.tar.xz -C /usr/local/lib/nodejs-linux --strip-components=1
-RUN corepack enable yarn
+RUN npm install -g corepack@0.31.0 && corepack enable yarn pnpm
 
 # Install Go.
 ARG GOLANG_VERSION
@@ -302,7 +302,7 @@ ARG NODE_PROTOC_TS_VERSION  # eg, "5.0.1"
 RUN npm install --global "grpc-tools@$NODE_GRPC_TOOLS_VERSION" "grpc_tools_node_protoc_ts@$NODE_PROTOC_TS_VERSION"
 
 # Install protoc.
-ARG PROTOC_VERSION # eg, "3.20.2"
+ARG PROTOC_VERSION # eg, "26.1"
 RUN VERSION="$PROTOC_VERSION" && \
   PB_REL='https://github.com/protocolbuffers/protobuf/releases' && \
   PB_FILE="$(mktemp protoc-XXXXXX.zip)" && \
@@ -318,7 +318,7 @@ RUN go install "github.com/gogo/protobuf/protoc-gen-gogofast@$GOGO_PROTO_TAG"
 RUN go install github.com/google/addlicense@v1.0.0
 
 # Install GCI.
-RUN go install github.com/daixiang0/gci@v0.12.3
+RUN go install github.com/daixiang0/gci@v0.13.5
 
 # Install gotestsum.
 RUN go install gotest.tools/gotestsum@v1.10.1
@@ -349,14 +349,14 @@ COPY --from=libfido2 \
     /usr/local/lib/libcrypto.a \
     /usr/local/lib/libcrypto.so.3 \
     /usr/local/lib/libfido2.a \
-    /usr/local/lib/libfido2.so.1.14.0 \
+    /usr/local/lib/libfido2.so.1.15.0 \
     /usr/local/lib/libssl.a \
     /usr/local/lib/libssl.so.3 \
     /usr/local/lib/libudev.a \
     /usr/local/lib/
 RUN cd /usr/local/lib && \
     ln -s libcrypto.so.3 libcrypto.so && \
-    ln -s libfido2.so.1.14.0 libfido2.so.1 && \
+    ln -s libfido2.so.1.15.0 libfido2.so.1 && \
     ln -s libfido2.so.1 libfido2.so && \
     ln -s libssl.so.3 libssl.so && \
     ldconfig

@@ -9,6 +9,9 @@ metadata:
   labels:
     {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
     app: {{ .Release.Name }}
+    {{- if $auth.extraLabels.deployment }}
+    {{- toYaml $auth.extraLabels.deployment | nindent 4 }}
+    {{- end }}
 {{- if $auth.annotations.deployment }}
   annotations: {{- toYaml $auth.annotations.deployment | nindent 4 }}
 {{- end }}
@@ -43,6 +46,9 @@ spec:
       labels:
         {{- include "teleport-cluster.auth.labels" . | nindent 8 }}
         app: {{ .Release.Name }}
+        {{- if $auth.extraLabels.pod }}
+        {{- toYaml $auth.extraLabels.pod | nindent 8 }}
+        {{- end }}
 {{- if eq $auth.chartMode "azure"}}
         azure.workload.identity/use: "true"
 {{- end }}
@@ -171,15 +177,16 @@ spec:
           initialDelaySeconds: 5 # wait 5s for agent to start
           periodSeconds: 5 # poll health every 5s
           failureThreshold: 6 # consider agent unhealthy after 30s (6 * 5s)
-          timeoutSeconds: {{ .Values.probeTimeoutSeconds }}
+          timeoutSeconds: {{ $auth.probeTimeoutSeconds }}
         readinessProbe:
           httpGet:
             path: /readyz
             port: diag
-          initialDelaySeconds: 5 # wait 5s for agent to register
-          periodSeconds: 5 # poll health every 5s
-          failureThreshold: 12 # consider agent unhealthy after 60s (12 * 5s)
-          timeoutSeconds: {{ .Values.probeTimeoutSeconds }}
+          initialDelaySeconds: {{ $auth.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ $auth.readinessProbe.periodSeconds }}
+          failureThreshold: {{$auth.readinessProbe.failureThreshold}}
+          successThreshold: {{$auth.readinessProbe.successThreshold}}
+          timeoutSeconds: {{ $auth.probeTimeoutSeconds }}
         lifecycle:
           # waiting during preStop ensures no new request will hit the Terminating pod
           # on clusters using kube-proxy (kube-proxy syncs the node iptables rules every 30s)
@@ -260,7 +267,7 @@ spec:
 {{- if $auth.enterprise }}
       - name: license
         secret:
-          secretName: "license"
+          secretName: {{ $auth.licenseSecretName | quote }}
 {{- end }}
 {{- if and ($auth.gcp.credentialSecretName) (eq $auth.chartMode "gcp") }}
       - name: gcp-credentials
@@ -287,6 +294,9 @@ spec:
 {{- end }}
 {{- if $auth.priorityClassName }}
       priorityClassName: {{ $auth.priorityClassName }}
+{{- end }}
+{{- if $auth.podSecurityContext }}
+      securityContext: {{- toYaml $auth.podSecurityContext | nindent 8 }}
 {{- end }}
       serviceAccountName: {{ include "teleport-cluster.auth.serviceAccountName" . }}
       terminationGracePeriodSeconds: {{ $auth.terminationGracePeriodSeconds }}

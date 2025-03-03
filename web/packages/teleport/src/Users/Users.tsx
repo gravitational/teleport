@@ -17,7 +17,9 @@
  */
 
 import React from 'react';
-import { Indicator, Box, ButtonPrimary, Alert } from 'design';
+
+import { Alert, Box, Button, Flex, Indicator, Link, Text } from 'design';
+import { HoverTooltip } from 'design/Tooltip';
 
 import {
   FeatureBox,
@@ -25,9 +27,9 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 
-import UserList from './UserList';
 import UserAddEdit from './UserAddEdit';
 import UserDelete from './UserDelete';
+import UserList from './UserList';
 import UserReset from './UserReset';
 import useUsers, { State, UsersContainerProps } from './useUsers';
 
@@ -46,6 +48,9 @@ export function Users(props: State) {
     onStartDelete,
     onStartEdit,
     onStartReset,
+    usersAcl,
+    showMauInfo,
+    onDismissUsersMauNotice,
     onClose,
     onCreate,
     onUpdate,
@@ -58,25 +63,83 @@ export function Users(props: State) {
     EmailPasswordReset,
     onEmailPasswordResetClose,
   } = props;
+
+  const requiredPermissions = Object.entries(usersAcl)
+    .map(([key, value]) => {
+      if (key === 'edit') {
+        return { value, label: 'update' };
+      }
+      if (key === 'create') {
+        return { value, label: 'create' };
+      }
+    })
+    .filter(Boolean);
+
+  const isMissingPermissions = requiredPermissions.some(v => !v.value);
+
   return (
     <FeatureBox>
-      <FeatureHeader>
+      <FeatureHeader justifyContent="space-between">
         <FeatureHeaderTitle>Users</FeatureHeaderTitle>
         {attempt.isSuccess && (
           <>
             {!InviteCollaborators && (
-              <ButtonPrimary ml="auto" width="240px" onClick={onStartCreate}>
-                Create New User
-              </ButtonPrimary>
+              <HoverTooltip
+                position="bottom"
+                tipContent={
+                  !isMissingPermissions ? (
+                    ''
+                  ) : (
+                    <Box>
+                      {/* TODO (avatus): extract this into a new "missing permissions" component. This will
+                          require us to change the internals of HoverTooltip to allow more arbitrary styling of the popover.
+                      */}
+                      <Text mb={1}>
+                        You do not have all of the required permissions.
+                      </Text>
+                      <Box mb={1}>
+                        <Text bold>You are missing permissions:</Text>
+                        <Flex gap={2}>
+                          {requiredPermissions
+                            .filter(perm => !perm.value)
+                            .map(perm => (
+                              <Text
+                                key={perm.label}
+                              >{`users.${perm.label}`}</Text>
+                            ))}
+                        </Flex>
+                      </Box>
+                    </Box>
+                  )
+                }
+              >
+                <Button
+                  intent="primary"
+                  data-testid="create_new_users_button"
+                  fill="border"
+                  disabled={!usersAcl.edit}
+                  ml="auto"
+                  width="240px"
+                  onClick={onStartCreate}
+                >
+                  Create New User
+                </Button>
+              </HoverTooltip>
             )}
             {InviteCollaborators && (
-              <ButtonPrimary
+              <Button
+                intent="primary"
+                fill="border"
                 ml="auto"
                 width="240px"
-                onClick={onStartInviteCollaborators}
+                // TODO(bl-nero): There may be a bug here that used to be hidden
+                // by inadequate type checking; investigate and fix.
+                onClick={
+                  onStartInviteCollaborators as any as React.MouseEventHandler<HTMLButtonElement>
+                }
               >
                 Enroll Users
-              </ButtonPrimary>
+              </Button>
             )}
           </>
         )}
@@ -86,9 +149,44 @@ export function Users(props: State) {
           <Indicator />
         </Box>
       )}
+      {showMauInfo && (
+        <Alert
+          data-testid="users-not-mau-alert"
+          dismissible
+          onDismiss={onDismissUsersMauNotice}
+          kind="info"
+          css={`
+            a.external-link {
+              color: ${({ theme }) => theme.colors.buttons.link.default};
+            }
+          `}
+        >
+          The users displayed here are not an accurate reflection of Monthly
+          Active Users (MAU). For example, users who log in through Single
+          Sign-On (SSO) providers such as Okta may only appear here temporarily
+          and disappear once their sessions expire. For more information, read
+          our documentation on{' '}
+          <Link
+            target="_blank"
+            href="https://goteleport.com/docs/usage-billing/#monthly-active-users"
+            className="external-link"
+          >
+            MAU
+          </Link>{' '}
+          and{' '}
+          <Link
+            href="https://goteleport.com/docs/reference/user-types/"
+            className="external-link"
+          >
+            User Types
+          </Link>
+          .
+        </Alert>
+      )}
       {attempt.isFailed && <Alert kind="danger" children={attempt.message} />}
       {attempt.isSuccess && (
         <UserList
+          usersAcl={usersAcl}
           users={users}
           onEdit={onStartEdit}
           onDelete={onStartDelete}

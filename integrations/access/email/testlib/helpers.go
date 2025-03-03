@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/email"
 )
 
-func (s *EmailSuite) checkPluginData(ctx context.Context, reqID string, cond func(email.PluginData) bool) email.PluginData {
+func (s *EmailBaseSuite) checkPluginData(ctx context.Context, reqID string, cond func(email.PluginData) bool) email.PluginData {
 	t := s.T()
 	t.Helper()
 
@@ -40,7 +40,7 @@ func (s *EmailSuite) checkPluginData(ctx context.Context, reqID string, cond fun
 }
 
 // skipEmails ensures that emails were received, but dumps the contents
-func (s *EmailSuite) skipMessages(ctx context.Context, t *testing.T, n int) {
+func (s *EmailBaseSuite) skipMessages(ctx context.Context, t *testing.T, n int) {
 	for i := 0; i < n; i++ {
 		_, err := s.mockMailgun.GetMessage(ctx)
 		require.NoError(t, err)
@@ -48,7 +48,7 @@ func (s *EmailSuite) skipMessages(ctx context.Context, t *testing.T, n int) {
 }
 
 // getMessages returns next n email messages
-func (s *EmailSuite) getMessages(ctx context.Context, t *testing.T, n int) []mockMailgunMessage {
+func (s *EmailBaseSuite) getMessages(ctx context.Context, t *testing.T, n int) []mockMailgunMessage {
 	messages := make([]mockMailgunMessage, n)
 	for i := 0; i < n; i++ {
 		m, err := s.mockMailgun.GetMessage(ctx)
@@ -60,7 +60,7 @@ func (s *EmailSuite) getMessages(ctx context.Context, t *testing.T, n int) []moc
 }
 
 // extractRequestID extracts request id from a subject
-func (s *EmailSuite) extractRequestID(subject string) string {
+func (s *EmailBaseSuite) extractRequestID(subject string) string {
 	idx := strings.Index(subject, subjectIDSubstring)
 	return subject[idx+len(subjectIDSubstring):]
 }

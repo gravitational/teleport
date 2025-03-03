@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import Logger, { NullService } from 'teleterm/logger';
 import AppContext from 'teleterm/ui/appContext';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { Dialog } from 'teleterm/ui/services/modals';
 
 import { showStartupModalsAndNotifications } from './showStartupModalsAndNotifications';

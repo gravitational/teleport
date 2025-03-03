@@ -9,7 +9,7 @@ state: implemented
 ## Required approvers
 
 - Engineering: `@r0mant`
-- Product: `@klizentas && @xinding33`
+- Product: `@klizhentas && @xinding33`
 - Security: `@reedloden`
 
 ## What
@@ -40,7 +40,7 @@ When the user uses "tsh status" expired license warnings will be displayed along
 
 TCTL - on any "tctl" command when expired.
 When the user uses any "tctl" command the appropriate license warning will be displayed if expired.
-Similar to 'tsh status' this will be all alerts that have 'high severity' which the the expired license alerts will be included in.
+Similar to 'tsh status' this will be all alerts that have 'high severity' which the expired license alerts will be included in.
 
 ### Example outputs
 

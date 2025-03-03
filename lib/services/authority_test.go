@@ -142,11 +142,6 @@ func TestCertAuthorityEquivalence(t *testing.T) {
 	ca1mod := ca1.Clone()
 	ca1mod.AddRole("some-new-role")
 	require.False(t, CertAuthoritiesEquivalent(ca1, ca1mod))
-
-	// CAs that differ *only* by resource ID are equivalent
-	ca1modID := ca1.Clone()
-	ca1modID.SetResourceID(ca1.GetResourceID() + 1)
-	require.True(t, CertAuthoritiesEquivalent(ca1, ca1modID))
 }
 
 func TestCertAuthorityUTCUnmarshal(t *testing.T) {
@@ -402,13 +397,13 @@ func BenchmarkCertAuthoritiesEquivalent(b *testing.B) {
 	require.NoError(b, err)
 
 	b.Run("true", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			require.True(b, CertAuthoritiesEquivalent(ca1, ca2))
 		}
 	})
 
 	b.Run("false", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			require.False(b, CertAuthoritiesEquivalent(ca1, ca3))
 		}
 	})

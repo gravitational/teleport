@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 
+import { H1, Text } from 'design';
 import Flex from 'design/Flex';
-import Text from 'design/Text';
 
 import { Navigation } from 'teleport/components/Wizard/Navigation';
 
@@ -41,12 +41,12 @@ export type FlowProps = {
 };
 
 export function GuidedFlow({ name, title, views, icon }: FlowProps) {
-  if (views.length < 1) {
-    return null;
-  }
-
   const steps = views.length;
   let [currentStep, setCurrentStep] = useState(0);
+
+  if (steps < 1) {
+    return null;
+  }
 
   function handleNextStep() {
     if (currentStep < steps - 1) {
@@ -75,9 +75,9 @@ export function GuidedFlow({ name, title, views, icon }: FlowProps) {
           views={views.map(v => ({ title: v.name }))}
         />
       </Flex>
-      <Text as="h2" fontSize="24px" mt="4" mb="3">
+      <H1 mt="4" mb="3">
         {title}
-      </Text>
+      </H1>
       <Component nextStep={handleNextStep} prevStep={handlePrevStep} />
     </>
   );

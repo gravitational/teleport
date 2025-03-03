@@ -1,0 +1,23 @@
+{{- if .Values.rbac.create -}}
+# Bind the role to the service account created for tbot.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "tbot.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+{{- if .Values.extraLabels.roleBinding }}
+  labels:
+  {{- toYaml .Values.extraLabels.roleBinding | nindent 4 }}
+{{- end }}
+{{- if .Values.annotations.roleBinding }}
+  annotations: {{- toYaml .Values.annotations.roleBinding | nindent 4 }}
+{{- end}}
+subjects:
+- kind: ServiceAccount
+  name: {{ template "tbot.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name:  {{ include "tbot.fullname" . }}
+  apiGroup: rbac.authorization.k8s.io
+{{ end }}

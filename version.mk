@@ -28,7 +28,7 @@ setver: validate-semver helm-version tsh-version
 # The weird -i usage is to make the sed commands work the same on both Linux and Mac. Test on both platforms if you change it.
 .PHONY:helm-version
 helm-version:
-	for CHART in teleport-cluster teleport-kube-agent teleport-cluster/charts/teleport-operator; do \
+	for CHART in teleport-cluster tbot teleport-kube-agent teleport-cluster/charts/teleport-operator event-handler access/discord access/email access/jira access/mattermost access/msteams access/pagerduty access/slack access/datadog; do \
 		sed -i'.bak' -e "s_^\\.version:\ .*_.version: \\&version \"$${VERSION}\"_g" examples/chart/$${CHART}/Chart.yaml || exit 1; \
 		rm -f examples/chart/$${CHART}/Chart.yaml.bak; \
 	done
@@ -39,8 +39,9 @@ PLIST_FILES := $(abspath $(TSH_APP_PLISTS))
 # tsh-version sets CFBundleVersion and CFBundleShortVersionString in the tsh{,dev} Info.plist
 .PHONY:tsh-version
 tsh-version:
-	cd build.assets/tooling && go run ./cmd/update-plist-version $(VERSION) $(PLIST_FILES)
+	GOWORK=off CGO_ENABLED=0 go -C build.assets/tooling run ./cmd/update-plist-version $(VERSION) $(PLIST_FILES)
 
 .PHONY:validate-semver
 validate-semver:
-	cd build.assets/tooling && CGO_ENABLED=0 go run ./cmd/check -check valid -tag v$(VERSION)
+# Turning off GOWORK to prevent missing package errors.
+	GOWORK=off CGO_ENABLED=0 go -C build.assets/tooling run ./cmd/check -check valid -tag v$(VERSION)

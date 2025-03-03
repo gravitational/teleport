@@ -24,7 +24,8 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"math/rand"
+	"log/slog"
+	"math/rand/v2"
 	"net"
 	"net/url"
 	"os"
@@ -37,9 +38,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport"
@@ -125,13 +124,17 @@ func NewTracer(description string) *Tracer {
 
 // Start logs start of the trace
 func (t *Tracer) Start() *Tracer {
-	log.Debugf("Tracer started %v.", t.Description)
+	slog.DebugContext(context.Background(), "Tracer started",
+		"trace", t.Description)
 	return t
 }
 
 // Stop logs stop of the trace
 func (t *Tracer) Stop() *Tracer {
-	log.Debugf("Tracer completed %v in %v.", t.Description, time.Since(t.Started))
+	slog.DebugContext(context.Background(), "Tracer completed",
+		"trace", t.Description,
+		"duration", time.Since(t.Started),
+	)
 	return t
 }
 
@@ -414,10 +417,11 @@ func IsCertExpiredError(err error) bool {
 	return strings.Contains(trace.Unwrap(err).Error(), "ssh: cert has expired")
 }
 
-// OpaqueAccessDenied returns a generic NotFound instead of AccessDenied
-// so as to avoid leaking the existence of secret resources.
+// OpaqueAccessDenied returns a generic [trace.NotFoundError] if [err] is a [trace.NotFoundError] or
+// a [trace.AccessDeniedError] so as to avoid leaking the existence of secret resources,
+// for other error types it returns the original error.
 func OpaqueAccessDenied(err error) error {
-	if trace.IsAccessDenied(err) {
+	if trace.IsNotFound(err) || trace.IsAccessDenied(err) {
 		return trace.NotFound("not found")
 	}
 	return trace.Wrap(err)
@@ -465,75 +469,6 @@ func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
 		list = append(list, strconv.Itoa(i))
 	}
 	return PortList{ports: list}, nil
-}
-
-// GetHostUUIDPath returns the path to the host UUID file given the data directory.
-func GetHostUUIDPath(dataDir string) string {
-	return filepath.Join(dataDir, HostUUIDFile)
-}
-
-// HostUUIDExistsLocally checks if dataDir/host_uuid file exists in local storage.
-func HostUUIDExistsLocally(dataDir string) bool {
-	_, err := ReadHostUUID(dataDir)
-	return err == nil
-}
-
-// ReadHostUUID reads host UUID from the file in the data dir
-func ReadHostUUID(dataDir string) (string, error) {
-	out, err := ReadPath(GetHostUUIDPath(dataDir))
-	if err != nil {
-		if errors.Is(err, fs.ErrPermission) {
-			//do not convert to system error as this loses the ability to compare that it is a permission error
-			return "", err
-		}
-		return "", trace.ConvertSystemError(err)
-	}
-	id := strings.TrimSpace(string(out))
-	if id == "" {
-		return "", trace.NotFound("host uuid is empty")
-	}
-	return id, nil
-}
-
-// WriteHostUUID writes host UUID into a file
-func WriteHostUUID(dataDir string, id string) error {
-	err := os.WriteFile(GetHostUUIDPath(dataDir), []byte(id), os.ModeExclusive|0400)
-	if err != nil {
-		if errors.Is(err, fs.ErrPermission) {
-			//do not convert to system error as this loses the ability to compare that it is a permission error
-			return err
-		}
-		return trace.ConvertSystemError(err)
-	}
-	return nil
-}
-
-// ReadOrMakeHostUUID looks for a hostid file in the data dir. If present,
-// returns the UUID from it, otherwise generates one
-func ReadOrMakeHostUUID(dataDir string) (string, error) {
-	id, err := ReadHostUUID(dataDir)
-	if err == nil {
-		return id, nil
-	}
-	if !trace.IsNotFound(err) {
-		return "", trace.Wrap(err)
-	}
-	// Checking error instead of the usual uuid.New() in case uuid generation
-	// fails due to not enough randomness. It's been known to happen happen when
-	// Teleport starts very early in the node initialization cycle and /dev/urandom
-	// isn't ready yet.
-	rawID, err := uuid.NewRandom()
-	if err != nil {
-		return "", trace.BadParameter("" +
-			"Teleport failed to generate host UUID. " +
-			"This may happen if randomness source is not fully initialized when the node is starting up. " +
-			"Please try restarting Teleport again.")
-	}
-	id = rawID.String()
-	if err = WriteHostUUID(dataDir, id); err != nil {
-		return "", trace.Wrap(err)
-	}
-	return id, nil
 }
 
 // StringSliceSubset returns true if b is a subset of a.
@@ -598,7 +533,7 @@ func ChooseRandomString(slice []string) string {
 	case 1:
 		return slice[0]
 	default:
-		return slice[rand.Intn(len(slice))]
+		return slice[rand.N(len(slice))]
 	}
 }
 
@@ -639,18 +574,34 @@ func StoreErrorOf(f func() error, err *error) {
 	*err = trace.NewAggregate(*err, f())
 }
 
+// LimitReader returns a reader that limits bytes from r, and reports an error
+// when limit bytes are read.
+func LimitReader(r io.Reader, limit int64) io.Reader {
+	return &limitedReader{
+		LimitedReader: &io.LimitedReader{R: r, N: limit},
+	}
+}
+
+// limitedReader wraps an [io.LimitedReader] that limits bytes read, and
+// reports an error when the read limit is reached.
+type limitedReader struct {
+	*io.LimitedReader
+}
+
+func (l *limitedReader) Read(p []byte) (int, error) {
+	n, err := l.LimitedReader.Read(p)
+	if l.LimitedReader.N <= 0 {
+		return n, ErrLimitReached
+	}
+	return n, err
+}
+
 // ReadAtMost reads up to limit bytes from r, and reports an error
 // when limit bytes are read.
 func ReadAtMost(r io.Reader, limit int64) ([]byte, error) {
-	limitedReader := &io.LimitedReader{R: r, N: limit}
+	limitedReader := LimitReader(r, limit)
 	data, err := io.ReadAll(limitedReader)
-	if err != nil {
-		return data, err
-	}
-	if limitedReader.N <= 0 {
-		return data, ErrLimitReached
-	}
-	return data, nil
+	return data, err
 }
 
 // HasPrefixAny determines if any of the string values have the given prefix.
@@ -680,6 +631,9 @@ func ByteCount(b int64) string {
 }
 
 // ErrLimitReached means that the read limit is reached.
+//
+// TODO(gavin): this should be converted to a 413 StatusRequestEntityTooLarge
+// in trace.ErrorToCode instead of 429 StatusTooManyRequests.
 var ErrLimitReached = &trace.LimitExceededError{Message: "the read limit is reached"}
 
 const (
@@ -692,8 +646,6 @@ const (
 	// CertExtensionAuthority specifies teleport authority's name
 	// that signed this domain
 	CertExtensionAuthority = "x-teleport-authority"
-	// HostUUIDFile is the file name where the host UUID file is stored
-	HostUUIDFile = "host_uuid"
 	// CertTeleportClusterName is a name of the teleport cluster
 	CertTeleportClusterName = "x-teleport-cluster-name"
 	// CertTeleportUserCertificate is the certificate of the authenticated in user.

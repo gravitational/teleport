@@ -22,26 +22,37 @@ export const KeysEnum = {
   LAST_ACTIVE: 'grv_teleport_last_active',
   DISCOVER: 'grv_teleport_discover',
   THEME: 'grv_teleport_ui_theme',
-  SHOW_ASSIST_POPUP: 'grv_teleport_show_assist',
-  ASSIST_VIEW_MODE: 'grv_teleport_assist_view_mode',
   USER_PREFERENCES: 'grv_teleport_user_preferences',
   ONBOARD_SURVEY: 'grv_teleport_onboard_survey',
   RECOMMEND_FEATURE: 'grv_recommend_feature',
-  PINNED_RESOURCES_NOT_SUPPORTED: 'grv_teleport_pinned_resources_not_supported',
   CLOUD_USER_INVITES: 'grv_teleport_cloud_user_invites',
   ACCESS_GRAPH_SEARCH_MODE: 'grv_teleport_access_graph_search_mode',
   ACCESS_GRAPH_QUERY: 'grv_teleport_access_graph_query',
   ACCESS_GRAPH_ENABLED: 'grv_teleport_access_graph_enabled',
   ACCESS_GRAPH_SQL_ENABLED: 'grv_teleport_access_graph_sql_enabled',
+  ACCESS_GRAPH_ROLE_TESTER_ENABLED:
+    'grv_teleport_access_graph_role_tester_enabled',
+  ACCESS_LIST_PREFERENCES: 'grv_teleport_access_list_preferences',
   EXTERNAL_AUDIT_STORAGE_CTA_DISABLED:
     'grv_teleport_external_audit_storage_disabled',
+  LICENSE_ACKNOWLEDGED: 'grv_teleport_license_acknowledged',
+  USERS_NOT_EQUAL_TO_MAU_ACKNOWLEDGED:
+    'grv_users_not_equal_to_mau_acknowledged',
+  LOCAL_NOTIFICATION_STATES: 'grv_teleport_notification_states',
+  RECENT_HISTORY: 'grv_teleport_sidenav_recent_history',
+  LOGIN_TIME: 'grv_teleport_login_time',
+
+  // TODO(bl-nero): Remove once the new role editor is in acceptable state.
+  USE_NEW_ROLE_EDITOR: 'grv_teleport_use_new_role_editor',
+  //TODO(rudream): Remove once sidenav implementation is complete.
+  USE_TOP_BAR: 'grv_teleport_use_topbar',
 };
 
 // SurveyRequest is the request for sending data to the back end
 export type SurveyRequest = {
   companyName: string;
   employeeCount: string;
-  resourcesList: Array<string>;
+  resources: Array<string>;
   role: string;
   team: string;
 };

@@ -1,221 +1,115 @@
 ---
-title: Get Started with Teleport
-description: This tutorial will guide you through the steps needed to install and run Teleport on a Linux server
-videoBanner: BJWbSqiDLeU
+h1: Introduction to Teleport
+title: "Introduction to the Teleport Infrastructure Identity Platform: Zero Trust Security for Your Infrastructure"
+description: Read an overview of the Teleport Access Platform. Learn how to implement Zero Trust Security across all your infrastructure for enhanced protection and streamlined access control.
 tocDepth: 3
 ---
 
-Teleport provides connectivity, authentication, access controls 
-and audit for infrastructure.
+Teleport is the easiest, most secure way to access and protect all your infrastructure.
 
-It includes an identity-aware access proxy, a CA that issues short-lived certificates, 
-a unified access control system and a tunneling system to access resources 
-behind the firewall.
+The Teleport Infrastructure Identity Platform modernizes identity, access, and policy for infrastructure, for both human and non-human identities, 
+improving engineering velocity and resiliency of critical infrastructure against human factors and/or compromise. 
+Teleport is purpose-built for infrastructure use cases and implements trusted computing at scale, with unified 
+cryptographic identities for humans, machines and workloads, endpoints, infrastructure assets, and AI agents. 
 
-Teleport understands the SSH, HTTPS, RDP, Kubernetes API, MySQL, MongoDB and PostgreSQL wire
-protocols, plus many others. It can integrate with Single Sign-On providers and
-enables you to apply access policies using infrastructure-as-code and GitOps
-tools.
+Our identity-everywhere approach vertically integrates access management, zero trust networking, identity governance, 
+and identity security into a single platform, eliminating overhead and operational silos. 
+Teleport improves the velocity of engineering teams, improving engineering productivity, scaling infrastructure operations, 
+and protecting time to market. 
 
-See how Teleport works by completing the tutorial below. This shows you how to
-spin up a single-instance Teleport cluster on a Linux server using Teleport
-Community Edition. Once you deploy the cluster, you can configure RBAC, register
-resources, and protect your small-scale demo environments or home lab.
+## Use cases and benefits
 
-You can also get started right away with a production-ready Teleport cluster by
-signing up for a [free trial of Teleport Enterprise
-Cloud](https://goteleport.com/signup/).
+![Use cases](../img/cloud/getting-started/intro-velocity-resiliency.png)
 
-## Set up a demo cluster
+## Products
 
-<Figure width="700">
-![Architecture of the setup you will complete in this
-guide](../img/linux-server-diagram.png)
-</Figure>
+![Products](../img/cloud/getting-started/identity-platform.png)
 
-We will run the following Teleport services:
+The **Teleport** Infrastructure Identity **Platform** consists of four products:
 
-- **Teleport Auth Service:** The certificate authority for your cluster. It
-  issues certificates and conducts authentication challenges. The Auth Service
-  is typically inaccessible outside your private network.
-- **Teleport Proxy Service:** The cluster frontend, which handles user requests,
-  forwards user credentials to the Auth Service, and communicates with Teleport
-  instances that enable access to specific resources in your infrastructure.
-- **Teleport SSH Service:** An SSH server implementation that takes advantage of
-  Teleport's short-lived certificates, sophisticated RBAC, session recording,
-  and other features.
+- **Teleport Zero Trust Access** provides engineers with just-in-time, least-privileged access 
+to applications, servers, databases, Kubernetes clusters, and other resources across distributed infrastructures, improving engineering time to market and strengthening infrastructure resiliency.
+- **Teleport Machine & Workload Identity**  provides identity management and access control of 
+non-human identities, improving infrastructure resiliency by securing system and data access between machines and workloads.   
+- **Teleport Identity Governance** hardens and monitors identities for both human and non-human identities, improving resiliency of infrastructure from compromise due to human factor or identity attacks.
+- **Teleport Identity Security** secures identities and access policies across all of your infrastructure. Eliminates shadow access and blind spots.
 
-### Prerequisites
+### Teleport Zero Trust Access
 
-You will need the following to deploy a demo Teleport cluster. If your
-environment doesn't meet the prerequisites, you can get started with Teleport by
-signing up for a [free trial of Teleport Enterprise
-Cloud](https://goteleport.com/signup/).
+Teleport Zero Trust Access provides engineers with just-in-time, least-privileged access to applications, servers, databases, Kubernetes clusters, and other resources across distributed 
+infrastructures, improving engineering time to market and strengthening  infrastructure resiliency.
 
-If you want to get a feel for Teleport commands and capabilities without setting
-up any infrastructure, take a look at the browser-based [Teleport
-Labs](https://goteleport.com/labs).
+Built on a foundation of cryptographic identity and purpose-built for infrastructure, Teleport Zero Trust Access transforms security models 
+by eliminating static credentials, enforcing granular access policies, leveraging short-lived certificates for ephemeral authorization, and 
+enforcing zero trust principles.
 
-- A Linux host with only port `443` open to ingress traffic. You must be able
-  to install and run software on the host. Either configure access to the host
-  via SSH for the initial setup (and open an SSH port in addition port `443`)
-  or enter the commands in this guide into an Amazon EC2 [user data
-  script](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html),
-  Google Compute Engine [startup
-  script](https://cloud.google.com/compute/docs/instances/startup-scripts),
-  or similar.
+Get started with Teleport Zero Trust Access:
 
-  For a quick demo environment you can use to follow this guide, consider
-  installing our DigitalOcean 1-Click droplet. View the installation page on
-  [DigitalOcean
-  Marketplace](https://marketplace.digitalocean.com/apps/teleport). Once your
-  droplet is ready, SSH into the droplet and follow the configuration wizard.
+- [Enroll resources](enroll-resources/agents/introduction.mdx) to protect with Teleport using
+  cryptographic identity.
+- [Set up passwordless authentication](admin-guides/access-controls/guides/passwordless.mdx)
+  to enable users to access resources with hardware keys, including biometric
+  credentials like Touch ID and YubiKey Bio.
+- [Integrate your Single Sign-On provider](admin-guides/access-controls/sso/sso.mdx): Allow users
+  to access infrastructure resources with IdPs like Okta.
+- [Use Teleport as an identity provider](admin-guides/access-controls/idps/saml-guide.mdx) to
+  authenticate to external services.
 
-- A multi-factor authenticator app such as [Authy](https://authy.com/download/),
-  [Google Authenticator](https://www.google.com/landing/2step/), or
-  [1Password](https://support.1password.com/one-time-passwords/).
+### Teleport Machine & Workload Identity
 
-You must also have **one** of the following:
-- A registered domain name.
-- An authoritative DNS nameserver managed by your organization, plus an existing
-  certificate authority. If using this approach, ensure that your browser is
-  configured to use your organization's nameserver.
+Teleport Machine & Workload Identity is a solution for non-human identity management and access control, 
+improving infrastructure resiliency by securing system and data access between machines and workloads. 
+As part  of Teleport's Infrastructure Identity Platform, Teleport Machine & Workload Identity is purpose-built 
+for infrastructure and is part of a unified access control strategy for both human and non-human identities.
 
-### Step 1/4. Configure DNS
+Get started with Teleport Machine & Workload Identity:
 
-Teleport uses TLS to provide secure access to its Proxy Service and Auth
-Service, and this requires a domain name that clients can use to verify
-Teleport's certificate. Set up two DNS `A` records, each pointing to the IP
-address of your Linux host. Assuming `teleport.example.com` is your domain name,
-set up records for:
+- [Issue and govern identities for automated systems](enroll-resources/machine-id/introduction.mdx) using Teleport Machine Identity.
+- Replace long-lived API keys and environment secrets that are vulnerable to breaches, mistakes, and exfiltration with short-lived cryptographic identities using x.509 certificates or JWTs via [Teleport Workload Identity](enroll-resources/workload-identity/introduction.mdx).
 
-|Domain|Reason|
-|---|---|
-|`teleport.example.com`|Traffic to the Proxy Service from users and services.|
-|`*.teleport.example.com`|Traffic to web applications registered with Teleport. Teleport issues a subdomain of your cluster's domain name to each application.|
+### Teleport Identity Governance
 
-### Step 2/4. Set up Teleport on your Linux host
+Teleport Identity Governance hardens and monitors identities for both human and non-human identities, improving resiliency of infrastructure from compromise due to human factor or identity attacks.
 
-#### Install Teleport
+Teleport Identity Governance is tightly coupled with Teleport Zero Trust Access and Teleport Machine & Workload Identity, providing companies with a unified governance strategy that improves security posture and is tightly coupled with access control.
 
-On your Linux host, run the following command to install the Teleport binary:
+Get started with Teleport Identity Governance:
 
-```code
-$ curl https://goteleport.com/static/install.sh | bash -s (=teleport.version=)
-```
+- [Access Requests](admin-guides/access-controls/access-requests/access-requests.mdx): Temporarily
+  provision minimal privileges to complete a task.
+- [Access Lists](admin-guides/access-controls/access-lists/access-lists.mdx): Regularly audit and
+  control membership to specific roles and traits, which then tie easily back
+  into Teleport's existing RBAC system.
+- [Device Trust](admin-guides/access-controls/device-trust/device-trust.mdx): Require an up-to-date,
+  registered device for each authentication by giving every device a
+  cryptographic identity. 
+- [Session & Identity Locks](admin-guides/access-controls/guides/locking.mdx): Lock
+  suspicious or compromised identities and stop all their activity across all
+  protocols and services.
+- [Access Monitoring](admin-guides/access-controls/access-monitoring.mdx): Detect overly
+  broad privileges and inspect sessions that are not using strong protection,
+  such as multi-factor authentication and Device Trust.
 
-#### Configure Teleport
+### Teleport Identity Security
 
-Generate a configuration file for Teleport using the `teleport configure` command.
-This command requires information about a TLS certificate and private key.
+**Teleport Identity Security** secures identities and access policies across all of your infrastructure.  It detects standing privileges and eliminates shadow access and blind spots. 
 
-(!docs/pages/includes/tls-certificate-setup.mdx!)
+- Get started with [Teleport Identity Security](admin-guides/teleport-policy/teleport-policy.mdx).
+- Define [Crown Jewels](admin-guides/teleport-policy/crown-jewels.mdx) so you can track changes to your most sensitive users and resources.
+- Enable [Teleport Identity Security integrations](admin-guides/teleport-policy/integrations/integrations.mdx) so you can identify [insecure SSH key distributions](admin-guides/teleport-policy/integrations/ssh-keys-scan.mdx), and import RBAC rules from AWS, Entra ID, and other sources to visualize your entire RBAC configuration on a single screen. 
 
-#### Start Teleport
+## Architecture
 
-(!docs/pages/includes/start-teleport.mdx!)
+The Teleport Infrastructure Identity Platform consists of a certificate authority and
+identity-aware access proxy that run either on the Teleport-managed cloud or, in
+special cases, a self-hosted private network. 
 
-Access Teleport's Web UI via HTTPS at the domain you created earlier (e.g.,
-`https://teleport.example.com`). You should see a welcome screen similar to the
-following:
+Teleport Agents, which can run on Linux servers or Kubernetes, proxy access to
+infrastructure resources and cloud provider APIs. Users authenticate to
+infrastructure resources through Teleport Agents using short-lived certificates.
+Teleport Agents enforce role-based access controls by using certificates that embed user attributes.
 
-![Teleport Welcome Screen](../img/quickstart/welcome.png)
+Learn more:
 
-### Step 3/4. Create a Teleport user and set up multi-factor authentication
-
-In this step, we'll create a new Teleport user, `teleport-admin`, which is
-allowed to log into SSH hosts as any of the principals `root`, `ubuntu`, or
-`ec2-user`.
-
-On your Linux host, run the following command:
-
-```code
-# tctl is an administrative tool that is used to configure Teleport's auth service.
-$ sudo tctl users add teleport-admin --roles=editor,access --logins=root,ubuntu,ec2-user
-```
-
-The command prints a message similar to the following:
-
-```text
-User "teleport-admin" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
-https://teleport.example.com:443/web/invite/123abc456def789ghi123abc456def78
-
-NOTE: Make sure teleport.example.com:443 points at a Teleport proxy which users can access.
-```
-
-Visit the provided URL in order to create your Teleport user.
-
-<Admonition
-  type="tip"
-  title="OS User Mappings"
->
-
-  The users that you specify in the `logins` flag (e.g., `root`, `ubuntu` and
-  `ec2-user` in our examples) must exist on your Linux host. Otherwise, you
-  will get authentication errors later in this tutorial.
-
-  If a user does not already exist, you can create it with `adduser <login>` or
-  use [host user creation](./server-access/guides/host-user-creation.mdx).
-
-  If you do not have the permission to create new users on the Linux host, run
-  `tctl users add teleport $(whoami)` to explicitly allow Teleport to
-  authenticate as the user that you have currently logged in as.
-
-</Admonition>
-
-Teleport enforces the use of multi-factor authentication by default. It supports
-one-time passwords (OTP) and multi-factor authenticators (WebAuthn). In this
-guide, you will need to enroll an OTP authenticator application using the QR
-code on the Teleport welcome screen.
-
-<Details title="Logging in via the CLI">
-
-In addition to Teleport's Web UI, you can access resources in your
-infrastructure via the `tsh` client tool.
-
-Install `tsh` on your local workstation:
-
-(!docs/pages/includes/install-tsh.mdx!)
-
-Log in to receive short-lived certificates from Teleport:
-
-```code
-# Replace teleport.example.com with your Teleport cluster's public address as configured above.
-$ tsh login --proxy=<Var name="teleport.example.com" /> --user=teleport-admin
-> Profile URL:        https://teleport.example.com:443
-  Logged in as:       teleport-admin
-  Cluster:            teleport.example.com
-  Roles:              access, editor
-  Logins:             root, ubuntu, ec2-user
-  Kubernetes:         enabled
-  Valid until:        2022-04-26 03:04:46 -0400 EDT [valid for 12h0m0s]
-  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
-```
-
-</Details>
-
-### Step 4/4. Enroll your infrastructure
-
-With Teleport, you can protect all of the resources in your infrastructure
-behind a single identity-aware access proxy, including servers, databases,
-applications, Kubernetes clusters, Windows desktops, and cloud provider APIs.
-
-To enroll a resource with Teleport, visit the Web UI and click **Enroll New
-Resource**. The Web UI will show you the steps you can take to enroll your new
-resource.
-
-![Adding resources](../img/add-resources.png)
-
-On the home page of the Web UI, you can see that you have already enrolled your
-Linux server. 
-
-### Next step: deploy agents
-
-Teleport **agents** proxy traffic to infrastructure resources like servers,
-databases, Kubernetes clusters, cloud provider APIs, and Windows desktops. 
-
-Step 4 showed you how to install agents manually, and you can also launch agents
-and enroll resources with them using infrastructure-as-code tools. For example,
-you can use Terraform to declare a pool of Teleport agents and configure them to
-proxy your infrastructure. Read [Deploy Teleport Agents with
-Terraform](agents/deploy-agents-terraform.mdx) to get started.
+- [Teleport Core Concepts](./core-concepts.mdx)
+- [Architecture Guides](./reference/architecture/architecture.mdx)

@@ -16,22 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { render, screen, fireEvent, act } from 'design/utils/testing';
+import { act, fireEvent, render, screen } from 'design/utils/testing';
 
+import cfg from 'teleport/config';
+import { ComponentWrapper } from 'teleport/Discover/Fixtures/kubernetes';
+import auth from 'teleport/services/auth';
+import * as discoveryService from 'teleport/services/discovery/discovery';
+import {
+  DEFAULT_DISCOVERY_GROUP_NON_CLOUD,
+  DISCOVERY_GROUP_CLOUD,
+} from 'teleport/services/discovery/discovery';
 import {
   AwsEksCluster,
   integrationService,
 } from 'teleport/services/integrations';
-import { userEventService } from 'teleport/services/userEvent';
 import KubeService from 'teleport/services/kube/kube';
-import * as discoveryService from 'teleport/services/discovery/discovery';
-import { ComponentWrapper } from 'teleport/Discover/Fixtures/kubernetes';
-import cfg from 'teleport/config';
-import {
-  DISCOVERY_GROUP_CLOUD,
-  DEFAULT_DISCOVERY_GROUP_NON_CLOUD,
-} from 'teleport/services/discovery/discovery';
+import { userEventService } from 'teleport/services/userEvent';
+import { ProxyRequiresUpgrade } from 'teleport/services/version/unsupported';
 
 import { EnrollEksCluster } from './EnrollEksCluster';
 
@@ -47,6 +48,9 @@ describe('test EnrollEksCluster.tsx', () => {
     jest
       .spyOn(userEventService, 'captureDiscoverEvent')
       .mockResolvedValue(undefined as never);
+    jest
+      .spyOn(auth, 'getMfaChallengeResponseForAdminAction')
+      .mockResolvedValue(undefined);
     createDiscoveryConfig = jest
       .spyOn(discoveryService, 'createDiscoveryConfig')
       .mockResolvedValue({
@@ -58,7 +62,7 @@ describe('test EnrollEksCluster.tsx', () => {
 
   afterEach(() => {
     cfg.isCloud = defaultIsCloud;
-    jest.restoreAllMocks();
+    jest.resetAllMocks();
   });
 
   test('without EKS clusters available, does not attempt to fetch kube clusters', async () => {
@@ -105,7 +109,7 @@ describe('test EnrollEksCluster.tsx', () => {
     jest.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
       clusters: mockEKSClusters,
     });
-    jest.spyOn(integrationService, 'enrollEksClusters');
+    jest.spyOn(integrationService, 'enrollEksClustersV2');
 
     render(<Component />);
 
@@ -115,8 +119,11 @@ describe('test EnrollEksCluster.tsx', () => {
     fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
     fireEvent.click(screen.getByText('us-east-2'));
 
-    // EKS results are rendered.
     await screen.findByText(/eks1/i);
+
+    // Toggle on auto enroll.
+    act(() => screen.getByText(/auto-enroll all/i).click());
+
     // Cloud uses a default discovery group name.
     expect(
       screen.queryByText(/define a discovery group name/i)
@@ -134,7 +141,7 @@ describe('test EnrollEksCluster.tsx', () => {
       DISCOVERY_GROUP_CLOUD
     );
 
-    expect(integrationService.enrollEksClusters).not.toHaveBeenCalled();
+    expect(integrationService.enrollEksClustersV2).not.toHaveBeenCalled();
   });
 
   test('auto enroll (self-hosted) is on by default', async () => {
@@ -142,7 +149,7 @@ describe('test EnrollEksCluster.tsx', () => {
     jest.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
       clusters: mockEKSClusters,
     });
-    jest.spyOn(integrationService, 'enrollEksClusters');
+    jest.spyOn(integrationService, 'enrollEksClustersV2');
 
     render(<Component />);
 
@@ -151,6 +158,12 @@ describe('test EnrollEksCluster.tsx', () => {
     fireEvent.focus(selectEl);
     fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
     fireEvent.click(screen.getByText('us-east-2'));
+
+    await screen.findByText(/eks1/i);
+
+    // Toggle on auto enroll.
+    act(() => screen.getByText(/auto-enroll all/i).click());
+    expect(screen.queryByText(/eks1/i)).not.toBeInTheDocument();
 
     // Only self-hosted need to define a discovery group name.
     await screen.findByText(/define a discovery group name/i);
@@ -169,12 +182,49 @@ describe('test EnrollEksCluster.tsx', () => {
       DEFAULT_DISCOVERY_GROUP_NON_CLOUD
     );
 
-    expect(integrationService.enrollEksClusters).not.toHaveBeenCalled();
+    expect(integrationService.enrollEksClustersV2).not.toHaveBeenCalled();
   });
-  test('auto enroll disabled, enrolls cluster', async () => {
+
+  test('auto enroll disabled, enrolls cluster without labels', async () => {
     jest.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
       clusters: mockEKSClusters,
     });
+    jest
+      .spyOn(integrationService, 'enrollEksClustersV2')
+      .mockResolvedValue({} as any); // value doesn't matter
+    jest
+      .spyOn(integrationService, 'enrollEksClusters')
+      .mockResolvedValue({} as any); // value doesn't matter
+
+    render(<Component />);
+
+    // select a region from selector.
+    const selectEl = screen.getByLabelText(/aws region/i);
+    fireEvent.focus(selectEl);
+    fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
+    fireEvent.click(screen.getByText('us-east-2'));
+
+    await screen.findByText(/eks1/i);
+
+    act(() => screen.getByRole('radio').click());
+
+    act(() => screen.getByText('Enroll EKS Cluster').click());
+
+    await screen.findByTestId('dialogbox');
+
+    expect(discoveryService.createDiscoveryConfig).not.toHaveBeenCalled();
+    expect(KubeService.prototype.fetchKubernetes).toHaveBeenCalledTimes(1);
+    expect(integrationService.enrollEksClustersV2).toHaveBeenCalledTimes(1);
+    expect(integrationService.enrollEksClusters).not.toHaveBeenCalled();
+  });
+
+  test('enroll eks without labels with v1 fallback', async () => {
+    jest.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
+      clusters: mockEKSClusters,
+    });
+    jest
+      .spyOn(integrationService, 'enrollEksClustersV2')
+      .mockRejectedValueOnce(new Error(ProxyRequiresUpgrade));
     jest.spyOn(integrationService, 'enrollEksClusters');
 
     render(<Component />);
@@ -187,17 +237,14 @@ describe('test EnrollEksCluster.tsx', () => {
 
     await screen.findByText(/eks1/i);
 
-    // disable auto enroll
-    expect(screen.getByText('Next')).toBeEnabled();
-    act(() => screen.getByText(/auto-enroll all/i).click());
-    expect(screen.getByText('Enroll EKS Cluster')).toBeDisabled();
-
     act(() => screen.getByRole('radio').click());
-
     act(() => screen.getByText('Enroll EKS Cluster').click());
 
-    expect(discoveryService.createDiscoveryConfig).not.toHaveBeenCalled();
-    expect(KubeService.prototype.fetchKubernetes).toHaveBeenCalledTimes(1);
+    expect(integrationService.enrollEksClustersV2).toHaveBeenCalledTimes(1);
+
+    await screen.findByTestId('dialogbox');
+
+    expect(integrationService.enrollEksClustersV2).toHaveBeenCalledTimes(1);
     expect(integrationService.enrollEksClusters).toHaveBeenCalledTimes(1);
   });
 });
@@ -210,6 +257,8 @@ const mockEKSClusters: AwsEksCluster[] = [
     status: 'active',
     labels: [],
     joinLabels: [],
+    authenticationMode: 'API',
+    endpointPublicAccess: true,
   },
 ];
 

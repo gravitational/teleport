@@ -98,9 +98,6 @@ type Identity interface {
 	// GetUserByGithubIdentity returns a user by its specified Github identity
 	GetUserByGithubIdentity(id types.ExternalIdentity) (types.User, error)
 
-	// UpsertPasswordHash upserts user password hash
-	UpsertPasswordHash(user string, hash []byte) error
-
 	// GetPasswordHash returns the password hash for a given user
 	GetPasswordHash(user string) ([]byte, error)
 
@@ -111,8 +108,14 @@ type Identity interface {
 	// GetUsedTOTPToken returns the last successfully used TOTP token.
 	GetUsedTOTPToken(user string) (string, error)
 
-	// UpsertPassword upserts new password and OTP token
+	// UpsertPassword upserts a new password. It also sets the user's
+	// `PasswordState` status flag accordingly. Returns an error if the user
+	// doesn't exist.
 	UpsertPassword(user string, password []byte) error
+
+	// DeletePassword deletes user's password and sets the `PasswordState` status
+	// flag accordingly.
+	DeletePassword(ctx context.Context, username string) error
 
 	// UpsertWebauthnLocalAuth creates or updates the local auth configuration for
 	// Webauthn.
@@ -242,6 +245,17 @@ type Identity interface {
 
 	// GetGithubAuthRequest retrieves Github auth request by the token
 	GetGithubAuthRequest(ctx context.Context, stateToken string) (*types.GithubAuthRequest, error)
+
+	// UpsertSSOMFASessionData creates or updates SSO MFA session data in
+	// storage, for the purpose of later verifying an MFA authentication attempt.
+	// SSO MFA session data is expected to expire according to backend settings.
+	UpsertSSOMFASessionData(ctx context.Context, sd *SSOMFASessionData) error
+
+	// GetSSOMFASessionData retrieves SSO MFA session data by ID.
+	GetSSOMFASessionData(ctx context.Context, sessionID string) (*SSOMFASessionData, error)
+
+	// DeleteSSOMFASessionData deletes SSO MFA session data by ID.
+	DeleteSSOMFASessionData(ctx context.Context, sessionID string) error
 
 	// CreateUserToken creates a new user token.
 	CreateUserToken(ctx context.Context, token types.UserToken) (types.UserToken, error)

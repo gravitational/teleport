@@ -16,4 +16,5 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+export { NotificationService } from './notifications';
 export * from './types';

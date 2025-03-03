@@ -23,7 +23,6 @@ import (
 	"fmt"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
@@ -64,10 +63,10 @@ func (a *Server) checkSpaceliftJoinRequest(ctx context.Context, req *types.Regis
 		return nil, trace.Wrap(err)
 	}
 
-	log.WithFields(logrus.Fields{
-		"claims": claims,
-		"token":  pt.GetName(),
-	}).Info("Spacelift run trying to join cluster")
+	a.logger.InfoContext(ctx, "Spacelift run trying to join cluster",
+		"claims", claims,
+		"token", pt.GetName(),
+	)
 
 	return claims, trace.Wrap(checkSpaceliftAllowRules(token, claims))
 }

@@ -121,3 +121,16 @@ func (c *Client) DeleteAllDiscoveryConfigs(ctx context.Context) error {
 	_, err := c.grpcClient.DeleteAllDiscoveryConfigs(ctx, &discoveryconfigv1.DeleteAllDiscoveryConfigsRequest{})
 	return trace.Wrap(err)
 }
+
+// UpdateDiscoveryConfigStatus updates the DiscoveryConfig Status field.
+func (c *Client) UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error) {
+	resp, err := c.grpcClient.UpdateDiscoveryConfigStatus(ctx, &discoveryconfigv1.UpdateDiscoveryConfigStatusRequest{
+		Name:   name,
+		Status: conv.StatusToProto(status),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	dc, err := conv.FromProto(resp)
+	return dc, trace.Wrap(err)
+}

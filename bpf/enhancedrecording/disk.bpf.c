@@ -97,7 +97,7 @@ static int exit_open(int ret) {
 
 
 SEC("tp/syscalls/sys_enter_creat")
-int tracepoint__syscalls__sys_enter_creat(struct trace_event_raw_sys_enter *tp)
+int tracepoint__syscalls__sys_enter_creat(struct syscall_trace_enter *tp)
 {
     const char *filename = (const char*) tp->args[0];
 
@@ -105,7 +105,7 @@ int tracepoint__syscalls__sys_enter_creat(struct trace_event_raw_sys_enter *tp)
 }
 
 SEC("tp/syscalls/sys_exit_creat")
-int tracepoint__syscalls__sys_exit_creat(struct trace_event_raw_sys_exit *tp)
+int tracepoint__syscalls__sys_exit_creat(struct syscall_trace_exit *tp)
 {
     return exit_open(tp->ret);
 }
@@ -114,7 +114,7 @@ int tracepoint__syscalls__sys_exit_creat(struct trace_event_raw_sys_exit *tp)
 #ifndef __TARGET_ARCH_arm64
 
 SEC("tp/syscalls/sys_enter_open")
-int tracepoint__syscalls__sys_enter_open(struct trace_event_raw_sys_enter *tp)
+int tracepoint__syscalls__sys_enter_open(struct syscall_trace_enter *tp)
 {
     const char *filename = (const char*) tp->args[0];
     int flags = tp->args[1];
@@ -125,13 +125,13 @@ int tracepoint__syscalls__sys_enter_open(struct trace_event_raw_sys_enter *tp)
 #endif // __aarch64__
 
 SEC("tp/syscalls/sys_exit_open")
-int tracepoint__syscalls__sys_exit_open(struct trace_event_raw_sys_exit *tp)
+int tracepoint__syscalls__sys_exit_open(struct syscall_trace_exit *tp)
 {
     return exit_open(tp->ret);
 }
 
 SEC("tp/syscalls/sys_enter_openat")
-int tracepoint__syscalls__sys_enter_openat(struct trace_event_raw_sys_enter *tp)
+int tracepoint__syscalls__sys_enter_openat(struct syscall_trace_enter *tp)
 {
     const char *filename = (const char*) tp->args[1];
     int flags = tp->args[2];
@@ -140,13 +140,13 @@ int tracepoint__syscalls__sys_enter_openat(struct trace_event_raw_sys_enter *tp)
 };
 
 SEC("tp/syscalls/sys_exit_openat")
-int tracepoint__syscalls__sys_exit_openat(struct trace_event_raw_sys_exit *tp)
+int tracepoint__syscalls__sys_exit_openat(struct syscall_trace_exit *tp)
 {
     return exit_open(tp->ret);
 }
 
 SEC("tp/syscalls/sys_enter_openat2")
-int tracepoint__syscalls__sys_enter_openat2(struct trace_event_raw_sys_enter *tp)
+int tracepoint__syscalls__sys_enter_openat2(struct syscall_trace_enter *tp)
 {
     const char *filename = (const char*) tp->args[1];
     struct open_how *how = (struct open_how *) tp->args[2];
@@ -155,7 +155,7 @@ int tracepoint__syscalls__sys_enter_openat2(struct trace_event_raw_sys_enter *tp
 };
 
 SEC("tp/syscalls/sys_exit_openat2")
-int tracepoint__syscalls__sys_exit_openat2(struct trace_event_raw_sys_exit *tp)
+int tracepoint__syscalls__sys_exit_openat2(struct syscall_trace_exit *tp)
 {
     return exit_open(tp->ret);
 }

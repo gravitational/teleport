@@ -25,7 +25,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os/user"
 	"strconv"
 	"testing"
 	"time"
@@ -37,7 +36,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -56,7 +55,7 @@ func extractPort(svr *httptest.Server) (int, error) {
 	return n, nil
 }
 
-func waitForSessionToBeEstablished(ctx context.Context, namespace string, site auth.ClientI) ([]types.SessionTracker, error) {
+func waitForSessionToBeEstablished(ctx context.Context, namespace string, site authclient.ClientI) ([]types.SessionTracker, error) {
 
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
@@ -97,17 +96,7 @@ func testPingLocalServer(t *testing.T, port int, expectSuccess bool) {
 }
 
 func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
-	invalidOSLogin := uuid.NewString()[:12]
-	notFound := false
-	for i := 0; i < 10; i++ {
-		if _, err := user.Lookup(invalidOSLogin); err == nil {
-			invalidOSLogin = uuid.NewString()[:12]
-			continue
-		}
-		notFound = true
-		break
-	}
-	require.True(t, notFound, "unable to locate invalid os user")
+	invalidOSLogin := utils.GenerateLocalUsername(t)
 
 	// Providing our own logins to Teleport so we can verify that a user
 	// that exists within Teleport but does not exist on the local node
@@ -181,7 +170,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 				NodeName:    Host,
 				Priv:        privateKey,
 				Pub:         publicKey,
-				Log:         utils.NewLoggerForTests(),
+				Logger:      utils.NewSlogLoggerForTests(),
 			})
 
 			for _, login := range logins {
@@ -207,7 +196,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 				NodeName:    Host,
 				Priv:        privateKey,
 				Pub:         publicKey,
-				Log:         utils.NewLoggerForTests(),
+				Logger:      utils.NewSlogLoggerForTests(),
 			})
 
 			// Create node config.
@@ -216,7 +205,6 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			nodeCfg.SetToken("token")
 			nodeCfg.CachePolicy.Enabled = true
 			nodeCfg.DataDir = t.TempDir()
-			nodeCfg.Console = nil
 			nodeCfg.Auth.Enabled = false
 			nodeCfg.Proxy.Enabled = false
 			nodeCfg.SSH.Enabled = true
@@ -292,7 +280,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			cl.Labels = tt.labels
 
 			sshSessionCtx, sshSessionCancel := context.WithCancel(context.Background())
-			go cl.SSH(sshSessionCtx, []string{}, false)
+			go cl.SSH(sshSessionCtx, []string{})
 			defer sshSessionCancel()
 
 			timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)

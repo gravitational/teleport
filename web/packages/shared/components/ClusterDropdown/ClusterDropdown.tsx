@@ -16,15 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
-import styled from 'styled-components';
+import React, { useEffect, useState } from 'react';
 import { useHistory } from 'react-router';
+import styled from 'styled-components';
+
 import { Box, ButtonSecondary, Flex, Menu, MenuItem, Text } from 'design';
 import { ChevronDown } from 'design/Icon';
+import { HoverTooltip } from 'design/Tooltip';
+
 import cfg from 'teleport/config';
 import { Cluster } from 'teleport/services/clusters';
-
-import { HoverTooltip } from 'shared/components/ToolTip';
 
 export interface ClusterDropdownProps {
   clusterLoader: ClusterLoader;
@@ -38,6 +39,7 @@ export interface ClusterDropdownProps {
    * messages. Even if using the internal "loadClusters", we will pass the error back to be consumed by the parent.
    */
   onError: (errorMessage: string) => void;
+  mb?: number;
 }
 
 interface ClusterLoader {
@@ -60,6 +62,7 @@ export function ClusterDropdown({
   clusterId,
   onChange,
   onError,
+  mb = 0,
 }: ClusterDropdownProps) {
   const initialClusters = clusterLoader.clusters;
   const [options, setOptions] = React.useState<Option[]>(
@@ -129,7 +132,8 @@ export function ClusterDropdown({
     setAnchorEl(null);
   };
 
-  if (options.length < 1) {
+  // If only a single cluster is available, hide the dropdown
+  if (options.length < 2) {
     return null;
   }
 
@@ -145,17 +149,9 @@ export function ClusterDropdown({
   }
 
   return (
-    <Flex textAlign="center" alignItems="center">
+    <Flex textAlign="center" alignItems="center" mb={mb}>
       <HoverTooltip tipContent={'Select cluster'}>
-        <ButtonSecondary
-          px={2}
-          css={`
-            border-color: ${props => props.theme.colors.spotBackground[0]};
-          `}
-          textTransform="none"
-          size="small"
-          onClick={handleOpen}
-        >
+        <ButtonSecondary size="small" onClick={handleOpen}>
           Cluster: {selectedOption.label}
           <ChevronDown ml={2} size="small" color="text.slightlyMuted" />
         </ButtonSecondary>
@@ -243,7 +239,7 @@ const ClusterFilter = styled.input(
     border: none;
   }
 
-  ::placeholder {
+  &::placeholder {
     color: ${theme.colors.text.muted};
     opacity: 1;
   }

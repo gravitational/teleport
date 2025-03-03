@@ -16,13 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import { Text } from '..';
-
-import Flex from './../Flex';
+import { ComponentType } from 'react';
 
 import * as Icon from '.';
+import { Text } from '..';
+import Flex from './../Flex';
+import { IconProps } from './Icon';
 
 export default {
   title: 'Design/Icon',
@@ -50,10 +49,13 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.ArrowFatLinesUp} text="ArrowFatLinesUp" />
     <IconBox IconCmpt={Icon.ArrowForward} text="ArrowForward" />
     <IconBox IconCmpt={Icon.ArrowLeft} text="ArrowLeft" />
+    <IconBox IconCmpt={Icon.ArrowLineLeft} text="ArrowLineLeft" />
     <IconBox IconCmpt={Icon.ArrowRight} text="ArrowRight" />
+    <IconBox IconCmpt={Icon.ArrowSquareOut} text="ArrowSquareOut" />
     <IconBox IconCmpt={Icon.ArrowUp} text="ArrowUp" />
     <IconBox IconCmpt={Icon.ArrowsIn} text="ArrowsIn" />
     <IconBox IconCmpt={Icon.ArrowsOut} text="ArrowsOut" />
+    <IconBox IconCmpt={Icon.BellRinging} text="BellRinging" />
     <IconBox IconCmpt={Icon.BookOpenText} text="BookOpenText" />
     <IconBox IconCmpt={Icon.Bots} text="Bots" />
     <IconBox IconCmpt={Icon.Broadcast} text="Broadcast" />
@@ -72,6 +74,8 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.ChatBubble} text="ChatBubble" />
     <IconBox IconCmpt={Icon.ChatCircleSparkle} text="ChatCircleSparkle" />
     <IconBox IconCmpt={Icon.Check} text="Check" />
+    <IconBox IconCmpt={Icon.CheckThick} text="CheckThick" />
+    <IconBox IconCmpt={Icon.Checks} text="Checks" />
     <IconBox IconCmpt={Icon.ChevronCircleDown} text="ChevronCircleDown" />
     <IconBox IconCmpt={Icon.ChevronCircleLeft} text="ChevronCircleLeft" />
     <IconBox IconCmpt={Icon.ChevronCircleRight} text="ChevronCircleRight" />
@@ -101,6 +105,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Copy} text="Copy" />
     <IconBox IconCmpt={Icon.CreditCard} text="CreditCard" />
     <IconBox IconCmpt={Icon.Cross} text="Cross" />
+    <IconBox IconCmpt={Icon.Crown} text="Crown" />
     <IconBox IconCmpt={Icon.Database} text="Database" />
     <IconBox IconCmpt={Icon.Desktop} text="Desktop" />
     <IconBox IconCmpt={Icon.DeviceMobileCamera} text="DeviceMobileCamera" />
@@ -129,11 +134,14 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Integrations} text="Integrations" />
     <IconBox IconCmpt={Icon.Invoices} text="Invoices" />
     <IconBox IconCmpt={Icon.Key} text="Key" />
+    <IconBox IconCmpt={Icon.KeyHole} text="KeyHole" />
+    <IconBox IconCmpt={Icon.Keyboard} text="Keyboard" />
     <IconBox IconCmpt={Icon.Keypair} text="Keypair" />
     <IconBox IconCmpt={Icon.Kubernetes} text="Kubernetes" />
     <IconBox IconCmpt={Icon.Label} text="Label" />
     <IconBox IconCmpt={Icon.Lan} text="Lan" />
     <IconBox IconCmpt={Icon.Laptop} text="Laptop" />
+    <IconBox IconCmpt={Icon.Layout} text="Layout" />
     <IconBox IconCmpt={Icon.License} text="License" />
     <IconBox IconCmpt={Icon.LineSegment} text="LineSegment" />
     <IconBox IconCmpt={Icon.LineSegments} text="LineSegments" />
@@ -145,12 +153,14 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.ListThin} text="ListThin" />
     <IconBox IconCmpt={Icon.ListView} text="ListView" />
     <IconBox IconCmpt={Icon.Lock} text="Lock" />
+    <IconBox IconCmpt={Icon.LockKey} text="LockKey" />
     <IconBox IconCmpt={Icon.Logout} text="Logout" />
     <IconBox IconCmpt={Icon.Magnifier} text="Magnifier" />
     <IconBox IconCmpt={Icon.MagnifyingMinus} text="MagnifyingMinus" />
     <IconBox IconCmpt={Icon.MagnifyingPlus} text="MagnifyingPlus" />
     <IconBox IconCmpt={Icon.Memory} text="Memory" />
     <IconBox IconCmpt={Icon.Minus} text="Minus" />
+    <IconBox IconCmpt={Icon.MinusCircle} text="MinusCircle" />
     <IconBox IconCmpt={Icon.Moon} text="Moon" />
     <IconBox IconCmpt={Icon.MoreHoriz} text="MoreHoriz" />
     <IconBox IconCmpt={Icon.MoreVert} text="MoreVert" />
@@ -163,14 +173,18 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Password} text="Password" />
     <IconBox IconCmpt={Icon.Pencil} text="Pencil" />
     <IconBox IconCmpt={Icon.Planet} text="Planet" />
+    <IconBox IconCmpt={Icon.Plugs} text="Plugs" />
+    <IconBox IconCmpt={Icon.PlugsConnected} text="PlugsConnected" />
     <IconBox IconCmpt={Icon.Plus} text="Plus" />
     <IconBox IconCmpt={Icon.PowerSwitch} text="PowerSwitch" />
+    <IconBox IconCmpt={Icon.Printer} text="Printer" />
     <IconBox IconCmpt={Icon.Profile} text="Profile" />
     <IconBox IconCmpt={Icon.PushPin} text="PushPin" />
     <IconBox IconCmpt={Icon.PushPinFilled} text="PushPinFilled" />
     <IconBox IconCmpt={Icon.Question} text="Question" />
     <IconBox IconCmpt={Icon.Refresh} text="Refresh" />
     <IconBox IconCmpt={Icon.Restore} text="Restore" />
+    <IconBox IconCmpt={Icon.RocketLaunch} text="RocketLaunch" />
     <IconBox IconCmpt={Icon.Rows} text="Rows" />
     <IconBox IconCmpt={Icon.Ruler} text="Ruler" />
     <IconBox IconCmpt={Icon.Run} text="Run" />
@@ -178,6 +192,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Server} text="Server" />
     <IconBox IconCmpt={Icon.Share} text="Share" />
     <IconBox IconCmpt={Icon.ShieldCheck} text="ShieldCheck" />
+    <IconBox IconCmpt={Icon.ShieldWarning} text="ShieldWarning" />
     <IconBox IconCmpt={Icon.Sliders} text="Sliders" />
     <IconBox IconCmpt={Icon.SlidersVertical} text="SlidersVertical" />
     <IconBox IconCmpt={Icon.Speed} text="Speed" />
@@ -186,6 +201,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Stars} text="Stars" />
     <IconBox IconCmpt={Icon.Sun} text="Sun" />
     <IconBox IconCmpt={Icon.SyncAlt} text="SyncAlt" />
+    <IconBox IconCmpt={Icon.Table} text="Table" />
     <IconBox IconCmpt={Icon.Tablet} text="Tablet" />
     <IconBox IconCmpt={Icon.Tags} text="Tags" />
     <IconBox IconCmpt={Icon.Terminal} text="Terminal" />
@@ -218,7 +234,13 @@ export const Icons = () => (
   </Flex>
 );
 
-const IconBox = ({ IconCmpt, text }) => (
+const IconBox = ({
+  IconCmpt,
+  text,
+}: {
+  IconCmpt: ComponentType<IconProps>;
+  text: string;
+}) => (
   <Flex m="10px" width="300px">
     <IconCmpt />
     <Text ml={2}>{text}</Text>

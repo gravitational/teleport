@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // JoinServiceClient is a client for the JoinService, which runs on both the
@@ -47,6 +48,17 @@ type RegisterIAMChallengeResponseFunc func(challenge string) (*proto.RegisterUsi
 // RegisterUsingAzureMethod. It must return a
 // *proto.RegisterUsingAzureMethodRequest for a given challenge, or an error.
 type RegisterAzureChallengeResponseFunc func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error)
+
+// RegisterTPMChallengeResponseFunc is a function type meant to be passed to
+// RegisterUsingTPMMethod. It must return a
+// *proto.RegisterUsingTPMMethodChallengeResponse for a given challenge, or an
+// error.
+type RegisterTPMChallengeResponseFunc func(challenge *proto.TPMEncryptedCredential) (*proto.RegisterUsingTPMMethodChallengeResponse, error)
+
+// RegisterOracleChallengeResponseFunc is a function type meant to be passed to
+// RegisterUsingOracleMethod: It must return a
+// *proto.OracleSignedRequest for a given challenge, or an error.
+type RegisterOracleChallengeResponseFunc func(challenge string) (*proto.OracleSignedRequest, error)
 
 // RegisterUsingIAMMethod registers the caller using the IAM join method and
 // returns signed certs to join the cluster.
@@ -124,4 +136,138 @@ func (c *JoinServiceClient) RegisterUsingAzureMethod(ctx context.Context, challe
 		return nil, trace.Wrap(err)
 	}
 	return certsResp.Certs, nil
+}
+
+// RegisterUsingTPMMethod registers the caller using the TPM join method and
+// returns signed certs to join the cluster. The caller must provide a
+// ChallengeResponseFunc which returns a *proto.RegisterUsingTPMMethodRequest
+// for a given challenge, or an error.
+func (c *JoinServiceClient) RegisterUsingTPMMethod(
+	ctx context.Context,
+	initReq *proto.RegisterUsingTPMMethodInitialRequest,
+	solveChallenge RegisterTPMChallengeResponseFunc,
+) (*proto.Certs, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	stream, err := c.grpcClient.RegisterUsingTPMMethod(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer stream.CloseSend()
+
+	err = stream.Send(&proto.RegisterUsingTPMMethodRequest{
+		Payload: &proto.RegisterUsingTPMMethodRequest_Init{
+			Init: initReq,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "sending initial request")
+	}
+
+	res, err := stream.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err, "receiving challenge")
+	}
+
+	challenge := res.GetChallengeRequest()
+	if challenge == nil {
+		return nil, trace.BadParameter(
+			"expected ChallengeRequest payload, got %T",
+			res.Payload,
+		)
+	}
+
+	solution, err := solveChallenge(challenge)
+	if err != nil {
+		return nil, trace.Wrap(err, "solving challenge")
+	}
+
+	err = stream.Send(&proto.RegisterUsingTPMMethodRequest{
+		Payload: &proto.RegisterUsingTPMMethodRequest_ChallengeResponse{
+			ChallengeResponse: solution,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "sending solution")
+	}
+
+	res, err = stream.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err, "receiving certs")
+	}
+	certs := res.GetCerts()
+	if certs == nil {
+		return nil, trace.BadParameter(
+			"expected Certs payload, got %T",
+			res.Payload,
+		)
+	}
+
+	return certs, nil
+}
+
+// RegisterUsingOracleMethod registers the caller using the Oracle join method and
+// returns signed certs to join the cluster. The caller must provide a
+// ChallengeResponseFunc which returns a *proto.OracleSignedRequest
+// for a given challenge, or an error.
+func (c *JoinServiceClient) RegisterUsingOracleMethod(
+	ctx context.Context,
+	tokenReq *types.RegisterUsingTokenRequest,
+	oracleRequestFromChallenge RegisterOracleChallengeResponseFunc,
+) (*proto.Certs, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	oracleJoinClient, err := c.grpcClient.RegisterUsingOracleMethod(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := oracleJoinClient.Send(&proto.RegisterUsingOracleMethodRequest{
+		Request: &proto.RegisterUsingOracleMethodRequest_RegisterUsingTokenRequest{
+			RegisterUsingTokenRequest: tokenReq,
+		},
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	challengeResp, err := oracleJoinClient.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	challenge := challengeResp.GetChallenge()
+	if challenge == "" {
+		return nil, trace.BadParameter("missing challenge")
+	}
+	oracleSignedReq, err := oracleRequestFromChallenge(challenge)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := oracleJoinClient.Send(&proto.RegisterUsingOracleMethodRequest{
+		Request: &proto.RegisterUsingOracleMethodRequest_OracleRequest{
+			OracleRequest: oracleSignedReq,
+		},
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certsResp, err := oracleJoinClient.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certs := certsResp.GetCerts()
+	if certs == nil {
+		return nil, trace.BadParameter("expected certificate response, got %T", certsResp.Response)
+	}
+	return certs, nil
+}
+
+// RegisterUsingToken registers the caller using a token and returns signed
+// certs.
+// This is used where a more specific RPC has not been introduced for the join
+// method.
+func (c *JoinServiceClient) RegisterUsingToken(
+	ctx context.Context, req *types.RegisterUsingTokenRequest,
+) (*proto.Certs, error) {
+	return c.grpcClient.RegisterUsingToken(ctx, req)
 }

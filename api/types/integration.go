@@ -22,6 +22,8 @@ import (
 	"net/url"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/protoadapt"
 
 	"github.com/gravitational/teleport/api/utils"
 )
@@ -29,6 +31,20 @@ import (
 const (
 	// IntegrationSubKindAWSOIDC is an integration with AWS that uses OpenID Connect as an Identity Provider.
 	IntegrationSubKindAWSOIDC = "aws-oidc"
+
+	// IntegrationSubKindAzureOIDC is an integration with Azure that uses OpenID Connect as an Identity Provider.
+	IntegrationSubKindAzureOIDC = "azure-oidc"
+
+	// IntegrationSubKindGitHub is an integration with GitHub.
+	IntegrationSubKindGitHub = "github"
+)
+
+const (
+	// IntegrationAWSOIDCAudienceUnspecified denotes an empty audience value. Empty audience value
+	// is used to maintain default OIDC integration behavior and backward compatibility.
+	IntegrationAWSOIDCAudienceUnspecified = ""
+	// IntegrationAWSOIDCAudienceAWSIdentityCenter is an audience name for the Teleport AWS Idenity Center plugin.
+	IntegrationAWSOIDCAudienceAWSIdentityCenter = "aws-identity-center"
 )
 
 // Integration specifies is a connection configuration between Teleport and a 3rd party system.
@@ -47,6 +63,21 @@ type Integration interface {
 	// SetAWSOIDCIssuerS3URI sets the IssuerS3URI of the AWS OIDC Spec.
 	// Eg, s3://my-bucket/my-prefix
 	SetAWSOIDCIssuerS3URI(string)
+
+	// GetAzureOIDCIntegrationSpec returns the `azure-oidc` spec fields.
+	GetAzureOIDCIntegrationSpec() *AzureOIDCIntegrationSpecV1
+
+	// GetGitHubIntegrationSpec returns the GitHub spec.
+	GetGitHubIntegrationSpec() *GitHubIntegrationSpecV1
+	// SetGitHubIntegrationSpec returns the GitHub spec.
+	SetGitHubIntegrationSpec(*GitHubIntegrationSpecV1)
+
+	// SetCredentials updates credentials.
+	SetCredentials(creds PluginCredentials) error
+	// GetCredentials retrieves credentials.
+	GetCredentials() PluginCredentials
+	// WithoutCredentials returns a copy without credentials.
+	WithoutCredentials() Integration
 }
 
 var _ ResourceWithLabels = (*IntegrationV1)(nil)
@@ -63,6 +94,48 @@ func NewIntegrationAWSOIDC(md Metadata, spec *AWSOIDCIntegrationSpecV1) (*Integr
 		Spec: IntegrationSpecV1{
 			SubKindSpec: &IntegrationSpecV1_AWSOIDC{
 				AWSOIDC: spec,
+			},
+		},
+	}
+	if err := ig.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ig, nil
+}
+
+// NewIntegrationAzureOIDC returns a new `azure-oidc` subkind Integration
+func NewIntegrationAzureOIDC(md Metadata, spec *AzureOIDCIntegrationSpecV1) (*IntegrationV1, error) {
+	ig := &IntegrationV1{
+		ResourceHeader: ResourceHeader{
+			Metadata: md,
+			Kind:     KindIntegration,
+			Version:  V1,
+			SubKind:  IntegrationSubKindAzureOIDC,
+		},
+		Spec: IntegrationSpecV1{
+			SubKindSpec: &IntegrationSpecV1_AzureOIDC{
+				AzureOIDC: spec,
+			},
+		},
+	}
+	if err := ig.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ig, nil
+}
+
+// NewIntegrationGitHub returns a new `github` subkind Integration
+func NewIntegrationGitHub(md Metadata, spec *GitHubIntegrationSpecV1) (*IntegrationV1, error) {
+	ig := &IntegrationV1{
+		ResourceHeader: ResourceHeader{
+			Metadata: md,
+			Kind:     KindIntegration,
+			Version:  V1,
+			SubKind:  IntegrationSubKindGitHub,
+		},
+		Spec: IntegrationSpecV1{
+			SubKindSpec: &IntegrationSpecV1_GitHub{
+				GitHub: spec,
 			},
 		},
 	}
@@ -128,6 +201,16 @@ func (s *IntegrationSpecV1) CheckAndSetDefaults() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+	case *IntegrationSpecV1_AzureOIDC:
+		err := integrationSubKind.Validate()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	case *IntegrationSpecV1_GitHub:
+		if err := integrationSubKind.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
 	default:
 		return trace.BadParameter("unknown integration subkind: %T", integrationSubKind)
 	}
@@ -135,7 +218,7 @@ func (s *IntegrationSpecV1) CheckAndSetDefaults() error {
 	return nil
 }
 
-// CheckAndSetDefaults validates an agent mesh integration.
+// CheckAndSetDefaults validates the configuration for AWS OIDC integration subkind.
 func (s *IntegrationSpecV1_AWSOIDC) CheckAndSetDefaults() error {
 	if s == nil || s.AWSOIDC == nil {
 		return trace.BadParameter("aws_oidc is required for %q subkind", IntegrationSubKindAWSOIDC)
@@ -157,6 +240,47 @@ func (s *IntegrationSpecV1_AWSOIDC) CheckAndSetDefaults() error {
 		}
 	}
 
+	if err := s.ValidateAudience(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// ValidateAudience validates if the audience field is configured with
+// a supported audience value.
+func (s *IntegrationSpecV1_AWSOIDC) ValidateAudience() error {
+	switch s.AWSOIDC.Audience {
+	case IntegrationAWSOIDCAudienceUnspecified, IntegrationAWSOIDCAudienceAWSIdentityCenter:
+		return nil
+	default:
+		return trace.BadParameter("unsupported audience value %q", s.AWSOIDC.Audience)
+	}
+}
+
+// Validate validates the configuration for Azure OIDC integration subkind.
+func (s *IntegrationSpecV1_AzureOIDC) Validate() error {
+	if s == nil || s.AzureOIDC == nil {
+		return trace.BadParameter("azure_oidc is required for %q subkind", IntegrationSubKindAzureOIDC)
+	}
+	if s.AzureOIDC.TenantID == "" {
+		return trace.BadParameter("tenant_id must be set")
+	}
+	if s.AzureOIDC.ClientID == "" {
+		return trace.BadParameter("client_id must be set")
+	}
+
+	return nil
+}
+
+// CheckAndSetDefaults validates the configuration for GitHub integration subkind.
+func (s *IntegrationSpecV1_GitHub) CheckAndSetDefaults() error {
+	if s == nil || s.GitHub == nil {
+		return trace.BadParameter("github spec must be set for GitHub integrations")
+	}
+	if err := ValidateGitHubOrganizationName(s.GitHub.Organization); err != nil {
+		return trace.Wrap(err, "invalid GitHub organization name")
+	}
 	return nil
 }
 
@@ -195,6 +319,23 @@ func (ig *IntegrationV1) SetAWSOIDCIssuerS3URI(issuerS3URI string) {
 	currentSubSpec.IssuerS3URI = issuerS3URI
 	ig.Spec.SubKindSpec = &IntegrationSpecV1_AWSOIDC{
 		AWSOIDC: currentSubSpec,
+	}
+}
+
+// GetAzureOIDCIntegrationSpec returns the specific spec fields for `azure-oidc` subkind integrations.
+func (ig *IntegrationV1) GetAzureOIDCIntegrationSpec() *AzureOIDCIntegrationSpecV1 {
+	return ig.Spec.GetAzureOIDC()
+}
+
+// GetGitHubIntegrationSpec returns the GitHub spec.
+func (ig *IntegrationV1) GetGitHubIntegrationSpec() *GitHubIntegrationSpecV1 {
+	return ig.Spec.GetGitHub()
+}
+
+// SetGitHubIntegrationSpec returns the GitHub spec.
+func (ig *IntegrationV1) SetGitHubIntegrationSpec(spec *GitHubIntegrationSpecV1) {
+	ig.Spec.SubKindSpec = &IntegrationSpecV1_GitHub{
+		GitHub: spec,
 	}
 }
 
@@ -247,7 +388,10 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 	d := struct {
 		ResourceHeader `json:""`
 		Spec           struct {
-			AWSOIDC json.RawMessage `json:"aws_oidc"`
+			AWSOIDC     json.RawMessage `json:"aws_oidc"`
+			AzureOIDC   json.RawMessage `json:"azure_oidc"`
+			GitHub      json.RawMessage `json:"github"`
+			Credentials json.RawMessage `json:"credentials"`
 		} `json:"spec"`
 	}{}
 
@@ -257,6 +401,13 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 	}
 
 	integration.ResourceHeader = d.ResourceHeader
+	if len(d.Spec.Credentials) != 0 {
+		var credentials PluginCredentialsV1
+		if err := protojson.Unmarshal(d.Spec.Credentials, protoadapt.MessageV2Of(&credentials)); err != nil {
+			return trace.Wrap(err)
+		}
+		integration.Spec.Credentials = &credentials
+	}
 
 	switch integration.SubKind {
 	case IntegrationSubKindAWSOIDC:
@@ -265,6 +416,28 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 		}
 
 		if err := json.Unmarshal(d.Spec.AWSOIDC, subkindSpec.AWSOIDC); err != nil {
+			return trace.Wrap(err)
+		}
+
+		integration.Spec.SubKindSpec = subkindSpec
+
+	case IntegrationSubKindAzureOIDC:
+		subkindSpec := &IntegrationSpecV1_AzureOIDC{
+			AzureOIDC: &AzureOIDCIntegrationSpecV1{},
+		}
+
+		if err := json.Unmarshal(d.Spec.AzureOIDC, subkindSpec.AzureOIDC); err != nil {
+			return trace.Wrap(err)
+		}
+
+		integration.Spec.SubKindSpec = subkindSpec
+
+	case IntegrationSubKindGitHub:
+		subkindSpec := &IntegrationSpecV1_GitHub{
+			GitHub: &GitHubIntegrationSpecV1{},
+		}
+
+		if err := json.Unmarshal(d.Spec.GitHub, subkindSpec.GitHub); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -290,23 +463,79 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 	d := struct {
 		ResourceHeader `json:""`
 		Spec           struct {
-			AWSOIDC AWSOIDCIntegrationSpecV1 `json:"aws_oidc"`
+			AWSOIDC     AWSOIDCIntegrationSpecV1   `json:"aws_oidc,omitempty"`
+			AzureOIDC   AzureOIDCIntegrationSpecV1 `json:"azure_oidc,omitempty"`
+			GitHub      GitHubIntegrationSpecV1    `json:"github,omitempty"`
+			Credentials json.RawMessage            `json:"credentials,omitempty"`
 		} `json:"spec"`
 	}{}
 
 	d.ResourceHeader = ig.ResourceHeader
+	if ig.Spec.Credentials != nil {
+		data, err := protojson.Marshal(protoadapt.MessageV2Of(ig.Spec.Credentials))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		d.Spec.Credentials = json.RawMessage(data)
+	}
 
 	switch ig.SubKind {
 	case IntegrationSubKindAWSOIDC:
 		if ig.GetAWSOIDCIntegrationSpec() == nil {
-			return nil, trace.BadParameter("missing subkind data for %q subkind", ig.SubKind)
+			return nil, trace.BadParameter("missing spec for %q subkind", ig.SubKind)
 		}
 
 		d.Spec.AWSOIDC = *ig.GetAWSOIDCIntegrationSpec()
+	case IntegrationSubKindAzureOIDC:
+		if ig.GetAzureOIDCIntegrationSpec() == nil {
+			return nil, trace.BadParameter("missing spec for %q subkind", ig.SubKind)
+		}
+
+		d.Spec.AzureOIDC = *ig.GetAzureOIDCIntegrationSpec()
+	case IntegrationSubKindGitHub:
+		if ig.GetGitHubIntegrationSpec() == nil {
+			return nil, trace.BadParameter("missing spec for %q subkind", ig.SubKind)
+		}
+		d.Spec.GitHub = *ig.GetGitHubIntegrationSpec()
 	default:
 		return nil, trace.BadParameter("invalid subkind %q", ig.SubKind)
 	}
 
 	out, err := json.Marshal(d)
 	return out, trace.Wrap(err)
+}
+
+// SetCredentials updates credentials.
+func (ig *IntegrationV1) SetCredentials(creds PluginCredentials) error {
+	if creds == nil {
+		ig.Spec.Credentials = nil
+		return nil
+	}
+	switch creds := creds.(type) {
+	case *PluginCredentialsV1:
+		ig.Spec.Credentials = creds
+	default:
+		return trace.BadParameter("unsupported plugin credential type %T", creds)
+	}
+	return nil
+}
+
+// GetCredentials retrieves credentials.
+func (ig *IntegrationV1) GetCredentials() PluginCredentials {
+	// This function returns an interface so return nil explicitly.
+	if ig.Spec.Credentials == nil {
+		return nil
+	}
+	return ig.Spec.Credentials
+}
+
+// WithoutCredentials returns a copy without credentials.
+func (ig *IntegrationV1) WithoutCredentials() Integration {
+	if ig == nil || ig.GetCredentials() == nil {
+		return ig
+	}
+
+	clone := utils.CloneProtoMsg(ig)
+	clone.SetCredentials(nil)
+	return clone
 }

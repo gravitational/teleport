@@ -44,7 +44,8 @@ export const OverrideUserAgent: React.FC<
   }
 
   useEffect(() => {
-    if (!process.env.STORYBOOK) {
+    // https://storybook.js.org/docs/configure/environment-variables#with-vite
+    if (!import.meta.env.STORYBOOK) {
       throw new Error(
         'OverrideUserAgent is meant to be run only from within stories'
       );

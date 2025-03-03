@@ -1,0 +1,69 @@
+suite: Test deployment
+templates:
+  - deployment.yaml
+tests:
+  - it: should match the snapshot
+    set:
+      image:
+        repository: gcr.io/overridden/repository
+        tag: v98.76.54
+    asserts:
+      - matchSnapshot: {}
+
+  - it: should not contain deployment or pod annotations when not defined
+    asserts:
+      - isNull:
+          path: metadata.annotations
+      - isNull:
+          path: spec.template.metadata.annotations
+
+  - it: should contain deployment annotations when defined
+    set:
+      annotations:
+        deployment:
+          keyA: valA
+          keyB: valB
+    asserts:
+      - equal:
+          path: metadata.annotations
+          value:
+            keyA: valA
+            keyB: valB
+      - isNull:
+          path: spec.template.metadata.annotations
+
+  - it: should contain pod annotations when defined
+    set:
+      annotations:
+        pod:
+          keyA: valA
+          keyB: valB
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations
+          value:
+            keyA: valA
+            keyB: valB
+      - isNull:
+          path: metadata.annotations
+
+  - it: should contain both annotations when defined
+    set:
+      annotations:
+        deployment:
+          keyA: valA
+          keyB: valB
+        pod:
+          keyA: valA'
+          keyC: valC
+    asserts:
+      - equal:
+          path: metadata.annotations
+          value:
+            keyA: valA
+            keyB: valB
+      - equal:
+          path: spec.template.metadata.annotations
+          value:
+            keyA: valA'
+            keyC: valC

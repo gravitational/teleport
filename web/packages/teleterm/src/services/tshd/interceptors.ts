@@ -22,7 +22,18 @@ import { isObject } from 'shared/utils/highbar';
 
 import Logger from 'teleterm/logger';
 
-const SENSITIVE_PROPERTIES = ['password', 'authClusterId', 'pin'];
+const SENSITIVE_PROPERTIES = [
+  'password',
+  'authClusterId',
+  'pin',
+  'puk',
+  // Filter out output of auxiliary commands run as a part of VNet diag report.
+  // Diagnostics are run periodically and the command outputs are typically dozens of lines long, so
+  // it'd be a waste of space to log them.
+  //
+  // TODO(ravicious): Do not filter out commands if RuntimeSettings.debug is true.
+  'commands',
+];
 
 export function loggingInterceptor(logger: Logger): RpcInterceptor {
   return {

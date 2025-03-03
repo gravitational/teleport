@@ -211,6 +211,121 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
+			desc:             "arn assumed role",
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: "123456789012",
+						AWSARN:     "arn:aws:sts::123456789012:assumed-role/my-super-001-test-role/my-session-name",
+					},
+				},
+				JoinMethod: types.JoinMethodIAM,
+			},
+			stsClient: &mockClient{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(awsIdentity{
+					Account: "123456789012",
+					Arn:     "arn:aws:sts::123456789012:assumed-role/my-super-001-test-role/my-session-name",
+				}),
+			},
+			assertError: require.NoError,
+		},
+		{
+			desc:             "wildcard arn assumed role",
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: "123456789012",
+						AWSARN:     "arn:aws:sts::123456789012:assumed-role/my-*-test-role/my-session-name",
+					},
+				},
+				JoinMethod: types.JoinMethodIAM,
+			},
+			stsClient: &mockClient{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(awsIdentity{
+					Account: "123456789012",
+					Arn:     "arn:aws:sts::123456789012:assumed-role/my-super-001-test-role/my-session-name",
+				}),
+			},
+			assertError: require.NoError,
+		},
+		{
+			desc:             "wildcard 2 arn assumed role",
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: "123456789012",
+						AWSARN:     "arn:aws:sts::123456789012:assumed-role/my-*-test-role/*",
+					},
+				},
+				JoinMethod: types.JoinMethodIAM,
+			},
+			stsClient: &mockClient{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(awsIdentity{
+					Account: "123456789012",
+					Arn:     "arn:aws:sts::123456789012:assumed-role/my-super-001-test-role/my-session-name",
+				}),
+			},
+			assertError: require.NoError,
+		},
+		{
+			desc:             "wrong wildcard arn assumed role",
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: "123456789012",
+						AWSARN:     "arn:aws:sts::123456789012:assumed-role/my-*-test-role",
+					},
+				},
+				JoinMethod: types.JoinMethodIAM,
+			},
+			stsClient: &mockClient{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(awsIdentity{
+					Account: "123456789012",
+					Arn:     "arn:aws:sts::123456789012:assumed-role/my-super-002-test-role/my-session-name",
+				}),
+			},
+			assertError: isAccessDenied,
+		},
+		{
+			desc:             "wrong wildcard 2 arn assumed role",
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: "123456789012",
+						AWSARN:     "arn:aws:sts::123456789012:assumed-role/my-*-test-role",
+					},
+				},
+				JoinMethod: types.JoinMethodIAM,
+			},
+			stsClient: &mockClient{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(awsIdentity{
+					Account: "123456789012",
+					Arn:     "arn:aws:sts::123456789012:assumed-role/my-super-002-test-role/my-session-name2",
+				}),
+			},
+			assertError: isAccessDenied,
+		},
+		{
 			desc:             "wrong token",
 			tokenName:        "test-token",
 			requestTokenName: "wrong-token",
@@ -505,7 +620,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 				require.NoError(t, a.DeleteToken(ctx, token.GetName()))
 			}()
 
-			_, err = a.RegisterUsingIAMMethod(context.Background(), func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
+			_, err = a.RegisterUsingIAMMethodWithOpts(context.Background(), func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
 				templateInput := defaultIdentityRequestTemplateInput(challenge)
 				for _, opt := range tc.challengeResponseOptions {
 					opt(&templateInput)

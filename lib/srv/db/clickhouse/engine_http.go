@@ -34,6 +34,7 @@ import (
 	"github.com/andybalholm/brotli"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -59,31 +60,44 @@ func (e *Engine) handleHTTPConnection(ctx context.Context, sessionCtx *common.Se
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		query, err := getQuery(req)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		queryEvent := common.Query{
-			Query:      query,
-			Parameters: []string{fmt.Sprintf("url=%s", req.URL.String())},
-		}
-
-		e.Audit.OnQuery(e.Context, sessionCtx, queryEvent)
-
-		if err := e.handleRequest(req, sessionCtx); err != nil {
-			return trace.Wrap(err)
-		}
-
-		resp, err := tr.RoundTrip(req)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if err := e.writeResp(resp); err != nil {
+		if err := e.handleRequest(req, sessionCtx, tr); err != nil {
 			return trace.Wrap(err)
 		}
 	}
+}
+
+func (e *Engine) handleRequest(req *http.Request, sessionCtx *common.Session, tr *http.Transport) error {
+	if req.Body != nil {
+		// we have to close the request body since [http.Server] didn't serve it
+		// up for us.
+		defer req.Body.Close()
+		req.Body = io.NopCloser(utils.LimitReader(req.Body, teleport.MaxHTTPRequestSize))
+	}
+	query, err := getQuery(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	queryEvent := common.Query{
+		Query:      query,
+		Parameters: []string{fmt.Sprintf("url=%s", req.URL.String())},
+	}
+
+	e.Audit.OnQuery(e.Context, sessionCtx, queryEvent)
+
+	if err := e.rewriteRequest(req, sessionCtx); err != nil {
+		return trace.Wrap(err)
+	}
+
+	resp, err := tr.RoundTrip(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := e.writeResp(resp); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 func handleCompression(body []byte, compression string) ([]byte, error) {
@@ -155,7 +169,7 @@ func (e *Engine) writeResp(resp *http.Response) error {
 	return nil
 }
 
-func (e *Engine) handleRequest(req *http.Request, sessionCtx *common.Session) error {
+func (e *Engine) rewriteRequest(req *http.Request, sessionCtx *common.Session) error {
 	uri, err := url.Parse(sessionCtx.Database.GetURI())
 	if err != nil {
 		return trace.Wrap(err)
@@ -196,8 +210,7 @@ func (e *Engine) getTransport(ctx context.Context) (*http.Transport, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, e.sessionCtx)
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, e.sessionCtx.GetExpiry(), e.sessionCtx.Database, e.sessionCtx.DatabaseUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

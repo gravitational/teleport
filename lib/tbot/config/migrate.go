@@ -222,7 +222,7 @@ func validateTemplates(configs []configV1DestinationConfig, allowedTypes []strin
 	return nil
 }
 
-func (c *configV1Destination) migrate() (Output, error) {
+func (c *configV1Destination) migrate() (ServiceConfig, error) {
 	dest, err := c.Mixin.migrate()
 	if err != nil {
 		return nil, trace.Wrap(err, "migrating destination")
@@ -390,7 +390,7 @@ func (c *configV1) migrate() (*BotConfig, error) {
 		}
 	}
 
-	var outputs []Output
+	var outputs []ServiceConfig
 	for _, d := range c.Destinations {
 		o, err := d.migrate()
 		if err != nil {
@@ -402,16 +402,18 @@ func (c *configV1) migrate() (*BotConfig, error) {
 	return &BotConfig{
 		Version: V2,
 
-		Onboarding:      c.Onboarding,
-		Debug:           c.Debug,
-		AuthServer:      c.AuthServer,
-		CertificateTTL:  c.CertificateTTL,
-		RenewalInterval: c.RenewalInterval,
-		Oneshot:         c.Oneshot,
-		FIPS:            c.FIPS,
-		DiagAddr:        c.DiagAddr,
+		Onboarding: c.Onboarding,
+		Debug:      c.Debug,
+		AuthServer: c.AuthServer,
+		CredentialLifetime: CredentialLifetime{
+			TTL:             c.CertificateTTL,
+			RenewalInterval: c.RenewalInterval,
+		},
+		Oneshot:  c.Oneshot,
+		FIPS:     c.FIPS,
+		DiagAddr: c.DiagAddr,
 
-		Storage: storage,
-		Outputs: outputs,
+		Storage:  storage,
+		Services: outputs,
 	}, nil
 }

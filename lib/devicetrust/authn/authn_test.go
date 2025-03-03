@@ -28,6 +28,7 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust/authn"
+	authntypes "github.com/gravitational/teleport/lib/devicetrust/authn/types"
 	"github.com/gravitational/teleport/lib/devicetrust/testenv"
 )
 
@@ -60,39 +61,37 @@ func TestCeremony_Run(t *testing.T) {
 		require.NoError(t, err, "EnrollDevice failed")
 	}
 
+	sshCert, sshSigner, err := testenv.NewSelfSignedSSHCert()
+	require.NoError(t, err)
+
+	runParams := &authntypes.CeremonyRunParams{
+		DevicesClient: devices,
+		Certs: &devicepb.UserCertificates{
+			SshAuthorizedKey: sshCert,
+		},
+		SSHSigner: sshSigner,
+	}
+
 	tests := []struct {
-		name  string
-		dev   testenv.FakeDevice
-		certs *devicepb.UserCertificates
+		name string
+		dev  testenv.FakeDevice
 	}{
 		{
 			name: "macOS ok",
 			dev:  macOSDev1,
-			certs: &devicepb.UserCertificates{
-				// SshAuthorizedKey is not parsed by the fake server.
-				SshAuthorizedKey: []byte("<a proper SSH certificate goes here>"),
-			},
 		},
 		{
 			name: "linux ok",
 			dev:  linuxDev1,
-			certs: &devicepb.UserCertificates{
-				// SshAuthorizedKey is not parsed by the fake server.
-				SshAuthorizedKey: []byte("<a proper SSH certificate goes here>"),
-			},
 		},
 		{
 			name: "windows ok",
 			dev:  windowsDev1,
-			certs: &devicepb.UserCertificates{
-				// SshAuthorizedKey is not parsed by the fake server.
-				SshAuthorizedKey: []byte("<a proper SSH certificate goes here>"),
-			},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err = newAuthnCeremony(test.dev).Run(ctx, devices, test.certs)
+			_, err = newAuthnCeremony(test.dev).Run(ctx, runParams)
 
 			// A nil error is good enough for this test.
 			assert.NoError(t, err, "RunCeremony failed")
@@ -122,7 +121,7 @@ func TestCeremony_RunWeb(t *testing.T) {
 	runError := func(t *testing.T, wantErr string, dev testenv.FakeDevice, webToken *devicepb.DeviceWebToken) {
 		t.Helper()
 
-		err := newAuthnCeremony(dev).RunWeb(ctx, devicesClient, webToken)
+		_, err := newAuthnCeremony(dev).RunWeb(ctx, devicesClient, webToken)
 		assert.ErrorContains(t, err, wantErr, "RunWeb expected to fail")
 	}
 
@@ -133,10 +132,16 @@ func TestCeremony_RunWeb(t *testing.T) {
 		devID := macOSDev1.Id
 		dev := macOSFakeDev1
 
-		webToken1, err := fakeService.CreateDeviceWebTokenForTesting(devID)
+		webToken1, err := fakeService.CreateDeviceWebTokenForTesting(testenv.CreateDeviceWebTokenParams{
+			ExpectedDeviceID: devID,
+			WebSessionID:     "my-web-session-1",
+		})
 		require.NoError(t, err, "CreateDeviceWebTokenForTesting failed")
 
-		invalidDeviceToken, err := fakeService.CreateDeviceWebTokenForTesting("I'm a llama not a device ID")
+		invalidDeviceToken, err := fakeService.CreateDeviceWebTokenForTesting(testenv.CreateDeviceWebTokenParams{
+			ExpectedDeviceID: "I'm a llama not a device ID",
+			WebSessionID:     "my-web-session-2",
+		})
 		require.NoError(t, err, "CreateDeviceWebTokenForTesting failed")
 
 		const wantErr = "invalid device web token"
@@ -166,13 +171,15 @@ func TestCeremony_RunWeb(t *testing.T) {
 
 		// Create a fake DeviceWebToken. This and a previous enrollment is all the
 		// fake service requires.
-		webToken, err := fakeService.CreateDeviceWebTokenForTesting(devID)
+		webToken, err := fakeService.CreateDeviceWebTokenForTesting(testenv.CreateDeviceWebTokenParams{
+			ExpectedDeviceID: devID,
+			WebSessionID:     "my-web-session-ok",
+		})
 		require.NoError(t, err, "CreateDeviceWebTokenForTesting failed")
 
-		err = newAuthnCeremony(dev).RunWeb(ctx, devicesClient, webToken)
-
-		// Absence of errors is good enough here.
-		assert.NoError(t, err, "RunWeb failed")
+		confirmToken, err := newAuthnCeremony(dev).RunWeb(ctx, devicesClient, webToken)
+		require.NoError(t, err, "RunWeb failed")
+		assert.NoError(t, fakeService.VerifyConfirmationToken(confirmToken))
 	})
 }
 

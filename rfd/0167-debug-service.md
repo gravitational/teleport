@@ -48,7 +48,7 @@ integrations, such as the usage of
 Teleport will start listening using a Unix socket located at
 `<data_dir>/debug.sock`.
 
-Having the the socket placed at the instan data directory will also cover
+Having the socket placed at the instan data directory will also cover
 scenarios where multiple instances of running on the same machine exist. In
 this case, the consumers can rely on the Teleport configuration to locate the
 data directory.
@@ -197,7 +197,7 @@ $ teleport debug profile heap,goroutine > profile.tar.gz
 ### Security
 
 Items listed on this section are have their impact limited due to the fact that
-the service will not be exposed outsite the machine/container running the
+the service will not be exposed outside the machine/container running the
 Teleport instance.
 
 #### CPU and Memory consumption during profiling
@@ -249,5 +249,5 @@ Here's an example of what the configuration could look like:
 ```
 debug_service:
   users: [root]
-  groups: [adminstrators]
+  groups: [administrators]
 ```

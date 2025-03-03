@@ -16,50 +16,44 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react';
-import Popover from 'design/Popover';
+import { useMemo, useRef } from 'react';
+
 import { Box, StepSlider } from 'design';
-import { StepComponentProps } from 'design/StepSlider';
+import Popover from 'design/Popover';
 
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useKeyboardShortcuts } from 'teleterm/ui/services/keyboardShortcuts';
-import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
-import { VnetSliderStep, useVnetContext } from 'teleterm/ui/Vnet';
+import { useVnetContext, VnetSliderStep } from 'teleterm/ui/Vnet';
 
-import { useConnections } from './useConnections';
+import { Step, useConnectionsContext } from './connectionsContext';
 import { ConnectionsIcon } from './ConnectionsIcon/ConnectionsIcon';
-import { ConnectionsFilterableList } from './ConnectionsFilterableList/ConnectionsFilterableList';
+import { ConnectionsSliderStep } from './ConnectionsSliderStep';
 
 export function Connections() {
+  const { connectionTracker } = useAppContext();
+  connectionTracker.useState();
   const iconRef = useRef();
-  const [isPopoverOpened, setIsPopoverOpened] = useState(false);
-  const connections = useConnections();
-  const { status: vnetStatus } = useVnetContext();
+  const { isOpen, toggle, close, stepToOpen } = useConnectionsContext();
+  const { status: vnetStatus, showDiagWarningIndicator } = useVnetContext();
   const isAnyConnectionActive =
-    connections.isAnyConnectionActive || vnetStatus === 'running';
+    connectionTracker.getConnections().some(c => c.connected) ||
+    vnetStatus.value === 'running';
+  const status = useMemo(() => {
+    if (showDiagWarningIndicator) {
+      return 'warning';
+    }
 
-  const togglePopover = useCallback(() => {
-    setIsPopoverOpened(wasOpened => {
-      const isOpened = !wasOpened;
-      if (isOpened) {
-        connections.updateSorting();
-      }
-      return isOpened;
-    });
-  }, [setIsPopoverOpened, connections.updateSorting]);
+    return isAnyConnectionActive ? 'on' : 'off';
+  }, [showDiagWarningIndicator, isAnyConnectionActive]);
 
   useKeyboardShortcuts(
     useMemo(
       () => ({
-        openConnections: togglePopover,
+        openConnections: toggle,
       }),
-      [togglePopover]
+      [toggle]
     )
   );
-
-  function activateItem(id: string): void {
-    setIsPopoverOpened(false);
-    connections.activateItem(id);
-  }
 
   // TODO(ravicious): Investigate the problem with height getting temporarily reduced when switching
   // from a shorter step 1 to a taller step 2, particularly when there's an error rendered in step 2
@@ -69,44 +63,42 @@ export function Connections() {
   //
   // We aim to replace the sliding animation with an expanding animation before the release, so it
   // might not be worth the effort.
-  const sliderSteps = [
-    (props: StepComponentProps) => (
-      <Box p={2} ref={props.refCallback}>
-        <KeyboardArrowsNavigation>
-          <ConnectionsFilterableList
-            items={connections.items}
-            onActivateItem={activateItem}
-            onRemoveItem={connections.removeItem}
-            onDisconnectItem={connections.disconnectItem}
-            slideToVnet={props.next}
-          />
-        </KeyboardArrowsNavigation>
-      </Box>
-    ),
-    VnetSliderStep,
-  ];
 
   return (
     <>
-      <ConnectionsIcon
-        isAnyConnectionActive={isAnyConnectionActive}
-        onClick={togglePopover}
-        ref={iconRef}
-      />
+      <ConnectionsIcon status={status} onClick={toggle} ref={iconRef} />
       <Popover
-        open={isPopoverOpened}
+        open={isOpen}
         anchorEl={iconRef.current}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-        onClose={() => setIsPopoverOpened(false)}
+        onClose={close}
       >
         {/*
-          324px matches the total width when the outer div inside Popover used to have 12px of
-          padding (so 24px on both sides) and ConnectionsFilterableList had 300px of width.
+          It needs to be wide enough for the diag warning in the VNet panel to not be squished too much.
         */}
-        <Box width="324px" bg="levels.elevated">
-          <StepSlider currFlow="default" flows={{ default: sliderSteps }} />
+        <Box width="396px" bg="levels.elevated">
+          <StepSlider
+            tDuration={250}
+            currFlow="default"
+            flows={stepSliderFlows}
+            defaultStepIndex={stepToIndex(stepToOpen)}
+          />
         </Box>
       </Popover>
     </>
   );
 }
+
+const stepSliderFlows = { default: [ConnectionsSliderStep, VnetSliderStep] };
+
+const stepToIndex = (step: Step): number => {
+  switch (step) {
+    case 'connections':
+      return 0;
+    case 'vnet':
+      return 1;
+    default:
+      step satisfies never;
+      return 0;
+  }
+};

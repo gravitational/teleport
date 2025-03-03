@@ -20,19 +20,19 @@ package tbot
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 )
 
-func getDatabase(ctx context.Context, clt *auth.Client, name string) (types.Database, error) {
+func getDatabase(ctx context.Context, clt *authclient.Client, name string) (types.Database, error) {
 	ctx, span := tracer.Start(ctx, "getDatabase")
 	defer span.End()
 
@@ -58,8 +58,8 @@ func getDatabase(ctx context.Context, clt *auth.Client, name string) (types.Data
 
 func getRouteToDatabase(
 	ctx context.Context,
-	log logrus.FieldLogger,
-	client *auth.Client,
+	log *slog.Logger,
+	client *authclient.Client,
 	service string,
 	username string,
 	database string,
@@ -81,7 +81,11 @@ func getRouteToDatabase(
 	if db.GetProtocol() == libdefaults.ProtocolMongoDB && username == "" {
 		// This isn't strictly a runtime error so killing the process seems
 		// wrong. We'll just loudly warn about it.
-		log.Errorf("Database `username` field for %q is unset but is required for MongoDB databases.", service)
+		log.ErrorContext(
+			ctx,
+			"Database `username` field for service is unset but is required for MongoDB databases.",
+			"service", service,
+		)
 	} else if db.GetProtocol() == libdefaults.ProtocolRedis && username == "" {
 		// Per tsh's lead, fall back to the default username.
 		username = libdefaults.DefaultRedisUsername

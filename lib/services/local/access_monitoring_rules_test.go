@@ -27,10 +27,12 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
@@ -48,6 +50,8 @@ func TestAccessMonitoringRulesCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	AccessMonitoringRule1 := &accessmonitoringrulesv1.AccessMonitoringRule{
+		Kind:    types.KindAccessMonitoringRule,
+		Version: types.V1,
 		Metadata: &v1.Metadata{
 			Name: "p1",
 		},
@@ -58,6 +62,8 @@ func TestAccessMonitoringRulesCRUD(t *testing.T) {
 	}
 
 	AccessMonitoringRule2 := &accessmonitoringrulesv1.AccessMonitoringRule{
+		Kind:    types.KindAccessMonitoringRule,
+		Version: types.V1,
 		Metadata: &v1.Metadata{
 			Name: "p2",
 		},
@@ -109,6 +115,103 @@ func TestAccessMonitoringRulesCRUD(t *testing.T) {
 	require.IsType(t, trace.NotFound(""), err)
 }
 
+func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
+	ctx := context.Background()
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { mem.Close() })
+
+	service, err := NewAccessMonitoringRulesService(mem)
+	require.NoError(t, err)
+
+	notificationRule := &accessmonitoringrulesv1.AccessMonitoringRule{
+		Kind:    types.KindAccessMonitoringRule,
+		Version: types.V1,
+		Metadata: &v1.Metadata{
+			Name: "example-notification-rule",
+		},
+		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+			Subjects:  []string{types.KindAccessRequest},
+			Condition: "someCondition",
+			Notification: &accessmonitoringrulesv1.Notification{
+				Name: "notificationPlugin",
+			},
+		},
+	}
+	_, err = service.CreateAccessMonitoringRule(ctx, notificationRule)
+	require.NoError(t, err)
+
+	reqNotificationRule := &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest{
+		Subjects:         []string{types.KindAccessRequest},
+		NotificationName: "notificationPlugin",
+	}
+	notificationRules, _, err := service.ListAccessMonitoringRulesWithFilter(ctx, reqNotificationRule)
+	require.NoError(t, err)
+	require.Len(t, notificationRules, 1)
+	require.True(t, proto.Equal(notificationRule, notificationRules[0]),
+		"filter by notification name")
+
+	automaticApprovalRule := &accessmonitoringrulesv1.AccessMonitoringRule{
+		Kind:    types.KindAccessMonitoringRule,
+		Version: types.V1,
+		Metadata: &v1.Metadata{
+			Name: "example-automatic-approval-rule",
+		},
+		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+			Subjects:  []string{types.KindAccessRequest},
+			Condition: "someCondition",
+			AutomaticApproval: &accessmonitoringrulesv1.AutomaticApproval{
+				Name: "automaticApprovalPlugin",
+			},
+		},
+	}
+	_, err = service.CreateAccessMonitoringRule(ctx, automaticApprovalRule)
+	require.NoError(t, err)
+
+	reqAutomaticApprovalRule := &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest{
+		Subjects:              []string{types.KindAccessRequest},
+		AutomaticApprovalName: "automaticApprovalPlugin",
+	}
+	automaticApprovalRules, _, err := service.ListAccessMonitoringRulesWithFilter(ctx, reqAutomaticApprovalRule)
+	require.NoError(t, err)
+	require.Len(t, automaticApprovalRules, 1)
+	require.True(t, proto.Equal(automaticApprovalRule, automaticApprovalRules[0]),
+		"filter by automatic_approval name")
+
+	combinedRule := &accessmonitoringrulesv1.AccessMonitoringRule{
+		Kind:    types.KindAccessMonitoringRule,
+		Version: types.V1,
+		Metadata: &v1.Metadata{
+			Name: "example-combined-rule",
+		},
+		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+			Subjects:  []string{types.KindAccessRequest},
+			Condition: "someCondition",
+			Notification: &accessmonitoringrulesv1.Notification{
+				Name: "notificationPlugin",
+			},
+			AutomaticApproval: &accessmonitoringrulesv1.AutomaticApproval{
+				Name: "automaticApprovalPlugin",
+			},
+		},
+	}
+	_, err = service.CreateAccessMonitoringRule(ctx, combinedRule)
+	require.NoError(t, err)
+
+	combinedReq := &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest{
+		Subjects:              []string{types.KindAccessRequest},
+		AutomaticApprovalName: "automaticApprovalPlugin",
+		NotificationName:      "notificationPlugin",
+	}
+	combinedRules, _, err := service.ListAccessMonitoringRulesWithFilter(ctx, combinedReq)
+	require.NoError(t, err)
+	require.Len(t, combinedRules, 1)
+	require.True(t, proto.Equal(combinedRule, combinedRules[0]),
+		"filter by both notification and automatic_approval name")
+}
+
 func TestListAccessMonitoringRules(t *testing.T) {
 	const pageSize = 5
 	const numAccessMonitoringRules = 2*pageSize + 1
@@ -126,6 +229,8 @@ func TestListAccessMonitoringRules(t *testing.T) {
 	var insertedAccessMonitoringRules []*accessmonitoringrulesv1.AccessMonitoringRule
 	for i := 0; i < numAccessMonitoringRules; i++ {
 		AccessMonitoringRule := &accessmonitoringrulesv1.AccessMonitoringRule{
+			Kind:    types.KindAccessMonitoringRule,
+			Version: types.V1,
 			Metadata: &v1.Metadata{
 				Name: fmt.Sprintf("p%02d", i+1),
 			},

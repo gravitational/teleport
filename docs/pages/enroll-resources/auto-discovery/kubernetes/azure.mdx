@@ -1,0 +1,268 @@
+---
+title: Teleport AKS Auto-Discovery
+description: Auto-Discovery of AKS clusters in Azure cloud.
+---
+
+AKS Auto-Discovery can automatically
+discover any AKS cluster and enroll it in Teleport if its tags match the
+configured labels.
+
+(!docs/pages/includes/discovery/step-description.mdx serviceName="Kubernetes" resourceDesc="cluster" resourceKind="kube_cluster" !)
+
+(!docs/pages/includes/discovery/same-host-tip.mdx serviceName="Kubernetes" resourceDesc="cluster" !)
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- An Azure identity with permissions to create and attach AD Groups.
+- One or more AKS clusters running.
+- Access to AKS clusters.
+- A host to run the Teleport Discovery and Kubernetes services.
+
+## Step 1/2. Set up Azure Identity with the required permissions
+
+Depending on each cluster's authentication and authorization settings, Azure
+uses a different way to configure the necessary permissions for Teleport to forward
+requests to the server.
+
+Check the authentication modes used on your clusters and choose one or more
+permissions scenarios. In some configurations, Teleport has the ability to
+automatically configure the access to the cluster if you include the necessary
+permissions to do so.
+
+<Tabs>
+  <TabItem label="Azure AD + Azure RBAC (recommended)" >
+
+In this scenario, the Teleport's authentication happens through Active Directory,
+and the permissions required to access the Kubernetes cluster are associated with
+the roles assigned to its identity.
+
+This mode allows you to grant permissions to multiple Kubernetes clusters without
+requiring specific settings for each one of them.
+
+To grant access to the AKS clusters running with this setting, create an AD role
+with the following content and assign it to the identity that the Teleport process will use.
+
+```json
+  {
+      "Name": "AKS Teleport Discovery",
+      "Description": "Required permissions for Teleport auto-discovery.",
+      "Actions": [
+        "Microsoft.ContainerService/managedClusters/read",
+        "Microsoft.ContainerService/managedClusters/listClusterUserCredential/action"
+      ],
+      "NotActions": [],
+      "DataActions": [
+        "Microsoft.ContainerService/managedClusters/groups/impersonate/action",
+        "Microsoft.ContainerService/managedClusters/users/impersonate/action",
+        "Microsoft.ContainerService/managedClusters/serviceaccounts/impersonate/action",
+        "Microsoft.ContainerService/managedClusters/pods/read",
+        "Microsoft.ContainerService/managedClusters/authorization.k8s.io/selfsubjectaccessreviews/write",
+        "Microsoft.ContainerService/managedClusters/authorization.k8s.io/selfsubjectrulesreviews/write",
+      ],
+      "NotDataActions": [],
+      "assignableScopes": [
+          "/subscriptions/{subscription_id}"
+      ]
+  }
+```
+
+Replace the `{subscription_id}` with the desired Subscription ID or a wildcard if
+you want to guarantee permissions on all subscriptions.
+
+  </TabItem>
+
+  <TabItem label="Azure AD + Kubernetes RBAC">
+
+When using Azure AD authentication with Kubernetes RBAC mode, Azure is responsible
+for user authentication using AD credentials, but permissions management is Kubernetes'
+RBAC responsibility.
+
+Therefore, for Teleport to work correctly, you must create the Kubernetes `ClusterRole`
+and `ClusterRoleBinding` resources on each discovered cluster.
+The `ClusterRoleBinding` must bind the `ClusterRole` to one of the AD groups
+configured in the Teleport identity.
+
+Teleport can automatically create the `ClusterRole` and `ClusterRoleBinding` resources
+in the following cases:
+- Teleport's AD identity has permissions that allow access to the static [cluster administrator credentials](https://learn.microsoft.com/en-us/rest/api/aks/managed-clusters/list-cluster-admin-credentials) (local accounts).
+- Teleport's AD identity belongs to the cluster's administrator group.
+- Teleport's AD identity has permissions to create `ClusterRole` and `ClusterRoleBinding` on the
+cluster and permissions to execute [remote commands](https://learn.microsoft.com/en-us/rest/api/aks/managed-clusters/run-command).
+
+In either of the specified cases, Teleport will be able to create the `ClusterRole` and bind
+it to the first AD group it belongs. To make this possible, associate the
+following permissions with Teleport's identity.
+
+    ```json
+      {
+          "Name": "AKS Teleport Discovery",
+          "Description": "Required permissions for Teleport auto-discovery.",
+          "Actions": [
+            "Microsoft.ContainerService/managedClusters/read",
+            "Microsoft.ContainerService/managedClusters/listClusterAdminCredential/action",
+            "Microsoft.ContainerService/managedClusters/listClusterUserCredential/action",
+            "Microsoft.ContainerService/managedClusters/runcommand/action",
+            "Microsoft.ContainerService/managedclusters/commandResults/read"
+          ],
+          "NotActions": [],
+          "DataActions": [],
+          "NotDataActions": [],
+          "assignableScopes": [
+              "/subscriptions/{subscription_id}"
+          ]
+      }
+    ```
+
+In all other cases, you must manually set up the required access as described in the guide below.
+
+<Details
+title="Manual configuration of Teleport RBAC permissions"
+opened={false}
+>
+
+Connect to every cluster to enroll with admin permissions and create the following resources
+using `kubectl`.
+
+### ClusterRole
+
+Create the `ClusterRole` RBAC definition with the required permissions for Teleport
+Kubernetes Service to forward requests to the cluster.
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: teleport
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - users
+  - groups
+  - serviceaccounts
+  verbs:
+  - impersonate
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+- apiGroups:
+  - "authorization.k8s.io"
+  resources:
+  - selfsubjectaccessreviews
+  - selfsubjectrulesreviews
+  verbs:
+  - create
+```
+
+### ClusterRoleBinding
+
+Link the previously created `ClusterRole` into the Teleport AD group id.
+
+```yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: teleport
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: teleport
+subjects:
+- kind: Group
+  name: {azure_ad_group_id}
+  apiGroup: rbac.authorization.k8s.io
+```
+
+Replace `{azure_ad_group_id}` with the appropriate Azure AD group id
+associated with Teleport identity.
+
+</Details>
+
+  </TabItem>
+    <TabItem label="Local Accounts">
+      In this case, Teleport will use the user credentials generated during the
+      provisioning phase of the cluster.
+
+    ```json
+      {
+          "Name": "AKS Teleport Discovery",
+          "Description": "Required permissions for Teleport auto-discovery.",
+          "Actions": [
+            "Microsoft.ContainerService/managedClusters/read",
+            "Microsoft.ContainerService/managedClusters/listClusterUserCredential/action",
+          ],
+          "NotActions": [],
+          "DataActions": [],
+          "NotDataActions": [],
+          "assignableScopes": [
+              "/subscriptions/{subscription_id}"
+          ]
+      }
+    ```
+
+  </TabItem>
+</Tabs>
+
+## Step 2/2. Configure Teleport to discover AKS clusters
+
+Teleport AKS Auto-Discovery requires a valid auth token for the Discovery and
+Kubernetes services to join the cluster. Generate one by running the following
+command against your Teleport Auth Service and save it in `/tmp/token` on the
+machine that will run Kubernetes Discovery:
+
+```code
+$ tctl tokens add --type=discovery,kube
+```
+
+Enabling AKS Auto-Discovery requires that the `discovery_service.azure` section
+include at least one entry and that `discovery_service.azure.types` include `aks`.
+It also requires configuring the `kubernetes_service.resources.tags` to use the same
+labels configured at `discovery_service.azure.tags` or a subset of them to make
+the Kubernetes Service listen to the dynamic resources created by the Discovery
+Service.
+
+(!docs/pages/includes/discovery/discovery-group.mdx!)
+
+```yaml
+version: v3
+teleport:
+  join_params:
+    token_name: "/tmp/token"
+    method: token
+  proxy_server: "teleport.example.com:443"
+auth_service:
+  enabled: off
+proxy_service:
+  enabled: off
+ssh_service:
+  enabled: off
+discovery_service:
+  enabled: "yes"
+  discovery_group: "aks-prod"
+  azure:
+  - types: ["aks"]
+    regions: ["*"]
+    subscriptions: ["*"]
+    resource_groups: ["*"]
+    tags:
+      "env": "prod"
+kubernetes_service:
+  enabled: "yes"
+  resources:
+  - labels:
+      "env": "prod" # Match Kubernetes Cluster labels specified earlier
+```
+
+Once you have added this configuration, start Teleport. AKS clusters matching the tags and regions
+specified in the Azure section will be added to the Teleport cluster automatically.
+
+## Troubleshooting
+
+(!docs/pages/includes/discovery/discovery-service-troubleshooting.mdx resourceKind="Kubernetes cluster" tctlResource="kube_cluster" !)
+
+(!docs/pages/includes/discovery/kubernetes-service-troubleshooting.mdx!)

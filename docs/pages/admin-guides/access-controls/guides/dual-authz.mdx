@@ -1,0 +1,232 @@
+---
+title: Dual Authorization
+description: Dual Authorization for SSH and Kubernetes.
+videoBanner: b_iqJm_o15I
+---
+
+You can set up Teleport to require the approval of multiple team members to perform some critical actions.
+Here are the most common scenarios:
+
+- Improve the security of your system and prevent one successful phishing attack from compromising your system.
+- Satisfy FedRAMP AC-3 Dual authorization control that requires approval of two authorized individuals.
+
+In this guide, we will set up Teleport's Just-in-Time Access Requests to require
+the approval of two team members for a privileged role `elevated-access`.
+
+The steps below describe how to use Teleport with Mattermost. You can also
+[integrate with many other providers](../access-requests/access-requests.mdx).
+
+<Notice type="warning">
+
+Dual Authorization requires Teleport Enterprise.
+
+</Notice>
+
+## Prerequisites
+
+- Mattermost installed.
+
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+
+<Admonition
+  type="tip"
+  title="Running Mattermost locally with Docker"
+>
+  ```code
+  $ docker run --name mattermost-preview -d --publish 8065:8065 --add-host dockerhost:127.0.0.1 mattermost/mattermost-preview
+  ```
+
+</Admonition>
+
+- (!docs/pages/includes/tctl.mdx!)
+
+## Step 1/2. Set up a Teleport bot
+
+### Create a bot within Mattermost
+
+Enable bot account creation in "System Console -> Integrations".
+
+Toggle `Enable Bot Account Creation`.
+
+![Enable bots](../../../../img/access-controls/dual-authz/mattermost-0-enable.png)
+
+Go back to your team settings, navigate to "Integrations -> Bot Accounts". Press "Add Bot Account".
+
+![Enable bots](../../../../img/access-controls/dual-authz/mattermost-1-bot.png)
+
+Add the "Post All" permission on the new account.
+
+![Enable bots](../../../../img/access-controls/dual-authz/mattermost-2-all-permissions@2x.png)
+
+Create the bot and save the access token.
+
+### Set up RBAC for the plugin
+
+(!docs/pages/includes/plugins/rbac.mdx!)
+
+(!/docs/pages/includes/plugins/rbac-impersonate.mdx!)
+
+### Export the access-plugin identity files
+
+(!docs/pages/includes/plugins/identity-export.mdx user="access-plugin"!)
+
+We'll reference the exported file(s) later when configuring the plugin.
+
+### Install the plugin
+
+<Tabs>
+<TabItem label="Download">
+  Access Request Plugins are available as `amd64` or `arm64` Linux binaries for downloading.
+  Replace `ARCH` with your required version.
+
+  ```code
+  $ curl -L https://cdn.teleport.dev/teleport-access-mattermost-v(=teleport.plugin.version=)-linux-<Var name="ARCH" />-bin.tar.gz
+  $ tar -xzf teleport-access-mattermost-v(=teleport.plugin.version=)-linux-<Var name="ARCH" />-bin.tar.gz
+  $ cd teleport-access-mattermost
+  $ ./install
+  ```
+</TabItem>
+<TabItem label="From Source">
+  To install from source you need `git` and `go >= (=teleport.golang=)` installed.
+
+  ```code
+  # Checkout the Teleport repo and go in the mattermost access plugin directory
+  $ git clone https://github.com/gravitational/teleport.git -b branch/v(=teleport.major_version=)
+  $ cd teleport/integrations/access/mattermost
+  $ git checkout (=teleport.plugin.version=)
+  $ make
+  ```
+</TabItem>
+</Tabs>
+
+```code
+$ teleport-mattermost configure > /etc/teleport-mattermost.toml
+```
+
+Update the config with the Teleport address, Mattermost URL, and a bot token:
+
+```yaml
+(!examples/resources/plugins/teleport-mattermost-cloud.toml!)
+```
+
+## Step 2/2. Configure dual authorization
+
+In this section, we will use an example to show you how to require dual
+authorization for a user to assume a role.
+
+### Require dual authorization for a role
+
+Alice and Ivan are reviewers. They can approve requests for assuming role
+`elevated-access`. Bob is a DevOps engineer and can assume the `elevated-access` role if two members
+of the `reviewer` role approve the request.
+
+Create the following `elevated-access`, `dbreviewer` and `devops` roles:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: dbreviewer
+spec:
+  allow:
+    review_requests:
+      roles: ['elevated-access']
+---
+kind: role
+version: v5
+metadata:
+  name: devops
+spec:
+  allow:
+    request:
+      roles: ['elevated-access']
+      thresholds:
+        - approve: 2
+          deny: 1
+---
+kind: role
+version: v5
+metadata:
+  name: elevated-access
+spec:
+  allow:
+    logins: ['root']
+    node_labels:
+      'env': 'prod'
+      'type': 'db'
+```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
+
+The commands below create the local users Bob, Alice, and Ivan.
+
+```code
+$ tctl users add bob@example.com --roles=devops
+$ tctl users add alice@example.com --roles=dbreviewer
+$ tctl users add ivan@example.com --roles=dbreviewer
+```
+
+### Create an Access Request
+
+Bob does not have a role `elevated-access` assigned to him, but can create an Access Request for this role in the Web UI or CLI:
+
+<Tabs>
+<TabItem label="Web UI">
+  ![Role-Request](../../../../img/access-controls/dual-authz/role-new-request.png)
+  ![Request-Success](../../../../img/access-controls/dual-authz/request-success.png)
+</TabItem>
+<TabItem label="Terminal">
+  ```code
+  # Bob has to set valid emails of Alice and Ivan matching in Mattermost.
+  $ tsh request create --roles=elevated-access --reviewers=alice@example.com,ivan@example.com
+  ```
+</TabItem>
+</Tabs>
+
+The Web UI will notify the admin:
+
+![Mattermost-Request](../../../../img/access-controls/dual-authz/pending-access-request.png)
+
+The request can then be reviewed and approved through the Web UI or CLI:
+
+<Tabs>
+  <TabItem label="Web UI">
+    ![Teleport-Approve](../../../../img/access-controls/dual-authz/approve-new-request.png)
+  </TabItem>
+
+  <TabItem label="CLI">
+    ```code
+    $ tsh request list
+
+    # ID                                   User        Roles            Created  (UTC)       Status
+    # ------------------------------------ ----------  ---------------  -------------------  ------
+    # 0193496f-268c-727e-b696-600a868429ff test (Bob)  elevated-access  21 Nov 24 18:50 UTC  PENDING
+
+    $ tsh request review --approve --reason="Need to gain elevated-access for investigation" 0193496f-268c-727e-b696-600a868429ff
+    # Successfully submitted review.  Request state: APPROVED
+    ```
+  </TabItem>
+</Tabs>
+
+If the user has created a request using CLI, the role will be assumed once it has been approved, or they can assume the role using the Web UI.
+
+## Troubleshooting
+
+### Certificate errors in self-hosted deployments
+
+You may be getting certificate errors if Teleport's Auth Service is missing an address in the server certificate:
+
+```txt
+authentication handshake failed: x509: cannot validate certificate for 127.0.0.1 because it doesn't contain any IP SANs
+```
+
+```txt
+x509: certificate is valid for,*.teleport.cluster.local, teleport.cluster.local, not example.com
+```
+
+To fix the problem, update the Auth Service with a public address, and restart Teleport:
+
+```yaml
+auth_service:
+  public_addr: ['localhost:3025', 'example.com:3025']
+```

@@ -16,28 +16,39 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Logger from 'shared/libs/logger';
-
 import { context, defaultTextMapSetter, trace } from '@opentelemetry/api';
 import { W3CTraceContextPropagator } from '@opentelemetry/core';
 
-import webSession from 'teleport/services/websession';
-import history from 'teleport/services/history';
-import cfg, { UrlResourcesParams, UrlSshParams } from 'teleport/config';
-import { getHostName } from 'teleport/services/api';
+import Logger from 'shared/libs/logger';
+
+import cfg, {
+  UrlDbConnectParams,
+  UrlKubeExecParams,
+  UrlSshParams,
+} from 'teleport/config';
 import Tty from 'teleport/lib/term/tty';
 import TtyAddressResolver from 'teleport/lib/term/ttyAddressResolver';
+import { getHostName } from 'teleport/services/api';
+import ClustersService from 'teleport/services/clusters';
+import history from 'teleport/services/history';
+import ServiceNodes from 'teleport/services/nodes';
 import serviceSession, {
-  Session,
   ParticipantList,
   ParticipantMode,
+  Session,
 } from 'teleport/services/session';
-import ServiceNodes from 'teleport/services/nodes';
-import ClustersService from 'teleport/services/clusters';
-import { StoreUserContext } from 'teleport/stores';
 import usersService from 'teleport/services/user';
+import webSession from 'teleport/services/websession';
+import { StoreUserContext } from 'teleport/stores';
 
-import { StoreParties, StoreDocs, DocumentSsh, Document } from './stores';
+import {
+  Document,
+  DocumentDb,
+  DocumentKubeExec,
+  DocumentSsh,
+  StoreDocs,
+  StoreParties,
+} from './stores';
 
 const logger = Logger.create('teleport/console');
 
@@ -89,6 +100,14 @@ export default class ConsoleContext {
     this.storeDocs.update(id, partial);
   }
 
+  updateKubeExecDocument(id: number, partial: Partial<DocumentKubeExec>) {
+    this.storeDocs.update(id, partial);
+  }
+
+  updateDbDocument(id: number, partial: Partial<DocumentDb>) {
+    this.storeDocs.update(id, partial);
+  }
+
   addNodeDocument(clusterId = cfg.proxyCluster) {
     return this.storeDocs.add({
       clusterId,
@@ -96,6 +115,27 @@ export default class ConsoleContext {
       kind: 'nodes',
       url: cfg.getConsoleNodesRoute(clusterId),
       created: new Date(),
+    });
+  }
+
+  addKubeExecDocument(params: UrlKubeExecParams) {
+    const url = this.getKubeExecDocumentUrl(params);
+
+    return this.storeDocs.add({
+      kind: 'kubeExec',
+      status: 'disconnected',
+      clusterId: params.clusterId,
+      title: params.kubeId,
+      url,
+      created: new Date(),
+      mode: null,
+
+      kubeCluster: params.kubeId,
+      kubeNamespace: '',
+      pod: '',
+      container: '',
+      isInteractive: true,
+      command: '',
     });
   }
 
@@ -124,6 +164,19 @@ export default class ConsoleContext {
     });
   }
 
+  addDbDocument(params: UrlDbConnectParams) {
+    const url = this.getDbDocumentUrl(params);
+
+    return this.storeDocs.add({
+      kind: 'db',
+      clusterId: params.clusterId,
+      title: params.serviceName,
+      url,
+      created: new Date(),
+      name: params.serviceName,
+    });
+  }
+
   getDocuments() {
     return this.storeDocs.state.items;
   }
@@ -136,6 +189,14 @@ export default class ConsoleContext {
     return sshParams.sid
       ? cfg.getSshSessionRoute(sshParams)
       : cfg.getSshConnectRoute(sshParams);
+  }
+
+  getKubeExecDocumentUrl(kubeExecParams: UrlKubeExecParams) {
+    return cfg.getKubeExecConnectRoute(kubeExecParams);
+  }
+
+  getDbDocumentUrl(dbConnectParams: UrlDbConnectParams) {
+    return cfg.getDbConnectRoute(dbConnectParams);
   }
 
   refreshParties() {
@@ -173,14 +234,6 @@ export default class ConsoleContext {
     });
   }
 
-  fetchNodes(clusterId: string, params?: UrlResourcesParams) {
-    return this.nodesService.fetchNodes(clusterId, params);
-  }
-
-  fetchClusters() {
-    return this.clustersService.fetchClusters();
-  }
-
   logout() {
     webSession.logout();
   }
@@ -194,20 +247,33 @@ export default class ConsoleContext {
     const ctx = context.active();
 
     propagator.inject(ctx, carrier, defaultTextMapSetter);
+    let baseUrl = '';
+    let ttyParams = {};
+    switch (session.kind) {
+      case 'ssh':
+        ttyParams = {
+          login,
+          sid,
+          server_id: serverId,
+          mode,
+        };
+        baseUrl = cfg.api.ttyWsAddr;
+        break;
+      case 'k8s':
+        baseUrl = cfg.api.ttyKubeExecWsAddr;
+        break;
+      case 'db':
+        baseUrl = cfg.api.ttyDbWsAddr;
+    }
 
-    const ttyUrl = cfg.api.ttyWsAddr
+    const ttyUrl = baseUrl
       .replace(':fqdn', getHostName())
       .replace(':clusterId', clusterId)
       .replace(':traceparent', carrier['traceparent']);
 
     const addressResolver = new TtyAddressResolver({
       ttyUrl,
-      ttyParams: {
-        login,
-        sid,
-        server_id: serverId,
-        mode,
-      },
+      ttyParams,
     });
 
     return new Tty(addressResolver);

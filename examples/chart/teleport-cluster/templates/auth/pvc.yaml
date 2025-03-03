@@ -9,7 +9,11 @@ kind: PersistentVolumeClaim
 metadata:
   name: {{ .Release.Name }}
   namespace: {{ .Release.Namespace }}
-  labels: {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
+  labels:
+    {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
+    {{- if $auth.extraLabels.persistentVolumeClaim }}
+    {{- toYaml $auth.extraLabels.persistentVolumeClaim | nindent 4 }}
+    {{- end }}
 spec:
   accessModes:
   - ReadWriteOnce

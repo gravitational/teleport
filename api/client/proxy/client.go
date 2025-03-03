@@ -33,12 +33,10 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
-	authpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/proxy/transport/transportv1"
 	"github.com/gravitational/teleport/api/defaults"
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/metadata"
-	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
 
@@ -84,7 +82,7 @@ type ClientConfig struct {
 
 // CheckAndSetDefaults ensures required options are present and
 // sets the default value of any that are omitted.
-func (c *ClientConfig) CheckAndSetDefaults() error {
+func (c *ClientConfig) CheckAndSetDefaults(ctx context.Context) error {
 	if c.ProxyAddress == "" {
 		return trace.BadParameter("missing required parameter ProxyAddress")
 	}
@@ -117,6 +115,21 @@ func (c *ClientConfig) CheckAndSetDefaults() error {
 			// not to send the client certificate by looking at certificate request.
 			if len(tlsCfg.Certificates) > 0 {
 				cert := tlsCfg.Certificates[0]
+
+				// When a hardware key is used to store the private key, the user may fail to provide
+				// a PIN or touch before a gRPC dial timeout occurs.
+				// The resulting "dial timeout" error is generic and doesn't indicate an issue with the
+				// hardware key itself (since YubiKey is treated like any other key).
+				// To avoid this, we perform a "warm-up" call to the key, ensuring it is ready
+				// before initiating the gRPC dial.
+				// This approach works because the connection is cached for a few seconds,
+				// allowing subsequent calls without requiring additional user action.
+				if priv, ok := cert.PrivateKey.(hardwareKeyWarmer); ok {
+					err := priv.WarmupHardwareKey(ctx)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+				}
 				tlsCfg.Certificates = nil
 				tlsCfg.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
 					return &cert, nil
@@ -147,6 +160,11 @@ func (mc insecureCredentials) TLSConfig() (*tls.Config, error) {
 
 func (mc insecureCredentials) SSHClientConfig() (*ssh.ClientConfig, error) {
 	return nil, trace.NotImplemented("no ssh config")
+}
+
+// Expiry returns the credential expiry. insecureCredentials never expire.
+func (mc insecureCredentials) Expiry() (time.Time, bool) {
+	return time.Time{}, true
 }
 
 // Client is a client to the Teleport Proxy SSH server on behalf of a user.
@@ -180,7 +198,7 @@ const protocolProxySSHGRPC string = "teleport-proxy-ssh-grpc"
 // of the caller, then prefer to use NewSSHClient instead which omits
 // the gRPC dialing altogether.
 func NewClient(ctx context.Context, cfg ClientConfig) (*Client, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
+	if err := cfg.CheckAndSetDefaults(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -228,11 +246,9 @@ type clusterCredentials struct {
 	clusterName *clusterName
 }
 
-var (
-	// teleportClusterASN1ExtensionOID is an extension ID used when encoding/decoding
-	// origin teleport cluster name into certificates.
-	teleportClusterASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 7}
-)
+// teleportClusterASN1ExtensionOID is an extension ID used when encoding/decoding
+// origin teleport cluster name into certificates.
+var teleportClusterASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 7}
 
 // ClientHandshake performs the handshake with the wrapped [credentials.TransportCredentials] and
 // then inspects the provided cert for the [teleportClusterASN1ExtensionOID] to determine
@@ -390,27 +406,19 @@ func (c *Client) ClientConfig(ctx context.Context, cluster string) (client.Confi
 			CircuitBreakerConfig:       breaker.NoopBreakerConfig(),
 			ALPNConnUpgradeRequired:    c.cfg.ALPNConnUpgradeRequired,
 			DialOpts:                   c.cfg.DialOpts,
+			InsecureAddressDiscovery:   c.cfg.InsecureSkipVerify,
+			DialInBackground:           true,
 		}, nil
 	}
 
 	return client.Config{
-		Context:              ctx,
-		Credentials:          []client.Credentials{creds},
-		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
-		DialInBackground:     true,
+		Context:                  ctx,
+		Credentials:              []client.Credentials{creds},
+		CircuitBreakerConfig:     breaker.NoopBreakerConfig(),
+		DialInBackground:         true,
+		InsecureAddressDiscovery: c.cfg.InsecureSkipVerify,
 		Dialer: client.ContextDialerFunc(func(dialCtx context.Context, _ string, _ string) (net.Conn, error) {
-			// Don't dial if the context has timed out.
-			select {
-			case <-dialCtx.Done():
-				return nil, dialCtx.Err()
-			default:
-			}
-
-			// Intentionally not using the dial context because it is only valid
-			// for the lifetime of the dial. Using it causes the stream to be terminated
-			// immediately after the dial completes.
-			connContext := tracing.WithPropagationContext(context.Background(), tracing.PropagationContextFromContext(dialCtx))
-			conn, err := c.transport.DialCluster(connContext, cluster, nil)
+			conn, err := c.transport.DialCluster(dialCtx, cluster, nil)
 			return conn, trace.Wrap(err)
 		}),
 		DialOpts: c.cfg.DialOpts,
@@ -442,10 +450,13 @@ func (c *Client) ClusterDetails(ctx context.Context) (ClusterDetails, error) {
 func (c *Client) Ping(ctx context.Context) error {
 	// TODO(tross): Update to call Ping when it is added to the transport service.
 	// For now we don't really care what method is used we just want to measure
-	// how long it takes to get a reply. This will always fail with a not implemented
-	// error since the Proxy gRPC server doesn't serve the auth service proto. However,
-	// we use it because it's already imported in the api package.
-	clt := authpb.NewAuthServiceClient(c.grpcConn)
-	_, _ = clt.Ping(ctx, &authpb.PingRequest{})
+	// how long it takes to get a reply.
+	_, _ = c.transport.ClusterDetails(ctx)
 	return nil
+}
+
+// hardwareKeyWarmer performs a bogus call to the hardware key,
+// to proactively prompt the user for a PIN/touch (if needed).
+type hardwareKeyWarmer interface {
+	WarmupHardwareKey(ctx context.Context) error
 }

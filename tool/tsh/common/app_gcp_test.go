@@ -26,8 +26,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func Test_getGCPServiceAccountFromFlags(t *testing.T) {
@@ -186,7 +186,7 @@ test-0@other-999999.iam.gserviceaccount.com
 func Test_gcpApp_Config(t *testing.T) {
 	cf := &CLIConf{HomePath: t.TempDir()}
 	profile := &client.ProfileStatus{}
-	route := tlsca.RouteToApp{
+	route := proto.RouteToApp{
 		ClusterName:       "test.teleport.io",
 		Name:              "myapp",
 		GCPServiceAccount: "test@myproject-123456.iam.gserviceaccount.com",
@@ -194,7 +194,10 @@ func Test_gcpApp_Config(t *testing.T) {
 
 	t.Setenv("TELEPORT_GCLOUD_SECRET", "my_secret")
 
-	app, err := newGCPApp(cf, profile, route)
+	app, err := newGCPApp(nil, cf, &appInfo{
+		RouteToApp: route,
+		profile:    profile,
+	})
 	require.NoError(t, err)
 	require.NotNil(t, app)
 

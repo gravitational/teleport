@@ -628,3 +628,73 @@ tests:
     asserts:
       - matchSnapshot:
           path: data.teleport\.yaml
+
+  - it: keeps the second factor type even when it's "off"
+    set:
+      clusterName: helm-lint
+      authentication:
+        secondFactor: 'off'
+    asserts:
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: fails if access monitoring is enabled without athena
+    set:
+      chartMode: aws
+      clusterName: "teleport.example.com"
+      aws:
+        region: asd
+        backendTable: asd
+        sessionRecordingBucket: asd
+        auditLogTable: my-dynamodb-table
+        accessMonitoring:
+          enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "AccessMonitoring requires an Athena Event backend"
+
+  - it: configures access monitoring when its values are set
+    values:
+      - ../.lint/aws-access-monitoring.yaml
+    asserts:
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: sets extraLabels on Configmap
+    values:
+      - ../.lint/annotations.yaml
+    set:
+      extraLabels:
+        config:
+          foo: bar
+          baz: override-me
+      auth:
+        extraLabels:
+          config:
+            baz: overridden
+    asserts:
+      - equal:
+          path: metadata.labels.foo
+          value: bar
+      - equal:
+          path: metadata.labels.baz
+          value: overridden
+
+  - it: keeps the session_recording type even when it's "off"
+    set:
+      clusterName: helm-lint
+      sessionRecording: 'off'
+    asserts:
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: sets clusterDomain on Configmap
+    set:
+      clusterName: teleport.example.com
+      global:
+        clusterDomain: test.com
+    asserts:
+      - matchSnapshot: {}
+      - matchRegex:
+          path: data.teleport\.yaml
+          pattern: 'svc.test.com:3026'

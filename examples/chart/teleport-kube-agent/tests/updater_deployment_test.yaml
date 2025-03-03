@@ -67,6 +67,69 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].args
           content: "--version-server=https://proxy.teleport.example.com:443/v1/webapi/automaticupgrades/channel"
+  - it: defaults the updater proxy server to the proxy address
+    set:
+      proxyAddr: proxy.teleport.example.com:443
+      roles: "custom"
+      updater:
+        enabled: true
+        versionServer: ""
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: "--proxy-address=proxy.teleport.example.com:443"
+  - it: doesn't enable the RFD-184 proxy protocol if the versionServer is custom
+    set:
+      proxyAddr: proxy.teleport.example.com:443
+      roles: "custom"
+      updater:
+        enabled: true
+        versionServer: "version-server.example.com"
+        group: foobar
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: "--proxy-address=proxy.teleport.example.com:443"
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: "--update-group=foobar"
+  - it: defaults the update group to the release channel when group is unset
+    set:
+      proxyAddr: proxy.teleport.example.com:443
+      roles: "custom"
+      updater:
+        enabled: true
+        versionServer: ""
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: "--update-group=stable/cloud"
+  - it: uses the update group when set
+    set:
+      proxyAddr: proxy.teleport.example.com:443
+      roles: "custom"
+      updater:
+        enabled: true
+        versionServer: ""
+        group: "foobar"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: "--update-group=foobar"
+  - it: unsets the version server when empty
+    set:
+      proxyAddr: proxy.teleport.example.com:443
+      roles: "custom"
+      updater:
+        enabled: true
+        versionServer: ""
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: "--proxy-server="
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: "--version-channel=stable/cloud"
   - it: sets the updater version server
     values:
       - ../.lint/updater.yaml
@@ -258,3 +321,32 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].args
           content: "--pull-credentials=amazon"
+
+  - it: sets extraVolumes when specified
+    values:
+      - ../.lint/updater-secret-docker.yaml
+      - ../.lint/existing-tls-secret-with-ca.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: docker-config
+            projected:
+              sources:
+                - secret:
+                    name: my-pull-secret
+                    items:
+                      - key: .dockerconfigjson
+                        path: config.json
+
+  - it: sets extraVolumeMounts when specified
+    values:
+      - ../.lint/updater-secret-docker.yaml
+      - ../.lint/existing-tls-secret-with-ca.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: docker-config
+            mountPath: "/mnt/docker"
+            readOnly: true

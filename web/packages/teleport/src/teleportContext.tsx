@@ -16,32 +16,35 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
+
 import cfg from 'teleport/config';
 
-import { StoreNav, StoreUserContext, StoreNotifications } from './stores';
-import * as types from './types';
-import AuditService from './services/audit';
-import RecordingsService from './services/recordings';
-import NodeService from './services/nodes';
-import sessionService from './services/session';
-import ResourceService from './services/resources';
-import userService from './services/user';
+import { notificationContentFactory } from './Notifications';
+import { agentService } from './services/agents';
 import appService from './services/apps';
-import JoinTokenService from './services/joinToken';
-import KubeService from './services/kube';
+import AuditService from './services/audit';
+import ClustersService from './services/clusters/clusters';
 import DatabaseService from './services/databases';
 import desktopService from './services/desktops';
-import userGroupService from './services/userGroups';
+import JoinTokenService from './services/joinToken';
+import KubeService from './services/kube';
 import MfaService from './services/mfa';
-import { agentService } from './services/agents';
+import NodeService from './services/nodes';
+import { NotificationService } from './services/notifications';
+import RecordingsService from './services/recordings';
+import ResourceService from './services/resources';
+import sessionService from './services/session';
 import { storageService } from './services/storageService';
-import ClustersService from './services/clusters/clusters';
+import userService from './services/user';
+import userGroupService from './services/userGroups';
+import { StoreNav, StoreUserContext } from './stores';
+import * as types from './types';
 
 class TeleportContext implements types.Context {
   // stores
   storeNav = new StoreNav();
   storeUser = new StoreUserContext();
-  storeNotifications = new StoreNotifications();
 
   // services
   auditService = new AuditService();
@@ -58,31 +61,29 @@ class TeleportContext implements types.Context {
   desktopService = desktopService;
   userGroupService = userGroupService;
   mfaService = new MfaService();
+  notificationService = new NotificationService();
+
+  notificationContentFactory = notificationContentFactory;
 
   isEnterprise = cfg.isEnterprise;
   isCloud = cfg.isCloud;
   automaticUpgradesEnabled = cfg.automaticUpgrades;
   automaticUpgradesTargetVersion = cfg.automaticUpgradesTargetVersion;
-  assistEnabled = cfg.assistEnabled;
   agentService = agentService;
+  // redirectUrl is used to redirect the user to a specific page after init.
+  redirectUrl: string | null = null;
 
   // lockedFeatures are the features disabled in the user's cluster.
   // Mainly used to hide features and/or show CTAs when the user cluster doesn't support it.
-  // TODO(mcbattirola): use cluster features instead of only using `isTeam`
-  // to determine which feature is locked
   lockedFeatures: types.LockedFeatures = {
-    authConnectors: cfg.isTeam,
-    activeSessions: cfg.isTeam,
-    premiumSupport: cfg.isTeam,
-    externalCloudAudit: cfg.isTeam,
-    // Below should be locked for the following cases:
-    //  1) is team
-    //  2) is not a legacy and igs is not enabled. legacies should have unlimited access.
-    accessRequests:
-      cfg.isTeam || (!cfg.isLegacyEnterprise() && !cfg.isIgsEnabled),
-    trustedDevices:
-      cfg.isTeam || (!cfg.isLegacyEnterprise() && !cfg.isIgsEnabled),
+    authConnectors: !(
+      cfg.entitlements.OIDC.enabled && cfg.entitlements.SAML.enabled
+    ),
+    accessRequests: !cfg.entitlements.AccessRequests.enabled,
+    trustedDevices: !cfg.entitlements.DeviceTrust.enabled,
   };
+  // entitlements define a customer’s access to a specific features
+  entitlements = cfg.entitlements;
 
   // hasExternalAuditStorage indicates if an account has set up external audit storage. It is used to show or hide the External Audit Storage CTAs.
   hasExternalAuditStorage = false;
@@ -90,7 +91,9 @@ class TeleportContext implements types.Context {
   // init fetches data required for initial rendering of components.
   // The caller of this function provides the try/catch
   // block.
-  async init() {
+  // preferences are needed in TeleportContextE, but not in TeleportContext.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async init(preferences: UserPreferences) {
     const user = await userService.fetchUserContext();
     this.storeUser.setState(user);
 
@@ -100,23 +103,26 @@ class TeleportContext implements types.Context {
       !storageService.getOnboardDiscover()
     ) {
       const hasResource =
-        await userService.checkUserHasAccessToRegisteredResource();
+        await userService.checkUserHasAccessToAnyRegisteredResource();
       storageService.setOnboardDiscover({ hasResource });
     }
 
     if (user.acl.accessGraph.list) {
       // If access graph is enabled, check what features are enabled and store them in local storage.
-      try {
-        const accessGraphFeatures =
-          await userService.fetchAccessGraphFeatures();
-
-        for (let key in accessGraphFeatures) {
-          window.localStorage.setItem(key, accessGraphFeatures[key]);
-        }
-      } catch (e) {
-        // If we fail to fetch access graph features, log the error and continue.
-        console.error('Failed to fetch access graph features', e);
-      }
+      // We await this so it is done by the time the page renders, otherwise the local storage event
+      // wouldn't trigger a re-render and Policy could end up not being displayed until the navigation
+      // is re-rendered.
+      await userService
+        .fetchAccessGraphFeatures()
+        .then(features => {
+          for (let key in features) {
+            window.localStorage.setItem(key, features[key]);
+          }
+        })
+        .catch(e => {
+          // If we fail to fetch access graph features, log the error and continue.
+          console.error('Failed to fetch access graph features', e);
+        });
     }
   }
 
@@ -127,31 +133,12 @@ class TeleportContext implements types.Context {
       return disabledFeatureFlags;
     }
 
-    // If feature hiding is enabled in the license, this returns true if the user has no list access to any feature within the management section.
-    function hasManagementSectionAccess() {
-      if (!cfg.hideInaccessibleFeatures) {
-        return true;
-      }
-      return (
-        userContext.getUserAccess().list ||
-        userContext.getRoleAccess().list ||
-        userContext.getEventAccess().list ||
-        userContext.getSessionsAccess().list ||
-        userContext.getTrustedClusterAccess().list ||
-        userContext.getBillingAccess().list ||
-        userContext.getPluginsAccess().list ||
-        userContext.getIntegrationsAccess().list ||
-        userContext.hasDiscoverAccess() ||
-        userContext.getDeviceTrustAccess().list ||
-        userContext.getLockAccess().list
-      );
-    }
-
     function hasAccessRequestsAccess() {
       // If feature hiding is enabled in the license, only allow access to access requests if the user has permission to access them, either by
       // having list access, requestable roles, or allowed search_as_roles.
       if (cfg.hideInaccessibleFeatures) {
         return !!(
+          userContext.getReviewRequests() ||
           userContext.getAccessRequestAccess().list ||
           userContext.getRequestableRoles().length ||
           userContext.getAllowedSearchAsRoles().length
@@ -166,6 +153,16 @@ class TeleportContext implements types.Context {
       return (
         userContext.getAuditQueryAccess().list ||
         userContext.getSecurityReportAccess().list
+      );
+    }
+
+    function hasAccessGraphIntegrationsAccess() {
+      return (
+        userContext.getIntegrationsAccess().list &&
+        userContext.getIntegrationsAccess().read &&
+        userContext.getPluginsAccess().read &&
+        userContext.getDiscoveryConfigAccess().list &&
+        userContext.getDiscoveryConfigAccess().read
       );
     }
 
@@ -209,15 +206,18 @@ class TeleportContext implements types.Context {
       locks: userContext.getLockAccess().list,
       newLocks:
         userContext.getLockAccess().create && userContext.getLockAccess().edit,
-      assist: userContext.getAssistantAccess().list && this.assistEnabled,
       accessMonitoring: hasAccessMonitoringAccess(),
-      managementSection: hasManagementSectionAccess(),
       accessGraph: userContext.getAccessGraphAccess().list,
+      accessGraphIntegrations: hasAccessGraphIntegrationsAccess(),
+      tokens: userContext.getTokenAccess().create,
       externalAuditStorage: userContext.getExternalAuditStorageAccess().list,
       listBots: userContext.getBotsAccess().list,
       addBots: userContext.getBotsAccess().create,
       editBots: userContext.getBotsAccess().edit,
       removeBots: userContext.getBotsAccess().remove,
+      gitServers:
+        userContext.getGitServersAccess().list &&
+        userContext.getGitServersAccess().read,
     };
   }
 }
@@ -237,6 +237,7 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   trustedClusters: false,
   users: false,
   newAccessRequest: false,
+  tokens: false,
   accessRequests: false,
   downloadCenter: false,
   supportLink: false,
@@ -248,15 +249,15 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   enrollIntegrations: false,
   locks: false,
   newLocks: false,
-  assist: false,
-  managementSection: false,
   accessMonitoring: false,
   accessGraph: false,
+  accessGraphIntegrations: false,
   externalAuditStorage: false,
   addBots: false,
   listBots: false,
   editBots: false,
   removeBots: false,
+  gitServers: false,
 };
 
 export default TeleportContext;

@@ -23,17 +23,18 @@ import (
 	"crypto/tls"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // TLSListenerConfig specifies listener configuration
@@ -73,9 +74,7 @@ func NewTLSListener(cfg TLSListenerConfig) (*TLSListener, error) {
 	}
 	context, cancel := context.WithCancel(context.TODO())
 	return &TLSListener{
-		log: log.WithFields(log.Fields{
-			teleport.ComponentKey: teleport.Component("mxtls", cfg.ID),
-		}),
+		log:           slog.With(teleport.ComponentKey, teleport.Component("mxtls", cfg.ID)),
 		cfg:           cfg,
 		http2Listener: newListener(context, cfg.Listener.Addr()),
 		httpListener:  newListener(context, cfg.Listener.Addr()),
@@ -89,7 +88,7 @@ func NewTLSListener(cfg TLSListenerConfig) (*TLSListener, error) {
 // and forwards the appropriate responses to either HTTP/1.1 or HTTP/2
 // listeners
 type TLSListener struct {
-	log           *log.Entry
+	log           *slog.Logger
 	cfg           TLSListenerConfig
 	http2Listener *Listener
 	httpListener  *Listener
@@ -115,10 +114,11 @@ func (l *TLSListener) Serve() error {
 			tlsConn, ok := conn.(*tls.Conn)
 			if !ok {
 				conn.Close()
-				l.log.WithFields(log.Fields{
-					"src_addr": conn.RemoteAddr(),
-					"dst_addr": conn.LocalAddr(),
-				}).Errorf("Expected tls.Conn, got %T, internal usage error.", conn)
+				l.log.LogAttrs(l.context, slog.LevelError, "Received a non-TLS connection",
+					slog.Any("src_addr", logutils.StringerAttr(conn.RemoteAddr())),
+					slog.Any("dst_addr", logutils.StringerAttr(conn.LocalAddr())),
+					slog.Any("conn_type", logutils.TypeAttr(conn)),
+				)
 				continue
 			}
 			go l.detectAndForward(tlsConn)
@@ -139,18 +139,21 @@ func (l *TLSListener) Serve() error {
 func (l *TLSListener) detectAndForward(conn *tls.Conn) {
 	err := conn.SetReadDeadline(l.cfg.Clock.Now().Add(l.cfg.ReadDeadline))
 	if err != nil {
-		l.log.WithError(err).Debugf("Failed to set connection deadline.")
+		l.log.LogAttrs(l.context, slog.LevelDebug, "Failed to set connection deadline",
+			slog.Any("error", err),
+		)
 		conn.Close()
 		return
 	}
 
 	start := l.cfg.Clock.Now()
-	if err := conn.Handshake(); err != nil {
+	if err := conn.HandshakeContext(l.context); err != nil {
 		if !errors.Is(trace.Unwrap(err), io.EOF) {
-			l.log.WithFields(log.Fields{
-				"src_addr": conn.RemoteAddr(),
-				"dst_addr": conn.LocalAddr(),
-			}).WithError(err).Warning("Handshake failed.")
+			l.log.LogAttrs(l.context, slog.LevelWarn, "Handshake failed",
+				slog.Any("src_addr", logutils.StringerAttr(conn.RemoteAddr())),
+				slog.Any("dst_addr", logutils.StringerAttr(conn.LocalAddr())),
+				slog.Any("error", err),
+			)
 		}
 		conn.Close()
 		return
@@ -159,12 +162,16 @@ func (l *TLSListener) detectAndForward(conn *tls.Conn) {
 	// Log warning if TLS handshake takes more than one second to help debug
 	// latency issues.
 	if elapsed := time.Since(start); elapsed > 1*time.Second {
-		l.log.Warnf("Slow TLS handshake from %v, took %v.", conn.RemoteAddr(), time.Since(start))
+		l.log.LogAttrs(l.context, slog.LevelWarn, "Slow TLS handshake",
+			slog.Any("src_addr", logutils.StringerAttr(conn.RemoteAddr())),
+			slog.Any("dst_addr", logutils.StringerAttr(conn.LocalAddr())),
+			slog.Duration("handshake_duration", time.Since(start)),
+		)
 	}
 
 	err = conn.SetReadDeadline(time.Time{})
 	if err != nil {
-		l.log.WithError(err).Warning("Failed to reset read deadline")
+		l.log.WarnContext(l.context, "Failed to reset read deadline", "error", err)
 		conn.Close()
 		return
 	}
@@ -176,10 +183,12 @@ func (l *TLSListener) detectAndForward(conn *tls.Conn) {
 		l.httpListener.HandleConnection(l.context, conn)
 	default:
 		conn.Close()
-		l.log.WithFields(log.Fields{
-			"src_addr": conn.RemoteAddr(),
-			"dst_addr": conn.LocalAddr(),
-		}).WithError(err).Errorf("unsupported protocol: %v", conn.ConnectionState().NegotiatedProtocol)
+		l.log.LogAttrs(l.context, slog.LevelError, "rejecting connection with unsupported protocol",
+			slog.Any("error", err),
+			slog.String("protocol", conn.ConnectionState().NegotiatedProtocol),
+			slog.Any("src_addr", logutils.StringerAttr(conn.RemoteAddr())),
+			slog.Any("dst_addr", logutils.StringerAttr(conn.LocalAddr())),
+		)
 	}
 }
 

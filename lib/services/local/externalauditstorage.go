@@ -20,12 +20,9 @@ package local
 
 import (
 	"context"
-	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/backend"
@@ -36,42 +33,35 @@ const (
 	externalAuditStoragePrefix      = "external_audit_storage"
 	externalAuditStorageDraftName   = "draft"
 	externalAuditStorageClusterName = "cluster"
-	externalAuditStorageLockName    = "external_audit_storage_lock"
-	externalAuditStorageLockTTL     = 10 * time.Second
 )
 
 var (
-	draftExternalAuditStorageBackendKey   = backend.Key(externalAuditStoragePrefix, externalAuditStorageDraftName)
-	clusterExternalAuditStorageBackendKey = backend.Key(externalAuditStoragePrefix, externalAuditStorageClusterName)
+	draftExternalAuditStorageBackendKey   = backend.NewKey(externalAuditStoragePrefix, externalAuditStorageDraftName)
+	clusterExternalAuditStorageBackendKey = backend.NewKey(externalAuditStoragePrefix, externalAuditStorageClusterName)
 )
 
 // ExternalAuditStorageService manages External Audit Storage resources in the Backend.
 type ExternalAuditStorageService struct {
 	backend backend.Backend
-	logger  *logrus.Entry
 }
 
+// NewExternalAuditStorageService returns a new *ExternalAuditStorageService or an error if it fails.
 func NewExternalAuditStorageService(backend backend.Backend) *ExternalAuditStorageService {
 	return &ExternalAuditStorageService{
 		backend: backend,
-		logger:  logrus.WithField(teleport.ComponentKey, "ExternalAuditStorage.backend"),
 	}
 }
 
 // GetDraftExternalAuditStorage returns the draft External Audit Storage resource.
 func (s *ExternalAuditStorageService) GetDraftExternalAuditStorage(ctx context.Context) (*externalauditstorage.ExternalAuditStorage, error) {
-	item, err := s.backend.Get(ctx, draftExternalAuditStorageBackendKey)
+	eas, err := getExternalAuditStorage(ctx, s.backend, draftExternalAuditStorageBackendKey)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("cluster external_audit_storage is not found")
+			return nil, trace.NotFound("draft external_audit_storage is not found")
 		}
 		return nil, trace.Wrap(err)
 	}
-	out, err := services.UnmarshalExternalAuditStorage(item.Value)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return out, nil
+	return eas, nil
 }
 
 // CreateDraftExternalAudit creates the draft External Audit Storage resource if
@@ -81,26 +71,44 @@ func (s *ExternalAuditStorageService) CreateDraftExternalAuditStorage(ctx contex
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	item := backend.Item{
+		Key:   draftExternalAuditStorageBackendKey,
+		Value: value,
+	}
 
-	// Lock is used here and in Promote to prevent the possibility of deleting a
-	// newly created draft after the previous one was promoted.
-	err = backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
-		LockConfiguration: backend.LockConfiguration{
-			Backend:  s.backend,
-			LockName: externalAuditStorageLockName,
-			TTL:      externalAuditStorageLockTTL,
-		},
-	}, func(ctx context.Context) error {
-		_, err = s.backend.Create(ctx, backend.Item{
-			Key:   draftExternalAuditStorageBackendKey,
-			Value: value,
-		})
-		return trace.Wrap(err)
-	})
-	if trace.IsAlreadyExists(err) {
+	// First check if a draft already exists for a nicer error message than the one returned by AtomicWrite.
+	_, err = s.backend.Get(ctx, draftExternalAuditStorageBackendKey)
+	if err == nil {
 		return nil, trace.AlreadyExists("draft external_audit_storage already exists")
 	}
-	return in, trace.Wrap(err)
+
+	// Check that the referenced AWS OIDC integration actually exists.
+	integrationKey, integrationRevision, err := s.checkAWSIntegration(ctx, in.Spec.IntegrationName)
+	if err != nil {
+		return nil, trace.Wrap(err, "checking AWS OIDC integration")
+	}
+
+	revision, err := s.backend.AtomicWrite(ctx, []backend.ConditionalAction{
+		{
+			// Make sure the AWS OIDC integration checked above hasn't changed.
+			Key:       integrationKey,
+			Condition: backend.Revision(integrationRevision),
+			Action:    backend.Nop(),
+		},
+		{
+			// Create the new draft EAS integration if one doesn't already exist.
+			Key:       item.Key,
+			Condition: backend.NotExists(),
+			Action:    backend.Put(item),
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := in.Clone()
+	out.SetRevision(revision)
+	return out, nil
 }
 
 // UpsertDraftExternalAudit upserts the draft External Audit Storage resource.
@@ -109,24 +117,38 @@ func (s *ExternalAuditStorageService) UpsertDraftExternalAuditStorage(ctx contex
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	item := backend.Item{
+		Key:   draftExternalAuditStorageBackendKey,
+		Value: value,
+	}
 
-	// Lock is used here and in Promote to prevent upserting in the middle
-	// of a promotion and the possibility of deleting a newly upserted draft
-	// after the previous one was promoted.
-	err = backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
-		LockConfiguration: backend.LockConfiguration{
-			Backend:  s.backend,
-			LockName: externalAuditStorageLockName,
-			TTL:      externalAuditStorageLockTTL,
+	// Check that the referenced AWS OIDC integration actually exists.
+	integrationKey, integrationRevision, err := s.checkAWSIntegration(ctx, in.Spec.IntegrationName)
+	if err != nil {
+		return nil, trace.Wrap(err, "checking AWS OIDC integration")
+	}
+
+	revision, err := s.backend.AtomicWrite(ctx, []backend.ConditionalAction{
+		{
+			// Make sure the AWS OIDC integration checked above hasn't changed.
+			Key:       integrationKey,
+			Condition: backend.Revision(integrationRevision),
+			Action:    backend.Nop(),
 		},
-	}, func(ctx context.Context) error {
-		_, err = s.backend.Put(ctx, backend.Item{
-			Key:   draftExternalAuditStorageBackendKey,
-			Value: value,
-		})
-		return trace.Wrap(err)
+		{
+			// Upsert the new draft EAS integration.
+			Key:       item.Key,
+			Condition: backend.Whatever(),
+			Action:    backend.Put(item),
+		},
 	})
-	return in, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := in.Clone()
+	out.SetRevision(revision)
+	return out, nil
 }
 
 // GenerateDraftExternalAuditStorage creates a new draft ExternalAuditStorage with
@@ -138,30 +160,10 @@ func (s *ExternalAuditStorageService) GenerateDraftExternalAuditStorage(ctx cont
 		return nil, trace.Wrap(err)
 	}
 
-	value, err := services.MarshalExternalAuditStorage(generated)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
-		LockConfiguration: backend.LockConfiguration{
-			Backend:  s.backend,
-			LockName: externalAuditStorageLockName,
-			TTL:      externalAuditStorageLockTTL,
-		},
-	}, func(ctx context.Context) error {
-		_, err = s.backend.Create(ctx, backend.Item{
-			Key:   draftExternalAuditStorageBackendKey,
-			Value: value,
-		})
-		return trace.Wrap(err)
-	})
-	if trace.IsAlreadyExists(err) {
-		return nil, trace.AlreadyExists("draft external_audit_storage already exists")
-	}
-	return generated, trace.Wrap(err)
+	return s.CreateDraftExternalAuditStorage(ctx, generated)
 }
 
-// DeleteDraftExternalAudit removes the draft External Audit Storage resource.
+// DeleteDraftExternalAudit removes the draft ExternalAuditStorage resource.
 func (s *ExternalAuditStorageService) DeleteDraftExternalAuditStorage(ctx context.Context) error {
 	err := s.backend.Delete(ctx, draftExternalAuditStorageBackendKey)
 	if trace.IsNotFound(err) {
@@ -170,73 +172,106 @@ func (s *ExternalAuditStorageService) DeleteDraftExternalAuditStorage(ctx contex
 	return trace.Wrap(err)
 }
 
-// GetClusterExternalAuditStorage returns the cluster External Audit Storage resource.
+// GetClusterExternalAuditStorage returns the cluster ExternalAuditStorage resource.
 func (s *ExternalAuditStorageService) GetClusterExternalAuditStorage(ctx context.Context) (*externalauditstorage.ExternalAuditStorage, error) {
-	item, err := s.backend.Get(ctx, clusterExternalAuditStorageBackendKey)
+	eas, err := getExternalAuditStorage(ctx, s.backend, clusterExternalAuditStorageBackendKey)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("cluster external_audit_storage is not found")
 		}
 		return nil, trace.Wrap(err)
 	}
-	out, err := services.UnmarshalExternalAuditStorage(item.Value)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return out, nil
+	return eas, nil
 }
 
-// PromoteToClusterExternalAuditStorage promotes draft to cluster external
-// cloud audit resource.
+// PromoteToClusterExternalAuditStorage promotes the current draft to be the cluster ExternalAuditStorage
+// resource.
 func (s *ExternalAuditStorageService) PromoteToClusterExternalAuditStorage(ctx context.Context) error {
-	// Lock is used here and in Create/Upsert/GenerateDraft to prevent upserting
-	// in the middle of a promotion and the possibility of deleting a newly
-	// created draft after the previous one was promoted.
-	err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
-		LockConfiguration: backend.LockConfiguration{
-			Backend:  s.backend,
-			LockName: externalAuditStorageLockName,
-			TTL:      externalAuditStorageLockTTL,
-		},
-	}, func(ctx context.Context) error {
-		draft, err := s.GetDraftExternalAuditStorage(ctx)
-		if err != nil {
-			if trace.IsNotFound(err) {
-				return trace.BadParameter("can't promote to cluster when draft does not exist")
-			}
-			return trace.Wrap(err)
+	draft, err := s.GetDraftExternalAuditStorage(ctx)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.BadParameter("can't promote to cluster when draft does not exist")
 		}
-		out, err := externalauditstorage.NewClusterExternalAuditStorage(header.Metadata{}, draft.Spec)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		value, err := services.MarshalExternalAuditStorage(out)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		_, err = s.backend.Put(ctx, backend.Item{
-			Key:   clusterExternalAuditStorageBackendKey,
-			Value: value,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		return trace.Wrap(err)
+	}
 
-		// Clean up the current draft which has now been promoted.
-		// Failing to delete the current draft is not critical and the promotion
-		// has already succeeded, so just log any failure and return nil.
-		if err := s.backend.Delete(ctx, draftExternalAuditStorageBackendKey); err != nil {
-			s.logger.Info("failed to delete current draft external_audit_storage after promoting to cluster")
-		}
-		return nil
+	cluster, err := externalauditstorage.NewClusterExternalAuditStorage(header.Metadata{}, draft.Spec)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	value, err := services.MarshalExternalAuditStorage(cluster)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:   clusterExternalAuditStorageBackendKey,
+		Value: value,
+	}
+
+	integrationKey, integrationRevision, err := s.checkAWSIntegration(ctx, draft.Spec.IntegrationName)
+	if err != nil {
+		return trace.Wrap(err, "checking AWS OIDC integration")
+	}
+
+	_, err = s.backend.AtomicWrite(ctx, []backend.ConditionalAction{
+		{
+			// Make sure the AWS OIDC integration checked above hasn't changed.
+			Key:       integrationKey,
+			Condition: backend.Revision(integrationRevision),
+			Action:    backend.Nop(),
+		},
+		{
+			// Make sure the draft EAS integration copied above hasn't changed, and delete it after the
+			// promotion.
+			Key:       draftExternalAuditStorageBackendKey,
+			Condition: backend.Revision(draft.GetRevision()),
+			Action:    backend.Delete(),
+		},
+		{
+			// Upsert the new cluster EAS integration.
+			Key:       item.Key,
+			Condition: backend.Whatever(),
+			Action:    backend.Put(item),
+		},
 	})
 	return trace.Wrap(err)
 }
 
+// DisableClusterExternalAuditStorage disables External Audit Storage in the cluster by deleting the cluster
+// EAS configuration.
 func (s *ExternalAuditStorageService) DisableClusterExternalAuditStorage(ctx context.Context) error {
 	err := s.backend.Delete(ctx, clusterExternalAuditStorageBackendKey)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// checkAWSIntegration checks that [integrationName] names an AWS OIDC integration that currently exists, and
+// returns the backend key and revision if the AWS OIDC integration.
+func (s *ExternalAuditStorageService) checkAWSIntegration(ctx context.Context, integrationName string) (backend.Key, string, error) {
+	integrationsSvc, err := NewIntegrationsService(s.backend)
+	if err != nil {
+		return backend.Key{}, "", trace.Wrap(err)
+	}
+	integration, err := integrationsSvc.GetIntegration(ctx, integrationName)
+	if err != nil {
+		return backend.Key{}, "", trace.Wrap(err, "getting integration")
+	}
+	if integration.GetAWSOIDCIntegrationSpec() == nil {
+		return backend.Key{}, "", trace.BadParameter("%q is not an AWS OIDC integration", integrationName)
+	}
+	return integrationsSvc.svc.MakeKey(backend.NewKey(integrationName)), integration.GetRevision(), nil
+}
+
+func getExternalAuditStorage(ctx context.Context, bk backend.Backend, key backend.Key) (*externalauditstorage.ExternalAuditStorage, error) {
+	item, err := bk.Get(ctx, key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := services.UnmarshalExternalAuditStorage(item.Value, services.WithRevision(item.Revision))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return out, nil
 }

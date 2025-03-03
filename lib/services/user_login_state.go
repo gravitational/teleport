@@ -61,14 +61,11 @@ func MarshalUserLoginState(userLoginState *userloginstate.UserLoginState, opts .
 		return nil, trace.Wrap(err)
 	}
 
-	if !cfg.PreserveResourceID {
-		prevID := userLoginState.GetResourceID()
+	if !cfg.PreserveRevision {
 		prevRev := userLoginState.GetRevision()
 		defer func() {
-			userLoginState.SetResourceID(prevID)
 			userLoginState.SetRevision(prevRev)
 		}()
-		userLoginState.SetResourceID(0)
 		userLoginState.SetRevision("")
 	}
 	return utils.FastMarshal(userLoginState)
@@ -82,15 +79,12 @@ func UnmarshalUserLoginState(data []byte, opts ...MarshalOption) (*userloginstat
 	}
 	uls := &userloginstate.UserLoginState{}
 	if err := utils.FastUnmarshal(data, &uls); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	if err := uls.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.ID != 0 {
-		uls.SetResourceID(cfg.ID)
-	}
 	if cfg.Revision != "" {
 		uls.SetRevision(cfg.Revision)
 	}

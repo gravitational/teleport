@@ -16,25 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 
+import { Box, Indicator } from 'design';
 import { Danger } from 'design/Alert';
-import { Indicator, Box } from 'design';
 import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 
+import { ExternalAuditStorageCta } from '@gravitational/teleport/src/components/ExternalAuditStorageCta';
 import RangePicker from 'teleport/components/EventRangePicker';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import useTeleport from 'teleport/useTeleport';
 import useStickyClusterId from 'teleport/useStickyClusterId';
-
-import { ExternalAuditStorageCta } from '@gravitational/teleport/src/components/ExternalAuditStorageCta';
+import useTeleport from 'teleport/useTeleport';
 
 import EventList from './EventList';
-
 import useAuditEvents, { State } from './useAuditEvents';
 
 export function AuditContainer() {
@@ -72,13 +70,12 @@ export function Audit(props: State) {
       <ExternalAuditStorageCta />
       {attempt.status === 'failed' && <Danger> {attempt.statusText} </Danger>}
       {!errorMessage && (
-        <Box mb={4}>
-          <ClusterDropdown
-            clusterLoader={ctx.clusterService}
-            clusterId={clusterId}
-            onError={setErrorMessage}
-          />
-        </Box>
+        <ClusterDropdown
+          clusterLoader={ctx.clusterService}
+          clusterId={clusterId}
+          onError={setErrorMessage}
+          mb={2}
+        />
       )}
       {errorMessage && <Danger>{errorMessage}</Danger>}
       {attempt.status === 'processing' && (

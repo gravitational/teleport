@@ -20,6 +20,7 @@ import { FileStorage } from 'teleterm/types';
 import { ConnectionTrackerState } from 'teleterm/ui/services/connectionTracker';
 import {
   Workspace,
+  WorkspaceColor,
   WorkspacesState,
 } from 'teleterm/ui/services/workspacesService';
 
@@ -31,17 +32,35 @@ interface UsageReportingState {
   askedForUserJobRole: boolean;
 }
 
-export type WorkspacesPersistedState = Omit<WorkspacesState, 'workspaces'> & {
-  workspaces: Record<string, Omit<Workspace, 'accessRequests'>>;
+/**
+ * Expected shape of the persisted workspaces.
+ * In the future, it should come from zod.
+ */
+export type PersistedWorkspace = Omit<
+  Workspace,
+  'accessRequests' | 'documentsRestoredOrDiscarded' | 'color'
+> & {
+  // TODO(gzdunek) DELETE IN v19.0.0: Make the field required by removing the 'color' type below and the omitted 'color' above.
+  // This only expresses that existing persisted state from older versions might not have color defined.
+  color?: WorkspaceColor;
 };
 
-interface StatePersistenceState {
+export type WorkspacesPersistedState = Omit<
+  WorkspacesState,
+  'workspaces' | 'isInitialized'
+> & {
+  workspaces: Record<string, PersistedWorkspace>;
+};
+
+export interface StatePersistenceState {
   connectionTracker: ConnectionTrackerState;
   workspacesState: WorkspacesPersistedState;
   shareFeedback: ShareFeedbackState;
   usageReporting: UsageReportingState;
+  vnet: { autoStart: boolean };
 }
 
+// Before adding new methods to this service, consider using usePersistedState instead.
 export class StatePersistenceService {
   constructor(private _fileStorage: FileStorage) {}
 
@@ -93,8 +112,11 @@ export class StatePersistenceService {
     return this.getState().usageReporting;
   }
 
-  private getState(): StatePersistenceState {
-    const defaultState: StatePersistenceState = {
+  getState(): StatePersistenceState {
+    // Some legacy callsites expected StatePersistenceService to manage the default state for them,
+    // but with the move towards usePersistedState, we should put the default state close to where
+    // it's going to be used. Hence the use of Partial<StatePersistenceState> here.
+    const defaultState: Partial<StatePersistenceState> = {
       connectionTracker: {
         connections: [],
       },
@@ -114,7 +136,7 @@ export class StatePersistenceService {
     };
   }
 
-  private putState(state: StatePersistenceState): void {
+  putState(state: StatePersistenceState): void {
     this._fileStorage.put('state', state);
   }
 }

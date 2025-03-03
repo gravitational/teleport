@@ -41,9 +41,9 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 )
 
-// JiraSuite is the Jira access plugin test suite.
+// JiraBaseSuite is the Jira access plugin test suite.
 // It implements the testify.TestingSuite interface.
-type JiraSuite struct {
+type JiraBaseSuite struct {
 	*integration.AccessRequestSuite
 	appConfig  jira.Config
 	raceNumber int
@@ -60,7 +60,7 @@ type JiraSuite struct {
 
 // SetupTest starts a fake discord and generates the plugin configuration.
 // It is run for each test.
-func (s *JiraSuite) SetupTest() {
+func (s *JiraBaseSuite) SetupTest() {
 	t := s.T()
 
 	err := logger.Setup(logger.Config{Severity: "debug"})
@@ -88,19 +88,39 @@ func (s *JiraSuite) SetupTest() {
 }
 
 // startApp starts the discord plugin, waits for it to become ready and returns,
-func (s *JiraSuite) startApp() {
+func (s *JiraBaseSuite) startApp() {
+	s.T().Helper()
 	t := s.T()
-	t.Helper()
 
 	app, err := jira.NewApp(s.appConfig)
 	require.NoError(t, err)
-	s.RunAndWaitReady(t, app)
+	integration.RunAndWaitReady(t, app)
 	s.webhookURL = app.PublicURL()
+}
+
+// JiraSuiteOSS contains all tests that support running against a Teleport
+// OSS Server.
+type JiraSuiteOSS struct {
+	JiraBaseSuite
+}
+
+// JiraSuiteEnterprise contains all tests that require a Teleport Enterprise
+// to run.
+type JiraSuiteEnterprise struct {
+	JiraBaseSuite
+}
+
+// SetupTest overrides JiraBaseSuite.SetupTest to check the Teleport features
+// before each test.
+func (s *JiraSuiteEnterprise) SetupTest() {
+	t := s.T()
+	s.RequireAdvancedWorkflow(t)
+	s.JiraBaseSuite.SetupTest()
 }
 
 // TestIssueCreation validates that an issue is created when a new access
 // request is created. It also checks that the issue content is correct.
-func (s *JiraSuite) TestIssueCreation() {
+func (s *JiraSuiteOSS) TestIssueCreation() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -124,7 +144,7 @@ func (s *JiraSuite) TestIssueCreation() {
 // TestIssueCreationWithRequestReason validates that an issue is created when
 // a new access request is created. It also checks that the issue content
 // reflects the access request reason.
-func (s *JiraSuite) TestIssueCreationWithRequestReason() {
+func (s *JiraSuiteOSS) TestIssueCreationWithRequestReason() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -147,7 +167,7 @@ func (s *JiraSuite) TestIssueCreationWithRequestReason() {
 
 // TestIssueCreationWithLargeRequestReason validates that an issue is created
 // when a new access request with a large reason is created.
-func (s *JiraSuite) TestIssueCreationWithLargeRequestReason() {
+func (s *JiraSuiteOSS) TestIssueCreationWithLargeRequestReason() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -175,16 +195,30 @@ func (s *JiraSuite) TestIssueCreationWithLargeRequestReason() {
 	s.SetReasonPadding(0)
 }
 
-// TestReviewComments tests that comments are posted for each access request
-// review.
-func (s *JiraSuite) TestReviewComments() {
+// TestCustomIssueType tests that requests can use a custom issue type.
+func (s *JiraSuiteOSS) TestCustomIssueType() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
 
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
+	s.appConfig.Jira.IssueType = "Story"
+	s.startApp()
+
+	// Test setup: we create an access request
+	_ = s.CreateAccessRequest(ctx, integration.RequesterOSSUserName, nil)
+
+	// We validate that the issue was created using the Issue Type "Story"
+	newIssue, err := s.fakeJira.CheckNewIssue(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "Story", newIssue.Fields.Type.Name)
+}
+
+// TestReviewComments tests that comments are posted for each access request
+// review.
+func (s *JiraSuiteEnterprise) TestReviewComments() {
+	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
 
 	s.startApp()
 
@@ -230,14 +264,10 @@ func (s *JiraSuite) TestReviewComments() {
 
 // TestReviewerApproval tests that comments are posted for each review, and the
 // issue transitions to the approved state once it gets approved.
-func (s *JiraSuite) TestReviewerApproval() {
+func (s *JiraSuiteEnterprise) TestReviewerApproval() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.startApp()
 
@@ -301,14 +331,10 @@ func (s *JiraSuite) TestReviewerApproval() {
 
 // TestReviewerDenial tests that comments are posted for each review, and the
 // issue transitions to the denied state once it gets denied.
-func (s *JiraSuite) TestReviewerDenial() {
+func (s *JiraSuiteEnterprise) TestReviewerDenial() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.startApp()
 
@@ -372,7 +398,7 @@ func (s *JiraSuite) TestReviewerDenial() {
 
 // TestWebhookApproval tests that the access request plugin can approve
 // requests based on Jira webhooks.
-func (s *JiraSuite) TestWebhookApproval() {
+func (s *JiraSuiteOSS) TestWebhookApproval() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -420,7 +446,7 @@ func (s *JiraSuite) TestWebhookApproval() {
 
 // TestWebhookDenial tests that the access request plugin can deny requests
 // based on Jira webhooks.
-func (s *JiraSuite) TestWebhookDenial() {
+func (s *JiraSuiteOSS) TestWebhookDenial() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -468,7 +494,7 @@ func (s *JiraSuite) TestWebhookDenial() {
 
 // TestWebhookApprovalWithReason tests that the access request plugin can approve
 // requests and specify the approval reason based on Jira webhooks and comments.
-func (s *JiraSuite) TestWebhookApprovalWithReason() {
+func (s *JiraSuiteOSS) TestWebhookApprovalWithReason() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -524,7 +550,7 @@ func (s *JiraSuite) TestWebhookApprovalWithReason() {
 // requests and specify the denial reason based on Jira webhooks and comments.
 // This test has extra cases to validate that the reason is picked from the
 // correct Jira comment.
-func (s *JiraSuite) TestWebhookDenialWithReason() {
+func (s *JiraSuiteOSS) TestWebhookDenialWithReason() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -597,7 +623,7 @@ func (s *JiraSuite) TestWebhookDenialWithReason() {
 
 // TestExpiration tests that when a request expires, its corresponding issue
 // is updated to reflect the new request state.
-func (s *JiraSuite) TestExpiration() {
+func (s *JiraSuiteOSS) TestExpiration() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -635,7 +661,7 @@ func (s *JiraSuite) TestExpiration() {
 // TestRace validates that the plugin behaves properly, sends all the comments
 // and performs all the resolutions when a lot of access requests are sent and
 // reviewed in a very short time frame.
-func (s *JiraSuite) TestRace() {
+func (s *JiraSuiteOSS) TestRace() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	t.Cleanup(cancel)
@@ -695,7 +721,7 @@ func (s *JiraSuite) TestRace() {
 			defer cancel()
 			var lastErr error
 			for {
-				logger.Get(ctx).Infof("Trying to approve issue %q", issue.Key)
+				logger.Get(ctx).InfoContext(ctx, "Trying to approve issue", "issue_key", issue.Key)
 				resp, err := s.postWebhook(ctx, s.webhookURL.String(), issue.ID, "Approved")
 				if err != nil {
 					if lib.IsDeadline(err) {

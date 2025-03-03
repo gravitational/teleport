@@ -20,9 +20,9 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types/secreports"
 	v1 "github.com/gravitational/teleport/api/types/secreports/convert/v1"
 )
@@ -44,9 +44,10 @@ func (c *Client) GetSecurityAuditQueries(ctx context.Context) ([]*secreports.Aud
 			return nil, trace.Wrap(err)
 		}
 		items = append(items, resp.GetQueries()...)
-		if nextKey == "" {
+		if resp.GetNextPageToken() == "" {
 			break
 		}
+		nextKey = resp.GetNextPageToken()
 	}
 	out, err := v1.FromProtoAuditQueries(items)
 	if err != nil {
@@ -84,9 +85,10 @@ func (c *Client) GetSecurityReports(ctx context.Context) ([]*secreports.Report, 
 			return nil, trace.Wrap(err)
 		}
 		resources = append(resources, resp.GetReports()...)
-		if nextKey == "" {
+		if resp.GetNextPageToken() == "" {
 			break
 		}
+		nextKey = resp.GetNextPageToken()
 	}
 	out := make([]*secreports.Report, 0, len(resources))
 	for _, v := range resources {

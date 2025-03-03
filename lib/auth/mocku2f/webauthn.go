@@ -79,6 +79,12 @@ func (muk *Key) SignAssertion(origin string, assertion *wantypes.CredentialAsser
 		return nil, trace.Wrap(err)
 	}
 
+	// If passwordless, then relay our WebAuthn UserHandle.
+	var userHandle []byte
+	if len(assertion.Response.AllowedCredentials) == 0 && len(muk.UserHandle) > 0 {
+		userHandle = muk.UserHandle
+	}
+
 	return &wantypes.CredentialAssertionResponse{
 		PublicKeyCredential: wantypes.PublicKeyCredential{
 			Credential: wantypes.Credential{
@@ -95,7 +101,8 @@ func (muk *Key) SignAssertion(origin string, assertion *wantypes.CredentialAsser
 			},
 			AuthenticatorData: res.AuthData,
 			// Signature starts after user presence (1byte) and counter (4 bytes).
-			Signature: res.SignData[5:],
+			Signature:  res.SignData[5:],
+			UserHandle: userHandle,
 		},
 	}, nil
 }
@@ -128,7 +135,11 @@ func (muk *Key) SignCredentialCreation(origin string, cc *wantypes.CredentialCre
 	if aa := cc.Response.AuthenticatorSelection.AuthenticatorAttachment; aa == protocol.Platform {
 		return nil, trace.BadParameter("platform attachment required by authenticator selection")
 	}
-	if rrk := cc.Response.AuthenticatorSelection.RequireResidentKey; rrk != nil && *rrk && !muk.AllowResidentKey {
+	rrk, err := cc.RequireResidentKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if rrk && !muk.AllowResidentKey {
 		return nil, trace.BadParameter("resident key required by authenticator selection")
 	}
 	if uv := cc.Response.AuthenticatorSelection.UserVerification; uv == protocol.VerificationRequired && !muk.SetUV {
@@ -184,13 +195,28 @@ func (muk *Key) SignCredentialCreation(origin string, cc *wantypes.CredentialCre
 		return nil, trace.Wrap(err)
 	}
 
+	// Save the WebAuthn UserHandle if this is a resident key creation.
+	if rrk && len(cc.Response.User.ID) > 0 && len(muk.UserHandle) == 0 {
+		muk.UserHandle = cc.Response.User.ID
+	}
+
+	var exts *wantypes.AuthenticationExtensionsClientOutputs
+	if muk.ReplyWithCredProps {
+		exts = &wantypes.AuthenticationExtensionsClientOutputs{
+			CredProps: &wantypes.CredentialPropertiesOutput{
+				RK: true,
+			},
+		}
+	}
+
 	return &wantypes.CredentialCreationResponse{
 		PublicKeyCredential: wantypes.PublicKeyCredential{
 			Credential: wantypes.Credential{
 				ID:   base64.RawURLEncoding.EncodeToString(muk.KeyHandle),
 				Type: string(protocol.PublicKeyCredentialType),
 			},
-			RawID: muk.KeyHandle,
+			RawID:      muk.KeyHandle,
+			Extensions: exts,
 		},
 		AttestationResponse: wantypes.AuthenticatorAttestationResponse{
 			AuthenticatorResponse: wantypes.AuthenticatorResponse{

@@ -28,6 +28,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/msteams"
@@ -37,9 +39,9 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 )
 
-// MsTeamsSuite is the Slack access plugin test suite.
+// MsTeamsBaseSuite is the MsTeams access plugin test suite.
 // It implements the testify.TestingSuite interface.
-type MsTeamsSuite struct {
+type MsTeamsBaseSuite struct {
 	*integration.AccessRequestSuite
 	appConfig             *msteams.Config
 	raceNumber            int
@@ -51,9 +53,9 @@ type MsTeamsSuite struct {
 	reviewer2TeamsUser    msapi.User
 }
 
-// SetupTest starts a fake Slack, generates the plugin configuration, and loads
-// the fixtures in Slack. It runs for each test.
-func (s *MsTeamsSuite) SetupTest() {
+// SetupTest starts a fake MsTeams, generates the plugin configuration, and loads
+// the fixtures in MsTeams. It runs for each test.
+func (s *MsTeamsBaseSuite) SetupTest() {
 	t := s.T()
 
 	err := logger.Setup(logger.Config{Severity: "debug"})
@@ -63,7 +65,7 @@ func (s *MsTeamsSuite) SetupTest() {
 	s.fakeTeams = NewFakeTeams(s.raceNumber)
 	t.Cleanup(s.fakeTeams.Close)
 
-	// We need requester users as well, the slack plugin sends messages to users
+	// We need requester users as well, the MsTeams plugin sends messages to users
 	// when their access request got approved.
 	s.requesterOSSTeamsUser = s.fakeTeams.StoreUser(msapi.User{Name: "Requester OSS", Mail: integration.RequesterOSSUserName})
 	s.requester1TeamsUser = s.fakeTeams.StoreUser(msapi.User{Name: "Requester Ent", Mail: integration.Requester1UserName})
@@ -74,23 +76,47 @@ func (s *MsTeamsSuite) SetupTest() {
 
 	var conf msteams.Config
 	conf.Teleport = s.TeleportConfig()
+	apiClient, err := common.GetTeleportClient(context.Background(), s.TeleportConfig())
+	require.NoError(t, err)
+	conf.Client = apiClient
+	conf.StatusSink = s.fakeStatusSink
 	conf.MSAPI = s.fakeTeams.Config
 	conf.MSAPI.SetBaseURLs(s.fakeTeams.URL(), s.fakeTeams.URL(), s.fakeTeams.URL())
 
 	s.appConfig = &conf
 }
 
-// startApp starts the Slack plugin, waits for it to become ready and returns.
-func (s *MsTeamsSuite) startApp() {
+// startApp starts the MsTeams plugin, waits for it to become ready and returns.
+func (s *MsTeamsBaseSuite) startApp() {
+	s.T().Helper()
 	t := s.T()
-	t.Helper()
 
 	app, err := msteams.NewApp(*s.appConfig)
 	require.NoError(t, err)
-	s.RunAndWaitReady(t, app)
+	integration.RunAndWaitReady(t, app)
 }
 
-func (s *MsTeamsSuite) TestMessagePosting() {
+// MsTeamsSuiteOSS contains all tests that support running against a Teleport
+// OSS Server.
+type MsTeamsSuiteOSS struct {
+	MsTeamsBaseSuite
+}
+
+// MsTeamsSuiteEnterprise contains all tests that require a Teleport Enterprise
+// to run.
+type MsTeamsSuiteEnterprise struct {
+	MsTeamsBaseSuite
+}
+
+// SetupTest overrides MsTeamsBaseSuite.SetupTest to check the Teleport features
+// before each test.
+func (s *MsTeamsSuiteEnterprise) SetupTest() {
+	t := s.T()
+	s.RequireAdvancedWorkflow(t)
+	s.MsTeamsBaseSuite.SetupTest()
+}
+
+func (s *MsTeamsSuiteOSS) TestMessagePosting() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -120,7 +146,7 @@ func (s *MsTeamsSuite) TestMessagePosting() {
 	require.Equal(t, msgs[1].RecipientID, s.reviewer2TeamsUser.ID)
 }
 
-func (s *MsTeamsSuite) TestRecipientsConfig() {
+func (s *MsTeamsSuiteOSS) TestRecipientsConfig() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -153,7 +179,7 @@ func (s *MsTeamsSuite) TestRecipientsConfig() {
 	require.Equal(t, msgs[1].RecipientID, s.reviewer2TeamsUser.ID)
 }
 
-func (s *MsTeamsSuite) TestApproval() {
+func (s *MsTeamsSuiteOSS) TestApproval() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -181,7 +207,7 @@ func (s *MsTeamsSuite) TestApproval() {
 	body.checkStatusApproved(t, reason)
 }
 
-func (s *MsTeamsSuite) TestDenial() {
+func (s *MsTeamsSuiteOSS) TestDenial() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -209,14 +235,10 @@ func (s *MsTeamsSuite) TestDenial() {
 	body.checkStatusDenied(t, reason)
 }
 
-func (s *MsTeamsSuite) TestReviewReplies() {
+func (s *MsTeamsSuiteEnterprise) TestReviewReplies() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.startApp()
 
@@ -263,14 +285,10 @@ func (s *MsTeamsSuite) TestReviewReplies() {
 	body.checkReview(t, 1, false /* approved */, "not okay", integration.Reviewer2UserName)
 }
 
-func (s *MsTeamsSuite) TestApprovalByReview() {
+func (s *MsTeamsSuiteEnterprise) TestApprovalByReview() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.startApp()
 
@@ -318,14 +336,10 @@ func (s *MsTeamsSuite) TestApprovalByReview() {
 	body.checkStatusApproved(t, "finally okay")
 }
 
-func (s *MsTeamsSuite) TestDenialByReview() {
+func (s *MsTeamsSuiteEnterprise) TestDenialByReview() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.startApp()
 
@@ -373,7 +387,7 @@ func (s *MsTeamsSuite) TestDenialByReview() {
 	body.checkStatusDenied(t, "finally not okay")
 }
 
-func (s *MsTeamsSuite) TestExpiration() {
+func (s *MsTeamsSuiteOSS) TestExpiration() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -401,14 +415,10 @@ func (s *MsTeamsSuite) TestExpiration() {
 	require.NoError(t, json.Unmarshal([]byte(msgUpdate.Body), &body))
 	body.checkStatusExpired(t)
 }
-func (s *MsTeamsSuite) TestRace() {
+func (s *MsTeamsSuiteEnterprise) TestRace() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	err := logger.Setup(logger.Config{Severity: "info"}) // Turn off noisy debug logging
 	require.NoError(t, err)
@@ -524,4 +534,58 @@ func (s *MsTeamsSuite) TestRace() {
 
 		return next
 	})
+}
+
+func (s *MsTeamsSuiteOSS) TestRecipientsFromAccessMonitoringRule() {
+	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
+
+	s.startApp()
+
+	_, err := s.ClientByName(integration.RulerUserName).
+		AccessMonitoringRulesClient().
+		CreateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
+			Kind:    types.KindAccessMonitoringRule,
+			Version: types.V1,
+			Metadata: &v1.Metadata{
+				Name: "test-msteams-amr",
+			},
+			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+				Subjects:  []string{types.KindAccessRequest},
+				Condition: "!is_empty(access_request.spec.roles)",
+				Notification: &accessmonitoringrulesv1.Notification{
+					Name: "msteams",
+					Recipients: []string{
+						s.reviewer1TeamsUser.ID,
+						s.reviewer2TeamsUser.Mail,
+					},
+				},
+			},
+		})
+	assert.NoError(t, err)
+
+	// Test execution: create an access request
+	req := s.CreateAccessRequest(ctx, integration.RequesterOSSUserName, nil)
+
+	s.checkPluginData(ctx, req.GetName(), func(data msteams.PluginData) bool {
+		return len(data.TeamsData) > 0
+	})
+
+	title := "Access Request " + req.GetName()
+	msgs, err := s.getNewMessages(ctx, 2)
+	require.NoError(t, err)
+
+	var body1 testTeamsMessage
+	require.NoError(t, json.Unmarshal([]byte(msgs[0].Body), &body1))
+	body1.checkTitle(t, title)
+	require.Equal(t, msgs[0].RecipientID, s.reviewer1TeamsUser.ID)
+
+	var body2 testTeamsMessage
+	require.NoError(t, json.Unmarshal([]byte(msgs[1].Body), &body2))
+	body1.checkTitle(t, title)
+	require.Equal(t, msgs[1].RecipientID, s.reviewer2TeamsUser.ID)
+
+	assert.NoError(t, s.ClientByName(integration.RulerUserName).
+		AccessMonitoringRulesClient().DeleteAccessMonitoringRule(ctx, "test-msteams-amr"))
 }

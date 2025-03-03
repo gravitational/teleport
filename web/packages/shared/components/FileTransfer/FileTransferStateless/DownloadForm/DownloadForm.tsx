@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import { Flex } from 'design';
+import { useId, useState } from 'react';
+
+import { Flex, LabelInput } from 'design';
 import { ButtonPrimary } from 'design/Button';
 
 import { Form, PathInput } from '../CommonElements';
@@ -28,6 +29,7 @@ interface DownloadFormProps {
 
 export function DownloadForm(props: DownloadFormProps) {
   const [sourcePath, setSourcePath] = useState('~/');
+  const inputId = useId();
   const isSourcePathValid = !sourcePath.endsWith('/');
 
   function download(): void {
@@ -41,9 +43,13 @@ export function DownloadForm(props: DownloadFormProps) {
         download();
       }}
     >
-      <Flex alignItems="end">
+      {/* Instead of using the built-in label, we supply our own, because it's
+          the only way to reliably align the download button with the input
+          control. */}
+      <LabelInput htmlFor={inputId}>File Path</LabelInput>
+      <Flex alignItems="start">
         <PathInput
-          label="File Path"
+          id={inputId}
           autoFocus
           onChange={e => setSourcePath(e.target.value)}
           value={sourcePath}

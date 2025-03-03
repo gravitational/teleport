@@ -13,6 +13,124 @@ adds a proxy token by default:
         kubernetes:
           allow:
             - service_account: "NAMESPACE:RELEASE-NAME-proxy"
+configures access monitoring when its values are set:
+  1: |
+    |-
+      auth_service:
+        access_monitoring:
+          enabled: true
+          report_results: s3://example-athena-long-term/report_results
+          role_arn: arn:aws:iam::123456789012:role/example_AccessMonitoringRole
+          workgroup: example_access_monitoring_workgroup
+        authentication:
+          local_auth: true
+          second_factor: "on"
+          type: local
+          webauthn:
+            rp_id: test-aws-cluster
+        cluster_name: test-aws-cluster
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-aws-cluster
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: 127.0.0.1:3025
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+        storage:
+          audit_events_uri:
+          - athena://db.table?topicArn=arn:aws:sns:region:account_id:topic_name
+          audit_sessions_uri: s3://test-s3-session-storage-bucket
+          auto_scaling: false
+          continuous_backups: false
+          region: us-west-2
+          table_name: test-dynamodb-backend-table
+          type: dynamodb
+      version: v3
+keeps the second factor type even when it's "off":
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: "off"
+          type: local
+        cluster_name: helm-lint
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: helm-lint
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: 127.0.0.1:3025
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
+keeps the session_recording type even when it's "off":
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: "on"
+          type: local
+          webauthn:
+            rp_id: helm-lint
+        cluster_name: helm-lint
+        enabled: true
+        proxy_listener_mode: separate
+        session_recording: "off"
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: helm-lint
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: 127.0.0.1:3025
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
 matches snapshot for acme-off.yaml:
   1: |
     |-
@@ -1673,6 +1791,68 @@ matches snapshot for volumes.yaml:
           output: stderr
           severity: INFO
       version: v3
+sets clusterDomain on Configmap:
+  1: |
+    apiVersion: v1
+    data:
+      apply-on-startup.yaml: |
+        ---
+        kind: token
+        version: v2
+        metadata:
+          name: RELEASE-NAME-proxy
+          expires: "2050-01-01T00:00:00Z"
+        spec:
+          roles: [Proxy]
+          join_method: kubernetes
+          kubernetes:
+            allow:
+              - service_account: "NAMESPACE:RELEASE-NAME-proxy"
+      teleport.yaml: |-
+        auth_service:
+          authentication:
+            local_auth: true
+            second_factor: "on"
+            type: local
+            webauthn:
+              rp_id: teleport.example.com
+          cluster_name: teleport.example.com
+          enabled: true
+          proxy_listener_mode: separate
+        kubernetes_service:
+          enabled: true
+          kube_cluster_name: teleport.example.com
+          listen_addr: 0.0.0.0:3026
+          public_addr: RELEASE-NAME-auth.NAMESPACE.svc.test.com:3026
+        proxy_service:
+          enabled: false
+        ssh_service:
+          enabled: false
+        teleport:
+          auth_server: 127.0.0.1:3025
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+        version: v3
+    kind: ConfigMap
+    metadata:
+      labels:
+        app.kubernetes.io/component: auth
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: teleport-cluster
+        app.kubernetes.io/version: 18.0.0-dev
+        helm.sh/chart: teleport-cluster-18.0.0-dev
+        teleport.dev/majorVersion: "18"
+      name: RELEASE-NAME-auth
+      namespace: NAMESPACE
 uses athena as primary backend when configured:
   1: |
     |-

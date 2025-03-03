@@ -23,16 +23,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"os/exec"
-	"os/signal"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -67,21 +66,21 @@ func (process *TeleportProcess) printShutdownStatus(ctx context.Context) {
 	}
 }
 
+// teleportSignals contains all the signals that
+// [TeleportProcess.WaitForSignals] cares about.
+var teleportSignals = []os.Signal{
+	// Note: SIGKILL can't be trapped.
+	syscall.SIGQUIT, // graceful shutdown
+	syscall.SIGTERM, // fast shutdown
+	syscall.SIGINT,  // fast shutdown
+	syscall.SIGUSR1, // log process diagnostic info
+	syscall.SIGUSR2, // initiate process restart procedure
+	syscall.SIGHUP,  // graceful restart procedure
+}
+
 // WaitForSignals waits for system signals and processes them.
 // Should not be called twice by the process.
-func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
-	sigC := make(chan os.Signal, 1024)
-	// Note: SIGKILL can't be trapped.
-	signal.Notify(sigC,
-		syscall.SIGQUIT, // graceful shutdown
-		syscall.SIGTERM, // fast shutdown
-		syscall.SIGINT,  // fast shutdown
-		syscall.SIGUSR1, // log process diagnostic info
-		syscall.SIGUSR2, // initiate process restart procedure
-		syscall.SIGHUP,  // graceful restart procedure
-	)
-	defer signal.Stop(sigC)
-
+func (process *TeleportProcess) WaitForSignals(ctx context.Context, sigC <-chan os.Signal) error {
 	serviceErrorsC := make(chan Event, 10)
 	eventCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -155,19 +154,6 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 			default:
 				process.logger.InfoContext(process.ExitContext(), "Ignoring unknown signal.", "signal", signal)
 			}
-		case <-process.ReloadContext().Done():
-			// it's fine to signal.Stop the same channel multiple times, and
-			// after the function returns we're guaranteed to have restored the
-			// default handlers for the signals and that no more signals are
-			// pushed into the channel
-			signal.Stop(sigC)
-			if len(sigC) > 0 {
-				// exhaust all signals before the internal reload, so we don't
-				// miss signals to exit or to graceful restart instead
-				continue
-			}
-			process.logger.InfoContext(process.ExitContext(), "Exiting signal handler: process has started internal reload.")
-			return ErrTeleportReloading
 		case <-process.ExitContext().Done():
 			process.logger.InfoContext(process.ExitContext(), "Someone else has closed context, exiting.")
 			return nil
@@ -195,10 +181,6 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 		}
 	}
 }
-
-// ErrTeleportReloading is returned when signal waiter exits
-// because the teleport process has initiaded shutdown
-var ErrTeleportReloading = &trace.CompareFailedError{Message: "teleport process is reloading"}
 
 // ErrTeleportExited means that teleport has exited
 var ErrTeleportExited = &trace.CompareFailedError{Message: "teleport process has shutdown"}
@@ -312,7 +294,17 @@ func (process *TeleportProcess) createListener(typ ListenerType, address string)
 		return nil, trace.BadParameter("listening is blocked")
 	}
 
-	listener, err := net.Listen("tcp", address)
+	// When the process exists, the socket files are left behind (to cover
+	// forking scenarios). To guarantee there won't be errors like "address
+	// already in use", delete the file before starting the listener.
+	if typ.Network() == "unix" {
+		process.logger.DebugContext(process.ExitContext(), "Deleting socket file", "path", address)
+		if err := trace.ConvertSystemError(os.Remove(address)); !trace.IsNotFound(err) {
+			warnOnErr(process.ExitContext(), err, process.logger)
+		}
+	}
+
+	listener, err := net.Listen(typ.Network(), address)
 	if err != nil {
 		process.Lock()
 		listener, ok := process.getListenerNeedsLock(typ, address)
@@ -323,6 +315,15 @@ func (process *TeleportProcess) createListener(typ ListenerType, address string)
 		}
 		return nil, trace.Wrap(err)
 	}
+
+	// The default behavior for unix listeners is to delete the file when the
+	// listener closes (unlinking). However, if the process forks, the file
+	// descriptor will be gone when its parent process exists, causing the new
+	// listener to have no socket file.
+	if unixListener, ok := listener.(*net.UnixListener); ok {
+		unixListener.SetUnlinkOnClose(false)
+	}
+
 	process.Lock()
 	defer process.Unlock()
 	// check this again in case we stopped allowing new listeners halfway
@@ -341,6 +342,34 @@ func (process *TeleportProcess) createListener(typ ListenerType, address string)
 	r := registeredListener{typ: typ, address: address, listener: listener}
 	process.registeredListeners = append(process.registeredListeners, r)
 	return listener, nil
+}
+
+// createPacketConn opens a UDP socket with the given address. UDP sockets are
+// never passed on to a different process, so they're not registered anywhere.
+func (process *TeleportProcess) createPacketConn(typ string, address string) (net.PacketConn, error) {
+	listenersClosed := func() bool {
+		process.Lock()
+		defer process.Unlock()
+		return process.listenersClosed
+	}
+
+	if listenersClosed() {
+		process.logger.DebugContext(process.ExitContext(), "Listening is blocked, not opening packet conn.", "type", typ, "address", address)
+		return nil, trace.BadParameter("listening is blocked")
+	}
+
+	pc, err := net.ListenPacket("udp", address)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if listenersClosed() {
+		_ = pc.Close()
+		process.logger.DebugContext(process.ExitContext(), "Listening is blocked, closing newly-created packet conn.", "type", typ, "address", address)
+		return nil, trace.BadParameter("listening is blocked")
+	}
+
+	return pc, nil
 }
 
 // getListenerNeedsLock tries to get an existing listener that matches the type/addr.
@@ -385,7 +414,7 @@ func (process *TeleportProcess) ExportFileDescriptors() ([]*servicecfg.FileDescr
 }
 
 // importFileDescriptors imports file descriptors from environment if there are any
-func importFileDescriptors(log logrus.FieldLogger) ([]*servicecfg.FileDescriptor, error) {
+func importFileDescriptors(log *slog.Logger) ([]*servicecfg.FileDescriptor, error) {
 	// These files may be passed in by the parent process
 	filesString := os.Getenv(teleportFilesEnvVar)
 	os.Unsetenv(teleportFilesEnvVar)
@@ -399,7 +428,7 @@ func importFileDescriptors(log logrus.FieldLogger) ([]*servicecfg.FileDescriptor
 	}
 
 	if len(files) != 0 {
-		log.Infof("Child has been passed files: %v", files)
+		log.InfoContext(context.Background(), "Child has been passed files", "file_descriptors", files)
 	}
 
 	return files, nil

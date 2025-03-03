@@ -1,0 +1,697 @@
+---
+title: Configure Access Requests
+description: Describes the options available for configuring just-in-time access to roles and resources in your Teleport cluster.
+tocDepth: 3
+---
+
+This guide explains the considerations you should make when configuring Teleport
+Access Requests, which enable a Teleport user to obtain elevated permissions by
+getting approval from one or more users in the same Teleport cluster.
+
+Access Requests are configurable on a role-by-role basis. When a user
+authenticates to Teleport, including through a single sign-on provider, the
+Teleport Auth Service reconciles all of a user's roles to determine the Access
+Request configuration for that user. Teleport then applies this configuration to
+any Access Requests the user creates.
+
+For examples of the full Access Request lifecycle, follow one of the how-to
+guides:
+
+- [Role requests in commercial Teleport editions](role-requests.mdx)
+- [Resource requests in commercial Teleport editions](resource-requests.mdx)
+- [Role requests in Teleport Community Edition](oss-role-requests.mdx)
+
+## The access a user can request
+
+By default, a Teleport user cannot request elevated permissions. To configure
+the elevated access that a user can request, you can define a Teleport role
+that:
+
+- Names other Teleport roles the user can request.
+- Names other Teleport roles that the user can use to search for resources to
+  request, such as databases or Kubernetes clusters.
+
+You can also configure a Teleport role to prevent the user from requesting
+access to these roles.
+
+### Restrict role requests
+
+When a user submits an Access Request, they can specify the roles they would
+like to request access to.
+
+You can allow a user to request access to certain roles—and deny access to other
+roles—by using the following configuration options:
+
+- `allow.request.roles`
+- `allow.request.claims_to_roles`
+- `deny.request.roles`
+- `deny.request.claims_to_roles`
+
+Here is an example, which allows the `employee` user to request the `dev` and
+`dba` role, and specifies some more complex restrictions that we will explain
+below:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: employee
+spec:
+  allow:
+    request:
+      roles:
+        - 'dev'
+        - 'dba'
+      claims_to_roles:
+        - claim: groups
+          value: admins
+          roles: ['*']
+  deny:
+    request:
+      claims_to_roles:
+        - claim: groups
+          value: contractors
+          roles: ['*']
+```
+
+The Teleport Auth Service combines the values of these fields for all of a
+user's roles into two lists of role matchers:
+
+- **Deny:** If the requested role matches any of these, Teleport denies the
+  request.
+- **Allow:** If the requested role matches any of these, and no deny matcher
+  also matches the role, Teleport allows the request.
+
+A role matcher can include the following values:
+
+- The literal name of a role (such as `admin`).
+- A wildcard character, which matches one or more characters in a role name. For
+  example, `db-*` matches `db-reader` and `db-writer`.
+- A [Go regular expression](https://pkg.go.dev/regexp/syntax) inside a string
+  that begins with `^` and ends with `$`. For example, if you define roles by
+  AWS region, a role matcher could use the regular expression
+  `^db-writer-us-(east|west)-[0-9]+` to match the `db-writer-us-east-1` and
+  `db-writer-us-west-2` roles.
+
+To add the values of `claims_to_roles` to the lists of role matchers, the Auth
+Service evaluates template expressions with the user's traits. See the [Role
+Templates](../guides/role-templates.mdx#templating-in-access-requests) for more
+information on how Teleport executes template expressions with user traits in
+the `claims_to_roles` field.
+
+In the `employee` role above, if the user is in the `admins` group (as declared
+by their single sign-on provider), this role allows them to request access to
+all roles.  If they are in the `contractors` group, this role denies them access
+to request any roles.
+
+### Restrict resource requests
+
+Users can also submit Access Requests for a specific Teleport resource.
+
+The following fields in a Teleport role indicate which roles a user assumes when
+they search for a Teleport resource:
+
+- `allow.request.search_as_roles`
+- `deny.request.search_as_roles`
+
+For example, the following role enables a user to search for resources that the
+`k8s-viewer` role allows access to.
+
+```yaml
+# requester.yaml
+kind: role
+version: v7
+metadata:
+  name: k8s-requester
+spec:
+  allow:
+    request:
+      search_as_roles:
+        - k8s-viewer
+```
+
+In contrast to [configuring role requests](#restrict-role-requests), the
+`request.search_as_roles` field is a list of literal role names only, and does
+not support wildcards or regular expressions.
+
+The Teleport Auth Service combines the values of these fields for all of a
+user's Teleport roles in order to validate the user's Access Requests.
+
+When a user attempts to list Teleport resources (such as servers and databases)
+or Kubernetes resources (such as pods and deployments), the Auth Service checks
+the roles that the user is allowed to search as. If a user's Teleport roles *or*
+a role specified in `search_as_roles` allow the user to search for a resource,
+the Teleport Auth Service will return information about the resource.
+
+When a user requests access to a resource ID, the Teleport Auth Service does the
+following:
+
+1. Collects all the roles named in `allow.request.search_as_roles`, filtering
+   these to exclude roles specified in `deny.request.search_as_roles` or
+   `deny.request.roles`.
+1. Determines which of the remaining roles can access the requested resource.
+   For a Resource Access Request to be valid, one of the roles listed in
+   a user's `search_as_roles` configuration must permit access to the requested
+   resources.
+
+## How long access lasts
+
+You can configure the length of time that Teleport will grant a user elevated
+privileges for an approved Access Request.
+
+### Calculating the duration of elevated privileges
+
+Teleport uses the following logic to calculate how long a user has elevated
+privileges:
+
+1. Calculate the maximum duration of elevated privileges if the Access Request
+   were granted. This is the lowest value of:
+   - The `--max-duration` flag of the [`tsh request
+     create`](../../../reference/cli/tsh.mdx) command (if the
+     user creating the request provides this flag).
+   - The lowest value of the `request.max_duration` field included in one of
+     the user's requested roles.
+1. Calculate the session TTL of the certificate the user would receive if
+   Teleport were to grant the Access Request. This calculation chooses the
+   lowest value of:
+   - The requested session expiration time, which is the value of the
+     `--session-ttl` flag of [`tsh request
+     create`](../../../reference/cli/tsh.mdx).
+   - The remaining time in the user's current Teleport session.
+   - The lowest value of the `options.max_session_ttl` field in the user's
+     requested roles.
+1. If the maximum duration is greater than zero, set the duration of elevated
+   privileges to either the maximum duration or the session TTL calculated
+   earlier, whichever is shorter. Otherwise, set the duration of elevated
+   privileges to the session TTL.
+
+### Setting when users can assume elevated privileges
+
+When creating or reviewing Access Requests, you can specify the earliest time
+that a user can assume elevated privileges by using the `--assume-start-time`
+flag. This flag is available for the
+[`tsh request create`](../../../reference/cli/tsh.mdx) and [`tsh request
+review`](../../../reference/cli/tsh.mdx) commands. The format accepted
+is defined in [RFC 3339](https://datatracker.ietf.org/doc/html/rfc3339), e.g, `2023-12-12T23:20:50.52Z`.
+The time specified must be in the future.
+
+Reviewers can override this time when approving an Access Request.
+If multiple reviewers override the start time, the most recent
+override will be chosen.
+
+### The `request.max_duration` field
+
+The `max_duration` option indicates the maximum length of time that a user is
+allowed to have elevated privileges for particular roles. After a user makes a
+successful Access Request, the user can authenticate to Teleport with the
+elevated access until the maximum duration has elapsed.
+
+Each time the user authenticates to Teleport, Teleport calculates the TTL of the
+user's Teleport session using a formula that we describe in the [previous
+section](#calculating-the-duration-of-elevated-privileges). The user can have
+multiple sessions with elevated privileges before the maximum duration elapses.
+
+You can specify the `max_duration` option with a role like the following:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: temp-dba
+spec:
+  allow:
+    request:
+      # Allow access to role `dba` for up to 4 days.
+      roles: ['dba']
+      max_duration: 4d
+```
+
+The value of `max_duration` can never exceed fourteen days.
+
+### How long Access Requests are valid
+
+Teleport uses the following logic to determine how long an Access Request is
+valid while it awaits approval:
+
+1. Begin with with the base expiration of the Access Request, which a user can
+   set with the `--request-ttl` flag of the [`tsh request
+   create`](../../../reference/cli/tsh.mdx) command. If this is
+   unset, the request TTL is one hour.
+1. If the user's Teleport session is due to expire before the base expiration
+   time, Teleport sets the Access Request expiration to the end of the Teleport
+   session.
+1. If any of the Teleport roles requested by the Access Request has an
+   `options.max_session_ttl` that expires before the expiration time, Teleport
+   sets the expiration of the Access Request to that time.
+1. Return an error if the value of `--request-ttl` is greater than the request
+   TTL calculated in the previous step.
+
+## How clients request access
+
+A user's Teleport roles determine how they submit Access Requests, whether
+Access Requests are optional or mandatory, and whether a user must provide a
+reason when making a request.
+
+A role's `options.request_access` setting specifies a strategy for producing
+Access Requests. It can include one of the following values:
+
+|Value|Meaning|
+|---|---|
+|`optional`|The default. The user does not need to specify a reason when making a request. The user must initiate a request manually when they log in to Teleport.|
+|`always`| When a user signs in to Teleport, their client automatically generates an Access Request for all roles available to the user, without providing a reason.|
+|`reason`| When a user signs in to Teleport, their client automatically generates an Access Request for all roles available to the user. The user must provide a reason when authenticating.|
+
+If a role includes the `reason` strategy, you can specify a prompt to remind the
+user to provide a reason if the user attempts to create an Access Request
+without one. To do so, set the `options.request_prompt` option in a role.
+
+For example, the following role prompts the user with the text, "Please provide
+your ticket ID":
+
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: employee
+spec:
+  allow:
+    request:
+      roles:
+        - 'dba'
+  options:
+    request_access: reason
+    request_prompt: Please provide your ticket ID
+```
+
+The Teleport Auth Service uses the following logic to combine strategies
+specified in the `request_access` fields of different roles that belong to a
+user:
+
+1. If one of the user's roles includes either the `reason` or the `always`
+   strategy, Teleport will automatically request all available roles for the
+   user when they authenticate.
+1. If one of the user's roles includes the `reason` strategy, the user must
+   provide a reason when authenticating.
+
+## Requiring request reasons
+
+The `allow.request.reason.mode` field controls whether a reason is required when users submit
+Access Requests.
+
+Allowed values are:
+
+|Value|Meaning|
+|---|---|
+| `optional` | The default. The user does not need to provide a reason when making a request. |
+| `required` | The user must provide a non-empty reason when making a request. |
+
+Example:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: node-requester
+spec:
+  allow:
+    request:
+      roles:
+        - 'node-access'
+      search_as_roles:
+        - 'root-node-access'
+      reason:
+        mode: 'required'
+```
+
+If a user with "node-requester" role assigned makes an Access Request for "node-access" role or any
+resource allowed by "root-node-access" they will be required to provide a reason. If a user's
+role set includes multiple roles governing Access Requests to the same roles and resources,
+"require" mode takes precedence.
+
+## Review thresholds
+
+You can configure a user's roles to specify the criteria that an Access Request
+must meet before Teleport approves or denies it. To do so, configure the
+`allow.request.thresholds` field.
+
+### The `allow.request.thresholds` field
+
+Here is an example of a role that specifies review thresholds for requestable
+roles:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: devops
+spec:
+  allow:
+    request:
+      roles: ['dbadmin']
+      thresholds:
+        - approve: 3
+          deny: 2
+          filter: '!contains(reviewer.traits.team, "dev")'
+        - approve: 1
+          deny: 1
+          filter: 'contains(reviewer.roles, "admin")'
+```
+
+Note that there is no corresponding `deny.requests.thresholds` field, and
+Teleport rejects roles that include one.
+
+Each threshold includes the following fields:
+
+|Field|Description|
+|---|---|
+|`approve`|The number of reviewers that must approve the Access Request for it to be approved. The default is 1.|
+|`deny`|The number of reviewers that must deny the Access Request for it to be denied. The default is 1.|
+|`filter`|A condition that the Access Request or its review must satisfy before a review is added to a threshold's approval or denial count. Described in more detail in the [next section](#threshold-filters).|
+
+In the `devops` role above, there are two thresholds associated with the
+`dbadmin` role. As a result, one of the following conditions must obtain before
+the request is approved is denied:
+
+1. Three users must approve the request, and two users must deny it, as long as
+   those users do not have a `team` trait with the value `dev`.
+1. One user must approve the review, and one user must deny it, as long as the
+   user submitting the review has the `admin` role.
+
+### Threshold filters
+
+When Teleport processes an Access Request for a specific role, it checks whether
+the request has met the criteria specified in one of the thresholds in
+`allow.request.thresholds` associated with that role.
+
+The value of `filter` is an expression that uses the Teleport [predicate
+language](../../../reference/predicate-language.mdx).
+
+For example, the following configuration includes four thresholds, three of which
+have filters:
+
+```yaml
+spec:
+  allow:
+    request:
+      roles: ['dbadmin']
+      thresholds:
+        - approve: 3
+          deny: 1
+        - filter: 'contains(reviewer.roles, "super-approver")'
+          approve: 2
+          deny: 1
+        - filter: '!equals(request.reason, "") && contains(reviewer.roles, "super-approver")'
+          approve: 1
+          deny: 1
+        - filter: 'regexp.match(request.reason, "^Ticket [0-9]+.*$") && !equals(review.reason, "")'
+          approve: 1
+          deny: 1
+```
+
+The first threshold requires three users to approve and one user to deny.
+However, if each reviewer has the `super-approver` role, the request only needs
+two approvals.
+If the request has a non-empty reason, it only needs a single approval from a
+user with the `super-approver` role.
+If the request has a reason matching the regex `^Ticket [0-9]+.*$`, it only
+needs a single approval from any reviewer, as long as the reviewer provides a
+non-empty reason.
+
+Filter expressions can draw on the following data associated with each Access
+Request review: the request, the reviewer, and the review itself:
+
+|Field|Type|Description|
+|---|---|---|
+|`reviewer.roles`|`[]string`|The reviewer's roles.|
+|`reviewer.traits`|`map[string][]string`|The reviewer's traits.|
+|`review.reason`|`string`|The reason given for the review.|
+|`review.annotations`|`map[string][]string`|Annotations added to the review. These are added by programmatic Teleport clients that approve or deny an Access Request.|
+|`request.roles`|`[]string`|The roles included in the request.|
+|`request.reason`|`string`|The reason provided in the request.|
+|`request.system_annotations`|`map[string][]string`|[Request annotations](#request-annotations).|
+
+You can use these fields in expressions that include the following operators and
+functions:
+
+|Operator/Function|Description|
+|---|---|
+|`equals(val1,val2)`|Returns `true` if `val1` is equal to `val2` and `false` otherwise|
+|`contains(list, item)`|Returns `true` if `list` contains an exact match for `item`.|
+|`regexp.match(list, re)`|Returns `true` if `list` contains a match for `re`.|
+|`expr1 && expr2`|Evaluates to `true` if both `expr1` and `expr2` evaluate to `true`.|
+|`expr1 \|\| expr2`|Evaluates to `true` if `expr1`, `expr2`, or both evaluate to `true`.|
+|`!expr`|Negates `expr`.|
+
+Above, any argument named `list` can accept a list of values (like
+`request.roles`) or a single value (like `request.reason`).
+
+The `re` argument to `regexp.match` supports both glob-style wildcards (the `*`
+character) and [Go-style regular expressions](https://pkg.go.dev/regexp).
+If an expression begins with the `^` character and ends with the `$` character,
+Teleport will evaluate it as a regular expression.
+Otherwise, it will evaluate it as a wildcard expression.
+Wildcards match any sequence of zero or more characters.
+
+## Suggested reviewers
+
+You can configure a Teleport role to suggest reviewers for Access Requests.
+
+Teleport combines all reviewers named in the `allow.request.suggested_reviewers`
+fields of a user's roles. If an Access Request has no suggested reviewers,
+Teleport adds the user's suggested reviewers to the request.
+
+The following role adds the suggested reviewers `user1` and `user2`:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: employee
+spec:
+  allow:
+    request:
+      roles:
+        - 'dev'
+        - 'dba'
+      suggested_reviewers:
+       - 'user1'
+       - 'user2'
+```
+
+Suggested reviewers apply to all of the roles a user can request access to, not
+just the roles named in the same `role` resource as the suggested reviewers.
+
+While Teleport will accept a role with a nonempty
+`deny.request.suggested_reviewers` field, it only considers the
+`allow.request.suggested_reviewers` field when evaluating Access Requests.
+
+## Roles that a reviewer can grant access to
+
+Teleport users must be authorized to review Access Requests for a particular
+role. You can configure a user's Teleport roles to allow the user to review Access
+Requests for some Teleport roles, and deny the user the ability to review
+requests for other roles.
+
+### Allowing and denying reviews for specific roles
+
+To allow a user to review requests for certain roles but not others, edit the
+following role fields:
+
+- `allow.review_requests.roles`
+- `allow.review_requests.claims_to_roles`
+- `deny.review_requests.roles`
+- `deny.review_requests.claims_to_roles`
+
+The Auth Service evaluates the `claims_to_roles` field using template
+expressions with the user's traits. See the [Role
+Templates](../guides/role-templates.mdx#templating-in-access-requests) for more
+information on how Teleport executes template expressions with user traits in
+the `claims_to_roles` field.
+
+For a user to review an Access Request for a particular role, at least one allow
+rule must grant the user access to review requests for that role. No deny rule
+must disallow access to review that role.
+
+### `where` expressions
+
+Unlike the `requests.roles` and `requests.claims_to_roles` fields, the
+`review_requests.roles` and `review_requests.claims_to_roles` fields allow you
+to grant or deny permissions to review an Access Request for a role based on a
+`where` expression. If the expression holds for an Access Request, Teleport
+applies the allow or deny rules for the `review_requests_claims_to_roles` and
+`review_requests.roles` fields.
+
+For example, the following configuration allows a reviewer to review requests
+for all roles *unless* the role is `contractor-prod` and the request reason is
+empty:
+
+```yaml
+metadata:
+  name: reviewer
+# ...
+allow:
+  review_requests:
+    roles: ['*']
+deny:
+  review_requests:
+    roles: ['contractor-prod']
+    where: 'request.reason == ""'
+```
+
+When validating an Access Request review, Teleport considers each `where`
+expression within all of a reviewer's roles. If one `where` expression holds for
+the review, Teleport ensures that the reviewer is authorized to review requests
+for the corresponding roles, which are defined in the same Teleport role as the
+`where` expression.
+
+If a user is requesting the `contractor-prod` role, for example, and leaves an
+empty reason in the request, a user with the `reviewer` role defined above will
+not be able to review the request.
+
+`where` expressions can draw on the following data associated with an Access
+Request:
+
+|Field|Type|Description|
+|---|---|---|
+|`reviewer.roles`|`[]string`|The reviewer's Teleport roles.|
+|`reviewer.traits`|`map[string][]string`|The reviewer's Teleport traits.|
+|`request.roles`|`[]string`|The roles requested by the Access Request.|
+|`request.reason`|`string`|The reason for the request.|
+|`request.system_annotations`|`map[string][]string`|[Request annotations](#request-annotations).|
+
+You can use these fields in expressions that include the following operators and
+functions:
+
+|Operator/Function|Description|
+|---|---|
+|`equals(val1,val2)`|Returns `true` if `val1` is equal to `val2` and `false` otherwise|
+|`contains(list, item)`|Returns `true` if `list` contains an exact match for `item`.|
+|`regexp.match(list, re)`|Returns `true` if `list` contains a match for `re`.|
+|`expr1 && expr2`|Evaluates to `true` if both `expr1` and `expr2` evaluate to `true`.|
+|`expr1 \|\| expr2`|Evaluates to `true` if `expr1`, `expr2`, or both evaluate to `true`.|
+|`!expr`|Evaluates to the opposite of `expr`.|
+
+Above, any argument named `list` can accept a list of values (like
+`request.roles`) or a single value (like `request.reason`).
+
+The `re` argument to `regexp.match` supports both glob-style wildcards (the `*`
+character) and [Go-style regular expressions](https://pkg.go.dev/regexp).
+If an expression begins with the `^` character and ends with the `$` character,
+Teleport will evaluate it as a regular expression.
+Otherwise, it will evaluate it as a wildcard expression.
+Wildcards match any sequence of zero or more characters.
+
+## Inspecting requested resources
+
+A Teleport user can view information about a resource without having access to
+that resource. This is useful for inspecting a resource before granting another
+user access to it by approving that user's Access Requests.
+
+To grant or deny a user the ability to list Teleport resources without accessing
+them, use the `allow.review_requests.preview_as_roles` and
+`deny.review_requests.preview_as_roles` fields in the user's roles:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: reviewer
+spec:
+  allow:
+    review_requests:
+      roles:
+        - access
+      preview_as_roles:
+        - access
+```
+
+When a user attempts to list Teleport resources, for example, by using a `tsh
+ls` command, the Teleport Auth Service checks whether the user's
+`preview_as_roles` grant access to list the resource and, if so, lists the
+resources. This also applies to users attempting to list Kubernetes resources
+protected by Teleport, such as deployments and pods.
+
+Without the ability to preview a resource, reviewers can only see the resource's
+UUID as provided by the Access Request.
+
+## Request annotations
+
+When a user creates an Access Request, the Teleport Auth Service can write
+arbitrary metadata to the request. Teleport integrations that consume the access
+request can read the metadata in order to direct their behavior.
+
+Annotations are key value pairs in which a single key corresponds to a list of
+values. All values are strings.
+
+### Plugins that support request annotations
+
+The following Teleport-supported Access Request plugins read request
+annotations:
+
+|Integration|Annotation keys|How it uses annotations|
+|---|---|---|
+|Pagerduty|`pagerduty_notify_service`, `pagerduty_services`|Opens an incident in the service named in `pagerduty_notify_service` when a user submits an Access Request. If a user is on the on-call rotation for a service named in `pagerduty_services`, Teleport will approve any Access Request opened by the user.|
+|Opsgenie|`teleport.dev/notify-services`, `teleport.dev/schedules`|The integration approves a user's Access Request if the user is on call for the of the services listed in `teleport.dev/schedules`. It also creates an alert in the services named in `teleport.dev/notify-services` when a user creates an Access Request. |
+|ServiceNow|`teleport.dev/notify-services`, `teleport.dev/schedules`|The integration approves a user's Access Request if the user is on call for the of the services listed in `teleport.dev/schedules`. It also creates an alert in the services named in `teleport.dev/notify-services` when a user creates an Access Request. |
+
+### Allowing and denying annotations
+
+The Teleport Auth Service evaluates Access Request annotations in a user's roles
+by applying the following logic: for all allowed annotation values with a given
+key, check whether there is also a denied annotation value with the same key. If
+there is, skip it. Otherwise, add the annotation to the Access Request.
+
+For example, let's say we have defined a role with the following fields:
+
+```yaml
+allow:
+  request:
+    annotations:
+      pagerduty_services:
+        - data-writer
+        - data-reader
+```
+
+We have also defined a role with these fields:
+
+```yaml
+deny:
+  request:
+    annotations:
+      pagerduty_services:
+        - data-reader
+```
+
+In this case, the final annotation mapping for the user's Access Requests would
+contain the annotation:
+
+```yaml
+pagerduty_services:
+ - data-writer
+```
+
+### Reading annotations in custom plugins
+
+If you [write your own Access Request plugin](../../api/access-plugin.mdx), the
+program can access system annotations using a function similar to the following:
+
+```go
+func getMyAnnotation(req types.AccessRequest) ([]string, error) {
+	result, ok := req.GetSystemAnnotations()["my-annotation"]
+	if !ok {
+		return nil, trace.NotFound("annotation not found")
+	}
+	return result, nil
+}
+```
+
+This function uses the `GetSystemAnnotations` method of the
+`types.AccessRequest` type to get all the annotation values of an Access
+Requests with the key `my-annotation`.
+
+## Further reading
+
+For a full description of the configuration options within a Teleport role,
+refer to the [Access Controls
+Reference](../../../reference/access-controls/roles.mdx).

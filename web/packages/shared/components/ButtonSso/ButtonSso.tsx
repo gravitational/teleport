@@ -16,58 +16,50 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { forwardRef } from 'react';
-import styled from 'styled-components';
-import Button from 'design/Button';
-import { darken, lighten } from 'design/theme/utils/colorManipulator';
+import { forwardRef } from 'react';
+
+import { ButtonProps, ButtonSecondary } from 'design/Button';
 import * as Icons from 'design/Icon';
+import { ResourceIcon } from 'design/ResourceIcon';
+import { AuthProviderType, SSOType } from 'shared/services';
 
-import { AuthProviderType } from 'shared/services';
-
-const ButtonSso = forwardRef<HTMLInputElement, Props>((props: Props, ref) => {
+const ButtonSso = forwardRef<HTMLButtonElement, Props>((props: Props, ref) => {
   const { ssoType = 'unknown', title, ...rest } = props;
-  const { color, Icon } = getSSOIcon(ssoType);
 
   return (
-    <StyledButton color={color} block {...rest} ref={ref}>
-      {Boolean(Icon) && (
-        <IconBox>
-          <Icon data-testid="icon" color="white" />
-        </IconBox>
-      )}
+    <ButtonSecondary gap={3} size="extra-large" block {...rest} setRef={ref}>
+      <SSOIcon type={ssoType} />
       {title}
-    </StyledButton>
+    </ButtonSecondary>
   );
 });
 
-type Props = {
+type Props = ButtonProps<'button'> & {
   ssoType: SSOType;
   title: string;
-  // TS: temporary handles ...styles
-  [key: string]: any;
 };
 
-type SSOType =
-  | 'microsoft'
-  | 'github'
-  | 'bitbucket'
-  | 'google'
-  | 'openid'
-  | 'unknown';
-
-function getSSOIcon(type: SSOType) {
+export function SSOIcon({ type }: { type: SSOType }) {
+  const commonResourceIconProps = {
+    width: '24px',
+    height: '24px',
+  };
   switch (type.toLowerCase()) {
     case 'microsoft':
-      return { color: '#2672ec', Icon: Icons.Windows, type };
+      return <ResourceIcon name="microsoft" {...commonResourceIconProps} />;
     case 'github':
-      return { color: '#444444', Icon: Icons.GitHub, type };
+      return <ResourceIcon name="github" {...commonResourceIconProps} />;
     case 'bitbucket':
-      return { color: '#205081', Icon: Icons.Key, /*temporary icon */ type };
+      return (
+        <ResourceIcon name="atlassianbitbucket" {...commonResourceIconProps} />
+      );
     case 'google':
-      return { color: '#dd4b39', Icon: Icons.Google, type };
+      return <ResourceIcon name="google" {...commonResourceIconProps} />;
+    case 'okta':
+      return <ResourceIcon name="okta" {...commonResourceIconProps} />;
     default:
       // provide default icon for unknown social providers
-      return { color: '#f7931e', Icon: Icons.Key /*temporary icon */ };
+      return <Icons.Key data-testid="icon" />;
   }
 }
 
@@ -93,46 +85,15 @@ export function guessProviderType(
     return 'github';
   }
 
+  if (name.indexOf('okta') !== -1) {
+    return 'okta';
+  }
+
   if (providerType === 'oidc') {
     return 'openid';
   }
 
   return 'unknown';
 }
-
-const StyledButton = styled(Button)`
-  background-color: ${props => props.color};
-  display: block;
-  width: 100%;
-  border: 1px solid transparent;
-  color: white;
-
-  &:hover,
-  &:focus {
-    background: ${props => darken(props.color, 0.1)};
-    border: 1px solid ${props => lighten(props.color, 0.4)};
-  }
-  height: 40px;
-  position: relative;
-  box-sizing: border-box;
-
-  svg {
-    opacity: 0.87;
-  }
-`;
-
-const IconBox = styled.div`
-  align-items: center;
-  display: flex;
-  justify-content: center;
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 56px;
-  font-size: 24px;
-  text-align: center;
-  border-right: 1px solid rgba(0, 0, 0, 0.12);
-`;
 
 export default ButtonSso;

@@ -1,43 +1,5 @@
 {
-  "compilerOptions": {
-    "allowSyntheticDefaultImports": true,
-    "allowJs": true,
-    "baseUrl": ".",
-    "useDefineForClassFields": true,
-    "esModuleInterop": true,
-    "importHelpers": true,
-    "forceConsistentCasingInFileNames": true,
-    "isolatedModules": true,
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "jsx": "react-jsx",
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "strictBindCallApply": true,
-    "noEmit": true,
-    "noEmitHelpers": true,
-    "resolveJsonModule": true,
-    "skipLibCheck": true,
-    "sourceMap": false,
-    "target": "esnext",
-    "types": ["node", "@emotion/core", "@types/wicg-file-system-access"],
-    "paths": {
-      "//": [
-        "generator still uses 'grpc' package that has been deprecated in favor of '@grpc/grpc-js'"
-      ],
-      "grpc": ["node_modules/@grpc/grpc-js"],
-      "shared/*": ["web/packages/shared/*"],
-      "design/*": ["web/packages/design/src/*"],
-      "design": ["web/packages/design/src/"],
-      "teleport/*": ["web/packages/teleport/src/*"],
-      "teleport": ["web/packages/teleport/src/"],
-      "teleterm/*": ["web/packages/teleterm/src/*"],
-      "e-teleport/*": ["e/web/teleport/src/*"],
-      "e-teleterm/*": ["e/web/teleterm/src/*"],
-      "gen-proto-js/*": ["gen/proto/js/*"],
-      "gen-proto-ts/*": ["gen/proto/ts/*"],
-      "access-graph": ["e/web/teleport/src/AccessGraph/Loader.tsx"],
-    }
-  },
+  "extends": "./tsconfig.base.json",
   "include": [
     "e/web/**/*.ts",
     "e/web/**/*.tsx",
@@ -50,12 +12,31 @@
     "../web/src/**/*.ts",
     "../web/src/**/*.tsx"
   ],
-  "references": [{ "path": "./tsconfig.node.json" }],
+  "references": [
+    { "path": "./tsconfig.node.json" },
+    { "path": "./web/packages/design/tsconfig.json" }
+  ],
+  "compilerOptions": {
+    "outDir": "build.assets/.cache/ts",
+    "noEmit": true,
+    "types": ["node", "@types/wicg-file-system-access"],
+    "paths": {
+      "build/*": ["web/packages/build/src/*"],
+      "build": ["web/packages/build/src/"],
+      "shared/*": ["web/packages/shared/*"],
+      "design/*": ["web/packages/design/src/*"],
+      "design": ["web/packages/design/src/"],
+      "teleport/*": ["web/packages/teleport/src/*"],
+      "teleport": ["web/packages/teleport/src/"],
+      "teleterm/*": ["web/packages/teleterm/src/*"],
+      "e-teleport/*": ["e/web/teleport/src/*"],
+      "gen-proto-ts/*": ["gen/proto/ts/*"]
+    }
+  },
   "exclude": [
+    "web/packages/design",
     "node_modules",
     "**/node_modules/*",
-    "dist",
-    "**/dist/*",
     "**/build/app/**",
     "**/build/release/**"
   ]

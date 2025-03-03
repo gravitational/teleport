@@ -22,13 +22,13 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"log/slog"
 	"net"
 	"runtime"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -59,17 +59,6 @@ type Config struct {
 	LocalAddress string
 	// Protocol is the gateway protocol
 	Protocol string
-	// CertPath is deprecated, use the Cert field instead.
-	// CertPath specifies the path to the user certificate that the local proxy
-	// uses to connect to the Teleport Proxy. The path may depend on the type
-	// and the parameters of the gateway.
-	// TODO(ravicious): Refactor db gateways to use Cert and support MFA.
-	CertPath string
-	// KeyPath is deprecated, use the Cert field instead.
-	// KeyPath specifies the path to the private key of the cert specified in
-	// the CertPath. This is usually the private key of the user profile.
-	// TODO(ravicious): Refactor db gateways to use Cert and support MFA.
-	KeyPath string
 	// Cert is used by the local proxy to connect to the Teleport proxy.
 	Cert tls.Certificate
 	// Insecure
@@ -80,8 +69,8 @@ type Config struct {
 	Username string
 	// WebProxyAddr
 	WebProxyAddr string
-	// Log is a component logger
-	Log *logrus.Entry
+	// Logger is a component logger
+	Logger *slog.Logger
 	// TCPPortAllocator creates listeners on the given ports. This interface lets us avoid occupying
 	// hardcoded ports in tests.
 	TCPPortAllocator TCPPortAllocator
@@ -102,6 +91,11 @@ type Config struct {
 	RootClusterCACertPoolFunc alpnproxy.GetClusterCACertPoolFunc
 	// KubeconfigsDir is the directory containing kubeconfigs for kube gateways.
 	KubeconfigsDir string
+	// ClearCertsOnTargetSubresourceNameChange is useful in situations where TargetSubresourceName is
+	// used to generate a cert. In that case, after TargetSubresourceName is changed, the gateway will
+	// clear the cert from the local proxy and the middleware is going to request a new cert on the
+	// next connection.
+	ClearCertsOnTargetSubresourceNameChange bool
 }
 
 // OnExpiredCertFunc is the type of a function that is called when a new downstream connection is
@@ -112,45 +106,12 @@ type OnExpiredCertFunc func(context.Context, Gateway) (tls.Certificate, error)
 
 // CheckAndSetDefaults checks and sets the defaults
 func (c *Config) CheckAndSetDefaults() error {
-	switch {
-	case c.TargetURI.IsDB():
-		if c.KeyPath == "" {
-			return trace.BadParameter("missing key path")
-		}
-
-		if c.CertPath == "" {
-			return trace.BadParameter("missing cert path")
-		}
-
-		if len(c.Cert.Certificate) > 0 {
-			return trace.BadParameter("cert must not be passed for db gateways")
-		}
-	case c.TargetURI.IsKube():
-		if len(c.Cert.Certificate) == 0 {
-			return trace.BadParameter("missing cert")
-		}
-
-		if c.KeyPath != "" {
-			return trace.BadParameter("key path must not be passed for kube gateways")
-		}
-
-		if c.CertPath != "" {
-			return trace.BadParameter("cert path must not be passed for kube gateways")
-		}
-	case c.TargetURI.IsApp():
-		if len(c.Cert.Certificate) == 0 {
-			return trace.BadParameter("missing cert")
-		}
-
-		if c.KeyPath != "" {
-			return trace.BadParameter("key path must not be passed for app gateways")
-		}
-
-		if c.CertPath != "" {
-			return trace.BadParameter("cert path must not be passed for app gateways")
-		}
-	default:
+	if !(c.TargetURI.IsDB() || c.TargetURI.IsKube() || c.TargetURI.IsApp()) {
 		return trace.BadParameter("unsupported gateway target %v", c.TargetURI)
+	}
+
+	if len(c.Cert.Certificate) == 0 {
+		return trace.BadParameter("missing cert")
 	}
 
 	if c.URI.String() == "" {
@@ -169,8 +130,8 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.LocalPort = "0"
 	}
 
-	if c.Log == nil {
-		c.Log = logrus.NewEntry(logrus.StandardLogger())
+	if c.Logger == nil {
+		c.Logger = slog.Default()
 	}
 
 	if c.TargetName == "" {
@@ -198,10 +159,10 @@ func (c *Config) CheckAndSetDefaults() error {
 		}
 	}
 
-	c.Log = c.Log.WithFields(logrus.Fields{
-		"resource": c.TargetURI.String(),
-		"gateway":  c.URI.String(),
-	})
+	c.Logger = c.Logger.With(
+		"resource", c.TargetURI.String(),
+		"gateway", c.URI.String(),
+	)
 	return nil
 }
 

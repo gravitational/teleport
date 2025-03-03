@@ -27,35 +27,48 @@ import (
 	"net/http"
 	"net/url"
 	"os/exec"
-	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestAzure(t *testing.T) {
+	lib.SetInsecureDevMode(true)
 	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
 	user, azureRole := makeUserWithAzureRole(t)
 
-	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, user, azureRole))
-	makeTestApplicationServer(t, proxyProcess, servicecfg.App{
-		Name:  "azure-api",
-		Cloud: types.CloudAzure,
-	})
+	authProcess := testserver.MakeTestServer(
+		t,
+		testserver.WithClusterName(t, "localhost"),
+		testserver.WithBootstrap(connector, user, azureRole),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.Apps.Enabled = true
+			cfg.Apps.Apps = []servicecfg.App{
+				{
+					Name:  "azure-api",
+					Cloud: types.CloudAzure,
+				},
+			}
+		}),
+	)
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
 
-	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	proxyAddr, err := authProcess.ProxyWebAddr()
 	require.NoError(t, err)
 
 	// helper function
@@ -74,14 +87,14 @@ func TestAzure(t *testing.T) {
 
 	// Log into the "azure-api" app.
 	// Verify `tsh az login ...` gets called.
-	run([]string{"app", "login", "azure-api"},
+	run([]string{"app", "login", "--insecure", "--azure-identity", "dummy_azure_identity", "azure-api"},
 		setCmdRunner(func(cmd *exec.Cmd) error {
 			require.Equal(t, []string{"az", "login", "--identity", "-u", "dummy_azure_identity"}, cmd.Args[1:])
 			return nil
 		}))
 
 	// Log into the "azure-api" app -- now with --debug flag.
-	run([]string{"app", "login", "azure-api", "--debug"},
+	run([]string{"app", "login", "--insecure", "azure-api", "--debug"},
 		setCmdRunner(func(cmd *exec.Cmd) error {
 			require.Equal(t, []string{"--debug", "az", "login", "--identity", "-u", "dummy_azure_identity"}, cmd.Args[1:])
 			return nil
@@ -148,9 +161,9 @@ func TestAzure(t *testing.T) {
 				return ""
 			}
 
-			require.Equal(t, path.Join(tmpHomePath, "azure/localhost/azure-api"), getEnvValue("AZURE_CONFIG_DIR"))
+			require.Equal(t, filepath.Join(tmpHomePath, "azure/localhost/azure-api"), getEnvValue("AZURE_CONFIG_DIR"))
 			require.Equal(t, "https://azure-msi.teleport.dev/very-secret", getEnvValue("MSI_ENDPOINT"))
-			require.Equal(t, path.Join(tmpHomePath, "keys/127.0.0.1/alice@example.com-app/localhost/azure-api-localca.pem"), getEnvValue("REQUESTS_CA_BUNDLE"))
+			require.Equal(t, filepath.Join(tmpHomePath, "keys/127.0.0.1/alice@example.com-app/localhost/azure-api-localca.pem"), getEnvValue("REQUESTS_CA_BUNDLE"))
 			require.True(t, strings.HasPrefix(getEnvValue("HTTPS_PROXY"), "http://127.0.0.1:"))
 
 			// Validate MSI endpoint can be reached
@@ -205,7 +218,10 @@ func makeUserWithAzureRole(t *testing.T) (types.User, types.Role) {
 	role := services.NewPresetAccessRole()
 
 	alice.SetRoles([]string{role.GetName()})
-	alice.SetAzureIdentities([]string{"dummy_azure_identity"})
+	alice.SetAzureIdentities([]string{
+		"dummy_azure_identity",
+		"other_dummy_azure_identity",
+	})
 
 	return alice, role
 }

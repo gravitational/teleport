@@ -16,19 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState, useMemo, Dispatch, SetStateAction } from 'react';
+import { Dispatch, SetStateAction, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router';
 
+import type { NotificationItem } from 'shared/components/Notification';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import useWebAuthn from 'teleport/lib/useWebAuthn';
+import type { UrlDesktopParams } from 'teleport/config';
+import { ButtonState } from 'teleport/lib/tdp';
+import { useMfaEmitter } from 'teleport/lib/useMfa';
 import desktopService from 'teleport/services/desktops';
 import userService from 'teleport/services/user';
 
 import useTdpClientCanvas from './useTdpClientCanvas';
-
-import type { UrlDesktopParams } from 'teleport/config';
-import type { NotificationItem } from 'shared/components/Notification';
 
 export default function useDesktopSession() {
   const { attempt: fetchAttempt, run } = useAttempt('processing');
@@ -111,9 +111,9 @@ export default function useDesktopSession() {
     );
   }, [clusterId, desktopName, run]);
 
-  const [warnings, setWarnings] = useState<NotificationItem[]>([]);
-  const onRemoveWarning = (id: string) => {
-    setWarnings(prevState => prevState.filter(warning => warning.id !== id));
+  const [alerts, setAlerts] = useState<NotificationItem[]>([]);
+  const onRemoveAlert = (id: string) => {
+    setAlerts(prevState => prevState.filter(alert => alert.id !== id));
   };
 
   const clientCanvasProps = useTdpClientCanvas({
@@ -125,11 +125,11 @@ export default function useDesktopSession() {
     setClipboardSharingState,
     setDirectorySharingState,
     clipboardSharingState,
-    setWarnings,
+    setAlerts,
   });
   const tdpClient = clientCanvasProps.tdpClient;
 
-  const webauthn = useWebAuthn(tdpClient);
+  const mfa = useMfaEmitter(tdpClient);
 
   const onShareDirectory = () => {
     try {
@@ -149,7 +149,7 @@ export default function useDesktopSession() {
             ...prevState,
             directorySelected: false,
           }));
-          setWarnings(prevState => [
+          setAlerts(prevState => [
             ...prevState,
             {
               id: crypto.randomUUID(),
@@ -163,7 +163,7 @@ export default function useDesktopSession() {
         ...prevState,
         directorySelected: false,
       }));
-      setWarnings(prevState => [
+      setAlerts(prevState => [
         ...prevState,
         {
           id: crypto.randomUUID(),
@@ -185,6 +185,15 @@ export default function useDesktopSession() {
     }
   };
 
+  const onCtrlAltDel = () => {
+    if (!tdpClient) {
+      return;
+    }
+    tdpClient.sendKeyboardInput('ControlLeft', ButtonState.DOWN);
+    tdpClient.sendKeyboardInput('AltLeft', ButtonState.DOWN);
+    tdpClient.sendKeyboardInput('Delete', ButtonState.DOWN);
+  };
+
   return {
     hostname,
     username,
@@ -195,13 +204,14 @@ export default function useDesktopSession() {
     fetchAttempt,
     tdpConnection,
     wsConnection,
-    webauthn,
+    mfa,
     setTdpConnection,
     showAnotherSessionActiveDialog,
     setShowAnotherSessionActiveDialog,
     onShareDirectory,
-    warnings,
-    onRemoveWarning,
+    onCtrlAltDel,
+    alerts,
+    onRemoveAlert,
     ...clientCanvasProps,
   };
 }
@@ -317,6 +327,26 @@ export function isSharingClipboard(
     clipboardSharingState.readState === 'granted' &&
     clipboardSharingState.writeState === 'granted'
   );
+}
+
+/**
+ * Provides a user-friendly message indicating whether clipboard sharing is enabled,
+ * and the reason it is disabled.
+ */
+export function clipboardSharingMessage(state: ClipboardSharingState): string {
+  if (!state.allowedByAcl) {
+    return 'Clipboard Sharing disabled by Teleport RBAC.';
+  }
+  if (!state.browserSupported) {
+    return 'Clipboard Sharing is not supported in this browser.';
+  }
+  if (state.readState === 'denied' || state.writeState === 'denied') {
+    return 'Clipboard Sharing disabled due to browser permissions.';
+  }
+
+  return isSharingClipboard(state)
+    ? 'Clipboard Sharing enabled.'
+    : 'Clipboard Sharing disabled.';
 }
 
 /**

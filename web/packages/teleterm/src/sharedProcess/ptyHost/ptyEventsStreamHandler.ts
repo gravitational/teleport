@@ -18,13 +18,12 @@
 
 import { ServerDuplexStream } from '@grpc/grpc-js';
 
-import Logger from 'teleterm/logger';
-
 import {
   ptyEventOneOfIsData,
   ptyEventOneOfIsResize,
   ptyEventOneOfIsStart,
 } from 'teleterm/helpers';
+import Logger from 'teleterm/logger';
 
 import {
   PtyClientEvent,
@@ -36,7 +35,6 @@ import {
   PtyEventStartError,
   PtyServerEvent,
 } from '../api/protogen/ptyHostService_pb';
-
 import { PtyProcess } from './ptyProcess';
 
 export class PtyEventsStreamHandler {
@@ -112,8 +110,13 @@ export class PtyEventsStreamHandler {
         })
       );
     });
-    this.ptyProcess.start(event.columns, event.rows);
-    this.logger.info(`stream has started`);
+    // PtyProcess.prototype.start always returns a fulfilled promise. If an error is caught during
+    // start, it's reported through PtyProcess.prototype.onStartError. Similarly, the information
+    // about a successful start is also conveyed through an emitted event rather than the method
+    // returning with no error. Hence why we can ignore what this promise returns.
+    void this.ptyProcess.start(event.columns, event.rows).then(() => {
+      this.logger.info(`stream has started`);
+    });
   }
 
   private handleDataEvent(event: PtyEventData): void {
@@ -126,16 +129,16 @@ export class PtyEventsStreamHandler {
 
   private handleStreamError(error: Error): void {
     this.logger.error(`stream has ended with error`, error);
-    this.cleanResources();
+    void this.cleanResources();
   }
 
   private handleStreamEnd(): void {
     this.logger.info(`stream has ended`);
-    this.cleanResources();
+    void this.cleanResources();
   }
 
-  private cleanResources(): void {
-    this.ptyProcess.dispose();
+  private async cleanResources(): Promise<void> {
+    await this.ptyProcess.dispose();
     if (this.ptyId) {
       this.ptyProcesses.delete(this.ptyId);
     }

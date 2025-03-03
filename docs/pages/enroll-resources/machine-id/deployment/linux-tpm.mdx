@@ -1,0 +1,208 @@
+---
+title: Deploying Machine ID on Linux (TPM)
+description: How to install and configure Machine ID on a Linux host and use a TPM 2.0 for authentication
+---
+
+This page explains how to deploy Machine ID on a Linux host, and use the
+secure identify of the onboard TPM 2.0 chip for authenticating with the
+Teleport cluster.
+
+The `tpm` join method requires a valid Teleport Enterprise license to be
+installed on the cluster's Auth Service.
+
+## How it works
+
+(!docs/pages/includes/tpm-joining-background.mdx!)
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+- A Linux host that you wish to install Machine ID onto, with a TPM2.0
+  installed.
+- A Linux user on that host that you wish Machine ID to run as. In the guide,
+we will use `teleport` for this.
+
+## Step 1/5. Install `tbot`
+
+**This step is completed on the Linux host.**
+
+First, `tbot` needs to be installed on the VM that you wish to use Machine ID
+on.
+
+Download the appropriate Teleport package for your platform:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+### Granting `tbot` access to the TPM device
+
+If the user that will run `tbot` is not `root`, you will also need to configure
+Linux to allow the user to access the TPM device.
+
+The simplest way to solve this is to check if your distro ships with the `tss`
+group and assign it the user. If that is not possible, or you are looking
+for a different solution, we recommend creating udev rules similar to the ones
+shipped by the [TPM2 Software Stack](
+https://github.com/tpm2-software/tpm2-tss/blob/ede63dd1ac1f0a46029d457304edcac2162bfab8/dist/tpm-udev.rules#L4).
+
+## Step 2/5. Create a Bot
+
+(!docs/pages/includes/machine-id/create-a-bot.mdx!)
+
+## Step 3/5. Create a `tpm` join token
+
+With the Bot created, we now need to create a token. The token will be used by
+`tbot` to authenticate as the Bot to the Teleport cluster.
+
+### Determining the EKPub Hash or EKCert Serial for your TPM
+
+First, you need to determine the characteristics of the TPM on the host that
+you wish to use Machine ID on. These characteristics will then be used within
+the allow rules of the join token to grant access to this specific host.
+
+On the machine, run `tbot tpm identify`:
+
+```code
+$ tbot tpm identify
+TPM Information
+EKPub Hash: 6c5aada1c5abee6d869369a0example2fd2beb41c850d3f0227f029c4fffc4ba
+EKCert Detected: true
+EKCert Serial: 5e:cd:5f:8e
+```
+
+Take the long hexadecimal string after `EKPub Hash` and assign it to
+<Var name="ek-public-hash" />. This uniquely identifies this TPM and will be
+used in the join token.
+
+### Obtaining the manufacturer CA
+
+If in the previous step, `EKCert Detected` was `false`, then you can disregard
+this section.
+
+If in the previous step, `EKCert Detected` was `true`, then it is recommended
+to obtain the manufacturer's CA certificate. This will allow the TPM to be
+validated as legitimately manufactured as part of the join process.
+
+Instructions for obtaining the EKCert CA will vary from TPM to TPM. Consult
+your TPM's documentation for more information or contact your supplier.
+
+### Creating the join token
+
+Create a file named `bot-token.yaml`:
+
+```yaml
+kind: token
+version: v2
+metadata:
+  # name identifies the token. Try to ensure that this is descriptive.
+  name: my-bot-token
+spec:
+  # For Machine ID and TPM joining, roles will always be "Bot" and
+  # join_method will always be "tpm".
+  roles: [Bot]
+  join_method: tpm
+
+  # bot_name specifies the name of the bot that this token will grant access to
+  # when it is used.
+  bot_name: my-bot
+
+  # tpm specifies the TPM join method specific configuration for this token.
+  tpm:
+    # ekcert_allowed_cas is a list of CA certificates that will be used to
+    # validate TPM EKCerts. These should be PEM wrapped.
+    #
+    # When specified, joining TPMs must present an EKCert signed by one of the
+    # specified CAs. TPMs that do not present an EKCert will be not permitted to
+    # join.
+    ekcert_allowed_cas:
+      - |
+        -----BEGIN CERTIFICATE-----
+        ... CA Certificate Data ...
+        -----END CERTIFICATE-----
+    # allow is a list of Rules, the presented TPM must match one allow rule to
+    # be permitted to join using this token.
+    allow:
+        # description is a human-readable description of the rule. It has no
+        # bearing on whether a TPM is allowed to join, but can be used to
+        # associate a rule with a specific host (e.g the asset tag of the server
+        # in which the TPM resides).
+      - description: "example-server-100"
+        # ek_public_hash is the SHA256 hash of the EKPub marshaled in PKIX format
+        # and encoded in hexadecimal. This value will also be checked when a TPM
+        # has submitted an EKCert, and the public key in the EKCert will be used
+        # for this check.
+        ek_public_hash: <Var name="ek-public-hash" />
+```
+
+If your TPM includes an EKCert and you have obtained the manufacturer's CA,
+replace the `ekcert_allowed_cas` section with the PEM wrapped CA certificate.
+Otherwise, remove this section.
+
+If you have multiple hosts that you wish to authenticate as the same Bot, you
+can add additional rules the `allow` list, one for each host.
+
+Apply this to your Teleport cluster using `tctl`:
+
+```code
+$ tctl create -f bot-token.yaml
+```
+
+## Step 4/5. Configure `tbot`
+
+Create `/etc/tbot.yaml`:
+
+```yaml
+version: v2
+proxy_server: example.teleport.sh:443
+onboarding:
+  join_method: tpm
+  token: my-bot-token
+storage:
+  type: directory
+  path: /var/lib/teleport/bot
+# outputs will be filled in during the completion of an access guide.
+outputs: []
+```
+
+Replace:
+
+- `example.teleport.sh:443` with the address of your Teleport Proxy.
+
+### Prepare the storage directory
+
+The `tbot` service requires a way to store its state, such as internal
+credentials, across restarts. This is known as the storage destination.
+
+For this example, we will use the directory `/var/lib/teleport/bot`.
+
+As this directory will store the bots sensitive credentials, it is important
+to protect it. To do this, you will configure the directory to only be
+accessible to the Linux user which `tbot` will run as.
+
+Execute the following, replacing `teleport` with the Linux user that you will
+run `tbot` as:
+
+```code
+# Make the bot directory and assign ownership to teleport user
+$ sudo mkdir -p /var/lib/teleport/bot
+$ sudo chown teleport:teleport /var/lib/teleport/bot
+```
+
+### Create a systemd service
+
+(!docs/pages/includes/machine-id/daemon.mdx!)
+
+## Step 5/5. Configure outputs
+
+(!docs/pages/includes/machine-id/configure-outputs.mdx!)
+
+## Next steps
+
+- Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
+your environment.
+- Read the [TPM joining reference](../../../reference/join-methods.mdx#trusted-platform-module-tpm)
+to learn more about `tpm`joining.
+- Read the [configuration reference](../../../reference/machine-id/configuration.mdx) to explore
+all the available configuration options.
+- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../../reference/machine-id/telemetry.mdx)

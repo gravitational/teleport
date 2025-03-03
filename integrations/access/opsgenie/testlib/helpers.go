@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/opsgenie"
 )
 
-func (s *OpsgenieSuite) checkPluginData(ctx context.Context, reqID string, cond func(opsgenie.PluginData) bool) opsgenie.PluginData {
+func (s *OpsgenieBaseSuite) checkPluginData(ctx context.Context, reqID string, cond func(opsgenie.PluginData) bool) opsgenie.PluginData {
 	t := s.T()
 	t.Helper()
 

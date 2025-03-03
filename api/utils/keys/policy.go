@@ -14,7 +14,6 @@ limitations under the License.
 package keys
 
 import (
-	"fmt"
 	"regexp"
 
 	"github.com/gravitational/trace"
@@ -93,15 +92,6 @@ func (p PrivateKeyPolicy) isHardwareKeyPINVerified() bool {
 	return false
 }
 
-// Deprecated in favor of IsSatisfiedBy.
-// TODO(Joerger): delete once reference in /e is replaced.
-func (requiredPolicy PrivateKeyPolicy) VerifyPolicy(keyPolicy PrivateKeyPolicy) error {
-	if !requiredPolicy.IsSatisfiedBy(keyPolicy) {
-		return NewPrivateKeyPolicyError(requiredPolicy)
-	}
-	return nil
-}
-
 // IsHardwareKeyPolicy return true if this private key policy requires a hardware key.
 func (p PrivateKeyPolicy) IsHardwareKeyPolicy() bool {
 	switch p {
@@ -173,7 +163,7 @@ var privateKeyPolicyErrRegex = regexp.MustCompile(`private key policy not (met|s
 
 func NewPrivateKeyPolicyError(p PrivateKeyPolicy) error {
 	// TODO(Joerger): Replace with "private key policy not satisfied" in 16.0.0
-	return trace.BadParameter(fmt.Sprintf("private key policy not met: %s", p))
+	return trace.BadParameter("private key policy not met: %s", p)
 }
 
 // ParsePrivateKeyPolicyError checks if the given error is a private key policy
@@ -194,5 +184,8 @@ func ParsePrivateKeyPolicyError(err error) (PrivateKeyPolicy, error) {
 
 // IsPrivateKeyPolicyError returns true if the given error is a private key policy error.
 func IsPrivateKeyPolicyError(err error) bool {
+	if err == nil {
+		return false
+	}
 	return privateKeyPolicyErrRegex.MatchString(err.Error())
 }

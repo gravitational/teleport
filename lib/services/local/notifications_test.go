@@ -32,6 +32,7 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
@@ -60,14 +61,14 @@ func TestUserNotificationCRUD(t *testing.T) {
 	notification, err := service.CreateUserNotification(ctx, userNotification1)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(userNotification1, notification, protocmp.Transform()))
-	notification1Id := notification.Spec.Id
+	notification1Id := notification.GetMetadata().GetName()
 	// Prevent flakiness caused by notifications being created too close one after the other, which causes their UUID timestamps to be the same
 	// and the lexicographical ordering to possibly be wrong as it then relies on the random section of the UUID.
 	time.Sleep(250 * time.Millisecond)
 	notification, err = service.CreateUserNotification(ctx, userNotification2)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(userNotification2, notification, protocmp.Transform()))
-	notification2Id := notification.Spec.Id
+	notification2Id := notification.GetMetadata().GetName()
 
 	// Test deleting a notification.
 	err = service.DeleteUserNotification(ctx, testUsername, notification1Id)
@@ -87,7 +88,7 @@ func TestUserNotificationCRUD(t *testing.T) {
 	userNotification1 = newUserNotification(t, testUsername, "test-notification-1")
 	_, err = service.CreateUserNotification(ctx, userNotification1)
 	require.NoError(t, err)
-	notification1Id = notification.Spec.Id
+	notification1Id = notification.GetMetadata().GetName()
 	err = service.DeleteAllUserNotificationsForUser(ctx, testUsername)
 	require.NoError(t, err)
 	// Verify that the notifications don't exist anymore by attempting to delete them.
@@ -148,7 +149,7 @@ func TestGlobalNotificationCRUD(t *testing.T) {
 	notification, err := service.CreateGlobalNotification(ctx, globalNotification1)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(globalNotification1, notification, protocmp.Transform()))
-	globalNotification1Id := notification.Spec.Notification.Spec.Id
+	globalNotification1Id := notification.GetMetadata().GetName()
 	notification, err = service.CreateGlobalNotification(ctx, globalNotification2)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(globalNotification2, notification, protocmp.Transform()))
@@ -158,6 +159,9 @@ func TestGlobalNotificationCRUD(t *testing.T) {
 	// Expect error due to expiry date being more than 90 days from now.
 	_, err = service.CreateGlobalNotification(ctx, globalNotificationLateExpiry)
 	require.True(t, trace.IsBadParameter(err), "got error %T, expected a bad parameter error due to notification-late-expiry having an expiry date more than 90 days later", err)
+
+	// Verify that the Metada.Expires on the global notification wrapper is the same as in the inner notification.
+	require.Equal(t, notification.Metadata.Expires, notification.Spec.Notification.Metadata.Expires)
 
 	// Test deleting a notification.
 	err = service.DeleteGlobalNotification(ctx, globalNotification1Id)
@@ -188,13 +192,13 @@ func TestUserNotificationStateCRUD(t *testing.T) {
 	userNotification2 := newUserNotification(t, testUsername, "test-notification-2")
 	notification, err := service.CreateUserNotification(ctx, userNotification1)
 	require.NoError(t, err)
-	notification1Id := notification.Spec.Id
+	notification1Id := notification.GetMetadata().GetName()
 	// Prevent flakiness caused by notifications being created too close one after the other, which causes their UUID timestamps to be the same
 	// and the lexicographical ordering to possibly be wrong as it then relies on the random section of the UUID.
 	time.Sleep(250 * time.Millisecond)
 	notification, err = service.CreateUserNotification(ctx, userNotification2)
 	require.NoError(t, err)
-	notification2Id := notification.Spec.Id
+	notification2Id := notification.GetMetadata().GetName()
 
 	userNotificationState1 := &notificationsv1.UserNotificationState{
 		Spec: &notificationsv1.UserNotificationStateSpec{
@@ -251,7 +255,7 @@ func TestUserNotificationStateCRUD(t *testing.T) {
 	}
 
 	cmpOpts := []cmp.Option{
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	}
 
@@ -318,6 +322,31 @@ func TestUserNotificationStateCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, out)
+
+	// Create a global notification.
+	globalNotification, err := service.CreateGlobalNotification(ctx, newGlobalNotification(t, "test-global"))
+	require.NoError(t, err)
+
+	// Create a notification state for this notification
+	userNotificationStateGlobal := &notificationsv1.UserNotificationState{
+		Spec: &notificationsv1.UserNotificationStateSpec{
+			NotificationId: globalNotification.GetMetadata().GetName(),
+		},
+		Status: &notificationsv1.UserNotificationStateStatus{
+			NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED,
+		},
+	}
+	// Upsert a notification state for user 1
+	_, err = service.UpsertUserNotificationState(ctx, testUsername, userNotificationStateGlobal)
+	require.NoError(t, err)
+	// Upsert the notification state for user 2
+	_, err = service.UpsertUserNotificationState(ctx, "test-username-2", userNotificationStateGlobal)
+	require.NoError(t, err)
+
+	// Test that getting all notification states works.
+	uns, _, err := service.ListNotificationStatesForAllUsers(ctx, 0, "")
+	require.NoError(t, err)
+	require.Len(t, uns, 2)
 }
 
 // TestUserLastSeenNotificationCRUD tests backend operations for user last seen notification resources.
@@ -348,7 +377,7 @@ func TestUserLastSeenNotificationCRUD(t *testing.T) {
 	require.True(t, trace.IsNotFound(err), "got error %T, expected a not found error due to user_last_seen_notification for test-username not existing", err)
 
 	cmpOpts := []cmp.Option{
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	}
 
@@ -374,7 +403,89 @@ func TestUserLastSeenNotificationCRUD(t *testing.T) {
 	require.True(t, trace.IsNotFound(err), "got error %T, expected a not found error due to user_last_seen_notification for test-username not existing", err)
 }
 
-func newUserNotification(t *testing.T, username string, description string) *notificationsv1.Notification {
+// TestUniqueNotificationIdentifierCRUD tests backend operations for unique notification identifier resources.
+func TestUniqueNotificationIdentifierCRUD(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewNotificationsService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	testPrefix1 := "test-prefix-1"
+	testPrefix2 := "test-prefix-2"
+
+	// Initially we expect there not to be any existing unique notification identifiers for either identifier prefix.
+	out, nextToken, err := service.ListUniqueNotificationIdentifiersForPrefix(ctx, testPrefix1, 5, "")
+	require.NoError(t, err)
+	require.Empty(t, out)
+	require.Empty(t, nextToken)
+
+	out, nextToken, err = service.ListUniqueNotificationIdentifiersForPrefix(ctx, testPrefix2, 5, "")
+	require.NoError(t, err)
+	require.Empty(t, out)
+	require.Empty(t, nextToken)
+
+	// Create unique notification identifiers with the testPrefix1 prefix.
+	identifier, err := service.CreateUniqueNotificationIdentifier(ctx, testPrefix1, "1")
+	require.NoError(t, err)
+	require.Equal(t, "1", identifier.Spec.UniqueIdentifier)
+	require.Equal(t, testPrefix1, identifier.Spec.UniqueIdentifierPrefix)
+
+	identifier, err = service.CreateUniqueNotificationIdentifier(ctx, testPrefix1, "2")
+	require.NoError(t, err)
+	require.Equal(t, "2", identifier.Spec.UniqueIdentifier)
+	require.Equal(t, testPrefix1, identifier.Spec.UniqueIdentifierPrefix)
+
+	// Create a unique notification identifier with the testPrefix2 prefix.
+	identifier, err = service.CreateUniqueNotificationIdentifier(ctx, testPrefix2, "1")
+	require.NoError(t, err)
+	require.Equal(t, "1", identifier.Spec.UniqueIdentifier)
+	require.Equal(t, testPrefix2, identifier.Spec.UniqueIdentifierPrefix)
+
+	// List identifiers with the testPrefix1 prefix.
+	out, _, err = service.ListUniqueNotificationIdentifiersForPrefix(ctx, testPrefix1, 5, "")
+	require.NoError(t, err)
+	// Verify that only the identifiers with testPrefix1 as prefix are returned.
+	require.Len(t, out, 2)
+	require.Equal(t, "1", out[0].Spec.UniqueIdentifier)
+	require.Equal(t, "2", out[1].Spec.UniqueIdentifier)
+
+	// List identifiers with the testPrefix2 prefix.
+	out, _, err = service.ListUniqueNotificationIdentifiersForPrefix(ctx, testPrefix2, 5, "")
+	require.NoError(t, err)
+	// Verify that only the identifier with testPrefix2 as prefix is returned.
+	require.Len(t, out, 1)
+	require.Equal(t, "1", out[0].Spec.UniqueIdentifier)
+
+	// Test that getting a unique notification identifier works.
+	uni, err := service.GetUniqueNotificationIdentifier(ctx, testPrefix1, "1")
+	require.NoError(t, err)
+	require.Equal(t, "1", uni.Spec.UniqueIdentifier)
+	require.Equal(t, testPrefix1, uni.Spec.UniqueIdentifierPrefix)
+
+	// Delete one of the identifiers with testPrefix1 prefix.
+	err = service.DeleteUniqueNotificationIdentifier(ctx, testPrefix1, "1")
+	require.NoError(t, err)
+
+	// Verify that it no longer exists and that only "2" is returned when listing for identifiers with testPrefix1.
+	out, _, err = service.ListUniqueNotificationIdentifiersForPrefix(ctx, testPrefix1, 5, "")
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Equal(t, "2", out[0].Spec.UniqueIdentifier)
+	require.Equal(t, testPrefix1, out[0].Spec.UniqueIdentifierPrefix)
+
+	// Try to create an identifier with an empty prefix and identifier and verify that there is an error.
+	_, err = service.CreateUniqueNotificationIdentifier(ctx, "", "")
+	require.True(t, trace.IsBadParameter(err), "got error %T, expected a bad parameter error due to no identifier or prefix being provided", err)
+}
+
+func newUserNotification(t *testing.T, username string, title string) *notificationsv1.Notification {
 	t.Helper()
 
 	notification := notificationsv1.Notification{
@@ -383,14 +494,16 @@ func newUserNotification(t *testing.T, username string, description string) *not
 			Username: username,
 		},
 		Metadata: &headerv1.Metadata{
-			Labels: map[string]string{"description": description},
+			Labels: map[string]string{
+				types.NotificationTitleLabel: title,
+			},
 		},
 	}
 
 	return &notification
 }
 
-func newGlobalNotification(t *testing.T, description string) *notificationsv1.GlobalNotification {
+func newGlobalNotification(t *testing.T, title string) *notificationsv1.GlobalNotification {
 	t.Helper()
 
 	notification := notificationsv1.GlobalNotification{
@@ -402,7 +515,9 @@ func newGlobalNotification(t *testing.T, description string) *notificationsv1.Gl
 				SubKind: "test-subkind",
 				Spec:    &notificationsv1.NotificationSpec{},
 				Metadata: &headerv1.Metadata{
-					Labels: map[string]string{"description": description},
+					Labels: map[string]string{
+						types.NotificationTitleLabel: title,
+					},
 				},
 			},
 		},

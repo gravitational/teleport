@@ -1,13 +1,32 @@
-version: v1
+version: v2
+
+inputs:
+  - directory: .
+    paths:
+      - api/proto/teleport/accesslist/
+      - api/proto/teleport/devicetrust/
+      - api/proto/teleport/header/
+      - api/proto/teleport/trait/
+      - api/proto/teleport/legacy/types/trusted_device_requirement.proto
+      - api/proto/teleport/userpreferences/
+      - proto/prehog/
+      - proto/teleport/lib/teleterm/
+      - proto/teleport/lib/vnet/diag/
+
 plugins:
-  - name: typescript
-    out: gen/proto/ts
-    opt: long_type_number,eslint_disable,add_pb_suffix,server_grpc1,ts_nocheck
-    path:
+  - local:
       - npm
       - exec
       - --yes
       - --package=@protobuf-ts/plugin@2.9.3
       - --
       - protoc-gen-ts
+    out: gen/proto/ts
+    opt:
+      # the next time we tweak the ts codegen we should put the options in
+      # alphabetical order
+      - eslint_disable
+      - add_pb_suffix
+      - server_grpc1
+      - ts_nocheck
     strategy: all

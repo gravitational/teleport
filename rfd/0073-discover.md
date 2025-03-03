@@ -202,7 +202,7 @@ auto-discovery by going through the following flow:
 3. The selected agent will perform initial discovery according to the provided
    filters. This can be implemented by providing an API for the web UI to create
    a "discovery request" which agents will watch.
-4. The agent will attempt to fullfill the discovery request and will report
+4. The agent will attempt to fulfill the discovery request and will report
    errors, e.g. insufficient IAM policy, to the user. This can be implemented by
    filling out a Status field on the agent's resource spec.
 5. If successful, the UI wizard will display all resources matching the

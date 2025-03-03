@@ -1,0 +1,227 @@
+---
+title: Reducing the Blast Radius of Attacks
+description: How to configure Teleport to minimize the scope of security breaches
+---
+
+Teleport encourages users to practice defense in depth so that every component of their infrastructure is safe against attacks, even if an attacker is partially successful. You can configure Teleport to add layers of protection to your cluster when users authenticate or request elevated privileges. In this guide, we will show you how to:
+
+- [Present an MFA challenge for every attempt to access a resource](#present-an-mfa-challenge-for-every-attempt-to-access-a-resource)
+- [Require dual authorization for role requests](#require-dual-authorization-for-role-requests)
+- [Automatically prevent some roles from requesting others](#automatically-prevent-some-roles-from-requesting-others)
+- [Restrict role requests based on user traits](#restrict-role-requests-based-on-user-traits)
+- [Set up your RBAC without admin roles](#set-up-your-rbac-without-admin-roles)
+- (!docs/pages/includes/tctl.mdx!)
+
+## Present an MFA challenge for every attempt to access a resource
+After a user logs into a Teleport cluster, they can request access to a particular resource, e.g., a node, database, application, or Kubernetes cluster. In this case, the Teleport Auth Service issues a single-use certificate for accessing that resource. You can prevent attackers from doing damage with a compromised certificate by enabling per-session MFA. With this setting, whenever a user requests a one-time certificate to access a resource, the Teleport Auth Service will issue an MFA challenge, even if the user has already begun a Teleport session via `tsh login`.
+
+To enable per-session MFA for all users, do the following depending on your Teleport environment:
+
+<Tabs>
+<TabItem label="Self-hosted" scope={["oss","enterprise"]}>
+Make the following changes to your Teleport configuration file:
+
+```yaml
+auth_service:
+  authentication:
+    require_session_mfa: yes
+```
+</TabItem>
+<TabItem label="Cloud-Hosted" scope={["cloud", "team"]}>
+Create the following `cluster_auth_preference` dynamic resource:
+
+```yaml
+kind: cluster_auth_preference
+version: v2
+metadata:
+  name: cluster-auth-preference
+spec:
+  require_session_mfa: yes
+```
+
+Create your dynamic resource using `tctl create -f <path to your YAML file>`.
+</TabItem>
+</Tabs>
+
+If you have SSO users, they will need to add an MFA device to Teleport to be able to take advantage of per-session MFA.
+
+## Require dual authorization for role requests
+Even if an attacker gains access to a user's credentials and successfully signs into your Teleport cluster, you can still prevent the user from escalating their privileges. If you enable dual authorization, users who request to assume a particular role must obtain permission to do so from two or more reviewers. This way, if a malicious user manages to impersonate a legitimate one, reviewers can contact the real user before granting the new role.
+
+Dual authorization uses Teleport's access plugins—e.g., Slack, JIRA, and PagerDuty—to notify reviewers that a user has requested a role. For access plugins that require a SAML or OIDC connector, you must enable the Cloud or Enterprise versions of Teleport.
+
+You can set up dual authorization by applying two dynamic resources:
+
+- [The reviewer](#the-reviewer)
+- [The reviewee](#the-reviewee)
+
+### The reviewer
+You can enable some users to review other users' role escalation requests by applying a dynamic resource similar to the following:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: reviewer
+spec:
+  allow:
+    review_requests:
+      roles: ["role-one", "role-two", "role-three"]
+```
+
+Assign `spec.allow.review_requests.roles` to a list of role names. When a user requests access to one of the roles listed in `spec.allow.review_requests.roles`, your Teleport access plugins notify users with the `reviewer` role of the request and relay the responses to your Teleport cluster.
+
+### The reviewee
+You can require a user to request access from reviewers by applying a dynamic resource similar to the following:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: reviewee
+spec:
+  allow:
+    request:
+      roles: ["role-one", "role-two", "role-three"]
+      thresholds:
+        - approve: 2
+          deny: 1
+```
+
+The `spec.allow.request.roles` field lists the names of other roles that a user with the `reviewee` role can request. When a reviewee requests access to one of these roles, Teleport notifies reviewers via your access plugins. The `spec.allow.requests.roles.thresholds` field indicates how many reviews are required to approve or deny the request.
+
+## Automatically prevent some roles from requesting others
+A malicious Teleport user could request a more privileged role and trick a reviewer into granting access. You can prevent such a scenario by defining roles that prohibit users from even requesting access to particular roles.
+
+The `spec.deny` field has the same possible properties as the `spec.allow` field we described [earlier](#require-dual-authorization-for-role-requests) except, rather than enabling actions, this field disables them. For example, the `spec.deny.requests.roles` field is a list of roles that a user is prohibited from requesting. Teleport gives `deny` rules precedence over `allow` rules when executing Access Requests.
+
+As an illustration, we have assigned user `myuser` to the `user` role, which we defined using the following template:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: user
+spec:
+  deny:
+    request:
+      roles: ['admin']
+```
+
+Next, `myuser` attempts to request the `admin` role.
+
+```code
+$ tsh request create --roles=admin
+```
+
+However, the Auth Service denies the request.
+
+```code
+Creating request...
+ERROR: user "myuser" can not request role "admin"
+```
+
+## Restrict role requests based on user traits
+Teleport's `role` resource lets you take precautions against accidental privilege escalation by ensuring that any user with particular attributes will have restricted access to certain roles. You can assign a list of `traits` to a user, then define a `role` resource that prevents any user whose traits match a regular expression from requesting elevated privileges.
+
+A user has the same traits regardless of the roles they acquire. As a result, if a user happens to obtain another role because of an RBAC oversight, you can use trait-based restrictions to stop them from requesting a role with even more privileges.
+
+Let's say that you have defined the following role for a contractor you have hired to analyze financial data.
+
+```yaml
+kind: user
+version: v2
+metadata:
+  name: myuser
+spec:
+  roles:
+    - analyst # An unprivileged role
+  traits:
+    logins:
+      - myuser
+    groups:
+      - contractors
+```
+
+Analysts sometimes need write access to your organization's database in order to create stored procedures, and can request access to the `db-writer` role. Only trusted analysts can request this access, and belong to a special `admins` group. Using `deny` rules,
+you can prevent analysts who are *not* in the `admins` group from requesting access to the `db-writer` role:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: analyst
+spec:
+  deny:
+    request:
+      claims_to_roles:
+        - claim: groups
+          value: "{{regexp.not_match(\"admin\")}}"
+          roles: ["db-writer"]
+  allow:
+    request:
+      roles: ["db-writer"]
+      thresholds:
+        - approve: 2
+          deny: 1
+```
+
+The `claims_to_roles` field within an `allow` or `deny` rule maps a user's `traits` to `roles` that they are either permitted or forbidden to request. In this case, we use the `{{regexp.not_match(\"admin\")}}` template function to prevent any user  from requesting the `db-writer` role unless they have a `groups` trait with a value like `administrator` or `admins`. Users who *do* have such a trait can request the role with two approvals.
+
+## Set up your RBAC without admin roles
+You can design your Teleport RBAC so that there is no all-powerful administrator in the system, or even a `reviewer` role with elevated privileges. This way, you can reduce the blast radius if an attacker successfully impersonates a Teleport user and requests a more privileged role.
+
+First, define a role with privileged but limited access. In the following example, the `editor` role can log in as `editor` on hosts in our infrastructure in addition to the logins defined when creating the user. To prevent abuse, certificates issued to the user will be valid for only half a working day.
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: editor
+spec:
+  options:
+    max_session_ttl: 4h
+  allow:
+    logins: [editor, "{{internal.logins}}"]
+```
+
+Next, we define the general `user` role. Users with this role can review other users' requests to become an `editor`, and can request the `editor` role themselves with two approvals. However, this user cannot log in as `editor` within our infrastructure.
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: user
+spec:
+  allow:
+    logins: ["{{internal.logins}}"]
+    review_requests:
+      roles: ['editor']
+    request:
+      roles: ["editor"]
+      thresholds:
+        - approve: 2
+          deny: 1
+  deny:
+    logins: ["editor"]
+```
+
+Two `user`s can grant elevated privileges to another `user` temporarily without the need for a separate `reviewer` role that can become a target for attacks.
+
+## Next steps
+
+### Guides
+- [Per-session MFA](../../access-controls/guides/per-session-mfa.mdx)
+- [Dual authorization](../../access-controls/guides/dual-authz.mdx)
+- [Role templates, allow/deny rules, and traits](../../access-controls/guides/role-templates.mdx)
+- [Access Requests](../../access-controls/access-requests/access-requests.mdx)
+
+### Background reading
+- [Authentication connectors](../../../reference/access-controls/authentication.mdx)
+- [Proxy Service](../../../reference/architecture/proxy.mdx)
+- [Auth Service](../../../reference/architecture/authentication.mdx)
+- The roles we illustrated in this guide use `internal` traits, which Teleport
+  replaces with values from the Teleport local user database.  For full details
+  on how variable expansion works in Teleport roles, see the [Teleport Access
+  Controls Reference](../../../reference/access-controls/roles.mdx).
+

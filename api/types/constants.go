@@ -21,6 +21,11 @@ import (
 )
 
 const (
+	// The `Kind*` constants in this const block identify resource kinds used for
+	// storage an/or and access control. Please keep these in sync with the
+	// `ResourceKind` enum in
+	// `web/packages/teleport/src/services/resources/types.ts`.
+
 	// DefaultAPIGroup is a default group of permissions API,
 	// lets us to add different permission types
 	DefaultAPIGroup = "gravitational.io/teleport"
@@ -38,8 +43,10 @@ const (
 
 	// PackageNameOSS is the teleport package name for the OSS version.
 	PackageNameOSS = "teleport"
-	// PackageNameOSS is the teleport package name for the Enterprise version.
+	// PackageNameEnt is the teleport package name for the Enterprise version.
 	PackageNameEnt = "teleport-ent"
+	// PackageNameEntFIPS is the teleport package name for the Enterprise with FIPS enabled version.
+	PackageNameEntFIPS = "teleport-ent-fips"
 
 	// ActionRead grants read access (get, list)
 	ActionRead = "read"
@@ -65,6 +72,10 @@ const (
 
 	// KindBot is a Machine ID bot resource
 	KindBot = "bot"
+	// KindBotInstance is an instance of a Machine ID bot
+	KindBotInstance = "bot_instance"
+	// KindSPIFFEFederation is a SPIFFE federation resource
+	KindSPIFFEFederation = "spiffe_federation"
 
 	// KindHostCert is a host certificate
 	KindHostCert = "host_cert"
@@ -112,7 +123,10 @@ const (
 	// KindSession is a recorded SSH session.
 	KindSession = "session"
 
-	// KindSSHSession is an active SSH session.
+	// KindSSHSession represents an active SSH session in early versions of Teleport
+	// prior to the introduction of moderated sessions. Note that ssh_session is not
+	// a "real" resource, and it is never used as the "session kind" value in the
+	// session_tracker resource.
 	KindSSHSession = "ssh_session"
 
 	// KindWebSession is a web session resource
@@ -193,7 +207,8 @@ const (
 
 	// KindKubeServer is an kubernetes server resource.
 	KindKubeServer = "kube_server"
-
+	// KindCrownJewel is a crown jewel resource
+	KindCrownJewel = "crown_jewel"
 	// KindKubernetesCluster is a Kubernetes cluster.
 	KindKubernetesCluster = "kube_cluster"
 
@@ -315,6 +330,24 @@ const (
 	// alternative to their individual resource kinds.
 	KindClusterConfig = "cluster_config"
 
+	// KindAutoUpdateConfig is the resource with autoupdate configuration.
+	KindAutoUpdateConfig = "autoupdate_config"
+
+	// KindAutoUpdateVersion is the resource with autoupdate versions.
+	KindAutoUpdateVersion = "autoupdate_version"
+
+	// KindAutoUpdateAgentRollout is the resource that controls and tracks agent rollouts.
+	KindAutoUpdateAgentRollout = "autoupdate_agent_rollout"
+
+	// MetaNameAutoUpdateConfig is the name of a configuration resource for autoupdate config.
+	MetaNameAutoUpdateConfig = "autoupdate-config"
+
+	// MetaNameAutoUpdateVersion is the name of a resource for autoupdate version.
+	MetaNameAutoUpdateVersion = "autoupdate-version"
+
+	// MetaNameAutoUpdateAgentRollout is the name of the autoupdate agent rollout resource.
+	MetaNameAutoUpdateAgentRollout = "autoupdate-agent-rollout"
+
 	// KindClusterAuditConfig is the resource that holds cluster audit configuration.
 	KindClusterAuditConfig = "cluster_audit_config"
 
@@ -401,6 +434,9 @@ const (
 	// KindWindowsDesktop is a Windows desktop host.
 	KindWindowsDesktop = "windows_desktop"
 
+	// KindDynamicWindowsDesktop is a dynamic Windows desktop host.
+	KindDynamicWindowsDesktop = "dynamic_windows_desktop"
+
 	// KindRecoveryCodes is a resource that holds users recovery codes.
 	KindRecoveryCodes = "recovery_codes"
 
@@ -462,15 +498,14 @@ const (
 	// KindHeadlessAuthentication is a headless authentication resource.
 	KindHeadlessAuthentication = "headless_authentication"
 
-	// KindAssistant is used to program RBAC for
-	// Teleport Assist resources.
-	KindAssistant = "assistant"
-
 	// KindAccessGraph is the RBAC kind for access graph.
 	KindAccessGraph = "access_graph"
 
 	// KindIntegration is a connection to a 3rd party system API.
 	KindIntegration = "integration"
+
+	// KindUserTask is a task representing an issue with some other resource.
+	KindUserTask = "user_task"
 
 	// KindClusterMaintenanceConfig determines maintenance times for the cluster.
 	KindClusterMaintenanceConfig = "cluster_maintenance_config"
@@ -521,6 +556,73 @@ const (
 	KindUserLastSeenNotification = "user_last_seen_notification"
 	// KindUserNotificationState is a resource which tracks whether a user has clicked on or dismissed a notification.
 	KindUserNotificationState = "user_notification_state"
+	// KindUniqueNotificationIdentifier is a resource which tracks a unique identifier for a notification and is used to prevent duplicate notifications in certain cases.
+	KindUniqueNotificationIdentifier = "unique_notification_identifier"
+
+	// KindAccessGraphSecretAuthorizedKey is a authorized key entry found in
+	// a Teleport SSH node type.
+	KindAccessGraphSecretAuthorizedKey = "access_graph_authorized_key"
+
+	// KindAccessGraphSecretPrivateKey is a private key entry found in
+	// a managed device.
+	KindAccessGraphSecretPrivateKey = "access_graph_private_key"
+
+	// KindProvisioningPrincipalState is a resource that tracks provisioning of a user or access
+	// list in a downstream SCIM server
+	KindProvisioningPrincipalState = "provisioning_principal_state"
+
+	// KindVnetConfig is a resource which holds cluster-wide configuration for VNet.
+	KindVnetConfig = "vnet_config"
+
+	// KindAccessGraphSettings is a resource which holds cluster-wide configuration for dynamic access graph settings.
+	KindAccessGraphSettings = "access_graph_settings"
+
+	// KindStaticHostUser is a host user to be created on matching SSH nodes.
+	KindStaticHostUser = "static_host_user"
+
+	// KindIdentityCenter is an umbrella kind, representing all KindIdentityCenter*
+	// resource kinds in RBAC checks. This is to simplify Role condition statements
+	// so that they don't have to individually specify all of the Identity Center
+	// resource kinds.
+	KindIdentityCenter = "aws_identity_center"
+
+	// KindIdentityCenterAccount describes an Identity-Center managed AWS Account
+	KindIdentityCenterAccount = "aws_ic_account"
+
+	// KindIdentityCenterPermissionSet describes an AWS Identity Center Permission Set
+	KindIdentityCenterPermissionSet = "aws_ic_permission_set"
+
+	// KindIdentityCenterPermissionSet describes an AWS Principal Assignment, representing
+	// a collection Account Assignments assigned to a Teleport User or AccessList
+	KindIdentityCenterPrincipalAssignment = "aws_ic_principal_assignment"
+
+	// KindIdentityCenterAccountAssignment describes an AWS Account and Permission Set
+	// pair that can be requested by a Teleport User.
+	KindIdentityCenterAccountAssignment = "aws_ic_account_assignment"
+
+	// KindContact is a resource that holds contact information
+	// for Teleport Enterprise customers.
+	KindContact = "contact"
+
+	// KindWorkloadIdentity is the WorkloadIdentity resource.
+	KindWorkloadIdentity = "workload_identity"
+
+	// KindWorkloadIdentityX509Revocation is the WorkloadIdentityX509Revocation
+	// resource.
+	KindWorkloadIdentityX509Revocation = "workload_identity_x509_revocation"
+
+	// KindGitServer represents a Git server that can proxy git commands.
+	KindGitServer = "git_server"
+	// SubKindGitHub specifies the GitHub subkind of a Git server.
+	SubKindGitHub = "github"
+
+	// KindStableUNIXUser is the RBAC-only kind to refer to interactions with
+	// stable UNIX users.
+	KindStableUNIXUser = "stable_unix_user"
+
+	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
+	// access graph settings.
+	MetaNameAccessGraphSettings = "access-graph-settings"
 
 	// V7 is the seventh version of resources.
 	V7 = "v7"
@@ -544,6 +646,9 @@ const (
 	// not explicitly versioned.
 	V1 = "v1"
 )
+
+// PackageNameKinds is the list of valid teleport package names.
+var PackageNameKinds = []string{PackageNameOSS, PackageNameEnt, PackageNameEntFIPS}
 
 // WebSessionSubKinds lists subkinds of web session resources
 var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession, KindSAMLIdPSession}
@@ -637,6 +742,10 @@ const (
 	// from kubernetes cluster by discovery service.
 	OriginDiscoveryKubernetes = common.OriginDiscoveryKubernetes
 
+	// OriginEntraID indicates that the resource was imported
+	// from the Entra ID directory.
+	OriginEntraID = common.OriginEntraID
+
 	// IntegrationLabel is a resource metadata label name used to identify the integration name that created the resource.
 	IntegrationLabel = TeleportNamespace + "/integration"
 
@@ -659,18 +768,32 @@ const (
 	// via automatic discovery, to avoid re-running installation commands
 	// on the node.
 	VMIDLabel = TeleportInternalLabelPrefix + "vm-id"
-	// ProjectIDLabel is used to identify virtual machines by GCP project
+	// projectIDLabelSuffix is the identifier for adding the GCE ProjectID to an instance.
+	projectIDLabelSuffix = "project-id"
+	// ProjectIDLabelDiscovery is used to identify virtual machines by GCP project
 	// id found via automatic discovery, to avoid re-running
 	// installation commands on the node.
-	ProjectIDLabel = TeleportInternalLabelPrefix + "project-id"
-	// ZoneLabek is used to identify virtual machines by GCP zone
+	ProjectIDLabelDiscovery = TeleportInternalLabelPrefix + projectIDLabelSuffix
+	// ProjectIDLabel is used to identify the project ID for a virtual machine in GCP.
+	// The difference between this and ProjectIDLabelDiscovery, is that this one will be visible to the user
+	// and can be used in RBAC checks.
+	ProjectIDLabel = TeleportNamespace + "/" + projectIDLabelSuffix
+	// RegionLabel is used to identify virtual machines by region found
+	// via automatic discovery, to avoid re-running installation commands
+	// on the node.
+	RegionLabel = TeleportInternalLabelPrefix + "region"
+	// ResourceGroupLabel is used to identify virtual machines by resource-group found
+	// via automatic discovery, to avoid re-running installation commands
+	// on the node.
+	ResourceGroupLabel = TeleportInternalLabelPrefix + "resource-group"
+	// ZoneLabelDiscovery is used to identify virtual machines by GCP zone
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
-	ZoneLabel = TeleportInternalLabelPrefix + "zone"
-	// NameLabel is used to identify virtual machines by GCP VM name
+	ZoneLabelDiscovery = TeleportInternalLabelPrefix + "zone"
+	// NameLabelDiscovery is used to identify virtual machines by GCP VM name
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
-	NameLabel = TeleportInternalLabelPrefix + "name"
+	NameLabelDiscovery = TeleportInternalLabelPrefix + "name"
 
 	// CloudLabel is used to identify the cloud where the resource was discovered.
 	CloudLabel = TeleportNamespace + "/cloud"
@@ -713,6 +836,8 @@ const (
 	KubernetesClusterLabel = TeleportNamespace + "/kubernetes-cluster"
 
 	// DiscoveryTypeLabel specifies type of discovered service that should be created from Kubernetes service.
+	// Also added by discovery service to indicate the type of discovered
+	// resource, e.g. "rds" for RDS databases, "eks" for EKS kube clusters, etc.
 	DiscoveryTypeLabel = TeleportNamespace + "/discovery-type"
 	// DiscoveryPortLabel specifies preferred port for a discovered app created from Kubernetes service.
 	DiscoveryPortLabel = TeleportNamespace + "/port"
@@ -731,6 +856,8 @@ const (
 	ReqAnnotationApproveSchedulesLabel = "/schedules"
 	// ReqAnnotationNotifySchedulesLabel is the request annotation key at which notify schedules are stored for access plugins.
 	ReqAnnotationNotifySchedulesLabel = "/notify-services"
+	// ReqAnnotationTeamsLabel is the request annotation key at which teams are stored for access plugins.
+	ReqAnnotationTeamsLabel = "/teams"
 
 	// CloudAWS identifies that a resource was discovered in AWS.
 	CloudAWS = "AWS"
@@ -903,6 +1030,10 @@ const (
 	// AlertLink is an internal label that indicates that an alert is a link.
 	AlertLink = TeleportInternalLabelPrefix + "link"
 
+	// AlertLinkText is a text that will be rendered by Web UI on the action
+	// button accompanying the alert.
+	AlertLinkText = TeleportInternalLabelPrefix + "link-text"
+
 	// AlertVerbPermit is an internal label that permits a user to view the alert if they
 	// hold a specific resource permission verb (e.g. 'node:list'). Note that this label is
 	// a coarser control than it might initially appear and has the potential for accidental
@@ -926,6 +1057,16 @@ const (
 	// that the discovered resource is owned by. It is used to differentiate resources
 	// that belong to different discovery services that operate on different sets of resources.
 	TeleportInternalDiscoveryGroupName = TeleportInternalLabelPrefix + "discovery-group-name"
+
+	// TeleportInternalDiscoveryIntegrationName is the label used to store the name of the integration
+	// whose credentials were used to discover the resource.
+	// It is used to report stats for a given Integration / DiscoveryConfig.
+	TeleportInternalDiscoveryIntegrationName = TeleportInternalLabelPrefix + "discovery-integration-name"
+
+	// TeleportInternalDiscoveryConfigName is the label used to store the name of the discovery config
+	// whose matchers originated the resource.
+	// It is used to report stats for a given Integration / DiscoveryConfig.
+	TeleportInternalDiscoveryConfigName = TeleportInternalLabelPrefix + "discovery-config-name"
 
 	// TeleportDowngradedLabel identifies resources that have been automatically
 	// downgraded before being returned to clients on older versions that do not
@@ -962,6 +1103,11 @@ const (
 	// group they should attempt to be connected to.
 	ProxyGroupGenerationLabel = TeleportInternalLabelPrefix + "proxygroup-gen"
 
+	// UnstableProxyPeerQUICLabel is the internal-use label for proxy heartbeats
+	// that's used to signal that the proxy supports receiving proxy peering
+	// connections over QUIC. The value should be "yes".
+	UnstableProxyPeerQUICLabel = TeleportInternalLabelPrefix + "proxy-peer-quic"
+
 	// OktaAppNameLabel is the individual app name label.
 	OktaAppNameLabel = TeleportInternalLabelPrefix + "okta-app-name"
 
@@ -979,6 +1125,88 @@ const (
 
 	// PluginGenerationLabel is the label for the current generation of the plugin.
 	PluginGenerationLabel = TeleportInternalLabelPrefix + "plugin-generation"
+
+	// EntraTenantIDLabel is the label for the Entra tenant ID.
+	EntraTenantIDLabel = TeleportInternalLabelPrefix + "entra-tenant"
+
+	// EntraUniqueIDLabel is the label for the unique identifier of the object in the Entra ID directory.
+	EntraUniqueIDLabel = TeleportInternalLabelPrefix + "entra-unique-id"
+
+	// EntraUPNLabel is the label for the user principal name in Entra ID.
+	EntraUPNLabel = TeleportInternalLabelPrefix + "entra-upn"
+
+	// EntraDisplayNameLabel is the label for the display name of the object in the Entra ID directory.
+	// The display name may not be unique.
+	EntraDisplayNameLabel = TeleportInternalLabelPrefix + "entra-display-name"
+
+	// EntraSAMAccountNameLabel is the label for user's on-premises sAMAccountName.
+	EntraSAMAccountNameLabel = TeleportInternalLabelPrefix + "entra-sam-account-name"
+
+	// GitHubOrgLabel is the label for GitHub organization.
+	GitHubOrgLabel = TeleportInternalLabelPrefix + "github-org"
+)
+
+const (
+	// NotificationTitleLabel is the label which contains the title of the notification.
+	NotificationTitleLabel = TeleportInternalLabelPrefix + "title"
+	// NotificationClickedLabel is the label which contains whether the notification has been clicked on by the user.
+	NotificationClickedLabel = TeleportInternalLabelPrefix + "clicked"
+	// NotificationScope is the label which contains the scope of the notification, either "user" or "global"
+	NotificationScope = TeleportInternalLabelPrefix + "scope"
+	// NotificationTextContentLabel is the label which contains the text content of a user-created notification.
+	NotificationTextContentLabel = TeleportInternalLabelPrefix + "content"
+
+	// NotificationDefaultInformationalSubKind is the default subkind for an informational notification.
+	NotificationDefaultInformationalSubKind = "default-informational"
+	// NotificationDefaultWarningSubKind is the default subkind for a warning notification.
+	NotificationDefaultWarningSubKind = "default-warning"
+
+	// NotificationUserCreatedInformationalSubKind is the subkind for a user-created informational notification.
+	NotificationUserCreatedInformationalSubKind = "user-created-informational"
+	// NotificationUserCreatedWarningSubKind is the subkind for a user-created warning notification.
+	NotificationUserCreatedWarningSubKind = "user-created-warning"
+
+	// NotificationAccessRequestPendingSubKind is the subkind for a notification for an access request pending review.
+	NotificationAccessRequestPendingSubKind = "access-request-pending"
+	// NotificationAccessRequestApprovedSubKind is the subkind for a notification for a user's access request being approved.
+	NotificationAccessRequestApprovedSubKind = "access-request-approved"
+	// NotificationAccessRequestDeniedSubKind is the subkind for a notification for a user's access request being denied.
+	NotificationAccessRequestDeniedSubKind = "access-request-denied"
+	// NotificationAccessRequestPromotedSubKind is the subkind for a notification for a user's access request being promoted to an access list.
+	NotificationAccessRequestPromotedSubKind = "access-request-promoted"
+
+	// NotificationAccessListReviewDue14dSubKind is the subkind for a notification for an access list review due in less than 14 days.
+	NotificationAccessListReviewDue14dSubKind = "access-list-review-due-14d"
+
+	// NotificationAccessListReviewDue7dSubKind is the subkind for a notification for an access list review due in less than 7 days.
+	NotificationAccessListReviewDue7dSubKind = "access-list-review-due-7d"
+
+	// NotificationAccessListReviewDue3dSubKind is the subkind for a notification for an access list review due in less than 3 days.
+	NotificationAccessListReviewDue3dSubKind = "access-list-review-due-3d"
+
+	// NotificationAccessListReviewDue0dSubKind is the subkind for a notification for an access list review due today.
+	NotificationAccessListReviewDue0dSubKind = "access-list-review-due-0d"
+
+	// NotificationAccessListReviewOverdue3dSubKind is the subkind for a notification for an access list review overdue by 3 days.
+	NotificationAccessListReviewOverdue3dSubKind = "access-list-review-overdue-3d"
+
+	// NotificationAccessListReviewOverdue7dSubKind is the subkind for a notification for an access list review overdue by 7 days.
+	NotificationAccessListReviewOverdue7dSubKind = "access-list-review-overdue-7d"
+)
+
+const (
+	// NotificationIdentifierPrefixAccessListDueReminder14d is the prefix for unique notification identifiers for 14d access list review reminders.
+	NotificationIdentifierPrefixAccessListDueReminder14d = "access_list_14d_due_reminder"
+	// NotificationIdentifierPrefixAccessListDueReminder7d is the prefix for unique notification identifiers for 7d access list review reminders.
+	NotificationIdentifierPrefixAccessListDueReminder7d = "access_list_7d_due_reminder"
+	// NotificationIdentifierPrefixAccessListDueReminder3d is the prefix for unique notification identifiers for 3d access list review reminders.
+	NotificationIdentifierPrefixAccessListDueReminder3d = "access_list_3d_due_reminder"
+	// NotificationIdentifierPrefixAccessListDueReminder0d is the prefix for unique notification identifiers for 0d (today) access list review reminders.
+	NotificationIdentifierPrefixAccessListDueReminder0d = "access_list_0d_due_reminder"
+	// NotificationIdentifierPrefixAccessListDueReminder30d is the prefix for unique notification identifiers for 3d overdue access list review reminders.
+	NotificationIdentifierPrefixAccessListOverdue3d = "access_list_3d_overdue_reminder"
+	// NotificationIdentifierPrefixAccessListDueReminder30d is the prefix for unique notification identifiers for 7d overdue access list review reminders.
+	NotificationIdentifierPrefixAccessListOverdue7d = "access_list_7d_overdue_reminder"
 )
 
 const (
@@ -1000,6 +1228,8 @@ const (
 	InstanceMetadataTypeDisabled InstanceMetadataType = "disabled"
 	InstanceMetadataTypeEC2      InstanceMetadataType = "EC2"
 	InstanceMetadataTypeAzure    InstanceMetadataType = "Azure"
+	InstanceMetadataTypeGCP      InstanceMetadataType = "GCP"
+	InstanceMetadataTypeOracle   InstanceMetadataType = "Oracle"
 )
 
 // OriginValues lists all possible origin values.
@@ -1117,9 +1347,19 @@ var RequestableResourceKinds = []string{
 	KindKubeJob,
 	KindKubeCertificateSigningRequest,
 	KindKubeIngress,
+	KindSAMLIdPServiceProvider,
+	KindIdentityCenterAccount,
+	KindIdentityCenterAccountAssignment,
 }
 
-// KubernetesResourcesKinds lists the supported Kubernetes resource kinds.
+// The list below needs to be kept in sync with `kubernetesResourceKindOptions`
+// in `web/packages/teleport/src/Roles/RoleEditor/standardmodel.ts`. (Keeping
+// this comment separate to prevent it from being included in the official
+// package docs.)
+
+// KubernetesResourcesKinds lists the supported Kubernetes resource kinds. This
+// is for the latest version of Role resources; roles whose version is set to
+// v6 or prior only support [KindKubePod].
 var KubernetesResourcesKinds = []string{
 	KindKubePod,
 	KindKubeSecret,
@@ -1167,6 +1407,11 @@ const (
 	KubeVerbPortForward = "portforward"
 )
 
+// The list below needs to be kept in sync with `kubernetesResourceVerbOptions`
+// in `web/packages/teleport/src/Roles/RoleEditor/standardmodel.ts`. (Keeping
+// this comment separate to prevent it from being included in the official
+// package docs.)
+
 // KubernetesVerbs lists the supported Kubernetes verbs.
 var KubernetesVerbs = []string{
 	Wildcard,
@@ -1194,10 +1439,17 @@ var KubernetesClusterWideResourceKinds = []string{
 }
 
 const (
-	// TeleportServiceGroup is a default group that users of the
-	// teleport automated user provisioning system get added to so
-	// already existing users are not deleted
-	TeleportServiceGroup = "teleport-system"
+	// TeleportDropGroup is a default group that users of the teleport automated user
+	// provisioning system get added to when provisioned in INSECURE_DROP mode. This
+	// prevents already existing users from being tampered with or deleted.
+	TeleportDropGroup = "teleport-system"
+	// TeleportKeepGroup is a default group that users of the teleport automated user
+	// provisioning system get added to when provisioned in KEEP mode. This prevents
+	// already existing users from being tampered with or deleted.
+	TeleportKeepGroup = "teleport-keep"
+	// TeleportStaticGroup is a default group that static host users get added to. This
+	// prevents already existing users from being tampered with or deleted.
+	TeleportStaticGroup = "teleport-static"
 )
 
 const (
@@ -1226,4 +1478,67 @@ const (
 	ApplicationProtocolHTTP = "HTTP"
 	// ApplicationProtocolTCP is the TCP apps protocol.
 	ApplicationProtocolTCP = "TCP"
+)
+
+const (
+	// HostedPluginLabel defines the name for the hosted plugin label.
+	// When this label is set to "true" on a Plugin resource,
+	// it indicates that the Plugin should be run by the Cloud service,
+	// rather than self-hosted plugin services.
+	HostedPluginLabel = TeleportNamespace + "/hosted-plugin"
+)
+
+const (
+	// OktaOrgURLLabel is the label used by Okta-managed resources to indicate
+	// the upstream Okta organization that they come from.
+	OktaOrgURLLabel = "okta/org"
+
+	// OktaAppIDLabel is the label for the Okta application ID on appserver objects.
+	OktaAppIDLabel = TeleportInternalLabelPrefix + "okta-app-id"
+
+	// OktaCredPurposeLabel is used by Okta-managed PluginStaticCredentials to
+	// indicate their purpose
+	OktaCredPurposeLabel = "okta/purpose"
+
+	// OktaCredPurposeAuth indicates that the credential is intended for
+	// authenticating with the Okta REST API
+	OktaCredPurposeAuth = "okta-auth"
+
+	// OktaCredPurposeSCIMToken indicates that theis to be used for authenticating
+	// SCIM requests from the upstream organization. The content of the credential
+	// is a bcrypt hash of actual token.
+	OktaCredPurposeSCIMToken = "scim-bearer-token"
+
+	// CredPurposeOKTAAPITokenWithSCIMOnlyIntegration is used when okta integration was enabled without
+	// app groups sync. Due to backward compatibility when teleport was downgraded to version where the
+	// AppGroupSyncDisabled flag is not supported we need to prevent plugin from starting.
+	// This is done by distinguishing between OktaCredPurposeAuth and CredPurposeOKTAAPITokenWithSCIMOnlyIntegration
+	// that are only set when AppGroupSyncDisabled is set to true.
+	CredPurposeOKTAAPITokenWithSCIMOnlyIntegration = "okta-auth-scim-only"
+)
+
+const (
+	// SCIMBaseURLLabel defines a label indicating the base URL for
+	// interacting with a plugin via SCIM. Useful for diagnostic display.
+	SCIMBaseURLLabel = TeleportNamespace + "/scim-base-url"
+)
+
+const (
+	// DatadogCredentialLabel is used by Datadog-managed PluginStaticCredentials
+	// to indiciate credential type.
+	DatadogCredentialLabel = "datadog/credential"
+
+	// DatadogCredentialAPIKey indicates that the credential is used as a
+	// Datadog API key.
+	DatadogCredentialAPIKey = "datadog-api-key"
+
+	// DatadogCredentialApplicationKey indicates that the credential is used as
+	// a Datadog Application key.
+	DatadogCredentialApplicationKey = "datadog-application-key"
+)
+
+const (
+	// GitHubOrgServerDomain is the sub domain used in the hostname of a
+	// types.Server to indicate the GitHub organization of a Git server.
+	GitHubOrgServerDomain = "teleport-github-org"
 )

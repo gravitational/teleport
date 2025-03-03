@@ -252,6 +252,11 @@
             "type": "object",
             "default": {}
         },
+        "terminationGracePeriodSeconds": {
+            "$id": "#/properties/terminationGracePeriodSeconds",
+            "type": "integer",
+            "default": 30
+        },
         "tls": {
             "$id": "#/properties/tls",
             "type": "object",
@@ -558,6 +563,11 @@
                     "type": "object",
                     "default": {}
                 },
+                "job": {
+                    "$id": "#/properties/extraLabels/properties/job",
+                    "type": "object",
+                    "default": {}
+                },
                 "pod": {
                     "$id": "#/properties/extraLabels/properties/pod",
                     "type": "object",
@@ -739,6 +749,39 @@
                 },
                 "additionalProperties": false
             }
+        },
+        "jamfCredentialsSecret": {
+            "$id": "#/properties/jamfCredentialsSecret",
+            "type": "object",
+            "required": ["create", "name"],
+            "properties": {
+                "create": {
+                    "$id": "#/properties/jamfCredentialsSecret/create",
+                    "type": "boolean",
+                    "default": true
+                },
+                "name": {
+                    "$id": "#/properties/jamfCredentialsSecret/name",
+                    "type": "string",
+                    "default": "teleport-jamf-api-credentials"
+                },
+                "additionalProperties": false
+            }
+        },
+        "jamfApiEndpoint": {
+            "$id": "#/properties/jamfApiEndpoint",
+            "type": "string",
+            "default": ""
+        },
+        "jamfClientId": {
+            "$id": "#/properties/jamfClientId",
+            "type": "string",
+            "default": ""
+        },
+        "jamfClientSecret": {
+            "$id": "#/properties/jamfSecret",
+            "type": "string",
+            "default": ""
         }
     }
 }

@@ -273,7 +273,7 @@ func TestOIDCMapping(t *testing.T) {
 		}
 		for _, input := range testCase.inputs {
 			comment := fmt.Sprintf("OIDC Test case %v %q, input %q", i, testCase.comment, input.comment)
-			_, outRoles := TraitsToRoles(conn.GetTraitMappings(), OIDCClaimsToTraits(input.claims))
+			_, outRoles := TraitsToRoles(conn.GetTraitMappings(), oidcClaimsToTraits(input.claims))
 			require.Empty(t, cmp.Diff(outRoles, input.expectedRoles), comment)
 		}
 
@@ -303,7 +303,7 @@ func BenchmarkTraitToRoles(b *testing.B) {
 			traits := SAMLAssertionsToTraits(claimsToAttributes(input.claims))
 
 			b.Run(testCaseInputName, func(b *testing.B) {
-				for i := 0; i < b.N; i++ {
+				for b.Loop() {
 					TraitsToRoles(mappings, traits)
 				}
 			})
@@ -323,6 +323,25 @@ func claimMappingsToAttributeMappings(in []types.ClaimMapping) []types.Attribute
 		})
 	}
 	return out
+}
+
+// oidcClaimsToTraits converts OIDC-style claims into teleport-specific trait format
+func oidcClaimsToTraits(claims jose.Claims) map[string][]string {
+	traits := make(map[string][]string)
+
+	for claimName := range claims {
+		claimValue, ok, _ := claims.StringClaim(claimName)
+		if ok {
+			traits[claimName] = []string{claimValue}
+			continue
+		}
+		claimValues, ok, _ := claims.StringsClaim(claimName)
+		if ok {
+			traits[claimName] = claimValues
+		}
+	}
+
+	return traits
 }
 
 // claimsToAttributes maps jose.Claims type to attributes for testing

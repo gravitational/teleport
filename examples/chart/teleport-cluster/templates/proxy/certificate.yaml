@@ -22,7 +22,8 @@ kind: Certificate
 metadata:
   name: {{ .Release.Name }}
   namespace: {{ .Release.Namespace }}
-  labels: {{- include "teleport-cluster.proxy.labels" . | nindent 4 }}
+  labels:
+    {{- include "teleport-cluster.proxy.labels" . | nindent 4 }}
 spec:
   secretName: teleport-tls
   {{- if $proxy.highAvailability.certManager.addCommonName }}
@@ -36,8 +37,13 @@ spec:
     name: {{ required "highAvailability.certManager.issuerName is required in chart values" $proxy.highAvailability.certManager.issuerName }}
     kind: {{ required "highAvailability.certManager.issuerKind is required in chart values" $proxy.highAvailability.certManager.issuerKind }}
     group: {{ required "highAvailability.certManager.issuerGroup is required in chart values" $proxy.highAvailability.certManager.issuerGroup }}
-  {{- with $proxy.annotations.certSecret }}
+  {{- if or $proxy.annotations.certSecret $proxy.extraLabels.certSecret }}
   secretTemplate:
+    {{- with $proxy.annotations.certSecret }}
     annotations: {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with $proxy.extraLabels.certSecret }}
+    labels: {{- toYaml . | nindent 6 }}
+    {{- end }}
   {{- end }}
 {{- end }}

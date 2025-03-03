@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use ironrdp_pdu::{custom_err, PduResult};
+use ironrdp_pdu::{pdu_other_err, PduResult};
 use std::ffi::CString;
 
 /// WindowsPath is a String that we assume to be in the form
@@ -63,10 +63,10 @@ impl UnixPath {
     /// any characters that can't be handled by CString::new().
     pub fn to_cstring(&self) -> PduResult<CString> {
         CString::new(self.path.clone()).map_err(|e| {
-            custom_err!(PathError(format!(
-                "Error converting UnixPath to CString: {}",
-                e
-            )))
+            pdu_other_err!(
+                "",
+                source:PathError(format!("Error converting UnixPath to CString: {}", e))
+            )
         })
     }
 
@@ -139,6 +139,7 @@ fn crop_first_n_letters(s: &mut String, n: usize) {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct PathError(pub String);
 

@@ -1,0 +1,172 @@
+---
+title: Deploying Machine ID on CircleCI
+description: How to install and configure Machine ID on CircleCI
+---
+
+In this guide, you will configure Machine ID's agent, `tbot`, to run within a
+CircleCI workflow. The bot will be configured to use the `circleci` delegated
+joining method to eliminate the need for long-lived secrets.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+- A CircleCI project connected to a Git repository you can push to.
+
+## Step 1/5. Configure CircleCI
+
+(!docs/pages/includes/machine-id/recover-circle-ci-claims.mdx!)
+
+## Step 2/5. Create the Machine ID bot
+
+(!docs/pages/includes/machine-id/create-a-bot.mdx!)
+
+## Step 3/5. Create the join token for CircleCI
+
+In order to allow your CircleCI workflow to authenticate with your Teleport
+cluster, you'll first need to create a join token. These tokens set out criteria
+by which the Auth Service decides whether or not to allow a bot or node to join.
+
+Create a file named `bot-token.yaml`, ensuring that you replace
+<Var name="organization-id" /> and <Var name="context-id" /> with the values from Step 1.
+
+```yaml
+kind: token
+version: v2
+metadata:
+  name: example-bot
+spec:
+  roles: [Bot]
+  join_method: circleci
+  bot_name: example
+  circleci:
+    organization_id: <Var name="organization-id" />
+    # allow specifies the rules by which the Auth Service determines if `tbot`
+    # should be allowed to join.
+    allow:
+    - context_id: <Var name="context-id" />
+```
+
+Let's go over the token resource's fields in more detail:
+
+- `metadata.name` defines the name of the token. Note that this value will need
+to be used in other parts of the configuration later.
+- `metadata.expires` defines the date that the join token will expire. This
+example is set to the year `2100`.
+- `spec.bot_name` is the name of the Machine ID bot that this token will grant
+access to. Note that this value will need to be used in other parts of the
+configuration later.
+- `spec.roles` defines which roles that this token will grant access to. The
+value of `[Bot]` states that this token grants access to a Machine ID bot.
+- `spec.join_method` defines the join method the token is applicable for. Since
+this guide only focuses on CircleCI, you will set this to to `circleci`.
+- `spec.circleci.allow` is used to set rules for what CircleCI runs will be able
+to authenticate by using the token.
+
+Apply this to your Teleport cluster using `tctl`:
+
+```code
+$ tctl create -f bot-token.yaml
+```
+
+## Step 4/5. Configure a CircleCI workflow
+
+With the bot and join token created, you can now configure a CircleCI
+workflow that can connect to your Teleport cluster.
+
+To configure `tbot`, a YAML file will be used. In this example we'll store this
+within the repository itself, but this could be generated or created by the
+CI pipeline itself.
+
+Create `tbot.yaml` within your repository:
+
+```yaml
+version: v2
+proxy_server: example.teleport.sh:443
+onboarding:
+  join_method: circleci
+  token: example-bot
+oneshot: true
+storage:
+  type: memory
+# outputs will be filled in during the completion of an access guide.
+outputs: []
+```
+
+Replace:
+
+- `example.teleport.sh:443` with the address of your Teleport Proxy or
+  Auth Service. Prefer using the address of a Teleport Proxy.
+- `example-bot` with the name of the token you created in the second step
+
+Now, the CircleCI pipeline can be defined. Before the pipeline can use `tbot`,
+it must be available within the environment. For this example, we'll show
+downloading `tbot` as part of the CI step, but in a production implementation
+you may wish to build a docker image that contains this binary to avoid
+depending on the Teleport CDN.
+
+Open your Git repository and create a directory called `.circleci`. Then open
+a file called `config.yml` and insert the following configuration:
+
+```yaml
+# See: https://circleci.com/docs/2.0/configuration-reference
+version: 2.1
+jobs:
+  write-run-log:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - run:
+          name: "Install Teleport"
+          command: |
+            cd /tmp
+            curl -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+            tar -xvf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+            sudo ./teleport/install
+      - run:
+          name: "Run Machine ID"
+          command: |
+            export TELEPORT_ANONYMOUS_TELEMETRY=1
+            tbot start -c tbot.yaml
+workflows:
+  write-run-log:
+    jobs:
+      - write-run-log:
+          context:
+            - teleport-access
+```
+
+`TELEPORT_ANONYMOUS_TELEMETRY` enables the submission of anonymous usage
+telemetry. This helps us shape the future development of `tbot`. You can disable
+this by omitting this.
+
+Add, commit, and push these two configuration files to your repository.
+
+Open CircleCI and check the status of the job, wait for it to complete and
+ensure that no errors are emitted.
+
+### A note on security implications and risk
+
+Once `tbot start` has been used in a job, all successive steps in that job will
+have access to the credentials that have been produced by `tbot`. Break your
+workflow down into multiple jobs to reduce the amount of steps that have access
+to these credentials.
+
+Ensure that the role you assign to your CircleCI bot has access to only the
+resources in your Teleport cluster that your CI/CD needs to interact with.
+
+## Step 5/5. Configure outputs
+
+(!docs/pages/includes/machine-id/configure-outputs.mdx!)
+
+## Further steps
+
+- Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
+  your environment.
+- Read the [configuration reference](../../../reference/machine-id/configuration.mdx) to explore
+  all the available configuration options.
+- For more information about CircleCI itself, read
+  [their documentation](https://circleci.com/docs/).
+- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../../reference/machine-id/telemetry.mdx)

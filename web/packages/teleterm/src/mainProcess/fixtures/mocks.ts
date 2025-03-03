@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { RuntimeSettings, MainProcessClient } from 'teleterm/types';
-import { createMockFileStorage } from 'teleterm/services/fileStorage/fixtures/mocks';
+import { AgentProcessState } from 'teleterm/mainProcess/types';
 // createConfigService has to be imported directly from configService.ts.
 // teleterm/services/config/index.ts reexports the config service client which depends on electron.
 // Importing electron breaks the fixtures if that's done from within storybook.
 import { createConfigService } from 'teleterm/services/config/configService';
-import { AgentProcessState } from 'teleterm/mainProcess/types';
+import { createMockFileStorage } from 'teleterm/services/fileStorage/fixtures/mocks';
+import { MainProcessClient, RuntimeSettings } from 'teleterm/types';
 
 export class MockMainProcessClient implements MainProcessClient {
   configService: ReturnType<typeof createConfigService>;
@@ -31,9 +31,8 @@ export class MockMainProcessClient implements MainProcessClient {
     this.configService = createConfigService({
       configFile: createMockFileStorage(),
       jsonSchemaFile: createMockFileStorage(),
-      platform: this.getRuntimeSettings().platform,
+      settings: this.getRuntimeSettings(),
     });
-    this.configService.set('feature.vnet', true);
   }
 
   subscribeToNativeThemeUpdate() {
@@ -68,6 +67,12 @@ export class MockMainProcessClient implements MainProcessClient {
     return Promise.resolve({
       canceled: false,
       filePath: '',
+    });
+  }
+
+  saveTextToFile() {
+    return Promise.resolve({
+      canceled: false,
     });
   }
 
@@ -151,12 +156,14 @@ export const makeRuntimeSettings = (
   certsDir: '',
   kubeConfigsDir: '',
   logsDir: '',
-  defaultShell: '',
+  defaultOsShellId: 'zsh',
+  availableShells: [
+    { id: 'zsh', friendlyName: 'zsh', binPath: '/bin/zsh', binName: 'zsh' },
+  ],
   tshd: {
     requestedNetworkAddress: '',
     binaryPath: '',
     homeDir: '',
-    flags: [],
   },
   sharedProcess: {
     requestedNetworkAddress: '',

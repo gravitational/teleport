@@ -1,0 +1,210 @@
+---
+title: Running Teleport with Self-Signed Certificates
+description: This guide shows you how to run Teleport using self-signed certificates, which is helpful for testing or demo environments.
+---
+
+This guide explains how to evaluate Teleport in a
+non-production environment without having to configure TLS certificates.
+We will show you how to run Teleport with self-signed certificates and address
+problems caused by this configuration.
+
+The Teleport Proxy Service authenticates itself to clients via TLS x509 certificates.
+If certificates are not configured for the Proxy Service then it uses self-signed certificates,
+which clients will not trust by default.
+When visiting the cluster's Web UI, the certificate presented will not be trusted by your browser. In this case, 
+you will likely see a page warning you that the website is not trusted.
+
+Additionally, self-signed certificates can prevent `teleport`, `tsh`, and `tctl` from connecting
+to the Proxy Service.
+
+<Notice type="warning" title="DO NOT USE THIS IN PRODUCTION">
+  **DO NOT USE SELF-SIGNED CERTIFICATES IN PRODUCTION**
+
+  Configuring your cluster to trust self-signed certificates
+  makes it easier for attackers to intercept communications
+  between the Proxy Service and clients, since there is no
+  way to verify the authenticity of the certificates.
+  It is therefore important to properly configure certificates
+  when using Teleport in a production environment.
+</Notice>
+
+## Prerequisites
+
+<Tabs>
+<TabItem scope={["oss"]} label="Open Source">
+
+- A running Teleport cluster. For details on how to set this up, see our
+  [Getting Started](../../deploy-a-cluster/linux-demo.mdx) guide (skip TLS certificate setup).
+
+- A Teleport Proxy Service which does not have certificates or ACME automatic certificates configured.
+For example, this Teleport Proxy Service configuration would use self-signed certs:
+
+  ```yaml
+  proxy_service:
+    enabled: "yes"
+    # TLS certificate for the HTTPS connection.
+    https_keypairs: []
+    # Get an automatic certificate from letsencrypt.org using ACME.
+    acme: {}
+  ```
+
+- (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
+
+  See [Installation](../../../installation.mdx) for details.
+
+</TabItem>
+<TabItem
+  scope={["enterprise"]} label="Enterprise">
+
+- A running Teleport cluster. For details on how to set this up, see our Enterprise
+  [Getting Started](../../deploy-a-cluster/deploy-a-cluster.mdx) guide.
+
+- A Teleport Proxy Service which does not have certificates or ACME automatic certificates configured.
+For example, this Teleport Proxy Service configuration would use self-signed certs:
+
+  ```yaml
+  proxy_service:
+    enabled: "yes"
+    # TLS certificate for the HTTPS connection.
+    https_keypairs: []
+    # Get an automatic certificate from letsencrypt.org using ACME.
+    acme: {}
+  ```
+
+- (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
+
+</TabItem>
+</Tabs>
+
+## How to use self-signed certs with Teleport binaries and clients
+
+### `teleport`
+
+When running a Teleport service with `teleport`, if the service you are starting is configured to point to
+the Teleport Proxy Service endpoint and the Proxy Service is using self-signed certificates, then `teleport` will need
+to be run with the `--insecure` flag to disable verification of the
+Proxy Service TLS certificate. This is the case when:
+- The Teleport config file `proxy_server` setting is set to the Proxy Service endpoint:
+  - `proxy_server: "tele.example.com:443"` or
+  - `proxy_server: "tele.example.com:3080"`
+- Teleport is started with the `--auth-server` flag pointing to the Proxy Service endpoint:
+  - `teleport [app | db] start --auth-server=tele.example.com:443` or
+  - `teleport [app | db] start --auth-server=tele.example.com:3080`
+
+Instructions for disabling TLS certificate verification depend on how you are
+running Teleport: via the `teleport` CLI, using a Helm chart, or via systemd:
+<Tabs>
+
+    <TabItem label="Using the CLI">
+    When running `teleport` from the command line, pass the `--insecure` flag to disable
+    TLS certificate validation. For example:
+    ```sh
+    $ sudo teleport start -c /etc/teleport.yaml --insecure
+    $ sudo teleport app start -c /etc/teleport.yaml --insecure
+    $ sudo teleport db start -c /etc/teleport.yaml --insecure
+    ```
+    Without the `--insecure` flag, you will see an error message that looks like
+    `x509: “tele.example.com” certificate is not trusted`.
+    </TabItem>
+
+    <TabItem label="Helm chart">
+    If you are using the `teleport-cluster` Helm chart, set
+    [extraArgs](../../../reference/helm-reference/teleport-cluster.mdx)
+    to include the extra argument: `--insecure`.
+
+    Here is an example of the field within a values file:
+
+    ```yaml
+    extraArgs:
+    - "--insecure"
+    ```
+
+    When using the `--set` flag, use the following syntax:
+
+
+      ```text
+      --set "extraArgs={--insecure}"
+      ```
+    
+    If you are using the `teleport-kube-agent` chart, set the 
+    [insecureSkipProxyTLSVerify](../../../reference/helm-reference/teleport-kube-agent.mdx)
+    flag to `true`.
+
+    In a values file, this would appear as follows:
+
+    ```yaml
+    insecureSkipProxyTLSVerify: true
+    ```
+
+    When using the `--set` flag, use the following syntax:
+
+    ```text
+    --set insecureSkipProxyTLSVerify=true
+    ```
+    </TabItem>
+
+    <TabItem label="systemd">
+    Locate the `systemd` unit file for Teleport (called teleport.service) by running the following command:
+    ```sh
+    $ systemctl status teleport
+    ```
+    You will see output similar to the following, including the file path (`/lib/systemd/system/teleport.service`) that contains the unit file for the systemd configuration being applied:
+
+    ```code
+    ● teleport.service - Teleport Service
+        Loaded: loaded (/lib/systemd/system/teleport.service; disabled; vendor preset: enabled)
+        Active: inactive (dead)
+    ```
+
+    Edit the Teleport unit file to include `--insecure` in the `ExecStart` line, for example:
+    ```text
+    ExecStart=/usr/local/bin/teleport start --pid-file=/run/teleport.pid --insecure
+    ```
+    
+    After saving the unit file, you will need to reload the daemon for your changes to take effect:
+    ```sh
+    $ sudo systemctl daemon-reload
+    $ sudo systemctl restart teleport.service
+    ```
+    </TabItem>
+
+</Tabs>
+
+### `tctl`
+When running `tctl` remotely via the Teleport Proxy Service, if the Proxy Service is using self-signed 
+certificates, then `tctl` will not trust the certificate from the Proxy Service.
+To disable certificate verification use the `--insecure` flag when running `tctl` commands.
+
+`tctl` will determine how to connect to the Auth Service in a few ways:
+- loading configuration from a local profile after logging in with `tsh`
+- loading from a config file passed as an argument: `tctl -c /etc/teleport.yaml`
+- passing the `--auth-server` flag directly, as in:
+  - `tctl --auth-server=tele.example.com:443` or
+  - `tctl --auth-server=tele.example.com:3080`
+
+If any of these methods tries to connect via the Teleport Proxy Service, and the Proxy Service is using 
+self-signed certificates, then `tctl` will not trust the certificate from the Proxy Service and you will get an
+error message about
+untrusted or invalid certificates, unless `--insecure` is also passed to `tctl`.
+
+For example: `tctl status --insecure`
+
+### `tsh`
+When running `tsh`, you must specify the Teleport Proxy Service address for `tsh` to connect to.
+If the Teleport Proxy Service is using self-signed certificates, then `tsh` will not trust the Proxy Service 
+certificate.
+In order to use `tsh` in this case, you need to use the `--insecure` flag.
+
+For example: `tsh login --proxy=tele.example.com:443 --user=alice --insecure`
+
+### Teleport Connect
+
+Teleport Connect lets you [skip TLS certificate verification with the `--insecure`
+flag](../../../connect-your-client/teleport-connect.mdx).
+
+## Further reading
+
+- [Configuring Teleport TLS Certs](../../deploy-a-cluster/linux-demo.mdx#configure-teleport)
+- [Run Teleport as a systemd Daemon](./daemon.mdx)
+- [Teleport Proxy Service](../../../reference/architecture/proxy.mdx)
+- [Teleport Authentication](../../../reference/architecture/authentication.mdx)

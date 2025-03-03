@@ -1,0 +1,51 @@
+```yaml
+kind: token
+version: v2
+metadata:
+  # name identifies the token. When configuring a bot or node to join using this
+  # token, this name should be specified.
+  name: tpm-token
+spec:
+  # For Machine ID and TPM joining, roles will always be "Bot" and
+  # join_method will always be "tpm".
+  roles: [Bot]
+  join_method: tpm
+
+  # bot_name specifies the name of the bot that this token will grant access to
+  # when it is used.
+  bot_name: tpm-demo
+
+  # tpm specifies the TPM join method specific configuration for this token.
+  tpm:
+    # ekcert_allowed_cas is a list of CA certificates that will be used to
+    # validate TPM EKCerts. These should be PEM wrapped.
+    #
+    # When specified, joining TPMs must present an EKCert signed by one of the
+    # specified CAs. TPMs that do not present an EKCert will be not permitted to
+    # join.
+    #
+    # When unspecified, TPMs will be allowed to join with either an EKCert or an
+    # EKPubHash.
+    ekcert_allowed_cas:
+      - |
+        -----BEGIN CERTIFICATE-----
+        ... CA Certificate Data ...
+        -----END CERTIFICATE-----
+    # allow is a list of Rules, the presented TPM must match one allow rule to
+    # be permitted to join using this token.
+    allow:
+        # description is a human-readable description of the rule. It has no
+        # bearing on whether a TPM is allowed to join, but can be used to
+        # associate a rule with a specific host (e.g the asset tag of the server
+        # in which the TPM resides).
+      - description: "example-build-server-100"
+        # ek_public_hash is the SHA256 hash of the EKPub marshaled in PKIX format
+        # and encoded in hexadecimal. This value will also be checked when a TPM
+        # has submitted an EKCert, and the public key in the EKCert will be used
+        # for this check.
+        ek_public_hash: "d4b4example6fabfc568d74f2example6c35a05337d7af9a6example6c891aa6"
+        # ek_certificate_serial is the serial number of the EKCert in hexadecimal
+        # with colon separated nibbles. This value will not be checked when a TPM
+        # does not have an EKCert configured.
+        ek_certificate_serial: "01:23:45:67:89:ex:am:pl:e0:23:45:67:89:ab:cd:ef"
+```

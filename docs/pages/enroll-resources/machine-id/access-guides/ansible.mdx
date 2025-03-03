@@ -1,0 +1,266 @@
+---
+title: Machine ID with Ansible
+description: How to use Machine ID with Ansible
+---
+
+Ansible is a common tool for managing fleets of Linux hosts via SSH. In order to
+connect to the hosts, it requires a form of authentication. Machine ID can be
+used to provide short-lived certificates to Ansible that allow it to connect
+to SSH nodes enrolled in Teleport in a secure and auditable manner.
+
+In this guide, you will configure the Machine ID agent, `tbot`, to produce
+credentials and an OpenSSH configuration, and then configure Ansible to use
+these to connect to your SSH nodes through the Teleport Proxy Service.
+
+## Prerequisites
+
+You will need the following tools to use Teleport with Ansible.
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- `ssh` OpenSSH tool
+
+- `ansible` >= (=ansible.min_version=)
+
+- Optional: [`jq`](https://stedolan.github.io/jq/) to process `JSON` output
+
+- `tbot` must already be installed and configured on the machine that will
+  run Ansible. For more information, see the
+  [deployment guides](../deployment/deployment.mdx).
+
+- If you followed the above guide, note the `--destination-dir=/opt/machine-id`
+  flag, which defines the directory where SSH certificates and OpenSSH configuration
+  used by Ansible will be written.
+
+  In particular, you will be using the `/opt/machine-id/ssh_config` file in your
+  Ansible configuration to define how Ansible should connect to Teleport Nodes.
+
+- (!docs/pages/includes/tctl.mdx!)
+
+## Step 1/4. Configure RBAC
+
+As Ansible will use the credentials produced by `tbot` to connect to the SSH
+nodes, you first need to configure Teleport to grant the bot access. This is
+done by creating a role that grants the necessary permissions and then assigning
+this role to a Bot.
+
+In this example, access will be granted to all SSH nodes for the username
+<Var name="root" />. Ensure that you set this to a username that is available
+across your SSH nodes and that will have the appropriate privileges to manage
+your nodes.
+
+Create a file called `role.yaml` with the following content:
+
+```yaml
+kind: role
+version: v6
+metadata:
+  name: example-role
+spec:
+  allow:
+    # Allow login to the user 'root'.
+    logins: ['<Var name="root" />']
+    # Allow connection to any node. Adjust these labels to match only nodes
+    # that Ansible needs to access.
+    node_labels:
+      '*': '*'
+```
+
+Replace `example-role` with a descriptive name related to your use case.
+
+For production use, you should use labels to restrict this access to only the
+hosts that Ansible will need to access. This is known as the principal of
+least privilege and reduces damage that exfiltrated credentials can do.
+
+Use `tctl create -f ./role.yaml` to create the role.
+
+(!docs/pages/includes/create-role-using-web.mdx!)
+
+Now, use `tctl bots update` to add the role to the Bot. Replace `example`
+with the name of the Bot you created in the deployment guide and `example-role`
+with the name of the role you just created:
+
+```code
+$ tctl bots update example --add-roles example-role
+```
+
+## Step 2/4. Configure the `tbot` output
+
+Now, `tbot` needs to be configured with an output that will produce the
+credentials and SSH configuration that is needed by Ansible. For SSH,
+we use the `identity` output type.
+
+Outputs must be configured with a destination. In this example, the `directory`
+destination will be used. This will write these credentials to a specified
+directory on disk. Ensure that this directory can be written to by the Linux
+user that `tbot` runs as, and that it can be read by the Linux user that Ansible
+will run as.
+
+Modify your `tbot` configuration to add an `identity` output:
+
+```yaml
+outputs:
+- type: identity
+  destination:
+    type: directory
+    # For this guide, /opt/machine-id is used as the destination directory.
+    # You may wish to customize this. Multiple outputs cannot share the same
+    # destination.
+    path: /opt/machine-id
+```
+
+If operating `tbot` as a background service, restart it. If running `tbot` in
+one-shot mode, it must be executed before you attempt to execute the Ansible
+playbook.
+
+You should now see several files under `/opt/machine-id`:
+
+- `ssh_config`: this can be used with Ansible or OpenSSH to configure them to
+use the Teleport Proxy Service with the correct credentials when making connections.
+- `known_hosts`: this contains the Teleport SSH host CAs and allows the SSH
+client to validate a host's certificate.
+- `key-cert.pub`: this is an SSH certificate signed by the Teleport SSH user
+CA.
+- `key`: this is the private key needed to use the SSH certificate.
+
+Next, Ansible will be configured to use these files when making connections.
+
+## Step 3/4. Configure Ansible
+
+Create a folder named `ansible` where all Ansible files will be collected.
+
+```code
+$ mkdir -p ansible
+$ cd ansible
+```
+
+Create a file called `ansible.cfg`. We will configure Ansible
+to run the OpenSSH client with the configuration file generated
+by Machine ID, `/opt/machine-id/ssh_config`. Note, `example.com` here is the
+name of your Teleport cluster.
+
+```code
+[defaults]
+host_key_checking = True
+inventory=./hosts
+remote_tmp=/tmp
+
+[ssh_connection]
+scp_if_ssh = True
+ssh_args = -F /opt/machine-id/ssh_config
+```
+
+You can then create an inventory file called `hosts`. This should refer to the
+hosts using their hostname as registered in Teleport and the name of your
+Teleport cluster should be appended to this. For example, if your cluster is
+called `teleport.example.com` and your host is called `node1`, the entry in
+`hosts` would be `node1.teleport.example.com`.
+
+You can generate an inventory file for all your nodes that meets this
+requirement with a script like the following:
+
+```code
+# Source tsh env to get the name of the current Teleport cluster.
+$ eval "$( tsh env )"
+# You can modify the `tsh ls` command to filter nodes based ont he label.
+$ tsh ls --format=json | jq --arg cluster $TELEPORT_CLUSTER -r '.[].spec.hostname + "." + $cluster' > hosts
+```
+
+<Details title="Not seeing Nodes?">
+
+(!docs/pages/includes/node-logins.mdx!)
+
+</Details>
+
+## Step 4/4. Run a playbook
+
+Finally, let's create a simple Ansible playbook, `playbook.yaml`. The example
+playbook below runs `hostname` on all hosts.
+
+```yaml
+- hosts: all
+  remote_user: <Var name="root" />
+  tasks:
+    - name: "hostname"
+      command: "hostname"
+```
+
+From the folder `ansible`, run the Ansible playbook:
+
+```code
+$ ansible-playbook playbook.yaml
+
+# PLAY [all] *****************************************************************************************************************************************
+# TASK [Gathering Facts] *****************************************************************************************************************************
+#
+# ok: [terminal]
+#
+# TASK [hostname] ************************************************************************************************************************************
+# changed: [terminal]
+#
+# PLAY RECAP *****************************************************************************************************************************************
+# terminal                   : ok=2    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+```
+
+You are all set. You have provided your machine with short-lived certificates
+tied to a machine identity that can be rotated, audited, and controlled with
+all the familiar Teleport access controls.
+
+## Troubleshooting
+
+In case if Ansible cannot connect, you may see error like this one:
+
+```txt
+example.host | UNREACHABLE! => {
+    "changed": false,
+    "msg": "Failed to connect to the host via ssh: ssh: Could not resolve hostname node-name: Name or service not known",
+    "unreachable": true
+}
+```
+
+You can examine and tweak patterns matching the inventory hosts in `ssh_config`.
+
+Try the SSH connection using `ssh_config` with verbose mode to inspect the error:
+
+```code
+$ ssh -vvv -F /opt/machine-id/ssh_config <Var name="root" />@node-name.example.com
+```
+
+If `ssh` works, try running the playbook with verbose mode on:
+
+```code
+$ ansible-playbook -vvv playbook.yaml
+```
+
+If your hostnames contain uppercase characters (like `MYHOSTNAME`), please note that Teleport's internal hostname matching
+is case sensitive by default, which can also lead to seeing this error.
+
+If this is the case, you can work around this by enabling case-insensitive routing at the cluster level.
+
+<Tabs>
+<TabItem label="Self-hosted Teleport">
+
+Edit your `/etc/teleport.yaml` config file on all servers running the Teleport `auth_service`, then restart Teleport on each.
+
+```yaml
+auth_service:
+  case_insensitive_routing: true
+```
+
+</TabItem>
+<TabItem label="Managed Teleport Enterprise/Cloud">
+
+Run `tctl edit cluster_networking_config` to add the following specification, then save and exit.
+
+```yaml
+spec:
+  case_insensitive_routing: true
+```
+
+</TabItem>
+</Tabs>
+
+## Next steps
+
+- Read the [configuration reference](../../../reference/machine-id/configuration.mdx) to explore
+  all the available configuration options.

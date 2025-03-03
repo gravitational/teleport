@@ -16,18 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen, userEvent } from 'design/utils/testing';
+import { act, render, screen, userEvent } from 'design/utils/testing';
 
 import Logger, { NullService } from 'teleterm/logger';
-import { VnetContextProvider } from 'teleterm/ui/Vnet';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
-
-import { Workspace } from 'teleterm/ui/services/workspacesService';
+import {
+  DocumentTshNode,
+  Workspace,
+} from 'teleterm/ui/services/workspacesService';
+import { routing } from 'teleterm/ui/uri';
+import { unique } from 'teleterm/ui/utils';
+import { VnetContextProvider } from 'teleterm/ui/Vnet';
 
 import { Connections } from './Connections';
+import { ConnectionsContextProvider } from './connectionsContext';
 
 beforeAll(() => {
   Logger.init(new NullService());
@@ -56,9 +60,11 @@ describe('opening VNet panel', () => {
 
     render(
       <MockAppContextProvider>
-        <VnetContextProvider>
-          <Connections />
-        </VnetContextProvider>
+        <ConnectionsContextProvider>
+          <VnetContextProvider>
+            <Connections />
+          </VnetContextProvider>
+        </ConnectionsContextProvider>
       </MockAppContextProvider>
     );
 
@@ -109,7 +115,7 @@ describe('opening a connection', () => {
       serverId: 'foo',
       login: 'alice',
       title: 'alice@foo',
-      uri: '/docs/123',
+      uri: routing.getDocUri({ docId: unique() }),
     };
     appContext.workspacesService.setState(draft => {
       draft.workspaces[cluster.uri] = {
@@ -120,9 +126,11 @@ describe('opening a connection', () => {
 
     render(
       <MockAppContextProvider appContext={appContext}>
-        <VnetContextProvider>
-          <Connections />
-        </VnetContextProvider>
+        <ConnectionsContextProvider>
+          <VnetContextProvider>
+            <Connections />
+          </VnetContextProvider>
+        </ConnectionsContextProvider>
       </MockAppContextProvider>
     );
 
@@ -136,4 +144,143 @@ describe('opening a connection', () => {
     const workspace = appContext.workspacesService.getWorkspace(cluster.uri);
     expect(workspace.location).toEqual(doc.uri);
   });
+});
+
+test('adding a new conn while the list is open puts the new conn at the top', async () => {
+  const user = userEvent.setup();
+  const appContext = new MockAppContext();
+  const cluster = makeRootCluster();
+  appContext.clustersService.setState(draft => {
+    draft.clusters.set(cluster.uri, cluster);
+  });
+  const doc: DocumentTshNode = {
+    kind: 'doc.terminal_tsh_node',
+    origin: 'search_bar',
+    rootClusterId: cluster.name,
+    leafClusterId: undefined,
+    serverUri: `${cluster.uri}/servers/foo`,
+    serverId: 'foo',
+    login: 'alice',
+    title: 'alice@foo',
+    uri: routing.getDocUri({ docId: unique() }),
+    status: 'connected',
+  };
+  appContext.workspacesService.setState(draft => {
+    draft.workspaces[cluster.uri] = {
+      documents: [doc],
+      location: undefined,
+    } as Workspace;
+  });
+
+  render(
+    <MockAppContextProvider appContext={appContext}>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
+    </MockAppContextProvider>
+  );
+
+  await user.click(screen.getByTitle(/Open Connections/));
+  expect(screen.getByText(doc.title)).toBeInTheDocument();
+
+  const newDoc: DocumentTshNode = {
+    kind: 'doc.terminal_tsh_node',
+    origin: 'search_bar',
+    rootClusterId: cluster.name,
+    leafClusterId: undefined,
+    serverUri: `${cluster.uri}/servers/bar`,
+    serverId: 'bar',
+    login: 'alice',
+    title: 'alice@bar',
+    uri: routing.getDocUri({ docId: unique() }),
+    status: 'connected',
+  };
+
+  act(() => {
+    appContext.workspacesService.setState(draft => {
+      draft.workspaces[cluster.uri].documents.push(newDoc);
+    });
+  });
+
+  const oldConn = screen.getByText(doc.title);
+  const newConn = screen.getByText(newDoc.title);
+  // https://developer.mozilla.org/en-US/docs/Web/API/Node/compareDocumentPosition
+  expect(
+    newConn.compareDocumentPosition(oldConn) & Node.DOCUMENT_POSITION_FOLLOWING
+  ).toBeTruthy();
+});
+
+test('disconnecting a conn does not update its position in the list', async () => {
+  const user = userEvent.setup();
+  const appContext = new MockAppContext();
+  const cluster = makeRootCluster();
+  appContext.clustersService.setState(draft => {
+    draft.clusters.set(cluster.uri, cluster);
+  });
+  const doc: DocumentTshNode = {
+    kind: 'doc.terminal_tsh_node',
+    origin: 'search_bar',
+    rootClusterId: cluster.name,
+    leafClusterId: undefined,
+    serverUri: `${cluster.uri}/servers/foo`,
+    serverId: 'foo',
+    login: 'alice',
+    title: 'alice@foo',
+    uri: routing.getDocUri({ docId: unique() }),
+    status: 'connected',
+  };
+  const docToBeClosed: DocumentTshNode = {
+    kind: 'doc.terminal_tsh_node',
+    origin: 'search_bar',
+    rootClusterId: cluster.name,
+    leafClusterId: undefined,
+    serverUri: `${cluster.uri}/servers/bar`,
+    serverId: 'bar',
+    login: 'alice',
+    title: 'alice@bar',
+    uri: routing.getDocUri({ docId: unique() }),
+    status: 'connected',
+  };
+  appContext.workspacesService.setState(draft => {
+    draft.workspaces[cluster.uri] = {
+      documents: [docToBeClosed, doc],
+      location: undefined,
+    } as Workspace;
+  });
+
+  render(
+    <MockAppContextProvider appContext={appContext}>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
+    </MockAppContextProvider>
+  );
+
+  await user.click(screen.getByTitle(/Open Connections/));
+  const conn = () => screen.getByText(doc.title);
+  const connToBeClosed = () => screen.getByText(docToBeClosed.title);
+
+  // https://developer.mozilla.org/en-US/docs/Web/API/Node/compareDocumentPosition
+  expect(
+    connToBeClosed().compareDocumentPosition(conn()) &
+      Node.DOCUMENT_POSITION_FOLLOWING
+  ).toBeTruthy();
+
+  const disconnectButton = screen.getByTitle(
+    `Disconnect ${docToBeClosed.title}`
+  );
+  await user.click(disconnectButton);
+
+  expect(
+    await screen.findByTitle(`Remove ${docToBeClosed.title}`)
+  ).toBeInTheDocument();
+
+  expect(
+    connToBeClosed().compareDocumentPosition(conn()) &
+      Node.DOCUMENT_POSITION_FOLLOWING
+  ).toBeTruthy();
 });

@@ -1,0 +1,20 @@
+# This role grants the ability to manage secrets within the namespace - this is
+# necessary for the `kubernetes_secret` destination to work correctly.
+{{ if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "tbot.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+{{- if .Values.extraLabels.role }}
+  labels:
+  {{- toYaml .Values.extraLabels.role | nindent 4 }}
+{{- end }}
+{{- if .Values.annotations.role }}
+  annotations: {{- toYaml .Values.annotations.role | nindent 4 }}
+{{- end}}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["*"]
+{{ end }}

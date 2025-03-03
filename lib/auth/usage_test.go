@@ -31,9 +31,11 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/events"
 	eventstest "github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -71,8 +73,8 @@ func TestAccessRequest_WithAndWithoutLimit(t *testing.T) {
 	_, err = s.testpack.a.CreateAccessRequestV2(ctx, req, tlsca.Identity{})
 	require.Error(t, err, "expected access request creation to fail due to the monthly limit")
 
-	// Lift limit with IGS, expect no limit error.
-	s.features.IdentityGovernanceSecurity = true
+	// Lift limit, expect no limit error.
+	s.features.Entitlements[entitlements.AccessRequests] = modules.EntitlementInfo{Enabled: true, Limit: 0}
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: s.features,
 	})
@@ -80,31 +82,23 @@ func TestAccessRequest_WithAndWithoutLimit(t *testing.T) {
 	require.NoError(t, err)
 
 	// Put back limit, expect limit error.
-	s.features.IdentityGovernanceSecurity = false
+	s.features.Entitlements[entitlements.AccessRequests] = modules.EntitlementInfo{Enabled: true, Limit: 1}
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: s.features,
 	})
 	_, err = s.testpack.a.CreateAccessRequestV2(ctx, req, tlsca.Identity{})
 	require.Error(t, err, "expected access request creation to fail due to the monthly limit")
-
-	// Lift limit with legacy non-usage based, expect no limit error.
-	s.features.IsUsageBasedBilling = false
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: s.features,
-	})
-	_, err = s.testpack.a.CreateAccessRequestV2(ctx, req, tlsca.Identity{})
-	require.NoError(t, err)
 }
 
 type setupAccessRequestLimist struct {
 	monthlyLimit int
 	testpack     testPack
-	clock        clockwork.FakeClock
+	clock        *clockwork.FakeClock
 	features     modules.Features
 }
 
 func setUpAccessRequestLimitForJulyAndAugust(t *testing.T, username string, rolename string) setupAccessRequestLimist {
-	monthlyLimit := 3
+	monthlyLimit := int32(3)
 
 	makeEvent := func(eventType string, id string, timestamp time.Time) apievents.AuditEvent {
 		return &apievents.AccessRequestCreate{
@@ -118,7 +112,7 @@ func setUpAccessRequestLimitForJulyAndAugust(t *testing.T, username string, role
 
 	features := modules.GetModules().Features()
 	features.IsUsageBasedBilling = true
-	features.AccessRequests.MonthlyRequestLimit = monthlyLimit
+	features.Entitlements[entitlements.AccessRequests] = modules.EntitlementInfo{Limit: monthlyLimit, Enabled: true}
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: features,
 	})
@@ -176,9 +170,12 @@ func setUpAccessRequestLimitForJulyAndAugust(t *testing.T, username string, role
 	})
 	p.a.SetAuditLog(al)
 
+	p.a.Notifications, err = local.NewNotificationsService(p.bk, clock)
+	require.NoError(t, err)
+
 	return setupAccessRequestLimist{
 		testpack:     p,
-		monthlyLimit: monthlyLimit,
+		monthlyLimit: int(monthlyLimit),
 		features:     features,
 		clock:        clock,
 	}

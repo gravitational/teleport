@@ -16,44 +16,115 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import styled from 'styled-components';
-import { Box } from 'design';
+import styled, { css } from 'styled-components';
 
-type Status = 'on' | 'off' | 'error';
+import { blink, Box } from 'design';
+
+export type Status = 'on' | 'off' | 'error' | 'warning' | 'processing';
 
 export const ConnectionStatusIndicator = (props: {
   status: Status;
+  /**
+   * Color for the `on` and `processing` statuses.
+   * Defaults to green (`success`).
+   */
+  activeStatusColor?: string;
+  inline?: boolean;
   [key: string]: any;
 }) => {
-  const { status, ...styles } = props;
-  return <StyledStatus $status={status} {...styles} />;
+  const { status, inline, ...styles } = props;
+
+  return (
+    <StyledStatus
+      {...styles}
+      $status={status}
+      $inline={inline}
+      activeStatusColor={props.activeStatusColor}
+    />
+  );
 };
 
-const StyledStatus = styled(Box)`
+const StyledStatus = styled(Box)<{
+  $inline?: boolean;
+  $status: Status;
+  activeStatusColor?: string;
+}>`
+  position: relative;
+  ${props => props.$inline && `display: inline-block;`}
   width: 8px;
   height: 8px;
+  flex-shrink: 0;
   border-radius: 50%;
-  ${(props: { $status: Status; [key: string]: any }) => {
-    const { $status, theme } = props;
-    let backgroundColor: string;
+
+  ${props => {
+    const {
+      $status,
+      theme,
+      activeStatusColor = props.theme.colors.interactive.solid.success.default,
+    } = props;
 
     switch ($status) {
-      case 'on':
-        backgroundColor = theme.colors.success.main;
-        break;
-      case 'off':
-        backgroundColor = theme.colors.grey[300];
-        break;
-      case 'error':
-        // TODO(ravicious): Don't depend on color alone, add an exclamation mark.
-        backgroundColor = theme.colors.error.main;
-        break;
-      default:
+      case 'on': {
+        return { backgroundColor: activeStatusColor };
+      }
+      case 'processing': {
+        return css`
+          background-color: ${activeStatusColor};
+          animation: ${blink} 1.4s ease-in-out;
+          animation-iteration-count: infinite;
+        `;
+      }
+      case 'off': {
+        return { border: `1px solid ${theme.colors.grey[300]}` };
+      }
+      case 'error': {
+        // Using text instead of an icon because any icon used here would be smaller than the
+        // rounded divs used to represent on and off states.
+        //
+        // A red circle was not used to avoid differentiating states only by color.
+        //
+        // The spacing has been painstakingly adjusted so that the cross is rendered pretty much at
+        // the same spot as a rounded div would have been.
+        //
+        // To verify that the position of the cross is correct, move the &:after pseudoselector
+        // outside of this switch to StyledStatus.
+        return css`
+          color: ${theme.colors.interactive.solid.danger.default};
+          &:after {
+            // This is "multiplication X" (U+2715) as "aegan check mark" (U+10102) doesn't work on
+            // Windows.
+            content: '✕';
+            font-size: 12px;
+
+            ${!props.$inline &&
+            `position: absolute;
+            top: -8px;
+            `}
+          }
+        `;
+      }
+      case 'warning': {
+        return css`
+          color: ${theme.colors.interactive.solid.alert.default};
+          &:after {
+            content: '⚠';
+            font-size: 12px;
+
+            ${!props.$inline &&
+            `
+            position: absolute;
+            top: -1px;
+            // Visually, -1px seems to be better aligned than -2px, especially when looking at
+            // VnetWarning story.
+            left: -1px;
+            line-height: 8px;
+            `}
+          }
+        `;
+      }
+      default: {
         $status satisfies never;
+      }
     }
-    return {
-      backgroundColor,
-    };
   }}
 `;

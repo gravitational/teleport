@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { generateTshLoginCommand, arrayStrDiff, compareByString } from './util';
+import { arrayStrDiff, compareByString, generateTshLoginCommand } from './util';
 
 let windowSpy;
 

@@ -15,6 +15,8 @@
 package utils
 
 import (
+	"cmp"
+	"context"
 	"testing"
 
 	"github.com/google/uuid"
@@ -241,6 +243,159 @@ func TestRouteToServer(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.assert(t, tc.matcher.RouteToServer(tc.server))
+		})
+	}
+}
+
+type mockHostResolver struct {
+	ips []string
+}
+
+func (r mockHostResolver) LookupHost(ctx context.Context, host string) (addrs []string, err error) {
+	return r.ips, nil
+}
+
+// TestSSHRouteMatcherScoring verifies the expected scoring behavior of SSHRouteMatcher.
+func TestSSHRouteMatcherScoring(t *testing.T) {
+	t.Parallel()
+
+	// set up matcher with mock resolver in order to control ips
+	matcher, err := NewSSHRouteMatcherFromConfig(SSHRouteMatcherConfig{
+		Host: "foo.example.com",
+		Resolver: mockHostResolver{
+			ips: []string{
+				"1.2.3.4",
+				"4.5.6.7",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	tts := []struct {
+		desc     string
+		hostname string
+		name     string
+		addrs    []string
+		score    int
+	}{
+		{
+			desc:     "multi factor match",
+			hostname: "foo.example.com",
+			addrs: []string{
+				"1.2.3.4:0",
+			},
+			score: directMatch,
+		},
+		{
+			desc:     "ip match only",
+			hostname: "bar.example.com",
+			addrs: []string{
+				"1.2.3.4:0",
+			},
+			score: indirectMatch,
+		},
+		{
+			desc:     "hostname match only",
+			hostname: "foo.example.com",
+			addrs: []string{
+				"7.7.7.7:0",
+			},
+			score: directMatch,
+		},
+		{
+			desc:     "not match",
+			hostname: "bar.example.com",
+			addrs: []string{
+				"0.0.0.0:0",
+				"1.1.1.1:0",
+			},
+			score: notMatch,
+		},
+		{
+			desc:     "non-uuid name",
+			name:     "foo.example.com",
+			hostname: "foo.com",
+			addrs: []string{
+				"0.0.0.0:0",
+				"1.1.1.1:0",
+			},
+			score: indirectMatch,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.desc, func(t *testing.T) {
+			name := cmp.Or(tt.name, uuid.NewString())
+			score := matcher.RouteToServerScore(mockRouteableServer{
+				name:       name,
+				hostname:   tt.hostname,
+				publicAddr: tt.addrs,
+			})
+
+			require.Equal(t, tt.score, score)
+		})
+	}
+}
+
+type recordingHostResolver struct {
+	didLookup bool
+}
+
+func (r *recordingHostResolver) LookupHost(ctx context.Context, host string) (addrs []string, err error) {
+	r.didLookup = true
+	return nil, nil
+}
+
+// TestDisableUnqualifiedLookups verifies that unqualified lookups being disabled results
+// in single-element/tld style hostname targets not being resolved.
+func TestDisableUnqualifiedLookups(t *testing.T) {
+	tts := []struct {
+		desc   string
+		target string
+		lookup bool
+	}{
+		{
+			desc:   "qualified hostname",
+			target: "example.com",
+			lookup: true,
+		},
+		{
+			desc:   "unqualified hostname",
+			target: "example",
+			lookup: false,
+		},
+		{
+			desc:   "localhost",
+			target: "localhost",
+			lookup: false,
+		},
+		{
+			desc:   "foo.localhost",
+			target: "foo.localhost",
+			lookup: true,
+		},
+		{
+			desc:   "uuid",
+			target: uuid.NewString(),
+			lookup: false,
+		},
+		{
+			desc:   "qualified uuid",
+			target: "foo." + uuid.NewString(),
+			lookup: true,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.desc, func(t *testing.T) {
+			resolver := &recordingHostResolver{}
+			_, err := NewSSHRouteMatcherFromConfig(SSHRouteMatcherConfig{
+				Host:                      tt.target,
+				Resolver:                  resolver,
+				DisableUnqualifiedLookups: true,
+			})
+			require.NoError(t, err)
+			require.Equal(t, tt.lookup, resolver.didLookup)
 		})
 	}
 }

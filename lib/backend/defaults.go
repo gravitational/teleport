@@ -32,6 +32,12 @@ const (
 	// (e.g. heartbeats) are be created. If a watcher can't catch up in under a minute,
 	// it probably won't catch up.
 	DefaultBacklogGracePeriod = time.Second * 59
+	// DefaultCreationGracePeriod is the default amount of time time that the circular buffer
+	// will wait before enforcing the backlog grace period. This is intended to give downstream
+	// caches time to initialize before they start receiving events. Without this, large caches
+	// may be unable to successfully initialize even if they would otherwise be able to keep up
+	// with the event stream once established.
+	DefaultCreationGracePeriod = DefaultBacklogGracePeriod * 3
 	// DefaultPollStreamPeriod is a default event poll stream period
 	DefaultPollStreamPeriod = time.Second
 	// DefaultEventsTTL is a default events TTL period

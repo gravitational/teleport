@@ -1,0 +1,31 @@
+suite: Test ConfigMap
+templates:
+  - config.yaml
+tests:
+  - it: should match the snapshot (simple)
+    values:
+      - ../.lint/simple.yaml
+    asserts:
+      - matchSnapshot: {}
+  - it: should match the snapshot (full)
+    values:
+      - ../.lint/full.yaml
+    asserts:
+      - matchSnapshot: {}
+  - it: it should match the snapshot (custom)
+    set:
+      token: foo
+      tbotConfig:
+        xyzzy: foo
+        yxzyy: 17
+        outputs:
+          - type: bar
+            destination:
+              type: magic
+              path: /fuzz
+          - type: bar
+            destination:
+              type: magic
+              path: /buzz
+    asserts:
+      - matchSnapshot: {}

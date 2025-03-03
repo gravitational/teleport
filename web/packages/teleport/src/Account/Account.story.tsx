@@ -16,16 +16,49 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useEffect } from 'react';
+
+import cfg from 'teleport/config';
+import { PasswordState } from 'teleport/services/user';
 
 import { Account, AccountProps } from './Account';
 
+const defaultSecondFactor = cfg.auth.second_factor;
+
 export default {
-  title: 'Teleport/Account (new)',
+  title: 'Teleport/Account',
   component: Account,
+  decorators: [
+    Story => {
+      cfg.auth.second_factor = 'on';
+      useEffect(() => {
+        return () => {
+          cfg.auth.second_factor = defaultSecondFactor;
+        };
+      }, []);
+      return <Story />;
+    },
+  ],
 };
 
 export const Loaded = () => <Account {...props} />;
+
+export const LoadedNoDevices = () => <Account {...props} devices={[]} />;
+
+export const LoadedPasswordStateUnspecified = () => (
+  <Account
+    {...props}
+    passwordState={PasswordState.PASSWORD_STATE_UNSPECIFIED}
+  />
+);
+
+export const LoadedPasswordUnset = () => (
+  <Account
+    {...props}
+    devices={props.devices.filter(d => d.usage === 'passwordless')}
+    passwordState={PasswordState.PASSWORD_STATE_UNSET}
+  />
+);
 
 export const LoadedPasskeysOff = () => (
   <Account {...props} canAddPasskeys={false} />
@@ -53,22 +86,7 @@ export const LoadingDevicesFailed = () => (
 );
 
 export const RemoveDialog = () => (
-  <Account
-    {...props}
-    isRemoveDeviceVisible={true}
-    token="123"
-    deviceToRemove={{ id: '1', name: 'iphone 12' }}
-  />
-);
-
-export const RemoveDialogFailed = () => (
-  <Account
-    {...props}
-    isRemoveDeviceVisible={true}
-    token="123"
-    deviceToRemove={{ id: '1', name: 'iphone 12' }}
-    removeDevice={() => Promise.reject(new Error('server error'))}
-  />
+  <Account {...props} deviceToRemove={props.devices[0]} />
 );
 
 export const RestrictedTokenCreateProcessing = () => (
@@ -91,19 +109,13 @@ export const RestrictedTokenCreateFailed = () => (
 );
 
 const props: AccountProps = {
-  token: '',
-  setToken: () => null,
   onAddDevice: () => null,
   fetchDevicesAttempt: { status: 'success' },
   createRestrictedTokenAttempt: { status: '' },
   deviceToRemove: null,
   onRemoveDevice: () => null,
-  removeDevice: () => null,
   mfaDisabled: false,
-  hideReAuthenticate: () => null,
   hideRemoveDevice: () => null,
-  isReAuthenticateVisible: false,
-  isRemoveDeviceVisible: false,
   isSso: false,
   newDeviceUsage: null,
   canAddPasskeys: true,
@@ -165,7 +177,9 @@ const props: AccountProps = {
     },
   ],
   onDeviceAdded: () => {},
-  isReauthenticationRequired: false,
   addDeviceWizardVisible: false,
   closeAddDeviceWizard: () => {},
+  passwordState: PasswordState.PASSWORD_STATE_SET,
+  onPasswordChange: () => {},
+  onDeviceRemoved: () => {},
 };

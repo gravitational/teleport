@@ -16,28 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import styled from 'styled-components';
 
+import { H2, Text } from 'design';
+import { Alert } from 'design/Alert';
 import Box from 'design/Box';
-import useAttempt from 'shared/hooks/useAttemptNext';
-import Validation, { Validator } from 'shared/components/Validation';
-
-import Text from 'design/Text';
-
 import FieldInput from 'shared/components/FieldInput';
-
-import Alert from 'design/Alert';
-
-import { getBot } from 'teleport/services/bot';
-
-import useTeleport from 'teleport/useTeleport';
+import Validation, { Validator } from 'shared/components/Validation';
+import { requiredField } from 'shared/components/Validation/rules';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { LabelsInput } from 'teleport/components/LabelsInput';
+import { getBot } from 'teleport/services/bot';
+import useTeleport from 'teleport/useTeleport';
 
-import { FlowStepProps } from '../Shared/GuidedFlow';
 import { FlowButtons } from '../Shared/FlowButtons';
-
+import { FlowStepProps } from '../Shared/GuidedFlow';
 import { useGitHubFlow } from './useGitHubFlow';
 
 export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
@@ -104,9 +99,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
         GitHub Actions runners as well as GitHub Enterprise Server.
       </Text>
 
-      <Text bold fontSize={4} mb="2">
-        Step 1: Scope the Permissions for Your Bot
-      </Text>
+      <H2 mb="2">Step 1: Scope the Permissions for Your Bot</H2>
       <Validation>
         {({ validator }) => (
           <>
@@ -153,7 +146,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
                 }
                 disableBtns={isLoading}
                 inputWidth={350}
-                areLabelsRequired={true}
+                required={true}
                 labelKey={{
                   fieldName: 'Label for Resources the User Can Access',
                   placeholder: 'label key',
@@ -168,7 +161,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
                   fontWeight="lighter"
                   fontSize="1"
                 >
-                  (optional)
+                  (required field)
                 </Text>
               </Text>
               <FieldInput
@@ -181,6 +174,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
                     login: e.target.value,
                   })
                 }
+                rule={requiredField('SSH user is required')}
               />
             </FormItem>
 

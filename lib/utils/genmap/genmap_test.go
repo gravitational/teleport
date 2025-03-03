@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 )
@@ -95,35 +96,39 @@ func TestConcurrentTermination(t *testing.T) {
 	require.NoError(t, err)
 	defer gm.Close()
 
+	var increments atomic.Uint64
 	var eg errgroup.Group
-	for i := 0; i < 200; i++ {
-		if i%2 == 0 {
-			eg.Go(func() error {
-				for j := 0; j < 100; j++ {
-					n, err := gm.Get(ctx, "some-key")
-					if err != nil {
-						return err
-					}
-					if n == 0 {
-						return fmt.Errorf("expected nonzero n")
-					}
-				}
-				return nil
-			})
-		} else {
-			eg.Go(func() error {
-				gm.Terminate("some-key")
-				return nil
-			})
+	eg.Go(func() error {
+		for increments.Load() < 5 {
+			gm.Terminate("some-key")
 		}
-	}
+
+		return nil
+	})
+
+	eg.Go(func() error {
+		var lastSeen int
+		for increments.Load() < 5 {
+			n, err := gm.Get(ctx, "some-key")
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			switch {
+			case n > lastSeen:
+				lastSeen = n
+				increments.Add(1)
+			case n < lastSeen:
+				return trace.Errorf("unexpected decrement %d -> %d", lastSeen, n)
+			case n == 0:
+				return trace.Errorf("n should not be zero")
+			}
+		}
+
+		return nil
+	})
 
 	require.NoError(t, eg.Wait())
-
-	// sanity check to assert that concurrent termination really happened (in practice we expect
-	// this value to always be *much* larger than 2).
-	n, _ := gm.Get(ctx, "some-key")
-	require.Greater(t, n, 2)
 }
 
 // TestBackground tests basic expected behaviors of background regen.
@@ -154,7 +159,7 @@ func TestBackground(t *testing.T) {
 
 	// verify that background regeneration occurs multiple times
 	timeout := time.After(time.Second * 30)
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 4; i++ {
 		select {
 		case <-gench:
 		case <-timeout:

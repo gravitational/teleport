@@ -20,9 +20,9 @@ package reversetunnelclient
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
@@ -75,7 +75,7 @@ func (t *TunnelWithRoles) GetSites() ([]RemoteSite, error) {
 			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
 			}
-			logrus.Warningf("Skipping dangling cluster %q, no remote cluster resource found.", cluster.GetName())
+			slog.WarnContext(ctx, "Skipping dangling cluster, no remote cluster resource found", "cluster", cluster.GetName())
 			continue
 		}
 		if err := t.accessChecker.CheckAccessToRemoteCluster(rc); err != nil {
@@ -94,14 +94,14 @@ func (t *TunnelWithRoles) GetSite(clusterName string) (RemoteSite, error) {
 	ctx := context.TODO()
 	cluster, err := t.tunnel.GetSite(clusterName)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, utils.OpaqueAccessDenied(err)
 	}
 	if t.localCluster == cluster.GetName() {
 		return cluster, nil
 	}
 	rc, err := t.access.GetRemoteCluster(ctx, clusterName)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, utils.OpaqueAccessDenied(err)
 	}
 	if err := t.accessChecker.CheckAccessToRemoteCluster(rc); err != nil {
 		return nil, utils.OpaqueAccessDenied(err)

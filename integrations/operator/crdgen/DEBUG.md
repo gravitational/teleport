@@ -28,7 +28,9 @@ Output written to /var/folders/vz/qfyzlg092_dgktzq3nzp5s040000gn/T/tmp.WQWM1TXWk
 ### 2. Building a debug `crdgen`
 
 Configure your IDE to set the tag `debug` on build, or manually build the plugin
-`go build -o protoc-gen-crd-debug -tags debug`.
+```
+go build github.com/gravitational/teleport/integrations/operator/crdgen/cmd/protoc-gen-crd -tags debug
+```
 
 This debug build won't load requests from stdin, but from a dump file.
 

@@ -19,17 +19,18 @@
 import React, { useCallback, useContext, useEffect, useState } from 'react';
 
 import { useTeleport } from 'teleport';
+import { ResourceKind } from 'teleport/Discover/Shared/ResourceKind';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
 import {
   INTERNAL_RESOURCE_ID_LABEL_KEY,
   JoinToken,
 } from 'teleport/services/joinToken';
-import { ResourceKind } from 'teleport/Discover/Shared/ResourceKind';
 
 interface PingTeleportContextState<T> {
   active: boolean;
   start: (tokenOrTerm: JoinToken | string) => void;
   result: T | null;
+  stop: () => void;
 }
 
 const pingTeleportContext =
@@ -60,7 +61,7 @@ export function PingTeleportProvider<T>(props: {
   const result = usePoll<T>(
     signal =>
       servicesFetchFn(signal).then(res => {
-        if (res.agents.length) {
+        if (res?.agents?.length) {
           return res.agents[0];
         }
 
@@ -83,12 +84,6 @@ export function PingTeleportProvider<T>(props: {
     switch (props.resourceKind) {
       case ResourceKind.Server:
         return ctx.nodeService.fetchNodes(clusterId, request, signal);
-      case ResourceKind.Desktop:
-        return ctx.desktopService.fetchDesktopServices(
-          clusterId,
-          request,
-          signal
-        );
       case ResourceKind.Kubernetes:
         return ctx.kubeService.fetchKubernetes(clusterId, request, signal);
       case ResourceKind.Database:
@@ -123,6 +118,7 @@ export function PingTeleportProvider<T>(props: {
         active,
         start,
         result,
+        stop: () => setActive(false),
       }}
     >
       {props.children}
@@ -143,6 +139,8 @@ export function usePingTeleport<T>(tokenOrTerm: JoinToken | string) {
     if (!ctx.active && !ctx.result) {
       ctx.start(tokenOrTerm);
     }
+
+    return () => ctx.stop();
   }, []);
 
   return ctx;

@@ -43,6 +43,43 @@
         --set authAddr="${TELEPORT_ADDR?}" \
         --set token="${JOIN_TOKEN?}"</pre>
     <br />
+    <pre><b><a href="https://github.com/gravitational/teleport/tree/master/examples/chart/access/slack">teleport-plugin-slack:</a></b>
+      # Install the Teleport Slack Plugin to send Slack notifications on Access Requests.
+      # Click the link above to see the README.
+
+      helm install ${RELEASE_NAME?} teleport/teleport-plugin-slack \
+        --create-namespace \
+        --namespace ${NAMESPACE?} \
+        --set teleport.address="${TELEPORT_ADDR?}" \
+        --set teleport.identitySecretName="${ID_SECRET}" \
+        --set roleToRecipients.\*[0]=admin-channel \
+        --set slack.token="${SLACK_TOKEN}"</pre>
+    <br />
+    <pre><b><a href="https://github.com/gravitational/teleport/tree/master/examples/chart/access/datadog">teleport-plugin-datadog:</a></b>
+      # Install the Teleport Datadog Incident Management Plugin to create Datadog incidents on Access Requests.
+      # Click the link above to see the README.
+
+      helm install ${RELEASE_NAME?} teleport/teleport-plugin-datadog \
+        --create-namespace \
+        --namespace ${NAMESPACE?} \
+        --set teleport.address="${TELEPORT_ADDR?}" \
+        --set teleport.identitySecretName="${ID_SECRET}" \
+        --set datadog.apiEndpoint="https://api.datadoghq.com" \
+        --set datadog.apiKey="${DATADOG_API_KEY}" \
+        --set datadog.applicationKey="${DATADOG_APPLICATION_KEY}" \
+        --set datadog.fallbackRecipient="${EMAIL?}"</pre>
+    <br />
+    <pre><b><a href="https://github.com/gravitational/teleport/tree/master/examples/chart/tbot">tbot:</a></b>
+      # Install the TBot chart to automatically configure a tbot agent to
+      # generate short-lived credentials for consumption by clients.
+      # Click the link above to see the README.
+
+      helm install ${RELEASE_NAME?} teleport/tbot \
+        --create-namespace \
+        --namespace ${NAMESPACE?} \
+        --set teleportProxyAddress="${TELEPORT_ADDR?}" \
+        --set token="${TELEPORT_TOKEN?}"</pre>
+    <br />
     <h3>Changelog</h3>
     <pre>See the <a href="https://goteleport.com/docs/changelog/">Teleport Changelog</a> for a list of important changes between Helm chart versions.</pre>
   </body>

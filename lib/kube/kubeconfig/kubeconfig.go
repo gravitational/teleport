@@ -21,14 +21,14 @@ package kubeconfig
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -36,11 +36,10 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var log = logrus.WithFields(logrus.Fields{
-	teleport.ComponentKey: teleport.ComponentKubeClient,
-})
+var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentKubeClient)
 
 const (
 	// teleportKubeClusterNameExtension is the name of the extension that
@@ -58,7 +57,7 @@ type Values struct {
 	ClusterAddr string
 	// Credentials are user credentials to use for authentication the
 	// ClusterAddr. Only TLS fields (key/cert/CA) from Credentials are used.
-	Credentials *client.Key
+	Credentials *client.KeyRing
 	// Exec contains optional values to use, when configuring tsh as an exec
 	// auth plugin in kubeconfig.
 	//
@@ -250,9 +249,9 @@ func UpdateConfig(path string, v Values, storeAllCAs bool, fs ConfigFS) error {
 		// Validate the provided credentials, to avoid partially-populated
 		// kubeconfig.
 
-		// TODO (Joerger): Create a custom k8s Auth Provider or Exec Provider to use non-rsa
-		// private keys for kube credentials (if possible)
-		rsaKeyPEM, err := v.Credentials.PrivateKey.RSAPrivateKeyPEM()
+		// TODO (Joerger): Create a custom k8s Auth Provider or Exec Provider to
+		// use hardware private keys for kube credentials (if possible)
+		keyPEM, err := v.Credentials.TLSPrivateKey.SoftwarePrivateKeyPEM()
 		if err == nil {
 			if len(v.Credentials.TLSCert) == 0 {
 				return trace.BadParameter("TLS certificate missing in provided credentials")
@@ -260,7 +259,7 @@ func UpdateConfig(path string, v Values, storeAllCAs bool, fs ConfigFS) error {
 
 			config.AuthInfos[contextName] = &clientcmdapi.AuthInfo{
 				ClientCertificateData: v.Credentials.TLSCert,
-				ClientKeyData:         rsaKeyPEM,
+				ClientKeyData:         keyPEM,
 			}
 			setContext(config.Contexts, contextName, clusterName, contextName, kubeClusterName, v.Namespace)
 			setSelectedExtension(config.Contexts, config.CurrentContext, clusterName)
@@ -268,7 +267,7 @@ func UpdateConfig(path string, v Values, storeAllCAs bool, fs ConfigFS) error {
 		} else if !trace.IsBadParameter(err) {
 			return trace.Wrap(err)
 		}
-		log.WithError(err).Warn("Kubernetes integration is not supported when logging in with a non-rsa private key.")
+		log.WarnContext(context.Background(), "Kubernetes integration is not supported when logging in with a hardware private key", "error", err)
 	}
 
 	return SaveConfig(path, *config, fs)
@@ -493,7 +492,7 @@ func PathFromEnv() string {
 	var configPath string
 	if len(parts) > 0 {
 		configPath = parts[0]
-		log.Debugf("Using kubeconfig from environment: %q.", configPath)
+		log.DebugContext(context.Background(), "Using kubeconfig from environment", "config_path", configPath)
 	}
 
 	return configPath
@@ -575,7 +574,7 @@ func setSelectedExtension(contexts map[string]*clientcmdapi.Context, prevCluster
 }
 
 // searchForSelectedCluster looks for contexts that were previously selected
-// in order to restore the the CurrentContext value.
+// in order to restore the CurrentContext value.
 // If no such key is found or multiple keys exist, it returns an empty selected
 // cluster.
 func searchForSelectedCluster(contexts map[string]*clientcmdapi.Context) string {

@@ -16,33 +16,36 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useStore } from 'shared/libs/stores';
-import {
-  DbProtocol,
-  DbType,
-  formatDatabaseInfo,
-} from 'shared/services/databases';
-import { pipe } from 'shared/utils/pipe';
-
-import * as uri from 'teleterm/ui/uri';
-import { NotificationsService } from 'teleterm/ui/services/notifications';
+import { AccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 import {
   Cluster,
-  Gateway,
+  ShowResources,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
+import {
   CreateAccessRequestRequest,
-  GetRequestableRolesRequest,
-  ReviewAccessRequestRequest,
-  PromoteAccessRequestRequest,
+  CreateGatewayRequest,
   PasswordlessPrompt,
-} from 'teleterm/services/tshd/types';
+  PromoteAccessRequestRequest,
+  ReviewAccessRequestRequest,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
+import { useStore } from 'shared/libs/stores';
+import { isAbortError } from 'shared/utils/abortError';
+import { pipe } from 'shared/utils/pipe';
+
 import { MainProcessClient } from 'teleterm/mainProcess/types';
+import {
+  CloneableAbortSignal,
+  cloneAbortSignal,
+  TshdClient,
+} from 'teleterm/services/tshd';
+import { getGatewayTargetUriKind } from 'teleterm/services/tshd/gateway';
+import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { UsageService } from 'teleterm/ui/services/usage';
+import * as uri from 'teleterm/ui/uri';
 
 import { ImmutableStore } from '../immutableStore';
-
 import type * as types from './types';
-import type { TshdClient, CloneableAbortSignal } from 'teleterm/services/tshd';
-import type * as tsh from 'teleterm/services/tshd/types';
 
 const { routing } = uri;
 
@@ -67,12 +70,18 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async addRootCluster(addr: string) {
     const { response: cluster } = await this.client.addCluster({ name: addr });
-    this.setState(draft => {
-      draft.clusters.set(
-        cluster.uri as uri.RootClusterUri,
-        this.removeInternalLoginsFromCluster(cluster)
-      );
-    });
+    // Do not overwrite the existing cluster;
+    // otherwise we may lose properties fetched from the auth server.
+    // Consider separating properties read from profile and those
+    // fetched from the auth server at the RPC message level.
+    if (!this.state.clusters.has(cluster.uri)) {
+      this.setState(draft => {
+        draft.clusters.set(
+          cluster.uri,
+          this.removeInternalLoginsFromCluster(cluster)
+        );
+      });
+    }
 
     return cluster;
   }
@@ -121,7 +130,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     // We explicitly use the `andCatchErrors` variant here. If loginLocal succeeds but syncing the
     // cluster fails, we don't want to stop the user on the failed modal – we want to open the
     // workspace and show an error state within the workspace.
-    await this.syncRootClusterAndCatchErrors(params.clusterUri);
+    await this.syncAndWatchRootClusterWithErrorHandling(params.clusterUri);
     this.usageService.captureUserLogin(params.clusterUri, 'local');
   }
 
@@ -142,8 +151,33 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       },
       { abort: abortSignal }
     );
-    await this.syncRootClusterAndCatchErrors(params.clusterUri);
+    await this.syncAndWatchRootClusterWithErrorHandling(params.clusterUri);
     this.usageService.captureUserLogin(params.clusterUri, params.providerType);
+  }
+
+  async authenticateWebDevice(
+    rootClusterUri: uri.RootClusterUri,
+    {
+      id,
+      token,
+    }: {
+      id: string;
+      token: string;
+    }
+  ) {
+    return await this.client.authenticateWebDevice({
+      rootClusterUri,
+      deviceWebToken: {
+        id,
+        token,
+        // empty fields, ignore
+        webSessionId: '',
+        browserIp: '',
+        browserUserAgent: '',
+        user: '',
+        expectedDeviceIds: [],
+      },
+    });
   }
 
   async loginPasswordless(
@@ -190,7 +224,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
               stream.requests.send({
                 request: {
                   oneofKind: 'credential',
-                  credential: { index },
+                  credential: { index: BigInt(index) },
                 },
               });
             };
@@ -235,15 +269,17 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       });
     });
 
-    await this.syncRootClusterAndCatchErrors(params.clusterUri);
+    await this.syncAndWatchRootClusterWithErrorHandling(params.clusterUri);
     this.usageService.captureUserLogin(params.clusterUri, 'passwordless');
   }
 
   /**
-   * syncRootClusterAndCatchErrors is useful when the call site doesn't have a UI for handling
-   * errors and instead wants to depend on the notifications service.
+   * Synchronizes the cluster state and starts a headless watcher for it.
+   * It shows errors as notifications.
    */
-  async syncRootClusterAndCatchErrors(clusterUri: uri.RootClusterUri) {
+  async syncAndWatchRootClusterWithErrorHandling(
+    clusterUri: uri.RootClusterUri
+  ) {
     try {
       await this.syncRootCluster(clusterUri);
     } catch (e) {
@@ -252,9 +288,40 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
         cluster?.name ||
         routing.parseClusterUri(clusterUri).params.rootClusterId;
 
-      this.notificationsService.notifyError({
+      const notificationId = this.notificationsService.notifyError({
         title: `Could not synchronize cluster ${clusterName}`,
         description: e.message,
+        action: {
+          content: 'Retry',
+          onClick: () => {
+            this.notificationsService.removeNotification(notificationId);
+            this.syncAndWatchRootClusterWithErrorHandling(clusterUri);
+          },
+        },
+      });
+      // only start the watcher if the cluster was synchronized successfully.
+      return;
+    }
+
+    try {
+      await this.client.startHeadlessWatcher({ rootClusterUri: clusterUri });
+    } catch (e) {
+      const cluster = this.findCluster(clusterUri);
+      const clusterName =
+        cluster?.name ||
+        routing.parseClusterUri(clusterUri).params.rootClusterId;
+
+      const notificationId = this.notificationsService.notifyError({
+        title: `Could not start headless requests watcher for ${clusterName}`,
+        description: e.message,
+        action: {
+          content: 'Retry',
+          onClick: () => {
+            this.notificationsService.removeNotification(notificationId);
+            // retry the entire call
+            this.syncAndWatchRootClusterWithErrorHandling(clusterUri);
+          },
+        },
       });
     }
   }
@@ -270,16 +337,30 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     ]);
   }
 
-  async syncRootClustersAndCatchErrors() {
+  async syncRootClustersAndCatchErrors(abortSignal?: AbortSignal) {
     let clusters: Cluster[];
 
     try {
-      const { response } = await this.client.listRootClusters({});
+      const { response } = await this.client.listRootClusters(
+        {},
+        { abortSignal: abortSignal && cloneAbortSignal(abortSignal) }
+      );
       clusters = response.clusters;
     } catch (error) {
-      this.notificationsService.notifyError({
+      if (isAbortError(error)) {
+        this.logger.info('Listing root clusters aborted');
+        return;
+      }
+      const notificationId = this.notificationsService.notifyError({
         title: 'Could not fetch root clusters',
         description: error.message,
+        action: {
+          content: 'Retry',
+          onClick: () => {
+            this.notificationsService.removeNotification(notificationId);
+            this.syncRootClustersAndCatchErrors();
+          },
+        },
       });
       return;
     }
@@ -290,9 +371,10 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       );
     });
 
+    // Sync root clusters and resume headless watchers for any active login sessions.
     clusters
       .filter(c => c.connected)
-      .forEach(c => this.syncRootClusterAndCatchErrors(c.uri));
+      .forEach(c => this.syncAndWatchRootClusterWithErrorHandling(c.uri));
   }
 
   async syncGatewaysAndCatchErrors() {
@@ -302,9 +384,16 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
         draft.gateways = new Map(response.gateways.map(g => [g.uri, g]));
       });
     } catch (error) {
-      this.notificationsService.notifyError({
+      const notificationId = this.notificationsService.notifyError({
         title: 'Could not synchronize database connections',
         description: error.message,
+        action: {
+          content: 'Retry',
+          onClick: () => {
+            this.notificationsService.removeNotification(notificationId);
+            this.syncGatewaysAndCatchErrors();
+          },
+        },
       });
     }
   }
@@ -326,90 +415,44 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return response.clusters;
   }
 
-  async getRequestableRoles(params: GetRequestableRolesRequest) {
-    const cluster = this.state.clusters.get(params.clusterUri);
-    // TODO(ravicious): Remove check for cluster.connected. This check should be done earlier in the
-    // UI rather than be repeated in each ClustersService method.
-    if (!cluster.connected) {
-      return;
-    }
-
-    const { response } = await this.client.getRequestableRoles(params);
-
-    return response;
+  /** @deprecated Use getAssumedRequests function instead of the method on ClustersService. */
+  getAssumedRequests(
+    rootClusterUri: uri.RootClusterUri
+  ): Record<string, AccessRequest> {
+    return getAssumedRequests(this.state, rootClusterUri);
   }
 
-  getAssumedRequests(rootClusterUri: uri.RootClusterUri) {
-    const cluster = this.state.clusters.get(rootClusterUri);
-    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
-    if (!cluster?.connected) {
-      return {};
-    }
-
-    return cluster.loggedInUser?.assumedRequests || {};
-  }
-
-  getAssumedRequest(rootClusterUri: uri.RootClusterUri, requestId: string) {
-    return this.getAssumedRequests(rootClusterUri)[requestId];
-  }
-
-  async getAccessRequests(rootClusterUri: uri.RootClusterUri) {
-    const cluster = this.state.clusters.get(rootClusterUri);
-    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
-    if (!cluster.connected) {
-      return;
-    }
-
-    const { response } = await this.client.getAccessRequests({
-      clusterUri: rootClusterUri,
-    });
-    return response.requests;
-  }
-
-  async deleteAccessRequest(
+  /** Assumes roles for the given requests. */
+  async assumeRoles(
     rootClusterUri: uri.RootClusterUri,
-    requestId: string
-  ) {
-    const cluster = this.state.clusters.get(rootClusterUri);
-    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
-    if (!cluster.connected) {
-      return;
-    }
-    await this.client.deleteAccessRequest({
-      rootClusterUri,
-      accessRequestId: requestId,
-    });
-  }
-
-  async assumeRole(
-    rootClusterUri: uri.RootClusterUri,
-    requestIds: string[],
-    dropIds: string[]
-  ) {
-    const cluster = this.state.clusters.get(rootClusterUri);
-    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
-    if (!cluster.connected) {
-      return;
-    }
+    requestIds: string[]
+  ): Promise<void> {
     await this.client.assumeRole({
       rootClusterUri,
       accessRequestIds: requestIds,
-      dropRequestIds: dropIds,
+      dropRequestIds: [],
     });
     this.usageService.captureAccessRequestAssumeRole(rootClusterUri);
-    return this.syncRootCluster(rootClusterUri);
+    await this.syncRootCluster(rootClusterUri);
+  }
+
+  /** Drops roles for the given requests. */
+  async dropRoles(
+    rootClusterUri: uri.RootClusterUri,
+    requestIds: string[]
+  ): Promise<void> {
+    await this.client.assumeRole({
+      rootClusterUri,
+      accessRequestIds: [],
+      dropRequestIds: requestIds,
+    });
+    await this.syncRootCluster(rootClusterUri);
   }
 
   async getAccessRequest(
     rootClusterUri: uri.RootClusterUri,
     requestId: string
   ) {
-    const cluster = this.state.clusters.get(rootClusterUri);
-    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
-    if (!cluster.connected) {
-      return;
-    }
-
     const { response } = await this.client.getAccessRequest({
       clusterUri: rootClusterUri,
       accessRequestId: requestId,
@@ -419,12 +462,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   }
 
   async reviewAccessRequest(params: ReviewAccessRequestRequest) {
-    const cluster = this.state.clusters.get(params.rootClusterUri);
-    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
-    if (!cluster.connected) {
-      return;
-    }
-
     const { response } = await this.client.reviewAccessRequest(params);
     this.usageService.captureAccessRequestReview(params.rootClusterUri);
     return response.request;
@@ -437,12 +474,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   }
 
   async createAccessRequest(params: CreateAccessRequestRequest) {
-    const cluster = this.state.clusters.get(params.rootClusterUri);
-    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
-    if (!cluster.connected) {
-      return;
-    }
-
     const response = await this.client.createAccessRequest(params);
     if (!params.dryRun) {
       this.usageService.captureAccessRequestCreate(
@@ -486,7 +517,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return response as types.AuthSettings;
   }
 
-  async createGateway(params: tsh.CreateGatewayRequest) {
+  async createGateway(params: CreateGatewayRequest) {
     const { response: gateway } = await this.client.createGateway(params);
     this.setState(draft => {
       draft.gateways.set(gateway.uri, gateway);
@@ -507,9 +538,16 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
         : gatewayUri;
       const title = `Could not close the database connection ${gatewayDescription}`;
 
-      this.notificationsService.notifyError({
+      const notificationId = this.notificationsService.notifyError({
         title,
         description: error.message,
+        action: {
+          content: 'Retry',
+          onClick: () => {
+            this.notificationsService.removeNotification(notificationId);
+            this.removeGateway(gatewayUri);
+          },
+        },
       });
       throw error;
     }
@@ -519,7 +557,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   // since we will no longer have to support old kube connections.
   // See call in `trackedConnectionOperationsFactory.ts` for more details.
   async removeKubeGateway(kubeUri: uri.KubeUri) {
-    const gateway = this.findGatewayByConnectionParams(kubeUri, '');
+    const gateway = this.findGatewayByConnectionParams({ targetUri: kubeUri });
     if (gateway) {
       await this.removeGateway(gateway.uri);
     }
@@ -571,23 +609,44 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return this.state.gateways.get(gatewayUri);
   }
 
-  findGatewayByConnectionParams(
-    targetUri: uri.GatewayTargetUri,
-    targetUser: string
-  ) {
-    let found: Gateway;
+  findGatewayByConnectionParams({
+    targetUri,
+    targetUser,
+    targetSubresourceName,
+  }: {
+    targetUri: uri.GatewayTargetUri;
+    targetUser?: string;
+    targetSubresourceName?: string;
+  }): Gateway | undefined {
+    const targetKind = getGatewayTargetUriKind(targetUri);
 
-    for (const [, gateway] of this.state.gateways) {
-      if (
-        gateway.targetUri === targetUri &&
-        gateway.targetUser === targetUser
-      ) {
-        found = gateway;
-        break;
+    for (const gateway of this.state.gateways.values()) {
+      if (gateway.targetUri !== targetUri) {
+        continue;
+      }
+
+      switch (targetKind) {
+        case 'db': {
+          if (gateway.targetUser === targetUser) {
+            return gateway;
+          }
+          break;
+        }
+        case 'kube': {
+          // Kube gateways match only on targetUri.
+          return gateway;
+        }
+        case 'app': {
+          if (gateway.targetSubresourceName === targetSubresourceName) {
+            return gateway;
+          }
+          break;
+        }
+        default: {
+          targetKind satisfies never;
+        }
       }
     }
-
-    return found;
   }
 
   /**
@@ -648,29 +707,46 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   }
 
   private async syncClusterInfo(clusterUri: uri.RootClusterUri) {
-    const { response: cluster } = await this.client.getCluster({ clusterUri });
-    // TODO: this information should eventually be gathered by getCluster
-    const assumedRequests = cluster.loggedInUser
-      ? await this.fetchClusterAssumedRequests(
-          cluster.loggedInUser.activeRequests,
-          clusterUri
-        )
-      : undefined;
-    const mergeAssumedRequests = (cluster: Cluster) => ({
-      ...cluster,
-      loggedInUser: cluster.loggedInUser && {
-        ...cluster.loggedInUser,
-        assumedRequests,
-      },
-    });
-    const processCluster = pipe(
-      this.removeInternalLoginsFromCluster,
-      mergeAssumedRequests
-    );
+    try {
+      const { response: cluster } = await this.client.getCluster({
+        clusterUri,
+      });
+      // TODO: this information should eventually be gathered by getCluster
+      const assumedRequests = cluster.loggedInUser
+        ? await this.fetchClusterAssumedRequests(
+            cluster.loggedInUser.activeRequests,
+            clusterUri
+          )
+        : undefined;
+      const mergeAssumedRequests = (cluster: Cluster) => ({
+        ...cluster,
+        loggedInUser: cluster.loggedInUser && {
+          ...cluster.loggedInUser,
+          assumedRequests,
+        },
+      });
+      const processCluster = pipe(
+        this.removeInternalLoginsFromCluster,
+        mergeAssumedRequests
+      );
 
-    this.setState(draft => {
-      draft.clusters.set(clusterUri, processCluster(cluster));
-    });
+      this.setState(draft => {
+        draft.clusters.set(clusterUri, processCluster(cluster));
+      });
+    } catch (error) {
+      this.setState(draft => {
+        const cluster = draft.clusters.get(clusterUri);
+        if (cluster) {
+          // TODO(gzdunek): We should rather store the cluster synchronization status,
+          // so the callsites could check it before reading the field.
+          // The workaround is to update the field in case of a failure,
+          // so the places that wait for showResources !== UNSPECIFIED don't get stuck indefinitely.
+          cluster.showResources = ShowResources.ACCESSIBLE_ONLY;
+        }
+      });
+
+      throw error;
+    }
   }
 
   private async fetchClusterAssumedRequests(
@@ -684,11 +760,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
         )
       )
     ).reduce((requestsMap, request) => {
-      requestsMap[request.id] = {
-        id: request.id,
-        expires: new Date(request.expires.seconds * 1000),
-        roles: request.roles,
-      };
+      requestsMap[request.id] = request;
       return requestsMap;
     }, {});
   }
@@ -709,66 +781,14 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   }
 }
 
-export function makeServer(source: tsh.Server) {
-  return {
-    uri: source.uri,
-    id: source.name,
-    clusterId: source.name,
-    hostname: source.hostname,
-    labels: source.labels,
-    addr: source.addr,
-    tunnel: source.tunnel,
-    sshLogins: [],
-  };
-}
+// A workaround to always return the same object so useEffect that relies on it
+// doesn't go into an endless loop.
+const EMPTY_ASSUMED_REQUESTS = {};
 
-export function makeDatabase(source: tsh.Database) {
-  return {
-    uri: source.uri,
-    name: source.name,
-    description: source.desc,
-    type: formatDatabaseInfo(
-      source.type as DbType,
-      source.protocol as DbProtocol
-    ).title,
-    protocol: source.protocol,
-    labels: source.labels,
-  };
-}
-
-export function makeKube(source: tsh.Kube) {
-  return {
-    uri: source.uri,
-    name: source.name,
-    labels: source.labels,
-  };
-}
-
-export interface App extends tsh.App {
-  /**
-   * `addrWithProtocol` is an app protocol + a public address.
-   * If the public address is empty, it falls back to the endpoint URI.
-   *
-   * Always empty for SAML applications.
-   */
-  addrWithProtocol: string;
-}
-
-export function makeApp(source: tsh.App): App {
-  const { publicAddr, endpointUri } = source;
-
-  const isTcp = endpointUri && endpointUri.startsWith('tcp://');
-  const isCloud = endpointUri && endpointUri.startsWith('cloud://');
-  let addrWithProtocol = endpointUri;
-  if (publicAddr) {
-    if (isCloud) {
-      addrWithProtocol = `cloud://${publicAddr}`;
-    } else if (isTcp) {
-      addrWithProtocol = `tcp://${publicAddr}`;
-    } else {
-      addrWithProtocol = `https://${publicAddr}`;
-    }
-  }
-
-  return { ...source, addrWithProtocol };
+export function getAssumedRequests(
+  state: types.ClustersServiceState,
+  rootClusterUri: uri.RootClusterUri
+): Record<string, AccessRequest> {
+  const cluster = state.clusters.get(rootClusterUri);
+  return cluster?.loggedInUser?.assumedRequests || EMPTY_ASSUMED_REQUESTS;
 }

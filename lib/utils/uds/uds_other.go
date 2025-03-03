@@ -28,31 +28,25 @@ import (
 	"github.com/gravitational/trace"
 )
 
-var errNonUnix = errors.New("uds.Conn only supported on unix")
+// TODO(espadolini): reevaluate UDS support on Windows (passing file descriptors
+// is probably not supported, still)
+var errNonUnix = errors.New("unix domain sockets are only supported on unix")
 
-// assert that *Conn implements net.Conn.
-var _ net.Conn = (*Conn)(nil)
-
-// Conn extends net.UnixConn with additional useful methods.
-type Conn struct {
-	*net.UnixConn
-}
-
-// FromFile attempts to create a [Conn] from a file. The returned conn
+// FromFile attempts to create a [net.UnixConn] from a file. The returned conn
 // is independent from the file and closing one does not close the other.
-func FromFile(fd *os.File) (*Conn, error) {
+func FromFile(fd *os.File) (*net.UnixConn, error) {
 	return nil, trace.Wrap(errNonUnix)
 }
 
 // WriteWithFDs performs a write that may also send associated FDs. Note that unless the
 // underlying socket is a datagram socket it is not guaranteed that the exact bytes written
 // will match the bytes received with the fds on the reader side.
-func (c *Conn) WriteWithFDs(b []byte, fds []*os.File) (n, fdn int, err error) {
+func WriteWithFDs(c *net.UnixConn, b []byte, fds []*os.File) (n, fdn int, err error) {
 	return 0, 0, trace.Wrap(errNonUnix)
 }
 
 // ReadWithFDs reads data and associated fds. Note that the underlying socket must be a datagram socket
 // if you need the bytes read to exactly match the bytes sent with the FDs.
-func (c *Conn) ReadWithFDs(b []byte, fds []*os.File) (n, fdn int, err error) {
+func ReadWithFDs(c *net.UnixConn, b []byte, fds []*os.File) (n, fdn int, err error) {
 	return 0, 0, trace.Wrap(errNonUnix)
 }

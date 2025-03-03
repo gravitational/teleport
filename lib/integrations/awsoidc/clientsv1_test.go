@@ -94,6 +94,15 @@ func TestNewSessionV1(t *testing.T) {
 			},
 		},
 		{
+			name:        "valid with empty region",
+			region:      "",
+			integration: "myawsintegration",
+			expectedErr: require.NoError,
+			sessionValidator: func(t *testing.T, s *session.Session) {
+				require.Equal(t, "", aws.StringValue(s.Config.Region))
+			},
+		},
+		{
 			name:        "not found error when integration is missing",
 			region:      "us-dummy-1",
 			integration: "not-found",

@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2023  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,68 +16,48 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen, userEvent } from 'design/utils/testing';
+import { createMemoryHistory } from 'history';
+import { Router } from 'react-router';
 
+import { fireEvent, render, screen, userEvent } from 'design/utils/testing';
+
+import { IntegrationList } from 'teleport/Integrations/IntegrationList';
 import {
   IntegrationKind,
-  integrationService,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
 
-import { IntegrationList } from './IntegrationList';
-
-test('aws oidc row without s3 fields should render tooltip', async () => {
-  jest
-    .spyOn(integrationService, 'fetchThumbprint')
-    .mockResolvedValue('some-thumbprint');
+test('integration list shows edit and view action menu for aws-oidc, row click navigates', async () => {
+  const history = createMemoryHistory();
+  history.push = jest.fn();
 
   render(
-    <IntegrationList
-      list={[
-        {
-          resourceType: 'integration',
-          name: 'aws',
-          kind: IntegrationKind.AwsOidc,
-          statusCode: IntegrationStatusCode.Running,
-          spec: { roleArn: '', issuerS3Prefix: '', issuerS3Bucket: '' },
-        },
-      ]}
-    />
-  );
-
-  expect(screen.getByText('aws')).toBeInTheDocument();
-  expect(screen.getByText(/running/i)).toBeInTheDocument();
-  await userEvent.hover(screen.getByRole('icon'));
-  expect(screen.queryByTestId('btn-copy')).not.toBeInTheDocument();
-
-  await userEvent.click(screen.getByText(/generate a new thumbprint/i));
-  expect(screen.getByText(/some-thumbprint/i)).toBeInTheDocument();
-});
-
-test('aws oidc row with s3 fields should NOT render tooltip', async () => {
-  jest
-    .spyOn(integrationService, 'fetchThumbprint')
-    .mockResolvedValue('some-thumbprint');
-
-  render(
-    <IntegrationList
-      list={[
-        {
-          resourceType: 'integration',
-          name: 'aws',
-          kind: IntegrationKind.AwsOidc,
-          statusCode: IntegrationStatusCode.Running,
-          spec: {
-            roleArn: 'some-role-arn',
-            issuerS3Prefix: 'some-prefix',
-            issuerS3Bucket: 'some-bucket',
+    <Router history={history}>
+      <IntegrationList
+        list={[
+          {
+            resourceType: 'integration',
+            name: 'aws-integration',
+            kind: IntegrationKind.AwsOidc,
+            statusCode: IntegrationStatusCode.Running,
+            spec: { roleArn: '', issuerS3Prefix: '', issuerS3Bucket: '' },
           },
-        },
-      ]}
-    />
+        ]}
+      />
+    </Router>
   );
 
-  expect(screen.getByText('aws')).toBeInTheDocument();
-  expect(screen.getByText(/running/i)).toBeInTheDocument();
-  expect(screen.queryByRole('icon')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Options' }));
+  expect(screen.getByText('View Status')).toBeInTheDocument();
+  expect(screen.getByText('View Status')).toHaveAttribute(
+    'href',
+    '/web/integrations/status/aws-oidc/aws-integration'
+  );
+  expect(screen.getByText('Edit...')).toBeInTheDocument();
+  expect(screen.getByText('Delete...')).toBeInTheDocument();
+
+  await userEvent.click(screen.getAllByRole('row')[1]);
+  expect(history.push).toHaveBeenCalledWith(
+    '/web/integrations/status/aws-oidc/aws-integration'
+  );
 });

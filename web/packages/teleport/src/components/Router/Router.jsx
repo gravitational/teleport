@@ -16,15 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useEffect } from 'react';
 import {
-  useRouteMatch,
-  useParams,
-  useLocation,
-  withRouter,
   Router,
+  useLocation,
+  useParams,
+  useRouteMatch,
+  withRouter,
 } from 'react-router';
 import * as RouterDOM from 'react-router-dom';
+
 import { NotFound } from 'design/CardError';
 
 const NoMatch = () => (
@@ -46,7 +47,7 @@ const Route = props => {
   const { title = '', ...rest } = props;
   const { clusterId } = useParams();
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (title && clusterId) {
       document.title = `${clusterId} • ${title}`;
     } else if (title) {

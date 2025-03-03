@@ -17,8 +17,8 @@ package transportv1
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
-	"crypto/rsa"
 	"errors"
 	"fmt"
 	"io"
@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh/agent"
 	"google.golang.org/grpc"
@@ -37,6 +36,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 )
@@ -555,7 +555,7 @@ func newServer(t *testing.T, srv transportv1pb.TransportServiceServer) testPack 
 // newKeyring returns an [agent.ExtendedAgent] that has
 // one key populated in it.
 func newKeyring(t *testing.T) agent.ExtendedAgent {
-	private, err := rsa.GenerateKey(rand.Reader, 2048)
+	_, private, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 
 	keyring := agent.NewKeyring()

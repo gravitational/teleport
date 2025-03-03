@@ -1,0 +1,27 @@
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "RDSProxyDiscovery",
+            "Effect": "Allow",
+            "Action": "rds:DescribeDBProxies",
+            "Resource": "*"
+        },
+        {
+            "Sid": "RDSProxyFetchMetadata",
+            "Effect": "Allow",
+            "Action": [
+                "rds:DescribeDBProxyEndpoints",
+                "rds:ListTagsForResource"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+| Statement | Purpose |
+| --------- | ------- |
+| `RDSProxyDiscovery` | Discover RDS Proxies and register each proxy's default endpoint as a Teleport database. |
+| `RDSProxyFetchMetadata` | Fetch metadata for discovered proxies to import AWS resource tags as Teleport database labels and register custom endpoints as Teleport databases. |

@@ -1,0 +1,17 @@
+storage = "./storage" # Plugin will save its state here
+timeout = "10s"
+batch = 20
+debug = true
+
+[forward.fluentd]
+cert = "testdata/fake-file"
+key = "testdata/fake-file"
+ca = "testdata/fake-file"
+url = "https://localhost:8888/test.log"
+session-url = "https://localhost:8888/session"
+
+[teleport]
+addr = "localhost:3025"
+identity = "testdata/fake-file"
+refresh.enabled = true
+refresh.interval = "2m"

@@ -21,15 +21,14 @@ package db
 import (
 	"context"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
+	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -48,73 +47,81 @@ func (f *rdsDBProxyPlugin) ComponentShortName() string {
 // GetDatabases returns a list of database resources representing RDS
 // Proxies and custom endpoints.
 func (f *rdsDBProxyPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig) (types.Databases, error) {
-	rdsClient, err := cfg.AWSClients.GetAWSRDSClient(ctx, cfg.Region,
-		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
-		cloud.WithCredentialsMaybeIntegration(cfg.Integration),
+	awsCfg, err := cfg.AWSConfigProvider.GetConfig(ctx, cfg.Region,
+		awsconfig.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
+		awsconfig.WithCredentialsMaybeIntegration(cfg.Integration),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	clt := cfg.awsClients.GetRDSClient(awsCfg)
 	// Get a list of all RDS Proxies. Each RDS Proxy has one "default"
 	// endpoint.
-	rdsProxies, err := getRDSProxies(ctx, rdsClient, maxAWSPages)
+	rdsProxies, err := getRDSProxies(ctx, clt, maxAWSPages)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Get all RDS Proxy custom endpoints sorted by the name of the RDS Proxy
 	// that owns the custom endpoints.
-	customEndpointsByProxyName, err := getRDSProxyCustomEndpoints(ctx, rdsClient, maxAWSPages)
+	customEndpointsByProxyName, err := getRDSProxyCustomEndpoints(ctx, clt, maxAWSPages)
 	if err != nil {
-		cfg.Log.Debugf("Failed to get RDS Proxy endpoints: %v.", err)
+		cfg.Logger.DebugContext(ctx, "Failed to get RDS Proxy endpoints", "error", err)
 	}
 
 	var databases types.Databases
 	for _, dbProxy := range rdsProxies {
-		if !aws.BoolValue(dbProxy.RequireTLS) {
-			cfg.Log.Debugf("RDS Proxy %q doesn't support TLS. Skipping.", aws.StringValue(dbProxy.DBProxyName))
+		if !aws.ToBool(dbProxy.RequireTLS) {
+			cfg.Logger.DebugContext(ctx, "Skipping RDS Proxy that doesn't support TLS", "rds_proxy", aws.ToString(dbProxy.DBProxyName))
 			continue
 		}
 
-		if !services.IsRDSProxyAvailable(dbProxy) {
-			cfg.Log.Debugf("The current status of RDS Proxy %q is %q. Skipping.",
-				aws.StringValue(dbProxy.DBProxyName),
-				aws.StringValue(dbProxy.Status))
+		if !libcloudaws.IsRDSProxyAvailable(&dbProxy) {
+			cfg.Logger.DebugContext(ctx, "Skipping unavailable RDS Proxy",
+				"rds_proxy", aws.ToString(dbProxy.DBProxyName),
+				"status", dbProxy.Status)
 			continue
 		}
 
-		// rds.DBProxy has no tags information. An extra SDK call is made to
+		// rdstypes.DBProxy has no tags information. An extra SDK call is made to
 		// fetch the tags. If failed, keep going without the tags.
-		tags, err := listRDSResourceTags(ctx, rdsClient, dbProxy.DBProxyArn)
+		tags, err := listRDSResourceTags(ctx, clt, dbProxy.DBProxyArn)
 		if err != nil {
-			cfg.Log.Debugf("Failed to get tags for RDS Proxy %v: %v.", aws.StringValue(dbProxy.DBProxyName), err)
+			cfg.Logger.DebugContext(ctx, "Failed to get tags for RDS Proxy",
+				"rds_proxy", aws.ToString(dbProxy.DBProxyName),
+				"error", err,
+			)
 		}
 
 		// Add a database from RDS Proxy (default endpoint).
-		database, err := services.NewDatabaseFromRDSProxy(dbProxy, tags)
+		database, err := common.NewDatabaseFromRDSProxy(&dbProxy, tags)
 		if err != nil {
-			cfg.Log.Debugf("Could not convert RDS Proxy %q to database resource: %v.",
-				aws.StringValue(dbProxy.DBProxyName), err)
+			cfg.Logger.DebugContext(ctx, "Could not convert RDS Proxy to database resource",
+				"rds_proxy", aws.ToString(dbProxy.DBProxyName),
+				"error", err,
+			)
 		} else {
 			databases = append(databases, database)
 		}
 
 		// Add custom endpoints.
-		for _, customEndpoint := range customEndpointsByProxyName[aws.StringValue(dbProxy.DBProxyName)] {
-			if !services.IsRDSProxyCustomEndpointAvailable(customEndpoint) {
-				cfg.Log.Debugf("The current status of custom endpoint %q of RDS Proxy %q is %q. Skipping.",
-					aws.StringValue(customEndpoint.DBProxyEndpointName),
-					aws.StringValue(customEndpoint.DBProxyName),
-					aws.StringValue(customEndpoint.Status))
+		for _, customEndpoint := range customEndpointsByProxyName[aws.ToString(dbProxy.DBProxyName)] {
+			if !libcloudaws.IsRDSProxyCustomEndpointAvailable(&customEndpoint) {
+				cfg.Logger.DebugContext(ctx, "Skipping unavailable custom endpoint of RDS Proxy",
+					"endpoint", aws.ToString(customEndpoint.DBProxyEndpointName),
+					"rds_proxy", aws.ToString(customEndpoint.DBProxyName),
+					"status", customEndpoint.Status,
+				)
 				continue
 			}
 
-			database, err = services.NewDatabaseFromRDSProxyCustomEndpoint(dbProxy, customEndpoint, tags)
+			database, err = common.NewDatabaseFromRDSProxyCustomEndpoint(&dbProxy, &customEndpoint, tags)
 			if err != nil {
-				cfg.Log.Debugf("Could not convert custom endpoint %q of RDS Proxy %q to database resource: %v.",
-					aws.StringValue(customEndpoint.DBProxyEndpointName),
-					aws.StringValue(customEndpoint.DBProxyName),
-					err)
+				cfg.Logger.DebugContext(ctx, "Could not convert custom endpoint for RDS Proxy to database resource",
+					"endpoint", aws.ToString(customEndpoint.DBProxyEndpointName),
+					"rds_proxy", aws.ToString(customEndpoint.DBProxyName),
+					"error", err,
+				)
 				continue
 			}
 			databases = append(databases, database)
@@ -126,42 +133,50 @@ func (f *rdsDBProxyPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConf
 
 // getRDSProxies fetches all RDS Proxies using the provided client, up to the
 // specified max number of pages.
-func getRDSProxies(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPages int) (rdsProxies []*rds.DBProxy, err error) {
-	var pageNum int
-	err = rdsClient.DescribeDBProxiesPagesWithContext(
-		ctx,
+func getRDSProxies(ctx context.Context, clt RDSClient, maxPages int) ([]rdstypes.DBProxy, error) {
+	pager := rds.NewDescribeDBProxiesPaginator(clt,
 		&rds.DescribeDBProxiesInput{},
-		func(ddo *rds.DescribeDBProxiesOutput, lastPage bool) bool {
-			pageNum++
-			rdsProxies = append(rdsProxies, ddo.DBProxies...)
-			return pageNum <= maxPages
+		func(dcpo *rds.DescribeDBProxiesPaginatorOptions) {
+			dcpo.StopOnDuplicateToken = true
 		},
 	)
-	return rdsProxies, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
+
+	var rdsProxies []rdstypes.DBProxy
+	for i := 0; i < maxPages && pager.HasMorePages(); i++ {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
+		}
+		rdsProxies = append(rdsProxies, page.DBProxies...)
+	}
+	return rdsProxies, nil
 }
 
 // getRDSProxyCustomEndpoints fetches all RDS Proxy custom endpoints using the
 // provided client.
-func getRDSProxyCustomEndpoints(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPages int) (map[string][]*rds.DBProxyEndpoint, error) {
-	customEndpointsByProxyName := make(map[string][]*rds.DBProxyEndpoint)
-	var pageNum int
-	err := rdsClient.DescribeDBProxyEndpointsPagesWithContext(
-		ctx,
+func getRDSProxyCustomEndpoints(ctx context.Context, clt RDSClient, maxPages int) (map[string][]rdstypes.DBProxyEndpoint, error) {
+	customEndpointsByProxyName := make(map[string][]rdstypes.DBProxyEndpoint)
+	pager := rds.NewDescribeDBProxyEndpointsPaginator(clt,
 		&rds.DescribeDBProxyEndpointsInput{},
-		func(ddo *rds.DescribeDBProxyEndpointsOutput, lastPage bool) bool {
-			pageNum++
-			for _, customEndpoint := range ddo.DBProxyEndpoints {
-				customEndpointsByProxyName[aws.StringValue(customEndpoint.DBProxyName)] = append(customEndpointsByProxyName[aws.StringValue(customEndpoint.DBProxyName)], customEndpoint)
-			}
-			return pageNum <= maxPages
+		func(ddepo *rds.DescribeDBProxyEndpointsPaginatorOptions) {
+			ddepo.StopOnDuplicateToken = true
 		},
 	)
-	return customEndpointsByProxyName, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
+	for i := 0; i < maxPages && pager.HasMorePages(); i++ {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
+		}
+		for _, customEndpoint := range page.DBProxyEndpoints {
+			customEndpointsByProxyName[aws.ToString(customEndpoint.DBProxyName)] = append(customEndpointsByProxyName[aws.ToString(customEndpoint.DBProxyName)], customEndpoint)
+		}
+	}
+	return customEndpointsByProxyName, nil
 }
 
 // listRDSResourceTags returns tags for provided RDS resource.
-func listRDSResourceTags(ctx context.Context, rdsClient rdsiface.RDSAPI, resourceName *string) ([]*rds.Tag, error) {
-	output, err := rdsClient.ListTagsForResourceWithContext(ctx, &rds.ListTagsForResourceInput{
+func listRDSResourceTags(ctx context.Context, clt RDSClient, resourceName *string) ([]rdstypes.Tag, error) {
+	output, err := clt.ListTagsForResource(ctx, &rds.ListTagsForResourceInput{
 		ResourceName: resourceName,
 	})
 	if err != nil {

@@ -18,11 +18,11 @@ package types
 
 import (
 	"fmt"
+	"maps"
 	"sort"
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/utils"
@@ -104,16 +104,6 @@ func (s *DatabaseServerV3) GetSubKind() string {
 // SetSubKind sets the resource subkind.
 func (s *DatabaseServerV3) SetSubKind(sk string) {
 	s.SubKind = sk
-}
-
-// GetResourceID returns the resource ID.
-func (s *DatabaseServerV3) GetResourceID() int64 {
-	return s.Metadata.ID
-}
-
-// SetResourceID sets the resource ID.
-func (s *DatabaseServerV3) SetResourceID(id int64) {
-	s.Metadata.ID = id
 }
 
 // GetRevision returns the revision
@@ -377,11 +367,12 @@ func (s DatabaseServers) GetFieldVals(field string) ([]string, error) {
 	return vals, nil
 }
 
-// ToDatabases converts database servers to a list of databases.
+// ToDatabases converts database servers to a list of databases and
+// deduplicates the databases by name.
 func (s DatabaseServers) ToDatabases() []Database {
 	databases := make([]Database, 0, len(s))
 	for _, server := range s {
 		databases = append(databases, server.GetDatabase())
 	}
-	return databases
+	return DeduplicateDatabases(databases)
 }

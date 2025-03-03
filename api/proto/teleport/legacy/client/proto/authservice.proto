@@ -49,7 +49,6 @@ message Watch {
 message HostCertsRequest {
   reserved 12; // system_role_assertion_id
   reserved "UnstableSystemRoleAssertionID";
-
   // HostID is a unique ID of the host.
   string HostID = 1 [(gogoproto.jsontag) = "host_id"];
   // NodeName is a user-friendly host name.
@@ -87,6 +86,11 @@ message HostCertsRequest {
     (gogoproto.jsontag) = "system_roles,omitempty",
     (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
   ];
+  // SystemRoleAssertionID is used by agents to prove that they have a given system role when
+  // their credentials originate from multiple separate join tokens so that they can be issued
+  // an instance certificate that encompasses all of their capabilities. This field will be
+  // deprecated once we have a more comprehensive model for join token joining/replacement.
+  string SystemRoleAssertionID = 13 [(gogoproto.jsontag) = "system_role_assertion_id,omitempty"];
 }
 
 // OpenSSHCertRequest specifies certificate-generation parameters
@@ -119,7 +123,12 @@ message OpenSSHCert {
 // for a user.
 message UserCertsRequest {
   // PublicKey is a public key to be signed.
-  bytes PublicKey = 1 [(gogoproto.jsontag) = "public_key"];
+  //
+  // Deprecated: Prefer SSHPublicKey and/or TLSPublicKey.
+  bytes PublicKey = 1 [
+    (gogoproto.jsontag) = "public_key",
+    deprecated = true
+  ];
   // Username of key owner.
   string Username = 2 [(gogoproto.jsontag) = "username"];
   // Expires is a desired time of the expiry of the certificate, could
@@ -230,6 +239,8 @@ message UserCertsRequest {
     TSH_KUBE_LOCAL_PROXY = 2;
     // TSH_KUBE_LOCAL_PROXY_HEADLESS is set when the request was sent by a tsh kube local proxy in headless mode.
     TSH_KUBE_LOCAL_PROXY_HEADLESS = 3;
+    // TSH_APP_LOCAL_PROXY is set when the request was sent by a tsh app local proxy.
+    TSH_APP_LOCAL_PROXY = 4;
   }
   // RequesterName identifies who sent the request.
   Requester RequesterName = 17 [(gogoproto.jsontag) = "requester_name"];
@@ -245,7 +256,10 @@ message UserCertsRequest {
   string SSHLogin = 19;
 
   // AttestationStatement is an attestation statement for the given public key.
-  teleport.attestation.v1.AttestationStatement attestation_statement = 20;
+  //
+  // Deprecated: prefer SSHPublicKeyAttestationStatement and/or
+  // TLSPublicKeyAttestationStatement.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 20 [deprecated = true];
 
   // CertPurpose complements CertUsage by informing Teleport of the intended use
   // for the certificates.
@@ -263,6 +277,27 @@ message UserCertsRequest {
   }
   // Purpose is the intended purpose of the certificates.
   CertPurpose Purpose = 21 [(gogoproto.jsontag) = "purpose,omitempty"];
+
+  // SSHPublicKey is a public key in SSH authorized_keys format, to be used as
+  // the subject for the issued SSH certificate. If omitted, only a TLS cert
+  // will be returned.
+  bytes SSHPublicKey = 22 [(gogoproto.jsontag) = "ssh_public_key,omitempty"];
+  // TLSPublicKey is a public key in PEM-encoded PKCS#1 or PKIX format, to be used as
+  // the subject for the issued TLS certificate. If omitted, only an SSH cert
+  // will be returned.
+  bytes TLSPublicKey = 23 [(gogoproto.jsontag) = "tls_public_key,omitempty"];
+
+  // SSHPublicKeyAttestationStatement is an attestation statement for SSHPublicKey.
+  teleport.attestation.v1.AttestationStatement SSHPublicKeyAttestationStatement = 25 [(gogoproto.jsontag) = "ssh_public_key_attestation_statement,omitempty"];
+  // TLSPublicKeyAttestationStatement is an attestation statement for TLSPublicKey.
+  teleport.attestation.v1.AttestationStatement TLSPublicKeyAttestationStatement = 26 [(gogoproto.jsontag) = "tls_public_key_attestation_statement,omitempty"];
+
+  // ReissuableRoleImpersonation is a flag that indicates whether or not a
+  // role impersonation certificate can be reissued. If set to true, the
+  // generated certificate will be re-issuable, by default, it will not be
+  // re-issuable. This flag is only applicable when UseRoleRequests is set to
+  // true.
+  bool ReissuableRoleImpersonation = 27 [(gogoproto.jsontag) = "reissuable_role_impersonation"];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -289,10 +324,11 @@ message RouteToWindowsDesktop {
 
 // RouteToApp contains parameters for application access certificate requests.
 message RouteToApp {
+  reserved 2; // SessionID, jsontag "session_id"
+  reserved "SessionID";
+
   // Name is the application name certificate is being requested for.
   string Name = 1 [(gogoproto.jsontag) = "name"];
-  // SessionID is the ID of the application session.
-  string SessionID = 2 [(gogoproto.jsontag) = "session_id"];
   // PublicAddr is the application public address.
   string PublicAddr = 3 [(gogoproto.jsontag) = "public_addr"];
   // ClusterName is the cluster where the application resides.
@@ -303,6 +339,14 @@ message RouteToApp {
   string AzureIdentity = 6 [(gogoproto.jsontag) = "azure_identity,omitempty"];
   // GCPServiceAccount is the GCP service account to assume when accessing GCP API.
   string GCPServiceAccount = 7 [(gogoproto.jsontag) = "gcp_service_account,omitempty"];
+  // URI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
+  // Used merely for audit events and mirrors the URI from the app spec. Not used as a source of
+  // truth when routing connections.
+  string URI = 8 [(gogoproto.jsontag) = "uri,omitempty"];
+  // TargetPort signifies that the cert grants access to a specific port in a multi-port TCP app, as
+  // long as the port is defined in the app spec. When specified, it must be between 1 and 65535.
+  // Used only for routing, should not be used in other contexts (e.g., access requests).
+  uint32 TargetPort = 9 [(gogoproto.jsontag) = "target_port,omitempty"];
 }
 
 // GetUserRequest specifies parameters for the GetUser method.
@@ -422,9 +466,17 @@ message PingResponse {
   // LoadAllCAs signals whether or not tsh should load all CAs when trying
   // to ssh into a node.
   bool LoadAllCAs = 8 [(gogoproto.jsontag) = "load_all_cas"];
+  // SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster.
+  types.SignatureAlgorithmSuite signature_algorithm_suite = 9;
 
   reserved 6; // LicenseWarnings, jsontag "license_warnings"
   reserved "LicenseWarnings";
+
+  // LicenseExpiry is the expiry date of the enterprise license, if applicable.
+  google.protobuf.Timestamp LicenseExpiry = 10 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.jsontag) = "licenseExpiry"
+  ];
 }
 
 // ProductType is the type of product.
@@ -448,34 +500,31 @@ enum SupportType {
 // Features are auth server features.
 message Features {
   // Kubernetes enables Kubernetes Access product
+  // Deprecated remove in v18; leverage entitlements
   bool Kubernetes = 1 [(gogoproto.jsontag) = "kubernetes"];
   // App enables Application Access product
+  // Deprecated remove in v18; leverage entitlements
   bool App = 2 [(gogoproto.jsontag) = "app"];
   // DB enables database access product
+  // Deprecated remove in v18; leverage entitlements
   bool DB = 3 [(gogoproto.jsontag) = "db"];
   // OIDC enables OIDC connectors
+  // Deprecated remove in v18; leverage entitlements
   bool OIDC = 4 [(gogoproto.jsontag) = "oidc"];
   // SAML enables SAML connectors
+  // Deprecated remove in v18; leverage entitlements
   bool SAML = 5 [(gogoproto.jsontag) = "saml"];
   // AccessControls enables FIPS access controls
   bool AccessControls = 6 [(gogoproto.jsontag) = "access_controls"];
-  // Currently this flag is to gate actions from OSS clusters.
-  //
-  // Determining support for access request is currently determined by:
-  //   1) Enterprise + [Features.IdentityGovernanceSecurity] == true, new flag
-  //   introduced with Enterprise Usage Based (EUB) product.
-  //   2) Enterprise + [Features.IsUsageBasedBilling] == false, legacy support
-  //   where before EUB, it was unlimited.
-  //
-  // AdvancedAccessWorkflows is currently set to true for all
-  // enterprise editions (team, cloud, on-prem). Historically, access request
-  // was only available for enterprise cloud and enterprise on-prem.
+  // AdvancedAccessWorkflows is currently set to the value of the Cloud AccessRequests entitlement
   bool AdvancedAccessWorkflows = 7 [(gogoproto.jsontag) = "advanced_access_workflows"];
   // Cloud enables some cloud-related features
   bool Cloud = 8 [(gogoproto.jsontag) = "cloud"];
   // HSM enables PKCS#11 HSM support
+  // Deprecated remove in v18; leverage entitlements
   bool HSM = 9 [(gogoproto.jsontag) = "hsm"];
   // Desktop enables desktop access product
+  // Deprecated remove in v18; leverage entitlements
   bool Desktop = 10 [(gogoproto.jsontag) = "desktop"];
   reserved 11; // bool ModeratedSessions
   reserved 12; // bool MachineID
@@ -489,17 +538,22 @@ message Features {
   // IsUsageBased enables some usage-based billing features
   bool IsUsageBased = 17 [(gogoproto.jsontag) = "is_usage_based"];
   // Assist enables the Assistant feature
+  // Deprecated remove in v18; leverage entitlements
   bool Assist = 18 [(gogoproto.jsontag) = "assist"];
   // DeviceTrust holds its namesake feature settings.
+  // Deprecated remove in v18; leverage entitlements
   DeviceTrustFeature DeviceTrust = 19 [(gogoproto.jsontag) = "device_trust,omitempty"];
   // FeatureHiding enables hiding features from being discoverable for users who don't have the necessary permissions.
+  // Deprecated remove in v18; leverage entitlements
   bool FeatureHiding = 20 [(gogoproto.jsontag) = "feature_hiding,omitempty"];
   // AccessRequests holds its namesake feature settings.
+  // Deprecated remove in v18; leverage entitlements
   AccessRequestsFeature AccessRequests = 21 [(gogoproto.jsontag) = "access_requests,omitempty"];
   // CustomTheme holds the name of WebUI custom theme.
   string CustomTheme = 22 [(gogoproto.jsontag) = "custom_theme,omitempty"];
   // IdentityGovernance indicates whether IGS related features are enabled:
   // access list, access request, access monitoring, device trust.
+  // Deprecated remove in v18; leverage entitlements
   bool IdentityGovernance = 23 [(gogoproto.jsontag) = "identity_governance,omitempty"];
   // AccessGraph enables the usage of access graph.
   // NOTE: this is a legacy flag that is currently used to signal
@@ -508,26 +562,48 @@ message Features {
   // TODO(justinas): remove this field once "TAG enabled" status is moved to a resource in the backend.
   bool AccessGraph = 24 [(gogoproto.jsontag) = "access_graph,omitempty"];
   // AccessListFeature holds its namesake feature settings.
+  // Deprecated remove in v18; leverage entitlements
   AccessListFeature AccessList = 25 [(gogoproto.jsontag) = "access_list,omitempty"];
   // AccessMonitoringFeature holds its namesake feature settings.
+  // Deprecated remove in v18; leverage entitlements for access and AccessMonitoringConfigured for enabled
   AccessMonitoringFeature AccessMonitoring = 26 [(gogoproto.jsontag) = "access_monitoring,omitempty"];
   // ProductType describes the product being used.
   ProductType ProductType = 27 [(gogoproto.jsontag) = "product_type,omitempty"];
   // Policy enables the Teleport Policy feature set.
   // At the time of writing, this includes Teleport Access Graph (TAG).
+  // Deprecated remove in v18; leverage entitlements
   PolicyFeature Policy = 28 [(gogoproto.jsontag) = "policy,omitempty"];
   // Questionnaire indicates whether cluster users should get an onboarding questionnaire
   bool Questionnaire = 29 [(gogoproto.jsontag) = "questionnaire,omitempty"];
   // IsStripeManaged indicates if the cluster billing is managed via Stripe
   bool IsStripeManaged = 30 [(gogoproto.jsontag) = "is_stripe_managed,omitempty"];
   // ExternalAuditStorage indicates whether the EAS feature is enabled in the cluster.
+  // Deprecated remove in v18; leverage entitlements
   bool ExternalAuditStorage = 31 [(gogoproto.jsontag) = "external_audit_storage,omitempty"];
   // SupportType indicates the type of the customer's support
   SupportType SupportType = 32 [(gogoproto.jsontag) = "support_type,omitempty"];
   // JoinActiveSessions indicates whether joining active sessions via web UI is enabled
+  // Deprecated remove in v18; leverage entitlements
   bool JoinActiveSessions = 33 [(gogoproto.jsontag) = "join_active_sessions,omitempty"];
   // MobileDeviceManagement indicates whether endpoint management (like Jamf Plugin) can be used in the cluster
+  // Deprecated remove in v18; leverage entitlements
   bool MobileDeviceManagement = 34 [(gogoproto.jsontag) = "mobile_device_management,omitempty"];
+  // entitlements define a customer’s access to a specific features
+  map<string, EntitlementInfo> entitlements = 35;
+  // AccessMonitoringConfigured contributes to the enablement of access monitoring.
+  // NOTE: this flag is used to signal that Access Monitoring is *enabled* on a cluster.
+  // *Access* to the feature is gated on the `AccessMonitoring` entitlement.
+  bool AccessMonitoringConfigured = 36;
+  // CloudAnonymizationKey is a hash of the Salesforce ID used to anonymize usage events
+  bytes CloudAnonymizationKey = 37 [(gogoproto.jsontag) = "cloud_anonymization_key,omitempty"];
+}
+
+// EntitlementInfo is the state and limits of a particular entitlement
+message EntitlementInfo {
+  // enabled indicates the feature is 'on' if true
+  bool enabled = 1;
+  // limit indicates the allotted amount of use when limited
+  int32 limit = 2;
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
@@ -777,6 +853,12 @@ message CreateAppSessionRequest {
   // An optional field, that when provided, the response will be validated and
   // the ID of the validated MFA device will be stored in session's certificate.
   MFAAuthenticateResponse MFAResponse = 8 [(gogoproto.jsontag) = "mfa_response,omitempty"];
+  // AppName is the name of the application.
+  string AppName = 9 [(gogoproto.jsontag) = "app_name"];
+  // URI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
+  string URI = 10 [(gogoproto.jsontag) = "uri"];
+  // ClientAddr is a client (user's) address.
+  string ClientAddr = 11 [(gogoproto.jsontag) = "client_addr,omitempty"];
 }
 
 // CreateAppSessionResponse contains the requested application web session.
@@ -1148,6 +1230,10 @@ message MFAAuthenticateChallenge {
   // communications, in case of streaming RPCs. It may also return empty
   // challenges for all other fields.
   MFARequired MFARequired = 4;
+  // SSO Challenge is an SSO MFA challenge. If set, the client can go to the
+  // IdP redirect URL to perform an MFA check in the IdP and obtain an MFA token.
+  // This token paired with the request id can then be used as MFA verification.
+  SSOChallenge SSOChallenge = 5;
 }
 
 // MFAAuthenticateResponse is a response to MFAAuthenticateChallenge using one
@@ -1157,6 +1243,7 @@ message MFAAuthenticateResponse {
     // Removed: U2FResponse U2F = 1;
     TOTPResponse TOTP = 2;
     webauthn.CredentialAssertionResponse Webauthn = 3;
+    SSOResponse SSO = 4;
   }
 }
 
@@ -1171,6 +1258,24 @@ message TOTPChallenge {
 // TOTPResponse is a response to TOTPChallenge.
 message TOTPResponse {
   string Code = 1;
+}
+
+// SSOChallenge contains SSO auth request details to perform an SSO MFA check.
+message SSOChallenge {
+  // RequestId is the ID of an SSO auth request.
+  string request_id = 1;
+  // RedirectUrl is an IdP redirect URL to initate the SSO MFA flow.
+  string redirect_url = 2;
+  // Device is the SSO device corresponding to the challenge.
+  types.SSOMFADevice device = 3;
+}
+
+// SSOResponse is a response to SSOChallenge.
+message SSOResponse {
+  // RequestId is the ID of an SSO auth request.
+  string request_id = 1;
+  // Token is a secret token used to verify the user's SSO MFA session.
+  string token = 2;
 }
 
 // MFARegisterChallenge is a challenge for registering a new MFA device.
@@ -1540,6 +1645,12 @@ message WindowsDesktopCertResponse {
   bytes Cert = 1;
 }
 
+// Response message for GetDesktopBootstrapScript.
+message DesktopBootstrapScriptResponse {
+  // The PowerShell script content.
+  string Script = 1 [(gogoproto.jsontag) = "script"];
+}
+
 // ListSAMLIdPServiceProvidersRequest is a request for a paginated list of SAML IdP service providers.
 message ListSAMLIdPServiceProvidersRequest {
   // Limit is the maximum amount of resources to retrieve.
@@ -1791,9 +1902,11 @@ message CreateAuthenticateChallengeRequest {
   // call [AuthService.IsMFARequired] in the leaf instead of setting this field.
   IsMFARequiredRequest MFARequiredCheck = 5 [(gogoproto.jsontag) = "mfa_required_check,omitempty"];
   // ChallengeExtensions are extensions that will be apply to the issued MFA challenge.
-  // ChallengeExtensions only apply to webauthn challenges currently. Required, except
-  // for v15 clients and older.
+  // Required, except for v15 clients and older.
   teleport.mfa.v1.ChallengeExtensions ChallengeExtensions = 6 [(gogoproto.jsontag) = "challenge_extensions,omitempty"];
+  // SSOClientRedirectURL should be supplied If the client supports SSO MFA checks.
+  // If unset, the server will only return non-SSO challenges.
+  string SSOClientRedirectURL = 7 [(gogoproto.jsontag) = "sso_client_redirect_url,omitempty"];
 }
 
 // CreatePrivilegeTokenRequest defines a request to obtain a privilege token.
@@ -1834,6 +1947,60 @@ message CreateRegisterChallengeRequest {
   DeviceUsage DeviceUsage = 3 [(gogoproto.jsontag) = "device_usage,omitempty"];
 }
 
+// IdentityCenterAccount holds information about an Identity Center account
+// within an IdentityCenterAccountAssignment
+message IdentityCenterAccount {
+  // ID is the AWS-assigned account ID
+  string ID = 1;
+
+  // ARN is the full Amazon Resource Name for the AWS account
+  string ARN = 2;
+
+  // AccountName is the human-readable name of the account
+  string AccountName = 3;
+
+  // Description is a free text description of the account
+  string Description = 4;
+}
+
+// IdentityCenterPermissionSet holds information about an Identity Center
+// permission set within an IdentityCenterAccountAssignment
+message IdentityCenterPermissionSet {
+  // ARN is the full Amazon Resource Name for the Permission Set
+  string ARN = 1;
+
+  // Name is the human readable name for the Permission Set
+  string Name = 2;
+}
+
+// IdentityCenterAccountAssignment represents a requestable Identity Center
+// Account Assignment. This is strictly a wire-format object for use with the
+// Unfied resource cache, and the types defined in the `identitycenter` package
+// should be used for actual processing.
+message IdentityCenterAccountAssignment {
+  // Kind is the database server resource kind.
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // SubKind is an optional resource subkind.
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // Version is the resource version.
+  string Version = 3 [(gogoproto.jsontag) = "version"];
+  // Metadata is the account metadata.
+  types.Metadata Metadata = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "metadata"
+  ];
+
+  // DisplayName is a human-readable name for the Account assignment
+  string DisplayName = 5;
+
+  // Account is the Identity Center Account this assigment references
+  IdentityCenterAccount Account = 6;
+
+  // PermissionSet is the Identity Center Permission Set this assignment
+  // references
+  IdentityCenterPermissionSet PermissionSet = 7;
+}
+
 // PaginatedResource represents one of the supported resources.
 message PaginatedResource {
   // Resource is the resource itself.
@@ -1862,10 +2029,19 @@ message PaginatedResource {
     types.AppServerOrSAMLIdPServiceProviderV1 AppServerOrSAMLIdPServiceProvider = 11 [deprecated = true];
     // SAMLIdPServiceProvider represents a SAML IdP service provider resource.
     types.SAMLIdPServiceProviderV1 SAMLIdPServiceProvider = 12 [(gogoproto.jsontag) = "saml_idp_service_provider,omitempty"];
+    // GitServer represents a Git server resource.
+    types.ServerV2 git_server = 15;
+
+    // IdentityCenterAccountAssignment represents a requestable Identity Center
+    // Account Assignment
+    IdentityCenterAccountAssignment IdentityCenterAccountAssignment = 16 [(gogoproto.jsontag) = "identity_center_account_assignment,omitempty"];
   }
 
   // Logins allowed for the included resource. Only to be populated for SSH and Desktops.
   repeated string Logins = 13 [(gogoproto.jsontag) = "logins,omitempty"];
+  // RequiresRequest indicates if a resource requires an access request to access. Only populated with requests
+  // that IncludeRequestable.
+  bool RequiresRequest = 14 [(gogoproto.jsontag) = "requires_request,omitempty"];
 
   reserved 4;
   reserved "KubeService";
@@ -1910,6 +2086,8 @@ message ListUnifiedResourcesRequest {
   // IncludeLogins indicates that the response should include a users allowed logins
   // for all returned resources.
   bool IncludeLogins = 12 [(gogoproto.jsontag) = "include_logins,omitempty"];
+  // IncludeRequestable indicates that the response should include resources that the user must request access to.
+  bool IncludeRequestable = 14 [(gogoproto.jsontag) = "include_proto,omitempty"];
 }
 
 // ListUnifiedResourceResponse response of ListUnifiedResources.
@@ -1972,6 +2150,36 @@ message ListResourcesRequest {
   // IncludeLogins indicates that the response should include a users allowed logins
   // for all returned resources.
   bool IncludeLogins = 13 [(gogoproto.jsontag) = "include_logins,omitempty"];
+}
+
+// ResolveSSHTargetRequest provides details about a server to be resolved in
+// an equivalent manner to a ssh dial request.
+//
+// Resolution can happen in two modes:
+//  1) searching for hosts based on labels, a predicate expression, or keywords
+//  2) searching based on hostname
+//
+// If a Host is provided, resolution will only operate in the second mode and
+// will not perform any resolution based on labels. In order to resolve via
+// labels the Host must not be populated.
+message ResolveSSHTargetRequest {
+  // The target host as would be sent to the proxy during a dial request.
+  string host = 1;
+  // The ssh port. This value is optional, and both empty string and "0" are typically
+  // treated as meaning that any port should match.
+  string port = 2;
+  // If not empty, a label-based matcher.
+  map<string, string> labels = 3;
+  // Boolean conditions that will be matched against the resource.
+  string predicate_expression = 4;
+  // A list of search keywords to match against resource field values.
+  repeated string search_keywords = 5;
+}
+
+// GetSSHTargetsResponse holds ssh servers that match an ssh targets request.
+message ResolveSSHTargetResponse {
+  // The target matching the supplied request.
+  types.ServerV2 server = 1;
 }
 
 // GetSSHTargetsRequest gets all servers that might match an equivalent ssh dial request.
@@ -2064,6 +2272,9 @@ message UpdateSessionTrackerRequest {
 message PresenceMFAChallengeRequest {
   // SessionID is unique identifier of the session you want to request presence for.
   string SessionID = 1 [(gogoproto.jsontag) = "session_id,omitempty"];
+  // SSOClientRedirectURL should be supplied If the client supports SSO MFA checks.
+  // If unset, the server will only return non-SSO challenges.
+  string SSOClientRedirectURL = 2 [(gogoproto.jsontag) = "sso_client_redirect_url,omitempty"];
 }
 
 // PresenceMFAChallengeSend is a presence challenge request or response.
@@ -2176,6 +2387,41 @@ message GetSSODiagnosticInfoRequest {
   string AuthRequestID = 2 [(gogoproto.jsontag) = "auth_request_id"];
 }
 
+// SystemRoleAssertion is used by agents to prove that they have a given system role when their
+// credentials originate from multiple separate join tokens so that they can be issued an
+// instance certificate that encompasses all of their capabilities. This type will be
+// deprecated once we have a more comprehensive model for join token joining/replacement.
+message SystemRoleAssertion {
+  // ServerID is the server ID of the instance that the assertion is for. Assertions are
+  // only accepted if the calling agent's certificate matches this server id.
+  string ServerID = 1 [(gogoproto.jsontag) = "server_id,omitempty"];
+  // AssertionID is a random UUID that uniquely identifies a set of assertions
+  // as originating from the same teleport process.
+  string AssertionID = 2 [(gogoproto.jsontag) = "assertion_id,omitempty"];
+  // SystemRole is the system role being asserted. Assertions are only accepted if
+  // the calling agent's certificate authorizes it for this system role.
+  string SystemRole = 3 [
+    (gogoproto.jsontag) = "system_role,omitempty",
+    (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
+  ];
+}
+
+// SystemRoleAssertionSet is an aggregate generated as a result of one or more successful
+// assertions. This type will be deprecated once we have a more comprehensive model for
+// join token joining/replacement.
+message SystemRoleAssertionSet {
+  // ServerID is the server ID of the agent that generated the assertions.
+  string ServerID = 1 [(gogoproto.jsontag) = "server_id,omitempty"];
+  // AssertionID is a random UUID that identified all constituent assertions as originating
+  // from the same teleport process.
+  string AssertionID = 2 [(gogoproto.jsontag) = "assertion_id,omitempty"];
+  // SystemRoles is the set of system roles that the agent has successfully asserted.
+  repeated string SystemRoles = 3 [
+    (gogoproto.jsontag) = "system_roles,omitempty",
+    (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
+  ];
+}
+
 // UpstreamInventoryOneOf is the upstream message for the inventory control stream,
 // sent from teleport instances to the auth server.
 message UpstreamInventoryOneOf {
@@ -2188,6 +2434,8 @@ message UpstreamInventoryOneOf {
     UpstreamInventoryPong Pong = 3;
     // UpstreamInventoryAgentMetadata advertises instance metadata.
     UpstreamInventoryAgentMetadata AgentMetadata = 4;
+    // UpstreamInventoryGoodbye advertises that the instance is terminating.
+    UpstreamInventoryGoodbye Goodbye = 5;
   }
 }
 
@@ -2204,16 +2452,21 @@ message DownstreamInventoryOneOf {
   }
 }
 
-// DownstreamInventoryPing is sent down the inventory control stream for testing/debug
-// purposes.
+// DownstreamInventoryPing is sent down the inventory control stream.
 message DownstreamInventoryPing {
   uint64 ID = 1;
 }
 
 // UpstreamInventoryPong is sent up the inventory control stream in response to a downstream
-// ping (used for testing/debug purposes).
+// ping including the system clock of the downstream.
 message UpstreamInventoryPong {
   uint64 ID = 1;
+  // SystemClock advertises the system clock of the upstream.
+  google.protobuf.Timestamp SystemClock = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "system_clock,omitempty"
+  ];
 }
 
 // UpstreamInventoryHello is the hello message sent up the inventory control stream.
@@ -2268,6 +2521,51 @@ message DownstreamInventoryHello {
   string Version = 1;
   // ServerID advertises the server ID of the auth server.
   string ServerID = 2;
+
+  // SupportedCapabilities indicate which features of the ICS that
+  // the connect auth server supports. This allows agents to determine
+  // how they should interact with the auth server to maintain compatibility.
+  message SupportedCapabilities {
+    // ProxyHeartbeats indicates the ICS supports heartbeating proxy servers.
+    bool ProxyHeartbeats = 1;
+    // ProxyCleanup indicates the ICS supports deleting proxies when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool ProxyCleanup = 2;
+    // ProxyHeartbeats indicates the ICS supports heartbeating proxy servers.
+    bool AuthHeartbeats = 3;
+    // ProxyCleanup indicates the ICS supports deleting proxies when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool AuthCleanup = 4;
+    // NodeHeartbeats indicates the ICS supports heartbeating ssh servers.
+    bool NodeHeartbeats = 5;
+    // NodeCleanup indicates the ICS supports deleting nodes when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool NodeCleanup = 6;
+    // AppHeartbeats indicates the ICS supports heartbeating app servers.
+    bool AppHeartbeats = 7;
+    // AppCleanup indicates the ICS supports deleting apps when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool AppCleanup = 8;
+    // DatabaseHeartbeats indicates the ICS supports heartbeating databases.
+    bool DatabaseHeartbeats = 9;
+    // DatabaseCleanup indicates the ICS supports deleting databases when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool DatabaseCleanup = 10;
+    // DatabaseServiceHeartbeats indicates the ICS supports heartbeating databse services.
+    bool DatabaseServiceHeartbeats = 11;
+    // DatabaseServiceCleanup indicates the ICS supports deleting database services when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool DatabaseServiceCleanup = 12;
+    // WindowsDesktopHeartbeats indicates the ICS supports heartbeating windows desktop servers.
+    bool WindowsDesktopHeartbeats = 13;
+    // WindowsDesktopCleanup indicates the ICS supports deleting windows desktops when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool WindowsDesktopCleanup = 14;
+    // WindowsDesktopHeartbeats indicates the ICS supports heartbeating windows desktop services.
+    bool WindowsDesktopServiceHeartbeats = 15;
+    // WindowsDesktopCleanup indicates the ICS supports deleting windows desktop services when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool WindowsDesktopServiceCleanup = 16;
+    // KubernetesHeartbeats indicates the ICS supports heartbeating kubernetes clusters.
+    bool KubernetesHeartbeats = 17;
+    // KubernetesCleanup indicates the ICS supports deleting kubernetes clusters when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool KubernetesCleanup = 18;
+  }
+
+  // SupportedCapabilities advertises the supported features of the auth server.
+  SupportedCapabilities Capabilities = 3;
 }
 
 // LabelUpdateKind is the type of service to update labels for.
@@ -2306,6 +2604,20 @@ message InventoryHeartbeat {
   // we should be able to cut down on network usage fairly significantly by moving static values
   // to the hello message and only heartbeating dynamic values here).
   types.ServerV2 SSHServer = 1;
+  // AppServer is a complete app server spec to be heartbeated.
+  types.AppServerV3 AppServer = 2;
+  // DatabaseServer is a complete db server spec to be heartbeated.
+  types.DatabaseServerV3 DatabaseServer = 3;
+  // KubeServer is a complete kube server spec to be heartbeated.
+  types.KubernetesServerV3 KubernetesServer = 4;
+}
+
+// UpstreamInventoryGoodbye informs the upstream service that instance
+// is terminating
+message UpstreamInventoryGoodbye {
+  // DeleteResources indicates that any heartbeats received from
+  // the instance should be terminated when the stream is closed.
+  bool DeleteResources = 1;
 }
 
 // InventoryStatusRequest requests inventory status info.
@@ -2349,10 +2661,10 @@ message InventoryPingRequest {
   // ServerID is the ID of the instance to ping.
   string ServerID = 1;
 
-  // ControlLog forces the ping to use the standard "commit then act" model of control log synchronization
-  // for the ping. This significantly increases the amount of time it takes for the ping request to
-  // complete, but is useful for testing/debugging control log issues.
-  bool ControlLog = 2;
+  // ControlLog used to signal that the ping should use the control log synchronization.
+  //
+  // Deprecated: the control log is unsupported and unsound to use.
+  bool ControlLog = 2 [deprecated = true];
 }
 
 // InventoryPingResponse returns the result of an inventory ping initiated via an
@@ -2635,10 +2947,6 @@ service AuthService {
   // ListAccessRequests gets access requests with pagination and sorting.
   rpc ListAccessRequests(ListAccessRequestsRequest) returns (ListAccessRequestsResponse);
 
-  // CreateAccessRequest creates a new access request.
-  // Deprecated: use CreateAccessRequestV2 instead.
-  // DELETE IN v15.0.0.
-  rpc CreateAccessRequest(types.AccessRequestV3) returns (google.protobuf.Empty);
   // CreateAccessRequestV2 creates a new access request.
   rpc CreateAccessRequestV2(types.AccessRequestV3) returns (types.AccessRequestV3);
   // DeleteAccessRequest deletes an access request.
@@ -2666,6 +2974,8 @@ service AuthService {
   rpc GetResetPasswordToken(GetResetPasswordTokenRequest) returns (types.UserTokenV3);
   // CreateResetPasswordToken resets users current password and second factors and creates a reset
   // password token.
+  //
+  // Only local users may be reset.
   rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest) returns (types.UserTokenV3);
 
   // GetUser gets a user resource by name.
@@ -2708,6 +3018,8 @@ service AuthService {
     option deprecated = true;
   }
   // ChangePassword allows a user to change their own password.
+  //
+  // Only local users may change their password.
   rpc ChangePassword(ChangePasswordRequest) returns (google.protobuf.Empty);
 
   // AcquireSemaphore acquires lease with requested resources from semaphore.
@@ -2763,17 +3075,29 @@ service AuthService {
   rpc DeleteAllSnowflakeSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   // CreateSAMLIdPSession creates web session with sub kind saml_idp used by the SAML IdP.
-  rpc CreateSAMLIdPSession(CreateSAMLIdPSessionRequest) returns (CreateSAMLIdPSessionResponse);
+  rpc CreateSAMLIdPSession(CreateSAMLIdPSessionRequest) returns (CreateSAMLIdPSessionResponse) {
+    option deprecated = true;
+  }
   // GetSAMLIdPSession returns a SAML IdP session with sub kind saml_idp.
-  rpc GetSAMLIdPSession(GetSAMLIdPSessionRequest) returns (GetSAMLIdPSessionResponse);
+  rpc GetSAMLIdPSession(GetSAMLIdPSessionRequest) returns (GetSAMLIdPSessionResponse) {
+    option deprecated = true;
+  }
   // ListSAMLIdPSessions gets all SAML IdP sessions.
-  rpc ListSAMLIdPSessions(ListSAMLIdPSessionsRequest) returns (ListSAMLIdPSessionsResponse);
+  rpc ListSAMLIdPSessions(ListSAMLIdPSessionsRequest) returns (ListSAMLIdPSessionsResponse) {
+    option deprecated = true;
+  }
   // DeleteSAMLIdPSession removes a SAML IdP session.
-  rpc DeleteSAMLIdPSession(DeleteSAMLIdPSessionRequest) returns (google.protobuf.Empty);
+  rpc DeleteSAMLIdPSession(DeleteSAMLIdPSessionRequest) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
   // DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
-  rpc DeleteAllSAMLIdPSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
+  rpc DeleteAllSAMLIdPSessions(google.protobuf.Empty) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
   // DeleteUserSAMLIdPSessions deletes all user’s SAML IdP sessions.
-  rpc DeleteUserSAMLIdPSessions(DeleteUserSAMLIdPSessionsRequest) returns (google.protobuf.Empty);
+  rpc DeleteUserSAMLIdPSessions(DeleteUserSAMLIdPSessionsRequest) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
 
   // GetWebSession gets a web session.
   rpc GetWebSession(types.GetWebSessionRequest) returns (GetWebSessionResponse);
@@ -2830,10 +3154,6 @@ service AuthService {
 
   // GetRole retrieves a role described by the given request.
   rpc GetRole(GetRoleRequest) returns (types.RoleV6);
-  // GetRole retrieves all roles.
-  //
-  // DELETE IN 17.0
-  rpc GetRoles(google.protobuf.Empty) returns (GetRolesResponse);
   // ListRoles is a paginated role getter.
   rpc ListRoles(ListRolesRequest) returns (ListRolesResponse);
   // CreateRole creates a new role.
@@ -2995,7 +3315,11 @@ service AuthService {
   // GetTrustedClusters gets all current Trusted Cluster resources.
   rpc GetTrustedClusters(google.protobuf.Empty) returns (types.TrustedClusterV2List);
   // UpsertTrustedCluster upserts a Trusted Cluster in a backend.
-  rpc UpsertTrustedCluster(types.TrustedClusterV2) returns (types.TrustedClusterV2);
+  //
+  // Deprecated: Use [teleport.trust.v1.UpsertTrustedCluster] instead.
+  rpc UpsertTrustedCluster(types.TrustedClusterV2) returns (types.TrustedClusterV2) {
+    option deprecated = true;
+  }
   // DeleteTrustedCluster deletes an existing Trusted Cluster in a backend by name.
   rpc DeleteTrustedCluster(types.ResourceRequest) returns (google.protobuf.Empty);
 
@@ -3163,6 +3487,8 @@ service AuthService {
   rpc GenerateWindowsDesktopCert(WindowsDesktopCertRequest) returns (WindowsDesktopCertResponse);
   // GenerateCertAuthorityCRL creates an empty CRL for the specified CA.
   rpc GenerateCertAuthorityCRL(CertAuthorityRequest) returns (CRL);
+  // GetDesktopBootstrapScript returns a PowerShell script to bootstrap Active Directory.
+  rpc GetDesktopBootstrapScript(google.protobuf.Empty) returns (DesktopBootstrapScriptResponse);
 
   // CreateConnectionDiagnostic creates a new connection diagnostic.
   rpc CreateConnectionDiagnostic(types.ConnectionDiagnosticV1) returns (google.protobuf.Empty);
@@ -3177,6 +3503,8 @@ service AuthService {
   // also adds a new MFA device. After successful invocation, a new web session is created as well
   // as a new set of recovery codes (if user meets the requirements to receive them), invalidating
   // any existing codes the user previously had.
+  //
+  // Only local users may be targeted by this RPC.
   rpc ChangeUserAuthentication(ChangeUserAuthenticationRequest) returns (ChangeUserAuthenticationResponse);
 
   // StartAccountRecovery (exclusive to cloud users) is the first out of two step user
@@ -3190,6 +3518,8 @@ service AuthService {
   // user account gets temporarily locked from further recovery attempts and from logging in.
   //
   // Start tokens last RecoveryStartTokenTTL.
+  //
+  // Only local users may perform account recovery
   rpc StartAccountRecovery(StartAccountRecoveryRequest) returns (types.UserTokenV3);
   // VerifyAccountRecovery (exclusive to cloud users) is the second step of the two step
   // verification needed to allow a user to recover their account, after RPC StartAccountRecovery.
@@ -3264,12 +3594,21 @@ service AuthService {
   // but may result in confusing behavior if it is used outside of those contexts.
   rpc GetSSHTargets(GetSSHTargetsRequest) returns (GetSSHTargetsResponse);
 
+  // ResolveSSHTarget returns the server that would be resolved in an equivalent ssh dial request.
+  rpc ResolveSSHTarget(ResolveSSHTargetRequest) returns (ResolveSSHTargetResponse);
+
   // GetDomainName returns local auth domain of the current auth server
   rpc GetDomainName(google.protobuf.Empty) returns (GetDomainNameResponse);
   // GetClusterCACert returns the PEM-encoded TLS certs for the local cluster
   // without signing keys. If the cluster has multiple TLS certs, they will
   // all be appended.
   rpc GetClusterCACert(google.protobuf.Empty) returns (GetClusterCACertResponse);
+
+  // AssertSystemRole is used by agents to prove that they have a given system role when their
+  // credentials originate from multiple separate join tokens so that they can be issued an instance
+  // certificate that encompasses all of their capabilities. This method will be deprecated once we
+  // have a more comprehensive model for join token joining/replacement.
+  rpc AssertSystemRole(SystemRoleAssertion) returns (google.protobuf.Empty);
 
   // SubmitUsageEvent submits an external usage event.
   rpc SubmitUsageEvent(SubmitUsageEventRequest) returns (google.protobuf.Empty);

@@ -59,11 +59,12 @@ func (r userClient) Delete(ctx context.Context, name string) error {
 	return trace.Wrap(r.teleportClient.DeleteUser(ctx, name))
 }
 
-// MutateExisting ensures the spec.createdBy property is persisted
-func (r userClient) MutateExisting(newUser, existingUser types.User) {
+// Mutate ensures the spec.createdBy property is persisted
+func (r userClient) Mutate(_ context.Context, newUser, existingUser types.User, _ kclient.ObjectKey) error {
 	if existingUser != nil {
 		newUser.SetCreatedBy(existingUser.GetCreatedBy())
 	}
+	return nil
 }
 
 // NewUserReconciler instantiates a new Kubernetes controller reconciling user resources

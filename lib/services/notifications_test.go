@@ -38,11 +38,10 @@ func TestMarshalNotificationRoundTrip(t *testing.T) {
 		Kind:    types.KindNotification,
 		Version: types.V1,
 		SubKind: "test-subkind",
-		Spec: &notificationsv1.NotificationSpec{
-			Id: "test-notification-1",
-		},
+		Spec:    &notificationsv1.NotificationSpec{},
 		Metadata: &headerv1.Metadata{
-			Labels: map[string]string{"description": "description-1"},
+			Name:   "test-notification-1",
+			Labels: map[string]string{types.NotificationTitleLabel: "title-1"},
 		},
 	}
 
@@ -67,11 +66,10 @@ func TestMarshalGlobalNotificationRoundTrip(t *testing.T) {
 			},
 			Notification: &notificationsv1.Notification{
 				SubKind: "test-subkind",
-				Spec: &notificationsv1.NotificationSpec{
-					Id: "test-notification-id",
-				},
+				Spec:    &notificationsv1.NotificationSpec{},
 				Metadata: &headerv1.Metadata{
-					Labels: map[string]string{"description": "description-1"},
+					Name:   "test-notification-id",
+					Labels: map[string]string{types.NotificationTitleLabel: "title-1"},
 				},
 			},
 		},

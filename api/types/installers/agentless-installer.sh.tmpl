@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 
-set -o errexit
-set -o pipefail
-set -o nounset
+set -eu
 
 upgrade_endpoint="{{ .PublicProxyAddr }}/v1/webapi/automaticupgrades/channel/default"
 
@@ -36,8 +34,13 @@ run_teleport() {
   LABELS="$3"
   ADDRESS="$4"
 
+  OPENSSH_CONFIG="/etc/ssh/sshd_config"
+  if [ -n "${SSHD_CONFIG-}" ]; then
+    OPENSSH_CONFIG="${SSHD_CONFIG}"
+  fi
+
   sudo /usr/local/bin/teleport join openssh \
-    --openssh-config="${SSHD_CONFIG}" \
+    --openssh-config="${OPENSSH_CONFIG}" \
     --join-method=iam \
     --token="$TOKEN" \
     --proxy-server="{{ .PublicProxyAddr }}" \
@@ -120,8 +123,9 @@ install_teleport() {
       echo "deb https://apt.releases.teleport.dev/ubuntu ${VERSION_CODENAME?} {{ .RepoChannel }}" | sudo tee /etc/apt/sources.list.d/teleport.list
       rm /tmp/teleport-pubkey.asc
     else
-      curl https://apt.releases.teleport.dev/gpg | sudo tee /usr/share/keyrings/teleport-archive-keyring.asc
-      echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} {{ .RepoChannel }}" | sudo tee /etc/apt/sources.list.d/teleport.list >/dev/null
+      sudo mkdir -p /etc/apt/keyrings
+      curl https://apt.releases.teleport.dev/gpg | sudo tee /etc/apt/keyrings/teleport-archive-keyring.asc
+      echo "deb [signed-by=/etc/apt/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} {{ .RepoChannel }}" | sudo tee /etc/apt/sources.list.d/teleport.list >/dev/null
     fi
     sudo apt-get update
 

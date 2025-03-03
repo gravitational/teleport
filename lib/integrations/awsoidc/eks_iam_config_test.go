@@ -19,14 +19,17 @@
 package awsoidc
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"slices"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/iam"
-	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
 func TestEKSIAMConfigReqDefaults(t *testing.T) {
@@ -39,19 +42,24 @@ func TestEKSIAMConfigReqDefaults(t *testing.T) {
 		{
 			name: "set defaults",
 			req: EKSIAMConfigureRequest{
+				AccountID:       "123456789012",
 				Region:          "us-east-1",
 				IntegrationRole: "integrationRole",
+				AutoConfirm:     true,
 			},
 			errCheck: require.NoError,
 			expected: EKSIAMConfigureRequest{
+				AccountID:                "123456789012",
 				Region:                   "us-east-1",
 				IntegrationRole:          "integrationRole",
 				IntegrationRoleEKSPolicy: "EKSAccess",
+				AutoConfirm:              true,
 			},
 		},
 		{
 			name: "missing region",
 			req: EKSIAMConfigureRequest{
+				AccountID:       "123456789012",
 				IntegrationRole: "integrationRole",
 			},
 			errCheck: badParameterCheck,
@@ -59,9 +67,23 @@ func TestEKSIAMConfigReqDefaults(t *testing.T) {
 		{
 			name: "missing integration role",
 			req: EKSIAMConfigureRequest{
-				Region: "us-east-1",
+				AccountID: "123456789012",
+				Region:    "us-east-1",
 			},
 			errCheck: badParameterCheck,
+		},
+		{
+			name: "missing account id is ok",
+			req: EKSIAMConfigureRequest{
+				IntegrationRole: "integrationRole",
+				Region:          "us-east-1",
+			},
+			errCheck: require.NoError,
+			expected: EKSIAMConfigureRequest{
+				Region:                   "us-east-1",
+				IntegrationRole:          "integrationRole",
+				IntegrationRoleEKSPolicy: "EKSAccess",
+			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -77,11 +99,12 @@ func TestEKSIAMConfigReqDefaults(t *testing.T) {
 	}
 }
 
-func TestEKSAMConfig(t *testing.T) {
+func TestEKSIAMConfig(t *testing.T) {
 	ctx := context.Background()
 
 	for _, tt := range []struct {
 		name              string
+		mockAccountID     string
 		mockExistingRoles []string
 		req               EKSIAMConfigureRequest
 		errCheck          require.ErrorAssertionFunc
@@ -91,23 +114,41 @@ func TestEKSAMConfig(t *testing.T) {
 			req: EKSIAMConfigureRequest{
 				Region:          "us-east-1",
 				IntegrationRole: "integrationRole",
+				AccountID:       "123456789012",
+				AutoConfirm:     true,
 			},
+			mockAccountID:     "123456789012",
 			mockExistingRoles: []string{"integrationRole"},
 			errCheck:          require.NoError,
 		},
 		{
 			name:              "integration role does not exist",
+			mockAccountID:     "123456789012",
 			mockExistingRoles: []string{},
 			req: EKSIAMConfigureRequest{
 				Region:          "us-east-1",
 				IntegrationRole: "integrationRole",
+				AccountID:       "123456789012",
+				AutoConfirm:     true,
 			},
 			errCheck: notFoundCheck,
+		},
+		{
+			name: "account does not match expected account",
+			req: EKSIAMConfigureRequest{
+				Region:          "us-east-1",
+				IntegrationRole: "integrationRole",
+				AccountID:       "123456789012",
+			},
+			mockAccountID:     "222222222222",
+			mockExistingRoles: []string{"integrationRole"},
+			errCheck:          badParameterCheck,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			clt := mockEKSIAMConfigClient{
-				existingRoles: tt.mockExistingRoles,
+				CallerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
+				existingRoles:        tt.mockExistingRoles,
 			}
 
 			err := ConfigureEKSIAM(ctx, &clt, tt.req)
@@ -116,7 +157,30 @@ func TestEKSAMConfig(t *testing.T) {
 	}
 }
 
+func TestEKSIAMConfigOutput(t *testing.T) {
+	var buf bytes.Buffer
+	req := EKSIAMConfigureRequest{
+		Region:          "us-east-1",
+		IntegrationRole: "integrationRole",
+		AccountID:       "123456789012",
+		AutoConfirm:     true,
+		stdout:          &buf,
+	}
+	clt := &mockEKSIAMConfigClient{
+		CallerIdentityGetter: mockSTSClient{accountID: req.AccountID},
+		existingRoles:        []string{req.IntegrationRole},
+	}
+
+	ctx := context.Background()
+	require.NoError(t, ConfigureEKSIAM(ctx, clt, req))
+	if golden.ShouldSet() {
+		golden.Set(t, buf.Bytes())
+	}
+	require.Equal(t, string(golden.Get(t)), buf.String())
+}
+
 type mockEKSIAMConfigClient struct {
+	CallerIdentityGetter
 	existingRoles []string
 }
 
@@ -124,7 +188,7 @@ type mockEKSIAMConfigClient struct {
 func (m *mockEKSIAMConfigClient) PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error) {
 	if !slices.Contains(m.existingRoles, *params.RoleName) {
 		noSuchEntityMessage := fmt.Sprintf("role %q does not exist.", *params.RoleName)
-		return nil, &iamTypes.NoSuchEntityException{
+		return nil, &iamtypes.NoSuchEntityException{
 			Message: &noSuchEntityMessage,
 		}
 	}

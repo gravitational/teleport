@@ -6,7 +6,7 @@ includedir=${prefix}/include
 Name: libfido2
 Description: A FIDO2 library
 URL: https://github.com/yubico/libfido2
-Version: 1.14.0
+Version: 1.15.0
 Requires: libcrypto-static
 # libfido2, libcbor and libudev combined here for simplicity.
 Libs: ${libdir}/libfido2.a ${libdir}/libcbor.a ${libdir}/libudev.a -pthread

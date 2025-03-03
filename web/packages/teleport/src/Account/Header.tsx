@@ -16,12 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Box, ButtonSecondary, Flex, Indicator, Text } from 'design';
 import React from 'react';
-import styled, { useTheme } from 'styled-components';
+import styled, { css, useTheme } from 'styled-components';
+
+import {
+  Box,
+  ButtonPrimary,
+  ButtonSecondary,
+  Flex,
+  H2,
+  Indicator,
+  Subtitle2,
+} from 'design';
 
 export interface HeaderProps {
-  title: string;
+  title: React.ReactNode;
   description?: string;
   icon: React.ReactNode;
   showIndicator?: boolean;
@@ -49,16 +58,17 @@ export function Header({
         {icon}
       </Box>
       <Box flex="1">
-        <Text typography="h4">{title}</Text>
-        <Text typography="body1" color={theme.colors.text.slightlyMuted}>
+        <H2>{title}</H2>
+        <Subtitle2 color={theme.colors.text.slightlyMuted}>
           {description}
-        </Text>
+        </Subtitle2>
       </Box>
       {/* Indicator is always in the layout so that the description text doesn't
           reflow if visibility changes. */}
       <Box
         lineHeight={0}
         style={{ visibility: showIndicator ? 'visible' : 'hidden' }}
+        data-testid="indicator-wrapper"
       >
         <Indicator size={40} />
       </Box>
@@ -67,8 +77,16 @@ export function Header({
   );
 }
 
-export const ActionButton = styled(ButtonSecondary)`
+const actionButtonStyles = css`
   padding: ${props => `${props.theme.space[2]}px ${props.theme.space[4]}px`};
   gap: ${props => `${props.theme.space[2]}px`};
   text-transform: none;
+`;
+
+export const ActionButtonSecondary = styled(ButtonSecondary)`
+  ${actionButtonStyles}
+`;
+
+export const ActionButtonPrimary = styled(ButtonPrimary)`
+  ${actionButtonStyles}
 `;

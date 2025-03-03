@@ -1,0 +1,228 @@
+---
+title: Joining Services via AWS EC2 Identity Document
+description: Use the EC2 join method to add services to your Teleport cluster on AWS
+---
+
+This guide explains how to use the **EC2 join method** to configure Teleport
+processes to join your Teleport cluster without sharing any secrets when they a
+re running in AWS.
+
+The EC2 join method is only available in self-hosted Teleport deployments. There
+are two other AWS join methods available depending on your use case:
+
+1. The **IAM join method** is available to any Teleport process running anywhere
+   with access to IAM credentials, such as an EC2 instance with an attached IAM
+   role (see [documentation](aws-iam.mdx)). No specific permissions or IAM policy
+   is required: an IAM role with no attached policies is sufficient. No IAM
+   credentials are required on the Teleport Auth Service.
+1. **Tokens not signed by AWS:** You can configure Teleport processes running on
+   AWS to join a cluster via [Teleport join tokens](join-token.mdx) or, for
+   Teleport processes running on Kubernetes, [signed ServiceAccount
+   tokens](kubernetes.mdx). These approaches allow you to join a Teleport
+   process to a cluster when you don't want to rely on AWS-specific APIs, e.g.,
+   when adopting a cloud-agnostic approach.
+
+## How it works
+
+The EC2 join method is available to any Teleport process running on an EC2
+instance. Only one Teleport process per EC2 instance may use the EC2 join
+method. The process presents an [EC2 instance identity
+document](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-identity-documents.html)
+to the Teleport Auth Service. 
+
+Meanwhile, the Teleport Auth Service has AWS IAM credentials with
+`ec2:DescribeInstances` permissions in order to check that the identity document
+belongs to a legitimate EC2 instance. No IAM credentials are required on the
+Teleport processes joining the cluster.
+
+## Prerequisites
+
+(!docs/pages/includes/self-hosted-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+- An AWS EC2 instance to host a Teleport process, with the Teleport binary
+  installed. The host should not have an existing data dir (`/var/lib/teleport`
+  by default). Remove the data directory if this instance has previously joined
+  a Teleport cluster.
+
+## Step 1/5. Set up AWS IAM credentials
+
+The Teleport Auth Service needs permission to call `ec2:DescribeInstances` in order to check
+that the EC2 instances attempting to join your cluster are legitimate and
+currently running.
+
+### Create the IAM policy
+
+Create the following AWS IAM policy named `teleport-DescribeInstances-policy` in
+your account:
+
+```json
+{
+   "Version": "2012-10-17",
+   "Statement": [
+	   {
+		   "Effect": "Allow",
+		   "Action": "ec2:DescribeInstances",
+		   "Resource": "*"
+	   }
+   ]
+}
+```
+
+### Attach the IAM policy
+
+If your Teleport Auth Service is running on an EC2 instance and already has an
+attached "IAM role for Amazon EC2", add the above
+`teleport-DescribeInstances-policy` to the existing role. If the instance
+does not already have an attached role, create an IAM role with the above
+policy and attach it to your EC2 instance running the Teleport Auth Service.
+
+If you are running your Teleport Auth Service outside of AWS you can attach
+the `teleport-DescribeInstances-policy` directly to an IAM user which
+Teleport will use to authenticate.
+
+You can provide the IAM credentials to Teleport through a shared configuration
+file or environment variables. See
+[Specifying Credentials](https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/#specifying-credentials)
+for details.
+
+## Step 2/5. Create the AWS joining token
+
+Configure your Teleport Auth Service with a special dynamic token which will
+allow services from your AWS account to join your Teleport cluster.
+
+Under the hood, services will prove that they are running in your AWS account by
+sending a signed EC2 Instance Identity Document which matches an allow rule
+configured in your AWS joining token.
+
+Create the following `token.yaml` with an `allow` rule specifying your AWS
+account and the AWS regions in which your EC2 instances will run.
+
+(!docs/pages/includes/provision-token/ec2-spec.mdx!)
+
+Run `tctl create token.yaml` to create the token.
+
+## Step 3/5 Install Teleport
+
+Install Teleport on your AWS EC2 Instance.
+
+(!docs/pages/includes/install-linux.mdx!)
+
+## Step 4/5. Configure your services
+
+The EC2 join method can be used for Teleport processes running the SSH, Proxy,
+Kubernetes, Application, Database, or Windows Desktop Services. The Teleport
+process should be run directly on an AWS EC2 instance and must have network
+access to the AWS EC2 IMDSv2 (enabled by default for most EC2 instances).
+
+Configure your Teleport process with a custom `teleport.yaml` file. Use the
+`join_params` section with `token_name` matching your token created in Step 2
+and `method: ec2` as shown in the following example config:
+
+```
+# /etc/teleport.yaml
+version: v3
+teleport:
+  join_params:
+    token_name: ec2-token
+    method: ec2
+  proxy_server: https://teleport.example.com:443
+ssh_service:
+  enabled: yes
+auth_service:
+  enabled: no
+proxy_service:
+  enabled: no
+```
+
+## Step 5/5. Launch your Teleport process
+
+<Admonition
+  type="note"
+  title="IMPORTANT"
+>
+
+  The data directory (`/var/lib/teleport` by default) must be empty prior to
+  launching the Teleport process. If this Teleport process had previously joined
+  by another method (e.g.  token or IAM) the host UUID will not match the
+  expected name (`<AWS Account number>-<instance id>`) and will not be allowed
+  to join.
+
+</Admonition>
+
+(!docs/pages/includes/start-teleport.mdx!)
+
+Start Teleport on the host and confirm that it is able to connect to and join
+your cluster. You're all set!
+
+## Configuring the EC2 join method for Multiple AWS accounts
+
+In order for Teleport processes to join from EC2 instances in AWS accounts other
+than the account in which your Teleport Auth Service is running, Teleport must
+have permissions to assume an IAM role in each of those accounts and call
+`ec2:DescribeInstances` in the foreign account.
+
+In each AWS account where your EC2 instances will be running:
+
+1. Create the `teleport-DescribeInstances-policy` from [Step 1.1](#create-the-iam-policy).
+
+1. Create an IAM role `teleport-DescribeInstances-role` that can be assumed from
+   the account where your Teleport Auth Service is running.
+
+   Go to the AWS IAM Console, select Create Role, and for "Select type of
+   trusted entity", select "Another AWS account" and enter the AWS Account ID of
+   the account where your Teleport Auth Service is running.
+
+1. Attach the `teleport-DescribeInstances-policy` to the role.
+
+In the AWS account where your Teleport Auth Service is running:
+
+1. Create an IAM policy named `teleport-AssumeRole-policy` with an `AssumeRole`
+   statement for each foreign account:
+
+```json
+{
+   "Version": "2012-10-17",
+   "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "sts:AssumeRole",
+            "Resource": "arn:aws:iam::222222222222:role/teleport-DescribeInstances-role"
+        },
+        {
+            "Effect": "Allow",
+            "Action": "sts:AssumeRole",
+            "Resource": "arn:aws:iam::333333333333:role/teleport-DescribeInstances-role"
+        }
+   ]
+}
+```
+
+1. Attach this `teleport-AssumeRole-policy` to the IAM role your Teleport Auth
+   Service has credentials for, see [Step 1.2](#attach-the-iam-policy).
+
+When creating the AWS joining token, include an allow rule for each foreign
+account and specify the AWS ARN for the foreign
+`teleport-DescribeInstances-role`.
+
+```yaml
+# token.yaml
+kind: token
+version: v2
+metadata:
+  name: ec2-multiaccount-token
+spec:
+  roles: [Node]
+  aws_iid_ttl: 5m
+  allow:
+  - aws_account: "222222222222"
+    aws_regions:
+    - us-west-1
+    - us-west-2
+    aws_role: "arn:aws:iam::222222222222:role/teleport-DescribeInstances-role"
+  - aws_account: "333333333333"
+    aws_regions:
+    - us-west-1
+    - us-west-2
+    aws_role: "arn:aws:iam::333333333333:role/teleport-DescribeInstances-role"
+```

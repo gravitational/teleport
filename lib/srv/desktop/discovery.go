@@ -23,6 +23,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"maps"
 	"net"
 	"net/netip"
 	"strings"
@@ -31,11 +32,13 @@ import (
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -45,14 +48,13 @@ func (s *WindowsService) startDesktopDiscovery() error {
 	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.WindowsDesktop]{
 		// Use a matcher that matches all resources, since our desktops are
 		// pre-filtered by nature of using an LDAP search with filters.
-		Matcher: func(d types.WindowsDesktop) bool { return true },
-
+		Matcher:             func(d types.WindowsDesktop) bool { return true },
 		GetCurrentResources: func() map[string]types.WindowsDesktop { return s.lastDiscoveryResults },
 		GetNewResources:     s.getDesktopsFromLDAP,
 		OnCreate:            s.upsertDesktop,
 		OnUpdate:            s.updateDesktop,
 		OnDelete:            s.deleteDesktop,
-		Log:                 s.cfg.Log,
+		Logger:              s.cfg.Logger.With("kind", types.KindWindowsDesktop),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -63,7 +65,7 @@ func (s *WindowsService) startDesktopDiscovery() error {
 		// (we still have a small delay to give the LDAP client time to initialize)
 		time.Sleep(15 * time.Second)
 		if err := reconciler.Reconcile(s.closeCtx); err != nil && !errors.Is(err, context.Canceled) {
-			s.cfg.Log.Errorf("desktop reconciliation failed: %v", err)
+			s.cfg.Logger.ErrorContext(s.closeCtx, "desktop reconciliation failed", "error", err)
 		}
 
 		// TODO(zmb3): consider making the discovery period configurable
@@ -76,7 +78,7 @@ func (s *WindowsService) startDesktopDiscovery() error {
 				return
 			case <-t.Chan():
 				if err := reconciler.Reconcile(s.closeCtx); err != nil && !errors.Is(err, context.Canceled) {
-					s.cfg.Log.Errorf("desktop reconciliation failed: %v", err)
+					s.cfg.Logger.ErrorContext(s.closeCtx, "desktop reconciliation failed", "error", err)
 				}
 			}
 		}
@@ -96,13 +98,18 @@ func (s *WindowsService) ldapSearchFilter() string {
 
 // getDesktopsFromLDAP discovers Windows hosts via LDAP
 func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
-	if !s.ldapReady() {
-		s.cfg.Log.Warn("skipping desktop discovery: LDAP not yet initialized")
+	// Check whether we've ever successfully initialized our LDAP client.
+	s.mu.Lock()
+	if !s.ldapInitialized {
+		s.cfg.Logger.DebugContext(context.Background(), "LDAP not ready, skipping discovery and attempting to reconnect")
+		s.mu.Unlock()
+		s.initializeLDAP()
 		return nil
 	}
+	s.mu.Unlock()
 
 	filter := s.ldapSearchFilter()
-	s.cfg.Log.Debugf("searching for desktops with LDAP filter %v", filter)
+	s.cfg.Logger.DebugContext(context.Background(), "searching for desktops", "filter", filter)
 
 	var attrs []string
 	attrs = append(attrs, ComputerAttributes...)
@@ -114,23 +121,23 @@ func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
 		// ready for the next reconcile loop. Return the last known set of desktops
 		// in this case, so that the reconciler doesn't delete the desktops it already
 		// knows about.
-		s.cfg.Log.Info("LDAP connection error when searching for desktops, reinitializing client")
+		s.cfg.Logger.InfoContext(context.Background(), "LDAP connection error when searching for desktops, reinitializing client")
 		if err := s.initializeLDAP(); err != nil {
-			s.cfg.Log.Errorf("failed to reinitialize LDAP client, will retry on next reconcile: %v", err)
+			s.cfg.Logger.ErrorContext(context.Background(), "failed to reinitialize LDAP client, will retry on next reconcile", "error", err)
 		}
 		return s.lastDiscoveryResults
 	} else if err != nil {
-		s.cfg.Log.Warnf("could not discover Windows Desktops: %v", err)
+		s.cfg.Logger.WarnContext(context.Background(), "could not discover Windows Desktops", "error", err)
 		return nil
 	}
 
-	s.cfg.Log.Debugf("discovered %d Windows Desktops", len(entries))
+	s.cfg.Logger.DebugContext(context.Background(), "discovered Windows Desktops", "count", len(entries))
 
 	result := make(map[string]types.WindowsDesktop)
 	for _, entry := range entries {
 		desktop, err := s.ldapEntryToWindowsDesktop(s.closeCtx, entry, s.cfg.HostLabelsFn)
 		if err != nil {
-			s.cfg.Log.Warnf("could not create Windows Desktop from LDAP entry: %v", err)
+			s.cfg.Logger.WarnContext(s.closeCtx, "could not create Windows Desktop from LDAP entry", "error", err)
 			continue
 		}
 		result[desktop.GetName()] = desktop
@@ -206,8 +213,7 @@ func (s *WindowsService) lookupDesktop(ctx context.Context, hostname string) ([]
 
 			addrs, err := resolver.LookupNetIP(tctx, "ip4", hostname)
 			if err != nil {
-				s.cfg.Log.Debugf("DNS lookup for %v failed with %s resolver: %v",
-					hostname, resolverName, err)
+				s.cfg.Logger.DebugContext(ctx, "DNS lookup failed", "hostname", hostname, "resolver", resolverName, "error", err)
 			}
 
 			// even though we requested "ip4" it's possible to get IPv4
@@ -248,26 +254,34 @@ func (s *WindowsService) lookupDesktop(ctx context.Context, hostname string) ([]
 
 // ldapEntryToWindowsDesktop generates the Windows Desktop resource
 // from an LDAP search result
-func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *ldap.Entry, getHostLabels func(string) map[string]string) (types.WindowsDesktop, error) {
+func (s *WindowsService) ldapEntryToWindowsDesktop(
+	ctx context.Context,
+	entry *ldap.Entry,
+	getHostLabels func(string) map[string]string,
+) (types.WindowsDesktop, error) {
 	hostname := entry.GetAttributeValue(windows.AttrDNSHostName)
 	if hostname == "" {
 		attrs := make([]string, len(entry.Attributes))
 		for _, a := range entry.Attributes {
 			attrs = append(attrs, fmt.Sprintf("%v=%v", a.Name, a.Values))
 		}
-		s.cfg.Log.Debugf("LDAP entry %v is missing hostname, has attributes %v", entry.DN, strings.Join(attrs, ","))
+		s.cfg.Logger.DebugContext(ctx, "LDAP entry is missing hostname", "dn", entry.DN, "attrs", strings.Join(attrs, ","))
 		return nil, trace.BadParameter("LDAP entry %v missing hostname", entry.DN)
 	}
 	labels := getHostLabels(hostname)
 	labels[types.DiscoveryLabelWindowsDomain] = s.cfg.Domain
 	s.applyLabelsFromLDAP(entry, labels)
 
+	if os, ok := labels[types.DiscoveryLabelWindowsOS]; ok && strings.Contains(os, "linux") {
+		return nil, trace.BadParameter("LDAP entry looks like a Linux host")
+	}
+
 	addrs, err := s.lookupDesktop(ctx, hostname)
 	if err != nil || len(addrs) == 0 {
 		return nil, trace.WrapWithMessage(err, "couldn't resolve %q", hostname)
 	}
 
-	s.cfg.Log.Debugf("resolved %v => %v", hostname, addrs)
+	s.cfg.Logger.DebugContext(ctx, "resolved desktop host", "hostname", hostname, "addrs", addrs)
 	addr, err := utils.ParseHostPortAddr(addrs[0], defaults.RDPListenPort)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -301,4 +315,92 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *l
 	// take a long time.
 	desktop.SetExpiry(s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL * 3))
 	return desktop, nil
+}
+
+// startDynamicReconciler starts resource watcher and reconciler that registers/unregisters Windows desktops
+// according to the up-to-date list of dynamic Windows desktops resources.
+func (s *WindowsService) startDynamicReconciler(ctx context.Context) (*services.GenericWatcher[types.DynamicWindowsDesktop, readonly.DynamicWindowsDesktop], error) {
+	if len(s.cfg.ResourceMatchers) == 0 {
+		s.cfg.Logger.DebugContext(ctx, "Not starting dynamic desktop resource watcher.")
+		return nil, nil
+	}
+	s.cfg.Logger.DebugContext(ctx, "Starting dynamic desktop resource watcher.")
+	dynamicDesktopClient := s.cfg.AuthClient.DynamicDesktopClient()
+	watcher, err := services.NewDynamicWindowsDesktopWatcher(ctx, services.DynamicWindowsDesktopWatcherConfig{
+		DynamicWindowsDesktopGetter: dynamicDesktopClient,
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentWindowsDesktop,
+			Client:    s.cfg.AccessPoint,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	currentResources := make(map[string]types.WindowsDesktop)
+	var newResources map[string]types.WindowsDesktop
+
+	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.WindowsDesktop]{
+		Matcher: func(desktop types.WindowsDesktop) bool {
+			return services.MatchResourceLabels(s.cfg.ResourceMatchers, desktop.GetAllLabels())
+		},
+		GetCurrentResources: func() map[string]types.WindowsDesktop {
+			return currentResources
+		},
+		GetNewResources: func() map[string]types.WindowsDesktop {
+			return newResources
+		},
+		OnCreate: s.upsertDesktop,
+		OnUpdate: s.updateDesktop,
+		OnDelete: s.deleteDesktop,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	go func() {
+		defer s.cfg.Logger.DebugContext(ctx, "DynamicWindowsDesktop resource watcher done.")
+		defer watcher.Close()
+		for {
+			select {
+			case desktops := <-watcher.ResourcesC:
+				newResources = make(map[string]types.WindowsDesktop)
+				for _, dynamicDesktop := range desktops {
+					desktop, err := s.toWindowsDesktop(dynamicDesktop)
+					if err != nil {
+						s.cfg.Logger.WarnContext(ctx, "Can't create desktop resource", "error", err)
+						continue
+					}
+					newResources[dynamicDesktop.GetName()] = desktop
+				}
+				if err := reconciler.Reconcile(ctx); err != nil {
+					s.cfg.Logger.WarnContext(ctx, "Reconciliation failed, will retry", "error", err)
+					continue
+				}
+				currentResources = newResources
+			case <-watcher.Done():
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	return watcher, nil
+}
+
+func (s *WindowsService) toWindowsDesktop(dynamicDesktop types.DynamicWindowsDesktop) (*types.WindowsDesktopV3, error) {
+	width, height := dynamicDesktop.GetScreenSize()
+	desktopLabels := dynamicDesktop.GetAllLabels()
+	labels := make(map[string]string, len(desktopLabels)+1)
+	maps.Copy(labels, desktopLabels)
+	labels[types.OriginLabel] = types.OriginDynamic
+	return types.NewWindowsDesktopV3(dynamicDesktop.GetName(), labels, types.WindowsDesktopSpecV3{
+		Addr:   dynamicDesktop.GetAddr(),
+		Domain: dynamicDesktop.GetDomain(),
+		HostID: s.cfg.Heartbeat.HostUUID,
+		NonAD:  dynamicDesktop.NonAD(),
+		ScreenSize: &types.Resolution{
+			Width:  width,
+			Height: height,
+		},
+	})
 }

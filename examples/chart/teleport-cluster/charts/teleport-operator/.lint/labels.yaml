@@ -1,0 +1,10 @@
+labels:
+  deployment:
+    kubernetes.io/deployment: "test-label"
+    kubernetes.io/deployment-different: 3
+  pod:
+    kubernetes.io/pod: "test-label"
+    kubernetes.io/pod-different: 4
+teleportAddress: "example.teleport.sh:443"
+token: "my-operator-bot"
+teleportClusterName: "example.teleport.sh"

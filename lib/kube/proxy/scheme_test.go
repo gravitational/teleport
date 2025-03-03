@@ -21,17 +21,18 @@ package proxy
 import (
 	"testing"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestNewClusterSchemaBuilder tests that newClusterSchemaBuilder doesn't panic
 // when it's given types already registered in the global scheme.
 func Test_newClusterSchemaBuilder(t *testing.T) {
-	_, _, _, err := newClusterSchemaBuilder(logrus.StandardLogger(), &clientSet{})
+	_, _, _, err := newClusterSchemaBuilder(utils.NewSlogLoggerForTests(), &clientSet{})
 	require.NoError(t, err)
 }
 
@@ -44,17 +45,19 @@ func (c *clientSet) Discovery() discovery.DiscoveryInterface {
 	return c
 }
 
+var fakeAPIResource = metav1.APIResourceList{
+	GroupVersion: "extensions/v1beta1",
+	APIResources: []metav1.APIResource{
+		{
+			Name:       "ingresses",
+			Kind:       "Ingress",
+			Namespaced: true,
+		},
+	},
+}
+
 func (c *clientSet) ServerGroupsAndResources() ([]*metav1.APIGroup, []*metav1.APIResourceList, error) {
 	return nil, []*metav1.APIResourceList{
-		{
-			GroupVersion: "extensions/v1beta1",
-			APIResources: []metav1.APIResource{
-				{
-					Name:       "ingresses",
-					Kind:       "Ingress",
-					Namespaced: true,
-				},
-			},
-		},
+		&fakeAPIResource,
 	}, nil
 }

@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -46,7 +46,7 @@ type AccessRequest struct {
 }
 
 // GetAccessRequest returns a specific access request by ID and includes resource details
-func (c *Cluster) GetAccessRequest(ctx context.Context, rootAuthClient auth.ClientI, req types.AccessRequestFilter) (*AccessRequest, error) {
+func (c *Cluster) GetAccessRequest(ctx context.Context, rootAuthClient authclient.ClientI, req types.AccessRequestFilter) (*AccessRequest, error) {
 	var (
 		request         types.AccessRequest
 		resourceDetails map[string]ResourceDetails
@@ -82,7 +82,7 @@ func (c *Cluster) GetAccessRequest(ctx context.Context, rootAuthClient auth.Clie
 }
 
 // Returns all access requests available to the user.
-func (c *Cluster) GetAccessRequests(ctx context.Context, rootAuthClient auth.ClientI, req types.AccessRequestFilter) ([]AccessRequest, error) {
+func (c *Cluster) GetAccessRequests(ctx context.Context, rootAuthClient authclient.ClientI, req types.AccessRequestFilter) ([]AccessRequest, error) {
 	var (
 		requests []types.AccessRequest
 		err      error
@@ -107,7 +107,7 @@ func (c *Cluster) GetAccessRequests(ctx context.Context, rootAuthClient auth.Cli
 }
 
 // Creates an access request.
-func (c *Cluster) CreateAccessRequest(ctx context.Context, rootAuthClient auth.ClientI, req *api.CreateAccessRequestRequest) (*AccessRequest, error) {
+func (c *Cluster) CreateAccessRequest(ctx context.Context, rootAuthClient authclient.ClientI, req *api.CreateAccessRequestRequest) (*AccessRequest, error) {
 	var (
 		err     error
 		request types.AccessRequest
@@ -162,7 +162,7 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, rootAuthClient auth.C
 	}, nil
 }
 
-func (c *Cluster) ReviewAccessRequest(ctx context.Context, rootAuthClient auth.ClientI, req *api.ReviewAccessRequestRequest) (*AccessRequest, error) {
+func (c *Cluster) ReviewAccessRequest(ctx context.Context, rootAuthClient authclient.ClientI, req *api.ReviewAccessRequestRequest) (*AccessRequest, error) {
 	var (
 		err            error
 		updatedRequest types.AccessRequest
@@ -205,14 +205,14 @@ func (c *Cluster) ReviewAccessRequest(ctx context.Context, rootAuthClient auth.C
 	}, nil
 }
 
-func (c *Cluster) DeleteAccessRequest(ctx context.Context, rootAuthClient auth.ClientI, req *api.DeleteAccessRequestRequest) error {
+func (c *Cluster) DeleteAccessRequest(ctx context.Context, rootAuthClient authclient.ClientI, req *api.DeleteAccessRequestRequest) error {
 	err := AddMetadataToRetryableError(ctx, func() error {
 		return rootAuthClient.DeleteAccessRequest(ctx, req.AccessRequestId)
 	})
 	return trace.Wrap(err)
 }
 
-func (c *Cluster) AssumeRole(ctx context.Context, rootProxyClient *client.ProxyClient, req *api.AssumeRoleRequest) error {
+func (c *Cluster) AssumeRole(ctx context.Context, rootClient *client.ClusterClient, req *api.AssumeRoleRequest) error {
 	err := AddMetadataToRetryableError(ctx, func() error {
 		params := client.ReissueParams{
 			AccessRequests:     req.AccessRequestIds,
@@ -221,14 +221,14 @@ func (c *Cluster) AssumeRole(ctx context.Context, rootProxyClient *client.ProxyC
 		}
 
 		// keep existing access requests that aren't included in the droprequests
-		for _, reqID := range c.status.ActiveRequests.AccessRequests {
+		for _, reqID := range c.status.ActiveRequests {
 			if !slices.Contains(req.DropRequestIds, reqID) {
 				params.AccessRequests = append(params.AccessRequests, reqID)
 			}
 		}
 		// When assuming a role, we want to drop all cached certs otherwise
 		// tsh will continue to use the old certs.
-		return rootProxyClient.ReissueUserCerts(ctx, client.CertCacheDrop, params)
+		return rootClient.ReissueUserCerts(ctx, client.CertCacheDrop, params)
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -238,7 +238,7 @@ func (c *Cluster) AssumeRole(ctx context.Context, rootProxyClient *client.ProxyC
 	return trace.Wrap(err)
 }
 
-func getResourceDetails(ctx context.Context, req types.AccessRequest, rootAuthClient auth.ClientI) (map[string]ResourceDetails, error) {
+func getResourceDetails(ctx context.Context, req types.AccessRequest, rootAuthClient authclient.ClientI) (map[string]ResourceDetails, error) {
 	resourceIDsByCluster := accessrequest.GetResourceIDsByCluster(req)
 
 	resourceDetails := make(map[string]ResourceDetails)

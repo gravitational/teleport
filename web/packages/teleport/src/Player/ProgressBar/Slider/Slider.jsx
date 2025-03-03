@@ -23,9 +23,9 @@ THE SOFTWARE.
 
 */
 
-import React from 'react';
-import PropTypes from 'prop-types';
 import createReactClass from 'create-react-class';
+import PropTypes from 'prop-types';
+import { Children, createElement } from 'react';
 
 /**
  * To prevent text selection while dragging.
@@ -189,7 +189,7 @@ const ReactSlider = createReactClass({
     onAfterChange: PropTypes.func,
 
     /**
-     *  Callback called when the the slider is clicked (handle or bars).
+     *  Callback called when the slider is clicked (handle or bars).
      *  Receives the value at the clicked position as argument.
      */
     onSliderClick: PropTypes.func,
@@ -269,7 +269,7 @@ const ReactSlider = createReactClass({
   // equally.
   // TODO: better name? better solution?
   _or: function (value, defaultValue) {
-    var count = React.Children.count(this.props.children);
+    var count = Children.count(this.props.children);
     switch (count) {
       case 0:
         return value.length > 0 ? value : defaultValue;
@@ -788,7 +788,7 @@ const ReactSlider = createReactClass({
       ' ' +
       (this.state.index === i ? this.props.handleActiveClassName : '');
 
-    return React.createElement(
+    return createElement(
       'div',
       {
         ref: function (r) {
@@ -824,8 +824,8 @@ const ReactSlider = createReactClass({
 
     var res = [];
     var renderHandle = this._renderHandle;
-    if (React.Children.count(this.props.children) > 0) {
-      React.Children.forEach(this.props.children, function (child, i) {
+    if (Children.count(this.props.children) > 0) {
+      Children.forEach(this.props.children, function (child, i) {
         res[i] = renderHandle(styles[i], child, i);
       });
     } else {
@@ -838,7 +838,7 @@ const ReactSlider = createReactClass({
 
   _renderBar: function (i, offsetFrom, offsetTo) {
     var self = this;
-    return React.createElement('div', {
+    return createElement('div', {
       key: 'bar' + i,
       ref: function (r) {
         self['bar' + i] = r;
@@ -917,7 +917,7 @@ const ReactSlider = createReactClass({
     var bars = props.withBars ? this._renderBars(offset) : null;
     var handles = this._renderHandles(offset);
 
-    return React.createElement(
+    return createElement(
       'div',
       {
         ref: function (r) {

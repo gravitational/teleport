@@ -16,21 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { renderHook } from '@testing-library/react';
 
-import { ServerUri } from 'teleterm/ui/uri';
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { SearchResult } from 'teleterm/ui/services/resources';
+import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+
 import {
-  makeServer,
   makeKube,
   makeLabelsList,
+  makeLeafCluster,
   makeRootCluster,
+  makeServer,
 } from 'teleterm/services/tshd/testHelpers';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { SearchResult } from 'teleterm/ui/services/resources';
+import { ServerUri } from 'teleterm/ui/uri';
 
 import { MockAppContextProvider } from '../fixtures/MockAppContextProvider';
-
 import { makeResourceResult } from './testHelpers';
 import { rankResults, useFilterSearch, useResourceSearch } from './useSearch';
 
@@ -52,6 +53,33 @@ describe('rankResults', () => {
 
     expect(sortedResults[0]).toEqual(kube);
     expect(sortedResults[1]).toEqual(server);
+  });
+
+  it('prefers accessible resources over requestable ones', () => {
+    const serverAccessible = makeResourceResult({
+      kind: 'server',
+      resource: makeServer({ hostname: 'sales-foo' }),
+    });
+    const serverRequestable = makeResourceResult({
+      kind: 'server',
+      resource: makeServer({ hostname: 'sales-bar' }),
+      requiresRequest: true,
+    });
+    const labelMatch = makeResourceResult({
+      kind: 'server',
+      resource: makeServer({
+        hostname: 'lorem-ipsum',
+        labels: makeLabelsList({ foo: 'sales' }),
+      }),
+    });
+    const sortedResults = rankResults(
+      [labelMatch, serverRequestable, serverAccessible],
+      'sales'
+    );
+
+    expect(sortedResults[0].resource).toEqual(serverAccessible.resource);
+    expect(sortedResults[1].resource).toEqual(serverRequestable.resource);
+    expect(sortedResults[2].resource).toEqual(labelMatch.resource);
   });
 
   it('saves individual label match scores', () => {
@@ -140,10 +168,11 @@ describe('useResourceSearch', () => {
       .map(() => ({
         kind: 'server' as const,
         resource: makeServer({}),
+        requiresRequest: false,
       }));
     jest
       .spyOn(appContext.resourcesService, 'searchResources')
-      .mockResolvedValue([{ status: 'fulfilled', value: servers }]);
+      .mockResolvedValue(servers);
 
     const { result } = renderHook(() => useResourceSearch(), {
       wrapper: ({ children }) => (
@@ -160,6 +189,7 @@ describe('useResourceSearch', () => {
       search: 'foo',
       filters: [],
       limit: 100,
+      includeRequestable: false,
     });
     expect(appContext.resourcesService.searchResources).toHaveBeenCalledTimes(
       1
@@ -174,7 +204,7 @@ describe('useResourceSearch', () => {
     });
     jest
       .spyOn(appContext.resourcesService, 'searchResources')
-      .mockResolvedValue([{ status: 'fulfilled', value: [] }]);
+      .mockResolvedValue([]);
 
     const { result } = renderHook(() => useResourceSearch(), {
       wrapper: ({ children }) => (
@@ -190,7 +220,8 @@ describe('useResourceSearch', () => {
       clusterUri: cluster.uri,
       search: '',
       filters: [],
-      limit: 5,
+      limit: 10,
+      includeRequestable: false,
     });
     expect(appContext.resourcesService.searchResources).toHaveBeenCalledTimes(
       1
@@ -205,7 +236,7 @@ describe('useResourceSearch', () => {
     });
     jest
       .spyOn(appContext.resourcesService, 'searchResources')
-      .mockResolvedValue([{ status: 'fulfilled', value: [] }]);
+      .mockResolvedValue([]);
 
     const { result } = renderHook(() => useResourceSearch(), {
       wrapper: ({ children }) => (
@@ -226,7 +257,7 @@ describe('useResourceSearch', () => {
     });
     jest
       .spyOn(appContext.resourcesService, 'searchResources')
-      .mockResolvedValue([{ status: 'fulfilled', value: [] }]);
+      .mockResolvedValue([]);
 
     const { result } = renderHook(() => useResourceSearch(), {
       wrapper: ({ children }) => (
@@ -237,6 +268,50 @@ describe('useResourceSearch', () => {
     });
     await result.current('foo', [], true);
     expect(appContext.resourcesService.searchResources).not.toHaveBeenCalled();
+  });
+
+  it('fetches requestable resources for leaves if the root cluster allows it', async () => {
+    const appContext = new MockAppContext();
+    const rootCluster = makeRootCluster({
+      showResources: ShowResources.REQUESTABLE,
+      features: { advancedAccessWorkflows: true, isUsageBasedBilling: false },
+    });
+    const leafCluster = makeLeafCluster({
+      showResources: ShowResources.UNSPECIFIED,
+    });
+    appContext.clustersService.setState(draftState => {
+      draftState.clusters.set(rootCluster.uri, rootCluster);
+      draftState.clusters.set(leafCluster.uri, leafCluster);
+    });
+    jest
+      .spyOn(appContext.resourcesService, 'searchResources')
+      .mockResolvedValue([]);
+
+    const { result } = renderHook(() => useResourceSearch(), {
+      wrapper: ({ children }) => (
+        <MockAppContextProvider appContext={appContext}>
+          {children}
+        </MockAppContextProvider>
+      ),
+    });
+    await result.current('foo', [], false);
+    expect(appContext.resourcesService.searchResources).toHaveBeenCalledTimes(
+      2
+    );
+    expect(appContext.resourcesService.searchResources).toHaveBeenCalledWith({
+      clusterUri: rootCluster.uri,
+      filters: [],
+      includeRequestable: true,
+      limit: 100,
+      search: 'foo',
+    });
+    expect(appContext.resourcesService.searchResources).toHaveBeenCalledWith({
+      clusterUri: leafCluster.uri,
+      filters: [],
+      includeRequestable: true,
+      limit: 100,
+      search: 'foo',
+    });
   });
 });
 

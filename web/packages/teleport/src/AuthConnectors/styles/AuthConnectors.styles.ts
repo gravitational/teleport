@@ -17,7 +17,8 @@
  */
 
 import styled from 'styled-components';
-import { Box, ButtonPrimary, Text } from 'design';
+
+import { Box, Button, Subtitle1 } from 'design';
 
 import { FeatureHeader } from 'teleport/components/Layout';
 
@@ -34,7 +35,7 @@ export const ResponsiveFeatureHeader = styled(FeatureHeader)`
   }
 `;
 
-export const MobileDescription = styled(Text)`
+export const MobileDescription = styled(Subtitle1)`
   margin-bottom: ${p => p.theme.space[3]}px;
   @media screen and (min-width: ${p => p.theme.breakpoints.tablet}px) {
     display: none;
@@ -51,7 +52,7 @@ export const DesktopDescription = styled(Box)`
   }
 `;
 
-export const ResponsiveAddButton = styled(ButtonPrimary)`
+export const ResponsiveAddButton = styled(Button)`
   width: 240px;
   @media screen and (max-width: ${p => p.theme.breakpoints.tablet}px) {
     width: 100%;

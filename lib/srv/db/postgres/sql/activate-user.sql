@@ -1,4 +1,4 @@
-CREATE OR REPLACE PROCEDURE teleport_activate_user(username varchar, roles varchar[])
+CREATE OR REPLACE PROCEDURE pg_temp.teleport_activate_user(username varchar, roles varchar[])
 LANGUAGE plpgsql
 AS $$
 DECLARE
@@ -25,7 +25,7 @@ BEGIN
         -- Otherwise reactivate the user, but first strip if of all roles to
         -- account for scenarios with left-over roles if database agent crashed
         -- and failed to cleanup upon session termination.
-        CALL teleport_deactivate_user(username);
+        CALL pg_temp.teleport_deactivate_user(username);
         EXECUTE FORMAT('ALTER USER %I WITH LOGIN', username);
     ELSE
         EXECUTE FORMAT('CREATE USER %I IN ROLE "teleport-auto-user"', username);

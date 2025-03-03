@@ -1,0 +1,78 @@
+should match the snapshot:
+  1: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: teleport-plugin-jira
+        app.kubernetes.io/version: 18.0.0-dev
+        helm.sh/chart: teleport-plugin-jira-18.0.0-dev
+      name: RELEASE-NAME-teleport-plugin-jira
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-plugin-jira
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/instance: RELEASE-NAME
+            app.kubernetes.io/managed-by: Helm
+            app.kubernetes.io/name: teleport-plugin-jira
+            app.kubernetes.io/version: 18.0.0-dev
+            helm.sh/chart: teleport-plugin-jira-18.0.0-dev
+        spec:
+          containers:
+          - command:
+            - /usr/local/bin/teleport-plugin
+            - start
+            - --config
+            - /etc/teleport-jira.toml
+            env:
+            - name: TELEPORT_PLUGIN_FAIL_FAST
+              value: "true"
+            image: gcr.io/overridden/repository:v98.76.54
+            imagePullPolicy: IfNotPresent
+            name: teleport-plugin-jira
+            ports:
+            - containerPort: 8443
+              name: http
+              protocol: TCP
+            resources: {}
+            securityContext: {}
+            volumeMounts:
+            - mountPath: /etc/teleport-jira.toml
+              name: config
+              subPath: teleport-jira.toml
+            - mountPath: /var/lib/teleport/plugins/jira/teleport-identity
+              name: teleport-identity
+            - mountPath: /var/lib/teleport/plugins/jira/jira_api_token
+              name: password-file
+              subPath: jiraApiToken
+            - mountPath: /var/lib/teleport/plugins/jira/tls/tls.key
+              name: tls
+              subPath: server.key
+            - mountPath: /var/lib/teleport/plugins/jira/tls/tls.crt
+              name: tls
+              subPath: server.crt
+          securityContext: {}
+          volumes:
+          - configMap:
+              defaultMode: 384
+              name: RELEASE-NAME-teleport-plugin-jira
+            name: config
+          - name: teleport-identity
+            secret:
+              defaultMode: 384
+              secretName: ""
+          - name: password-file
+            secret:
+              defaultMode: 384
+              secretName: RELEASE-NAME-teleport-plugin-jira-secret
+          - name: tls
+            secret:
+              defaultMode: 384
+              secretName: jira-tls-secret

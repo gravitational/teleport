@@ -19,3 +19,4 @@
 export * from './VnetSliderStep';
 export * from './vnetContext';
 export { VnetConnectionItem } from './VnetConnectionItem';
+export * from './useVnetLauncher';

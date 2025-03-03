@@ -3,7 +3,7 @@ templates:
   - auth/deployment.yaml
   - auth/config.yaml
 tests:
-  - it: sets Statefulset annotations when specified
+  - it: sets Deployment annotations when specified
     template: auth/deployment.yaml
     values:
       - ../.lint/annotations.yaml
@@ -126,6 +126,35 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: should set podSecurityContext when set in values
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/pod-security-context.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 99
+      - equal:
+          path: spec.template.spec.securityContext.fsGroupChangePolicy
+          value: OnRootMismatch
+      - equal:
+          path: spec.template.spec.securityContext.runAsGroup
+          value: 99
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 99
+
+  - it: should not set podSecurityContext when is empty object (default value)
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/pod-security-context-empty.yaml
+    asserts:
+      - isNull:
+          path: spec.template.spec.securityContext
+
   - it: should set securityContext when set in values
     template: auth/deployment.yaml
     values:
@@ -185,6 +214,30 @@ tests:
             name: license
             secret:
               secretName: license
+
+  - it: should use enterprise image and mount license with custom secret name when enterprise is set in values
+    template: auth/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      enterprise: true
+      licenseSecretName: enterprise-license
+      teleportVersionOverride: 12.2.1
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: public.ecr.aws/gravitational/teleport-ent-distroless:12.2.1
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /var/lib/license
+            name: "license"
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: license
+            secret:
+              secretName: enterprise-license
 
   - it: should use OSS image and not mount license when enterprise is not set in values
     template: auth/deployment.yaml
@@ -828,3 +881,72 @@ tests:
       - equal:
           path: spec.template.metadata.labels.azure\.workload\.identity/use
           value: "true"
+
+  - it: sets extraLabels on Deployment
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/annotations.yaml
+    set:
+      extraLabels:
+        deployment:
+          foo: bar
+          baz: override-me
+      auth:
+        extraLabels:
+          deployment:
+            baz: overridden
+    asserts:
+      - equal:
+          path: metadata.labels.foo
+          value: bar
+      - equal:
+          path: metadata.labels.baz
+          value: overridden
+
+  - it: sets extraLabels on Deployment Pods
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/annotations.yaml
+    set:
+      extraLabels:
+        pod:
+          foo: bar
+          baz: override-me
+      auth:
+        extraLabels:
+          pod:
+            baz: overridden
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.foo
+          value: bar
+      - equal:
+          path: spec.template.metadata.labels.baz
+          value: overridden
+
+  - it: sets readinessProbe values on Deployment Pods
+    template: auth/deployment.yaml
+    set:
+      clusterName: helm-lint
+      readinessProbe:
+        initialDelaySeconds: 9
+        periodSeconds: 10
+        failureThreshold: 11
+        successThreshold: 12
+      auth:
+        # we test an auth-specific override
+        readinessProbe:
+          initialDelaySeconds: 13
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.periodSeconds
+          value: 10
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.failureThreshold
+          value: 11
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.successThreshold
+          value: 12
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.initialDelaySeconds
+          value: 13

@@ -16,12 +16,10 @@ package ssh
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/subtle"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"net"
 	"testing"
@@ -73,19 +71,11 @@ func (s *server) Stop() error {
 }
 
 func generateSigner(t *testing.T) ssh.Signer {
-	private, err := rsa.GenerateKey(rand.Reader, 2048)
+	_, private, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
-
-	block := &pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(private),
-	}
-
-	privatePEM := pem.EncodeToMemory(block)
-	signer, err := ssh.ParsePrivateKey(privatePEM)
+	sshSigner, err := ssh.NewSignerFromSigner(private)
 	require.NoError(t, err)
-
-	return signer
+	return sshSigner
 }
 
 func (s *server) GetClient(t *testing.T) (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request) {

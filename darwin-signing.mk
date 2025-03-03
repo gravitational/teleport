@@ -1,7 +1,7 @@
 # MacOS/Darwin variables for packaging, signing and notarizing.
 #
-# These are parameterized per environment, with `build-prod` for official
-# releases and `build-stage` for development testing. These environment names
+# These are parameterized per environment, with `prod/build` for official
+# releases and `stage/build` for development testing. These environment names
 # come from our configuration in GitHub Actions. These parameters may be
 # moved to the GitHub Actions environments, however we'll always keep the
 # development testing variables defined here so as to be able to run the
@@ -14,12 +14,12 @@
 # Default environment name if not specified. This is currently for running
 # locally instead of from GitHub Actions, where ENVIRONMENT_NAME would not be
 # set.
-ENVIRONMENT_NAME ?= build-stage
+ENVIRONMENT_NAME ?= stage/build
 
 # CLEAN_ENV_NAME replaces hyphens with underscores as hyphens are not valid in
 # environment variable names (make is ok with them, but they get exported, and
 # we want that to be clean).
-CLEAN_ENV_NAME = $(subst -,_,$(ENVIRONMENT_NAME))
+CLEAN_ENV_NAME = $(subst /,_,$(ENVIRONMENT_NAME))
 
 # Variables defined below are defined with the clean environment name suffix to
 # specify the appropriate value for that environment. The unsuffixed names
@@ -45,40 +45,32 @@ CSC_NAME = $(subst Developer ID Application: ,,$(DEVELOPER_ID_APPLICATION))
 # release and development.
 TELEPORT_BUNDLEID = $(TELEPORT_BUNDLEID_$(CLEAN_ENV_NAME))
 TSH_BUNDLEID = $(TSH_BUNDLEID_$(CLEAN_ENV_NAME))
+TCTL_BUNDLEID = $(TCTL_BUNDLEID_$(CLEAN_ENV_NAME))
 
 # TSH_SKELETON is a directory name relative to build.assets/macos/
 TSH_SKELETON = $(TSH_SKELETON_$(CLEAN_ENV_NAME))
+TCTL_SKELETON = $(TCTL_SKELETON_$(CLEAN_ENV_NAME))
 
-# --- build-prod environment (promote is the old name and will be removed)
+# --- prod/build environment (promote is the old name and will be removed)
 # Key names can be found on https://goteleport.com/security
-TEAMID_build_prod = QH8AA5B8UP
-DEVELOPER_KEY_NAME_build_prod = Developer ID Application: Gravitational Inc.
-INSTALLER_KEY_NAME_build_prod = Developer ID Installer: Gravitational Inc.
-TELEPORT_BUNDLEID_build_prod = com.gravitational.teleport
-TSH_BUNDLEID_build_prod = $(TEAMID).com.gravitational.teleport.tsh
-TSH_SKELETON_build_prod = tsh
+TEAMID_prod_build = QH8AA5B8UP
+DEVELOPER_KEY_NAME_prod_build = Developer ID Application: Gravitational Inc.
+INSTALLER_KEY_NAME_prod_build = Developer ID Installer: Gravitational Inc.
+TELEPORT_BUNDLEID_prod_build = com.gravitational.teleport
+TSH_BUNDLEID_prod_build = $(TEAMID).com.gravitational.teleport.tsh
+TSH_SKELETON_prod_build = tsh
+TCTL_BUNDLEID_prod_build = $(TEAMID).com.gravitational.teleport.tctl
+TCTL_SKELETON_prod_build = tctl
 
-TEAMID_promote = $(TEAMID_build_prod)
-DEVELOPER_KEY_NAME_promote = $(DEVELOPER_KEY_NAME_build_prod)
-INSTALLER_KEY_NAME_promote = $(DEVELOPER_KEY_NAME_build_prod)
-TELEPORT_BUNDLEID_promote = $(TELEPORT_BUNDLEID_build_prod)
-TSH_BUNDLEID_promote = $(TSH_BUNDLEID_build_prod)
-TSH_SKELETON_promote = $(TSH_SKELETON_build_prod)
-
-# --- build-stage environment (build is the old name and will be removed)
-TEAMID_build_stage = K497G57PDJ
-DEVELOPER_KEY_NAME_build_stage = Developer ID Application: Ada Lin
-INSTALLER_KEY_NAME_build_stage = Developer ID Installer: Ada Lin
-TELEPORT_BUNDLEID_build_stage = com.goteleport.dev
-TSH_BUNDLEID_build_stage = $(TEAMID).com.goteleport.tshdev
-TSH_SKELETON_build_stage = tshdev
-
-TEAMID_build = $(TEAMID_build_stage)
-DEVELOPER_KEY_NAME_build = $(DEVELOPER_KEY_NAME_build_stage)
-INSTALLER_KEY_NAME_build = $(DEVELOPER_KEY_NAME_build_stage)
-TELEPORT_BUNDLEID_build = $(TELEPORT_BUNDLEID_build_stage)
-TSH_BUNDLEID_build = $(TSH_BUNDLEID_build_stage)
-TSH_SKELETON_build = $(TSH_SKELETON_build_stage)
+# --- stage/build environment (build is the old name and will be removed)
+TEAMID_stage_build = K497G57PDJ
+DEVELOPER_KEY_NAME_stage_build = Developer ID Application: Ada Lin
+INSTALLER_KEY_NAME_stage_build = Developer ID Installer: Ada Lin
+TELEPORT_BUNDLEID_stage_build = com.goteleport.dev
+TSH_BUNDLEID_stage_build = $(TEAMID).com.goteleport.tshdev
+TSH_SKELETON_stage_build = tshdev
+TCTL_BUNDLEID_stage_build = $(TEAMID).com.goteleport.tctldev
+TCTL_SKELETON_stage_build = tctldev
 
 # SHOULD_NOTARIZE evalutes to "true" if we should sign and notarize binaries,
 # and the empty string if not. We only notarize if APPLE_USERNAME and
@@ -114,6 +106,60 @@ define notarize_binaries_cmd
 	rm -rf $(notary_dir) $(notary_file)
 endef
 
+NOTARIZE_TSH_APP = $(if $(SHOULD_NOTARIZE),$(notarize_tsh_app),$(not_notarizing_cmd))
+define notarize_tsh_app
+	$(call notarize_app_bundle,$(TSH_APP_BUNDLE),$(TSH_BUNDLEID),$(TSH_APP_ENTITLEMENTS))
+endef
+
+NOTARIZE_TCTL_APP = $(if $(SHOULD_NOTARIZE),$(notarize_tctl_app),$(not_notarizing_cmd))
+define notarize_tctl_app
+	$(call notarize_app_bundle,$(TCTL_APP_BUNDLE),$(TCTL_BUNDLEID),$(TCTL_APP_ENTITLEMENTS))
+endef
+
+NOTARIZE_TELEPORT_PKG = $(if $(SHOULD_NOTARIZE),$(notarize_teleport_pkg),$(not_notarizing_cmd))
+define notarize_teleport_pkg
+	$(call notarize_pkg,$(TELEPORT_PKG_UNSIGNED),$(TELEPORT_PKG_SIGNED))
+endef
+
+define notarize_app_bundle
+	$(eval $@_BUNDLE = $(1))
+	$(eval $@_BUNDLE_ID = $(2))
+	$(eval $@_ENTITLEMENTS = $(3))
+	codesign \
+		--sign '$(DEVELOPER_ID_APPLICATION)' \
+		--identifier "$($@_BUNDLE_ID)" \
+		--force \
+		--verbose \
+		--timestamp \
+		--options kill,hard,runtime \
+		--entitlements "$($@_ENTITLEMENTS)" \
+		"$($@_BUNDLE)"
+
+	ditto -c -k --keepParent $($@_BUNDLE) $(notary_file)
+	xcrun notarytool submit $(notary_file) \
+		--team-id="$(TEAMID)" \
+		--apple-id="$(APPLE_USERNAME)" \
+		--password="$(APPLE_PASSWORD)" \
+		--wait
+	rm $(notary_file)
+endef
+
+define notarize_pkg
+	$(eval $@_IN_PKG = $(1))
+	$(eval $@_OUT_PKG = $(2))
+	productsign \
+		--sign '$(DEVELOPER_ID_INSTALLER)' \
+		--timestamp \
+		$($@_IN_PKG) \
+		$($@_OUT_PKG)
+	xcrun notarytool submit $($@_OUT_PKG) \
+		--team-id="$(TEAMID)" \
+		--apple-id="$(APPLE_USERNAME)" \
+		--password="$(APPLE_PASSWORD)" \
+		--wait
+	xcrun stapler staple $($@_OUT_PKG)
+endef
+
 echo_var = @echo $(1)=\''$($(1))'\'
 
 .PHONY: print-darwin-signing-vars
@@ -127,3 +173,5 @@ print-darwin-signing-vars:
 	$(call echo_var,TELEPORT_BUNDLEID)
 	$(call echo_var,TSH_BUNDLEID)
 	$(call echo_var,TSH_SKELETON)
+	$(call echo_var,TCTL_BUNDLEID)
+	$(call echo_var,TCTL_SKELETON)

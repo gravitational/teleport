@@ -205,7 +205,6 @@ resource "aws_glue_catalog_table" "audit_table" {
     "projection.event_date.range"         = "NOW-4YEARS,NOW",
     "storage.location.template"           = format("s3://%s/events/$${event_date}/", aws_s3_bucket.long_term_storage.bucket)
     "classification"                      = "parquet"
-    "classification"                      = "parquet",
     "parquet.compression"                 = "SNAPPY",
   }
   storage_descriptor {

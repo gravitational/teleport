@@ -54,7 +54,7 @@ func (b *Bot) CheckHealth(ctx context.Context) error {
 }
 
 // SendReviewReminders will send a review reminder that an access list needs to be reviewed.
-func (b Bot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
+func (b Bot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessLists []*accesslist.AccessList) error {
 	return trace.NotImplemented("access list review reminder is not yet implemented")
 }
 
@@ -83,6 +83,11 @@ func (b *Bot) BroadcastAccessRequestMessage(ctx context.Context, _ []common.Reci
 // PostReviewReply posts an incident work note.
 func (b *Bot) PostReviewReply(ctx context.Context, _ string, incidentID string, review types.AccessReview) error {
 	return trace.Wrap(b.client.PostReviewNote(ctx, incidentID, review))
+}
+
+// NotifyUser will send users a direct message with the access request status
+func (b Bot) NotifyUser(ctx context.Context, reqID string, reqData pd.AccessRequestData) error {
+	return trace.NotImplemented("notify user not implemented for plugin")
 }
 
 // UpdateMessages add notes to the incident containing updates to status.
@@ -114,4 +119,9 @@ func (b *Bot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRe
 // FetchRecipient isn't used by the ServicenoPlugin
 func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*common.Recipient, error) {
 	return nil, trace.NotImplemented("ServiceNow plugin does not use recipients")
+}
+
+// FetchOncallUsers fetches on-call users filtered by the provided annotations.
+func (b Bot) FetchOncallUsers(ctx context.Context, req types.AccessRequest) ([]string, error) {
+	return nil, trace.NotImplemented("fetch oncall users not implemented for plugin")
 }

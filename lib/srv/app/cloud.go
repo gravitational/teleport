@@ -19,6 +19,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -31,24 +32,21 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds"
 	"github.com/aws/aws-sdk-go/aws/credentials/ssocreds"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
-	"github.com/aws/aws-sdk-go/aws/endpoints"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 // Cloud provides cloud provider access related methods such as generating
 // sign in URLs for management consoles.
 type Cloud interface {
 	// GetAWSSigninURL generates AWS management console federation sign-in URL.
-	GetAWSSigninURL(AWSSigninRequest) (*AWSSigninResponse, error)
+	GetAWSSigninURL(context.Context, AWSSigninRequest) (*AWSSigninResponse, error)
 }
 
 // AWSSigninRequest is a request to generate AWS console signin URL.
@@ -61,6 +59,9 @@ type AWSSigninRequest struct {
 	Issuer string
 	// ExternalID is the AWS external ID.
 	ExternalID string
+	// Integration is the Integration name to use to generate credentials.
+	// If empty, it will use ambient credentials
+	Integration string
 }
 
 // CheckAndSetDefaults validates the request.
@@ -89,29 +90,16 @@ type AWSSigninResponse struct {
 
 // CloudConfig is the configuration for cloud service.
 type CloudConfig struct {
-	// Session is AWS session.
-	Session *awssession.Session
+	// SessionGetter returns an AWS session.
+	SessionGetter awsutils.AWSSessionProvider
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
 }
 
 // CheckAndSetDefaults validates the config.
 func (c *CloudConfig) CheckAndSetDefaults() error {
-	if c.Session == nil {
-		useFIPSEndpoint := endpoints.FIPSEndpointStateUnset
-		if modules.GetModules().IsBoringBinary() {
-			useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
-		}
-		session, err := awssession.NewSessionWithOptions(awssession.Options{
-			SharedConfigState: awssession.SharedConfigEnable,
-			Config: aws.Config{
-				UseFIPSEndpoint: useFIPSEndpoint,
-			},
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		c.Session = session
+	if c.SessionGetter == nil {
+		return trace.BadParameter("missing session getter")
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -121,7 +109,6 @@ func (c *CloudConfig) CheckAndSetDefaults() error {
 
 type cloud struct {
 	cfg CloudConfig
-	log logrus.FieldLogger
 }
 
 // NewCloud creates a new cloud service.
@@ -131,21 +118,20 @@ func NewCloud(cfg CloudConfig) (Cloud, error) {
 	}
 	return &cloud{
 		cfg: cfg,
-		log: logrus.WithField(teleport.ComponentKey, "cloud"),
 	}, nil
 }
 
 // GetAWSSigninURL generates AWS management console federation sign-in URL.
 //
 // https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_enable-console-custom-url.html
-func (c *cloud) GetAWSSigninURL(req AWSSigninRequest) (*AWSSigninResponse, error) {
+func (c *cloud) GetAWSSigninURL(ctx context.Context, req AWSSigninRequest) (*AWSSigninResponse, error) {
 	err := req.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	federationURL := getFederationURL(req.TargetURL)
-	signinToken, err := c.getAWSSigninToken(&req, federationURL)
+	signinToken, err := c.getAWSSigninToken(ctx, &req, federationURL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -170,7 +156,7 @@ func (c *cloud) GetAWSSigninURL(req AWSSigninRequest) (*AWSSigninResponse, error
 // getAWSSigninToken gets the signin token required for the AWS sign in URL.
 //
 // https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_enable-console-custom-url.html
-func (c *cloud) getAWSSigninToken(req *AWSSigninRequest, endpoint string, options ...func(*stscreds.AssumeRoleProvider)) (string, error) {
+func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, endpoint string, options ...func(*stscreds.AssumeRoleProvider)) (string, error) {
 	// It is stated in the user guide linked above:
 	// When you use DurationSeconds in an AssumeRole* operation, you must call
 	// it as an IAM user with long-term credentials. Otherwise, the call to the
@@ -181,7 +167,15 @@ func (c *cloud) getAWSSigninToken(req *AWSSigninRequest, endpoint string, option
 	// the AWS session is using temporary credentials. However, when the
 	// "SessionDuration" is not provided, the web console session duration will
 	// be bound to the duration used in the next AssumeRole call.
-	temporarySession, err := isSessionUsingTemporaryCredentials(c.cfg.Session)
+
+	// Sign In requests target IAM endpoints which don't require a region.
+	region := ""
+	session, err := c.cfg.SessionGetter(ctx, region, req.Integration)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	temporarySession, err := isSessionUsingTemporaryCredentials(session)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -194,7 +188,7 @@ func (c *cloud) getAWSSigninToken(req *AWSSigninRequest, endpoint string, option
 	options = append(options, func(creds *stscreds.AssumeRoleProvider) {
 		// Setting role session name to Teleport username will allow to
 		// associate CloudTrail events with the Teleport user.
-		creds.RoleSessionName = req.Identity.Username
+		creds.RoleSessionName = awsutils.MaybeHashRoleSessionName(req.Identity.Username)
 
 		// Setting web console session duration through AssumeRole call for AWS
 		// sessions with temporary credentials.
@@ -215,7 +209,7 @@ func (c *cloud) getAWSSigninToken(req *AWSSigninRequest, endpoint string, option
 			creds.ExternalID = aws.String(req.ExternalID)
 		}
 	})
-	stsCredentials, err := stscreds.NewCredentials(c.cfg.Session, req.Identity.RouteToApp.AWSRoleARN, options...).Get()
+	stsCredentials, err := stsutils.NewCredentialsV1(session, req.Identity.RouteToApp.AWSRoleARN, options...).Get()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

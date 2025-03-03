@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+
+main() {
+  BIN=/usr/local/bin/
+  [ ! -d "$BIN" ] && mkdir -p "$BIN"
+
+  # If tctl exists and is not a link, make a backup.
+  if [ -f "$BIN/tctl" ] && [ ! -L "$BIN/tctl" ]; then
+    rm -f "$BIN/tctl.bak"
+    mv "$BIN/tctl" "$BIN/tctl.bak"
+  fi
+
+  # Link package to $BIN.
+  rm -f "$BIN/tctl"  # in case link exists
+  ln -s "/Applications/tctl.app/Contents/MacOS/tctl" "$BIN/tctl"
+}
+
+main "$@"

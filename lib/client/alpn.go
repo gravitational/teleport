@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
@@ -48,6 +49,9 @@ type ALPNAuthClient interface {
 	// text format, signs it using User Certificate Authority signing key and
 	// returns the resulting certificates.
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
+
+	// GetAuthPreference returns the current cluster auth preference.
+	GetAuthPreference(context.Context) (types.AuthPreference, error)
 }
 
 // ALPNAuthTunnelConfig contains the required fields used to create an authed ALPN Proxy
@@ -81,14 +85,33 @@ type ALPNAuthTunnelConfig struct {
 	// RouteToDatabase contains the destination server that must receive the connection.
 	// Specific for database proxying.
 	RouteToDatabase proto.RouteToDatabase
+
+	// TLSCert specifies the TLS certificate used on the proxy connection.
+	TLSCert *tls.Certificate
+}
+
+func (c *ALPNAuthTunnelConfig) CheckAndSetDefaults(ctx context.Context) error {
+	if c.AuthClient == nil {
+		return trace.BadParameter("missing auth client")
+	}
+
+	if c.TLSCert == nil {
+		tlsCert, err := getUserCerts(ctx, c.AuthClient, c.MFAResponse, c.Expires, c.RouteToDatabase, c.ConnectionDiagnosticID)
+		if err != nil {
+			return trace.BadParameter("failed to parse private key: %v", err)
+		}
+
+		c.TLSCert = &tlsCert
+	}
+
+	return nil
 }
 
 // RunALPNAuthTunnel runs a local authenticated ALPN proxy to another service.
 // At least one Route (which defines the service) must be defined
 func RunALPNAuthTunnel(ctx context.Context, cfg ALPNAuthTunnelConfig) error {
-	tlsCert, err := getUserCerts(ctx, cfg.AuthClient, cfg.MFAResponse, cfg.Expires, cfg.RouteToDatabase, cfg.ConnectionDiagnosticID)
-	if err != nil {
-		return trace.BadParameter("failed to parse private key: %v", err)
+	if err := cfg.CheckAndSetDefaults(ctx); err != nil {
+		return trace.Wrap(err)
 	}
 
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
@@ -97,7 +120,7 @@ func RunALPNAuthTunnel(ctx context.Context, cfg ALPNAuthTunnelConfig) error {
 		Protocols:          []alpn.Protocol{cfg.Protocol},
 		Listener:           cfg.Listener,
 		ParentContext:      ctx,
-		Certs:              []tls.Certificate{*tlsCert},
+		Cert:               *cfg.TLSCert,
 	}, alpnproxy.WithALPNConnUpgradeTest(ctx, getClusterCACertPool(cfg.AuthClient)))
 	if err != nil {
 		return trace.Wrap(err)
@@ -106,26 +129,32 @@ func RunALPNAuthTunnel(ctx context.Context, cfg ALPNAuthTunnelConfig) error {
 	go func() {
 		defer cfg.Listener.Close()
 		if err := lp.Start(ctx); err != nil {
-			log.WithError(err).Info("ALPN proxy stopped.")
+			log.InfoContext(ctx, "ALPN proxy stopped", "error", err)
 		}
 	}()
 
 	return nil
 }
 
-func getUserCerts(ctx context.Context, client ALPNAuthClient, mfaResponse *proto.MFAAuthenticateResponse, expires time.Time, routeToDatabase proto.RouteToDatabase, connectionDiagnosticID string) (*tls.Certificate, error) {
-	key, err := GenerateRSAKey()
+func getUserCerts(ctx context.Context, client ALPNAuthClient, mfaResponse *proto.MFAAuthenticateResponse, expires time.Time, routeToDatabase proto.RouteToDatabase, connectionDiagnosticID string) (tls.Certificate, error) {
+	key, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromAuthPreference(client),
+		cryptosuites.UserTLS)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
 	}
 
 	currentUser, err := client.GetCurrentUser(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return tls.Certificate{}, trace.Wrap(err)
 	}
 
 	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey:              key.MarshalSSHPublicKey(),
+		TLSPublicKey:           publicKeyPEM,
 		Username:               currentUser.GetName(),
 		Expires:                expires,
 		ConnectionDiagnosticID: connectionDiagnosticID,
@@ -133,15 +162,15 @@ func getUserCerts(ctx context.Context, client ALPNAuthClient, mfaResponse *proto
 		MFAResponse:            mfaResponse,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	tlsCert, err := keys.X509KeyPair(certs.TLS, key.PrivateKeyPEM())
+	tlsCert, err := keys.TLSCertificateForSigner(key, certs.TLS)
 	if err != nil {
-		return nil, trace.BadParameter("failed to parse private key: %v", err)
+		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	return &tlsCert, nil
+	return tlsCert, nil
 }
 
 func getClusterCACertPool(authClient ALPNAuthClient) alpnproxy.GetClusterCACertPoolFunc {

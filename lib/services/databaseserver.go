@@ -38,7 +38,7 @@ func MarshalDatabaseServer(databaseServer types.DatabaseServer, opts ...MarshalO
 			return nil, trace.Wrap(err)
 		}
 
-		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, databaseServer))
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, databaseServer))
 	default:
 		return nil, trace.BadParameter("unrecognized database server version %T", databaseServer)
 	}
@@ -61,13 +61,10 @@ func UnmarshalDatabaseServer(data []byte, opts ...MarshalOption) (types.Database
 	case types.V3:
 		var s types.DatabaseServerV3
 		if err := utils.FastUnmarshal(data, &s); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		if err := s.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
-		}
-		if cfg.ID != 0 {
-			s.SetResourceID(cfg.ID)
 		}
 		if cfg.Revision != "" {
 			s.SetRevision(cfg.Revision)

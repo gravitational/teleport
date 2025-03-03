@@ -19,6 +19,7 @@
 package common
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"reflect"
@@ -126,7 +127,10 @@ func formatDatabaseRolesForDB(database types.Database, accessChecker services.Ac
 
 		autoUser, err := accessChecker.DatabaseAutoUserMode(database)
 		if err != nil {
-			log.Warnf("Failed to get DatabaseAutoUserMode for database %v: %v.", database.GetName(), err)
+			logger.WarnContext(context.Background(), "Failed to get DatabaseAutoUserMode for database",
+				"database", database.GetName(),
+				"error", err,
+			)
 			return ""
 		} else if !autoUser.IsEnabled() {
 			return ""
@@ -134,10 +138,38 @@ func formatDatabaseRolesForDB(database types.Database, accessChecker services.Ac
 
 		roles, err := accessChecker.CheckDatabaseRoles(database, nil)
 		if err != nil {
-			log.Warnf("Failed to CheckDatabaseRoles for database %v: %v.", database.GetName(), err)
+			logger.WarnContext(context.Background(), "Failed to CheckDatabaseRoles for database",
+				"database", database.GetName(),
+				"error", err,
+			)
 			return ""
 		}
 		return fmt.Sprintf("%v", roles)
 	}
 	return ""
 }
+
+func shouldShowListDatabasesHint(cf *CLIConf, numRows int) bool {
+	selector := newDatabaseResourceSelectors(cf)
+
+	return numRows >= minNumRowsToShowListDatabasesHint &&
+		cf.command == "db ls" &&
+		cf.SearchKeywords == "" &&
+		selector.IsEmpty()
+}
+
+func maybeShowListDatabasesHint(cf *CLIConf, w io.Writer, numRows int) {
+	if !shouldShowListDatabasesHint(cf, numRows) {
+		return
+	}
+
+	fmt.Fprint(w, listDatabaseHint)
+}
+
+// minNumRowsToShowListDatabasesHint is an arbitrary number selected to show
+// filtering hint for `tsh db ls` command when too many databases are listed.
+const minNumRowsToShowListDatabasesHint = 20
+
+const listDatabaseHint = "" +
+	"hint: use 'tsh db ls --search foo,bar' to search keywords\n" +
+	"      use 'tsh db ls key1=value1,key2=value2' to filter databases by labels\n\n"

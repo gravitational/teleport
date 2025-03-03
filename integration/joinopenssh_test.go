@@ -32,7 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/service"
@@ -47,7 +47,7 @@ func TestJoinOpenSSH(t *testing.T) {
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Loopback,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      utils.NewSlogLoggerForTests(),
 	}
 	cfg.Listeners = helpers.StandardListenerSetup(t, &cfg.Fds)
 	rc := helpers.NewInstance(t, cfg)
@@ -103,7 +103,7 @@ func TestJoinOpenSSH(t *testing.T) {
 	}, openSSHCfg)
 	require.NoError(t, err)
 
-	err = service.Run(ctx, *openSSHCfg, nil)
+	err = service.RunWithSignalChannel(ctx, *openSSHCfg, nil, nil)
 	require.NoError(t, err)
 
 	client := rc.GetSiteAPI(rc.Secrets.SiteName)
@@ -129,7 +129,7 @@ func TestJoinOpenSSH(t *testing.T) {
 	require.ElementsMatch(t, bytes.Split(bytes.TrimSpace(cabytes), []byte("\n")), allOpenSSHCAs)
 }
 
-func getOpenSSHCAs(t *testing.T, ctx context.Context, cl auth.ClientI) [][]byte {
+func getOpenSSHCAs(t *testing.T, ctx context.Context, cl authclient.ClientI) [][]byte {
 	t.Helper()
 	cas, err := cl.GetCertAuthorities(ctx, types.OpenSSHCA, false)
 	require.NoError(t, err)

@@ -27,9 +27,11 @@ import (
 )
 
 func TestOpsgeniePluginOSS(t *testing.T) {
-	opsgenieSuite := &OpsgenieSuite{
-		AccessRequestSuite: &integration.AccessRequestSuite{
-			AuthHelper: &integration.OSSAuthHelper{},
+	opsgenieSuite := &OpsgenieSuiteOSS{
+		OpsgenieBaseSuite: OpsgenieBaseSuite{
+			AccessRequestSuite: &integration.AccessRequestSuite{
+				AuthHelper: &integration.MinimalAuthHelper{},
+			},
 		},
 	}
 	suite.Run(t, opsgenieSuite)

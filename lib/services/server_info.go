@@ -39,13 +39,10 @@ func UnmarshalServerInfo(bytes []byte, opts ...MarshalOption) (types.ServerInfo,
 
 	var si types.ServerInfoV1
 	if err := utils.FastUnmarshal(bytes, &si); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	if err := si.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if cfg.ID != 0 {
-		si.SetResourceID(cfg.ID)
 	}
 	if cfg.Revision != "" {
 		si.SetRevision(cfg.Revision)
@@ -73,7 +70,7 @@ func MarshalServerInfo(si types.ServerInfo, opts ...MarshalOption) ([]byte, erro
 			return nil, trace.Wrap(err)
 		}
 
-		bytes, err := utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, si))
+		bytes, err := utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, si))
 		return bytes, trace.Wrap(err)
 	default:
 		return nil, trace.BadParameter("unrecognized server info version %T", si)

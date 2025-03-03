@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,20 +50,17 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function ChevronsVertical({
-  size = 24,
-  color,
-  ...otherProps
-}: IconProps) {
-  return (
+export const ChevronsVertical = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-chevronsvertical"
       {...otherProps}
+      ref={ref}
     >
       <path d="M12.5303 2.46967C12.2374 2.17678 11.7626 2.17678 11.4697 2.46967L6.96967 6.96967C6.67678 7.26256 6.67678 7.73744 6.96967 8.03033C7.26256 8.32322 7.73744 8.32322 8.03033 8.03033L12 4.06066L15.9697 8.03033C16.2626 8.32322 16.7374 8.32322 17.0303 8.03033C17.3232 7.73744 17.3232 7.26256 17.0303 6.96967L12.5303 2.46967Z" />
       <path d="M8.03033 15.9697C7.73744 15.6768 7.26256 15.6768 6.96967 15.9697C6.67678 16.2626 6.67678 16.7374 6.96967 17.0303L11.4697 21.5303C11.7626 21.8232 12.2374 21.8232 12.5303 21.5303L17.0303 17.0303C17.3232 16.7374 17.3232 16.2626 17.0303 15.9697C16.7374 15.6768 16.2626 15.6768 15.9697 15.9697L12 19.9393L8.03033 15.9697Z" />
     </Icon>
-  );
-}
+  )
+);

@@ -1,0 +1,18 @@
+suite: Test deployment
+templates:
+  - configmap.yaml
+tests:
+  - it: should match the snapshot
+    set:
+      teleport:
+        address: teleport.example.com:1234
+      mattermost:
+        url: https://my.mattermost.com
+        token: test-mattermost-token
+        recipients:
+          - security@example.com
+      log:
+        output: /var/log/teleport-mattermost.log
+        severity: DEBUG
+    asserts:
+      - matchSnapshot: {}

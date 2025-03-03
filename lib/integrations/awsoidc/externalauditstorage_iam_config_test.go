@@ -25,7 +25,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
-	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
@@ -42,7 +42,7 @@ func TestConfigureExternalAuditStorage(t *testing.T) {
 
 	for _, tc := range []struct {
 		desc                 string
-		params               *easconfig.ExternalAuditStorageConfiguration
+		params               easconfig.ExternalAuditStorageConfiguration
 		stsAccount           string
 		existingRolePolicies map[string]map[string]string
 		expectedRolePolicies map[string]map[string]string
@@ -51,7 +51,7 @@ func TestConfigureExternalAuditStorage(t *testing.T) {
 		{
 			// A passing case with the account from sts:GetCallerIdentity
 			desc: "passing",
-			params: &easconfig.ExternalAuditStorageConfiguration{
+			params: easconfig.ExternalAuditStorageConfiguration{
 				Partition:            "aws",
 				Region:               "us-west-2",
 				Role:                 "test-role",
@@ -131,7 +131,7 @@ func TestConfigureExternalAuditStorage(t *testing.T) {
 		},
 		{
 			desc: "alternate partition and region",
-			params: &easconfig.ExternalAuditStorageConfiguration{
+			params: easconfig.ExternalAuditStorageConfiguration{
 				Partition:            "aws-cn",
 				Region:               "cn-north-1",
 				Role:                 "test-role",
@@ -211,7 +211,7 @@ func TestConfigureExternalAuditStorage(t *testing.T) {
 		},
 		{
 			desc: "bad uri",
-			params: &easconfig.ExternalAuditStorageConfiguration{
+			params: easconfig.ExternalAuditStorageConfiguration{
 				Partition:            "aws",
 				Region:               "us-west-2",
 				Role:                 "test-role",
@@ -233,7 +233,7 @@ func TestConfigureExternalAuditStorage(t *testing.T) {
 		},
 		{
 			desc: "role not found",
-			params: &easconfig.ExternalAuditStorageConfiguration{
+			params: easconfig.ExternalAuditStorageConfiguration{
 				Partition:            "aws",
 				Region:               "us-west-2",
 				Role:                 "bad-role",
@@ -280,7 +280,7 @@ type fakeConfigureExternalAuditStorageClient struct {
 func (f *fakeConfigureExternalAuditStorageClient) PutRolePolicy(ctx context.Context, input *iam.PutRolePolicyInput, opts ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error) {
 	roleName := aws.ToString(input.RoleName)
 	if _, roleExists := f.rolePolicies[roleName]; !roleExists {
-		return nil, &iamTypes.NoSuchEntityException{
+		return nil, &iamtypes.NoSuchEntityException{
 			Message: aws.String(fmt.Sprintf("role %q does not exist", roleName)),
 		}
 	}

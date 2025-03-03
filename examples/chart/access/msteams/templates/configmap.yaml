@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "msteams.fullname" . }}
+  {{- with .Values.annotations.config }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  labels:
+    {{- include "msteams.labels" . | nindent 4 }}
+data:
+  teleport-msteams.toml: |
+    preload = true
+    
+    [teleport]
+    addr = "{{ .Values.teleport.address }}"
+    identity = "/var/lib/teleport/plugins/msteams/teleport-identity/{{ .Values.teleport.identitySecretPath }}"
+    refresh_identity = true
+
+    [msapi]
+    app_id = "{{ .Values.msTeams.appID }}"
+    tenant_id = "{{ .Values.msTeams.tenantID }}"
+    teams_app_id = "{{ .Values.msTeams.teamsAppID }}"
+    app_secret = "/var/lib/teleport/plugins/msteams/appSecret"
+
+    [role_to_recipients]
+    {{- range $role, $recipients := .Values.roleToRecipients }}
+    {{ $role | toJson }} = {{ $recipients | toJson }}
+    {{- end }}
+
+    [log]
+    output = "{{ .Values.log.output }}"
+    severity = "{{ .Values.log.severity }}"

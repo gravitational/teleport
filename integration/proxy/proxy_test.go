@@ -31,7 +31,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -54,7 +54,9 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	libclient "github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -391,43 +393,13 @@ func TestALPNSNIProxyKube(t *testing.T) {
 		teleportCluster := suite.root.Config.Auth.ClusterName.GetClusterName()
 		kubeCluster := "gke_project_europecentral2a_cluster1"
 
-		// Make a mock ALB which points to the Teleport Proxy Service. Then
-		// ALPN local proxies will point to this ALB instead.
-		albProxy := helpers.MustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
+		k8sClient := createALPNLocalKubeClient(t,
+			suite.root.Config.Proxy.WebAddr,
+			teleportCluster,
+			kubeCluster,
+			k8ClientConfig)
 
-		// Generate a self-signed CA for kube local proxy.
-		localCAKey, localCACert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
-			CommonName: "localhost",
-		}, []string{alpncommon.KubeLocalProxyWildcardDomain(teleportCluster)}, defaults.CATTL)
-		require.NoError(t, err)
-
-		// Create the kube local proxy.
-		lp := mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
-			Listener:                mustCreateKubeLocalProxyListener(t, teleportCluster, localCACert, localCAKey),
-			RemoteProxyAddr:         albProxy.Addr().String(),
-			ALPNConnUpgradeRequired: true,
-			InsecureSkipVerify:      true,
-			SNI:                     localK8SNI,
-			HTTPMiddleware:          mustCreateKubeLocalProxyMiddleware(t, teleportCluster, kubeCluster, k8ClientConfig.CertData, k8ClientConfig.KeyData),
-			Protocols:               []alpncommon.Protocol{alpncommon.ProtocolHTTP},
-		})
-		require.NoError(t, err)
-
-		// Create a proxy-url for kube clients.
-		fp := mustStartKubeForwardProxy(t, lp.GetAddr())
-
-		k8Client, err := kubernetes.NewForConfig(&rest.Config{
-			Host:  "https://" + teleportCluster,
-			Proxy: http.ProxyURL(mustParseURL(t, "http://"+fp.GetAddr())),
-			TLSClientConfig: rest.TLSClientConfig{
-				CAData:     localCACert,
-				CertData:   localCACert, // Client uses same cert as local proxy server.
-				KeyData:    localCAKey,
-				ServerName: alpncommon.KubeLocalProxySNI(teleportCluster, kubeCluster),
-			},
-		})
-		require.NoError(t, err)
-		mustGetKubePod(t, k8Client)
+		mustGetKubePod(t, k8sClient)
 	})
 }
 
@@ -517,6 +489,7 @@ func TestKubePROXYProtocol(t *testing.T) {
 		desc              string
 		proxyListenerMode types.ProxyListenerMode
 		proxyProtocolMode multiplexer.PROXYProtocolMode
+		useALPNUpgrade    bool
 	}{
 		{
 			desc:              "PROXY protocol on, separate Proxy listeners",
@@ -548,6 +521,18 @@ func TestKubePROXYProtocol(t *testing.T) {
 			proxyProtocolMode: multiplexer.PROXYProtocolUnspecified,
 			proxyListenerMode: types.ProxyListenerMode_Multiplex,
 		},
+		{
+			desc:              "PROXY protocol on, multiplexed Proxy listeners with ALPN upgrade",
+			proxyProtocolMode: multiplexer.PROXYProtocolOn,
+			proxyListenerMode: types.ProxyListenerMode_Multiplex,
+			useALPNUpgrade:    true,
+		},
+		{
+			desc:              "PROXY protocol off, multiplexed Proxy listeners with ALPN upgrade",
+			proxyProtocolMode: multiplexer.PROXYProtocolOff,
+			proxyListenerMode: types.ProxyListenerMode_Multiplex,
+			useALPNUpgrade:    true,
+		},
 	}
 
 	username := helpers.MustGetCurrentUser(t).Username
@@ -578,7 +563,7 @@ func TestKubePROXYProtocol(t *testing.T) {
 				ClusterName: "root.example.com",
 				HostID:      uuid.New().String(),
 				NodeName:    helpers.Loopback,
-				Log:         utils.NewLoggerForTests(),
+				Logger:      utils.NewSlogLoggerForTests(),
 			}
 			tconf := servicecfg.MakeDefaultConfig()
 			tconf.Proxy.Kube.ListenAddr = *utils.MustParseAddr(helpers.NewListener(t, service.ListenerProxyKube, &cfg.Fds))
@@ -639,7 +624,7 @@ func TestKubePROXYProtocol(t *testing.T) {
 				}
 
 				// Create kube client that we'll use to test that connection is working correctly.
-				k8Client, _, err := kube.ProxyClient(kube.ProxyConfig{
+				k8Client, kubeConfig, err := kube.ProxyClient(kube.ProxyConfig{
 					T:                   testCluster,
 					Username:            kubeRoleSpec.Allow.Logins[0],
 					KubeUsers:           kubeRoleSpec.Allow.KubeGroups,
@@ -651,22 +636,75 @@ func TestKubePROXYProtocol(t *testing.T) {
 				})
 				require.NoError(t, err)
 
+				if tt.useALPNUpgrade {
+					k8Client = createALPNLocalKubeClient(t,
+						targetAddr,
+						testCluster.Secrets.SiteName,
+						kubeCluster,
+						kubeConfig)
+				}
+
 				resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
 				require.NoError(t, err)
 				require.Len(t, resp.Items, 3, "pods item length mismatch")
 			}
 
-			checkForTargetAddr(testCluster.Config.Proxy.Kube.ListenAddr)
+			// kube listener does not support ALPN upgrade
+			if !tt.useALPNUpgrade {
+				checkForTargetAddr(testCluster.Config.Proxy.Kube.ListenAddr)
+			}
 			if tt.proxyListenerMode == types.ProxyListenerMode_Multiplex {
 				checkForTargetAddr(testCluster.Config.Proxy.WebAddr)
 			}
 		})
 	}
+
+}
+
+func createALPNLocalKubeClient(t *testing.T, targetAddr utils.NetAddr, teleportCluster, kubeCluster string, k8ClientConfig *rest.Config) *kubernetes.Clientset {
+	// Generate a self-signed CA for kube local proxy.
+	localCAKey, localCACert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
+		CommonName: "localhost",
+	}, []string{alpncommon.KubeLocalProxyWildcardDomain(teleportCluster)}, defaults.CATTL)
+	require.NoError(t, err)
+
+	// Make a mock ALB which points to the Teleport Proxy Service. Then
+	// ALPN local proxies will point to this ALB instead.
+	albProxy := helpers.MustStartMockALBProxy(t, targetAddr.String())
+
+	// Create the kube local proxy.
+	lp := mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
+		Listener:                mustCreateKubeLocalProxyListener(t, teleportCluster, localCACert, localCAKey),
+		RemoteProxyAddr:         albProxy.Addr().String(),
+		ALPNConnUpgradeRequired: true,
+		InsecureSkipVerify:      true,
+		SNI:                     constants.KubeTeleportProxyALPNPrefix + "teleport.cluster.local",
+		HTTPMiddleware:          mustCreateKubeLocalProxyMiddleware(t, teleportCluster, kubeCluster, k8ClientConfig.CertData, k8ClientConfig.KeyData),
+		Protocols:               []alpncommon.Protocol{alpncommon.ProtocolHTTP},
+	})
+	require.NoError(t, err)
+
+	// Create a proxy-url for kube clients.
+	fp := mustStartKubeForwardProxy(t, lp.GetAddr())
+
+	k8Client, err := kubernetes.NewForConfig(&rest.Config{
+		Host:  "https://" + teleportCluster,
+		Proxy: http.ProxyURL(mustParseURL(t, "http://"+fp.GetAddr())),
+		TLSClientConfig: rest.TLSClientConfig{
+			CAData:     localCACert,
+			CertData:   localCACert, // Client uses same cert as local proxy server.
+			KeyData:    localCAKey,
+			ServerName: alpncommon.KubeLocalProxySNI(teleportCluster, kubeCluster),
+		},
+	})
+	require.NoError(t, err)
+	return k8Client
 }
 
 func TestKubeIPPinning(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
+	modules.SetInsecureTestMode(true)
 
 	const (
 		kubeCluster = constants.KubeTeleportProxyALPNPrefix + "teleport.cluster.local"
@@ -892,7 +930,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			// Since this a non-tunnel local proxy, we should check certs are needed
 			// for postgres.
 			// (this is how a local proxy would actually be configured for postgres).
-			CheckCertsNeeded: true,
+			CheckCertNeeded: true,
 		})
 		t.Run("connect to main cluster via proxy", func(t *testing.T) {
 			client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
@@ -938,7 +976,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 				// Since this a non-tunnel local proxy, we should check certs are needed
 				// for postgres.
 				// (this is how a local proxy would actually be configured for postgres).
-				CheckCertsNeeded: true,
+				CheckCertNeeded: true,
 			})
 			client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
 				AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
@@ -1145,7 +1183,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 				Protocols:               []alpncommon.Protocol{alpncommon.ProtocolMySQL},
 				ALPNConnUpgradeRequired: true,
 				InsecureSkipVerify:      true,
-				Certs:                   clientTLSConfig.Certificates,
+				Cert:                    clientTLSConfig.Certificates[0],
 			})
 
 			client, err := mysql.MakeTestClientWithoutTLS(lp.GetAddr(), routeToDatabase)
@@ -1199,7 +1237,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 
 		// advance the fake clock and verify that the local proxy thinks its cert expired.
 		fakeClock.Advance(time.Hour * 48)
-		err = lp.CheckDBCerts(routeToDatabase)
+		err = lp.CheckDBCert(context.Background(), routeToDatabase)
 		require.Error(t, err)
 		var x509Err x509.CertificateInvalidError
 		require.ErrorAs(t, err, &x509Err)
@@ -1226,6 +1264,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 
 // TestALPNSNIProxyAppAccess tests application access via ALPN SNI proxy service.
 func TestALPNSNIProxyAppAccess(t *testing.T) {
+	ctx := context.Background()
 	pack := appaccess.SetupWithOptions(t, appaccess.AppTestOptions{
 		RootClusterListeners: helpers.SingleProxyPortSetup,
 		LeafClusterListeners: helpers.SingleProxyPortSetup,
@@ -1238,14 +1277,14 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 	})
 
 	t.Run("root cluster", func(t *testing.T) {
-		cookies := pack.CreateAppSession(t, pack.RootAppPublicAddr(), pack.RootAppClusterName())
+		cookies := pack.CreateAppSessionCookies(t, pack.RootAppPublicAddr(), pack.RootAppClusterName())
 		status, _, err := pack.MakeRequest(cookies, http.MethodGet, "/")
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, status)
 	})
 
 	t.Run("leaf cluster", func(t *testing.T) {
-		cookies := pack.CreateAppSession(t, pack.LeafAppPublicAddr(), pack.LeafAppClusterName())
+		cookies := pack.CreateAppSessionCookies(t, pack.LeafAppPublicAddr(), pack.LeafAppClusterName())
 		status, _, err := pack.MakeRequest(cookies, http.MethodGet, "/")
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, status)
@@ -1264,7 +1303,7 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 			Protocols:               []alpncommon.Protocol{alpncommon.ProtocolHTTP},
 			ALPNConnUpgradeRequired: true,
 			InsecureSkipVerify:      true,
-			Certs:                   clientCerts,
+			Cert:                    clientCerts[0],
 		})
 
 		// Send the request to local proxy.
@@ -1277,7 +1316,30 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 	})
 
 	t.Run("teleterm app gateways cert renewal", func(t *testing.T) {
-		testTeletermAppGateway(t, pack)
+		t.Run("without per-session MFA", func(t *testing.T) {
+			makeTC := func(t *testing.T) (*libclient.TeleportClient, mfa.WebauthnLoginFunc) {
+				user, _ := pack.CreateUser(t)
+				tc := pack.MakeTeleportClient(t, user.GetName())
+				return tc, nil
+			}
+			testTeletermAppGateway(t, pack, makeTC)
+			testTeletermAppGatewayTargetPortValidation(t, pack, makeTC)
+		})
+
+		t.Run("per-session MFA", func(t *testing.T) {
+			// They update clusters authentication to Webauthn so they must run after tests which do not use MFA.
+			requireSessionMFAAuthPref(ctx, t, pack.RootAuthServer(), "127.0.0.1")
+			requireSessionMFAAuthPref(ctx, t, pack.LeafAuthServer(), "127.0.0.1")
+			makeTCAndWebauthnLogin := func(t *testing.T) (*libclient.TeleportClient, mfa.WebauthnLoginFunc) {
+				// Create a separate user for each tests to enable parallel tests that use per-session MFA.
+				// See the comment for webauthnLogin in setupUserMFA for more details.
+				user, _ := pack.CreateUser(t)
+				tc := pack.MakeTeleportClient(t, user.GetName())
+				webauthnLogin := setupUserMFA(ctx, t, pack.RootAuthServer(), user.GetName(), "127.0.0.1")
+				return tc, webauthnLogin
+			}
+			testTeletermAppGateway(t, pack, makeTCAndWebauthnLogin)
+		})
 	})
 }
 
@@ -1345,7 +1407,7 @@ func TestALPNProxyAuthClientConnectWithUserIdentity(t *testing.T) {
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      utils.NewSlogLoggerForTests(),
 	}
 	cfg.Listeners = helpers.SingleProxyPortSetup(t, &cfg.Fds)
 	rc := helpers.NewInstance(t, cfg)
@@ -1449,7 +1511,7 @@ func TestALPNProxyDialProxySSHWithoutInsecureMode(t *testing.T) {
 		NodeName:    helpers.Loopback,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      utils.NewSlogLoggerForTests(),
 	}
 	rootCfg.Listeners = helpers.StandardListenerSetup(t, &rootCfg.Fds)
 	rc := helpers.NewInstance(t, rootCfg)
@@ -1491,14 +1553,14 @@ func TestALPNProxyDialProxySSHWithoutInsecureMode(t *testing.T) {
 
 	// Try to connect to the separate proxy SSH listener.
 	tc.TLSRoutingEnabled = false
-	err = tc.SSH(ctx, cmd, false)
+	err = tc.SSH(ctx, cmd)
 	require.NoError(t, err)
 	require.Equal(t, "hello world\n", output.String())
 	output.Reset()
 
 	// Try to connect to the ALPN SNI Listener.
 	tc.TLSRoutingEnabled = true
-	err = tc.SSH(ctx, cmd, false)
+	err = tc.SSH(ctx, cmd)
 	require.NoError(t, err)
 	require.Equal(t, "hello world\n", output.String())
 }
@@ -1519,7 +1581,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    addr,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      utils.NewSlogLoggerForTests(),
 	}
 	instanceCfg.Listeners = helpers.SingleProxyPortSetupOn(addr)(t, &instanceCfg.Fds)
 	rc := helpers.NewInstance(t, instanceCfg)
@@ -1564,7 +1626,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second*30))
 	defer cancel()
 
-	err = helpers.WaitForNodeCount(ctx, rc, "root.example.com", 1)
+	err = rc.WaitForNodeCount(ctx, "root.example.com", 1)
 	require.NoError(t, err)
 
 	require.Zero(t, ph.Count())
@@ -1574,7 +1636,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 	require.NoError(t, os.Unsetenv("no_proxy"))
 	_, err = rc.StartNode(makeNodeConfig("second-root-node", rcProxyAddr))
 	require.NoError(t, err)
-	err = helpers.WaitForNodeCount(ctx, rc, "root.example.com", 2)
+	err = rc.WaitForNodeCount(ctx, "root.example.com", 2)
 	require.NoError(t, err)
 
 	require.NotZero(t, ph.Count())
@@ -1586,7 +1648,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
-	log := utils.NewLoggerForTests()
+	log := utils.NewSlogLoggerForTests()
 
 	// We need to use the non-loopback address for our Teleport cluster, as the
 	// Go HTTP library will recognize requests to the loopback address and
@@ -1594,17 +1656,15 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	rcAddr, err := apihelpers.GetLocalIP()
 	require.NoError(t, err)
 
-	log.Info("Creating Teleport instance...")
 	cfg := helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    rcAddr,
-		Log:         log,
+		Logger:      log,
 	}
 	cfg.Listeners = helpers.SingleProxyPortSetupOn(rcAddr)(t, &cfg.Fds)
 	rc := helpers.NewInstance(t, cfg)
 	defer rc.StopAll()
-	log.Info("Teleport root cluster instance created")
 
 	username := helpers.MustGetCurrentUser(t).Username
 	rc.AddUser(username, []string{username})
@@ -1618,20 +1678,15 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.SSH.Enabled = false
 	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	rcConf.Log = log
+	rcConf.Logger = log
 
-	log.Infof("Root cluster config: %#v", rcConf)
-
-	log.Info("Creating Root cluster...")
 	err = rc.CreateEx(t, nil, rcConf)
 	require.NoError(t, err)
 
-	log.Info("Starting Root Cluster...")
 	err = rc.Start()
 	require.NoError(t, err)
 
 	// Create and start http_proxy server.
-	log.Info("Creating HTTP Proxy server...")
 	ph := &helpers.ProxyHandler{}
 	authorizer := helpers.NewProxyAuthorizer(ph, "alice", "rosebud")
 	ts := httptest.NewServer(authorizer)
@@ -1639,7 +1694,6 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 
 	proxyURL, err := url.Parse(ts.URL)
 	require.NoError(t, err)
-	log.Infof("HTTP Proxy server running on %s", proxyURL)
 
 	// set http_proxy to user:password@host
 	// these credentials will be rejected by the auth proxy (initially).
@@ -1649,7 +1703,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 
 	rcProxyAddr := net.JoinHostPort(rcAddr, helpers.PortStr(t, rc.Web))
 	nodeCfg := makeNodeConfig("node1", rcProxyAddr)
-	nodeCfg.Log = log
+	nodeCfg.Logger = log
 
 	timeout := time.Second * 60
 	startErrC := make(chan error)
@@ -1673,7 +1727,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 		startErrC <- err
 	}()
 	require.NoError(t, <-startErrC)
-	require.NoError(t, helpers.WaitForNodeCount(context.Background(), rc, rc.Secrets.SiteName, 1))
+	require.NoError(t, rc.WaitForNodeCount(context.Background(), rc.Secrets.SiteName, 1))
 	require.Greater(t, ph.Count(), 0)
 }
 
@@ -1685,7 +1739,7 @@ func TestALPNSNIProxyGRPCInsecure(t *testing.T) {
 
 	nodeAccount := "123456789012"
 	nodeRoleARN := "arn:aws:iam::123456789012:role/test"
-	nodeCredentials := credentials.NewStaticCredentials("FAKE_ID", "FAKE_KEY", "FAKE_TOKEN")
+	nodeCredentials := credentials.NewStaticCredentialsProvider("FAKE_ID", "FAKE_KEY", "FAKE_TOKEN")
 	provisionToken := mustCreateIAMJoinProvisionToken(t, "iam-join-token", nodeAccount, nodeRoleARN)
 
 	suite := newSuite(t,

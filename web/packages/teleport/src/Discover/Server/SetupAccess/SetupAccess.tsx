@@ -16,19 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
-import { Box } from 'design';
+import React, { useEffect, useState } from 'react';
+
+import { Box, Text } from 'design';
 
 import {
-  SelectCreatable,
   Option,
+  SelectCreatable,
 } from 'teleport/Discover/Shared/SelectCreatable';
 import {
-  useUserTraits,
   SetupAccessWrapper,
+  useUserTraits,
+  type State,
 } from 'teleport/Discover/Shared/SetupAccess';
-
-import type { State } from 'teleport/Discover/Shared/SetupAccess';
 
 export default function Container() {
   const state = useUserTraits();
@@ -41,10 +41,13 @@ export function SetupAccess(props: State) {
     initSelectedOptions,
     getFixedOptions,
     getSelectableOptions,
+    agentMeta,
     ...restOfProps
   } = props;
   const [loginInputValue, setLoginInputValue] = useState('');
   const [selectedLogins, setSelectedLogins] = useState<Option[]>([]);
+
+  const wantAutoDiscover = !!agentMeta.autoDiscovery;
 
   useEffect(() => {
     if (props.attempt.status === 'success') {
@@ -53,7 +56,14 @@ export function SetupAccess(props: State) {
   }, [props.attempt.status, initSelectedOptions]);
 
   function handleOnProceed() {
-    onProceed({ logins: selectedLogins });
+    let numStepsToIncrement;
+    // Skip test connection since test connection currently
+    // only supports one resource testing and auto enrolling
+    // enrolls resources > 1.
+    if (wantAutoDiscover) {
+      numStepsToIncrement = 2;
+    }
+    onProceed({ logins: selectedLogins }, numStepsToIncrement);
   }
 
   function handleLoginKeyDown(event: React.KeyboardEvent) {
@@ -83,7 +93,14 @@ export function SetupAccess(props: State) {
       traitDescription="users"
       hasTraits={hasTraits}
       onProceed={handleOnProceed}
+      wantAutoDiscover={wantAutoDiscover}
     >
+      {wantAutoDiscover && (
+        <Text mb={3}>
+          Since auto-discovery is enabled, make sure to include all OS users
+          that will be used to connect to the discovered EC2 instances.
+        </Text>
+      )}
       <Box mb={2}>
         OS Users
         <SelectCreatable

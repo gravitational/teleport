@@ -17,6 +17,8 @@ limitations under the License.
 package legacy
 
 import (
+	"time"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
 )
@@ -25,9 +27,24 @@ import (
 // TODO: Remove this once we get rid of the old Metadata object.
 func FromHeaderMetadata(metadata header.Metadata) types.Metadata {
 	return types.Metadata{
-		ID:          metadata.ID,
 		Name:        metadata.Name,
 		Expires:     &metadata.Expires,
+		Description: metadata.Description,
+		Labels:      metadata.Labels,
+		Revision:    metadata.Revision,
+	}
+}
+
+// ToHeaderMetadata will convert a types.Metadata object to this metadata object.
+// TODO: Remove this once we get rid of the old Metadata object.
+func ToHeaderMetadata(metadata types.Metadata) header.Metadata {
+	var expires time.Time
+	if metadata.Expires != nil {
+		expires = *metadata.Expires
+	}
+	return header.Metadata{
+		Name:        metadata.Name,
+		Expires:     expires,
 		Description: metadata.Description,
 		Labels:      metadata.Labels,
 		Revision:    metadata.Revision,

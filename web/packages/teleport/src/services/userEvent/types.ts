@@ -38,14 +38,16 @@ export enum CaptureEvent {
   PreUserRecoveryCodesContinueClickEvent = 'tp.ui.recoveryCodesContinue.click',
   PreUserRecoveryCodesCopyClickEvent = 'tp.ui.recoveryCodesCopy.click',
   PreUserRecoveryCodesPrintClickEvent = 'tp.ui.recoveryCodesPrint.click',
-
-  // Shared types; used in both pre-user and authenticated user settings
-  OnboardQuestionnaireSubmitEvent = 'tp.ui.onboard.questionnaire.submit',
 }
 
+/**
+ * IntegrationEnrollEvent defines integration enrollment
+ * events.
+ */
 export enum IntegrationEnrollEvent {
   Started = 'tp.ui.integrationEnroll.start',
   Complete = 'tp.ui.integrationEnroll.complete',
+  Step = 'tp.ui.integrationEnroll.step',
 }
 
 // IntegrationEnrollKind represents a integration type.
@@ -74,8 +76,75 @@ export enum IntegrationEnrollKind {
   MachineIDAzure = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_AZURE',
   MachineIDSpacelift = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_SPACELIFT',
   MachineIDKubernetes = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES',
+  EntraId = 'INTEGRATION_ENROLL_KIND_ENTRA_ID',
+  DatadogIncidentManagement = 'INTEGRATION_ENROLL_KIND_DATADOG_INCIDENT_MANAGEMENT',
+  AwsIdentityCenter = 'INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER',
 }
 
+/**
+ * IntegrationEnrollStep defines configurable steps for an integration type.
+ * Value matches with proto enums defined in the backend.
+ */
+export enum IntegrationEnrollStep {
+  /**
+   * AWSIC steps defined for AWS Idenity Center plugin.
+   */
+  ConnectOidc = 'INTEGRATION_ENROLL_STEP_AWSIC_CONNECT_OIDC',
+  ImportResourceSetDefaultOwner = 'INTEGRATION_ENROLL_STEP_AWSIC_SET_ACCESSLIST_DEFAULT_OWNER',
+  IdentitySourceUploadSamlMetadata = 'INTEGRATION_ENROLL_STEP_AWSIC_UPLOAD_AWS_SAML_SP_METADATA',
+  ScimTestConnection = 'INTEGRATION_ENROLL_STEP_AWSIC_TEST_SCIM_CONNECTION',
+}
+
+/**
+ * IntegrationEnrollStatusCode defines status codes for a given
+ * integration configuration step event.
+ * Value matches with proto enums defined in the backend.
+ */
+export enum IntegrationEnrollStatusCode {
+  Success = 'INTEGRATION_ENROLL_STATUS_CODE_SUCCESS',
+  Skipped = 'INTEGRATION_ENROLL_STATUS_CODE_SKIPPED',
+  Error = 'INTEGRATION_ENROLL_STATUS_CODE_ERROR',
+  Aborted = 'INTEGRATION_ENROLL_STATUS_CODE_ABORTED',
+}
+
+/**
+ * IntegrationEnrollStepStatus defines fields for reporting
+ * integration configuration step event.
+ */
+export type IntegrationEnrollStepStatus =
+  | {
+      code: Exclude<
+        IntegrationEnrollStatusCode,
+        IntegrationEnrollStatusCode.Error
+      >;
+    }
+  | {
+      code: IntegrationEnrollStatusCode.Error;
+      error: string;
+    };
+
+/**
+ * IntegrationEnrollEventData defines integration
+ * enroll event. Use for start, complete and step events.
+ */
+export type IntegrationEnrollEventData = {
+  id: string;
+  kind: IntegrationEnrollKind;
+  step?: IntegrationEnrollStep;
+  status?: IntegrationEnrollStepStatus;
+};
+
+/**
+ * IntegrationEnrollEventRequest defines integration enroll
+ * event request as expected in the backend.
+ */
+export type IntegrationEnrollEventRequest = {
+  event: IntegrationEnrollEvent;
+  eventData: IntegrationEnrollEventData;
+};
+
+// These constants should match the constant defined in backend found in:
+// lib/usagereporter/web/userevent.go
 export enum DiscoverEvent {
   Started = 'tp.ui.discover.started',
   ResourceSelection = 'tp.ui.discover.resourceSelection',
@@ -85,12 +154,8 @@ export enum DiscoverEvent {
   DatabaseRegister = 'tp.ui.discover.database.register',
   DatabaseConfigureMTLS = 'tp.ui.discover.database.configure.mtls',
   DatabaseConfigureIAMPolicy = 'tp.ui.discover.database.configure.iampolicy',
-  DesktopActiveDirectoryToolsInstall = 'tp.ui.discover.desktop.activeDirectory.tools.install',
-  DesktopActiveDirectoryConfigure = 'tp.ui.discover.desktop.activeDirectory.configure',
-  AutoDiscoveredResources = 'tp.ui.discover.autoDiscoveredResources',
-  EC2InstanceSelection = 'tp.ui.discover.selectedEC2Instance',
-  EC2DeployEICE = 'tp.ui.discover.deployEICE',
-  CreateNode = 'tp.ui.discover.createNode',
+  CreateApplicationServer = 'tp.ui.discover.createAppServer',
+  CreateDiscoveryConfig = 'tp.ui.discover.createDiscoveryConfig',
   KubeEKSEnrollEvent = 'tp.ui.discover.kube.enroll.eks',
   PrincipalsConfigure = 'tp.ui.discover.principals.configure',
   TestConnection = 'tp.ui.discover.testConnection',
@@ -98,6 +163,9 @@ export enum DiscoverEvent {
 }
 
 // DiscoverResource represents a resource type.
+// Constants should match the constant generated from backend proto files:
+//  - usageevents/v1/usageevents.proto
+//  - prehog/v1alpha/teleport.proto
 export enum DiscoverEventResource {
   Server = 'DISCOVER_RESOURCE_SERVER',
   Kubernetes = 'DISCOVER_RESOURCE_KUBERNETES',
@@ -142,6 +210,7 @@ export enum DiscoverEventResource {
 
   ApplicationHttp = 'DISCOVER_RESOURCE_APPLICATION_HTTP',
   ApplicationTcp = 'DISCOVER_RESOURCE_APPLICATION_TCP',
+  ApplicationAwsConsole = 'DISCOVER_RESOURCE_APPLICATION_AWS_CONSOLE',
   WindowsDesktop = 'DISCOVER_RESOURCE_WINDOWS_DESKTOP',
   WindowsDesktopNonAD = 'DISCOVER_RESOURCE_DOC_WINDOWS_DESKTOP_NON_AD',
 
@@ -170,16 +239,6 @@ export type EventMeta = {
 
 export type PreUserEvent = UserEvent & EventMeta;
 
-export type IntegrationEnrollEventData = {
-  id: string;
-  kind: IntegrationEnrollKind;
-};
-
-export type IntegrationEnrollEventRequest = {
-  event: IntegrationEnrollEvent;
-  eventData: IntegrationEnrollEventData;
-};
-
 export type DiscoverEventRequest = Omit<UserEvent, 'event'> & {
   event: DiscoverEvent;
   eventData: DiscoverEventData;
@@ -203,6 +262,10 @@ export type DiscoverEventData = DiscoverEventStepStatus & {
   // serviceDeploy is only considered for 'tp.ui.discover.deployService'
   // event and describes how an agent got deployed.
   serviceDeploy?: DiscoverServiceDeploy;
+
+  // discoveryConfigMethod is only considered for 'tp.ui.discover.createDiscoveryConfig'
+  // event and describes how discovery configured.
+  discoveryConfigMethod?: DiscoverDiscoveryConfigMethod;
 };
 
 export type DiscoverEventStepStatus = {
@@ -227,6 +290,13 @@ export enum DiscoverServiceDeployType {
   AmazonEcs = 'DEPLOY_TYPE_AMAZON_ECS',
 }
 
+export enum DiscoverDiscoveryConfigMethod {
+  Unspecified = 'CONFIG_METHOD_UNSPECIFIED',
+  AwsEc2Ssm = 'CONFIG_METHOD_AWS_EC2_SSM',
+  AwsRdsEcs = 'CONFIG_METHOD_AWS_RDS_ECS',
+  AwsEks = 'CONFIG_METHOD_AWS_EKS',
+}
+
 export enum CtaEvent {
   CTA_UNSPECIFIED = 0,
   CTA_AUTH_CONNECTOR = 1,
@@ -240,6 +310,8 @@ export enum CtaEvent {
   CTA_ACCESS_MONITORING = 9,
   CTA_EXTERNAL_AUDIT_STORAGE = 10,
   CTA_OKTA_USER_SYNC = 11,
+  CTA_ENTRA_ID = 12,
+  CTA_OKTA_SCIM = 13,
 }
 
 export enum Feature {

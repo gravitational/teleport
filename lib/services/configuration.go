@@ -21,7 +21,11 @@ package services
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 // ClusterConfiguration stores the cluster configuration in the backend. All
@@ -83,7 +87,6 @@ type ClusterConfiguration interface {
 	// UpsertClusterAuditConfig creates a new cluster audit config or overwrites the existing cluster audit config.
 	UpsertClusterAuditConfig(ctx context.Context, cfg types.ClusterAuditConfig) (types.ClusterAuditConfig, error)
 	// SetClusterAuditConfig sets ClusterAuditConfig from the backend.
-	// TODO(tross): Deprecate/Remove this once everything is converted to use the new methods.
 	SetClusterAuditConfig(context.Context, types.ClusterAuditConfig) error
 	// DeleteClusterAuditConfig deletes ClusterAuditConfig from the backend.
 	DeleteClusterAuditConfig(ctx context.Context) error
@@ -116,4 +119,63 @@ type ClusterConfiguration interface {
 	UpdateClusterMaintenanceConfig(ctx context.Context, cfg types.ClusterMaintenanceConfig) error
 	// DeleteClusterMaintenanceConfig deletes the maintenance config singleton.
 	DeleteClusterMaintenanceConfig(ctx context.Context) error
+
+	// GetAccessGraphSettings gets the access graph settings from the backend.
+	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
+	// CreateAccessGraphSettings creates the access graph settings in the backend.
+	CreateAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error)
+	// UpdateAccessGraphSettings updates the access graph settings in the backend.
+	UpdateAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error)
+	// UpsertAccessGraphSettings creates or updates the access graph settings in the backend.
+	UpsertAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error)
+	// DeleteAccessGraphSettings deletes the access graph settings from the backend.
+	DeleteAccessGraphSettings(context.Context) error
+}
+
+// ClusterConfigurationInternal extends [ClusterConfiguration] with
+// auth-specific methods.
+type ClusterConfigurationInternal interface {
+	ClusterConfiguration
+
+	// AppendCheckAuthPreferenceActions appends some atomic write actions to the
+	// given slice that will check that the currently stored cluster auth
+	// preference has the given revision when applied as part of a
+	// [backend.Backend.AtomicWrite]. The backend to which the actions are
+	// applied should be the same backend used by the
+	// ClusterConfigurationInternal.
+	AppendCheckAuthPreferenceActions(actions []backend.ConditionalAction, revision string) ([]backend.ConditionalAction, error)
+}
+
+// ValidateAuthPreference performs checks that should happen before persisting a
+// new version of the preference resource, typically only as part of Auth
+// service operations.
+func ValidateAuthPreference(ap types.AuthPreference) error {
+	// TODO(espadolini): the checks that are duplicated in
+	// {Set,Create,Update,Upsert}AuthPreference should be moved here
+
+	if err := ValidateStableUNIXUserConfig(ap.GetStableUNIXUserConfig()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// ValidateStableUNIXUserConfig checks if the configuration is suitable for
+// storage and use.
+func ValidateStableUNIXUserConfig(c *types.StableUNIXUserConfig) error {
+	if c == nil || !c.Enabled {
+		return nil
+	}
+
+	if c.FirstUid > c.LastUid {
+		return trace.BadParameter("stable UNIX user is enabled but UID range is empty")
+	}
+
+	// see https://github.com/systemd/systemd/blob/cc7300fc5868f6d47f3f47076100b574bf54e58d/docs/UIDS-GIDS.md
+	const firstUserUID = 1000
+	if c.FirstUid < firstUserUID {
+		return trace.BadParameter("stable UNIX user UID range includes negative or system UIDs; the configured range should be contained between 1000 and 2147483647")
+	}
+
+	return nil
 }

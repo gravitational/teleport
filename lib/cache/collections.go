@@ -28,14 +28,26 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -84,159 +96,88 @@ type executor[T any, R any] interface {
 // noReader is returned by getReader for resources which aren't directly used by the cache, and therefore have no associated reader.
 type noReader struct{}
 
-// genericCollection is a generic collection implementation for resource type T with collection-specific logic
-// encapsulated in executor type E. Type R provides getter methods related to the collection, e.g. GetNodes(),
-// GetRoles().
-type genericCollection[T any, R any, E executor[T, R]] struct {
-	cache *Cache
-	watch types.WatchKind
-	exec  E
+type crownjewelsGetter interface {
+	ListCrownJewels(ctx context.Context, pageSize int64, nextToken string) ([]*crownjewelv1.CrownJewel, string, error)
+	GetCrownJewel(ctx context.Context, name string) (*crownjewelv1.CrownJewel, error)
 }
 
-// fetch implements collection
-func (g *genericCollection[T, R, _]) fetch(ctx context.Context, cacheOK bool) (apply func(ctx context.Context) error, err error) {
-	// Singleton objects will only get deleted or updated, not both
-	deleteSingleton := false
-
-	var resources []T
-	if cacheOK {
-		resources, err = g.exec.getAll(ctx, g.cache, g.watch.LoadSecrets)
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				return nil, trace.Wrap(err)
-			}
-			deleteSingleton = true
-		}
-	}
-
-	return func(ctx context.Context) error {
-		// Always perform the delete if this is not a singleton, otherwise
-		// only perform the delete if the singleton wasn't found
-		// or the resource kind isn't cached in the current generation.
-		if !g.exec.isSingleton() || deleteSingleton || !cacheOK {
-			if err := g.exec.deleteAll(ctx, g.cache); err != nil {
-				if !trace.IsNotFound(err) {
-					return trace.Wrap(err)
-				}
-			}
-		}
-		// If this is a singleton and we performed a deletion, return here
-		// because we only want to update or delete a singleton, not both.
-		// Also don't continue if the resource kind isn't cached in the current generation.
-		if g.exec.isSingleton() && deleteSingleton || !cacheOK {
-			return nil
-		}
-		for _, resource := range resources {
-			if err := g.exec.upsert(ctx, g.cache, resource); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-		return nil
-	}, nil
+type userTasksGetter interface {
+	ListUserTasks(ctx context.Context, pageSize int64, nextToken string, filters *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error)
+	GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error)
 }
-
-// processEvent implements collection
-func (g *genericCollection[T, R, _]) processEvent(ctx context.Context, event types.Event) error {
-	switch event.Type {
-	case types.OpDelete:
-		if err := g.exec.delete(ctx, g.cache, event.Resource); err != nil {
-			if !trace.IsNotFound(err) {
-				g.cache.Logger.WithError(err).Warn("Failed to delete resource.")
-				return trace.Wrap(err)
-			}
-		}
-	case types.OpPut:
-		var resource T
-		var ok bool
-		switch r := event.Resource.(type) {
-		case types.Resource153Unwrapper:
-			resource, ok = r.Unwrap().(T)
-		default:
-			resource, ok = event.Resource.(T)
-		}
-		if !ok {
-			return trace.BadParameter("unexpected type %T", event.Resource)
-		}
-
-		if err := g.exec.upsert(ctx, g.cache, resource); err != nil {
-			return trace.Wrap(err)
-		}
-	default:
-		g.cache.Logger.WithField("event", event.Type).Warn("Skipping unsupported event type.")
-	}
-	return nil
-}
-
-// watchKind implements collection
-func (g *genericCollection[T, R, _]) watchKind() types.WatchKind {
-	return g.watch
-}
-
-var _ collection = (*genericCollection[types.Resource, any, executor[types.Resource, any]])(nil)
-
-// genericCollection obtains the reader object from the executor based on the provided health status of the cache.
-// Note that cacheOK set to true means that cache is overall healthy and the collection was confirmed as supported.
-func (c *genericCollection[T, R, _]) getReader(cacheOK bool) R {
-	return c.exec.getReader(c.cache, cacheOK)
-}
-
-var _ collectionReader[any] = (*genericCollection[types.Resource, any, executor[types.Resource, any]])(nil)
 
 // cacheCollections is a registry of resource collections used by Cache.
 type cacheCollections struct {
 	// byKind is a map of registered collections by resource Kind/SubKind
 	byKind map[resourceKind]collection
 
-	auditQueries             collectionReader[services.SecurityAuditQueryGetter]
-	secReports               collectionReader[services.SecurityReportGetter]
-	secReportsStates         collectionReader[services.SecurityReportStateGetter]
-	accessLists              collectionReader[accessListsGetter]
-	accessListMembers        collectionReader[accessListMembersGetter]
-	accessListReviews        collectionReader[accessListReviewsGetter]
-	apps                     collectionReader[services.AppGetter]
-	nodes                    collectionReader[nodeGetter]
-	tunnelConnections        collectionReader[tunnelConnectionGetter]
-	appSessions              collectionReader[appSessionGetter]
-	appServers               collectionReader[appServerGetter]
-	authPreferences          collectionReader[authPreferenceGetter]
-	authServers              collectionReader[authServerGetter]
-	certAuthorities          collectionReader[services.AuthorityGetter]
-	clusterAuditConfigs      collectionReader[clusterAuditConfigGetter]
-	clusterNames             collectionReader[clusterNameGetter]
-	clusterNetworkingConfigs collectionReader[clusterNetworkingConfigGetter]
-	databases                collectionReader[services.DatabaseGetter]
-	databaseServers          collectionReader[databaseServerGetter]
-	discoveryConfigs         collectionReader[services.DiscoveryConfigsGetter]
-	installers               collectionReader[installerGetter]
-	integrations             collectionReader[services.IntegrationsGetter]
-	kubeClusters             collectionReader[kubernetesClusterGetter]
-	kubeWaitingContainers    collectionReader[kubernetesWaitingContainerGetter]
-	kubeServers              collectionReader[kubeServerGetter]
-	locks                    collectionReader[services.LockGetter]
-	namespaces               collectionReader[namespaceGetter]
-	networkRestrictions      collectionReader[networkRestrictionGetter]
-	oktaAssignments          collectionReader[oktaAssignmentGetter]
-	oktaImportRules          collectionReader[oktaImportRuleGetter]
-	proxies                  collectionReader[services.ProxyGetter]
-	remoteClusters           collectionReader[remoteClusterGetter]
-	reverseTunnels           collectionReader[reverseTunnelGetter]
-	roles                    collectionReader[roleGetter]
-	samlIdPServiceProviders  collectionReader[samlIdPServiceProviderGetter]
-	samlIdPSessions          collectionReader[samlIdPSessionGetter]
-	sessionRecordingConfigs  collectionReader[sessionRecordingConfigGetter]
-	snowflakeSessions        collectionReader[snowflakeSessionGetter]
-	staticTokens             collectionReader[staticTokensGetter]
-	tokens                   collectionReader[tokenGetter]
-	uiConfigs                collectionReader[uiConfigGetter]
-	users                    collectionReader[userGetter]
-	userGroups               collectionReader[userGroupGetter]
-	userLoginStates          collectionReader[services.UserLoginStatesGetter]
-	webSessions              collectionReader[webSessionGetter]
-	webTokens                collectionReader[webTokenGetter]
-	windowsDesktops          collectionReader[windowsDesktopsGetter]
-	windowsDesktopServices   collectionReader[windowsDesktopServiceGetter]
-	userNotifications        collectionReader[notificationGetter]
-	globalNotifications      collectionReader[notificationGetter]
+	auditQueries                       collectionReader[services.SecurityAuditQueryGetter]
+	secReports                         collectionReader[services.SecurityReportGetter]
+	secReportsStates                   collectionReader[services.SecurityReportStateGetter]
+	accessLists                        collectionReader[accessListsGetter]
+	accessListMembers                  collectionReader[accessListMembersGetter]
+	accessListReviews                  collectionReader[accessListReviewsGetter]
+	apps                               collectionReader[services.AppGetter]
+	nodes                              collectionReader[nodeGetter]
+	tunnelConnections                  collectionReader[tunnelConnectionGetter]
+	appSessions                        collectionReader[appSessionGetter]
+	appServers                         collectionReader[appServerGetter]
+	authPreferences                    collectionReader[authPreferenceGetter]
+	authServers                        collectionReader[authServerGetter]
+	certAuthorities                    collectionReader[services.AuthorityGetter]
+	clusterAuditConfigs                collectionReader[clusterAuditConfigGetter]
+	clusterNames                       collectionReader[clusterNameGetter]
+	clusterNetworkingConfigs           collectionReader[clusterNetworkingConfigGetter]
+	databases                          collectionReader[services.DatabaseGetter]
+	databaseObjects                    collectionReader[services.DatabaseObjectsGetter]
+	databaseServers                    collectionReader[databaseServerGetter]
+	discoveryConfigs                   collectionReader[services.DiscoveryConfigsGetter]
+	installers                         collectionReader[installerGetter]
+	integrations                       collectionReader[services.IntegrationsGetter]
+	userTasks                          collectionReader[userTasksGetter]
+	crownJewels                        collectionReader[crownjewelsGetter]
+	kubeClusters                       collectionReader[kubernetesClusterGetter]
+	kubeWaitingContainers              collectionReader[kubernetesWaitingContainerGetter]
+	staticHostUsers                    collectionReader[staticHostUserGetter]
+	kubeServers                        collectionReader[kubeServerGetter]
+	locks                              collectionReader[services.LockGetter]
+	networkRestrictions                collectionReader[networkRestrictionGetter]
+	oktaAssignments                    collectionReader[oktaAssignmentGetter]
+	oktaImportRules                    collectionReader[oktaImportRuleGetter]
+	proxies                            collectionReader[services.ProxyGetter]
+	remoteClusters                     collectionReader[remoteClusterGetter]
+	reverseTunnels                     collectionReader[reverseTunnelGetter]
+	roles                              collectionReader[roleGetter]
+	samlIdPServiceProviders            collectionReader[samlIdPServiceProviderGetter]
+	samlIdPSessions                    collectionReader[samlIdPSessionGetter]
+	sessionRecordingConfigs            collectionReader[sessionRecordingConfigGetter]
+	snowflakeSessions                  collectionReader[snowflakeSessionGetter]
+	staticTokens                       collectionReader[staticTokensGetter]
+	tokens                             collectionReader[tokenGetter]
+	uiConfigs                          collectionReader[uiConfigGetter]
+	users                              collectionReader[userGetter]
+	userGroups                         collectionReader[userGroupGetter]
+	userLoginStates                    collectionReader[services.UserLoginStatesGetter]
+	webSessions                        collectionReader[webSessionGetter]
+	webTokens                          collectionReader[webTokenGetter]
+	windowsDesktops                    collectionReader[windowsDesktopsGetter]
+	dynamicWindowsDesktops             collectionReader[dynamicWindowsDesktopsGetter]
+	windowsDesktopServices             collectionReader[windowsDesktopServiceGetter]
+	userNotifications                  collectionReader[notificationGetter]
+	accessGraphSettings                collectionReader[accessGraphSettingsGetter]
+	globalNotifications                collectionReader[notificationGetter]
+	accessMonitoringRules              collectionReader[accessMonitoringRuleGetter]
+	spiffeFederations                  collectionReader[SPIFFEFederationReader]
+	autoUpdateConfigs                  collectionReader[autoUpdateConfigGetter]
+	autoUpdateVersions                 collectionReader[autoUpdateVersionGetter]
+	autoUpdateAgentRollouts            collectionReader[autoUpdateAgentRolloutGetter]
+	provisioningStates                 collectionReader[provisioningStateGetter]
+	identityCenterAccounts             collectionReader[identityCenterAccountGetter]
+	identityCenterPrincipalAssignments collectionReader[identityCenterPrincipalAssignmentGetter]
+	identityCenterAccountAssignments   collectionReader[identityCenterAccountAssignmentGetter]
+	pluginStaticCredentials            collectionReader[pluginStaticCredentialsGetter]
+	gitServers                         collectionReader[services.GitServerGetter]
+	workloadIdentity                   collectionReader[WorkloadIdentityReader]
 }
 
 // setupCollections returns a registry of collections.
@@ -359,15 +300,6 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.roles
-		case types.KindNamespace:
-			if c.Presence == nil {
-				return nil, trace.BadParameter("missing parameter Presence")
-			}
-			collections.namespaces = &genericCollection[*types.Namespace, namespaceGetter, namespaceExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.namespaces
 		case types.KindNode:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
@@ -528,6 +460,15 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.databases
+		case types.KindDatabaseObject:
+			if c.DatabaseObjects == nil {
+				return nil, trace.BadParameter("missing parameter DatabaseObject")
+			}
+			collections.databaseObjects = &genericCollection[*dbobjectv1.DatabaseObject, services.DatabaseObjectsGetter, databaseObjectExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.databaseObjects
 		case types.KindKubernetesCluster:
 			if c.Kubernetes == nil {
 				return nil, trace.BadParameter("missing parameter Kubernetes")
@@ -537,6 +478,15 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.kubeClusters
+		case types.KindCrownJewel:
+			if c.CrownJewels == nil {
+				return nil, trace.BadParameter("missing parameter crownjewels")
+			}
+			collections.crownJewels = &genericCollection[*crownjewelv1.CrownJewel, crownjewelsGetter, crownJewelsExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.crownJewels
 		case types.KindNetworkRestrictions:
 			if c.Restrictions == nil {
 				return nil, trace.BadParameter("missing parameter Restrictions")
@@ -573,6 +523,15 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.windowsDesktops
+		case types.KindDynamicWindowsDesktop:
+			if c.WindowsDesktops == nil {
+				return nil, trace.BadParameter("missing parameter DynamicWindowsDesktops")
+			}
+			collections.dynamicWindowsDesktops = &genericCollection[types.DynamicWindowsDesktop, dynamicWindowsDesktopsGetter, dynamicWindowsDesktopsExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.dynamicWindowsDesktops
 		case types.KindSAMLIdPServiceProvider:
 			if c.SAMLIdPServiceProviders == nil {
 				return nil, trace.BadParameter("missing parameter SAMLIdPServiceProviders")
@@ -618,6 +577,15 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.integrations
+		case types.KindUserTask:
+			if c.UserTasks == nil {
+				return nil, trace.BadParameter("missing parameter user tasks")
+			}
+			collections.userTasks = &genericCollection[*usertasksv1.UserTask, userTasksGetter, userTasksExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.userTasks
 		case types.KindDiscoveryConfig:
 			if c.DiscoveryConfigs == nil {
 				return nil, trace.BadParameter("missing parameter DiscoveryConfigs")
@@ -678,6 +646,15 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.kubeWaitingContainers
+		case types.KindStaticHostUser:
+			if c.StaticHostUsers == nil {
+				return nil, trace.BadParameter("missing parameter StaticHostUsers")
+			}
+			collections.staticHostUsers = &genericCollection[*userprovisioningpb.StaticHostUser, staticHostUserGetter, staticHostUserExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.staticHostUsers
 		case types.KindNotification:
 			if c.Notifications == nil {
 				return nil, trace.BadParameter("missing parameter Notifications")
@@ -696,6 +673,146 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.globalNotifications
+		case types.KindAccessMonitoringRule:
+			if c.AccessMonitoringRules == nil {
+				return nil, trace.BadParameter("missing parameter AccessMonitoringRule")
+			}
+			collections.accessMonitoringRules = &genericCollection[*accessmonitoringrulesv1.AccessMonitoringRule, accessMonitoringRuleGetter, accessMonitoringRulesExecutor]{cache: c, watch: watch}
+			collections.byKind[resourceKind] = collections.accessMonitoringRules
+		case types.KindAccessGraphSettings:
+			if c.ClusterConfig == nil {
+				return nil, trace.BadParameter("missing parameter ClusterConfig")
+			}
+			collections.accessGraphSettings = &genericCollection[*clusterconfigpb.AccessGraphSettings, accessGraphSettingsGetter, accessGraphSettingsExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.accessGraphSettings
+		case types.KindSPIFFEFederation:
+			if c.Config.SPIFFEFederations == nil {
+				return nil, trace.BadParameter("missing parameter SPIFFEFederations")
+			}
+			collections.spiffeFederations = &genericCollection[*machineidv1.SPIFFEFederation, SPIFFEFederationReader, spiffeFederationExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.spiffeFederations
+		case types.KindWorkloadIdentity:
+			if c.Config.WorkloadIdentity == nil {
+				return nil, trace.BadParameter("missing parameter WorkloadIdentity")
+			}
+			collections.workloadIdentity = &genericCollection[*workloadidentityv1pb.WorkloadIdentity, WorkloadIdentityReader, workloadIdentityExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.workloadIdentity
+		case types.KindAutoUpdateConfig:
+			if c.AutoUpdateService == nil {
+				return nil, trace.BadParameter("missing parameter AutoUpdateService")
+			}
+			collections.autoUpdateConfigs = &genericCollection[*autoupdate.AutoUpdateConfig, autoUpdateConfigGetter, autoUpdateConfigExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.autoUpdateConfigs
+		case types.KindAutoUpdateVersion:
+			if c.AutoUpdateService == nil {
+				return nil, trace.BadParameter("missing parameter AutoUpdateService")
+			}
+			collections.autoUpdateVersions = &genericCollection[*autoupdate.AutoUpdateVersion, autoUpdateVersionGetter, autoUpdateVersionExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.autoUpdateVersions
+		case types.KindAutoUpdateAgentRollout:
+			if c.AutoUpdateService == nil {
+				return nil, trace.BadParameter("missing parameter AutoUpdateService")
+			}
+			collections.autoUpdateAgentRollouts = &genericCollection[*autoupdate.AutoUpdateAgentRollout, autoUpdateAgentRolloutGetter, autoUpdateAgentRolloutExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.autoUpdateAgentRollouts
+
+		case types.KindProvisioningPrincipalState:
+			if c.ProvisioningStates == nil {
+				return nil, trace.BadParameter("missing parameter KindProvisioningState")
+			}
+			collections.provisioningStates = &genericCollection[*provisioningv1.PrincipalState, provisioningStateGetter, provisioningStateExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.provisioningStates
+
+		case types.KindIdentityCenterAccount:
+			if c.IdentityCenter == nil {
+				return nil, trace.BadParameter("missing upstream IdentityCenter collection")
+			}
+			collections.identityCenterAccounts = &genericCollection[
+				services.IdentityCenterAccount,
+				identityCenterAccountGetter,
+				identityCenterAccountExecutor,
+			]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.identityCenterAccounts
+
+		case types.KindIdentityCenterPrincipalAssignment:
+			if c.IdentityCenter == nil {
+				return nil, trace.BadParameter("missing parameter IdentityCenter")
+			}
+			collections.identityCenterPrincipalAssignments = &genericCollection[
+				*identitycenterv1.PrincipalAssignment,
+				identityCenterPrincipalAssignmentGetter,
+				identityCenterPrincipalAssignmentExecutor,
+			]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.identityCenterPrincipalAssignments
+
+		case types.KindIdentityCenterAccountAssignment:
+			if c.IdentityCenter == nil {
+				return nil, trace.BadParameter("missing parameter IdentityCenter")
+			}
+			collections.identityCenterAccountAssignments = &genericCollection[
+				services.IdentityCenterAccountAssignment,
+				identityCenterAccountAssignmentGetter,
+				identityCenterAccountAssignmentExecutor,
+			]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.identityCenterAccountAssignments
+
+		case types.KindPluginStaticCredentials:
+			if c.PluginStaticCredentials == nil {
+				return nil, trace.BadParameter("missing parameter PluginStaticCredentials")
+			}
+			collections.pluginStaticCredentials = &genericCollection[
+				types.PluginStaticCredentials,
+				pluginStaticCredentialsGetter,
+				pluginStaticCredentialsExecutor,
+			]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.pluginStaticCredentials
+
+		case types.KindGitServer:
+			if c.GitServers == nil {
+				return nil, trace.BadParameter("missing parameter GitServers")
+			}
+			collections.gitServers = &genericCollection[
+				types.Server,
+				services.GitServerGetter,
+				gitServerExecutor,
+			]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.gitServers
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -774,28 +891,28 @@ var _ executor[types.AccessRequest, noReader] = accessRequestExecutor{}
 type tunnelConnectionExecutor struct{}
 
 func (tunnelConnectionExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.TunnelConnection, error) {
-	return cache.Presence.GetAllTunnelConnections()
+	return cache.Trust.GetAllTunnelConnections()
 }
 
 func (tunnelConnectionExecutor) upsert(ctx context.Context, cache *Cache, resource types.TunnelConnection) error {
-	return cache.presenceCache.UpsertTunnelConnection(resource)
+	return cache.trustCache.UpsertTunnelConnection(resource)
 }
 
 func (tunnelConnectionExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.presenceCache.DeleteAllTunnelConnections()
+	return cache.trustCache.DeleteAllTunnelConnections()
 }
 
 func (tunnelConnectionExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteTunnelConnection(resource.GetSubKind(), resource.GetName())
+	return cache.trustCache.DeleteTunnelConnection(resource.GetSubKind(), resource.GetName())
 }
 
 func (tunnelConnectionExecutor) isSingleton() bool { return false }
 
 func (tunnelConnectionExecutor) getReader(cache *Cache, cacheOK bool) tunnelConnectionGetter {
 	if cacheOK {
-		return cache.presenceCache
+		return cache.trustCache
 	}
-	return cache.Config.Presence
+	return cache.Config.Trust
 }
 
 type tunnelConnectionGetter interface {
@@ -808,36 +925,36 @@ var _ executor[types.TunnelConnection, tunnelConnectionGetter] = tunnelConnectio
 type remoteClusterExecutor struct{}
 
 func (remoteClusterExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.RemoteCluster, error) {
-	return cache.Presence.GetRemoteClusters(ctx)
+	return cache.Trust.GetRemoteClusters(ctx)
 }
 
 func (remoteClusterExecutor) upsert(ctx context.Context, cache *Cache, resource types.RemoteCluster) error {
-	err := cache.presenceCache.DeleteRemoteCluster(ctx, resource.GetName())
+	err := cache.trustCache.DeleteRemoteCluster(ctx, resource.GetName())
 	if err != nil {
 		if !trace.IsNotFound(err) {
-			cache.Logger.WithError(err).Warnf("Failed to delete remote cluster %v.", resource.GetName())
+			cache.Logger.WarnContext(ctx, "Failed to delete remote cluster", "cluster", resource.GetName(), "error", err)
 			return trace.Wrap(err)
 		}
 	}
-	_, err = cache.presenceCache.CreateRemoteCluster(ctx, resource)
+	_, err = cache.trustCache.CreateRemoteCluster(ctx, resource)
 	return trace.Wrap(err)
 }
 
 func (remoteClusterExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.presenceCache.DeleteAllRemoteClusters(ctx)
+	return cache.trustCache.DeleteAllRemoteClusters(ctx)
 }
 
 func (remoteClusterExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteRemoteCluster(ctx, resource.GetName())
+	return cache.trustCache.DeleteRemoteCluster(ctx, resource.GetName())
 }
 
 func (remoteClusterExecutor) isSingleton() bool { return false }
 
 func (remoteClusterExecutor) getReader(cache *Cache, cacheOK bool) remoteClusterGetter {
 	if cacheOK {
-		return cache.presenceCache
+		return cache.trustCache
 	}
-	return cache.Config.Presence
+	return cache.Config.Trust
 }
 
 type remoteClusterGetter interface {
@@ -847,39 +964,6 @@ type remoteClusterGetter interface {
 }
 
 var _ executor[types.RemoteCluster, remoteClusterGetter] = remoteClusterExecutor{}
-
-type reverseTunnelExecutor struct{}
-
-func (reverseTunnelExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.ReverseTunnel, error) {
-	return cache.Presence.GetReverseTunnels(ctx)
-}
-
-func (reverseTunnelExecutor) upsert(ctx context.Context, cache *Cache, resource types.ReverseTunnel) error {
-	return cache.presenceCache.UpsertReverseTunnel(resource)
-}
-
-func (reverseTunnelExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.presenceCache.DeleteAllReverseTunnels()
-}
-
-func (reverseTunnelExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteReverseTunnel(resource.GetName())
-}
-
-func (reverseTunnelExecutor) isSingleton() bool { return false }
-
-func (reverseTunnelExecutor) getReader(cache *Cache, cacheOK bool) reverseTunnelGetter {
-	if cacheOK {
-		return cache.presenceCache
-	}
-	return cache.Config.Presence
-}
-
-type reverseTunnelGetter interface {
-	GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error)
-}
-
-var _ executor[types.ReverseTunnel, reverseTunnelGetter] = reverseTunnelExecutor{}
 
 type proxyExecutor struct{}
 
@@ -977,50 +1061,6 @@ type nodeGetter interface {
 }
 
 var _ executor[types.Server, nodeGetter] = nodeExecutor{}
-
-type namespaceExecutor struct{}
-
-func (namespaceExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*types.Namespace, error) {
-	namespaces, err := cache.Presence.GetNamespaces()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	derefNamespaces := make([]*types.Namespace, len(namespaces))
-	for i := range namespaces {
-		ns := namespaces[i]
-		derefNamespaces[i] = &ns
-	}
-	return derefNamespaces, nil
-}
-
-func (namespaceExecutor) upsert(ctx context.Context, cache *Cache, resource *types.Namespace) error {
-	return cache.presenceCache.UpsertNamespace(*resource)
-}
-
-func (namespaceExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.presenceCache.DeleteAllNamespaces()
-}
-
-func (namespaceExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteNamespace(resource.GetName())
-}
-
-func (namespaceExecutor) isSingleton() bool { return false }
-
-func (namespaceExecutor) getReader(cache *Cache, cacheOK bool) namespaceGetter {
-	if cacheOK {
-		return cache.presenceCache
-	}
-	return cache.Config.Presence
-}
-
-type namespaceGetter interface {
-	GetNamespaces() ([]types.Namespace, error)
-	GetNamespace(name string) (*types.Namespace, error)
-}
-
-var _ executor[*types.Namespace, namespaceGetter] = namespaceExecutor{}
 
 type certAuthorityExecutor struct {
 	// extracted from watch.Filter, to avoid rebuilding on every event
@@ -1202,6 +1242,111 @@ type clusterNameGetter interface {
 }
 
 var _ executor[types.ClusterName, clusterNameGetter] = clusterNameExecutor{}
+
+type autoUpdateConfigExecutor struct{}
+
+func (autoUpdateConfigExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*autoupdate.AutoUpdateConfig, error) {
+	config, err := cache.AutoUpdateService.GetAutoUpdateConfig(ctx)
+	return []*autoupdate.AutoUpdateConfig{config}, trace.Wrap(err)
+}
+
+func (autoUpdateConfigExecutor) upsert(ctx context.Context, cache *Cache, resource *autoupdate.AutoUpdateConfig) error {
+	_, err := cache.autoUpdateCache.UpsertAutoUpdateConfig(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (autoUpdateConfigExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.autoUpdateCache.DeleteAutoUpdateConfig(ctx)
+}
+
+func (autoUpdateConfigExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.autoUpdateCache.DeleteAutoUpdateConfig(ctx)
+}
+
+func (autoUpdateConfigExecutor) isSingleton() bool { return true }
+
+func (autoUpdateConfigExecutor) getReader(cache *Cache, cacheOK bool) autoUpdateConfigGetter {
+	if cacheOK {
+		return cache.autoUpdateCache
+	}
+	return cache.Config.AutoUpdateService
+}
+
+type autoUpdateConfigGetter interface {
+	GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error)
+}
+
+var _ executor[*autoupdate.AutoUpdateConfig, autoUpdateConfigGetter] = autoUpdateConfigExecutor{}
+
+type autoUpdateVersionExecutor struct{}
+
+func (autoUpdateVersionExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*autoupdate.AutoUpdateVersion, error) {
+	version, err := cache.AutoUpdateService.GetAutoUpdateVersion(ctx)
+	return []*autoupdate.AutoUpdateVersion{version}, trace.Wrap(err)
+}
+
+func (autoUpdateVersionExecutor) upsert(ctx context.Context, cache *Cache, resource *autoupdate.AutoUpdateVersion) error {
+	_, err := cache.autoUpdateCache.UpsertAutoUpdateVersion(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (autoUpdateVersionExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.autoUpdateCache.DeleteAutoUpdateVersion(ctx)
+}
+
+func (autoUpdateVersionExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.autoUpdateCache.DeleteAutoUpdateVersion(ctx)
+}
+
+func (autoUpdateVersionExecutor) isSingleton() bool { return true }
+
+func (autoUpdateVersionExecutor) getReader(cache *Cache, cacheOK bool) autoUpdateVersionGetter {
+	if cacheOK {
+		return cache.autoUpdateCache
+	}
+	return cache.Config.AutoUpdateService
+}
+
+type autoUpdateVersionGetter interface {
+	GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error)
+}
+
+var _ executor[*autoupdate.AutoUpdateVersion, autoUpdateVersionGetter] = autoUpdateVersionExecutor{}
+
+type autoUpdateAgentRolloutExecutor struct{}
+
+func (autoUpdateAgentRolloutExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*autoupdate.AutoUpdateAgentRollout, error) {
+	plan, err := cache.AutoUpdateService.GetAutoUpdateAgentRollout(ctx)
+	return []*autoupdate.AutoUpdateAgentRollout{plan}, trace.Wrap(err)
+}
+
+func (autoUpdateAgentRolloutExecutor) upsert(ctx context.Context, cache *Cache, resource *autoupdate.AutoUpdateAgentRollout) error {
+	_, err := cache.autoUpdateCache.UpsertAutoUpdateAgentRollout(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (autoUpdateAgentRolloutExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.autoUpdateCache.DeleteAutoUpdateAgentRollout(ctx)
+}
+
+func (autoUpdateAgentRolloutExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.autoUpdateCache.DeleteAutoUpdateAgentRollout(ctx)
+}
+
+func (autoUpdateAgentRolloutExecutor) isSingleton() bool { return true }
+
+func (autoUpdateAgentRolloutExecutor) getReader(cache *Cache, cacheOK bool) autoUpdateAgentRolloutGetter {
+	if cacheOK {
+		return cache.autoUpdateCache
+	}
+	return cache.Config.AutoUpdateService
+}
+
+type autoUpdateAgentRolloutGetter interface {
+	GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error)
+}
+
+var _ executor[*autoupdate.AutoUpdateAgentRollout, autoUpdateAgentRolloutGetter] = autoUpdateAgentRolloutExecutor{}
 
 type userExecutor struct{}
 
@@ -1389,6 +1534,51 @@ func (databaseExecutor) getReader(cache *Cache, cacheOK bool) services.DatabaseG
 
 var _ executor[types.Database, services.DatabaseGetter] = databaseExecutor{}
 
+type databaseObjectExecutor struct{}
+
+func (databaseObjectExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*dbobjectv1.DatabaseObject, error) {
+	var out []*dbobjectv1.DatabaseObject
+	var nextToken string
+	for {
+		var page []*dbobjectv1.DatabaseObject
+		var err error
+
+		page, nextToken, err = cache.DatabaseObjects.ListDatabaseObjects(ctx, 0, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, page...)
+		if nextToken == "" {
+			break
+		}
+	}
+	return out, nil
+}
+
+func (databaseObjectExecutor) upsert(ctx context.Context, cache *Cache, resource *dbobjectv1.DatabaseObject) error {
+	_, err := cache.databaseObjectsCache.UpsertDatabaseObject(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (databaseObjectExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return trace.Wrap(cache.databaseObjectsCache.DeleteAllDatabaseObjects(ctx))
+}
+
+func (databaseObjectExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return trace.Wrap(cache.databaseObjectsCache.DeleteDatabaseObject(ctx, resource.GetName()))
+}
+
+func (databaseObjectExecutor) isSingleton() bool { return false }
+
+func (databaseObjectExecutor) getReader(cache *Cache, cacheOK bool) services.DatabaseObjectsGetter {
+	if cacheOK {
+		return cache.databaseObjectsCache
+	}
+	return cache.Config.DatabaseObjects
+}
+
+var _ executor[*dbobjectv1.DatabaseObject, services.DatabaseObjectsGetter] = databaseObjectExecutor{}
+
 type appExecutor struct{}
 
 func (appExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Application, error) {
@@ -1475,6 +1665,12 @@ func (appSessionExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets 
 			return nil, trace.Wrap(err)
 		}
 
+		if !loadSecrets {
+			for i := 0; i < len(webSessions); i++ {
+				webSessions[i] = webSessions[i].WithoutSecrets()
+			}
+		}
+
 		sessions = append(sessions, webSessions...)
 
 		if nextKey == "" {
@@ -1518,7 +1714,18 @@ var _ executor[types.WebSession, appSessionGetter] = appSessionExecutor{}
 type snowflakeSessionExecutor struct{}
 
 func (snowflakeSessionExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.WebSession, error) {
-	return cache.SnowflakeSession.GetSnowflakeSessions(ctx)
+	webSessions, err := cache.SnowflakeSession.GetSnowflakeSessions(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !loadSecrets {
+		for i := 0; i < len(webSessions); i++ {
+			webSessions[i] = webSessions[i].WithoutSecrets()
+		}
+	}
+
+	return webSessions, nil
 }
 
 func (snowflakeSessionExecutor) upsert(ctx context.Context, cache *Cache, resource types.WebSession) error {
@@ -1564,6 +1771,12 @@ func (samlIdPSessionExecutor) getAll(ctx context.Context, cache *Cache, loadSecr
 			return nil, trace.Wrap(err)
 		}
 
+		if !loadSecrets {
+			for i := 0; i < len(webSessions); i++ {
+				webSessions[i] = webSessions[i].WithoutSecrets()
+			}
+		}
+
 		sessions = append(sessions, webSessions...)
 
 		if nextKey == "" {
@@ -1606,7 +1819,18 @@ var _ executor[types.WebSession, samlIdPSessionGetter] = samlIdPSessionExecutor{
 type webSessionExecutor struct{}
 
 func (webSessionExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.WebSession, error) {
-	return cache.WebSession.List(ctx)
+	webSessions, err := cache.WebSession.List(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !loadSecrets {
+		for i := 0; i < len(webSessions); i++ {
+			webSessions[i] = webSessions[i].WithoutSecrets()
+		}
+	}
+
+	return webSessions, nil
 }
 
 func (webSessionExecutor) upsert(ctx context.Context, cache *Cache, resource types.WebSession) error {
@@ -2083,6 +2307,54 @@ type windowsDesktopsGetter interface {
 
 var _ executor[types.WindowsDesktop, windowsDesktopsGetter] = windowsDesktopsExecutor{}
 
+type dynamicWindowsDesktopsExecutor struct{}
+
+func (dynamicWindowsDesktopsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.DynamicWindowsDesktop, error) {
+	var desktops []types.DynamicWindowsDesktop
+	next := ""
+	for {
+		d, token, err := cache.Config.DynamicWindowsDesktops.ListDynamicWindowsDesktops(ctx, defaults.MaxIterationLimit, next)
+		if err != nil {
+			return nil, err
+		}
+		desktops = append(desktops, d...)
+		if token == "" {
+			break
+		}
+		next = token
+	}
+	return desktops, nil
+}
+
+func (dynamicWindowsDesktopsExecutor) upsert(ctx context.Context, cache *Cache, resource types.DynamicWindowsDesktop) error {
+	_, err := cache.dynamicWindowsDesktopsCache.UpsertDynamicWindowsDesktop(ctx, resource)
+	return err
+}
+
+func (dynamicWindowsDesktopsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.dynamicWindowsDesktopsCache.DeleteAllDynamicWindowsDesktops(ctx)
+}
+
+func (dynamicWindowsDesktopsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.dynamicWindowsDesktopsCache.DeleteDynamicWindowsDesktop(ctx, resource.GetName())
+}
+
+func (dynamicWindowsDesktopsExecutor) isSingleton() bool { return false }
+
+func (dynamicWindowsDesktopsExecutor) getReader(cache *Cache, cacheOK bool) dynamicWindowsDesktopsGetter {
+	if cacheOK {
+		return cache.dynamicWindowsDesktopsCache
+	}
+	return cache.Config.DynamicWindowsDesktops
+}
+
+type dynamicWindowsDesktopsGetter interface {
+	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
+	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, nextPage string) ([]types.DynamicWindowsDesktop, string, error)
+}
+
+var _ executor[types.DynamicWindowsDesktop, dynamicWindowsDesktopsGetter] = dynamicWindowsDesktopsExecutor{}
+
 type kubeClusterExecutor struct{}
 
 func (kubeClusterExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.KubeCluster, error) {
@@ -2188,6 +2460,146 @@ type kubernetesWaitingContainerGetter interface {
 }
 
 var _ executor[*kubewaitingcontainerpb.KubernetesWaitingContainer, kubernetesWaitingContainerGetter] = kubeWaitingContainerExecutor{}
+
+type staticHostUserExecutor struct{}
+
+func (staticHostUserExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*userprovisioningpb.StaticHostUser, error) {
+	var (
+		startKey string
+		allUsers []*userprovisioningpb.StaticHostUser
+	)
+	for {
+		users, nextKey, err := cache.StaticHostUsers.ListStaticHostUsers(ctx, 0, startKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		allUsers = append(allUsers, users...)
+
+		if nextKey == "" {
+			break
+		}
+		startKey = nextKey
+	}
+	return allUsers, nil
+}
+
+func (staticHostUserExecutor) upsert(ctx context.Context, cache *Cache, resource *userprovisioningpb.StaticHostUser) error {
+	_, err := cache.staticHostUsersCache.UpsertStaticHostUser(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (staticHostUserExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return trace.Wrap(cache.staticHostUsersCache.DeleteAllStaticHostUsers(ctx))
+}
+
+func (staticHostUserExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return trace.Wrap(cache.staticHostUsersCache.DeleteStaticHostUser(ctx, resource.GetName()))
+}
+
+func (staticHostUserExecutor) isSingleton() bool { return false }
+
+func (staticHostUserExecutor) getReader(cache *Cache, cacheOK bool) staticHostUserGetter {
+	if cacheOK {
+		return cache.staticHostUsersCache
+	}
+	return cache.Config.StaticHostUsers
+}
+
+type staticHostUserGetter interface {
+	ListStaticHostUsers(ctx context.Context, pageSize int, pageToken string) ([]*userprovisioningpb.StaticHostUser, string, error)
+	GetStaticHostUser(ctx context.Context, name string) (*userprovisioningpb.StaticHostUser, error)
+}
+
+type crownJewelsExecutor struct{}
+
+func (crownJewelsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*crownjewelv1.CrownJewel, error) {
+	var resources []*crownjewelv1.CrownJewel
+	var nextToken string
+	for {
+		var page []*crownjewelv1.CrownJewel
+		var err error
+		page, nextToken, err = cache.CrownJewels.ListCrownJewels(ctx, 0 /* page size */, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = append(resources, page...)
+
+		if nextToken == "" {
+			break
+		}
+	}
+	return resources, nil
+}
+
+func (crownJewelsExecutor) upsert(ctx context.Context, cache *Cache, resource *crownjewelv1.CrownJewel) error {
+	_, err := cache.crownJewelsCache.UpsertCrownJewel(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (crownJewelsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.crownJewelsCache.DeleteAllCrownJewels(ctx)
+}
+
+func (crownJewelsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.crownJewelsCache.DeleteCrownJewel(ctx, resource.GetName())
+}
+
+func (crownJewelsExecutor) isSingleton() bool { return false }
+
+func (crownJewelsExecutor) getReader(cache *Cache, cacheOK bool) crownjewelsGetter {
+	if cacheOK {
+		return cache.crownJewelsCache
+	}
+	return cache.Config.CrownJewels
+}
+
+var _ executor[*crownjewelv1.CrownJewel, crownjewelsGetter] = crownJewelsExecutor{}
+
+type userTasksExecutor struct{}
+
+func (userTasksExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*usertasksv1.UserTask, error) {
+	var resources []*usertasksv1.UserTask
+	var nextToken string
+	for {
+		var page []*usertasksv1.UserTask
+		var err error
+		page, nextToken, err = cache.UserTasks.ListUserTasks(ctx, 0 /* page size */, nextToken, &usertasksv1.ListUserTasksFilters{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = append(resources, page...)
+
+		if nextToken == "" {
+			break
+		}
+	}
+	return resources, nil
+}
+
+func (userTasksExecutor) upsert(ctx context.Context, cache *Cache, resource *usertasksv1.UserTask) error {
+	_, err := cache.userTasksCache.UpsertUserTask(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (userTasksExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.userTasksCache.DeleteAllUserTasks(ctx)
+}
+
+func (userTasksExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.userTasksCache.DeleteUserTask(ctx, resource.GetName())
+}
+
+func (userTasksExecutor) isSingleton() bool { return false }
+
+func (userTasksExecutor) getReader(cache *Cache, cacheOK bool) userTasksGetter {
+	if cacheOK {
+		return cache.userTasksCache
+	}
+	return cache.Config.UserTasks
+}
+
+var _ executor[*usertasksv1.UserTask, userTasksGetter] = userTasksExecutor{}
 
 //nolint:revive // Because we want this to be IdP.
 type samlIdPServiceProvidersExecutor struct{}
@@ -2748,7 +3160,7 @@ func (accessListExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets 
 }
 
 func (accessListExecutor) upsert(ctx context.Context, cache *Cache, resource *accesslist.AccessList) error {
-	_, err := cache.accessListCache.UpsertAccessList(ctx, resource)
+	_, err := cache.accessListCache.UnconditionalUpsertAccessList(ctx, resource)
 	return trace.Wrap(err)
 }
 
@@ -2757,7 +3169,7 @@ func (accessListExecutor) deleteAll(ctx context.Context, cache *Cache) error {
 }
 
 func (accessListExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.accessListCache.DeleteAccessList(ctx, resource.GetName())
+	return cache.accessListCache.UnconditionalDeleteAccessList(ctx, resource.GetName())
 }
 
 func (accessListExecutor) isSingleton() bool { return false }
@@ -2798,7 +3210,7 @@ func (accessListMemberExecutor) getAll(ctx context.Context, cache *Cache, loadSe
 }
 
 func (accessListMemberExecutor) upsert(ctx context.Context, cache *Cache, resource *accesslist.AccessListMember) error {
-	_, err := cache.accessListCache.UpsertAccessListMember(ctx, resource)
+	_, err := cache.accessListCache.UnconditionalUpsertAccessListMember(ctx, resource)
 	return trace.Wrap(err)
 }
 
@@ -2807,7 +3219,7 @@ func (accessListMemberExecutor) deleteAll(ctx context.Context, cache *Cache) err
 }
 
 func (accessListMemberExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.accessListCache.DeleteAccessListMember(ctx,
+	return cache.accessListCache.UnconditionalDeleteAccessListMember(ctx,
 		resource.GetMetadata().Description, // Cache passes access  ID via description field.
 		resource.GetName())
 }
@@ -2822,7 +3234,7 @@ func (accessListMemberExecutor) getReader(cache *Cache, cacheOK bool) accessList
 }
 
 type accessListMembersGetter interface {
-	CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error)
+	CountAccessListMembers(ctx context.Context, accessListName string) (uint32, uint32, error)
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, nextToken string) ([]*accesslist.AccessListMember, string, error)
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
 	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error)
@@ -2905,7 +3317,6 @@ func (userNotificationExecutor) getAll(ctx context.Context, cache *Cache, loadSe
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
 		notifications = append(notifications, notifs...)
 
 		if nextKey == "" {
@@ -2942,7 +3353,7 @@ func (userNotificationExecutor) delete(ctx context.Context, cache *Cache, resour
 	}
 
 	username := notification.GetSpec().GetUsername()
-	notificationId := notification.GetSpec().GetId()
+	notificationId := notification.GetMetadata().GetName()
 
 	err := cache.notificationsCache.DeleteUserNotification(ctx, username, notificationId)
 	return trace.Wrap(err)
@@ -3005,7 +3416,7 @@ func (globalNotificationExecutor) delete(ctx context.Context, cache *Cache, reso
 		return trace.BadParameter("unknown Notification type, expected *notificationsv1.GlobalNotification, got %T", resource)
 	}
 
-	notificationId := globalNotification.GetSpec().GetNotification().GetSpec().GetId()
+	notificationId := globalNotification.GetMetadata().GetName()
 
 	err := cache.notificationsCache.DeleteGlobalNotification(ctx, notificationId)
 	return trace.Wrap(err)
@@ -3021,3 +3432,91 @@ func (globalNotificationExecutor) getReader(cache *Cache, cacheOK bool) notifica
 }
 
 var _ executor[*notificationsv1.GlobalNotification, notificationGetter] = globalNotificationExecutor{}
+
+type accessMonitoringRulesExecutor struct{}
+
+func (accessMonitoringRulesExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*accessmonitoringrulesv1.AccessMonitoringRule, error) {
+	var resources []*accessmonitoringrulesv1.AccessMonitoringRule
+	var nextToken string
+	for {
+		var page []*accessmonitoringrulesv1.AccessMonitoringRule
+		var err error
+		page, nextToken, err = cache.AccessMonitoringRules.ListAccessMonitoringRules(ctx, 0 /* page size */, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = append(resources, page...)
+
+		if nextToken == "" {
+			break
+		}
+	}
+	return resources, nil
+}
+
+func (accessMonitoringRulesExecutor) upsert(ctx context.Context, cache *Cache, resource *accessmonitoringrulesv1.AccessMonitoringRule) error {
+	_, err := cache.accessMontoringRuleCache.UpsertAccessMonitoringRule(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (accessMonitoringRulesExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.accessMontoringRuleCache.DeleteAllAccessMonitoringRules(ctx)
+}
+
+func (accessMonitoringRulesExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.accessMontoringRuleCache.DeleteAccessMonitoringRule(ctx, resource.GetName())
+}
+
+func (accessMonitoringRulesExecutor) isSingleton() bool { return false }
+
+func (accessMonitoringRulesExecutor) getReader(cache *Cache, cacheOK bool) accessMonitoringRuleGetter {
+	if cacheOK {
+		return cache.accessMontoringRuleCache
+	}
+	return cache.Config.AccessMonitoringRules
+}
+
+type accessMonitoringRuleGetter interface {
+	GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrulesv1.AccessMonitoringRule, error)
+	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
+	ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
+}
+
+type accessGraphSettingsExecutor struct{}
+
+func (accessGraphSettingsExecutor) getAll(ctx context.Context, cache *Cache, _ bool) ([]*clusterconfigpb.AccessGraphSettings, error) {
+	set, err := cache.ClusterConfig.GetAccessGraphSettings(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return []*clusterconfigpb.AccessGraphSettings{set}, nil
+}
+
+func (accessGraphSettingsExecutor) upsert(ctx context.Context, cache *Cache, resource *clusterconfigpb.AccessGraphSettings) error {
+	_, err := cache.clusterConfigCache.UpsertAccessGraphSettings(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (accessGraphSettingsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return trace.Wrap(cache.clusterConfigCache.DeleteAccessGraphSettings(ctx))
+}
+
+func (accessGraphSettingsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return trace.Wrap(cache.clusterConfigCache.DeleteAccessGraphSettings(ctx))
+}
+
+func (accessGraphSettingsExecutor) isSingleton() bool { return false }
+
+func (accessGraphSettingsExecutor) getReader(cache *Cache, cacheOK bool) accessGraphSettingsGetter {
+	if cacheOK {
+		return cache.clusterConfigCache
+	}
+	return cache.Config.ClusterConfig
+}
+
+type accessGraphSettingsGetter interface {
+	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
+}
+
+var _ executor[*clusterconfigpb.AccessGraphSettings, accessGraphSettingsGetter] = accessGraphSettingsExecutor{}

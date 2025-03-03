@@ -40,41 +40,43 @@ import (
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-func newSelfSignedCA(priv crypto.Signer) (*tlsca.CertAuthority, auth.TrustedCerts, error) {
+func newSelfSignedCA(priv crypto.Signer) (*tlsca.CertAuthority, authclient.TrustedCerts, error) {
 	cert, err := tlsca.GenerateSelfSignedCAWithSigner(priv, pkix.Name{
 		CommonName:   "root",
 		Organization: []string{"localhost"},
 	}, nil, defaults.CATTL)
 	if err != nil {
-		return nil, auth.TrustedCerts{}, trace.Wrap(err)
+		return nil, authclient.TrustedCerts{}, trace.Wrap(err)
 	}
 	ca, err := tlsca.FromCertAndSigner(cert, priv)
 	if err != nil {
-		return nil, auth.TrustedCerts{}, trace.Wrap(err)
+		return nil, authclient.TrustedCerts{}, trace.Wrap(err)
 	}
 	sshPub, err := ssh.NewPublicKey(priv.Public())
 	if err != nil {
-		return nil, auth.TrustedCerts{}, trace.Wrap(err)
+		return nil, authclient.TrustedCerts{}, trace.Wrap(err)
 	}
-	return ca, auth.TrustedCerts{
+	return ca, authclient.TrustedCerts{
 		ClusterName:     "root",
 		TLSCertificates: [][]byte{cert},
 		AuthorizedKeys:  [][]byte{ssh.MarshalAuthorizedKey(sshPub)},
 	}, nil
 }
 
-func newClientKey(t *testing.T, modifiers ...func(*tlsca.Identity)) *client.Key {
-	privateKey, err := testauthority.New().GeneratePrivateKey()
+func newClientKeyRing(t *testing.T, modifiers ...func(*tlsca.Identity)) *client.KeyRing {
+	// Some formats only support RSA (certain DBs, PPK files).
+	privateKey, err := keys.ParsePrivateKey(fixtures.PEMBytes["rsa"])
 	require.NoError(t, err)
 
 	ff, tc, err := newSelfSignedCA(privateKey)
@@ -101,38 +103,40 @@ func newClientKey(t *testing.T, modifiers ...func(*tlsca.Identity)) *client.Key 
 	})
 	require.NoError(t, err)
 
-	ta := testauthority.New()
-	signer, err := ta.GeneratePrivateKey()
+	signer, err := keys.ParsePrivateKey([]byte(fixtures.SSHCAPrivateKey))
 	require.NoError(t, err)
 	caSigner, err := ssh.NewSignerFromKey(signer)
 	require.NoError(t, err)
 
-	certificate, err := keygen.GenerateUserCert(services.UserCertParams{
+	certificate, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
 		CASigner:      caSigner,
 		PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
-		Username:      "testuser",
-		AllowedLogins: []string{"testuser"},
+		Identity: sshca.Identity{
+			Username:   "testuser",
+			Principals: []string{"testuser"},
+		},
 	})
 	require.NoError(t, err)
 
-	key := client.NewKey(privateKey)
-	key.KeyIndex = client.KeyIndex{
+	// Identity files use a single key for SSH and TLS.
+	keyRing := client.NewKeyRing(privateKey, privateKey)
+	keyRing.KeyRingIndex = client.KeyRingIndex{
 		ProxyHost:   "localhost",
 		Username:    "testuser",
 		ClusterName: "root",
 	}
-	key.Cert = certificate
-	key.TLSCert = tlsCert
-	key.TrustedCerts = []auth.TrustedCerts{tc}
+	keyRing.Cert = certificate
+	keyRing.TLSCert = tlsCert
+	keyRing.TrustedCerts = []authclient.TrustedCerts{tc}
 
-	return key
+	return keyRing
 }
 
 func TestWrite(t *testing.T) {
-	key := newClientKey(t)
+	keyRing := newClientKeyRing(t)
 
 	outputDir := t.TempDir()
-	cfg := WriteConfig{Key: key}
+	cfg := WriteConfig{KeyRing: keyRing}
 
 	// test OpenSSH-compatible identity file creation:
 	cfg.OutputPath = filepath.Join(outputDir, "openssh")
@@ -143,12 +147,12 @@ func TestWrite(t *testing.T) {
 	// key is OK:
 	out, err := os.ReadFile(cfg.OutputPath)
 	require.NoError(t, err)
-	require.Equal(t, string(out), string(key.PrivateKeyPEM()))
+	require.Equal(t, string(out), string(keyRing.SSHPrivateKey.PrivateKeyPEM()))
 
 	// cert is OK:
 	out, err = os.ReadFile(keypaths.IdentitySSHCertPath(cfg.OutputPath))
 	require.NoError(t, err)
-	require.Equal(t, string(out), string(key.Cert))
+	require.Equal(t, string(out), string(keyRing.Cert))
 
 	// test standard Teleport identity file creation:
 	cfg.OutputPath = filepath.Join(outputDir, "file")
@@ -161,18 +165,18 @@ func TestWrite(t *testing.T) {
 	require.NoError(t, err)
 
 	knownHosts, err := sshutils.MarshalKnownHost(sshutils.KnownHost{
-		Hostname:      key.ClusterName,
-		ProxyHost:     key.ProxyHost,
-		AuthorizedKey: key.TrustedCerts[0].AuthorizedKeys[0],
+		Hostname:      keyRing.ClusterName,
+		ProxyHost:     keyRing.ProxyHost,
+		AuthorizedKey: keyRing.TrustedCerts[0].AuthorizedKeys[0],
 	})
 	require.NoError(t, err)
 
 	wantArr := [][]byte{
-		key.PrivateKeyPEM(),
-		key.Cert,
-		key.TLSCert,
+		keyRing.TLSPrivateKey.PrivateKeyPEM(),
+		keyRing.Cert,
+		keyRing.TLSCert,
 		[]byte(knownHosts),
-		bytes.Join(key.TrustedCerts[0].TLSCertificates, []byte{}),
+		bytes.Join(keyRing.TrustedCerts[0].TLSCertificates, []byte{}),
 	}
 	want := string(bytes.Join(wantArr, nil))
 	require.Equal(t, want, string(out))
@@ -184,19 +188,19 @@ func TestWrite(t *testing.T) {
 	cfg.KubeTLSServerName = constants.KubeTeleportProxyALPNPrefix + "far.away.cluster"
 	_, err = Write(context.Background(), cfg)
 	require.NoError(t, err)
-	assertKubeconfigContents(t, cfg.OutputPath, key.ClusterName, "far.away.cluster", cfg.KubeTLSServerName)
+	assertKubeconfigContents(t, cfg.OutputPath, keyRing.ClusterName, "far.away.cluster", cfg.KubeTLSServerName)
 }
 
 // Assert that the kubeconfig writer only writes to the supplied filesystem
 // abstraction, and not to the system
 func TestWriteKubeOnlyWritesToWriter(t *testing.T) {
-	key := newClientKey(t)
+	keyRing := newClientKeyRing(t)
 	outputDir := t.TempDir()
 
 	fs := NewInMemoryConfigWriter()
 	cfg := WriteConfig{
-		Key:    key,
-		Writer: fs,
+		KeyRing: keyRing,
+		Writer:  fs,
 	}
 
 	cfg.OutputPath = filepath.Join(outputDir, "kubeconfig")
@@ -226,16 +230,13 @@ func TestWriteKubeOnlyWritesToWriter(t *testing.T) {
 func TestWriteAllFormats(t *testing.T) {
 	for _, format := range KnownFileFormats {
 		t.Run(string(format), func(t *testing.T) {
-			key := newClientKey(t)
-
-			key.WindowsDesktopCerts = map[string][]byte{
-				"windows-user": []byte("cert data"),
-			}
+			keyRing := newClientKeyRing(t)
 
 			cfg := WriteConfig{
-				OutputPath: path.Join(t.TempDir(), "identity"),
-				Key:        key,
-				Format:     format,
+				OutputPath:          path.Join(t.TempDir(), "identity"),
+				KeyRing:             keyRing,
+				WindowsDesktopCerts: map[string][]byte{"windows-user": []byte("cert data")},
+				Format:              format,
 			}
 
 			// extra fields for kubernetes
@@ -260,13 +261,13 @@ func TestWriteAllFormats(t *testing.T) {
 }
 
 func TestKubeconfigOverwrite(t *testing.T) {
-	key := newClientKey(t)
+	keyRing := newClientKeyRing(t)
 
 	// First write an ssh key to the file.
 	cfg := WriteConfig{
 		OutputPath:           filepath.Join(t.TempDir(), "out"),
 		Format:               FormatFile,
-		Key:                  key,
+		KeyRing:              keyRing,
 		OverwriteDestination: true,
 	}
 	_, err := Write(context.Background(), cfg)
@@ -277,7 +278,7 @@ func TestKubeconfigOverwrite(t *testing.T) {
 	cfg.KubeProxyAddr = "far.away.cluster"
 	_, err = Write(context.Background(), cfg)
 	require.NoError(t, err)
-	assertKubeconfigContents(t, cfg.OutputPath, key.ClusterName, "far.away.cluster", "")
+	assertKubeconfigContents(t, cfg.OutputPath, keyRing.ClusterName, "far.away.cluster", "")
 
 	// Write a kubeconfig for a different cluster to the same file path. It
 	// should be overwritten.
@@ -285,7 +286,7 @@ func TestKubeconfigOverwrite(t *testing.T) {
 	cfg.KubeTLSServerName = constants.KubeTeleportProxyALPNPrefix + "other.cluster"
 	_, err = Write(context.Background(), cfg)
 	require.NoError(t, err)
-	assertKubeconfigContents(t, cfg.OutputPath, key.ClusterName, "other.cluster", cfg.KubeTLSServerName)
+	assertKubeconfigContents(t, cfg.OutputPath, keyRing.ClusterName, "other.cluster", cfg.KubeTLSServerName)
 }
 
 func assertKubeconfigContents(t *testing.T, path, clusterName, serverAddr, kubeTLSName string) {
@@ -312,7 +313,7 @@ func TestIdentityRead(t *testing.T) {
 	}
 	for _, id := range ids {
 		// test reading:
-		k, err := KeyFromIdentityFile(fixturePath(fmt.Sprintf("certs/identities/%s", id)), "proxy.example.com", "")
+		k, err := KeyRingFromIdentityFile(fixturePath(fmt.Sprintf("certs/identities/%s", id)), "proxy.example.com", "")
 		require.NoError(t, err)
 		require.NotNil(t, k)
 
@@ -321,12 +322,12 @@ func TestIdentityRead(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, am)
 	}
-	k, err := KeyFromIdentityFile(fixturePath("certs/identities/lonekey"), "proxy.example.com", "")
+	k, err := KeyRingFromIdentityFile(fixturePath("certs/identities/lonekey"), "proxy.example.com", "")
 	require.Nil(t, k)
 	require.Error(t, err)
 
 	// lets read an identity which includes a CA cert
-	k, err = KeyFromIdentityFile(fixturePath("certs/identities/key-cert-ca.pem"), "proxy.example.com", "")
+	k, err = KeyRingFromIdentityFile(fixturePath("certs/identities/key-cert-ca.pem"), "proxy.example.com", "")
 	require.NoError(t, err)
 	require.NotNil(t, k)
 
@@ -344,7 +345,7 @@ func TestIdentityRead(t *testing.T) {
 	require.NoError(t, cb(hosts[0], a, cert))
 
 	// load an identity which include TLS certificates
-	k, err = KeyFromIdentityFile(fixturePath("certs/identities/tls.pem"), "proxy.example.com", "")
+	k, err = KeyRingFromIdentityFile(fixturePath("certs/identities/tls.pem"), "proxy.example.com", "")
 	require.NoError(t, err)
 	require.NotNil(t, k)
 	require.NotNil(t, k.TLSCert)
@@ -361,7 +362,7 @@ func fixturePath(path string) string {
 
 func TestKeyFromIdentityFile(t *testing.T) {
 	t.Parallel()
-	key := newClientKey(t)
+	keyRing := newClientKeyRing(t)
 
 	identityFilePath := filepath.Join(t.TempDir(), "out")
 
@@ -369,7 +370,7 @@ func TestKeyFromIdentityFile(t *testing.T) {
 	_, err := Write(context.Background(), WriteConfig{
 		OutputPath:           identityFilePath,
 		Format:               FormatFile,
-		Key:                  key,
+		KeyRing:              keyRing,
 		OverwriteDestination: true,
 	})
 	require.NoError(t, err)
@@ -379,24 +380,24 @@ func TestKeyFromIdentityFile(t *testing.T) {
 
 	t.Run("parsed key unchanged when both proxy and cluster provided", func(t *testing.T) {
 		// parsed key is unchanged from original with proxy and cluster provided.
-		parsedKey, err := KeyFromIdentityFile(identityFilePath, proxyHost, cluster)
-		key.ClusterName = cluster
-		key.ProxyHost = proxyHost
+		parsedKeyRing, err := KeyRingFromIdentityFile(identityFilePath, proxyHost, cluster)
+		keyRing.ClusterName = cluster
+		keyRing.ProxyHost = proxyHost
 		require.NoError(t, err)
-		require.Equal(t, key, parsedKey)
+		require.Equal(t, keyRing, parsedKeyRing)
 	})
 
 	t.Run("cluster name defaults if not provided", func(t *testing.T) {
 		// Identity file's cluster name defaults to root cluster name.
-		parsedKey, err := KeyFromIdentityFile(identityFilePath, proxyHost, "")
-		key.ClusterName = "root"
+		parsedKeyRing, err := KeyRingFromIdentityFile(identityFilePath, proxyHost, "")
+		keyRing.ClusterName = "root"
 		require.NoError(t, err)
-		require.Equal(t, key, parsedKey)
+		require.Equal(t, keyRing, parsedKeyRing)
 	})
 
 	t.Run("proxy host not provided", func(t *testing.T) {
 		// Returns error if proxy host is not provided.
-		_, err = KeyFromIdentityFile(identityFilePath, "", "")
+		_, err = KeyRingFromIdentityFile(identityFilePath, "", "")
 		require.Error(t, err)
 		require.True(t, trace.IsBadParameter(err))
 	})
@@ -404,28 +405,28 @@ func TestKeyFromIdentityFile(t *testing.T) {
 	t.Run("kubernetes certificate loaded", func(t *testing.T) {
 		k8sCluster := "my-cluster"
 		identityFilePath := filepath.Join(t.TempDir(), "out")
-		key := newClientKey(t, func(params *tlsca.Identity) {
+		keyRing := newClientKeyRing(t, func(params *tlsca.Identity) {
 			params.KubernetesCluster = k8sCluster
 		})
 		_, err := Write(context.Background(), WriteConfig{
 			OutputPath:           identityFilePath,
 			Format:               FormatFile,
-			Key:                  key,
+			KeyRing:              keyRing,
 			OverwriteDestination: true,
 		})
 		require.NoError(t, err)
-		parsedKey, err := KeyFromIdentityFile(identityFilePath, proxyHost, cluster)
+		parsedKeyRing, err := KeyRingFromIdentityFile(identityFilePath, proxyHost, cluster)
 		require.NoError(t, err)
-		require.NotNil(t, parsedKey.KubeTLSCerts[k8sCluster])
-		require.Equal(t, key.TLSCert, parsedKey.KubeTLSCerts[k8sCluster])
+		require.NotNil(t, parsedKeyRing.KubeTLSCredentials[k8sCluster].PrivateKey)
+		require.Equal(t, keyRing.TLSCert, parsedKeyRing.KubeTLSCredentials[k8sCluster].Cert)
 	})
 }
 
 func TestNewClientStoreFromIdentityFile(t *testing.T) {
 	t.Parallel()
-	key := newClientKey(t)
-	key.ProxyHost = "proxy.example.com"
-	key.ClusterName = "cluster"
+	keyRing := newClientKeyRing(t)
+	keyRing.ProxyHost = "proxy.example.com"
+	keyRing.ClusterName = "cluster"
 
 	identityFilePath := filepath.Join(t.TempDir(), "out")
 
@@ -433,29 +434,29 @@ func TestNewClientStoreFromIdentityFile(t *testing.T) {
 	_, err := Write(context.Background(), WriteConfig{
 		OutputPath:           identityFilePath,
 		Format:               FormatFile,
-		Key:                  key,
+		KeyRing:              keyRing,
 		OverwriteDestination: true,
 	})
 	require.NoError(t, err)
 
-	clientStore, err := NewClientStoreFromIdentityFile(identityFilePath, key.ProxyHost+":3080", key.ClusterName)
+	clientStore, err := NewClientStoreFromIdentityFile(identityFilePath, keyRing.ProxyHost+":3080", keyRing.ClusterName)
 	require.NoError(t, err)
 
 	currentProfile, err := clientStore.CurrentProfile()
 	require.NoError(t, err)
-	require.Equal(t, key.ProxyHost, currentProfile)
+	require.Equal(t, keyRing.ProxyHost, currentProfile)
 
 	retrievedProfile, err := clientStore.GetProfile(currentProfile)
 	require.NoError(t, err)
 	require.Equal(t, &profile.Profile{
-		WebProxyAddr:          key.ProxyHost + ":3080",
-		SiteName:              key.ClusterName,
-		Username:              key.Username,
+		WebProxyAddr:          keyRing.ProxyHost + ":3080",
+		SiteName:              keyRing.ClusterName,
+		Username:              keyRing.Username,
 		PrivateKeyPolicy:      keys.PrivateKeyPolicyNone,
 		MissingClusterDetails: true,
 	}, retrievedProfile)
 
-	retrievedKey, err := clientStore.GetKey(key.KeyIndex, client.WithAllCerts...)
+	retrievedKeyRing, err := clientStore.GetKeyRing(keyRing.KeyRingIndex, client.WithAllCerts...)
 	require.NoError(t, err)
-	require.Equal(t, key, retrievedKey)
+	require.Equal(t, keyRing, retrievedKeyRing)
 }

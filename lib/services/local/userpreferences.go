@@ -36,15 +36,12 @@ type UserPreferencesService struct {
 
 func DefaultUserPreferences() *userpreferencesv1.UserPreferences {
 	return &userpreferencesv1.UserPreferences{
-		Assist: &userpreferencesv1.AssistUserPreferences{
-			PreferredLogins: []string{},
-			ViewMode:        userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_DOCKED,
-		},
-		Theme: userpreferencesv1.Theme_THEME_LIGHT,
+		Theme: userpreferencesv1.Theme_THEME_UNSPECIFIED,
 		UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
-			DefaultTab:     userpreferencesv1.DefaultTab_DEFAULT_TAB_ALL,
-			ViewMode:       userpreferencesv1.ViewMode_VIEW_MODE_CARD,
-			LabelsViewMode: userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
+			DefaultTab:            userpreferencesv1.DefaultTab_DEFAULT_TAB_ALL,
+			ViewMode:              userpreferencesv1.ViewMode_VIEW_MODE_CARD,
+			LabelsViewMode:        userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
+			AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_NONE,
 		},
 		Onboard: &userpreferencesv1.OnboardUserPreferences{
 			PreferredResources: []userpreferencesv1.Resource{},
@@ -53,6 +50,7 @@ func DefaultUserPreferences() *userpreferencesv1.UserPreferences {
 		ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
 			PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{},
 		},
+		SideNavDrawerMode: userpreferencesv1.SideNavDrawerMode_SIDE_NAV_DRAWER_MODE_COLLAPSED,
 	}
 }
 
@@ -120,8 +118,8 @@ func (u *UserPreferencesService) getUserPreferences(ctx context.Context, usernam
 }
 
 // backendKey returns the backend key for the user preferences for the given username.
-func backendKey(username string) []byte {
-	return backend.Key(userPreferencesPrefix, username)
+func backendKey(username string) backend.Key {
+	return backend.NewKey(userPreferencesPrefix, username)
 }
 
 // validatePreferences validates the given preferences.
@@ -135,7 +133,7 @@ func validatePreferences(preferences *userpreferencesv1.UserPreferences) error {
 
 // createBackendItem creates a backend.Item for the given username and user preferences.
 func createBackendItem(username string, preferences *userpreferencesv1.UserPreferences) (backend.Item, error) {
-	settingsKey := backend.Key(userPreferencesPrefix, username)
+	settingsKey := backend.NewKey(userPreferencesPrefix, username)
 
 	payload, err := json.Marshal(preferences)
 	if err != nil {

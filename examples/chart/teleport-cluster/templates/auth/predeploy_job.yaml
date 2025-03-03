@@ -5,7 +5,11 @@ kind: Job
 metadata:
   name: {{ .Release.Name }}-auth-test
   namespace: {{ .Release.Namespace }}
-  labels: {{- include "teleport-cluster.labels" . | nindent 4 }}
+  labels:
+    {{- include "teleport-cluster.labels" . | nindent 4 }}
+    {{- if $auth.extraLabels.job }}
+    {{- toYaml $auth.extraLabels.job | nindent 4 }}
+    {{- end }}
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade
     "helm.sh/hook-weight": "5"
@@ -13,6 +17,12 @@ metadata:
 spec:
   backoffLimit: 1
   template:
+    metadata:
+      labels:
+        {{- include "teleport-cluster.auth.labels" . | nindent 8 }}
+        {{- if $auth.extraLabels.jobPod }}
+        {{- toYaml $auth.extraLabels.jobPod | nindent 8 }}
+        {{- end }}
     spec:
 {{- if $auth.affinity }}
       affinity: {{- toYaml $auth.affinity | nindent 8 }}
@@ -32,7 +42,7 @@ spec:
 {{- if $auth.resources }}
         resources:
   {{- toYaml $auth.resources | nindent 10 }}
-{{- end }}        
+{{- end }}
 {{- if or $auth.extraEnv $auth.tls.existingCASecretName }}
         env:
   {{- if (gt (len $auth.extraEnv) 0) }}
@@ -80,7 +90,7 @@ spec:
 {{- if .Values.enterprise }}
       - name: license
         secret:
-          secretName: "license"
+          secretName: {{ .Values.licenseSecretName | quote }}
 {{- end }}
 {{- if and (.Values.gcp.credentialSecretName) (eq .Values.chartMode "gcp") }}
       - name: gcp-credentials
@@ -100,4 +110,5 @@ spec:
 {{- if .Values.extraVolumes }}
   {{- toYaml .Values.extraVolumes | nindent 6 }}
 {{- end }}
+      serviceAccountName: {{ include "teleport-cluster.auth.hookServiceAccountName" . }}
 {{- end }}

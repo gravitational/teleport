@@ -25,18 +25,16 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var log = logrus.WithFields(logrus.Fields{
-	teleport.ComponentKey: teleport.ComponentConnectProxy,
-})
+var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentConnectProxy)
 
 // A Dialer is a means for a client to establish a SSH connection.
 type Dialer interface {
@@ -194,13 +192,15 @@ func DialerFromEnvironment(addr string, opts ...DialerOptionFunc) Dialer {
 	// If no proxy settings are in environment return regular ssh dialer,
 	// otherwise return a proxy dialer.
 	if proxyURL == nil {
-		log.Debugf("No proxy set in environment, returning direct dialer.")
+		log.DebugContext(context.Background(), "No proxy set in environment, returning direct dialer")
 		return directDial{
 			alpnDialer:        options.alpnDialer,
 			proxyHeaderGetter: options.proxyHeaderGetter,
 		}
 	}
-	log.Debugf("Found proxy %q in environment, returning proxy dialer.", proxyURL)
+	log.DebugContext(context.Background(), "Found proxy in environment, returning proxy dialer",
+		"proxy_url", logutils.StringerAttr(proxyURL),
+	)
 	return proxyDial{
 		proxyURL:          proxyURL,
 		insecure:          options.insecureSkipTLSVerify,

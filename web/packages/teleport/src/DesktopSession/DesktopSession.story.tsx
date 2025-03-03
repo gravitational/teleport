@@ -16,14 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
+
 import { ButtonPrimary } from 'design/Button';
 import { NotificationItem } from 'shared/components/Notification';
 
 import { TdpClient, TdpClientEvent } from 'teleport/lib/tdp';
+import { BitmapFrame } from 'teleport/lib/tdp/client';
+import { makeDefaultMfaState } from 'teleport/lib/useMfa';
 
-import { State } from './useDesktopSession';
 import { DesktopSession } from './DesktopSession';
+import { State } from './useDesktopSession';
 
 export default {
   title: 'Teleport/DesktopSession',
@@ -33,12 +36,6 @@ const fakeClient = () => {
   const client = new TdpClient('wss://socketAddr.gov');
   client.connect = async () => {}; // Don't actually try to connect to a websocket.
   return client;
-};
-
-const fillGray = (canvas: HTMLCanvasElement) => {
-  var ctx = canvas.getContext('2d');
-  ctx.fillStyle = 'gray';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
 };
 
 const props: State = {
@@ -62,9 +59,8 @@ const props: State = {
   },
   setDirectorySharingState: () => {},
   onShareDirectory: () => {},
-  clientOnPngFrame: () => {},
-  clientOnBitmapFrame: () => {},
-  clientOnClientScreenSpec: () => {},
+  onCtrlAltDel: () => {},
+  setInitialTdpConnectionSucceeded: () => {},
   clientScreenSpecToRequest: { width: 0, height: 0 },
   clientOnTdpError: () => {},
   clientOnTdpInfo: () => {},
@@ -79,17 +75,12 @@ const props: State = {
   canvasOnFocusOut: () => {},
   clientOnClipboardData: async () => {},
   setTdpConnection: () => {},
-  webauthn: {
-    errorText: '',
-    requested: false,
-    authenticate: () => {},
-    setState: () => {},
-    addMfaToScpUrls: false,
-  },
+  mfa: makeDefaultMfaState(),
   showAnotherSessionActiveDialog: false,
   setShowAnotherSessionActiveDialog: () => {},
-  warnings: [],
-  onRemoveWarning: () => {},
+  alerts: [],
+  onRemoveAlert: () => {},
+  onResize: () => {},
 };
 
 export const BothProcessing = () => (
@@ -173,7 +164,7 @@ export const TdpGraceful = () => (
 export const ConnectedSettingsFalse = () => {
   const client = fakeClient();
   client.connect = async () => {
-    client.emit(TdpClientEvent.TDP_PNG_FRAME);
+    emitGrayFrame(client);
   };
 
   return (
@@ -194,9 +185,6 @@ export const ConnectedSettingsFalse = () => {
         browserSupported: false,
         directorySelected: false,
       }}
-      clientOnPngFrame={(ctx: CanvasRenderingContext2D) => {
-        fillGray(ctx.canvas);
-      }}
     />
   );
 };
@@ -204,7 +192,7 @@ export const ConnectedSettingsFalse = () => {
 export const ConnectedSettingsTrue = () => {
   const client = fakeClient();
   client.connect = async () => {
-    client.emit(TdpClientEvent.TDP_PNG_FRAME);
+    emitGrayFrame(client);
   };
 
   return (
@@ -224,9 +212,6 @@ export const ConnectedSettingsTrue = () => {
         allowedByAcl: true,
         browserSupported: true,
         directorySelected: true,
-      }}
-      clientOnPngFrame={(ctx: CanvasRenderingContext2D) => {
-        fillGray(ctx.canvas);
       }}
     />
   );
@@ -262,12 +247,18 @@ export const WebAuthnPrompt = () => (
       writeState: 'granted',
     }}
     wsConnection={{ status: 'open' }}
-    webauthn={{
-      errorText: '',
-      requested: true,
-      authenticate: () => {},
-      setState: () => {},
-      addMfaToScpUrls: false,
+    mfa={{
+      ...makeDefaultMfaState(),
+      attempt: {
+        status: 'processing',
+        statusText: '',
+        data: null,
+      },
+      challenge: {
+        webauthnPublicKey: {
+          challenge: new ArrayBuffer(1),
+        },
+      },
     }}
   />
 );
@@ -276,34 +267,82 @@ export const AnotherSessionActive = () => (
   <DesktopSession {...props} showAnotherSessionActiveDialog={true} />
 );
 
-export const Warnings = () => {
+export const ClipboardSharingDisabledRbac = () => (
+  <DesktopSession
+    {...props}
+    fetchAttempt={{ status: 'success' }}
+    tdpConnection={{ status: 'success' }}
+    wsConnection={{ status: 'open' }}
+    clipboardSharingState={{ browserSupported: true, allowedByAcl: false }}
+  />
+);
+
+export const ClipboardSharingDisabledIncompatibleBrowser = () => (
+  <DesktopSession
+    {...props}
+    fetchAttempt={{ status: 'success' }}
+    tdpConnection={{ status: 'success' }}
+    wsConnection={{ status: 'open' }}
+    clipboardSharingState={{ browserSupported: false, allowedByAcl: true }}
+  />
+);
+
+export const ClipboardSharingDisabledBrowserPermissions = () => (
+  <DesktopSession
+    {...props}
+    fetchAttempt={{ status: 'success' }}
+    tdpConnection={{ status: 'success' }}
+    wsConnection={{ status: 'open' }}
+    clipboardSharingState={{
+      browserSupported: true,
+      allowedByAcl: true,
+      readState: 'granted',
+      writeState: 'denied',
+    }}
+  />
+);
+
+export const Alerts = () => {
   const client = fakeClient();
   client.connect = async () => {
-    client.emit(TdpClientEvent.TDP_PNG_FRAME);
+    emitGrayFrame(client);
   };
 
-  const [warnings, setWarnings] = useState<NotificationItem[]>([]);
+  const [alerts, setAlerts] = useState<NotificationItem[]>([]);
 
   const addWarning = () => {
-    setWarnings(prevItems => [
+    setAlerts(prevItems => [
       ...prevItems,
       {
         id: crypto.randomUUID(),
         severity: 'warn',
-        content:
-          "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s.",
+        content: `This is a warning message at ${new Date().toLocaleTimeString()}`,
       },
     ]);
   };
 
-  const removeWarning = (id: string) => {
-    setWarnings(prevState => prevState.filter(warning => warning.id !== id));
+  const addInfo = () => {
+    setAlerts(prevItems => [
+      ...prevItems,
+      {
+        id: crypto.randomUUID(),
+        severity: 'info',
+        content: `This is an info message at ${new Date().toLocaleTimeString()}`,
+      },
+    ]);
+  };
+
+  const removeAlert = (id: string) => {
+    setAlerts(prevState => prevState.filter(warning => warning.id !== id));
   };
 
   return (
     <>
-      <ButtonPrimary onClick={addWarning} mb={1}>
+      <ButtonPrimary onClick={addWarning} mb={1} mr={1}>
         Add Warning
+      </ButtonPrimary>
+      <ButtonPrimary onClick={addInfo} mb={1}>
+        Add Info
       </ButtonPrimary>
       <DesktopSession
         {...props}
@@ -322,12 +361,31 @@ export const Warnings = () => {
           browserSupported: true,
           directorySelected: true,
         }}
-        clientOnPngFrame={(ctx: CanvasRenderingContext2D) => {
-          fillGray(ctx.canvas);
-        }}
-        warnings={warnings}
-        onRemoveWarning={removeWarning}
+        alerts={alerts}
+        onRemoveAlert={removeAlert}
       />
     </>
   );
 };
+
+function emitGrayFrame(client: TdpClient) {
+  const width = 300;
+  const height = 100;
+  const imageData = new ImageData(width, height);
+
+  // Fill with gray (RGB: 128, 128, 128)
+  for (let i = 0; i < imageData.data.length; i += 4) {
+    imageData.data[i] = 128; // Red
+    imageData.data[i + 1] = 128; // Green
+    imageData.data[i + 2] = 128; // Blue
+    imageData.data[i + 3] = 255; // Alpha (fully opaque)
+  }
+
+  const frame: BitmapFrame = {
+    left: 0,
+    top: 0,
+    image_data: imageData,
+  };
+
+  client.emit(TdpClientEvent.TDP_BMP_FRAME, frame);
+}

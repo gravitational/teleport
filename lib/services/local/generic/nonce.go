@@ -50,7 +50,7 @@ type nonceProtectedResource interface {
 
 // FastUpdateNonceProtectedResource is a helper for updating a resource that is protected by a nonce. The target resource must store
 // its nonce value in a top-level 'nonce' field in order for correct nonce semantics to be observed.
-func FastUpdateNonceProtectedResource[T nonceProtectedResource](ctx context.Context, bk backend.Backend, key []byte, resource T) error {
+func FastUpdateNonceProtectedResource[T nonceProtectedResource](ctx context.Context, bk backend.Backend, key backend.Key, resource T) error {
 	if resource.GetNonce() == math.MaxUint64 {
 		return fastUpsertNonceProtectedResource(ctx, bk, key, resource)
 	}
@@ -108,7 +108,7 @@ func FastUpdateNonceProtectedResource[T nonceProtectedResource](ctx context.Cont
 
 // fastUpsertNonceProtectedResource performs an "upsert" while preserving correct nonce ordering. necessary in order to prevent upserts
 // from breaking concurrent protected updates.
-func fastUpsertNonceProtectedResource[T nonceProtectedResource](ctx context.Context, bk backend.Backend, key []byte, resource T) error {
+func fastUpsertNonceProtectedResource[T nonceProtectedResource](ctx context.Context, bk backend.Backend, key backend.Key, resource T) error {
 	const maxRetries = 16
 	for i := 0; i < maxRetries; i++ {
 		prev, err := bk.Get(ctx, key)

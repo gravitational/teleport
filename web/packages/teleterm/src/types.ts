@@ -16,15 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { sendUnaryData, ServerUnaryCall } from '@grpc/grpc-js';
+
 import { ITshdEventsService } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb.grpc-server';
 
-import { sendUnaryData, ServerUnaryCall } from 'grpc';
-
-import { Logger, LoggerService } from 'teleterm/services/logger/types';
-import { FileStorage } from 'teleterm/services/fileStorage';
 import { MainProcessClient, RuntimeSettings } from 'teleterm/mainProcess/types';
+import { FileStorage } from 'teleterm/services/fileStorage';
+import { Logger, LoggerService } from 'teleterm/services/logger/types';
 import { PtyServiceClient } from 'teleterm/services/pty';
-import { VnetClient, TshdClient } from 'teleterm/services/tshd/createClient';
+import { TshdClient, VnetClient } from 'teleterm/services/tshd/createClient';
 
 export type {
   Logger,
@@ -111,4 +111,6 @@ export type ElectronGlobals = {
   readonly setupTshdEventContextBridgeService: (
     listener: TshdEventContextBridgeService
   ) => void;
+  /** Exposes Electron's webUtils.getPathForFile. */
+  getPathForFile(file: File): string;
 };

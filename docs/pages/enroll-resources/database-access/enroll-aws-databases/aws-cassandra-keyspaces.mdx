@@ -1,0 +1,189 @@
+---
+title: Database Access with Amazon Keyspaces (Apache Cassandra)
+description: How to configure Teleport database access with Amazon Keyspaces (Apache Cassandra)
+---
+
+(!docs/pages/includes/database-access/db-introduction.mdx dbType="Amazon Keyspaces (Apache Cassandra)" dbConfigure="with IAM authentication"!)
+
+## How it works
+
+(!docs/pages/includes/database-access/how-it-works/iam.mdx db="Amazon Keyspaces" cloud="AWS"!)
+
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+![Enroll Redis with a Self-Hosted Teleport Cluster](../../../../img/database-access/guides/cassandra_keyspaces_selfhosted.png)
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+![Enroll Redis with a Cloud-Hosted Teleport Cluster](../../../../img/database-access/guides/cassandra_keyspaces_cloud.png)
+</TabItem>
+
+</Tabs>
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- AWS Account with Amazon Keyspaces database and permissions to create and attach IAM policies
+- The `cqlsh` Cassandra client installed and added to your system's `PATH` environment variable.
+- A host, e.g., an Amazon EC2 instance, where you will run the Teleport Database Service.
+- (!docs/pages/includes/tctl.mdx!)
+
+## Step 1/5. Set up the Teleport Database Service
+
+(!docs/pages/includes/tctl-token.mdx serviceName="Database" tokenType="db" tokenFile="/tmp/token"!)
+
+(!docs/pages/includes/database-access/alternative-methods-join.mdx!)
+
+(!docs/pages/includes/install-linux.mdx!)
+
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+
+Create a configuration for the Teleport Database Service, pointing the
+`--proxy` flag to the address of your Teleport Proxy Service:
+
+```code
+$ sudo teleport db configure create \
+   -o file \
+  --token=/tmp/token \
+  --proxy=teleport.example.com:443 \
+  --name=keyspaces \
+  --protocol=cassandra \
+  --aws-account-id=12345678912 \
+  --aws-region=us-east-1 \
+  --labels=env=dev
+```
+
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+
+Create a configuration for the Teleport Database Service, pointing the
+`--proxy` flag to the address of your Teleport Proxy Service:
+
+```code
+$ sudo teleport db configure create \
+   -o file \
+  --token=/tmp/token \
+  --proxy=mytenant.teleport.sh:443 \
+  --name=keyspaces \
+  --protocol=cassandra \
+  --aws-account-id=12345678912 \
+  --aws-region=us-east-1 \
+  --labels=env=dev
+```
+
+</TabItem>
+
+</Tabs>
+
+(!docs/pages/includes/aws-credentials.mdx service="the Teleport Database Service"!)
+
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
+
+## Step 2/5. Create a Teleport user
+
+(!docs/pages/includes/database-access/create-user.mdx!)
+
+## Step 3/5. Create an Amazon Keyspaces role
+
+Create an AWS IAM Role that will be used as your Keyspaces user.
+Go to the IAM -> Access Management -> [Roles](https://console.aws.amazon.com/iamv2/home#/roles).
+Press Create Role.
+
+![Create Role Step 1](../../../../img/database-access/guides/keyspaces/create-role-step1.png)
+AWS provides the `AmazonKeyspacesReadOnlyAccess` and `AmazonKeyspacesFullAccess` IAM policies that you can incorporate into your Keyspaces user's role.
+You can choose `AmazonKeyspacesReadOnlyAccess` for read-only access to Amazon Keyspaces or `AmazonKeyspacesFullAccess` for full access.
+
+<Admonition type="tip">
+  The `AmazonKeyspacesReadOnlyAccess` and `AmazonKeyspacesReadOnlyAccess` policies may
+  provide too much or not enough access for your intentions.
+  Validate that these meet your expectations if you plan on using them.
+  You can also create your own custom Amazon Keyspaces Permissions Policies: [Amazon Keyspaces identity-based policy examples](https://docs.aws.amazon.com/keyspaces/latest/devguide/security_iam_id-based-policy-examples.html).
+</Admonition>
+
+![Create Role Step 1](../../../../img/database-access/guides/keyspaces/create-role-step2.png)
+Enter a role name and press "Create role".
+![Create Role Step 1](../../../../img/database-access/guides/keyspaces/create-role-step3.png)
+
+## Step 4/5. Give Teleport permissions to assume roles
+
+Next, attach the following policy to the IAM role or IAM user the Teleport
+Database Service instance is using, which allows the Database Service to
+assume the IAM roles:
+
+```yaml
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "sts:AssumeRole",
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+<Admonition type="tip">
+  You can make the policy more strict by providing specific IAM role resource
+  ARNs in the "Resource" field instead of using a wildcard.
+</Admonition>
+
+## Step 5/5. Connect
+
+Once the Database Service has joined the cluster, log in to see the available
+databases:
+
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+
+  ```code
+  $ tsh login --proxy=teleport.example.com --user=alice
+  $ tsh db ls
+  # Name      Description Allowed Users Labels  Connect
+  # --------- ----------- ------------- ------- -------
+  # keyspaces             [*]           env=dev
+  ```
+
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+
+  ```code
+  $ tsh login --proxy=mytenant.teleport.sh --user=alice
+  $ tsh db ls
+  # Name      Description Allowed Users Labels  Connect
+  # --------- ----------- ------------- ------- -------
+  # keyspaces             [*]           env=dev
+  ```
+
+</TabItem>
+
+</Tabs>
+
+To connect to a particular database instance using the `KeyspacesReader`  AWS IAM Keyspaces role as a database user:
+```code
+$ tsh db connect --db-user=KeyspacesReader keyspaces
+# Connected to Amazon Keyspaces at localhost:55084
+# [cqlsh 6.0.0 | Cassandra 3.11.2 | CQL spec 3.4.4 | Native protocol v4]
+# Use HELP for help.
+# KeyspacesReader@cqlsh>
+```
+
+To log out of the database and remove credentials:
+
+```code
+# Remove credentials for a particular database instance.
+$ tsh db logout keyspaces
+# Remove credentials for all database instances.
+$ tsh db logout
+```
+
+## Further reading
+
+- [How Amazon Keyspaces works with IAM](https://docs.aws.amazon.com/keyspaces/latest/devguide/security_iam_service-with-iam.html)
+- [What is Amazon Keyspaces (for Apache Cassandra)?](https://docs.aws.amazon.com/keyspaces/latest/devguide/what-is-keyspaces.html)
+
+## Next steps
+
+(!docs/pages/includes/database-access/guides-next-steps.mdx!)
+

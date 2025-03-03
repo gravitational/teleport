@@ -16,8 +16,9 @@
 
 use crate::client::ClientHandle;
 use crate::{piv, util};
+use ironrdp_pdu::pdu_other_err;
 use ironrdp_pdu::utils::CharacterSet;
-use ironrdp_pdu::{custom_err, other_err, PduResult};
+use ironrdp_pdu::PduResult;
 use ironrdp_rdpdr::pdu::efs::{DeviceControlRequest, DeviceControlResponse, NtStatus};
 use ironrdp_rdpdr::pdu::esc::{
     rpce, CardProtocol, CardState, CardStateFlags, ConnectCall, ConnectReturn, ContextCall,
@@ -94,15 +95,15 @@ impl ScardBackend {
                 ScardCall::EstablishContextCall(_) => self.handle_establish_context(req),
                 _ => Self::unsupported_combo_error(req.io_control_code, call),
             },
-            ScardIoCtlCode::ListReadersW => match call {
+            ScardIoCtlCode::ListReadersW | ScardIoCtlCode::ListReadersA => match call {
                 ScardCall::ListReadersCall(_) => self.handle_list_readers(req),
                 _ => Self::unsupported_combo_error(req.io_control_code, call),
             },
-            ScardIoCtlCode::GetStatusChangeW => match call {
+            ScardIoCtlCode::GetStatusChangeW | ScardIoCtlCode::GetStatusChangeA => match call {
                 ScardCall::GetStatusChangeCall(call) => self.handle_get_status_change(req, call),
                 _ => Self::unsupported_combo_error(req.io_control_code, call),
             },
-            ScardIoCtlCode::ConnectW => match call {
+            ScardIoCtlCode::ConnectW | ScardIoCtlCode::ConnectA => match call {
                 ScardCall::ConnectCall(call) => self.handle_connect(req, call),
                 _ => Self::unsupported_combo_error(req.io_control_code, call),
             },
@@ -142,11 +143,11 @@ impl ScardBackend {
                 ScardCall::GetDeviceTypeIdCall(call) => self.handle_get_device_type_id(req, call),
                 _ => Self::unsupported_combo_error(req.io_control_code, call),
             },
-            ScardIoCtlCode::ReadCacheW => match call {
+            ScardIoCtlCode::ReadCacheW | ScardIoCtlCode::ReadCacheA => match call {
                 ScardCall::ReadCacheCall(call) => self.handle_read_cache(req, call),
                 _ => Self::unsupported_combo_error(req.io_control_code, call),
             },
-            ScardIoCtlCode::WriteCacheW => match call {
+            ScardIoCtlCode::WriteCacheW | ScardIoCtlCode::WriteCacheA => match call {
                 ScardCall::WriteCacheCall(call) => self.handle_write_cache(req, call),
                 _ => Self::unsupported_combo_error(req.io_control_code, call),
             },
@@ -154,10 +155,13 @@ impl ScardBackend {
                 ScardCall::GetReaderIconCall(_) => self.handle_get_reader_icon(req),
                 _ => Self::unsupported_combo_error(req.io_control_code, call),
             },
-            _ => Err(custom_err!(SmartcardBackendError(format!(
-                "received unhandled ScardIoCtlCode: {:?}",
-                req.io_control_code
-            )))),
+            _ => Err(pdu_other_err!(
+                "",
+                source:SmartcardBackendError(format!(
+                    "received unhandled ScardIoCtlCode: {:?}",
+                    req.io_control_code
+                ))
+            )),
         }?;
 
         Ok(())
@@ -206,13 +210,18 @@ impl ScardBackend {
             );
         }
 
-        let get_status_change_ret = Self::create_get_status_change_return(call);
+        let reader_states = Self::create_get_status_change_reader_states(call);
 
-        // We have no status change to report, cache a response
-        // for later in case we get an SCARD_IOCTL_CANCEL.
-        if Self::has_no_change(&get_status_change_ret) {
+        // We have no status change to report.
+        if Self::has_no_change(&reader_states) {
             if timeout != TIMEOUT_INFINITE {
-                return Err(other_err!("got no change for non-infinite timeout",));
+                // Since our status never changes, we just return immediately here
+                // as if the call timed out.
+                debug!("got no change for non-infinite timeout");
+                return self.send_device_control_response(
+                    req,
+                    GetStatusChangeReturn::new(ReturnCode::Timeout, reader_states),
+                );
             }
 
             // Received a GetStatusChangeCall with an infinite timeout, so we're adding
@@ -226,7 +235,7 @@ impl ScardBackend {
                     NtStatus::SUCCESS,
                     Some(Box::new(GetStatusChangeReturn::new(
                         ReturnCode::Cancelled,
-                        get_status_change_ret.into_inner().reader_states,
+                        reader_states,
                     ))),
                 ),
             )?;
@@ -237,12 +246,15 @@ impl ScardBackend {
         }
 
         // We have some status change to report, send it to the server.
-        self.send_device_control_response(req, get_status_change_ret)
+        self.send_device_control_response(
+            req,
+            GetStatusChangeReturn::new(ReturnCode::Success, reader_states),
+        )
     }
 
-    fn create_get_status_change_return(
+    fn create_get_status_change_reader_states(
         call: GetStatusChangeCall,
-    ) -> rpce::Pdu<GetStatusChangeReturn> {
+    ) -> Vec<ReaderStateCommonCall> {
         let mut reader_states = vec![];
         for state in call.states {
             match state.reader.as_str() {
@@ -285,13 +297,11 @@ impl ScardBackend {
                 }
             }
         }
-
-        GetStatusChangeReturn::new(ReturnCode::Success, reader_states)
+        reader_states
     }
 
-    fn has_no_change(pdu: &rpce::Pdu<GetStatusChangeReturn>) -> bool {
-        pdu.into_inner_ref()
-            .reader_states
+    fn has_no_change(reader_states: &[ReaderStateCommonCall]) -> bool {
+        reader_states
             .iter()
             .all(|state| state.current_state == state.event_state)
     }
@@ -330,10 +340,13 @@ impl ScardBackend {
     ) -> PduResult<()> {
         let cmd =
             CardCommand::<TRANSMIT_DATA_LIMIT>::try_from(&call.send_buffer).map_err(|err| {
-                custom_err!(SmartcardBackendError(format!(
-                    "failed to parse smartcard command {:?}: {:?}",
-                    &call.send_buffer, err
-                )))
+                pdu_other_err!(
+                    "",
+                    source:SmartcardBackendError(format!(
+                        "failed to parse smartcard command {:?}: {:?}",
+                        &call.send_buffer, err
+                    ))
+                )
             })?;
 
         let card = self.contexts.get_card(&call.handle)?;
@@ -350,10 +363,13 @@ impl ScardBackend {
             ScardIoCtlCode::StatusW => CharacterSet::Unicode,
             ScardIoCtlCode::StatusA => CharacterSet::Ansi,
             _ => {
-                return Err(custom_err!(SmartcardBackendError(format!(
-                    "got unexpected ScardIoCtlCode with a StatusCall: {:?}",
-                    req.io_control_code
-                ))));
+                return Err(pdu_other_err!(
+                    "",
+                    source:SmartcardBackendError(format!(
+                        "got unexpected ScardIoCtlCode with a StatusCall: {:?}",
+                        req.io_control_code
+                    ))
+                ));
             }
         };
 
@@ -414,10 +430,10 @@ impl ScardBackend {
             .contexts
             .take_scard_cancel_response(call.context.value)?
         {
-            // Take the pending SCARD_IOCTL_GETSTATUSCHANGEW response and send it back to the server.
+            // Take the pending SCARD_IOCTL_GETSTATUSCHANGE response and send it back to the server.
             self.client_handle.write_rdpdr(resp.into())?;
         } else {
-            warn!("Received SCARD_IOCTL_CANCEL for a context without a pending SCARD_IOCTL_GETSTATUSCHANGEW");
+            warn!("Received SCARD_IOCTL_CANCEL for a context without a pending SCARD_IOCTL_GETSTATUSCHANGE");
         };
 
         // Also return a response for the SCARD_IOCTL_CANCEL request itself.
@@ -451,10 +467,13 @@ impl ScardBackend {
                 GetDeviceTypeIdReturn::new(ReturnCode::Success, SCARD_READER_TYPE_VENDOR),
             )
         } else {
-            Err(custom_err!(SmartcardBackendError(format!(
-                "got GetDeviceTypeIdCall for unknown context [{}]",
-                call.context.value
-            ))))
+            Err(pdu_other_err!(
+                "",
+                source:SmartcardBackendError(format!(
+                    "got GetDeviceTypeIdCall for unknown context [{}]",
+                    call.context.value
+                ))
+            ))
         }
     }
 
@@ -491,10 +510,13 @@ impl ScardBackend {
 
     /// This function returns the error for unsupported combinations of [`ScardIoCtlCode`] and [`ScardCall`].
     fn unsupported_combo_error(ioctl: ScardIoCtlCode, call: ScardCall) -> PduResult<()> {
-        Err(custom_err!(SmartcardBackendError(format!(
-            "received unsupported combination of ScardIoCtlCode [{:?}] with ScardCall [{:?}]",
-            ioctl, call
-        ))))
+        Err(pdu_other_err!(
+            "",
+            source:SmartcardBackendError(format!(
+                "received unsupported combination of ScardIoCtlCode [{:?}] with ScardCall [{:?}]",
+                ioctl, call
+            ))
+        ))
     }
 
     fn send_device_control_response(
@@ -564,7 +586,7 @@ impl Contexts {
     fn get_card(&mut self, handle: &ScardHandle) -> PduResult<&mut piv::Card<TRANSMIT_DATA_LIMIT>> {
         self.get_internal_mut(handle.context.value)?
             .get(handle.value)
-            .ok_or_else(|| other_err!("unknown ScardHandle"))
+            .ok_or_else(|| pdu_other_err!("unknown ScardHandle"))
     }
 
     fn exists(&self, id: u32) -> bool {
@@ -586,7 +608,7 @@ impl Contexts {
     fn get_internal_mut(&mut self, id: u32) -> PduResult<&mut ContextInternal> {
         self.contexts
             .get_mut(&id)
-            .ok_or_else(|| other_err!("unknown context id"))
+            .ok_or_else(|| pdu_other_err!("unknown context id"))
     }
 
     fn release(&mut self, id: u32) {
@@ -599,12 +621,12 @@ struct ContextInternal {
     handles: HashMap<u32, piv::Card<TRANSMIT_DATA_LIMIT>>,
     next_id: u32,
     cache: HashMap<String, Vec<u8>>,
-    // If we receive a SCARD_IOCTL_GETSTATUSCHANGEW with an infinite timeout, we need to
+    // If we receive a SCARD_IOCTL_GETSTATUSCHANGE with an infinite timeout, we need to
     // return a GetStatusChange_Return (embedded in a DeviceControlResponse) with
     // its return code set to SCARD_E_CANCELLED in the case that we receive a
     // SCARD_IOCTL_CANCEL.
     //
-    // This value will be set during the handling of the SCARD_IOCTL_GETSTATUSCHANGEW, so that
+    // This value will be set during the handling of the SCARD_IOCTL_GETSTATUSCHANGE, so that
     // it can be fetched and returned in response to a SCARD_IOCTL_CANCEL.
     scard_cancel_response: Option<DeviceControlResponse>,
 }
@@ -621,7 +643,7 @@ impl ContextInternal {
 
     fn set_scard_cancel_response(&mut self, resp: DeviceControlResponse) -> PduResult<()> {
         if self.scard_cancel_response.is_some() {
-            return Err(other_err!("SCARD_IOCTL_CANCEL already received",));
+            return Err(pdu_other_err!("SCARD_IOCTL_CANCEL already received",));
         }
         self.scard_cancel_response = Some(resp);
         Ok(())

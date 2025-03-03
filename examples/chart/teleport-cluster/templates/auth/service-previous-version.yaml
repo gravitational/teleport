@@ -1,9 +1,14 @@
+{{- $auth := mustMergeOverwrite (mustDeepCopy .Values) .Values.auth -}}
 apiVersion: v1
 kind: Service
 metadata:
   name: {{ include "teleport-cluster.auth.previousVersionServiceName" . }}
   namespace: {{ .Release.Namespace }}
-  labels: {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
+  labels:
+    {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
+    {{- if $auth.extraLabels.service }}
+    {{- toYaml $auth.extraLabels.service | nindent 4 }}
+    {{- end }}
 spec:
   # This is a headless service. Resolving it will return the list of all auth pods running the previous major version
   # Proxies should not connect to auth pods from the previous major version
@@ -20,7 +25,11 @@ kind: Service
 metadata:
   name: {{ include "teleport-cluster.auth.currentVersionServiceName" . }}
   namespace: {{ .Release.Namespace }}
-  labels: {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
+  labels:
+    {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
+    {{- if $auth.extraLabels.service }}
+    {{- toYaml $auth.extraLabels.service | nindent 4 }}
+    {{- end }}
 spec:
   # This is a headless service. Resolving it will return the list of all auth pods running the current major version
   clusterIP: "None"

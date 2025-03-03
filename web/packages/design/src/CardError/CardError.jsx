@@ -16,11 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import PropTypes from 'prop-types';
 import styled from 'styled-components';
 
-import { Text, Alert, Card } from 'design';
+import { Alert, Card, H1, P1 } from 'design';
 
 export default function CardError(props) {
   return (
@@ -37,7 +36,7 @@ export default function CardError(props) {
 }
 
 const Header = props => (
-  <Text typography="h2" mb={4} textAlign="center" children={props.children} />
+  <H1 mb={4} textAlign="center" children={props.children} />
 );
 
 const Content = ({ message = '', desc = null }) => {
@@ -77,13 +76,7 @@ export const Failed = ({ message, ...rest }) => (
 export const Offline = ({ message, title }) => (
   <CardError>
     <Header>{title}</Header>
-    <Content
-      desc={
-        <Text typography="paragraph" textAlign="center">
-          {message}
-        </Text>
-      }
-    />
+    <Content desc={<P1 textAlign="center">{message}</P1>} />
   </CardError>
 );
 
@@ -98,9 +91,9 @@ export const LoginFailed = ({ message, loginUrl }) => (
     <Content
       message={message}
       desc={
-        <Text typography="paragraph" textAlign="center">
+        <P1 textAlign="center">
           <HyperLink href={loginUrl}>Please attempt to log in again.</HyperLink>
-        </Text>
+        </P1>
       }
     />
   </CardError>
@@ -110,6 +103,20 @@ LoginFailed.propTypes = {
   message: PropTypes.string,
   loginUrl: PropTypes.string.isRequired,
 };
+
+export const LogoutFailed = ({ message, loginUrl }) => (
+  <CardError>
+    <Header>Logout Unsuccessful</Header>
+    <Content
+      message={message}
+      desc={
+        <P1 textAlign="center">
+          <HyperLink href={loginUrl}>Return to login.</HyperLink>
+        </P1>
+      }
+    />
+  </CardError>
+);
 
 const HyperLink = styled.a`
   color: ${({ theme }) => theme.colors.buttons.link.default};

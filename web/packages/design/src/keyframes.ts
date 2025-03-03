@@ -32,3 +32,21 @@ export const rotate360 = keyframes`
   from { transform: rotate(0deg);   }
   to   { transform: rotate(360deg); }
 `;
+
+// The animation should start from 100% opacity so that a transition from non-blinking state to a
+// blinking state isn't abrupt.
+export const blink = keyframes`
+    0% {
+      opacity: 100%;
+    }
+    50% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 100%;
+    }
+  `;
+
+export const disappear = keyframes`
+to { opacity: 0; }
+`;

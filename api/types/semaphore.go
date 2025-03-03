@@ -46,6 +46,15 @@ const SemaphoreKindHostUserModification = "host_user_modification"
 // the Access Monitoring feature during handling user queries.
 const SemaphoreKindAccessMonitoringLimiter = "access_monitoring_limiter"
 
+// SemaphoreKindUploadCompleter is the semaphore kind used by the
+// auth server's upload completer to protect access to the shared
+// session recordings backend.
+const SemaphoreKindUploadCompleter = "upload_completer"
+
+// SemaphoreKindAccessListReminderLimiter is the semaphore kind used by
+// the periodic check which creates access list reminder notifications.
+const SemaphoreKindAccessListReminderLimiter = "access_list_reminder_limiter"
+
 // Semaphore represents distributed semaphore concept
 type Semaphore interface {
 	// Resource contains common resource values
@@ -238,16 +247,6 @@ func (c *SemaphoreV3) SetSubKind(sk string) {
 // GetKind returns resource kind
 func (c *SemaphoreV3) GetKind() string {
 	return c.Kind
-}
-
-// GetResourceID returns resource ID
-func (c *SemaphoreV3) GetResourceID() int64 {
-	return c.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (c *SemaphoreV3) SetResourceID(id int64) {
-	c.Metadata.ID = id
 }
 
 // GetRevision returns the revision

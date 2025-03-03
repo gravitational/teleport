@@ -17,14 +17,13 @@
  */
 
 import React from 'react';
-
 import { createRoot } from 'react-dom/client';
 
+import Logger from 'teleterm/logger';
 import { ElectronGlobals } from 'teleterm/types';
 import { App } from 'teleterm/ui/App';
-import { FailedApp } from 'teleterm/ui/components/App';
 import AppContext from 'teleterm/ui/appContext';
-import Logger from 'teleterm/logger';
+import { FailedApp } from 'teleterm/ui/components/App';
 
 async function boot(): Promise<void> {
   Logger.init(window['loggerService']);
@@ -51,7 +50,9 @@ async function boot(): Promise<void> {
     renderApp(<App ctx={appContext} />);
   } catch (e) {
     logger.error('Failed to boot the React app', e);
-    renderApp(<FailedApp message={e.toString()} />);
+    renderApp(
+      <FailedApp message={`Could not start the application: ${e.toString()}`} />
+    );
   }
 }
 

@@ -17,4 +17,5 @@
  */
 
 import TrustedClusters from './TrustedClusters';
+
 export { TrustedClusters };

@@ -17,16 +17,16 @@
  */
 
 import {
-  RpcInputStream,
-  UnaryCall,
   ClientStreamingCall,
-  ServerStreamingCall,
   DuplexStreamingCall,
-  RpcOutputStream,
-  RpcError,
-  RpcOptions,
-  ServiceInfo,
   FinishedUnaryCall,
+  RpcError,
+  RpcInputStream,
+  RpcOptions,
+  RpcOutputStream,
+  ServerStreamingCall,
+  ServiceInfo,
+  UnaryCall,
 } from '@protobuf-ts/runtime-rpc';
 
 /**
@@ -97,6 +97,7 @@ export function cloneAbortSignal(signal: AbortSignal): CloneableAbortSignal {
       signal.removeEventListener(type, listener, options),
     eventListeners: (...args) => signal.eventListeners(...args),
     removeAllListeners: (...args) => signal.removeAllListeners(...args),
+    any: (...args) => signal.any(...args),
   };
 
   signal.addEventListener(
@@ -259,6 +260,7 @@ export type TshdRpcError = Pick<
    * It is taken from the error metadata.
    */
   isResolvableWithRelogin: boolean;
+  toString: () => string;
 };
 
 /**
@@ -313,6 +315,7 @@ function cloneError(error: unknown): TshdRpcError | Error | unknown {
       cause: error.cause,
       code: error.code,
       isResolvableWithRelogin: error.meta['is-resolvable-with-relogin'] === '1',
+      toString: () => error.toString(),
     } satisfies TshdRpcError;
   }
 
@@ -322,7 +325,8 @@ function cloneError(error: unknown): TshdRpcError | Error | unknown {
       message: error.message,
       stack: error.stack,
       cause: error.cause,
-    } satisfies Error;
+      toString: () => error.toString(),
+    };
   }
 
   return error;
@@ -406,7 +410,17 @@ export class MockedUnaryCall<Response extends object>
     onrejected?: (reason: any) => TResult2 | PromiseLike<TResult2>
   ): Promise<TResult1 | TResult2> {
     if (this.error) {
-      return Promise.reject(onrejected(this.error));
+      if (typeof onrejected === 'function') {
+        try {
+          // Despite this being an error branch, it needs to use Promise.resolve. Otherwise we'd get
+          // uncaught errors. See https://www.promisejs.org/implementing/#then
+          return Promise.resolve(onrejected(this.error));
+        } catch (ex) {
+          return Promise.reject(ex);
+        }
+      } else {
+        return Promise.reject(this.error);
+      }
     }
 
     return Promise.resolve(

@@ -37,6 +37,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/portforward"
 	clientremotecommand "k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport"
 
@@ -70,16 +71,14 @@ type wsStreamClient struct {
 	cacheBuff *bytes.Buffer
 	conn      *gwebsocket.Conn
 	mu        *sync.Mutex
-	localPort *int32
 	readyChan chan struct{}
 	listener  net.Listener
 }
 
 type websocketOption func(*wsStreamClient)
 
-func withLocalPortforwarding(port int32, readyChan chan struct{}) websocketOption {
+func withLocalPortforwarding(readyChan chan struct{}) websocketOption {
 	return func(c *wsStreamClient) {
-		c.localPort = &port
 		c.readyChan = readyChan
 	}
 }
@@ -132,6 +131,15 @@ func newWebSocketClient(config *rest.Config, method string, u *url.URL, opts ...
 //	CLOSE
 func (e *wsStreamClient) StreamWithContext(_ context.Context, options clientremotecommand.StreamOptions) error {
 	return trace.Wrap(e.Stream(options))
+}
+
+func (e *wsStreamClient) GetPorts() ([]portforward.ForwardedPort, error) {
+	return []portforward.ForwardedPort{
+		{
+			Local:  uint16(e.listener.Addr().(*net.TCPAddr).Port),
+			Remote: 8080,
+		},
+	}, nil
 }
 
 // Stream copies the contents from stdin into the connection and respective stdout and stderr
@@ -379,14 +387,15 @@ const (
 // Due to portforward websocket limitations, the listener do not accept
 // concurrent connections.
 func (e *wsStreamClient) portforward(remoteConn *gwebsocket.Conn) (err error) {
-	if e.localPort == nil || e.readyChan == nil {
+	if e.readyChan == nil {
 		return trace.BadParameter("cannot use portforward without proper initialization")
 	}
 
-	e.listener, err = net.Listen("tcp", fmt.Sprintf("localhost:%d", *e.localPort))
+	e.listener, err = net.Listen("tcp", "localhost:0")
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	close(e.readyChan)
 	for {
 		conn, err := e.listener.Accept()
@@ -463,7 +472,7 @@ func (e *wsStreamClient) handlePortForwardRequest(conn net.Conn, remoteConn *gwe
 						return
 					}
 				case portforwardErrChan:
-					err := trace.Errorf(string(buf[1:]))
+					err := trace.Errorf("%s", string(buf[1:]))
 					errChan <- trace.Wrap(err)
 					// Once we receive an error from streamErr, we must stop processing.
 					// The server also stops the execution and closes the connection.

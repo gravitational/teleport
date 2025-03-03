@@ -1,0 +1,170 @@
+---
+title: Machine ID with Server Access
+description: How to use Machine ID to access servers via SSH
+---
+
+Teleport protects and controls SSH access to servers. Machine ID
+can be used to grant machines secure, short-lived access to these servers.
+
+In this guide, you will configure `tbot` to produce credentials that can be
+used to access a Linux server enrolled in Teleport. The guide
+will cover access using the Teleport CLI `tsh` as well as the OpenSSH client.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- If you have not already connected your server to Teleport, follow
+  the [getting started guide](../../server-access/getting-started.mdx).
+- (!docs/pages/includes/tctl.mdx!)
+- `tbot` must already be installed and configured on the machine that will
+  connect to Linux hosts with SSH. For more information, see the
+  [deployment guides](../deployment/deployment.mdx).
+
+## Step 1/3. Configure RBAC
+
+First, Teleport must be configured to allow the credentials produced by the bot
+to connect to SSH servers in your infrastructure. In this example, access will
+be granted to all SSH nodes for the username `root`. This is done by creating a
+role that grants the necessary permissions and then assigning this role to a
+Bot.
+
+Create a file called `role.yaml` with the following content:
+
+```yaml
+kind: role
+version: v6
+metadata:
+  name: example-role
+spec:
+  allow:
+    # Allow login to the Linux user 'root'.
+    logins: ['root']
+    # Allow connection to any node. Adjust these labels to match only nodes
+    # that ansible needs to access.
+    node_labels:
+      '*': '*'
+```
+
+Replace `example-role` with a descriptive name related to your use case.
+
+You may also wish to adjust this to grant access to a user other than `root`
+depending on what commands will need to be executed with the credentials.
+
+For production use, you should adjust `node_labels` to restrict this access to
+only the hosts that the bot will need to access. This is known as the principle
+of least privilege and limits the damage that exfiltrated credentials can do.
+
+Use `tctl create -f ./role.yaml` to create the role.
+
+(!docs/pages/includes/create-role-using-web.mdx!)
+
+Now, use `tctl bots update` to add the role to the Bot. Replace `example`
+with the name of the Bot you created in the deployment guide and `example-role`
+with the name of the role you just created:
+
+```code
+$ tctl bots update example --add-roles example-role
+```
+
+## Step 2/3. Configure the `tbot` output
+
+Now, `tbot` needs to be configured with an output that will produce an
+SSH certificate and OpenSSH configuration. For this we use the `identity` output
+type.
+
+Outputs must be configured with a destination. In this example, the `directory`
+destination will be used. This will write these credentials to a specified
+directory on disk. Ensure that this directory can be written to by the Linux
+user that `tbot` runs as, and that it can be read by the Linux user that needs
+to use SSH.
+
+Modify your `tbot` configuration to add an `identity` output:
+
+```yaml
+outputs:
+- type: identity
+  destination:
+    type: directory
+    # For this guide, /opt/machine-id is used as the destination directory.
+    # You may wish to customize this. Multiple outputs cannot share the same
+    # destination.
+    path: /opt/machine-id
+```
+
+If operating `tbot` as a background service, restart it. If running `tbot` in
+one-shot mode, it must be executed before you attempt to use the credentials
+produced by `tbot` to connect to nodes via SSH.
+
+## Step 3/3. Using the output credentials
+
+Once `tbot` has been run or restarted, you should now see several files under
+`/opt/machine-id`:
+
+- `identity`: this is a bundle of credentials that can be used by `tsh` to
+  authenticate.
+- `ssh_config`: this can be used with OpenSSH and other tools to configure them
+  to use the Teleport Proxy Service with the correct credentials when making
+  connections.
+- `known_hosts`: this contains the Teleport SSH host CAs and allows the SSH
+  client to validate a host's certificate.
+- `key-cert.pub`: this is an SSH certificate signed by the Teleport SSH user
+  CA.
+- `key`: this is the private key needed to use the SSH certificate.
+
+These credentials can be used with Teleport's CLI `tsh` or with OpenSSH client
+tools like `ssh` and `sftp`.
+
+### Connecting using `tsh`
+
+To use `tsh` with a `tbot` identity output, the path to the `identity` file
+must be specified using the `-i` flag. In addition, `--proxy` must be used to
+specify the address of the Teleport Proxy Service that should be used when making
+connections.
+
+In this example, `tsh` is used to connect to a node called `my-host` via the
+proxy `example.teleport.sh:443` and to execute the command `hostname`:
+
+```code
+$ tsh -i /opt/machine-id/identity --proxy example.teleport.sh:443 ssh root@my-host hostname
+my-host
+```
+
+### Connecting using OpenSSH
+
+To use OpenSSH with the identity output, the path to the `ssh_config` should be
+provided to `ssh` with the `-F` flag.
+
+With the generated `ssh_config` you must append the name of the Teleport cluster
+to the name of the node - in this example, the command `hostname` is
+executed as `root` on the node `my-host` belonging to the cluster
+`example.teleport.sh`.
+
+```code
+$ ssh -F /opt/machine-id/ssh_config root@my-host.example.teleport.sh hostname
+my-host
+```
+
+<Notice type="warning">
+  The `ssh_config` for OpenSSH requires that `tsh` is installed. This is
+  necessary as `tsh` is used to make the OpenSSH client compatible with
+  Teleport's port multiplexing.
+</Notice>
+
+### Connecting using other tools
+
+To integrate with other SSH tools, first determine whether the `ssh_config`
+is compatible with them. This is the case for many tools such as Ansible and the
+guidance provided under "Connecting using OpenSSH" should be sufficient.
+
+If you wish to integrate with Ansible, check out the
+[Ansible-specific guide](./ansible.mdx).
+
+If your tool is not compatible with `ssh_config`, it may still be possible to
+configure it to use the credentials produced by Machine ID. It must support
+SSH client certificates and either ProxyCommand or ProxyJump functionality.
+
+## Next steps
+
+- Read the [configuration reference](../../../reference/machine-id/configuration.mdx) to explore
+  all the available configuration options.

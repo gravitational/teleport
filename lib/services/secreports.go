@@ -103,9 +103,8 @@ func MarshalAuditQuery(in *secreports.AuditQuery, opts ...MarshalOption) ([]byte
 		return nil, trace.Wrap(err)
 	}
 
-	if !cfg.PreserveResourceID {
+	if !cfg.PreserveRevision {
 		copy := *in
-		copy.SetResourceID(0)
 		in = &copy
 	}
 	return utils.FastMarshal(in)
@@ -122,13 +121,10 @@ func UnmarshalAuditQuery(data []byte, opts ...MarshalOption) (*secreports.AuditQ
 	}
 	var out *secreports.AuditQuery
 	if err := utils.FastUnmarshal(data, &out); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	if err := out.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if cfg.ID != 0 {
-		out.SetResourceID(cfg.ID)
 	}
 	if !cfg.Expires.IsZero() {
 		out.SetExpiry(cfg.Expires)
@@ -147,9 +143,8 @@ func MarshalSecurityReport(in *secreports.Report, opts ...MarshalOption) ([]byte
 		return nil, trace.Wrap(err)
 	}
 
-	if !cfg.PreserveResourceID {
+	if !cfg.PreserveRevision {
 		copy := *in
-		copy.SetResourceID(0)
 		in = &copy
 	}
 	return utils.FastMarshal(in)
@@ -166,13 +161,10 @@ func UnmarshalSecurityReport(data []byte, opts ...MarshalOption) (*secreports.Re
 	}
 	var out *secreports.Report
 	if err := utils.FastUnmarshal(data, &out); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	if err := out.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if cfg.ID != 0 {
-		out.SetResourceID(cfg.ID)
 	}
 	if !cfg.Expires.IsZero() {
 		out.SetExpiry(cfg.Expires)
@@ -189,9 +181,8 @@ func MarshalSecurityReportState(in *secreports.ReportState, opts ...MarshalOptio
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !cfg.PreserveResourceID {
+	if !cfg.PreserveRevision {
 		copy := *in
-		copy.SetResourceID(0)
 		in = &copy
 	}
 	return utils.FastMarshal(in)
@@ -208,13 +199,10 @@ func UnmarshalSecurityReportState(data []byte, opts ...MarshalOption) (*secrepor
 	}
 	var out *secreports.ReportState
 	if err := utils.FastUnmarshal(data, &out); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	if err := out.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if cfg.ID != 0 {
-		out.SetResourceID(cfg.ID)
 	}
 	if !cfg.Expires.IsZero() {
 		out.SetExpiry(cfg.Expires)
@@ -231,9 +219,8 @@ func MarshalSecurityCostLimiter(in *secreports.CostLimiter, opts ...MarshalOptio
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !cfg.PreserveResourceID {
+	if !cfg.PreserveRevision {
 		copy := *in
-		copy.SetResourceID(0)
 		in = &copy
 	}
 	return utils.FastMarshal(in)
@@ -250,13 +237,10 @@ func UnmarshalSecurityCostLimiter(data []byte, opts ...MarshalOption) (*secrepor
 	}
 	var out *secreports.CostLimiter
 	if err := utils.FastUnmarshal(data, &out); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	if err := out.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if cfg.ID != 0 {
-		out.SetResourceID(cfg.ID)
 	}
 	if !cfg.Expires.IsZero() {
 		out.SetExpiry(cfg.Expires)

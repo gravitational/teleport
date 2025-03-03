@@ -1,0 +1,29 @@
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "RDSDiscovery",
+            "Effect": "Allow",
+            "Action": [
+                "rds:DescribeDBClusters",
+                "rds:DescribeDBInstances"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+| Statement | Purpose |
+| --------- | ------- |
+| `RDSDiscovery` | Discover RDS instances and Aurora clusters. |
+
+When configured to discover RDS databases, the Teleport Discovery Service
+will attempt to discover both RDS instances and Aurora clusters.
+The `rds:DescribeDBInstances` permission is used to find RDS instances, but it
+is also used to find additional information about discovered Aurora clusters, so
+you should include this permission even if you only have Aurora clusters to
+discover.
+If you don't want Aurora cluster discovery, then you can omit the
+`rds:DescribeDBClusters` permission.

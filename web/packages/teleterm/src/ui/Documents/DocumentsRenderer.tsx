@@ -16,45 +16,45 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useMemo } from 'react';
+import { MutableRefObject, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-
 import styled from 'styled-components';
+
 import { Text } from 'design';
 
-/* eslint-disable @typescript-eslint/ban-ts-comment*/
-// @ts-ignore
-import { DocumentAccessRequests } from 'e-teleterm/ui/DocumentAccessRequests/DocumentAccessRequests';
-
-import { DocumentGatewayCliClient } from 'teleterm/ui/DocumentGatewayCliClient';
-
+import {
+  AccessRequestsContextProvider,
+  AccessRequestsMenu,
+} from 'teleterm/ui/AccessRequests';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import {
+  ConnectMyComputerContextProvider,
+  ConnectMyComputerNavigationMenu,
+  DocumentConnectMyComputer,
+} from 'teleterm/ui/ConnectMyComputer';
+import Document from 'teleterm/ui/Document';
+import { DocumentAccessRequests } from 'teleterm/ui/DocumentAccessRequests';
+import { DocumentAuthorizeWebSession } from 'teleterm/ui/DocumentAuthorizeWebSession';
+import DocumentCluster from 'teleterm/ui/DocumentCluster';
+import { DocumentGateway } from 'teleterm/ui/DocumentGateway';
+import { DocumentGatewayApp } from 'teleterm/ui/DocumentGatewayApp';
+import { DocumentGatewayCliClient } from 'teleterm/ui/DocumentGatewayCliClient';
+import { DocumentGatewayKube } from 'teleterm/ui/DocumentGatewayKube';
+import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
 import * as types from 'teleterm/ui/services/workspacesService';
 import {
   DocumentsService,
   Workspace,
 } from 'teleterm/ui/services/workspacesService';
-import DocumentCluster from 'teleterm/ui/DocumentCluster';
-import DocumentGateway from 'teleterm/ui/DocumentGateway';
-import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
-import {
-  ConnectMyComputerContextProvider,
-  DocumentConnectMyComputer,
-  ConnectMyComputerNavigationMenu,
-} from 'teleterm/ui/ConnectMyComputer';
-import { DocumentGatewayKube } from 'teleterm/ui/DocumentGatewayKube';
-import { DocumentGatewayApp } from 'teleterm/ui/DocumentGatewayApp';
+import { isAppUri, isDatabaseUri, RootClusterUri } from 'teleterm/ui/uri';
+import { DocumentVnetDiagReport } from 'teleterm/ui/Vnet/DocumentVnetDiagReport';
 
-import Document from 'teleterm/ui/Document';
-import { RootClusterUri, isDatabaseUri, isAppUri } from 'teleterm/ui/uri';
-
-import { ResourcesContextProvider } from '../DocumentCluster/resourcesContext';
-
-import { WorkspaceContextProvider } from './workspaceContext';
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
+import { WorkspaceContextProvider } from './workspaceContext';
 
 export function DocumentsRenderer(props: {
-  topBarContainerRef: React.MutableRefObject<HTMLDivElement>;
+  topBarConnectMyComputerRef: MutableRefObject<HTMLDivElement>;
+  topBarAccessRequestRef: MutableRefObject<HTMLDivElement>;
 }) {
   const { workspacesService } = useAppContext();
 
@@ -90,9 +90,10 @@ export function DocumentsRenderer(props: {
           key={workspace.rootClusterUri}
         >
           <WorkspaceContextProvider value={workspace}>
-            {/* ConnectMyComputerContext depends on ResourcesContext. */}
-            <ResourcesContextProvider>
-              <ConnectMyComputerContextProvider
+            <ConnectMyComputerContextProvider
+              rootClusterUri={workspace.rootClusterUri}
+            >
+              <AccessRequestsContextProvider
                 rootClusterUri={workspace.rootClusterUri}
               >
                 {workspace.documentsService.getDocuments().length ? (
@@ -101,14 +102,22 @@ export function DocumentsRenderer(props: {
                   <KeyboardShortcutsPanel />
                 )}
                 {workspace.rootClusterUri ===
-                  workspacesService.getRootClusterUri() &&
-                  props.topBarContainerRef.current &&
-                  createPortal(
-                    <ConnectMyComputerNavigationMenu />,
-                    props.topBarContainerRef.current
-                  )}
-              </ConnectMyComputerContextProvider>
-            </ResourcesContextProvider>
+                  workspacesService.getRootClusterUri() && (
+                  <>
+                    {props.topBarConnectMyComputerRef.current &&
+                      createPortal(
+                        <ConnectMyComputerNavigationMenu />,
+                        props.topBarConnectMyComputerRef.current
+                      )}
+                    {props.topBarAccessRequestRef.current &&
+                      createPortal(
+                        <AccessRequestsMenu />,
+                        props.topBarAccessRequestRef.current
+                      )}
+                  </>
+                )}
+              </AccessRequestsContextProvider>
+            </ConnectMyComputerContextProvider>
           </WorkspaceContextProvider>
         </DocumentsContainer>
       ))}
@@ -116,7 +125,7 @@ export function DocumentsRenderer(props: {
   );
 }
 
-const DocumentsContainer = styled.div`
+const DocumentsContainer = styled.div<{ isVisible?: boolean }>`
   display: ${props => (props.isVisible ? 'contents' : 'none')};
 `;
 
@@ -161,6 +170,10 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
         return <DocumentAccessRequests doc={doc} visible={visible} />;
       case 'doc.connect_my_computer':
         return <DocumentConnectMyComputer doc={doc} visible={visible} />;
+      case 'doc.authorize_web_session':
+        return <DocumentAuthorizeWebSession doc={doc} visible={visible} />;
+      case 'doc.vnet_diag_report':
+        return <DocumentVnetDiagReport doc={doc} visible={visible} />;
       default:
         return (
           <Document visible={visible}>

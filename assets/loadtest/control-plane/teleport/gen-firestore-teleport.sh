@@ -13,6 +13,14 @@ chartMode: gcp
 clusterName: ${CLUSTER_NAME}.${ROUTE53_ZONE}      # Name of your cluster. Use the FQDN you intend to configure in DNS below.
 teleportVersionOverride: ${TELEPORT_VERSION}
 proxyListenerMode: "multiplex"
+authentication:
+  type: local
+  secondFactor: "webauthn"
+  webauthn:
+    rp_id: ${CLUSTER_NAME}.${ROUTE53_ZONE}
+  connector_name: passwordless
+  device_trust:
+    mode: "off"
 gcp:
   projectId: ${GCP_PROJECT}
   region: ${REGION}                           # AWS region
@@ -33,8 +41,8 @@ podMonitor:
   enabled: true
 extraArgs:
   - --debug
-image: "public.ecr.aws/gravitational/teleport-distroless-debug"
-enterpriseImage: "public.ecr.aws/gravitational/teleport-ent-distroless-debug"
+image: "public.ecr.aws/gravitational-staging/teleport-distroless-debug"
+enterpriseImage: "public.ecr.aws/gravitational-staging/teleport-ent-distroless-debug"
 auth:
   teleportConfig:
     kubernetes_service:

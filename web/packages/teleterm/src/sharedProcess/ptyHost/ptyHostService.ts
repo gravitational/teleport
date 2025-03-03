@@ -16,18 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import Logger from 'teleterm/logger';
+import { Struct } from 'teleterm/sharedProcess/api/protogen/google/protobuf/struct_pb';
 import { unique } from 'teleterm/ui/utils';
 
-import Logger from 'teleterm/logger';
-
-import { Struct } from 'teleterm/sharedProcess/api/protogen/google/protobuf/struct_pb';
-
-import { PtyProcess } from './ptyProcess';
-import { IPtyHost } from './../api/protogen/ptyHostService_pb.grpc-server';
 import { PtyCwd, PtyId } from './../api/protogen/ptyHostService_pb';
+import { IPtyHost } from './../api/protogen/ptyHostService_pb.grpc-server';
 import { PtyEventsStreamHandler } from './ptyEventsStreamHandler';
+import { PtyProcess } from './ptyProcess';
 
-export function createPtyHostService(): IPtyHost {
+export function createPtyHostService(): IPtyHost & {
+  dispose(): Promise<void>;
+} {
   const logger = new Logger('PtyHostService');
   const ptyProcesses = new Map<string, PtyProcess>();
 
@@ -43,6 +43,7 @@ export function createPtyHostService(): IPtyHost {
           ptyId,
           env: Struct.toJson(call.request.env!) as Record<string, string>,
           initMessage: ptyOptions.initMessage,
+          useConpty: ptyOptions.useConpty,
         });
         ptyProcesses.set(ptyId, ptyProcess);
       } catch (error) {
@@ -73,5 +74,12 @@ export function createPtyHostService(): IPtyHost {
         });
     },
     exchangeEvents: stream => new PtyEventsStreamHandler(stream, ptyProcesses),
+    dispose: async () => {
+      await Promise.all(
+        Array.from(ptyProcesses.values()).map(ptyProcess =>
+          ptyProcess.dispose()
+        )
+      );
+    },
   };
 }

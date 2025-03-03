@@ -21,8 +21,6 @@ import * as shared from 'shared/services/types';
 import * as tsh from 'teleterm/services/tshd/types';
 import * as uri from 'teleterm/ui/uri';
 
-export type PreferredMfaType = shared.PreferredMfaType;
-export type Auth2faType = shared.Auth2faType;
 export type AuthProviderType = shared.AuthProviderType;
 export type AuthType = shared.AuthType;
 
@@ -46,7 +44,7 @@ export interface LoginSsoParams {
 export interface LoginPasswordlessParams {
   kind: 'passwordless';
   clusterUri: uri.RootClusterUri;
-  onPromptCallback(res: WebauthnLoginPrompt): void;
+  onPromptCallback(res: PasswordlessLoginPrompt): void;
 }
 
 export type LoginParams =
@@ -56,26 +54,17 @@ export type LoginParams =
 
 export type LoginPasswordlessRequest = tsh.LoginPasswordlessRequest;
 
-export type WebauthnLoginPrompt =
-  | WebauthnLoginTapPrompt
-  | WebauthnLoginRetapPrompt
-  | WebauthnLoginPinPrompt
-  | WebauthnLoginCredentialPrompt;
-export type WebauthnLoginTapPrompt = { type: 'tap' };
-export type WebauthnLoginRetapPrompt = { type: 'retap' };
-export type WebauthnLoginPinPrompt = {
-  type: 'pin';
-  onUserResponse(pin: string): void;
-};
-export type WebauthnLoginCredentialPrompt = {
-  type: 'credential';
-  data: { credentials: tsh.CredentialInfo[] };
-  onUserResponse(index: number): void;
-};
+export type PasswordlessLoginPrompt =
+  | { type: 'tap' }
+  | { type: 'retap' }
+  | { type: 'pin'; onUserResponse(pin: string): void }
+  | {
+      type: 'credential';
+      data: { credentials: tsh.CredentialInfo[] };
+      onUserResponse(index: number): void;
+    };
 
 export interface AuthSettings extends tsh.AuthSettings {
-  secondFactor: Auth2faType;
-  preferredMfa: PreferredMfaType;
   authType: AuthType;
   allowPasswordless: boolean;
   localConnectorName: string;
@@ -89,7 +78,7 @@ export type ClustersServiceState = {
       // The AssumedRequest objects are needed only in AssumedRolesBar.
       // We should be able to move fetching them there.
       loggedInUser?: tsh.LoggedInUser & {
-        assumedRequests?: Record<string, tsh.AssumedRequest>;
+        assumedRequests?: Record<string, tsh.AccessRequest>;
       };
     }
   >;

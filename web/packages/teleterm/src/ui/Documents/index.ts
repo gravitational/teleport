@@ -17,5 +17,3 @@
  */
 
 export * from './workspaceContext';
-// Explicitly not exporting DocumentsRenderer here because it imports e-teleterm components causing
-// OSS tests to fail.

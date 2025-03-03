@@ -19,18 +19,17 @@
 package tbot
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"fmt"
-	"net"
-	"net/url"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -43,13 +42,13 @@ import (
 var _ alpnproxy.LocalProxyMiddleware = (*alpnProxyMiddleware)(nil)
 
 type alpnProxyMiddleware struct {
-	onNewConnection func(ctx context.Context, lp *alpnproxy.LocalProxy, conn net.Conn) error
+	onNewConnection func(ctx context.Context, lp *alpnproxy.LocalProxy) error
 	onStart         func(ctx context.Context, lp *alpnproxy.LocalProxy) error
 }
 
-func (a alpnProxyMiddleware) OnNewConnection(ctx context.Context, lp *alpnproxy.LocalProxy, conn net.Conn) error {
+func (a alpnProxyMiddleware) OnNewConnection(ctx context.Context, lp *alpnproxy.LocalProxy) error {
 	if a.onNewConnection != nil {
-		return a.onNewConnection(ctx, lp, conn)
+		return a.onNewConnection(ctx, lp)
 	}
 	return nil
 }
@@ -68,9 +67,9 @@ type DatabaseTunnelService struct {
 	botCfg         *config.BotConfig
 	cfg            *config.DatabaseTunnelService
 	proxyPingCache *proxyPingCache
-	log            logrus.FieldLogger
+	log            *slog.Logger
 	resolver       reversetunnelclient.Resolver
-	botClient      *auth.Client
+	botClient      *authclient.Client
 	getBotIdentity getBotIdentityFn
 }
 
@@ -88,57 +87,62 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 		if err != nil {
 			return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "fetching default roles")
 		}
-		s.log.WithField("roles", roles).Debug("No roles configured, using all roles available.")
+		s.log.DebugContext(ctx, "No roles configured, using all roles available.", "roles", roles)
 	}
 
 	proxyPing, err := s.proxyPingCache.ping(ctx)
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "pinging proxy")
 	}
-	proxyAddr := proxyPing.Proxy.SSH.PublicAddr
+	proxyAddr, err := proxyPing.proxyWebAddr()
+	if err != nil {
+		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "determining proxy web address")
+	}
 
 	// Fetch information about the database and then issue the initial
 	// certificate. We issue the initial certificate to allow us to fail faster.
 	// We cache the routeToDatabase as these will not change during the lifetime
 	// of the service and this reduces the time needed to issue a new
 	// certificate.
-	s.log.Debug("Determining route to database.")
+	s.log.DebugContext(ctx, "Determining route to database.")
 	routeToDatabase, err := s.getRouteToDatabaseWithImpersonation(ctx, roles)
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err)
 	}
-	s.log.WithFields(logrus.Fields{
-		"serviceName": routeToDatabase.ServiceName,
-		"protocol":    routeToDatabase.Protocol,
-		"database":    routeToDatabase.Database,
-		"username":    routeToDatabase.Username,
-	}).Debug("Identified route to database.")
+	s.log.DebugContext(
+		ctx,
+		"Identified route to database.",
+		"service_name", routeToDatabase.ServiceName,
+		"protocol", routeToDatabase.Protocol,
+		"database", routeToDatabase.Database,
+		"username", routeToDatabase.Username,
+	)
 
-	s.log.Debug("Issuing initial certificate for local proxy.")
+	s.log.DebugContext(ctx, "Issuing initial certificate for local proxy.")
 	dbCert, err := s.issueCert(ctx, routeToDatabase, roles)
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err)
 	}
-	s.log.Debug("Issued initial certificate for local proxy.")
+	s.log.DebugContext(ctx, "Issued initial certificate for local proxy.")
 
 	middleware := alpnProxyMiddleware{
-		onNewConnection: func(ctx context.Context, lp *alpnproxy.LocalProxy, conn net.Conn) error {
+		onNewConnection: func(ctx context.Context, lp *alpnproxy.LocalProxy) error {
 			ctx, span := tracer.Start(ctx, "DatabaseTunnelService/OnNewConnection")
 			defer span.End()
 
 			// Check if the certificate needs reissuing, if so, reissue.
-			if err := lp.CheckDBCerts(tlsca.RouteToDatabase{
+			if err := lp.CheckDBCert(ctx, tlsca.RouteToDatabase{
 				ServiceName: routeToDatabase.ServiceName,
 				Protocol:    routeToDatabase.Protocol,
 				Database:    routeToDatabase.Database,
 				Username:    routeToDatabase.Username,
 			}); err != nil {
-				s.log.WithField("reason", err.Error()).Info("Certificate for tunnel needs reissuing.")
+				s.log.InfoContext(ctx, "Certificate for tunnel needs reissuing.", "reason", err.Error())
 				cert, err := s.issueCert(ctx, routeToDatabase, roles)
 				if err != nil {
 					return trace.Wrap(err, "issuing cert")
 				}
-				lp.SetCerts([]tls.Certificate{*cert})
+				lp.SetCert(*cert)
 			}
 			return nil
 		},
@@ -155,7 +159,7 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 		RemoteProxyAddr:    proxyAddr,
 		ParentContext:      ctx,
 		Protocols:          []common.Protocol{alpnProtocol},
-		Certs:              []tls.Certificate{*dbCert},
+		Cert:               *dbCert,
 		InsecureSkipVerify: s.botCfg.Insecure,
 	}
 	if client.IsALPNConnUpgradeRequired(
@@ -178,19 +182,15 @@ func (s *DatabaseTunnelService) Run(ctx context.Context) error {
 
 	l := s.cfg.Listener
 	if l == nil {
-		listenUrl, err := url.Parse(s.cfg.Listen)
-		if err != nil {
-			return trace.Wrap(err, "parsing listen url")
-		}
-
-		s.log.WithField("address", listenUrl.String()).Debug("Opening listener for database tunnel.")
-		l, err = net.Listen("tcp", listenUrl.Host)
+		s.log.DebugContext(ctx, "Opening listener for database tunnel.", "listen", s.cfg.Listen)
+		var err error
+		l, err = createListener(ctx, s.log, s.cfg.Listen)
 		if err != nil {
 			return trace.Wrap(err, "opening listener")
 		}
 		defer func() {
 			if err := l.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
-				s.log.WithError(err).Error("Failed to close listener")
+				s.log.ErrorContext(ctx, "Failed to close listener", "error", err)
 			}
 		}()
 	}
@@ -207,7 +207,7 @@ func (s *DatabaseTunnelService) Run(ctx context.Context) error {
 	}
 	defer func() {
 		if err := lp.Close(); err != nil {
-			s.log.WithError(err).Error("Failed to close local proxy")
+			s.log.ErrorContext(ctx, "Failed to close local proxy", "error", err)
 		}
 	}()
 	// Closed further down.
@@ -219,7 +219,7 @@ func (s *DatabaseTunnelService) Run(ctx context.Context) error {
 	go func() {
 		errCh <- lp.Start(ctx)
 	}()
-	s.log.WithField("address", l.Addr().String()).Info("Listening for connections.")
+	s.log.InfoContext(ctx, "Listening for connections.", "address", l.Addr().String())
 
 	select {
 	case <-ctx.Done():
@@ -241,7 +241,7 @@ func (s *DatabaseTunnelService) getRouteToDatabaseWithImpersonation(ctx context.
 		s.botClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateTTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		nil,
 	)
 	if err != nil {
@@ -260,7 +260,7 @@ func (s *DatabaseTunnelService) getRouteToDatabaseWithImpersonation(ctx context.
 	}
 	defer func() {
 		if err := impersonatedClient.Close(); err != nil {
-			s.log.WithError(err).Error("Failed to close impersonated client.")
+			s.log.ErrorContext(ctx, "Failed to close impersonated client.", "error", err)
 		}
 	}()
 
@@ -275,20 +275,20 @@ func (s *DatabaseTunnelService) issueCert(
 	ctx, span := tracer.Start(ctx, "DatabaseTunnelService/issueCert")
 	defer span.End()
 
-	s.log.Debug("Requesting issuance of certificate for tunnel proxy.")
+	s.log.DebugContext(ctx, "Requesting issuance of certificate for tunnel proxy.")
 	ident, err := generateIdentity(
 		ctx,
 		s.botClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateTTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		func(req *proto.UserCertsRequest) {
 			req.RouteToDatabase = route
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.log.Info("Certificate issued for tunnel proxy.")
+	s.log.InfoContext(ctx, "Certificate issued for tunnel proxy.")
 
 	return ident.TLSCert, nil
 }

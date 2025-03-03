@@ -1,0 +1,144 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tbot.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}
+  {{- if .Values.extraLabels.deployment }}
+    {{- toYaml .Values.extraLabels.deployment | nindent 4 }}
+  {{- end }}
+  {{- if .Values.annotations.deployment }}
+  annotations: {{- toYaml .Values.annotations.deployment | nindent 4 }}
+  {{- end }}
+spec:
+  # Replicas are set to 1 until we establish a locking mechanism for the
+  # `kubernetes_secret` destination.
+  replicas: 1
+  strategy:
+    # Recreate strategy until we establish a locking mechanism for the
+    # `kubernetes_secret` destination.
+    type: Recreate
+  selector:
+    matchLabels: {{- include "tbot.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        # ConfigMap checksum, to recreate the pod on config changes.
+        checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
+      {{- if .Values.annotations.pod }}
+        {{- toYaml .Values.annotations.pod | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "tbot.labels" . | nindent 8 }}
+      {{- if .Values.extraLabels.pod }}
+        {{- toYaml .Values.extraLabels.pod | nindent 8 }}
+      {{- end }}
+    spec:
+    {{- if .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+    {{- end }}
+    {{- if .Values.nodeSelector }}
+      nodeSelector: {{- toYaml .Values.nodeSelector | nindent 8 }}
+    {{- end }}
+    {{- if .Values.affinity }}
+      affinity: {{- toYaml .Values.affinity | nindent 8 }}
+    {{- end }}
+    {{- if .Values.tolerations }}
+      tolerations: {{- toYaml .Values.tolerations | nindent 8 }}
+    {{- end }}
+      containers:
+        - name: tbot
+          image: {{ .Values.image }}:{{ template "tbot.version" . }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          args:
+            - start
+            - -c
+            - /config/tbot.yaml
+          {{- if .Values.debug }}
+            - --debug
+          {{- end }}
+            - --log-format
+            - json
+          {{- if .Values.extraArgs }}
+            {{- toYaml .Values.extraArgs | nindent 12 }}
+          {{- end }}
+            - --diag-addr
+            - 0.0.0.0:3001
+          env:
+            # POD_NAMESPACE is required for the kubernetes_secret` destination
+            # type to work correctly.
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            # TELEPORT_NODE_NAME is required for Workload Identity Kubernetes
+            # Workload Attestation to work correctly.
+            - name: TELEPORT_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            # KUBERNETES_TOKEN_PATH specifies the path to the service account
+            # JWT to use for joining.
+            # This path is based on the configuration of the volume and
+            # volumeMount.
+            - name: KUBERNETES_TOKEN_PATH
+              value: /var/run/secrets/tokens/join-sa-token
+          {{- if .Values.anonymousTelemetry }}
+            - name: TELEPORT_ANONYMOUS_TELEMETRY
+              value: "1"
+          {{- end }}
+          {{- if .Values.extraEnv }}
+           {{- toYaml .Values.extraEnv | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - mountPath: /config
+              name: config
+            - mountPath: /var/run/secrets/tokens
+              name: join-sa-token
+            {{- if .Values.extraVolumeMounts }}
+              {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
+            {{- end }}
+        {{- if .Values.resources }}
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+        {{- end }}
+        {{- if .Values.securityContext }}
+          securityContext: {{- toYaml .Values.securityContext | nindent 12 }}
+        {{- end }}
+          ports:
+            - containerPort: 3001
+              name: diagnostics
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: diagnostics
+            initialDelaySeconds: 10 # After an initial 10 seconds
+            periodSeconds: 10 # Check every 10 seconds
+            failureThreshold: 6 # After 60 (6x10) seconds of failure, kill pod
+            timeoutSeconds: 5 # Wait 5 seconds for the probe to complete
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: diagnostics
+            initialDelaySeconds: 5 # After an initial 5 seconds
+            periodSeconds: 10 # Check every 10 seconds
+            failureThreshold: 3 # After 30 (3x10) seconds of failure, mark pod unready
+            timeoutSeconds: 5 # Wait 5 seconds for the probe to complete
+      serviceAccountName: {{ template "tbot.serviceAccountName" . }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "tbot.fullname" . }}
+        - name: join-sa-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: join-sa-token
+                  # 600 seconds is the minimum that Kubernetes supports. We
+                  # recommend this value is used.
+                  expirationSeconds: 600
+                  audience: {{ .Values.clusterName }}
+      {{- if .Values.extraVolumes }}
+        {{- toYaml .Values.extraVolumes | nindent 8 }}
+      {{- end }}

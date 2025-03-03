@@ -34,22 +34,44 @@ export default function generateResourcePath(
       ].dir.toLowerCase()}`;
     } else if (param === 'kinds') {
       processedParams[param] = (params[param] ?? []).join('&kinds=');
+    } else if (param === 'regions') {
+      processedParams[param] = (params[param] ?? []).join('&regions=');
     } else
       processedParams[param] = params[param]
         ? encodeURIComponent(params[param])
         : '';
   }
 
+  // as of now, "none" and "all" function the same. if both options are selected (requestable, accessible_only)
+  // then you will see the same results. The distinction comes from user preferences, which change the visual of
+  // the filter. If "none", there are no options selected. If "all", both options are selected and a filter indicator
+  // is shown.
+  if (processedParams.includedResourceMode === 'none') {
+    processedParams.includedResourceMode = 'all';
+  }
+
   const output = path
+    // non-param
     .replace(':clusterId', params.clusterId)
-    .replace(':limit?', params.limit)
-    .replace(':startKey?', params.startKey || '')
+    .replace(':name', params.name || '')
+    // param
+    .replace(':kind?', processedParams.kind || '')
+    .replace(':kinds?', processedParams.kinds || '')
+    .replace(':kubeCluster?', processedParams.kubeCluster || '')
+    .replace(':kubeNamespace?', processedParams.kubeNamespace || '')
+    .replace(':limit?', params.limit || '')
+    .replace(':pinnedOnly?', processedParams.pinnedOnly || '')
     .replace(':query?', processedParams.query || '')
+    .replace(':resourceType?', params.resourceType || '')
     .replace(':search?', processedParams.search || '')
     .replace(':searchAsRoles?', processedParams.searchAsRoles || '')
     .replace(':sort?', processedParams.sort || '')
-    .replace(':kinds?', processedParams.kinds || '')
-    .replace(':pinnedOnly?', processedParams.pinnedOnly || '');
+    .replace(':startKey?', params.startKey || '')
+    .replace(':regions?', processedParams.regions || '')
+    .replace(
+      ':includedResourceMode?',
+      processedParams.includedResourceMode || ''
+    );
 
   return output;
 }

@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,13 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function NoteAdded({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const NoteAdded = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-noteadded"
       {...otherProps}
+      ref={ref}
     >
       <path d="M9 14.25C9 13.8358 9.33579 13.5 9.75 13.5H11.25V12C11.25 11.5858 11.5858 11.25 12 11.25C12.4142 11.25 12.75 11.5858 12.75 12V13.5H14.25C14.6642 13.5 15 13.8358 15 14.25C15 14.6642 14.6642 15 14.25 15H12.75V16.5C12.75 16.9142 12.4142 17.25 12 17.25C11.5858 17.25 11.25 16.9142 11.25 16.5V15H9.75C9.33579 15 9 14.6642 9 14.25Z" />
       <path
@@ -65,5 +66,5 @@ export function NoteAdded({ size = 24, color, ...otherProps }: IconProps) {
         d="M5.25 2.25C4.85217 2.25 4.47064 2.40804 4.18934 2.68934C3.90804 2.97064 3.75 3.35217 3.75 3.75V20.25C3.75 20.6478 3.90804 21.0294 4.18934 21.3107C4.47065 21.592 4.85218 21.75 5.25 21.75H18.75C19.1478 21.75 19.5294 21.592 19.8107 21.3107C20.092 21.0294 20.25 20.6478 20.25 20.25V8.25C20.25 8.047 20.1693 7.86283 20.0383 7.7278L20.0303 7.71967L14.7807 2.47004C14.6401 2.32939 14.4489 2.25 14.25 2.25H5.25ZM13.5 3.75L5.25 3.75L5.25 20.25H18.75V9H14.25C13.8358 9 13.5 8.66421 13.5 8.25V3.75ZM17.6893 7.5L15 4.81066V7.5H17.6893Z"
       />
     </Icon>
-  );
-}
+  )
+);

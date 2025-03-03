@@ -1,0 +1,277 @@
+---
+title: Signature Algorithms
+h1: Signature Algorithms Reference
+description: "Signature algorithms used in Teleport."
+---
+
+The Teleport Auth Service issues SSH and TLS certificates to users and hosts
+that allow all connections to be authenticated, authorized, and encrypted.
+This page describes the cryptographic signature algorithms used to sign each
+kind of certificate issued by Teleport.
+
+Continue reading to learn how to:
+
+- configure a Teleport cluster created before Teleport 17 to use fast and secure
+  elliptic-curve keys
+- configure your cluster to use FIPS-compatible signature algorithms
+- configure your cluster to use signature algorithms compatible with your HSM or KMS.
+
+## Signature algorithm suites
+
+New Teleport clusters created after Teleport 17 will automatically use
+elliptic-curve keys in most cases.
+If you created your cluster on an older version of Teleport it will continue to
+use RSA keys until you opt in to the new algorithms by configuring a **signature
+algorithm suite**.
+By selecting a single algorithm suite, you can control all of the cryptographic
+signature algorithms used across your cluster.
+
+### `legacy`
+
+The `legacy` suite identifies the original Teleport behavior where all
+signatures are based on 2048-bit RSA keys.
+Teleport clusters created on versions prior to 17.0.0 effectively have always
+used the `legacy` suite and this will not automatically change when they upgrade
+to newer versions.
+
+We recommend that users upgrade to one of the newer suites when they are able.
+
+### `balanced-v1`
+
+The `balanced-v1` suite is the default suite for self-hosted clusters created
+after version 17.0.0.
+It is our recommended suite for most self-hosted users.
+When this suite is configured, Ed25519 is used for all SSH certificates and
+ECDSA with the NIST P-256 curve is used for all TLS certificates.
+
+RSA is still used where compatibility with common third-party software that
+Teleport integrates with is known to be unable to support non-RSA algorithms.
+This includes certificates issued by the `db` or `db_client` CAs and certain
+JSON Web Tokens (JWTs) that are issued by Teleport.
+
+### `fips-v1`
+
+Users deploying Teleport in FIPS mode are recommended to use the `fips-v1`
+suite.
+New clusters created after version 17.0.0 in FIPS mode will use this suite by
+default.
+
+FIPS 186-5 only added approval for Ed25519 relatively recently (in February 2023)
+and there is some nuance to how the algorithm can be used.
+More importantly for Teleport, the `boringcrypto` module our FIPS Go binaries are
+compiled with does not yet support Ed25519.
+For these reasons, the `fips-v1` suite is based on the `balanced-v1` suite but
+replaces all uses of Ed25519 with ECDSA.
+
+### `hsm-v1`
+
+The `hsm-v1` suite is designed for Cloud customers and self-hosted users that
+have opted in to keeping their Certificate Authority key material in an HSM or KMS.
+It is the default suite for new clusters created after version 17.0.0 that have
+an HSM or KMS configured.
+It will be the default suite for new Teleport Cloud clusters on version 17.x+.
+
+Teleport's integration with PKCS#11 HSMs and cloud KMSs does not yet support
+Ed25519.
+For this reason, the `hsm-v1` suite is based on the `balanced-v1` suite but uses
+ECDSA in place of Ed25519 for all Certificate Authority keys.
+User and host SSH keys still use Ed25519.
+
+## Configuration
+
+The cluster signature algorithm suite can be configured statically in the Auth Service
+configuration file or dynamically in the `cluster_auth_preference` resource.
+
+### Static configuration
+
+Add the following to your Teleport Auth Service configuration file, which is stored in
+`/etc/teleport.yaml` by default.
+
+  ```yaml
+  auth_service:
+    authentication:
+      signature_algorithm_suite: "balanced-v1"
+  ```
+
+### Dynamic resource
+
+Edit your `cluster_auth_preference` resource:
+
+```code
+$ tctl edit cap
+```
+
+Ensure that the resource includes the following content:
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  signature_algorithm_suite: "balanced-v1"
+version: v2
+```
+
+## Certificate Authorities
+
+The `tctl status` command will display the status of each of your Teleport
+cluster's Certificate Authorities, including the algorithm used for each key pair.
+
+```code
+$ tctl status
+Cluster: example.teleport.sh
+Version: 17.0.0
+CA pins: sha256:b1419d94442b2b1ba70f967157bf177c7605020c59ee93a10b0e4d3fc526e7df
+
+authority rotation                protocol status algorithm   storage
+--------- ----------------------- -------- ------ ----------- --------
+host      standby (never rotated) SSH      active Ed25519     software
+                                  TLS      active ECDSA P-256 software
+user      standby (never rotated) SSH      active Ed25519     software
+                                  TLS      active ECDSA P-256 software
+db        standby (never rotated) TLS      active RSA 2048    software
+db_client standby (never rotated) TLS      active RSA 2048    software
+openssh   standby (never rotated) SSH      active Ed25519     software
+jwt       standby (never rotated) JWT      active ECDSA P-256 software
+saml_idp  standby (never rotated) TLS      active RSA 2048    software
+oidc_idp  standby (never rotated) JWT      active RSA 2048    software
+spiffe    standby (never rotated) JWT      active RSA 2048    software
+                                  TLS      active ECDSA P-256 software
+okta      standby (never rotated) JWT      active ECDSA P-256 software
+```
+
+Each certificate authority is automatically generated the first time your Auth
+Service starts up when you create a new Teleport cluster.
+If you change your cluster's signature algorithm suite after the cluster has
+already been created, new user and host keys will use the new algorithms, but
+the key material of each Certificate Authority will not automatically be
+updated.
+
+In order to use new signature algorithms for your existing Certificate
+Authorities, you will need to complete a CA rotation for each authority.
+This may require manual steps to update the trust relationships in your Cluster.
+The procedure is documented in the [CA rotation guide](../admin-guides/management/operations/ca-rotation.mdx).
+This process is optional, your cluster will continue to function with the
+existing Certificate Authority keys if you don't complete a CA rotation.
+
+## Algorithms
+
+The following table lists the key algorithm used for each key Teleport generates
+in each suite.
+
+| key purpose            | `legacy`    | `balanced-v1` | `fips-v1`   | `hsm-v1`    |
+|------------------------|-------------|---------------|-------------|-------------|
+| User CA (SSH)          | RSA 2048    | Ed25519       | ECDSA P-256 | ECDSA P-256 |
+| User CA (TLS)          | RSA 2048    | ECDSA P-256   | ECDSA P-256 | ECDSA P-256 |
+| Host CA (SSH)          | RSA 2048    | Ed25519       | ECDSA P-256 | ECDSA P-256 |
+| Host CA (TLS)          | RSA 2048    | ECDSA P-256   | ECDSA P-256 | ECDSA P-256 |
+| Database CA            | RSA 2048    | RSA 2048      | RSA 2048    | RSA 2048    |
+| Database Client CA     | RSA 2048    | RSA 2048      | RSA 2048    | RSA 2048    |
+| OpenSSH CA             | RSA 2048    | Ed25519       | ECDSA P-256 | ECDSA P-256 |
+| JWT CA                 | RSA 2048    | ECDSA P-256   | ECDSA P-256 | ECDSA P-256 |
+| OIDC IdP CA            | RSA 2048    | RSA 2048      | RSA 2048    | RSA 2048    |
+| SAML IdP CA            | RSA 2048    | RSA 2048      | RSA 2048    | RSA 2048    |
+| SPIFFE CA (TLS)        | RSA 2048    | ECDSA P-256   | ECDSA P-256 | ECDSA P-256 |
+| SPIFFE CA (JWT)        | RSA 2048    | RSA 2048      | RSA 2048    | RSA 2048    |
+| Okta CA                | ECDSA P-256 | ECDSA P-256   | ECDSA P-256 | ECDSA P-256 |
+| User SSH               | RSA 2048    | Ed25519       | ECDSA P-256 | Ed25519     |
+| User TLS               | RSA 2048    | ECDSA P-256   | ECDSA P-256 | ECDSA P-256 |
+| Database Client        | RSA 2048    | RSA 2048      | RSA 2048    | RSA 2048    |
+| Database Server        | RSA 2048    | RSA 2048      | RSA 2048    | RSA 2048    |
+| Host SSH               | RSA 2048    | Ed25519       | ECDSA P-256 | Ed25519     |
+| Host Identity          | RSA 2048    | ECDSA P-256   | ECDSA P-256 | ECDSA P-256 |
+| MachineID Identity     | RSA 2048    | ECDSA P-256   | ECDSA P-256 | ECDSA P-256 |
+| Workload ID SVID       | RSA 2048    | ECDSA P-256   | ECDSA P-256 | ECDSA P-256 |
+| EC2 Instance Connect   | Ed25519     | Ed25519       | ECDSA P-256 | Ed25519     |
+| Windows Desktop Client | RSA 2048    | RSA 2048      | RSA 2048    | RSA 2048    |
+
+## FAQ
+
+### What if my use-case doesn't support the new algorithms?
+
+Try it and let us know!
+We aim to balance security, performance, and compatibility with the chosen
+signature algorithm suites.
+It is okay to continue using the `legacy` suite for the foreseeable future and we
+expect it may be required for some users' environments.
+
+### How did you choose these algorithms?
+
+Ed25519 is a modern, fast, secure algorithm with small keys that has become the
+de-facto standard for new SSH keys.
+It is our preference in cases where it is compatible with everything Teleport
+needs to interact with.
+
+ECDSA with the NIST P-256 curve is widely used and supported for TLS and we use
+it in cases where there is not good support for Ed25519.
+It has similar speed and security properties to Ed25519.
+
+We only continue to use RSA where we interact with third-party software that
+does not support Ed25519 or ECDSA.
+
+### Why can't I pick a specific algorithm for a specific Teleport cert?
+
+The signature algorithm suites are designed to simplify the configuration burden.
+We did not want to expose 100 configuration knobs to modify every single
+signature Teleport does, which could lead to thousands of possible combinations
+we'd have to support, and could create the possibility for insecure combinations.
+
+### What if my HSM doesn't support ECDSA keys?
+
+If you are using a PKCS#11 HSM that does not support ECDSA keys, we recommend
+you continue to use the `legacy` algorithm suite.
+
+If you have a strong need to have users and hosts use Ed25519 and/or ECDSA keys,
+you could switch to the `hsm-v1` suite, but whenever a new CA key is generated
+it may fail if the CA uses non-RSA keys.
+This may cause the Auth Service to terminate with an error after trying to
+generate the key.
+New CA keys may be generated the first time a new Auth Service starts, when a CA
+rotation is initiated, or during a version upgrade when a new CA has been added
+in the new version.
+For these reasons we recommend continuing to use the `legacy` algorithm suite.
+
+### My YubiHSM2 authentication key does not have capabilities for ECDSA keys, what do I do?
+
+Our [YubiHSM2 guide](../admin-guides/deploy-a-cluster/hsm.mdx) recommends
+creating an
+[authentication key](https://docs.yubico.com/hardware/yubihsm-2/hsm-2-user-guide/hsm2-core-concepts.html#authentication-key)
+to be used by the Teleport Auth Service to authenticate with the YubiHSM2.
+The example in the original version of that guide created an authentication key
+without the necessary
+[capabilities](https://docs.yubico.com/hardware/yubihsm-2/hsm-2-user-guide/hsm2-core-concepts.html#capability)
+to create and sign with ECDSA keys.
+Before upgrading to v17 and/or switching your algorithm suite, we recommend
+creating a new authentication key with the necessary capabilities and updating
+your Auth Service configuration to use the new key.
+The new authentication key will still be able to use your existing CA keys.
+
+To create a new authentication key with `yubihsm-shell`:
+```text
+$ yubihsm-shell
+Using default connector URL: http://localhost:12345
+yubihsm> connect
+Session keepalive set up to run every 15 seconds
+
+# Open a session with an admin authentication key that has capabilities to create
+# new authentication keys. The factory default authentication key has id:1 and
+# password:password. Use the appropriate ID and password if you have changed
+# these parameters.
+yubihsm> session open 1
+Enter password:
+Created session 0
+
+# Create a new authentication key for Teleport.
+yubihsm> put authkey 0 0 "New Teleport Auth Key" 1 generate-asymmetric-key:sign-pkcs:sign-pss:sign-ecdsa:delete-asymmetric-key sign-pkcs:sign-pss:decrypt-pkcs:decrypt-oaep:sign-ecdsa
+Enter password:
+Stored Authentication key 0x1a92
+
+# Make sure you can open a session with the new authentication key and password
+yubihsm> session open 0x1a92
+Enter password:
+Created session 1
+```
+
+Update `auth_service.ca_key_params.pkcs11.pin` or the file referenced by
+`auth_service.ca_key_params.pkcs11.pin_path` to use the ID of the new
+authentication key, then restart the Auth Service.

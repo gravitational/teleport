@@ -22,13 +22,17 @@
 package botfs
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"os/user"
 	"path/filepath"
+	"strconv"
 	"sync"
+	"syscall"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
@@ -41,6 +45,9 @@ import (
 // Openat2MinKernel is the kernel release that adds support for the openat2()
 // syscall.
 const Openat2MinKernel = "5.6.0"
+
+// mostACLRead is a permission mode granting readonly access to a file.
+const modeACLRead fs.FileMode = 04
 
 // modeACLReadExecute is the permissions mode needed for read on directories.
 const modeACLReadExecute fs.FileMode = 05
@@ -101,7 +108,11 @@ func openSymlinksMode(path string, mode OpenMode, symlinksMode SymlinksMode) (*o
 		file, err = openSecure(path, mode)
 		if errors.Is(err, unix.ENOSYS) {
 			missingSyscallWarning.Do(func() {
-				log.Warnf("Failed to open file securely due to missing syscall; falling back to regular file handling. Configure `symlinks: insecure` for %q to disable this warning.", path)
+				log.DebugContext(
+					context.TODO(),
+					"Failed to open file securely due to missing syscall; falling back to regular file handling. Configure `symlinks: insecure` to disable this warning",
+					"path", path,
+				)
 			})
 
 			file, err = openStandard(path, mode)
@@ -148,7 +159,12 @@ func createSecure(path string, isDir bool) error {
 
 	// No writing to do, just close it.
 	if err := f.Close(); err != nil {
-		log.Warnf("Failed to close file at %q: %+v", path, err)
+		log.WarnContext(
+			context.TODO(),
+			"Failed to close file",
+			"path", path,
+			"error", err,
+		)
 	}
 
 	return nil
@@ -187,7 +203,11 @@ func Create(path string, isDir bool, symlinksMode SymlinksMode) error {
 		// It's a bit gross to stuff this sync.Once into a global, but
 		// hopefully that's forgivable since it just manages a log message.
 		missingSyscallWarning.Do(func() {
-			log.Warnf("Failed to create file securely due to missing syscall; falling back to regular file handling. Configure `symlinks: insecure` for %q to disable this warning.", path)
+			log.WarnContext(
+				context.TODO(),
+				"Failed to create file securely due to missing syscall; falling back to regular file handling. Configure `symlinks: insecure` to disable this warning",
+				"path", path,
+			)
 		})
 
 		return trace.Wrap(createStandard(path, isDir))
@@ -251,10 +271,11 @@ func desiredPerms(path string) (ownerMode fs.FileMode, botAndReaderMode fs.FileM
 	return
 }
 
-// VerifyACL verifies whether the ACL of the given file allows writes from the
-// bot user. Errors may optionally be used as more informational warnings;
-// ConfigureACL can be used to correct them, assuming the user has permissions.
-func VerifyACL(path string, opts *ACLOptions) error {
+// VerifyLegacyACL verifies whether the ACL of the given file allows writes from
+// the bot user. Errors may optionally be used as more informational warnings;
+// ConfigureLegacyACL can be used to correct them, assuming the user has
+// permissions.
+func VerifyLegacyACL(path string, opts *ACLOptions) error {
 	current, err := acl.Get(path)
 	if err != nil {
 		return trace.Wrap(err)
@@ -349,15 +370,16 @@ func VerifyACL(path string, opts *ACLOptions) error {
 	return trace.NewAggregate(errors...)
 }
 
-// ConfigureACL configures ACLs of the given file to allow writes from the bot
+// ConfigureLegacyACL configures ACLs of the given file to allow writes from the bot
 // user.
-func ConfigureACL(path string, owner *user.User, opts *ACLOptions) error {
+func ConfigureLegacyACL(path string, owner *user.User, opts *ACLOptions) error {
 	if owner.Uid == opts.BotUser.Uid && owner.Uid == opts.ReaderUser.Uid {
 		// We'll end up with an empty ACL. This isn't technically a problem
-		log.Warnf("The owner, bot, and reader all appear to be the same "+
-			"user (%+v). This is an unusual configuration: consider setting "+
-			"`acls: off` in the destination config to remove this warning.",
-			owner.Username)
+		log.WarnContext(
+			context.TODO(),
+			"The owner, bot, and reader all appear to be the same user. This is an unusual configuration: consider setting `acls: off` in the destination config to remove this warning",
+			"username", owner.Username,
+		)
 	}
 
 	// We fully specify the ACL here to ensure the correct permissions are
@@ -420,8 +442,221 @@ func ConfigureACL(path string, owner *user.User, opts *ACLOptions) error {
 	// the files being writable to the reader is (maybe arguably) not a
 	// security issue.
 
-	log.Debugf("Configuring ACL on path %q: %v", path, desiredACL)
+	log.DebugContext(
+		context.TODO(),
+		"Configuring legacy ACL on path",
+		"path", path,
+		"acl", desiredACL,
+	)
 	return trace.ConvertSystemError(trace.Wrap(acl.Set(path, desiredACL)))
+}
+
+// resolveACLReaderSelector attempts to convert an ACL selector into a
+// platform-specific acl.Entry that can be applied to a file.
+func resolveACLReaderSelector(s *ACLSelector, dir bool) (acl.Entry, error) {
+	var perm fs.FileMode = modeACLRead
+	if dir {
+		perm = modeACLReadExecute
+	}
+
+	switch {
+	case s.User != "":
+		_, err := strconv.ParseInt(s.User, 10, 32)
+		if err == nil {
+			// User is a valid number, so return it directly. We don't need to
+			// check the particular value as it's explicitly allowed to
+			// configure entries for nonexistent users.
+			return acl.Entry{
+				Tag:       acl.TagUser,
+				Qualifier: s.User,
+				Perms:     perm,
+			}, nil
+		}
+
+		user, err := user.Lookup(s.User)
+		if err != nil {
+			return acl.Entry{}, trace.Wrap(err)
+		}
+
+		return acl.Entry{
+			Tag:       acl.TagUser,
+			Qualifier: user.Uid,
+			Perms:     perm,
+		}, nil
+	case s.Group != "":
+		_, err := strconv.ParseInt(s.Group, 10, 32)
+		if err == nil {
+			// Group is a valid number, so return it directly.
+			return acl.Entry{
+				Tag:       acl.TagGroup,
+				Qualifier: s.Group,
+				Perms:     perm,
+			}, nil
+		}
+
+		group, err := user.LookupGroup(s.Group)
+		if err != nil {
+			return acl.Entry{}, trace.Wrap(err)
+		}
+
+		return acl.Entry{
+			Tag:       acl.TagGroup,
+			Qualifier: group.Gid,
+			Perms:     perm,
+		}, nil
+	default:
+		return acl.Entry{}, trace.BadParameter("unable to resolve ACL selector, user or group must be specified: %+v", s)
+	}
+}
+
+// aclMaskForSelectors returns an appropriate ACL mask entry given the list of
+// selectors.
+func aclReaderMask(dir bool) acl.Entry {
+	perms := modeACLRead
+	if dir {
+		perms = modeACLReadExecute
+	}
+
+	return acl.Entry{
+		Tag:   acl.TagMask,
+		Perms: perms,
+	}
+}
+
+// aclFromReaders builds an ACL for a generic file or directory from the given
+// list of reader selectors.
+func aclFromReaders(selectors []*ACLSelector, dir bool) (acl.ACL, error) {
+	// Note: these entries are out of their required order, but go-acl sorts
+	// them before applying.
+	ownerPerms := modeACLReadWrite
+	if dir {
+		ownerPerms = modeACLReadWriteExecute
+	}
+
+	desiredACL := acl.ACL{
+		{
+			Tag:   acl.TagUserObj,
+			Perms: ownerPerms,
+		},
+		{
+			Tag:   acl.TagGroupObj,
+			Perms: modeACLNone,
+		},
+		aclReaderMask(dir),
+		{
+			Tag:   acl.TagOther,
+			Perms: modeACLNone,
+		},
+	}
+
+	for _, selector := range selectors {
+		entry, err := resolveACLReaderSelector(selector, dir)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		desiredACL = append(desiredACL, entry)
+	}
+
+	return desiredACL, nil
+}
+
+// ConfigureACL configures a bot-user-owned ACL at the given path such that it
+// can be read by the given list of readers. If the list is empty, appropriate
+// non-ACL permissions will be set to ensure only the bot user can read the
+// file.
+func ConfigureACL(path string, readers []*ACLSelector) error {
+	stat, err := os.Stat(path)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	dir := stat.IsDir()
+
+	desiredACL, err := aclFromReaders(readers, dir)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log.DebugContext(
+		context.TODO(),
+		"Configuring ACL on path",
+		"path", path,
+		"acl", desiredACL,
+	)
+	return trace.ConvertSystemError(trace.Wrap(acl.Set(path, desiredACL)))
+}
+
+// permStrings is a list of possible permission string representations,
+// duplicated from `acl` as it is private.
+var permStrings = []string{
+	0: "---",
+	1: "--x",
+	2: "-w-",
+	3: "-wx",
+	4: "r--",
+	5: "r-x",
+	6: "rw-",
+	7: "rwx",
+}
+
+// formatEntry formats an ACL entry without attempting to resolve UIDs or GIDs
+// to ensure consistent results in tests and elsewhere. Inlined from
+// acl.Entry.String().
+func formatEntry(e acl.Entry) string {
+	middle := "::"
+	if e.Tag == acl.TagUser || e.Tag == acl.TagGroup {
+		middle = ":" + e.Qualifier + ":"
+	}
+	return fmt.Sprintf("%s%s%s", e.Tag, middle, permStrings[7&e.Perms])
+}
+
+// CompareACL compares two ACLs to check if they match. Returns an empty list if
+// the two are identity, otherwise returns a list of error messages for each
+// issue found.
+func CompareACL(expected, candidate acl.ACL) []string {
+	expectedSet := utils.NewSet(expected...)
+	candidateSet := utils.NewSet(candidate...)
+
+	missing := expectedSet.Clone().Subtract(candidateSet)
+	unexpected := candidateSet.Clone().Subtract(expectedSet)
+
+	var issues []string
+	for m := range missing {
+		issues = append(issues, fmt.Sprintf("missing required entry: %s", formatEntry(m)))
+	}
+	for u := range unexpected {
+		issues = append(issues, fmt.Sprintf("unexpected entry: %s", formatEntry(u)))
+	}
+
+	return issues
+}
+
+// VerifyACL loads the ACL for the file at the given path and compares it to
+// the expected ACL as determined by the given list of reader selectors,
+// returning a list of issues found. An empty list (and nil error) implies a
+// valid ACL. The path must exist and the user must have permission to `os.Stat`
+// it. Errors will be returned if the ACL was unable to be read.
+func VerifyACL(path string, readers []*ACLSelector) ([]string, error) {
+	stat, err := os.Stat(path)
+	if err != nil {
+		return []string{}, trace.Wrap(err)
+	}
+
+	dir := stat.IsDir()
+
+	expected, err := aclFromReaders(readers, dir)
+	if err != nil {
+		return []string{}, trace.Wrap(err)
+	}
+
+	fsACL, err := acl.Get(path)
+	if err != nil {
+		return []string{}, trace.Wrap(err)
+	}
+
+	issues := CompareACL(expected, fsACL)
+	return issues, nil
 }
 
 // HasACLSupport determines if this binary / system supports ACLs.
@@ -441,7 +676,11 @@ func HasSecureWriteSupport() bool {
 	minKernel := semver.New(Openat2MinKernel)
 	version, err := utils.KernelVersion()
 	if err != nil {
-		log.WithError(err).Info("Failed to determine kernel version. It will be assumed secure write support is not available.")
+		log.InfoContext(
+			context.TODO(),
+			"Failed to determine kernel version. It will be assumed secure write support is not available",
+			"error", err,
+		)
 		return false
 	}
 	if version.LessThan(*minKernel) {
@@ -449,4 +688,33 @@ func HasSecureWriteSupport() bool {
 	}
 
 	return true
+}
+
+// GetOwner attempts to retrieve the owner of the given file. This is not
+// supported on all platforms and will return a trace.NotImplemented in that
+// case.
+func GetOwner(fileInfo fs.FileInfo) (*user.User, error) {
+	info, ok := fileInfo.Sys().(*syscall.Stat_t)
+	if !ok {
+		return nil, trace.NotImplemented("Cannot verify file ownership on this platform.")
+	}
+
+	user, err := user.LookupId(strconv.Itoa(int(info.Uid)))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return user, nil
+}
+
+// IsOwnedBy checks that the file at the given path is owned by the given user.
+// Returns a trace.NotImplemented() on unsupported platforms.
+func IsOwnedBy(fileInfo fs.FileInfo, uid int) (bool, error) {
+	info, ok := fileInfo.Sys().(*syscall.Stat_t)
+	if !ok {
+		return false, trace.Errorf("unexpected type of file info on Linux: %T", fileInfo.Sys())
+	}
+
+	// Our files are 0600, so don't bother checking gid.
+	return int(info.Uid) == uid, nil
 }

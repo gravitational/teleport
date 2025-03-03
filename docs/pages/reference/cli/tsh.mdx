@@ -13,7 +13,7 @@ Environment variables configure your tsh client and can help you avoid using fla
 
 | Environment Variable | Description | Example Value |
 | - | - | - |
-| TELEPORT_AUTH | Name of a defined SAML, OIDC, or GitHub auth connector (or a local user) | okta |
+| TELEPORT_AUTH | Any defined [authentication connector](../access-controls/authentication.mdx), including `passwordless` and `local` (i.e., no authentication connector) | okta |
 | TELEPORT_MFA_MODE | Preferred mode for MFA and Passwordless assertions | otp |
 | TELEPORT_CLUSTER | Name of a Teleport root or leaf cluster | cluster.example.com |
 | TELEPORT_LOGIN | Login name to be used by default on the remote host | root |
@@ -26,6 +26,7 @@ Environment variables configure your tsh client and can help you avoid using fla
 | TELEPORT_USE_LOCAL_SSH_AGENT | Disable or enable local SSH agent integration | true, false |
 | TELEPORT_GLOBAL_TSH_CONFIG | Override location of global `tsh` config file from default `/etc/tsh.yaml` | /opt/teleport/tsh.yaml |
 | TELEPORT_HEADLESS | Use headless authentication | true, false, 1, 0 |
+| TELEPORT_IDENTITY_FILE | File path to identity file | /opt/identity |
 
 ## tsh global flags
 
@@ -38,7 +39,7 @@ Environment variables configure your tsh client and can help you avoid using fla
 | `-i, --identity` | none | **string** filepath | Identity file |
 | `--cert-format` | `standard` | `standard` or `oldssh` | SSH certificate format. `oldssh` supports older versions of OpenSSH servers that do not allow for custom metadata, which is how Teleport encodes a user's roles in their SSH certificate. |
 | `--insecure` | none | none | Do not verify the server's certificate and host name. Use only in test environments. |
-| `--auth` | `local` | Any defined [authentication connector](../authentication.mdx), including `passwordless` and `local` (i.e., no authentication connector) | Specify the type of authentication connector to use. |
+| `--auth` | `local` | Any defined [authentication connector](../access-controls/authentication.mdx), including `passwordless` and `local` (i.e., no authentication connector) | Specify the type of authentication connector to use. |
 | `--mfa-mode` | auto | `auto`, `cross-platform`, `platform` or `otp` | Preferred mode for MFA and Passwordless assertions. |
 | `--skip-version-check` | none | none | Skip version checking between server and client. |
 | `-d, --debug` | none | none | Verbose logging to stdout |
@@ -89,8 +90,9 @@ $ tsh clusters --quiet
 
 ## tsh config
 
-Generates OpenSSH configuration to use currently logged in teleport
-as a bastion host.
+Print OpenSSH configuration details to allow using an SSH
+client with credentials managed by Teleport to connect to
+hosts in your cluster.
 
 ```code
 $ tsh config
@@ -308,13 +310,14 @@ $ tsh login [<flags>] [<cluster>]
 
 ### Arguments
 
-- `<cluster>` - the name of the cluster,  see [Trusted Cluster](../../management/admin/trustedclusters.mdx) for more information.
+- `<cluster>` - the name of the cluster,  see [Trusted Cluster](../../admin-guides/management/admin/trustedclusters.mdx) for more information.
 
 ### Flags
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
 | `--bind-addr` | none | host:port | Address in the form of host:port to bind to for login command webhook |
+| `--callback` | none | host:port | Override the base URL (host:port) of the link shown when opening a browser for cluster logins. Must be used with --bind-addr.
 | `-o, --out` | none | filepath | Identity output filepath |
 | `--format` | `file` | `file`, `openssh` or `kubernetes` | Identity format: file, openssh (for OpenSSH compatibility) or kubernetes (for kubeconfig) |
 | `--browser` | none | `none` | Set to 'none' to suppress opening system default browser for `tsh login` commands |
@@ -496,22 +499,23 @@ $ tsh mfa rm <device-name>
 Plays back a prior session:
 
 ```code
-$ tsh play [<flags>] <session-id>
+$ tsh play [<flags>] <id-or-file>
 ```
 
 ### Arguments
 
-`<session-id>`
+`<id-or-file>`
 
-- `session-id` The UUID of a past Teleport Session obtained by `teleport status` within
-  the session or from the Web UI.
+- `id-or-file` The UUID of a past Teleport session, or the path to a local recording file.
 
 ### Flags
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--cluster` | none | a cluster_name | Specify the cluster to connect |
-| `--format`  | `pty`  | json, pty | Format for playback |
+| `--cluster` | none   | a cluster_name                 | Specify the cluster to connect |
+| `--format`  | `pty`  | `json`, `yaml`, `pty`, `text`  | Format for playback |
+| `--speed`   | `1x`   | `0.5x`, `1x`, `2x`, `4x`, `8x` | Playback speed |
+| `--skip-idle-time` | `false` | `true, `false` | Skip idle time during playback |
 
 ### Global flags
 
@@ -523,11 +527,17 @@ Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags)
 ```code
 $ tsh --proxy proxy.example.com play <session-id>
 
-# Playing back a session using pty format using a downloaded session recording.
-$ tsh play --format=pty 1fe153d1-ce8b-4ef4-9908-6539457ba4ad.tar
+# Playing back a session streamed from the server.
+$ tsh play 1fe153d1-ce8b-4ef4-9908-6539457ba4ad
 
-# Playing back a session in json format using jq to filter on events
+# Playing back a local session in JSON format using jq to filter on events
 $ tsh play --format=json ~/play/0c0b81ed-91a9-4a2a-8d7c-7495891a6ca0.tar | jq '.event
+
+# Playing back a session at 2x speed while also skipping idle time
+$ tsh play --speed=2x --skip-idle-time 1fe153d1-ce8b-4ef4-9908-6539457ba4ad
+
+# Dump an SSH session recording to standard out, without respecting timing data.
+$ tsh play --format=text 1fe153d1-ce8b-4ef4-9908-6539457ba4ad
 ```
 
 ## tsh proxy app
@@ -620,18 +630,7 @@ $ tsh proxy azure [<flags>]
 The command will print the address of the local proxy server along with `export`
 commands for environment variables required to connect:
 
-```text
-Started Azure proxy on http://127.0.0.1:54330.
-To avoid port randomization, you can choose the listening port using the --port flag.
-
-Use the following credentials and HTTPS proxy setting to connect to the proxy:
-
-  export AZURE_CONFIG_DIR=/Users/myuser/.tsh/azure/my.teleport.cluster/azure
-  export HTTPS_PROXY=http://127.0.0.1:54330
-  export HTTP_PROXY=http://127.0.0.1:54330
-  export MSI_ENDPOINT=https://azure-msi.teleport.dev/eedfd5b55257c0aaa58f
-  export REQUESTS_CA_BUNDLE=/Users/myuser/.tsh/keys/teleport.example.com/myuser-app/teleport.example.com/azure-cli-localca.pem
-```
+(!docs/pages/includes/application-access/azure-tsh-proxy-azure-sample.mdx!)
 
 <Notice type="tip">
 
@@ -647,7 +646,7 @@ To run the local proxy server, one of the user's roles must include the
 `spec.allow.azure_identities` field with one of the identities used by the
 Application Service. To learn how to set up secure access to Azure via
 Teleport, read [Protect the Azure CLI with Teleport Application
-Access](../../application-access/cloud-apis/azure.mdx).
+Access](../../enroll-resources/application-access/cloud-apis/azure.mdx).
 
 ### Arguments
 
@@ -758,7 +757,7 @@ $ gsutil ls
 
 Start a local TLS proxy for `ssh` connections when using Teleport in TLS Routing mode.
 This is typically used as part of the SSH client configuration to use `ssh` as a client
-through Teleport.  See the [OpenSSH Guide](../../server-access/openssh/openssh.mdx) guide
+through Teleport.  See the [OpenSSH Guide](../../enroll-resources/server-access/openssh/openssh-agentless.mdx) guide
 on configuring OpenSSH servers and clients.  The `tsh config` output will include `tsh proxy ssh`
 within a `ProxyCommand` directive.
 
@@ -847,27 +846,6 @@ $ tsh puttyconfig --leaf example.teleport.sh ec2-user@leaf-node
 
 See [full docs on `tsh puttyconfig` here](../../connect-your-client/putty-winscp.mdx).
 
-## tsh recordings export
-
-Export recorded desktop sessions to video.
-
-```code
-$ tsh recordings export <session_id> [<flags>]
-```
-
-### Flags
-
-| Name | Default Value(s) | Allowed Value(s) | Description |
-| - | - | - | - |
-| `--out` | `<session_id>.avi` | a filename | Override the output file name. |
-
-### Examples
-
-```code
-$ tsh recordings export c8e1b2c5-322a-4095-89e3-391edfd2da9b --out=recording.avi
-wrote recording to recording.avi
-```
-
 ## tsh recordings ls
 
 List recorded sessions.
@@ -921,7 +899,7 @@ in their [storage backend](../../reference/backends.mdx).
 The following error can occur if a session recording file is not available or
 when employing multiple auth servers with directory storage backend for recorded
 sessions. When using a directory storage backend for audit logs and recorded sessions,
-only the auth server with that recorded session can retrieve it.
+only the Auth Service with that recorded session can retrieve it.
 
 ```code
 $ tsh play c8e1b2c5-322a-4095-89e3-391edfd2da9b
@@ -975,7 +953,7 @@ lifetime.
 
 ## tsh request drop
 
-Drop one or more access requests from current identity
+Drop one or more Access Requests from current identity
 
 ```code
 $ tsh request drop [<request-id>...]
@@ -1221,4 +1199,3 @@ Only display the `tsh` binary version:
 $ tsh version --client
 Teleport v(=teleport.version=) git: go(=teleport.golang=)
 ```
-

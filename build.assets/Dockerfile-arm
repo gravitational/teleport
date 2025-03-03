@@ -57,7 +57,7 @@ RUN NODE_ARCH="$(if [ "$BUILDARCH" = 'amd64' ]; then echo 'x64'; else echo 'arm6
     curl -o "$NODE_FILE" -fsSL "$NODE_URL" && \
     tar -xJf "$NODE_FILE" -C /usr/local/lib/nodejs-linux --strip-components=1 && \
     rm -f "$NODE_FILE"
-RUN corepack enable yarn
+RUN npm install -g corepack@0.31.0 && corepack enable yarn pnpm
 
 # Install Go.
 ARG GOLANG_VERSION
@@ -80,5 +80,22 @@ RUN groupadd ci --gid="$GID" -o && \
     useradd ci --uid="$UID" --gid="$GID" --create-home --shell=/bin/sh && \
     mkdir -p -m0700 /var/lib/teleport && \
     chown -R ci /var/lib/teleport
+
+# Install Rust.
+ARG RUST_VERSION
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH \
+    RUST_VERSION=$RUST_VERSION
+RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
+    mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
+# Install Rust using the ci user, as that is the user that
+# will run builds using the Rust toolchains we install here.
+USER ci
+RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
+    rustup target add arm-unknown-linux-gnueabihf && \
+    rustup --version && \
+    cargo --version && \
+    rustc --version
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { arrayObjectIsEqual, mergeDeep } from './highbar';
+import { arrayObjectIsEqual, equalsDeep, mergeDeep } from './highbar';
 
 describe('mergeDeep can merge two', () => {
   it('objects together', () => {
@@ -219,5 +219,163 @@ describe('arrayObjectIsEqual correctly compares', () => {
     ];
 
     expect(arrayObjectIsEqual(a, b)).toBe(true);
+  });
+});
+
+describe('equalsDeep', () => {
+  describe.each([false, true])('with ignoreUndefined=%s', ignoreUndefined => {
+    it('compares primitive values', () => {
+      expect(equalsDeep(1, 2, { ignoreUndefined })).toBe(false);
+      expect(equalsDeep(2, 2, { ignoreUndefined })).toBe(true);
+    });
+
+    it('compares simple objects', () => {
+      expect(equalsDeep({}, {}, { ignoreUndefined })).toBe(true);
+      expect(
+        equalsDeep({ a: 'b', c: 4 }, { c: 5, a: 'b' }, { ignoreUndefined })
+      ).toBe(false);
+      expect(
+        equalsDeep({ a: 'b', c: 4 }, { c: 4, a: 'b' }, { ignoreUndefined })
+      ).toBe(true);
+
+      // Corner case: falsy values
+      expect(
+        equalsDeep({}, { a: 0, b: false, c: '' }, { ignoreUndefined })
+      ).toBe(false);
+    });
+
+    it('compares complex objects', () => {
+      expect(
+        equalsDeep(
+          { a: 'b', c: 1, d: [2, { e: 'f' }] },
+          { a: 'b', c: 5, d: [2, { e: 'f' }] },
+          { ignoreUndefined }
+        )
+      ).toBe(false);
+      expect(
+        equalsDeep(
+          { a: 'b', c: 1, d: [2, { e: 'f' }] },
+          { a: 'b', c: 1, d: [5, { e: 'f' }] },
+          { ignoreUndefined }
+        )
+      ).toBe(false);
+      expect(
+        equalsDeep(
+          { a: 'b', c: 1, d: [2, { e: 'f' }] },
+          { a: 'b', c: 1, d: [2, { e: 'f' }, 3] },
+          { ignoreUndefined }
+        )
+      ).toBe(false);
+      expect(
+        equalsDeep(
+          { a: 'b', c: 1, d: [2, { e: 'f' }] },
+          { a: 'b', c: 1, d: [2, { e: 'z' }] },
+          { ignoreUndefined }
+        )
+      ).toBe(false);
+      expect(
+        equalsDeep(
+          { a: 'b', c: 1, d: [2, { e: 'f' }] },
+          { a: 'b', c: 1, d: [2, { e: 'f' }], g: 'h' },
+          { ignoreUndefined }
+        )
+      ).toBe(false);
+      expect(
+        equalsDeep(
+          { a: 'b', c: 1, d: [{ e: 'f' }, 2] },
+          { a: 'b', c: 1, d: [2, { e: 'f' }] },
+          { ignoreUndefined }
+        )
+      ).toBe(false);
+      expect(
+        equalsDeep(
+          { a: 'b', c: 1, d: [2, { e: 'f' }] },
+          { a: 'b', z: 1, d: [2, { e: 'f' }] },
+          { ignoreUndefined }
+        )
+      ).toBe(false);
+
+      expect(
+        equalsDeep(
+          { a: 'b', c: 1, d: [2, { e: 'f' }] },
+          { a: 'b', c: 1, d: [2, { e: 'f' }] },
+          { ignoreUndefined }
+        )
+      ).toBe(true);
+    });
+  });
+
+  it.each`
+    options                       | result
+    ${undefined}                  | ${false}
+    ${{ ignoreUndefined: false }} | ${false}
+    ${{ ignoreUndefined: true }}  | ${true}
+  `('returns $result for options set to $options', ({ options, result }) => {
+    expect(equalsDeep({ a: undefined, b: 1 }, { b: 1 }, options)).toBe(result);
+    expect(equalsDeep({ b: 1 }, { a: undefined, b: 1 }, options)).toBe(result);
+    expect(equalsDeep({}, { a: undefined }, options)).toBe(result);
+
+    // Corner case: The same number of fields.
+    expect(
+      equalsDeep({ a: undefined, b: 1 }, { b: 1, c: undefined }, options)
+    ).toBe(result);
+
+    // And the same thing, but in the deep.
+    expect(
+      equalsDeep(
+        { a: { b: undefined, c: 1 } },
+        { a: { c: 1, d: undefined } },
+        options
+      )
+    ).toBe(result);
+
+    // Crossing an array.
+    expect(
+      equalsDeep(
+        { a: [{ b: undefined, c: 1 }] },
+        { a: [{ c: 1, d: undefined }] },
+        options
+      )
+    ).toBe(result);
+  });
+
+  // A "real-world" example.
+  it('compares role options', () => {
+    const makeOptions = () => ({
+      cert_format: 'standard',
+      create_db_user: false,
+      create_desktop_user: false,
+      desktop_clipboard: true,
+      desktop_directory_sharing: true,
+      enhanced_recording: ['command', 'network'],
+      forward_agent: false,
+      idp: {
+        saml: {
+          enabled: true,
+        },
+      },
+      max_session_ttl: '30h0m0s',
+      pin_source_ip: false,
+      port_forwarding: true,
+      record_session: {
+        default: 'best_effort',
+        desktop: true,
+      },
+      ssh_file_copy: true,
+    });
+
+    expect(equalsDeep(makeOptions(), makeOptions())).toBe(true);
+    expect(
+      equalsDeep(makeOptions(), {
+        ...makeOptions(),
+        idp: { saml: { enabled: false } },
+      })
+    ).toBe(false);
+    expect(
+      equalsDeep(makeOptions(), {
+        ...makeOptions(),
+        unknown_option: 'foo',
+      })
+    ).toBe(false);
   });
 });

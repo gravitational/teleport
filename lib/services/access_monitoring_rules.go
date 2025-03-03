@@ -20,12 +20,14 @@ package services
 
 import (
 	"context"
+	"slices"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
-	"github.com/gravitational/teleport/lib/utils"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // AccessMonitoringRules is the AccessMonitoringRule service
@@ -37,31 +39,79 @@ type AccessMonitoringRules interface {
 	DeleteAccessMonitoringRule(ctx context.Context, name string) error
 	DeleteAllAccessMonitoringRules(ctx context.Context) error
 	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
+	ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
+}
+
+// NewAccessMonitoringRuleWithLabels creates a new AccessMonitoringRule  with the given spec and labels.
+func NewAccessMonitoringRuleWithLabels(name string, labels map[string]string, spec *accessmonitoringrulesv1.AccessMonitoringRuleSpec) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
+	amr := &accessmonitoringrulesv1.AccessMonitoringRule{
+		Kind:    types.KindAccessMonitoringRule,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name:      name,
+			Namespace: defaults.Namespace,
+			Labels:    labels,
+		},
+		Spec: spec,
+	}
+
+	err := ValidateAccessMonitoringRule(amr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return amr, nil
+}
+
+// ValidateAccessMonitoringRule checks that the provided access monitoring rule is valid.
+func ValidateAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.AccessMonitoringRule) error {
+	if accessMonitoringRule.Kind != types.KindAccessMonitoringRule {
+		return trace.BadParameter("invalid kind for access monitoring rule: %q", accessMonitoringRule.Kind)
+	}
+	if accessMonitoringRule.Metadata == nil {
+		return trace.BadParameter("accessMonitoringRule metadata is missing")
+	}
+	if accessMonitoringRule.Version != types.V1 {
+		return trace.BadParameter("accessMonitoringRule %q is not supported", accessMonitoringRule.Version)
+	}
+	if accessMonitoringRule.Spec == nil {
+		return trace.BadParameter("accessMonitoringRule spec is missing")
+	}
+
+	if len(accessMonitoringRule.Spec.Subjects) == 0 {
+		return trace.BadParameter("accessMonitoringRule subject is missing")
+	}
+
+	if accessMonitoringRule.Spec.Condition == "" {
+		return trace.BadParameter("accessMonitoringRule condition is missing")
+	}
+
+	if accessMonitoringRule.Spec.Notification != nil && accessMonitoringRule.Spec.Notification.Name == "" {
+		return trace.BadParameter("accessMonitoringRule notification plugin name is missing")
+	}
+	if accessMonitoringRule.GetSpec().GetAutomaticApproval() != nil && accessMonitoringRule.GetSpec().GetAutomaticApproval().GetName() == "" {
+		return trace.BadParameter("accessMonitoringRule automatic_approval plugin name is missing")
+	}
+
+	if slices.Contains(accessMonitoringRule.GetSpec().GetSubjects(), types.KindAccessRequest) {
+		if accessMonitoringRule.GetSpec().GetNotification() != nil {
+			return nil
+		}
+		if accessMonitoringRule.GetSpec().GetAutomaticApproval() != nil {
+			return nil
+		}
+		return trace.BadParameter("one of notification or automatic_approval must be configured if subjects contain %q",
+			types.KindAccessRequest)
+	}
+
+	return nil
 }
 
 // MarshalAccessMonitoringRule marshals AccessMonitoringRule resource to JSON.
 func MarshalAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.AccessMonitoringRule, opts ...MarshalOption) ([]byte, error) {
-	return utils.FastMarshal(accessMonitoringRule)
+	return FastMarshalProtoResourceDeprecated(accessMonitoringRule, opts...)
 }
 
 // UnmarshalAccessMonitoringRule unmarshals the AccessMonitoringRule resource.
 func UnmarshalAccessMonitoringRule(data []byte, opts ...MarshalOption) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
-	if len(data) == 0 {
-		return nil, trace.BadParameter("missing access monitoring rule data")
-	}
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var accessMonitoringRule accessmonitoringrulesv1.AccessMonitoringRule
-	if err := utils.FastUnmarshal(data, &accessMonitoringRule); err != nil {
-		return nil, trace.BadParameter(err.Error())
-	}
-	if cfg.Revision != "" {
-		accessMonitoringRule.Metadata.Revision = cfg.Revision
-	}
-	if !cfg.Expires.IsZero() {
-		accessMonitoringRule.Metadata.Expires = timestamppb.New(cfg.Expires)
-	}
-	return &accessMonitoringRule, nil
+	return FastUnmarshalProtoResourceDeprecated[*accessmonitoringrulesv1.AccessMonitoringRule](data, opts...)
 }

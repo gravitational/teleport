@@ -20,6 +20,7 @@ package servicenow
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -27,20 +28,33 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/defaults"
 	"github.com/go-resty/resty/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
-	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
 const (
 	// DateTimeFormat is the time format used by servicenow
 	DateTimeFormat = "2006-01-02 15:04:05"
 )
+
+type ServiceNowClient interface {
+	// CreateIncident creates an servicenow incident.
+	CreateIncident(ctx context.Context, reqID string, reqData RequestData) (Incident, error)
+	// PostReviewNote posts a note once a new request review appears.
+	PostReviewNote(ctx context.Context, incidentID string, review types.AccessReview) error
+	// ResolveIncident resolves an incident and posts a note with resolution details.
+	ResolveIncident(ctx context.Context, incidentID string, resolution Resolution) error
+	// GetOnCall returns the current users on-call for the given rota ID.
+	GetOnCall(ctx context.Context, rotaID string) ([]string, error)
+	// GetUserName returns the name for the given user ID
+	GetUserName(ctx context.Context, userID string) (string, error)
+	// CheckHealth pings servicenow to check if it is reachable.
+	CheckHealth(ctx context.Context) error
+}
 
 // Client is a wrapper around resty.Client that implements a few ServiceNow
 // incident methods to create incidents, update them, and check who is on-call.
@@ -81,12 +95,12 @@ type ClientConfig struct {
 	StatusSink common.StatusSink
 }
 
-// NewClient creates a new Servicenow client for managing incidents.
+// NewClient creates a new ServiceNow client for managing incidents.
 func NewClient(conf ClientConfig) (*Client, error) {
 	if err := conf.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	client := resty.NewWithClient(defaults.Config().HTTPClient)
+
 	apiURL, err := url.Parse(conf.APIEndpoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -99,10 +113,23 @@ func NewClient(conf ClientConfig) (*Client, error) {
 		apiURL.Scheme = "https"
 	}
 
-	client.SetBaseURL(conf.APIEndpoint).
+	const (
+		maxConns      = 100
+		clientTimeout = 10 * time.Second
+	)
+
+	client := resty.NewWithClient(&http.Client{
+		Timeout: clientTimeout,
+		Transport: &http.Transport{
+			MaxConnsPerHost:     maxConns,
+			MaxIdleConnsPerHost: maxConns,
+			Proxy:               http.ProxyFromEnvironment,
+		}}).
+		SetBaseURL(apiURL.String()).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Accept", "application/json").
 		SetBasicAuth(conf.Username, conf.APIToken)
+	client.OnAfterResponse(common.OnAfterResponse(types.PluginTypeServiceNow, errWrapper, conf.StatusSink))
 	return &Client{
 		client:       client,
 		ClientConfig: conf,
@@ -116,19 +143,25 @@ func (conf ClientConfig) checkAndSetDefaults() error {
 	return nil
 }
 
-func errWrapper(statusCode int, body string) error {
+func errWrapper(statusCode int, body []byte) error {
+	defaultMessage := string(body)
+	errResponse := errorResult{}
+	if err := json.Unmarshal(body, &errResponse); err == nil {
+		defaultMessage = errResponse.Error.Message
+	}
+
 	switch statusCode {
 	case http.StatusForbidden:
-		return trace.AccessDenied("servicenow API access denied: status code %v: %q", statusCode, body)
+		return trace.AccessDenied("servicenow API access denied: status code %v: %q", statusCode, defaultMessage)
 	case http.StatusRequestTimeout:
-		return trace.ConnectionProblem(nil, "request to servicenow API failed: status code %v: %q", statusCode, body)
+		return trace.ConnectionProblem(nil, "request to servicenow API failed: status code %v: %q", statusCode, defaultMessage)
 	}
-	return trace.Errorf("request to servicenow API failed: status code %d: %q", statusCode, body)
+	return trace.Errorf("request to servicenow API failed: status code %d: %q", statusCode, defaultMessage)
 }
 
 // CreateIncident creates an servicenow incident.
 func (snc *Client) CreateIncident(ctx context.Context, reqID string, reqData RequestData) (Incident, error) {
-	bodyDetails, err := snc.buildIncidentBody(snc.WebProxyURL, reqID, reqData)
+	bodyDetails, err := buildIncidentBody(snc.WebProxyURL, reqID, reqData, snc.ClusterName)
 	if err != nil {
 		return Incident{}, trace.Wrap(err)
 	}
@@ -154,16 +187,13 @@ func (snc *Client) CreateIncident(ctx context.Context, reqID string, reqData Req
 		return Incident{}, trace.Wrap(err)
 	}
 	defer resp.RawResponse.Body.Close()
-	if resp.IsError() {
-		return Incident{}, errWrapper(resp.StatusCode(), string(resp.Body()))
-	}
 
 	return Incident{IncidentID: result.Result.IncidentID}, nil
 }
 
 // PostReviewNote posts a note once a new request review appears.
 func (snc *Client) PostReviewNote(ctx context.Context, incidentID string, review types.AccessReview) error {
-	note, err := snc.buildReviewNoteBody(review)
+	note, err := buildReviewNoteBody(review)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -179,15 +209,12 @@ func (snc *Client) PostReviewNote(ctx context.Context, incidentID string, review
 		return trace.Wrap(err)
 	}
 	defer resp.RawResponse.Body.Close()
-	if resp.IsError() {
-		return errWrapper(resp.StatusCode(), string(resp.Body()))
-	}
 	return nil
 }
 
 // ResolveIncident resolves an incident and posts a note with resolution details.
 func (snc *Client) ResolveIncident(ctx context.Context, incidentID string, resolution Resolution) error {
-	note, err := snc.buildResolutionNoteBody(resolution)
+	note, err := buildResolutionNoteBody(resolution, snc.CloseCode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -205,9 +232,6 @@ func (snc *Client) ResolveIncident(ctx context.Context, incidentID string, resol
 		return trace.Wrap(err)
 	}
 	defer resp.RawResponse.Body.Close()
-	if resp.IsError() {
-		return errWrapper(resp.StatusCode(), string(resp.Body()))
-	}
 	return nil
 }
 
@@ -227,9 +251,6 @@ func (snc *Client) GetOnCall(ctx context.Context, rotaID string) ([]string, erro
 		return nil, trace.Wrap(err)
 	}
 	defer resp.RawResponse.Body.Close()
-	if resp.IsError() {
-		return nil, errWrapper(resp.StatusCode(), string(resp.Body()))
-	}
 	if len(result.Result) == 0 {
 		return nil, trace.NotFound("no user found for given rota: %q", rotaID)
 	}
@@ -256,26 +277,6 @@ func (snc *Client) CheckHealth(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	defer resp.RawResponse.Body.Close()
-
-	if snc.StatusSink != nil {
-		var code types.PluginStatusCode
-		switch {
-		case resp.StatusCode() == http.StatusUnauthorized:
-			code = types.PluginStatusCode_UNAUTHORIZED
-		case resp.StatusCode() >= 200 && resp.StatusCode() < 400:
-			code = types.PluginStatusCode_RUNNING
-		default:
-			code = types.PluginStatusCode_OTHER_ERROR
-		}
-		if err := snc.StatusSink.Emit(ctx, &types.PluginStatusV1{Code: code}); err != nil {
-			log := logger.Get(resp.Request.Context())
-			log.WithError(err).WithField("code", resp.StatusCode()).Errorf("Error while emitting servicenow plugin status: %v", err)
-		}
-	}
-
-	if resp.IsError() {
-		return errWrapper(resp.StatusCode(), string(resp.Body()))
-	}
 	return nil
 }
 
@@ -294,9 +295,6 @@ func (snc *Client) GetUserName(ctx context.Context, userID string) (string, erro
 		return "", trace.Wrap(err)
 	}
 	defer resp.RawResponse.Body.Close()
-	if resp.IsError() {
-		return "", errWrapper(resp.StatusCode(), string(resp.Body()))
-	}
 	if result.Result.UserName == "" {
 		return "", trace.NotFound("no username found for given id: %v", userID)
 	}
@@ -327,7 +325,7 @@ Resolution: {{.ProposedState}}.
 	))
 )
 
-func (snc *Client) buildIncidentBody(webProxyURL *url.URL, reqID string, reqData RequestData) (string, error) {
+func buildIncidentBody(webProxyURL *url.URL, reqID string, reqData RequestData, clusterName string) (string, error) {
 	var requestLink string
 	if webProxyURL != nil {
 		reqURL := *webProxyURL
@@ -350,7 +348,7 @@ func (snc *Client) buildIncidentBody(webProxyURL *url.URL, reqID string, reqData
 		ID:          reqID,
 		TimeFormat:  time.RFC822,
 		RequestLink: requestLink,
-		ClusterName: snc.ClusterName,
+		ClusterName: clusterName,
 		RequestData: reqData,
 	})
 	if err != nil {
@@ -359,7 +357,7 @@ func (snc *Client) buildIncidentBody(webProxyURL *url.URL, reqID string, reqData
 	return builder.String(), nil
 }
 
-func (snc *Client) buildReviewNoteBody(review types.AccessReview) (string, error) {
+func buildReviewNoteBody(review types.AccessReview) (string, error) {
 	var builder strings.Builder
 	err := reviewNoteTemplate.Execute(&builder, struct {
 		types.AccessReview
@@ -376,13 +374,13 @@ func (snc *Client) buildReviewNoteBody(review types.AccessReview) (string, error
 	return builder.String(), nil
 }
 
-func (snc *Client) buildResolutionNoteBody(resolution Resolution) (string, error) {
+func buildResolutionNoteBody(resolution Resolution, closeCode string) (string, error) {
 	var builder strings.Builder
 	err := resolutionNoteTemplate.Execute(&builder, struct {
 		Resolution    string
 		ResolveReason string
 	}{
-		Resolution:    snc.CloseCode,
+		Resolution:    closeCode,
 		ResolveReason: resolution.Reason,
 	})
 	if err != nil {

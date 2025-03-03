@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -89,7 +90,7 @@ func (h *Handler) deleteUserHandle(w http.ResponseWriter, r *http.Request, param
 
 func createUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, error) {
 	var req *saveUserRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -104,7 +105,16 @@ func createUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, e
 
 	user.SetRoles(req.Roles)
 
-	updateUserTraits(req, user)
+	// checkAndSetDefaults makes sure either TraitsPreset
+	// or AllTraits field to be populated. Since empty
+	// AllTraits is also used to delete all user traits,
+	// we explicitly check if TraitsPreset is empty so
+	// to prevent traits deletion.
+	if req.TraitsPreset == nil {
+		user.SetTraits(req.AllTraits)
+	} else {
+		updateUserTraitsPreset(req, user)
+	}
 
 	user.SetCreatedBy(types.CreatedBy{
 		User: types.UserRef{Name: createdBy},
@@ -119,36 +129,36 @@ func createUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, e
 	return ui.NewUser(created)
 }
 
-// updateUserTraits receives a saveUserRequest and updates the user traits accordingly
-// It only updates the traits that have a non-nil value in saveUserRequest
-// This allows the partial update of the properties
-func updateUserTraits(req *saveUserRequest, user types.User) {
-	if req.Traits.Logins != nil {
-		user.SetLogins(*req.Traits.Logins)
+// updateUserTraitsPreset receives a saveUserRequest and updates the user traits
+// accordingly. It only updates the traits that have a non-nil value in
+// saveUserRequest. This allows the partial update of the properties
+func updateUserTraitsPreset(req *saveUserRequest, user types.User) {
+	if req.TraitsPreset.Logins != nil {
+		user.SetLogins(*req.TraitsPreset.Logins)
 	}
-	if req.Traits.DatabaseUsers != nil {
-		user.SetDatabaseUsers(*req.Traits.DatabaseUsers)
+	if req.TraitsPreset.DatabaseUsers != nil {
+		user.SetDatabaseUsers(*req.TraitsPreset.DatabaseUsers)
 	}
-	if req.Traits.DatabaseNames != nil {
-		user.SetDatabaseNames(*req.Traits.DatabaseNames)
+	if req.TraitsPreset.DatabaseNames != nil {
+		user.SetDatabaseNames(*req.TraitsPreset.DatabaseNames)
 	}
-	if req.Traits.KubeUsers != nil {
-		user.SetKubeUsers(*req.Traits.KubeUsers)
+	if req.TraitsPreset.KubeUsers != nil {
+		user.SetKubeUsers(*req.TraitsPreset.KubeUsers)
 	}
-	if req.Traits.KubeGroups != nil {
-		user.SetKubeGroups(*req.Traits.KubeGroups)
+	if req.TraitsPreset.KubeGroups != nil {
+		user.SetKubeGroups(*req.TraitsPreset.KubeGroups)
 	}
-	if req.Traits.WindowsLogins != nil {
-		user.SetWindowsLogins(*req.Traits.WindowsLogins)
+	if req.TraitsPreset.WindowsLogins != nil {
+		user.SetWindowsLogins(*req.TraitsPreset.WindowsLogins)
 	}
-	if req.Traits.AWSRoleARNs != nil {
-		user.SetAWSRoleARNs(*req.Traits.AWSRoleARNs)
+	if req.TraitsPreset.AWSRoleARNs != nil {
+		user.SetAWSRoleARNs(*req.TraitsPreset.AWSRoleARNs)
 	}
 }
 
 func updateUser(r *http.Request, m userAPIGetter) (*ui.User, error) {
 	var req *saveUserRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -169,7 +179,16 @@ func updateUser(r *http.Request, m userAPIGetter) (*ui.User, error) {
 
 	user.SetRoles(req.Roles)
 
-	updateUserTraits(req, user)
+	// checkAndSetDefaults makes sure either TraitsPreset
+	// or AllTraits field to be populated. Since empty
+	// AllTraits is also used to delete all user traits,
+	// we explicitly check if TraitsPreset is empty so
+	// to prevent traits deletion.
+	if req.TraitsPreset == nil {
+		user.SetTraits(req.AllTraits)
+	} else {
+		updateUserTraitsPreset(req, user)
+	}
 
 	updated, err := m.UpdateUser(r.Context(), user)
 	if err != nil {
@@ -233,16 +252,21 @@ func deleteUser(r *http.Request, params httprouter.Params, m userAPIGetter, user
 }
 
 type privilegeTokenRequest struct {
+	// TODO(Joerger): DELETE IN v19.0.0 in favor of ExistingMFAResponse
 	// SecondFactorToken is the totp code.
 	SecondFactorToken string `json:"secondFactorToken"`
+	// TODO(Joerger): DELETE IN v19.0.0 in favor of ExistingMFAResponse
 	// WebauthnResponse is the response from authenticators.
 	WebauthnResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
+	// ExistingMFAResponse is an MFA challenge response from an existing device.
+	// Not required if the user has no existing devices.
+	ExistingMFAResponse *client.MFAChallengeResponse `json:"existingMfaResponse"`
 }
 
 // createPrivilegeTokenHandle creates and returns a privilege token.
 func (h *Handler) createPrivilegeTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	var req privilegeTokenRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -257,6 +281,12 @@ func (h *Handler) createPrivilegeTokenHandle(w http.ResponseWriter, r *http.Requ
 		protoReq.ExistingMFAResponse = &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_Webauthn{
 			Webauthn: wantypes.CredentialAssertionResponseToProto(req.WebauthnResponse),
 		}}
+	case req.ExistingMFAResponse != nil:
+		var err error
+		protoReq.ExistingMFAResponse, err = req.ExistingMFAResponse.GetOptionalMFAResponseProtoReq()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	default:
 		// Can be empty, which means user did not have a second factor registered.
 	}
@@ -287,7 +317,8 @@ type userAPIGetter interface {
 	DeleteUser(ctx context.Context, user string) error
 }
 
-type userTraits struct {
+// traitsPreset are user traits that are pre-defined in Teleport
+type traitsPreset struct {
 	Logins        *[]string `json:"logins,omitempty"`
 	DatabaseUsers *[]string `json:"databaseUsers,omitempty"`
 	DatabaseNames *[]string `json:"databaseNames,omitempty"`
@@ -303,11 +334,21 @@ type userTraits struct {
 // They are optional and respect the following logic:
 // - if the value is nil, we ignore it
 // - if the value is an empty array we remove every element from the trait
-// - otherwise, we replace the list for that trait
+// - otherwise, we replace the list for that trait.
+// Use TraitsPreset to selectively update traits.
+// Use AllTraits to fully replace existing traits.
 type saveUserRequest struct {
-	Name   string     `json:"name"`
-	Roles  []string   `json:"roles"`
-	Traits userTraits `json:"traits"`
+	// Name is username.
+	Name string `json:"name"`
+	// Roles is slice of user roles assigned to user.
+	Roles []string `json:"roles"`
+	// TraitsPreset holds traits that are pre-defined in Teleport.
+	// Clients may use TraitsPreset to selectively update user traits.
+	TraitsPreset *traitsPreset `json:"traits"`
+	// AllTraits may hold all the user traits, including traits key defined
+	// in TraitsPreset and/or new trait key values defined by Teleport admin.
+	// AllTraits should be used to fully replace and update user traits.
+	AllTraits map[string][]string `json:"allTraits"`
 }
 
 func (r *saveUserRequest) checkAndSetDefaults() error {
@@ -316,6 +357,9 @@ func (r *saveUserRequest) checkAndSetDefaults() error {
 	}
 	if len(r.Roles) == 0 {
 		return trace.BadParameter("missing roles")
+	}
+	if len(r.AllTraits) != 0 && r.TraitsPreset != nil {
+		return trace.BadParameter("either traits or allTraits must be provided")
 	}
 	return nil
 }

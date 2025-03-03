@@ -19,35 +19,21 @@
 package srv
 
 import (
-	"bytes"
-	"os/user"
+	"context"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/testing/protocmp"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/services"
+	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshca"
+	"github.com/gravitational/teleport/lib/sshutils"
 )
-
-// TestDecodeChildError ensures that child error message marshaling
-// and unmarshaling returns the original values.
-func TestDecodeChildError(t *testing.T) {
-	var buf bytes.Buffer
-	require.NoError(t, DecodeChildError(&buf))
-
-	targetErr := trace.NotFound(user.UnknownUserError("test").Error())
-
-	writeChildError(&buf, targetErr)
-
-	require.ErrorIs(t, DecodeChildError(&buf), targetErr)
-}
 
 func TestCheckSFTPAllowed(t *testing.T) {
 	srv := newMockServer(t)
@@ -206,17 +192,14 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 		{
 			name: "device metadata",
 			idCtx: IdentityContext{
+				UnmappedIdentity: &sshca.Identity{
+					Username:           "alpaca",
+					DeviceID:           "deviceid1",
+					DeviceAssetTag:     "assettag1",
+					DeviceCredentialID: "credentialid1",
+				},
 				TeleportUser: "alpaca",
 				Login:        "alpaca1",
-				Certificate: &ssh.Certificate{
-					Permissions: ssh.Permissions{
-						Extensions: map[string]string{
-							teleport.CertExtensionDeviceID:           "deviceid1",
-							teleport.CertExtensionDeviceAssetTag:     "assettag1",
-							teleport.CertExtensionDeviceCredentialID: "credentialid1",
-						},
-					},
-				},
 			},
 			want: apievents.UserMetadata{
 				User:  "alpaca",
@@ -227,6 +210,22 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 					CredentialId: "credentialid1",
 				},
 				UserKind: apievents.UserKind_USER_KIND_HUMAN,
+			},
+		},
+		{
+			name: "bot metadata",
+			idCtx: IdentityContext{
+				TeleportUser:  "bot-alpaca",
+				Login:         "alpaca1",
+				BotName:       "alpaca",
+				BotInstanceID: "123-123-123",
+			},
+			want: apievents.UserMetadata{
+				User:          "bot-alpaca",
+				Login:         "alpaca1",
+				UserKind:      apievents.UserKind_USER_KIND_BOT,
+				BotName:       "alpaca",
+				BotInstanceID: "123-123-123",
 			},
 		},
 	}
@@ -252,17 +251,14 @@ func TestComputeLockTargets(t *testing.T) {
 		accessRequests := []string{"access-request-1", "access-request-2"}
 
 		identityCtx := IdentityContext{
+			UnmappedIdentity: &sshca.Identity{
+				Username:    "llama",
+				MFAVerified: mfaDevice,
+				DeviceID:    trustedDevice,
+			},
 			TeleportUser: "llama",
 			Impersonator: "alpaca",
 			Login:        "camel",
-			Certificate: &ssh.Certificate{
-				Permissions: ssh.Permissions{
-					Extensions: map[string]string{
-						teleport.CertExtensionMFAVerified: mfaDevice,
-						teleport.CertExtensionDeviceID:    trustedDevice,
-					},
-				},
-			},
 			AccessChecker: &fixedRolesChecker{
 				roleNames: mappedRoles,
 			},
@@ -301,4 +297,76 @@ type fixedRolesChecker struct {
 
 func (c *fixedRolesChecker) RoleNames() []string {
 	return c.roleNames
+}
+
+func TestCreateOrJoinSession(t *testing.T) {
+	t.Parallel()
+
+	srv := newMockServer(t)
+	registry, err := NewSessionRegistry(SessionRegistryConfig{
+		clock:                 srv.clock,
+		Srv:                   srv,
+		SessionTrackerService: srv.auth,
+	})
+	require.NoError(t, err)
+
+	runningSessionID := rsession.NewID()
+	sess, _, err := newSession(context.Background(), runningSessionID, registry, newTestServerContext(t, srv, nil), newMockSSHChannel(), sessionTypeInteractive)
+	require.NoError(t, err)
+	registry.sessions[runningSessionID] = sess
+
+	tests := []struct {
+		name              string
+		sessionID         string
+		wantSameSessionID bool
+	}{
+		{
+			name:              "no session ID",
+			wantSameSessionID: false,
+		},
+		// TODO(capnspacehook): Check that an error is returned in v17
+		{
+			name:              "new session ID",
+			sessionID:         string(rsession.NewID()),
+			wantSameSessionID: false,
+		},
+		{
+			name:              "existing session ID",
+			sessionID:         runningSessionID.String(),
+			wantSameSessionID: true,
+		},
+		{
+			name:              "existing session ID in Windows format",
+			sessionID:         "{" + runningSessionID.String() + "}",
+			wantSameSessionID: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			parsedSessionID := new(rsession.ID)
+			var err error
+			if tt.sessionID != "" {
+				parsedSessionID, err = rsession.ParseID(tt.sessionID)
+				require.NoError(t, err)
+			}
+
+			ctx := newTestServerContext(t, srv, nil)
+			if tt.sessionID != "" {
+				ctx.SetEnv(sshutils.SessionEnvVar, tt.sessionID)
+			}
+
+			err = ctx.CreateOrJoinSession(context.Background(), registry)
+			require.NoError(t, err)
+			require.False(t, ctx.sessionID.IsZero())
+			if tt.wantSameSessionID {
+				require.Equal(t, parsedSessionID.String(), ctx.sessionID.String())
+			} else {
+				require.NotEqual(t, parsedSessionID.String(), ctx.sessionID.String())
+			}
+		})
+	}
 }

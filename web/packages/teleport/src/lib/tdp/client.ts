@@ -19,45 +19,41 @@
 import Logger from 'shared/libs/logger';
 
 import init, {
-  init_wasm_log,
   FastPathProcessor,
+  init_wasm_log,
 } from 'teleport/ironrdp/pkg/ironrdp';
-
-import { WebsocketCloseCode, TermEvent } from 'teleport/lib/term/enums';
-import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
+import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
+import { TermEvent, WebsocketCloseCode } from 'teleport/lib/term/enums';
+import { MfaChallengeResponse } from 'teleport/services/mfa';
 
 import Codec, {
-  MessageType,
   FileType,
-  SharedDirectoryErrCode,
+  MessageType,
   Severity,
+  SharedDirectoryErrCode,
+  type ButtonState,
+  type ClientScreenSpec,
+  type ClipboardData,
+  type FileSystemObject,
+  type MouseButton,
+  type PngFrame,
+  type ScrollAxis,
+  type SharedDirectoryCreateResponse,
+  type SharedDirectoryDeleteResponse,
+  type SharedDirectoryInfoResponse,
+  type SharedDirectoryListResponse,
+  type SharedDirectoryMoveResponse,
+  type SharedDirectoryReadResponse,
+  type SharedDirectoryTruncateResponse,
+  type SharedDirectoryWriteResponse,
+  type SyncKeys,
 } from './codec';
 import {
   PathDoesNotExistError,
   SharedDirectoryManager,
+  type FileOrDirInfo,
 } from './sharedDirectoryManager';
-
-import type { FileOrDirInfo } from './sharedDirectoryManager';
-import type {
-  MouseButton,
-  ButtonState,
-  ScrollAxis,
-  ClientScreenSpec,
-  PngFrame,
-  ClipboardData,
-  SharedDirectoryInfoResponse,
-  SharedDirectoryListResponse,
-  SharedDirectoryMoveResponse,
-  SharedDirectoryReadResponse,
-  SharedDirectoryWriteResponse,
-  SharedDirectoryCreateResponse,
-  SharedDirectoryDeleteResponse,
-  FileSystemObject,
-  SyncKeys,
-  SharedDirectoryTruncateResponse,
-} from './codec';
-import type { WebauthnAssertionResponse } from 'teleport/services/auth';
 
 export enum TdpClientEvent {
   TDP_CLIENT_SCREEN_SPEC = 'tdp client screen spec',
@@ -94,7 +90,7 @@ export enum LogType {
 // sending client commands, and receiving and processing server messages. Its creator is responsible for
 // ensuring the websocket gets closed and all of its event listeners cleaned up when it is no longer in use.
 // For convenience, this can be done in one fell swoop by calling Client.shutdown().
-export default class Client extends EventEmitterWebAuthnSender {
+export default class Client extends EventEmitterMfaSender {
   protected codec: Codec;
   protected socket: AuthenticatedWebSocket | undefined;
   private socketAddr: string;
@@ -174,7 +170,7 @@ export default class Client extends EventEmitterWebAuthnSender {
     spec: ClientScreenSpec
   ) {
     this.logger.debug(
-      `initializing fast path processor with screen spec ${spec.width} x ${spec.height}`
+      `setting up fast path processor with screen spec ${spec.width} x ${spec.height}`
     );
 
     this.fastPathProcessor = new FastPathProcessor(
@@ -197,11 +193,11 @@ export default class Client extends EventEmitterWebAuthnSender {
         case MessageType.PNG2_FRAME:
           this.handlePng2Frame(buffer);
           break;
-        case MessageType.RDP_CONNECTION_INITIALIZED:
-          this.handleRDPConnectionInitialized(buffer);
+        case MessageType.RDP_CONNECTION_ACTIVATED:
+          this.handleRdpConnectionActivated(buffer);
           break;
         case MessageType.RDP_FASTPATH_PDU:
-          this.handleRDPFastPathPDU(buffer);
+          this.handleRdpFastPathPDU(buffer);
           break;
         case MessageType.CLIENT_SCREEN_SPEC:
           this.handleClientScreenSpec(buffer);
@@ -221,8 +217,8 @@ export default class Client extends EventEmitterWebAuthnSender {
             TdpClientEvent.TDP_ERROR
           );
           break;
-        case MessageType.NOTIFICATION:
-          this.handleTdpNotification(buffer);
+        case MessageType.ALERT:
+          this.handleTdpAlert(buffer);
           break;
         case MessageType.MFA_JSON:
           this.handleMfaChallenge(buffer);
@@ -306,17 +302,15 @@ export default class Client extends EventEmitterWebAuthnSender {
     );
   }
 
-  handleTdpNotification(buffer: ArrayBuffer) {
-    const notification = this.codec.decodeNotification(buffer);
-    if (notification.severity === Severity.Error) {
-      this.handleError(
-        new Error(notification.message),
-        TdpClientEvent.TDP_ERROR
-      );
-    } else if (notification.severity === Severity.Warning) {
-      this.handleWarning(notification.message, TdpClientEvent.TDP_WARNING);
+  handleTdpAlert(buffer: ArrayBuffer) {
+    const alert = this.codec.decodeAlert(buffer);
+    // TODO(zmb3): info and warning should use the same handler
+    if (alert.severity === Severity.Error) {
+      this.handleError(new Error(alert.message), TdpClientEvent.TDP_ERROR);
+    } else if (alert.severity === Severity.Warning) {
+      this.handleWarning(alert.message, TdpClientEvent.TDP_WARNING);
     } else {
-      this.handleInfo(notification.message);
+      this.handleInfo(alert.message);
     }
   }
 
@@ -334,12 +328,12 @@ export default class Client extends EventEmitterWebAuthnSender {
     );
   }
 
-  handleRDPConnectionInitialized(buffer: ArrayBuffer) {
+  handleRdpConnectionActivated(buffer: ArrayBuffer) {
     const { ioChannelId, userChannelId, screenWidth, screenHeight } =
-      this.codec.decodeRDPConnectionInitialied(buffer);
+      this.codec.decodeRdpConnectionActivated(buffer);
     const spec = { width: screenWidth, height: screenHeight };
     this.logger.info(
-      `setting screen spec received from server ${spec.width} x ${spec.height}`
+      `screen spec received from server ${spec.width} x ${spec.height}`
     );
 
     this.initFastPathProcessor(ioChannelId, userChannelId, {
@@ -352,8 +346,8 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.emit(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, spec);
   }
 
-  handleRDPFastPathPDU(buffer: ArrayBuffer) {
-    let rdpFastPathPDU = this.codec.decodeRDPFastPathPDU(buffer);
+  handleRdpFastPathPDU(buffer: ArrayBuffer) {
+    let rdpFastPathPDU = this.codec.decodeRdpFastPathPDU(buffer);
 
     // This should never happen but let's catch it with an error in case it does.
     if (!this.fastPathProcessor)
@@ -370,7 +364,7 @@ export default class Client extends EventEmitterWebAuthnSender {
           this.emit(TdpClientEvent.TDP_BMP_FRAME, bmpFrame);
         },
         (responseFrame: ArrayBuffer) => {
-          this.sendRDPResponsePDU(responseFrame);
+          this.sendRdpResponsePDU(responseFrame);
         },
         (data: ImageData | boolean, hotspot_x?: number, hotspot_y?: number) => {
           this.emit(TdpClientEvent.POINTER, { data, hotspot_x, hotspot_y });
@@ -385,7 +379,7 @@ export default class Client extends EventEmitterWebAuthnSender {
     try {
       const mfaJson = this.codec.decodeMfaJson(buffer);
       if (mfaJson.mfaType == 'n') {
-        this.emit(TermEvent.WEBAUTHN_CHALLENGE, mfaJson.jsonString);
+        this.emit(TermEvent.MFA_CHALLENGE, mfaJson.jsonString);
       } else {
         // mfaJson.mfaType === 'u', or else decodeMfaJson would have thrown an error.
         this.handleError(
@@ -403,31 +397,21 @@ export default class Client extends EventEmitterWebAuthnSender {
     }
   }
 
-  private wasSuccessful(errCode: SharedDirectoryErrCode) {
-    if (errCode === SharedDirectoryErrCode.Nil) {
-      return true;
-    }
-
-    this.handleError(
-      new Error(`Encountered shared directory error: ${errCode}`),
-      TdpClientEvent.CLIENT_ERROR
-    );
-    return false;
-  }
-
   handleSharedDirectoryAcknowledge(buffer: ArrayBuffer) {
     const ack = this.codec.decodeSharedDirectoryAcknowledge(buffer);
-
-    if (!this.wasSuccessful(ack.errCode)) {
+    if (ack.errCode !== SharedDirectoryErrCode.Nil) {
+      // A failure in the acknowledge message means the directory
+      // share operation failed (likely due to server side configuration).
+      // Since this is not a fatal error, we emit a warning but otherwise
+      // keep the sesion alive.
+      this.handleWarning(
+        `Failed to share directory '${this.sdManager.getName()}', drive redirection may be disabled on the RDP server.`,
+        TdpClientEvent.TDP_WARNING
+      );
       return;
     }
-    try {
-      this.logger.info(
-        'Started sharing directory: ' + this.sdManager.getName()
-      );
-    } catch (e) {
-      this.handleError(e, TdpClientEvent.CLIENT_ERROR);
-    }
+
+    this.logger.info('Started sharing directory: ' + this.sdManager.getName());
   }
 
   async handleSharedDirectoryInfoRequest(buffer: ArrayBuffer) {
@@ -611,10 +595,7 @@ export default class Client extends EventEmitterWebAuthnSender {
       return;
     }
 
-    this.handleError(
-      new Error('websocket unavailable'),
-      TdpClientEvent.CLIENT_ERROR
-    );
+    this.logger.warn('websocket is not open');
   }
 
   sendClientScreenSpec(spec: ClientScreenSpec) {
@@ -648,7 +629,7 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.send(this.codec.encodeClipboardData(clipboardData));
   }
 
-  sendWebAuthn(data: WebauthnAssertionResponse) {
+  sendChallengeResponse(data: MfaChallengeResponse) {
     const msg = this.codec.encodeMfaJson({
       mfaType: 'n',
       jsonString: JSON.stringify(data),
@@ -717,14 +698,15 @@ export default class Client extends EventEmitterWebAuthnSender {
   }
 
   resize(spec: ClientScreenSpec) {
-    this.send(this.codec.encodeClientScreenSpec(spec));
+    this.sendClientScreenSpec(spec);
   }
 
-  sendRDPResponsePDU(responseFrame: ArrayBuffer) {
-    this.send(this.codec.encodeRDPResponsePDU(responseFrame));
+  sendRdpResponsePDU(responseFrame: ArrayBuffer) {
+    this.send(this.codec.encodeRdpResponsePDU(responseFrame));
   }
 
-  // Emits an errType event, closing the socket if the error was fatal.
+  // Emits an errType event and closes the websocket connection.
+  // Should only be used for fatal errors.
   private handleError(
     err: Error,
     errType: TdpClientEvent.TDP_ERROR | TdpClientEvent.CLIENT_ERROR
@@ -734,7 +716,7 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.socket?.close();
   }
 
-  // Emits an warnType event
+  // Emits a warning event, but keeps the socket open.
   private handleWarning(
     warning: string,
     warnType: TdpClientEvent.TDP_WARNING | TdpClientEvent.CLIENT_WARNING

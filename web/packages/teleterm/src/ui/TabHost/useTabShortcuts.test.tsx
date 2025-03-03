@@ -16,26 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { PropsWithChildren } from 'react';
+import { PropsWithChildren } from 'react';
+
 import renderHook from 'design/utils/renderHook';
 
-import { useTabShortcuts } from 'teleterm/ui/TabHost/useTabShortcuts';
-import {
-  Document,
-  DocumentsService,
-} from 'teleterm/ui/services/workspacesService/documentsService';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import AppContextProvider from 'teleterm/ui/appContextProvider';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import {
   KeyboardShortcutEvent,
   KeyboardShortcutEventSubscriber,
-  KeyboardShortcutsService,
 } from 'teleterm/ui/services/keyboardShortcuts';
-import AppContextProvider from 'teleterm/ui/appContextProvider';
-import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
-import AppContext from 'teleterm/ui/appContext';
-
+import { Document } from 'teleterm/ui/services/workspacesService/documentsService';
 import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
-
-import { getEmptyPendingAccessRequest } from '../services/workspacesService/accessRequestsService';
+import { useTabShortcuts } from 'teleterm/ui/TabHost/useTabShortcuts';
 
 function getMockDocuments(): Document[] {
   return [
@@ -62,6 +56,7 @@ function getMockDocuments(): Document[] {
       targetUri: '/clusters/bar/dbs/foobar',
       targetName: 'foobar',
       targetUser: 'foo',
+      targetSubresourceName: undefined,
       origin: 'resource_table',
       status: '',
     },
@@ -73,6 +68,7 @@ function getMockDocuments(): Document[] {
       targetUri: '/clusters/bar/dbs/foobar',
       targetName: 'foobar',
       targetUser: 'bar',
+      targetSubresourceName: undefined,
       origin: 'resource_table',
       status: '',
     },
@@ -95,69 +91,37 @@ function getMockDocuments(): Document[] {
   ];
 }
 
+const rootClusterUri = '/clusters/test_uri';
+
 function getTestSetup({ documents }: { documents: Document[] }) {
+  const appContext = new MockAppContext();
+
   let eventEmitter: KeyboardShortcutEventSubscriber;
-  const keyboardShortcutsService: Partial<KeyboardShortcutsService> = {
-    subscribeToEvents(subscriber: KeyboardShortcutEventSubscriber) {
+  jest
+    .spyOn(appContext.keyboardShortcutsService, 'subscribeToEvents')
+    .mockImplementation((subscriber: KeyboardShortcutEventSubscriber) => {
       eventEmitter = subscriber;
-    },
-    unsubscribeFromEvents() {
+    });
+  jest
+    .spyOn(appContext.keyboardShortcutsService, 'unsubscribeFromEvents')
+    .mockImplementation(() => {
       eventEmitter = null;
-    },
-  };
+    });
 
-  // @ts-expect-error - using mocks
-  const docsService: DocumentsService = {
-    getDocuments(): Document[] {
-      return documents;
-    },
-    getActive() {
-      return documents[0];
-    },
-    close: jest.fn(),
-    open: jest.fn(),
-    add: jest.fn(),
-    closeOthers: jest.fn(),
-    closeToRight: jest.fn(),
-    openNewTerminal: jest.fn(),
-    swapPosition: jest.fn(),
-    duplicatePtyAndActivate: jest.fn(),
-  };
+  appContext.addRootClusterWithDoc(makeRootCluster(), documents);
 
-  const workspacesService: Partial<WorkspacesService> = {
-    getActiveWorkspaceDocumentService() {
-      return docsService;
-    },
-    getActiveWorkspace() {
-      return {
-        accessRequests: {
-          assumed: {},
-          isBarCollapsed: false,
-          pending: getEmptyPendingAccessRequest(),
-        },
-        localClusterUri: '/clusters/test_uri',
-        documents: [],
-        location: '/docs/1',
-      };
-    },
-    useState: jest.fn(),
-    state: {
-      workspaces: {},
-      rootClusterUri: '/clusters/test_uri',
-    },
-  };
+  const docsService =
+    appContext.workspacesService.getActiveWorkspaceDocumentService();
 
-  const appContext: AppContext = {
-    // @ts-expect-error - using mocks
-    keyboardShortcutsService,
-    // @ts-expect-error - using mocks
-    workspacesService,
-  };
+  jest.spyOn(docsService, 'open');
+  jest.spyOn(docsService, 'close');
+  jest.spyOn(docsService, 'add');
+
   renderHook(
     () =>
       useTabShortcuts({
         documentsService: docsService,
-        localClusterUri: workspacesService.getActiveWorkspace().localClusterUri,
+        localClusterUri: rootClusterUri,
       }),
     {
       wrapper: (props: PropsWithChildren) => (
@@ -171,7 +135,7 @@ function getTestSetup({ documents }: { documents: Document[] }) {
   return {
     emitKeyboardShortcutEvent: eventEmitter,
     docsService,
-    keyboardShortcutsService,
+    keyboardShortcutsService: appContext.keyboardShortcutsService,
   };
 }
 

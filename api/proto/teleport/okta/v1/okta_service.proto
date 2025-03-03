@@ -51,7 +51,173 @@ service OktaService {
   rpc DeleteOktaAssignment(DeleteOktaAssignmentRequest) returns (google.protobuf.Empty);
   // DeleteAllOktaAssignments removes all Okta assignments.
   rpc DeleteAllOktaAssignments(DeleteAllOktaAssignmentsRequest) returns (google.protobuf.Empty);
+
+  // ValidateClientCredentials checks if the provided client credentials are valid.
+  rpc ValidateClientCredentials(ValidateClientCredentialsRequest) returns (ValidateClientCredentialsResponse);
+  // EnrollIntegration enrolls a new integration with the specified parameters.
+  rpc CreateIntegration(CreateIntegrationRequest) returns (CreateIntegrationResponse);
+  // UpdateIntegration updates the settings or properties of an existing integration.
+  rpc UpdateIntegration(UpdateIntegrationRequest) returns (UpdateIntegrationResponse);
+  // GetApps retrieves a list of apps from Okta based on specified filter criteria.
+  rpc GetApps(GetAppsRequest) returns (GetAppsResponse);
+  // GetGroups retrieves a list of apps from Okta based on specified filter criteria.
+  rpc GetGroups(GetGroupsRequest) returns (GetGroupsResponse);
 }
+
+// GetAppsRequest is the request message for filtering apps.
+message GetAppsRequest {
+  // URL of the Okta organization.
+  string okta_organization_url = 1;
+  // Credentials to access the Okta API.
+  OktaAPICredentials api_credentials = 2;
+  // List of filters to apply when fetching apps.
+  repeated string filters = 3;
+}
+
+// GetAppsResponse is the response message for filtering apps.
+message GetAppsResponse {
+  // App contains details of an individual Okta app.
+  message App {
+    // Name of the app.
+    string name = 1;
+    // Description of the app.
+    string description = 2;
+  }
+  // List of apps that match the filter criteria.
+  repeated App apps = 1;
+}
+
+// GetGroupsRequest is the request message.
+message GetGroupsRequest {
+  // URL of the Okta organization.
+  string okta_organization_url = 1;
+  // Credentials to access the Okta API.
+  OktaAPICredentials api_credentials = 2;
+  // List of filters to apply when fetching groups.
+  repeated string filters = 3;
+}
+
+// GetGroupsResponse is the response message for filtering groups.
+message GetGroupsResponse {
+  // Group contains details of an individual Okta group.
+  message Group {
+    // Name of the group.
+    string name = 1;
+    // Description of the group.
+    string description = 2;
+  }
+  // List of groups that match the filter criteria.
+  repeated Group groups = 1;
+}
+
+// CreateIntegrationRequest is the request message for enrolling a new Okta integration.
+message CreateIntegrationRequest {
+  // URL of the Okta organization.
+  string okta_organization_url = 1;
+  // Credentials to access the Okta API.
+  OktaAPICredentials api_credentials = 2;
+  // SCIM token for integration.
+  string scim_token = 3;
+  // Enable synchronization of access lists.
+  bool enable_access_list_sync = 4;
+  // Enable user synchronization from Okta to Teleport.
+  bool enable_user_sync = 5;
+  // Enable synchronization of app groups from Okta to Teleport.
+  bool enable_app_group_sync = 6;
+  // Settings related to access list synchronization.
+  AccessListSettings access_list_settings = 7;
+  // Option to reuse an existing connector.
+  string reuse_connector = 8;
+  // SSO metadata URL for integration.
+  string sso_metadata_url = 9;
+  // Enable sync from Teleport to Okta. If disabled it will prevent creating Okta assignments which
+  // in turn will disable JIT Access Requests. Makes sense only when apps and groups sync is
+  // enabled.
+  bool enable_bidirectional_sync = 10;
+}
+
+// UpdateIntegrationRequest is the request message for updating an existing Okta integration.
+message UpdateIntegrationRequest {
+  // Credentials to access the Okta API.
+  OktaAPICredentials api_credentials = 2;
+  // SCIM token for integration.
+  string scim_token = 3;
+  // Enable synchronization of access lists.
+  bool enable_access_list_sync = 4;
+  // Enable user synchronization from Okta to Teleport.
+  bool enable_user_sync = 5;
+  // Enable synchronization of app groups from Okta to Teleport.
+  bool enable_app_group_sync = 6;
+  // Settings related to access list synchronization.
+  AccessListSettings access_list_settings = 7;
+  reserved 8; // reuse_connector
+  reserved "reuse_connector";
+  reserved 9; // sso_metadata_url
+  reserved "sso_metadata_url";
+  // Enable sync from Teleport to Okta. If disabled it will prevent creating Okta assignments which
+  // in turn will disable JIT Access Requests. Makes sense only when apps and groups sync is
+  // enabled.
+  bool enable_bidirectional_sync = 10;
+}
+
+// AccessListSettings contains the settings for access list synchronization.
+message AccessListSettings {
+  // Filters for groups to include in the access list.
+  repeated string group_filters = 2;
+  // Filters for apps to include in the access list.
+  repeated string app_filters = 3;
+  // Default owner for access list items.
+  repeated string default_owner = 4;
+}
+
+// OktaAPICredentials provides the authentication details for accessing Okta API.
+message OktaAPICredentials {
+  oneof auth {
+    // OAuth ClientID for authentication.
+    string oauth_id = 1;
+    // SSWS Bearer token for authentication.
+    string ssws_bearer_token = 2;
+  }
+}
+
+// CreateIntegrationResponse is the response message for enrolling a new Okta integration.
+message CreateIntegrationResponse {
+  // Plugin information.
+  types.PluginV1 plugin = 1;
+  // Details of the connector.
+  ConnectorInfo connector_info = 2;
+}
+
+// UpdateIntegrationResponse is the request for listing paginated Okta import rules.
+message UpdateIntegrationResponse {
+  // Plugin information.
+  types.PluginV1 plugin = 1;
+  // Details of the connector.
+  ConnectorInfo connector_info = 2;
+}
+
+// ConnectorInfo contains information about the connector.
+message ConnectorInfo {
+  // Okta application ID.
+  string okta_app_id = 1;
+  // Name of the Okta application.
+  string okta_app_name = 2;
+  // Labels associated with the Okta application.
+  string okta_app_labels = 3;
+  // Name of the Teleport connector.
+  string teleport_connector_name = 4;
+}
+
+// ValidateClientCredentialsRequest is the request message for validating client credentials.
+message ValidateClientCredentialsRequest {
+  // URL of the Okta organization.
+  string okta_organization_url = 1;
+  // Credentials to access the Okta API.
+  OktaAPICredentials api_credentials = 2;
+}
+
+// ValidateClientCredentialsResponse is the response message for validating client credentials.
+message ValidateClientCredentialsResponse {}
 
 // ListOktaImportRulesRequest is the request for listing paginated Okta import rules.
 message ListOktaImportRulesRequest {

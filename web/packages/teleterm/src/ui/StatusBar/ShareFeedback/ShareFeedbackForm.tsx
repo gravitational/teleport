@@ -16,17 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { ButtonIcon, ButtonPrimary, Flex, Link, Text } from 'design';
-import Validation from 'shared/components/Validation';
-import { Cross } from 'design/Icon';
-
-import { Attempt } from 'shared/hooks/useAsync';
+import { ButtonIcon, ButtonPrimary, Flex, H2, Link } from 'design';
 import * as Alerts from 'design/Alert';
+import { Cross } from 'design/Icon';
+import Validation from 'shared/components/Validation';
+import { Attempt } from 'shared/hooks/useAsync';
 
 import { ShareFeedbackFormFields } from './ShareFeedbackFormFields';
-import { FEEDBACK_TOO_LONG_ERROR } from './useShareFeedback';
 import { ShareFeedbackFormValues } from './types';
+import { FEEDBACK_TOO_LONG_ERROR } from './useShareFeedback';
 
 interface ShareFeedbackProps {
   submitFeedbackAttempt: Attempt<string>;
@@ -58,9 +56,7 @@ export function ShareFeedbackForm(props: ShareFeedbackProps) {
             }}
           >
             <Flex justifyContent="space-between" mb={2}>
-              <Text typography="h4" bold color="text.main">
-                Provide your feedback
-              </Text>
+              <H2>Provide your feedback</H2>
               <ButtonIcon
                 type="button"
                 onClick={props.onClose}

@@ -16,29 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  makeRootCluster,
-  makeAppGateway,
-} from 'teleterm/services/tshd/testHelpers';
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 
-import { VnetClient, TshdClient } from '../createClient';
+import {
+  makeApp,
+  makeAppGateway,
+  makeRootCluster,
+} from 'teleterm/services/tshd/testHelpers';
+import { getDefaultUnifiedResourcePreferences } from 'teleterm/ui/services/workspacesService';
+
 import { MockedUnaryCall } from '../cloneableClient';
+import { TshdClient, VnetClient } from '../createClient';
 
 export class MockTshClient implements TshdClient {
   listRootClusters = () => new MockedUnaryCall({ clusters: [] });
   listLeafClusters = () => new MockedUnaryCall({ clusters: [] });
-  getKubes = () =>
-    new MockedUnaryCall({
-      agents: [],
-      totalCount: 0,
-      startKey: '',
-    });
-  getDatabases = () =>
-    new MockedUnaryCall({
-      agents: [],
-      totalCount: 0,
-      startKey: '',
-    });
   listDatabaseUsers = () =>
     new MockedUnaryCall({
       users: [],
@@ -51,12 +43,6 @@ export class MockTshClient implements TshdClient {
       applicableRoles: [],
     });
   getServers = () =>
-    new MockedUnaryCall({
-      agents: [],
-      totalCount: 0,
-      startKey: '',
-    });
-  getApps = () =>
     new MockedUnaryCall({
       agents: [],
       totalCount: 0,
@@ -83,8 +69,6 @@ export class MockTshClient implements TshdClient {
   getAuthSettings = () =>
     new MockedUnaryCall({
       localAuthEnabled: true,
-      secondFactor: 'webauthn',
-      preferredMfa: 'webauthn',
       authProviders: [],
       hasMessageOfTheDay: false,
       authType: 'local',
@@ -107,15 +91,41 @@ export class MockTshClient implements TshdClient {
   getConnectMyComputerNodeName = () => new MockedUnaryCall({ name: '' });
   listUnifiedResources = () =>
     new MockedUnaryCall({ resources: [], nextKey: '' });
-  getUserPreferences = () => new MockedUnaryCall({});
+  listKubernetesResources = () =>
+    new MockedUnaryCall({ resources: [], nextKey: '' });
+  getUserPreferences = () =>
+    new MockedUnaryCall({
+      userPreferences: {
+        unifiedResourcePreferences: getDefaultUnifiedResourcePreferences(),
+        clusterPreferences: { pinnedResources: { resourceIds: [] } },
+      },
+    });
   updateUserPreferences = () => new MockedUnaryCall({});
   getSuggestedAccessLists = () => new MockedUnaryCall({ accessLists: [] });
   promoteAccessRequest = () => new MockedUnaryCall({});
   updateTshdEventsServerAddress = () => new MockedUnaryCall({});
-  authenticateWebDevice = () => new MockedUnaryCall({});
+  authenticateWebDevice = () =>
+    new MockedUnaryCall({
+      confirmationToken: {
+        id: '123456789',
+        token: '7c8e7438-abe1-4cbc-b3e6-bd233bba967c',
+      },
+    });
+  startHeadlessWatcher = () => new MockedUnaryCall({});
+  getApp = () => new MockedUnaryCall({ app: makeApp() });
 }
 
 export class MockVnetClient implements VnetClient {
   start = () => new MockedUnaryCall({});
   stop = () => new MockedUnaryCall({});
+  listDNSZones = () => new MockedUnaryCall({ dnsZones: [] });
+  getBackgroundItemStatus = () => new MockedUnaryCall({ status: 0 });
+  runDiagnostics() {
+    return new MockedUnaryCall({
+      report: {
+        checks: [],
+        createdAt: Timestamp.fromDate(new Date(2025, 0, 1, 12, 0)),
+      },
+    });
+  }
 }

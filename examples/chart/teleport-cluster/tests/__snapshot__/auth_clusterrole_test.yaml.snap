@@ -3,6 +3,14 @@ adds operator permissions to ClusterRole:
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:
+      labels:
+        app.kubernetes.io/component: auth
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: teleport-cluster
+        app.kubernetes.io/version: 18.0.0-dev
+        helm.sh/chart: teleport-cluster-18.0.0-dev
+        teleport.dev/majorVersion: "18"
       name: RELEASE-NAME
     rules:
     - apiGroups:

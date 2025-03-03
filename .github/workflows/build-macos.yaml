@@ -19,7 +19,7 @@ jobs:
   build:
     name: Build on Mac OS
     if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
-    runs-on: macos-13-xl-arm64
+    runs-on: macos-13-xlarge
 
     permissions:
       contents: read
@@ -54,9 +54,10 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Setup yarn
+      - name: Setup pnpm
         run: |
-          corepack enable yarn
+          npm install -g corepack@0.31.0
+          corepack enable pnpm
 
       - name: Install Go Toolchain
         uses: actions/setup-go@v5

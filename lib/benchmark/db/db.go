@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -48,25 +49,20 @@ func retrieveDatabaseCertificates(ctx context.Context, tc *client.TeleportClient
 			Username:    dbUser,
 			Database:    dbName,
 		},
-		AccessRequests: profile.ActiveRequests.AccessRequests,
+		AccessRequests: profile.ActiveRequests,
 	})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	rawCert, ok := key.DBTLSCerts[db.GetName()]
-	if !ok {
-		return tls.Certificate{}, trace.AccessDenied("failed to retrieve database certificates")
-	}
-
-	tlsCert, err := key.TLSCertificate(rawCert)
-	return tlsCert, trace.Wrap(err)
+	dbCert, err := key.DBTLSCert(db.GetName())
+	return dbCert, trace.Wrap(err)
 }
 
 // getDatabase loads the database which the name matches.
 func getDatabase(ctx context.Context, tc *client.TeleportClient, serviceName string, protocol string) (types.Database, error) {
 	databases, err := tc.ListDatabases(ctx, &proto.ListResourcesRequest{
-		Namespace:           tc.Namespace,
+		Namespace:           defaults.Namespace,
 		ResourceType:        types.KindDatabaseServer,
 		PredicateExpression: fmt.Sprintf(`name == "%s" && resource.spec.protocol == "%s"`, serviceName, protocol),
 	})
@@ -92,7 +88,7 @@ func startLocalProxy(ctx context.Context, insecureSkipVerify bool, tc *client.Te
 	opts := []alpnproxy.LocalProxyConfigOpt{
 		alpnproxy.WithDatabaseProtocol(dbProtocol),
 		alpnproxy.WithClusterCAsIfConnUpgrade(ctx, tc.RootClusterCACertPool),
-		alpnproxy.WithClientCerts(dbCert),
+		alpnproxy.WithClientCert(dbCert),
 	}
 
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{

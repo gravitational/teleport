@@ -16,24 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { DeprecatedThemeOption } from 'design/theme';
-
-import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
-
 export type MarketingParams = {
   campaign: string;
   source: string;
   medium: string;
   intent: string;
 };
-
-export function deprecatedThemeToThemePreference(
-  theme: DeprecatedThemeOption
-): Theme {
-  switch (theme) {
-    case 'light':
-      return Theme.LIGHT;
-    case 'dark':
-      return Theme.DARK;
-  }
-}

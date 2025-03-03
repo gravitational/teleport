@@ -17,14 +17,19 @@ limitations under the License.
 package types
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
 )
+
+var _ compare.IsEqual[OktaAssignment] = (*OktaAssignmentV1)(nil)
 
 // OktaImportRule specifies a rule for importing and labeling Okta applications and groups.
 type OktaImportRule interface {
@@ -385,10 +390,6 @@ func (o *OktaAssignmentV1) CheckAndSetDefaults() error {
 		return trace.BadParameter("user must not be empty")
 	}
 
-	if len(o.Spec.Targets) == 0 {
-		return trace.BadParameter("targets is empty")
-	}
-
 	// Make sure the times are UTC so that Copy() works properly.
 	o.Spec.CleanupTime = o.Spec.CleanupTime.UTC()
 	o.Spec.LastTransition = o.Spec.LastTransition.UTC()
@@ -490,5 +491,69 @@ func OktaAssignmentStatusProtoToString(status OktaAssignmentSpecV1_OktaAssignmen
 		return constants.OktaAssignmentStatusFailed
 	default:
 		return constants.OktaAssignmentStatusUnknown
+	}
+}
+
+func (o *PluginOktaSettings) GetCredentialsInfo() *PluginOktaCredentialsInfo {
+	if o == nil {
+		return nil
+	}
+	return o.CredentialsInfo
+}
+
+func (o *PluginOktaSettings) GetSyncSettings() *PluginOktaSyncSettings {
+	if o == nil {
+		return nil
+	}
+	return o.SyncSettings
+}
+
+type OktaUserSyncSource string
+
+// IsUnknown returns true if user sync source is empty or explicitly set to "unknown".
+func (s OktaUserSyncSource) IsUnknown() bool {
+	switch s {
+	case "", OktaUserSyncSourceUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
+const (
+	// OktaUserSyncSourceUnknown indicates the user sync source is not set.
+	OktaUserSyncSourceUnknown OktaUserSyncSource = "unknown"
+
+	// OktaUserSyncSourceSamlApp indicates users are synchronized from Okta SAML app for the connector assignments.
+	OktaUserSyncSourceSamlApp OktaUserSyncSource = "saml_app"
+
+	// OktaUserSyncSourceSamlOrg indicates users are synchronized  Okta organization (legacy).
+	OktaUserSyncSourceOrg OktaUserSyncSource = "org"
+)
+
+func (o *PluginOktaSyncSettings) GetUserSyncSource() OktaUserSyncSource {
+	if o == nil {
+		return OktaUserSyncSourceUnknown
+	}
+	switch v := OktaUserSyncSource(o.UserSyncSource); v {
+	case "":
+		return OktaUserSyncSourceUnknown
+	case OktaUserSyncSourceUnknown, OktaUserSyncSourceSamlApp, OktaUserSyncSourceOrg:
+		return v
+	default:
+		slog.ErrorContext(context.Background(), "Unhandled PluginOktaSyncSettings_UserSyncSource, returning OktaUserSyncSourceUnknown", "value", o.UserSyncSource)
+		return OktaUserSyncSourceUnknown
+	}
+}
+
+func (o *PluginOktaSyncSettings) SetUserSyncSource(source OktaUserSyncSource) {
+	if o == nil {
+		panic("calling (*PluginOktaSyncSettings).SetUserSyncSource on nil pointer")
+	}
+	switch source {
+	case OktaUserSyncSourceUnknown, OktaUserSyncSourceSamlApp, OktaUserSyncSourceOrg:
+		o.UserSyncSource = string(source)
+	default:
+		slog.ErrorContext(context.Background(), "Unhandled OktaUserSyncSource, not doing anything", "value", source)
 	}
 }

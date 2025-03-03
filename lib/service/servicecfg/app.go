@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport/api/types"
+	netutils "github.com/gravitational/teleport/api/utils/net"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 )
@@ -87,6 +88,60 @@ type App struct {
 
 	// Cloud identifies the cloud instance the app represents.
 	Cloud string
+
+	// RequiredAppNames is a list of app names that are required for this app to function. Any app listed here will
+	// be part of the authentication redirect flow and authenticate along side this app.
+	RequiredAppNames []string
+
+	// CORS defines the Cross-Origin Resource Sharing configuration for the app,
+	// controlling how resources are shared across different origins.
+	CORS *CORS
+
+	// TCPPorts is a list of ports and port ranges that an app agent can forward connections to.
+	// Only applicable to TCP App Access.
+	// If this field is not empty, URI is expected to contain no port number and start with the tcp
+	// protocol.
+	TCPPorts []PortRange
+}
+
+// CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
+// settings that control how the app responds to requests from different origins.
+type CORS struct {
+	// AllowedOrigins specifies the list of origins that are allowed to access the app.
+	// Example: "https://client.teleport.example.com:3080"
+	AllowedOrigins []string `yaml:"allowed_origins"`
+
+	// AllowedMethods specifies the HTTP methods that are allowed when accessing the app.
+	// Example: "POST", "GET", "OPTIONS", "PUT", "DELETE"
+	AllowedMethods []string `yaml:"allowed_methods"`
+
+	// AllowedHeaders specifies the HTTP headers that can be used when making requests to the app.
+	// Example: "Content-Type", "Authorization", "X-Custom-Header"
+	AllowedHeaders []string `yaml:"allowed_headers"`
+
+	// ExposedHeaders indicate which response headers should be made available to scripts running in
+	// the browser, in response to a cross-origin request.
+	ExposedHeaders []string `yaml:"exposed_headers"`
+
+	// AllowCredentials indicates whether credentials such as cookies or authorization headers
+	// are allowed to be included in the requests.
+	AllowCredentials bool `yaml:"allow_credentials"`
+
+	// MaxAge specifies how long (in seconds) the results of a preflight request can be cached.
+	// Example: 86400 (which equals 24 hours)
+	MaxAge uint `yaml:"max_age"`
+}
+
+// PortRange describes a port range for TCP apps. The range starts with Port and ends with EndPort.
+// PortRange can be used to describe a single port in which case the Port field is the port and the
+// EndPort field is 0.
+type PortRange struct {
+	// Port describes the start of the range. It must be between 1 and 65535.
+	Port int
+	// EndPort describes the end of the range, inclusive. When describing a port range, it must be
+	// greater than Port and less than or equal to 65535. When describing a single port, it must be
+	// set to 0.
+	EndPort int
 }
 
 // CheckAndSetDefaults validates an application.
@@ -105,7 +160,7 @@ func (a *App) CheckAndSetDefaults() error {
 	// are invalid subdomains because for trusted clusters the name is used to
 	// construct the domain that the application will be available at.
 	if errs := validation.IsDNS1035Label(a.Name); len(errs) > 0 {
-		return trace.BadParameter("application name %q must be a valid DNS subdomain: https://goteleport.com/docs/application-access/guides/connecting-apps/#application-name", a.Name)
+		return trace.BadParameter("application name %q must be a valid DNS subdomain: https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name", a.Name)
 	}
 	// Parse and validate URL.
 	if _, err := url.Parse(a.URI); err != nil {
@@ -137,6 +192,43 @@ func (a *App) CheckAndSetDefaults() error {
 			}
 		}
 	}
+
+	if len(a.TCPPorts) != 0 {
+		if err := a.checkPorts(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+func (a *App) checkPorts() error {
+	// Parsing the URI here does not break compatibility. The URI is parsed only if Ports are present.
+	// This means that old apps that do have invalid URIs but don't use Ports can continue existing.
+	uri, err := url.Parse(a.URI)
+	if err != nil {
+		return trace.BadParameter("invalid app URI format: %v", err)
+	}
+
+	// The scheme of URI is not validated to be "tcp" on purpose. This way in the future we can add
+	// multi-port support to web apps without throwing hard errors when a cluster with a multi-port
+	// web app gets downgraded to a version which supports multi-port only for TCP apps.
+	//
+	// For now, we simply ignore the Ports field set on non-TCP apps.
+	if uri.Scheme != "tcp" {
+		return nil
+	}
+
+	if uri.Port() != "" {
+		return trace.BadParameter("app URI %q must not include a port number when the app spec defines a list of ports", a.URI)
+	}
+
+	for _, portRange := range a.TCPPorts {
+		if err := netutils.ValidatePortRange(portRange.Port, portRange.EndPort); err != nil {
+			return trace.Wrap(err, "validating a port range of a TCP app")
+		}
+	}
+
 	return nil
 }
 

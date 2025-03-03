@@ -16,16 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { ButtonSecondary, ButtonWarning, Text } from 'design';
+import { ButtonSecondary, ButtonWarning, P1, Text } from 'design';
 import * as Alerts from 'design/Alert';
-import useAttempt from 'shared/hooks/useAttemptNext';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/DialogConfirmation';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
 export default function DeleteTrustedClusterDialog(props: Props) {
   const { name, onClose, onDelete } = props;
@@ -45,13 +44,13 @@ export default function DeleteTrustedClusterDialog(props: Props) {
         {attempt.status === 'failed' && (
           <Alerts.Danger>{attempt.statusText}</Alerts.Danger>
         )}
-        <Text typography="paragraph" mb="6">
+        <P1>
           Are you sure you want to delete trusted cluster{' '}
           <Text as="span" bold color="text.main">
             {name}
           </Text>
           ?
-        </Text>
+        </P1>
       </DialogContent>
       <DialogFooter>
         <ButtonWarning mr="3" disabled={isDisabled} onClick={onOk}>

@@ -21,15 +21,19 @@ package db
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
+
+// maxAWSPages is the maximum number of pages to iterate over when fetching aws
+// databases.
+const maxAWSPages = 10
 
 // awsFetcherPlugin defines an interface that provides database type specific
 // functions for use by the common AWS database fetcher.
@@ -44,8 +48,8 @@ type awsFetcherPlugin interface {
 
 // awsFetcherConfig is the AWS database fetcher configuration.
 type awsFetcherConfig struct {
-	// AWSClients are the AWS API clients.
-	AWSClients cloud.AWSClients
+	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
+	AWSConfigProvider awsconfig.Provider
 	// Type is the type of DB matcher, for example "rds", "redshift", etc.
 	Type string
 	// AssumeRole provides a role ARN and ExternalID to assume an AWS role
@@ -55,18 +59,24 @@ type awsFetcherConfig struct {
 	Labels types.Labels
 	// Region is the AWS region selector to match cloud databases.
 	Region string
-	// Log is a field logger to provide structured logging for each matcher,
-	// based on its config settings by default.
-	Log logrus.FieldLogger
+	// Logger is the slog.Logger
+	Logger *slog.Logger
 	// Integration is the integration name to be used to fetch credentials.
 	// When present, it will use this integration and discard any local credentials.
 	Integration string
+	// DiscoveryConfigName is the name of the discovery config which originated the resource.
+	// Might be empty when the fetcher is using static matchers:
+	// ie teleport.yaml/discovery_service.<cloud>.<matcher>
+	DiscoveryConfigName string
+
+	// awsClients provides AWS SDK v2 clients.
+	awsClients AWSClientProvider
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
 func (cfg *awsFetcherConfig) CheckAndSetDefaults(component string) error {
-	if cfg.AWSClients == nil {
-		return trace.BadParameter("missing parameter AWSClients")
+	if cfg.AWSConfigProvider == nil {
+		return trace.BadParameter("missing AWSConfigProvider")
 	}
 	if cfg.Type == "" {
 		return trace.BadParameter("missing parameter Type")
@@ -77,18 +87,22 @@ func (cfg *awsFetcherConfig) CheckAndSetDefaults(component string) error {
 	if cfg.Region == "" {
 		return trace.BadParameter("missing parameter Region")
 	}
-	if cfg.Log == nil {
+	if cfg.Logger == nil {
 		credentialsSource := "environment"
 		if cfg.Integration != "" {
 			credentialsSource = fmt.Sprintf("integration:%s", cfg.Integration)
 		}
-		cfg.Log = logrus.WithFields(logrus.Fields{
-			teleport.ComponentKey: "watch:" + component,
-			"labels":              cfg.Labels,
-			"region":              cfg.Region,
-			"role":                cfg.AssumeRole,
-			"credentials":         credentialsSource,
-		})
+		cfg.Logger = slog.With(
+			teleport.ComponentKey, "watch:"+component,
+			"labels", cfg.Labels,
+			"region", cfg.Region,
+			"role", cfg.AssumeRole,
+			"credentials", credentialsSource,
+		)
+	}
+
+	if cfg.awsClients == nil {
+		cfg.awsClients = defaultAWSClients{}
 	}
 	return nil
 }
@@ -128,7 +142,7 @@ func (f *awsFetcher) getDatabases(ctx context.Context) (types.Databases, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return filterDatabasesByLabels(databases, f.cfg.Labels, f.cfg.Log), nil
+	return filterDatabasesByLabels(ctx, databases, f.cfg.Labels, f.cfg.Logger), nil
 }
 
 // rewriteDatabases rewrites the discovered databases.
@@ -151,6 +165,16 @@ func (f *awsFetcher) Cloud() string {
 	return types.CloudAWS
 }
 
+// IntegrationName returns the integration name whose credentials are used to fetch the resources.
+func (f *awsFetcher) IntegrationName() string {
+	return f.cfg.Integration
+}
+
+// GetDiscoveryConfigName returns the discovery config name whose matchers are used to fetch the resources.
+func (f *awsFetcher) GetDiscoveryConfigName() string {
+	return f.cfg.DiscoveryConfigName
+}
+
 // ResourceType identifies the resource type the fetcher is returning.
 func (f *awsFetcher) ResourceType() string {
 	return types.KindDatabase
@@ -166,7 +190,3 @@ func (f *awsFetcher) String() string {
 	return fmt.Sprintf("awsFetcher(Type: %v, Region=%v, Labels=%v)",
 		f.cfg.Type, f.cfg.Region, f.cfg.Labels)
 }
-
-// maxAWSPages is the maximum number of pages to iterate over when fetching aws
-// databases.
-const maxAWSPages = 10

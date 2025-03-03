@@ -77,7 +77,7 @@ This technique does not support sorting, but provides faster performance and is 
 
 The web UI will not request for the entire list of resources upfront, but will provide a user with a `fetch more` button if a user desires to see the next page if any.
 
-We can branch off into two functions with current `ListResources` based on if sorting was requested (orting will be disabled for `tsh`, so that `tsh` performance will not be affected):
+We can branch off into two functions with current `ListResources` based on if sorting was requested (sorting will be disabled for `tsh`, so that `tsh` performance will not be affected):
 
   - `listResources` (keeps current behavior)
   - `listResourcesWithSort`

@@ -23,16 +23,15 @@ import {
   DatabaseLocation,
   ResourceSpec,
 } from 'teleport/Discover/SelectResource';
+import { DbMeta } from 'teleport/Discover/useDiscover';
+import { IamPolicyStatus } from 'teleport/services/databases';
 import {
   IntegrationKind,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
-import { DbMeta } from 'teleport/Discover/useDiscover';
-import { IamPolicyStatus } from 'teleport/services/databases';
 
-import { DATABASES } from '../SelectResource/databases';
+import { DATABASES } from '../SelectResource/resources';
 import { ResourceKind } from '../Shared';
-
 import { TeleportProvider } from './fixtures';
 
 export function getDbResourceSpec(
@@ -59,6 +58,7 @@ export function getDbMeta(): DbMeta {
         rds: {
           region: 'us-east-1',
           vpcId: 'test-vpc',
+          securityGroups: ['sg-1', 'sg-2'],
           resourceId: 'some-rds-resource-id',
           subnets: [],
         },
@@ -70,19 +70,20 @@ export function getDbMeta(): DbMeta {
       protocol: 'postgres',
       labels: [],
       hostname: 'some-db-hostname',
-      users: ['staticUser1', 'staticUser2'],
-      names: ['staticName1', 'staticName2'],
+      users: ['staticUser1', 'staticUser2', '*'],
+      names: ['staticName1', 'staticName2', '*'],
     },
     selectedAwsRdsDb: {
       region: 'us-east-1',
       engine: 'postgres',
       name: 'rds-1',
-      uri: '',
+      uri: 'example.abc123.ca-central-1.rds.amazonaws.com:3306',
       resourceId: 'some-rds-resource-id',
       accountId: '1234',
       labels: [],
       subnets: [],
       vpcId: '',
+      securityGroups: ['sg-1', 'sg-2'],
       status: 'available',
     },
     awsIntegration: {
@@ -99,14 +100,16 @@ export function getDbMeta(): DbMeta {
   };
 }
 
-export const ComponentWrapper: React.FC<PropsWithChildren> = ({ children }) => (
+export const ComponentWrapper: React.FC<
+  PropsWithChildren<{ resourceSpec?: ResourceSpec; dbMeta?: DbMeta }>
+> = ({ children, resourceSpec, dbMeta }) => (
   <TeleportProvider
-    agentMeta={getDbMeta()}
+    agentMeta={dbMeta || getDbMeta()}
     resourceKind={ResourceKind.Database}
-    resourceSpec={getDbResourceSpec(
-      DatabaseEngine.Postgres,
-      DatabaseLocation.Aws
-    )}
+    resourceSpec={
+      resourceSpec ||
+      getDbResourceSpec(DatabaseEngine.Postgres, DatabaseLocation.Aws)
+    }
   >
     {children}
   </TeleportProvider>

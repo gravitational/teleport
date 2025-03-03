@@ -23,22 +23,24 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/lib/tbot/cli"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/tshwrap"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func onDBCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
+func onDBCommand(globalCfg *cli.GlobalArgs, dbCmd *cli.DBCommand) error {
+	botConfig, err := cli.LoadConfigWithMutators(globalCfg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	wrapper, err := tshwrap.New()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := tshwrap.CheckTSHSupported(wrapper); err != nil {
-		return trace.Wrap(err)
-	}
-
-	destination, err := tshwrap.GetDestinationDirectory(botConfig)
+	destination, err := tshwrap.GetDestinationDirectory(dbCmd.DestinationDir, botConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -54,16 +56,16 @@ func onDBCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	args := []string{"-i", identityPath, "db", "--proxy=" + cf.ProxyServer}
-	if cf.Cluster != "" {
+	args := []string{"-i", identityPath, "db", "--proxy=" + dbCmd.ProxyServer}
+	if dbCmd.Cluster != "" {
 		// If we caught --cluster in our args, pass it through.
-		args = append(args, "--cluster="+cf.Cluster)
-	} else if !utils.HasPrefixAny("--cluster", cf.RemainingArgs) {
+		args = append(args, "--cluster="+dbCmd.Cluster)
+	} else if !utils.HasPrefixAny("--cluster", *dbCmd.RemainingArgs) {
 		// If no `--cluster` was provided after a `--`, pass along the cluster
 		// name in the identity.
 		args = append(args, "--cluster="+identity.RouteToCluster)
 	}
-	args = append(args, cf.RemainingArgs...)
+	args = append(args, *dbCmd.RemainingArgs...)
 
 	// Pass through the debug flag, and prepend to satisfy argument ordering
 	// needs (`-d` must precede `db`).

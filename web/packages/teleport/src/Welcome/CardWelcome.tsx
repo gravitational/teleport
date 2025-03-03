@@ -16,20 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { ButtonPrimary, Text } from 'design';
+import { ButtonPrimary, H2, Subtitle2 } from 'design';
 
-import { OnboardCard } from 'design/Onboard/OnboardCard';
+import { OnboardCard } from 'teleport/components/Onboard';
 
 export function CardWelcome({ title, subTitle, btnText, onClick }: Props) {
   return (
     <OnboardCard center>
-      <Text mb="8px" typography="h4">
-        {title}
-      </Text>
-      <Text mb="16px" typography="subtitle1" fontWeight="light">
-        {subTitle}
-      </Text>
+      <H2 mb={3}>{title}</H2>
+      <Subtitle2 mb="16px">{subTitle}</Subtitle2>
       <ButtonPrimary width="100%" onClick={onClick}>
         {btnText}
       </ButtonPrimary>

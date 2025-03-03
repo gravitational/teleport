@@ -19,12 +19,14 @@
 package proxy
 
 import (
+	"context"
 	"errors"
+	"log/slog"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -113,13 +115,13 @@ type gvkSupportedResources map[gvkSupportedResourcesKey]*schema.GroupVersionKind
 // This schema includes all well-known Kubernetes types and all namespaced
 // custom resources.
 // It also returns a map of resources that we support RBAC restrictions for.
-func newClusterSchemaBuilder(log logrus.FieldLogger, client kubernetes.Interface) (serializer.CodecFactory, rbacSupportedResources, gvkSupportedResources, error) {
+func newClusterSchemaBuilder(log *slog.Logger, client kubernetes.Interface) (*serializer.CodecFactory, rbacSupportedResources, gvkSupportedResources, error) {
 	kubeScheme := runtime.NewScheme()
 	kubeCodecs := serializer.NewCodecFactory(kubeScheme)
 	supportedResources := maps.Clone(defaultRBACResources)
 	gvkSupportedRes := make(gvkSupportedResources)
 	if err := registerDefaultKubeTypes(kubeScheme); err != nil {
-		return serializer.CodecFactory{}, nil, nil, trace.Wrap(err)
+		return nil, nil, nil, trace.Wrap(err)
 	}
 	// discoveryErr is returned when the discovery of one or more API groups fails.
 	var discoveryErr *discovery.ErrGroupDiscoveryFailed
@@ -135,9 +137,12 @@ func newClusterSchemaBuilder(log logrus.FieldLogger, client kubernetes.Interface
 		// reachable.
 		// In this case, we still want to register the other resources that are
 		// available in the cluster.
-		log.WithError(err).Debugf("Failed to discover some API groups: %v", maps.Keys(discoveryErr.Groups))
+		log.DebugContext(context.Background(), "Failed to discover some API groups",
+			"groups", slices.Collect(maps.Keys(discoveryErr.Groups)),
+			"error", err,
+		)
 	case err != nil:
-		return serializer.CodecFactory{}, nil, nil, trace.Wrap(err)
+		return nil, nil, nil, trace.Wrap(err)
 	}
 
 	for _, apiGroup := range apiGroups {
@@ -201,7 +206,7 @@ func newClusterSchemaBuilder(log logrus.FieldLogger, client kubernetes.Interface
 		}
 	}
 
-	return kubeCodecs, supportedResources, gvkSupportedRes, nil
+	return &kubeCodecs, supportedResources, gvkSupportedRes, nil
 }
 
 // getKubeAPIGroupAndVersion returns the API group and version from the given

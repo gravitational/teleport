@@ -16,18 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Meta } from '@storybook/react';
 import { useLayoutEffect } from 'react';
+
 import { Flex, Text } from 'design';
 
+import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import { makeReportWithIssuesFound } from 'teleterm/services/vnet/testHelpers';
 import AppContextProvider from 'teleterm/ui/appContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { VnetContextProvider } from 'teleterm/ui/Vnet';
 
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
-
 import { Connections } from './Connections';
+import { ConnectionsContextProvider } from './connectionsContext';
 
-export default {
+const meta: Meta = {
   title: 'Teleterm/TopBar/Connections',
   decorators: [
     Story => {
@@ -37,21 +41,9 @@ export default {
     },
   ],
 };
+export default meta;
 
 const rootClusterUri = '/clusters/foo';
-
-export function Story() {
-  const appContext = new MockAppContext();
-  prepareAppContext(appContext);
-
-  return (
-    <AppContextProvider value={appContext}>
-      <VnetContextProvider>
-        <Connections />
-      </VnetContextProvider>
-    </AppContextProvider>
-  );
-}
 
 export function MultipleClusters() {
   const appContext = new MockAppContext();
@@ -83,23 +75,102 @@ export function MultipleClusters() {
 
   return (
     <AppContextProvider value={appContext}>
-      <VnetContextProvider>
-        <Connections />
-      </VnetContextProvider>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </AppContextProvider>
   );
 }
 
-export function JustVnet() {
+export function SingleCluster() {
+  const appContext = new MockAppContext();
+  prepareAppContext(appContext);
+  appContext.clustersService.setState(draft => {
+    const rootCluster1 = makeRootCluster({
+      uri: rootClusterUri,
+      name: 'teleport.example.sh',
+      proxyHost: 'teleport.example.sh:443',
+    });
+    draft.clusters.set(rootCluster1.uri, rootCluster1);
+  });
+
+  return (
+    <AppContextProvider value={appContext}>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
+    </AppContextProvider>
+  );
+}
+
+export function JustVnetWithNoClusters() {
   const appContext = new MockAppContext();
   prepareAppContext(appContext);
   appContext.connectionTracker.getConnections = () => [];
 
   return (
     <AppContextProvider value={appContext}>
-      <VnetContextProvider>
-        <Connections />
-      </VnetContextProvider>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
+    </AppContextProvider>
+  );
+}
+
+export function VnetWarning() {
+  const appContext = new MockAppContext();
+  prepareAppContext(appContext);
+
+  appContext.statePersistenceService.putState({
+    ...appContext.statePersistenceService.getState(),
+    vnet: { autoStart: true },
+  });
+  appContext.workspacesService.setState(draft => {
+    draft.isInitialized = true;
+  });
+  appContext.vnet.runDiagnostics = () =>
+    new MockedUnaryCall({
+      report: makeReportWithIssuesFound(),
+    });
+
+  return (
+    <AppContextProvider value={appContext}>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
+    </AppContextProvider>
+  );
+}
+
+export function VnetError() {
+  const appContext = new MockAppContext();
+  prepareAppContext(appContext);
+
+  appContext.statePersistenceService.putState({
+    ...appContext.statePersistenceService.getState(),
+    vnet: { autoStart: true },
+  });
+  appContext.workspacesService.setState(draft => {
+    draft.isInitialized = true;
+  });
+  appContext.vnet.start = () =>
+    new MockedUnaryCall({}, new Error('something went wrong'));
+
+  return (
+    <AppContextProvider value={appContext}>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </AppContextProvider>
   );
 }
@@ -131,9 +202,11 @@ export function WithScroll() {
       maxWidth="600px"
     >
       <AppContextProvider value={appContext}>
-        <VnetContextProvider>
-          <Connections />
-        </VnetContextProvider>
+        <ConnectionsContextProvider>
+          <VnetContextProvider>
+            <Connections />
+          </VnetContextProvider>
+        </ConnectionsContextProvider>
       </AppContextProvider>
       <Text
         css={`
@@ -152,9 +225,11 @@ export function WithoutVnet() {
 
   return (
     <AppContextProvider value={appContext}>
-      <VnetContextProvider>
-        <Connections />
-      </VnetContextProvider>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </AppContextProvider>
   );
 }
@@ -164,9 +239,11 @@ export function EmptyWithoutVnet() {
 
   return (
     <AppContextProvider value={appContext}>
-      <VnetContextProvider>
-        <Connections />
-      </VnetContextProvider>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </AppContextProvider>
   );
 }
@@ -213,7 +290,6 @@ const prepareAppContext = (appContext: MockAppContext) => {
   appContext.connectionTracker.disconnectItem = async () => {};
   appContext.connectionTracker.removeItem = async () => {};
   appContext.connectionTracker.useState = () => null;
-  appContext.configService.set('feature.vnet', true);
 };
 
 const useOpenConnections = () => {
@@ -231,5 +307,5 @@ const useOpenConnections = () => {
     ) as HTMLButtonElement;
 
     button?.click();
-  });
+  }, []);
 };

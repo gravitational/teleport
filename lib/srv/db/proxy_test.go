@@ -252,7 +252,7 @@ func TestProxyProtocolPostgresStartup(t *testing.T) {
 					}
 					if needsTLSUpgrade {
 						tlsConn := tls.Client(conn, clientTLSCfg)
-						require.NoError(t, tlsConn.Handshake())
+						require.NoError(t, tlsConn.HandshakeContext(ctx))
 						conn = tlsConn
 					}
 				}

@@ -8,7 +8,7 @@ a file called `access-plugin.yaml`:
 
 ```yaml
 kind: role
-version: v5
+version: v7
 metadata:
   name: access-plugin
 spec:
@@ -23,6 +23,11 @@ spec:
       # are necessary. This is currently only supported for a subset of plugins.
       - resources: ['access_list']
         verbs: ['list', 'read']
+
+      # Optional: To display logins permitted by roles, the plugin also needs
+      # permission to read the role resource.
+      - resources: ['role']
+        verbs: ['read']
 
     # Optional: To display user-friendly names in resource-based Access
     # Requests instead of resource IDs, the plugin also needs permission
@@ -43,7 +48,7 @@ version: v2
 # labels can be further limited to only the resources that access can be
 # requested to.
 kind: role
-version: v5
+version: v7
 metadata:
   name: list-access-request-resources
 spec:
@@ -68,3 +73,5 @@ Create the user and role:
 ```code
 $ tctl create -f access-plugin.yaml
 ```
+
+(!docs/pages/includes/create-role-using-web.mdx!)

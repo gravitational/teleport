@@ -34,40 +34,100 @@ import (
 )
 
 func TestRequestParameters(t *testing.T) {
-	r := saveUserRequest{
-		Name:   "",
-		Roles:  nil,
-		Traits: userTraits{},
+	tests := []struct {
+		name         string
+		username     string
+		role         []string
+		traitsPreset *traitsPreset
+		allTraits    map[string][]string
+		errAssertion require.ErrorAssertionFunc
+	}{
+		{
+			name:         "empty request",
+			username:     "",
+			role:         nil,
+			traitsPreset: nil,
+			allTraits:    nil,
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.BadParameter("missing user name"))
+			},
+		},
+		{
+			name:         "empty name",
+			username:     "",
+			role:         []string{"testrole"},
+			traitsPreset: nil,
+			allTraits:    nil,
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.BadParameter("missing user name"))
+			},
+		},
+		{
+			name:         "empty role",
+			username:     "testuser",
+			role:         nil,
+			traitsPreset: nil,
+			allTraits:    nil,
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.BadParameter("missing roles"))
+			},
+		},
+		{
+			name:         "both traitsPreset and allTraits",
+			username:     "testuser",
+			role:         []string{"testrole"},
+			traitsPreset: &traitsPreset{Logins: &[]string{"root"}},
+			allTraits:    map[string][]string{"logins": {"root"}},
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.BadParameter("either traits or allTraits must be provided"))
+			},
+		},
+		{
+			name:         "user without traits",
+			username:     "testuser",
+			role:         []string{"testrole"},
+			traitsPreset: nil,
+			allTraits:    nil,
+			errAssertion: require.NoError,
+		},
+		{
+			name:         "user with traitsPreset",
+			username:     "testuser",
+			role:         []string{"testrole"},
+			traitsPreset: &traitsPreset{Logins: &[]string{"root"}},
+			allTraits:    map[string][]string{},
+			errAssertion: require.NoError,
+		},
+		{
+			name:         "user with allTraits",
+			username:     "testuser",
+			role:         []string{"testrole"},
+			traitsPreset: nil,
+			allTraits:    map[string][]string{"logins": {"root"}},
+			errAssertion: require.NoError,
+		},
 	}
-	require.True(t, trace.IsBadParameter(r.checkAndSetDefaults()))
 
-	r = saveUserRequest{
-		Name:   "",
-		Roles:  []string{"testrole"},
-		Traits: userTraits{},
-	}
-	require.True(t, trace.IsBadParameter(r.checkAndSetDefaults()))
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			r := saveUserRequest{
+				Name:         test.username,
+				Roles:        test.role,
+				TraitsPreset: test.traitsPreset,
+				AllTraits:    test.allTraits,
+			}
 
-	r = saveUserRequest{
-		Name:   "username",
-		Roles:  nil,
-		Traits: userTraits{},
+			err := r.checkAndSetDefaults()
+			test.errAssertion(t, err)
+		})
 	}
-	require.True(t, trace.IsBadParameter(r.checkAndSetDefaults()))
-
-	r = saveUserRequest{
-		Name:   "username",
-		Roles:  []string{"testrole"},
-		Traits: userTraits{},
-	}
-	require.NoError(t, r.checkAndSetDefaults())
 }
 
 func TestCRUDs(t *testing.T) {
 	u := saveUserRequest{
-		Name:   "testname",
-		Roles:  []string{"testrole"},
-		Traits: userTraits{},
+		Name:         "testname",
+		Roles:        []string{"testrole"},
+		TraitsPreset: nil,
 	}
 
 	m := &mockedUserAPIGetter{}
@@ -120,7 +180,7 @@ func TestCRUDs(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestUpdateUser_setTraits(t *testing.T) {
+func TestUpdateUser_updateUserTraitsPreset(t *testing.T) {
 	defaultRoles := []string{"role1"}
 	defaultLogins := []string{"login1"}
 	tests := []struct {
@@ -131,9 +191,9 @@ func TestUpdateUser_setTraits(t *testing.T) {
 		{
 			name: "Logins",
 			updateReq: saveUserRequest{
-				Name:   "setlogins",
-				Roles:  defaultRoles,
-				Traits: userTraits{Logins: &[]string{"login1", "login2"}},
+				Name:         "setlogins",
+				Roles:        defaultRoles,
+				TraitsPreset: &traitsPreset{Logins: &[]string{"login1", "login2"}},
 			},
 			expectedTraits: map[string][]string{
 				constants.TraitLogins: {"login1", "login2"},
@@ -144,7 +204,7 @@ func TestUpdateUser_setTraits(t *testing.T) {
 			updateReq: saveUserRequest{
 				Name:  "setdb",
 				Roles: defaultRoles,
-				Traits: userTraits{
+				TraitsPreset: &traitsPreset{
 					Logins:        &defaultLogins,
 					DatabaseUsers: &[]string{"dbuser1", "dbuser2"},
 					DatabaseNames: &[]string{"dbname1", "dbname2"},
@@ -161,7 +221,7 @@ func TestUpdateUser_setTraits(t *testing.T) {
 			updateReq: saveUserRequest{
 				Name:  "setkube",
 				Roles: defaultRoles,
-				Traits: userTraits{
+				TraitsPreset: &traitsPreset{
 					Logins:     &defaultLogins,
 					KubeUsers:  &[]string{"kubeuser1", "kubeuser2"},
 					KubeGroups: &[]string{"kubegroup1", "kubegroup2"},
@@ -178,7 +238,7 @@ func TestUpdateUser_setTraits(t *testing.T) {
 			updateReq: saveUserRequest{
 				Name:  "setwindowslogins",
 				Roles: defaultRoles,
-				Traits: userTraits{
+				TraitsPreset: &traitsPreset{
 					Logins:        &defaultLogins,
 					WindowsLogins: &[]string{"login1", "login2"},
 				},
@@ -193,7 +253,7 @@ func TestUpdateUser_setTraits(t *testing.T) {
 			updateReq: saveUserRequest{
 				Name:  "setawsrolearns",
 				Roles: defaultRoles,
-				Traits: userTraits{
+				TraitsPreset: &traitsPreset{
 					Logins:      &defaultLogins,
 					AWSRoleARNs: &[]string{"arn1", "arn2"},
 				},
@@ -206,9 +266,9 @@ func TestUpdateUser_setTraits(t *testing.T) {
 		{
 			name: "Deduplicates",
 			updateReq: saveUserRequest{
-				Name:   "deduplicates",
-				Roles:  defaultRoles,
-				Traits: userTraits{Logins: &[]string{"login1", "login2", "login1"}},
+				Name:         "deduplicates",
+				Roles:        defaultRoles,
+				TraitsPreset: &traitsPreset{Logins: &[]string{"login1", "login2", "login1"}},
 			},
 			expectedTraits: map[string][]string{
 				constants.TraitLogins: {"login1", "login2"},
@@ -217,9 +277,9 @@ func TestUpdateUser_setTraits(t *testing.T) {
 		{
 			name: "RemovesAll",
 			updateReq: saveUserRequest{
-				Name:   "removesall",
-				Roles:  defaultRoles,
-				Traits: userTraits{Logins: &[]string{}},
+				Name:         "removesall",
+				Roles:        defaultRoles,
+				TraitsPreset: &traitsPreset{Logins: &[]string{}},
 			},
 			expectedTraits: map[string][]string{
 				constants.TraitLogins: {},
@@ -268,6 +328,47 @@ func TestUpdateUser_setTraits(t *testing.T) {
 	}
 }
 
+func TestUpdateUser_setTraitsWithAllTraits(t *testing.T) {
+	defaultRoles := []string{"role1"}
+
+	// create user
+	user, err := types.NewUser("alice")
+	require.NoError(t, err)
+	user.SetRoles(defaultRoles)
+
+	m := &mockedUserAPIGetter{}
+	m.mockGetUser = func(ctx context.Context, name string, withSecrets bool) (types.User, error) {
+		return user, nil
+	}
+	m.mockUpdateUser = func(ctx context.Context, user types.User) (types.User, error) {
+		return user, nil
+	}
+
+	// update user with AllTraits
+	allTraitsWithValue := saveUserRequest{
+		Name:      "setlogins",
+		Roles:     defaultRoles,
+		AllTraits: map[string][]string{"logins": {"root", "admin"}},
+	}
+	_, err = updateUser(newRequest(t, allTraitsWithValue), m)
+	require.NoError(t, err)
+	require.Equal(t, allTraitsWithValue.AllTraits, user.GetTraits())
+
+	// verify other fields dont't change
+	require.ElementsMatch(t, user.GetRoles(), defaultRoles)
+
+	// update user with empty AllTraits
+	emptyAllTraits := saveUserRequest{
+		Name:      "setlogins",
+		Roles:     defaultRoles,
+		AllTraits: map[string][]string{},
+	}
+	_, err = updateUser(newRequest(t, emptyAllTraits), m)
+	require.NoError(t, err)
+	// empty AllTraits field should delete existing traits
+	require.Equal(t, emptyAllTraits.AllTraits, user.GetTraits())
+}
+
 func TestCRUDErrors(t *testing.T) {
 	m := &mockedUserAPIGetter{}
 	m.mockCreateUser = func(ctx context.Context, user types.User) (types.User, error) {
@@ -291,9 +392,9 @@ func TestCRUDErrors(t *testing.T) {
 	}
 
 	u := saveUserRequest{
-		Name:   "testname",
-		Roles:  []string{"testrole"},
-		Traits: userTraits{Logins: nil},
+		Name:         "testname",
+		Roles:        []string{"testrole"},
+		TraitsPreset: &traitsPreset{Logins: nil},
 	}
 
 	// update errors

@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -184,8 +183,10 @@ func test(repoPath string, ref string, changedFiles []string) {
 			bail(err)
 		}
 
+		skipAll := slices.Contains(testsToSkip, "*")
+
 		for _, n := range r.New {
-			if slices.Contains(testsToSkip, n.RefName) || slices.Contains(testsToSkip, "*") {
+			if (skipAll || slices.Contains(testsToSkip, n.RefName)) && !slices.Contains(testsToSkip, "!"+n.RefName) {
 				log.Printf("-skipping %q (%s)\n", n.RefName, dir)
 				continue
 			}
@@ -198,7 +199,7 @@ func test(repoPath string, ref string, changedFiles []string) {
 		}
 
 		for _, n := range r.Changed {
-			if slices.Contains(testsToSkip, n.RefName) || slices.Contains(testsToSkip, "*") {
+			if (skipAll || slices.Contains(testsToSkip, n.RefName)) && !slices.Contains(testsToSkip, "!"+n.RefName) {
 				log.Printf("-skipping %q (%s)\n", n.RefName, dir)
 				continue
 			}
@@ -242,7 +243,7 @@ func inspect(repoPath string, ref string, changedFiles []string, fn func(string,
 			}
 		}
 
-		head, err := parseMethodMap(path.Join(repoPath, filename), nil, runners)
+		head, err := parseMethodMap(filepath.Join(repoPath, filename), nil, runners)
 		if err != nil {
 			return trace.Wrap(err)
 		}

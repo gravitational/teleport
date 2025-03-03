@@ -23,7 +23,7 @@ export const StepTitle = styled.div`
   align-items: center;
 `;
 
-export const StepsContainer = styled.div<{ active: boolean }>`
+export const StepsContainer = styled.div<{ active?: boolean }>`
   display: flex;
   flex-direction: column;
   color: ${p => (p.active ? 'inherit' : p.theme.colors.text.slightlyMuted)};

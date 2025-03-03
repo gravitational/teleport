@@ -43,6 +43,27 @@ describe('subscribeWithSelector', () => {
     expect(barUpdatedCallback).toHaveBeenCalledTimes(1);
   });
 
+  it('returns a function which unsubscribes', () => {
+    const store = new TestStore();
+
+    const fooUpdatedCallback1 = jest.fn();
+    store.subscribeWithSelector(state => state.foo, fooUpdatedCallback1);
+
+    const fooUpdatedCallback2 = jest.fn();
+    const unsubscribe = store.subscribeWithSelector(
+      state => state.foo,
+      fooUpdatedCallback2
+    );
+    unsubscribe();
+
+    store.setState(draft => {
+      draft.foo.set('lorem', 'ipsum');
+    });
+
+    expect(fooUpdatedCallback1).toHaveBeenCalledTimes(1);
+    expect(fooUpdatedCallback2).not.toHaveBeenCalled();
+  });
+
   it('calls the callbacks if multiple parts of the state get updated at the same time', () => {
     const store = new TestStore();
 
@@ -64,15 +85,37 @@ describe('subscribeWithSelector', () => {
     expect(barUpdatedCallback).toHaveBeenCalledTimes(1);
     expect(quuxUpdatedCallback).not.toHaveBeenCalled();
   });
+
+  it('calls the callbacks if a deeper part of the state gets updated', () => {
+    const store = new TestStore();
+
+    const bazUpdatedCallback = jest.fn();
+    store.subscribeWithSelector(state => state.baz, bazUpdatedCallback);
+
+    store.setState(draft => {
+      // Update baz.items while the selector is set to just baz.
+      draft.baz.items.set('lorem', 'ipsum');
+    });
+
+    expect(bazUpdatedCallback).toHaveBeenCalledTimes(1);
+  });
 });
 
 class TestStore extends ImmutableStore<{
   foo: Map<string, string>;
   bar: Map<string, string>;
   quux: Map<string, string>;
+  baz: {
+    items: Map<string, string>;
+  };
 }> {
   constructor() {
     super();
-    this.setState(() => ({ foo: new Map(), bar: new Map(), quux: new Map() }));
+    this.setState(() => ({
+      foo: new Map(),
+      bar: new Map(),
+      quux: new Map(),
+      baz: { items: new Map() },
+    }));
   }
 }

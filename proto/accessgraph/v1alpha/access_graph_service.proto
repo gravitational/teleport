@@ -21,7 +21,12 @@ syntax = "proto3";
 package accessgraph.v1alpha;
 
 import "accessgraph/v1alpha/aws.proto";
+import "accessgraph/v1alpha/azure.proto";
+import "accessgraph/v1alpha/entra.proto";
+import "accessgraph/v1alpha/events.proto";
+import "accessgraph/v1alpha/gitlab.proto";
 import "accessgraph/v1alpha/graph.proto";
+import "accessgraph/v1alpha/netiq.proto";
 import "accessgraph/v1alpha/resources.proto";
 
 option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
@@ -52,6 +57,11 @@ service AccessGraphService {
   // to the access graph service and resumes sending events.
   rpc EventsStream(stream EventsStreamRequest) returns (EventsStreamResponse);
 
+  // EventsStreamV2 is a stream of commands to the access graph service.
+  // This stream works the same way as EventsStream, but it returns a stream of events
+  // instead of a single response.
+  rpc EventsStreamV2(stream EventsStreamV2Request) returns (stream EventsStreamV2Response);
+
   // Register submits a new tenant representing this Teleport cluster to the TAG service,
   // identified by its HostCA certificate.
   // The method is idempotent: it succeeds if the tenant has already registered and has the specific CA associated.
@@ -61,7 +71,7 @@ service AccessGraphService {
   rpc Register(RegisterRequest) returns (RegisterResponse);
 
   // ReplaceCAs is a request to completely replace the set of Host CAs that authenticate this tenant with the given set.
-  // This accomodates Teleport Host CA rotation. In a transition from certificate authority A to authority B,
+  // This accommodates Teleport Host CA rotation. In a transition from certificate authority A to authority B,
   // the client is expected to call the RPC as follows:
   // 1. Authenticate via existing authority A and call ReplaceCAs([A, B]) -- introduce the incoming CA
   // 2.a. If rotation succeeds, authenticate via the new authority B and call ReplaceCAs([B]) -- delete the previous CA
@@ -72,6 +82,18 @@ service AccessGraphService {
   // and pushes all AWS resources and following events to it.
   // This stream is used to sync the access graph with the AWS database state.
   rpc AWSEventsStream(stream AWSEventsStreamRequest) returns (AWSEventsStreamResponse);
+
+  // GitlabEventsStream is a stream of commands to the Gitlab importer.
+  rpc GitlabEventsStream(stream GitlabEventsStreamRequest) returns (stream GitlabEventsStreamResponse);
+
+  // EntraEventsStream is a stream of commands to the Entra ID SSO importer.
+  rpc EntraEventsStream(stream EntraEventsStreamRequest) returns (stream EntraEventsStreamResponse);
+
+  // AzureEventsStream is a stream of commands to the Azure importer
+  rpc AzureEventsStream(stream AzureEventsStreamRequest) returns (stream AzureEventsStreamResponse);
+
+  // NetIQEventsStream is a stream of commands to the NetIQ importer.
+  rpc NetIQEventsStream(stream NetIQEventsStreamRequest) returns (stream NetIQEventsStreamResponse);
 }
 
 // QueryRequest is a request to query the access graph.
@@ -126,12 +148,55 @@ message EventsStreamRequest {
   }
 }
 
+// EventsStreamV2Request is a request to send commands to the access graph.
+// This command is used to sync the access graph with the Teleport database state.
+message EventsStreamV2Request {
+  // operation contains the desired operation
+  oneof operation {
+    // sync is a command to sync the access graph with the Teleport database state.
+    // it's issued once Teleport finishes syncing all resources with the database.
+    SyncOperation sync = 1;
+    // upsert is a command to put a resource into the access graph or update it.
+    ResourceList upsert = 2;
+    // delete is a command to delete a resource from the access graph when it's deleted from Teleport.
+    ResourceHeaderList delete = 3;
+    // access_lists_members is a command to upsert access lists members.
+    // It's issued when a user is added to an access list or when their membership is updated.
+    // It's also issued when a user membership expires but the user remains in the access list.
+    // In that case, the state of the user reflects the expiration reason.
+    AccessListsMembers access_lists_members = 4;
+    // exclude_access_list_members is a command to exclude access lists members
+    // when they are manually removed from the access list.
+    // If their membership remains but it's expired, they are not excluded
+    // from the access list but they don't receive any access - in that case,
+    // the request is [access_lists_members].
+    ExcludeAccessListsMembers exclude_access_list_members = 5;
+  }
+}
+
 // SyncOperation is a command that Teleport sends to the access graph service
 // at the end of the sync process.
 message SyncOperation {}
 
 // EventsStreamResponse is the response from EventsStream.
 message EventsStreamResponse {}
+
+// EventsStreamV2Response is the response from EventsStreamV2.
+message EventsStreamV2Response {
+  // action is a action that should be performed by Teleport on behalf of the access graph service.
+  oneof action {
+    // event is a audit event that should be logged by Teleport.
+    AuditEvent event = 1;
+  }
+}
+
+// AuditEvent is an event that should be logged by Teleport.
+message AuditEvent {
+  oneof event {
+    // access_path_changed is an event that should be logged when the access path changes.
+    AccessPathChanged access_path_changed = 1;
+  }
+}
 
 // RegisterRequest is the request for Register.
 message RegisterRequest {
@@ -174,3 +239,76 @@ message AWSSyncOperation {}
 
 // AWSEventsStreamResponse is the response from AWSEventsStream.
 message AWSEventsStreamResponse {}
+
+// GitlabEventsStreamRequest is a request to send commands to the Gitlab importer.
+message GitlabEventsStreamRequest {
+  // operation contains the desired operation
+  oneof operation {
+    // sync is a command to sync the access graph with the Teleport database state.
+    // it's issued once Teleport finishes syncing all resources with the database.
+    GitlabSyncOperation sync = 1;
+    // upsert is a command to put a resource into the access graph or update it.
+    GitlabResourceList upsert = 2;
+    // delete is a command to delete a resource from the access graph when it's deleted from Teleport.
+    GitlabResourceList delete = 3;
+  }
+}
+
+// GitlabEventsStreamResponse is the response from GitlabEventsStream.
+message GitlabEventsStreamResponse {}
+
+// EntraEventsStreamRequest is a request to send commands to the Gitlab importer.
+message EntraEventsStreamRequest {
+  // operation contains the desired operation
+  oneof operation {
+    // sync is a command to sync the access graph with the Teleport database state.
+    // it's issued once Teleport finishes syncing all resources with the database.
+    EntraSyncOperation sync = 1;
+    // upsert is a command to put a resource into the access graph or update it.
+    EntraResourceList upsert = 2;
+    // delete is a command to delete a resource from the access graph when it's deleted from Teleport.
+    EntraResourceList delete = 3;
+  }
+}
+
+// EntraEventsStreamResponse is the response from GitlabEventsStream.
+message EntraEventsStreamResponse {}
+
+// AzureEventsStreamRequest is a request to send commands to the Azure importer
+message AzureEventsStreamRequest {
+  oneof operation {
+    // sync is a command to sync the access graph with the Teleport database state.
+    // it's issued once Teleport finishes syncing all resources with the database.
+    AzureSyncOperation sync = 1;
+    // upsert is a command to put a resource into the access graph or update it.
+    AzureResourceList upsert = 2;
+    // delete is a command to delete a resource from the access graph when it's deleted from Teleport.
+    AzureResourceList delete = 3;
+  }
+}
+
+// AzureSyncOperation is a command that Teleport sends to the access graph service
+// at the end of the sync process.
+message AzureSyncOperation {}
+
+// AzureEventsStreamResponse is a response from AzureEventsStream
+message AzureEventsStreamResponse {}
+
+// NetIQEventsStreamRequest is a request to send commands to the NetIQ importer
+message NetIQEventsStreamRequest {
+  oneof operation {
+    // sync is a command to sync the access graph with the NetIQ state.
+    NetIQSyncOperation sync = 1;
+    // upsert is a command to put a resource into the access graph or update it.
+    NetIQResourceList upsert = 2;
+    // delete is a command to delete a resource from the access graph when it's deleted.
+    NetIQResourceList delete = 3;
+  }
+}
+
+// NetIQSyncOperation is a command that Teleport sends to the access graph service
+// at the end of the sync process.
+message NetIQSyncOperation {}
+
+// NetIQEventsStreamResponse is a response from NetIQEventsStream
+message NetIQEventsStreamResponse {}

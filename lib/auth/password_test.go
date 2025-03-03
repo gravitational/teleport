@@ -22,7 +22,7 @@ import (
 	"context"
 	"encoding/base32"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"testing"
 	"time"
 
@@ -40,7 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
-	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -77,16 +77,16 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 		ClusterName: "me.localhost",
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		s.bk.Close()
+	})
+
 	authConfig := &InitConfig{
 		ClusterName:            clusterName,
 		Backend:                s.bk,
+		VersionStorage:         NewFakeTeleportVersion(),
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
-		KeyStoreConfig: keystore.Config{
-			Software: keystore.SoftwareConfig{
-				RSAKeyPairSource: authority.New().GenerateKeyPair,
-			},
-		},
 	}
 	s.a, err = NewServer(authConfig)
 	require.NoError(t, err)
@@ -120,11 +120,12 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 func TestUserNotFound(t *testing.T) {
 	t.Parallel()
 
+	ctx := context.Background()
 	s := setupPasswordSuite(t)
 	username := "unknown-user"
 	password := "feefiefoefum"
 
-	err := s.a.checkPasswordWOToken(username, []byte(password))
+	err := s.a.checkPasswordWOToken(ctx, username, []byte(password))
 	require.Error(t, err)
 	// Make sure the error is not a NotFound. That would be a username oracle.
 	require.True(t, trace.IsBadParameter(err))
@@ -147,18 +148,19 @@ func TestPasswordLengthChange(t *testing.T) {
 
 	username := fmt.Sprintf("llama%v@goteleport.com", rand.Int())
 	password := []byte("a")
-	_, _, err = CreateUserAndRole(authServer, username, []string{username}, nil)
+	u, _, err := CreateUserAndRole(authServer, username, []string{username}, nil)
 	require.NoError(t, err)
 
 	hash, err := utils.BcryptFromPassword(password, bcrypt.DefaultCost)
 	require.NoError(t, err)
 
 	// Set an initial password that is shorter than minimum length
-	err = authServer.UpsertPasswordHash(username, hash)
+	u.SetLocalAuth(&types.LocalAuthSecrets{PasswordHash: hash})
+	authServer.UpsertUser(ctx, u)
 	require.NoError(t, err)
 
 	// Ensure that a shorter password still works for auth
-	err = authServer.checkPasswordWOToken(username, password)
+	err = authServer.checkPasswordWOToken(ctx, username, password)
 	require.NoError(t, err)
 }
 
@@ -356,7 +358,7 @@ func TestServer_ChangePassword(t *testing.T) {
 			require.NoError(t, userClient.ChangePassword(ctx, req), "changing password")
 
 			// Did the password change take effect?
-			require.NoError(t, authServer.checkPasswordWOToken(username, newPass), "password change didn't take effect")
+			require.NoError(t, authServer.checkPasswordWOToken(ctx, username, newPass), "password change didn't take effect")
 		})
 	}
 }
@@ -377,10 +379,11 @@ func TestServer_ChangePassword_Fails(t *testing.T) {
 	password := mfa.Password
 
 	tests := []struct {
-		name             string
-		oldPass          string
-		device           *TestDevice
-		challengeRequest *proto.CreateAuthenticateChallengeRequest
+		name                     string
+		oldPass                  string
+		device                   *TestDevice
+		challengeRequest         *proto.CreateAuthenticateChallengeRequest
+		createChallengeAssertion require.ErrorAssertionFunc
 	}{
 		{
 			name:    "No old password, TOTP challenge",
@@ -395,6 +398,7 @@ func TestServer_ChangePassword_Fails(t *testing.T) {
 					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_CHANGE_PASSWORD,
 				},
 			},
+			createChallengeAssertion: require.NoError,
 		},
 		{
 			name:    "No old password, WebAuthn challenge",
@@ -409,12 +413,14 @@ func TestServer_ChangePassword_Fails(t *testing.T) {
 					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_CHANGE_PASSWORD,
 				},
 			},
+			createChallengeAssertion: require.NoError,
 		},
 		{
-			name:             "Empty challenge request",
-			oldPass:          password,
-			device:           mfa.WebDev,
-			challengeRequest: &proto.CreateAuthenticateChallengeRequest{},
+			name:                     "Empty challenge request",
+			oldPass:                  password,
+			device:                   mfa.WebDev,
+			challengeRequest:         &proto.CreateAuthenticateChallengeRequest{},
+			createChallengeAssertion: require.Error,
 		},
 		{
 			name:    "Unspecified challenge scope",
@@ -426,6 +432,7 @@ func TestServer_ChangePassword_Fails(t *testing.T) {
 				},
 				ChallengeExtensions: &mfav1.ChallengeExtensions{},
 			},
+			createChallengeAssertion: require.Error,
 		},
 		{
 			name:    "Illegal challenge scope",
@@ -439,6 +446,7 @@ func TestServer_ChangePassword_Fails(t *testing.T) {
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				},
 			},
+			createChallengeAssertion: require.NoError,
 		},
 	}
 
@@ -453,7 +461,10 @@ func TestServer_ChangePassword_Fails(t *testing.T) {
 
 			// Acquire and solve an MFA challenge.
 			mfaChallenge, err := userClient.CreateAuthenticateChallenge(ctx, test.challengeRequest)
-			require.NoError(t, err, "creating challenge")
+			test.createChallengeAssertion(t, err, "creating challenge")
+			if err != nil {
+				return
+			}
 			mfaResp, err := test.device.SolveAuthn(mfaChallenge)
 			require.NoError(t, err, "solving challenge with device")
 
@@ -476,7 +487,7 @@ func TestServer_ChangePassword_Fails(t *testing.T) {
 				err, trace.Unwrap(err))
 
 			// Did the password change take effect?
-			assert.Error(t, authServer.checkPasswordWOToken(username, newPass), "password was changed")
+			assert.Error(t, authServer.checkPasswordWOToken(ctx, username, newPass), "password was changed")
 		})
 	}
 }
@@ -705,7 +716,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 
 			c.setAuthPreference(t)
 
-			resetToken, err := authServer.CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+			resetToken, err := authServer.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 				Name: username,
 			})
 			require.NoError(t, err)
@@ -723,7 +734,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 
 			// Test password is updated.
 			if len(validReq.NewPassword) != 0 {
-				err := authServer.checkPasswordWOToken(username, validReq.NewPassword)
+				err := authServer.checkPasswordWOToken(ctx, username, validReq.NewPassword)
 				require.NoError(t, err)
 			}
 
@@ -765,7 +776,7 @@ func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 	_, _, err = CreateUserAndRole(s.a, username, []string{username}, nil)
 	require.NoError(t, err)
 
-	token, err := s.a.CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+	token, err := s.a.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: username,
 	})
 	require.NoError(t, err)
@@ -843,6 +854,34 @@ func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 		NewPassword: validPassword,
 	})
 	require.Error(t, err)
+}
+
+func TestResetPassword(t *testing.T) {
+	t.Parallel()
+	s := setupPasswordSuite(t)
+
+	_, _, err := CreateUserAndRole(s.a, "dave", []string{"dave"}, nil)
+	require.NoError(t, err)
+
+	// Using the Identity service makes it easier to set up the test case.
+	err = s.a.Identity.UpsertPassword("dave", []byte("it's full of stars!"))
+	require.NoError(t, err)
+
+	// Reset password.
+	ctx := context.Background()
+	err = s.a.resetPassword(ctx, "dave")
+	require.NoError(t, err)
+
+	// Make sure that the password has been reset.
+	u, err := s.a.Identity.GetUser(ctx, "dave", true /* withSecrets */)
+	require.NoError(t, err)
+	assert.Nil(t, u.GetLocalAuth(), "user LocalAuth not nil")
+	assert.Equal(t, types.PasswordState_PASSWORD_STATE_UNSET, u.GetPasswordState())
+
+	// Make sure that we can reset once again (i.e. we don't complain if there's
+	// no password).
+	err = s.a.resetPassword(ctx, "dave")
+	require.NoError(t, err)
 }
 
 func (s *passwordSuite) shouldLockAfterFailedAttempts(t *testing.T, req *proto.ChangePasswordRequest) {

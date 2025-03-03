@@ -27,9 +27,11 @@ import (
 )
 
 func TestPagerdutyPluginOSS(t *testing.T) {
-	pagerdutySuite := &PagerdutySuite{
-		AccessRequestSuite: &integration.AccessRequestSuite{
-			AuthHelper: &integration.OSSAuthHelper{},
+	pagerdutySuite := &PagerdutySuiteOSS{
+		PagerdutyBaseSuite: PagerdutyBaseSuite{
+			AccessRequestSuite: &integration.AccessRequestSuite{
+				AuthHelper: &integration.MinimalAuthHelper{},
+			},
 		},
 	}
 	suite.Run(t, pagerdutySuite)

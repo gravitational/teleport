@@ -20,12 +20,12 @@ package upgradewindow
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -34,8 +34,8 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/kubernetes"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
+	"github.com/gravitational/teleport/lib/versioncontrol"
 )
 
 const (
@@ -45,8 +45,8 @@ const (
 	// unitScheduleFile is the name of the file to which the unit schedule is exported.
 	unitScheduleFile = "schedule"
 
-	// unitConfigDir is the configuration directory of the teleport-upgrade unit.
-	unitConfigDir = "/etc/teleport-upgrade.d"
+	// scheduleNop is the name of the no-op schedule.
+	scheduleNop = "nop"
 )
 
 // ExportFunc represents the ExportUpgradeWindows rpc exposed by auth servers.
@@ -121,7 +121,7 @@ func (c *ExporterConfig[C]) CheckAndSetDefaults() error {
 	fastExport := os.Getenv("TELEPORT_UNSTABLE_FAST_MW_EXPORT") == "yes"
 
 	if c.UnhealthyThreshold == 0 {
-		// 9m is fairly arbitrary, but was picked based on the the idea that a good unhealthy threshold aught to be
+		// 9m is fairly arbitrary, but was picked based on the idea that a good unhealthy threshold aught to be
 		// long enough to minimize sensitivity to control plane restarts, but short enough that by the time an instance
 		// appears offline in the teleport UI, we aught to be able to assume that its unhealthy status has been propagated
 		// to its upgrader.
@@ -147,7 +147,7 @@ func (c *ExporterConfig[C]) CheckAndSetDefaults() error {
 		// note: we add an extra millisecond since FullJitter can sometimes return 0, but our interval helpers interpret FirstDuration=0
 		// as meaning that we don't want a custom first duration. this is usually fine, but since the actual export interval is so long,
 		// it is important that a shorter first duration is always observed.
-		c.FirstExport = time.Millisecond + utils.FullJitter(c.UnhealthyThreshold/2)
+		c.FirstExport = time.Millisecond + retryutils.FullJitter(c.UnhealthyThreshold/2)
 	}
 
 	return nil
@@ -170,7 +170,7 @@ func NewExporter[C contextLike](cfg ExporterConfig[C]) (*Exporter[C], error) {
 	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
 		Driver: retryutils.NewExponentialDriver(cfg.UnhealthyThreshold / 16),
 		Max:    cfg.UnhealthyThreshold,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 	})
 
 	if err != nil {
@@ -206,9 +206,9 @@ func (e *Exporter[C]) event(event testEvent) {
 
 func (e *Exporter[C]) run(ctx context.Context) {
 	exportInterval := interval.New(interval.Config{
-		FirstDuration: utils.FullJitter(e.cfg.FirstExport),
+		FirstDuration: retryutils.FullJitter(e.cfg.FirstExport),
 		Duration:      e.cfg.ExportInterval,
-		Jitter:        retryutils.NewSeventhJitter(),
+		Jitter:        retryutils.SeventhJitter,
 	})
 	defer exportInterval.Stop()
 
@@ -235,7 +235,7 @@ Outer:
 			// if we lose connectivity with auth for too long, forcibly reset any existing schedule.
 			// this frees up the upgrader to attempt an upgrade at its discretion.
 			if err := e.cfg.Driver.Reset(ctx); err != nil {
-				log.Warnf("Failed to perform %q maintenance window reset: %v", e.cfg.Driver.Kind(), err)
+				slog.WarnContext(ctx, "Failed to perform maintenance window reset", "upgrader_kind", e.cfg.Driver.Kind(), "error", err)
 			}
 			e.event(resetFromRun)
 		case <-ctx.Done():
@@ -255,7 +255,7 @@ func (e *Exporter[C]) exportWithRetry(ctx context.Context) {
 			// failure state appears persistent. reset and yield back
 			// to outer loop to wait for our next scheduled attempt.
 			if err := e.cfg.Driver.Reset(ctx); err != nil {
-				log.Warnf("Failed to perform %q maintenance window reset: %v", e.cfg.Driver.Kind(), err)
+				slog.WarnContext(ctx, "Failed to perform maintenance window reset", "upgrader_kind", e.cfg.Driver.Kind(), "error", err)
 			}
 			e.event(resetFromExport)
 			e.event(exportFailure)
@@ -281,7 +281,7 @@ func (e *Exporter[C]) exportWithRetry(ctx context.Context) {
 		})
 
 		if err != nil {
-			log.Warnf("Failed to import %q maintenance window from auth: %v", e.cfg.Driver.Kind(), err)
+			slog.WarnContext(ctx, "Failed to import maintenance window from auth", "upgrader_kind", e.cfg.Driver.Kind(), "error", err)
 			e.retry.Inc()
 			e.event(getExportErr)
 			continue
@@ -289,13 +289,13 @@ func (e *Exporter[C]) exportWithRetry(ctx context.Context) {
 
 		// sync exported windows out to our upgrader
 		if err := e.cfg.Driver.Sync(ctx, rsp); err != nil {
-			log.Warnf("Failed to sync %q maintenance window: %v", e.cfg.Driver.Kind(), err)
+			slog.WarnContext(ctx, "Failed to sync %q maintenance window", "upgrader_kind", e.cfg.Driver.Kind(), "error", err)
 			e.retry.Inc()
 			e.event(syncExportErr)
 			continue
 		}
 
-		log.Infof("Successfully synced %q upgrader maintenance window value.", e.cfg.Driver.Kind())
+		slog.InfoContext(ctx, "Successfully synced upgrader maintenance window value", "upgrader_kind", e.cfg.Driver.Kind())
 		e.event(exportSuccess)
 		return
 	}
@@ -316,6 +316,12 @@ type Driver interface {
 	// called if teleport experiences prolonged loss of auth connectivity, which may be an indicator
 	// that the control plane has been upgraded s.t. this agent is no longer compatible.
 	Reset(ctx context.Context) error
+
+	// ForceNop sets the NOP schedule, ensuring that updates do not happen.
+	// This schedule was originally only used for testing, but now it is also used by the
+	// teleport-update binary to protect against package updates that could interfere with
+	// the new update system.
+	ForceNop(ctx context.Context) error
 }
 
 // NewDriver sets up a new export driver corresponding to the specified upgrader kind.
@@ -364,13 +370,23 @@ func (e *kubeDriver) Kind() string {
 }
 
 func (e *kubeDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindowsResponse) error {
-	if rsp.KubeControllerSchedule == "" {
+	return trace.Wrap(e.setSchedule(ctx, rsp.KubeControllerSchedule))
+}
+
+func (e *kubeDriver) ForceNop(ctx context.Context) error {
+	return trace.Wrap(e.setSchedule(ctx, scheduleNop))
+}
+
+func (e *kubeDriver) setSchedule(ctx context.Context, schedule string) error {
+	if schedule == "" {
 		return e.Reset(ctx)
 	}
 
 	_, err := e.cfg.Backend.Put(ctx, backend.Item{
-		Key:   []byte(kubeSchedKey),
-		Value: []byte(rsp.KubeControllerSchedule),
+		// backend.KeyFromString is intentionally used here instead of backend.NewKey
+		// because existing backend items were persisted without the leading /.
+		Key:   backend.KeyFromString(kubeSchedKey),
+		Value: []byte(schedule),
 	})
 
 	return trace.Wrap(err)
@@ -380,7 +396,9 @@ func (e *kubeDriver) Reset(ctx context.Context) error {
 	// kube backend doesn't support deletes right now, so just set
 	// the key to empty.
 	_, err := e.cfg.Backend.Put(ctx, backend.Item{
-		Key:   []byte(kubeSchedKey),
+		// backend.KeyFromString is intentionally used here instead of backend.NewKey
+		// because existing backend items were persisted without the leading /.
+		Key:   backend.KeyFromString(kubeSchedKey),
 		Value: []byte{},
 	})
 
@@ -399,7 +417,7 @@ type systemdDriver struct {
 
 func NewSystemdUnitDriver(cfg SystemdUnitDriverConfig) (Driver, error) {
 	if cfg.ConfigDir == "" {
-		cfg.ConfigDir = unitConfigDir
+		cfg.ConfigDir = versioncontrol.UnitConfigDir
 	}
 
 	return &systemdDriver{cfg: cfg}, nil
@@ -410,7 +428,15 @@ func (e *systemdDriver) Kind() string {
 }
 
 func (e *systemdDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindowsResponse) error {
-	if len(rsp.SystemdUnitSchedule) == 0 {
+	return trace.Wrap(e.setSchedule(ctx, rsp.SystemdUnitSchedule))
+}
+
+func (e *systemdDriver) ForceNop(ctx context.Context) error {
+	return trace.Wrap(e.setSchedule(ctx, scheduleNop))
+}
+
+func (e *systemdDriver) setSchedule(ctx context.Context, schedule string) error {
+	if len(schedule) == 0 {
 		// treat an empty schedule value as equivalent to a reset
 		return e.Reset(ctx)
 	}
@@ -422,7 +448,7 @@ func (e *systemdDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindows
 	}
 
 	// export schedule file. if created it is set to 644, which is reasonable for a sensitive but non-secret config value.
-	if err := os.WriteFile(e.scheduleFile(), []byte(rsp.SystemdUnitSchedule), defaults.FilePermissions); err != nil {
+	if err := os.WriteFile(e.scheduleFile(), []byte(schedule), defaults.FilePermissions); err != nil {
 		return trace.Errorf("failed to write schedule file: %v", err)
 	}
 

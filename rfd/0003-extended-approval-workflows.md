@@ -343,7 +343,7 @@ to the node/or sees the new list of nodes.
 
 #### Automatic approval for contractors
 
-Let's go back the the example of 'Acme Co' and craft a plugin design that will
+Let's go back to the example of 'Acme Co' and craft a plugin design that will
 approve the request to cluster whenever there is a ticket assigned to a user.
 
 **Roles**
@@ -422,7 +422,7 @@ the request, they will see the clusters to access.
 All request events will be tracked by Teleports Audit Log. These will recorded under
 access_request.  These are tracked using these two event codes.
 
-`T5000I` - AccessRequestCreateCode is the the access request creation code.
+`T5000I` - AccessRequestCreateCode is the access request creation code.
 `T5001I` - AccessRequestUpdateCode is the access request state update code.
 
 AccessRequestUpdateCode provides an option for plugins to update the state off a request

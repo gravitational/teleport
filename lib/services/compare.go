@@ -27,26 +27,29 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/compare"
+	"github.com/gravitational/teleport/api/types/header"
 )
-
-// IsEqual[T] will be used instead of cmp.Equal if a resource implements it.
-type IsEqual[T any] interface {
-	IsEqual(T) bool
-}
 
 // CompareResources compares two resources by all significant fields.
 func CompareResources[T any](resA, resB T) int {
 	var equal bool
-	if hasEqual, ok := any(resA).(IsEqual[T]); ok {
+	if hasEqual, ok := any(resA).(compare.IsEqual[T]); ok {
 		equal = hasEqual.IsEqual(resB)
 	} else {
 		equal = cmp.Equal(resA, resB,
 			ignoreProtoXXXFields(),
-			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 			cmpopts.IgnoreFields(types.DatabaseV3{}, "Status"),
 			cmpopts.IgnoreFields(types.UserSpecV2{}, "Status"),
 			cmpopts.IgnoreFields(accesslist.AccessList{}, "Status"),
+			cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 			cmpopts.IgnoreUnexported(headerv1.Metadata{}),
+
+			// Managed by IneligibleStatusReconciler, ignored by all others.
+			cmpopts.IgnoreFields(accesslist.AccessListMemberSpec{}, "IneligibleStatus"),
+			cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),
+
 			cmpopts.EquateEmpty(),
 		)
 	}

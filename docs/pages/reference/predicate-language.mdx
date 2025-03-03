@@ -17,8 +17,8 @@ The predicate language uses a slightly different syntax depending on whether it 
 Some fields in Teleport's role resources use the predicate language to define
 the scope of a role's permissions:
 
-- [Dynamic Impersonation](../access-controls/guides/impersonation.mdx#filter-fields)
-- [RBAC for sessions](../access-controls/reference.mdx#rbac-for-sessions)
+- [Dynamic Impersonation](../admin-guides/access-controls/guides/impersonation.mdx)
+- [RBAC for sessions](access-controls/roles.mdx)
 
 When used in role resources, the predicate language supports the following operators:
 
@@ -72,21 +72,14 @@ The language also supports the following functions:
 | `split(labels["foo"], ",")`                  | converts a delimited string into a list                    |
 | `contains(split(labels["foo"], ","), "bar")` | determines if a value exists in a list                     |
 
-See some [examples](cli.mdx#filter-examples) of the different ways you can filter resources.
+See some [examples](cli/cli.mdx) of the different ways you can filter resources.
 
 ## Label expressions
-
-<Admonition type="warning">
-Label expressions are available starting in Teleport version `13.1.1`.
-All components of your Teleport cluster must be upgraded to version `13.1.1`
-or newer before you will be able to use label expressions.
-This includes the Auth Service and **all** Teleport agents.
-</Admonition>
 
 Label expressions can be used in Teleport roles to define access to resources
 with custom logic.
 Check out the Access Controls
-[reference page](../access-controls/reference.mdx#label-expressions)
+[reference page](access-controls/roles.mdx)
 for an overview of label expressions and where they can be used.
 
 Label expressions support a predicate language with the following fields

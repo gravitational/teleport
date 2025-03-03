@@ -1,6 +1,6 @@
 ARG BASE_IMAGE=gcr.io/distroless/static-debian12
 
-FROM golang:1.21-bookworm as builder
+FROM golang:1.22-bookworm as builder
 
 WORKDIR /go/src/github.com/gravitational/teleport/examples/teleport-usage
 

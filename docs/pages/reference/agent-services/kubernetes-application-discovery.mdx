@@ -1,0 +1,144 @@
+---
+title: Kubernetes Application Discovery Reference
+description: This guide is a comprehensive reference of configuration options for automatically enrolling Kubernetes applications with Teleport.
+---
+
+Kubernetes Application Discovery involves the Teleport Discovery Service,
+Teleport Application Service, and annotations on Kubernetes services. This guide
+shows you how to configure each of these to manage Kubernetes Application
+Discovery in your Kubernetes cluster.
+
+## Configuring Teleport Agent Helm chart
+
+You can configure scope of services discovery by setting value `kubernetesDiscovery` of the chart. For more information
+please see [helm chart documentation](../helm-reference/teleport-kube-agent.mdx).
+
+`values.yaml` example:
+
+```yaml
+kubernetesDiscovery:
+- types: ["app"]
+  namespaces: [ "toronto", "porto" ]
+  labels:
+    env: staging
+- types: ["app"]
+  namespaces: [ "seattle", "oakland" ]
+  labels:
+    env: testing
+```
+
+## Configuring Kubernetes Apps Discovery manually
+
+While the `teleport-kube-agent` Helm chart will set up configuration for you
+automatically, you can also configure the required services manually. To do so,
+adjust the configuration files for the Teleport Application Service and Teleport
+Discovery Service, then restart the agents running these services.
+
+Configuration for the Discovery Service is controlled by the `kubernetes` field,
+example:
+
+(!docs/pages/includes/discovery/discovery-group.mdx!)
+
+```yaml
+# This section configures the Discovery Service
+discovery_service:
+  enabled: yes
+  discovery_group: main-cluster
+  kubernetes:
+  - types: ["app"]
+    namespaces: [ "toronto", "porto" ]
+    labels:
+      env: staging
+  - types: ["app"]
+    namespaces: [ "seattle", "oakland" ]
+    labels:
+      env: testing
+```
+
+Configuration for the Application Service is controlled by the `resources` field, example:
+
+```yaml
+app_service:
+  enabled: yes
+  resources:
+  - labels:
+    "teleport.dev/kubernetes-cluster": "main-cluster"
+    "teleport.dev/origin": "discovery-kubernetes"
+```
+
+Label `teleport.dev/kubernetes-cluster` should match value of `discovery_group` field in the Discovery Service config.
+
+For more information you can take a look at [`discovery_service`](../config.mdx) and [`app_service`](../config.mdx) configuration references.
+
+## Annotations
+
+Kubernetes annotations on services can be used to fine tune transformation of services to apps.
+All annotations are optional - they will override default behaviour, but they are not required for import of services.
+
+### `teleport.dev/discovery-type`
+
+Controls what type this service is considered to be. If annotation is missing,
+by default all services are considered to be of "app" type. If matchers in the Discovery Service
+config match service type it will be imported. Currently the only supported value is
+`app`, which means Teleport application will be imported from this service. In the future there are plans to expand to database importing.
+
+### `teleport.dev/protocol`
+
+Controls protocol for the uri of the Teleport app we create. If annotation is not set,
+heuristics will be used to try to determine protocol of an exposed port.
+If all heuristics didn't work, the port will be skipped. For app to be imported with `tcp` protocol, the
+service should have explicit annotation `teleport.dev/protocol: "tcp"`
+
+### `teleport.dev/port`
+
+Controls preferred port for the Kubernetes service, only this one will be used even if service
+has multiple exposed ports. Its value should be one of the exposed service ports; otherwise, the app will not be imported.
+Value can be matched either by numeric value or by the name of the port defined on the service.
+
+### `teleport.dev/name`
+
+Controls resulting app name. If present it will override default app name pattern
+`$SERVICE_NAME-$NAMESPACE-$KUBE_CLUSTER_NAME`. If multiple ports are exposed, resulting apps will have port names added
+as a suffix to the annotation value, as `$APP_NAME-$PORT1_NAME`, `$APP_NAME-$PORT2_NAME` etc, where `$APP_NAME` is the name
+set by the annotation.
+
+### `teleport.dev/insecure-skip-verify`
+
+Controls whether TLS certificate verification should be skipped for this app.
+If present and set to `true`, TLS certificate verification will be skipped.
+
+```yaml
+annotations:
+  teleport.dev/insecure-skip-verify: "true"
+```
+
+### `teleport.dev/ignore`
+
+Controls whether this service should be ignored by the Discovery Service.
+This annotation is useful when you want to exclude a service from being imported as an app
+when it matches the Discovery Service config. For example, you may want to exclude a service
+that shares the same labels as another services that you want to import as apps.
+
+```yaml
+annotations:
+  teleport.dev/ignore: "true"
+```
+
+### `teleport.dev/app-rewrite`
+
+Controls rewrite configuration for Teleport app, if needed. It should
+contain full rewrite configuration in YAML format, same as one would use when configuring an app with dynamic registration syntax (see [documentation](../../enroll-resources/application-access/guides/connecting-apps.mdx)).
+
+```yaml
+annotations:
+  teleport.dev/app-rewrite: |
+    redirect:
+    - "localhost"
+    - "jenkins.internal.dev"
+    headers:
+    - name: "X-Custom-Header"
+      value: "example"
+    - name: "Authorization"
+      value: "Bearer {{internal.jwt}}"
+```
+

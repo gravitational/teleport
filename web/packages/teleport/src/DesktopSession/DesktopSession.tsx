@@ -16,271 +16,434 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
-import { Indicator, Box, Flex, ButtonSecondary, ButtonPrimary } from 'design';
-import { Info } from 'design/Alert';
+import {useCallback, useEffect, useRef, useState} from 'react';
+
+import {Box, ButtonPrimary, ButtonSecondary, Flex, Indicator} from 'design';
+import {Info} from 'design/Alert';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
-  DialogContent,
-  DialogFooter,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from 'design/Dialog';
-import { Attempt } from 'shared/hooks/useAttemptNext';
+import {Attempt} from 'shared/hooks/useAttemptNext';
 
-import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 import AuthnDialog from 'teleport/components/AuthnDialog';
+import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
+import {TdpClientCanvasRef} from 'teleport/components/TdpClientCanvas/TdpClientCanvas';
+import {TdpClientEvent} from 'teleport/lib/tdp';
+import {BitmapFrame} from 'teleport/lib/tdp/client';
+import {ClientScreenSpec, PngFrame} from 'teleport/lib/tdp/codec';
+import type {MfaState} from 'teleport/lib/useMfa';
 
-import useDesktopSession, {
-  directorySharingPossible,
-  isSharingClipboard,
-  isSharingDirectory,
-} from './useDesktopSession';
 import TopBar from './TopBar';
-
-import type { State, WebsocketAttempt } from './useDesktopSession';
-import type { WebAuthnState } from 'teleport/lib/useWebAuthn';
-import { TdpClientEvent } from 'teleport/lib/tdp';
+import useDesktopSession, {
+    clipboardSharingMessage,
+    directorySharingPossible,
+    isSharingClipboard,
+    isSharingDirectory,
+    type State,
+    type WebsocketAttempt,
+} from './useDesktopSession';
 
 export function DesktopSessionContainer() {
-  const state = useDesktopSession();
-  return <DesktopSession {...state} />;
+    const state = useDesktopSession();
+    return <DesktopSession {...state} />;
 }
 
 declare global {
-  interface Window {
-    showDirectoryPicker: () => Promise<FileSystemDirectoryHandle>;
-  }
+    interface Window {
+        showDirectoryPicker: () => Promise<FileSystemDirectoryHandle>;
+    }
 }
 
 export function DesktopSession(props: State) {
-  const {
-    webauthn,
-    tdpClient,
-    username,
-    hostname,
-    setClipboardSharingState,
-    directorySharingState,
-    setDirectorySharingState,
-    clientOnPngFrame,
-    clientOnBitmapFrame,
-    clientOnClientScreenSpec,
-    clientOnClipboardData,
-    clientOnTdpError,
-    clientOnTdpWarning,
-    clientOnTdpInfo,
-    clientOnWsClose,
-    clientOnWsOpen,
-    canvasOnKeyDown,
-    canvasOnKeyUp,
-    canvasOnFocusOut,
-    canvasOnMouseMove,
-    canvasOnMouseDown,
-    canvasOnMouseUp,
-    canvasOnMouseWheelScroll,
-    canvasOnContextMenu,
-    clientScreenSpecToRequest,
-    clipboardSharingState,
-    onShareDirectory,
-    warnings,
-    onRemoveWarning,
-    fetchAttempt,
-    tdpConnection,
-    wsConnection,
-    showAnotherSessionActiveDialog,
-  } = props;
-
-  const [screenState, setScreenState] = useState<ScreenState>({
-    screen: 'processing',
-    canvasState: { shouldConnect: false, shouldDisplay: false },
-  });
-
-  const [latencyStats, setLatencyStats] = useState({ client: 0, server: 0 });
-  useEffect(() => {
-    if (!tdpClient) {
-      return;
-    }
-    const setStats = stats => {
-      console.log('got latency', stats);
-      setLatencyStats({
-        client: stats.browserLatency,
-        server: stats.desktopLatency,
-      });
-    };
-    tdpClient.on(TdpClientEvent.LATENCY_STATS, setStats);
-    return () => {
-      tdpClient.removeListener(TdpClientEvent.LATENCY_STATS, setStats);
-    };
-  }, [tdpClient]);
-
-  // Calculate the next `ScreenState` whenever any of the constituent pieces of state change.
-  useEffect(() => {
-    setScreenState(prevState =>
-      nextScreenState(
-        prevState,
+    const {
+        mfa,
+        tdpClient: client,
+        username,
+        hostname,
+        directorySharingState,
+        setDirectorySharingState,
+        setInitialTdpConnectionSucceeded,
+        clientOnClipboardData,
+        clientOnTdpError,
+        clientOnTdpWarning,
+        clientOnTdpInfo,
+        clientOnWsClose,
+        clientOnWsOpen,
+        canvasOnKeyDown,
+        canvasOnKeyUp,
+        canvasOnFocusOut,
+        canvasOnMouseMove,
+        canvasOnMouseDown,
+        canvasOnMouseUp,
+        canvasOnMouseWheelScroll,
+        canvasOnContextMenu,
+        onResize,
+        clientScreenSpecToRequest,
+        clipboardSharingState,
+        setClipboardSharingState,
+        onShareDirectory,
+        onCtrlAltDel,
+        alerts,
+        onRemoveAlert,
         fetchAttempt,
         tdpConnection,
         wsConnection,
         showAnotherSessionActiveDialog,
-        webauthn
-      )
+    } = props;
+
+    const [screenState, setScreenState] = useState<ScreenState>({
+        screen: 'processing',
+        canvasState: {shouldConnect: false, shouldDisplay: false},
+    });
+
+    useEffect(() => {
+        if (client && clientOnClipboardData) {
+            client.on(TdpClientEvent.TDP_CLIPBOARD_DATA, clientOnClipboardData);
+
+            return () => {
+                client.removeListener(
+                    TdpClientEvent.TDP_CLIPBOARD_DATA,
+                    clientOnClipboardData
+                );
+            };
+        }
+    }, [client, clientOnClipboardData]);
+
+    useEffect(() => {
+        if (client && clientOnTdpError) {
+            client.on(TdpClientEvent.TDP_ERROR, clientOnTdpError);
+            client.on(TdpClientEvent.CLIENT_ERROR, clientOnTdpError);
+
+            return () => {
+                client.removeListener(TdpClientEvent.TDP_ERROR, clientOnTdpError);
+                client.removeListener(TdpClientEvent.CLIENT_ERROR, clientOnTdpError);
+            };
+        }
+    }, [client, clientOnTdpError]);
+
+    useEffect(() => {
+        if (client && clientOnTdpWarning) {
+            client.on(TdpClientEvent.TDP_WARNING, clientOnTdpWarning);
+            client.on(TdpClientEvent.CLIENT_WARNING, clientOnTdpWarning);
+
+            return () => {
+                client.removeListener(TdpClientEvent.TDP_WARNING, clientOnTdpWarning);
+                client.removeListener(
+                    TdpClientEvent.CLIENT_WARNING,
+                    clientOnTdpWarning
+                );
+            };
+        }
+    }, [client, clientOnTdpWarning]);
+
+    useEffect(() => {
+        if (client && clientOnTdpInfo) {
+            client.on(TdpClientEvent.TDP_INFO, clientOnTdpInfo);
+
+            return () => {
+                client.removeListener(TdpClientEvent.TDP_INFO, clientOnTdpInfo);
+            };
+        }
+    }, [client, clientOnTdpInfo]);
+
+    useEffect(() => {
+        if (client && clientOnWsClose) {
+            client.on(TdpClientEvent.WS_CLOSE, clientOnWsClose);
+
+            return () => {
+                client.removeListener(TdpClientEvent.WS_CLOSE, clientOnWsClose);
+            };
+        }
+    }, [client, clientOnWsClose]);
+
+    useEffect(() => {
+        if (client && clientOnWsOpen) {
+            client.on(TdpClientEvent.WS_OPEN, clientOnWsOpen);
+
+            return () => {
+                client.removeListener(TdpClientEvent.WS_OPEN, clientOnWsOpen);
+            };
+        }
+    }, [client, clientOnWsOpen]);
+
+    const {shouldConnect} = screenState.canvasState;
+    // Call connect after all listeners have been registered
+    useEffect(() => {
+        if (client && shouldConnect) {
+            client.connect(clientScreenSpecToRequest);
+            return () => {
+                client.shutdown();
+            };
+        }
+    }, [client, shouldConnect]);
+
+    const [latencyStats, setLatencyStats] = useState({client: 0, server: 0});
+    useEffect(() => {
+        if (!client) {
+            return;
+        }
+        const setStats = stats => {
+            console.log('got latency', stats);
+            setLatencyStats({
+                client: stats.browserLatency,
+                server: stats.desktopLatency,
+            });
+        };
+        client.on(TdpClientEvent.LATENCY_STATS, setStats);
+        return () => {
+            client.removeListener(TdpClientEvent.LATENCY_STATS, setStats);
+        };
+    }, [client]);
+
+    // Calculate the next `ScreenState` whenever any of the constituent pieces of state change.
+    useEffect(() => {
+        setScreenState(prevState =>
+            nextScreenState(
+                prevState,
+                fetchAttempt,
+                tdpConnection,
+                wsConnection,
+                showAnotherSessionActiveDialog,
+                mfa
+            )
+        );
+    }, [
+        fetchAttempt,
+        tdpConnection,
+        wsConnection,
+        showAnotherSessionActiveDialog,
+        mfa,
+    ]);
+
+    const tdpClientCanvasRef = useRef<TdpClientCanvasRef>(null);
+
+    useEffect(() => {
+        if (!client) {
+            return;
+        }
+        const setPointer = tdpClientCanvasRef.current?.setPointer;
+        client.addListener(TdpClientEvent.POINTER, setPointer);
+
+        return () => {
+            client.removeListener(TdpClientEvent.POINTER, setPointer);
+        };
+    }, [client]);
+
+    const onInitialTdpConnectionSucceeded = useCallback(() => {
+        setInitialTdpConnectionSucceeded(() => {
+            // TODO(gzdunek): This callback is a temporary fix for focusing the canvas.
+            // Focus the canvas once we start rendering frames.
+            // The timeout it a small hack, we should verify
+            // what is the earliest moment we can focus the canvas.
+            setTimeout(() => {
+                tdpClientCanvasRef.current?.focus();
+            }, 100);
+        });
+    }, [setInitialTdpConnectionSucceeded]);
+
+    useEffect(() => {
+        if (!client) {
+            return;
+        }
+        const renderFrame = (frame: PngFrame) => {
+            onInitialTdpConnectionSucceeded();
+            tdpClientCanvasRef.current?.renderPngFrame(frame);
+        };
+        client.addListener(TdpClientEvent.TDP_PNG_FRAME, renderFrame);
+
+        return () => {
+            client.removeListener(TdpClientEvent.TDP_PNG_FRAME, renderFrame);
+        };
+    }, [client, onInitialTdpConnectionSucceeded]);
+
+    useEffect(() => {
+        if (!client) {
+            return;
+        }
+        const renderFrame = (frame: BitmapFrame) => {
+            onInitialTdpConnectionSucceeded();
+            tdpClientCanvasRef.current?.renderBitmapFrame(frame);
+        };
+        client.addListener(TdpClientEvent.TDP_BMP_FRAME, renderFrame);
+
+        return () => {
+            client.removeListener(TdpClientEvent.TDP_BMP_FRAME, renderFrame);
+        };
+    }, [client, onInitialTdpConnectionSucceeded]);
+
+    useEffect(() => {
+        if (!client) {
+            return;
+        }
+        const clear = () => tdpClientCanvasRef.current?.clear();
+        client.addListener(TdpClientEvent.RESET, clear);
+
+        return () => {
+            client.removeListener(TdpClientEvent.RESET, clear);
+        };
+    }, [client]);
+
+    useEffect(() => {
+        if (!client) {
+            return;
+        }
+        const setResolution = (spec: ClientScreenSpec) =>
+            tdpClientCanvasRef.current?.setResolution(spec);
+        client.addListener(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, setResolution);
+
+        return () => {
+            client.removeListener(
+                TdpClientEvent.TDP_CLIENT_SCREEN_SPEC,
+                setResolution
+            );
+        };
+    }, [client]);
+
+    return (
+        <Flex
+            flexDirection="column"
+            css={`
+                // Fill the window.
+                position: absolute;
+                width: 100%;
+                height: 100%;
+            `}
+        >
+            <TopBar
+                latency={latencyStats}
+                onDisconnect={() => {
+                    setClipboardSharingState(prevState => ({
+                        ...prevState,
+                        isSharing: false,
+                    }));
+                    setDirectorySharingState(prevState => ({
+                        ...prevState,
+                        isSharing: false,
+                    }));
+                    client.shutdown();
+                }}
+                userHost={`${username}@${hostname}`}
+                canShareDirectory={directorySharingPossible(directorySharingState)}
+                isSharingDirectory={isSharingDirectory(directorySharingState)}
+                isSharingClipboard={isSharingClipboard(clipboardSharingState)}
+                clipboardSharingMessage={clipboardSharingMessage(clipboardSharingState)}
+                onShareDirectory={onShareDirectory}
+                onCtrlAltDel={onCtrlAltDel}
+                alerts={alerts}
+                onRemoveAlert={onRemoveAlert}
+            />
+
+            {screenState.screen === 'anotherSessionActive' && (
+                <AnotherSessionActiveDialog {...props} />
+            )}
+            {screenState.screen === 'mfa' && <MfaDialog mfa={mfa}/>}
+            {screenState.screen === 'alert dialog' && (
+                <AlertDialog screenState={screenState}/>
+            )}
+            {screenState.screen === 'processing' && <Processing/>}
+
+            <TdpClientCanvas
+                ref={tdpClientCanvasRef}
+                style={{
+                    display: screenState.canvasState.shouldDisplay ? 'flex' : 'none',
+                }}
+                onKeyDown={canvasOnKeyDown}
+                onKeyUp={canvasOnKeyUp}
+                onBlur={canvasOnFocusOut}
+                onMouseMove={canvasOnMouseMove}
+                onMouseDown={canvasOnMouseDown}
+                onMouseUp={canvasOnMouseUp}
+                onMouseWheel={canvasOnMouseWheelScroll}
+                onContextMenu={canvasOnContextMenu}
+                onResize={onResize}
+            />
+        </Flex>
     );
-  }, [
-    fetchAttempt,
-    tdpConnection,
-    wsConnection,
-    showAnotherSessionActiveDialog,
-    webauthn,
-  ]);
-
-  return (
-    <Flex flexDirection="column">
-      <TopBar
-        latency={latencyStats}
-        onDisconnect={() => {
-          setClipboardSharingState(prevState => ({
-            ...prevState,
-            isSharing: false,
-          }));
-          setDirectorySharingState(prevState => ({
-            ...prevState,
-            isSharing: false,
-          }));
-          tdpClient.shutdown();
-        }}
-        userHost={`${username}@${hostname}`}
-        canShareDirectory={directorySharingPossible(directorySharingState)}
-        isSharingDirectory={isSharingDirectory(directorySharingState)}
-        isSharingClipboard={isSharingClipboard(clipboardSharingState)}
-        onShareDirectory={onShareDirectory}
-        warnings={warnings}
-        onRemoveWarning={onRemoveWarning}
-      />
-
-      {screenState.screen === 'anotherSessionActive' && (
-        <AnotherSessionActiveDialog {...props} />
-      )}
-      {screenState.screen === 'mfa' && <MfaDialog webauthn={webauthn} />}
-      {screenState.screen === 'alert dialog' && (
-        <AlertDialog screenState={screenState} />
-      )}
-      {screenState.screen === 'processing' && <Processing />}
-
-      <TdpClientCanvas
-        style={{
-          display: screenState.canvasState.shouldDisplay ? 'flex' : 'none',
-        }}
-        client={tdpClient}
-        clientShouldConnect={screenState.canvasState.shouldConnect}
-        clientScreenSpecToRequest={clientScreenSpecToRequest}
-        clientOnPngFrame={clientOnPngFrame}
-        clientOnBmpFrame={clientOnBitmapFrame}
-        clientOnClientScreenSpec={clientOnClientScreenSpec}
-        clientOnClipboardData={clientOnClipboardData}
-        clientOnTdpError={clientOnTdpError}
-        clientOnTdpWarning={clientOnTdpWarning}
-        clientOnTdpInfo={clientOnTdpInfo}
-        clientOnWsClose={clientOnWsClose}
-        clientOnWsOpen={clientOnWsOpen}
-        canvasOnKeyDown={canvasOnKeyDown}
-        canvasOnKeyUp={canvasOnKeyUp}
-        canvasOnFocusOut={canvasOnFocusOut}
-        canvasOnMouseMove={canvasOnMouseMove}
-        canvasOnMouseDown={canvasOnMouseDown}
-        canvasOnMouseUp={canvasOnMouseUp}
-        canvasOnMouseWheelScroll={canvasOnMouseWheelScroll}
-        canvasOnContextMenu={canvasOnContextMenu}
-        updatePointer={true}
-      />
-    </Flex>
-  );
 }
 
-const MfaDialog = ({ webauthn }: { webauthn: WebAuthnState }) => {
-  return (
-    <AuthnDialog
-      onContinue={webauthn.authenticate}
-      onCancel={() => {
-        webauthn.setState(prevState => {
-          return {
-            ...prevState,
-            errorText:
-              'This session requires multi factor authentication to continue. Please hit "Retry" and follow the prompts given by your browser to complete authentication.',
-          };
-        });
-      }}
-      errorText={webauthn.errorText}
-    />
-  );
+const MfaDialog = ({mfa}: { mfa: MfaState }) => {
+    return (
+        <AuthnDialog
+            mfaState={mfa}
+            replaceErrorText={
+                'This session requires multi factor authentication to continue. Please hit try again and follow the prompts given by your browser to complete authentication.'
+            }
+        />
+    );
 };
 
-const AlertDialog = ({ screenState }: { screenState: ScreenState }) => (
-  <Dialog dialogCss={() => ({ width: '484px' })} open={true}>
-    <DialogHeader style={{ flexDirection: 'column' }}>
-      <DialogTitle>Disconnected</DialogTitle>
-    </DialogHeader>
-    <DialogContent>
-      <>
-        <Info
-          children={<>{screenState.alertMessage || invalidStateMessage}</>}
-        />
-        Refresh the page to reconnect.
-      </>
-    </DialogContent>
-    <DialogFooter>
-      <ButtonSecondary
-        size="large"
-        width="30%"
-        onClick={() => {
-          window.location.reload();
-        }}
-      >
-        Refresh
-      </ButtonSecondary>
-    </DialogFooter>
-  </Dialog>
+const AlertDialog = ({screenState}: { screenState: ScreenState }) => (
+    <Dialog dialogCss={() => ({width: '484px'})} open={true}>
+        <DialogHeader style={{flexDirection: 'column'}}>
+            <DialogTitle>Disconnected</DialogTitle>
+        </DialogHeader>
+        <DialogContent>
+            <>
+                <Info
+                    children={<>{screenState.alertMessage || invalidStateMessage}</>}
+                />
+                Refresh the page to reconnect.
+            </>
+        </DialogContent>
+        <DialogFooter>
+            <ButtonSecondary
+                size="large"
+                width="30%"
+                onClick={() => {
+                    window.location.reload();
+                }}
+            >
+                Refresh
+            </ButtonSecondary>
+        </DialogFooter>
+    </Dialog>
 );
 
 const AnotherSessionActiveDialog = (props: State) => {
-  return (
-    <Dialog
-      dialogCss={() => ({ width: '484px' })}
-      onClose={() => {}}
-      open={true}
-    >
-      <DialogHeader style={{ flexDirection: 'column' }}>
-        <DialogTitle>Another Session Is Active</DialogTitle>
-      </DialogHeader>
-      <DialogContent>
-        This desktop has an active session, connecting to it may close the other
-        session. Do you wish to continue?
-      </DialogContent>
-      <DialogFooter>
-        <ButtonPrimary
-          mr={3}
-          onClick={() => {
-            window.close();
-          }}
+    return (
+        <Dialog
+            dialogCss={() => ({width: '484px'})}
+            onClose={() => {
+            }}
+            open={true}
         >
-          Abort
-        </ButtonPrimary>
-        <ButtonSecondary
-          onClick={() => {
-            props.setShowAnotherSessionActiveDialog(false);
-          }}
-        >
-          Continue
-        </ButtonSecondary>
-      </DialogFooter>
-    </Dialog>
-  );
+            <DialogHeader style={{flexDirection: 'column'}}>
+                <DialogTitle>Another Session Is Active</DialogTitle>
+            </DialogHeader>
+            <DialogContent>
+                This desktop has an active session, connecting to it may close the other
+                session. Do you wish to continue?
+            </DialogContent>
+            <DialogFooter>
+                <ButtonPrimary
+                    mr={3}
+                    onClick={() => {
+                        window.close();
+                    }}
+                >
+                    Abort
+                </ButtonPrimary>
+                <ButtonSecondary
+                    onClick={() => {
+                        props.setShowAnotherSessionActiveDialog(false);
+                    }}
+                >
+                    Continue
+                </ButtonSecondary>
+            </DialogFooter>
+        </Dialog>
+    );
 };
 
 const Processing = () => {
-  return (
-    <Box textAlign="center" m={10}>
-      <Indicator />
-    </Box>
-  );
+    return (
+        <Box textAlign="center" m={10}>
+            <Indicator/>
+        </Box>
+    );
 };
 
 const invalidStateMessage = 'internal application error';
@@ -291,86 +454,86 @@ const invalidStateMessage = 'internal application error';
  * to the websocket.
  */
 const nextScreenState = (
-  prevState: ScreenState,
-  fetchAttempt: Attempt,
-  tdpConnection: Attempt,
-  wsConnection: WebsocketAttempt,
-  showAnotherSessionActiveDialog: boolean,
-  webauthn: WebAuthnState
+    prevState: ScreenState,
+    fetchAttempt: Attempt,
+    tdpConnection: Attempt,
+    wsConnection: WebsocketAttempt,
+    showAnotherSessionActiveDialog: boolean,
+    webauthn: MfaState
 ): ScreenState => {
-  // We always want to show the user the first alert that caused the session to fail/end,
-  // so if we're already showing an alert, don't change the screen.
-  //
-  // This allows us to track the various pieces of the state independently and always display
-  // the vital information to the user. For example, we can track the TDP connection status
-  // and the websocket connection status separately throughout the codebase. If the TDP connection
-  // fails, and then the websocket closes, we want to show the `tdpConnection.statusText` to the user,
-  // not the `wsConnection.statusText`. But if the websocket closes unexpectedly before a TDP message telling
-  // us why, we want to show the websocket closing message to the user.
-  if (prevState.screen === 'alert dialog') {
-    return prevState;
-  }
-
-  // Otherwise, calculate a new screen state.
-  const showAnotherSessionActive = showAnotherSessionActiveDialog;
-  const showMfa = webauthn.requested;
-  const showAlert =
-    fetchAttempt.status === 'failed' || // Fetch attempt failed
-    tdpConnection.status === 'failed' || // TDP connection failed
-    tdpConnection.status === '' || // TDP connection ended gracefully server-side
-    wsConnection.status === 'closed'; // Websocket closed (could mean client side graceful close or unexpected close, the message will tell us which)
-
-  const atLeastOneAttemptProcessing =
-    fetchAttempt.status === 'processing' ||
-    tdpConnection.status === 'processing';
-  const noDialogs = !(showMfa || showAnotherSessionActive || showAlert);
-  const showProcessing = atLeastOneAttemptProcessing && noDialogs;
-
-  if (showAnotherSessionActive) {
-    // Highest priority: we don't want to connect (`shouldConnect`) until
-    // the user has decided whether to continue with the active session.
-    return {
-      screen: 'anotherSessionActive',
-      canvasState: { shouldConnect: false, shouldDisplay: false },
-    };
-  } else if (showMfa) {
-    // Second highest priority. Secondary to `showAnotherSessionActive` because
-    // this won't happen until the user has decided whether to continue with the active session.
+    // We always want to show the user the first alert that caused the session to fail/end,
+    // so if we're already showing an alert, don't change the screen.
     //
-    // `shouldConnect` is true because we want to maintain the websocket connection that the mfa
-    // request was made over.
-    return {
-      screen: 'mfa',
-      canvasState: { shouldConnect: true, shouldDisplay: false },
-    };
-  } else if (showAlert) {
-    // Third highest priority. If either attempt or the websocket has failed, show the alert.
-    return {
-      screen: 'alert dialog',
-      alertMessage: calculateAlertMessage(
-        fetchAttempt,
-        tdpConnection,
-        wsConnection,
-        showAnotherSessionActiveDialog,
-        prevState
-      ),
-      canvasState: { shouldConnect: false, shouldDisplay: false },
-    };
-  } else if (showProcessing) {
-    // Fourth highest priority. If at least one attempt is still processing, show the processing indicator
-    // while trying to connect to the TDP server via the websocket.
-    const shouldConnect = fetchAttempt.status !== 'processing';
-    return {
-      screen: 'processing',
-      canvasState: { shouldConnect, shouldDisplay: false },
-    };
-  } else {
-    // Default state: everything is good, so show the canvas.
-    return {
-      screen: 'canvas',
-      canvasState: { shouldConnect: true, shouldDisplay: true },
-    };
-  }
+    // This allows us to track the various pieces of the state independently and always display
+    // the vital information to the user. For example, we can track the TDP connection status
+    // and the websocket connection status separately throughout the codebase. If the TDP connection
+    // fails, and then the websocket closes, we want to show the `tdpConnection.statusText` to the user,
+    // not the `wsConnection.statusText`. But if the websocket closes unexpectedly before a TDP message telling
+    // us why, we want to show the websocket closing message to the user.
+    if (prevState.screen === 'alert dialog') {
+        return prevState;
+    }
+
+    // Otherwise, calculate a new screen state.
+    const showAnotherSessionActive = showAnotherSessionActiveDialog;
+    const showMfa = webauthn.challenge;
+    const showAlert =
+        fetchAttempt.status === 'failed' || // Fetch attempt failed
+        tdpConnection.status === 'failed' || // TDP connection failed
+        tdpConnection.status === '' || // TDP connection ended gracefully server-side
+        wsConnection.status === 'closed'; // Websocket closed (could mean client side graceful close or unexpected close, the message will tell us which)
+
+    const atLeastOneAttemptProcessing =
+        fetchAttempt.status === 'processing' ||
+        tdpConnection.status === 'processing';
+    const noDialogs = !(showMfa || showAnotherSessionActive || showAlert);
+    const showProcessing = atLeastOneAttemptProcessing && noDialogs;
+
+    if (showAnotherSessionActive) {
+        // Highest priority: we don't want to connect (`shouldConnect`) until
+        // the user has decided whether to continue with the active session.
+        return {
+            screen: 'anotherSessionActive',
+            canvasState: {shouldConnect: false, shouldDisplay: false},
+        };
+    } else if (showMfa) {
+        // Second highest priority. Secondary to `showAnotherSessionActive` because
+        // this won't happen until the user has decided whether to continue with the active session.
+        //
+        // `shouldConnect` is true because we want to maintain the websocket connection that the mfa
+        // request was made over.
+        return {
+            screen: 'mfa',
+            canvasState: {shouldConnect: true, shouldDisplay: false},
+        };
+    } else if (showAlert) {
+        // Third highest priority. If either attempt or the websocket has failed, show the alert.
+        return {
+            screen: 'alert dialog',
+            alertMessage: calculateAlertMessage(
+                fetchAttempt,
+                tdpConnection,
+                wsConnection,
+                showAnotherSessionActiveDialog,
+                prevState
+            ),
+            canvasState: {shouldConnect: false, shouldDisplay: false},
+        };
+    } else if (showProcessing) {
+        // Fourth highest priority. If at least one attempt is still processing, show the processing indicator
+        // while trying to connect to the TDP server via the websocket.
+        const shouldConnect = fetchAttempt.status !== 'processing';
+        return {
+            screen: 'processing',
+            canvasState: {shouldConnect, shouldDisplay: false},
+        };
+    } else {
+        // Default state: everything is good, so show the canvas.
+        return {
+            screen: 'canvas',
+            canvasState: {shouldConnect: true, shouldDisplay: true},
+        };
+    }
 };
 
 /**
@@ -378,48 +541,48 @@ const nextScreenState = (
  */
 /* eslint-disable no-console */
 const calculateAlertMessage = (
-  fetchAttempt: Attempt,
-  tdpConnection: Attempt,
-  wsConnection: WebsocketAttempt,
-  showAnotherSessionActiveDialog: boolean,
-  prevState: ScreenState
+    fetchAttempt: Attempt,
+    tdpConnection: Attempt,
+    wsConnection: WebsocketAttempt,
+    showAnotherSessionActiveDialog: boolean,
+    prevState: ScreenState
 ): string => {
-  let message = '';
-  if (fetchAttempt.status === 'failed') {
-    message = fetchAttempt.statusText || 'fetch attempt failed';
-  } else if (tdpConnection.status === 'failed') {
-    message = tdpConnection.statusText || 'TDP connection failed';
-  } else if (tdpConnection.status === '') {
-    message = tdpConnection.statusText || 'TDP connection ended gracefully';
-  } else if (wsConnection.status === 'closed') {
-    message =
-      wsConnection.statusText || 'websocket disconnected for an unknown reason';
-  } else {
-    console.error('invalid state');
-    console.error({
-      fetchAttempt,
-      tdpConnection,
-      wsConnection,
-      showAnotherSessionActiveDialog,
-      prevState,
-    });
-    message = invalidStateMessage;
-  }
-  return message;
+    let message = '';
+    if (fetchAttempt.status === 'failed') {
+        message = fetchAttempt.statusText || 'fetch attempt failed';
+    } else if (tdpConnection.status === 'failed') {
+        message = tdpConnection.statusText || 'TDP connection failed';
+    } else if (tdpConnection.status === '') {
+        message = tdpConnection.statusText || 'TDP connection ended gracefully';
+    } else if (wsConnection.status === 'closed') {
+        message =
+            wsConnection.statusText || 'websocket disconnected for an unknown reason';
+    } else {
+        console.error('invalid state');
+        console.error({
+            fetchAttempt,
+            tdpConnection,
+            wsConnection,
+            showAnotherSessionActiveDialog,
+            prevState,
+        });
+        message = invalidStateMessage;
+    }
+    return message;
 };
 /* eslint-enable no-console */
 
 type ScreenState = {
-  screen:
-    | 'mfa'
-    | 'anotherSessionActive'
-    | 'alert dialog'
-    | 'processing'
-    | 'canvas';
+    screen:
+        | 'mfa'
+        | 'anotherSessionActive'
+        | 'alert dialog'
+        | 'processing'
+        | 'canvas';
 
-  alertMessage?: string;
-  canvasState: {
-    shouldConnect: boolean;
-    shouldDisplay: boolean;
-  };
+    alertMessage?: string;
+    canvasState: {
+        shouldConnect: boolean;
+        shouldDisplay: boolean;
+    };
 };

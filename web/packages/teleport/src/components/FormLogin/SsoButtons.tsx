@@ -16,28 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { forwardRef } from 'react';
-import styled from 'styled-components';
-import { Box, Text } from 'design';
+import { forwardRef } from 'react';
+
+import { Flex, Text } from 'design';
 import ButtonSso, { guessProviderType } from 'shared/components/ButtonSso';
 import { AuthProvider } from 'shared/services';
 
-const SSOBtnList = forwardRef<HTMLInputElement, Props>(
+const SSOBtnList = forwardRef<HTMLButtonElement, Props>(
   ({ providers, isDisabled, onClick, autoFocus = false }, ref) => {
-    const style = providers.length === 1 ? { gridColumnEnd: 'span 2' } : {};
     const $btns = providers.map((item, index) => {
       let { name, type, displayName } = item;
       const title = displayName || name;
       const ssoType = guessProviderType(title, type);
       return (
         <ButtonSso
-          setRef={index === 0 ? ref : null}
+          ref={index === 0 ? ref : null}
           key={index}
           title={title}
           ssoType={ssoType}
           disabled={isDisabled}
           autoFocus={index === 0 && autoFocus}
-          style={style}
           onClick={e => {
             e.preventDefault();
             onClick(item);
@@ -54,7 +52,11 @@ const SSOBtnList = forwardRef<HTMLInputElement, Props>(
       );
     }
 
-    return <Container data-testid="sso-list">{$btns}</Container>;
+    return (
+      <Flex flexDirection="column" data-testid="sso-list" gap={3}>
+        {$btns}
+      </Flex>
+    );
   }
 );
 
@@ -65,11 +67,5 @@ type Props = {
   // autoFocus focuses on the first button in list.
   autoFocus?: boolean;
 };
-
-const Container = styled(Box)`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: ${p => p.theme.space[3]}px;
-`;
 
 export default SSOBtnList;

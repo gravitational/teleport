@@ -81,6 +81,17 @@ func TestDestinationKubernetesSecret(t *testing.T) {
 			},
 		},
 		{
+			name: "labels",
+			dest: &DestinationKubernetesSecret{
+				Name: "my-secret",
+				Labels: map[string]string{
+					"key": "value",
+					"bar": "baz",
+				},
+				k8s: fakeClientSet(),
+			},
+		},
+		{
 			name: "existing secret",
 			dest: &DestinationKubernetesSecret{
 				Name: "my-secret",
@@ -99,6 +110,8 @@ func TestDestinationKubernetesSecret(t *testing.T) {
 			defer cancel()
 
 			require.NoError(t, tt.dest.Init(ctx, []string{}))
+
+			// Test individual write
 			require.NoError(t, tt.dest.Write(ctx, "artifact-a", []byte("data-a")))
 			require.NoError(t, tt.dest.Write(ctx, "artifact-b", []byte("data-b")))
 			aData, err := tt.dest.Read(ctx, "artifact-a")
@@ -107,6 +120,23 @@ func TestDestinationKubernetesSecret(t *testing.T) {
 			bData, err := tt.dest.Read(ctx, "artifact-b")
 			require.NoError(t, err)
 			require.Equal(t, []byte("data-b"), bData)
+
+			// Test write many
+			require.NoError(t, tt.dest.WriteMany(ctx, map[string][]byte{
+				"artifact-a": []byte("data-c"),
+				"artifact-b": []byte("data-d"),
+			}))
+			aData, err = tt.dest.Read(ctx, "artifact-a")
+			require.NoError(t, err)
+			require.Equal(t, []byte("data-c"), aData)
+			bData, err = tt.dest.Read(ctx, "artifact-b")
+			require.NoError(t, err)
+			require.Equal(t, []byte("data-d"), bData)
+
+			// Check labels have been set
+			secret, err := tt.dest.k8s.CoreV1().Secrets("test-namespace").Get(ctx, tt.dest.Name, metav1.GetOptions{})
+			require.NoError(t, err)
+			require.Equal(t, tt.dest.Labels, secret.Labels)
 		})
 	}
 }

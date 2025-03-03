@@ -70,7 +70,7 @@ spec:
                       type: array
                     aws_role:
                       description: AWSRole is used for the EC2 join method and is
-                        the the ARN of the AWS role that the auth server will assume
+                        the ARN of the AWS role that the Auth Service will assume
                         in order to call the ec2 API.
                       type: string
                   type: object
@@ -101,6 +101,40 @@ spec:
                       type: object
                     nullable: true
                     type: array
+                type: object
+              bitbucket:
+                description: Bitbucket allows the configuration of options specific
+                  to the "bitbucket" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: Allow is a list of Rules, nodes using this token
+                      must match one allow rule to use this token.
+                    items:
+                      properties:
+                        branch_name:
+                          type: string
+                        deployment_environment_uuid:
+                          type: string
+                        repository_uuid:
+                          type: string
+                        workspace_uuid:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  audience:
+                    description: Audience is a Bitbucket-specified audience value
+                      for this token. It is unique to each Bitbucket repository, and
+                      must be set to the value as written in the Pipelines -> OpenID
+                      Connect section of the repository settings.
+                    type: string
+                  identity_provider_url:
+                    description: IdentityProviderURL is a Bitbucket-specified issuer
+                      URL for incoming OIDC tokens. It is unique to each Bitbucket
+                      repository, and must be set to the value as written in the Pipelines
+                      -> OpenID Connect section of the repository settings.
+                    type: string
                 type: object
               bot_name:
                 description: BotName is the name of the bot this token grants access
@@ -192,7 +226,7 @@ spec:
                       against host.  This value should be the hostname of the GHES
                       instance, and should not include the scheme or a path. The instance
                       must be accessible over HTTPS at this hostname and the certificate
-                      must be trusted by the Auth Server.
+                      must be trusted by the Auth Service.
                     type: string
                   enterprise_slug:
                     description: EnterpriseSlug allows the slug of a GitHub Enterprise
@@ -203,6 +237,12 @@ spec:
                       this field must be left empty. This field cannot be specified
                       if `enterprise_server_host` is specified.  See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise
                       for more information about customized issuer values.
+                    type: string
+                  static_jwks:
+                    description: StaticJWKS disables fetching of the GHES signing
+                      keys via the JWKS/OIDC endpoints, and allows them to be directly
+                      specified. This allows joining from GitHub Actions in GHES instances
+                      that are not reachable by the Teleport Auth Service.
                     type: string
                 type: object
               gitlab:
@@ -257,9 +297,9 @@ spec:
                     type: string
                 type: object
               join_method:
-                description: JoinMethod is the joining method required in order to
-                  use this token. Supported joining methods include "token", "ec2",
-                  and "iam".
+                description: 'JoinMethod is the joining method required in order to
+                  use this token. Supported joining methods include: azure, circleci,
+                  ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm'
                 type: string
               kubernetes:
                 description: Kubernetes allows the configuration of options specific
@@ -289,6 +329,32 @@ spec:
                       validating the Kubernetes Service Account token. Support values:
                       - `in_cluster` - `static_jwks` If unset, this defaults to `in_cluster`.'
                     type: string
+                type: object
+              oracle:
+                description: Oracle allows the configuration of options specific to
+                  the "oracle" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: Allow is a list of Rules, nodes using this token
+                      must match one allow rule to use this token.
+                    items:
+                      properties:
+                        parent_compartments:
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        regions:
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        tenancy:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
                 type: object
               roles:
                 description: Roles is a list of roles associated with the token, that
@@ -341,6 +407,51 @@ spec:
                   set when using this token to enroll themselves in the cluster. Currently,
                   only node-join scripts create a configuration according to the suggestion.
                 type: object
+              terraform_cloud:
+                description: TerraformCloud allows the configuration of options specific
+                  to the "terraform_cloud" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: Allow is a list of Rules, nodes using this token
+                      must match one allow rule to use this token.
+                    items:
+                      properties:
+                        organization_id:
+                          type: string
+                        organization_name:
+                          type: string
+                        project_id:
+                          type: string
+                        project_name:
+                          type: string
+                        run_phase:
+                          type: string
+                        workspace_id:
+                          type: string
+                        workspace_name:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  audience:
+                    description: Audience is the JWT audience as configured in the
+                      TFC_WORKLOAD_IDENTITY_AUDIENCE(_$TAG) variable in Terraform
+                      Cloud. If unset, defaults to the Teleport cluster name. For
+                      example, if `TFC_WORKLOAD_IDENTITY_AUDIENCE_TELEPORT=foo` is
+                      set in Terraform Cloud, this value should be `foo`. If the variable
+                      is set to match the cluster name, it does not need to be set
+                      here.
+                    type: string
+                  hostname:
+                    description: Hostname is the hostname of the Terraform Enterprise
+                      instance expected to issue JWTs allowed by this token. This
+                      may be unset for regular Terraform Cloud use, in which case
+                      it will be assumed to be `app.terraform.io`. Otherwise, it must
+                      both match the `iss` (issuer) field included in JWTs, and provide
+                      standard JWKS endpoints.
+                    type: string
+                type: object
               tpm:
                 description: TPM allows the configuration of options specific to the
                   "tpm" join method.
@@ -353,9 +464,9 @@ spec:
                       properties:
                         description:
                           type: string
-                        ekcert_serial:
+                        ek_certificate_serial:
                           type: string
-                        ekpub_hash:
+                        ek_public_hash:
                           type: string
                       type: object
                     nullable: true
@@ -380,16 +491,8 @@ spec:
                 description: Conditions represent the latest available observations
                   of an object's state
                 items:
-                  description: "Condition contains details for one aspect of the current
-                    state of this API Resource.\n---\nThis struct is intended for
-                    direct use as an array at the field path .status.conditions.  For
-                    example,\n\n\n\ttype FooStatus struct{\n\t    // Represents the
-                    observations of a foo's current state.\n\t    // Known .status.conditions.type
-                    are: \"Available\", \"Progressing\", and \"Degraded\"\n\t    //
-                    +patchMergeKey=type\n\t    // +patchStrategy=merge\n\t    // +listType=map\n\t
-                    \   // +listMapKey=type\n\t    Conditions []metav1.Condition `json:\"conditions,omitempty\"
-                    patchStrategy:\"merge\" patchMergeKey:\"type\" protobuf:\"bytes,1,rep,name=conditions\"`\n\n\n\t
-                    \   // other fields\n\t}"
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
                   properties:
                     lastTransitionTime:
                       description: |-
@@ -430,12 +533,7 @@ spec:
                       - Unknown
                       type: string
                     type:
-                      description: |-
-                        type of condition in CamelCase or in foo.example.com/CamelCase.
-                        ---
-                        Many .condition.type values are consistent across resources like Available, but because arbitrary conditions can be
-                        useful (see .node.status.conditions), the ability to deconflict is important.
-                        The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
                       maxLength: 316
                       pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
                       type: string

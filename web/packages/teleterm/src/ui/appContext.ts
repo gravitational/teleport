@@ -18,32 +18,32 @@
 
 import { debounce } from 'shared/utils/highbar';
 
-import {
-  MainProcessClient,
-  ElectronGlobals,
-  TshdEventContextBridgeService,
-} from 'teleterm/types';
+import { parseDeepLink } from 'teleterm/deepLinks';
 import Logger from 'teleterm/logger';
-import { ClustersService } from 'teleterm/ui/services/clusters';
-import { ModalsService } from 'teleterm/ui/services/modals';
-import { TerminalsService } from 'teleterm/ui/services/terminals';
-import { ConnectionTrackerService } from 'teleterm/ui/services/connectionTracker';
-import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
-import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
-import { WorkspacesService } from 'teleterm/ui/services/workspacesService/workspacesService';
-import { NotificationsService } from 'teleterm/ui/services/notifications';
-import { FileTransferService } from 'teleterm/ui/services/fileTransferClient';
-import { ReloginService } from 'teleterm/ui/services/relogin/reloginService';
-import { TshdNotificationsService } from 'teleterm/ui/services/tshdNotifications/tshdNotificationService';
-import { HeadlessAuthenticationService } from 'teleterm/ui/services/headlessAuthn/headlessAuthnService';
-import { UsageService } from 'teleterm/ui/services/usage';
-import { ResourcesService } from 'teleterm/ui/services/resources';
-import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
 import { ConfigService } from 'teleterm/services/config';
 import { TshdClient, VnetClient } from 'teleterm/services/tshd/createClient';
-import { IAppContext } from 'teleterm/ui/types';
+import {
+  ElectronGlobals,
+  MainProcessClient,
+  TshdEventContextBridgeService,
+} from 'teleterm/types';
+import { ClustersService } from 'teleterm/ui/services/clusters';
+import { ConnectionTrackerService } from 'teleterm/ui/services/connectionTracker';
+import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
 import { DeepLinksService } from 'teleterm/ui/services/deepLinks';
-import { parseDeepLink } from 'teleterm/deepLinks';
+import { FileTransferService } from 'teleterm/ui/services/fileTransferClient';
+import { HeadlessAuthenticationService } from 'teleterm/ui/services/headlessAuthn/headlessAuthnService';
+import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
+import { ModalsService } from 'teleterm/ui/services/modals';
+import { NotificationsService } from 'teleterm/ui/services/notifications';
+import { ReloginService } from 'teleterm/ui/services/relogin/reloginService';
+import { ResourcesService } from 'teleterm/ui/services/resources';
+import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
+import { TerminalsService } from 'teleterm/ui/services/terminals';
+import { TshdNotificationsService } from 'teleterm/ui/services/tshdNotifications/tshdNotificationService';
+import { UsageService } from 'teleterm/ui/services/usage';
+import { WorkspacesService } from 'teleterm/ui/services/workspacesService/workspacesService';
+import { IAppContext, UnexpectedVnetShutdownListener } from 'teleterm/ui/types';
 
 import { CommandLauncher } from './commandLauncher';
 import { createTshdEventsContextBridgeService } from './tshdEvents';
@@ -75,6 +75,7 @@ export default class AppContext implements IAppContext {
   setupTshdEventContextBridgeService: (
     service: TshdEventContextBridgeService
   ) => void;
+  getPathForFile: (file: File) => string;
   reloginService: ReloginService;
   tshdNotificationsService: TshdNotificationsService;
   headlessAuthenticationService: HeadlessAuthenticationService;
@@ -82,6 +83,9 @@ export default class AppContext implements IAppContext {
   configService: ConfigService;
   connectMyComputerService: ConnectMyComputerService;
   deepLinksService: DeepLinksService;
+  private _unexpectedVnetShutdownListener:
+    | UnexpectedVnetShutdownListener
+    | undefined;
 
   constructor(config: ElectronGlobals) {
     const { tshClient, ptyServiceClient, mainProcessClient } = config;
@@ -93,6 +97,7 @@ export default class AppContext implements IAppContext {
     this.mainProcessClient = mainProcessClient;
     this.notificationsService = new NotificationsService();
     this.configService = this.mainProcessClient.configService;
+    this.getPathForFile = config.getPathForFile;
     this.usageService = new UsageService(
       tshClient,
       this.configService,
@@ -171,8 +176,40 @@ export default class AppContext implements IAppContext {
 
     this.subscribeToDeepLinkLaunch();
     this.notifyMainProcessAboutClusterListChanges();
-    this.clustersService.syncGatewaysAndCatchErrors();
+    void this.clustersService.syncGatewaysAndCatchErrors();
     await this.clustersService.syncRootClustersAndCatchErrors();
+    this.workspacesService.restorePersistedState();
+    // The app has been initialized (callbacks are set up, state is restored).
+    // The UI is visible.
+    this.workspacesService.markAsInitialized();
+  }
+
+  /**
+   * addUnexpectedVnetShutdownListener sets the listener and returns a cleanup function which
+   * removes the listener.
+   */
+  addUnexpectedVnetShutdownListener(
+    listener: UnexpectedVnetShutdownListener
+  ): () => void {
+    this._unexpectedVnetShutdownListener = listener;
+
+    return () => {
+      this._unexpectedVnetShutdownListener = undefined;
+    };
+  }
+
+  /**
+   * unexpectedVnetShutdownListener gets called by tshd events service when it gets a report about
+   * said shutdown from tsh daemon.
+   *
+   * The communication between tshd events service and VnetContext is done through a callback on
+   * AppContext. That's because tshd events service lives outside of React but within the same
+   * process (renderer).
+   */
+  // To force callsites to use addUnexpectedVnetShutdownListener instead of setting the property
+  // directly on appContext, we use a getter which exposes a private property.
+  get unexpectedVnetShutdownListener(): UnexpectedVnetShutdownListener {
+    return this._unexpectedVnetShutdownListener;
   }
 
   private subscribeToDeepLinkLaunch() {

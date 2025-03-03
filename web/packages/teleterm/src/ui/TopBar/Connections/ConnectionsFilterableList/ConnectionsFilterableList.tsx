@@ -18,19 +18,19 @@
 
 import { Text } from 'design';
 
-import { FilterableList } from 'teleterm/ui/components/FilterableList';
-import { ExtendedTrackedConnection } from 'teleterm/ui/services/connectionTracker';
-import { useKeyboardArrowsNavigationStateUpdate } from 'teleterm/ui/components/KeyboardArrowsNavigation';
-import { VnetConnectionItem, useVnetContext } from 'teleterm/ui/Vnet';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { FilterableList } from 'teleterm/ui/components/FilterableList';
+import { useKeyboardArrowsNavigationStateUpdate } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+import { ExtendedTrackedConnection } from 'teleterm/ui/services/connectionTracker';
+import { useVnetContext, VnetConnectionItem } from 'teleterm/ui/Vnet';
 
 import { ConnectionItem } from './ConnectionItem';
 
 export function ConnectionsFilterableList(props: {
   items: ExtendedTrackedConnection[];
-  onActivateItem(id: string): void;
-  onRemoveItem(id: string): void;
-  onDisconnectItem(id: string): void;
+  activateItem(id: string): void;
+  removeItem(id: string): void;
+  disconnectItem(id: string): void;
   slideToVnet(): void;
 }) {
   const { setActiveIndex } = useKeyboardArrowsNavigationStateUpdate();
@@ -80,9 +80,9 @@ export function ConnectionsFilterableList(props: {
             item={item}
             index={index}
             showClusterName={showClusterName}
-            onActivate={() => props.onActivateItem(item.id)}
-            onRemove={() => props.onRemoveItem(item.id)}
-            onDisconnect={() => props.onDisconnectItem(item.id)}
+            activate={() => props.activateItem(item.id)}
+            remove={() => props.removeItem(item.id)}
+            disconnect={() => props.disconnectItem(item.id)}
           />
         )
       }

@@ -33,17 +33,18 @@ import (
 )
 
 const (
-	NotifyScheduleName         = "Teleport Notifications"
+	NotifyScheduleNameOne      = "Teleport Notifications One"
+	NotifyScheduleNameTwo      = "Teleport Notifications Two"
 	NotifyScheduleAnnotation   = types.TeleportNamespace + types.ReqAnnotationNotifySchedulesLabel
 	ApprovalScheduleName       = "Teleport Approval"
 	ApprovalScheduleAnnotation = types.TeleportNamespace + types.ReqAnnotationApproveSchedulesLabel
-	ResponderName1             = "Responder 1"
-	ResponderName2             = "Responder 2"
+	NotifyTeamName             = "My Team"
+	NotifyTeamAnnotation       = types.TeleportNamespace + types.ReqAnnotationTeamsLabel
 )
 
-// OpsgenieSuite is the OpsGenie access plugin test suite.
+// OpsgenieBaseSuite is the OpsGenie access plugin test suite.
 // It implements the testify.TestingSuite interface.
-type OpsgenieSuite struct {
+type OpsgenieBaseSuite struct {
 	*integration.AccessRequestSuite
 	appConfig    opsgenie.Config
 	raceNumber   int
@@ -58,7 +59,7 @@ type OpsgenieSuite struct {
 // It also configures the role notifications for OpsGenie notifications and
 // automatic approval.
 // It is run for each test.
-func (s *OpsgenieSuite) SetupTest() {
+func (s *OpsgenieBaseSuite) SetupTest() {
 	t := s.T()
 	ctx := context.Background()
 
@@ -71,12 +72,13 @@ func (s *OpsgenieSuite) SetupTest() {
 
 	// This service should be notified for every access request.
 	s.ogNotifyResponder = s.fakeOpsgenie.StoreResponder(opsgenie.Responder{
-		Name: NotifyScheduleName,
+		Name: NotifyScheduleNameOne,
 	})
+
 	s.AnnotateRequesterRoleAccessRequests(
 		ctx,
 		NotifyScheduleAnnotation,
-		[]string{NotifyScheduleName},
+		[]string{NotifyScheduleNameOne, NotifyScheduleNameTwo},
 	)
 
 	// Responder 1 and 2 are on-call and should be automatically approved.
@@ -98,21 +100,72 @@ func (s *OpsgenieSuite) SetupTest() {
 }
 
 // startApp starts the OpsGenie plugin, waits for it to become ready and returns.
-func (s *OpsgenieSuite) startApp() {
+func (s *OpsgenieBaseSuite) startApp() {
+	s.T().Helper()
 	t := s.T()
-	t.Helper()
 
 	app, err := opsgenie.NewOpsgenieApp(context.Background(), &s.appConfig)
 	require.NoError(t, err)
-	s.RunAndWaitReady(t, app)
+	integration.RunAndWaitReady(t, app)
 }
 
-// TestAlertCreation validates that an alert is created to the service
-// specified in the role's annotation.
-func (s *OpsgenieSuite) TestAlertCreation() {
+// OpsgenieSuiteOSS contains all tests that support running against a Teleport
+// OSS Server.
+type OpsgenieSuiteOSS struct {
+	OpsgenieBaseSuite
+}
+
+// OpsgenieSuiteEnterprise contains all tests that require a Teleport Enterprise
+// to run.
+type OpsgenieSuiteEnterprise struct {
+	OpsgenieBaseSuite
+}
+
+// SetupTest overrides OpsgenieBaseSuite.SetupTest to check the Teleport features
+// before each test.
+func (s *OpsgenieSuiteEnterprise) SetupTest() {
+	t := s.T()
+	s.RequireAdvancedWorkflow(t)
+	s.OpsgenieBaseSuite.SetupTest()
+}
+
+// TestAlertCreationForSchedules validates that an alert is created to the service
+// specified in the role's annotation using /notify-services annotation
+func (s *OpsgenieSuiteOSS) TestAlertCreationForSchedules() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
+
+	s.startApp()
+
+	// Test execution: create an access request
+	req := s.CreateAccessRequest(ctx, integration.RequesterOSSUserName, nil)
+
+	// Validate the alert has been created in OpsGenie and its ID is stored in
+	// the plugin_data.
+	pluginData := s.checkPluginData(ctx, req.GetName(), func(data opsgenie.PluginData) bool {
+		return data.AlertID != ""
+	})
+
+	alert, err := s.fakeOpsgenie.CheckNewAlert(ctx)
+
+	require.NoError(t, err, "no new alerts stored")
+
+	assert.Equal(t, alert.ID, pluginData.AlertID)
+}
+
+// TestAlertCreationForTeams validates that an alert is created to the service
+// specified in the role's annotation using /teams annotation
+func (s *OpsgenieSuiteOSS) TestAlertCreationForTeams() {
+	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
+
+	s.AnnotateRequesterRoleAccessRequests(
+		ctx,
+		NotifyTeamAnnotation,
+		[]string{NotifyTeamName},
+	)
 
 	s.startApp()
 
@@ -133,7 +186,7 @@ func (s *OpsgenieSuite) TestAlertCreation() {
 
 // TestApproval tests that when a request is approved, its corresponding alert
 // is updated to reflect the new request state and a note is added to the alert.
-func (s *OpsgenieSuite) TestApproval() {
+func (s *OpsgenieSuiteOSS) TestApproval() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -165,7 +218,7 @@ func (s *OpsgenieSuite) TestApproval() {
 
 // TestDenial tests that when a request is denied, its corresponding alert
 // is updated to reflect the new request state and a note is added to the alert.
-func (s *OpsgenieSuite) TestDenial() {
+func (s *OpsgenieSuiteOSS) TestDenial() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -197,14 +250,10 @@ func (s *OpsgenieSuite) TestDenial() {
 
 // TestReviewNotes tests that alert notes are sent after the access request
 // is reviewed. Each review should create a new note.
-func (s *OpsgenieSuite) TestReviewNotes() {
+func (s *OpsgenieSuiteEnterprise) TestReviewNotes() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.startApp()
 
@@ -250,14 +299,10 @@ func (s *OpsgenieSuite) TestReviewNotes() {
 
 // TestApprovalByReview tests that the alert is annotated and resolved after the
 // access request approval threshold is reached.
-func (s *OpsgenieSuite) TestApprovalByReview() {
+func (s *OpsgenieSuiteEnterprise) TestApprovalByReview() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.startApp()
 
@@ -314,14 +359,10 @@ func (s *OpsgenieSuite) TestApprovalByReview() {
 
 // TestDenialByReview tests that the alert is annotated and resolved after the
 // access request denial threshold is reached.
-func (s *OpsgenieSuite) TestDenialByReview() {
+func (s *OpsgenieSuiteEnterprise) TestDenialByReview() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	s.startApp()
 
@@ -378,14 +419,10 @@ func (s *OpsgenieSuite) TestDenialByReview() {
 
 // TestAutoApprovalWhenNotOnCall tests that access requests are not automatically
 // approved when the user is not on-call.
-func (s *OpsgenieSuite) TestAutoApprovalWhenNotOnCall() {
+func (s *OpsgenieSuiteEnterprise) TestAutoApprovalWhenNotOnCall() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	// Test setup: create an on-call schedule with a non-Teleport user in it.
 	s.fakeOpsgenie.StoreSchedule(ApprovalScheduleName, s.ogResponder2)
@@ -418,14 +455,10 @@ func (s *OpsgenieSuite) TestAutoApprovalWhenNotOnCall() {
 
 // TestAutoApprovalWhenOnCall tests that access requests are automatically
 // approved when the user is not on-call.
-func (s *OpsgenieSuite) TestAutoApprovalWhenOnCall() {
+func (s *OpsgenieSuiteEnterprise) TestAutoApprovalWhenOnCall() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
-
-	if !s.TeleportFeatures().AdvancedAccessWorkflows {
-		t.Skip("Doesn't work in OSS version")
-	}
 
 	// Test setup: create an on-call schedule with a non-Teleport user in it.
 	s.fakeOpsgenie.StoreSchedule(ApprovalScheduleName, s.ogResponder1, s.ogResponder2)

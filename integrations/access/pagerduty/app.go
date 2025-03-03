@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -30,12 +31,15 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/accessmonitoring"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
+	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -46,7 +50,7 @@ const (
 	// initTimeout is used to bound execution time of health check and teleport version check.
 	initTimeout = time.Second * 10
 	// handlerTimeout is used to bound the execution time of watcher event handler.
-	handlerTimeout = time.Second * 5
+	handlerTimeout = time.Second * 30
 	// modifyPluginDataBackoffBase is an initial (minimum) backoff value.
 	modifyPluginDataBackoffBase = time.Millisecond
 	// modifyPluginDataBackoffMax is a backoff threshold
@@ -60,10 +64,11 @@ var errSkip = errors.New("")
 type App struct {
 	conf Config
 
-	teleport   teleport.Client
-	pagerduty  Pagerduty
-	statusSink common.StatusSink
-	mainJob    lib.ServiceJob
+	teleport              teleport.Client
+	pagerduty             Pagerduty
+	statusSink            common.StatusSink
+	mainJob               lib.ServiceJob
+	accessMonitoringRules *accessmonitoring.RuleHandler
 
 	*lib.Process
 }
@@ -103,34 +108,48 @@ func (a *App) run(ctx context.Context) error {
 	var err error
 
 	log := logger.Get(ctx)
-	log.Infof("Starting Teleport Access PagerDuty Plugin")
 
 	if err = a.init(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
-	watcherJob, err := watcherjob.NewJob(
+	watchKinds := []types.WatchKind{
+		{Kind: types.KindAccessRequest},
+		{Kind: types.KindAccessMonitoringRule},
+	}
+
+	acceptedWatchKinds := make([]string, 0, len(watchKinds))
+	watcherJob, err := watcherjob.NewJobWithConfirmedWatchKinds(
 		a.teleport,
 		watcherjob.Config{
-			Watch:            types.Watch{Kinds: []types.WatchKind{{Kind: types.KindAccessRequest}}},
+			Watch:            types.Watch{Kinds: watchKinds, AllowPartialSuccess: true},
 			EventFuncTimeout: handlerTimeout,
 		},
 		a.onWatcherEvent,
+		func(ws types.WatchStatus) {
+			for _, watchKind := range ws.GetKinds() {
+				acceptedWatchKinds = append(acceptedWatchKinds, watchKind.Kind)
+			}
+		},
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	a.SpawnCriticalJob(watcherJob)
 	ok, err := watcherJob.WaitReady(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if err := a.accessMonitoringRules.InitAccessMonitoringRulesCache(ctx); err != nil {
+		return trace.Wrap(err)
+	}
 
 	a.mainJob.SetReady(ok)
 	if ok {
-		log.Info("Plugin is ready")
+		log.InfoContext(ctx, "Plugin is ready")
 	} else {
-		log.Error("Plugin is not ready")
+		log.ErrorContext(ctx, "Plugin is not ready")
 	}
 
 	<-watcherJob.Done()
@@ -154,6 +173,23 @@ func (a *App) init(ctx context.Context) error {
 		}
 	}
 
+	amrhConf := accessmonitoring.RuleHandlerConfig{
+		Client:     a.teleport,
+		PluginType: types.PluginTypePagerDuty,
+		PluginName: pluginName,
+		FetchRecipientCallback: func(_ context.Context, name string) (*common.Recipient, error) {
+			return &common.Recipient{
+				Name: name,
+				ID:   name,
+				Kind: common.RecipientKindSchedule,
+			}, nil
+		},
+	}
+	if a.conf.OnAccessMonitoringRuleCacheUpdateCallback != nil {
+		amrhConf.OnCacheUpdateCallback = a.conf.OnAccessMonitoringRuleCacheUpdateCallback
+	}
+	a.accessMonitoringRules = accessmonitoring.NewRuleHandler(amrhConf)
+
 	if pong, err = a.checkTeleportVersion(ctx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -167,47 +203,59 @@ func (a *App) init(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	log.Debug("Starting PagerDuty API health check...")
+	log.DebugContext(ctx, "Starting PagerDuty API health check")
 	if err = a.pagerduty.HealthCheck(ctx); err != nil {
 		return trace.Wrap(err, "api health check failed. check your credentials and service_id settings")
 	}
-	log.Debug("PagerDuty API health check finished ok")
+	log.DebugContext(ctx, "PagerDuty API health check finished ok")
 
 	return nil
 }
 
 func (a *App) checkTeleportVersion(ctx context.Context) (proto.PingResponse, error) {
 	log := logger.Get(ctx)
-	log.Debug("Checking Teleport server version")
+	log.DebugContext(ctx, "Checking Teleport server version")
 
 	pong, err := a.teleport.Ping(ctx)
 	if err != nil {
 		if trace.IsNotImplemented(err) {
 			return pong, trace.Wrap(err, "server version must be at least %s", minServerVersion)
 		}
-		log.Error("Unable to get Teleport server version")
+		log.ErrorContext(ctx, "Unable to get Teleport server version")
 		return pong, trace.Wrap(err)
 	}
-	err = lib.AssertServerVersion(pong, minServerVersion)
+	err = utils.CheckMinVersion(pong.ServerVersion, minServerVersion)
 	return pong, trace.Wrap(err)
 }
 
+// onWatcherEvent is called for every cluster Event. It will filter out non-access-request events and
+// call onPendingRequest, onResolvedRequest and on DeletedRequest depending on the event.
 func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
+	switch event.Resource.GetKind() {
+	case types.KindAccessMonitoringRule:
+		return trace.Wrap(a.accessMonitoringRules.HandleAccessMonitoringRule(ctx, event))
+	case types.KindAccessRequest:
+		return trace.Wrap(a.handleAccessRequest(ctx, event))
+	}
+	return trace.BadParameter("unexpected kind %s", event.Resource.GetKind())
+}
+
+func (a *App) handleAccessRequest(ctx context.Context, event types.Event) error {
 	if kind := event.Resource.GetKind(); kind != types.KindAccessRequest {
 		return trace.Errorf("unexpected kind %s", kind)
 	}
 	op := event.Type
 	reqID := event.Resource.GetName()
-	ctx, _ = logger.WithField(ctx, "request_id", reqID)
+	ctx, _ = logger.With(ctx, "request_id", reqID)
 
 	switch op {
 	case types.OpPut:
-		ctx, _ = logger.WithField(ctx, "request_op", "put")
+		ctx, _ = logger.With(ctx, "request_op", "put")
 		req, ok := event.Resource.(types.AccessRequest)
 		if !ok {
 			return trace.Errorf("unexpected resource type %T", event.Resource)
 		}
-		ctx, log := logger.WithField(ctx, "request_state", req.GetState().String())
+		ctx, log := logger.With(ctx, "request_state", req.GetState().String())
 
 		var err error
 		switch {
@@ -216,21 +264,29 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 		case req.GetState().IsResolved():
 			err = a.onResolvedRequest(ctx, req)
 		default:
-			log.WithField("event", event).Warn("Unknown request state")
+			log.WarnContext(ctx, "Unknown request state",
+				slog.Group("event",
+					slog.Any("type", logutils.StringerAttr(event.Type)),
+					slog.Group("resource",
+						"kind", event.Resource.GetKind(),
+						"name", event.Resource.GetName(),
+					),
+				),
+			)
 			return nil
 		}
 
 		if err != nil {
-			log.WithError(err).Error("Failed to process request")
+			log.ErrorContext(ctx, "Failed to process request", "error", err)
 			return trace.Wrap(err)
 		}
 
 		return nil
 	case types.OpDelete:
-		ctx, log := logger.WithField(ctx, "request_op", "delete")
+		ctx, log := logger.With(ctx, "request_op", "delete")
 
 		if err := a.onDeletedRequest(ctx, reqID); err != nil {
-			log.WithError(err).Error("Failed to process deleted request")
+			log.ErrorContext(ctx, "Failed to process deleted request", "error", err)
 			return trace.Wrap(err)
 		}
 		return nil
@@ -241,7 +297,7 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 
 func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) error {
 	if len(req.GetSystemAnnotations()) == 0 {
-		logger.Get(ctx).Debug("Cannot proceed further. Request is missing any annotations")
+		logger.Get(ctx).DebugContext(ctx, "Cannot proceed further - request is missing any annotations")
 		return nil
 	}
 
@@ -287,8 +343,18 @@ func (a *App) onDeletedRequest(ctx context.Context, reqID string) error {
 	return a.resolveIncident(ctx, reqID, Resolution{Tag: ResolvedExpired})
 }
 
-func (a *App) getNotifyServiceName(req types.AccessRequest) (string, error) {
+func (a *App) getNotifyServiceName(ctx context.Context, req types.AccessRequest) (string, error) {
+	recipientSetService := a.accessMonitoringRules.RecipientsFromAccessMonitoringRules(ctx, req)
+	if recipientSetService.Len() > 1 {
+		return "", trace.BadParameter("more than one service provided as PagerDuty plugin recipient")
+	}
+	if recipientSetService.Len() == 1 {
+		return recipientSetService.ToSlice()[0].Name, nil
+	}
 	annotationKey := a.conf.Pagerduty.RequestAnnotations.NotifyService
+	// We cannot use common.GetNamesFromAnnotations here as it sorts the
+	// list and might change the first element.
+	// The proper way would be to support notifying multiple services
 	slice, ok := req.GetSystemAnnotations()[annotationKey]
 	if !ok {
 		return "", trace.Errorf("request annotation %s is missing", annotationKey)
@@ -305,26 +371,19 @@ func (a *App) getNotifyServiceName(req types.AccessRequest) (string, error) {
 
 func (a *App) getOnCallServiceNames(req types.AccessRequest) ([]string, error) {
 	annotationKey := a.conf.Pagerduty.RequestAnnotations.Services
-	serviceNames, ok := req.GetSystemAnnotations()[annotationKey]
-	if !ok {
-		return nil, trace.Errorf("request annotation %s is missing", annotationKey)
-	}
-	if len(serviceNames) == 0 {
-		return nil, trace.Errorf("request annotation %s is present but empty", annotationKey)
-	}
-	return serviceNames, nil
+	return common.GetNamesFromAnnotations(req, annotationKey)
 }
 
 func (a *App) tryNotifyService(ctx context.Context, req types.AccessRequest) (bool, error) {
 	log := logger.Get(ctx)
 
-	serviceName, err := a.getNotifyServiceName(req)
+	serviceName, err := a.getNotifyServiceName(ctx, req)
 	if err != nil {
-		log.Debugf("Skipping the notification: %s", err)
+		log.DebugContext(ctx, "Skipping the notification", "error", err)
 		return false, trace.Wrap(errSkip)
 	}
 
-	ctx, _ = logger.WithField(ctx, "pd_service_name", serviceName)
+	ctx, _ = logger.With(ctx, "pd_service_name", serviceName)
 	service, err := a.pagerduty.FindServiceByName(ctx, serviceName)
 	if err != nil {
 		return false, trace.Wrap(err, "finding pagerduty service %s", serviceName)
@@ -370,8 +429,8 @@ func (a *App) createIncident(ctx context.Context, serviceID, reqID string, reqDa
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ctx, log := logger.WithField(ctx, "pd_incident_id", data.IncidentID)
-	log.Info("Successfully created PagerDuty incident")
+	ctx, log := logger.With(ctx, "pd_incident_id", data.IncidentID)
+	log.InfoContext(ctx, "Successfully created PagerDuty incident")
 
 	// Save pagerduty incident info in plugin data.
 	_, err = a.modifyPluginData(ctx, reqID, func(existing *PluginData) (PluginData, bool) {
@@ -415,10 +474,10 @@ func (a *App) postReviewNotes(ctx context.Context, reqID string, reqReviews []ty
 		return trace.Wrap(err)
 	}
 	if !ok {
-		logger.Get(ctx).Debug("Failed to post the note: plugin data is missing")
+		logger.Get(ctx).DebugContext(ctx, "Failed to post the note: plugin data is missing")
 		return nil
 	}
-	ctx, _ = logger.WithField(ctx, "pd_incident_id", data.IncidentID)
+	ctx, _ = logger.With(ctx, "pd_incident_id", data.IncidentID)
 
 	slice := reqReviews[oldCount:]
 	if len(slice) == 0 {
@@ -440,36 +499,40 @@ func (a *App) tryApproveRequest(ctx context.Context, req types.AccessRequest) er
 
 	serviceNames, err := a.getOnCallServiceNames(req)
 	if err != nil {
-		logger.Get(ctx).Debugf("Skipping the approval: %s", err)
+		logger.Get(ctx).DebugContext(ctx, "Skipping approval", "error", err)
 		return nil
 	}
 
 	userName := req.GetUser()
 	if !lib.IsEmail(userName) {
-		logger.Get(ctx).Warningf("Skipping the approval: %q does not look like a valid email", userName)
+		logger.Get(ctx).WarnContext(ctx, "Skipping approval, found invalid email", "pd_user_email", userName)
 		return nil
 	}
 
 	user, err := a.pagerduty.FindUserByEmail(ctx, userName)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			log.WithError(err).WithField("pd_user_email", userName).Debug("Skipping the approval: email is not found")
+			log.DebugContext(ctx, "Skipping approval, email is not found",
+				"error", err,
+				"pd_user_email", userName)
 			return nil
 		}
 		return trace.Wrap(err)
 	}
 
-	ctx, log = logger.WithFields(ctx, logger.Fields{
-		"pd_user_email": user.Email,
-		"pd_user_name":  user.Name,
-	})
+	ctx, log = logger.With(ctx,
+		"pd_user_email", user.Email,
+		"pd_user_name", user.Name,
+	)
 
 	services, err := a.pagerduty.FindServicesByNames(ctx, serviceNames)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if len(services) == 0 {
-		log.WithField("pd_service_names", serviceNames).Warning("Failed to find any service")
+		log.WarnContext(ctx, "Failed to find any service",
+			"pd_service_names", serviceNames,
+		)
 		return nil
 	}
 
@@ -486,7 +549,7 @@ func (a *App) tryApproveRequest(ctx context.Context, req types.AccessRequest) er
 		return trace.Wrap(err)
 	}
 	if len(escalationPolicyIDs) == 0 {
-		log.Debug("Skipping the approval: user is not on call")
+		log.DebugContext(ctx, "Skipping the approval: user is not on call")
 		return nil
 	}
 
@@ -511,13 +574,13 @@ func (a *App) tryApproveRequest(ctx context.Context, req types.AccessRequest) er
 		},
 	}); err != nil {
 		if strings.HasSuffix(err.Error(), "has already reviewed this request") {
-			log.Debug("Already reviewed the request")
+			log.DebugContext(ctx, "Already reviewed the request")
 			return nil
 		}
 		return trace.Wrap(err, "submitting access request")
 	}
 
-	log.Info("Successfully submitted a request approval")
+	log.InfoContext(ctx, "Successfully submitted a request approval")
 	return nil
 }
 
@@ -549,15 +612,15 @@ func (a *App) resolveIncident(ctx context.Context, reqID string, resolution Reso
 		return trace.Wrap(err)
 	}
 	if !ok {
-		logger.Get(ctx).Debug("Failed to resolve the incident: plugin data is missing")
+		logger.Get(ctx).DebugContext(ctx, "Failed to resolve the incident: plugin data is missing")
 		return nil
 	}
 
-	ctx, log := logger.WithField(ctx, "pd_incident_id", incidentID)
+	ctx, log := logger.With(ctx, "pd_incident_id", incidentID)
 	if err := a.pagerduty.ResolveIncident(ctx, incidentID, resolution); err != nil {
 		return trace.Wrap(err)
 	}
-	log.Info("Successfully resolved the incident")
+	log.InfoContext(ctx, "Successfully resolved the incident")
 
 	return nil
 }

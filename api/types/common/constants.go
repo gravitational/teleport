@@ -54,6 +54,10 @@ const (
 	// created from the Okta service.
 	OriginOkta = "okta"
 
+	// OriginSCIM is an Origin value indicating that a resource was provisioned
+	// via a SCIM service
+	OriginSCIM = "scim"
+
 	// OriginIntegrationAWSOIDC is an origin value indicating that the resource was
 	// created from the AWS OIDC Integration.
 	OriginIntegrationAWSOIDC = "integration_awsoidc"
@@ -61,6 +65,15 @@ const (
 	// OriginDiscoveryKubernetes indicates that the resource was imported
 	// from kubernetes cluster by discovery service.
 	OriginDiscoveryKubernetes = "discovery-kubernetes"
+
+	// OriginEntraID indicates that the resource was imported
+	// from the Entra ID directory.
+	OriginEntraID = "entra-id"
+
+	// OriginAWSIdentityCenter indicates that the resource was
+	// imported from the AWS Identity Center or created from
+	// the AWS Identity Center plugin.
+	OriginAWSIdentityCenter = "aws-identity-center"
 )
 
 // OriginValues lists all possible origin values.
@@ -71,5 +84,8 @@ var OriginValues = []string{
 	OriginCloud,
 	OriginKubernetes,
 	OriginOkta,
+	OriginSCIM,
 	OriginDiscoveryKubernetes,
+	OriginEntraID,
+	OriginAWSIdentityCenter,
 }

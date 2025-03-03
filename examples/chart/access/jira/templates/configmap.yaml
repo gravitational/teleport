@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "jira.fullname" . }}
+  {{- with .Values.annotations.config }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  labels:
+    {{- include "jira.labels" . | nindent 4 }}
+data:
+  teleport-jira.toml: |
+    [teleport]
+    addr = "{{ .Values.teleport.address }}"
+    identity = "/var/lib/teleport/plugins/jira/teleport-identity/{{ .Values.teleport.identitySecretPath }}"
+    refresh_identity = true
+
+    [jira]
+    url = "{{ .Values.jira.url }}"
+    username = "{{ .Values.jira.username }}"
+    api_token = "/var/lib/teleport/plugins/jira/jira_api_token"
+    project = "{{ .Values.jira.project }}"
+    {{- if .Values.jira.issueType }}
+    issue_type = "{{ .Values.jira.issueType }}"
+    {{- end }}
+
+    [http]
+    listen_addr = ":8443"
+    public_addr = "{{ .Values.http.publicAddress }}"
+    https_key_file = "/var/lib/teleport/plugins/jira/tls/tls.key"
+    https_cert_file = "/var/lib/teleport/plugins/jira/tls/tls.crt"
+
+    {{ if .Values.http.basicAuth.enabled -}}
+    [http.basic_auth]
+    user = {{ .Values.http.basicAuth.user }}
+    password = {{ .Values.http.basicAuth.password }}
+    {{- end }}
+
+    [log]
+    output = "{{ .Values.log.output }}"
+    severity = "{{ .Values.log.severity }}"

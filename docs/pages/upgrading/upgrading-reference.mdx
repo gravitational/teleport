@@ -1,0 +1,410 @@
+---
+title: Upgrading Reference
+description: Provides detailed information on upgrading Teleport in various situations.
+tocDepth: 3
+---
+
+This guide explains how to upgrade components of a Teleport cluster in
+non-standard situations. 
+
+To ensure that your Teleport cluster remains up to date with the lowest amount
+of manual overhead, we recommend [signing up](https://goteleport.com/signup) for
+a cloud-hosted Teleport Enterprise account and following [Enroll Agents in
+Automatic Upgrades](./automatic-agent-updates.mdx). 
+
+If your infrastructure does not support automatic agent updates, follow this
+guide to determine the best approach for keeping your Teleport cluster up to
+date. 
+
+Before reading this guide, become familiar with the  [Upgrading Compatibility
+Overview](./overview.mdx) guide, which describes the sequence in which to
+upgrade components in your cluster.
+
+## Working with the automatic updater
+
+This section explains how to manage the automatic updater.
+
+On Kubernetes deployments, the updater is a controller that periodically
+reconciles expected Kubernetes resources with those in the cluster. On a Linux
+server, the updater is an executable script called `teleport-upgrade`. 
+
+### `teleport-upgrade` commands
+
+The `teleport-upgrade` tool provides some basic commands to verify and perform an
+update of the Teleport Agent.
+
+```code
+$ teleport-upgrade help
+USAGE: /usr/sbin/teleport-upgrade <command>
+
+Tool for automatic upgrades of Teleport Agents.
+
+Commands:
+  run           check for and potentially apply a teleport upgrade.
+  dry-run       check for new teleport version but do not upgrade.
+  force         performs an upgrade if an upgrade is available.
+  version       print the current version of /usr/sbin/teleport-upgrade.
+  help          show this help text.
+```
+
+The `dry-run` command can be used to check for an available update without performing
+an update.
+```code
+# Example output when teleport is already on the latest compatible version.
+$ teleport-upgrade dry-run
+[i] no upgrades available (14.3.14 == 14.3.14) [ 582 ]
+
+# Example output when an update is available.
+$ teleport-upgrade dry-run
+[i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
+[i] within maintenance window, upgrade will be attempted. [ 596 ]
+```
+
+The `run` command performs an update if available.
+```code
+# Successful teleport update from 13.4.14 to 14.3.14.
+$ teleport-upgrade run
+[i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
+[i] within maintenance window, upgrade will be attempted. [ 596 ]
+[i] attempting apt install teleport-ent=14.3.14... [ 480 ]
+[...]
+[i] gracefully restarting Teleport (if already running) [ 449 ]
+
+# Teleport updates are not attempted when outside the maintenance window.
+$ teleport-upgrade run
+[i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
+[i] upgrade is non-critical and we are outside of maintenance window, not attempting. [ 618 ]
+```
+
+The `force` command performs an update immediately even when outside the maintenance
+window.
+```code
+$ teleport-upgrade force
+[i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
+[i] attempting apt install teleport-ent=14.3.14... [ 480 ]
+[...]
+[i] gracefully restarting Teleport (if already running) [ 449 ]
+```
+
+### Configuring the `teleport-upgrade` tool
+
+1. Create the upgrade configuration directory:
+   
+   ```code
+   $ sudo mkdir -p /etc/teleport-upgrade.d/
+   ```
+   
+1. If you changed the agent user to run as non-root, create
+   `/etc/teleport-upgrade.d/schedule` and grant ownership to your Teleport user,
+   assigning <Var name="your-teleport-user" /> to the name of your Teleport
+   user. Otherwise, you can skip this step:
+   
+   ```code 
+   $ sudo touch /etc/teleport-upgrade.d/schedule 
+   $ sudo chown <Var name="your-teleport-user" /> /etc/teleport-upgrade.d/schedule 
+   ```
+   
+   1. Configure the upgrader to connect to your version server and subscribe to
+   the right release channel:
+   
+   ```code 
+   $ echo "<Var name="teleport.example.com:443" />/v1/webapi/automaticupgrades/channel/default" | sudo tee /etc/teleport-upgrade.d/endpoint
+   ```
+
+   Make sure not to include `https://` as a prefix to the server address, nor
+   suffix the endpoint with `/version`.
+
+### Choosing a release channel
+
+When [configuring the updater](#configuring-the-teleport-upgrade-tool), you can
+select a release channel. 
+
+The following channels are available for APT, YUM, and Zypper repos:
+
+| Channel name      | Description                                                                                |
+|-------------------|--------------------------------------------------------------------------------------------|
+| `stable/<major>`  | Receives releases for the specified major release line, i.e. `v(=teleport.major_version=)` |
+| `stable/cloud`    | Rolling channel that receives releases compatible with current Cloud version               |
+| `stable/rolling`  | Rolling channel that receives all published Teleport releases                              |
+### Updating the updater
+
+The updater is designed to be minimal and relatively stable, but the updater will
+receive updates on occasion. Currently, the updater does not have the capability
+to update itself. Updates to the `teleport-ent-updater` package must be done manually.
+
+The `teleport-ent-updater` will be backwards compatible with older versions of Teleport,
+so you can always update the `teleport-ent-updater` package to the latest available
+version.
+
+### Version locking
+
+As of Teleport `15.1.10`, a version locking mechanism is enabled by the updater.
+This mechanism locks the version of Teleport and prevents manual updates of the Teleport
+package. This prevents unintentional updates during routine system maintenance, or
+an accidental update by a user. The updater still has the capability to update the
+Teleport package, and all updates of Teleport are expected to be performed by the
+updater.
+
+The version locking mechanism is implemented using the features of the package managers.
+In case a user would like to manually update the Teleport version, this can be done
+with the following commands.
+
+With the `apt` package manager CLI, the `--allow-change-held-packages` flag must be provided
+to bypass the version lock.
+```code
+$ apt-get install --allow-change-held-packages "teleport-ent=<target-version>"
+```
+
+With the `yum` package manager CLI, the `--disableexcludes="teleport"` flag must be provided
+to bypass the version lock.
+```code
+$ yum install --disablerepo="*" --enablerepo="teleport" --disableexcludes="teleport" "teleport-ent-<target-version>"
+```
+
+With the `zypper` package manager CLI, the lock must be disabled and then re-enabled
+after the update.
+```code
+$ zypper removelock "teleport-ent"
+$ zypper install --repo="teleport" "teleport-ent-<target-version>"
+$ zypper addlock "teleport-ent"
+```
+
+## Automatic update limitations
+
+Automatic updates are not available in all Teleport editions and installation
+methods. If you cannot use automatic updates, read [Manual
+updates](#manual-updates) for possible steps.
+
+### Automatic updates with Teleport Community Edition
+
+Automatic updates is not currently supported with the community editions of Teleport.
+Ensure that you are using the Teleport Enterprise edition of the `teleport-kube-agent`
+chart. You should see the following when you query your `teleport-kube-agent` release:
+
+```code
+$ helm -n "teleport" get values "teleport-agent" -o json | jq '.enterprise'
+true
+```
+
+### Automatic updates with direct binary installation
+
+Automatic updates is not currently supported with the direct binary installation method.
+Automatic updates is only supported with installations via the `apt`, `yum`, and
+`zypper` package managers.
+
+## Automatic updates with GitOps tools
+
+Automatic updates are incompatible with some GitOps tools used for continuous
+deployment.  The `teleport-kube-agent` Helm chart owns the version of the
+`teleport-agent` resource, so when the `teleport-agent-updater` modifies the
+image version of the `teleport-agent` resource, the GitOps tool will detect a
+drift or a diff in the `teleport-agent` resource.
+
+### ArgoCD deployments
+
+After an automatic update, ArgoCD reports the `teleport-agent` resource as `OutOfSync`.
+As a workaround to this problem use a [Diff Customization](https://argo-cd.readthedocs.io/en/stable/user-guide/diffing/#diffing-customization)
+to ignore the difference in image version. Here is an example deployment using the
+name `teleport-agent` and namespace `teleport`.
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: teleport-agent
+  namespace: teleport
+spec
+  ignoreDifferences:
+  - group: apps
+    kind: StatefulSet
+    name: teleport-agent
+    namespace: teleport
+    jqPathExpressions:
+    - .spec.template.spec.containers[] | select(.name == "teleport").image
+...
+```
+
+### FluxCD deployments
+
+After an automatic update, FluxCD reports a `DriftDetected` event. As a workaround
+to this problem modify the [drift detection](https://fluxcd.io/flux/components/helm/helmreleases/#drift-detection)
+configuration to ignore the difference in image version. Here is an example deployment
+using the name `teleport-agent` and namespace `teleport`.
+
+```yaml
+apiVersion: helm.toolkit.fluxcd.io/v2beta2
+kind: HelmRelease
+metadata:
+  name: teleport-agent
+  namespace: teleport
+spec
+  driftDetection:
+    mode: enabled
+    ignore:
+    - paths: ["/spec/template/spec/containers/0/image"]
+      target:
+        kind: StatefulSet
+        name: teleport-agent
+        namespace: teleport
+...
+```
+
+## Manual updates
+
+This section shows you how to upgrade Teleport manually. You can perform manual
+upgrades on Teleport Auth Service and Proxy Service instances running in
+self-hosted clusters, as well as all Teleport Agents.
+
+### Teleport Agents
+
+1. Identify the latest compatible Teleport Agent version by querying the
+   `webapi` endpoint of the Teleport Proxy Service, replacing 
+   <Var name="teleport.example.com:443" /> with the host and port of your
+   Teleport account or Teleport Proxy Service:
+
+   ```code
+   $ curl https://<Var name="teleport.example.com:443" />/webapi/automaticupgrades/channel/stable/cloud/version
+   v15.2.1
+   ```
+
+1. Use the `tctl inventory ls` command to list connected agents along with their
+   current version. Use the `--older-than` flag to list agents that are
+   upgradable:
+
+   ```code
+   $ tctl inventory ls --older-than=v15.2.1
+   Server ID                            Hostname       Services       Version Upgrader
+   ------------------------------------ -------------- -------------- ------- --------
+   00000000-0000-0000-0000-000000000000 ip-10-1-6-130  Node           v14.4.5 none
+   00000000-0000-0000-0000-000000000001 teleport-proxy Proxy          v15.2.0 none
+   00000000-0000-0000-0000-000000000002 teleport-auth  Auth,Discovery v15.2.0 none
+   ...
+   ```
+
+1. For each agent ID returned by the `tctl inventory ls` command, copy the ID
+   and run the following `tctl` command to access the host via `tsh`:
+
+   ```code
+   $ HOST=00000000-0000-0000-0000-000000000000
+   $ USER=root
+   $ tsh ssh "${USER?}@${HOST?}"
+   ```
+
+1. On each Linux server, follow the instructions in the [next
+   section](#single-teleport-binaries-on-linux-servers) to install the new
+   version of the `teleport` binary.
+
+1. If you have deployed any agents on Kubernetes using the `teleport-kube-agent`
+   Helm chart, [follow the instructions](#teleport-agents-running-on-kubernetes)
+   to upgrade the Helm release.
+
+### Single Teleport binaries on Linux servers
+
+You can upgrade a single Teleport binary running on a Linux host by running the
+one-line installation script with a higher version than the current one.
+
+Before upgrading Teleport across a self-hosted cluster, read the [Compatibility
+Overview](./overview.mdx) to ensure you are upgrading components in
+the correct order.
+
+Complete the following steps on all servers that run the Auth Service and Proxy
+Service, then on each of your agents:
+
+1. Get the current version:
+
+   ```code
+   $ teleport version
+   ```
+
+1. Assign <Var name="edition" /> to one of the following, depending on your
+   Teleport edition:
+
+   | Edition                           | Value        |
+   |-----------------------------------|--------------|
+   | Teleport Enterprise (Cloud)       | `cloud`      |
+   | Teleport Enterprise (Self-Hosted) | `enterprise` |
+   | Teleport Community Edition        | `oss`        |
+
+1. Assign <Var name="version" /> to the version you want to install.
+
+1. Install the new Teleport version on your Linux server:
+
+   ```code
+   $ curl (=teleport.teleport_install_script_url=) | bash -s <Var name="version" /> <Var name="edition" />
+   ```
+
+   The installation script detects the package manager on your Linux server and
+   uses it to install Teleport binaries. To customize your installation, learn
+   about the Teleport package repositories in the [installation
+   guide](../installation.mdx#linux).
+
+1. Confirm that the version of the `teleport` binary is the one you expect:
+
+   ```code
+   $ teleport version
+   ```
+
+1. Now that you have installed a more recent `teleport` binary on your Auth
+   Service and Proxy Service instances, restart Teleport on these servers to run
+   the new version.
+
+   (!docs/pages/includes/start-teleport.mdx!)
+
+### Self-hosted Teleport clusters on Kubernetes
+
+The instructions in this section assume that you have configured the
+`teleport-cluster` Helm chart with a values file called `values.yaml`, and that
+your `teleport-cluster` release is called `teleport-cluster`.
+
+1. Shrink the Auth Service pool. You must reduce the number of Auth Service
+   instances to one in order to ensure a consistent cluster state during the
+   upgrade.
+
+   Ensure that your `teleport-cluster` values file includes the following
+   configuration:
+   
+   ```yaml
+   auth:
+     highAvailability:
+       replicaCount: 1
+   ```
+
+1. Update the Teleport Helm chart repository so you can install the latest
+   version of the `teleport-cluster` chart:
+
+   (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
+
+1. Upgrade the `teleport-cluster` Helm release:
+
+   ```code
+   $ helm upgrade teleport-cluster teleport/teleport-cluster \
+     --version=<Var name="(=teleport.version=)" /> \
+     --values=values.yaml
+   ```
+
+   The `teleport-cluster` Helm chart automatically waits for the previous
+   version of the Proxy Service to stop responding to requests before running a
+   new version of the Auth Service.
+
+1. Once you have completed this guide and upgraded the cluster, you can
+   configure your cluster for high availability again.
+
+### Teleport Agents running on Kubernetes
+
+The instructions in this section assume that you have configured the
+`teleport-kube-agent` Helm chart with a values file called `values.yaml`, and
+that your `teleport-kube-agent` release is called `teleport-agent`.
+
+1. Update the Teleport Helm chart repository so you can install the latest
+   version of the `teleport-kube-agent` chart:
+
+   (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
+
+1. Upgrade the Helm release:
+
+   ```code
+   $ helm -n "teleport" upgrade teleport-agent teleport/teleport-kube-agent \
+     --values=values.yaml \
+     --version=<Var name="(=teleport.version=)" />
+   ```
+

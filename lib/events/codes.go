@@ -39,7 +39,8 @@ type Event struct {
 //   - Suffix code with one of these letters: I (info), W (warn), E (error).
 //
 // After defining an event code, make sure to keep
-// `web/packages/teleport/src/services/audit/types.ts` in sync.
+// `web/packages/teleport/src/services/audit/types.ts` in sync and add an
+// entry in the `eventsMap` in `lib/events/events_test.go`.
 const (
 	// UserLocalLoginCode is the successful local user login event code.
 	UserLocalLoginCode = "T1000I"
@@ -161,6 +162,8 @@ const (
 	DatabaseSessionUserDeactivateCode = "TDB09I"
 	// DatabaseSessionUserDeactivateFailureCode is the db.session.user.deactivate event failure code.
 	DatabaseSessionUserDeactivateFailureCode = "TDB09W"
+	// DatabaseSessionCommandResultCode is the db.session.result event code.
+	DatabaseSessionCommandResultCode = "TDB10I"
 
 	// PostgresParseCode is the db.session.postgres.statements.parse event code.
 	PostgresParseCode = "TPG00I"
@@ -230,6 +233,12 @@ const (
 	// This is indicates that the database agent http transport failed to round trip the request.
 	DynamoDBRequestFailureCode = "TDY01E"
 
+	// SpannerRPCCode is the db.session.spanner.rpc event code.
+	SpannerRPCCode = "TSPN001I"
+	// SpannerRPCDeniedCode is the warning event code for a Spanner client RPC
+	// that is denied.
+	SpannerRPCDeniedCode = "TSPN001W"
+
 	// DatabaseCreateCode is the db.create event code.
 	DatabaseCreateCode = "TDB03I"
 	// DatabaseUpdateCode is the db.update event code.
@@ -277,6 +286,8 @@ const (
 	ExecFailureCode = "T3002E"
 	// PortForwardCode is the port forward event code.
 	PortForwardCode = "T3003I"
+	// PortForwardStopCode is the port forward stop event code.
+	PortForwardStopCode = "T3003S"
 	// PortForwardFailureCode is the port forward failure event code.
 	PortForwardFailureCode = "T3003E"
 	// SCPDownloadCode is the file download event code.
@@ -311,45 +322,29 @@ const (
 	KubernetesClusterDeleteCode = "T3012I"
 
 	// The following codes correspond to SFTP file operations.
-	SFTPOpenCode            = "TS001I"
-	SFTPOpenFailureCode     = "TS001E"
-	SFTPCloseCode           = "TS002I"
-	SFTPCloseFailureCode    = "TS002E"
-	SFTPReadCode            = "TS003I"
-	SFTPReadFailureCode     = "TS003E"
-	SFTPWriteCode           = "TS004I"
-	SFTPWriteFailureCode    = "TS004E"
-	SFTPLstatCode           = "TS005I"
-	SFTPLstatFailureCode    = "TS005E"
-	SFTPFstatCode           = "TS006I"
-	SFTPFstatFailureCode    = "TS006E"
-	SFTPSetstatCode         = "TS007I"
-	SFTPSetstatFailureCode  = "TS007E"
-	SFTPFsetstatCode        = "TS008I"
-	SFTPFsetstatFailureCode = "TS008E"
-	SFTPOpendirCode         = "TS009I"
-	SFTPOpendirFailureCode  = "TS009E"
-	SFTPReaddirCode         = "TS010I"
-	SFTPReaddirFailureCode  = "TS010E"
-	SFTPRemoveCode          = "TS011I"
-	SFTPRemoveFailureCode   = "TS011E"
-	SFTPMkdirCode           = "TS012I"
-	SFTPMkdirFailureCode    = "TS012E"
-	SFTPRmdirCode           = "TS013I"
-	SFTPRmdirFailureCode    = "TS013E"
-	SFTPRealpathCode        = "TS014I"
-	SFTPRealpathFailureCode = "TS014E"
-	SFTPStatCode            = "TS015I"
-	SFTPStatFailureCode     = "TS015E"
-	SFTPRenameCode          = "TS016I"
-	SFTPRenameFailureCode   = "TS016E"
-	SFTPReadlinkCode        = "TS017I"
-	SFTPReadlinkFailureCode = "TS017E"
-	SFTPSymlinkCode         = "TS018I"
-	SFTPSymlinkFailureCode  = "TS018E"
-	SFTPLinkCode            = "TS019I"
-	SFTPLinkFailureCode     = "TS019E"
-	SFTPDisallowedCode      = "TS020E"
+	SFTPOpenCode           = "TS001I"
+	SFTPOpenFailureCode    = "TS001E"
+	SFTPSetstatCode        = "TS007I"
+	SFTPSetstatFailureCode = "TS007E"
+	SFTPOpendirCode        = "TS009I"
+	SFTPOpendirFailureCode = "TS009E"
+	SFTPReaddirCode        = "TS010I"
+	SFTPReaddirFailureCode = "TS010E"
+	SFTPRemoveCode         = "TS011I"
+	SFTPRemoveFailureCode  = "TS011E"
+	SFTPMkdirCode          = "TS012I"
+	SFTPMkdirFailureCode   = "TS012E"
+	SFTPRmdirCode          = "TS013I"
+	SFTPRmdirFailureCode   = "TS013E"
+	SFTPRenameCode         = "TS016I"
+	SFTPRenameFailureCode  = "TS016E"
+	SFTPSymlinkCode        = "TS018I"
+	SFTPSymlinkFailureCode = "TS018E"
+	SFTPLinkCode           = "TS019I"
+	SFTPLinkFailureCode    = "TS019E"
+	SFTPDisallowedCode     = "TS020E"
+	// SFTPSummaryCode is the SFTP summary code.
+	SFTPSummaryCode = "TS021I"
 
 	// SessionCommandCode is a session command code.
 	SessionCommandCode = "T4000I"
@@ -358,7 +353,7 @@ const (
 	// SessionNetworkCode is a session network code.
 	SessionNetworkCode = "T4002I"
 
-	// AccessRequestCreateCode is the the access request creation code.
+	// AccessRequestCreateCode is the access request creation code.
 	AccessRequestCreateCode = "T5000I"
 	// AccessRequestUpdateCode is the access request state update code.
 	AccessRequestUpdateCode = "T5001I"
@@ -368,6 +363,8 @@ const (
 	AccessRequestDeleteCode = "T5003I"
 	// AccessRequestResourceSearchCode is the access request resource search code.
 	AccessRequestResourceSearchCode = "T5004I"
+	// AccessRequestExpireCode is the access request expires code.
+	AccessRequestExpireCode = "T5005I"
 
 	// ResetPasswordTokenCreateCode is the token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"
@@ -420,8 +417,12 @@ const (
 
 	// BotJoinCode is the 'bot.join' event code.
 	BotJoinCode = "TJ001I"
+	// BotJoinFailureCode is the 'bot.join' event code for failures.
+	BotJoinFailureCode = "TJ001E"
 	// InstanceJoinCode is the 'node.join' event code.
 	InstanceJoinCode = "TJ002I"
+	// InstanceJoinFailureCode is the 'node.join' event code for failures.
+	InstanceJoinFailureCode = "TJ002E"
 
 	// BotCreateCode is the `bot.create` event code.
 	BotCreateCode = "TB001I"
@@ -582,6 +583,9 @@ const (
 	// AccessListMemberDeleteAllForAccessListFailureCode is the access list member delete failure code.
 	AccessListMemberDeleteAllForAccessListFailureCode = "TAL008E"
 
+	// UserLoginAccessListInvalidCode is the user login access list invalid code. This event is a warning that an access list is invalid and was not applied upon the user's login.
+	UserLoginAccessListInvalidCode = "TAL009W"
+
 	// SecReportsAuditQueryRunCode is used when a custom Security Reports Query is run.
 	SecReportsAuditQueryRunCode = "SRE001I"
 
@@ -597,6 +601,10 @@ const (
 	SPIFFESVIDIssuedSuccessCode = "TSPIFFE000I"
 	// SPIFFESVIDIssuedFailureCode is the SPIFFE SVID issued failure code.
 	SPIFFESVIDIssuedFailureCode = "TSPIFFE000E"
+	// SPIFFEFederationCreateCode is the SPIFFE Federation created code.
+	SPIFFEFederationCreateCode = "TSPIFFE001I"
+	// SPIFFEFederationDeleteCode is the SPIFFE Federation deleted code.
+	SPIFFEFederationDeleteCode = "TSPIFFE002I"
 
 	// AuthPreferenceUpdateCode is the auth preference updated event code.
 	AuthPreferenceUpdateCode = "TCAUTH001I"
@@ -604,7 +612,110 @@ const (
 	ClusterNetworkingConfigUpdateCode = "TCNET002I"
 	// SessionRecordingConfigUpdateCode is the session recording config updated event code.
 	SessionRecordingConfigUpdateCode = "TCREC003I"
+	// AccessGraphSettingsUpdateCode is the access graph settings updated event code.
+	AccessGraphSettingsUpdateCode = "TCAGC003I"
+
+	// AccessGraphAccessPathChangedCode is the access graph access path changed event code.
+	AccessGraphAccessPathChangedCode = "TAG001I"
+
+	// DiscoveryConfigCreateCode is the discovery config created event code.
+	DiscoveryConfigCreateCode = "DC001I"
+	// DiscoveryConfigUpdateCode is the discovery config updated event code.
+	DiscoveryConfigUpdateCode = "DC002I"
+	// DiscoveryConfigDeleteCode is the discovery config delete event code.
+	DiscoveryConfigDeleteCode = "DC003I"
+	// DiscoveryConfigDeleteAllCode is the discovery config delete all event code.
+	DiscoveryConfigDeleteAllCode = "DC004I"
+
+	// IntegrationCreateCode is the integration resource create event code.
+	IntegrationCreateCode = "IG001I"
+	// IntegrationUpdateCode is the integration resource update event code.
+	IntegrationUpdateCode = "IG002I"
+	// IntegrationDeleteCode is the integration resource delete event code.
+	IntegrationDeleteCode = "IG003I"
+
+	// PluginCreateCode is the plugin resource create event code.
+	PluginCreateCode = "PG001I"
+	// PluginUpdateCode is the plugin resource update event code.
+	PluginUpdateCode = "PG002I"
+	// PluginDeleteCode is the plugin resource delete event code.
+	PluginDeleteCode = "PG003I"
+
+	// StaticHostUserCreateCode is the static host user resource create event code.
+	StaticHostUserCreateCode = "SHU001I"
+	// StaticHostUserUpdateCode is the static host user resource update event code.
+	StaticHostUserUpdateCode = "SHU002I"
+	// StaticHostUserDeleteCode is the static host user resource delete event code.
+	StaticHostUserDeleteCode = "SHU003I"
+
+	// CrownJewelCreateCode is the crown jewel create event code.
+	CrownJewelCreateCode = "CJ001I"
+	// CrownJewelUpdateCode is the crown jewel update event code.
+	CrownJewelUpdateCode = "CJ002I"
+	// CrownJewelDeleteCode is the crown jewel delete event code.
+	CrownJewelDeleteCode = "CJ003I"
+
+	// UserTaskCreateCode is the user task create event code.
+	UserTaskCreateCode = "UT001I"
+	// UserTaskUpdateCode is the user task update event code.
+	UserTaskUpdateCode = "UT002I"
+	// UserTaskDeleteCode is the user task delete event code.
+	UserTaskDeleteCode = "UT003I"
+
+	// AutoUpdateConfigCreateCode is the auto update config create event code.
+	AutoUpdateConfigCreateCode = "AUC001I"
+	// AutoUpdateConfigUpdateCode is the auto update config update event code.
+	AutoUpdateConfigUpdateCode = "AUC002I"
+	// AutoUpdateConfigDeleteCode is the auto update config delete event code.
+	AutoUpdateConfigDeleteCode = "AUC003I"
+
+	// AutoUpdateVersionCreateCode is the auto update version create event code.
+	AutoUpdateVersionCreateCode = "AUV001I"
+	// AutoUpdateVersionUpdateCode is the auto update version update event code.
+	AutoUpdateVersionUpdateCode = "AUV002I"
+	// AutoUpdateVersionDeleteCode is the auto update version delete event code.
+	AutoUpdateVersionDeleteCode = "AUV003I"
+
+	// ContactCreateCode is the auto update version create event code.
+	ContactCreateCode = "TCTC001I"
+	// ContactDeleteCode is the auto update version delete event code.
+	ContactDeleteCode = "TCTC002I"
+
+	// WorkloadIdentityCreateCode is the workload identity create event code.
+	WorkloadIdentityCreateCode = "WID001I"
+	// WorkloadIdentityUpdateCode is the workload identity update event code.
+	WorkloadIdentityUpdateCode = "WID002I"
+	// WorkloadIdentityDeleteCode is the workload identity delete event code.
+	WorkloadIdentityDeleteCode = "WID003I"
+	// WorkloadIdentityX509RevocationCreateCode is the
+	// WorkloadIdentityX509Revocation create event code.
+	WorkloadIdentityX509RevocationCreateCode = "WID004I"
+	// WorkloadIdentityX509RevocationUpdateCode is the
+	// WorkloadIdentityX509Revocation update event code.
+	WorkloadIdentityX509RevocationUpdateCode = "WID005I"
+	// WorkloadIdentityX509RevocationDeleteCode is the
+	// WorkloadIdentityX509Revocation delete event code.
+	WorkloadIdentityX509RevocationDeleteCode = "WID006I"
+
+	// GitCommandCode is the git command event code
+	GitCommandCode = "TGIT001I"
+	// GitCommandFailureCode is the git command feature event code.
+	GitCommandFailureCode = "TGIT001E"
+
+	// StableUNIXUserCreateCode is the stable UNIX user create event code.
+	StableUNIXUserCreateCode = "TSUU001I"
+
+	// AWSICResourceSyncSuccessCode is the AWS Identity Center resource
+	// sync attempt success code.
+	AWSICResourceSyncSuccessCode = "TAIC001I"
+	// AWSICResourceSyncFailureCode is the AWS Identity Center resource
+	// sync attempt failure code.
+	AWSICResourceSyncFailureCode = "TAIC001E"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )
+
+// After defining an event code, make sure to keep
+// `web/packages/teleport/src/services/audit/types.ts` in sync and add an
+// entry in the `eventsMap` in `lib/events/events_test.go`.

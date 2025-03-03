@@ -32,9 +32,10 @@ Next, create the role:
 $ tctl create teleport-event-handler-impersonator.yaml
 ```
 
-If you are using Machine ID to provide short-lived credentials to the Event
-Handler, add this role to the Machine ID bot user. Otherwise, add this role to
-the user that generates signed credentials for the Event Handler:
+(!docs/pages/includes/create-role-using-web.mdx!)
+
+Add this role to the user that generates signed credentials for the Event
+Handler:
 
 (!docs/pages/includes/add-role-to-user.mdx role="teleport-event-handler-impersonator"!)
 

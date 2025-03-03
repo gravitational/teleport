@@ -1,0 +1,24 @@
+---
+title: GitLab CI
+description: Reference for GitLab joining
+---
+
+This document acts a reference for GitLab CI and Machine ID. You will find
+links to in-depth guides as well as a full description of the configuration
+options available when using the GitLab join method.
+
+## Guides
+
+You can read step-by-step guides on using Machine ID and GitLab CI:
+
+- [Using Machine ID with GitLab](../../enroll-resources/machine-id/deployment/gitlab.mdx): How to
+  use Machine ID to SSH into Teleport nodes from GitLab CI.
+
+## GitLab join token
+
+A GitLab join token contains allow rules that describe which pipelines can
+use that token in order to join the Teleport cluster. A rule can contain
+multiple fields, and any pipeline that matches all of the fields within a
+single rule is granted access.
+
+(!docs/pages/includes/provision-token/gitlab-spec.mdx!)

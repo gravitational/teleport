@@ -72,6 +72,7 @@ detail about what is needed to complete a particular item.
 - [ ] Create backend service
 - [ ] Add resource client to `api` client
 - [ ] Implement gRPC service
+- [ ] Add resource parser to event stream mechanism
 - [ ] Add resource support to tctl (get, create, edit)
 - [ ] Optional: Add resource to cache
 - [ ] Add support for bootstrapping the resource
@@ -148,7 +149,7 @@ specification. To provide consistency and uniformity there are a few
 and [design patterns](https://cloud.google.com/apis/design/design_patterns)
 that should be followed when possible. The most notable of the design patterns
 is
-[Bool vs. Enum vs. String](https://cloud.google.com/apis/design/design_patterns#bool_vs_enum_vs_string). There have been several occasions in the past where a particular field
+[Bool vs. Enum vs. String](https://google.aip.dev/126). There have been several occasions in the past where a particular field
 was not flexible enough which prevented behavior from being easily extended to
 support a new feature.
 
@@ -535,6 +536,54 @@ func (fooExecutor) deleteAll(ctx context.Context, cache *Cache) error {
 func (fooExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
 	return cache.Foo.DeleteFoo(ctx, &foov1.DeleteFoo{Name: resource.GetName()})
 }
+```
+
+#### Event stream mechanism
+
+The event stream mechanism allows events (e.g creation, updates, delete) regarding your resource to be subscribed to
+by consumers.
+
+In order to add your resource to the event stream mechanism, you must write a "parser" which will allow your resource
+to be decoded from the event. This can be found in `lib/services/local/events.go`.
+
+For example, to add a parser for `foo`:
+
+```go
+func newFooParser() *fooParser {
+	return &fooParser{
+		baseParser: newBaseParser(backend.Key(fooPrefix)),
+	}
+}
+
+type fooParser struct {
+	baseParser
+}
+
+func (p *fooParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindFoo, types.V1, 0)
+	case types.OpPut:
+		foo, err := services.UnmarshalFoo(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision))
+		if err != nil {
+			return nil, trace.Wrap(err, "unmarshaling resource from event")
+		}
+		return types.Resource153ToLegacy(foo), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+```
+
+In addition, you will need to add support for instantiating this parser to the
+switch in the `NewWatcher` function in `lib/services/local/events.go`:
+
+```go
+		case types.KindFoo:
+			parser = newFooParser()
 ```
 
 ### api client

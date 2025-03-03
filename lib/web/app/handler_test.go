@@ -21,6 +21,7 @@ package app
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"encoding/json"
@@ -45,8 +46,8 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -135,7 +136,7 @@ func TestAuthPOST(t *testing.T) {
 						},
 						Status: apievents.Status{
 							Success: false,
-							Error:   "Failed app access authentication: missing required fields in JSON request body",
+							Error:   "Failed app access authentication: state token was not in the expected format",
 						},
 					}),
 				}
@@ -160,11 +161,12 @@ func TestAuthPOST(t *testing.T) {
 							Code: events.AuthAttemptFailureCode,
 						},
 						UserMetadata: apievents.UserMetadata{
-							User: "unknown",
+							User:  "unknown",
+							Login: "testuser",
 						},
 						Status: apievents.Status{
 							Success: false,
-							Error:   "Failed app access authentication: missing required fields in JSON request body",
+							Error:   "Failed app access authentication: subject session token is not set",
 						},
 					}),
 				}
@@ -225,7 +227,7 @@ func TestAuthPOST(t *testing.T) {
 				sessionError: test.sessionError,
 				appSession:   appSession,
 			}
-			p := setup(t, fakeClock, authClient, nil, nil)
+			p := setup(t, fakeClock, authClient, nil)
 
 			reqBody := test.makeRequestBody(appSession)
 			req, err := json.Marshal(reqBody)
@@ -241,263 +243,6 @@ func TestAuthPOST(t *testing.T) {
 			}
 		})
 	}
-}
-
-// DELETE IN 17.0
-func TestAuthPOST_Legacy(t *testing.T) {
-	const (
-		cookieValue = "5588e2be54a2834b4f152c56bafcd789f53b15477129d2ab4044e9a3c1bf0f3b" // random value we set in the header and expect to get back as a cookie
-	)
-
-	fakeClock := clockwork.NewFakeClock()
-	clusterName := "test-cluster"
-	publicAddr := "proxy.goteleport.com:443"
-
-	// Generate CA TLS key and cert with the cluster and application DNS.
-	key, cert, err := tlsca.GenerateSelfSignedCA(
-		pkix.Name{CommonName: clusterName},
-		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
-		defaults.CATTL,
-	)
-	require.NoError(t, err)
-
-	appSession := createAppSession(t, fakeClock, key, cert, clusterName, publicAddr)
-
-	tests := []struct {
-		desc               string
-		headers            map[string]string
-		sessionError       error
-		outStatusCode      int
-		eventChecks        []eventCheckFn
-		proxyAddrs         []utils.NetAddr
-		cookieValue        string
-		subjectCookieValue string
-	}{
-		{
-			desc: "success",
-			headers: map[string]string{
-				"Origin":                 "https://proxy.goteleport.com",
-				"X-Cookie-Value":         cookieValue,
-				"X-Subject-Cookie-Value": appSession.GetBearerToken(),
-			},
-			outStatusCode: http.StatusOK,
-			eventChecks:   []eventCheckFn{hasAuditEventCount(0)},
-			proxyAddrs: []utils.NetAddr{
-				*utils.MustParseAddr(publicAddr),
-			},
-			cookieValue:        cookieValue,
-			subjectCookieValue: appSession.GetBearerToken(),
-		},
-		{
-			desc: "success - proxy addr with custom port",
-			headers: map[string]string{
-				"Origin":                 "https://proxy.goteleport.com:3080",
-				"X-Cookie-Value":         cookieValue,
-				"X-Subject-Cookie-Value": appSession.GetBearerToken(),
-			},
-			outStatusCode: http.StatusOK,
-			eventChecks:   []eventCheckFn{hasAuditEventCount(0)},
-			proxyAddrs: []utils.NetAddr{
-				*utils.MustParseAddr("proxy.goteleport.com:3080"),
-			},
-			cookieValue:        cookieValue,
-			subjectCookieValue: appSession.GetBearerToken(),
-		},
-		{
-			desc: "missing subject session token in request",
-			headers: map[string]string{
-				"Origin":         "https://proxy.goteleport.com",
-				"X-Cookie-Value": cookieValue,
-			},
-			outStatusCode: http.StatusForbidden,
-			eventChecks: []eventCheckFn{
-				hasAuditEventCount(1),
-				hasAuditEvent(0, &apievents.AuthAttempt{
-					Metadata: apievents.Metadata{
-						Type: events.AuthAttemptEvent,
-						Code: events.AuthAttemptFailureCode,
-					},
-					UserMetadata: apievents.UserMetadata{
-						User: "unknown",
-					},
-					Status: apievents.Status{
-						Success: false,
-						Error:   "Failed app access authentication: missing X-Subject-Cookie-Value header",
-					},
-				}),
-			},
-			proxyAddrs: []utils.NetAddr{
-				*utils.MustParseAddr(publicAddr),
-			},
-		},
-		{
-			desc: "missing subject session token in request",
-			headers: map[string]string{
-				"Origin":                 "https://proxy.goteleport.com",
-				"X-Subject-Cookie-Value": "foobar",
-			},
-			outStatusCode: http.StatusForbidden,
-			eventChecks: []eventCheckFn{
-				hasAuditEventCount(1),
-				hasAuditEvent(0, &apievents.AuthAttempt{
-					Metadata: apievents.Metadata{
-						Type: events.AuthAttemptEvent,
-						Code: events.AuthAttemptFailureCode,
-					},
-					UserMetadata: apievents.UserMetadata{
-						User: "unknown",
-					},
-					Status: apievents.Status{
-						Success: false,
-						Error:   "Failed app access authentication: missing X-Cookie-Value header",
-					},
-				}),
-			},
-			proxyAddrs: []utils.NetAddr{
-				*utils.MustParseAddr(publicAddr),
-			},
-		},
-		{
-			desc: "subject session token in request does not match",
-			headers: map[string]string{
-				"Origin":                 "https://proxy.goteleport.com",
-				"X-Cookie-Value":         cookieValue,
-				"X-Subject-Cookie-Value": "foobar",
-			},
-			outStatusCode: http.StatusForbidden,
-			eventChecks: []eventCheckFn{
-				hasAuditEventCount(1),
-				hasAuditEvent(0, &apievents.AuthAttempt{
-					Metadata: apievents.Metadata{
-						Type: events.AuthAttemptEvent,
-						Code: events.AuthAttemptFailureCode,
-					},
-					UserMetadata: apievents.UserMetadata{
-						Login: appSession.GetUser(),
-						User:  "unknown",
-					},
-					Status: apievents.Status{
-						Success: false,
-						Error:   "Failed app access authentication: subject session token does not match",
-					},
-				}),
-			},
-			proxyAddrs: []utils.NetAddr{
-				*utils.MustParseAddr(publicAddr),
-			},
-		},
-		{
-			desc: "invalid session",
-			headers: map[string]string{
-				"Origin":                 "https://proxy.goteleport.com",
-				"X-Cookie-Value":         "foobar",
-				"X-Subject-Cookie-Value": appSession.GetBearerToken(),
-			},
-			sessionError:  trace.NotFound("invalid session"),
-			outStatusCode: http.StatusForbidden,
-			eventChecks:   []eventCheckFn{hasAuditEventCount(0)},
-			proxyAddrs: []utils.NetAddr{
-				*utils.MustParseAddr(publicAddr),
-			},
-		},
-		{
-			desc: "incorrect origin",
-			headers: map[string]string{
-				"Origin":                 "https://incorrect.origin.com",
-				"X-Cookie-Value":         "foobar",
-				"X-Subject-Cookie-Value": appSession.GetBearerToken(),
-			},
-			outStatusCode: http.StatusForbidden,
-			eventChecks:   []eventCheckFn{hasAuditEventCount(0)},
-			proxyAddrs: []utils.NetAddr{
-				*utils.MustParseAddr(publicAddr),
-			},
-		},
-		{
-			desc: "incorrect origin port",
-			headers: map[string]string{
-				"Origin":                 "https://proxy.goteleport.com:3080",
-				"X-Cookie-Value":         "foobar",
-				"X-Subject-Cookie-Value": appSession.GetBearerToken(),
-			},
-			outStatusCode: http.StatusForbidden,
-			eventChecks:   []eventCheckFn{hasAuditEventCount(0)},
-			proxyAddrs: []utils.NetAddr{
-				*utils.MustParseAddr(publicAddr),
-			},
-		},
-	}
-
-	for _, test := range tests {
-		test := test
-		t.Run(test.desc, func(t *testing.T) {
-			t.Parallel()
-
-			authClient := &mockAuthClient{
-				sessionError: test.sessionError,
-				appSession:   appSession,
-			}
-
-			p := setup(t, fakeClock, authClient, nil, test.proxyAddrs)
-
-			res := p.makeRequestWithHeaders(t, "/x-teleport-auth", test.headers)
-
-			require.NoError(t, res.Body.Close())
-			require.Equal(t, test.outStatusCode, res.StatusCode)
-
-			var cookieValue string
-			var subjectCookieValue string
-			for _, cookie := range res.Cookies() {
-				if cookie.Name == CookieName {
-					cookieValue = cookie.Value
-				}
-
-				if cookie.Name == SubjectCookieName {
-					subjectCookieValue = cookie.Value
-				}
-			}
-
-			require.Equal(t, subjectCookieValue, test.subjectCookieValue)
-			require.Equal(t, cookieValue, test.cookieValue)
-
-			for _, check := range test.eventChecks {
-				check(t, authClient.emittedEvents)
-			}
-		})
-	}
-}
-
-// DELETE IN 17.0
-func (p *testServer) makeRequestWithHeaders(t *testing.T, endpoint string, headers map[string]string) *http.Response {
-	u := url.URL{
-		Scheme: p.serverURL.Scheme,
-		Host:   p.serverURL.Host,
-		Path:   endpoint,
-	}
-	req, err := http.NewRequest(http.MethodPost, u.String(), nil)
-	require.NoError(t, err)
-
-	for key, value := range headers {
-		req.Header.Add(key, value)
-	}
-
-	// Issue request.
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		},
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-
-	resp, err := client.Do(req)
-	require.NoError(t, err)
-	require.NoError(t, resp.Body.Close())
-
-	return resp
 }
 
 func TestHasName(t *testing.T) {
@@ -610,7 +355,7 @@ func TestMatchApplicationServers(t *testing.T) {
 		server.Close()
 	})
 
-	p := setup(t, fakeClock, authClient, tunnel, nil)
+	p := setup(t, fakeClock, authClient, tunnel)
 	status, content := p.makeRequest(t, "GET", "/", []byte{}, []http.Cookie{
 		{
 			Name:  CookieName,
@@ -633,6 +378,14 @@ func TestMatchApplicationServers(t *testing.T) {
 func TestHealthCheckAppServer(t *testing.T) {
 	ctx := context.Background()
 	clusterName := "test-cluster"
+	publicAddr := "valid.example.com"
+
+	key, cert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
 
 	for _, tc := range []struct {
 		desc                string
@@ -674,15 +427,8 @@ func TestHealthCheckAppServer(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			key, cert, err := tlsca.GenerateSelfSignedCA(
-				pkix.Name{CommonName: clusterName},
-				[]string{tc.publicAddr, apiutils.EncodeClusterName(clusterName)},
-				defaults.CATTL,
-			)
-			require.NoError(t, err)
-
 			fakeClock := clockwork.NewFakeClock()
-			appSession := createAppSession(t, fakeClock, key, cert, clusterName, tc.publicAddr)
+			appSession := createAppSession(t, fakeClock, key, cert, clusterName, publicAddr)
 			authClient := &mockAuthClient{
 				clusterName: clusterName,
 				appSession:  appSession,
@@ -713,11 +459,12 @@ func TestHealthCheckAppServer(t *testing.T) {
 			}
 
 			appHandler, err := NewHandler(ctx, &HandlerConfig{
-				Clock:        fakeClock,
-				AuthClient:   authClient,
-				AccessPoint:  authClient,
-				ProxyClient:  tunnel,
-				CipherSuites: utils.DefaultCipherSuites(),
+				Clock:                 fakeClock,
+				AuthClient:            authClient,
+				AccessPoint:           authClient,
+				ProxyClient:           tunnel,
+				CipherSuites:          utils.DefaultCipherSuites(),
+				IntegrationAppHandler: &mockIntegrationAppHandler{},
 			})
 			require.NoError(t, err)
 
@@ -732,14 +479,14 @@ type testServer struct {
 	serverURL *url.URL
 }
 
-func setup(t *testing.T, clock clockwork.FakeClock, authClient auth.ClientI, proxyClient reversetunnelclient.Tunnel, proxyPublicAddrs []utils.NetAddr) *testServer {
+func setup(t *testing.T, clock *clockwork.FakeClock, authClient authclient.ClientI, proxyClient reversetunnelclient.Tunnel) *testServer {
 	appHandler, err := NewHandler(context.Background(), &HandlerConfig{
-		Clock:            clock,
-		AuthClient:       authClient,
-		AccessPoint:      authClient,
-		ProxyClient:      proxyClient,
-		CipherSuites:     utils.DefaultCipherSuites(),
-		ProxyPublicAddrs: proxyPublicAddrs,
+		Clock:                 clock,
+		AuthClient:            authClient,
+		AccessPoint:           authClient,
+		ProxyClient:           proxyClient,
+		CipherSuites:          utils.DefaultCipherSuites(),
+		IntegrationAppHandler: &mockIntegrationAppHandler{},
 	})
 	require.NoError(t, err)
 
@@ -792,7 +539,7 @@ func (p *testServer) makeRequest(t *testing.T, method, endpoint string, reqBody 
 }
 
 type mockAuthClient struct {
-	auth.ClientI
+	authclient.ClientI
 	clusterName   string
 	appSession    types.WebSession
 	sessionError  error
@@ -857,6 +604,14 @@ func (c *mockAuthClient) GetCertAuthority(ctx context.Context, id types.CertAuth
 	return ca, nil
 }
 
+func (c *mockAuthClient) NewWatcher(context.Context, types.Watch) (types.Watcher, error) {
+	return nil, trace.NotImplemented("")
+}
+
+func (c *mockAuthClient) GetProxies() ([]types.Server, error) {
+	return []types.Server{}, nil
+}
+
 // fakeRemoteListener Implements a `net.Listener` that return `net.Conn` from
 // the `FakeRemoteSite`.
 type fakeRemoteListener struct {
@@ -881,12 +636,13 @@ func (r *fakeRemoteListener) Addr() net.Addr {
 }
 
 // createAppSession generates a WebSession for an application.
-func createAppSession(t *testing.T, clock clockwork.FakeClock, caKey, caCert []byte, clusterName, publicAddr string) types.WebSession {
+func createAppSession(t *testing.T, clock *clockwork.FakeClock, caKey, caCert []byte, clusterName, publicAddr string) types.WebSession {
 	key, cert := createAppKeyCertPair(t, clock, caKey, caCert, clusterName, publicAddr)
+	keyPEM, err := keys.MarshalPrivateKey(key)
+	require.NoError(t, err)
 	appSession, err := types.NewWebSession(uuid.New().String(), types.KindAppSession, types.WebSessionSpecV2{
 		User:        "testuser",
-		Priv:        key.PrivateKeyPEM(),
-		Pub:         key.MarshalSSHPublicKey(),
+		TLSPriv:     keyPEM,
 		TLSCert:     cert,
 		Expires:     clock.Now().Add(5 * time.Minute),
 		BearerToken: "abc123",
@@ -897,11 +653,11 @@ func createAppSession(t *testing.T, clock clockwork.FakeClock, caKey, caCert []b
 }
 
 // createAppKeyCertPair creates and a client key and signed app cert for the client key
-func createAppKeyCertPair(t *testing.T, clock clockwork.FakeClock, caKey, caCert []byte, clusterName, publicAddr string) (*keys.PrivateKey, []byte) {
+func createAppKeyCertPair(t *testing.T, clock *clockwork.FakeClock, caKey, caCert []byte, clusterName, publicAddr string) (crypto.Signer, []byte) {
 	tlsCA, err := tlsca.FromKeys(caCert, caKey)
 	require.NoError(t, err)
 
-	privateKey, err := native.GeneratePrivateKey()
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 
 	// Generate the identity with a `RouteToApp` option.
@@ -1008,7 +764,7 @@ func TestMakeAppRedirectURL(t *testing.T) {
 				clusterName: "im-a-cluster-name",
 				publicAddr:  "grafana.localhost",
 			},
-			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost?path=&state=abc123",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost?path=&required-apps=&state=abc123",
 		},
 		{
 			name: "OK - with clusterId, publicAddr, and arn",
@@ -1018,7 +774,7 @@ func TestMakeAppRedirectURL(t *testing.T) {
 				publicAddr:  "grafana.localhost",
 				arn:         "arn:aws:iam::123456789012:role%2Frole-name",
 			},
-			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%252Frole-name?path=&state=abc123",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%252Frole-name?path=&required-apps=&state=abc123",
 		},
 		{
 			name: "OK - with clusterId, publicAddr, arn and path",
@@ -1029,7 +785,19 @@ func TestMakeAppRedirectURL(t *testing.T) {
 				arn:         "arn:aws:iam::123456789012:role%2Frole-name",
 				path:        "/foo/bar?qux=qex",
 			},
-			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%252Frole-name?path=%2Ffoo%2Fbar%3Fqux%3Dqex&state=abc123",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%252Frole-name?path=%2Ffoo%2Fbar%3Fqux%3Dqex&required-apps=&state=abc123",
+		},
+		{
+			name: "OK - with clusterId, publicAddr, arn, path, and required-apps",
+			launderURLParams: launcherURLParams{
+				stateToken:       "abc123",
+				clusterName:      "im-a-cluster-name",
+				publicAddr:       "grafana.localhost",
+				arn:              "arn:aws:iam::123456789012:role%2Frole-name",
+				path:             "/foo/bar?qux=qex",
+				requiredAppFQDNs: "api.example.com,grafana.localhost",
+			},
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%252Frole-name?path=%2Ffoo%2Fbar%3Fqux%3Dqex&required-apps=api.example.com%2Cgrafana.localhost&state=abc123",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {

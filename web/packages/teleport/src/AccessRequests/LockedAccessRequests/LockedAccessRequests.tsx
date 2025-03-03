@@ -18,15 +18,15 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Box, Card, Flex, Image, Link, Text } from 'design';
 
+import { Box, Card, Flex, H2, Image, Link, Subtitle2, Text } from 'design';
+
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
-
 import { CtaEvent } from 'teleport/services/userEvent';
 
 import step1 from './assets/step1.png';
@@ -55,11 +55,9 @@ export function LockedAccessRequests() {
         flexDirection="column"
         width="auto"
       >
-        <Box width="100%" textAlign="left">
-          <Text typography="h4" bold>
-            Access Requests Flow
-          </Text>
-          <Text typography="subtitle1" mb={5}>
+        <Box as="header" width="100%" textAlign="left">
+          <H2 mb={1}>Access Requests Flow</H2>
+          <Subtitle2 mb={5}>
             To learn more about access requests, take a look at&nbsp;
             <Link
               color="text.secondary"
@@ -68,7 +66,7 @@ export function LockedAccessRequests() {
             >
               Teleport Documentation.
             </Link>
-          </Text>
+          </Subtitle2>
         </Box>
         <Flex
           gap={4}

@@ -68,6 +68,12 @@ message GetPluginRequest {
   bool with_secrets = 2;
 }
 
+// UpdatePluginRequest is a request to update a plugin instance.
+message UpdatePluginRequest {
+  // Plugin is the plugin object to update.
+  types.PluginV1 plugin = 1;
+}
+
 // ListPluginsRequest is a paginated request to list all plugin instances.
 message ListPluginsRequest {
   // PageSize is the maximum number of plugins to return in a single response.
@@ -179,6 +185,9 @@ service PluginService {
 
   // GetPlugin returns a plugin instance by name.
   rpc GetPlugin(GetPluginRequest) returns (types.PluginV1);
+
+  // UpdatePlugin updates a plugin instance.
+  rpc UpdatePlugin(UpdatePluginRequest) returns (types.PluginV1);
 
   // DeletePlugin removes the specified plugin instance.
   rpc DeletePlugin(DeletePluginRequest) returns (google.protobuf.Empty);

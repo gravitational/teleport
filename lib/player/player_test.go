@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -169,45 +170,58 @@ func TestClose(t *testing.T) {
 	_, ok := <-p.C()
 	require.False(t, ok, "player channel should have been closed")
 	require.NoError(t, p.Err())
-	require.Equal(t, int64(1000), p.LastPlayed())
+	require.Equal(t, time.Second, p.LastPlayed())
 }
 
 func TestSeekForward(t *testing.T) {
+	clk := clockwork.NewRealClock()
+	p, err := player.New(&player.Config{
+		Clock:     clk,
+		SessionID: "test-session",
+		Streamer:  &simpleStreamer{count: 1, delay: 6000},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { p.Close() })
+	require.NoError(t, p.Play())
+
+	time.Sleep(100 * time.Millisecond)
+	p.SetPos(500 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
+	p.SetPos(5900 * time.Millisecond)
+
+	select {
+	case <-p.C():
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "event not emitted on time")
+	}
+}
+
+// TestInterruptsDelay tests that the player responds to playback
+// controls even when it is waiting to emit an event.
+func TestInterruptsDelay(t *testing.T) {
 	clk := clockwork.NewFakeClock()
 	p, err := player.New(&player.Config{
 		Clock:     clk,
 		SessionID: "test-session",
-		Streamer:  &simpleStreamer{count: 10, delay: 1000},
+		Streamer:  &simpleStreamer{count: 3, delay: 5000},
 	})
 	require.NoError(t, err)
 	require.NoError(t, p.Play())
 
+	t.Cleanup(func() { p.Close() })
+
 	clk.BlockUntil(1) // player is now waiting to emit event 0
 
-	// advance playback until right before the last event
-	p.SetPos(9001 * time.Millisecond)
+	// emulate the user seeking forward while the player is waiting..
+	p.SetPos(10_001 * time.Millisecond)
 
-	// advance the clock to unblock the player
-	// (it should now spit out all but the last event in rapid succession)
-	clk.Advance(1001 * time.Millisecond)
+	// expect event 0 and event 1 to be emitted right away
+	// even without advancing the clock
+	evt0 := <-p.C()
+	evt1 := <-p.C()
 
-	ch := make(chan struct{})
-	go func() {
-		defer close(ch)
-		for evt := range p.C() {
-			t.Logf("got event %v (delay=%v)", evt.GetID(), evt.GetCode())
-		}
-	}()
-
-	clk.BlockUntil(1)
-	require.Equal(t, int64(9000), p.LastPlayed())
-
-	clk.Advance(999 * time.Millisecond)
-	select {
-	case <-ch:
-	case <-time.After(3 * time.Second):
-		require.FailNow(t, "player hasn't closed in time")
-	}
+	require.Equal(t, int64(0), evt0.GetIndex())
+	require.Equal(t, int64(1), evt1.GetIndex())
 }
 
 func TestRewind(t *testing.T) {
@@ -247,6 +261,95 @@ func TestRewind(t *testing.T) {
 	p.Close()
 }
 
+func TestUseDatabaseTranslator(t *testing.T) {
+	t.Run("SupportedProtocols", func(t *testing.T) {
+		for _, protocol := range player.SupportedDatabaseProtocols {
+			queryEventCount := 3
+			t.Run(protocol, func(t *testing.T) {
+				clk := clockwork.NewFakeClock()
+				p, err := player.New(&player.Config{
+					Clock:     clk,
+					SessionID: "test-session",
+					Streamer:  &databaseStreamer{protocol: protocol, count: int64(queryEventCount)},
+				})
+				require.NoError(t, err)
+				require.NoError(t, p.Play())
+
+				count := 0
+				for evt := range p.C() {
+					// When using translator, the only returned events are
+					// prints. Everything else indicates a translator was not
+					// used.
+					switch evt.(type) {
+					case *apievents.SessionPrint:
+					default:
+						require.Fail(t, "expected only session start/end and session print events but got %T", evt)
+					}
+					count++
+				}
+
+				// Queries + start/end
+				require.Equal(t, queryEventCount+2, count)
+				require.NoError(t, p.Err())
+			})
+		}
+	})
+
+	t.Run("UnsupportedProtocol", func(t *testing.T) {
+		queryEventCount := 3
+		clk := clockwork.NewFakeClock()
+		p, err := player.New(&player.Config{
+			Clock:     clk,
+			SessionID: "test-session",
+			Streamer:  &databaseStreamer{protocol: "random-protocol", count: int64(queryEventCount)},
+		})
+		require.NoError(t, err)
+		require.NoError(t, p.Play())
+
+		count := 0
+		for evt := range p.C() {
+			switch evt.(type) {
+			case *apievents.DatabaseSessionStart, *apievents.DatabaseSessionEnd, *apievents.DatabaseSessionQuery:
+			default:
+				require.Fail(t, "expected only database events but got %T", evt)
+			}
+			count++
+		}
+
+		// Queries + start/end
+		require.Equal(t, queryEventCount+2, count)
+		require.NoError(t, p.Err())
+	})
+}
+
+func TestSkipIdlePeriods(t *testing.T) {
+	eventCount := 3
+	delayMilliseconds := 60000
+	clk := clockwork.NewFakeClock()
+	p, err := player.New(&player.Config{
+		Clock:        clk,
+		SessionID:    "test-session",
+		SkipIdleTime: true,
+		Streamer:     &simpleStreamer{count: int64(eventCount), delay: int64(delayMilliseconds)},
+	})
+	require.NoError(t, err)
+	require.NoError(t, p.Play())
+
+	for i := range eventCount {
+		// Consume events in an eventually loop to avoid firing the clock
+		// events before the timer is set.
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			clk.Advance(player.MaxIdleTime)
+			select {
+			case evt := <-p.C():
+				assert.Equal(t, int64(i), evt.GetIndex())
+			default:
+				assert.Fail(t, "expected to receive event after short period, but got nothing")
+			}
+		}, 3*time.Second, 100*time.Millisecond)
+	}
+}
+
 // simpleStreamer streams a fake session that contains
 // count events, emitted at a particular interval
 type simpleStreamer struct {
@@ -270,7 +373,10 @@ func (s *simpleStreamer) StreamSessionEvents(ctx context.Context, sessionID sess
 					Type:  events.SessionPrintEvent,
 					Index: i,
 					ID:    strconv.Itoa(int(i)),
-					Code:  strconv.FormatInt((i+1)*s.delay, 10),
+
+					// stuff the event delay in the code field so that it's easy
+					// to access without a type assertion
+					Code: strconv.FormatInt((i+1)*s.delay, 10),
 				},
 				Data:              []byte(fmt.Sprintf("event %d\n", i)),
 				ChunkIndex:        i, // TODO(zmb3) deprecate this
@@ -281,4 +387,59 @@ func (s *simpleStreamer) StreamSessionEvents(ctx context.Context, sessionID sess
 	}()
 
 	return evts, errors
+}
+
+type databaseStreamer struct {
+	protocol string
+	count    int64
+	idx      int64
+}
+
+func (d *databaseStreamer) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	errors := make(chan error, 1)
+	evts := make(chan apievents.AuditEvent)
+
+	go func() {
+		defer close(evts)
+
+		d.sendEvent(ctx, evts, &apievents.DatabaseSessionStart{
+			Metadata: apievents.Metadata{
+				Type:  events.DatabaseSessionStartEvent,
+				Index: d.idx,
+			},
+			DatabaseMetadata: apievents.DatabaseMetadata{
+				DatabaseProtocol: d.protocol,
+			},
+		})
+
+		for i := int64(0); i < d.count; i++ {
+			if ctx.Err() != nil {
+				return
+			}
+
+			d.sendEvent(ctx, evts, &apievents.DatabaseSessionQuery{
+				Metadata: apievents.Metadata{
+					Type:  events.DatabaseSessionQueryEvent,
+					Index: d.idx + i,
+				},
+			})
+		}
+
+		d.sendEvent(ctx, evts, &apievents.DatabaseSessionEnd{
+			Metadata: apievents.Metadata{
+				Type:  events.DatabaseSessionEndEvent,
+				Index: d.idx,
+			},
+		})
+	}()
+
+	return evts, errors
+}
+
+func (d *databaseStreamer) sendEvent(ctx context.Context, evts chan apievents.AuditEvent, evt apievents.AuditEvent) {
+	select {
+	case <-ctx.Done():
+	case evts <- evt:
+		d.idx++
+	}
 }

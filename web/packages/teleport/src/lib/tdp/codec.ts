@@ -48,10 +48,10 @@ export enum MessageType {
   SHARED_DIRECTORY_LIST_REQUEST = 25,
   SHARED_DIRECTORY_LIST_RESPONSE = 26,
   PNG2_FRAME = 27,
-  NOTIFICATION = 28,
+  ALERT = 28,
   RDP_FASTPATH_PDU = 29,
   RDP_RESPONSE_PDU = 30,
-  RDP_CONNECTION_INITIALIZED = 31,
+  RDP_CONNECTION_ACTIVATED = 31,
   SYNC_KEYS = 32,
   SHARED_DIRECTORY_TRUNCATE_REQUEST = 33,
   SHARED_DIRECTORY_TRUNCATE_RESPONSE = 34,
@@ -109,7 +109,7 @@ export type ClipboardData = {
 };
 
 // | message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16 |
-export type RDPConnectionInitialized = {
+export type RdpConnectionActivated = {
   ioChannelId: number;
   userChannelId: number;
   screenWidth: number;
@@ -138,7 +138,7 @@ export function toSeverity(severity: number): Severity {
 }
 
 // | message type (28) | message_length uint32 | message []byte | severity byte
-export type Notification = {
+export type Alert = {
   message: string;
   severity: Severity;
 };
@@ -723,7 +723,7 @@ export default class Codec {
   }
 
   // | message type (30) | data_length uint32 | data []byte |
-  encodeRDPResponsePDU(responseFrame: ArrayBuffer): Message {
+  encodeRdpResponsePDU(responseFrame: ArrayBuffer): Message {
     const bufLen = BYTE_LEN + UINT_32_LEN + responseFrame.byteLength;
     const buffer = new ArrayBuffer(bufLen);
     const view = new DataView(buffer);
@@ -765,11 +765,11 @@ export default class Codec {
   }
 
   /**
-   * decodeNotification decodes a raw tdp Notification message
+   * decodeAlert decodes a raw TDP alert message
    * | message type (28) | message_length uint32 | message []byte | severity byte
    * @throws {Error} if an invalid severity is passed
    */
-  decodeNotification(buffer: ArrayBuffer): Notification {
+  decodeAlert(buffer: ArrayBuffer): Alert {
     const dv = new DataView(buffer);
     let offset = 0;
 
@@ -872,7 +872,7 @@ export default class Codec {
   }
 
   // | message type (29) | data_length uint32 | data []byte |
-  decodeRDPFastPathPDU(buffer: ArrayBuffer): RdpFastPathPdu {
+  decodeRdpFastPathPDU(buffer: ArrayBuffer): RdpFastPathPdu {
     const dv = new DataView(buffer);
     let offset = 0;
     offset += BYTE_LEN; // eat message type
@@ -882,7 +882,7 @@ export default class Codec {
   }
 
   // | message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16 |
-  decodeRDPConnectionInitialied(buffer: ArrayBuffer): RDPConnectionInitialized {
+  decodeRdpConnectionActivated(buffer: ArrayBuffer): RdpConnectionActivated {
     const dv = new DataView(buffer);
     let offset = 0;
     offset += BYTE_LEN; // eat message type

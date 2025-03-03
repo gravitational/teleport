@@ -16,9 +16,34 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ClusterOrResourceUri, routing } from 'teleterm/ui/uri';
+import { ComponentType } from 'react';
 
-import { Document, isDocumentTshNodeWithServerId } from './types';
+import {
+  Application,
+  Database,
+  Kubernetes,
+  Laptop,
+  ListAddCheck,
+  ListMagnifyingGlass,
+  Server,
+  ShieldCheck,
+  Table,
+  Terminal,
+} from 'design/Icon';
+import { IconProps } from 'design/Icon/Icon';
+
+import {
+  ClusterOrResourceUri,
+  isAppUri,
+  isDatabaseUri,
+  routing,
+} from 'teleterm/ui/uri';
+
+import {
+  Document,
+  DocumentGateway,
+  isDocumentTshNodeWithServerId,
+} from './types';
 
 /**
  * getResourceUri returns the URI of the cluster resource that is the subject of the document.
@@ -53,7 +78,133 @@ export function getResourceUri(
       });
     case 'doc.connect_my_computer':
       return document.rootClusterUri;
+    case 'doc.authorize_web_session':
+      return document.rootClusterUri;
+    case 'doc.vnet_diag_report':
+      return document.rootClusterUri;
     case 'doc.blank':
+      return undefined;
+    default:
+      document satisfies never;
+      return undefined;
+  }
+}
+
+/**
+ * getDocumentGatewayTargetUriKind is used when the callsite needs to distinguish between different
+ * kinds of targets that DocumentGateway supports when given only its target URI.
+ */
+export function getDocumentGatewayTargetUriKind(
+  targetUri: DocumentGateway['targetUri']
+): 'db' | 'app' {
+  if (isDatabaseUri(targetUri)) {
+    return 'db';
+  }
+
+  if (isAppUri(targetUri)) {
+    return 'app';
+  }
+
+  // TODO(ravicious): Optimally we'd use `targetUri satisfies never` here to have a type error when
+  // DocumentGateway['targetUri'] is changed.
+  //
+  // However, at the moment that field is essentially of type string, so there's not much we can do
+  // with regards to type safety.
+}
+
+export function getDocumentGatewayTitle(doc: DocumentGateway): string {
+  const { targetName, targetUri, targetUser, targetSubresourceName } = doc;
+  const targetKind = getDocumentGatewayTargetUriKind(targetUri);
+
+  switch (targetKind) {
+    case 'db': {
+      return targetUser ? `${targetName} (${targetUser})` : targetName;
+    }
+    case 'app': {
+      return targetSubresourceName
+        ? `${targetName}:${targetSubresourceName}`
+        : targetName;
+    }
+    default: {
+      targetKind satisfies never;
+    }
+  }
+}
+
+/**
+ * Returns a name and icon of the document.
+ * If possible, the name is the title of a document, except for cases
+ * when it contains some additional values like cwd, or a shell name.
+ * At the moment, the name is used only in the status bar.
+ * The icon is used both in the status bar and the tabs.
+ */
+export function getStaticNameAndIcon(
+  document: Document
+): { name: string; Icon: ComponentType<IconProps> } | undefined {
+  switch (document.kind) {
+    case 'doc.cluster':
+      return {
+        name: 'Resources',
+        Icon: Table,
+      };
+    case 'doc.gateway_cli_client':
+      return {
+        name: document.title,
+        Icon: Database,
+      };
+    case 'doc.gateway':
+      if (isDatabaseUri(document.targetUri)) {
+        return {
+          name: document.title,
+          Icon: Database,
+        };
+      }
+      if (isAppUri(document.targetUri)) {
+        return {
+          name: document.title,
+          Icon: Application,
+        };
+      }
+      return;
+    case 'doc.gateway_kube':
+      return {
+        name: routing.parseKubeUri(document.targetUri).params.kubeId,
+        Icon: Kubernetes,
+      };
+    case 'doc.terminal_tsh_node':
+      return isDocumentTshNodeWithServerId(document)
+        ? {
+            name: document.title,
+            Icon: Server,
+          }
+        : undefined;
+    case 'doc.access_requests':
+      return {
+        name: document.title,
+        Icon: ListAddCheck,
+      };
+    case 'doc.terminal_shell':
+      return {
+        name: 'Terminal',
+        Icon: Terminal,
+      };
+    case 'doc.connect_my_computer':
+      return {
+        name: document.title,
+        Icon: Laptop,
+      };
+    case 'doc.authorize_web_session':
+      return {
+        name: document.title,
+        Icon: ShieldCheck,
+      };
+    case 'doc.vnet_diag_report':
+      return {
+        name: document.title,
+        Icon: ListMagnifyingGlass,
+      };
+    case 'doc.blank':
+    case 'doc.terminal_tsh_kube':
       return undefined;
     default:
       document satisfies never;

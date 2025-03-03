@@ -17,4 +17,8 @@
  */
 
 export { Notification } from './Notification';
-export type { NotificationItem, NotificationItemContent } from './types';
+export type {
+  NotificationItem,
+  NotificationItemContent,
+  NotificationSeverity,
+} from './types';

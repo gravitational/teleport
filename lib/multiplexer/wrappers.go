@@ -195,7 +195,7 @@ func NewPROXYEnabledListener(cfg Config) (*PROXYEnabledListener, error) {
 	muxListener := mux.SSH()
 	go func() {
 		if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
-			mux.Entry.WithError(err).Error("Mux encountered err serving")
+			mux.logger.ErrorContext(cfg.Context, "Mux encountered err serving", "error", err)
 		}
 	}()
 	pl := &PROXYEnabledListener{

@@ -1,8 +1,13 @@
+# DEPRECATED: Images from this dockerfile are not published for v15 and above
+# https://goteleport.com/docs/changelog/#heavy-container-images-are-discontinued
+# Teleport images are built from Dockerfile-distroless
+# TODO(hugoShaka): cleanup the Makefile docker/image targets and remove this file.
+
 # Stage to build the image, without FIPS entrypoint argument
 FROM ubuntu:20.04 AS teleport
 
 # Install dumb-init and ca-certificates. The dumb-init package is to ensure
-# signals and orphaned processes are are handled correctly. The ca-certificates
+# signals and orphaned processes are handled correctly. The ca-certificates
 # package is installed because the base Ubuntu image does not come with any
 # certificate authorities. libelf1 is a dependency introduced by Teleport 7.0.
 #
@@ -66,6 +71,10 @@ RUN --mount=target=/ctx \
 
 # Used to track whether a Teleport agent was installed using this method.
 ENV TELEPORT_INSTALL_METHOD_DOCKERFILE=true
+
+# Attempt a graceful shutdown by default
+# See https://goteleport.com/docs/reference/signals/ for signal reference.
+STOPSIGNAL SIGQUIT
 
 # By setting this entry point, we expose make target as command.
 ENTRYPOINT ["/usr/bin/dumb-init", "teleport", "start", "-c", "/etc/teleport/teleport.yaml"]

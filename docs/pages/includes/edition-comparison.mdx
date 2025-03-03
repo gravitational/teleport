@@ -2,26 +2,26 @@
 
 ||Community Edition|Enterprise|Cloud|
 |---|---|---|---|
-|[Dual Authorization](../access-controls/guides/dual-authz.mdx)|✖|✔|✔|
-|[Hardware Key Support](../access-controls/guides/hardware-key-support.mdx)|✖|✔|✔|
-|[Moderated Sessions](../access-controls/guides/moderated-sessions.mdx)|✖|✔|✔|
-|[Role-Based Access Control](../access-controls/guides/role-templates.mdx)|✔|✔|✔|
-|[Single Sign-On](../access-controls/sso.mdx)|GitHub|GitHub, Google Workspace, OIDC, SAML, Teleport|GitHub, Google Workspace, OIDC, SAML, Teleport|
+|[Dual Authorization](../admin-guides/access-controls/guides/dual-authz.mdx)|✖|✔|✔|
+|[Hardware Key Support](../admin-guides/access-controls/guides/hardware-key-support.mdx)|✖|✔|✔|
+|[Moderated Sessions](../admin-guides/access-controls/guides/joining-sessions.mdx)|✖|✔|✔|
+|[Role-Based Access Control](../admin-guides/access-controls/guides/role-templates.mdx)|✔|✔|✔|
+|[Single Sign-On](../admin-guides/access-controls/sso/sso.mdx)|GitHub|GitHub, Google Workspace, OIDC, SAML, Teleport|GitHub, Google Workspace, OIDC, SAML, Teleport|
 
 ### Audit logging and session recording
 
 ||Community Edition|Enterprise|Cloud|
 |---|---|---|---|
-|[Enhanced Session Recording](../server-access/guides/bpf-session-recording.mdx)|✔|✔|✔|
-|[Recording Proxy Mode](../server-access/guides/recording-proxy-mode.mdx)|✔|✔|✖|
-|[Session Recording with Playback](../architecture/session-recording.mdx)|✔|✔|✔|
-|[Structured Audit Logs](../reference/audit.mdx)|✔|✔|✔|
+|[Enhanced Session Recording](../enroll-resources/server-access/guides/bpf-session-recording.mdx)|✔|✔|✔|
+|[Recording Proxy Mode](../enroll-resources/server-access/guides/recording-proxy-mode.mdx)|✔|✔|✖|
+|[Session Recording with Playback](../reference/architecture/session-recording.mdx)|✔|✔|✔|
+|[Structured Audit Logs](../reference/monitoring/audit.mdx)|✔|✔|✔|
 
 ### Compliance
 
 ||Community Edition|Enterprise|Cloud|
 |---|---|---|---|
-|[FedRAMP Control](../access-controls/compliance-frameworks/fedramp.mdx)|✖|✔|✖|
+|[FedRAMP Control](../admin-guides/access-controls/compliance-frameworks/fedramp.mdx)|✖|✔|✖|
 |FIPS-compliant binaries available for FedRAMP High|✖|✔|✖|
 |IP-Based Restrictions|✖|✔|✔|
 |PCI DSS Features|Limited|✔|✔|
@@ -33,24 +33,24 @@ _Available as an add-on to Teleport Enterprise_
 
 ||Community Edition|Enterprise|Cloud|
 |---|---|---|---|
-|Access Monitoring & Response|✖|✔|✔|
-|[Access Lists & Access Reviews](../access-controls/access-lists.mdx)|✖|✔|✔|
-|[Device Trust](../access-controls/device-trust/guide.mdx)|✖|✔|✔|
-|[Endpoint Management: Jamf](../access-controls/device-trust/jamf-integration.mdx)|✖|✔|✔|
-|[JIT Access Requests](../access-controls/guides/dual-authz.mdx)|Limited|✔|✔|
-|Session & Identity Locks|✖|✔|✔|
+|[Access Monitoring & Response](../admin-guides/access-controls/access-monitoring.mdx)|✖|✔|✔|
+|[Access Lists & Access Reviews](../admin-guides/access-controls/access-lists/access-lists.mdx)|✖|✔|✔|
+|[Device Trust](../admin-guides/access-controls/device-trust/guide.mdx)|✖|✔|✔|
+|[Endpoint Management: Jamf](../admin-guides/access-controls/device-trust/jamf-integration.mdx)|✖|✔|✔|
+|[JIT Access Requests](../admin-guides/access-controls/guides/dual-authz.mdx)|Limited|✔|✔|
+|[Session & Identity Locks](../admin-guides/access-controls/guides/locking.mdx)|✖|✔|✔|
 
 ### Infrastructure access
 
 ||Community Edition|Enterprise|Cloud|
 |---|---|---|---|
-|Agentless Integration with [OpenSSH Servers](../server-access/openssh/openssh.mdx)|✔|✔|✔|
-|[Application Access](../application-access/getting-started.mdx)|✔|✔|✔|
-|[Database Access](../database-access/getting-started.mdx)|✔|✔|✔|
-|[Desktop Access](../desktop-access/introduction.mdx)|✔|✔|✔|
-|[Kubernetes Access](../kubernetes-access/getting-started.mdx)|✔|✔|✔|
-|[Machine ID](../machine-id/getting-started.mdx)|✔|✔|✔|
-|[Server Access](../server-access/getting-started.mdx)|✔|✔|✔|
+|Agentless Integration with [OpenSSH Servers](../enroll-resources/server-access/openssh/openssh-agentless.mdx)|✔|✔|✔|
+|[Protecting Applications](../enroll-resources/application-access/getting-started.mdx)|✔|✔|✔|
+|[Protecting Databases](../enroll-resources/database-access/getting-started.mdx)|✔|✔|✔|
+|[Protecting Windows Desktops](../enroll-resources/desktop-access/introduction.mdx)|✔|✔|✔|
+|[Protecting Kubernetes Clusters](../enroll-resources/kubernetes-access/getting-started.mdx)|✔|✔|✔|
+|[Machine ID](../enroll-resources/machine-id/getting-started.mdx)|✔|✔|✔|
+|[Protecting Linux Servers](../enroll-resources/server-access/getting-started.mdx)|✔|✔|✔|
 
 ### Licensing and usage management
 
@@ -67,7 +67,7 @@ _Available as an add-on to Teleport Enterprise_
 |Auth Service and Proxy Service Management|Self-hosted|Self-hosted|Fully managed|
 |[Backend support](../reference/backends.mdx)|Any S3-compatible storage for session records, many managed backends for custom audit log storage.|Any S3-compatible storage for session records, many managed backends for custom audit log storage|All data is stored in DynamoDB and S3 with server-side encryption.|
 |Data storage location|Can store data anywhere in the world, on most managed cloud backends|Can store data anywhere in the world, on most managed cloud backends|Data is stored in Teleport's AWS infrastructure with audit logs/sessions optionally in customer AWS accounts. Proxy Service instances are deployed across the world for low-latency access.|
-|[Hardware Security Module support](../choose-an-edition/teleport-enterprise/hsm.mdx) for encryption at rest|✖|✔|✖|
+|[Hardware Security Module support](../admin-guides/deploy-a-cluster/hsm.mdx) for encryption at rest|✖|✔|✖|
 |Proxy Service domain name|Custom|Custom|A subdomain of `teleport.sh`|
 |Version support|All supported releases available to install and download.|All supported releases available to install and download.|Deploys last stable release with 2-3 week lag for stability.|
 
@@ -76,4 +76,3 @@ _Available as an add-on to Teleport Enterprise_
 ||Community Edition|Enterprise|Cloud|
 |---|---|---|---|
 |Support|Community|24x7 support with premium SLAs and account managers|24x7 support with premium SLAs and account managers|
-

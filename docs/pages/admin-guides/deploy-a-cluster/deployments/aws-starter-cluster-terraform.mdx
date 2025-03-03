@@ -1,0 +1,737 @@
+---
+title: Teleport Single-Instance Deployment on AWS
+description: How to quickly configure Teleport on a single instance for testing in AWS.
+tocDepth: 3
+---
+
+This guide is designed to accompany our [reference starter-cluster Terraform code](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/aws/terraform/starter-cluster#teleport-terraform-aws-ami-simple-example)
+and describe how to manage the resulting Teleport deployment.
+
+This module will deploy the following components:
+- One AWS EC2 instance running the Teleport Auth Service, Proxy Service and SSH Service components
+- Amazon DynamoDB tables for storing the Teleport backend database and audit events
+- An AWS S3 bucket for storing Teleport session recordings
+- A minimal AWS IAM role granting permissions for the EC2 instance to use DynamoDB and S3
+- An AWS security group restricting inbound traffic to the EC2 instance
+- An Amazon Route 53 DNS record pointing to the subdomain you control and choose during installation
+
+It also optionally deploys the following components when ACM is enabled:
+- An Amazon ACM certificate for the subdomain in Amazon Route 53 that you control and choose during installation
+- An AWS Application Load Balancer using the above ACM certificate to secure incoming traffic
+
+More details are [provided below](#reference-deployment-defaults).
+
+(!docs/pages/includes/cloud/call-to-action.mdx!)
+
+## Prerequisites
+
+Our code requires Terraform 0.13+. You can [download Terraform here](https://www.terraform.io/downloads.html). We will assume that you have
+`terraform` installed and available on your path.
+
+```code
+$ which terraform
+/usr/local/bin/terraform
+$ terraform version
+Terraform v1.5.6
+```
+
+You will also require the `aws` command line tool. This is available in Ubuntu/Debian/Fedora/CentOS and macOS Homebrew
+as the `awscli` package.
+
+Fedora/CentOS: `yum -y install awscli`
+
+Ubuntu/Debian: `apt-get -y install awscli`
+
+macOS (with [Homebrew](https://brew.sh/)): `brew install awscli`
+
+When possible, installing via a package is always preferable. If you can't find a package available for
+your distribution, you can also download the tool from [https://aws.amazon.com/cli/](https://aws.amazon.com/cli/)
+
+We will assume that you have configured your AWS CLI access with credentials available at `~/.aws/credentials`:
+
+```code
+$ cat ~/.aws/credentials
+# [default]
+# aws_access_key_id = (=aws.aws_access_key=)
+# aws_secret_access_key = (=aws.aws_secret_access_key=)
+```
+
+You should also have a default region set under `~/.aws/config`:
+
+```code
+$ cat ~/.aws/config
+# [default]
+# region = us-west-2
+```
+
+As a result, you should be able to run a command like `aws ec2 describe-instances` to list running EC2 instances.
+If you get an "access denied", "403 Forbidden" or similar message, you will need to grant additional permissions to the
+AWS IAM user that your `aws_access_key_id` and `aws_secret_access_key` refers to.
+
+As a general rule, we assume that any user running Terraform has administrator-level permissions for the following
+AWS services:
+
+- [EC2](https://aws.amazon.com/ec2/)
+- [S3](https://aws.amazon.com/s3/)
+- [Route 53](https://aws.amazon.com/route53/)
+- [DynamoDB](https://aws.amazon.com/dynamodb/)
+- [Elastic Load Balancing](https://aws.amazon.com/elasticloadbalancing/)
+- [IAM](https://aws.amazon.com/iam/)
+- [SSM Parameter Store](https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html)
+
+The Terraform deployment itself will create a new IAM role to be used by the Teleport instance that has appropriately
+limited permission scopes for AWS services. However, the initial cluster setup must be done by a user with a high
+level of AWS permissions.
+
+## Get the Terraform code
+
+Firstly, you'll need to clone the Teleport repo to get the Terraform code available on your system:
+
+```code
+$ git clone https://github.com/gravitational/teleport -b branch/v(=teleport.major_version=)
+# Cloning into 'teleport'...
+# remote: Enumerating objects: 106, done.
+# remote: Counting objects: 100% (106/106), done.
+# remote: Compressing objects: 100% (95/95), done.
+# remote: Total 61144 (delta 33), reused 35 (delta 11), pack-reused 61038
+# Receiving objects: 100% (61144/61144), 85.17 MiB | 4.66 MiB/s, done.
+# Resolving deltas: 100% (39141/39141), done.
+```
+
+Once this is done, you can change into the directory where the Terraform code is checked out and run `terraform init`:
+
+```code
+$ cd teleport/examples/aws/terraform/starter-cluster
+$ terraform init
+
+Initializing the backend...
+
+Initializing provider plugins...
+- Checking for available provider plugins...
+- Installing hashicorp/aws v5.31.0...
+- Installed hashicorp/aws v5.31.0 (signed by HashiCorp)
+
+Terraform has been successfully initialized!
+
+You may now begin working with Terraform. Try running "terraform plan" to see
+any changes that are required for your infrastructure. All Terraform commands
+should now work.
+
+If you ever set or change modules or backend configuration for Terraform,
+rerun this command to reinitialize your working directory. If you forget, other
+commands will detect it and remind you to do so if necessary.
+```
+
+This will download the appropriate Terraform plugins needed to spin up Teleport using our
+reference code.
+
+## Set up variables
+
+Terraform modules use variables to pass in input. You can do this in a few ways:
+
+- on the command line to `terraform apply`
+- by editing the `vars.tf` file
+- by setting environment variables
+
+For this guide, we are going to make extensive use of environment variables. This is because it makes it easier for us
+to reference values from our configuration when running Teleport commands after the cluster has been created.
+
+Any set environment variable starting with `TF_VAR_` is automatically processed and stripped down by Terraform, so
+`TF_VAR_test_variable` becomes `test_variable`.
+
+We maintain an up-to-date list of the variables and what they do in the README.md file under [the
+`examples/aws/terraform/starter-cluster` section of the Teleport repo](https://github.com/gravitational/teleport/blob/branch/v(=teleport.major_version=)/examples/aws/terraform/starter-cluster/README.md)
+but we'll run through an example list here.
+
+Things you will need to decide on:
+
+### region
+
+```code
+$ export TF_VAR_region="<Var name="us-west-2" />"
+```
+
+The AWS region to run in. You should pick from the supported list as detailed in the [README](https://github.com/gravitational/teleport/blob/branch/v(=teleport.major_version=)/examples/aws/terraform/starter-cluster/README.md).
+These are regions that support [DynamoDB encryption at rest](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/EncryptionAtRest.html).
+
+### cluster_name
+
+```code
+$ export TF_VAR_cluster_name="teleport-example"
+```
+
+This is the internal Teleport cluster name to use. This should be unique, and not contain spaces, dots (.) or other
+special characters. Some AWS services will not allow you to use dots in a name, so this should not be set to a domain
+name. This will appear in the web UI for your cluster and cannot be changed after creation without rebuilding your
+cluster from scratch, so choose carefully. A good example might be something like `teleport-<company-name>`.
+
+### ami_name
+
+```code
+$ export TF_VAR_ami_name="teleport-ent-(=teleport.version=)-x86_64"
+```
+
+Teleport (Gravitational) automatically builds and publishes OSS, Enterprise and Enterprise FIPS 140-2 AMIs when we
+release a new version of Teleport. The AMI names follow the format: `teleport-<type>-<version>-<arch>`
+where `<type>` is either `oss` or `ent` (Enterprise), `<version>` is the version of Teleport, e.g. `(=teleport.version=)`,
+and `<arch>` is either `x86_64` or `arm64`.
+
+FIPS 140-2 compatible AMIs (which deploy Teleport in FIPS 140-2 mode by default) have the `-fips` suffix after `<arch>`,
+e.g. `teleport-ent-(=teleport.version=)-x86_64-fips`.
+
+The AWS account ID that publishes these AMIs is `146628656107`. You can list the available AMIs with
+the example `awscli` commands below. The output is in JSON format by default.
+
+<Admonition
+  type="tip"
+  title="List Teleport AMIs"
+>
+  OSS AMIs<br/>
+  ```code
+  $ aws --region <Var name="us-west-2" /> ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-oss-(=teleport.version=)-*'
+  ```
+
+  Enterprise AMIs<br/>
+  ```code
+  $ aws --region <Var name="us-west-2" /> ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-ent-(=teleport.version=)-*'
+  ```
+
+  Enterprise FIPS 140-2 AMIs<br/>
+  ```code
+  $ aws --region <Var name="us-west-2" /> ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-ent-(=teleport.version=)-*-fips-*'
+  ```
+</Admonition>
+
+### key_name
+
+```code
+$ export TF_VAR_key_name="exampleuser"
+```
+
+The AWS keypair name to use when deploying EC2 instances. This must exist in the same region as you
+specify in the `region` variable, and you will need a copy of this keypair available to connect to the deployed
+EC2 instances. Do not use a keypair that you do not have access to.
+
+### license_path
+
+(!docs/pages/includes//enterprise/obtainlicense.mdx!)
+
+```code
+$ export TF_VAR_license_path="/home/user/license.pem"
+```
+
+This license will be uploaded to AWS SSM and automatically downloaded to the Teleport instance in order to enable
+Teleport Enterprise functionality.
+
+(Teleport Community Edition users can run `touch /tmp/license.pem` locally to create an empty file, and then provide the path '/tmp/license.pem'
+here. The license file isn't used in Teleport Community Edition installs.)
+
+### route53\_zone
+
+```code
+$ export TF_VAR_route53_zone="example.com"
+```
+
+Our Terraform setup requires you to have your domain provisioned in Amazon Route
+53 - it will automatically add DNS records for
+[`route53_domain`](#route53\_domain) as set up below. You can list these with
+this command:
+
+```code
+$ aws route53 list-hosted-zones --query "HostedZones[*].Name" --output json
+[
+    "example.com.",
+    "testing.net.",
+    "subdomain.wow.org."
+]
+```
+
+You should use the appropriate domain without the trailing dot.
+
+### route53\_domain
+
+```code
+$ export TF_VAR_route53_domain="teleport.example.com"
+```
+
+A subdomain to set up as an A record pointing to the IP of the Teleport cluster host for web access. This will be the public-facing domain
+that people use to connect to your Teleport cluster, so choose wisely.
+
+This must be a subdomain of the domain you chose for [`route53_zone`](#route53\_zone) above.
+
+### add\_wildcard\_route53\_record
+
+```code
+$ export TF_VAR_add_wildcard_route53_record="true"
+```
+
+Used to enable the Teleport Application Service for subdomains of the Teleport Proxy Service's public web address. A wildcard entry for the public-facing
+domain will be set in Route 53, e.g., `*.teleport.example.com`, to point to the Teleport load balancer. For ACM a wildcard
+certificate is included if this is set to `true`. Let's Encrypt automatically includes a wildcard subdomain in certificates that it issues.
+
+### enable\_mongodb\_listener
+
+```code
+$ export TF_VAR_enable_mongodb_listener="false"
+```
+
+When set to true, port `27017` is enabled on the Network Load Balancer that connects to the Teleport MongoDB listener port. Required for MongoDB connections, if not using TLS routing.
+
+### enable\_mysql\_listener
+
+```code
+$ export TF_VAR_enable_mysql_listener="false"
+```
+
+Port `3036` is enabled on the Network Load Balancer that connects to the Teleport MySQL listener port. Required for MySQL connections, if not using TLS routing.
+
+### enable\_postgres\_listener
+
+```code
+$ export TF_VAR_enable_postgres_listener="false"
+```
+
+Port `5432` is enabled on the Network Load Balancer that connects to the Teleport PostgreSQL listener port. Required for PostgreSQL connections, if not using TLS routing.
+
+### s3\_bucket_name
+
+```code
+$ export TF_VAR_s3_bucket_name="teleport-example"
+```
+
+The Terraform example also provisions an S3 bucket to securely store Teleport session recordings.
+This can be any S3-compatible name, and will be generated in the same region as set above.
+
+Remember that S3 bucket names must be globally unique, so if you see errors relating to S3 provisioning, pick a more unique bucket name.
+
+### cluster_instance_type
+
+```code
+$ export TF_VAR_cluster_instance_type="t3.micro"
+```
+
+This variable sets the type of EC2 instance to provision for running this Teleport cluster.
+
+A `micro` instance is fine for testing, but if this server will need to support more than a few users you should use a bigger instance.
+
+### email
+
+```code
+$ export TF_VAR_email="support@example.com"
+```
+
+Let's Encrypt requires an email address for every certificate registered which can be used to send notifications and
+useful information. We recommend a generic ops/support email address which the team deploying Teleport has access to.
+
+### use_letsencrypt
+
+```code
+$ export TF_VAR_use_letsencrypt="false"
+```
+
+If set to the string `"true"`, Terraform will use [Let's Encrypt](https://letsencrypt.org/) to provision the public-facing
+web UI certificate for the Teleport cluster ([`route53_domain`](#route53\_domain) - so [https://teleport.example.com](https://teleport.example.com) in this example).
+This uses an [AWS network load balancer](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html)
+to load-balance connections to the Teleport cluster's web UI, and its SSL termination is handled by Teleport itself.
+
+### use_acm
+
+```code
+$ export TF_VAR_use_acm="true"
+```
+
+If set to the string `"true"`, Terraform will use [AWS ACM](https://aws.amazon.com/certificate-manager/) to
+provision the public-facing web UI certificate for the cluster. This uses an [AWS application load balancer](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html)
+to load-balance connections to the Teleport cluster's web UI, and its SSL termination is handled by the load balancer.
+
+If you wish to use a pre-existing ACM certificate rather than having Terraform generate one for you, you can make
+Terraform use it by running this command before `terraform apply`:
+
+```code
+$ terraform import aws_acm_certificate.cert <certificate_arn>
+```
+
+We recommend using ACM if possible as it will simplify certificate management for the Teleport cluster.
+If ACM is enabled, Let's Encrypt will automatically be disabled regardless of the value of the `use_letsencrypt` variable.
+
+### use_tls_routing
+
+```code
+$ export TF_VAR_use_tls_routing="true"
+```
+
+If set to the string `true`, Teleport will use [TLS routing](../../../reference/architecture/tls-routing.mdx) to multiplex all traffic over a single port.
+This setting should always be used unless you have a specific need to use separate ports in your setup, as it simplifies deployment.
+
+When using this `starter-cluster` deployment, if ACM is enabled, TLS routing will automatically be enabled too.
+
+### teleport_auth_type
+
+```code
+$ export TF_VAR_teleport_auth_type="local"
+```
+
+This value can be used to change the default authentication type used for the Teleport cluster. This is useful for persisting a
+default authentication type across AMI upgrades when you have a SAML, OIDC or GitHub connector configured in DynamoDB.
+The default is `local`.
+
+- Teleport Community Edition supports `local` or `github`
+- Teleport Enterprise Edition supports `local`, `github`, `oidc`, or `saml`
+- Teleport Enterprise FIPS deployments have local authentication disabled, so should use `github`, `oidc`, or `saml`
+
+See the [Teleport authentication reference](../../../reference/access-controls/authentication.mdx) for more information.
+
+## Reference deployment defaults
+
+### Instances
+
+Our reference deployment will provision one instance for your cluster.
+
+If using ACM, an Application Load Balancer is configured with an ACM certificate that provides a secure connection to the Teleport instance.
+
+If using Let's Encrypt, no load balancer is configured and traffic goes straight to the instance, secured by a certificate issued by Let's Encrypt.
+
+### Cluster state database storage
+
+The reference Terraform deployment sets Teleport up to store its cluster state database in DynamoDB. The name of the
+table for cluster state will be the same as the cluster name configured in the [`cluster_name`](#cluster_name) variable above.
+
+In our example, the DynamoDB table would be called `teleport-example`.
+
+More information about how Teleport works with DynamoDB can be found in our [Storage Backends guide](../../../reference/backends.mdx).
+
+### Audit event storage
+
+The reference Terraform deployment sets Teleport up to store cluster audit logs in DynamoDB. The name of the table for
+audit event storage will be the same as the cluster name configured in the [`cluster_name`](#cluster_name) variable above
+with `-events` appended to the end.
+
+In our example, the DynamoDB table would be called `teleport-example-events`.
+
+More information about how Teleport works with DynamoDB can be found in our [Storage Backends guide](../../../reference/backends.mdx).
+
+### Recorded session storage
+
+The reference Terraform deployment sets Teleport up to store recorded session logs in the same S3 bucket configured in
+the [`s3_bucket_name`](#s3\_bucket_name) variable, under the `records` directory.
+
+In our example this would be `s3://teleport-example/records`
+
+<Admonition
+  type="tip"
+  title="Tip"
+>
+  S3 provides [Amazon S3 Object Lock](https://docs.aws.amazon.com/AmazonS3/latest/dev/object-lock.html),
+  which is useful for customers deploying Teleport in regulated environments. Configuration of object lock is out of
+  the scope of this guide.
+</Admonition>
+
+### Cluster domain
+
+The reference Terraform deployment sets the Teleport cluster up to be available on a domain defined in Route 53, referenced
+by the [`route53_domain`](#route53\_domain) variable. In our example this would be `teleport.example.com`.
+
+Teleport's web interface will be available on port 443 of your Teleport cluster host.
+
+When using ACM, this is an A record aliased to the AWS Application Load Balancer.
+
+When using Let's Encrypt, this is an A record pointing to the instance's public IP.
+
+<Tabs>
+  <TabItem label="With TLS routing">
+  With [`use_tls_routing`](#use_tls_routing) set to `true`, all Teleport SSH, tunnel, Kubernetes and database traffic will also flow through port 443
+  on the same hostname as set in [`route53_domain`](#route53\_domain).
+  </TabItem>
+
+  <TabItem label="Without TLS routing">
+  With [`use_tls_routing`](#use_tls_routing) set to `false`:
+
+  - The SSH interface of the Teleport Proxy Service will be available via the cluster's hostname on port 3023.
+  This is the default port used when connecting with the `tsh` client and will not require any additional configuration.
+  - The reverse tunnel listener of the Teleport Proxy Service will be available via the cluster's hostname on port 3024.
+  This allows trusted clusters and nodes connected via reverse tunnel to access the cluster.
+  - The Kubernetes listener of the Teleport Proxy Service will be available via the cluster's hostname on port 3026.
+  This allows Kubernetes clients to access Kubernetes clusters via the Teleport cluster.
+  - If the [MongoDB listener port is enabled](#enable_mongodb_listener), it will be available via the cluster's hostname
+  on port 27017. This allows clients to connect to MongoDB databases registered with the Teleport cluster.
+  - If the [MySQL listener port is enabled](#enable_mysql_listener), it will be available via the cluster's hostname
+   on port 3036. This allows clients to connect to MySQL databases registered with the Teleport cluster.
+  - If the [Postgres listener port is enabled](#enable_postgres_listener), it will be available via the cluster's hostname
+  on port 5432. This allows clients to connect to Postgres databases registered with the Teleport cluster.
+  </TabItem>
+</Tabs>
+
+## Deploying with Terraform
+
+Once you have set values for and exported all the variables detailed above, you should run `terraform plan` to validate the
+configuration.
+
+```code
+$ terraform plan
+# Refreshing Terraform state in-memory prior to plan...
+# The refreshed state will be used to calculate this plan, but will not be
+# persisted to local or remote state storage.
+
+# data.template_file.monitor_user_data: Refreshing state...
+# data.aws_kms_alias.ssm: Refreshing state...
+# data.aws_caller_identity.current: Refreshing state...
+# data.aws_ami.base: Refreshing state...
+# data.aws_availability_zones.available: Refreshing state...
+# data.aws_route53_zone.proxy: Refreshing state...
+# data.aws_region.current: Refreshing state...
+
+# ------------------------------------------------------------------------
+
+# An execution plan has been generated and is shown below.
+# Resource actions are indicated with the following symbols:
+#  + create
+# <= read (data resources)
+
+# Terraform will perform the following actions:
+#  <output trimmed>
+
+Plan: 30 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + cluster_name        = "example-cluster"
+  + cluster_web_address = "https://teleport.example.com"
+  + instance_ip_public  = (known after apply)
+  + key_name            = "example"
+
+Do you want to perform these actions?
+  Terraform will perform the actions described above.
+  Only 'yes' will be accepted to approve.
+
+  Enter a value: yes
+
+------------------------------------------------------------------------
+
+Note: You didn't specify an "-out" parameter to save this plan, so Terraform
+can't guarantee that exactly these actions will be performed if
+"terraform apply" is subsequently run.
+```
+
+This looks good (no errors produced by Terraform) so we can run `terraform apply`:
+
+```code
+$ terraform apply
+#  <output trimmed>
+
+# Plan: 30 to add, 0 to change, 0 to destroy.
+
+# Do you want to perform these actions?
+#  Terraform will perform the actions described above.
+#  Only 'yes' will be accepted to approve.
+
+#  Enter a value:
+```
+
+Entering `yes` here will start the Terraform deployment. It takes around 5 minutes to deploy in full.
+
+### Destroy/shut down a Terraform deployment
+
+If you need to tear down a running deployment for any reason, you can run `terraform destroy`.
+
+## Accessing the cluster after Terraform setup
+
+Once the Terraform setup is finished, the URL to your Teleport cluster's web UI will be set in the `cluster_web_address` Terraform output.
+
+You can see this after deploy by running `terraform output -raw cluster_web_address`:
+
+```code
+$ terraform output -raw cluster_web_address
+https://teleport.example.com
+```
+
+### Adding an admin user to the Teleport cluster
+
+To add users to the Teleport cluster, you will need to connect to the Teleport cluster host via SSH and run the `tctl` command.
+
+1. Use the key name and server IP to SSH into the Teleport cluster host. Make sure that the AWS keypair that you specified in the
+   [`key_name`](#key_name) variable is available in the current directory, or update the `-i` parameter to point to it:
+
+   ```code
+   $ ssh -i $(terraform output -raw key_name).pem ec2-user@$(terraform output -raw instance_ip_public)
+   # The authenticity of host '1.2.3.4 (1.2.3.4)' can't be established.
+   # ECDSA key fingerprint is SHA256:vFPnCFliRsRQ1Dk+muIv2B1Owm96hXiihlOUsj5H3bg.
+   # Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+   # Warning: Permanently added '1.2.3.4' (ECDSA) to the list of known hosts.
+   # Last login: Tue Mar  3 18:57:12 2020 from 1.2.3.5
+
+   #       __|  __|_  )
+   #       _|  (     /   Amazon Linux 2 AMI
+   #      ___|\___|___|
+
+   # https://aws.amazon.com/amazon-linux-2/
+   # 1 package(s) needed for security, out of 6 available
+   # Run "sudo yum update" to apply all updates.
+   # [ec2-user@ip-172-31-29-119 ~]$
+   ```
+
+1. Use the `tctl` command to create an admin user for Teleport:
+
+   <Tabs>
+     <TabItem scope={["oss"]} label="Teleport Community Edition">
+     ```code
+     # On the Teleport cluster host
+     $ sudo tctl users add teleport-admin --roles=editor,access --logins=root,ec2-user
+     # User "teleport-admin" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
+     # https://teleport.example.com:443/web/newuser/6489ae886babf4232826076279bcb2fb
+
+     # NOTE: Make sure teleport.example.com:443 points at a Teleport proxy which users can access.
+     ```
+     </TabItem>
+     <TabItem scope={["enterprise", "cloud"]} label="Commercial">
+     ```code
+     # On the Teleport cluster host
+     $ sudo tctl users add teleport-admin --roles=editor,access,reviewer --logins=root,ec2-user
+     # User "teleport-admin" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
+     # https://teleport.example.com:443/web/newuser/6489ae886babf4232826076279bcb2fb
+
+     # NOTE: Make sure teleport.example.com:443 points at a Teleport proxy which users can access.
+     ```
+     </TabItem>
+   </Tabs>
+
+1. Click the link to launch the Teleport web UI and finish setting up your user. You can choose whether to use a WebAuthn-compatible hardware key
+   (like a Yubikey, passkey or Touch ID) or a scan a QR code with a TOTP-compatible app like Google Authenticator or Authy.
+   You will also set a password for the `teleport-admin` user on this page.
+
+   Once this user is successfully configured, you should be logged into the Teleport web UI.
+
+### Logging into the cluster with tsh
+
+You can use the Teleport command line tool (`tsh`) to log into your Teleport cluster after provisioning a user.
+
+You can [download the Teleport package containing the `tsh` client from here](https://goteleport.com/download)
+
+- The client is the same for both Teleport Community Edition and Teleport Enterprise.
+
+<Tabs>
+  <TabItem scope={["oss"]} label="Teleport Community Edition">
+  ```code
+  # When logging in with tsh, the https:// at the beginning of the URL is not needed
+  $ export PROXY_ADDRESS=$(terraform output -raw cluster_web_address | sed 's_https://__')
+  $ tsh login --proxy=${PROXY_ADDRESS} --user=teleport-admin
+  # Enter password for Teleport user teleport-admin:
+  # Tap any security key
+  # Detected security key tap
+  # > Profile URL:  https://teleport.example.com:443
+  #  Logged in as: teleport-admin
+  #  Cluster:      example-cluster
+  #  Roles:        editor, access
+  #  Logins:       root
+  #  Valid until:  2023-10-06 22:07:11 -0400 AST [valid for 12h0m0s]
+  #  Extensions:   permit-agent-forwarding, permit-port-forwarding, permit-pty
+
+  $ tsh ls
+  # Node Name                    Address           Labels
+  # ---------------------------- ----------------- ------
+  # ip-172-31-11-69-ec2-internal 172.31.11.69:3022
+
+  $ tsh ssh root@ip-172-31-11-69-ec2-internal
+  # [root@ip-172-31-11-69 ~]#
+  ```
+  </TabItem>
+  <TabItem scope={["enterprise", "cloud"]} label="Commercial">
+  ```code
+  # When logging in with tsh, the https:// at the beginning of the URL is not needed
+  $ export PROXY_ADDRESS=$(terraform output -raw cluster_web_address | sed 's_https://__')
+  $ tsh login --proxy=${PROXY_ADDRESS} --user=teleport-admin
+  # Enter password for Teleport user teleport-admin:
+  # Tap any security key
+  # Detected security key tap
+  # > Profile URL:  https://teleport.example.com:443
+  #  Logged in as: teleport-admin
+  #  Cluster:      example-cluster
+  #  Roles:        editor, access, reviewer
+  #  Logins:       root
+  #  Valid until:  2023-10-06 22:07:11 -0400 AST [valid for 12h0m0s]
+  #  Extensions:   permit-agent-forwarding, permit-port-forwarding, permit-pty
+
+  $ tsh ls
+  # Node Name                    Address           Labels
+  # ---------------------------- ----------------- ------
+  # ip-172-31-11-69-ec2-internal 172.31.11.69:3022
+
+  $ tsh ssh root@ip-172-31-11-69-ec2-internal
+  # [root@ip-172-31-11-69 ~]#
+  ```
+  </TabItem>
+</Tabs>
+
+## Restarting/checking the Teleport service
+
+The `systemd` service name is different between Let's Encrypt (`teleport.service`) and ACM (`teleport-acm.service`).
+
+<Tabs>
+  <TabItem label="If using ACM">
+
+  You are using ACM if your `use_acm` variable is set to `"true"`.
+
+  ```code
+  $ systemctl status teleport-acm.service
+  ● teleport-acm.service - Teleport Service (ACM)
+    Loaded: loaded (/etc/systemd/system/teleport-acm.service; static; vendor preset: disabled)
+    Active: active (running) since Thu 2023-09-21 20:35:32 UTC; 9min ago
+  Main PID: 2483 (teleport)
+    CGroup: /system.slice/teleport-acm.service
+            └─2483 /usr/local/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3000 --pid-file=/run/teleport/teleport.pid
+
+  Sep 21 20:43:12 ip-172-31-29-119.ec2.internal teleport[2483]: 2023-09-21T20:43:12Z [AUDIT]     INFO session.data addr.local:127.0.0.1:443 addr.remote:1.2.3.4:25362 cluster_name:teleport-example code:T2006I ei:2.147483646e+09 event:se...
+  Sep 21 20:43:17 ip-172-31-29-119.ec2.internal teleport[2483]: 2023-09-21T20:43:17Z [SESSION:N] INFO Stopping session session_id:ca17914c-e0d5-42c1-9407-fa7a5c2dc163...
+  Sep 21 20:43:17 ip-172-31-29-119.ec2.internal teleport[2483]: 2023-09-21T20:43:17Z [AUDIT]     INFO session.end addr.remote:1.2.3.4:25362 cluster_name:teleport-example code:T2004I ei:28 enhanced_recording:false event:s...ver_hostname:ip
+  ```
+
+  You can get detailed logs for the Teleport Proxy Service using the `journalctl` command:
+
+  ```code
+  $ journalctl -u teleport-acm.service
+  ```
+  </TabItem>
+  <TabItem label="If using Let's Encrypt">
+
+  You are using LetsEncrypt if your `use_acm` variable is set to `"false"`.
+
+  ```code
+  $ systemctl status teleport.service
+  ● teleport.service - Teleport Service
+    Loaded: loaded (/etc/systemd/system/teleport.service; static; vendor preset: disabled)
+    Active: active (running) since Thu 2023-09-21 20:35:32 UTC; 9min ago
+  Main PID: 2483 (teleport)
+    CGroup: /system.slice/teleport.service
+            └─2483 /usr/local/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3000 --pid-file=/run/teleport/teleport.pid
+
+  Sep 21 20:43:12 ip-172-31-29-119.ec2.internal teleport[2483]: 2023-09-21T20:43:12Z [AUDIT]     INFO session.data addr.local:127.0.0.1:443 addr.remote:1.2.3.4:25362 cluster_name:teleport-example code:T2006I ei:2.147483646e+09 event:se...
+  Sep 21 20:43:17 ip-172-31-29-119.ec2.internal teleport[2483]: 2023-09-21T20:43:17Z [SESSION:N] INFO Stopping session session_id:ca17914c-e0d5-42c1-9407-fa7a5c2dc163...
+  Sep 21 20:43:17 ip-172-31-29-119.ec2.internal teleport[2483]: 2023-09-21T20:43:17Z [AUDIT]     INFO session.end addr.remote:1.2.3.4:25362 cluster_name:teleport-example code:T2004I ei:28 enhanced_recording:false event:s...ver_hostname:ip
+  ```
+
+  You can get detailed logs for the Teleport Proxy Service using the `journalctl` command:
+
+  ```code
+  $ journalctl -u teleport.service
+  ```
+  </TabItem>
+</Tabs>
+
+## Adding agents to your Teleport cluster
+
+The easiest way to quickly join new resources to your cluster is to use the "Enroll New Resource" wizards in the Teleport web UI.
+
+Customers run many workloads within AWS and depending on how you work, there are many manual
+ways to integrate Teleport onto your servers. We recommend looking at our [Installation guide](../../../installation.mdx).
+
+To add new nodes/EC2 servers that you can "SSH into" you'll need to:
+
+- [Install the Teleport binary on the Server](../../../installation.mdx)
+- [Run Teleport - we recommend using systemd](../../management/admin/daemon.mdx)
+- [Set the correct settings in /etc/teleport.yaml](../../../reference/config.mdx)
+- [Add Nodes to the Teleport
+  cluster](../../../enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx)
+
+## Troubleshooting
+
+### AWS quotas
+
+(!docs/pages/includes/aws-quotas.mdx!)

@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -97,12 +97,7 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 					presence: svc,
 				},
 			}
-
-			sb.StartTimer() // restart timer for benchmark operations
-
 			benchmarkGetClusterDetails(ctx, sb, site, tt.nodes)
-
-			sb.StopTimer() // stop timer to exclude deferred cleanup
 		})
 	}
 }
@@ -148,7 +143,7 @@ func insertServers(ctx context.Context, b *testing.B, svc services.Presence, kin
 func benchmarkGetClusterDetails(ctx context.Context, b *testing.B, site reversetunnelclient.RemoteSite, nodes int, opts ...services.MarshalOption) {
 	var cluster *Cluster
 	var err error
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		cluster, err = GetClusterDetails(ctx, site, opts...)
 		require.NoError(b, err)
 	}
@@ -157,10 +152,10 @@ func benchmarkGetClusterDetails(ctx context.Context, b *testing.B, site reverset
 
 type mockRemoteSite struct {
 	reversetunnelclient.RemoteSite
-	accessPoint auth.ProxyAccessPoint
+	accessPoint authclient.ProxyAccessPoint
 }
 
-func (m *mockRemoteSite) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
+func (m *mockRemoteSite) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error) {
 	return m.accessPoint, nil
 }
 
@@ -177,7 +172,7 @@ func (m *mockRemoteSite) GetStatus() string {
 }
 
 type mockAccessPoint struct {
-	auth.ProxyAccessPoint
+	authclient.ProxyAccessPoint
 	presence *local.PresenceService
 }
 

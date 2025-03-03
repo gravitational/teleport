@@ -16,37 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import styled from 'styled-components';
-import ReactSelect from 'react-select';
 
+import { H2, Text } from 'design';
+import { Alert } from 'design/Alert';
 import Box from 'design/Box';
-import Text from 'design/Text';
-import * as Icons from 'design/Icon';
-import { StyledSelect } from 'shared/components/Select';
-import Input from 'design/Input';
 import { ButtonSecondary } from 'design/Button';
-import Validation, { Validator } from 'shared/components/Validation';
-
-import Flex from 'design/Flex';
-import Card from 'design/Card';
 import ButtonIcon from 'design/ButtonIcon';
-import FieldInput from 'shared/components/FieldInput';
-
-import Alert from 'design/Alert';
-
+import Card from 'design/Card';
+import Flex from 'design/Flex';
+import * as Icons from 'design/Icon';
+import Input from 'design/Input';
 import Link from 'design/Link';
+import FieldInput from 'shared/components/FieldInput';
+import Select from 'shared/components/Select';
+import Validation, { Validator } from 'shared/components/Validation';
 
 import cfg from 'teleport/config';
 
 import { FlowButtons } from '../Shared/FlowButtons';
 import { FlowStepProps } from '../Shared/GuidedFlow';
-
 import {
   GITHUB_HOST,
+  parseRepoAddress,
   RefTypeOption,
   Rule,
-  parseRepoAddress,
   useGitHubFlow,
 } from './useGitHubFlow';
 
@@ -131,9 +126,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
       <Validation>
         {({ validator }) => (
           <Box mt="3">
-            <Text bold fontSize={4} mb="3">
-              Step 2: Input Your GitHub Account Info
-            </Text>
+            <H2 mb="3">Step 2: Input Your GitHub Account Info</H2>
             <Text mb="3">
               These fields will be combined with your bot's permissions to
               create a join token and generate a sample GitHub Actions file.
@@ -180,7 +173,6 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
                         </Text>
                         <Input
                           disabled={isLoading}
-                          label="Git Ref"
                           placeholder="main"
                           style={{ borderRadius: '4px 0 0 4px' }}
                           value={repoRules[i].ref}
@@ -189,18 +181,14 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
                       </Box>
                       <Box minWidth="160px">
                         <Text ml="1">Ref Type</Text>
-                        <RefTypeSelect>
-                          <ReactSelect
-                            disabled={isLoading}
-                            isMulti={false}
-                            value={repoRules[i].refType}
-                            onChange={o => handleChange(i, 'refType', o)}
-                            options={refTypeOptions}
-                            menuPlacement="auto"
-                            className="react-select-container"
-                            classNamePrefix="react-select"
-                          />
-                        </RefTypeSelect>
+                        <RefTypeSelect
+                          isDisabled={isLoading}
+                          isMulti={false}
+                          value={repoRules[i].refType}
+                          onChange={o => handleChange(i, 'refType', o)}
+                          options={refTypeOptions}
+                          menuPlacement="auto"
+                        />
                       </Box>
                     </Flex>
                   </FormItem>
@@ -222,7 +210,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
 
                   <FormItem>
                     <Text>
-                      Environmnet <OptionalFieldText />
+                      Environment <OptionalFieldText />
                     </Text>
                     <Input
                       disabled={isLoading}
@@ -286,14 +274,15 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
   );
 }
 
-const RefTypeSelect = styled(StyledSelect)`
+const RefTypeSelect = styled(Select<RefTypeOption>)`
   .react-select__control {
     border-radius: 0 4px 4px 0;
-    border-left: none;
+    border-left-color: transparent;
   }
 
-  .react-select__control:hover {
-    border-left: none;
+  .react-select__control--is-focused {
+    border-left-color: ${props =>
+      props.theme.colors.interactive.solid.primary.default};
   }
 `;
 

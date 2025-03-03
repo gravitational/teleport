@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/jira"
 )
 
-func (s *JiraSuite) checkPluginData(ctx context.Context, reqID string, cond func(jira.PluginData) bool) jira.PluginData {
+func (s *JiraBaseSuite) checkPluginData(ctx context.Context, reqID string, cond func(jira.PluginData) bool) jira.PluginData {
 	t := s.T()
 	t.Helper()
 
@@ -43,7 +43,7 @@ func (s *JiraSuite) checkPluginData(ctx context.Context, reqID string, cond func
 	}
 }
 
-func (s *JiraSuite) postWebhook(ctx context.Context, url, issueID, status string) (*http.Response, error) {
+func (s *JiraBaseSuite) postWebhook(ctx context.Context, url, issueID, status string) (*http.Response, error) {
 	var buf bytes.Buffer
 	wh := jira.Webhook{
 		WebhookEvent:       "jira:issue_updated",
@@ -72,9 +72,9 @@ func (s *JiraSuite) postWebhook(ctx context.Context, url, issueID, status string
 	return response, trace.Wrap(err)
 }
 
-func (s *JiraSuite) postWebhookAndCheck(ctx context.Context, url, issueID, status string) {
+func (s *JiraBaseSuite) postWebhookAndCheck(ctx context.Context, url, issueID, status string) {
+	s.T().Helper()
 	t := s.T()
-	t.Helper()
 
 	resp, err := s.postWebhook(ctx, url, issueID, status)
 	require.NoError(t, err)

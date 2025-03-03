@@ -28,8 +28,8 @@ installCRDs: "dynamic"
 teleportAddress: ""
 
 # caPins(list[string]) -- is a list of Teleport CA fingerprints that is used by the operator to
-# validate the identity of the Teleport Auth server. This is only used when joining
-# an Auth server directly (on port `3025`) and is ignored when joining through a Proxy
+# validate the identity of the Teleport Auth Service. This is only used when joining
+# an Auth Service directly (on port `3025`) and is ignored when joining through a Proxy
 # (port `443` or `3080`).
 caPins: []
 
@@ -41,7 +41,7 @@ joinMethod: "kubernetes"
 
 # teleportClusterName(string) -- is the name of the joined Teleport cluster.
 # Setting this value is required when joining via the
-# [Kubernetes JWKS](../../join-methods.mdx#kubernetes-jwks) join method.
+# [Kubernetes JWKS](../../reference/join-methods.mdx#kubernetes-jwks) join method.
 teleportClusterName: ""
 
 # token(string) -- is the name of the token used by the operator to join the Teleport cluster.
@@ -88,6 +88,15 @@ annotations:
   # annotations.serviceAccount(object) -- contains the Kubernetes annotations
   # put on the `Deployment` resource created by the chart.
   serviceAccount: {}
+
+# annotations --
+labels:
+  # labels.deployment(object) -- contains the Kubernetes labels
+  # put on the `Deployment` resource created by the chart.
+  deployment: {}
+  # labels.pod(object) -- contains the Kubernetes labels
+  # put on the `Pod` resources created by the chart.
+  pod: {}
 
 # serviceAccount --
 serviceAccount:
@@ -180,7 +189,7 @@ tls:
   # certs in the same namespace as the Teleport Kubernetes Operator using a
   # command such as:
   #
-  # ```shell
+  # ```code
   # $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
   # ```
   existingCASecretName: ""

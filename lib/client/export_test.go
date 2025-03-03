@@ -18,8 +18,6 @@
 
 package client
 
-var HasTouchIDCredentials = &hasTouchIDCredentials
-
 func (tc *TeleportClient) SetDTAttemptLoginIgnorePing(val bool) {
 	tc.dtAttemptLoginIgnorePing = val
 }
@@ -32,6 +30,6 @@ func (tc *TeleportClient) SetDTAuthnRunCeremony(fn DTAuthnRunCeremonyFunc) {
 	tc.DTAuthnRunCeremony = fn
 }
 
-func (tc *TeleportClient) SetDTAutoEnroll(fn dtAutoEnrollFunc) {
-	tc.dtAutoEnroll = fn
+func (tc *TeleportClient) SetDTAutoEnroll(fn DTAutoEnrollFunc) {
+	tc.DTAutoEnroll = fn
 }

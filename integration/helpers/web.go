@@ -31,12 +31,10 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/httplib/csrf"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -69,15 +67,7 @@ func LoginWebClient(t *testing.T, host, username, password string) *WebClientPac
 	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewBuffer(csReq))
 	require.NoError(t, err)
 
-	// Attach CSRF token in cookie and header.
-	csrfToken, err := utils.CryptoRandomHex(32)
-	require.NoError(t, err)
-	req.AddCookie(&http.Cookie{
-		Name:  csrf.CookieName,
-		Value: csrfToken,
-	})
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
-	req.Header.Set(csrf.HeaderName, csrfToken)
 
 	// Issue request.
 	client := &http.Client{
@@ -104,6 +94,96 @@ func LoginWebClient(t *testing.T, host, username, password string) *WebClientPac
 
 	webClient := &WebClientPack{
 		clt:         client,
+		host:        host,
+		webCookie:   cookie.Value,
+		bearerToken: csResp.Token,
+	}
+
+	respStatusCode, bs := webClient.DoRequest(t, http.MethodGet, "sites", nil)
+	require.Equal(t, http.StatusOK, respStatusCode, string(bs))
+
+	var clusters []ui.Cluster
+	require.NoError(t, json.Unmarshal(bs, &clusters), string(bs))
+	require.NotEmpty(t, clusters)
+
+	webClient.clusterName = clusters[0].Name
+	return webClient
+}
+
+// LoginMFAWebClient receives the host url and a passwordless
+// device to carry out login and return a WebClientPack.
+func LoginMFAWebClient(t *testing.T, host string, passwordlessDevice *mocku2f.Key) *WebClientPack {
+	// Begin login
+	loginReq, err := json.Marshal(client.MFAChallengeRequest{
+		Passwordless: true,
+	})
+	require.NoError(t, err)
+
+	u := url.URL{
+		Scheme: "https",
+		Host:   host,
+		Path:   "/v1/webapi/mfa/login/begin",
+	}
+	beginLoginReq, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewBuffer(loginReq))
+	require.NoError(t, err)
+
+	beginLoginReq.Header.Set("Content-Type", "application/json; charset=utf-8")
+
+	clt := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+	beginLoginResp, err := clt.Do(beginLoginReq)
+	require.NoError(t, err)
+	defer beginLoginResp.Body.Close()
+	require.Equal(t, http.StatusOK, beginLoginResp.StatusCode)
+
+	// Read mfa challenge from response and pass it to the passwordless device.
+	var mfaChallenge *client.MFAAuthenticateChallenge
+	err = json.NewDecoder(beginLoginResp.Body).Decode(&mfaChallenge)
+	require.NoError(t, err)
+
+	origin := fmt.Sprintf("https://%v", host)
+	webauthnResponse, err := passwordlessDevice.SignAssertion(origin, mfaChallenge.WebauthnChallenge)
+	require.NoError(t, err)
+
+	// Finish login and get a web session.
+	finishReq, err := json.Marshal(client.AuthenticateWebUserRequest{
+		WebauthnAssertionResponse: webauthnResponse,
+	})
+	require.NoError(t, err)
+
+	u = url.URL{
+		Scheme: "https",
+		Host:   host,
+		Path:   "/v1/webapi/mfa/login/finishsession",
+	}
+	finishLoginReq, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewBuffer(finishReq))
+	require.NoError(t, err)
+
+	finishLoginReq.Header.Set("Content-Type", "application/json; charset=utf-8")
+
+	// Issue request.
+	finishLoginResp, err := clt.Do(finishLoginReq)
+	require.NoError(t, err)
+	defer finishLoginResp.Body.Close()
+	require.Equal(t, http.StatusOK, finishLoginResp.StatusCode)
+
+	// Read in response.
+	var csResp *web.CreateSessionResponse
+	err = json.NewDecoder(finishLoginResp.Body).Decode(&csResp)
+	require.NoError(t, err)
+
+	// Extract session cookie and bearer token.
+	require.Len(t, finishLoginResp.Cookies(), 1)
+	cookie := finishLoginResp.Cookies()[0]
+	require.Equal(t, websession.CookieName, cookie.Name)
+
+	webClient := &WebClientPack{
+		clt:         clt,
 		host:        host,
 		webCookie:   cookie.Value,
 		bearerToken: csResp.Token,
@@ -175,7 +255,7 @@ func (w *WebClientPack) OpenWebsocket(t *testing.T, endpoint string, params any)
 
 	q := u.Query()
 	q.Set("params", string(data))
-	q.Set(roundtrip.AccessTokenQueryParam, w.bearerToken)
+	q.Set(roundtrip.AuthBearer, w.bearerToken)
 	u.RawQuery = q.Encode()
 
 	dialer := websocket.Dialer{}
@@ -193,5 +273,16 @@ func (w *WebClientPack) OpenWebsocket(t *testing.T, endpoint string, params any)
 	header.Add("Cookie", cookie.String())
 
 	ws, resp, err := dialer.Dial(u.String(), header)
-	return ws, resp, trace.Wrap(err)
+	require.NoError(t, err)
+
+	authReq, err := json.Marshal(struct {
+		Token string `json:"token"`
+	}{Token: w.bearerToken})
+	require.NoError(t, err)
+
+	if err := ws.WriteMessage(websocket.TextMessage, authReq); err != nil {
+		return nil, nil, err
+	}
+
+	return ws, resp, nil
 }

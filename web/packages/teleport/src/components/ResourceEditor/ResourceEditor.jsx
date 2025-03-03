@@ -16,21 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import PropTypes from 'prop-types';
-import Dialog, { DialogHeader, DialogTitle } from 'design/Dialog';
+import { useState } from 'react';
+
 import {
   Box,
   ButtonBorder,
   ButtonPrimary,
   ButtonSecondary,
   Flex,
+  H3,
   LabelInput,
   Text,
 } from 'design';
-import TextEditor from 'shared/components/TextEditor';
 import * as Alerts from 'design/Alert';
-import { useAttempt, useState } from 'shared/hooks';
+import Dialog, { DialogHeader, DialogTitle } from 'design/Dialog';
+import TextEditor from 'shared/components/TextEditor';
+import { useAttempt } from 'shared/hooks';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
@@ -82,13 +84,11 @@ export default function ResourceEditor(props) {
       <Flex flex="1">
         <Flex flex="1" m={5} flexDirection="column">
           <DialogHeader>
-            <DialogTitle typography="body1" bold>
-              {title}
-            </DialogTitle>
+            <DialogTitle>{title}</DialogTitle>
           </DialogHeader>
           {attempt.isFailed && <Alerts.Danger>{attempt.message}</Alerts.Danger>}
           {!isNew && (
-            <Text mb="2" typography="h4" color="text.main">
+            <Text mb="2" typography="body1">
               {name}
             </Text>
           )}
@@ -108,7 +108,7 @@ export default function ResourceEditor(props) {
               disabled={attempt.isProcessing}
               onClick={handleClose}
             >
-              CANCEL
+              Cancel
             </ButtonSecondary>
           </Box>
         </Flex>
@@ -122,13 +122,8 @@ export default function ResourceEditor(props) {
             bg="levels.surface"
           >
             <Box>
-              <DialogTitle typography="body1" bold>
-                {' '}
-                SETUP INSTRUCTIONS{' '}
-              </DialogTitle>
-              <Text typography="body1" mt={3}>
-                {directions}
-              </Text>
+              <H3>Setup Instructions</H3>
+              <Text mt={3}>{directions}</Text>
             </Box>
             <ButtonBorder
               size="medium"
@@ -146,7 +141,7 @@ export default function ResourceEditor(props) {
                 }
               }}
             >
-              VIEW DOCUMENTATION
+              View Documentation
             </ButtonBorder>
           </Flex>
         )}

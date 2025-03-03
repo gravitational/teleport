@@ -92,6 +92,8 @@ const (
 const (
 	// aclWhoami is a subcommand of "acl" that requires special handling.
 	aclWhoami = "whoami"
+	// protocolV2 defines the RESP protocol v2 that Teleport uses.
+	protocolV2 = 2
 )
 
 // clusterClient is a wrapper around redis.ClusterClient
@@ -101,30 +103,26 @@ type clusterClient struct {
 
 // newClient creates a new Redis client based on given ConnectionMode. If connection mode is not supported
 // an error is returned.
-func newClient(ctx context.Context, connectionOptions *connection.Options, tlsConfig *tls.Config, onConnect onClientConnectFunc) (redis.UniversalClient, error) {
+func newClient(ctx context.Context, connectionOptions *connection.Options, tlsConfig *tls.Config, credentialsProvider fetchCredentialsFunc) (redis.UniversalClient, error) {
 	connectionAddr := net.JoinHostPort(connectionOptions.Address, connectionOptions.Port)
 	// TODO(jakub): Investigate Redis Sentinel.
 	switch connectionOptions.Mode {
 	case connection.Standalone:
 		return redis.NewClient(&redis.Options{
-			Addr:      connectionAddr,
-			TLSConfig: tlsConfig,
-			OnConnect: onConnect,
-
-			// Auth should be done by the `OnConnect` callback here. So disable
-			// "automatic" auth by the client.
-			DisableAuthOnConnect: true,
+			Addr:                       connectionAddr,
+			TLSConfig:                  tlsConfig,
+			CredentialsProviderContext: credentialsProvider,
+			Protocol:                   protocolV2,
+			DisableIndentity:           true,
 		}), nil
 	case connection.Cluster:
 		client := &clusterClient{
 			ClusterClient: *redis.NewClusterClient(&redis.ClusterOptions{
-				Addrs:     []string{connectionAddr},
-				TLSConfig: tlsConfig,
-				OnConnect: onConnect,
-				NewClient: func(opt *redis.Options) *redis.Client {
-					opt.DisableAuthOnConnect = true
-					return redis.NewClient(opt)
-				},
+				Addrs:                      []string{connectionAddr},
+				TLSConfig:                  tlsConfig,
+				CredentialsProviderContext: credentialsProvider,
+				Protocol:                   protocolV2,
+				DisableIndentity:           true,
 			}),
 		}
 		// Load cluster information.
@@ -137,33 +135,25 @@ func newClient(ctx context.Context, connectionOptions *connection.Options, tlsCo
 	}
 }
 
-// onClientConnectFunc is a callback function that performs setups after Redis
-// client makes a new connection.
-type onClientConnectFunc func(context.Context, *redis.Conn) error
-
 // fetchCredentialsFunc fetches credentials for a new connection.
 type fetchCredentialsFunc func(ctx context.Context) (username, password string, err error)
 
-func noopOnConnect(context.Context, *redis.Conn) error {
-	return nil
-}
-
-// authWithPasswordOnConnect returns an onClientConnectFunc that sends "auth"
+// authWithPasswordOnConnect returns an fetchCredentialsFunc that sends "auth"
 // with provided username and password.
-func authWithPasswordOnConnect(username, password string) onClientConnectFunc {
-	return func(ctx context.Context, conn *redis.Conn) error {
-		return authConnection(ctx, conn, username, password)
+func authWithPasswordOnConnect(username, password string) fetchCredentialsFunc {
+	return func(ctx context.Context) (string, string, error) {
+		return username, password, nil
 	}
 }
 
-// fetchCredentialsOnConnect returns an onClientConnectFunc that does an
+// fetchCredentialsOnConnect returns an fetchCredentialsFunc that does an
 // authorization check, calls a provided credential fetcher callback func,
 // then logs an AUTH query to the audit log once and and uses the credentials to
 // auth a new connection.
-func fetchCredentialsOnConnect(closeCtx context.Context, sessionCtx *common.Session, audit common.Audit, fetchCreds fetchCredentialsFunc) onClientConnectFunc {
+func fetchCredentialsOnConnect(closeCtx context.Context, sessionCtx *common.Session, audit common.Audit, fetchCreds fetchCredentialsFunc) fetchCredentialsFunc {
 	// audit log one time, to avoid excessive audit logs from reconnects.
 	var auditOnce sync.Once
-	return func(ctx context.Context, conn *redis.Conn) error {
+	return func(ctx context.Context) (string, string, error) {
 		err := sessionCtx.Checker.CheckAccess(sessionCtx.Database,
 			services.AccessState{MFAVerified: true},
 			role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
@@ -172,11 +162,11 @@ func fetchCredentialsOnConnect(closeCtx context.Context, sessionCtx *common.Sess
 				DatabaseName: sessionCtx.DatabaseName,
 			})...)
 		if err != nil {
-			return trace.Wrap(err)
+			return "", "", trace.Wrap(err)
 		}
 		username, password, err := fetchCreds(ctx)
 		if err != nil {
-			return trace.Wrap(err)
+			return "", "", trace.Wrap(err)
 		}
 		auditOnce.Do(func() {
 			var query string
@@ -187,12 +177,12 @@ func fetchCredentialsOnConnect(closeCtx context.Context, sessionCtx *common.Sess
 			}
 			audit.OnQuery(closeCtx, sessionCtx, common.Query{Query: query})
 		})
-		return authConnection(ctx, conn, username, password)
+		return username, password, nil
 	}
 }
 
 // managedUserCredFetchFunc fetches user password on the fly.
-func managedUserCredFetchFunc(sessionCtx *common.Session, auth common.Auth, users common.Users) fetchCredentialsFunc {
+func managedUserCredFetchFunc(sessionCtx *common.Session, users common.Users) fetchCredentialsFunc {
 	return func(ctx context.Context) (string, string, error) {
 		username := sessionCtx.DatabaseUser
 		password, err := users.GetPassword(ctx, sessionCtx.Database, username)
@@ -208,7 +198,7 @@ func managedUserCredFetchFunc(sessionCtx *common.Session, auth common.Auth, user
 func azureAccessKeyFetchFunc(sessionCtx *common.Session, auth common.Auth) fetchCredentialsFunc {
 	return func(ctx context.Context) (string, string, error) {
 		// Retrieve the auth token for Azure Cache for Redis. Use default user.
-		password, err := auth.GetAzureCacheForRedisToken(ctx, sessionCtx)
+		password, err := auth.GetAzureCacheForRedisToken(ctx, sessionCtx.Database)
 		if err != nil {
 			return "", "", trace.AccessDenied("failed to get Azure access key: %v", err)
 		}
@@ -221,7 +211,7 @@ func azureAccessKeyFetchFunc(sessionCtx *common.Session, auth common.Auth) fetch
 func elasticacheIAMTokenFetchFunc(sessionCtx *common.Session, auth common.Auth) fetchCredentialsFunc {
 	return func(ctx context.Context) (string, string, error) {
 		// Retrieve the auth token for AWS IAM ElastiCache.
-		password, err := auth.GetElastiCacheRedisToken(ctx, sessionCtx)
+		password, err := auth.GetElastiCacheRedisToken(ctx, sessionCtx.Database, sessionCtx.DatabaseUser)
 		if err != nil {
 			return "", "", trace.AccessDenied(
 				"failed to get AWS ElastiCache IAM auth token for %v: %v",
@@ -234,7 +224,7 @@ func elasticacheIAMTokenFetchFunc(sessionCtx *common.Session, auth common.Auth) 
 // memorydbIAMTokenFetchFunc fetches an AWS MemoryDB IAM auth token.
 func memorydbIAMTokenFetchFunc(sessionCtx *common.Session, auth common.Auth) fetchCredentialsFunc {
 	return func(ctx context.Context) (string, string, error) {
-		password, err := auth.GetMemoryDBToken(ctx, sessionCtx)
+		password, err := auth.GetMemoryDBToken(ctx, sessionCtx.Database, sessionCtx.DatabaseUser)
 		if err != nil {
 			return "", "", trace.AccessDenied(
 				"failed to get AWS MemoryDB IAM auth token for %v: %v",
@@ -254,23 +244,6 @@ func awsIAMTokenFetchFunc(sessionCtx *common.Session, auth common.Auth) (fetchCr
 		// If this happens it means something wrong with our implementation.
 		return nil, trace.BadParameter("database type %q not supported for AWS IAM Auth", sessionCtx.Database.GetType())
 	}
-}
-
-// authConnection is a helper function that sends "auth" command to provided
-// Redis connection with provided username and password.
-func authConnection(ctx context.Context, conn *redis.Conn, username, password string) error {
-	// Copied from redis.baseClient.initConn.
-	_, err := conn.Pipelined(ctx, func(pipe redis.Pipeliner) error {
-		if password != "" {
-			if username != "" {
-				pipe.AuthACL(ctx, username, password)
-			} else {
-				pipe.Auth(ctx, password)
-			}
-		}
-		return nil
-	})
-	return trace.Wrap(err)
 }
 
 // Process add supports for additional cluster commands. Our Redis implementation passes most commands to

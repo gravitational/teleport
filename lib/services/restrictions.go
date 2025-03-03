@@ -61,13 +61,10 @@ func UnmarshalNetworkRestrictions(bytes []byte, opts ...MarshalOption) (types.Ne
 	case types.V4:
 		var nr types.NetworkRestrictionsV4
 		if err := utils.FastUnmarshal(bytes, &nr); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		if err := ValidateNetworkRestrictions(&nr); err != nil {
 			return nil, trace.Wrap(err)
-		}
-		if cfg.ID != 0 {
-			nr.SetResourceID(cfg.ID)
 		}
 		if cfg.Revision != "" {
 			nr.SetRevision(cfg.Revision)
@@ -93,7 +90,7 @@ func MarshalNetworkRestrictions(restrictions types.NetworkRestrictions, opts ...
 
 	switch restrictions := restrictions.(type) {
 	case *types.NetworkRestrictionsV4:
-		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, restrictions))
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, restrictions))
 	default:
 		return nil, trace.BadParameter("unrecognized network restrictions version %T", restrictions)
 	}

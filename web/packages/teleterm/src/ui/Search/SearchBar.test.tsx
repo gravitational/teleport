@@ -16,31 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import userEvent from '@testing-library/user-event';
-import { render, screen, waitFor, act } from 'design/utils/testing';
+
+import { act, render, screen, waitFor } from 'design/utils/testing';
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
 import Logger, { NullService } from 'teleterm/logger';
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
-import { ResourceSearchError } from 'teleterm/ui/services/resources';
-import ModalsHost from 'teleterm/ui/ModalsHost';
 import {
-  makeRootCluster,
   makeRetryableError,
+  makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
-
-import { ClusterUri } from 'teleterm/ui/uri';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import ModalsHost from 'teleterm/ui/ModalsHost';
+import { ResourceSearchError } from 'teleterm/ui/services/resources';
+import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
+import { ClusterUri, routing } from 'teleterm/ui/uri';
+import { VnetContextProvider } from 'teleterm/ui/Vnet';
 
 import { SearchAction } from './actions';
-
 import * as pickers from './pickers/pickers';
 import * as useActionAttempts from './pickers/useActionAttempts';
-import * as useSearch from './useSearch';
-import * as SearchContext from './SearchContext';
-
 import { SearchBarConnected } from './SearchBar';
+import * as SearchContext from './SearchContext';
+import * as useSearch from './useSearch';
 
 beforeAll(() => {
   Logger.init(new NullService());
@@ -89,7 +88,11 @@ it('does not display empty results copy after selecting two filters', () => {
 
   render(
     <MockAppContextProvider appContext={appContext}>
-      <SearchBarConnected />
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <SearchBarConnected />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </MockAppContextProvider>
   );
 
@@ -119,7 +122,11 @@ it('displays empty results copy after providing search query for which there is 
 
   render(
     <MockAppContextProvider appContext={appContext}>
-      <SearchBarConnected />
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <SearchBarConnected />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </MockAppContextProvider>
   );
 
@@ -153,7 +160,11 @@ it('includes offline cluster names in the empty results copy', () => {
 
   render(
     <MockAppContextProvider appContext={appContext}>
-      <SearchBarConnected />
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <SearchBarConnected />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </MockAppContextProvider>
   );
 
@@ -169,7 +180,6 @@ it('notifies about resource search errors and allows to display details', () => 
 
   const resourceSearchError = new ResourceSearchError(
     '/clusters/foo',
-    'server',
     new Error('whoops')
   );
 
@@ -198,7 +208,11 @@ it('notifies about resource search errors and allows to display details', () => 
 
   render(
     <MockAppContextProvider appContext={appContext}>
-      <SearchBarConnected />
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <SearchBarConnected />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </MockAppContextProvider>
   );
 
@@ -206,7 +220,7 @@ it('notifies about resource search errors and allows to display details', () => 
   expect(results).toHaveTextContent(
     'Some of the search results are incomplete.'
   );
-  expect(results).toHaveTextContent('Could not fetch servers from foo');
+  expect(results).toHaveTextContent('Could not fetch resources from foo');
   expect(results).not.toHaveTextContent(resourceSearchError.cause['message']);
 
   act(() => screen.getByText('Show details').click());
@@ -226,7 +240,6 @@ it('maintains focus on the search input after closing a resource search error mo
 
   const resourceSearchError = new ResourceSearchError(
     '/clusters/foo',
-    'server',
     new Error('whoops')
   );
 
@@ -246,8 +259,12 @@ it('maintains focus on the search input after closing a resource search error mo
 
   render(
     <MockAppContextProvider appContext={appContext}>
-      <SearchBarConnected />
-      <ModalsHost />
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <SearchBarConnected />
+          <ModalsHost />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </MockAppContextProvider>
   );
 
@@ -282,7 +299,6 @@ it('shows a login modal when a request to a cluster from the current workspace f
   const cluster = makeRootCluster();
   const resourceSearchError = new ResourceSearchError(
     cluster.uri,
-    'server',
     makeRetryableError()
   );
   const resourceSearchResult = {
@@ -305,8 +321,12 @@ it('shows a login modal when a request to a cluster from the current workspace f
 
   render(
     <MockAppContextProvider appContext={appContext}>
-      <SearchBarConnected />
-      <ModalsHost />
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <SearchBarConnected />
+          <ModalsHost />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </MockAppContextProvider>
   );
 
@@ -316,7 +336,7 @@ it('shows a login modal when a request to a cluster from the current workspace f
   await waitFor(() => {
     expect(screen.getByTestId('Modal')).toBeInTheDocument();
   });
-  expect(screen.getByTestId('Modal')).toHaveTextContent('Login to');
+  expect(screen.getByTestId('Modal')).toHaveTextContent('Log in to');
 
   // Verify that the search bar stays open after closing the modal.
   act(() => screen.getByLabelText('Close').click());
@@ -346,8 +366,12 @@ it('closes on a click on an unfocusable element outside of the search bar', asyn
 
   render(
     <MockAppContextProvider appContext={appContext}>
-      <SearchBarConnected />
-      <p data-testid="unfocusable-element">Lorem ipsum</p>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <SearchBarConnected />
+          <p data-testid="unfocusable-element">Lorem ipsum</p>
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </MockAppContextProvider>
   );
 
@@ -387,16 +411,11 @@ const getMockedSearchContext = (): SearchContext.SearchContext => ({
 
 const setUpContext = (clusterUri: ClusterUri) => {
   const appContext = new MockAppContext();
-  appContext.workspacesService.setState(draft => {
-    draft.rootClusterUri = clusterUri;
-    draft.workspaces = {
-      [clusterUri]: {
-        documents: [],
-        location: undefined,
-        localClusterUri: clusterUri,
-        accessRequests: undefined,
-      },
-    };
-  });
+  appContext.addRootCluster(
+    makeRootCluster({
+      uri: clusterUri,
+      name: routing.parseClusterUri(clusterUri).params.rootClusterId,
+    })
+  );
   return appContext;
 };

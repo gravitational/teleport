@@ -18,50 +18,44 @@ package handler
 
 import (
 	"context"
-	"sort"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"github.com/gravitational/teleport/lib/ui"
 )
 
-// GetApps gets apps with filters and returns paginated results
-func (s *Handler) GetApps(ctx context.Context, req *api.GetAppsRequest) (*api.GetAppsResponse, error) {
-	cluster, _, err := s.DaemonService.ResolveCluster(req.ClusterUri)
+func (h *Handler) GetApp(ctx context.Context, req *api.GetAppRequest) (*api.GetAppResponse, error) {
+	appURI, err := uri.Parse(req.AppUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	proxyClient, err := s.DaemonService.GetCachedClient(ctx, cluster.URI)
+	proxyClient, err := h.DaemonService.GetCachedClient(ctx, appURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := cluster.GetApps(ctx, proxyClient.CurrentCluster(), req)
-	if err != nil {
+	var app types.Application
+	if err := clusters.AddMetadataToRetryableError(ctx, func() error {
+		var err error
+		app, err = clusters.GetApp(ctx, proxyClient.CurrentCluster(), appURI.GetAppName())
+		return trace.Wrap(err)
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	response := &api.GetAppsResponse{
-		StartKey:   resp.StartKey,
-		TotalCount: int32(resp.TotalCount),
+	clustersApp := clusters.App{
+		URI: appURI,
+		App: app,
 	}
 
-	for _, app := range resp.Apps {
-		var apiApp *api.App
-		if app.App != nil {
-			apiApp = newAPIApp(*app.App)
-		} else if app.SAMLIdPServiceProvider != nil {
-			apiApp = newSAMLIdPServiceProviderAPIApp(*app.SAMLIdPServiceProvider)
-		} else {
-			return nil, trace.Errorf("expected an app server or a SAML IdP provider")
-		}
-		response.Agents = append(response.Agents, apiApp)
-	}
-
-	return response, nil
+	return &api.GetAppResponse{
+		App: newAPIApp(clustersApp),
+	}, nil
 }
 
 func newAPIApp(clusterApp clusters.App) *api.App {
@@ -70,20 +64,19 @@ func newAPIApp(clusterApp clusters.App) *api.App {
 	awsRoles := []*api.AWSRole{}
 	for _, role := range clusterApp.AWSRoles {
 		awsRoles = append(awsRoles, &api.AWSRole{
-			Name:    role.Name,
-			Display: role.Display,
-			Arn:     role.ARN,
+			Name:      role.Name,
+			Display:   role.Display,
+			Arn:       role.ARN,
+			AccountId: role.AccountID,
 		})
 	}
 
-	apiLabels := APILabels{}
-	for name, value := range app.GetAllLabels() {
-		apiLabels = append(apiLabels, &api.Label{
-			Name:  name,
-			Value: value,
-		})
+	apiLabels := makeAPILabels(ui.MakeLabelsWithoutInternalPrefixes(app.GetAllLabels()))
+
+	tcpPorts := make([]*api.PortRange, 0, len(app.GetTCPPorts()))
+	for _, portRange := range app.GetTCPPorts() {
+		tcpPorts = append(tcpPorts, &api.PortRange{Port: portRange.Port, EndPort: portRange.EndPort})
 	}
-	sort.Sort(apiLabels)
 
 	return &api.App{
 		Uri:          clusterApp.URI.String(),
@@ -97,19 +90,13 @@ func newAPIApp(clusterApp clusters.App) *api.App {
 		FriendlyName: types.FriendlyName(app),
 		SamlApp:      false,
 		Labels:       apiLabels,
+		TcpPorts:     tcpPorts,
 	}
 }
 
 func newSAMLIdPServiceProviderAPIApp(clusterApp clusters.SAMLIdPServiceProvider) *api.App {
 	provider := clusterApp.Provider
-	apiLabels := APILabels{}
-	for name, value := range provider.GetAllLabels() {
-		apiLabels = append(apiLabels, &api.Label{
-			Name:  name,
-			Value: value,
-		})
-	}
-	sort.Sort(apiLabels)
+	apiLabels := makeAPILabels(ui.MakeLabelsWithoutInternalPrefixes(provider.GetAllLabels()))
 
 	// Keep in sync with lib/web/ui/app.go.
 	return &api.App{

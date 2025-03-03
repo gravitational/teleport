@@ -20,14 +20,13 @@ import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 import auth, { makeWebauthnCreationResponse } from 'teleport/services/auth';
 
+import makeMfaDevice from './makeMfaDevice';
 import {
-  MfaDevice,
-  AddNewTotpDeviceRequest,
   AddNewHardwareDeviceRequest,
-  CreateNewHardwareDeviceRequest,
+  AddNewTotpDeviceRequest,
+  MfaDevice,
   SaveNewHardwareDeviceRequest,
 } from './types';
-import makeMfaDevice from './makeMfaDevice';
 
 class MfaService {
   fetchDevicesWithToken(tokenId: string): Promise<MfaDevice[]> {
@@ -50,23 +49,6 @@ class MfaService {
     return api.post(cfg.api.mfaDevicesPath, req);
   }
 
-  createNewWebAuthnDevice(req: CreateNewHardwareDeviceRequest) {
-    return auth
-      .checkWebauthnSupport()
-      .then(() =>
-        auth.createMfaRegistrationChallenge(
-          req.tokenId,
-          'webauthn',
-          req.deviceUsage
-        )
-      )
-      .then(res =>
-        navigator.credentials.create({
-          publicKey: res.webauthnPublicKey,
-        })
-      );
-  }
-
   saveNewWebAuthnDevice(req: SaveNewHardwareDeviceRequest) {
     return auth.checkWebauthnSupport().then(() => {
       const request = {
@@ -79,7 +61,7 @@ class MfaService {
   }
 
   addNewWebauthnDevice(req: AddNewHardwareDeviceRequest) {
-    return this.createNewWebAuthnDevice(req).then(credential => {
+    return auth.createNewWebAuthnDevice(req).then(credential => {
       this.saveNewWebAuthnDevice({ addRequest: req, credential });
     });
   }

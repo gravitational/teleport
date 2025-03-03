@@ -29,6 +29,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -70,17 +71,13 @@ func unmarshalResource153(data []byte, opts ...services.MarshalOption) (*testRes
 
 	var r testResource153
 	if err := utils.FastUnmarshal(data, &r); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 
 	if r.Metadata == nil {
 		r.Metadata = &headerv1.Metadata{}
 	}
 
-	if cfg.ID != 0 {
-		//nolint:staticcheck // SA1019. Deprecated, but still needed.
-		r.Metadata.Id = cfg.ID
-	}
 	if cfg.Revision != "" {
 		r.Metadata.Revision = cfg.Revision
 	}
@@ -108,11 +105,14 @@ func TestGenericWrapperCRUD(t *testing.T) {
 
 	const backendPrefix = "generic_prefix"
 
-	service, err := NewServiceWrapper[*testResource153](memBackend,
-		"generic resource",
-		backendPrefix,
-		marshalResource153,
-		unmarshalResource153)
+	service, err := NewServiceWrapper[*testResource153](
+		ServiceWrapperConfig[*testResource153]{
+			Backend:       memBackend,
+			ResourceKind:  "generic resource",
+			BackendPrefix: backend.NewKey(backendPrefix),
+			MarshalFunc:   marshalResource153,
+			UnmarshalFunc: unmarshalResource153,
+		})
 	require.NoError(t, err)
 
 	// Create a couple test resources.
@@ -180,15 +180,25 @@ func TestGenericWrapperCRUD(t *testing.T) {
 
 	// Update a resource.
 	r1.Metadata.Labels = map[string]string{"newlabel": "newvalue"}
-	r1, err = service.UpdateResource(ctx, r1)
+	r1, err = service.UnconditionalUpdateResource(ctx, r1)
 	require.NoError(t, err)
 	r, err = service.GetResource(ctx, r1.GetMetadata().GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(r1, r, cmpopts.IgnoreFields(headerv1.Metadata{}, "Id"), ignoreUnexported))
+	require.Empty(t, cmp.Diff(r1, r, cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"), ignoreUnexported))
+
+	// Conditionally updating a resource fails if revisions do not match
+	r.Metadata.Revision = "fake"
+	_, err = service.ConditionalUpdateResource(ctx, r)
+	require.True(t, trace.IsCompareFailed(err))
+
+	// Conditionally updating a resource is allowed when revisions match
+	r.Metadata.Revision = r1.Metadata.Revision
+	r1, err = service.ConditionalUpdateResource(ctx, r1)
+	require.NoError(t, err)
 
 	// Update a resource that doesn't exist.
 	doesNotExist := newTestResource153("doesnotexist")
-	_, err = service.UpdateResource(ctx, doesNotExist)
+	_, err = service.UnconditionalUpdateResource(ctx, doesNotExist)
 	require.True(t, trace.IsNotFound(err))
 
 	// Delete a resource.
@@ -206,7 +216,7 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource153{r1, r2}, out,
-		cmpopts.IgnoreFields(headerv1.Metadata{}, "Id"),
+		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
 		ignoreUnexported))
 
 	// Upsert a resource (update).
@@ -217,7 +227,7 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource153{r1, r2}, out,
-		cmpopts.IgnoreFields(headerv1.Metadata{}, "Id"),
+		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
 		ignoreUnexported))
 
 	// Try to delete a resource that doesn't exist.
@@ -235,20 +245,23 @@ func TestGenericWrapperWithPrefix(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	const initialBackendPrefix = "initial_prefix"
+	initialBackendPrefix := backend.NewKey("initial_prefix")
 	const additionalBackendPrefix = "additional_prefix"
 
-	service, err := NewServiceWrapper[*testResource153](memBackend,
-		"generic resource",
-		initialBackendPrefix,
-		marshalResource153,
-		unmarshalResource153)
+	service, err := NewServiceWrapper[*testResource153](
+		ServiceWrapperConfig[*testResource153]{
+			Backend:       memBackend,
+			ResourceKind:  "generic resource",
+			BackendPrefix: initialBackendPrefix,
+			MarshalFunc:   marshalResource153,
+			UnmarshalFunc: unmarshalResource153,
+		})
 	require.NoError(t, err)
 
 	// Verify that the service's backend prefix matches the initial backend prefix.
 	require.Equal(t, initialBackendPrefix, service.service.backendPrefix)
 
-	// Verify that withPrefix appends the the additional prefix.
+	// Verify that withPrefix appends the additional prefix.
 	serviceWithPrefix := service.WithPrefix(additionalBackendPrefix)
-	require.Equal(t, "initial_prefix/additional_prefix", serviceWithPrefix.service.backendPrefix)
+	require.Equal(t, backend.NewKey("initial_prefix", "additional_prefix").String(), serviceWithPrefix.service.backendPrefix.String())
 }

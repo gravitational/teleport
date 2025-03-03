@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/constants"
 )
 
 // UIConfig defines configuration for the web UI served
@@ -27,10 +29,11 @@ import (
 // never create more than one instance of it.
 type UIConfig interface {
 	Resource
-
-	// GetScript returns the contents of the installer script
+	// GetShowResources will returns which resources should be shown in the unified resources UI
+	GetShowResources() constants.ShowResources
+	// GetScrollbackLines returns the amount of scrollback lines the terminal remembers
 	GetScrollbackLines() int32
-	// SetScript sets the installer script
+	// SetScrollbackLines sets the amount of scrollback lines the terminal remembers
 	SetScrollbackLines(int32)
 
 	String() string
@@ -54,6 +57,15 @@ func (c *UIConfigV1) CheckAndSetDefaults() error {
 	}
 	if c.Spec.ScrollbackLines < 0 {
 		return trace.BadParameter("invalid scrollback lines value. Must be greater than or equal to 0.")
+	}
+	if c.Spec.ShowResources == "" {
+		c.Spec.ShowResources = constants.ShowResourcesRequestable
+	}
+	switch c.Spec.ShowResources {
+	case constants.ShowResourcesaccessibleOnly,
+		constants.ShowResourcesRequestable:
+	default:
+		return trace.BadParameter("show resources %q not supported", c.Spec.ShowResources)
 	}
 	return nil
 }
@@ -88,16 +100,6 @@ func (c *UIConfigV1) GetMetadata() Metadata {
 	return c.Metadata
 }
 
-// GetResourceID returns resource ID.
-func (c *UIConfigV1) GetResourceID() int64 {
-	return c.Metadata.ID
-}
-
-// SetResourceID sets resource ID.
-func (c *UIConfigV1) SetResourceID(id int64) {
-	c.Metadata.ID = id
-}
-
 // GetKind returns resource kind.
 func (c *UIConfigV1) GetKind() string {
 	return c.Kind
@@ -111,6 +113,11 @@ func (c *UIConfigV1) GetSubKind() string {
 // SetSubKind sets resource subkind.
 func (c *UIConfigV1) SetSubKind(sk string) {
 	c.SubKind = sk
+}
+
+// GetShowResources will returns which resources should be shown in the unified resources UI
+func (c *UIConfigV1) GetShowResources() constants.ShowResources {
+	return c.Spec.ShowResources
 }
 
 func (c *UIConfigV1) GetScrollbackLines() int32 {

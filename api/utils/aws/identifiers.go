@@ -67,10 +67,20 @@ func IsValidIAMPolicyName(policyName string) error {
 	return nil
 }
 
+const (
+	// AWSGlobalRegion is a sentinel value used by AWS to be able to use global endpoints, instead of region specific ones.
+	// Useful for STS API Calls.
+	// https://docs.aws.amazon.com/sdkref/latest/guide/feature-region.html
+	AWSGlobalRegion = "aws-global"
+)
+
 // IsValidRegion ensures the region looks to be valid.
 // It does not do a full validation, because AWS doesn't provide documentation for that.
 // However, they usually only have the following chars: [a-z0-9\-]
 func IsValidRegion(region string) error {
+	if region == AWSGlobalRegion {
+		return nil
+	}
 	if matchRegion.MatchString(region) {
 		return nil
 	}
@@ -157,7 +167,7 @@ var (
 	//
 	// Reference:
 	// https://github.com/aws/aws-sdk-go-v2/blob/main/codegen/smithy-aws-go-codegen/src/main/resources/software/amazon/smithy/aws/go/codegen/endpoints.json
-	matchRegion = regexp.MustCompile(`^[a-z]{2}(-gov|-iso|-isob)?-\w+-\d+$`)
+	matchRegion = regexp.MustCompile(`^[a-z]{2}(-gov|-iso|-isob|-isoe)?-\w+-\d+$`)
 
 	// https://docs.aws.amazon.com/athena/latest/APIReference/API_CreateWorkGroup.html
 	matchAthenaWorkgroupName = regexp.MustCompile(`^[a-zA-Z0-9._-]{1,128}$`).MatchString

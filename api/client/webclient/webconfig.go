@@ -69,22 +69,79 @@ type WebConfig struct {
 	// Eg, v13.4.3
 	// Only present when AutomaticUpgrades are enabled.
 	AutomaticUpgradesTargetVersion string `json:"automaticUpgradesTargetVersion,omitempty"`
-	// AssistEnabled is true when Teleport Assist is enabled.
-	AssistEnabled bool `json:"assistEnabled"`
+	// CustomTheme is a string that represents the name of the custom theme that the WebUI should use.
+	CustomTheme string `json:"customTheme"`
+	// Questionnaire indicates whether cluster users should get an onboarding questionnaire
+	Questionnaire bool `json:"questionnaire"`
+	// IsStripeManaged indicates if the cluster billing & lifecycle is managed via Stripe
+	IsStripeManaged bool `json:"isStripeManaged"`
+	// PremiumSupport indicates whether the customer has premium support
+	PremiumSupport bool `json:"premiumSupport"`
+	// Edition is the edition of Teleport
+	Edition string `json:"edition"`
+	// PlayableDatabaseProtocols is a list of database protocols which session
+	// recordings can be played.
+	PlayableDatabaseProtocols []string `json:"playable_db_protocols"`
+	// entitlements define a customer’s access to a specific features
+	Entitlements map[string]EntitlementInfo `json:"entitlements,omitempty"`
+
+	// Deprecated Fields
+	// Deprecated: IsTeam is true if [Features.ProductType] = Team
+	// Prefer checking the cluster features over this flag, as this will be removed.
+	IsTeam bool `json:"isTeam"`
 	// HideInaccessibleFeatures is true when features should be undiscoverable to users without the necessary permissions.
 	// Usually, in order to encourage discoverability of features, we show UI elements even if the user doesn't have permission to access them,
 	// this flag disables that behavior.
+	// Deprecated, use entitlements
 	HideInaccessibleFeatures bool `json:"hideInaccessibleFeatures"`
-	// CustomTheme is a string that represents the name of the custom theme that the WebUI should use.
-	CustomTheme string `json:"customTheme"`
-	// IsTeam is true if [Features.ProductType] = Team
-	IsTeam bool `json:"isTeam"`
 	// IsIGSEnabled is true if [Features.IdentityGovernance] = true
+	// Deprecated, use entitlements
 	IsIGSEnabled bool `json:"isIgsEnabled"`
+	// IsPolicyEnabled is true if [Features.Policy] = true
+	// Deprecated, use entitlements
+	IsPolicyEnabled bool `json:"isPolicyEnabled"`
+	// TODO (avatus) delete in v18
+	// IsPolicyRoleVisualizerEnabled is the graph visualizer for diffs made
+	// when editing roles in the Web UI. This defaults to true, but has an environment
+	// variable to turn off if needed TELEPORT_UNSTABLE_DISABLE_ROLE_VISUALIZER=true
+	IsPolicyRoleVisualizerEnabled bool `json:"isPolicyRoleVisualizerEnabled"`
 	// featureLimits define limits for features.
 	// Typically used with feature teasers if feature is not enabled for the
 	// product type eg: Team product contains teasers to upgrade to Enterprise.
+	// Deprecated, use entitlements
 	FeatureLimits FeatureLimits `json:"featureLimits"`
+	// ExternalAuditStorage indicates whether the EAS feature is enabled in the cluster.
+	// Deprecated, use entitlements
+	ExternalAuditStorage bool `json:"externalAuditStorage"`
+	// JoinActiveSessions indicates whether joining active sessions via web UI is enabled
+	// Deprecated, use entitlements
+	JoinActiveSessions bool `json:"joinActiveSessions"`
+	// AccessRequests indicates whether access requests are enabled
+	// Deprecated, use entitlements
+	AccessRequests bool `json:"accessRequests"`
+	// TrustedDevices indicates whether trusted devices page is enabled
+	// Deprecated, use entitlements
+	TrustedDevices bool `json:"trustedDevices"`
+	// OIDC indicates whether the OIDC integration flow is enabled
+	// Deprecated, use entitlements
+	OIDC bool `json:"oidc"`
+	// SAML indicates whether the SAML integration flow is enabled
+	// Deprecated, use entitlements
+	SAML bool `json:"saml"`
+	// MobileDeviceManagement indicates whether adding Jamf plugin is enabled
+	// Deprecated, use entitlements
+	MobileDeviceManagement bool `json:"mobileDeviceManagement"`
+}
+
+// EntitlementInfo is the state and limits of a particular entitlement; Example for feature X:
+// { Enabled: true,  Limit: 0 }   => unlimited access to feature X
+// { Enabled: true,  Limit: >0 }  => limited access to feature X
+// { Enabled: false, Limit: >=0 } => no access to feature X
+type EntitlementInfo struct {
+	// Enabled indicates the feature is 'on' if true; feature is disabled if false
+	Enabled bool `json:"enabled"`
+	// Limit indicates the allotted amount of use when limited; if 0 use is unlimited
+	Limit int32 `json:"limit"`
 }
 
 // featureLimits define limits for features.
@@ -105,7 +162,11 @@ type FeatureLimits struct {
 // UIConfig provides config options for the web UI served by the proxy service.
 type UIConfig struct {
 	// ScrollbackLines is the max number of lines the UI terminal can display in its history
-	ScrollbackLines int `json:"scrollbackLines,omitempty"` //nolint:unused // marshaled in config/configuration.go for WebConfig
+	ScrollbackLines int `json:"scrollbackLines,omitempty"`
+	// ShowResources determines which resources are shown in the web UI. Default if unset is "requestable"
+	// which means resources the user has access to and resources they can request will be shown in the
+	// resources UI. If set to `accessible_only`, only resources the user already has access to will be shown.
+	ShowResources constants.ShowResources `json:"showResources,omitempty"`
 }
 
 // WebConfigAuthProvider describes auth. provider
@@ -132,6 +193,8 @@ type WebConfigAuthSettings struct {
 	AllowPasswordless bool `json:"allowPasswordless,omitempty"`
 	// AuthType is the authentication type.
 	AuthType string `json:"authType"`
+	// DefaultConnectorName is the name of the default connector in the auth preferences. This will be empty if the default is "local".
+	DefaultConnectorName string `json:"defaultConnectorName"`
 	// PreferredLocalMFA is a server-side hint for clients to pick an MFA method
 	// when various options are available.
 	// It is empty if there is nothing to suggest.

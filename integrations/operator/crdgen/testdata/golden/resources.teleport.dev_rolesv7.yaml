@@ -38,6 +38,17 @@ spec:
               allow:
                 description: Allow is the set of conditions evaluated to grant access.
                 properties:
+                  account_assignments:
+                    description: AccountAssignments holds the list of account assignments
+                      affected by this condition.
+                    items:
+                      properties:
+                        account:
+                          type: string
+                        permission_set:
+                          type: string
+                      type: object
+                    type: array
                   app_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -89,6 +100,28 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  db_permissions:
+                    description: DatabasePermissions specifies a set of permissions
+                      that will be granted to the database user when using automatic
+                      database user provisioning.
+                    items:
+                      properties:
+                        match:
+                          additionalProperties:
+                            x-kubernetes-preserve-unknown-fields: true
+                          description: Match is a list of object labels that must
+                            be matched for the permission to be granted.
+                          type: object
+                        permissions:
+                          description: Permission is the list of string representations
+                            of the permission to be given, e.g. SELECT, INSERT, UPDATE,
+                            ...
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                      type: object
+                    type: array
                   db_roles:
                     description: DatabaseRoles is a list of databases roles for automatic
                       user creation.
@@ -126,6 +159,18 @@ spec:
                     items:
                       type: string
                     nullable: true
+                    type: array
+                  github_permissions:
+                    description: GitHubPermissions defines GitHub integration related
+                      permissions.
+                    items:
+                      properties:
+                        orgs:
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                      type: object
                     type: array
                   group_labels:
                     additionalProperties:
@@ -230,7 +275,6 @@ spec:
                       properties:
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
-                            At the moment only "pod" is supported.
                           type: string
                         name:
                           description: Name is the resource name. It supports wildcards.
@@ -279,7 +323,7 @@ spec:
                             type: string
                           type: array
                         description: Annotations is a collection of annotations to
-                          be programmatically appended to pending access requests
+                          be programmatically appended to pending Access Requests
                           at the time of their creation. These annotations serve as
                           a mechanism to propagate extra information to plugins.  Since
                           these annotations support variable interpolation syntax,
@@ -307,12 +351,41 @@ spec:
                               type: string
                           type: object
                         type: array
+                      kubernetes_resources:
+                        description: 'kubernetes_resources can optionally enforce
+                          a requester to request only certain kinds of kube resources.
+                          Eg: Users can make request to either a resource kind "kube_cluster"
+                          or any of its subresources like "namespaces". This field
+                          can be defined such that it prevents a user from requesting
+                          "kube_cluster" and enforce requesting any of its subresources.'
+                        items:
+                          properties:
+                            kind:
+                              description: kind specifies the Kubernetes Resource
+                                type.
+                              type: string
+                          type: object
+                        type: array
                       max_duration:
                         description: MaxDuration is the amount of time the access
                           will be granted for. If this is zero, the default duration
                           is used.
                         format: duration
                         type: string
+                      reason:
+                        description: Reason defines settings for the reason for the
+                          access provided by the user.
+                        nullable: true
+                        properties:
+                          mode:
+                            description: Mode can be either "required" or "optional".
+                              Empty string is treated as "optional". If a role has
+                              the request reason mode set to "required", then reason
+                              is required for all Access Requests requesting roles
+                              or resources allowed by this role. It applies only to
+                              users who have this role assigned.
+                            type: string
+                        type: object
                       roles:
                         description: Roles is the name of roles which will match the
                           request rule.
@@ -477,6 +550,49 @@ spec:
                           type: string
                       type: object
                     type: array
+                  spiffe:
+                    description: SPIFFE is used to allow or deny access to a role
+                      holder to generating a SPIFFE SVID.
+                    items:
+                      properties:
+                        dns_sans:
+                          description: 'DNSSANs specifies matchers for the SPIFFE
+                            ID DNS SANs.  Each requested DNS SAN is compared against
+                            all matchers configured and if any match, the condition
+                            is considered to be met.  The matcher by default allows
+                            ''*'' to be used to indicate zero or more of any character.
+                            Prepend ''^'' and append ''$'' to instead switch to matching
+                            using the Go regex syntax.  Example: *.example.com would
+                            match foo.example.com'
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        ip_sans:
+                          description: 'IPSANs specifies matchers for the SPIFFE ID
+                            IP SANs.  Each requested IP SAN is compared against all
+                            matchers configured and if any match, the condition is
+                            considered to be met.  The matchers should be specified
+                            using CIDR notation, it supports IPv4 and IPv6.  Examples:
+                            - 10.0.0.0/24 would match 10.0.0.0 to 10.255.255.255 -
+                            10.0.0.42/32 would match only 10.0.0.42'
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        path:
+                          description: 'Path specifies a matcher for the SPIFFE ID
+                            path. It should not include the trust domain and should
+                            start with a leading slash.  The matcher by default allows
+                            ''*'' to be used to indicate zero or more of any character.
+                            Prepend ''^'' and append ''$'' to instead switch to matching
+                            using the Go regex syntax.  Example: - /svc/foo/*/bar
+                            would match /svc/foo/baz/bar - ^\/svc\/foo\/.*\/bar$ would
+                            match /svc/foo/baz/bar'
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
                   windows_desktop_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -494,11 +610,33 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  workload_identity_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: WorkloadIdentityLabels controls whether or not specific
+                      WorkloadIdentity resources can be invoked. Further authorization
+                      controls exist on the WorkloadIdentity resource itself.
+                    type: object
+                  workload_identity_labels_expression:
+                    description: WorkloadIdentityLabelsExpression is a predicate expression
+                      used to allow/deny access to issuing a WorkloadIdentity.
+                    type: string
                 type: object
               deny:
                 description: Deny is the set of conditions evaluated to deny access.
                   Deny takes priority over allow.
                 properties:
+                  account_assignments:
+                    description: AccountAssignments holds the list of account assignments
+                      affected by this condition.
+                    items:
+                      properties:
+                        account:
+                          type: string
+                        permission_set:
+                          type: string
+                      type: object
+                    type: array
                   app_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -550,6 +688,28 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  db_permissions:
+                    description: DatabasePermissions specifies a set of permissions
+                      that will be granted to the database user when using automatic
+                      database user provisioning.
+                    items:
+                      properties:
+                        match:
+                          additionalProperties:
+                            x-kubernetes-preserve-unknown-fields: true
+                          description: Match is a list of object labels that must
+                            be matched for the permission to be granted.
+                          type: object
+                        permissions:
+                          description: Permission is the list of string representations
+                            of the permission to be given, e.g. SELECT, INSERT, UPDATE,
+                            ...
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                      type: object
+                    type: array
                   db_roles:
                     description: DatabaseRoles is a list of databases roles for automatic
                       user creation.
@@ -587,6 +747,18 @@ spec:
                     items:
                       type: string
                     nullable: true
+                    type: array
+                  github_permissions:
+                    description: GitHubPermissions defines GitHub integration related
+                      permissions.
+                    items:
+                      properties:
+                        orgs:
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                      type: object
                     type: array
                   group_labels:
                     additionalProperties:
@@ -691,7 +863,6 @@ spec:
                       properties:
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
-                            At the moment only "pod" is supported.
                           type: string
                         name:
                           description: Name is the resource name. It supports wildcards.
@@ -740,7 +911,7 @@ spec:
                             type: string
                           type: array
                         description: Annotations is a collection of annotations to
-                          be programmatically appended to pending access requests
+                          be programmatically appended to pending Access Requests
                           at the time of their creation. These annotations serve as
                           a mechanism to propagate extra information to plugins.  Since
                           these annotations support variable interpolation syntax,
@@ -768,12 +939,41 @@ spec:
                               type: string
                           type: object
                         type: array
+                      kubernetes_resources:
+                        description: 'kubernetes_resources can optionally enforce
+                          a requester to request only certain kinds of kube resources.
+                          Eg: Users can make request to either a resource kind "kube_cluster"
+                          or any of its subresources like "namespaces". This field
+                          can be defined such that it prevents a user from requesting
+                          "kube_cluster" and enforce requesting any of its subresources.'
+                        items:
+                          properties:
+                            kind:
+                              description: kind specifies the Kubernetes Resource
+                                type.
+                              type: string
+                          type: object
+                        type: array
                       max_duration:
                         description: MaxDuration is the amount of time the access
                           will be granted for. If this is zero, the default duration
                           is used.
                         format: duration
                         type: string
+                      reason:
+                        description: Reason defines settings for the reason for the
+                          access provided by the user.
+                        nullable: true
+                        properties:
+                          mode:
+                            description: Mode can be either "required" or "optional".
+                              Empty string is treated as "optional". If a role has
+                              the request reason mode set to "required", then reason
+                              is required for all Access Requests requesting roles
+                              or resources allowed by this role. It applies only to
+                              users who have this role assigned.
+                            type: string
+                        type: object
                       roles:
                         description: Roles is the name of roles which will match the
                           request rule.
@@ -938,6 +1138,49 @@ spec:
                           type: string
                       type: object
                     type: array
+                  spiffe:
+                    description: SPIFFE is used to allow or deny access to a role
+                      holder to generating a SPIFFE SVID.
+                    items:
+                      properties:
+                        dns_sans:
+                          description: 'DNSSANs specifies matchers for the SPIFFE
+                            ID DNS SANs.  Each requested DNS SAN is compared against
+                            all matchers configured and if any match, the condition
+                            is considered to be met.  The matcher by default allows
+                            ''*'' to be used to indicate zero or more of any character.
+                            Prepend ''^'' and append ''$'' to instead switch to matching
+                            using the Go regex syntax.  Example: *.example.com would
+                            match foo.example.com'
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        ip_sans:
+                          description: 'IPSANs specifies matchers for the SPIFFE ID
+                            IP SANs.  Each requested IP SAN is compared against all
+                            matchers configured and if any match, the condition is
+                            considered to be met.  The matchers should be specified
+                            using CIDR notation, it supports IPv4 and IPv6.  Examples:
+                            - 10.0.0.0/24 would match 10.0.0.0 to 10.255.255.255 -
+                            10.0.0.42/32 would match only 10.0.0.42'
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        path:
+                          description: 'Path specifies a matcher for the SPIFFE ID
+                            path. It should not include the trust domain and should
+                            start with a leading slash.  The matcher by default allows
+                            ''*'' to be used to indicate zero or more of any character.
+                            Prepend ''^'' and append ''$'' to instead switch to matching
+                            using the Go regex syntax.  Example: - /svc/foo/*/bar
+                            would match /svc/foo/baz/bar - ^\/svc\/foo\/.*\/bar$ would
+                            match /svc/foo/baz/bar'
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
                   windows_desktop_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -955,6 +1198,17 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  workload_identity_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: WorkloadIdentityLabels controls whether or not specific
+                      WorkloadIdentity resources can be invoked. Further authorization
+                      controls exist on the WorkloadIdentity resource itself.
+                    type: object
+                  workload_identity_labels_expression:
+                    description: WorkloadIdentityLabelsExpression is a predicate expression
+                      used to allow/deny access to issuing a WorkloadIdentity.
+                    type: string
                 type: object
               options:
                 description: Options is for OpenSSH options like agent forwarding.
@@ -965,7 +1219,7 @@ spec:
                       properties:
                         mode:
                           description: Mode is the type of extension to be used --
-                            currently critical-option is not supported
+                            currently critical-option is not supported. 0 is "extension".
                           x-kubernetes-int-or-string: true
                         name:
                           description: Name specifies the key to be used in the cert
@@ -973,7 +1227,7 @@ spec:
                           type: string
                         type:
                           description: Type represents the certificate type being
-                            extended, only ssh is supported at this time.
+                            extended, only ssh is supported at this time. 0 is "ssh".
                           x-kubernetes-int-or-string: true
                         value:
                           description: Value specifies the value to be used in the
@@ -996,17 +1250,27 @@ spec:
                     description: CreateDatabaseUser enabled automatic database user
                       creation.
                     type: boolean
+                  create_db_user_mode:
+                    description: CreateDatabaseUserMode allows users to be automatically
+                      created on a database when not set to off. 0 is "unspecified",
+                      1 is "off", 2 is "keep", 3 is "best_effort_drop".
+                    x-kubernetes-int-or-string: true
                   create_desktop_user:
                     description: CreateDesktopUser allows users to be automatically
                       created on a Windows desktop
                     type: boolean
                   create_host_user:
-                    description: CreateHostUser allows users to be automatically created
-                      on a host
+                    description: 'Deprecated: use CreateHostUserMode instead.'
                     type: boolean
+                  create_host_user_default_shell:
+                    description: CreateHostUserDefaultShell is used to configure the
+                      default shell for newly provisioned host users.
+                    type: string
                   create_host_user_mode:
                     description: CreateHostUserMode allows users to be automatically
-                      created on a host when not set to off
+                      created on a host when not set to off. 0 is "unspecified"; 1
+                      is "off"; 2 is "drop" (removed for v15 and above), 3 is "keep";
+                      4 is "insecure-drop".
                     x-kubernetes-int-or-string: true
                   desktop_clipboard:
                     description: DesktopClipboard indicates whether clipboard sharing
@@ -1021,7 +1285,6 @@ spec:
                   device_trust_mode:
                     description: DeviceTrustMode is the device authorization mode
                       used for the resources associated with the role. See DeviceTrust.Mode.
-                      Reserved for future use, not yet used by Teleport.
                     type: string
                   disconnect_expired_cert:
                     description: DisconnectExpiredCert sets disconnect clients on
@@ -1077,6 +1340,16 @@ spec:
                       sessions per connection.
                     format: int64
                     type: integer
+                  mfa_verification_interval:
+                    description: MFAVerificationInterval optionally defines the maximum
+                      duration that can elapse between successive MFA verifications.
+                      This variable is used to ensure that users are periodically
+                      prompted to verify their identity, enhancing security by preventing
+                      prolonged sessions without re-authentication when using tsh
+                      proxy * derivatives. It's only effective if the session requires
+                      MFA. If not set, defaults to `max_session_ttl`.
+                    format: duration
+                    type: string
                   permit_x11_forwarding:
                     description: PermitX11Forwarding authorizes use of X11 forwarding.
                     type: boolean
@@ -1085,9 +1358,7 @@ spec:
                       generation and usage
                     type: boolean
                   port_forwarding:
-                    description: PortForwarding defines if the certificate will have
-                      "permit-port-forwarding" in the certificate. PortForwarding
-                      is "yes" if not set, that's why this is a pointer
+                    description: 'Deprecated: Use SSHPortForwarding instead'
                     type: boolean
                   record_session:
                     description: RecordDesktopSession indicates whether desktop access
@@ -1108,8 +1379,8 @@ spec:
                         type: string
                     type: object
                   request_access:
-                    description: RequestAccess defines the access request strategy
-                      (optional|note|always) where optional is the default.
+                    description: RequestAccess defines the request strategy (optional|note|always)
+                      where optional is the default.
                     type: string
                   request_prompt:
                     description: RequestPrompt is an optional message which tells
@@ -1117,13 +1388,34 @@ spec:
                     type: string
                   require_session_mfa:
                     description: RequireMFAType is the type of MFA requirement enforced
-                      for this user.
+                      for this user. 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY",
+                      3 is "HARDWARE_KEY_TOUCH", 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN".
                     x-kubernetes-int-or-string: true
                   ssh_file_copy:
                     description: SSHFileCopy indicates whether remote file operations
                       via SCP or SFTP are allowed over an SSH session. It defaults
                       to true unless explicitly set to false.
                     type: boolean
+                  ssh_port_forwarding:
+                    description: SSHPortForwarding configures what types of SSH port
+                      forwarding are allowed by a role.
+                    nullable: true
+                    properties:
+                      local:
+                        description: Allow local port forwarding.
+                        nullable: true
+                        properties:
+                          enabled:
+                            type: boolean
+                        type: object
+                      remote:
+                        description: Allow remote port forwarding.
+                        nullable: true
+                        properties:
+                          enabled:
+                            type: boolean
+                        type: object
+                    type: object
                 type: object
             type: object
           status:
@@ -1133,16 +1425,8 @@ spec:
                 description: Conditions represent the latest available observations
                   of an object's state
                 items:
-                  description: "Condition contains details for one aspect of the current
-                    state of this API Resource.\n---\nThis struct is intended for
-                    direct use as an array at the field path .status.conditions.  For
-                    example,\n\n\n\ttype FooStatus struct{\n\t    // Represents the
-                    observations of a foo's current state.\n\t    // Known .status.conditions.type
-                    are: \"Available\", \"Progressing\", and \"Degraded\"\n\t    //
-                    +patchMergeKey=type\n\t    // +patchStrategy=merge\n\t    // +listType=map\n\t
-                    \   // +listMapKey=type\n\t    Conditions []metav1.Condition `json:\"conditions,omitempty\"
-                    patchStrategy:\"merge\" patchMergeKey:\"type\" protobuf:\"bytes,1,rep,name=conditions\"`\n\n\n\t
-                    \   // other fields\n\t}"
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
                   properties:
                     lastTransitionTime:
                       description: |-
@@ -1183,12 +1467,7 @@ spec:
                       - Unknown
                       type: string
                     type:
-                      description: |-
-                        type of condition in CamelCase or in foo.example.com/CamelCase.
-                        ---
-                        Many .condition.type values are consistent across resources like Available, but because arbitrary conditions can be
-                        useful (see .node.status.conditions), the ability to deconflict is important.
-                        The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
                       maxLength: 316
                       pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
                       type: string

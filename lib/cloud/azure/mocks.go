@@ -20,17 +20,20 @@ package azure
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresqlflexibleservers"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
@@ -535,6 +538,18 @@ func (m *ARMComputeMock) Get(_ context.Context, _ string, _ string, _ *armcomput
 	}, m.GetErr
 }
 
+// ARMComputeScaleSetMock mocks armcompute.VirtualMachineScaleSetVMsClient.
+type ARMScaleSetMock struct {
+	GetResult armcompute.VirtualMachineScaleSetVM
+	GetErr    error
+}
+
+func (m *ARMScaleSetMock) Get(ctx context.Context, resourceGroupName string, vmScaleSetName string, instanceID string, options *armcompute.VirtualMachineScaleSetVMsClientGetOptions) (armcompute.VirtualMachineScaleSetVMsClientGetResponse, error) {
+	return armcompute.VirtualMachineScaleSetVMsClientGetResponse{
+		VirtualMachineScaleSetVM: m.GetResult,
+	}, m.GetErr
+}
+
 // ARMSQLServerMock mocks armSQLServerClient
 type ARMSQLServerMock struct {
 	NoAuth               bool
@@ -663,4 +678,51 @@ func (m *ARMPostgresFlexServerMock) NewListByResourceGroupPager(group string, _ 
 			},
 		}, nil
 	})
+}
+
+// ARMUserAssignedIdentitiesMock implements ARMUserAssignedIdentities.
+type ARMUserAssignedIdentitiesMock struct {
+	identitiesMap map[string]armmsi.Identity
+}
+
+// NewARMUserAssignedIdentitiesMock creates a new ARMUserAssignedIdentitiesMock.
+func NewARMUserAssignedIdentitiesMock(identities ...armmsi.Identity) *ARMUserAssignedIdentitiesMock {
+	identitiesMap := make(map[string]armmsi.Identity)
+	for _, identity := range identities {
+		id, err := arm.ParseResourceID(*identity.ID)
+		if err == nil {
+			identitiesMap[id.ResourceGroupName+"+"+id.Name] = identity
+		} else {
+			slog.With("error", err).WarnContext(context.Background(), "Failed to add identity to mock.")
+		}
+	}
+	return &ARMUserAssignedIdentitiesMock{
+		identitiesMap: identitiesMap,
+	}
+}
+
+func (m *ARMUserAssignedIdentitiesMock) Get(ctx context.Context, resourceGroupName, resourceName string, options *armmsi.UserAssignedIdentitiesClientGetOptions) (armmsi.UserAssignedIdentitiesClientGetResponse, error) {
+	if m == nil || m.identitiesMap == nil {
+		return armmsi.UserAssignedIdentitiesClientGetResponse{}, trace.AccessDenied("access denied")
+	}
+
+	identity, found := m.identitiesMap[resourceGroupName+"+"+resourceName]
+	if !found {
+		return armmsi.UserAssignedIdentitiesClientGetResponse{}, trace.NotFound("%s of group %s not found", resourceName, resourceGroupName)
+	}
+	return armmsi.UserAssignedIdentitiesClientGetResponse{
+		Identity: identity,
+	}, nil
+}
+
+// NewUserAssignedIdentity creates an armmsi.Identity.
+func NewUserAssignedIdentity(subscription, resourceGroupName, resourceName, clientID string) armmsi.Identity {
+	id := fmt.Sprintf("/subscriptions/%s/resourcegroups/%s/providers/Microsoft.ManagedIdentity/userAssignedIdentities/%s", subscription, resourceGroupName, resourceName)
+	return armmsi.Identity{
+		ID:   &id,
+		Name: &resourceName,
+		Properties: &armmsi.UserAssignedIdentityProperties{
+			ClientID: &clientID,
+		},
+	}
 }

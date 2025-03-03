@@ -16,8 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { createMemoryHistory } from 'history';
+import { MemoryRouter, Router } from 'react-router';
+
 import { render, screen, userEvent } from 'design/utils/testing';
-import React from 'react';
+
+import cfg from 'teleport/config';
 
 import { FlowButtons, FlowButtonsProps } from './FlowButtons';
 
@@ -42,11 +46,13 @@ describe('flowButtons component', () => {
 
   it('disables the buttons according to the props', () => {
     render(
-      <FlowButtons
-        {...props}
-        backButton={{ disabled: true }}
-        nextButton={{ disabled: true }}
-      />
+      <MemoryRouter>
+        <FlowButtons
+          {...props}
+          backButton={{ disabled: true }}
+          nextButton={{ disabled: true }}
+        />
+      </MemoryRouter>
     );
 
     expect(screen.getByTestId('button-back')).toBeDisabled();
@@ -55,11 +61,13 @@ describe('flowButtons component', () => {
 
   it('hides the buttons according to the props', () => {
     render(
-      <FlowButtons
-        {...props}
-        backButton={{ hidden: true }}
-        nextButton={{ hidden: true }}
-      />
+      <MemoryRouter>
+        <FlowButtons
+          {...props}
+          backButton={{ hidden: true }}
+          nextButton={{ hidden: true }}
+        />
+      </MemoryRouter>
     );
 
     expect(screen.queryByTestId('button-back')).not.toBeInTheDocument();
@@ -69,12 +77,46 @@ describe('flowButtons component', () => {
   it('triggers the correct click handler', async () => {
     const prevMock = jest.fn();
     const nextMock = jest.fn();
-    render(<FlowButtons {...props} prevStep={prevMock} nextStep={nextMock} />);
+    render(
+      <MemoryRouter>
+        <FlowButtons {...props} prevStep={prevMock} nextStep={nextMock} />
+      </MemoryRouter>
+    );
 
     await userEvent.click(screen.getByTestId('button-back'));
     expect(prevMock).toHaveBeenCalledTimes(1);
 
     await userEvent.click(screen.getByTestId('button-next'));
     expect(nextMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('when useLocation.state is defined, the first step back button uses this state as pathname', async () => {
+    const history = createMemoryHistory({
+      initialEntries: [{ state: { previousPathname: 'web/random/route' } }],
+    });
+    history.push = jest.fn();
+
+    render(
+      <Router history={history}>
+        <FlowButtons {...props} isFirstStep={true} />
+      </Router>
+    );
+
+    await userEvent.click(screen.getByTestId('button-back-first-step'));
+    expect(history.push).toHaveBeenCalledWith('web/random/route');
+  });
+
+  test('when useLocation.state is NOT defined, the first step back button defaults to bots pathname', async () => {
+    const history = createMemoryHistory();
+    history.push = jest.fn();
+
+    render(
+      <Router history={history}>
+        <FlowButtons {...props} isFirstStep={true} />
+      </Router>
+    );
+
+    await userEvent.click(screen.getByTestId('button-back-first-step'));
+    expect(history.push).toHaveBeenCalledWith(cfg.getBotsNewRoute());
   });
 });

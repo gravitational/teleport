@@ -52,15 +52,12 @@ func UnmarshalClusterAuditConfig(bytes []byte, opts ...MarshalOption) (types.Clu
 	}
 
 	if err := utils.FastUnmarshal(bytes, &auditConfig); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	if err := auditConfig.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.ID != 0 {
-		auditConfig.SetResourceID(cfg.ID)
-	}
 	if cfg.Revision != "" {
 		auditConfig.SetRevision(cfg.Revision)
 	}
@@ -83,7 +80,7 @@ func MarshalClusterAuditConfig(auditConfig types.ClusterAuditConfig, opts ...Mar
 			return nil, trace.Wrap(err)
 		}
 
-		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, auditConfig))
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, auditConfig))
 	default:
 		return nil, trace.BadParameter("unrecognized cluster audit config version %T", auditConfig)
 	}

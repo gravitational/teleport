@@ -5,3 +5,5 @@ roles:
   - access
 app_name: my-app
 specific_tls_naming: false
+credential_ttl: 1m0s
+renewal_interval: 30s

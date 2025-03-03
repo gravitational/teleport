@@ -113,6 +113,14 @@ func TestInitCACert(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	mongodbAtlas, err := types.NewDatabaseV3(types.Metadata{
+		Name: "mongodb-atlas",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMongoDB,
+		URI:      "mongodb+srv://test.xxxx.mongodb.net",
+	})
+	require.NoError(t, err)
+
 	cloudSQL, err := types.NewDatabaseV3(types.Metadata{
 		Name: "cloud-sql",
 	}, types.DatabaseSpecV3{
@@ -131,8 +139,31 @@ func TestInitCACert(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	docdb, err := types.NewDatabaseV3(types.Metadata{
+		Name: "docdb",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMongoDB,
+		URI:      "localhost:27017",
+		AWS: types.AWS{
+			Region: "us-east-1",
+			DocumentDB: types.DocumentDB{
+				ClusterID: "docdb",
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	allDatabases := []types.Database{
-		selfHosted, rds, rdsWithCert, redshift, redshiftServerless, cloudSQL, azureMySQL, memoryDB,
+		selfHosted,
+		rds,
+		rdsWithCert,
+		redshift,
+		redshiftServerless,
+		cloudSQL,
+		azureMySQL,
+		memoryDB,
+		mongodbAtlas,
+		docdb,
 	}
 
 	tests := []struct {
@@ -179,6 +210,16 @@ func TestInitCACert(t *testing.T) {
 			desc:     "should download Azure CA when it's not set",
 			database: azureMySQL.GetName(),
 			cert:     fixtures.TLSCACertPEM + "\n" + fixtures.TLSCACertPEM, // Two CA files.
+		},
+		{
+			desc:     "should download MongoDB Atlas CA when it's not set",
+			database: mongodbAtlas.GetName(),
+			cert:     fixtures.TLSCACertPEM,
+		},
+		{
+			desc:     "should download DocumentDB CA when it's not set",
+			database: docdb.GetName(),
+			cert:     fixtures.TLSCACertPEM,
 		},
 	}
 
@@ -305,6 +346,7 @@ func TestCARenewer(t *testing.T) {
 	// Initialize the CA certs as normal.
 	require.NoError(t, databaseServer.initCACert(ctx, rds))
 	require.Equal(t, string(initialCA), rds.GetStatusCA())
+	require.Equal(t, int64(1), atomic.LoadInt64(&caDownloader.count))
 
 	// Start the database CA renewer.
 	renewerCtx, cancel := context.WithCancel(ctx)
@@ -320,16 +362,13 @@ func TestCARenewer(t *testing.T) {
 	caDownloader.cert = updatedCA
 	caDownloader.version = []byte("second-version")
 
-	// Trigger the CA renews by advancing in time.
-	testCtx.clock.Advance(caRenewInterval)
-
-	// Check if the database status CA is updated with new contents.
 	require.Eventually(t, func() bool {
-		return atomic.LoadInt64(&caDownloader.count) == 2
-	}, 5*time.Second, time.Second, "failed to wait the CA download")
-
-	// Advance another time to trigger another renew.
-	testCtx.clock.Advance(caRenewInterval)
+		// Advance the clock to ensure the renew loop is awakened, and start
+		// renewing the CAs. This can cause multiple renewals to occur, but for
+		// this test case, it is fine, given that the CA version won't change.
+		testCtx.clock.Advance(caRenewInterval)
+		return atomic.LoadInt64(&caDownloader.count) == int64(2)
+	}, 5*time.Second, 250*time.Millisecond, "failed to wait the CA download, expected 2 downloads but got %d", atomic.LoadInt64(&caDownloader.count))
 
 	// Wait until renewer is gone to check database CA contents. This avoids,
 	// test race condition.

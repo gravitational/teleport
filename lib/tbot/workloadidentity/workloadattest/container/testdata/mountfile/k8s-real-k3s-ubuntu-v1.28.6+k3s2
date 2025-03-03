@@ -1,0 +1,27 @@
+3029 2813 0:398 / / rw,relatime master:1634 - overlay overlay rw,lowerdir=/ssd/k3s/agent/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/668/fs:/ssd/k3s/agent/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/667/fs:/ssd/k3s/agent/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/666/fs:/ssd/k3s/agent/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/665/fs:/ssd/k3s/agent/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/664/fs:/ssd/k3s/agent/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/663/fs:/ssd/k3s/agent/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/662/fs:/ssd/k3s/agent/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/661/fs:/ssd/k3s/agent/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/660/fs:/ssd/k3s/agent/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/659/fs,upperdir=/ssd/k3s/agent/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/1104/fs,workdir=/ssd/k3s/agent/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/1104/work,nouserxattr
+2709 3029 0:418 / /proc rw,nosuid,nodev,noexec,relatime - proc proc rw
+3030 3029 0:419 / /dev rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755,inode64
+2697 3030 0:420 / /dev/pts rw,nosuid,noexec,relatime - devpts devpts rw,gid=5,mode=620,ptmxmode=666
+3031 3030 0:264 / /dev/mqueue rw,nosuid,nodev,noexec,relatime - mqueue mqueue rw
+3032 3029 0:272 / /sys ro,nosuid,nodev,noexec,relatime - sysfs sysfs ro
+3033 3032 0:29 /../../kubepods-besteffort-podfecd2321_17b5_49b9_9f75_8c5be777fbfb.slice/cri-containerd-397529d07efebd566f15dbc7e8af9f3ef586033f5e753adfa96b2bf730102c64.scope /sys/fs/cgroup ro,nosuid,nodev,noexec,relatime - cgroup2 cgroup rw
+3034 3029 0:39 /kubelet/pods/fecd2321-17b5-49b9-9f75-8c5be777fbfb/etc-hosts /etc/hosts rw,noatime - zfs ssd rw,xattr,posixacl,casesensitive
+3035 3030 0:39 /kubelet/pods/fecd2321-17b5-49b9-9f75-8c5be777fbfb/containers/influxdb2/0b3cd38e /dev/termination-log rw,noatime - zfs ssd rw,xattr,posixacl,casesensitive
+3036 3029 0:39 /k3s/agent/containerd/io.containerd.grpc.v1.cri/sandboxes/dfb5782367e348095bcac6bc52e3f2428dbfdc4704c1f94897b7095831de0f29/hostname /etc/hostname rw,noatime - zfs ssd rw,xattr,posixacl,casesensitive
+3041 3029 0:39 /k3s/agent/containerd/io.containerd.grpc.v1.cri/sandboxes/dfb5782367e348095bcac6bc52e3f2428dbfdc4704c1f94897b7095831de0f29/resolv.conf /etc/resolv.conf rw,noatime - zfs ssd rw,xattr,posixacl,casesensitive
+3056 3030 0:172 / /dev/shm rw,nosuid,nodev,noexec,relatime - tmpfs shm rw,size=65536k,inode64
+3057 3029 0:39 /k3s/agent/containerd/io.containerd.grpc.v1.cri/containers/397529d07efebd566f15dbc7e8af9f3ef586033f5e753adfa96b2bf730102c64/volumes/e8d71e077278681842902223965b71754c3cead29651ea453b1022a0715a64ae /etc/influxdb2 rw,noatime - zfs ssd rw,xattr,posixacl,casesensitive
+3067 3029 0:39 /k3s/storage/pvc-fe4e77b2-8676-40b8-acca-bf0a7208ee37_influxdb_influxdb-influxdb2 /var/lib/influxdb2 rw,noatime - zfs ssd rw,xattr,posixacl,casesensitive
+3068 3029 0:124 / /run/secrets/kubernetes.io/serviceaccount ro,relatime - tmpfs tmpfs rw,size=49238972k,inode64
+3362 2709 0:418 /bus /proc/bus ro,nosuid,nodev,noexec,relatime - proc proc rw
+3364 2709 0:418 /fs /proc/fs ro,nosuid,nodev,noexec,relatime - proc proc rw
+3365 2709 0:418 /irq /proc/irq ro,nosuid,nodev,noexec,relatime - proc proc rw
+3381 2709 0:418 /sys /proc/sys ro,nosuid,nodev,noexec,relatime - proc proc rw
+3382 2709 0:418 /sysrq-trigger /proc/sysrq-trigger ro,nosuid,nodev,noexec,relatime - proc proc rw
+3383 2709 0:431 / /proc/asound ro,relatime - tmpfs tmpfs ro,inode64
+3384 2709 0:432 / /proc/acpi ro,relatime - tmpfs tmpfs ro,inode64
+3385 2709 0:419 /null /proc/kcore rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755,inode64
+3386 2709 0:419 /null /proc/keys rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755,inode64
+3387 2709 0:419 /null /proc/timer_list rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755,inode64
+3388 2709 0:433 / /proc/scsi ro,relatime - tmpfs tmpfs ro,inode64
+3389 3032 0:434 / /sys/firmware ro,relatime - tmpfs tmpfs ro,inode64

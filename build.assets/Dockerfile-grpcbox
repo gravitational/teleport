@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM docker.io/golang:1.22
+FROM docker.io/golang:1.24
 
 # Image layers go from less likely to most likely to change.
 RUN apt-get update && \
@@ -22,17 +22,6 @@ ARG NODE_GRPC_TOOLS_VERSION
 # eg, "5.0.1"
 ARG NODE_PROTOC_TS_VERSION
 RUN npm install --global "grpc-tools@$NODE_GRPC_TOOLS_VERSION" "grpc_tools_node_protoc_ts@$NODE_PROTOC_TS_VERSION"
-
-# protoc
-# eg, "3.20.2"
-ARG PROTOC_VERSION
-RUN VERSION="$PROTOC_VERSION" && \
-  PB_REL='https://github.com/protocolbuffers/protobuf/releases' && \
-  PB_FILE="$(mktemp protoc-XXXXXX.zip)" && \
-  ARCH="$(if [ "$(uname -m)" = aarch64 ]; then echo aarch_64; else uname -m; fi)" && \
-  curl -fsSL -o "$PB_FILE" "$PB_REL/download/v$VERSION/protoc-$VERSION-linux-$ARCH.zip"  && \
-  unzip "$PB_FILE" -d /usr/local && \
-  rm -f "$PB_FILE"
 
 # buf
 # eg, "v1.26.1"

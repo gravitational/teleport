@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/pagerduty"
 )
 
-func (s *PagerdutySuite) checkPluginData(ctx context.Context, reqID string, cond func(pagerduty.PluginData) bool) pagerduty.PluginData {
+func (s *PagerdutyBaseSuite) checkPluginData(ctx context.Context, reqID string, cond func(pagerduty.PluginData) bool) pagerduty.PluginData {
 	t := s.T()
 	t.Helper()
 

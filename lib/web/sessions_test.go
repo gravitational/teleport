@@ -31,7 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
@@ -80,13 +80,13 @@ func (m *mockRemoteSite) GetName() string {
 	return m.name
 }
 
-func newMockClientI(openCount *atomic.Int32, closeErr error) auth.ClientI {
+func newMockClientI(openCount *atomic.Int32, closeErr error) authclient.ClientI {
 	openCount.Add(1)
 	return &mockClientI{openCount: openCount, closeErr: closeErr}
 }
 
 type mockClientI struct {
-	auth.ClientI
+	authclient.ClientI
 	openCount *atomic.Int32
 	closeErr  error
 }
@@ -108,7 +108,7 @@ func TestGetUserClient(t *testing.T) {
 	sctx := SessionContext{
 		cfg: SessionContextConfig{
 			RootClusterName: "local",
-			newRemoteClient: func(ctx context.Context, sessionContext *SessionContext, site reversetunnelclient.RemoteSite) (auth.ClientI, error) {
+			newRemoteClient: func(ctx context.Context, sessionContext *SessionContext, site reversetunnelclient.RemoteSite) (authclient.ClientI, error) {
 				return newMockClientI(&openCount, nil), nil
 			},
 		},
@@ -148,7 +148,7 @@ func TestGetUserClient(t *testing.T) {
 	// and ensure that the first request creates the client
 	// and the second request is provided the cached value
 	type result struct {
-		clt auth.ClientI
+		clt authclient.ClientI
 		err error
 	}
 
@@ -164,7 +164,7 @@ func TestGetUserClient(t *testing.T) {
 	}()
 
 	timeout := time.After(10 * time.Second)
-	clients := make([]auth.ClientI, 2)
+	clients := make([]authclient.ClientI, 2)
 	for i := 0; i < 2; i++ {
 		select {
 		case res := <-resultCh:
@@ -203,15 +203,17 @@ func TestSessionCache_watcher(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	processedC := make(chan struct{})
 	sessionCache, err := newSessionCache(ctx, sessionCacheOptions{
 		proxyClient: authClient,
 		accessPoint: authClient,
 		servers: []utils.NetAddr{
 			// An addr is required but unused.
 			{Addr: "localhost:12345", AddrNetwork: "tcp"}},
-		clock:                             clock,
-		sessionLingeringThreshold:         1 * time.Minute,
-		startWebSessionWatcherImmediately: true,
+		clock:                               clock,
+		sessionLingeringThreshold:           1 * time.Minute,
+		sessionWatcherStartImmediately:      true,
+		sessionWatcherEventProcessedChannel: processedC,
 	})
 	require.NoError(t, err, "newSessionCache() failed")
 	defer sessionCache.Close()
@@ -226,24 +228,26 @@ func TestSessionCache_watcher(t *testing.T) {
 	creds, err := cert.GenerateSelfSignedCert(nil /* hostNames */, nil /* ipAddresses */)
 	require.NoError(t, err, "GenerateSelfSignedCert() failed")
 
-	// Create a new "fake" session. We'll update it later and see if the watcher
-	// is triggered.
+	// Create "fake" sessions with the same sessionID using newSession.
 	sessionID := uuid.NewString()
-	expires := clock.Now().Add(1 * time.Hour)
-	session, err := types.NewWebSession(sessionID, types.KindWebSession, types.WebSessionSpecV2{
-		User:               "llama", // fake
-		Pub:                []byte(`ceci n'est pas an SSH certificate`),
-		Priv:               creds.PrivateKey,
-		TLSCert:            creds.Cert,
-		BearerToken:        "12345678",
-		BearerTokenExpires: expires,
-		Expires:            expires,
-		IdleTimeout:        types.Duration(1 * time.Hour),
-	})
-	require.NoError(t, err, "NewWebSession() failed")
+	newSession := func(t *testing.T) types.WebSession {
+		expires := clock.Now().Add(1 * time.Hour)
+		session, err := types.NewWebSession(sessionID, types.KindWebSession, types.WebSessionSpecV2{
+			User:               "llama", // fake
+			Pub:                []byte(`ceci n'est pas an SSH certificate`),
+			TLSPriv:            creds.PrivateKey,
+			TLSCert:            creds.Cert,
+			BearerToken:        "12345678",
+			BearerTokenExpires: expires,
+			Expires:            expires,
+			IdleTimeout:        types.Duration(1 * time.Hour),
+		})
+		require.NoError(t, err, "NewWebSession() failed")
+		return session
+	}
 
 	// Record session in cache.
-	_, err = sessionCache.newSessionContextFromSession(ctx, session)
+	_, err = sessionCache.newSessionContextFromSession(ctx, newSession(t))
 	require.NoError(t, err, "newSessionContextFromSession() failed")
 
 	// Sanity check active sessions.
@@ -252,23 +256,49 @@ func TestSessionCache_watcher(t *testing.T) {
 		sessionCache.ActiveSessions(),
 		"ActiveSessions() count mismatch")
 
-	// An update should cause the cache to evict the session.
-	// Certs here don't need to be realistic, they are never parsed.
-	sessionV2 := session.(*types.WebSessionV2)
-	sessionV2.Spec.Pub = []byte(`new SSH certificate`)
-	sessionV2.Spec.TLSCert = []byte(`new X.509 certificate`)
-	require.NoError(t,
-		authServer.WebSessions().Upsert(ctx, sessionV2),
-		"WebSessions.Upsert() failed",
-	)
+	updateSessionAndAssert := func(t *testing.T, hasDeviceExtensions bool, wantActiveSessions int) {
+		t.Helper()
 
-	// Verify that the session was evicted from the cache.
-	assert.Eventually(t,
-		func() bool {
-			return sessionCache.ActiveSessions() == 0
-		},
-		2*time.Second,        /* waitTime */
-		100*time.Millisecond, /* tick */
-		"sessionCache not evicted before timeout",
-	)
+		// Update the WebSession.
+		// Certs here don't need to be realistic, they are never parsed.
+		sessionV2 := newSession(t).(*types.WebSessionV2)
+		sessionV2.Spec.Pub = []byte(`new SSH certificate`)
+		sessionV2.Spec.TLSCert = []byte(`new X.509 certificate`)
+		sessionV2.Spec.HasDeviceExtensions = hasDeviceExtensions
+		require.NoError(t,
+			authServer.WebSessions().Upsert(ctx, sessionV2),
+			"WebSessions.Upsert() failed",
+		)
+
+		timer := time.NewTimer(20 * time.Second)
+		defer timer.Stop()
+
+		select {
+		case <-timer.C:
+			t.Fatal("sessionCache didn't process an event before timeout")
+		case <-processedC:
+			assert.Equal(t, wantActiveSessions, sessionCache.ActiveSessions(), "sessionCache.ActiveSessions() mismatch")
+		}
+	}
+
+	t.Run("non-device-extensions update doesn't evict session", func(t *testing.T) {
+		updateSessionAndAssert(t, false /* hasDeviceExtensions */, 1 /* wantActiveSessions */)
+	})
+
+	t.Run("device extensions update evicts session", func(t *testing.T) {
+		updateSessionAndAssert(t, true /* hasDeviceExtensions */, 0 /* wantActiveSessions */)
+	})
+
+	t.Run("session with device extensions not evicted", func(t *testing.T) {
+		sessionV2 := newSession(t).(*types.WebSessionV2)
+		sessionV2.Spec.HasDeviceExtensions = true
+
+		// Record session in cache.
+		_, err = sessionCache.newSessionContextFromSession(ctx, sessionV2)
+		require.NoError(t, err, "newSessionContextFromSession() failed")
+		// Sanity check.
+		require.Equal(t, 1, sessionCache.ActiveSessions(), "ActiveSessions() count mismatch")
+
+		updateSessionAndAssert(t, true /* hasDeviceExtensions */, 1 /* wantActiveSessions */)
+	})
 }

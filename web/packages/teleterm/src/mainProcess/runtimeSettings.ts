@@ -22,12 +22,9 @@ import path from 'path';
 
 import { app } from 'electron';
 
-import Logger from 'teleterm/logger';
-import { staticConfig } from 'teleterm/staticConfig';
-
-import { GrpcServerAddresses, RuntimeSettings } from './types';
 import { loadInstallationId } from './loadInstallationId';
-import { getAgentsDir } from './createAgentConfigFile';
+import { getAvailableShells, getDefaultShell } from './shell';
+import { GrpcServerAddresses, RuntimeSettings } from './types';
 
 const { argv, env } = process;
 
@@ -54,12 +51,12 @@ const insecure =
   // --insecure is already in our docs, but let's add --connect-insecure too in case Node or
   // Electron reserves it one day.
   argv.includes('--connect-insecure') ||
-  // The flag is needed because it's not easy to pass a flag to the app in dev mode. `yarn
+  // The flag is needed because it's not easy to pass a flag to the app in dev mode. `pnpm
   // start-term` causes a bunch of package scripts to be executed and each would have to pass the
   // flag one level down.
   (dev && !!env.CONNECT_INSECURE);
 
-export function getRuntimeSettings(): RuntimeSettings {
+export async function getRuntimeSettings(): Promise<RuntimeSettings> {
   const userDataDir = app.getPath('userData');
   const sessionDataDir = app.getPath('sessionData');
   const tempDataDir = app.getPath('temp');
@@ -76,24 +73,14 @@ export function getRuntimeSettings(): RuntimeSettings {
   // Before switching to the recommended path, we need to investigate the impact of this change.
   // https://www.electronjs.org/docs/latest/api/app#appgetpathname
   const logsDir = path.join(userDataDir, 'logs');
-  // DO NOT expose agentsDir through RuntimeSettings. See the comment in getAgentsDir.
-  const agentsDir = getAgentsDir(userDataDir);
+  const installationId = loadInstallationId(
+    path.resolve(app.getPath('userData'), 'installation_id')
+  );
 
   const tshd = {
     binaryPath: tshBinPath,
     homeDir: getTshHomeDir(),
     requestedNetworkAddress: tshAddress,
-    flags: [
-      'daemon',
-      'start',
-      // grpc-js requires us to pass localhost:port for TCP connections,
-      // for tshd we have to specify the protocol as well.
-      `--addr=${tshAddress}`,
-      `--certs-dir=${getCertsDir()}`,
-      `--prehog-addr=${staticConfig.prehogAddress}`,
-      `--kubeconfigs-dir=${kubeConfigsDir}`,
-      `--agents-dir=${agentsDir}`,
-    ],
   };
   const sharedProcess = {
     requestedNetworkAddress: sharedAddress,
@@ -110,13 +97,7 @@ export function getRuntimeSettings(): RuntimeSettings {
   //
   // A workaround is to read the version from `process.env.npm_package_version`.
   const appVersion = dev ? process.env.npm_package_version : app.getVersion();
-
-  if (insecure) {
-    tshd.flags.unshift('--insecure');
-  }
-  if (debug) {
-    tshd.flags.unshift('--debug');
-  }
+  const availableShells = await getAvailableShells();
 
   return {
     dev,
@@ -131,13 +112,12 @@ export function getRuntimeSettings(): RuntimeSettings {
     binDir,
     agentBinaryPath: path.resolve(sessionDataDir, 'teleport', 'teleport'),
     certsDir: getCertsDir(),
-    defaultShell: getDefaultShell(),
+    availableShells,
+    defaultOsShellId: getDefaultShell(availableShells),
     kubeConfigsDir,
     logsDir,
     platform: process.platform,
-    installationId: loadInstallationId(
-      path.resolve(app.getPath('userData'), 'installation_id')
-    ),
+    installationId,
     arch: os.arch(),
     osVersion: os.release(),
     appVersion,
@@ -222,29 +202,6 @@ function getBinaryPaths(): { binDir?: string; tshBinPath: string } {
 
 export function getAssetPath(...paths: string[]): string {
   return path.join(RESOURCES_PATH, 'assets', ...paths);
-}
-
-function getDefaultShell(): string {
-  const logger = new Logger();
-  switch (process.platform) {
-    case 'linux':
-    case 'darwin': {
-      const fallbackShell = 'bash';
-      const { shell } = os.userInfo();
-
-      if (!shell) {
-        logger.error(
-          `Failed to read ${process.platform} platform default shell, using fallback: ${fallbackShell}.\n`
-        );
-
-        return fallbackShell;
-      }
-
-      return shell;
-    }
-    case 'win32':
-      return 'powershell.exe';
-  }
 }
 
 /**
