@@ -164,7 +164,7 @@ func BenchmarkIsKeySafe(b *testing.B) {
 		NewKey("@_:.-+"),
 	}
 
-	for b.Loop() {
+	for i := 0; i < b.N; i++ {
 		for _, key := range keys {
 			IsKeySafe(key)
 		}
