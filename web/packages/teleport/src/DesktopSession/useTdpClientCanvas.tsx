@@ -33,8 +33,6 @@ import { TopBarHeight } from './TopBar';
 import {
   clipboardSharingPossible,
   ClipboardSharingState,
-  defaultClipboardSharingState,
-  defaultDirectorySharingState,
   DirectorySharingState,
   isSharingClipboard,
   Setter,
@@ -54,8 +52,6 @@ export default function useTdpClientCanvas(props: Props) {
     setTdpConnection,
     setWsConnection,
     clipboardSharingState,
-    setClipboardSharingState,
-    setDirectorySharingState,
   } = props;
   const [tdpClient, setTdpClient] = useState<TdpClient | null>(null);
   const initialTdpConnectionSucceeded = useRef(false);
@@ -104,16 +100,6 @@ export default function useTdpClientCanvas(props: Props) {
       let digest = await Sha256Digest(clipboardData.data, encoder.current);
       latestClipboardDigest.current = digest;
     }
-  };
-
-  // Default TdpClientEvent.TDP_ERROR and TdpClientEvent.CLIENT_ERROR handler
-  const clientOnTdpError = (error: Error) => {
-    setDirectorySharingState(defaultDirectorySharingState);
-    setClipboardSharingState(defaultClipboardSharingState);
-    setTdpConnection({
-      status: 'failed',
-      statusText: error.message || error.toString(),
-    });
   };
 
   const clientOnWsClose = (statusText: string) => {
@@ -222,7 +208,6 @@ export default function useTdpClientCanvas(props: Props) {
     tdpClient,
     clientScreenSpecToRequest: getDisplaySize(),
     setInitialTdpConnectionSucceeded,
-    clientOnTdpError,
     clientOnClipboardData,
     clientOnWsClose,
     clientOnWsOpen,

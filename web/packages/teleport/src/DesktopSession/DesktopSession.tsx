@@ -37,6 +37,8 @@ import type { MfaState } from 'teleport/lib/useMfa';
 import TopBar from './TopBar';
 import useDesktopSession, {
   clipboardSharingMessage,
+  defaultClipboardSharingState,
+  defaultDirectorySharingState,
   directorySharingPossible,
   isSharingClipboard,
   isSharingDirectory,
@@ -65,7 +67,6 @@ export function DesktopSession(props: State) {
     setDirectorySharingState,
     setInitialTdpConnectionSucceeded,
     clientOnClipboardData,
-    clientOnTdpError,
     clientOnWsClose,
     clientOnWsOpen,
     canvasOnKeyDown,
@@ -89,6 +90,7 @@ export function DesktopSession(props: State) {
     wsConnection,
     showAnotherSessionActiveDialog,
     addAlert,
+    setTdpConnection,
   } = props;
 
   const [screenState, setScreenState] = useState<ScreenState>({
@@ -97,8 +99,19 @@ export function DesktopSession(props: State) {
   });
 
   useListener(client?.onClipboardData, clientOnClipboardData);
-  useListener(client?.onError, clientOnTdpError);
-  useListener(client?.onClientError, clientOnTdpError);
+  const handleFatalError = useCallback(
+    (error: Error) => {
+      setDirectorySharingState(defaultDirectorySharingState);
+      setClipboardSharingState(defaultClipboardSharingState);
+      setTdpConnection({
+        status: 'failed',
+        statusText: error.message || error.toString(),
+      });
+    },
+    [setClipboardSharingState, setDirectorySharingState, setTdpConnection]
+  );
+  useListener(client?.onError, handleFatalError);
+  useListener(client?.onClientError, handleFatalError);
   const addWarning = useCallback(
     (warning: string) => {
       addAlert({
