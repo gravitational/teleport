@@ -56,7 +56,6 @@ export default function useTdpClientCanvas(props: Props) {
     clipboardSharingState,
     setClipboardSharingState,
     setDirectorySharingState,
-    setAlerts,
   } = props;
   const [tdpClient, setTdpClient] = useState<TdpClient | null>(null);
   const initialTdpConnectionSucceeded = useRef(false);
@@ -114,19 +113,6 @@ export default function useTdpClientCanvas(props: Props) {
     setTdpConnection({
       status: 'failed',
       statusText: error.message || error.toString(),
-    });
-  };
-
-  const clientOnTdpInfo = (info: string) => {
-    setAlerts(prevState => {
-      return [
-        ...prevState,
-        {
-          content: info,
-          severity: 'info',
-          id: crypto.randomUUID(),
-        },
-      ];
     });
   };
 
@@ -240,7 +226,6 @@ export default function useTdpClientCanvas(props: Props) {
     clientOnClipboardData,
     clientOnWsClose,
     clientOnWsOpen,
-    clientOnTdpInfo,
     canvasOnKeyDown,
     canvasOnKeyUp,
     canvasOnFocusOut,

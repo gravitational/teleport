@@ -66,7 +66,6 @@ export function DesktopSession(props: State) {
     setInitialTdpConnectionSucceeded,
     clientOnClipboardData,
     clientOnTdpError,
-    clientOnTdpInfo,
     clientOnWsClose,
     clientOnWsOpen,
     canvasOnKeyDown,
@@ -111,7 +110,18 @@ export function DesktopSession(props: State) {
   );
   useListener(client?.onWarning, addWarning);
   useListener(client?.onClientWarning, addWarning);
-  useListener(client?.onInfo, clientOnTdpInfo);
+  useListener(
+    client?.onInfo,
+    useCallback(
+      info => {
+        addAlert({
+          content: info,
+          severity: 'info',
+        });
+      },
+      [addAlert]
+    )
+  );
   useListener(client?.onWsClose, clientOnWsClose);
   useListener(client?.onWsOpen, clientOnWsOpen);
 
