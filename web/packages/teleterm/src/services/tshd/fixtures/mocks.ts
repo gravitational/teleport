@@ -17,6 +17,7 @@
  */
 
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import { ClientVersionStatus } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 
 import {
   makeApp,
@@ -74,6 +75,7 @@ export class MockTshClient implements TshdClient {
       authType: 'local',
       allowPasswordless: false,
       localConnectorName: '',
+      clientVersionStatus: ClientVersionStatus.OK,
     });
   removeCluster = () => new MockedUnaryCall({});
   login = () => new MockedUnaryCall({});
@@ -120,6 +122,7 @@ export class MockVnetClient implements VnetClient {
   stop = () => new MockedUnaryCall({});
   listDNSZones = () => new MockedUnaryCall({ dnsZones: [] });
   getBackgroundItemStatus = () => new MockedUnaryCall({ status: 0 });
+
   runDiagnostics() {
     return new MockedUnaryCall({
       report: {
