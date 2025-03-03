@@ -131,10 +131,10 @@ func userTaskTitleAndDescription(ut *usertasksv1.UserTask) (string, string) {
 		return usertasks.DescriptionForDiscoverEC2Issue(ut.GetSpec().GetIssueType())
 
 	case apiusertasks.TaskTypeDiscoverEKS:
-		return usertasks.DescriptionForDiscoverEC2Issue(ut.GetSpec().GetIssueType())
+		return usertasks.DescriptionForDiscoverEKSIssue(ut.GetSpec().GetIssueType())
 
 	case apiusertasks.TaskTypeDiscoverRDS:
-		return usertasks.DescriptionForDiscoverEC2Issue(ut.GetSpec().GetIssueType())
+		return usertasks.DescriptionForDiscoverRDSIssue(ut.GetSpec().GetIssueType())
 	}
 
 	return "", ""
