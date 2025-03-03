@@ -16,9 +16,11 @@ limitations under the License.
 
 package common
 
-// IsValidLabelKey checks if the supplied string matches the
-// label key regexp.
+// IsValidLabelKey checks if the supplied string is a valid label key.
 func IsValidLabelKey(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
 	for _, b := range []byte(s) {
 		if !isValidLabelKeyByte(b) {
 			return false
