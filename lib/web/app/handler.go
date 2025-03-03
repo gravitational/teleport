@@ -560,7 +560,14 @@ func HasName(r *http.Request, proxyPublicAddrs []utils.NetAddr) (string, bool) {
 	// At this point, it is assumed the caller is requesting an application and
 	// not the proxy, redirect the caller to the application launcher.
 
-	urlString := makeAppRedirectURL(r, proxyPublicAddrs[0].String(), raddr.Host(), launcherURLParams{})
+	var publicAddrs []string
+	for _, addr := range proxyPublicAddrs {
+		publicAddrs = append(publicAddrs, addr.Host())
+	}
+
+	proxyPublicAddr := utils.InferProxyPublicAddr(raddr.Host(), publicAddrs)
+
+	urlString := makeAppRedirectURL(r, proxyPublicAddr, raddr.Host(), launcherURLParams{})
 	return urlString, true
 }
 

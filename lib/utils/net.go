@@ -20,6 +20,8 @@ package utils
 
 import (
 	"net"
+	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 )
@@ -34,4 +36,40 @@ func ClientIPFromConn(conn net.Conn) (string, error) {
 	}
 
 	return clientIP, nil
+}
+
+// InferProxyPublicAddr infers the proxy public address from a fully
+// qualified domain name (FQDN) by checking against a list of proxy
+// DNS names.
+//
+// Parameters:
+//
+//	fqdn - A string representing the fully qualified domain name to be
+//	       checked.
+//	proxyDNSNames - A slice of strings containing the list of known
+//	                proxy DNS names.
+//
+// Returns:
+//
+//	A string representing the best match for the proxy public address.
+//	If no match is found or if either argument is invalid (empty fqdn or
+//	empty proxyDNSNames), it returns an empty string. If no part of
+//	the FQDN matches any of the proxy DNS names, it defaults to
+//	returning the first proxy DNS name.
+func InferProxyPublicAddr(fqdn string, proxyDNSNames []string) string {
+	if len(proxyDNSNames) == 0 || fqdn == "" {
+		return ""
+	}
+	// Split the FQDN into its components.
+	fqdnParts := strings.Split(fqdn, ".")
+
+	// check each part to find the proxyDNSName.
+	for i := 0; i < len(fqdnParts); i++ {
+		potentialDNS := strings.Join(fqdnParts[i:], ".")
+		if slices.Contains(proxyDNSNames, potentialDNS) {
+			return potentialDNS
+		}
+	}
+
+	return proxyDNSNames[0]
 }

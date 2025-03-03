@@ -37,6 +37,7 @@ export interface App {
   requiresRequest?: boolean;
   isTcp?: boolean;
   isCloud?: boolean;
+  useAnyProxyPublicAddr?: boolean;
   // addrWithProtocol can either be a public address or
   // if public address wasn't defined, fallback to uri
   addrWithProtocol?: string;

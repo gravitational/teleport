@@ -77,6 +77,70 @@ func TestMakeAppsLabelFilter(t *testing.T) {
 	}
 }
 
+func TestMakeApp(t *testing.T) {
+	tests := []struct {
+		name                string
+		app                 *types.AppV3
+		expected            App
+		requestHost         string
+		defaultProxyDNSName string
+	}{
+		{
+			name: "app uses default proxy addr",
+			app: &types.AppV3{
+				Metadata: types.Metadata{
+					Name: "myapp",
+				},
+				Spec: types.AppSpecV3{},
+			},
+			defaultProxyDNSName: "localhost",
+			expected: App{
+				Kind:                  "app",
+				Name:                  "myapp",
+				FQDN:                  "myapp.localhost",
+				UseAnyProxyPublicAddr: false,
+				Labels:                []ui.Label{},
+				UserGroups:            []UserGroupAndDescription{},
+			},
+		},
+		{
+			name: "app uses any proxy addr for fqdn",
+			app: &types.AppV3{
+				Metadata: types.Metadata{
+					Name: "myapp",
+				},
+				Spec: types.AppSpecV3{
+					UseAnyProxyPublicAddr: true,
+				},
+			},
+			requestHost: "proxy.com",
+			expected: App{
+				Kind:                  "app",
+				Name:                  "myapp",
+				FQDN:                  "myapp.proxy.com",
+				UseAnyProxyPublicAddr: true,
+				Labels:                []ui.Label{},
+				UserGroups:            []UserGroupAndDescription{},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			apps := MakeApp(test.app, MakeAppsConfig{
+				ProxyPublicAddrs:  []string{"localhost", "proxy.com"},
+				RequestHost:       test.requestHost,
+				LocalProxyDNSName: test.defaultProxyDNSName,
+			})
+
+			require.Empty(t, cmp.Diff(test.expected, apps))
+		})
+	}
+}
+
 func TestMakeApps(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -94,7 +158,8 @@ func TestMakeApps(t *testing.T) {
 				createAppServerOrSPFromApp(newApp(t, "1", "1.com", "", map[string]string{"label1": "value1"})),
 				createAppServerOrSPFromApp(newApp(t, "2", "2.com", "group 2 friendly name", map[string]string{
 					"label2": "value2", types.OriginLabel: types.OriginOkta,
-				}))},
+				})),
+			},
 			expected: []App{
 				{
 					Kind:       types.KindApp,
@@ -127,7 +192,8 @@ func TestMakeApps(t *testing.T) {
 				createAppServerOrSPFromApp(newApp(t, "1", "1.com", "", map[string]string{"label1": "value1"})),
 				createAppServerOrSPFromApp(newApp(t, "2", "2.com", "group 2 friendly name", map[string]string{
 					"label2": "value2", types.OriginLabel: types.OriginOkta,
-				}))},
+				})),
+			},
 			appsToUserGroups: map[string]types.UserGroups{
 				"1": {
 					newGroup(t, "group1", "group1 desc", nil),
