@@ -1,4 +1,4 @@
-.version: &version "18.0.0-dev"
+.version: &version "18.0.0-dev.hugoau.15"
 
 name: teleport-kube-agent
 apiVersion: v2
