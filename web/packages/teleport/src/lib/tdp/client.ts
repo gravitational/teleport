@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useEffect } from 'react';
+
 import Logger from 'shared/libs/logger';
 
 import init, {
@@ -738,3 +740,18 @@ export type BitmapFrame = {
   left: number;
   image_data: ImageData;
 };
+
+export function useListener<T extends any[]>(
+  emitter: (callback: (...args: T) => void) => () => void | undefined,
+  listener: ((...args: T) => void) | undefined
+) {
+  useEffect(() => {
+    if (!emitter) {
+      return;
+    }
+    const unregister = emitter((...args) => listener?.(...args));
+    return () => {
+      unregister();
+    };
+  }, [emitter, listener]);
+}
