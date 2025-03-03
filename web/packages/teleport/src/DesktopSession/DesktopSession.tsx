@@ -96,60 +96,6 @@ export function DesktopSession(props: State) {
     screen: 'processing',
     canvasState: { shouldConnect: false, shouldDisplay: false },
   });
-
-  useListener(client?.onClipboardData, clientOnClipboardData);
-  const handleFatalError = useCallback(
-    (error: Error) => {
-      setDirectorySharingState(defaultDirectorySharingState);
-      setClipboardSharingState(defaultClipboardSharingState);
-      setTdpConnection({
-        status: 'failed',
-        statusText: error.message || error.toString(),
-      });
-    },
-    [setClipboardSharingState, setDirectorySharingState, setTdpConnection]
-  );
-  useListener(client?.onError, handleFatalError);
-  useListener(client?.onClientError, handleFatalError);
-  const addWarning = useCallback(
-    (warning: string) => {
-      addAlert({
-        content: warning,
-        severity: 'warn',
-      });
-    },
-    [addAlert]
-  );
-  useListener(client?.onWarning, addWarning);
-  useListener(client?.onClientWarning, addWarning);
-  useListener(
-    client?.onInfo,
-    useCallback(
-      info => {
-        addAlert({
-          content: info,
-          severity: 'info',
-        });
-      },
-      [addAlert]
-    )
-  );
-  useListener(
-    client?.onWsClose,
-    useCallback(
-      statusText => {
-        setWsConnection({ status: 'closed', statusText });
-      },
-      [setWsConnection]
-    )
-  );
-  useListener(
-    client?.onWsOpen,
-    useCallback(() => {
-      setWsConnection({ status: 'open' });
-    }, [setWsConnection])
-  );
-
   const { shouldConnect } = screenState.canvasState;
   // Call connect after all listeners have been registered
   useEffect(() => {
@@ -193,6 +139,64 @@ export function DesktopSession(props: State) {
       }, 100);
     });
   }, [setInitialTdpConnectionSucceeded]);
+
+  useListener(client?.onClipboardData, clientOnClipboardData);
+
+  const handleFatalError = useCallback(
+    (error: Error) => {
+      setDirectorySharingState(defaultDirectorySharingState);
+      setClipboardSharingState(defaultClipboardSharingState);
+      setTdpConnection({
+        status: 'failed',
+        statusText: error.message || error.toString(),
+      });
+    },
+    [setClipboardSharingState, setDirectorySharingState, setTdpConnection]
+  );
+  useListener(client?.onError, handleFatalError);
+  useListener(client?.onClientError, handleFatalError);
+
+  const addWarning = useCallback(
+    (warning: string) => {
+      addAlert({
+        content: warning,
+        severity: 'warn',
+      });
+    },
+    [addAlert]
+  );
+  useListener(client?.onWarning, addWarning);
+  useListener(client?.onClientWarning, addWarning);
+
+  useListener(
+    client?.onInfo,
+    useCallback(
+      info => {
+        addAlert({
+          content: info,
+          severity: 'info',
+        });
+      },
+      [addAlert]
+    )
+  );
+
+  useListener(
+    client?.onWsClose,
+    useCallback(
+      statusText => {
+        setWsConnection({ status: 'closed', statusText });
+      },
+      [setWsConnection]
+    )
+  );
+  useListener(
+    client?.onWsOpen,
+    useCallback(() => {
+      setWsConnection({ status: 'open' });
+    }, [setWsConnection])
+  );
+
   useListener(client?.onPointer, tdpClientCanvasRef.current?.setPointer);
   useListener(
     client?.onPngFrame,
