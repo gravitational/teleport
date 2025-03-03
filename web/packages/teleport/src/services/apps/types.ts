@@ -35,6 +35,7 @@ export interface App {
   awsRoles: AwsRole[];
   awsConsole: boolean;
   requiresRequest?: boolean;
+  alwaysUseProxyPublicAddr?: boolean;
   isCloudOrTcpEndpoint?: boolean;
   // addrWithProtocol can either be a public address or
   // if public address wasn't defined, fallback to uri

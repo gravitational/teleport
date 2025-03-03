@@ -22,6 +22,30 @@ import cfg from 'teleport/config';
 
 import { App, AppSubKind, PermissionSet } from './types';
 
+function getLaunchUrl({
+  fqdn,
+  clusterId,
+  publicAddr,
+  alwaysUseProxyPublicAddr,
+}: {
+  fqdn: string;
+  clusterId: string;
+  alwaysUseProxyPublicAddr: boolean;
+  publicAddr: string;
+}) {
+  if (alwaysUseProxyPublicAddr) {
+    return cfg.getAppLauncherRoute({
+      fqdn,
+    });
+  }
+
+  if (publicAddr && clusterId && fqdn) {
+    return cfg.getAppLauncherRoute({ fqdn, publicAddr, clusterId });
+  }
+
+  return '';
+}
+
 export default function makeApp(json: any): App {
   json = json || {};
   const {
@@ -29,6 +53,7 @@ export default function makeApp(json: any): App {
     description = '',
     uri = '',
     publicAddr = '',
+    alwaysUseProxyPublicAddr = false,
     clusterId = '',
     fqdn = '',
     awsConsole = false,
@@ -40,10 +65,12 @@ export default function makeApp(json: any): App {
     subKind,
   } = json;
 
-  const canCreateUrl = fqdn && clusterId && publicAddr;
-  const launchUrl = canCreateUrl
-    ? cfg.getAppLauncherRoute({ fqdn, clusterId, publicAddr })
-    : '';
+  const launchUrl = getLaunchUrl({
+    fqdn,
+    clusterId,
+    publicAddr,
+    alwaysUseProxyPublicAddr,
+  });
   const id = `${clusterId}-${name}-${publicAddr || uri}`;
   const labels = json.labels || [];
   const awsRoles: AwsRole[] = json.awsRoles || [];
@@ -66,6 +93,9 @@ export default function makeApp(json: any): App {
       addrWithProtocol = `https://${publicAddr}`;
     }
   }
+  if (alwaysUseProxyPublicAddr) {
+    addrWithProtocol = `https://${fqdn}`;
+  }
   let samlAppSsoUrl = '';
   if (samlApp) {
     samlAppSsoUrl = `${cfg.baseUrl}/enterprise/saml-idp/login/${name}`;
@@ -77,6 +107,7 @@ export default function makeApp(json: any): App {
     id,
     name,
     description,
+    alwaysUseProxyPublicAddr,
     uri,
     publicAddr,
     labels,

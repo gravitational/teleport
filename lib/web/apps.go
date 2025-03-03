@@ -22,8 +22,10 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -149,9 +151,10 @@ func (h *Handler) getAppDetails(w http.ResponseWriter, r *http.Request, p httpro
 	clusterName := p.ByName("clusterName")
 
 	req := GetAppDetailsRequest{
-		FQDNHint:    p.ByName("fqdnHint"),
-		ClusterName: clusterName,
-		PublicAddr:  p.ByName("publicAddr"),
+		FQDNHint:        p.ByName("fqdnHint"),
+		ClusterName:     clusterName,
+		PublicAddr:      p.ByName("publicAddr"),
+		RequestHostname: r.Host,
 	}
 
 	// Use the information the caller provided to attempt to resolve to an
@@ -161,8 +164,16 @@ func (h *Handler) getAppDetails(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.Wrap(err, "unable to resolve FQDN: %v", req.FQDNHint)
 	}
 
+	fqdn := result.FQDN
+
+	if result.App.GetAlwaysUseProxyPublicAddr() {
+		proxyPublicAddr := utils.InferProxyPublicAddr(req.FQDNHint, h.proxyDNSNames(), h.proxyDNSName())
+		appName := strings.TrimSuffix(req.FQDNHint, proxyPublicAddr)
+		fqdn = utils.AssembleAppFQDN(appName, proxyPublicAddr, clusterName, result.App)
+	}
+
 	resp := &GetAppDetailsResponse{
-		FQDN: result.FQDN,
+		FQDN: fqdn,
 	}
 
 	requiredAppNames := result.App.GetRequiredAppNames()
@@ -300,6 +311,8 @@ type ResolveAppParams struct {
 
 	// AppName is the name of the application
 	AppName string `json:"app_name,omitempty"`
+
+	RequestHostname string
 }
 
 type resolveAppResult struct {
@@ -351,7 +364,10 @@ func (h *Handler) resolveApp(ctx context.Context, scx *SessionContext, params Re
 		return nil, trace.Wrap(err)
 	}
 
-	fqdn := utils.AssembleAppFQDN(h.auth.clusterName, h.proxyDNSName(), appClusterName, server.GetApp())
+	resolvedApp := server.GetApp()
+
+	proxyPublicAddr := utils.InferProxyPublicAddr(params.FQDNHint, h.proxyDNSNames(), h.proxyDNSName())
+	fqdn := utils.AssembleAppFQDN(h.auth.clusterName, proxyPublicAddr, appClusterName, resolvedApp)
 
 	return &resolveAppResult{
 		ServerID:    server.GetName(),
@@ -414,6 +430,10 @@ func (h *Handler) resolveDirect(ctx context.Context, proxy reversetunnelclient.T
 // resolveFQDN makes a best effort attempt to resolve FQDN to an application
 // running within a root or leaf cluster.
 func (h *Handler) resolveFQDN(ctx context.Context, clt app.Getter, proxy reversetunnelclient.Tunnel, fqdn string) (types.AppServer, string, error) {
+	fmt.Println("-----------8")
+	fmt.Printf("%+v\n", fqdn)
+	fmt.Printf("%+v\n", h.proxyDNSNames())
+	fmt.Println("-----------8")
 	return app.ResolveFQDN(ctx, clt, proxy, h.proxyDNSNames(), fqdn)
 }
 
