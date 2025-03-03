@@ -203,6 +203,10 @@ func (h *httpFile) ReadAt(_ []byte, _ int64) (int, error) {
 	return 0, trace.NotImplemented("can't seek in http files")
 }
 
+func (h *httpFile) ReadFrom(r io.Reader) (int64, error) {
+	return io.Copy(h.writer, r)
+}
+
 func (h *httpFile) Write(p []byte) (int, error) {
 	if h.writer == nil {
 		return 0, trace.BadParameter("can't write to a file in read mode")
@@ -227,7 +231,14 @@ func (h *httpFile) Name() string {
 }
 
 func (h *httpFile) Close() error {
-	return h.reader.Close()
+	var errors []error
+	if h.reader != nil {
+		errors = append(errors, h.reader.Close())
+	}
+	if h.writer != nil {
+		errors = append(errors, h.writer.Close())
+	}
+	return trace.NewAggregate(errors...)
 }
 
 // httpFileInfo is a simple implementation of [fs.FileMode] that only
