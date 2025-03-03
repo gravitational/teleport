@@ -3569,7 +3569,7 @@ type IdentityCenterPermissionSet struct {
 	ARN string `protobuf:"bytes,1,opt,name=ARN,proto3" json:"arn,omitempty"`
 	// Name is the human-readable name of the Permission Set.
 	Name string `protobuf:"bytes,2,opt,name=Name,proto3" json:"name,omitempty"`
-	// AssignmentID is the ID of the Teelport Account Assignment resource that
+	// AssignmentID is the ID of the Teleport Account Assignment resource that
 	// represents this permission being assigned on the enclosing Account.
 	AssignmentID         string   `protobuf:"bytes,3,opt,name=AssignmentID,proto3" json:"assignment_name,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`

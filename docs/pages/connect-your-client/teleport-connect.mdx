@@ -33,14 +33,26 @@ $ tar -xf  teleport-connect-(=teleport.version=)-linux-*.tar.gz
 Download and run the installer `.exe` file. It will install and open Teleport Connect without
 further user input.
 
+The installer requires administrator privileges in order to set up a Windows
+service used by the [VNet](#connecting-to-tcp-apps-with-vnet) feature.
+If you run the installer as a regular user it will automatically create a UAC
+(User Account Control) prompt for the necessary permissions.
+
 Repeat the process with newer versions to upgrade.
 
-A silent installation can be performed by running the installer with the `/S` flag. This will hide
-the progress bar and skip the launch of the app after the installation is complete.
+A silent installation can be performed by running the installer as an
+administrator with the `/S` flag. This will hide the progress bar and skip the
+launch of the app after the installation is complete.
 
 ```code
 $ "Teleport Connect Setup-(=teleport.version=).exe" /S
 ```
+
+In version 17.3.0+ Connect is installed per-machine.
+In older versions Connect was installed only for the user running the installer.
+When upgrading to 17.3.0+ from an older version, the installer will
+automatically handle the migration to a per-machine installation.
+
 </TabItem>
 </Tabs>
 
@@ -59,7 +71,7 @@ The top bar of Teleport Connect consists of:
   trusted clusters and there are leaf clusters connected to the root cluster. It lets you browse
   leaf cluster resources. Also, the "Open new terminal" action will bind new terminal tabs to the selected cluster.
 - The **additional actions menu** (to the left of the profile selector), containing options such as
-  opening a config file or creating an access request in an Enterprise cluster.
+  opening a config file or creating an Access Request in an Enterprise cluster.
 
 The **status bar** at the bottom displays **cluster breadcrumbs** in the bottom left, indicating
 which cluster the current tab is bound to, and the **Share Feedback** button in the bottom right.
@@ -153,7 +165,7 @@ with that command executed.
 Teleport Connect supports launching applications in the browser, as well as creating
 authenticated tunnels for web and TCP applications.
 
-When it comes to [cloud APIs secured with Application Access](../enroll-resources/application-access/cloud-apis/cloud-apis.mdx),
+When it comes to [cloud APIs secured with Teleport](../enroll-resources/application-access/cloud-apis/cloud-apis.mdx),
 Teleport Connect supports launching the AWS console in the browser, but other CLI applications can
 be used only through tsh in [a local terminal tab](#opening-a-local-terminal).
 
@@ -170,11 +182,13 @@ authentication data, you will have to log in to the Web UI before accessing an a
 Alternatively, you can look for the application in the search bar and press `Enter` to launch it in
 the browser.
 
-### Connecting to TCP apps with VNet on macOS
+### Connecting to TCP apps with VNet
 
-VNet is a virtual network emulation tool available in Teleport Connect. It enables any program on
-your computer to connect to TCP applications protected by Teleport, with no extra changes required
-to the program itself. It removes the need to manually create tunnels for TCP applications.
+VNet is a virtual network emulation tool available in Teleport Connect on macOS
+and Windows. It enables any program on your computer to connect to TCP
+applications protected by Teleport, with no extra changes required
+to the program itself. It removes the need to manually create tunnels for TCP
+applications.
 
 This is the recommended way of connecting to TCP apps.
 
@@ -199,12 +213,12 @@ is not yet available on your system.
   can also press `Ctrl+Shift+T/Cmd+T` to achieve the same result.
 1. Look for the application you wish to connect to.
   - For TCP applications, click the Connect button.
-    - On macOS, click the three dots instead and select "Connect to local port".
+    - On macOS and Windows, click the three dots instead and select "Connect to local port".
   - For web applications, click the three dots next to the Launch button and select "Set up
     connection".
 
-Alternatively, on Windows and Linux you can look for a TCP application in the search bar and press
-`Enter` to set up a connection to it.
+Alternatively, on Linux you can look for a TCP application in the search bar and
+press `Enter` to set up a connection to it.
 
 A new tab will open with a new connection established between your device and the application.
 
@@ -476,6 +490,7 @@ Below is the list of the supported config properties.
 | Property                      | Default                                                                                                              | Description                                                                                                |
 |-------------------------------|----------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
 | `theme`                       | `system`                                                                                                             | Color theme for the app. Available modes: `light`, `dark`, `system`.                                       |
+| `skipVersionCheck`            | `false`                                                                                                              | Skips the version check and hides the version compatibility warning when logging in to a cluster.          |
 | `terminal.fontFamily`         | `Menlo, Monaco, monospace` on macOS `Consolas, monospace` on Windows `'Droid Sans Mono', monospace` on Linux | Font family for the terminal.                                                                              |
 | `terminal.fontSize`           | `15`                                                                                                                 | Font size for the terminal.                                                                                |
 | `terminal.windowsBackend` | `auto` | `auto` uses modern [ConPTY](https://devblogs.microsoft.com/commandline/windows-command-line-introducing-the-windows-pseudo-console-conpty/) system if available, which requires Windows 10 (19H1) or above. Set to `winpty` to use winpty even if ConPTY is available. |
@@ -618,7 +633,7 @@ The app version can be found under Help -> About Teleport Connect.
 To get more detailed logs, open Teleport Connect from the Command Prompt with the `--connect-debug` flag:
 
 ```code
-$ "%LocalAppData%\Programs\teleport-connect\Teleport Connect.exe" --connect-debug
+$ "%PROGRAMFILES%\Teleport Connect\Teleport Connect.exe" --connect-debug
 ````
 </TabItem>
 </Tabs>
@@ -655,7 +670,7 @@ $ teleport-connect --insecure
 From the Command Prompt, open Teleport Connect with the `--insecure` flag:
 
 ```code
-$ "%LocalAppData%\Programs\teleport-connect\Teleport Connect.exe" --insecure
+$ "%PROGRAMFILES%\Teleport Connect\Teleport Connect.exe" --insecure
 ````
 </TabItem>
 </Tabs>

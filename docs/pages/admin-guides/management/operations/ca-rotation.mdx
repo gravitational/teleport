@@ -45,6 +45,13 @@ Between phases, admins can prepare their infrastructure to adjust to each
 change. In semi-automatic mode, the Teleport Auth Service cycles through each
 phase automatically, with a grace period between each phase.
 
+In 17.0.5+ `tctl auth rotate` (with no arguments) starts an interactive
+terminal UI for CA rotations.
+The interactive UI displays a live cluster status, allows you to choose a CA to
+rotate and guides you through each phase, automatically performs certain checks
+to make sure the cluster is ready for the next phase, and lists any manual steps
+that need to be completed.
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -77,6 +84,7 @@ exceptions are the `db` and `db_client` CAs, which must be rotated together.
 The `host` CA issues certificates to Teleport Agents as well as Auth Service and
 Proxy Service instances so Teleport clients and the Teleport Auth Service can
 verify them.
+The `host` CA also issues SSH host certificates to any enrolled agentless OpenSSH servers.
 
 Teleport Agents and Proxy Service instances use **heartbeats** to periodically
 report their status to the Teleport Auth Service and update their internal data
@@ -106,6 +114,7 @@ the rotation state of the `host` CA on each agent kind:
 | Role                    | `tctl get` value          |
 |-------------------------|---------------------------|
 | Application Service     | `app_server`              |
+| Auth Service            | `auth_server`             |
 | Database Service        | `db_server`               |
 | Kubernetes Service      | `kube_server`             |
 | Proxy Service           | `proxies`                 |
@@ -267,6 +276,17 @@ $ curl https://example.teleport.sh/.well-known/open-id-configuration | jq '.jwks
 
 Once you have chosen a CA to rotate and have planned to check or update the
 infrastructure that relies on that CA, you are ready to begin a manual rotation.
+
+<Admonition type="tip">
+In 17.0.5+ `tctl auth rotate` (with no arguments) starts an interactive
+terminal UI for CA rotations.
+The interactive UI displays a live cluster status, allows you to choose a CA to
+rotate and guides you through each phase, automatically performs certain checks
+to make sure the cluster is ready for the next phase, and lists manual steps
+that need to be completed.
+We recommend using the interactive rotation whenever possible, but you can read
+on to learn how to manually initiate each rotation phase.
+</Admonition>
 
 ### `init` phase
 

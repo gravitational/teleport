@@ -794,7 +794,24 @@ tolerations: []
 
 # Timeouts for the readiness and liveness probes
 # https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
-probeTimeoutSeconds: 1
+probeTimeoutSeconds: 5
+
+# readinessProbe(object) -- configures the readiness probe settings.
+# This can be tuned to keep proxy pods ready even when the auth is unavailable.
+#
+# The default values mark the pod unready after one minute of failing readiness probe.
+readinessProbe:
+  # readinessProbe.initialDelaySeconds(int) -- controls the number of seconds after the container has started before
+  # liveness probes are initiated. More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes
+  initialDelaySeconds: 5
+  # readinessProbe.periodSeconds(int) -- controls how often (in seconds) to perform the probe. Minimum value is 1.
+  periodSeconds: 5
+  # readinessProbe.failureThreshold(int) -- is the minimum consecutive failures for the probe to be considered failed
+  # after having succeeded. Minimum value is 1.
+  failureThreshold: 12
+  # readinessProbe.successThreshold(int) -- is the minimum consecutive successes for the probe to be considered
+  # successful after having failed. Minimum value is 1.
+  successThreshold: 1
 
 # Kubernetes termination grace period
 # https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/#hook-handler-execution

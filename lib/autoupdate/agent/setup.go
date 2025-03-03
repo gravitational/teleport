@@ -140,7 +140,7 @@ var alphanum = regexp.MustCompile("^[a-zA-Z0-9-]*$")
 // Namespaces must be alphanumeric + `-`.
 // defaultPathDir overrides the destination directory for namespace setup (i.e., /usr/local)
 func NewNamespace(ctx context.Context, log *slog.Logger, name, installDir string) (ns *Namespace, err error) {
-	defer ns.overrideFromConfig(ctx)
+	defer func() { ns.overrideFromConfig(ctx) }()
 
 	if name == defaultNamespace ||
 		name == systemNamespace {
@@ -386,14 +386,17 @@ func writeSystemTemplate(path, t string, values any) error {
 	return trace.Wrap(f.CloseAtomicallyReplace())
 }
 
-// replaceTeleportService replaces the default paths in the Teleport service config with namespaced paths.
-func (ns *Namespace) replaceTeleportService(cfg []byte) []byte {
+// ReplaceTeleportService replaces the default paths in the Teleport service config with namespaced paths.
+func (ns *Namespace) ReplaceTeleportService(cfg []byte, pathDir string) []byte {
+	if pathDir == "" {
+		pathDir = ns.defaultPathDir
+	}
 	for _, rep := range []struct {
 		old, new string
 	}{
 		{
 			old: "/usr/local/bin/",
-			new: ns.defaultPathDir + "/",
+			new: pathDir + "/",
 		},
 		{
 			old: "/etc/teleport.yaml",
@@ -409,13 +412,19 @@ func (ns *Namespace) replaceTeleportService(cfg []byte) []byte {
 	return cfg
 }
 
-func (ns *Namespace) LogWarning(ctx context.Context) {
+func (ns *Namespace) LogWarnings(ctx context.Context, pathDir string) {
+	if ns.name == "" {
+		return
+	}
+	if pathDir == "" {
+		pathDir = ns.defaultPathDir
+	}
 	ns.log.WarnContext(ctx, "Custom install suffix specified. Teleport data_dir must be configured in the config file.",
 		"data_dir", ns.dataDir,
-		"path", ns.defaultPathDir,
-		"config", ns.configFile,
+		"path_dir", pathDir,
+		"config_file", ns.configFile,
 		"service", filepath.Base(ns.serviceFile),
-		"pid", ns.pidFile,
+		"pid_file", ns.pidFile,
 	)
 }
 
