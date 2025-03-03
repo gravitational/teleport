@@ -2089,6 +2089,12 @@ type App struct {
 	// be part of the authentication redirect flow and authenticate along side this app.
 	RequiredApps []string `yaml:"required_apps,omitempty"`
 
+	// UseAnyProxyPublicAddr will rebuild this app's fqdn based on the proxy public addr that the
+	// request originated from. This should be true if your proxy has multiple proxy public addrs and you
+	// want the app to be accessible from any of them. If `public_addr` is explicitly set in the app spec,
+	// setting this value to true will overwrite that public address in the web UI.
+	UseAnyProxyPublicAddr bool `yaml:"use_any_proxy_public_addr"`
+
 	// CORS defines the Cross-Origin Resource Sharing configuration for the app,
 	// controlling how resources are shared across different origins.
 	CORS *CORS `yaml:"cors,omitempty"`

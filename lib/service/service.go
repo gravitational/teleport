@@ -6115,16 +6115,17 @@ func (process *TeleportProcess) initApps() {
 				Description: app.Description,
 				Labels:      app.StaticLabels,
 			}, types.AppSpecV3{
-				URI:                app.URI,
-				PublicAddr:         publicAddr,
-				DynamicLabels:      types.LabelsToV2(app.DynamicLabels),
-				InsecureSkipVerify: app.InsecureSkipVerify,
-				Rewrite:            rewrite,
-				AWS:                aws,
-				Cloud:              app.Cloud,
-				RequiredAppNames:   app.RequiredAppNames,
-				CORS:               makeApplicationCORS(app.CORS),
-				TCPPorts:           makeApplicationTCPPorts(app.TCPPorts),
+				URI:                   app.URI,
+				PublicAddr:            publicAddr,
+				DynamicLabels:         types.LabelsToV2(app.DynamicLabels),
+				InsecureSkipVerify:    app.InsecureSkipVerify,
+				Rewrite:               rewrite,
+				AWS:                   aws,
+				Cloud:                 app.Cloud,
+				RequiredAppNames:      app.RequiredAppNames,
+				UseAnyProxyPublicAddr: app.UseAnyProxyPublicAddr,
+				CORS:                  makeApplicationCORS(app.CORS),
+				TCPPorts:              makeApplicationTCPPorts(app.TCPPorts),
 			})
 			if err != nil {
 				return trace.Wrap(err)

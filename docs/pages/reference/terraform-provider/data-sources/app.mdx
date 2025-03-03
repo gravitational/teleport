@@ -53,6 +53,7 @@ Optional:
 - `rewrite` (Attributes) Rewrite is a list of rewriting rules to apply to requests and responses. (see [below for nested schema](#nested-schema-for-specrewrite))
 - `tcp_ports` (Attributes List) TCPPorts is a list of ports and port ranges that an app agent can forward connections to. Only applicable to TCP App Access. If this field is not empty, URI is expected to contain no port number and start with the tcp protocol. (see [below for nested schema](#nested-schema-for-spectcp_ports))
 - `uri` (String) URI is the web app endpoint.
+- `use_any_proxy_public_addr` (Boolean) UseAnyProxyPublicAddr will rebuild this app's fqdn based on the proxy public addr that the request originated from. This should be true if your proxy has multiple proxy public addrs and you want the app to be accessible from any of them. If `public_addr` is explicitly set in the app spec, setting this value to true will overwrite that public address in the web UI.
 - `user_groups` (List of String) UserGroups are a list of user group IDs that this app is associated with.
 
 ### Nested Schema for `spec.aws`

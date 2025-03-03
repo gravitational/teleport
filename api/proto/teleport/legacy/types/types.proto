@@ -1063,6 +1063,11 @@ message AppSpecV3 {
   // If this field is not empty, URI is expected to contain no port number and start with the tcp
   // protocol.
   repeated PortRange TCPPorts = 13 [(gogoproto.jsontag) = "tcp_ports,omitempty"];
+  // UseAnyProxyPublicAddr will rebuild this app's fqdn based on the proxy public addr that the
+  // request originated from. This should be true if your proxy has multiple proxy public addrs and you
+  // want the app to be accessible from any of them. If `public_addr` is explicitly set in the app spec,
+  // setting this value to true will overwrite that public address in the web UI.
+  bool UseAnyProxyPublicAddr = 14 [(gogoproto.jsontag) = "use_any_proxy_public_addr,omitempty"];
 }
 
 // AppServerOrSAMLIdPServiceProviderV1 holds either an AppServerV3 or a SAMLIdPServiceProviderV1 resource (never both).
