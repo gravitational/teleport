@@ -772,7 +772,13 @@ export default class Client extends EventEmitterMfaSender {
   ) {
     this.logger.error(err);
     this.emit(errType, err);
-    this.socket?.close();
+    // All errors are fatal, meaning that we are closing the connection after they happen.
+    // To prevent overwriting such error with our close handler, remove it before
+    // closing the connection.
+    if (this.socket) {
+      this.socket.onclose = null;
+      this.socket.close();
+    }
   }
 
   // Emits a warning event, but keeps the socket open.

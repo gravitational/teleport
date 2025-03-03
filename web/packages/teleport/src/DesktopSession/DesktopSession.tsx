@@ -348,9 +348,8 @@ const nextScreenState = (
   const showMfa = webauthn.challenge;
   const showAlert =
     fetchAttempt.status === 'failed' || // Fetch attempt failed
-    tdpConnection.status === 'failed' || // TDP connection failed
-    tdpConnection.status === '' || // TDP connection ended gracefully server-side
-    wsConnection.status === 'closed'; // Websocket closed (could mean client side graceful close or unexpected close, the message will tell us which)
+    tdpConnection.status === 'failed' || // TDP connection closed by the remote side.
+    wsConnection.status === 'closed'; // Websocket closed, means unexpected close.
 
   const atLeastOneAttemptProcessing =
     fetchAttempt.status === 'processing' ||
@@ -420,9 +419,7 @@ const calculateAlertMessage = (
   if (fetchAttempt.status === 'failed') {
     message = fetchAttempt.statusText || 'fetch attempt failed';
   } else if (tdpConnection.status === 'failed') {
-    message = tdpConnection.statusText || 'TDP connection failed';
-  } else if (tdpConnection.status === '') {
-    message = tdpConnection.statusText || 'TDP connection ended gracefully';
+    message = tdpConnection.statusText || 'Disconnected';
   } else if (wsConnection.status === 'closed') {
     message =
       wsConnection.statusText || 'websocket disconnected for an unknown reason';
