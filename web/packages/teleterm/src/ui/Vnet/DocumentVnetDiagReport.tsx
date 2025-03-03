@@ -35,7 +35,7 @@ import { HoverTooltip } from 'design/Tooltip';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import * as diag from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
-import { useAsync } from 'shared/hooks/useAsync';
+import { CanceledError, useAsync } from 'shared/hooks/useAsync';
 import { pluralize } from 'shared/utils/text';
 
 import { reportOneOfIsRouteConflictReport } from 'teleterm/helpers';
@@ -68,6 +68,11 @@ export function DocumentVnetDiagReport(props: {
     useCallback(async () => {
       const [report, error] = await runDiagnostics();
       if (error) {
+        // If the manual run is made stale by VNet context executing a periodic run, use the result
+        // of the manual run anyway.
+        if (error instanceof CanceledError && error.stalePromise) {
+          return error.stalePromise as Promise<diag.Report>;
+        }
         throw error;
       }
       return report;

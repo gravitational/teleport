@@ -35,6 +35,10 @@ type AccessRequestExpressionEnv struct {
 	RequestReason      string
 	CreationTime       time.Time
 	Expiry             time.Time
+
+	// UserTraits includes arbitrary user traits dynamically provided by the
+	// access monitoring rule handler.
+	UserTraits map[string][]string
 }
 
 type accessRequestExpression typical.Expression[AccessRequestExpressionEnv, any]
@@ -75,6 +79,10 @@ func newRequestConditionParser() (*typical.Parser[AccessRequestExpressionEnv, an
 		}),
 		"access_request.spec.expiry": typical.DynamicVariable(func(env AccessRequestExpressionEnv) (time.Time, error) {
 			return env.Expiry, nil
+		}),
+
+		"user.traits": typical.DynamicMap(func(env AccessRequestExpressionEnv) (expression.Dict, error) {
+			return expression.DictFromStringSliceMap(env.UserTraits), nil
 		}),
 	}
 	defParserSpec := expression.DefaultParserSpec[AccessRequestExpressionEnv]()

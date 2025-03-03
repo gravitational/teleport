@@ -107,7 +107,7 @@ require (
 	github.com/fxamacker/cbor/v2 v2.7.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-git/go-git/v5 v5.13.2
-	github.com/go-jose/go-jose/v3 v3.0.3
+	github.com/go-jose/go-jose/v3 v3.0.4
 	github.com/go-ldap/ldap/v3 v3.4.10
 	github.com/go-logr/logr v1.4.2
 	github.com/go-mysql-org/go-mysql v1.9.1 // replaced
@@ -575,7 +575,7 @@ require (
 replace (
 	github.com/alecthomas/kingpin/v2 => github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33
 	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.1.1
-	github.com/crewjam/saml => github.com/gravitational/saml v0.4.15-teleport.1
+	github.com/crewjam/saml => github.com/gravitational/saml v0.4.15-teleport.2
 	github.com/datastax/go-cassandra-native-protocol => github.com/gravitational/go-cassandra-native-protocol v0.0.0-teleport.1
 	github.com/go-mysql-org/go-mysql => github.com/gravitational/go-mysql v1.9.1-teleport.3
 	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-teleport.1

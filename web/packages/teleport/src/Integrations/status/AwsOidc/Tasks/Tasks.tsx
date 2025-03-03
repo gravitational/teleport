@@ -20,7 +20,7 @@ import { useEffect, useState } from 'react';
 import { useHistory } from 'react-router';
 import styled, { useTheme } from 'styled-components';
 
-import { ButtonBorder, Flex, Indicator } from 'design';
+import { Flex, Indicator } from 'design';
 import { Danger } from 'design/Alert';
 import Table, { Cell } from 'design/DataTable';
 import { Notification, NotificationItem } from 'shared/components/Notification';
@@ -39,7 +39,6 @@ export function Tasks() {
   const theme = useTheme();
   const history = useHistory();
   const searchParams = new URLSearchParams(history.location.search);
-  const taskName = searchParams.get('task');
   const [notification, setNotification] = useState<NotificationItem>();
 
   const { integrationAttempt } = useAwsOidcStatus();
@@ -66,17 +65,17 @@ export function Tasks() {
 
   // use updated query params to set/unset the task side panel
   useEffect(() => {
+    const taskName = searchParams.get('task');
     if (
       taskName &&
       taskName !== '' &&
-      serverSidePagination.fetchedData.agents &&
-      selectedTask === ''
+      serverSidePagination.fetchedData.agents
     ) {
       setSelectedTask(taskName);
     } else {
       setSelectedTask('');
     }
-  }, [taskName, serverSidePagination?.fetchedData]);
+  }, [searchParams, serverSidePagination?.fetchedData]);
 
   if (integrationAttempt.status === 'processing') {
     return <Indicator />;
@@ -106,16 +105,13 @@ export function Tasks() {
             'The task has been marked as resolved; it will reappear in the table if the issue persists after the next sync.',
         },
         severity: 'success',
-        id: taskName,
+        id: selectedTask,
       });
     }
     history.replace(history.location.pathname);
   }
 
   function openTask(task: UserTask) {
-    if (selectedTask != '') {
-      return;
-    }
     const urlParams = new URLSearchParams();
     urlParams.append('task', task.name);
     history.replace(`${history.location.pathname}?${urlParams.toString()}`);
@@ -140,19 +136,15 @@ export function Tasks() {
             data={serverSidePagination.fetchedData?.agents || []}
             row={{
               onClick: row => {
-                if (selectedTask === '') {
-                  openTask(row);
-                }
+                openTask(row);
               },
               getStyle: (row: UserTask) => {
-                if (selectedTask === '') {
-                  return { cursor: 'pointer' };
-                }
                 if (row.name === selectedTask) {
                   return {
                     backgroundColor: theme.colors.interactive.tonal.primary[0],
                   };
                 }
+                return { cursor: 'pointer' };
               },
             }}
             columns={[
@@ -172,21 +164,6 @@ export function Tasks() {
                 headerText: 'Timestamp (UTC)',
                 render: item => (
                   <Cell>{new Date(item.lastStateChange).toISOString()}</Cell>
-                ),
-              },
-              {
-                altKey: 'action',
-                headerText: 'Actions',
-                render: item => (
-                  <Cell>
-                    <ButtonBorder
-                      onClick={() => openTask(item)}
-                      disabled={selectedTask != ''}
-                      size="small"
-                    >
-                      View
-                    </ButtonBorder>
-                  </Cell>
                 ),
               },
             ]}

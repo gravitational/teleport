@@ -32,6 +32,56 @@ func TestEvaluateCondition(t *testing.T) {
 		match       bool
 	}{
 		{
+			description: "does not match user 'level' trait",
+			condition:   `contains_any(user.traits["level"], set("L1"))`,
+			env: AccessRequestExpressionEnv{
+				UserTraits: map[string][]string{
+					"level": {"L2"},
+				},
+			},
+			match: false,
+		},
+		{
+			description: "matches one of user 'level' trait",
+			condition:   `contains_any(user.traits["level"], set("L1", "L2"))`,
+			env: AccessRequestExpressionEnv{
+				UserTraits: map[string][]string{
+					"level": {"L1"},
+				},
+			},
+			match: true,
+		},
+		{
+			description: "matches all user traits",
+			condition: `
+				contains_any(user.traits["level"], set("L1", "L2")) &&
+				contains_any(user.traits["team"], set("Cloud")) &&
+				contains_any(user.traits["location"], set("Seattle"))`,
+			env: AccessRequestExpressionEnv{
+				UserTraits: map[string][]string{
+					"level":    {"L1"},
+					"team":     {"Cloud"},
+					"location": {"Seattle"},
+				},
+			},
+			match: true,
+		},
+		{
+			description: "matches some user traits",
+			condition: `
+				contains_any(user.traits["level"], set("L1", "L2")) &&
+				contains_any(user.traits["team"], set("Cloud")) &&
+				contains_any(user.traits["location"], set("Seattle"))`,
+			env: AccessRequestExpressionEnv{
+				UserTraits: map[string][]string{
+					"level":    {"L1"},
+					"team":     {"Tools"},
+					"location": {"Seattle"},
+				},
+			},
+			match: false,
+		},
+		{
 			description: "match at least one role",
 			condition: `
 				contains_any(access_request.spec.roles, set("dev")) &&

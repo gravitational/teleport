@@ -1270,8 +1270,8 @@ github.com/go-gorp/gorp/v3 v3.1.0 h1:ItKF/Vbuj31dmV4jxA1qblpSwkl9g1typ24xoe70IGs
 github.com/go-gorp/gorp/v3 v3.1.0/go.mod h1:dLEjIyyRNiXvNZ8PSmzpt1GsWAUK8kjVhEpjH8TixEw=
 github.com/go-ini/ini v1.67.0 h1:z6ZrTEZqSWOTyH2FlglNbNgARyHG8oLW9gMELqKr06A=
 github.com/go-ini/ini v1.67.0/go.mod h1:ByCAeIL28uOIIG0E3PJtZPDL8WnHpFKFOtgjp+3Ies8=
-github.com/go-jose/go-jose/v3 v3.0.3 h1:fFKWeig/irsp7XD2zBxvnmA/XaRWp5V3CBsZXJF7G7k=
-github.com/go-jose/go-jose/v3 v3.0.3/go.mod h1:5b+7YgP7ZICgJDBdfjZaIt+H/9L9T/YQrVfLAMboGkQ=
+github.com/go-jose/go-jose/v3 v3.0.4 h1:Wp5HA7bLQcKnf6YYao/4kpRpVMp/yf6+pJKV8WFSaNY=
+github.com/go-jose/go-jose/v3 v3.0.4/go.mod h1:5b+7YgP7ZICgJDBdfjZaIt+H/9L9T/YQrVfLAMboGkQ=
 github.com/go-jose/go-jose/v4 v4.0.5 h1:M6T8+mKZl/+fNNuFHvGIzDz7BTLQPIounk/b9dw3AaE=
 github.com/go-jose/go-jose/v4 v4.0.5/go.mod h1:s3P1lRrkT8igV8D9OjyL4WRyHvjB6a4JSllnOrmmBOA=
 github.com/go-kit/kit v0.8.0/go.mod h1:xBxKIO96dXMWWy0MnWVtmwkA9/13aqxPnvrjFYMA2as=
@@ -1574,8 +1574,8 @@ github.com/gravitational/redis/v9 v9.6.1-teleport.1 h1:gPirfPKArN2nPhTKR3h9fnEg5
 github.com/gravitational/redis/v9 v9.6.1-teleport.1/go.mod h1:0C0c6ycQsdpVNQpxb1njEQIqkx5UcsM8FJCQLgE9+RA=
 github.com/gravitational/roundtrip v1.0.2 h1:eOCY0NEKKaB0ksJmvhO6lPMFz1pIIef+vyPBTBROQ5c=
 github.com/gravitational/roundtrip v1.0.2/go.mod h1:fuI1booM2hLRA/B/m5MRAPOU6mBZNYcNycono2UuTw0=
-github.com/gravitational/saml v0.4.15-teleport.1 h1:kYSLpxEBEc7JLJJ+VjsZU8PbWI4gWxdCgll5cq1/rGU=
-github.com/gravitational/saml v0.4.15-teleport.1/go.mod h1:S4+611dxnKt8z/ulbvaJzcgSHsuhjVc1QHNTcr1R7Fw=
+github.com/gravitational/saml v0.4.15-teleport.2 h1:ruNtaIkDrCJ5eS+OBcKeER+P5ldDDys7SeCoyFJAX1o=
+github.com/gravitational/saml v0.4.15-teleport.2/go.mod h1:wGckhUH/I+hcDR2uo9WC4GyL+o4rid5JUe1Ze/joarI=
 github.com/gravitational/trace v1.5.0 h1:JbeL2HDGyzgy7G72Z2hP2gExEyA6Y2p7fCiSjyZwCJw=
 github.com/gravitational/trace v1.5.0/go.mod h1:dxezSkKm880IIDx+czWG8fq+pLnXjETBewMgN3jOBlg=
 github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 h1:+ngKgrYPPJrOjhax5N+uePQ0Fh1Z7PheYoUI/0nzkPA=

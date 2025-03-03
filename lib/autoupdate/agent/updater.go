@@ -100,8 +100,8 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 		Log:                cfg.Log,
 		Pool:               certPool,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
-		UpdateConfigPath:   filepath.Join(ns.Dir(), updateConfigName),
-		TeleportConfigPath: ns.configFile,
+		UpdateConfigFile:   filepath.Join(ns.Dir(), updateConfigName),
+		TeleportConfigFile: ns.configFile,
 		DefaultProxyAddr:   ns.defaultProxyAddr,
 		DefaultPathDir:     ns.defaultPathDir,
 		Installer: &LocalInstaller{
@@ -113,7 +113,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 			Log:                     cfg.Log,
 			ReservedFreeTmpDisk:     reservedFreeDisk,
 			ReservedFreeInstallDisk: reservedFreeDisk,
-			TransformService:        ns.replaceTeleportService,
+			TransformService:        ns.ReplaceTeleportService,
 			ValidateBinary:          validator.IsBinary,
 			Template:                autoupdate.DefaultCDNURITemplate,
 		},
@@ -149,6 +149,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 		},
 		SetupNamespace:    ns.Setup,
 		TeardownNamespace: ns.Teardown,
+		LogConfigWarnings: ns.LogWarnings,
 	}, nil
 }
 
@@ -180,10 +181,10 @@ type Updater struct {
 	Pool *x509.CertPool
 	// InsecureSkipVerify skips TLS verification.
 	InsecureSkipVerify bool
-	// UpdateConfigPath contains the path to the agent auto-updates configuration.
-	UpdateConfigPath string
-	// TeleportConfig contains the path to Teleport's configuration.
-	TeleportConfigPath string
+	// UpdateConfigFile contains the path to the agent auto-updates configuration.
+	UpdateConfigFile string
+	// TeleportConfigFile contains the path to Teleport's configuration.
+	TeleportConfigFile string
 	// DefaultProxyAddr contains Teleport's proxy address. This may differ from the updater's.
 	DefaultProxyAddr string
 	// DefaultPathDir contains the default path that Teleport binaries should be installed into.
@@ -199,6 +200,8 @@ type Updater struct {
 	SetupNamespace func(ctx context.Context, path string) error
 	// TeardownNamespace removes all traces of the updater service in the current Namespace, including Teleport.
 	TeardownNamespace func(ctx context.Context) error
+	// LogConfigWarnings logs warnings related to the configuration Namespace.
+	LogConfigWarnings func(ctx context.Context, pathDir string)
 }
 
 // Installer provides an API for installing Teleport agents.
@@ -315,7 +318,7 @@ func toPtr[T any](t T) *T {
 // This function is idempotent.
 func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 	// Read configuration from update.yaml and override any new values passed as flags.
-	cfg, err := readConfig(u.UpdateConfigPath)
+	cfg, err := readConfig(u.UpdateConfigFile)
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
@@ -373,10 +376,11 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 	// Only write the configuration file if the initial update succeeds.
 	// Note: skip_version is never set on failed enable, only failed update.
 
-	if err := writeConfig(u.UpdateConfigPath, cfg); err != nil {
+	if err := writeConfig(u.UpdateConfigFile, cfg); err != nil {
 		return trace.Wrap(err, "failed to write %s", updateConfigName)
 	}
 	u.Log.InfoContext(ctx, "Configuration updated.")
+	u.LogConfigWarnings(ctx, cfg.Spec.Path)
 	return trace.Wrap(u.notices(ctx))
 }
 
@@ -403,7 +407,7 @@ func sameProxies(a, b string) bool {
 // Before attempting this, Remove attempts to gracefully recover the system-packaged version of Teleport (if present).
 // This function is idempotent.
 func (u *Updater) Remove(ctx context.Context, force bool) error {
-	cfg, err := readConfig(u.UpdateConfigPath)
+	cfg, err := readConfig(u.UpdateConfigFile)
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
@@ -544,7 +548,7 @@ func isActiveOrEnabled(ctx context.Context, s Process) (bool, error) {
 func (u *Updater) Status(ctx context.Context) (Status, error) {
 	var out Status
 	// Read configuration from update.yaml.
-	cfg, err := readConfig(u.UpdateConfigPath)
+	cfg, err := readConfig(u.UpdateConfigFile)
 	if err != nil {
 		return out, trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
@@ -566,7 +570,7 @@ func (u *Updater) Status(ctx context.Context) (Status, error) {
 // Disable disables agent auto-updates.
 // This function is idempotent.
 func (u *Updater) Disable(ctx context.Context) error {
-	cfg, err := readConfig(u.UpdateConfigPath)
+	cfg, err := readConfig(u.UpdateConfigFile)
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
@@ -575,7 +579,7 @@ func (u *Updater) Disable(ctx context.Context) error {
 		return nil
 	}
 	cfg.Spec.Enabled = false
-	if err := writeConfig(u.UpdateConfigPath, cfg); err != nil {
+	if err := writeConfig(u.UpdateConfigFile, cfg); err != nil {
 		return trace.Wrap(err, "failed to write %s", updateConfigName)
 	}
 	return nil
@@ -584,7 +588,7 @@ func (u *Updater) Disable(ctx context.Context) error {
 // Unpin allows the current version to be changed by Update.
 // This function is idempotent.
 func (u *Updater) Unpin(ctx context.Context) error {
-	cfg, err := readConfig(u.UpdateConfigPath)
+	cfg, err := readConfig(u.UpdateConfigFile)
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
@@ -593,7 +597,7 @@ func (u *Updater) Unpin(ctx context.Context) error {
 		return nil
 	}
 	cfg.Spec.Pinned = false
-	if err := writeConfig(u.UpdateConfigPath, cfg); err != nil {
+	if err := writeConfig(u.UpdateConfigFile, cfg); err != nil {
 		return trace.Wrap(err, "failed to write %s", updateConfigName)
 	}
 	return nil
@@ -606,7 +610,7 @@ func (u *Updater) Unpin(ctx context.Context) error {
 // This function is idempotent.
 func (u *Updater) Update(ctx context.Context, now bool) error {
 	// Read configuration from update.yaml and override any new values passed as flags.
-	cfg, err := readConfig(u.UpdateConfigPath)
+	cfg, err := readConfig(u.UpdateConfigFile)
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
@@ -686,7 +690,7 @@ func (u *Updater) Update(ctx context.Context, now bool) error {
 	}
 
 	updateErr := u.update(ctx, cfg, target, false, resp.AGPL)
-	writeErr := writeConfig(u.UpdateConfigPath, cfg)
+	writeErr := writeConfig(u.UpdateConfigFile, cfg)
 	if writeErr != nil {
 		writeErr = trace.Wrap(writeErr, "failed to write %s", updateConfigName)
 	} else {
@@ -977,7 +981,7 @@ func (u *Updater) cleanup(ctx context.Context, cfg *UpdateConfig, keep []Revisio
 // LinkPackage returns an error only if an unknown version of Teleport is present (e.g., manually copied files).
 // This function is idempotent.
 func (u *Updater) LinkPackage(ctx context.Context) error {
-	cfg, err := readConfig(u.UpdateConfigPath)
+	cfg, err := readConfig(u.UpdateConfigFile)
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}

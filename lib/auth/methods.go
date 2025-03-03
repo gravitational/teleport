@@ -136,6 +136,7 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.Authe
 		clientMetadata: req.ClientMetadata,
 		mfaDevice:      mfaDev,
 		checker:        checker,
+		userOrigin:     userOrigin(user),
 	}); err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit login event", "error", err)
 	}
@@ -149,6 +150,7 @@ type authAuditProps struct {
 	mfaDevice      *types.MFADevice
 	checker        services.AccessChecker
 	authErr        error
+	userOrigin     apievents.UserOrigin
 }
 
 func (a *Server) emitAuthAuditEvent(ctx context.Context, props authAuditProps) error {
@@ -161,7 +163,8 @@ func (a *Server) emitAuthAuditEvent(ctx context.Context, props authAuditProps) e
 			Success: true,
 		},
 		UserMetadata: apievents.UserMetadata{
-			User: props.username,
+			User:       props.username,
+			UserOrigin: props.userOrigin,
 		},
 		Method: events.LoginMethodLocal,
 	}
@@ -816,3 +819,11 @@ func trimUserAgent(userAgent string) string {
 }
 
 const noLocalAuth = "local auth disabled"
+
+func userOrigin(user types.User) apievents.UserOrigin {
+	userOrigin := apievents.UserOriginFromOriginLabel(user.Origin())
+	if userOrigin == apievents.UserOrigin_USER_ORIGIN_UNSPECIFIED {
+		userOrigin = apievents.UserOriginFromUserType(user.GetUserType())
+	}
+	return userOrigin
+}

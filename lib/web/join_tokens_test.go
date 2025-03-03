@@ -36,11 +36,13 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/autoupdate"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
@@ -687,7 +689,7 @@ func TestGetNodeJoinScript(t *testing.T) {
 		settings        scriptSettings
 		errAssert       require.ErrorAssertionFunc
 		token           *types.ProvisionTokenV2
-		extraAssertions func(script string)
+		extraAssertions func(t *testing.T, script string)
 	}{
 		{
 			desc:      "zero value",
@@ -738,7 +740,7 @@ func TestGetNodeJoinScript(t *testing.T) {
 					},
 				},
 			},
-			extraAssertions: func(script string) {
+			extraAssertions: func(t *testing.T, script string) {
 				require.Contains(t, script, validToken)
 				require.Contains(t, script, hostname)
 				require.Contains(t, script, strconv.Itoa(port))
@@ -771,7 +773,7 @@ func TestGetNodeJoinScript(t *testing.T) {
 				},
 			},
 			errAssert: require.NoError,
-			extraAssertions: func(script string) {
+			extraAssertions: func(t *testing.T, script string) {
 				require.Contains(t, script, "JOIN_METHOD='iam'")
 			},
 		},
@@ -789,7 +791,7 @@ func TestGetNodeJoinScript(t *testing.T) {
 					},
 				},
 			},
-			extraAssertions: func(script string) {
+			extraAssertions: func(t *testing.T, script string) {
 				require.Contains(t, script, "--labels ")
 				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
 			},
@@ -808,11 +810,60 @@ func TestGetNodeJoinScript(t *testing.T) {
 				},
 			},
 			errAssert: require.NoError,
-			extraAssertions: func(script string) {
+			extraAssertions: func(t *testing.T, script string) {
 				require.Contains(t, script, `APP_NAME='app-name'`)
 				require.Contains(t, script, `APP_URI='app-uri'`)
 				require.Contains(t, script, `public_addr`)
 				require.Contains(t, script, fmt.Sprintf("    labels:\n      %s: %s", types.InternalResourceIDLabel, internalResourceID))
+			},
+		},
+		{
+			desc:     "app server labels with shell injection attempt",
+			settings: scriptSettings{token: validToken, appInstallMode: true, appName: "app-name", appURI: "app-uri"},
+			token: &types.ProvisionTokenV2{
+				Metadata: types.Metadata{
+					Name: validToken,
+				},
+				Spec: types.ProvisionTokenSpecV2{
+					SuggestedLabels: types.Labels{
+						types.InternalResourceIDLabel:   apiutils.Strings{internalResourceID},
+						"env":                           []string{"bad label value | ; & $ > < ' !"},
+						"bad label key | ; & $ > < ' !": []string{"env"},
+					},
+				},
+			},
+			errAssert: require.NoError,
+			extraAssertions: func(t *testing.T, script string) {
+				require.Contains(t, script, `APP_NAME='app-name'`)
+				require.Contains(t, script, `APP_URI='app-uri'`)
+				require.Contains(t, script, `public_addr`)
+				require.Contains(t, script, `
+    labels:
+      bad label key | ; & $ > < ' !: env
+      env: bad\ label\ value\ \|\ \;\ \&\ \$\ \>\ \<\ \'\ \!
+      teleport.internal/resource-id: `+internalResourceID,
+				)
+			},
+		},
+		{
+			desc:     "attempt to shell injection using suggested labels",
+			settings: scriptSettings{token: validToken},
+			token: &types.ProvisionTokenV2{
+				Metadata: types.Metadata{
+					Name: validToken,
+				},
+				Spec: types.ProvisionTokenSpecV2{
+					SuggestedLabels: types.Labels{
+						types.InternalResourceIDLabel:   apiutils.Strings{internalResourceID},
+						"env":                           []string{"bad label value | ; & $ > < ' !"},
+						"bad label key | ; & $ > < ' !": []string{"env"},
+					},
+				},
+			},
+			errAssert: require.NoError,
+			extraAssertions: func(t *testing.T, script string) {
+				require.Contains(t, script, `bad\ label\ key\ \|\ \;\ \&\ \$\ \>\ \<\ \'\ \!=env`)
+				require.Contains(t, script, `env=bad\ label\ value\ \|\ \;\ \&\ \$\ \>\ \<\ \'\ \!`)
 			},
 		},
 	} {
@@ -829,7 +880,7 @@ func TestGetNodeJoinScript(t *testing.T) {
 			}
 
 			if test.extraAssertions != nil {
-				test.extraAssertions(script)
+				test.extraAssertions(t, script)
 			}
 		})
 	}
@@ -1131,7 +1182,7 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 		settings        scriptSettings
 		token           *types.ProvisionTokenV2
 		errAssert       require.ErrorAssertionFunc
-		extraAssertions func(script string)
+		extraAssertions func(t *testing.T, script string)
 	}{
 		{
 			desc:  "two installation methods",
@@ -1151,7 +1202,7 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 				token:               validToken,
 			},
 			errAssert: require.NoError,
-			extraAssertions: func(script string) {
+			extraAssertions: func(t *testing.T, script string) {
 				require.Contains(t, script, validToken)
 				require.Contains(t, script, hostname)
 				require.Contains(t, script, strconv.Itoa(port))
@@ -1159,15 +1210,90 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 				require.Contains(t, script, "--labels ")
 				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
 				require.Contains(t, script, `
-db_service:
-  enabled: "yes"
-  resources:
     - labels:
         env: prod
         os:
           - mac
           - linux
         product: '*'
+`)
+			},
+		},
+		{
+			desc: "discover flow with wildcard label matcher",
+			token: &types.ProvisionTokenV2{
+				Metadata: types.Metadata{
+					Name: validToken,
+				},
+				Spec: types.ProvisionTokenSpecV2{
+					SuggestedLabels: types.Labels{
+						types.InternalResourceIDLabel: apiutils.Strings{internalResourceID},
+					},
+					SuggestedAgentMatcherLabels: types.Labels{
+						"*": apiutils.Strings{"*"},
+					},
+				},
+			},
+			settings: scriptSettings{
+				databaseInstallMode: true,
+				token:               validToken,
+			},
+			errAssert: require.NoError,
+			extraAssertions: func(t *testing.T, script string) {
+				require.Contains(t, script, validToken)
+				require.Contains(t, script, hostname)
+				require.Contains(t, script, "sha256:")
+				require.Contains(t, script, "--labels ")
+				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
+				require.Contains(t, script, `
+    - labels:
+        '*': '*'
+`)
+			},
+		},
+		{
+			desc: "discover flow with shell injection attempt in resource matcher labels",
+			token: &types.ProvisionTokenV2{
+				Metadata: types.Metadata{
+					Name: validToken,
+				},
+				Spec: types.ProvisionTokenSpecV2{
+					SuggestedLabels: types.Labels{
+						types.InternalResourceIDLabel: apiutils.Strings{internalResourceID},
+					},
+					SuggestedAgentMatcherLabels: types.Labels{
+						"*":                             apiutils.Strings{"*"},
+						"spa ces":                       apiutils.Strings{"spa ces"},
+						"EOF":                           apiutils.Strings{"test heredoc"},
+						`"EOF"`:                         apiutils.Strings{"test quoted heredoc"},
+						"#'; <>\\#":                     apiutils.Strings{"try to escape yaml"},
+						"&<>'\"$A,./;'BCD ${ABCD}":      apiutils.Strings{"key with special characters"},
+						"value with special characters": apiutils.Strings{"&<>'\"$A,./;'BCD ${ABCD}", "#&<>'\"$A,./;'BCD ${ABCD}"},
+					},
+				},
+			},
+			settings: scriptSettings{
+				databaseInstallMode: true,
+				token:               validToken,
+			},
+			errAssert: require.NoError,
+			extraAssertions: func(t *testing.T, script string) {
+				require.Contains(t, script, validToken)
+				require.Contains(t, script, hostname)
+				require.Contains(t, script, "sha256:")
+				require.Contains(t, script, "--labels ")
+				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
+				require.Contains(t, script, `
+    - labels:
+        '"EOF"': test quoted heredoc
+        '#''; <>\#': try to escape yaml
+        '&<>''"$A,./;''BCD ${ABCD}': key with special characters
+        '*': '*'
+        EOF: test heredoc
+        spa ces: spa ces
+        value with special characters:
+          - '&<>''"$A,./;''BCD ${ABCD}'
+          - '#&<>''"$A,./;''BCD ${ABCD}'
 `)
 			},
 		},
@@ -1179,7 +1305,7 @@ db_service:
 				token:               emptySuggestedAgentMatcherLabelsToken,
 			},
 			errAssert: require.NoError,
-			extraAssertions: func(script string) {
+			extraAssertions: func(t *testing.T, script string) {
 				require.Contains(t, script, emptySuggestedAgentMatcherLabelsToken)
 				require.Contains(t, script, hostname)
 				require.Contains(t, script, strconv.Itoa(port))
@@ -1187,9 +1313,6 @@ db_service:
 				require.Contains(t, script, "--labels ")
 				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
 				require.Contains(t, script, `
-db_service:
-  enabled: "yes"
-  resources:
     - labels:
         {}
 `)
@@ -1210,7 +1333,7 @@ db_service:
 			}
 
 			if test.extraAssertions != nil {
-				test.extraAssertions(script)
+				test.extraAssertions(t, script)
 			}
 		})
 	}
@@ -1448,17 +1571,7 @@ func TestJoinScript(t *testing.T) {
 			script, err := h.getJoinScript(context.Background(), scriptSettings{token: validToken})
 			require.NoError(t, err)
 
-			// list of packages must include the updater
-			require.Contains(t, script, ""+
-				"    PACKAGE_LIST=${TELEPORT_PACKAGE_PIN_VERSION}\n"+
-				"    # (warning): This expression is constant. Did you forget the $ on a variable?\n"+
-				"    # Disabling the warning above because expression is templated.\n"+
-				"    # shellcheck disable=SC2050\n"+
-				"    if is_using_systemd && [[ \"true\" == \"true\" ]]; then\n"+
-				"        # Teleport Updater requires systemd.\n"+
-				"        PACKAGE_LIST+=\" ${TELEPORT_UPDATER_PIN_VERSION}\"\n"+
-				"    fi\n",
-			)
+			require.Contains(t, script, "UPDATER_STYLE='package'")
 			// Repo channel is stable/cloud
 			require.Contains(t, script, "REPO_CHANNEL='stable/cloud'")
 			// TELEPORT_VERSION is the one provided by https://updates.releases.teleport.dev/v1/stable/cloud/version
@@ -1470,20 +1583,50 @@ func TestJoinScript(t *testing.T) {
 			})
 			script, err := h.getJoinScript(context.Background(), scriptSettings{token: validToken})
 			require.NoError(t, err)
-			require.Contains(t, script, ""+
-				"    PACKAGE_LIST=${TELEPORT_PACKAGE_PIN_VERSION}\n"+
-				"    # (warning): This expression is constant. Did you forget the $ on a variable?\n"+
-				"    # Disabling the warning above because expression is templated.\n"+
-				"    # shellcheck disable=SC2050\n"+
-				"    if is_using_systemd && [[ \"false\" == \"true\" ]]; then\n"+
-				"        # Teleport Updater requires systemd.\n"+
-				"        PACKAGE_LIST+=\" ${TELEPORT_UPDATER_PIN_VERSION}\"\n"+
-				"    fi\n",
-			)
+			require.Contains(t, script, "UPDATER_STYLE='none'")
 			// Default based on current version is used instead
 			require.Contains(t, script, "REPO_CHANNEL=''")
 			// Current version must be used
 			require.Contains(t, script, fmt.Sprintf("TELEPORT_VERSION='%s'", teleport.Version))
+		})
+	})
+	t.Run("using teleport-update", func(t *testing.T) {
+		testRollout := &autoupdatev1pb.AutoUpdateAgentRollout{Spec: &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+			StartVersion:              "1.2.2",
+			TargetVersion:             "1.2.3",
+			Schedule:                  autoupdate.AgentsScheduleImmediate,
+			AutoupdateMode:            autoupdate.AgentsUpdateModeEnabled,
+			Strategy:                  autoupdate.AgentsStrategyTimeBased,
+			MaintenanceWindowDuration: durationpb.New(1 * time.Hour),
+		}}
+		t.Run("rollout exists and autoupdates are on", func(t *testing.T) {
+			currentStableCloudVersion := "1.1.1"
+			config := autoupdateTestHandlerConfig{
+				testModules: &modules.TestModules{TestFeatures: modules.Features{Cloud: true, AutomaticUpgrades: true}},
+				channels: automaticupgrades.Channels{
+					automaticupgrades.DefaultChannelName: &automaticupgrades.Channel{StaticVersion: currentStableCloudVersion},
+				},
+				rollout: testRollout,
+				token:   token,
+			}
+			h := newAutoupdateTestHandler(t, config)
+
+			script, err := h.getJoinScript(context.Background(), scriptSettings{token: validToken})
+			require.NoError(t, err)
+
+			// list of packages must include the updater
+			require.Contains(t, script, "UPDATER_STYLE='binary'")
+			require.Contains(t, script, fmt.Sprintf("TELEPORT_VERSION='%s'", testRollout.Spec.TargetVersion))
+		})
+		t.Run("rollout exists and autoupdates are off", func(t *testing.T) {
+			h := newAutoupdateTestHandler(t, autoupdateTestHandlerConfig{
+				rollout: testRollout,
+				token:   token,
+			})
+			script, err := h.getJoinScript(context.Background(), scriptSettings{token: validToken})
+			require.NoError(t, err)
+			require.Contains(t, script, "UPDATER_STYLE='binary'")
+			require.Contains(t, script, fmt.Sprintf("TELEPORT_VERSION='%s'", testRollout.Spec.TargetVersion))
 		})
 	})
 }
