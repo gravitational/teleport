@@ -47,9 +47,6 @@ import (
 const (
 	// BinaryName specifies the name of the updater binary.
 	BinaryName = "teleport-update"
-	// requiredUmask must be set before this package can be used.
-	// Use syscall.Umask to set when no other goroutines are running.
-	requiredUmask = 0o022
 )
 
 const (
@@ -61,6 +58,9 @@ const (
 	reservedFreeDisk = 10_000_000
 	// debugSocketFileName is the name of Teleport's debug socket in the data dir.
 	debugSocketFileName = "debug.sock" // 10 MB
+	// requiredUmask must be set before this package can be used.
+	// Use syscall.Umask to set when no other goroutines are running.
+	requiredUmask = 0o022
 )
 
 // Log keys
