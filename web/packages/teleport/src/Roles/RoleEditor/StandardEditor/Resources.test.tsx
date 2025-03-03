@@ -315,27 +315,28 @@ describe('AppAccessSection', () => {
     await user.click(screen.getByRole('button', { name: 'Add a Label' }));
     await user.type(screen.getByPlaceholderText('label key'), 'env');
     await user.type(screen.getByPlaceholderText('label value'), 'prod');
+
+    // Instead of typing these ungodly long values, we paste them — otherwise,
+    // this test may time out. And that's what our users would typically do,
+    // anyway.
     await user.click(
       within(awsRoleArns()).getByRole('button', { name: 'Add More' })
     );
-    await user.type(
-      awsRoleArnTextBoxes()[1],
-      'arn:aws:iam::123456789012:role/admin'
-    );
+    await user.click(awsRoleArnTextBoxes()[1]);
+    await user.paste('arn:aws:iam::123456789012:role/admin');
     await user.click(
       within(azureIdentities()).getByRole('button', { name: 'Add More' })
     );
-    await user.type(
-      azureIdentityTextBoxes()[1],
+    await user.click(azureIdentityTextBoxes()[1]);
+    await user.paste(
       '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/admin'
     );
     await user.click(
       within(gcpServiceAccounts()).getByRole('button', { name: 'Add More' })
     );
-    await user.type(
-      gcpServiceAccountTextBoxes()[1],
-      'admin@some-project.iam.gserviceaccount.com'
-    );
+    await user.click(gcpServiceAccountTextBoxes()[1]);
+    await user.paste('admin@some-project.iam.gserviceaccount.com');
+
     expect(onChange).toHaveBeenLastCalledWith({
       kind: 'app',
       labels: [{ name: 'env', value: 'prod' }],
