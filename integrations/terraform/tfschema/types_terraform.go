@@ -929,7 +929,7 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"assignment_name": {
-									Description: "AssignmentID is the ID of the Teelport Account Assignment resource that represents this permission being assigned on the enclosing Account.",
+									Description: "AssignmentID is the ID of the Teleport Account Assignment resource that represents this permission being assigned on the enclosing Account.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
