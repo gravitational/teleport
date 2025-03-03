@@ -32,6 +32,7 @@ import { MfaChallengeResponse } from 'teleport/services/mfa';
 import Codec, {
   FileType,
   MessageType,
+  PointerData,
   Severity,
   SharedDirectoryErrCode,
   type ButtonState,
@@ -153,6 +154,71 @@ export default class Client extends EventEmitterMfaSender {
       this.emit(TdpClientEvent.WS_CLOSE, message);
     };
   }
+
+  onClientError = (listener: (error: Error) => void) => {
+    this.on(TdpClientEvent.CLIENT_ERROR, listener);
+    return () => this.off(TdpClientEvent.CLIENT_ERROR, listener);
+  };
+
+  onClientWarning = (listener: (warningMessage: string) => void) => {
+    this.on(TdpClientEvent.CLIENT_WARNING, listener);
+    return () => this.off(TdpClientEvent.CLIENT_WARNING, listener);
+  };
+
+  onError = (listener: (error: Error) => void) => {
+    this.on(TdpClientEvent.TDP_ERROR, listener);
+    return () => this.off(TdpClientEvent.TDP_ERROR, listener);
+  };
+
+  onInfo = (listener: (info: string) => void) => {
+    this.on(TdpClientEvent.TDP_INFO, listener);
+    return () => this.off(TdpClientEvent.TDP_INFO, listener);
+  };
+
+  onReset = (listener: () => void) => {
+    this.on(TdpClientEvent.RESET, listener);
+    return () => this.off(TdpClientEvent.RESET, listener);
+  };
+
+  onBmpFrame = (listener: (bmpFrame: BitmapFrame) => void) => {
+    this.on(TdpClientEvent.TDP_BMP_FRAME, listener);
+    return () => this.off(TdpClientEvent.TDP_BMP_FRAME, listener);
+  };
+
+  onPngFrame = (listener: (pngFrame: PngFrame) => void) => {
+    this.on(TdpClientEvent.TDP_PNG_FRAME, listener);
+    return () => this.off(TdpClientEvent.TDP_PNG_FRAME, listener);
+  };
+
+  onPointer = (listener: (pointerData: PointerData) => void) => {
+    this.on(TdpClientEvent.POINTER, listener);
+    return () => this.off(TdpClientEvent.POINTER, listener);
+  };
+
+  onWarning = (listener: (warningMessage: string) => void) => {
+    this.on(TdpClientEvent.TDP_WARNING, listener);
+    return () => this.off(TdpClientEvent.TDP_WARNING, listener);
+  };
+
+  onWsClose = (listener: (message: string) => void) => {
+    this.on(TdpClientEvent.WS_CLOSE, listener);
+    return () => this.off(TdpClientEvent.WS_CLOSE, listener);
+  };
+
+  onWsOpen = (listener: () => void) => {
+    this.on(TdpClientEvent.WS_OPEN, listener);
+    return () => this.off(TdpClientEvent.WS_OPEN, listener);
+  };
+
+  onClipboardData = (listener: (clipboardData: ClipboardData) => void) => {
+    this.on(TdpClientEvent.TDP_CLIPBOARD_DATA, listener);
+    return () => this.off(TdpClientEvent.TDP_CLIPBOARD_DATA, listener);
+  };
+
+  onScreenSpec = (listener: (spec: ClientScreenSpec) => void) => {
+    this.on(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, listener);
+    return () => this.off(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, listener);
+  };
 
   private async initWasm() {
     // select the wasm log level
