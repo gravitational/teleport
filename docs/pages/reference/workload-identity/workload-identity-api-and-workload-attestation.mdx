@@ -433,7 +433,7 @@ $ podman run \
   --annotation run.oci.keep_original_groups=1 \
   --volume /path/to/socket:/path/to/socket \
   --volume /path/to/config:/path/to/config \
-  <tbot image> \
+  public.ecr.aws/gravitational/tbot-distroless:(=teleport.version=) \
   start -c /path/to/config
 
 ## Envoy SDS
