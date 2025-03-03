@@ -174,6 +174,7 @@ Enterprise:
 * Fixed an issue with recreating Teleport resources for Okta applications with multiple embed links.
 * Fixed an issue in the Identity Center principal assignment service that incorrectly reported a successful permission assignment delete request as a failed one.
 * Fixed an issue in the Identity Center group import service which incorrectly handled import error event.
+* Added an access graph preview to the role editor. This feature requires Teleport Identity Security.
 
 ## 17.2.1 (01/22/2025)
 
