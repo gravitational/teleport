@@ -36,6 +36,7 @@ export interface App {
   awsConsole: boolean;
   requiresRequest?: boolean;
   isCloudOrTcpEndpoint?: boolean;
+  useAnyProxyPublicAddr?: boolean;
   // addrWithProtocol can either be a public address or
   // if public address wasn't defined, fallback to uri
   addrWithProtocol?: string;
