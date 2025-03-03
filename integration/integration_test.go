@@ -7656,7 +7656,7 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 
 func testJoinOverReverseTunnelOnly(t *testing.T, suite *integrationTestSuite) {
 	for _, proxyProtocolMode := range []multiplexer.PROXYProtocolMode{
-		multiplexer.PROXYProtocolOn, multiplexer.PROXYProtocolOff, multiplexer.PROXYProtocolUnspecified,
+		multiplexer.PROXYProtocolOn, multiplexer.PROXYProtocolOff, multiplexer.PROXYProtocolUnspecified, multiplexer.PROXYProtocolDowngrade,
 	} {
 		t.Run(fmt.Sprintf("proxy protocol mode: %v", proxyProtocolMode), func(t *testing.T) {
 			lib.SetInsecureDevMode(true)
