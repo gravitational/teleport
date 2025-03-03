@@ -77,7 +77,7 @@ const (
 // NOTE: This must be run in main.go before any goroutines that create files are started.
 func SetRequiredUmask(ctx context.Context, log *slog.Logger, fail bool) error {
 	old := syscall.Umask(requiredUmask)
-	if old&requiredUmask > 0 {
+	if old&^requiredUmask > 0 {
 		if fail {
 			return trace.Errorf("refusing to make umask less restrictive")
 		}
