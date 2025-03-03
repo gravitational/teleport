@@ -369,7 +369,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 			return make([]string, 0), nil
 		})
 		if err != nil {
-			log.WithError(err).Warn("Unable to retrieve args from FnCahe - this is a bug!")
+			log.WithError(err).Warn("Unable to retrieve args from FnCache - this is a bug!")
 			args = []string{}
 		}
 
