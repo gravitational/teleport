@@ -66,7 +66,6 @@ export function DesktopSession(props: State) {
     setInitialTdpConnectionSucceeded,
     clientOnClipboardData,
     clientOnTdpError,
-    clientOnTdpWarning,
     clientOnTdpInfo,
     clientOnWsClose,
     clientOnWsOpen,
@@ -90,6 +89,7 @@ export function DesktopSession(props: State) {
     tdpConnection,
     wsConnection,
     showAnotherSessionActiveDialog,
+    addAlert,
   } = props;
 
   const [screenState, setScreenState] = useState<ScreenState>({
@@ -100,8 +100,17 @@ export function DesktopSession(props: State) {
   useListener(client?.onClipboardData, clientOnClipboardData);
   useListener(client?.onError, clientOnTdpError);
   useListener(client?.onClientError, clientOnTdpError);
-  useListener(client?.onWarning, clientOnTdpWarning);
-  useListener(client?.onClientWarning, clientOnTdpWarning);
+  const addWarning = useCallback(
+    (warning: string) => {
+      addAlert({
+        content: warning,
+        severity: 'warn',
+      });
+    },
+    [addAlert]
+  );
+  useListener(client?.onWarning, addWarning);
+  useListener(client?.onClientWarning, addWarning);
   useListener(client?.onInfo, clientOnTdpInfo);
   useListener(client?.onWsClose, clientOnWsClose);
   useListener(client?.onWsOpen, clientOnWsOpen);

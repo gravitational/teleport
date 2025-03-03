@@ -117,20 +117,6 @@ export default function useTdpClientCanvas(props: Props) {
     });
   };
 
-  // Default TdpClientEvent.TDP_WARNING and TdpClientEvent.CLIENT_WARNING handler
-  const clientOnTdpWarning = (warning: string) => {
-    setAlerts(prevState => {
-      return [
-        ...prevState,
-        {
-          content: warning,
-          severity: 'warn',
-          id: crypto.randomUUID(),
-        },
-      ];
-    });
-  };
-
   const clientOnTdpInfo = (info: string) => {
     setAlerts(prevState => {
       return [
@@ -254,7 +240,6 @@ export default function useTdpClientCanvas(props: Props) {
     clientOnClipboardData,
     clientOnWsClose,
     clientOnWsOpen,
-    clientOnTdpWarning,
     clientOnTdpInfo,
     canvasOnKeyDown,
     canvasOnKeyUp,
