@@ -1903,17 +1903,22 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			}
 		}
 
+		if application.AlwaysUseProxyPublicAddr && application.PublicAddr != "" {
+			return trace.BadParameter("public_addr cannot be explicitly set if always_use_proxy_public_addr is set to true")
+		}
+
 		// Add the application to the list of proxied applications.
 		app := servicecfg.App{
-			Name:               application.Name,
-			Description:        application.Description,
-			URI:                application.URI,
-			PublicAddr:         application.PublicAddr,
-			StaticLabels:       staticLabels,
-			DynamicLabels:      dynamicLabels,
-			InsecureSkipVerify: application.InsecureSkipVerify,
-			Cloud:              application.Cloud,
-			RequiredAppNames:   application.RequiredApps,
+			Name:                     application.Name,
+			Description:              application.Description,
+			URI:                      application.URI,
+			PublicAddr:               application.PublicAddr,
+			StaticLabels:             staticLabels,
+			DynamicLabels:            dynamicLabels,
+			InsecureSkipVerify:       application.InsecureSkipVerify,
+			Cloud:                    application.Cloud,
+			RequiredAppNames:         application.RequiredApps,
+			AlwaysUseProxyPublicAddr: application.AlwaysUseProxyPublicAddr,
 		}
 
 		if application.CORS != nil {
