@@ -795,13 +795,9 @@ export default class Client extends EventEmitterMfaSender {
     this.emit(TdpClientEvent.TDP_INFO, info);
   }
 
-  // Ensures full cleanup of this object.
-  // Note that it removes all listeners first and then cleans up the socket,
-  // so don't call this if your calling object is relying on listeners.
   // It's safe to call this multiple times, calls subsequent to the first call
   // will simply do nothing.
   shutdown(closeCode = WebsocketCloseCode.NORMAL) {
-    this.removeAllListeners();
     this.socket?.close(closeCode);
   }
 }
