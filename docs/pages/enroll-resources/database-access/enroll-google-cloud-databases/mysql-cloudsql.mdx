@@ -59,12 +59,12 @@ The pre-defined "Cloud SQL Viewer" role has this permission, but also has other
 permissions that are not needed. Define and bind a custom role to the service
 account to follow the  principal of least privilege.
 
-<Notice type="note">
+<Admonition type="note">
 Support for legacy one-time password authentication will be deprecated.
 If you are following this guide and have already set up Teleport prior to the
 introduction of support for IAM database user authentication, then you should
 configure your database users to use IAM auth as described in this guide.
-</Notice>
+</Admonition>
 
 ## Step 2/9. Create a service account for a database user
 
@@ -94,12 +94,12 @@ default 3306 as the default Cloud SQL MySQL listener does not trust generated
 ephemeral certificates. For this reason, you should make sure to allow port 
 3307 when using "require trusted client certificates".
 
-<Notice type="note">
+<Admonition type="note">
 The "require trusted client certificates" SSL mode only forces the client
 (Teleport) to provide a trusted client certificate. Teleport will always connect
 to the database over encrypted TLS regardless of the instance's SSL mode 
 setting.
-</Notice>
+</Admonition>
 
 ### Create a database user
 
@@ -175,12 +175,12 @@ $ tsh db ls
 
 </Tabs>
 
-<Notice
+<Admonition
   type="note"
 >
 You will only be able to see databases that your Teleport role has
 access to. See our [RBAC](../rbac.mdx) guide for more details.
-</Notice>
+</Admonition>
 
 When connecting to the database, use either the database user name or the
 service account's Email ID. Both the user name and the service account's Email

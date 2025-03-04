@@ -11,14 +11,14 @@ identities.
 |**Dynamic**|A Teleport role includes a template variable that grants a user access to all Azure identities assigned directly to them.|Local users, OIDC, SAML|
 |**Static**|A Teleport role explicitly specifies the Azure identities a user is allowed to assume.|Local users, OIDC, SAML, GitHub|
 
-<Notice type="tip">
+<Admonition type="tip">
 
 We recommend using the dynamic approach, since it scales well as you add
 Azure identities to your account. If you have configured a Teleport Community Edition
 cluster to authenticate users using GitHub SSO, you must use the static approach,
 as OAuth-based GitHub applications do not support custom claims.
 
-</Notice>
+</Admonition>
 
 <Tabs dropdownCaption="Approach">
 <TabItem options="Dynamic Identities" label="Local Users">

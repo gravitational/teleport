@@ -69,13 +69,13 @@ for example, run the following command:
 $ tsh az vm list
 ```
 
-<Notice type="tip">
+<Admonition type="tip">
 
 If you're not seeing the expected VMs at this point, double-check that your
 Azure managed identity is assigned the "Reader" role at the scope of your
 resource group.
 
-</Notice>
+</Admonition>
 
 ### Use Azure CLI applications without `tsh`
 
@@ -93,11 +93,11 @@ To start the local proxy, run the following `tsh` command:
 $ tsh proxy azure 
 ```
 
-<Notice type="tip">
+<Admonition type="tip">
 
 The command `tsh proxy az` is an alias for `tsh proxy azure`.
 
-</Notice>
+</Admonition>
 
 The command will print the address of the local proxy server along with `export`
 commands for assigning environment variables. Azure CLI applications read these
@@ -105,13 +105,13 @@ variables in order to request an authentication token for Azure's APIs:
 
 (!docs/pages/includes/application-access/azure-tsh-proxy-azure-sample.mdx!)
 
-<Notice type="warning">
+<Admonition type="warning">
 
 `tsh proxy azure` runs the local proxy in the foreground, so don't interrupt
 the process or exit the terminal where you ran the command until you're ready
 to close the local proxy.
 
-</Notice>
+</Admonition>
 
 Copy the `export` commands and paste them into a second terminal. In that
 terminal, you can now run your Azure CLI application of choice. For example, you
@@ -126,9 +126,9 @@ identity you created earlier, and that identity is authorized to view resources
 in your resource group, the `az vm list` command will only list VMs in that
 resource group.
 
-<Notice type="info">
+<Admonition type="info">
 
 When you run an `az` command via `tsh az`, `tsh` starts the local proxy in the
 background and uses it to execute the command.
 
-</Notice>
+</Admonition>

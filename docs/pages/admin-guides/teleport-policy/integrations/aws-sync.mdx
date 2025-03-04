@@ -66,12 +66,12 @@ how to set up Access Graph.
 
 ## Step 1/2. Configure Discovery Service (Self-hosted only)
 
-<Notice type="warning">
+<Admonition type="warning">
 
 If you have a cloud-hosted Teleport Enterprise cluster, you can disregard
 this step, as cloud-hosted Teleport Enterprise already operates a properly configured
 Discovery Service within your cluster.
-</Notice>
+</Admonition>
 
 To activate the Teleport Discovery Service, add a top level discovery_service section to the teleport.yaml
 config used by the Auth Service. This service monitors dynamic `discovery_config` resources that are set up
