@@ -687,30 +687,28 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key)
 	// in accordance with the BatchWriteItem limits. There is a hard
 	// cap on the total number of items that can be deleted in a single
 	// DeleteRange call to avoid racing with additional records being added.
-	const maxDeletions = backend.DefaultRangeLimit / 100
-	requests := make([]types.WriteRequest, batchOperationItemsLimit)
-	var pageCount, totalCount int
+	const maxDeletionOperations = backend.DefaultRangeLimit / 100 / batchOperationItemsLimit
+	requests := make([]types.WriteRequest, 0, batchOperationItemsLimit)
+	var deletions int
 	for item, err := range b.Items(ctx, backend.IterateParams{StartKey: startKey, EndKey: endKey}) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		if totalCount >= maxDeletions {
+		if deletions >= maxDeletionOperations {
 			break
 		}
-		totalCount++
 
-		requests[pageCount] = types.WriteRequest{
+		requests = append(requests, types.WriteRequest{
 			DeleteRequest: &types.DeleteRequest{
 				Key: map[string]types.AttributeValue{
 					hashKeyKey:  &types.AttributeValueMemberS{Value: hashKey},
 					fullPathKey: &types.AttributeValueMemberS{Value: prependPrefix(item.Key)},
 				},
 			},
-		}
-		pageCount++
+		})
 
-		if pageCount == batchOperationItemsLimit {
+		if len(requests) == batchOperationItemsLimit {
 			if _, err := b.svc.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{
 				RequestItems: map[string][]types.WriteRequest{
 					b.TableName: requests,
@@ -718,18 +716,20 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key)
 			}); err != nil {
 				return trace.Wrap(err)
 			}
-			pageCount = 0
+
+			requests = requests[:0]
+			deletions++
 		}
 	}
 
-	if totalCount >= maxDeletions {
+	if deletions >= maxDeletionOperations {
 		return trace.ConnectionProblem(nil, "not all items deleted, too many requests")
 	}
 
-	if pageCount > 0 {
+	if len(requests) > 0 {
 		if _, err := b.svc.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{
 			RequestItems: map[string][]types.WriteRequest{
-				b.TableName: requests[:pageCount],
+				b.TableName: requests,
 			},
 		}); err != nil {
 			return trace.Wrap(err)
