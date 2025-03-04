@@ -37,6 +37,7 @@ type Attestor struct {
 	log        *slog.Logger
 	kubernetes attestor[*workloadidentityv1pb.WorkloadAttrsKubernetes]
 	podman     attestor[*workloadidentityv1pb.WorkloadAttrsPodman]
+	systemd    attestor[*workloadidentityv1pb.WorkloadAttrsSystemd]
 	unix       attestor[*workloadidentityv1pb.WorkloadAttrsUnix]
 }
 
@@ -44,6 +45,7 @@ type Attestor struct {
 type Config struct {
 	Kubernetes KubernetesAttestorConfig `yaml:"kubernetes"`
 	Podman     PodmanAttestorConfig     `yaml:"podman"`
+	Systemd    SystemdAttestorConfig    `yaml:"systemd"`
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -67,6 +69,9 @@ func NewAttestor(log *slog.Logger, cfg Config) (*Attestor, error) {
 	}
 	if cfg.Podman.Enabled {
 		att.podman = NewPodmanAttestor(cfg.Podman, log)
+	}
+	if cfg.Systemd.Enabled {
+		att.systemd = NewSystemdAttestor(cfg.Systemd, log)
 	}
 	return att, nil
 }
@@ -96,6 +101,12 @@ func (a *Attestor) Attest(ctx context.Context, pid int) (*workloadidentityv1pb.W
 		attrs.Podman, err = a.podman.Attest(ctx, pid)
 		if err != nil {
 			a.log.WarnContext(ctx, "Failed to perform Podman workload attestation", "error", err)
+		}
+	}
+	if a.systemd != nil {
+		attrs.Systemd, err = a.systemd.Attest(ctx, pid)
+		if err != nil {
+			a.log.WarnContext(ctx, "Failed to perform Systemd workload attestation", "error", err)
 		}
 	}
 

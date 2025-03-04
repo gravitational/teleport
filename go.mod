@@ -248,6 +248,8 @@ require (
 	software.sslmate.com/src/go-pkcs12 v0.5.0
 )
 
+require github.com/coreos/go-systemd/v22 v22.5.0
+
 require (
 	cel.dev/expr v0.19.1 // indirect
 	cloud.google.com/go v0.118.1 // indirect
@@ -312,7 +314,6 @@ require (
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v0.2.1 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.16.3 // indirect
-	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/coreos/pkg v0.0.0-20220810130054-c7d1c02cb6cf // indirect
 	github.com/crewjam/httperr v0.2.0 // indirect
 	github.com/cyberphone/json-canonicalization v0.0.0-20231011164504-785e29786b46 // indirect
@@ -371,6 +372,7 @@ require (
 	github.com/gobwas/pool v0.2.1 // indirect
 	github.com/goccy/go-json v0.10.4 // indirect
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 // indirect
+	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
