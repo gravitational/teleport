@@ -30,6 +30,8 @@ export default {
 const singleFlow = { default: [Body1, Body2] };
 export const SingleFlowInPlaceSlider = (props: {
   defaultStepIndex?: number;
+  wrapping?: boolean;
+  tDuration?: number;
 }) => {
   return (
     <Card my="5" mx="auto" width={464}>
@@ -41,6 +43,8 @@ export const SingleFlowInPlaceSlider = (props: {
         currFlow={'default'}
         testProp="I'm that test prop"
         defaultStepIndex={props.defaultStepIndex}
+        wrapping={props.wrapping}
+        tDuration={props.tDuration}
       />
     </Card>
   );
@@ -48,6 +52,10 @@ export const SingleFlowInPlaceSlider = (props: {
 
 export const SingleFlowWithDefaultStepIndex = () => {
   return <SingleFlowInPlaceSlider defaultStepIndex={1} />;
+};
+
+export const SingleFlowWithWrapping = () => {
+  return <SingleFlowInPlaceSlider wrapping />;
 };
 
 type MultiFlow = 'primary' | 'secondary';
@@ -58,7 +66,10 @@ const multiflows = {
   primary: [MainStep1, MainStep2, FinalStep],
   secondary: [OtherStep1, FinalStep],
 };
-export const MultiFlowWheelSlider = (props: { defaultStepIndex?: number }) => {
+export const MultiFlowWheelSlider = (props: {
+  defaultStepIndex?: number;
+  tDuration?: number;
+}) => {
   const [flow, setFlow] = useState<MultiFlow>('primary');
   const [newFlow, setNewFlow] = useState<NewFlow<MultiFlow>>();
 
@@ -78,6 +89,7 @@ export const MultiFlowWheelSlider = (props: { defaultStepIndex?: number }) => {
       newFlow={newFlow}
       changeFlow={onNewFlow}
       defaultStepIndex={props.defaultStepIndex}
+      tDuration={props.tDuration}
     />
   );
 };
