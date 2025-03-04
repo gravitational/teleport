@@ -38,6 +38,11 @@ const SemaphoreKindConnection = "connection"
 // role option).
 const SemaphoreKindKubernetesConnection = "kubernetes_connection"
 
+// SemaphoreKindDatabaseConnection is the semaphore kind used by
+// the limit concurrent database connections (corresponds to the
+// `max_db_connections` role option).
+const SemaphoreKindDatabaseConnection = "database_connection"
+
 // SemaphoreKindHostUserModification is the semaphore kind used to limit
 // the number of operations that can occur on a unix user to one at a time
 const SemaphoreKindHostUserModification = "host_user_modification"

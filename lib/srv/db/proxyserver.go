@@ -27,6 +27,7 @@ import (
 	"math/rand/v2"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -43,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/connect"
 	"github.com/gravitational/teleport/lib/srv/db/common/enterprise"
@@ -66,6 +68,8 @@ type ProxyServer struct {
 	closeCtx context.Context
 	// log is used for logging.
 	log *slog.Logger
+	// limiter implements common.Limiter
+	limiter common.Limiter
 }
 
 // ConnMonitor monitors authorized connections and terminates them when
@@ -150,7 +154,10 @@ func (c *ProxyServerConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-const proxyServerComponent = "db:proxy"
+const (
+	proxyServerComponent = "db:proxy"
+	sessionMaxLifetime   = time.Hour * 24
+)
 
 // NewProxyServer creates a new instance of the database proxy server.
 func NewProxyServer(ctx context.Context, config ProxyServerConfig) (*ProxyServer, error) {
@@ -171,6 +178,11 @@ func NewProxyServer(ctx context.Context, config ProxyServerConfig) (*ProxyServer
 		},
 		closeCtx: ctx,
 		log:      slog.With(teleport.ComponentKey, proxyServerComponent),
+		limiter: &proxyLimiter{
+			closeCtx:    ctx,
+			service:     config.AuthClient,
+			connLimiter: config.Limiter,
+		},
 	}
 	server.cfg.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	server.cfg.TLSConfig.GetConfigForClient = getConfigForClient(
@@ -298,22 +310,27 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	if !ok {
 		return trace.BadParameter("expected utils.TLSConn, got %T", conn)
 	}
-	clientIP, err := utils.ClientIPFromConn(conn)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+
 	// Apply connection and rate limiting.
-	release, err := s.cfg.Limiter.RegisterRequestAndConnection(clientIP)
+	releaseConn, clientIP, err := s.limiter.RegisterClientIPFromConn(conn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer release()
+	defer releaseConn()
+
 	proxyCtx, err := s.Authorize(s.closeCtx, tlsConn, common.ConnectParams{
 		ClientIP: clientIP,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Apply per user max connections.
+	releaseIdentity, err := s.limiter.RegisterIdentity(proxyCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer releaseIdentity()
 
 	if s.cfg.IngressReporter != nil {
 		s.cfg.IngressReporter.ConnectionAuthenticated(ingress.DatabaseTLS, conn)
@@ -325,12 +342,12 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 
 	switch proxyCtx.Identity.RouteToDatabase.Protocol {
 	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
-		return s.PostgresProxyNoTLS().HandleConnection(s.closeCtx, tlsConn)
+		return s.postgresProxyNoTLS().HandleConnection(s.closeCtx, tlsConn)
 	case defaults.ProtocolMySQL:
 		version := getMySQLVersionFromServer(proxyCtx.Servers)
 		// Set the version in the context to match a behavior in other handlers.
 		ctx := context.WithValue(s.closeCtx, dbutils.ContextMySQLServerVersion, version)
-		return s.MySQLProxyNoTLS().HandleConnection(ctx, tlsConn)
+		return s.mysqlProxyNoTLS().HandleConnection(ctx, tlsConn)
 	case defaults.ProtocolSQLServer:
 		return s.SQLServerProxy().HandleConnection(s.closeCtx, proxyCtx, tlsConn)
 	}
@@ -361,19 +378,20 @@ func (s *ProxyServer) PostgresProxy() *postgres.Proxy {
 		TLSConfig:       s.cfg.TLSConfig,
 		Middleware:      s.middleware,
 		Service:         s,
-		Limiter:         s.cfg.Limiter,
+		Limiter:         s.limiter,
 		Log:             s.log,
 		IngressReporter: s.cfg.IngressReporter,
 	}
 }
 
-// PostgresProxyNoTLS returns a new instance of the non-TLS Postgres proxy.
-func (s *ProxyServer) PostgresProxyNoTLS() *postgres.Proxy {
+// postgresProxyNoTLS returns a new instance of the non-TLS Postgres proxy.
+func (s *ProxyServer) postgresProxyNoTLS() *postgres.Proxy {
 	return &postgres.Proxy{
 		Middleware: s.middleware,
 		Service:    s,
-		Limiter:    s.cfg.Limiter,
 		Log:        s.log,
+		// Limiter already applied before using this proxy.
+		Limiter: common.NoopLimiter{},
 	}
 }
 
@@ -383,20 +401,21 @@ func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
 		TLSConfig:       s.cfg.TLSConfig,
 		Middleware:      s.middleware,
 		Service:         s,
-		Limiter:         s.cfg.Limiter,
+		Limiter:         s.limiter,
 		Log:             s.log,
 		IngressReporter: s.cfg.IngressReporter,
 		ServerVersion:   s.cfg.MySQLServerVersion,
 	}
 }
 
-// MySQLProxyNoTLS returns a new instance of the non-TLS MySQL proxy.
-func (s *ProxyServer) MySQLProxyNoTLS() *mysql.Proxy {
+// mysqlProxyNoTLS returns a new instance of the non-TLS MySQL proxy.
+func (s *ProxyServer) mysqlProxyNoTLS() *mysql.Proxy {
 	return &mysql.Proxy{
 		Middleware: s.middleware,
 		Service:    s,
-		Limiter:    s.cfg.Limiter,
 		Log:        s.log,
+		// Limiter already applied before using this proxy.
+		Limiter: common.NoopLimiter{},
 	}
 }
 
@@ -418,12 +437,7 @@ func (s *ProxyServer) SQLServerProxy() *sqlserver.Proxy {
 //
 // Implements common.Service.
 func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error) {
-	var labels prometheus.Labels
-	if len(proxyCtx.Servers) > 0 {
-		labels = getLabelsFromDB(proxyCtx.Servers[0].GetDatabase())
-	} else {
-		labels = getLabelsFromDB(nil)
-	}
+	labels := getCommonLabelsFromProxyCtx(proxyCtx)
 	labels["available_db_servers"] = strconv.Itoa(len(proxyCtx.Servers))
 	defer observeLatency(connectionSetupTime.With(labels))()
 
@@ -476,13 +490,7 @@ func (s *ProxyServer) Proxy(ctx context.Context, proxyCtx *common.ProxyContext, 
 		return trace.Wrap(err)
 	}
 
-	var labels prometheus.Labels
-	if len(proxyCtx.Servers) > 0 {
-		labels = getLabelsFromDB(proxyCtx.Servers[0].GetDatabase())
-	} else {
-		labels = getLabelsFromDB(nil)
-	}
-
+	labels := getCommonLabelsFromProxyCtx(proxyCtx)
 	activeConnections.With(labels).Inc()
 	defer activeConnections.With(labels).Dec()
 
@@ -544,6 +552,53 @@ func (s *ProxyServer) Authorize(ctx context.Context, tlsConn utils.TLSConn, para
 	}, nil
 }
 
+type proxyLimiter struct {
+	closeCtx    context.Context
+	connLimiter *limiter.Limiter
+	service     types.Semaphores
+}
+
+// RegisterClientIPFromConn applies connection and rate limiting. Returned
+// release func must be called when the connection handling is done.
+func (l *proxyLimiter) RegisterClientIPFromConn(conn net.Conn) (func(), string, error) {
+	clientIP, err := utils.ClientIPFromConn(conn)
+	if err != nil {
+		return func() {}, "", trace.Wrap(err)
+	}
+	release, err := l.connLimiter.RegisterRequestAndConnection(clientIP)
+	return release, clientIP, trace.Wrap(err)
+}
+
+// RegisterIdentity applies per user max connection. Returned release func must
+// be called when the connection handling is done.
+func (l *proxyLimiter) RegisterIdentity(proxyCtx *common.ProxyContext) (func(), error) {
+	maxConnections := services.RoleSet(proxyCtx.AuthContext.Checker.Roles()).MaxDatabaseConnections()
+	if maxConnections == 0 {
+		return func() {}, nil
+	}
+
+	lock, err := services.AcquireSemaphoreLock(l.closeCtx, services.SemaphoreLockConfig{
+		Service: l.service,
+		Expiry:  sessionMaxLifetime,
+		Params: types.AcquireSemaphoreRequest{
+			SemaphoreKind: types.SemaphoreKindDatabaseConnection,
+			SemaphoreName: proxyCtx.Identity.Username,
+			MaxLeases:     maxConnections,
+			Holder:        proxyCtx.Identity.Username,
+		},
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), teleport.MaxLeases) {
+			err = trace.AccessDenied("too many concurrent database connections for user %q (max=%d)",
+				proxyCtx.Identity.Username, maxConnections)
+		}
+		labels := getCommonLabelsFromProxyCtx(proxyCtx)
+		rejectedConnections.With(labels).Inc()
+		return func() {}, trace.Wrap(err)
+	}
+	return lock.Stop, nil
+}
+
 func getConfigForClient(ctx context.Context, conf *tls.Config, ap authclient.ReadDatabaseAccessPoint, log *slog.Logger, caType types.CertAuthType) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		var clusterName string
@@ -577,6 +632,13 @@ func observeLatency(o prometheus.Observer) func() {
 }
 
 var commonLabels = []string{teleport.ComponentLabel, "db_protocol", "db_type"}
+
+func getCommonLabelsFromProxyCtx(proxyCtx *common.ProxyContext) prometheus.Labels {
+	if len(proxyCtx.Servers) > 0 {
+		return getLabelsFromDB(proxyCtx.Servers[0].GetDatabase())
+	}
+	return getLabelsFromDB(nil)
+}
 
 func getLabelsFromDB(db types.Database) prometheus.Labels {
 	if db != nil {
@@ -660,7 +722,18 @@ var (
 		commonLabels,
 	)
 
+	rejectedConnections = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      "connection_rejected_total",
+			Subsystem: "proxy_db",
+			Help:      "Number of rejected connections to DB service.",
+		},
+		commonLabels,
+	)
+
 	prometheusCollectors = []prometheus.Collector{
 		connectionSetupTime, tlsConfigTime, dialAttempts, dialFailures, dialAttemptedServers, activeConnections,
+		rejectedConnections,
 	}
 )

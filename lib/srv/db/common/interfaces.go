@@ -97,3 +97,13 @@ type AutoUsers interface {
 	// DeleteUser deletes the database user.
 	DeleteUser(context.Context, *Session) error
 }
+
+// Limiter defines an interface for limiting database connections.
+type Limiter interface {
+	// RegisterClientIPFromConn applies connection and rate limiting. Returned
+	// release func must be called when the connection handling is done.
+	RegisterClientIPFromConn(conn net.Conn) (release func(), clientIP string, err error)
+	// RegisterIdentity applies per user max connection. Returned release func
+	// must be called when the connection handling is done.
+	RegisterIdentity(proxyCtx *ProxyContext) (release func(), err error)
+}
