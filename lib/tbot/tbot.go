@@ -132,7 +132,14 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	defer func() { apitracing.EndSpan(span, err) }()
 	startedAt := time.Now()
 
-	if err := metrics.RegisterPrometheusCollectors(clientMetrics); err != nil {
+	if err := metrics.RegisterPrometheusCollectors(
+		metrics.BuildCollector(),
+		clientMetrics,
+		loopIterationsCounter,
+		loopIterationsSuccessCounter,
+		loopIterationsFailureCounter,
+		loopIterationTime,
+	); err != nil {
 		return trace.Wrap(err)
 	}
 
