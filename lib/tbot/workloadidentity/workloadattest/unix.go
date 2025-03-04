@@ -20,6 +20,10 @@ package workloadattest
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"io"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 	"github.com/shirou/gopsutil/v4/process"
@@ -27,13 +31,36 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
+// binaryHashMaxBytes is the maximum number of bytes we'll read from a process'
+// binary to calculate its SHA256 checksum.
+const binaryHashMaxBytes = 1024 * 1024 * 100
+
 // UnixAttestor attests a process id to a Unix process.
 type UnixAttestor struct {
+	log *slog.Logger
+	os  UnixOS
+}
+
+// UnixOS is a handle on the operating system-specific features used by the Unix
+// workload attestor.
+type UnixOS interface {
+	// ExePath returns the filesystem path of the given process' executable.
+	ExePath(ctx context.Context, proc *process.Process) (string, error)
+
+	// OpenExe opens the given process' executable for reading.
+	//
+	// Use this rather than `os.Open(ExePath(proc))` because operating systems
+	// like Linux provide ways to read the original executable when the file on
+	// disk is replaced or modified.
+	OpenExe(ctx context.Context, proc *process.Process) (io.ReadCloser, error)
 }
 
 // NewUnixAttestor returns a new UnixAttestor.
-func NewUnixAttestor() *UnixAttestor {
-	return &UnixAttestor{}
+func NewUnixAttestor(log *slog.Logger) *UnixAttestor {
+	return &UnixAttestor{
+		log: log,
+		os:  unixOS,
+	}
 }
 
 // Attest attests a process id to a Unix process.
@@ -89,5 +116,53 @@ func (a *UnixAttestor) Attest(ctx context.Context, pid int) (*workloadidentityv1
 		att.Uid = uids[1]
 	}
 
+	path, err := a.os.ExePath(ctx, p)
+	switch {
+	case trace.IsNotFound(err):
+		// We could not find the executable because we're in a different mount namespace.
+	case err != nil:
+		a.log.ErrorContext(ctx, "Failed to find workload executable", "error", err)
+	default:
+		att.BinaryPath = &path
+	}
+
+	exe, err := a.os.OpenExe(ctx, p)
+	if err != nil {
+		a.log.ErrorContext(ctx, "Failed to open workload executable for hashing", "error", err)
+		return att, nil
+	}
+	defer func() { _ = exe.Close() }()
+
+	hash := sha256.New()
+	if _, err := copyAtMost(hash, exe, binaryHashMaxBytes); err != nil {
+		a.log.ErrorContext(ctx, "Failed to hash workload executable", "error", err)
+		return att, nil
+	}
+	sum := hex.EncodeToString(hash.Sum(nil))
+	att.BinaryHash = &sum
+
 	return att, nil
+}
+
+// copyAtMost copies at most n bytes from src to dst. If src contains more than
+// n bytes, a LimitExceeded error will be returned.
+func copyAtMost(dst io.Writer, src io.Reader, n int64) (int64, error) {
+	copied, err := io.CopyN(dst, src, n)
+	switch {
+	case err == io.EOF:
+		return copied, nil
+	case err != nil:
+		return 0, err
+	}
+
+	// Try to read one more byte to see if we reached the end of src.
+	_, err = src.Read([]byte{0})
+	switch {
+	case err == io.EOF:
+		return copied, nil
+	case err != nil:
+		return 0, err
+	default:
+		return 0, trace.LimitExceeded("input is larger than limit (%d)", n)
+	}
 }
