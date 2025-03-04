@@ -1290,9 +1290,15 @@ func (set RoleSet) AdjustMFAVerificationInterval(ttl time.Duration, enforce bool
 // allowed.  If MaxConnections is zero then no maximum was defined
 // and the number of concurrent connections is unconstrained.
 func (set RoleSet) MaxConnections() int64 {
+	return set.maxConnectionsByOption(func(role types.Role) int64 {
+		return role.GetOptions().MaxConnections
+	})
+}
+
+func (set RoleSet) maxConnectionsByOption(getOptionValue func(types.Role) int64) int64 {
 	var mcs int64
 	for _, role := range set {
-		if m := role.GetOptions().MaxConnections; m != 0 && (m < mcs || mcs == 0) {
+		if m := getOptionValue(role); m != 0 && (m < mcs || mcs == 0) {
 			mcs = m
 		}
 	}
@@ -1303,26 +1309,28 @@ func (set RoleSet) MaxConnections() int64 {
 // per connection.  If MaxSessions is zero then no maximum was defined
 // and the number of sessions is unconstrained.
 func (set RoleSet) MaxSessions() int64 {
-	var ms int64
-	for _, role := range set {
-		if m := role.GetOptions().MaxSessions; m != 0 && (m < ms || ms == 0) {
-			ms = m
-		}
-	}
-	return ms
+	return set.maxConnectionsByOption(func(role types.Role) int64 {
+		return role.GetOptions().MaxSessions
+	})
 }
 
-// MaxConnections returns the maximum number of concurrent Kubernetes connections
-// allowed.  If MaxConnections is zero then no maximum was defined
-// and the number of concurrent connections is unconstrained.
+// MaxKubernetesConnections returns the maximum number of concurrent Kubernetes
+// connections allowed. If MaxKubernetesConnections is zero then no maximum was
+// defined and the number of concurrent connections is unconstrained.
 func (set RoleSet) MaxKubernetesConnections() int64 {
-	var mcs int64
-	for _, role := range set {
-		if m := role.GetOptions().MaxKubernetesConnections; m != 0 && (m < mcs || mcs == 0) {
-			mcs = m
-		}
-	}
-	return mcs
+	return set.maxConnectionsByOption(func(role types.Role) int64 {
+		return role.GetOptions().MaxKubernetesConnections
+	})
+}
+
+// MaxDatabaseConnections returns the maximum number of concurrent database
+// connections a user may hold. If MaxDatabaseConnections is zero then no
+// maximum was defined and the number of concurrent connections is
+// unconstrained.
+func (set RoleSet) MaxDatabaseConnections() int64 {
+	return set.maxConnectionsByOption(func(role types.Role) int64 {
+		return role.GetOptions().MaxDatabaseConnections
+	})
 }
 
 // SessionPolicySets returns the list of SessionPolicySets for all roles.

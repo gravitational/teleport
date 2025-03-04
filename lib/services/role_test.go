@@ -91,8 +91,10 @@ func TestConnAndSessLimits(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						MaxConnections: val,
-						MaxSessions:    val,
+						MaxConnections:           val,
+						MaxSessions:              val,
+						MaxKubernetesConnections: val * 2,
+						MaxDatabaseConnections:   val * 3,
 					},
 				},
 			}
@@ -101,6 +103,8 @@ func TestConnAndSessLimits(t *testing.T) {
 		}
 		require.Equal(t, tt.want, set.MaxConnections(), cmt)
 		require.Equal(t, tt.want, set.MaxSessions(), cmt)
+		require.Equal(t, tt.want*2, set.MaxKubernetesConnections(), cmt)
+		require.Equal(t, tt.want*3, set.MaxDatabaseConnections(), cmt)
 	}
 }
 

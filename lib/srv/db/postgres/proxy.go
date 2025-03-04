@@ -28,7 +28,6 @@ import (
 	"github.com/jackc/pgproto3/v2"
 
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/utils"
@@ -47,8 +46,8 @@ type Proxy struct {
 	Service common.Service
 	// Log is used for logging.
 	Log *slog.Logger
-	// Limiter limits the number of active connections per client IP.
-	Limiter *limiter.Limiter
+	// Limiter limits database connections.
+	Limiter common.Limiter
 	// IngressReporter reports new and active connections.
 	IngressReporter *ingress.Reporter
 }
@@ -77,13 +76,8 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 // handleConnection dials database service, sends the postgres startup
 // message, and begins proxying the connection.
 func (p *Proxy) handleConnection(ctx context.Context, clientConn utils.TLSConn, startupMessage pgproto3.FrontendMessage) error {
-	clientIP, err := utils.ClientIPFromConn(clientConn)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Apply connection and rate limiting.
-	releaseConn, err := p.Limiter.RegisterRequestAndConnection(clientIP)
+	releaseConn, clientIP, err := p.Limiter.RegisterClientIP(clientConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -95,6 +89,13 @@ func (p *Proxy) handleConnection(ctx context.Context, clientConn utils.TLSConn, 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Apply per user max connections.
+	releaseIdentity, err := p.Limiter.RegisterIdentity(ctx, proxyCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer releaseIdentity()
 
 	if p.IngressReporter != nil {
 		p.IngressReporter.ConnectionAuthenticated(ingress.Postgres, clientConn)

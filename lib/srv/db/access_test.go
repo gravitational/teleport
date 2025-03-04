@@ -2266,7 +2266,34 @@ func init() {
 	SetShuffleFunc(dbconnect.ShuffleSort)
 }
 
-func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDatabaseOption) *testContext {
+type setupOptions struct {
+	proxyLimiter  *limiter.Limiter
+	withDatabases []withDatabaseOption
+}
+
+type applySetupOption interface {
+	apply(*setupOptions)
+}
+
+// applySetupOptionFunc is a generic wrapper to implement applySetupOption.
+type applySetupOptionFunc func(*setupOptions)
+
+func (f applySetupOptionFunc) apply(o *setupOptions) {
+	f(o)
+}
+
+func withProxyLimiter(limiter *limiter.Limiter) applySetupOption {
+	return applySetupOptionFunc(func(o *setupOptions) {
+		o.proxyLimiter = limiter
+	})
+}
+
+func setupTestContext(ctx context.Context, t testing.TB, applyOpts ...applySetupOption) *testContext {
+	opts := &setupOptions{}
+	for _, opt := range applyOpts {
+		opt.apply(opts)
+	}
+
 	testCtx := &testContext{
 		clusterName:   "root.example.com",
 		hostID:        uuid.New().String(),
@@ -2366,7 +2393,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 
 	// Set up database servers used by this test.
 	var databases []types.Database
-	for _, withDatabase := range withDatabases {
+	for _, withDatabase := range opts.withDatabases {
 		databases = append(databases, withDatabase(t, ctx, testCtx))
 	}
 
@@ -2378,9 +2405,13 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 			testCtx.fakeRemoteSite,
 		},
 	}
-	// Empty config means no limit.
-	connLimiter, err := limiter.NewLimiter(limiter.Config{})
-	require.NoError(t, err)
+
+	if opts.proxyLimiter == nil {
+		// Empty config means no limit.
+		connLimiter, err := limiter.NewLimiter(limiter.Config{})
+		require.NoError(t, err)
+		opts.proxyLimiter = connLimiter
+	}
 
 	// Create test audit events emitter.
 	// NOTE(gavin): this emitter is just a buffered channel and it will block if
@@ -2406,7 +2437,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 		Authorizer:        proxyAuthorizer,
 		Tunnel:            tunnel,
 		TLSConfig:         tlsConfig,
-		Limiter:           connLimiter,
+		Limiter:           opts.proxyLimiter,
 		ConnectionMonitor: connMonitor,
 	})
 	require.NoError(t, err)
@@ -2721,6 +2752,11 @@ func TestAccessClickHouse(t *testing.T) {
 }
 
 type withDatabaseOption func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database
+
+// apply implements applySetupOption and append the database creation func.
+func (f withDatabaseOption) apply(options *setupOptions) {
+	options.withDatabases = append(options.withDatabases, f)
+}
 
 type databaseOption func(*types.DatabaseV3)
 

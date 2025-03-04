@@ -3260,6 +3260,10 @@ message RoleOptions {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "ssh_port_forwarding,omitempty"
   ];
+
+  // MaxDatabaseConnections defines the maximum number of concurrent
+  // database connections a user may hold.
+  int64 MaxDatabaseConnections = 33 [(gogoproto.jsontag) = "max_db_connections,omitempty"];
 }
 
 message RecordSession {

@@ -31,7 +31,6 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
@@ -53,8 +52,8 @@ type Proxy struct {
 	Service common.Service
 	// Log is used for logging.
 	Log *slog.Logger
-	// Limiter limits the number of active connections per client IP.
-	Limiter *limiter.Limiter
+	// Limiter limits database connections.
+	Limiter common.Limiter
 	// IngressReporter reports new and active connections.
 	IngressReporter *ingress.Reporter
 	// ServerVersion allows to overwrite the default Proxy MySQL Engine Version. Note that for TLS Routing connection
@@ -97,17 +96,8 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 		return trace.Wrap(err)
 	}
 
-	if p.IngressReporter != nil {
-		p.IngressReporter.ConnectionAuthenticated(ingress.MySQL, clientConn)
-		defer p.IngressReporter.AuthenticatedConnectionClosed(ingress.MySQL, clientConn)
-	}
-
-	clientIP, err := utils.ClientIPFromConn(clientConn)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	// Apply connection and rate limiting.
-	releaseConn, err := p.Limiter.RegisterRequestAndConnection(clientIP)
+	releaseConn, clientIP, err := p.Limiter.RegisterClientIP(tlsConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -120,6 +110,18 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	})
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// Apply per user max connections.
+	releaseIdentity, err := p.Limiter.RegisterIdentity(ctx, proxyCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer releaseIdentity()
+
+	if p.IngressReporter != nil {
+		p.IngressReporter.ConnectionAuthenticated(ingress.MySQL, clientConn)
+		defer p.IngressReporter.AuthenticatedConnectionClosed(ingress.MySQL, clientConn)
 	}
 
 	serviceConn, err := p.Service.Connect(ctx, proxyCtx, clientConn.RemoteAddr(), clientConn.LocalAddr())
