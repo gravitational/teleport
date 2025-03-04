@@ -64,6 +64,7 @@ const (
 
 // LocalInstaller manages the creation and removal of installations
 // of Teleport.
+// SetRequiredUmask must be called before any methods are executed.
 type LocalInstaller struct {
 	// InstallDir contains each installation, named by version.
 	InstallDir string
