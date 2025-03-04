@@ -381,6 +381,7 @@ message SignRequest {
   // Hash is the hash function used to prepare the digest.
   Hash hash = 4;
   // SaltLength specifies the length of the salt added to the digest before a signature.
+  // This salt length is precomputed by the client, following the crypto/rsa implementation.
   // Only used, and required, for PSS RSA signatures.
   uint32 salt_length = 5;
 }
