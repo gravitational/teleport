@@ -32,6 +32,8 @@ import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/us
 import { TopBar as Component } from 'teleport/TopBar';
 import { UserContext } from 'teleport/User/UserContext';
 
+import { InfoParagraph, InfoTitle, ReferenceLinks } from './InfoGuideSidePanel';
+
 export const TopBar: React.FC<PropsWithChildren> = ({ children }) => {
   const ctx = createTeleportContext();
   const updatePreferences = () => Promise.resolve();
@@ -75,44 +77,49 @@ export const TopBar: React.FC<PropsWithChildren> = ({ children }) => {
   );
 };
 
-export const LongContent = () => (
-  <Box p={3}>
-    <Box>
-      1 Lorem ipsum dolor sit, amet consectetur adipisicing elit. Commodi
-      corrupti voluptates aliquam eligendi placeat harum rerum ipsam. Corrupti
-      architecto laudantium, libero perspiciatis officia doloremque est aliquam,
-      eius qui tenetur a.
-    </Box>
-    <Box mt={3}>
+export const LongContent = ({ withPadding = false }) => (
+  <Box px={withPadding ? 3 : 0}>
+    <InfoTitle>Each title is wrapped with InfoTitle component</InfoTitle>
+    <InfoParagraph>
+      Each paragraphs are wrapped with InfoParagraph component.
+    </InfoParagraph>
+    <InfoTitle>InfoTitle Two</InfoTitle>
+    <InfoParagraph>
       2 Lorem ipsum dolor sit, amet consectetur adipisicing elit. Commodi
       corrupti voluptates aliquam eligendi placeat harum rerum ipsam. Corrupti
       architecto laudantium, libero perspiciatis officia doloremque est aliquam,
-      eius qui tenetur a.
-    </Box>
-    <Box mt={3}>
+      eius qui tenetur.
+    </InfoParagraph>
+    <InfoTitle>InfoTitle Three</InfoTitle>
+    <InfoParagraph>
       3 Lorem ipsum dolor sit, amet consectetur adipisicing elit. Commodi
       corrupti voluptates aliquam eligendi placeat harum rerum ipsam. Corrupti
       architecto laudantium, libero perspiciatis officia doloremque est aliquam,
-      eius qui tenetur a.
-    </Box>
-    <Box mt={3}>
+      eius qui tenetur.
+    </InfoParagraph>
+    <InfoTitle>InfoTitle Four</InfoTitle>
+    <InfoParagraph>
       4 Lorem ipsum dolor sit, amet consectetur adipisicing elit. Commodi
       corrupti voluptates aliquam eligendi placeat harum rerum ipsam. Corrupti
       architecto laudantium, libero perspiciatis officia doloremque est aliquam,
-      eius qui tenetur a.
-    </Box>
-    <Box mt={3}>
+      eius qui tenetur.
+    </InfoParagraph>
+    <InfoTitle>InfoTitle Five</InfoTitle>
+    <InfoParagraph>
       5 Lorem ipsum dolor sit, amet consectetur adipisicing elit. Commodi
       corrupti voluptates aliquam eligendi placeat harum rerum ipsam. Corrupti
       architecto laudantium, libero perspiciatis officia doloremque est aliquam,
-      eius qui tenetur a.
-    </Box>
-    <Box mt={3}>
-      6 Lorem ipsum dolor sit, amet consectetur adipisicing elit. Commodi
-      corrupti voluptates aliquam eligendi placeat harum rerum ipsam. Corrupti
-      architecto laudantium, libero perspiciatis officia doloremque est aliquam,
-      eius qui tenetur a.
-    </Box>
+      eius qui tenetur.
+    </InfoParagraph>
+    <ReferenceLinks
+      links={[
+        { title: 'Some Link 1', href: '' },
+        { title: 'Some Link 2', href: '' },
+        { title: 'Some Link 3', href: '' },
+        { title: 'Some Link 4', href: '' },
+        { title: 'Some Link 5', href: '' },
+      ]}
+    />
   </Box>
 );
 

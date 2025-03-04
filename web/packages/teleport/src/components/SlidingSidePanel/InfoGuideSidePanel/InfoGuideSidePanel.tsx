@@ -17,9 +17,11 @@
  */
 
 import React, { PropsWithChildren } from 'react';
+import styled from 'styled-components';
 
-import { Box, ButtonIcon, Flex, Text } from 'design';
+import { Box, ButtonIcon, Flex, H3, Link, Text } from 'design';
 import { Cross, Info } from 'design/Icon';
+import { P } from 'design/Text/Text';
 
 import { useInfoGuide } from 'teleport/Main/InfoGuideContext';
 import { zIndexMap } from 'teleport/Navigation/zIndexMap';
@@ -99,3 +101,46 @@ export const InfoGuideWrapper: React.FC<
     </Flex>
   );
 };
+
+export const InfoTitle = styled(H3)`
+  margin-bottom: ${p => p.theme.space[2]}px;
+  margin-top: ${p => p.theme.space[3]}px;
+`;
+
+export const InfoParagraph = styled(P)`
+  margin-bottom: ${p => p.theme.space[3]}px;
+`;
+
+/**
+ * Links used within a paragraph. The color of link is same as main texts
+ * so it doesn't take so much focus away from the paragraph.
+ */
+export const InfoExternalTextLink = styled(Link).attrs({ target: '_blank' })`
+  color: ${({ theme }) => theme.colors.text.main};
+`;
+
+export const InfoUl = styled.ul`
+  margin: 0;
+  padding-left: ${p => p.theme.space[4]}px;
+`;
+const InfoLinkLi = styled.li`
+  color: ${({ theme }) => theme.colors.interactive.solid.accent.default};
+`;
+export const ReferenceLinks = ({
+  links,
+}: {
+  links: { title: string; href: string }[];
+}) => (
+  <>
+    <InfoTitle>Reference Links</InfoTitle>
+    <InfoUl>
+      {links.map(link => (
+        <InfoLinkLi key={link.href}>
+          <Link target="_blank" href={link.href}>
+            {link.title}
+          </Link>
+        </InfoLinkLi>
+      ))}
+    </InfoUl>
+  </>
+);

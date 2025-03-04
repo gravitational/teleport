@@ -73,7 +73,9 @@ export function Controls(props: StoryProps) {
         slideFrom={props.slideFrom}
         panelOffset={props.panelOffset}
       >
-        <LongContent />
+        <Box css={{ height: '100%', overflow: 'auto' }}>
+          <LongContent withPadding />
+        </Box>
       </SlidingSidePanel>
     </TopBar>
   );
