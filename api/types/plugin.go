@@ -820,10 +820,20 @@ func (s AWSICResourceFilter) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// Check validates the [code] value, returning an error if the value is not a
+// defined member of the [AWSICGroupImportStatusCode] enum.
+func (code AWSICGroupImportStatusCode) Check() error {
+	if _, ok := AWSICGroupImportStatusCode_name[int32(code)]; ok {
+		return nil
+	}
+	return trace.BadParameter("invalid group import state %d", int(code))
+}
+
+// CheckAndSetDefaults validates the values in the plugin status struct.
 func (s *PluginAWSICStatusV1) CheckAndSetDefaults() error {
 	if gis := s.GroupImportStatus; gis != nil {
-		if gis.StatusCode.String() == "" {
-			return trace.BadParameter("invalid group import state %d", gis.StatusCode)
+		if err := gis.StatusCode.Check(); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 	return nil
