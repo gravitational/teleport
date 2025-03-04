@@ -30,6 +30,7 @@ import {
   Indicator,
   Label,
   Link,
+  Mark,
   MenuItem,
   Text,
 } from 'design';
@@ -53,6 +54,13 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import ResourceEditor from 'teleport/components/ResourceEditor';
+import {
+  InfoExternalTextLink,
+  InfoGuideWrapper,
+  InfoParagraph,
+  InfoTitle,
+  ReferenceLinks,
+} from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import useResources from 'teleport/components/useResources';
 import { JoinToken } from 'teleport/services/joinToken';
 import { KindJoinToken, Resource } from 'teleport/services/resources';
@@ -137,18 +145,22 @@ export const JoinTokens = () => {
           border-bottom: none;
         `}
         alignItems="center"
+        justifyContent="space-between"
       >
         <FeatureHeaderTitle>Join Tokens</FeatureHeaderTitle>
         {!creatingToken && !editingToken && (
-          <Button
-            intent="primary"
-            fill="border"
-            ml="auto"
-            width="240px"
-            onClick={() => setCreatingToken(true)}
-          >
-            Create New Token
-          </Button>
+          <Flex alignItems="center" gap={2}>
+            <Button
+              intent="primary"
+              fill="border"
+              ml="auto"
+              width="240px"
+              onClick={() => setCreatingToken(true)}
+            >
+              Create New Token
+            </Button>
+            <InfoGuideWrapper guide={<InfoGuide />} />
+          </Flex>
         )}
       </FeatureHeader>
       <Flex>
@@ -458,3 +470,58 @@ function Directions() {
     </>
   );
 }
+
+const InfoGuideReferenceLinks = {
+  JoinTokens: {
+    title: 'Join Tokens',
+    href: 'https://goteleport.com/docs/reference/join-methods/',
+  },
+  DelegatedJoinMethods: {
+    title: 'Delegated Join Methods',
+    href: 'https://goteleport.com/docs/reference/join-methods/#delegated-join-methods',
+  },
+  SecretBasedJoinMethods: {
+    title: 'Secret-based Join Methods',
+    href: 'https://goteleport.com/docs/reference/join-methods/#secret-based-join-methods',
+  },
+};
+
+const InfoGuide = () => (
+  <Box>
+    <InfoTitle>Join Tokens</InfoTitle>
+    <InfoParagraph>
+      <InfoExternalTextLink href={InfoGuideReferenceLinks.JoinTokens.href}>
+        Join Tokens
+      </InfoExternalTextLink>{' '}
+      are how a Teleport agent authenticates itself to the Teleport cluster.
+    </InfoParagraph>
+    <InfoParagraph>
+      There are Join Tokens for most types of infrastructure you can connect to
+      Teleport that establish an identity for that infrastructure using
+      metadata, such as AWS role, GitHub organization or TPM hash. These are
+      called{' '}
+      <InfoExternalTextLink
+        href={InfoGuideReferenceLinks.DelegatedJoinMethods.href}
+      >
+        delegated join methods
+      </InfoExternalTextLink>
+      . We recommend you use these methods whenever possible. When they are not
+      available, there are{' '}
+      <InfoExternalTextLink
+        href={InfoGuideReferenceLinks.SecretBasedJoinMethods.href}
+      >
+        secret-based join methods
+      </InfoExternalTextLink>{' '}
+      to fall back on.
+    </InfoParagraph>
+    <InfoParagraph>
+      Agents’ permission to provide different connection services are limited by
+      the system role of their join token. For example, if you want to provide
+      access to a HTTP application running on a server, but also want to provide
+      SSH access to that server, the join token it uses must have both the{' '}
+      <Mark>node</Mark>
+      and <Mark>app</Mark> permissions.
+    </InfoParagraph>
+    <ReferenceLinks links={Object.values(InfoGuideReferenceLinks)} />
+  </Box>
+);

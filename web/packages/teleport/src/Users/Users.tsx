@@ -17,8 +17,17 @@
  */
 
 import React from 'react';
+import { Link as InternalLink } from 'react-router-dom';
 
-import { Alert, Box, Button, Flex, Indicator, Link, Text } from 'design';
+import {
+  Alert,
+  Box,
+  Button,
+  Link as ExternalLink,
+  Flex,
+  Indicator,
+  Text,
+} from 'design';
 import { HoverTooltip } from 'design/Tooltip';
 
 import {
@@ -26,6 +35,15 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+import {
+  InfoExternalTextLink,
+  InfoGuideWrapper,
+  InfoParagraph,
+  InfoTitle,
+  InfoUl,
+  ReferenceLinks,
+} from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
+import cfg from 'teleport/config';
 
 import UserAddEdit from './UserAddEdit';
 import UserDelete from './UserDelete';
@@ -82,7 +100,7 @@ export function Users(props: State) {
       <FeatureHeader justifyContent="space-between">
         <FeatureHeaderTitle>Users</FeatureHeaderTitle>
         {attempt.isSuccess && (
-          <>
+          <Flex gap={2}>
             {!InviteCollaborators && (
               <HoverTooltip
                 position="bottom"
@@ -141,7 +159,8 @@ export function Users(props: State) {
                 Enroll Users
               </Button>
             )}
-          </>
+            <InfoGuideWrapper guide={<InfoGuide />} />
+          </Flex>
         )}
       </FeatureHeader>
       {attempt.isProcessing && (
@@ -166,20 +185,20 @@ export function Users(props: State) {
           Sign-On (SSO) providers such as Okta may only appear here temporarily
           and disappear once their sessions expire. For more information, read
           our documentation on{' '}
-          <Link
+          <ExternalLink
             target="_blank"
             href="https://goteleport.com/docs/usage-billing/#monthly-active-users"
             className="external-link"
           >
             MAU
-          </Link>{' '}
+          </ExternalLink>{' '}
           and{' '}
-          <Link
+          <ExternalLink
             href="https://goteleport.com/docs/reference/user-types/"
             className="external-link"
           >
             User Types
-          </Link>
+          </ExternalLink>
           .
         </Alert>
       )}
@@ -232,3 +251,39 @@ export function Users(props: State) {
     </FeatureBox>
   );
 }
+
+const InfoGuideReferenceLinks = {
+  Users: {
+    title: 'Teleport Users',
+    href: 'https://goteleport.com/docs/core-concepts/#teleport-users',
+  },
+};
+
+const InfoGuide = () => (
+  <Box>
+    <InfoTitle>Users</InfoTitle>
+    <InfoParagraph>
+      Teleport allows for two kinds of{' '}
+      <InfoExternalTextLink href={InfoGuideReferenceLinks.Users}>
+        users
+      </InfoExternalTextLink>
+      :
+      <InfoUl>
+        <li>
+          <b>Local</b> users are created and managed in Teleport and stored in
+          the Auth Service backend.
+        </li>
+        <li>
+          <b>Single Sign-On (SSO)</b> users are stored on the backend of your
+          SSO solution, e.g., Okta or GitHub. SSO can be set up with an{' '}
+          <InternalLink to={cfg.routes.sso}>Auth Connector</InternalLink>.
+        </li>
+      </InfoUl>
+    </InfoParagraph>
+    <InfoParagraph>
+      To take any action in Teleport, users must have at least one{' '}
+      <InternalLink to={cfg.routes.roles}>Role</InternalLink> assigned.
+    </InfoParagraph>
+    <ReferenceLinks links={Object.values(InfoGuideReferenceLinks)} />
+  </Box>
+);
