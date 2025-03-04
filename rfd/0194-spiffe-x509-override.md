@@ -7,8 +7,7 @@ state: draft
 
 ## Required Approvers
 
-* Engineering: @strideynet && TBD
-* Product: TBD
+* Engineering: @strideynet || @timothyb89
 
 ## What
 
@@ -53,9 +52,7 @@ This format was chosen to allow for maximum flexibility in exchange for some pot
 
 If no issuer is found for the key selected by the Auth at issuance time, issuance will fail, because failing to issue credentials is better than silently succeeding in issuing credentials that no validator is intended to trust. For reliable operations, it's important that issuer overrides are kept up to date with any new keys added during a CA rotation - the `init` phase of the CA rotation is a good time to update them, and the CA rotation interactive helper will be updated to warn against advancing phases if issuer overrides are detected with missing keys.
 
-A new RPC for signing CSRs will be added to the Auth, to support users and automation in getting intermediate certificates issued by external PKIs which often require a CSR to be signed and not just a public key (which can be read by any client).
-
-TBD: how flexible should the CSR generation be? ACME wants subject and SANs to be in the CSR, but Venafi's Zero-Touch PKI is fine with a blank CSR since everything about the cert is specified out of band.
+A new RPC for signing CSRs will be added to the Auth, to support users and automation in getting intermediate certificates issued by external PKIs which often require a CSR to be signed and not just a public key (which can be read by any client). Depending on the requirements of certificate issuance services we'll end up supporting, we'll have different "modes" for the CSR signature, including two that are respectively selecting a "blank" CSR and a CSR with the same subject as the Teleport X.509 issuer. Existing X.509 certificate issuers have a nonce in the `serialNumber` field in their subject, which is not necessarily supported as one that moves the content of the `serialNumber` in the subject to a more commonly supported `organizationalUnit`.
 
 ### API changes
 
@@ -74,13 +71,11 @@ For manual operations, a `tctl workload-identity x509-issuer-override sign-x509-
 
 A `tctl workload-identity x509-issuer-override status` command will fetch both CA and default override, and display a summary of the configured overrides and their expiration date, highlighting CA keys that are missing an override or overrides that are no longer necessary.
 
-The intended automated way to set up and renew a certificate override will be through a `tbot` service with type `workload-identity-x509-issuer-override`, usable as both a long-running service and as a "oneshot" service. The service will be configured with credentials for a service that issues intermediate certificate authority certificates, and it will issue and renew overrides for each of the configured issuers in the SPIFFE CA.
-
-TBD: configuration for `workload-identity-x509-issuer-override` service
+The intended automated way to set up and renew a certificate override will be through a new `tbot` service, usable as both a long-running service and as a "oneshot" service. The service will support select services that issue intermediate certificate authority certificates, and it will issue new intermediates following CA rotations of the Teleport SPIFFE CA and renew existing ones as they're about to expire.
 
 ### Audit log
 
-WIP: new `workload_identity_x509_issuer_override.create` (`write`?)/`.delete` event with user metadata for who/what did it
+New `workload_identity_x509_issuer_override.{create,update,delete}` events will be emitted to keep track of changes to the issuer override, containing resource metadata with the override name (for now, always `default`) and user metadata with the identity that caused the event.
 
 ## Root override (out of scope)
 
