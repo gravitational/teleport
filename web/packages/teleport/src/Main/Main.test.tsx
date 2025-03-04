@@ -18,9 +18,8 @@
 
 import { MemoryRouter } from 'react-router';
 
-import Box from 'design/Box';
 import { ListThin } from 'design/Icon';
-import { fireEvent, render, screen, userEvent } from 'design/utils/testing';
+import { fireEvent, render, screen } from 'design/utils/testing';
 
 import { Context, ContextProvider } from 'teleport';
 import { apps } from 'teleport/Apps/fixtures';
@@ -30,22 +29,18 @@ import { InfoGuideWrapper } from 'teleport/components/SlidingSidePanel/InfoGuide
 import { databases } from 'teleport/Databases/fixtures';
 import { desktops } from 'teleport/Desktops/fixtures';
 import { getOSSFeatures } from 'teleport/features';
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { kubes } from 'teleport/Kubes/fixtures';
 import { userContext } from 'teleport/Main/fixtures';
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { NavigationCategory } from 'teleport/Navigation';
 import { nodes } from 'teleport/Nodes/fixtures';
-import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 import { sessions } from 'teleport/Sessions/fixtures';
 import TeleportContext from 'teleport/teleportContext';
-import { NavTitle, TeleportFeature } from 'teleport/types';
+import { TeleportFeature } from 'teleport/types';
 import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
 import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
-import { UserContext } from 'teleport/User/UserContext';
 
-import { useInfoGuide } from './InfoGuideContext';
 import { Main, MainProps } from './Main';
 
 const setupContext = (): TeleportContext => {
@@ -170,19 +165,16 @@ test('renders without invite collaborators feedback enabled', () => {
 });
 
 const TestInfoGuide = () => {
-  const { setInfoGuideElement } = useInfoGuide();
   return (
     <div>
-      <InfoGuideWrapper
-        onClick={() => setInfoGuideElement(<div>I am the guide</div>)}
-      >
+      <InfoGuideWrapper guide={<div>I am the guide</div>}>
         Info Guide Title
       </InfoGuideWrapper>
     </div>
   );
 };
 
-export class FeatureTestInfoGuide implements TeleportFeature {
+class FeatureTestInfoGuide implements TeleportFeature {
   category = NavigationCategory.Audit;
 
   route = {
