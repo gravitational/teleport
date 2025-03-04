@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestValidator_IsBinary(t *testing.T) {
+func TestValidator_IsValidBinary(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
 		mode     os.FileMode
@@ -85,7 +85,7 @@ func TestValidator_IsBinary(t *testing.T) {
 			if tt.contents != "" {
 				os.WriteFile(path, []byte(tt.contents), tt.mode)
 			}
-			val, err := v.IsBinary(ctx, path)
+			val, err := v.IsValidBinary(ctx, path)
 			if tt.logMatch != "" {
 				require.Contains(t, buf.String(), tt.logMatch)
 			}

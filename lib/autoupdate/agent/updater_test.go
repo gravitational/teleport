@@ -89,7 +89,8 @@ func TestUpdater_Disable(t *testing.T) {
 			_, err := ns.Init()
 			require.NoError(t, err)
 			cfgPath := filepath.Join(ns.Dir(), updateConfigName)
-			updater, err := NewLocalUpdater(LocalUpdaterConfig{
+			ctx := context.Background()
+			updater, err := NewLocalUpdater(ctx, LocalUpdaterConfig{
 				InsecureSkipVerify: true,
 			}, ns)
 			require.NoError(t, err)
@@ -176,8 +177,8 @@ func TestUpdater_Unpin(t *testing.T) {
 			_, err := ns.Init()
 			require.NoError(t, err)
 			cfgPath := filepath.Join(ns.Dir(), updateConfigName)
-
-			updater, err := NewLocalUpdater(LocalUpdaterConfig{
+			ctx := context.Background()
+			updater, err := NewLocalUpdater(ctx, LocalUpdaterConfig{
 				InsecureSkipVerify: true,
 			}, ns)
 			require.NoError(t, err)
@@ -705,8 +706,8 @@ func TestUpdater_Update(t *testing.T) {
 			_, err := ns.Init()
 			require.NoError(t, err)
 			cfgPath := filepath.Join(ns.Dir(), updateConfigName)
-
-			updater, err := NewLocalUpdater(LocalUpdaterConfig{
+			ctx := context.Background()
+			updater, err := NewLocalUpdater(ctx, LocalUpdaterConfig{
 				InsecureSkipVerify: true,
 			}, ns)
 			require.NoError(t, err)
@@ -794,7 +795,6 @@ func TestUpdater_Update(t *testing.T) {
 				return nil
 			}
 
-			ctx := context.Background()
 			err = updater.Update(ctx, tt.now)
 			if tt.errMatch != "" {
 				require.Error(t, err)
@@ -961,8 +961,8 @@ func TestUpdater_LinkPackage(t *testing.T) {
 			_, err := ns.Init()
 			require.NoError(t, err)
 			cfgPath := filepath.Join(ns.Dir(), updateConfigName)
-
-			updater, err := NewLocalUpdater(LocalUpdaterConfig{
+			ctx := context.Background()
+			updater, err := NewLocalUpdater(ctx, LocalUpdaterConfig{
 				InsecureSkipVerify: true,
 			}, ns)
 			require.NoError(t, err)
@@ -993,7 +993,6 @@ func TestUpdater_LinkPackage(t *testing.T) {
 				},
 			}
 
-			ctx := context.Background()
 			err = updater.LinkPackage(ctx)
 			if tt.errMatch != "" {
 				require.Error(t, err)
@@ -1226,8 +1225,8 @@ func TestUpdater_Remove(t *testing.T) {
 			_, err := ns.Init()
 			require.NoError(t, err)
 			cfgPath := filepath.Join(ns.Dir(), updateConfigName)
-
-			updater, err := NewLocalUpdater(LocalUpdaterConfig{
+			ctx := context.Background()
+			updater, err := NewLocalUpdater(ctx, LocalUpdaterConfig{
 				InsecureSkipVerify: true,
 			}, ns)
 			require.NoError(t, err)
@@ -1282,7 +1281,6 @@ func TestUpdater_Remove(t *testing.T) {
 				return nil
 			}
 
-			ctx := context.Background()
 			err = updater.Remove(ctx, tt.force)
 			if tt.errMatch != "" {
 				require.Error(t, err)
@@ -1584,8 +1582,8 @@ func TestUpdater_Install(t *testing.T) {
 			_, err := ns.Init()
 			require.NoError(t, err)
 			cfgPath := filepath.Join(ns.Dir(), updateConfigName)
-
-			updater, err := NewLocalUpdater(LocalUpdaterConfig{
+			ctx := context.Background()
+			updater, err := NewLocalUpdater(ctx, LocalUpdaterConfig{
 				InsecureSkipVerify: true,
 			}, ns)
 			require.NoError(t, err)
@@ -1683,7 +1681,6 @@ func TestUpdater_Install(t *testing.T) {
 				return nil
 			}
 
-			ctx := context.Background()
 			err = updater.Install(ctx, tt.userCfg)
 			if tt.errMatch != "" {
 				require.Error(t, err)
@@ -1857,7 +1854,8 @@ func TestUpdater_Setup(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ns := &Namespace{}
-			updater, err := NewLocalUpdater(LocalUpdaterConfig{}, ns)
+			ctx := context.Background()
+			updater, err := NewLocalUpdater(ctx, LocalUpdaterConfig{}, ns)
 			require.NoError(t, err)
 
 			updater.Process = &testProcess{
@@ -1873,7 +1871,6 @@ func TestUpdater_Setup(t *testing.T) {
 				return tt.setupErr
 			}
 
-			ctx := context.Background()
 			err = updater.Setup(ctx, "test", tt.restart)
 			if tt.errMatch != "" {
 				require.Error(t, err)
