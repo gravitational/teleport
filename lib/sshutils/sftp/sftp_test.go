@@ -24,6 +24,7 @@ import (
 	cryptorand "crypto/rand"
 	"fmt"
 	"io"
+	"io/fs"
 	mathrand "math/rand/v2"
 	"net"
 	"net/http"
@@ -33,6 +34,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/sftp"
@@ -843,6 +845,45 @@ func TestHandleFilecmd(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
+	t.Run("chtimes", func(t *testing.T) {
+		root := t.TempDir()
+		file := filepath.Join(root, "test.txt")
+		require.NoError(t, os.WriteFile(file, []byte("test"), 0o644))
+		originalInfo, err := os.Stat(file)
+		require.NoError(t, err)
+		setTime := originalInfo.ModTime().Add(time.Hour).Round(time.Second)
+
+		assert.NoError(t, clt.Chtimes(file, setTime, setTime))
+		updatedInfo, err := os.Stat(file)
+		if assert.NoError(t, err) {
+			assert.Equal(t, setTime, updatedInfo.ModTime())
+		}
+	})
+
+	t.Run("chmod", func(t *testing.T) {
+		root := t.TempDir()
+		file := filepath.Join(root, "test.txt")
+		require.NoError(t, os.WriteFile(file, []byte("test"), 0o644))
+
+		assert.NoError(t, clt.Chmod(file, 0o666))
+		fi, err := os.Stat(file)
+		if assert.NoError(t, err) {
+			assert.Equal(t, fs.FileMode(0o666), fi.Mode().Perm())
+		}
+	})
+
+	t.Run("truncate", func(t *testing.T) {
+		root := t.TempDir()
+		file := filepath.Join(root, "test.txt")
+		require.NoError(t, os.WriteFile(file, []byte(strings.Repeat("a", 100)), 0o644))
+
+		assert.NoError(t, clt.Truncate(file, 50))
+		data, err := os.ReadFile(file)
+		if assert.NoError(t, err) {
+			assert.Len(t, data, 50)
+		}
+	})
+
 	t.Run("rename", func(t *testing.T) {
 		root := t.TempDir()
 		initialFile := filepath.Join(root, "foo.txt")
@@ -975,19 +1016,102 @@ func TestHandleFilecmd(t *testing.T) {
 		root := t.TempDir()
 		file := filepath.Join(root, "test.txt")
 		require.NoError(t, os.WriteFile(file, []byte("foo"), 0o644))
-		req := sftp.NewRequest("Foo", file)
+		req := sftp.NewRequest(MethodStat, file)
 		assert.Error(t, HandleFilecmd(req, localFS{}))
 	})
 }
 
+type fileInfo struct {
+	name string
+	mode fs.FileMode
+	size int64
+}
+
+func (fi fileInfo) Name() string {
+	return fi.name
+}
+
+func (fi fileInfo) Size() int64 {
+	return fi.size
+}
+
+func (fi fileInfo) Mode() fs.FileMode {
+	return fi.mode
+}
+
+func (fi fileInfo) ModTime() time.Time {
+	return time.Time{}
+}
+
+func (fi fileInfo) IsDir() bool {
+	return false
+}
+
+func (fi fileInfo) Sys() any {
+	return nil
+}
+
 func TestHandleFilelist(t *testing.T) {
 	t.Parallel()
+	root := t.TempDir()
+	statMap := make(map[string]fs.FileInfo, 10)
+	for i := range 5 {
+		fileName := fmt.Sprintf("file-%d", i)
+		file := filepath.Join(root, fileName)
+		require.NoError(t, os.WriteFile(file, []byte("test"), 0o644))
+		statMap[fileName] = fileInfo{
+			name: fileName,
+			mode: 0o644,
+			size: 4,
+		}
+		symlinkName := fmt.Sprintf("file-%d", i+5)
+		symlink := filepath.Join(root, symlinkName)
+		require.NoError(t, os.Symlink(file, symlink))
+		statMap[symlinkName] = fileInfo{
+			name: symlinkName,
+			mode: 0o644,
+			size: 4,
+		}
+	}
+
 	tests := []struct {
 		name           string
 		req            *sftp.Request
 		assert         assert.ErrorAssertionFunc
-		expectedOutput []os.FileInfo
-	}{}
+		expectedOutput map[string]fs.FileInfo
+	}{
+		{
+			name:           "list",
+			req:            sftp.NewRequest(MethodList, root),
+			assert:         assert.NoError,
+			expectedOutput: statMap,
+		},
+		{
+			name:   "stat",
+			req:    sftp.NewRequest(MethodStat, root+"/file-0"),
+			assert: assert.NoError,
+			expectedOutput: map[string]fs.FileInfo{
+				"file-0": fileInfo{
+					name: "file-0",
+					mode: 0o644,
+					size: 4,
+				},
+			},
+		},
+		{
+			name:   "readlink",
+			req:    sftp.NewRequest(MethodReadlink, root+"/file-5"),
+			assert: assert.NoError,
+			expectedOutput: map[string]fs.FileInfo{
+				root + "/file-0": fileName(root + "/file-0"),
+			},
+		},
+		{
+			name:   "unsupported operation",
+			req:    sftp.NewRequest(MethodRemove, root),
+			assert: assert.Error,
+		},
+	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			lister, err := HandleFilelist(tc.req, localFS{})
@@ -996,12 +1120,21 @@ func TestHandleFilelist(t *testing.T) {
 				assert.Nil(t, lister)
 				return
 			}
+			assert.NotNil(t, lister)
 
-			list := make([]os.FileInfo, 0, len(tc.expectedOutput))
-			n, err := lister.ListAt(list, int64(len(tc.expectedOutput)))
+			list := make([]fs.FileInfo, len(tc.expectedOutput))
+			n, err := lister.ListAt(list, 0)
 			assert.NoError(t, err)
-			assert.Equal(t, int64(len(tc.expectedOutput)), n)
-			assert.ElementsMatch(t, tc.expectedOutput, list)
+			assert.Equal(t, len(tc.expectedOutput), n)
+			fmt.Println(list)
+			for _, fi := range list {
+				entry, ok := tc.expectedOutput[fi.Name()]
+				if assert.True(t, ok, "unexpected file %q", fi.Name()) {
+					assert.Equal(t, entry.Name(), fi.Name())
+					assert.Equal(t, entry.Size(), fi.Size(), fi.Name())
+					assert.Equal(t, entry.Mode(), fi.Mode(), fi.Name())
+				}
+			}
 		})
 	}
 }
