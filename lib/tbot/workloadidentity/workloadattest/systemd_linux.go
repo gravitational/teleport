@@ -39,6 +39,7 @@ type SystemdAttestor struct {
 	dialer func(context.Context) (dbusConn, error)
 }
 
+// NewSystemdAttestor creates a SystemdAttestor with the given configuration.
 func NewSystemdAttestor(cfg SystemdAttestorConfig, log *slog.Logger) *SystemdAttestor {
 	return &SystemdAttestor{
 		dialer: func(ctx context.Context) (dbusConn, error) {
@@ -47,6 +48,7 @@ func NewSystemdAttestor(cfg SystemdAttestorConfig, log *slog.Logger) *SystemdAtt
 	}
 }
 
+// Attest the identity of the given systemd workload.
 func (a *SystemdAttestor) Attest(ctx context.Context, pid int) (*workloadidentityv1pb.WorkloadAttrsSystemd, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()

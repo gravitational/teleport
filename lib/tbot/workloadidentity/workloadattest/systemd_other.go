@@ -32,11 +32,12 @@ import (
 // UnsupportedSystemdAttestor is the non-linux stub for SystemdAttestor.
 type UnsupportedSystemdAttestor struct{}
 
-// NewSystemdAttestor creates a new SystemdAttestor.
+// NewSystemdAttestor creates a new SystemdAttestor with the given configuration.
 func NewSystemdAttestor(_ SystemdAttestorConfig, _ *slog.Logger) *UnsupportedSystemdAttestor {
 	return &UnsupportedSystemdAttestor{}
 }
 
+// Attest the identity of the given systemd workload.
 func (a *UnsupportedSystemdAttestor) Attest(_ context.Context, _ int) (*workloadidentityv1pb.WorkloadAttrsSystemd, error) {
 	return nil, trace.NotImplemented("systemd attestation is only supported on linux")
 }
