@@ -2492,6 +2492,33 @@ app_service:
 app_service:
   enabled: true
   apps:
+    -
+      name: foo
+      always_use_proxy_public_addr: true
+      uri: "http://127.0.0.1:8080"
+`,
+			name:   "app with always_use_proxy_public_addr",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    -
+      name: foo
+      always_use_proxy_public_addr: true
+      public_addr: "foo.example.com"
+      uri: "http://127.0.0.1:8080"
+`,
+			name:   "app with always_use_proxy_public_addr and public_addr",
+			outErr: require.Error,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
     - name: foo
       uri: "tcp://127.0.0.1"
       tcp_ports:
