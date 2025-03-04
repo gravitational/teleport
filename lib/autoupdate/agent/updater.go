@@ -85,6 +85,11 @@ func warnUmask(ctx context.Context, log *slog.Logger, old int) {
 	}
 }
 
+var (
+	// ErrNotInstalled is returned when Teleport is not installed.
+	ErrNotInstalled = trace.Errorf("not installed")
+)
+
 // NewLocalUpdater returns a new Updater that auto-updates local
 // installations of the Teleport agent.
 // The AutoUpdater uses an HTTP client with sane defaults for downloads, and
@@ -448,11 +453,17 @@ func (u *Updater) Remove(ctx context.Context, force bool) error {
 	// Do not link system package installation if the installation we are removing
 	// is not installed into /usr/local/bin.
 	if filepath.Clean(cfg.Spec.Path) != filepath.Clean(defaultPathDir) {
-		return u.removeWithoutSystem(ctx, cfg, force)
+		return u.removeWithoutSystem(ctx, cfg)
 	}
 	revert, err := u.Installer.LinkSystem(ctx)
 	if errors.Is(err, ErrNoBinaries) {
-		return u.removeWithoutSystem(ctx, cfg, force)
+		if !force {
+			u.Log.ErrorContext(ctx, "No packaged installation of Teleport was found, and --force was not passed. Refusing to remove Teleport from this system.")
+			return trace.Errorf("unable to remove Teleport completely without --force")
+		} else {
+			u.Log.WarnContext(ctx, "No packaged installation of Teleport was found, and --force was passed. Teleport will be removed from this system.")
+		}
+		return u.removeWithoutSystem(ctx, cfg)
 	}
 	if err != nil {
 		return trace.Wrap(err, "failed to link")
@@ -519,13 +530,7 @@ func (u *Updater) Remove(ctx context.Context, force bool) error {
 	return nil
 }
 
-func (u *Updater) removeWithoutSystem(ctx context.Context, cfg *UpdateConfig, force bool) error {
-	if !force {
-		u.Log.ErrorContext(ctx, "No packaged installation of Teleport was found, and --force was not passed. Refusing to remove Teleport from this system.")
-		return trace.Errorf("unable to remove Teleport completely without --force")
-	} else {
-		u.Log.WarnContext(ctx, "No packaged installation of Teleport was found, and --force was passed. Teleport will be removed from this system.")
-	}
+func (u *Updater) removeWithoutSystem(ctx context.Context, cfg *UpdateConfig) error {
 	u.Log.InfoContext(ctx, "Updater-managed installation of Teleport detected. Attempting to unlink and remove.")
 	ok, err := u.Process.IsActive(ctx)
 	if err != nil && !errors.Is(err, ErrNotSupported) {
@@ -557,6 +562,9 @@ func (u *Updater) Status(ctx context.Context) (Status, error) {
 	}
 	if err := validateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return out, trace.Wrap(err)
+	}
+	if cfg.Spec.Proxy == "" {
+		return out, ErrNotInstalled
 	}
 	out.UpdateSpec = cfg.Spec
 	out.UpdateStatus = cfg.Status
