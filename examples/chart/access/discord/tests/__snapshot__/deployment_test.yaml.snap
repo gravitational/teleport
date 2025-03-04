@@ -7,8 +7,8 @@ should match the snapshot:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-discord
-        app.kubernetes.io/version: 18.0.0-dev.gus-mac-tooling.5
-        helm.sh/chart: teleport-plugin-discord-18.0.0-dev.gus-mac-tooling.5
+        app.kubernetes.io/version: 18.0.0-dev.gus-mac-tooling.6
+        helm.sh/chart: teleport-plugin-discord-18.0.0-dev.gus-mac-tooling.6
       name: RELEASE-NAME-teleport-plugin-discord
     spec:
       replicas: 1
@@ -22,8 +22,8 @@ should match the snapshot:
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: teleport-plugin-discord
-            app.kubernetes.io/version: 18.0.0-dev.gus-mac-tooling.5
-            helm.sh/chart: teleport-plugin-discord-18.0.0-dev.gus-mac-tooling.5
+            app.kubernetes.io/version: 18.0.0-dev.gus-mac-tooling.6
+            helm.sh/chart: teleport-plugin-discord-18.0.0-dev.gus-mac-tooling.6
         spec:
           containers:
           - command:
