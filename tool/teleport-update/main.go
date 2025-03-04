@@ -54,8 +54,6 @@ const (
 	updateGroupEnvVar = "TELEPORT_UPDATE_GROUP"
 	// updateVersionEnvVar forces the version to specified value.
 	updateVersionEnvVar = "TELEPORT_UPDATE_VERSION"
-	// ignoreUmaskEnvVar allows teleport-update to ignore a restrictive umask.
-	ignoreUmaskEnvVar = "TELEPORT_UPDATE_IGNORE_UMASK"
 	// updateLockTimeout is the duration commands will wait for update to complete before failing.
 	updateLockTimeout = 10 * time.Minute
 )
