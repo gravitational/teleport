@@ -252,11 +252,7 @@ func (s *sftpHandler) Filelist(req *sftp.Request) (_ sftp.ListerAt, retErr error
 		return nil, err
 	}
 
-	lister, err := sftputils.HandleFilelist(req, nil)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return lister, nil
+	return sftputils.HandleFilelist(req, nil)
 }
 
 func (s *sftpHandler) sendSFTPEvent(req *sftp.Request, reqErr error) {

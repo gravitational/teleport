@@ -25,8 +25,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
@@ -40,12 +38,12 @@ func (l localFS) Type() string {
 
 func (l localFS) Glob(ctx context.Context, pattern string) ([]string, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 
 	return matches, nil
@@ -53,12 +51,12 @@ func (l localFS) Glob(ctx context.Context, pattern string) ([]string, error) {
 
 func (l localFS) Stat(ctx context.Context, path string) (os.FileInfo, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 
 	fi, err := os.Stat(path)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 
 	return fi, nil
@@ -66,24 +64,24 @@ func (l localFS) Stat(ctx context.Context, path string) (os.FileInfo, error) {
 
 func (l localFS) ReadDir(ctx context.Context, path string) ([]os.FileInfo, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 
 	entries, err := os.ReadDir(path)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 	fileInfos := make([]fs.FileInfo, len(entries))
 	for i, entry := range entries {
 		info, err := entry.Info()
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, err
 		}
 		// if the file is a symlink, return the info of the linked file
 		if info.Mode().Type()&os.ModeSymlink != 0 {
 			info, err = os.Stat(filepath.Join(path, info.Name()))
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, err
 			}
 		}
 
@@ -95,12 +93,12 @@ func (l localFS) ReadDir(ctx context.Context, path string) ([]os.FileInfo, error
 
 func (l localFS) Open(ctx context.Context, path string) (File, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 
 	return &fileWrapper{File: f}, nil
@@ -108,12 +106,12 @@ func (l localFS) Open(ctx context.Context, path string) (File, error) {
 
 func (l localFS) Create(ctx context.Context, path string, _ int64) (File, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, defaults.FilePermissions)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 
 	return f, nil
@@ -121,12 +119,12 @@ func (l localFS) Create(ctx context.Context, path string, _ int64) (File, error)
 
 func (l localFS) Mkdir(ctx context.Context, path string) error {
 	if err := ctx.Err(); err != nil {
-		return trace.Wrap(err)
+		return err
 	}
 
 	err := os.MkdirAll(path, defaults.DirectoryPermissions)
 	if err != nil && !os.IsExist(err) {
-		return trace.Wrap(err)
+		return err
 	}
 
 	return nil
@@ -134,87 +132,87 @@ func (l localFS) Mkdir(ctx context.Context, path string) error {
 
 func (l localFS) Chmod(ctx context.Context, path string, mode os.FileMode) error {
 	if err := ctx.Err(); err != nil {
-		return trace.Wrap(err)
+		return err
 	}
 
-	return trace.Wrap(os.Chmod(path, mode))
+	return os.Chmod(path, mode)
 }
 
 func (l localFS) Chtimes(ctx context.Context, path string, atime, mtime time.Time) error {
 	if err := ctx.Err(); err != nil {
-		return trace.Wrap(err)
+		return err
 	}
 
-	return trace.Wrap(os.Chtimes(path, atime, mtime))
+	return os.Chtimes(path, atime, mtime)
 }
 
 func (l localFS) Rename(ctx context.Context, oldpath, newpath string) error {
 	if err := ctx.Err(); err != nil {
-		return trace.Wrap(err)
+		return err
 	}
-	return trace.Wrap(os.Rename(oldpath, newpath))
+	return os.Rename(oldpath, newpath)
 }
 
 func (l localFS) Lstat(ctx context.Context, name string) (os.FileInfo, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 	fi, err := os.Lstat(name)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 	return fi, nil
 }
 
 func (l localFS) RemoveAll(ctx context.Context, path string) error {
 	if err := ctx.Err(); err != nil {
-		return trace.Wrap(err)
+		return err
 	}
-	return trace.Wrap(os.RemoveAll(path))
+	return os.RemoveAll(path)
 }
 
 func (l localFS) Link(ctx context.Context, oldname, newname string) error {
 	if err := ctx.Err(); err != nil {
-		return trace.Wrap(err)
+		return err
 	}
-	return trace.Wrap(os.Link(oldname, newname))
+	return os.Link(oldname, newname)
 }
 
 func (l localFS) Symlink(ctx context.Context, oldname, newname string) error {
 	if err := ctx.Err(); err != nil {
-		return trace.Wrap(err)
+		return err
 	}
-	return trace.Wrap(os.Symlink(oldname, newname))
+	return os.Symlink(oldname, newname)
 }
 
 func (l localFS) Remove(ctx context.Context, name string) error {
 	if err := ctx.Err(); err != nil {
-		return trace.Wrap(err)
+		return err
 	}
-	return trace.Wrap(os.Remove(name))
+	return os.Remove(name)
 }
 
 func (l localFS) Chown(ctx context.Context, name string, uid, gid int) error {
 	if err := ctx.Err(); err != nil {
-		return trace.Wrap(err)
+		return err
 	}
-	return trace.Wrap(os.Chown(name, uid, gid))
+	return os.Chown(name, uid, gid)
 }
 
 func (l localFS) Truncate(ctx context.Context, name string, size int64) error {
 	if err := ctx.Err(); err != nil {
-		return trace.Wrap(err)
+		return err
 	}
-	return trace.Wrap(os.Truncate(name, size))
+	return os.Truncate(name, size)
 }
 
 func (l localFS) Readlink(ctx context.Context, name string) (string, error) {
 	if err := ctx.Err(); err != nil {
-		return "", trace.Wrap(err)
+		return "", err
 	}
 	dest, err := os.Readlink(name)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", err
 	}
 	return dest, nil
 }
