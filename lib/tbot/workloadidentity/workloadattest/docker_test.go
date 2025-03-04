@@ -27,7 +27,6 @@ import (
 func TestDockerAttestorConfig_CheckAndSetDefaults(t *testing.T) {
 	validCases := map[string]DockerAttestorConfig{
 		"attestor disabled": {Enabled: false, Addr: ""},
-		"default addr":      {Enabled: true, Addr: ""},
 		"unix socket":       {Enabled: true, Addr: "unix:///path/to/socket"},
 	}
 	for name, cfg := range validCases {
@@ -35,6 +34,12 @@ func TestDockerAttestorConfig_CheckAndSetDefaults(t *testing.T) {
 			require.NoError(t, cfg.CheckAndSetDefaults())
 		})
 	}
+
+	t.Run("default addr", func(t *testing.T) {
+		cfg := DockerAttestorConfig{Enabled: true, Addr: ""}
+		require.NoError(t, cfg.CheckAndSetDefaults())
+		require.Equal(t, DefaultDockerAddr, cfg.Addr)
+	})
 
 	invalidCases := map[string]struct {
 		cfg DockerAttestorConfig

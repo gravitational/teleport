@@ -61,12 +61,14 @@ type DockerAttestorConfig struct {
 	Addr string `yaml:"addr,omitempty"`
 }
 
-func (c DockerAttestorConfig) CheckAndSetDefaults() error {
+func (c *DockerAttestorConfig) CheckAndSetDefaults() error {
 	if !c.Enabled {
 		return nil
 	}
 
-	if c.Addr != "" {
+	if c.Addr == "" {
+		c.Addr = DefaultDockerAddr
+	} else {
 		u, err := url.Parse(c.Addr)
 		if err != nil {
 			return trace.Wrap(err, "invalid addr")
