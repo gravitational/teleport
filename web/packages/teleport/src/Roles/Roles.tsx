@@ -19,8 +19,7 @@
 import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
-import { Alert, Box, Button, Flex, H3, Link } from 'design';
-import { P } from 'design/Text/Text';
+import { Alert, Box, Button, Flex, Link } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
 import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
 import {
@@ -37,6 +36,13 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import ResourceEditor from 'teleport/components/ResourceEditor';
+import {
+  InfoExternalTextLink,
+  InfoGuideWrapper,
+  InfoParagraph,
+  InfoTitle,
+  ReferenceLinks,
+} from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import useResources from 'teleport/components/useResources';
 import { Role, RoleResource, RoleWithYaml } from 'teleport/services/resources';
 import { storageService } from 'teleport/services/storageService';
@@ -189,41 +195,43 @@ export function Roles(props: State & RolesProps) {
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Roles</FeatureHeaderTitle>
-        <HoverTooltip
-          position="bottom"
-          tipContent={
-            !canCreate ? (
-              <MissingPermissionsTooltip
-                missingPermissions={['roles.create']}
-              />
-            ) : (
-              ''
-            )
-          }
-        >
-          <Button
-            data-testid="create_new_role_button"
-            intent="primary"
-            fill={
-              serverSidePagination.attempt.status === 'success' &&
-              serverSidePagination.fetchedData.agents.length === 0
-                ? 'filled'
-                : 'border'
+        <InfoGuideWrapper guide={<InfoGuide />}>
+          <HoverTooltip
+            position="bottom"
+            tipContent={
+              !canCreate ? (
+                <MissingPermissionsTooltip
+                  missingPermissions={['roles.create']}
+                />
+              ) : (
+                ''
+              )
             }
-            ml="auto"
-            width="240px"
-            disabled={!canCreate}
-            onClick={handleCreate}
           >
-            Create New Role
-          </Button>
-        </HoverTooltip>
+            <Button
+              data-testid="create_new_role_button"
+              intent="primary"
+              fill={
+                serverSidePagination.attempt.status === 'success' &&
+                serverSidePagination.fetchedData.agents.length === 0
+                  ? 'filled'
+                  : 'border'
+              }
+              ml="auto"
+              width="240px"
+              disabled={!canCreate}
+              onClick={handleCreate}
+            >
+              Create New Role
+            </Button>
+          </HoverTooltip>
+        </InfoGuideWrapper>
       </FeatureHeader>
       {serverSidePagination.attempt.status === 'failed' && (
         <Alert children={serverSidePagination.attempt.statusText} />
       )}
       <Flex flex="1">
-        <Box flex="1" mr="6" mb="4">
+        <Box flex="1" mb="4">
           <RoleList
             serversidePagination={serverSidePagination}
             onSearchChange={setSearch}
@@ -249,31 +257,6 @@ export function Roles(props: State & RolesProps) {
             roleDiffProps={props.roleDiffProps}
           />
         )}
-        <Box
-          ml="auto"
-          width="240px"
-          color="text.main"
-          style={{ flexShrink: 0 }}
-        >
-          <H3 mb={3}>Role-based access control</H3>
-          <P mb={3}>
-            Teleport Role-based access control (RBAC) provides fine-grained
-            control over who can access resources and in which contexts. A
-            Teleport role can be assigned automatically based on user identity
-            when used with single sign-on (SSO).
-          </P>
-          <P>
-            Learn more in{' '}
-            <Link
-              color="text.main"
-              target="_blank"
-              href="https://goteleport.com/docs/admin-guides/access-controls/guides/role-templates/"
-            >
-              the cluster management (RBAC)
-            </Link>{' '}
-            section of online documentation.
-          </P>
-        </Box>
       </Flex>
 
       {/* Old editor. */}
@@ -327,6 +310,44 @@ function Directions() {
       </Link>
       . YAML is sensitive to white space, so please be careful.
     </>
+  );
+}
+
+const InfoGuideReferenceLinks = {
+  PresetRoles: {
+    title: 'Teleport Preset Roles',
+    href: 'https://goteleport.com/docs/reference/access-controls/roles/#preset-roles',
+  },
+  RoleTemplates: {
+    title: 'Teleport Role Templates',
+    href: 'https://goteleport.com/docs/admin-guides/access-controls/guides/role-templates/',
+  },
+};
+
+function InfoGuide() {
+  return (
+    <Box>
+      <InfoTitle>Role-based access control</InfoTitle>
+      <InfoParagraph>
+        Teleport Role-based access control (RBAC) provides fine-grained control
+        over who can access resources and in which contexts. A Teleport role can
+        be assigned automatically based on user identity when used with single
+        sign-on (SSO).
+      </InfoParagraph>
+      <InfoParagraph>
+        New clusters have several{' '}
+        <InfoExternalTextLink href={InfoGuideReferenceLinks.PresetRoles.href}>
+          preset roles
+        </InfoExternalTextLink>
+        . These are convenient for getting started but are very permissive, and
+        we recommend you follow our{' '}
+        <InfoExternalTextLink href={InfoGuideReferenceLinks.RoleTemplates.href}>
+          best practices guide
+        </InfoExternalTextLink>{' '}
+        to create your own.
+      </InfoParagraph>
+      <ReferenceLinks links={Object.values(InfoGuideReferenceLinks)} />
+    </Box>
   );
 }
 
