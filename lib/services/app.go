@@ -190,6 +190,7 @@ func NewApplicationFromKubeService(service corev1.Service, clusterName, protocol
 		URI:                appURI,
 		Rewrite:            rewriteConfig,
 		InsecureSkipVerify: getTLSInsecureSkipVerify(service.GetAnnotations()),
+		PublicAddr:         getPublicAddr(service.GetAnnotations()),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "could not create an app from Kubernetes service")
@@ -231,6 +232,10 @@ func getAppRewriteConfig(annotations map[string]string) (*types.Rewrite, error) 
 	}
 
 	return &rw, nil
+}
+
+func getPublicAddr(annotations map[string]string) string {
+	return annotations[types.DiscoveryPublicAddr]
 }
 
 func getTLSInsecureSkipVerify(annotations map[string]string) bool {
