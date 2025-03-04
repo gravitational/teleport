@@ -4,10 +4,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-updater
+  name: {{ include "teleport-kube-agent.fullname" . }}-updater
   namespace: {{ .Release.Namespace }}
   labels:
-    app: {{ .Release.Name }}-updater
+    app: {{ include "teleport-kube-agent.fullname" . }}-updater
 {{- if $updater.extraLabels.deployment }}
     {{- toYaml $updater.extraLabels.deployment | nindent 4 }}
 {{- end }}
@@ -18,7 +18,7 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: {{ .Release.Name }}-updater
+      app: {{ include "teleport-kube-agent.fullname" . }}-updater
   template:
     metadata:
       annotations:
@@ -26,7 +26,7 @@ spec:
   {{- toYaml $updater.annotations.pod | nindent 8 }}
 {{- end }}
       labels:
-        app: {{ .Release.Name }}-updater
+        app: {{ include "teleport-kube-agent.fullname" . }}-updater
 {{- if $updater.extraLabels.pod }}
   {{- toYaml $updater.extraLabels.pod | nindent 8 }}
 {{- end }}
@@ -60,7 +60,7 @@ spec:
   {{- end }}
 {{- end }}
         args:
-          - "--agent-name={{ .Release.Name }}"
+          - "--agent-name={{ include "teleport-kube-agent.fullname" . }}"
           - "--agent-namespace={{ .Release.Namespace }}"
           - "--base-image={{ include "teleport-kube-agent.baseImage" . }}"
   {{- if $updater.versionServer}}

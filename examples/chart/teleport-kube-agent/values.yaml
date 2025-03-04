@@ -1329,3 +1329,6 @@ tolerations: []
 # probeTimeoutSeconds(int) -- sets the timeout for the readiness and liveness probes
 # https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
 probeTimeoutSeconds: 1
+
+# fullnameOverride(string) -- override the chart's name
+fullnameOverride: ""
