@@ -207,13 +207,13 @@ $ gcloud compute instances set-service-account ${VM2_NAME?} \
 
 </Details>
 
-<Notice type="warning">
+<Admonition type="warning">
 
 You must use the `scopes` flag in the `gcloud compute instances
 set-service-account` command. Otherwise, your Google Cloud VM will fail to
 obtain the required authorization to access the GKE API.
 
-</Notice>
+</Admonition>
 
 Once you have attached the service account, restart your VM:
 
