@@ -49,6 +49,7 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -3629,6 +3630,13 @@ func (rc *ResourceCommand) createAutoUpdateConfig(ctx context.Context, client *a
 		return trace.Wrap(err)
 	}
 
+	if config.GetMetadata() == nil {
+		config.Metadata = &headerv1.Metadata{}
+	}
+	if config.GetMetadata().GetName() == "" {
+		config.Metadata.Name = types.MetaNameAutoUpdateConfig
+	}
+
 	if rc.IsForced() {
 		_, err = client.UpsertAutoUpdateConfig(ctx, config)
 	} else {
@@ -3647,6 +3655,14 @@ func (rc *ResourceCommand) updateAutoUpdateConfig(ctx context.Context, client *a
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if config.GetMetadata() == nil {
+		config.Metadata = &headerv1.Metadata{}
+	}
+	if config.GetMetadata().GetName() == "" {
+		config.Metadata.Name = types.MetaNameAutoUpdateConfig
+	}
+
 	if _, err := client.UpdateAutoUpdateConfig(ctx, config); err != nil {
 		return trace.Wrap(err)
 	}
@@ -3658,6 +3674,13 @@ func (rc *ResourceCommand) createAutoUpdateVersion(ctx context.Context, client *
 	version, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateVersion](raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if version.GetMetadata() == nil {
+		version.Metadata = &headerv1.Metadata{}
+	}
+	if version.GetMetadata().GetName() == "" {
+		version.Metadata.Name = types.MetaNameAutoUpdateVersion
 	}
 
 	if rc.IsForced() {
@@ -3678,6 +3701,14 @@ func (rc *ResourceCommand) updateAutoUpdateVersion(ctx context.Context, client *
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if version.GetMetadata() == nil {
+		version.Metadata = &headerv1.Metadata{}
+	}
+	if version.GetMetadata().GetName() == "" {
+		version.Metadata.Name = types.MetaNameAutoUpdateVersion
+	}
+
 	if _, err := client.UpdateAutoUpdateVersion(ctx, version); err != nil {
 		return trace.Wrap(err)
 	}
@@ -3686,15 +3717,22 @@ func (rc *ResourceCommand) updateAutoUpdateVersion(ctx context.Context, client *
 }
 
 func (rc *ResourceCommand) createAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	version, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateAgentRollout](raw.Raw)
+	rollout, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateAgentRollout](raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	if rollout.GetMetadata() == nil {
+		rollout.Metadata = &headerv1.Metadata{}
+	}
+	if rollout.GetMetadata().GetName() == "" {
+		rollout.Metadata.Name = types.MetaNameAutoUpdateAgentRollout
+	}
+
 	if rc.IsForced() {
-		_, err = client.UpsertAutoUpdateAgentRollout(ctx, version)
+		_, err = client.UpsertAutoUpdateAgentRollout(ctx, rollout)
 	} else {
-		_, err = client.CreateAutoUpdateAgentRollout(ctx, version)
+		_, err = client.CreateAutoUpdateAgentRollout(ctx, rollout)
 	}
 	if err != nil {
 		return trace.Wrap(err)
@@ -3705,11 +3743,19 @@ func (rc *ResourceCommand) createAutoUpdateAgentRollout(ctx context.Context, cli
 }
 
 func (rc *ResourceCommand) updateAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	version, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateAgentRollout](raw.Raw)
+	rollout, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateAgentRollout](raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := client.UpdateAutoUpdateAgentRollout(ctx, version); err != nil {
+
+	if rollout.GetMetadata() == nil {
+		rollout.Metadata = &headerv1.Metadata{}
+	}
+	if rollout.GetMetadata().GetName() == "" {
+		rollout.Metadata.Name = types.MetaNameAutoUpdateAgentRollout
+	}
+
+	if _, err := client.UpdateAutoUpdateAgentRollout(ctx, rollout); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Println("autoupdate_version has been updated")
