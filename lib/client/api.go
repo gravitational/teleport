@@ -4322,7 +4322,7 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 
 	// Verify server->client and client->server compatibility.
 	if tc.CheckVersions {
-		warning, err := getClientIncompatibilityWarning(versions{
+		warning, err := getClientIncompatibilityWarning(Versions{
 			MinClient: pr.MinClientVersion,
 			Client:    teleport.Version,
 			Server:    pr.ServerVersion,
@@ -4354,14 +4354,66 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 	return pr, nil
 }
 
-type versions struct {
+type Versions struct {
 	MinClient string
 	Client    string
 	Server    string
 }
 
-func getClientIncompatibilityWarning(versions versions) (string, error) {
+// ClientVersionStatus describes the compatibility status of the client version when compared
+// against the version of the server.
+type ClientVersionStatus int
+
+const (
+	ClientVersionCompatUnspecified ClientVersionStatus = iota
+	// ClientVersionOK means that the client is on the same major version as the server or at most one
+	// major version behind.
+	// For example, the server is on v17.1.0 and the client is on v16.0.4.
+	ClientVersionOK
+	// ClientVersionTooOld means that the client is at least two major versions behind the server.
+	// For example, the server is on v19.3.2 and the client is on v17.4.1.
+	ClientVersionTooOld
+	// ClientVersionTooNew means that the client is at least one major version ahead of the server.
+	// For example, the server is on v18.2.1 and the client is on v19.0.0.
+	ClientVersionTooNew
+)
+
+func GetClientVersionStatus(versions Versions) (ClientVersionStatus, error) {
 	if !utils.MeetsMinVersion(versions.Client, versions.MinClient) {
+		return ClientVersionTooOld, nil
+	}
+
+	clientMajorVersion, err := utils.MajorSemver(versions.Client)
+	if err != nil {
+		return ClientVersionCompatUnspecified, trace.Wrap(err)
+	}
+	serverMajorVersion, err := utils.MajorSemver(versions.Server)
+	if err != nil {
+		return ClientVersionCompatUnspecified, trace.Wrap(err)
+	}
+
+	if !utils.MeetsMaxVersion(clientMajorVersion, serverMajorVersion) {
+		return ClientVersionTooNew, nil
+	}
+
+	return ClientVersionOK, nil
+}
+
+func getClientIncompatibilityWarning(versions Versions) (string, error) {
+	clientVersionStatus, err := GetClientVersionStatus(versions)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	switch clientVersionStatus {
+	case ClientVersionTooOld:
+		minClient := versions.MinClient
+		if minClientWithoutPreRelease, err := utils.VersionWithoutPreRelease(minClient); err != nil {
+			log.DebugContext(context.Background(), "Could not strip pre-release suffix", "error", err)
+		} else {
+			minClient = minClientWithoutPreRelease
+		}
+
 		return fmt.Sprintf(`
 WARNING
 Detected potentially incompatible client and server versions.
@@ -4370,19 +4422,12 @@ Please upgrade tsh to %v or newer or use the --skip-version-check flag to bypass
 Future versions of tsh will fail when incompatible versions are detected.
 
 `,
-			versions.MinClient, versions.Client, versions.MinClient), nil
-	}
-
-	clientMajorVersion, err := utils.MajorSemver(versions.Client)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	serverMajorVersion, err := utils.MajorSemver(versions.Server)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	if !utils.MeetsMaxVersion(clientMajorVersion, serverMajorVersion) {
+			minClient, versions.Client, minClient), nil
+	case ClientVersionTooNew:
+		serverMajorVersion, err := utils.MajorSemver(versions.Server)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
 		serverVersionWithWildcards, err := utils.MajorSemverWithWildcards(serverMajorVersion)
 		if err != nil {
 			return "", trace.Wrap(err)
@@ -4396,6 +4441,8 @@ Future versions of tsh will fail when incompatible versions are detected.
 
 `,
 			serverVersionWithWildcards, versions.Client, serverVersionWithWildcards), nil
+	case ClientVersionCompatUnspecified:
+		return "", trace.Errorf("got unknown compatibility status")
 	}
 
 	return "", nil
