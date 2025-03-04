@@ -21,10 +21,14 @@ package handler
 import (
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	"github.com/gravitational/teleport/lib/ui"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
+
+var log = logutils.NewPackageLogger(teleport.ComponentKey, "conn:handler")
 
 // New creates an instance of Handler
 func New(cfg Config) (*Handler, error) {
