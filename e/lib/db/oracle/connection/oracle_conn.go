@@ -9,7 +9,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/db/oracle/protocol"
 )
 
-// OracleConn is a helper connection structured used to read write oracle package.
+// OracleConn represents a connection to Oracle client or server.
 type OracleConn struct {
 	// conn is the underlying connection that is read and written.
 	// It may be a plain TCP connection or a TLS connection.
@@ -26,6 +26,7 @@ type OracleConn struct {
 	protocolVersion uint16
 }
 
+// ConnOption is an option that can modify OracleConn.
 type ConnOption func(conn *OracleConn) error
 
 func (c *OracleConn) Close() error {
@@ -46,6 +47,7 @@ func NewConn(conn net.Conn, options ...ConnOption) (*OracleConn, error) {
 	return oracleConn, nil
 }
 
+// WritePacket writes a packet to the connection.
 func (c *OracleConn) WritePacket(p protocol.Packet) error {
 	if c.onWritePacket != nil {
 		c.onWritePacket(p)
@@ -54,6 +56,7 @@ func (c *OracleConn) WritePacket(p protocol.Packet) error {
 	return trace.Wrap(err)
 }
 
+// ReadPacket reads a packet from the connection.
 func (c *OracleConn) ReadPacket() (protocol.Packet, error) {
 	result, err := protocol.ReadPacket(c.protocolVersion, c.conn)
 
@@ -69,10 +72,12 @@ func (c *OracleConn) ReadPacket() (protocol.Packet, error) {
 	return result.SuccessPacket, trace.Wrap(err)
 }
 
+// LargeSDU returns true if the negotiated protocol version supports 'large SDU' header format.
 func (c *OracleConn) LargeSDU() bool {
 	return c.protocolVersion >= protocol.TNSVersionMinLargeSdu
 }
 
+// SetProtocolVersion sets the protocol version that have been negotiated.
 func (c *OracleConn) SetProtocolVersion(version uint16) {
 	c.protocolVersion = version
 }

@@ -14,7 +14,7 @@ func TestParse(t *testing.T) {
 		packetDump         string
 		protocolVersion    uint16
 		verify             func(t *testing.T, packet Packet)
-		expectedPacketType Type
+		expectedPacketType PacketType
 	}{
 		{
 			name:               "connect packet",

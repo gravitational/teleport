@@ -176,16 +176,24 @@ func (dp *DataPacket) CallID() (CallID, error) {
 	return CallID(callId), nil
 }
 
+// ParamValue holds a string value with optional integer tag.
 type ParamValue struct {
+	// Value is the parameter value.
 	Value string `json:"value"`
-	Tag   int64  `json:"tag"`
+	// Tag is the optional "type" tag on value.
+	Tag int64 `json:"tag"`
 }
 
+// ParamParseResult holds result of parsing the parameter map. The result may be partial.
 type ParamParseResult struct {
+	// Parameters is a map of results.
 	Parameters map[string]ParamValue
-	IsPartial  bool
+	// IsPartial will be true if the parsing was incomplete.
+	// This may happen if the param map is spread across multiple messages due to being too large to fit in a single one under configured SDU.
+	IsPartial bool
 }
 
+// ToDictionary converts ParamParseResult to a plain string->string dictionary, discarding the tags.
 func (r *ParamParseResult) ToDictionary() map[string]string {
 	out := make(map[string]string)
 	for k, v := range r.Parameters {
@@ -203,6 +211,7 @@ func (dp *DataPacket) HasAuthParameters() bool {
 	return strings.Contains(dataPrefix, "AUTH_VERSION_STRING")
 }
 
+// AuthParameters returns parsed params, if present. By necessity, it involves some heuristics, which may need to be updated as needs arise.
 func (dp *DataPacket) AuthParameters() (*ParamParseResult, error) {
 	if !dp.HasAuthParameters() {
 		return nil, trace.BadParameter("Parameters not available for non-parameter packets (DataID = %v)", dp.DataID.String())
@@ -270,19 +279,30 @@ func (dp *DataPacket) AuthParameters() (*ParamParseResult, error) {
 	return &ParamParseResult{Parameters: parameters, IsPartial: false}, nil
 }
 
+// HasSecureNetworkServices returns true if given payload concerns Secure Network Services negotiation.
 func (dp *DataPacket) HasSecureNetworkServices() bool {
-	// not enough data.
-	if len(dp.Data) < 3 {
+	dataPayload, err := dp.DataPayload()
+	if err != nil {
 		return false
 	}
 
-	// verify the marker 0xDEADBEEF; the first byte is stored as DataID, the rest is in Data.
-	markerOK := (dp.DataID == 0xDE) && (dp.Data[0] == 0xAD) && (dp.Data[1] == 0xBE) && (dp.Data[2] == 0xEF)
-	return markerOK
+	// verify the marker 0xDEADBEEF
+	return bytes.HasPrefix(dataPayload, []byte{0xDE, 0xAD, 0xBE, 0xEF})
+}
+
+const dataFlagSize = 2
+
+// DataPayload returns unparsed payload of DATA packet, i.e. entire payload sans header and data flag.
+func (dp *DataPacket) DataPayload() ([]byte, error) {
+	const skipBytes = PacketHeaderSize + dataFlagSize
+	payload := dp.Payload()
+	if len(payload) < skipBytes {
+		return nil, trace.BadParameter("data packet too small")
+	}
+	return bytes.Clone(payload[skipBytes:]), nil
 }
 
 func parseDataPacket(bp *basePacket) (*DataPacket, error) {
-	const dataFlagSize = 2
 	const minSize = PacketHeaderSize + dataFlagSize
 
 	if len(bp.Payload()) < minSize {
@@ -325,4 +345,58 @@ func parseDataPacket(bp *basePacket) (*DataPacket, error) {
 		DataID:     dataId,
 		Data:       data,
 	}, nil
+}
+
+func dataPacketBytes(largeSDU bool, payload []byte) []byte {
+	output := bytes.Buffer{}
+
+	const headerLen = 10
+
+	header := make([]byte, headerLen)
+
+	// first four bytes: payload length.
+	if largeSDU {
+		binary.BigEndian.PutUint32(header, uint32(headerLen+len(payload)))
+		// header[5] is packet flag.
+		header[5] = uint8(PacketFlagLargeSDU)
+	} else {
+		binary.BigEndian.PutUint16(header, uint16(headerLen+len(payload)))
+	}
+
+	// this is DATA packet, so always use that type.
+	header[4] = uint8(DATA)
+
+	// header[8:9] is for data flags, but we keep it zeroed out.
+
+	output.Write(header)
+	output.Write(payload)
+
+	rawBytes := output.Bytes()
+
+	return rawBytes
+}
+
+// DataPacketFromPayload creates a DATA packet from given payload and configuration.
+func DataPacketFromPayload(largeSDU bool, payload []byte) (*DataPacket, error) {
+	protocolVersion := uint16(TNSVersionMinLargeSdu)
+	if !largeSDU {
+		protocolVersion--
+	}
+
+	rawBytes := dataPacketBytes(largeSDU, payload)
+	readResult, err := ReadPacket(protocolVersion, bytes.NewReader(rawBytes))
+	if err != nil {
+		return nil, trace.BadParameter("Error trying to round-trip DATA packet: %v (this is a bug)", err)
+	}
+
+	if readResult.SuccessPacket == nil {
+		return nil, trace.BadParameter("Invalid DATA packet parse result, nil data (this is a bug)")
+	}
+
+	dataPacket, ok := readResult.SuccessPacket.(*DataPacket)
+	if !ok {
+		return nil, trace.BadParameter("Type error: expected DATA packet, but got %v (this is a bug)", readResult)
+	}
+
+	return dataPacket, nil
 }

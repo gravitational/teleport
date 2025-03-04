@@ -12,7 +12,7 @@ type Packet interface {
 	// Size returns the Oracle packet size.
 	Size() uint32
 	// Type returns the Oracle packet type.
-	Type() Type
+	Type() PacketType
 	// Payload returns raw Oracle packet data.
 	Payload() []byte
 	// Header returns underlying packet header.
@@ -34,7 +34,7 @@ func (b *basePacket) Size() uint32 {
 	return b.header.PacketSize
 }
 
-func (b *basePacket) Type() Type {
+func (b *basePacket) Type() PacketType {
 	return b.header.PacketType
 }
 
@@ -95,11 +95,19 @@ func parsePacket(bp *basePacket) (Packet, error) {
 
 // ReadPacketResult is a result of ReadPacket operation. May be partial.
 type ReadPacketResult struct {
-	PartialHeader     *PacketHeader
-	PartialBasePacket Packet // will always be basePacket.
-	SuccessPacket     Packet
+	// PartialHeader contains a header, if one was parsed successfully.
+	// 'Partial' indicates it will be present even if the overall parse has failed.
+	PartialHeader *PacketHeader
+	// PartialBasePacket contains a base packet, which is an unexported underlying type for all packets.
+	// 'Partial' indicates it will be present even if the overall parse has failed.
+	PartialBasePacket Packet
+	// SuccessPacket contains a final result of a successful parse.
+	SuccessPacket Packet
 }
 
+// ReadPacket reads a packet from reader, using given protocol version (which dictates the format of a header).
+// The result will always be present, even if there is a parsing error. The result is progressively filled.
+// On complete success, the SuccessPacket field is set.
 func ReadPacket(protocolVersion uint16, reader io.Reader) (ReadPacketResult, error) {
 	result := ReadPacketResult{}
 
@@ -134,6 +142,5 @@ func ReadPacket(protocolVersion uint16, reader io.Reader) (ReadPacketResult, err
 	}
 
 	result.SuccessPacket = pck
-
-	return result, trace.Wrap(err)
+	return result, nil
 }

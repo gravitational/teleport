@@ -1,0 +1,126 @@
+package oracle
+
+import (
+	"bytes"
+	"context"
+	"log/slog"
+
+	"github.com/gravitational/trace"
+	"github.com/jcmturner/gokrb5/v8/gssapi"
+	"github.com/jcmturner/gokrb5/v8/spnego"
+
+	"github.com/gravitational/teleport/e/lib/db/oracle/connection"
+	"github.com/gravitational/teleport/e/lib/db/oracle/protocol"
+	"github.com/gravitational/teleport/lib/srv/db/common/kerberos"
+)
+
+func (e *Engine) useKerberosAuth() bool {
+	return e.session.Database.GetAD().Domain != ""
+}
+
+type authenticateFunc func(params protocol.KerberosAuthParams) ([]byte, error)
+
+func (e *Engine) authenticateKerberos(params protocol.KerberosAuthParams) ([]byte, error) {
+	provider := kerberos.NewClientProvider(e.AuthClient, e.DataDir)
+
+	kClient, err := provider.GetKerberosClient(e.Context, e.session.Database.GetAD(), e.session.DatabaseUser)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	e.Log.DebugContext(e.Context, "Obtained Kerberos client")
+
+	spn := params.ServiceClass + "/" + params.ServerInstance
+	e.Log.DebugContext(e.Context, "Requesting Kerberos service ticket", "spn", spn)
+	ticket, key, err := kClient.GetServiceTicket(spn)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	e.Log.DebugContext(e.Context, "Creating Kerberos token")
+	token, err := spnego.NewKRB5TokenAPREQ(kClient, ticket, key, []int{gssapi.ContextFlagMutual}, []int{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	e.Log.DebugContext(e.Context, "Successfully created Kerberos token")
+	return token.APReq.Marshal()
+}
+
+func verifyExpectedKerberosServices(incomingPacket *protocol.DataPacket) error {
+	actualBytes, err := incomingPacket.DataPayload()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !bytes.Equal(servicesResponseKerberosExpected, actualBytes) {
+		return trace.BadParameter("expected payload bytes mismatch, got %x", actualBytes)
+	}
+	return nil
+}
+
+// performKerberosAuth performs the Kerberos authentication flow against Oracle server.
+func performKerberosAuth(ctx context.Context, log *slog.Logger, authenticate authenticateFunc, serverConn *connection.OracleConn) error {
+	log.DebugContext(ctx, "Performing Kerberos auth.")
+
+	// send initial packet, requesting Kerberos auth with other services disabled.
+	err := writeDataPacket(serverConn, servicesRequestKerberos)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// receive reply; we expect very specific response that acknowledges our choice of services:
+	// - Kerberos enabled
+	// - everything else disabled
+	incomingPacket, err := readDataPacket(serverConn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = verifyExpectedKerberosServices(incomingPacket)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// ack services, continue to the next phase
+	err = writeDataPacket(serverConn, acknowledgeServicesKerberos)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// receive another reply; this will contain details of Kerberos ticket that we should request
+	incomingPacket, err = readDataPacket(serverConn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	ticketParams, err := protocol.ParseKerberosAuthParams(incomingPacket)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	token, err := authenticate(*ticketParams)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	payload, err := protocol.BuildKerberosTokenPayload(token)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = writeDataPacket(serverConn, payload)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// final exchange; if everything is fine the server will return confirmation without an error.
+	incomingPacket, err = readDataPacket(serverConn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = protocol.VerifySNSPacket(incomingPacket)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// we acknowledge it and the negotiation is finished.
+	err = writeDataPacket(serverConn, acknowledgeFinalKerberos)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}

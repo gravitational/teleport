@@ -19,18 +19,9 @@ func TestConnectPacket_ProtocolVersions(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 318, int(version))
 
-	version, err = connect.GetCompatProtocolVersion()
-	require.NoError(t, err)
-	require.Equal(t, 300, int(version))
-
 	require.NoError(t, connect.SetProtocolVersion(314))
-	require.NoError(t, connect.SetCompatProtocolVersion(299))
 
 	version, err = connect.GetProtocolVersion()
 	require.NoError(t, err)
 	require.Equal(t, 314, int(version))
-
-	version, err = connect.GetCompatProtocolVersion()
-	require.NoError(t, err)
-	require.Equal(t, 299, int(version))
 }

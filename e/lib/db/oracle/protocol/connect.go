@@ -36,7 +36,7 @@ func (cp *ConnectPacket) Size() uint32 {
 	return cp.base.Size()
 }
 
-func (cp *ConnectPacket) Type() Type {
+func (cp *ConnectPacket) Type() PacketType {
 	return cp.base.Type()
 }
 
@@ -62,9 +62,6 @@ func (cp *ConnectPacket) DebugData() map[string]any {
 
 	protoVersion, _ := cp.GetProtocolVersion()
 	out["ProtocolVersion"] = protoVersion
-
-	compatProtocolVersion, _ := cp.GetCompatProtocolVersion()
-	out["CompatProtocolVersion"] = compatProtocolVersion
 
 	return out
 }
@@ -129,6 +126,7 @@ func (cp *ConnectPacket) GetConnectionString() (string, error) {
 	return string(connStringSlice), nil
 }
 
+// GetServiceName returns the service name extracted from the connection string.
 func (cp *ConnectPacket) GetServiceName() (string, error) {
 	connString, err := cp.GetConnectionString()
 	if err != nil {
@@ -143,6 +141,7 @@ func (cp *ConnectPacket) GetServiceName() (string, error) {
 	return match[1], nil
 }
 
+// GetProtocolVersion returns the requested protocol version.
 func (cp *ConnectPacket) GetProtocolVersion() (uint16, error) {
 	if len(cp.Payload()) < 4 {
 		return 0, trace.BadParameter("not enough storage for protocol versions")
@@ -151,27 +150,12 @@ func (cp *ConnectPacket) GetProtocolVersion() (uint16, error) {
 	return binary.BigEndian.Uint16(cp.Payload()[PacketHeaderSize:]), nil
 }
 
-func (cp *ConnectPacket) GetCompatProtocolVersion() (uint16, error) {
-	if len(cp.Payload()) < 4 {
-		return 0, trace.BadParameter("not enough storage for protocol versions")
-	}
-
-	return binary.BigEndian.Uint16(cp.Payload()[PacketHeaderSize+2:]), nil
-}
-
+// SetProtocolVersion sets the requested protocol version.
 func (cp *ConnectPacket) SetProtocolVersion(protocolVersion uint16) error {
 	if len(cp.Payload()) < 4 {
 		return trace.BadParameter("not enough storage for protocol versions")
 	}
 	binary.BigEndian.PutUint16(cp.Payload()[PacketHeaderSize:], protocolVersion)
-	return nil
-}
-
-func (cp *ConnectPacket) SetCompatProtocolVersion(compatProtocolVersion uint16) error {
-	if len(cp.Payload()) < 4 {
-		return trace.BadParameter("not enough storage for protocol versions")
-	}
-	binary.BigEndian.PutUint16(cp.Payload()[PacketHeaderSize+2:], compatProtocolVersion)
 	return nil
 }
 

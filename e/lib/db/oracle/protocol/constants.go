@@ -2,22 +2,22 @@ package protocol
 
 import "fmt"
 
-// Type defines the TNS Oracle Protocol types.
+// PacketType defines the TNS Oracle Protocol packet types.
 // https://github.com/oracle/python-oracledb/blob/main/src/oracledb/impl/thin/constants.pxi#L33
-type Type uint8
+type PacketType uint8
 
 const (
-	CONNECT  Type = 1
-	ACCEPT   Type = 2
-	REFUSE   Type = 4
-	REDIRECT Type = 5
-	DATA     Type = 6
-	RESEND   Type = 11
-	MARKER   Type = 12
-	CONTROL  Type = 14
+	CONNECT  PacketType = 1
+	ACCEPT   PacketType = 2
+	REFUSE   PacketType = 4
+	REDIRECT PacketType = 5
+	DATA     PacketType = 6
+	RESEND   PacketType = 11
+	MARKER   PacketType = 12
+	CONTROL  PacketType = 14
 )
 
-func (t Type) String() string {
+func (t PacketType) String() string {
 	var name string
 
 	switch t {

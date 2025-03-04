@@ -13,7 +13,7 @@ type PacketFlags byte
 
 type PacketHeader struct {
 	PacketSize     uint32      // Length of the data
-	PacketType     Type        // Packet type
+	PacketType     PacketType  // Packet type
 	PacketFlags    PacketFlags // Packet flags
 	PacketChecksum uint16      // PacketChecksum (only for basic version)
 	HeaderChecksum uint16      // HeaderChecksum (optional)
@@ -27,6 +27,7 @@ type PacketHeader struct {
 const (
 	PacketFlagRedirect       PacketFlags = 0x4
 	PacketFlagTLSRenegotiate PacketFlags = 0x8
+	PacketFlagLargeSDU       PacketFlags = 0x20
 )
 
 func (pf PacketFlags) HasFlag(flag PacketFlags) bool {
@@ -41,6 +42,9 @@ func (pf PacketFlags) ToString() string {
 	}
 	if pf.HasFlag(PacketFlagTLSRenegotiate) {
 		flags = append(flags, "TLS Renegotiate")
+	}
+	if pf.HasFlag(PacketFlagLargeSDU) {
+		flags = append(flags, "Large SDU")
 	}
 
 	joined := strings.Join(flags, "|")
@@ -73,7 +77,7 @@ func parseHeader(protocolVersion uint16, r io.Reader) (*PacketHeader, error) {
 		header.Extended = true
 	}
 
-	header.PacketType = Type(data[4])
+	header.PacketType = PacketType(data[4])
 	header.PacketFlags = PacketFlags(data[5])
 	header.HeaderChecksum = binary.BigEndian.Uint16(data[6:8])
 
