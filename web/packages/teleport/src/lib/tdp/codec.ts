@@ -78,6 +78,12 @@ export type ClientScreenSpec = {
   height: number;
 };
 
+export type PointerData = {
+  data: ImageData | boolean;
+  hotspot_x?: number;
+  hotspot_y?: number;
+};
+
 // | message type (2) | left uint32 | top uint32 | right uint32 | bottom uint32 | data []byte |
 // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#2---png-frame
 export type PngFrame = {

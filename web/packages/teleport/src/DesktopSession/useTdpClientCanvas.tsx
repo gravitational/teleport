@@ -33,8 +33,6 @@ import { TopBarHeight } from './TopBar';
 import {
   clipboardSharingPossible,
   ClipboardSharingState,
-  defaultClipboardSharingState,
-  defaultDirectorySharingState,
   DirectorySharingState,
   isSharingClipboard,
   Setter,
@@ -52,11 +50,7 @@ export default function useTdpClientCanvas(props: Props) {
     desktopName,
     clusterId,
     setTdpConnection,
-    setWsConnection,
     clipboardSharingState,
-    setClipboardSharingState,
-    setDirectorySharingState,
-    setAlerts,
   } = props;
   const [tdpClient, setTdpClient] = useState<TdpClient | null>(null);
   const initialTdpConnectionSucceeded = useRef(false);
@@ -105,58 +99,6 @@ export default function useTdpClientCanvas(props: Props) {
       let digest = await Sha256Digest(clipboardData.data, encoder.current);
       latestClipboardDigest.current = digest;
     }
-  };
-
-  // Default TdpClientEvent.TDP_ERROR and TdpClientEvent.CLIENT_ERROR handler
-  const clientOnTdpError = (error: Error) => {
-    setDirectorySharingState(defaultDirectorySharingState);
-    setClipboardSharingState(defaultClipboardSharingState);
-    setTdpConnection(prevState => {
-      // Sometimes when a connection closes due to an error, we get a cascade of
-      // errors. Here we update the status only if it's not already 'failed', so
-      // that the first error message (which is usually the most informative) is
-      // displayed to the user.
-      if (prevState.status !== 'failed') {
-        return {
-          status: 'failed',
-          statusText: error.message || error.toString(),
-        };
-      }
-      return prevState;
-    });
-  };
-
-  // Default TdpClientEvent.TDP_WARNING and TdpClientEvent.CLIENT_WARNING handler
-  const clientOnTdpWarning = (warning: string) => {
-    setAlerts(prevState => {
-      return [
-        ...prevState,
-        {
-          content: warning,
-          severity: 'warn',
-          id: crypto.randomUUID(),
-        },
-      ];
-    });
-  };
-
-  // TODO(zmb3): this is not what an info-level alert should do.
-  // rename it to something like onGracefulDisconnect
-  const clientOnTdpInfo = (info: string) => {
-    setDirectorySharingState(defaultDirectorySharingState);
-    setClipboardSharingState(defaultClipboardSharingState);
-    setTdpConnection({
-      status: '', // gracefully disconnecting
-      statusText: info,
-    });
-  };
-
-  const clientOnWsClose = (statusText: string) => {
-    setWsConnection({ status: 'closed', statusText });
-  };
-
-  const clientOnWsOpen = () => {
-    setWsConnection({ status: 'open' });
   };
 
   const canvasOnKeyDown = (e: React.KeyboardEvent) => {
@@ -257,12 +199,7 @@ export default function useTdpClientCanvas(props: Props) {
     tdpClient,
     clientScreenSpecToRequest: getDisplaySize(),
     setInitialTdpConnectionSucceeded,
-    clientOnTdpError,
     clientOnClipboardData,
-    clientOnWsClose,
-    clientOnWsOpen,
-    clientOnTdpWarning,
-    clientOnTdpInfo,
     canvasOnKeyDown,
     canvasOnKeyUp,
     canvasOnFocusOut,
