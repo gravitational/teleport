@@ -69,12 +69,12 @@ Update `Resource` entries to match your AWS account's EKS resources, which have 
 
 ## Step 2/3. Configure EKS cluster authorization
 
-<Notice type="warning">
+<Admonition type="warning">
 If you are running Teleport Discovery v15.3.8 or later and the IAM role
 used by the Discovery Service has the necessary permissions to create and
 update Access Entries, you can skip this section. The service can self-bootstrap
 the required permissions automatically.
-</Notice>
+</Admonition>
 
 When the Kubernetes Service uses an IAM role that is different from the one that
 creates the clusters, you need to configure the mapping between the Teleport IAM
@@ -228,11 +228,11 @@ to forward requests to the cluster.
 
 <TabItem label="Use system:masters" >
 
-    <Notice type="warning">
+    <Admonition type="warning">
 Granting the `system:masters` group to the IAM role associated with the Teleport
 service means granting administrator-level permissions on the Kubernetes cluster.
 To follow least privilege principle we do not recommend using this method in production.
-  </Notice>
+  </Admonition>
 
 
 
@@ -296,11 +296,11 @@ to forward requests to the cluster.
   </TabItem>
 </Tabs>
 
-<Notice type="tip">
+<Admonition type="tip">
 If you provision your EKS clusters using tools such as `terraform`, `eksctl` or
 `Cloudformation`, you can use them to automatically configure the `aws-auth` `Configmap` or access entry
 and create the `ClusterRole` and `ClusterRoleBinding` resources during cluster provisioning.
-</Notice>
+</Admonition>
 
 ## Step 3/3. Configure Teleport to discover EKS clusters
 

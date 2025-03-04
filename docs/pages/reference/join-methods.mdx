@@ -283,13 +283,13 @@ IAM credentials with `ec2:DescribeInstances` permissions are required on your
 Teleport Auth Service. No IAM credentials are required on the Teleport processes
 joining the cluster.
 
-<Notice type="warning">
+<Admonition type="warning">
 
 The EC2 join method is not available in Teleport Enterprise Cloud and Teleport
 Team. Teleport Enterprise Cloud and Team customers can use the [IAM join
 method](#aws-iam-role-iam) or [ephemeral secret tokens](#ephemeral-tokens).
 
-</Notice>
+</Admonition>
 
 (!docs/pages/includes/provision-token/ec2-spec.mdx!)
 

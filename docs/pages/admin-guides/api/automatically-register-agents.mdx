@@ -29,12 +29,12 @@ Automatic registration consists of the following steps:
   infrastructure, use the Teleport API to deregister the resource and, if
   necessary, remove the Teleport service proxying the resource.
 
-<Notice type="danger">
+<Admonition type="danger">
 
 The program we build in this guide is intended as a learning tool. **Do not
 connect it to your production Teleport cluster.**  Use a demo cluster instead.
 
-</Notice>
+</Admonition>
 
 ## Prerequisites
 
@@ -704,13 +704,13 @@ To deregister the Application Service instance manually, we call the
 `pruneAppServiceInstance` function to get the namespace, host ID, and name of
 the Application Service instance to delete.
 
-<Notice type="tip">
+<Admonition type="tip">
 
 While Teleport namespaces are deprecated, they still appear occasionally in the
 Teleport API client library. The only namespace that Teleport supports is called
 `default`.
 
-</Notice>
+</Admonition>
 
 Next, this function stops and removes the Application Service container
 associated with the `types.AppServer` we want to prune. The hostname of an
