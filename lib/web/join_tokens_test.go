@@ -689,7 +689,7 @@ func TestGetNodeJoinScript(t *testing.T) {
 		settings        scriptSettings
 		errAssert       require.ErrorAssertionFunc
 		token           *types.ProvisionTokenV2
-		extraAssertions func(script string)
+		extraAssertions func(t *testing.T, script string)
 	}{
 		{
 			desc:      "zero value",
@@ -740,7 +740,7 @@ func TestGetNodeJoinScript(t *testing.T) {
 					},
 				},
 			},
-			extraAssertions: func(script string) {
+			extraAssertions: func(t *testing.T, script string) {
 				require.Contains(t, script, validToken)
 				require.Contains(t, script, hostname)
 				require.Contains(t, script, strconv.Itoa(port))
@@ -773,7 +773,7 @@ func TestGetNodeJoinScript(t *testing.T) {
 				},
 			},
 			errAssert: require.NoError,
-			extraAssertions: func(script string) {
+			extraAssertions: func(t *testing.T, script string) {
 				require.Contains(t, script, "JOIN_METHOD='iam'")
 			},
 		},
@@ -791,7 +791,7 @@ func TestGetNodeJoinScript(t *testing.T) {
 					},
 				},
 			},
-			extraAssertions: func(script string) {
+			extraAssertions: func(t *testing.T, script string) {
 				require.Contains(t, script, "--labels ")
 				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
 			},
@@ -810,11 +810,60 @@ func TestGetNodeJoinScript(t *testing.T) {
 				},
 			},
 			errAssert: require.NoError,
-			extraAssertions: func(script string) {
+			extraAssertions: func(t *testing.T, script string) {
 				require.Contains(t, script, `APP_NAME='app-name'`)
 				require.Contains(t, script, `APP_URI='app-uri'`)
 				require.Contains(t, script, `public_addr`)
 				require.Contains(t, script, fmt.Sprintf("    labels:\n      %s: %s", types.InternalResourceIDLabel, internalResourceID))
+			},
+		},
+		{
+			desc:     "app server labels with shell injection attempt",
+			settings: scriptSettings{token: validToken, appInstallMode: true, appName: "app-name", appURI: "app-uri"},
+			token: &types.ProvisionTokenV2{
+				Metadata: types.Metadata{
+					Name: validToken,
+				},
+				Spec: types.ProvisionTokenSpecV2{
+					SuggestedLabels: types.Labels{
+						types.InternalResourceIDLabel:   apiutils.Strings{internalResourceID},
+						"env":                           []string{"bad label value | ; & $ > < ' !"},
+						"bad label key | ; & $ > < ' !": []string{"env"},
+					},
+				},
+			},
+			errAssert: require.NoError,
+			extraAssertions: func(t *testing.T, script string) {
+				require.Contains(t, script, `APP_NAME='app-name'`)
+				require.Contains(t, script, `APP_URI='app-uri'`)
+				require.Contains(t, script, `public_addr`)
+				require.Contains(t, script, `
+    labels:
+      bad label key | ; & $ > < ' !: env
+      env: bad\ label\ value\ \|\ \;\ \&\ \$\ \>\ \<\ \'\ \!
+      teleport.internal/resource-id: `+internalResourceID,
+				)
+			},
+		},
+		{
+			desc:     "attempt to shell injection using suggested labels",
+			settings: scriptSettings{token: validToken},
+			token: &types.ProvisionTokenV2{
+				Metadata: types.Metadata{
+					Name: validToken,
+				},
+				Spec: types.ProvisionTokenSpecV2{
+					SuggestedLabels: types.Labels{
+						types.InternalResourceIDLabel:   apiutils.Strings{internalResourceID},
+						"env":                           []string{"bad label value | ; & $ > < ' !"},
+						"bad label key | ; & $ > < ' !": []string{"env"},
+					},
+				},
+			},
+			errAssert: require.NoError,
+			extraAssertions: func(t *testing.T, script string) {
+				require.Contains(t, script, `bad\ label\ key\ \|\ \;\ \&\ \$\ \>\ \<\ \'\ \!=env`)
+				require.Contains(t, script, `env=bad\ label\ value\ \|\ \;\ \&\ \$\ \>\ \<\ \'\ \!`)
 			},
 		},
 	} {
@@ -831,7 +880,7 @@ func TestGetNodeJoinScript(t *testing.T) {
 			}
 
 			if test.extraAssertions != nil {
-				test.extraAssertions(script)
+				test.extraAssertions(t, script)
 			}
 		})
 	}
@@ -1133,7 +1182,7 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 		settings        scriptSettings
 		token           *types.ProvisionTokenV2
 		errAssert       require.ErrorAssertionFunc
-		extraAssertions func(script string)
+		extraAssertions func(t *testing.T, script string)
 	}{
 		{
 			desc:  "two installation methods",
@@ -1153,7 +1202,7 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 				token:               validToken,
 			},
 			errAssert: require.NoError,
-			extraAssertions: func(script string) {
+			extraAssertions: func(t *testing.T, script string) {
 				require.Contains(t, script, validToken)
 				require.Contains(t, script, hostname)
 				require.Contains(t, script, strconv.Itoa(port))
@@ -1161,15 +1210,90 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 				require.Contains(t, script, "--labels ")
 				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
 				require.Contains(t, script, `
-db_service:
-  enabled: "yes"
-  resources:
     - labels:
         env: prod
         os:
           - mac
           - linux
         product: '*'
+`)
+			},
+		},
+		{
+			desc: "discover flow with wildcard label matcher",
+			token: &types.ProvisionTokenV2{
+				Metadata: types.Metadata{
+					Name: validToken,
+				},
+				Spec: types.ProvisionTokenSpecV2{
+					SuggestedLabels: types.Labels{
+						types.InternalResourceIDLabel: apiutils.Strings{internalResourceID},
+					},
+					SuggestedAgentMatcherLabels: types.Labels{
+						"*": apiutils.Strings{"*"},
+					},
+				},
+			},
+			settings: scriptSettings{
+				databaseInstallMode: true,
+				token:               validToken,
+			},
+			errAssert: require.NoError,
+			extraAssertions: func(t *testing.T, script string) {
+				require.Contains(t, script, validToken)
+				require.Contains(t, script, hostname)
+				require.Contains(t, script, "sha256:")
+				require.Contains(t, script, "--labels ")
+				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
+				require.Contains(t, script, `
+    - labels:
+        '*': '*'
+`)
+			},
+		},
+		{
+			desc: "discover flow with shell injection attempt in resource matcher labels",
+			token: &types.ProvisionTokenV2{
+				Metadata: types.Metadata{
+					Name: validToken,
+				},
+				Spec: types.ProvisionTokenSpecV2{
+					SuggestedLabels: types.Labels{
+						types.InternalResourceIDLabel: apiutils.Strings{internalResourceID},
+					},
+					SuggestedAgentMatcherLabels: types.Labels{
+						"*":                             apiutils.Strings{"*"},
+						"spa ces":                       apiutils.Strings{"spa ces"},
+						"EOF":                           apiutils.Strings{"test heredoc"},
+						`"EOF"`:                         apiutils.Strings{"test quoted heredoc"},
+						"#'; <>\\#":                     apiutils.Strings{"try to escape yaml"},
+						"&<>'\"$A,./;'BCD ${ABCD}":      apiutils.Strings{"key with special characters"},
+						"value with special characters": apiutils.Strings{"&<>'\"$A,./;'BCD ${ABCD}", "#&<>'\"$A,./;'BCD ${ABCD}"},
+					},
+				},
+			},
+			settings: scriptSettings{
+				databaseInstallMode: true,
+				token:               validToken,
+			},
+			errAssert: require.NoError,
+			extraAssertions: func(t *testing.T, script string) {
+				require.Contains(t, script, validToken)
+				require.Contains(t, script, hostname)
+				require.Contains(t, script, "sha256:")
+				require.Contains(t, script, "--labels ")
+				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
+				require.Contains(t, script, `
+    - labels:
+        '"EOF"': test quoted heredoc
+        '#''; <>\#': try to escape yaml
+        '&<>''"$A,./;''BCD ${ABCD}': key with special characters
+        '*': '*'
+        EOF: test heredoc
+        spa ces: spa ces
+        value with special characters:
+          - '&<>''"$A,./;''BCD ${ABCD}'
+          - '#&<>''"$A,./;''BCD ${ABCD}'
 `)
 			},
 		},
@@ -1181,7 +1305,7 @@ db_service:
 				token:               emptySuggestedAgentMatcherLabelsToken,
 			},
 			errAssert: require.NoError,
-			extraAssertions: func(script string) {
+			extraAssertions: func(t *testing.T, script string) {
 				require.Contains(t, script, emptySuggestedAgentMatcherLabelsToken)
 				require.Contains(t, script, hostname)
 				require.Contains(t, script, strconv.Itoa(port))
@@ -1189,9 +1313,6 @@ db_service:
 				require.Contains(t, script, "--labels ")
 				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
 				require.Contains(t, script, `
-db_service:
-  enabled: "yes"
-  resources:
     - labels:
         {}
 `)
@@ -1212,7 +1333,7 @@ db_service:
 			}
 
 			if test.extraAssertions != nil {
-				test.extraAssertions(script)
+				test.extraAssertions(t, script)
 			}
 		})
 	}

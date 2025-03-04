@@ -256,7 +256,7 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 	}
 
 	if cfg.LimiterRefillAmount < 0 {
-		return trace.BadParameter("LimiterRefillAmount cannot be nagative")
+		return trace.BadParameter("LimiterRefillAmount cannot be negative")
 	}
 	if cfg.LimiterBurst < 0 {
 		return trace.BadParameter("LimiterBurst cannot be negative")

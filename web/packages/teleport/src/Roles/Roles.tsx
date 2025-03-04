@@ -65,6 +65,7 @@ type RoleDiffProps = {
   // TODO(bl-nero): Make this property required once the Enterprise code is
   // updated.
   roleDiffAttempt?: Attempt<unknown>;
+  clearRoleDiffAttempt?: () => void;
 };
 
 export type RolesProps = {
@@ -239,7 +240,10 @@ export function Roles(props: State & RolesProps) {
             open={
               resources.status === 'creating' || resources.status === 'editing'
             }
-            onClose={resources.disregard}
+            onClose={() => {
+              resources.disregard();
+              props.roleDiffProps?.clearRoleDiffAttempt();
+            }}
             resources={resources}
             onSave={handleSave}
             roleDiffProps={props.roleDiffProps}

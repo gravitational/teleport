@@ -4,5 +4,9 @@
 
 set -eu
 
-echo "Removing symlinks from Teleport system paths..."
-/opt/teleport/system/bin/teleport-update unlink-package || true
+if [ $# -ge 1 ] && [ "$1" = "1" ]; then
+  echo "Skipping symlink removal as this is a package upgrade."
+else
+  echo "Removing symlinks from Teleport system paths..."
+  /opt/teleport/system/bin/teleport-update unlink-package || true
+fi

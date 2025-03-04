@@ -46,7 +46,7 @@ export TF_VAR_cluster_name="teleport.example.com"
 # OSS: aws ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-oss-*'
 # Enterprise: aws ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-ent-*'
 # FIPS 140-2 images are also available for Enterprise customers, look for '-fips' on the end of the AMI's name
-export TF_VAR_ami_name="teleport-ent-17.2.9-arm64"
+export TF_VAR_ami_name="teleport-ent-17.3.1-arm64"
 
 # Instance types used for authentication server auto scaling group
 # This should match to the AMI instance architecture type, ARM or x86

@@ -30,11 +30,11 @@ import {
 import * as Alerts from 'design/Alert';
 import { DialogContent, DialogHeader } from 'design/Dialog';
 import * as Icons from 'design/Icon';
+import { AuthSettings } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 import { PrimaryAuthType } from 'shared/services';
 
 import { publicAddrWithTargetPort } from 'teleterm/services/tshd/app';
 import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
-import { AuthSettings } from 'teleterm/ui/services/clusters/types';
 import { ClusterConnectReason } from 'teleterm/ui/services/modals';
 
 import { outermostPadding } from '../spacing';
@@ -66,6 +66,9 @@ export function ClusterLoginPresentation({
   shouldPromptSsoStatus,
   passwordlessLoginState,
   reason,
+  shouldSkipVersionCheck,
+  disableVersionCheck,
+  platform,
 }: ClusterLoginPresentationProps) {
   return (
     <>
@@ -108,7 +111,7 @@ export function ClusterLoginPresentation({
         )}
         {initAttempt.status === 'success' && (
           <LoginForm
-            {...initAttempt.data}
+            authSettings={initAttempt.data}
             primaryAuthType={getPrimaryAuthType(initAttempt.data)}
             loggedInUserName={loggedInUserName}
             onLoginWithSso={onLoginWithSso}
@@ -119,6 +122,9 @@ export function ClusterLoginPresentation({
             clearLoginAttempt={clearLoginAttempt}
             shouldPromptSsoStatus={shouldPromptSsoStatus}
             passwordlessLoginState={passwordlessLoginState}
+            shouldSkipVersionCheck={shouldSkipVersionCheck}
+            disableVersionCheck={disableVersionCheck}
+            platform={platform}
           />
         )}
       </DialogContent>
