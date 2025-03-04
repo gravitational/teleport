@@ -603,6 +603,10 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 
 	labelsList := []string{}
 	for labelKey, labelValues := range token.GetSuggestedLabels() {
+		labelKey = shsprintf.EscapeDefaultContext(labelKey)
+		for i := range labelValues {
+			labelValues[i] = shsprintf.EscapeDefaultContext(labelValues[i])
+		}
 		labels := strings.Join(labelValues, " ")
 		labelsList = append(labelsList, fmt.Sprintf("%s=%s", labelKey, labels))
 	}
@@ -660,7 +664,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 	// This section relies on Go's default zero values to make sure that the settings
 	// are correct when not installing an app.
 	err = scripts.InstallNodeBashScript.Execute(&buf, map[string]interface{}{
-		"token":    settings.token,
+		"token":    shsprintf.EscapeDefaultContext(settings.token),
 		"hostname": hostname,
 		"port":     portStr,
 		// The install.sh script has some manually generated configs and some
