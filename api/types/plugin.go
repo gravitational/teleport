@@ -137,6 +137,7 @@ type PluginStatus interface {
 	GetOkta() *PluginOktaStatusV1
 	GetAwsIc() *PluginAWSICStatusV1
 	GetNetIq() *PluginNetIQStatusV1
+	SetDetails(isPluginStatusV1_Details)
 }
 
 // NewPluginV1 creates a new PluginV1 resource.
@@ -819,6 +820,25 @@ func (s AWSICResourceFilter) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// Check validates the [code] value, returning an error if the value is not a
+// defined member of the [AWSICGroupImportStatusCode] enum.
+func (code AWSICGroupImportStatusCode) Check() error {
+	if _, ok := AWSICGroupImportStatusCode_name[int32(code)]; ok {
+		return nil
+	}
+	return trace.BadParameter("invalid group import state %d", int(code))
+}
+
+// CheckAndSetDefaults validates the values in the plugin status struct.
+func (s *PluginAWSICStatusV1) CheckAndSetDefaults() error {
+	if gis := s.GroupImportStatus; gis != nil {
+		if err := gis.StatusCode.Check(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
 func (c *PluginEmailSettings) CheckAndSetDefaults() error {
 	if c.Sender == "" {
 		return trace.BadParameter("sender must be set")
@@ -881,6 +901,10 @@ func (c PluginStatusV1) GetErrorMessage() string {
 // GetLastSyncTime returns the last run of the plugin.
 func (c PluginStatusV1) GetLastSyncTime() time.Time {
 	return c.LastSyncTime
+}
+
+func (c *PluginStatusV1) SetDetails(settings isPluginStatusV1_Details) {
+	c.Details = settings
 }
 
 // CheckAndSetDefaults checks that the required fields for the Gitlab plugin are set.
