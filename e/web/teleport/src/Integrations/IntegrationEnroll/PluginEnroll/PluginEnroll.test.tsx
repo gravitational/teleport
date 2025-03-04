@@ -1,13 +1,6 @@
 import { MemoryRouter, Route } from 'react-router';
 
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  tick,
-  userEvent,
-} from 'design/utils/testing';
+import { fireEvent, render, screen, userEvent } from 'design/utils/testing';
 
 import cfg from 'e-teleport/config';
 import {
@@ -43,8 +36,6 @@ jest.mock('shared/libs/logger', () => {
   };
 });
 
-const defaultSyncEntitlement = cfg.oss.entitlements.OktaUserSync;
-const defaultScimEntitlement = cfg.oss.entitlements.OktaSCIM;
 const defaultIdentityEntitlement = cfg.oss.entitlements.Identity;
 
 describe('slack PluginEnroll.tsx', () => {
@@ -59,7 +50,7 @@ describe('slack PluginEnroll.tsx', () => {
   });
 
   test('missing input prevents submitting', async () => {
-    renderPluginEnroll('slack');
+    await renderPluginEnroll('slack');
 
     expect(
       screen.getByText(/Slack access request notifications/i)
@@ -75,7 +66,7 @@ describe('slack PluginEnroll.tsx', () => {
 
   test('enroll success state', async () => {
     const eventId = 'c6b794e1-afcf-4e16-ac5b';
-    renderPluginEnroll('slack', {
+    await renderPluginEnroll('slack', {
       search: `event_id=${eventId}&success=%7B%22name%22%3A%22slack-default%22%2C%22slack%22%3A%7B%22fallback_channel%22%3A%22%23general-channel%22%7D%7D`,
     });
 
@@ -148,22 +139,20 @@ describe('okta PluginEnroll.tsx', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
-    cfg.oss.entitlements.OktaUserSync = defaultSyncEntitlement;
-    cfg.oss.entitlements.OktaSCIM = defaultScimEntitlement;
     cfg.oss.entitlements.Identity = defaultIdentityEntitlement;
   });
 
   test('okta flow without Identity, only SSO step is allowed', async () => {
     jest.spyOn(pluginsService, 'fetchPlugin').mockResolvedValue(undefined);
 
-    renderPluginEnroll('okta', { identity: false });
-    await act(tick);
+    const { ctx } = await renderPluginEnroll('okta', { identity: false });
 
     expect(
       screen.getByText(/unlock the full integration/i)
     ).toBeInTheDocument();
 
     await completeFirstSteps({
+      ctx,
       metadataUrl:
         'https://some-org-url.okta.com/app/abcdefg/sso/saml/metadata',
     });
@@ -186,14 +175,14 @@ describe('okta PluginEnroll.tsx', () => {
   });
 
   test('okta flow with Identity, without custom filters', async () => {
-    renderPluginEnroll('okta', { identity: true });
-    await act(tick);
+    const { ctx } = await renderPluginEnroll('okta', { identity: true });
 
     expect(
-      screen.queryByText(/unlock the full integration with teleport identity/i)
+      screen.queryByText(/unlock the full integration/i)
     ).not.toBeInTheDocument();
 
     await completeFirstSteps({
+      ctx,
       metadataUrl:
         'https://some-org-url.okta.com/app/abcdefg/sso/saml/metadata',
       scim: true,
@@ -203,9 +192,7 @@ describe('okta PluginEnroll.tsx', () => {
     expect(screen.getByText(/sync all user groups/i)).toBeInTheDocument();
 
     // Test all the okta tables rendered.
-    await screen.findByText(/airbase/i);
     expect(screen.getByText(/airbase/i)).toBeInTheDocument();
-    await screen.findByText(/group-1/i);
     expect(screen.getByText(/group-1/i)).toBeInTheDocument();
 
     // Select the first user from dropdown.
@@ -226,14 +213,14 @@ describe('okta PluginEnroll.tsx', () => {
   });
 
   test('okta flow with Identity, with custom filters', async () => {
-    renderPluginEnroll('okta', { identity: true });
-    await act(tick);
+    const { ctx } = await renderPluginEnroll('okta', { identity: true });
 
     expect(
-      screen.queryByText(/unlock the full integration with teleport identity/i)
+      screen.queryByText(/unlock the full integration/i)
     ).not.toBeInTheDocument();
 
     await completeFirstSteps({
+      ctx,
       metadataUrl:
         'https://some-org-url.okta.com/app/abcdefg/sso/saml/metadata',
       scim: true,
@@ -286,8 +273,11 @@ describe('okta PluginEnroll.tsx', () => {
       .mockResolvedValue(true);
     jest.spyOn(pluginsService, 'cleanupPlugin').mockResolvedValue(null);
 
-    renderPluginEnroll('okta', { identity: true });
-    await act(tick);
+    await renderPluginEnroll('okta', { identity: true });
+
+    expect(
+      screen.queryByText(/unlock the full integration/i)
+    ).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByText(/set up single sign-on/i));
 
@@ -308,13 +298,14 @@ describe('okta PluginEnroll.tsx', () => {
   });
 
   test('okta flow with user sync & scim enabled, custom filter error handling', async () => {
-    cfg.oss.entitlements.OktaUserSync = { enabled: true, limit: 0 };
-    cfg.oss.entitlements.OktaSCIM = { enabled: true, limit: 0 };
+    const { ctx } = await renderPluginEnroll('okta', { identity: true });
 
-    renderPluginEnroll('okta', { identity: true });
-    await act(tick);
+    expect(
+      screen.queryByText(/unlock the full integration/i)
+    ).not.toBeInTheDocument();
 
     await completeFirstSteps({
+      ctx,
       metadataUrl:
         'https://some-org-url.okta.com/app/abcdefg/sso/saml/metadata',
       scim: true,
@@ -377,10 +368,14 @@ describe('okta PluginEnroll.tsx', () => {
       .spyOn(pluginsService, 'createPlugin')
       .mockRejectedValue(new Error('some create error'));
 
-    renderPluginEnroll('okta', { identity: false });
-    await act(tick);
+    const { ctx } = await renderPluginEnroll('okta', { identity: false });
+
+    expect(
+      screen.getByText(/unlock the full integration/i)
+    ).toBeInTheDocument();
 
     await completeFirstSteps({
+      ctx,
       metadataUrl:
         'https://some-org-url.okta.com/app/abcdefg/sso/saml/metadata',
     });
@@ -391,17 +386,23 @@ describe('okta PluginEnroll.tsx', () => {
 });
 
 const completeFirstSteps = async ({
+  ctx,
   metadataUrl,
   scim,
   clientID,
 }: {
+  ctx: ReturnType<typeof createTeleportContextE>;
   metadataUrl: string;
   scim?: boolean;
   clientID?: string;
 }) => {
+  jest.spyOn(ctx.resourceService, 'fetchAuthConnectors').mockResolvedValue({
+    defaultConnector: undefined,
+    connectors: [],
+  });
+
   await userEvent.click(screen.getByText(/set up single sign-on/i));
-  // TODO(kiosion): Remove this; need to stub out authConnectors response.
-  await new Promise(resolve => setTimeout(resolve, 100));
+  await screen.findByText(/configure sso/i);
   fireEvent.change(screen.getByLabelText(/metadata url/i), {
     target: {
       value: metadataUrl,
@@ -427,7 +428,7 @@ const completeFirstSteps = async ({
   await userEvent.click(screen.getByText(/next/i));
 };
 
-function renderPluginEnroll(
+async function renderPluginEnroll(
   pluginType: PluginKind,
   {
     search,
@@ -438,11 +439,6 @@ function renderPluginEnroll(
   } = {}
 ) {
   const ctx = createTeleportContextE();
-
-  ctx.resourceService.fetchAuthConnectors = jest
-    .fn()
-    .mockResolvedValue({ connectors: [] });
-
   cfg.oss.entitlements.Identity = { enabled: identity, limit: 0 };
 
   render(
@@ -458,4 +454,10 @@ function renderPluginEnroll(
       </TeleportContextProvider>
     </MemoryRouter>
   );
+
+  if (pluginType === 'okta') {
+    await screen.findByText(/okta integration overview/i);
+  }
+
+  return { ctx };
 }

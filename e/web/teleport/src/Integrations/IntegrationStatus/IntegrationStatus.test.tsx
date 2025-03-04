@@ -30,29 +30,35 @@ import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
 const defaultIdentity = cfg.entitlements.Identity;
 
-test('okta does not show unsupported message', () => {
-  render(
-    <MemoryRouter initialEntries={[`/web/integrations/status/okta/some-name`]}>
-      <Route path={cfg.routes.integrationStatus}>
-        <IntegrationStatus />
-      </Route>
-    </MemoryRouter>
-  );
-
-  expect(
-    screen.queryByText(`Status for integration type okta is not supported`)
-  ).not.toBeInTheDocument();
-  expect(screen.getByText('Okta Integration')).toBeInTheDocument();
-});
-
 describe('Okta status', () => {
   afterEach(() => {
     jest.clearAllMocks();
     cfg.entitlements.Identity = defaultIdentity;
   });
 
-  // TODO(kiosion): Almost always flakes in CI, not locally, investigate.
-  test.skip('renders CTA without Identity entitlement', async () => {
+  test('does not show unsupported message', async () => {
+    jest
+      .spyOn(pluginsService, 'fetchPlugin')
+      .mockResolvedValue(stubOktaPluginOnlySSO);
+
+    render(
+      <MemoryRouter
+        initialEntries={[`/web/integrations/status/okta/some-name`]}
+      >
+        <Route path={cfg.routes.integrationStatus}>
+          <IntegrationStatus />
+        </Route>
+      </MemoryRouter>
+    );
+    await act(tick);
+
+    expect(
+      screen.queryByText(`Status for integration type okta is not supported`)
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('Okta Integration')).toBeInTheDocument();
+  });
+
+  test('renders CTA without Identity entitlement', async () => {
     jest
       .spyOn(pluginsService, 'fetchPlugin')
       .mockResolvedValue(stubOktaPluginOnlySSO);
@@ -71,8 +77,7 @@ describe('Okta status', () => {
     );
   });
 
-  // TODO(kiosion): Update buttons w/ test ids for these tests.
-  test.skip('allows enabling SCIM, UserSync, and App/Group Sync after setup', async () => {
+  test('allows enabling SCIM, UserSync, and App/Group Sync after setup', async () => {
     jest
       .spyOn(pluginsService, 'fetchPlugin')
       .mockResolvedValue(stubOktaPluginOnlySSO);
@@ -88,9 +93,7 @@ describe('Okta status', () => {
     await userEvent.click(
       within(userSyncSection).getByRole('button', { name: /options/i })
     );
-    await userEvent.click(screen.getByText(/edit configuration/i));
-
-    await act(tick);
+    await userEvent.click(screen.getByRole('menuitem', { name: /enable/i }));
 
     expect(screen.getByText(/sync users/i)).toBeInTheDocument();
 
