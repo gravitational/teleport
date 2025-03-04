@@ -7,7 +7,7 @@ state: draft
 
 ## Required Approvers
 
-* Engineering: @rosstimothy
+* Engineering: @rosstimothy && @ravicious
 * Product: @xinding33 || @klizhentas
 
 ## What
@@ -267,7 +267,7 @@ If desired, the agent can be disabled manually with a config option:
 
 | Property | Default | Description |
 |----------|---------|-------------|
-| `teleport.hardware_key.agent` | `false` | Starts the hardware key agent automatically |
+| `hardwareKeyAgent.enabled` | `false` | Starts the hardware key agent automatically |
 
 ##### `tsh agent`
 
@@ -325,11 +325,50 @@ lead to an error for the dependent client. Rather than returning this error,
 the client will log the error as debug and try again by connecting directly to
 the hardware key.
 
-#### Hardware Key prompts
+#### Hardware key prompts
 
-The agent is [responsible for hardware key PIN and touch prompts](#pin-and-touch-prompts).
-As a result, the dependent client will hang while it is prompted and handled
-in the agent client. Teleport Connect will foreground these prompts, so it
+The agent is [responsible for prompting hardware key PIN and touch](#pin-and-touch-prompts)
+on behalf of dependent clients.
+
+The dependent client will include its full command to the agent `Sign` request
+in order for the agent to relay to the user which dependent client is making
+the signature request. The agent will then include this command in the existing
+touch and PIN prompts.
+
+Teleport connect:
+
+```text
+# normal touch prompt
+Verify your identity to on root.example.com
+ 
+# agent touch prompt
+Verify your identity to continue with command "tsh ssh server01"
+ 
+# normal pin prompt
+Unlock hardware key to access root.example.com
+ 
+# agent pin prompt
+Unlock hardware key to continue with command "tsh ssh server01"
+```
+
+`tsh agent`:
+
+```text
+# normal touch prompt
+Tap your YubiKey
+ 
+# agent touch prompt
+Tap your YubiKey to continue with command "tsh ssh server01"
+ 
+# normal pin prompt
+Enter your YubiKey PIV PIN:
+ 
+# agent pin prompt
+Enter your YubiKey PIV PIN to continue with command "tsh ssh server01":
+```
+
+While the agent client prompts the user, the dependent client will hang until
+the prompt is handled. Teleport Connect will foreground these prompts, so it
 should be clear to the user how to complete the prompts and proceed with the
 dependent client.
 
@@ -337,6 +376,11 @@ Future improvement: instead of leaving the prompt purely up to the agent client,
 the agent client could propagate the prompt to the dependent client requesting
 a signature through a bi-directional, streaming version of the `Sign` rpc. The
 dependent could then prompt for PIN or touch like normal, e.g. in the terminal.
+The user could then choose between the terminal and agent prompt depending on
+which is more convenient. For example, the user could enter their PIN in the
+terminal for a basic `tsh ssh` command, but enter their PIN in Teleport Connect
+for `tsh proxy` commands. However, this adds a lot of complexity and could
+provide no benefit if Teleport Connect is always foregrounding the prompts.
 
 ### Proto
 
@@ -384,6 +428,10 @@ message SignRequest {
   // This salt length is precomputed by the client, following the crypto/rsa implementation.
   // Only used, and required, for PSS RSA signatures.
   uint32 salt_length = 5;
+  // CommandName is the name of the command or action requiring a signature.
+  // e.g. "tsh ssh server01". The agent can include this detail in PIN and touch
+  // prompts to show the origin of the signature request to the user.
+  string command_name = 6;
 }
 
 // Signature is a private key signature.
