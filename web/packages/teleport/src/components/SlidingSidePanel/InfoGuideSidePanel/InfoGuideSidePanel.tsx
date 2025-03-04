@@ -16,11 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { PropsWithChildren, useRef, useState } from 'react';
+import React, { PropsWithChildren } from 'react';
 
 import { Box, ButtonIcon, Flex, Text } from 'design';
 import { Cross, Info } from 'design/Icon';
 
+import { useInfoGuide } from 'teleport/Main/InfoGuideContext';
 import { zIndexMap } from 'teleport/Navigation/zIndexMap';
 
 import { SlidingSidePanel } from '..';
@@ -44,7 +45,6 @@ export const InfoGuideSidePanel: React.FC<
       panelWidth={infoGuidePanelWidth}
       zIndex={zIndexMap.infoGuideSidePanel}
       slideFrom="right"
-      right={0}
     >
       <Box css={{ height: '100%', overflow: 'auto' }}>
         <InfoGuideHeader onClose={onClose} />
@@ -61,17 +61,16 @@ const InfoGuideHeader = ({ onClose }: { onClose(): void }) => (
     gap={2}
     alignItems="center"
     justifyContent="space-between"
-    p={3}
+    px={3}
+    py={2}
     css={`
       position: sticky;
       top: 0;
       background: ${p => p.theme.colors.levels.surface};
+      border-bottom: 1px solid ${p => p.theme.colors.spotBackground[1]};
     `}
   >
-    <Flex gap={2}>
-      <Info size="small" />
-      <Text bold>Info Guide</Text>
-    </Flex>
+    <Text bold>Info Guide</Text>
     <ButtonIcon onClick={onClose} data-testid="info-guide-btn-close">
       <Cross size="small" />
     </ButtonIcon>
@@ -83,13 +82,20 @@ const InfoGuideHeader = ({ onClose }: { onClose(): void }) => (
  */
 export const InfoGuideWrapper: React.FC<
   PropsWithChildren<{
-    onClick(): void;
+    guide: JSX.Element;
   }>
-> = ({ onClick, children }) => (
-  <Flex alignItems="center">
-    {children}
-    <ButtonIcon onClick={onClick} data-testid="info-guide-btn-open">
-      <Info size="small" />
-    </ButtonIcon>
-  </Flex>
-);
+> = ({ guide, children }) => {
+  const { setInfoGuideElement } = useInfoGuide();
+
+  return (
+    <Flex alignItems="center" gap={2}>
+      {children}
+      <ButtonIcon
+        onClick={() => setInfoGuideElement(guide)}
+        data-testid="info-guide-btn-open"
+      >
+        <Info size="small" />
+      </ButtonIcon>
+    </Flex>
+  );
+};

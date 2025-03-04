@@ -25,6 +25,7 @@ import { Info } from 'design/Alert';
 import { getOSSFeatures } from 'teleport/features';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { ContextProvider } from 'teleport/index';
+import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
@@ -50,23 +51,25 @@ export const TopBar: React.FC<PropsWithChildren> = ({ children }) => {
           updateDiscoverResourcePreferences,
         }}
       >
-        <ContextProvider ctx={ctx}>
-          <FeaturesContextProvider value={getOSSFeatures()}>
-            <LayoutContextProvider>
-              <Box
-                css={`
-                  position: absolute;
-                  top: 0;
-                  right: 0;
-                  left: 0;
-                `}
-              >
-                <Component />
-                {children}
-              </Box>
-            </LayoutContextProvider>
-          </FeaturesContextProvider>
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <FeaturesContextProvider value={getOSSFeatures()}>
+              <LayoutContextProvider>
+                <Box
+                  css={`
+                    position: absolute;
+                    top: 0;
+                    right: 0;
+                    left: 0;
+                  `}
+                >
+                  <Component />
+                  {children}
+                </Box>
+              </LayoutContextProvider>
+            </FeaturesContextProvider>
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </UserContext.Provider>
     </MemoryRouter>
   );

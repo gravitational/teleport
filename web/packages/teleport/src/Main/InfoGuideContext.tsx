@@ -16,15 +16,36 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import {
+  createContext,
+  PropsWithChildren,
+  useContext,
+  useEffect,
+  useState,
+} from 'react';
 
 type InfoGuidePanelContextState = {
   setInfoGuideElement: (element: JSX.Element | null) => void;
   infoGuideElement: JSX.Element | null;
 };
 
-export const InfoGuidePanelContext =
-  createContext<InfoGuidePanelContextState>(null);
+const InfoGuidePanelContext = createContext<InfoGuidePanelContextState>(null);
+
+export const InfoGuidePanelProvider: React.FC<PropsWithChildren> = ({
+  children,
+}) => {
+  const [infoGuideElement, setInfoGuideElement] = useState<JSX.Element | null>(
+    null
+  );
+
+  return (
+    <InfoGuidePanelContext.Provider
+      value={{ infoGuideElement, setInfoGuideElement }}
+    >
+      {children}
+    </InfoGuidePanelContext.Provider>
+  );
+};
 
 /**
  * hook that allows you to set the info guide element that

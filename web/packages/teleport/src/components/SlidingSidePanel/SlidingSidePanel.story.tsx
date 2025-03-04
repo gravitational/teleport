@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,64 +16,65 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Meta } from '@storybook/react';
 import { useState } from 'react';
 
-import { Box, ButtonPrimary, Text } from 'design';
+import { Box, ButtonPrimary } from 'design';
 import { Info } from 'design/Alert';
 
 import { SlidingSidePanel } from './SlidingSidePanel';
 import { LongContent, TopBar } from './storyHelpers';
 
-export default {
-  title: 'Teleport/SlidingSidePanel',
+type StoryProps = {
+  slideFrom: 'left' | 'right';
+  panelOffset: string;
+  skipAnimation: boolean;
 };
 
-const DevInfo = () => (
-  <Info>The top bar nav is only rendered for demo purposes</Info>
-);
+const meta: Meta<StoryProps> = {
+  title: 'Teleport/SlidingSidePanel',
+  component: Controls,
+  argTypes: {
+    slideFrom: {
+      control: { type: 'select' },
+      options: ['left', 'right'],
+    },
+    panelOffset: {
+      control: { type: 'text' },
+    },
+    skipAnimation: {
+      control: { type: 'boolean' },
+    },
+  },
+  // default
+  args: {
+    slideFrom: 'right',
+    panelOffset: '0',
+    skipAnimation: false,
+  },
+};
+export default meta;
 
-export const SlideFromRight = () => {
+export function Controls(props: StoryProps) {
   const [show, setShow] = useState(false);
+
   return (
     <TopBar>
       {/* this Box wrapper is just for demo purposes */}
       <Box mt={10} textAlign="center">
-        <DevInfo />
+        <Info>The top bar nav is only rendered for demo purposes</Info>
         <ButtonPrimary onClick={() => setShow(!show)}>Toggle Me</ButtonPrimary>
       </Box>
       <SlidingSidePanel
         isVisible={show}
-        skipAnimation={false}
+        skipAnimation={props.skipAnimation}
         panelWidth={300}
         zIndex={1000}
-        slideFrom="right"
-        right={0}
+        slideFrom={props.slideFrom}
+        panelOffset={props.panelOffset}
       >
         <LongContent />
       </SlidingSidePanel>
     </TopBar>
   );
-};
-
-export const SlideFromLeft = () => {
-  const [show, setShow] = useState(false);
-  return (
-    <TopBar>
-      {/* this Box wrapper is just for demo purposes */}
-      <Box mt={10} ml={3} textAlign="center">
-        <DevInfo />
-        <ButtonPrimary onClick={() => setShow(!show)}>Toggle Me</ButtonPrimary>
-      </Box>
-      <SlidingSidePanel
-        isVisible={show}
-        skipAnimation={false}
-        panelWidth={300}
-        zIndex={1000}
-        slideFrom="left"
-        left={0}
-      >
-        <LongContent />
-      </SlidingSidePanel>
-    </TopBar>
-  );
-};
+}
