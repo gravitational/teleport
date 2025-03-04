@@ -548,6 +548,40 @@ func (b *Backend) Update(ctx context.Context, item backend.Item) (*backend.Lease
 	return backend.NewLease(item), nil
 }
 
+func (b *Backend) queryOutputPages(ctx context.Context, limit int, input *dynamodb.QueryInput) iter.Seq2[*dynamodb.QueryOutput, error] {
+	if limit <= 0 {
+		limit = backend.DefaultRangeLimit
+	}
+
+	return func(yield func(*dynamodb.QueryOutput, error) bool) {
+		const defaultPageSize = 1000
+		var nextToken map[string]types.AttributeValue
+
+		totalCount := 0
+		for {
+			input.Limit = aws.Int32(int32(min(limit-totalCount, defaultPageSize)))
+
+			result, err := b.svc.Query(ctx, input)
+			if err != nil {
+				yield(nil, trace.Wrap(err))
+				return
+			}
+
+			nextToken = result.LastEvaluatedKey
+			if !yield(result, nil) {
+				return
+			}
+
+			if nextToken == nil {
+				return
+			}
+
+			totalCount += len(result.Items)
+			input.ExclusiveStartKey = nextToken
+		}
+	}
+}
+
 func (b *Backend) Items(ctx context.Context, params backend.IterateParams) iter.Seq2[backend.Item, error] {
 	if params.StartKey.IsZero() {
 		err := trace.BadParameter("missing parameter startKey")
@@ -556,11 +590,6 @@ func (b *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 	if params.EndKey.IsZero() {
 		err := trace.BadParameter("missing parameter endKey")
 		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
-	}
-
-	limit := params.Limit
-	if limit <= 0 {
-		limit = backend.DefaultRangeLimit
 	}
 
 	const (
@@ -585,7 +614,6 @@ func (b *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 		FilterExpression:          aws.String(filter),
 		ConsistentRead:            aws.Bool(true),
 		ScanIndexForward:          aws.Bool(!params.Descending),
-		Limit:                     aws.Int32(int32(limit)),
 	}
 
 	return func(yield func(backend.Item, error) bool) {
@@ -596,9 +624,7 @@ func (b *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 			}
 		}()
 
-		paginator := dynamodb.NewQueryPaginator(b.svc, &input)
-		for paginator.HasMorePages() {
-			page, err := paginator.NextPage(ctx)
+		for page, err := range b.queryOutputPages(ctx, params.Limit, &input) {
 			if err != nil {
 				yield(backend.Item{}, convertError(err))
 				return
