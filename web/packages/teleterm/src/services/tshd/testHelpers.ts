@@ -29,7 +29,7 @@ import {
 import { TshdRpcError } from './cloneableClient';
 import * as tsh from './types';
 
-export const rootClusterUri = '/clusters/teleport-local';
+export const rootClusterUri = '/clusters/teleport-local.com';
 export const leafClusterUri = `${rootClusterUri}/leaves/leaf`;
 
 export const makeServer = (props: Partial<tsh.Server> = {}): tsh.Server => ({
@@ -94,7 +94,7 @@ export const makeRootCluster = (
   name: 'teleport-local',
   connected: true,
   leaf: false,
-  proxyHost: 'teleport-local:3080',
+  proxyHost: 'teleport-local.com:3080',
   authClusterId: 'fefe3434-fefe-3434-fefe-3434fefe3434',
   loggedInUser: makeLoggedInUser(),
   proxyVersion: '11.1.0',

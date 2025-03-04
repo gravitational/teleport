@@ -49,14 +49,12 @@ interface ImageProps
   src?: string;
 }
 
-const Image = (props: ImageProps) => {
-  return <StyledImg {...props} />;
-};
-
-export default Image;
-
-const StyledImg = styled.img<ImageProps>`
+const Image = styled.img<ImageProps>`
   display: block;
   outline: none;
   ${color} ${space} ${width} ${height} ${maxWidth} ${maxHeight} ${alignSelf}
 `;
+export default Image;
+
+export const ResponsiveImage = styled(Image)<ImageProps & { alt: string }>``;
+ResponsiveImage.defaultProps = { maxWidth: '100%', height: 'auto' };

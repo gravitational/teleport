@@ -19,3 +19,4 @@
 import Image from './Image';
 
 export default Image;
+export { ResponsiveImage } from './Image';
