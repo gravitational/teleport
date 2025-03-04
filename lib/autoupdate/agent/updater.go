@@ -86,7 +86,6 @@ func SetRequiredUmask(ctx context.Context, log *slog.Logger) {
 // installations of the Teleport agent.
 // The AutoUpdater uses an HTTP client with sane defaults for downloads, and
 // will not fill disk to within 10 MB of available capacity.
-// SetRequiredUmask must be called before any methods are executed, except for Status.
 func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 	certPool, err := x509.SystemCertPool()
 	if err != nil {
@@ -190,6 +189,7 @@ type LocalUpdaterConfig struct {
 }
 
 // Updater implements the agent-local logic for Teleport agent auto-updates.
+// SetRequiredUmask must be called before any methods are executed, except for Status.
 type Updater struct {
 	// Log contains a logger.
 	Log *slog.Logger
