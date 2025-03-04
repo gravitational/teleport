@@ -16,10 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
-
 import { Box } from 'design';
-import { Info } from 'design/Alert';
+
+import { useInfoGuide } from 'teleport/Main/InfoGuideContext';
 
 import { DevInfo, LongContent, TopBar } from '../storyHelpers';
 import {
@@ -32,19 +31,29 @@ export default {
 };
 
 export const InfoGuideSidePanel = () => {
-  const [show, setShow] = useState(false);
   return (
     <TopBar>
       {/* this Box wrapper is just for demo purposes */}
       <Box mt={10} ml={3}>
         <DevInfo />
-        <InfoGuideWrapper onClick={() => setShow(!show)}>
+        <InfoGuideWrapper guide={<LongContent />}>
           Click on the info icon
         </InfoGuideWrapper>
       </Box>
-      <Component isVisible={show} onClose={() => setShow(false)}>
-        <LongContent />
-      </Component>
+      <SidePanel />
     </TopBar>
+  );
+};
+
+const SidePanel = () => {
+  const { infoGuideElement, setInfoGuideElement } = useInfoGuide();
+
+  return (
+    <Component
+      isVisible={infoGuideElement != null}
+      onClose={() => setInfoGuideElement(null)}
+    >
+      <LongContent />
+    </Component>
   );
 };

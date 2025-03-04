@@ -54,7 +54,7 @@ import type { LockedFeatures, TeleportFeature } from 'teleport/types';
 import { useUser } from 'teleport/User/UserContext';
 import useTeleport from 'teleport/useTeleport';
 
-import { InfoGuidePanelContext } from './InfoGuideContext';
+import { InfoGuidePanelProvider, useInfoGuide } from './InfoGuideContext';
 import { MainContainer } from './MainContainer';
 import { OnboardDiscover } from './OnboardDiscover';
 
@@ -97,11 +97,6 @@ export function Main(props: MainProps) {
   const [showOnboardDiscover, setShowOnboardDiscover] = useState(
     !ctx.redirectUrl
   );
-
-  const [infoGuideElement, setInfoGuideElement] = useState<JSX.Element | null>(
-    null
-  );
-  const infoGuideSidePanelOpened = infoGuideElement != null;
 
   useEffect(() => {
     if (
@@ -197,13 +192,9 @@ export function Main(props: MainProps) {
       <Wrapper>
         <MainContainer>
           <Navigation />
-          <InfoGuidePanelContext.Provider
-            value={{ infoGuideElement, setInfoGuideElement }}
-          >
+          <InfoGuidePanelProvider>
             <ContentWrapper>
-              <ContentMinWidth
-                infoGuideSidePanelOpened={infoGuideSidePanelOpened}
-              >
+              <ContentMinWidth>
                 <BannerList
                   banners={banners}
                   customBanners={props.customBanners}
@@ -214,14 +205,8 @@ export function Main(props: MainProps) {
                   <FeatureRoutes lockedFeatures={ctx.lockedFeatures} />
                 </Suspense>
               </ContentMinWidth>
-              <InfoGuideSidePanel
-                isVisible={infoGuideSidePanelOpened}
-                onClose={() => setInfoGuideElement(null)}
-              >
-                {infoGuideElement}
-              </InfoGuideSidePanel>
             </ContentWrapper>
-          </InfoGuidePanelContext.Provider>
+          </InfoGuidePanelProvider>
         </MainContainer>
       </Wrapper>
       {displayOnboardDiscover && (
@@ -320,14 +305,11 @@ export const useNoMinWidth = () => {
   }, []);
 };
 
-export const ContentMinWidth = ({
-  children,
-  infoGuideSidePanelOpened,
-}: {
-  children: ReactNode;
-  infoGuideSidePanelOpened: boolean;
-}) => {
+export const ContentMinWidth = ({ children }: { children: ReactNode }) => {
   const [enforceMinWidth, setEnforceMinWidth] = useState(true);
+
+  const { infoGuideElement, setInfoGuideElement } = useInfoGuide();
+  const infoGuideSidePanelOpened = infoGuideElement != null;
 
   return (
     <ContentMinWidthContext.Provider value={{ setEnforceMinWidth }}>
@@ -349,6 +331,12 @@ export const ContentMinWidth = ({
       >
         {children}
       </div>
+      <InfoGuideSidePanel
+        isVisible={infoGuideSidePanelOpened}
+        onClose={() => setInfoGuideElement(null)}
+      >
+        {infoGuideElement}
+      </InfoGuideSidePanel>
     </ContentMinWidthContext.Provider>
   );
 };

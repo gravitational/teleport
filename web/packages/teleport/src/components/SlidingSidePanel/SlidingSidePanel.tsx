@@ -25,16 +25,22 @@ type Base = {
   skipAnimation: boolean;
   panelWidth: number;
   zIndex: number;
+  /**
+   * panelOffset is how much space to offset the panel
+   * from left or right position.
+   *
+   * the value is a number postfixed by `px` eg: "50px" or
+   * css variable eg: var(--some-var-name)
+   */
+  panelOffset?: string;
 };
 
 type RightPanel = Base & {
   slideFrom: 'right';
-  right: number | string;
 };
 
 type LeftPanel = Base & {
   slideFrom: 'left';
-  left: number | string;
 };
 
 type Props = RightPanel | LeftPanel;
@@ -43,9 +49,7 @@ type Props = RightPanel | LeftPanel;
  * Panel that slides from right or left underneath the web UI's
  * top bar navigation.
  */
-export const SlidingSidePanel = styled(Box).attrs({
-  px: '5px',
-})<Props>`
+export const SlidingSidePanel = styled(Box)<Props>`
   position: fixed;
   height: 100%;
   scrollbar-color: ${p => p.theme.colors.spotBackground[2]} transparent;
@@ -55,9 +59,9 @@ export const SlidingSidePanel = styled(Box).attrs({
 
   ${props =>
     props.slideFrom === 'left'
-      ? `left: ${props.left};
+      ? `left: ${props.panelOffset || 0};
        border-right: 1px solid ${props.theme.colors.spotBackground[1]};`
-      : `right: ${props.right};
+      : `right: ${props.panelOffset || 0};
        border-left: 1px solid ${props.theme.colors.spotBackground[1]};`}
 
   ${props =>

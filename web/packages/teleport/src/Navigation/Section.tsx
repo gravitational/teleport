@@ -182,6 +182,7 @@ export const RightPanel: React.FC<
 > = ({ isVisible, skipAnimation, id, onFocus, children }) => {
   return (
     <SlidingSidePanel
+      px="5px"
       isVisible={isVisible}
       skipAnimation={skipAnimation}
       id={id}
@@ -189,7 +190,7 @@ export const RightPanel: React.FC<
       panelWidth={rightPanelWidth}
       zIndex={zIndexMap.sideNavExpandedPanel}
       slideFrom="left"
-      left="var(--sidenav-width)"
+      panelOffset="var(--sidenav-width)"
     >
       {children}
     </SlidingSidePanel>
