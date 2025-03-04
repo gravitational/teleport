@@ -75,7 +75,10 @@ const (
 // This ensures consistent file permissions.
 // NOTE: This must be run in main.go before any goroutines that create files are started.
 func SetRequiredUmask(ctx context.Context, log *slog.Logger) {
-	old := syscall.Umask(requiredUmask)
+	warnUmask(ctx, log, syscall.Umask(requiredUmask))
+}
+
+func warnUmask(ctx context.Context, log *slog.Logger, old int) {
 	if old&^requiredUmask != 0 {
 		log.WarnContext(ctx, "Restrictive umask detected. Umask has been changed to 0022 for teleport-update and all child processes.")
 		log.WarnContext(ctx, "All files created by teleport-update will have permissions set according to this umask.")
