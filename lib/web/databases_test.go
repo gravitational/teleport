@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -562,6 +563,15 @@ func TestConnectDatabaseInteractiveSession(t *testing.T) {
 					return repl, nil
 				},
 			},
+		},
+		alpnHandler: func(ctx context.Context, conn net.Conn) error {
+			// mock repl will not send any actual data. just verify the incoming
+			// connection is TLS.
+			_, ok := conn.(utils.TLSConn)
+			if !ok {
+				return trace.BadParameter("expected TLSConn, got %T", conn)
+			}
+			return nil
 		},
 	})
 	s.webHandler.handler.cfg.PublicProxyAddr = s.webHandler.handler.cfg.ProxyWebAddr.String()
