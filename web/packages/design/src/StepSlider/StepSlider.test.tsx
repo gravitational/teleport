@@ -66,13 +66,13 @@ test('single flow with wrapping', async () => {
 
   // Test going backwards on step 1
   fireEvent.click(screen.getByText(/back1/i));
-  expect(screen.getByText('Step 2')).toBeVisible();
+  expect(screen.getByText('Step 3')).toBeVisible();
   await waitForElementToBeRemoved(() => screen.queryByText('Step 1'));
 
-  // Test going forwards on step 2
-  fireEvent.click(screen.getByText(/next2/i));
+  // Test going forwards on step 3
+  fireEvent.click(screen.getByText(/next3/i));
   expect(screen.getByText('Step 1')).toBeVisible();
-  await waitForElementToBeRemoved(() => screen.queryByText('Step 2'));
+  await waitForElementToBeRemoved(() => screen.queryByText('Step 3'));
 
   // Test the "normal" flow: forwards on step 1...
   fireEvent.click(screen.getByText(/next1/i));
