@@ -30,6 +30,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"syscall"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -57,6 +58,9 @@ const (
 	reservedFreeDisk = 10_000_000
 	// debugSocketFileName is the name of Teleport's debug socket in the data dir.
 	debugSocketFileName = "debug.sock" // 10 MB
+	// requiredUmask must be set before this package can be used.
+	// Use syscall.Umask to set when no other goroutines are running.
+	requiredUmask = 0o022
 )
 
 // Log keys
@@ -66,6 +70,20 @@ const (
 	backupKey = "backup_version"
 	errorKey  = "error"
 )
+
+// SetRequiredUmask sets the umask to match the systemd umask that the teleport-update service will execute with.
+// This ensures consistent file permissions.
+// NOTE: This must be run in main.go before any goroutines that create files are started.
+func SetRequiredUmask(ctx context.Context, log *slog.Logger) {
+	warnUmask(ctx, log, syscall.Umask(requiredUmask))
+}
+
+func warnUmask(ctx context.Context, log *slog.Logger, old int) {
+	if old&^requiredUmask != 0 {
+		log.WarnContext(ctx, "Restrictive umask detected. Umask has been changed to 0022 for teleport-update and all child processes.")
+		log.WarnContext(ctx, "All files created by teleport-update will have permissions set according to this umask.")
+	}
+}
 
 // NewLocalUpdater returns a new Updater that auto-updates local
 // installations of the Teleport agent.
@@ -174,6 +192,7 @@ type LocalUpdaterConfig struct {
 }
 
 // Updater implements the agent-local logic for Teleport agent auto-updates.
+// SetRequiredUmask must be called before any methods are executed, except for Status.
 type Updater struct {
 	// Log contains a logger.
 	Log *slog.Logger
@@ -545,6 +564,7 @@ func isActiveOrEnabled(ctx context.Context, s Process) (bool, error) {
 
 // Status returns all available local and remote fields related to agent auto-updates.
 // Status is safe to run concurrently with other Updater commands.
+// Status does not write files, and therefore does not require SetRequiredUmask.
 func (u *Updater) Status(ctx context.Context) (Status, error) {
 	var out Status
 	// Read configuration from update.yaml.
