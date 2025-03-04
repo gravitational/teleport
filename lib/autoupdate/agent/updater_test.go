@@ -19,9 +19,12 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -39,6 +42,40 @@ import (
 	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
+
+func TestWarnUmask(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		old  int
+		warn bool
+	}{
+		{old: 0o000, warn: false},
+		{old: 0o001, warn: true},
+		{old: 0o011, warn: true},
+		{old: 0o111, warn: true},
+		{old: 0o002, warn: false},
+		{old: 0o020, warn: false},
+		{old: 0o022, warn: false},
+		{old: 0o220, warn: true},
+		{old: 0o200, warn: true},
+		{old: 0o222, warn: true},
+		{old: 0o333, warn: true},
+		{old: 0o444, warn: true},
+		{old: 0o555, warn: true},
+		{old: 0o666, warn: true},
+		{old: 0o777, warn: true},
+	} {
+		t.Run(fmt.Sprintf("old umask %o", tt.old), func(t *testing.T) {
+			ctx := context.Background()
+			out := &bytes.Buffer{}
+			warnUmask(ctx, slog.New(slog.NewTextHandler(out,
+				&slog.HandlerOptions{ReplaceAttr: msgOnly},
+			)), tt.old)
+			assert.Equal(t, tt.warn, strings.Contains(out.String(), "detected"))
+		})
+	}
+}
 
 func TestUpdater_Disable(t *testing.T) {
 	t.Parallel()
