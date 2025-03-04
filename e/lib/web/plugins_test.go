@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"maps"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
@@ -26,6 +27,9 @@ func TestCreatePluginHandle(t *testing.T) {
 
 	s := newWebSuite(t)
 	webPack := s.newAuthWebPack(t, "foo")
+
+	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {}))
+	defer func() { testServer.Close() }()
 
 	var testCases = []struct {
 		name         string
@@ -60,11 +64,23 @@ func TestCreatePluginHandle(t *testing.T) {
 			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
 			request: url.Values{
 				"type":         {"opsgenie"},
-				"apiEndpoint":  {"https://www.some-apiendoint.com"},
+				"apiEndpoint":  {testServer.URL},
 				"apiKey":       {"some-api-key"},
 				"scheduleName": {"some-schedule-name"},
 			},
 			expectedResp: "some-schedule-name",
+		},
+		{
+			name:     "Servicenow plugin",
+			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
+			request: url.Values{
+				"type":        {"servicenow"},
+				"apiEndpoint": {testServer.URL},
+				"username":    {"some-username"},
+				"password":    {"some-password"},
+				"closeCode":   {"some-close-code"},
+			},
+			expectedResp: "Incidents will be created at",
 		},
 		{
 			name:     "PagerDuty plugin",

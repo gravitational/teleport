@@ -15,8 +15,10 @@ import (
 	"github.com/gravitational/teleport/e/lib/accessgraph/gitlab"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/web/ui"
+	"github.com/gravitational/teleport/integrations/access/opsgenie"
 	"github.com/gravitational/teleport/integrations/access/servicenow"
 	"github.com/gravitational/teleport/integrations/lib"
+	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
 )
@@ -177,6 +179,19 @@ func installOpsgeniePlugin(ctx context.Context, sessCtx *web.SessionContext, w h
 	apiKey := r.FormValue("apiKey")
 	scheduleName := r.FormValue("scheduleName")
 
+	ogClient, err := opsgenie.NewClient(opsgenie.ClientConfig{
+		APIKey:      apiKey,
+		APIEndpoint: apiEndpoint,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := ogClient.CheckHealth(ctx); err != nil {
+		logger.Get(ctx).WarnContext(ctx, "Error performing Opsgenie health check",
+			"error", err.Error())
+		return nil, trace.Wrap(err)
+	}
+
 	req := &pluginspb.CreatePluginRequest{
 		Plugin: &types.PluginV1{
 			SubKind: types.PluginSubkindAccess,
@@ -336,6 +351,21 @@ func installServiceNowPlugin(ctx context.Context, sessCtx *web.SessionContext, w
 	password := r.FormValue("password")
 	closeCode := r.FormValue("closeCode")
 
+	snClient, err := servicenow.NewClient(servicenow.ClientConfig{
+		APIEndpoint: apiEndpoint,
+		Username:    username,
+		APIToken:    password,
+		CloseCode:   closeCode,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := snClient.CheckHealth(ctx); err != nil {
+		logger.Get(ctx).WarnContext(ctx, "Error performing ServiceNow health check",
+			"error", err.Error())
+		return nil, trace.Wrap(err)
+	}
+
 	pluginReq := &pluginspb.CreatePluginRequest{
 		Plugin: &types.PluginV1{
 			SubKind: types.PluginSubkindAccess,
@@ -372,17 +402,6 @@ func installServiceNowPlugin(ctx context.Context, sessCtx *web.SessionContext, w
 				},
 			},
 		},
-	}
-
-	// Verify ServiceNow credential and API endpoint.
-	_, err := servicenow.NewClient(servicenow.ClientConfig{
-		APIEndpoint: apiEndpoint,
-		Username:    username,
-		APIToken:    password,
-		CloseCode:   closeCode,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	ui, err := installPlugin(ctx, sessCtx, pluginReq)
