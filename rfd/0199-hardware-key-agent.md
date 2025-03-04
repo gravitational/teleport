@@ -37,10 +37,10 @@ hardware key has proven [unreliable for Teleport use cases](#problems-with-built
 
 ### Hardware key PIN caching
 
-When enabled at the cluster-level, Teleport clients will cache the user's
-hardware key PIN in memory for a specified duration of time. When the PIN is
-cached, the Teleport client will provide the PIN to the hardware key without
-prompting the user again.
+When enabled at the cluster-level, Teleport clients (`tsh`, `tctl`, and
+Teleport connect) will cache the user's hardware key PIN in memory for a
+specified duration of time. When the PIN is cached, the Teleport client will
+provide the PIN to the hardware key without prompting the user again.
 
 #### Cluster Auth Preference
 
@@ -117,10 +117,6 @@ func (p *PinCachingPrompt) setCachedPIN(pin string) {
 }
 ```
 
-Note: like a normal client, the agent client will use the `PinCachingPrompt`
-when configured for the cluster, so it will naturally cache the PIN for all of
-its dependent clients.
-
 ### Hardware Key Agent
 
 The hardware key agent will provide two functionalities:
@@ -129,11 +125,17 @@ The hardware key agent will provide two functionalities:
 key, private key policy, and attestation statement.
 1. Signing with a specific hardware private key
 
-Note: this is the base functionality needed for dependent clients to implement
-the `crypto.Signer` interface and Teleport's `keys.HardwareSigner` interface.
+Note: this is the base functionality needed to implement the `crypto.Signer`
+interface and Teleport's `keys.HardwareSigner` interface.
 
 The agent will be served as a [gRPC](#hardwarekeyagentservice) service on a unix
 socket, `$TEMP/.Teleport-PIV/agent.sock`, with [basic TLS](#security).
+
+#### Terminology
+
+An "agent client" is a Teleport client process serving the hardware key agent.
+
+A "dependent client" is a Teleport client process interfacing with the hardware key agent.
 
 #### `$TEMP/.Teleport-PIV/agent.sock`
 
@@ -150,12 +152,6 @@ underlying hardware private keys, so the agent client's own Teleport home
 directory is not relevant to its ability to serve the hardware private keys.
 In practice, this means that Teleport Connect can serve the hardware key
 agent without needing to sync its Teleport home directory with `tsh`.
-
-#### Terminology
-
-An "agent client" is a Teleport client process serving the hardware key agent.
-
-A "dependent client" is a Teleport client process interfacing with the hardware key agent.
 
 #### PIN and touch prompts
 
@@ -244,8 +240,6 @@ prompts.
 
 #### Agent clients
 
-A user can start the hardware key agent with Teleport Connect or `tsh`.
-
 ##### Teleport Connect
 
 Teleport Connect is an ideal runner for the key agent because it:
@@ -253,7 +247,7 @@ Teleport Connect is an ideal runner for the key agent because it:
 1. Is a long-lived process
 1. Provides a UI for touch/PIN prompts, and can foreground itself for these prompts
 
-By default, if `tshd` detects a hardware key, it will automatically run and
+By default, if Teleport Connect detects a hardware key plugged in, it will automatically
 serve the hardware key agent service. This way, the agent will be served
 regardless of Teleport Connect's [login state](#running-the-agent-before-login).
 
@@ -287,7 +281,7 @@ but it should be fully functional.
 
 ##### Agent already running
 
-If there is already a hardware key agent running at `/tmp/.Teleport-PIV/agent.sock`,
+If there is already a hardware key agent running at `$TEMP/.Teleport-PIV/agent.sock`,
 a newly started agent client would fail to open a new listener on that same
 socket. Instead of failing, the new client will ping the running agent to check
 if it's active.
@@ -299,13 +293,15 @@ If the ping request succeeds, an error will be returned:
 
 ```console
 > tsh piv agent
-Error: another agent instance is already running.
+Error: another agent instance is already running. PID: 86946.
 ```
+
+Note: this should be a very uncommon edge case, as it would only occur if the
+user already has `tsh agent` running or another instance of Teleport connect.
 
 Note: with Teleport Connect, this error would be displayed when it attempts
 to start the agent, but Teleport Connect would not fail to start. The error
-would be displayed in the UI and the user could go into the "Teleport Key Agent"
-management page to try to start it again.
+would be shown in Teleport Connect's debug logs.
 
 ##### Running the agent before login
 
@@ -367,7 +363,10 @@ service HardwareKeyAgentService {
 message PingRequest {}
 
 // PingResponse is a response to Ping.
-message PingResponse {}
+message PingResponse {
+  // PID is the PID of the client process running the agent.
+  PID uint32 = 1;
+}
 
 // SignRequest is a request to perform a signature with a specific hardware private key.
 message SignRequest {
@@ -476,7 +475,7 @@ Still, the hardware key agent will implement some sensible restrictions to
 increase security:
 
 * Basic TLS for end-to-end encryption. The agent service will generate a key in
-memory and a self-signed certificate next to the unix socket at `/tmp/.Teleport-PIV/ca.pem`
+memory and a self-signed certificate next to the unix socket at `$TEMP/.Teleport-PIV/ca.pem`
 where local Teleport clients can access it.
 * The hardware key agent will not allow access to hardware private keys on PIV slots
 that were not generated for a Teleport client, which can be identified by the presence
