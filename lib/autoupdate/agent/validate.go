@@ -42,29 +42,14 @@ type Validator struct {
 	Log *slog.Logger
 }
 
-// IsBinary returns true for working binaries that are executable by all users.
-// If the file is irregular, non-executable, or a shell script, IsBinary returns false and logs a warning.
-// IsBinary errors if lstat fails, a regular file is unreadable, or an executable file does not execute.
-func (v *Validator) IsBinary(ctx context.Context, path string) (bool, error) {
-	// The behavior of this method is intended to protect against executable files
-	// being adding to the Teleport tgz that should not be made available on PATH,
-	// and additionally, should not cause installation to fail.
-	// While known copies of these files (e.g., "install") are excluded during extraction,
-	// it is safer to assume others could be present in past or future tgzs.
-
-	if exec, err := v.IsExecutable(ctx, path); err != nil || !exec {
+// IsValidBinary returns true for working binaries that are executable by all users.
+// If the file is irregular, non-executable, or a shell script, IsValidBinary returns false and logs a warning.
+// IsValidBinary errors if lstat fails, a regular file is unreadable, or an executable file does not execute.
+func (v *Validator) IsValidBinary(ctx context.Context, path string) (bool, error) {
+	if exec, err := v.IsBinary(ctx, path); err != nil || !exec {
 		return exec, trace.Wrap(err)
 	}
 	name := filepath.Base(path)
-	d, err := readFileLimit(path, fileHeaderSniffBytes)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	// Refuse to test or link shell scripts
-	if isTextScript(d) {
-		v.Log.WarnContext(ctx, "Found unexpected shell script", "name", name)
-		return false, nil
-	}
 	v.Log.InfoContext(ctx, "Validating binary", "name", name)
 	r := localExec{
 		Log:      v.Log,
@@ -77,6 +62,29 @@ func (v *Validator) IsBinary(ctx context.Context, path string) (bool, error) {
 	}
 	if code > 0 {
 		v.Log.InfoContext(ctx, "Binary does not support version command", "name", name)
+	}
+	return true, nil
+}
+
+// IsBinary returns true if IsExecutable returns true and the path is not a shellscript.
+func (v *Validator) IsBinary(ctx context.Context, path string) (bool, error) {
+	// The behavior of this method is intended to protect against executable files
+	// being adding to the Teleport tgz that should not be made available on PATH,
+	// and additionally, should not cause installation to fail.
+	// While known copies of these files (e.g., "install") are excluded during extraction,
+	// it is safer to assume others could be present in past or future tgzs.
+	if exec, err := v.IsExecutable(ctx, path); err != nil || !exec {
+		return exec, trace.Wrap(err)
+	}
+	name := filepath.Base(path)
+	d, err := readFileLimit(path, fileHeaderSniffBytes)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	// Refuse to test or link shell scripts
+	if isTextScript(d) {
+		v.Log.WarnContext(ctx, "Found unexpected shell script", "name", name)
+		return false, nil
 	}
 	return true, nil
 }
