@@ -1,10 +1,10 @@
 ---
-title: Teleport Managed Agent Updates (v2)
-description: Describes how to set up Teleport Managed Agent Updates v2.
+title: Managed Updates (v2) for Teleport Agents
+description: Describes how to set up Managed Updates (v2) for Teleport Agents
 ---
 
 <Notice type="warning">
-This document describes the Managed Updates v2 updater, which is currently in beta.
+This document describes Managed Updates for Agents (v2), which is currently in beta.
 
 For Managed Updates v1 instructions, see
 [Managed Updates for Agents (v1)](./agent-managed-updates-v1.mdx).
@@ -32,9 +32,9 @@ resources to manage your agent updates from Teleport. It describes:
 - systemd-based operating systems, regardless of the package manager used
 
 <Admonition type="note" title="Compatibility between Managed Updates v1 and v2">
-Managed updates v2 are backwards compatible with the
+Managed Updates v2 is backwards-compatible with the
 `cluster_maintenance_config` resource. The Managed Updates v1 `teleport-upgrade` script
-is forwards compatible with the `autoupdate_config` and `autoupdate_version` resources.
+is forwards-compatible with the `autoupdate_config` and `autoupdate_version` resources.
 Agents connected to the same cluster should all update to the same version.
 
 If the `autoupdate_version` resource is configured, it takes precedence over
