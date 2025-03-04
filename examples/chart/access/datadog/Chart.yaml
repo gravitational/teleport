@@ -1,4 +1,4 @@
-.version: &version "17.3.1"
+.version: &version "17.3.1-dev.vnet-windows.1"
 
 apiVersion: v2
 name: teleport-plugin-datadog
