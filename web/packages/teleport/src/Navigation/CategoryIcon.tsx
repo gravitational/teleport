@@ -40,13 +40,13 @@ export function CategoryIcon({
     case NavigationCategory.Resources:
       Icon = Icons.Server;
       break;
-    case NavigationCategory.Access:
+    case NavigationCategory.ZeroTrustAccess:
       Icon = Icons.KeyHole;
       break;
-    case NavigationCategory.Identity:
+    case NavigationCategory.IdentityGovernance:
       Icon = Icons.FingerprintSimple;
       break;
-    case NavigationCategory.Policy:
+    case NavigationCategory.IdentitySecurity:
       Icon = Icons.ShieldCheck;
       break;
     case NavigationCategory.Audit:
@@ -57,6 +57,9 @@ export function CategoryIcon({
       break;
     case CustomNavigationCategory.Search:
       Icon = Icons.Magnifier;
+      break;
+    case NavigationCategory.MachineWorkloadId:
+      Icon = Icons.Bots;
       break;
     default:
       return null;
