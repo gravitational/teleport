@@ -21,9 +21,6 @@ import { getXCSRFToken } from 'teleport/services/api';
 import type { Plugin, PluginOktaSpec } from 'teleport/services/integrations';
 import { PluginStatusOkta } from 'teleport/services/integrations/oktaStatusTypes';
 
-export const ValidMetadataURLRegexp =
-  /^(?:https:\/\/)?.*\.okta\.com\/app\/.*\/sso\/saml\/metadata/;
-
 export const getNextOktaIntegrationLevel = (
   current: OktaIntegrationLevel | undefined
 ) => {

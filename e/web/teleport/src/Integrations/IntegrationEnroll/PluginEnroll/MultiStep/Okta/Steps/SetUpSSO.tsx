@@ -27,7 +27,6 @@ import {
   OktaIntegrationLevel,
   OktaSetupStepComplete,
   StyledBox,
-  ValidMetadataURLRegexp,
 } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
 import { FormDataField } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/types';
 import { Header } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Shared';
@@ -60,7 +59,17 @@ export const SetUpSSO = () => {
           enableUserSync: false,
           metadataUrl: metadataUrl,
           reuseConnector: connector?.value,
-        }).catch(withUnsupportedOktaPluginCreateErrorConversion),
+        })
+          .catch(err => {
+            const msg = getErrMessage(err);
+            if (msg.includes('fetching SAML app entity metadata')) {
+              throw new Error(
+                'Failed to fetch SAML app entity metadata. Check the provided URL is valid and try again.'
+              );
+            }
+            throw err;
+          })
+          .catch(withUnsupportedOktaPluginCreateErrorConversion),
       []
     )
   );
@@ -229,7 +238,9 @@ const MetadataURLForm = ({
                 name={FormDataField.MetadataURL}
                 value={metadataUrl}
                 rule={() => () => {
-                  const valid = metadataUrl?.match(ValidMetadataURLRegexp);
+                  const valid =
+                    metadataUrl?.length &&
+                    metadataUrl?.match(/^(?:https:\/\/)?.*$/i);
                   return {
                     valid,
                     message: valid
