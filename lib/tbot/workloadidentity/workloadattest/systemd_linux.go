@@ -48,7 +48,7 @@ func NewSystemdAttestor(cfg SystemdAttestorConfig, log *slog.Logger) *SystemdAtt
 }
 
 func (a *SystemdAttestor) Attest(ctx context.Context, pid int) (*workloadidentityv1pb.WorkloadAttrsSystemd, error) {
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	conn, err := a.dialer(ctx)
