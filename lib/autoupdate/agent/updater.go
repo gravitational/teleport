@@ -86,7 +86,7 @@ func SetRequiredUmask(ctx context.Context, log *slog.Logger) {
 // installations of the Teleport agent.
 // The AutoUpdater uses an HTTP client with sane defaults for downloads, and
 // will not fill disk to within 10 MB of available capacity.
-// SetRequiredUmask must be called before any methods are executed.
+// SetRequiredUmask must be called before any methods are executed, except for Status.
 func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 	certPool, err := x509.SystemCertPool()
 	if err != nil {
@@ -561,6 +561,7 @@ func isActiveOrEnabled(ctx context.Context, s Process) (bool, error) {
 
 // Status returns all available local and remote fields related to agent auto-updates.
 // Status is safe to run concurrently with other Updater commands.
+// Status does not write files, and therefore does not require SetRequiredUmask.
 func (u *Updater) Status(ctx context.Context) (Status, error) {
 	var out Status
 	// Read configuration from update.yaml.
