@@ -514,7 +514,7 @@ func TestDialFakeApp(t *testing.T) {
 
 	const appCertLifetime = time.Hour
 	reissueClientCert := func() tls.Certificate {
-		return newClientCert(t, ca, "testclient", clock.Now().Add(appCertLifetime))
+		return newClientCert(t, ca, "testclient", clock.Now().Add(appCertLifetime), cryptosuites.ECDSAP256)
 	}
 
 	clientApp := newFakeClientApp(map[string]testClusterSpec{
@@ -808,7 +808,7 @@ func TestOnNewConnection(t *testing.T) {
 
 	const appCertLifetime = time.Hour
 	reissueClientCert := func() tls.Certificate {
-		return newClientCert(t, ca, "testclient", clock.Now().Add(appCertLifetime))
+		return newClientCert(t, ca, "testclient", clock.Now().Add(appCertLifetime), cryptosuites.ECDSAP256)
 	}
 
 	clientApp := newFakeClientApp(map[string]testClusterSpec{
@@ -845,8 +845,20 @@ func TestOnNewConnection(t *testing.T) {
 }
 
 // TestRemoteAppProvider tests basic VNet functionality when remoteAppProvider
-// is used to provider access to the client application over gRPC.
+// is used to provide access to the client application over gRPC.
 func TestRemoteAppProvider(t *testing.T) {
+	t.Parallel()
+	for _, alg := range []cryptosuites.Algorithm{
+		cryptosuites.RSA2048,
+		cryptosuites.ECDSAP256,
+	} {
+		t.Run(alg.String(), func(t *testing.T) {
+			testRemoteAppProvider(t, alg)
+		})
+	}
+}
+
+func testRemoteAppProvider(t *testing.T, alg cryptosuites.Algorithm) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -857,7 +869,7 @@ func TestRemoteAppProvider(t *testing.T) {
 
 	const appCertLifetime = time.Hour
 	reissueClientCert := func() tls.Certificate {
-		return newClientCert(t, ca, "testclient", clock.Now().Add(appCertLifetime))
+		return newClientCert(t, ca, "testclient", clock.Now().Add(appCertLifetime), alg)
 	}
 
 	clientApp := newFakeClientApp(map[string]testClusterSpec{
@@ -1046,15 +1058,15 @@ func newSelfSignedCA(t *testing.T) tls.Certificate {
 }
 
 func newServerCert(t *testing.T, ca tls.Certificate, cn string, expires time.Time) tls.Certificate {
-	return newLeafCert(t, ca, cn, expires, x509.ExtKeyUsageServerAuth)
+	return newLeafCert(t, ca, cn, expires, x509.ExtKeyUsageServerAuth, cryptosuites.ECDSAP256)
 }
 
-func newClientCert(t *testing.T, ca tls.Certificate, cn string, expires time.Time) tls.Certificate {
-	return newLeafCert(t, ca, cn, expires, x509.ExtKeyUsageClientAuth)
+func newClientCert(t *testing.T, ca tls.Certificate, cn string, expires time.Time, alg cryptosuites.Algorithm) tls.Certificate {
+	return newLeafCert(t, ca, cn, expires, x509.ExtKeyUsageClientAuth, alg)
 }
 
-func newLeafCert(t *testing.T, ca tls.Certificate, cn string, expires time.Time, keyUsage x509.ExtKeyUsage) tls.Certificate {
-	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+func newLeafCert(t *testing.T, ca tls.Certificate, cn string, expires time.Time, keyUsage x509.ExtKeyUsage, alg cryptosuites.Algorithm) tls.Certificate {
+	signer, err := cryptosuites.GenerateKeyWithAlgorithm(alg)
 	require.NoError(t, err)
 
 	caCert, err := x509.ParseCertificate(ca.Certificate[0])
