@@ -1678,7 +1678,7 @@ pkg: | $(RELEASE_darwin_universal)
 	mv $(EXTRACT_DIR)/install $(EXTRACT_DIR)/postinstall
 
 	@echo Building teleport-bin-$(VERSION).pkg
-	$(PACKAGE_TELEPORT_PKG) --scripts-dir $(EXTRACT_DIR) --version $(VERSION) --install-location=/usr/local/teleport $(EXTRACT_DIR)/ $(BUILDDIR)/teleport-$(VERSION).pkg
+	$(PACKAGE_TELEPORT_PKG) --scripts-dir $(EXTRACT_DIR) --version $(VERSION) --install-location=/usr/local/teleport $(EXTRACT_DIR)/ $(RELEASE_DIR)/teleport-$(VERSION).pkg
 
 	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
 
