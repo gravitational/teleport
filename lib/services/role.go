@@ -3497,7 +3497,7 @@ func UnmarshalRoleV6(bytes []byte, opts ...MarshalOption) (*types.RoleV6, error)
 	version := jsoniter.Get(bytes, "version").ToString()
 	switch version {
 	// these are all backed by the same shape of data, they just have different semantics and defaults
-	case types.V3, types.V4, types.V5, types.V6, types.V7:
+	case types.V3, types.V4, types.V5, types.V6, types.V7, types.V8:
 	default:
 		return nil, trace.BadParameter("role version %q is not supported", version)
 	}
