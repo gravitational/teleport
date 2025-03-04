@@ -19,7 +19,17 @@
 import { useCallback, useRef } from 'react';
 import styled from 'styled-components';
 
-import { Button, Alert as DesignAlert, Flex, H1, Link, Stack } from 'design';
+import {
+  Box,
+  Button,
+  ButtonPrimary,
+  Alert as DesignAlert,
+  Flex,
+  H1,
+  Link,
+  ResponsiveImage,
+  Stack,
+} from 'design';
 import { AlertProps } from 'design/Alert/Alert';
 import Table, { TextCell } from 'design/DataTable';
 import { displayDateTime } from 'design/datetime';
@@ -30,7 +40,7 @@ import {
   Check as SuccessIcon,
   Warning as WarningIcon,
 } from 'design/Icon';
-import { P1, P2 } from 'design/Text/Text';
+import { H2, H3, P1, P2 } from 'design/Text/Text';
 import { HoverTooltip } from 'design/Tooltip';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
@@ -39,12 +49,19 @@ import { CanceledError, useAsync } from 'shared/hooks/useAsync';
 import { pluralize } from 'shared/utils/text';
 
 import { reportOneOfIsRouteConflictReport } from 'teleterm/helpers';
+import { proxyHostname } from 'teleterm/services/tshd/cluster';
 import { getReportFilename, reportToText } from 'teleterm/services/vnet/diag';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 import type * as docTypes from 'teleterm/ui/services/workspacesService';
 
+import imgNoVnetCurl from './no-vnet-curl.png';
+import imgNoVnetProxy from './no-vnet-proxy.png';
+import svgWebAppWithoutVnet from './recording-proxy.svg';
+import svgWebAppVnet from './session-recording.svg';
+import imgVnetCurl from './vnet-curl.png';
 import { useVnetContext } from './vnetContext';
 
 export function DocumentVnetDiagReport(props: {
@@ -57,7 +74,11 @@ export function DocumentVnetDiagReport(props: {
   const createdAt = displayDateTime(Timestamp.toDate(report.createdAt));
   const { notificationsService, mainProcessClient } = useAppContext();
   const { getDisabledDiagnosticsReason, runDiagnostics } = useVnetContext();
-  const { documentsService } = useWorkspaceContext();
+  const { documentsService, rootClusterUri } = useWorkspaceContext();
+  const rootCluster = useStoreSelector(
+    'clustersService',
+    useCallback(state => state.clusters.get(rootClusterUri), [rootClusterUri])
+  );
 
   // Re-wrap runDiagnostics into another attempt. This has multiple benefits:
   // 1) It captures the result of just this one manual run of diagnostics.
@@ -133,7 +154,7 @@ export function DocumentVnetDiagReport(props: {
     <Document visible={props.visible}>
       <Stack
         gap={4}
-        maxWidth="680px"
+        maxWidth="1360px"
         width="100%"
         mx="auto"
         mt={4}
@@ -144,92 +165,228 @@ export function DocumentVnetDiagReport(props: {
         // content was displayed in the Stack.
         alignSelf="flex-start"
       >
-        <Stack gap={2} width="100%" alignItems="stretch">
-          <Flex
-            flexWrap="wrap"
-            width="100%"
-            gap={2}
-            justifyContent="space-between"
-          >
-            <H1>VNet Diagnostic Report</H1>
+        <Flex width="100%" gap={5} flexWrap="wrap">
+          <Stack gap={2}>
+            <H1>Teleport VNet</H1>
 
-            <Flex gap={2}>
-              <HoverTooltip
-                tipContent={
-                  disabledDiagnosticsReason || 'Run Diagnostics Again'
-                }
-              >
-                <Button
-                  intent="neutral"
-                  p={1}
-                  disabled={!!disabledDiagnosticsReason}
-                  onClick={runDiagnosticsAndReplaceReport}
-                >
-                  <Refresh size="medium" />
-                </Button>
-              </HoverTooltip>
-
-              <HoverTooltip tipContent="Copy Report to Clipboard">
-                <Button intent="neutral" p={1} onClick={copyReportToClipboard}>
-                  <Copy size="medium" />
-                </Button>
-              </HoverTooltip>
-
-              <HoverTooltip tipContent="Save Report to File">
-                <Button intent="neutral" p={1} onClick={saveReportToFile}>
-                  <Download size="medium" />
-                </Button>
-              </HoverTooltip>
-            </Flex>
-          </Flex>
-
-          {manualDiagnosticsAttempt.status === 'error' && (
-            <Alert
-              kind="danger"
-              details={<P2>{manualDiagnosticsAttempt.statusText}</P2>}
+            <P1
+              css={`
+                max-width: 60ch;
+              `}
             >
-              Encountered an error while re-running diagnostics.
-            </Alert>
-          )}
+              VNet automatically proxies connections from your computer to TCP
+              apps available through Teleport. Any program on your device can
+              connect to an application behind Teleport with no extra steps.
+              Underneath, VNet authenticates the connection with your
+              credentials. This is all done client-side – VNet sets up a local
+              DNS name server, a virtual network device, and a proxy.
+            </P1>
+            <P1 m={0}>VNet makes it easy to connect to…</P1>
+          </Stack>
 
-          {networkStackAttempt.status === diag.CheckAttemptStatus.ERROR && (
-            <>
-              <P2>Created at: {createdAt}</P2>
-              <Alert
-                kind="danger"
-                details={<P2>{networkStackAttempt.error}</P2>}
+          <Flex
+            flex={1}
+            alignItems="center"
+            justifyContent="center"
+            // Make sure the text in the button doesn't ever break into two lines.
+            minWidth="fit-content"
+          >
+            <Stack gap={2} alignItems="center">
+              <Button size="extra-large">Start VNet</Button>
+              <Button
+                fill="minimal"
+                intent="neutral"
+                as="a"
+                href="https://goteleport.com/docs/connect-your-client/vnet/"
+                target="_blank"
+                inputAlignment
               >
-                Network details could not be determined
-              </Alert>
-            </>
-          )}
+                Open Documentation
+              </Button>
+            </Stack>
+          </Flex>
+        </Flex>
 
-          {networkStackAttempt.status === diag.CheckAttemptStatus.OK && (
-            <P2>
-              Created at: {createdAt}
-              <br />
-              Network interface: <code>{networkStack.interfaceName}</code>
-              <br />
-              IPv4 CIDR {pluralize(networkStack.ipv4CidrRanges.length, 'range')}
-              : <code>{networkStack.ipv4CidrRanges.join(', ')}</code>
-              <br />
-              IPv6 prefix: <code>{networkStack.ipv6Prefix}</code>
-              <br />
-              DNS {pluralize(networkStack.dnsZones.length, 'zone')}:{' '}
-              <code>{networkStack.dnsZones.join(', ')}</code>
-            </P2>
-          )}
+        <Stack gap={5}>
+          <Stack gap={3} width="100%">
+            <Flex
+              width="100%"
+              alignItems="baseline"
+              gap={4}
+              flexWrap="wrap"
+              justifyContent="space-between"
+            >
+              <H2>TCP APIs</H2>
+
+              <Button
+                fill="minimal"
+                intent="neutral"
+                as="a"
+                href="https://goteleport.com/docs/enroll-resources/application-access/guides/vnet/"
+                target="_blank"
+                inputAlignment
+              >
+                Learn More
+              </Button>
+            </Flex>
+
+            <Flex width="100%" gap={4} flexWrap="wrap">
+              <Stack
+                flex={1}
+                p={3}
+                gap={2}
+                borderRadius={3}
+                minWidth="400px"
+                maxWidth="600px"
+                backgroundColor="levels.elevated"
+                borderColor="levels.popout"
+                borderWidth={2}
+                borderStyle="solid"
+              >
+                <Stack>
+                  <H3>With VNet</H3>
+                  {/*
+                <P2>No local proxy needed – connect directly to the app.</P2>
+                  */}
+                  <P2>Connect directly to the app.</P2>
+                </Stack>
+
+                <ResponsiveImage src={imgVnetCurl} alt="curl call with VNet" />
+              </Stack>
+
+              <Stack
+                flex={2}
+                p={3}
+                gap={2}
+                borderRadius={3}
+                minWidth="800px"
+                // backgroundColor="levels.elevated"
+                borderColor="levels.popout"
+                borderWidth={2}
+                borderStyle="dashed"
+              >
+                <Stack>
+                  <H3>Without VNet</H3>
+                  <P2>
+                    A local proxy has to be set up first. The client program
+                    needs to connect over localhost on the correct port.
+                  </P2>
+                </Stack>
+
+                <Flex width="100%" gap={3}>
+                  <div>
+                    <ResponsiveImage src={imgNoVnetProxy} alt="tsh proxy app" />
+                  </div>
+                  <div>
+                    <ResponsiveImage
+                      src={imgNoVnetCurl}
+                      alt="curl call without VNet"
+                    />
+                  </div>
+                </Flex>
+              </Stack>
+            </Flex>
+          </Stack>
+
+          <Stack gap={3} width="100%">
+            <Flex
+              width="100%"
+              alignItems="baseline"
+              gap={4}
+              flexWrap="wrap"
+              justifyContent="space-between"
+            >
+              <H2>Web Applications With 3rd-Party SSO</H2>
+
+              <Button
+                fill="minimal"
+                intent="neutral"
+                as="a"
+                href="https://goteleport.com/docs/enroll-resources/application-access/guides/vnet/#accessing-web-apps-through-vnet"
+                target="_blank"
+                inputAlignment
+              >
+                Learn More
+              </Button>
+            </Flex>
+
+            <Flex width="100%" gap={4} flexWrap="wrap">
+              <Box
+                p={3}
+                flex={1}
+                borderRadius={3}
+                backgroundColor="levels.elevated"
+                borderColor="levels.popout"
+                borderWidth={2}
+                borderStyle="solid"
+                css={`
+                  display: grid;
+                  gap: ${props => props.theme.space[2]}px;
+                  grid-auto-flow: row;
+                  grid-auto-columns: 1fr;
+                `}
+              >
+                <Stack>
+                  <H3>With VNet</H3>
+                  <P2>
+                    The app is protected from unauthenticated traffic by
+                    Teleport in a way that is transparent to&nbsp;VNet users.
+                    It's accessible under the same domain with no changes to the
+                    SSO setup.
+                  </P2>
+                </Stack>
+
+                <Box flex={1} backgroundColor="white" px={2} py={3}>
+                  <ResponsiveImage
+                    alt="Web app with VNet"
+                    src={svgWebAppVnet}
+                  />
+                </Box>
+              </Box>
+
+              <Box
+                p={3}
+                flex={1}
+                borderRadius={3}
+                // backgroundColor="levels.elevated"
+                borderColor="levels.popout"
+                borderWidth={2}
+                borderStyle="dashed"
+                css={`
+                  display: grid;
+                  gap: ${props => props.theme.space[2]}px;
+                  grid-auto-flow: row;
+                  grid-auto-columns: 1fr;
+                `}
+              >
+                <Stack>
+                  <H3>Without VNet</H3>
+                  {/*
+                  <P2>
+                    Access to the app is gated by both Teleport Proxy Service
+                    and 3rd-party SSO. The app is now accessible under the
+                    domain of the Proxy Service, so SSO redirect URLs need to be
+                    updated.
+                  </P2>
+                  */}
+                  <P2>
+                    Either the app accepts Internet traffic and is protected
+                    only by SSO or it is behind Teleport, so admins have to
+                    update redirect URLs and users authenticate with both
+                    Teleport and SSO.
+                  </P2>
+                </Stack>
+
+                <Box backgroundColor="white" px={2} py={3}>
+                  <ResponsiveImage
+                    alt="Web app without VNet"
+                    src={svgWebAppWithoutVnet}
+                  />
+                </Box>
+              </Box>
+            </Flex>
+          </Stack>
         </Stack>
-
-        {report.checks.map(checkAttempt => (
-          <CheckAttempt
-            // tshd promises that checkAttempt.checkReport.report.oneofKind is
-            // 1) always present even if the check fails to complete
-            // 2) unique
-            key={checkAttempt.checkReport.report.oneofKind}
-            checkAttempt={checkAttempt}
-          />
-        ))}
       </Stack>
     </Document>
   );

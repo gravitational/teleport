@@ -112,3 +112,4 @@ export {
 export type { TextAreaProps } from './TextArea';
 export * from './keyframes';
 export { Stack } from './Flex';
+export { ResponsiveImage } from './Image';
