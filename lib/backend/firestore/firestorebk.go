@@ -24,6 +24,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"iter"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -34,6 +35,7 @@ import (
 	"cloud.google.com/go/firestore/apiv1/admin/adminpb"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -541,45 +543,245 @@ func (b *Backend) getRangeDocs(ctx context.Context, startKey, endKey backend.Key
 	return allDocs, nil
 }
 
+func (b *Backend) Items(ctx context.Context, params backend.IterateParams) iter.Seq2[backend.Item, error] {
+	if params.StartKey.IsZero() {
+		err := trace.BadParameter("missing parameter startKey")
+		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
+	}
+	if params.EndKey.IsZero() {
+		err := trace.BadParameter("missing parameter endKey")
+		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
+	}
+
+	limit := params.Limit
+	if limit <= 0 {
+		limit = backend.DefaultRangeLimit
+	}
+
+	sort := firestore.Asc
+	if params.Descending {
+		sort = firestore.Desc
+	}
+
+	return func(yield func(backend.Item, error) bool) {
+		count := 0
+		defer func() {
+			if count == backend.DefaultRangeLimit {
+				b.logger.WarnContext(ctx, "Range query hit backend limit. (this is a bug!)", "start_key", params.StartKey, "limit", backend.DefaultRangeLimit)
+			}
+		}()
+
+		for docSnap, err := range b.documentSnapshots(ctx, params.StartKey.String(), params.EndKey.String(), limit, sort) {
+			if err != nil {
+				yield(backend.Item{}, trace.Wrap(err))
+				return
+			}
+
+			r, err := newRecordFromDoc(docSnap)
+			if err != nil {
+				yield(backend.Item{}, trace.Wrap(err))
+				return
+			}
+
+			if r.isExpired(b.clock.Now()) {
+				if _, err := docSnap.Ref.Delete(ctx, firestore.LastUpdateTime(docSnap.UpdateTime)); err != nil && status.Code(err) == codes.FailedPrecondition {
+					// If the document has been updated, then attempt one additional get to see if the
+					// resource was updated and is no longer expired.
+					docSnap, err := b.svc.Collection(b.CollectionName).
+						Doc(docSnap.Ref.ID).
+						Get(ctx)
+					if err != nil {
+						yield(backend.Item{}, trace.Wrap(err))
+						return
+					}
+
+					r, err = newRecordFromDoc(docSnap)
+					if err != nil {
+						yield(backend.Item{}, trace.Wrap(err))
+						return
+					}
+
+					if r.isExpired(b.clock.Now()) {
+						continue
+					}
+				}
+			}
+
+			if !yield(r.backendItem(), nil) {
+				return
+			}
+			count++
+
+			if limit != backend.NoLimit && count >= limit {
+				return
+			}
+		}
+	}
+}
+
+// documentSnapshots returns an iterator that aggregates all items in the collection
+// in the desired order. This is required because over the years the key has been
+// stored in three formats. In order to iterate over all keys in the collection in the
+// correct order, documents with keys of all formats need to be considered.
+//
+// TODO(tross|tigrato): DELETE IN V19.0.0 with the background migration
+func (b *Backend) documentSnapshots(ctx context.Context, startKey, endKey string, limit int, sort firestore.Direction) iter.Seq2[*firestore.DocumentSnapshot, error] {
+	return func(yield func(*firestore.DocumentSnapshot, error) bool) {
+		docsIter := newDocIter(b.svc.Collection(b.CollectionName).
+			Where(keyDocProperty, ">=", []byte(startKey)).
+			Where(keyDocProperty, "<=", []byte(endKey)).
+			Limit(limit).
+			OrderBy(keyDocProperty, sort).
+			Documents(ctx))
+
+		legacyDocsIter := newDocIter(b.svc.Collection(b.CollectionName).
+			Where(keyDocProperty, ">=", startKey).
+			Where(keyDocProperty, "<=", endKey).
+			Limit(limit).
+			OrderBy(keyDocProperty, sort).
+			Documents(ctx))
+
+		brokenDocsIter := newDocIter(b.svc.Collection(b.CollectionName).
+			Where(keyDocProperty, ">=", brokenKey(startKey)).
+			Where(keyDocProperty, "<=", brokenKey(endKey)).
+			Limit(limit).
+			OrderBy(keyDocProperty, sort).
+			Documents(ctx))
+
+		defer func() {
+			docsIter.stop()
+			legacyDocsIter.stop()
+			brokenDocsIter.stop()
+		}()
+
+		for {
+			docSnap, docSnapErr := docsIter.next()
+			legacySnap, legacySnapErr := legacyDocsIter.next()
+			brokenSnap, brokenSnapErr := brokenDocsIter.next()
+
+			// All items have been exhausted.
+			if errors.Is(docSnapErr, iterator.Done) &&
+				errors.Is(legacySnapErr, iterator.Done) &&
+				errors.Is(brokenSnapErr, iterator.Done) {
+				return
+			}
+
+			// All iterators failed.
+			if docSnapErr != nil && legacySnapErr != nil && brokenSnapErr != nil {
+				yield(nil, trace.NewAggregate(docSnapErr, legacySnapErr, brokenSnapErr))
+				return
+			}
+
+			// Find the iterator with the next key in the sequence.
+			var docKey, legacyKey, brokenKey []byte
+			if docSnap != nil {
+				r, err := newRecordFromDoc(docSnap)
+				if err != nil {
+					yield(nil, err)
+					return
+				}
+				docKey = r.Key
+			}
+
+			if legacySnap != nil {
+				r, err := newRecordFromDoc(legacySnap)
+				if err != nil {
+					yield(nil, err)
+					return
+				}
+				legacyKey = r.Key
+			}
+
+			if brokenSnap != nil {
+				r, err := newRecordFromDoc(brokenSnap)
+				if err != nil {
+					yield(nil, err)
+					return
+				}
+				brokenKey = r.Key
+			}
+
+			compareKeys := func(key, other1, other2 []byte) bool {
+				expected := -1
+				if sort == firestore.Desc {
+					expected = 1
+				}
+
+				switch {
+				case len(key) == 0:
+					return false
+				case len(other1) == 0 && len(other2) == 0:
+					return true
+				case len(other1) == 0:
+					return bytes.Compare(key, other2) == expected
+				case len(other2) == 0:
+					return bytes.Compare(key, other1) == expected
+				default:
+					return bytes.Compare(key, other1) == expected && bytes.Compare(key, other2) == expected
+				}
+			}
+
+			switch {
+			case compareKeys(docKey, legacyKey, brokenKey):
+				docsIter.consume()
+				if !yield(docSnap, nil) {
+					return
+				}
+			case compareKeys(legacyKey, docKey, brokenKey):
+				legacyDocsIter.consume()
+				if !yield(legacySnap, nil) {
+					return
+				}
+			case compareKeys(brokenKey, legacyKey, docKey):
+				brokenDocsIter.consume()
+				if !yield(brokenSnap, nil) {
+					return
+				}
+			default:
+				yield(nil, errors.New("no valid snapshots found"))
+				return
+			}
+		}
+	}
+}
+
+type docIter struct {
+	iter *firestore.DocumentIterator
+	snap *firestore.DocumentSnapshot
+	err  error
+}
+
+func newDocIter(iter *firestore.DocumentIterator) *docIter {
+	return &docIter{iter: iter}
+}
+
+func (d *docIter) next() (*firestore.DocumentSnapshot, error) {
+	if d.snap == nil && d.err == nil {
+		d.snap, d.err = d.iter.Next()
+	}
+
+	return d.snap, d.err
+}
+
+func (d *docIter) consume() {
+	d.snap, d.err = nil, nil
+}
+
+func (d *docIter) stop() {
+	d.snap, d.err = nil, nil
+	d.iter.Stop()
+}
+
 // GetRange returns range of elements
 func (b *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
-	docSnaps, err := b.getRangeDocs(ctx, startKey, endKey, limit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var values []backend.Item
-	for _, docSnap := range docSnaps {
-		r, err := newRecordFromDoc(docSnap)
+	var result backend.GetResult
+	for item, err := range b.Items(ctx, backend.IterateParams{StartKey: startKey, EndKey: endKey, Limit: limit}) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		if r.isExpired(b.clock.Now()) {
-			if _, err := docSnap.Ref.Delete(ctx, firestore.LastUpdateTime(docSnap.UpdateTime)); err != nil && status.Code(err) == codes.FailedPrecondition {
-				// If the document has been updated, then attempt one additional get to see if the
-				// resource was updated and is no longer expired.
-				docSnap, err := b.svc.Collection(b.CollectionName).
-					Doc(docSnap.Ref.ID).
-					Get(ctx)
-				if err != nil {
-					return nil, ConvertGRPCError(err)
-				}
-				r, err := newRecordFromDoc(docSnap)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				if !r.isExpired(b.clock.Now()) {
-					values = append(values, r.backendItem())
-				}
-			}
-			// Do not include this document in the results.
-			continue
-		}
-
-		values = append(values, r.backendItem())
+		result.Items = append(result.Items, item)
 	}
-	return &backend.GetResult{Items: values}, nil
+	return &result, nil
 }
 
 // DeleteRange deletes range of items with keys between startKey and endKey
