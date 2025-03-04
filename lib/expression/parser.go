@@ -145,7 +145,7 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 							return false, nil
 						}
 					}
-					return true, nil
+					return len(s2.s) != 0, nil
 				}),
 			"is_empty": typical.UnaryFunction[evaluationEnv](
 				func(s Set) (bool, error) {
@@ -208,7 +208,7 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 							return false, nil
 						}
 					}
-					return true, nil
+					return len(s2.s) != 0, nil
 				}),
 			"isempty": typical.UnaryFunction[evaluationEnv](
 				func(s Set) (bool, error) {

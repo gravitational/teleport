@@ -276,7 +276,7 @@ var (
 		{
 			desc: "contains_all",
 			expressions: map[string][]string{
-				"expect_true": {
+				"contains_all": {
 					`ifelse(
 						user.spec.traits.groups.contains_all(set("security")) ||
 						contains_all(user.spec.traits.groups, set("security")),
@@ -284,7 +284,7 @@ var (
 						"false",
 					)`,
 				},
-				"expect_false": {
+				"does_not_contain_all": {
 					`ifelse(
 						user.spec.traits.groups.contains_all(set("security", "not-in-group")) ||
 						contains_all(user.spec.traits.groups, set("security", "not-in-group")),
@@ -292,11 +292,20 @@ var (
 						"false",
 					)`,
 				},
+				"empty_set": {
+					`ifelse(
+						user.spec.traits.groups.contains_all(set()) ||
+						contains_all(user.spec.traits.groups, set()),
+						"true",
+						"false",
+					)`,
+				},
 			},
 			inputTraits: baseInputTraits,
 			expectedTraits: map[string][]string{
-				"expect_true":  {"true"},
-				"expect_false": {"false"},
+				"contains_all":         {"true"},
+				"does_not_contain_all": {"false"},
+				"empty_set":            {"false"},
 			},
 		},
 	}

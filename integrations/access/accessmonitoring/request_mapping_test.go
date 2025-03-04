@@ -121,6 +121,16 @@ func TestEvaluateCondition(t *testing.T) {
 			},
 			match: false,
 		},
+		{
+			description: "requested roles is empty",
+			condition: `
+				contains_all(set("dev"), access_request.spec.roles) ||
+				set("dev").contains_all(access_request.spec.roles)`,
+			env: AccessRequestExpressionEnv{
+				Roles: []string{},
+			},
+			match: false,
+		},
 	}
 
 	for _, test := range tests {
