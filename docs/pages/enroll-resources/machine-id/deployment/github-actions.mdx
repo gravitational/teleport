@@ -72,7 +72,7 @@ If you are using self-hosted Teleport Enterprise you are able to permit
 workflows within GitHub Enterprise Server instances to authenticate using the
 GitHub join method.
 
-The Teleport Auth Server must be able to connect to the GitHub Enterprise
+The Teleport Auth Service must be able to connect to the GitHub Enterprise
 Server.
 
 To configure this, set `spec.github.enterprise_server_host` to the hostname of
@@ -374,7 +374,7 @@ outputs: []
 Replace:
 
 - `example.teleport.sh:443` with the address of your Teleport Proxy or
-  Auth Server. Prefer using the address of a Teleport Proxy.
+  Auth Service. Prefer using the address of a Teleport Proxy.
 - `example-bot` with the name of the token you created in the first step.
 
 Now you can define a GitHub Actions workflow that will start `tbot` with this

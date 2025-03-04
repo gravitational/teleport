@@ -480,7 +480,7 @@ $ tctl auth sign --ttl=2190h --user=jenkins --out=jenkins.pem
 # create a certificate with a TTL of 1 day for the jenkins user
 # The kubeconfig file can later be used with `kubectl` or compatible tooling.
 $ tctl auth sign --ttl=24h --user=jenkins --out=kubeconfig --format=kubernetes
-# Exports an identity from the Auth Server in preparation for remote
+# Exports an identity from the Auth Service in preparation for remote
 # tctl execution.
 $ tctl auth sign --user=admin --out=identity.pem
 ```

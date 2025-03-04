@@ -96,7 +96,7 @@ plan later.
 
 You should now see an `identity` file under `/opt/machine-id`. This contains
 the private key and signed certificates needed by `tctl` to
-authenticate with the Teleport Auth Server.
+authenticate with the Teleport Auth Service.
 
 ## Step 3/3. Use `tctl` with the identity output
 
@@ -126,7 +126,7 @@ also be specified with the address of your Teleport Proxy or Teleport Auth
 Server.
 
 Run `tctl`, replacing `example.teleport.sh:443` with the address of your
-Teleport Proxy or Auth Server and `/opt/machine-id/identity` with the path to
+Teleport Proxy or Auth Service and `/opt/machine-id/identity` with the path to
 the generated identity file if you have modified this:
 
 ```code

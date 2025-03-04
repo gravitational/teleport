@@ -7,14 +7,14 @@ spec:
   roles: [App]
   join_method: kubernetes
   kubernetes:
-    # static_jwks configures the Auth Server to validate the JWT presented by
+    # static_jwks configures the Auth Service to validate the JWT presented by
     # `tbot` using the public key from a statically configured JWKS.
     type: static_jwks
     static_jwks:
       jwks: |
         # Place the kubernetes JWKS here (`kubectl get --raw /openid/v1/jwks`)
         {"keys":[--snip--]}
-    # allow specifies the rules by which the Auth Server determines if the node
+    # allow specifies the rules by which the Auth Service determines if the node
     # should be allowed to join.
     allow:
       - service_account: "namespace:serviceaccount"
