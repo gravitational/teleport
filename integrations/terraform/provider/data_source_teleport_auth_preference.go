@@ -57,12 +57,26 @@ func (r dataSourceTeleportAuthPreference) Read(ctx context.Context, req tfsdk.Re
 		return
 	}
 
-    var state types.Object
+	var state types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	authPreference := authPreferenceI.(*apitypes.AuthPreferenceV2)
 	diags := tfschema.CopyAuthPreferenceV2ToTerraform(ctx, authPreference, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+
+	// Todo: Remove after updating terraform-plugin to >=v1.5.0.
+	// terraform-plugin-testing version <1.5.0 requires data resources to
+	// implement the 'id' attribute.
+	// https://developer.hashicorp.com/terraform/plugin/framework/acctests#no-id-found-in-attributes
+	v, ok := state.Attrs["id"]
+	if !ok || v.IsNull() {
+		state.Attrs["id"] = types.String{Value: authPreference.GetName()}
 	}
 
 	diags = resp.State.Set(ctx, &state)
