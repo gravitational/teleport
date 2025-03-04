@@ -4395,7 +4395,7 @@ func getClientIncompatibilityWarning(versions Versions) (string, error) {
 	case ClientVersionTooOld:
 		minClient := versions.MinClient
 		if minClientWithoutPreRelease, err := utils.VersionWithoutPreRelease(minClient); err != nil {
-			log.DebugContext(context.Background(), "Could not strip pre-release suffix", "error", err)
+			log.WithError(err).Debug("Could not strip pre-release suffix")
 		} else {
 			minClient = minClientWithoutPreRelease
 		}
