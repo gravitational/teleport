@@ -19,18 +19,21 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useHistory } from 'react-router';
 
-import { Alert, Box, Flex, H3, Indicator, Link } from 'design';
-import { H2, P } from 'design/Text/Text';
+import { Alert, Box, Flex, Indicator } from 'design';
+import { H2 } from 'design/Text/Text';
 import { useAsync } from 'shared/hooks/useAsync';
 
 import {
-  DesktopDescription,
-  MobileDescription,
   ResponsiveAddButton,
   ResponsiveFeatureHeader,
 } from 'teleport/AuthConnectors/styles/AuthConnectors.styles';
 import { FeatureBox, FeatureHeaderTitle } from 'teleport/components/Layout';
 import { Route, Switch } from 'teleport/components/Router';
+import {
+  InfoParagraph,
+  InfoTitle,
+  ReferenceLinks,
+} from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import useResources from 'teleport/components/useResources';
 import cfg from 'teleport/config';
 import { DefaultAuthConnector, Resource } from 'teleport/services/resources';
@@ -141,7 +144,6 @@ export function AuthConnectors() {
     <FeatureBox>
       <ResponsiveFeatureHeader>
         <FeatureHeaderTitle>Auth Connectors</FeatureHeaderTitle>
-        <MobileDescription>{description}</MobileDescription>
         <ResponsiveAddButton
           fill="border"
           onClick={() =>
@@ -188,22 +190,6 @@ export function AuthConnectors() {
             </Box>
             <CtaConnectors />
           </Flex>
-          <DesktopDescription>
-            <H3 mb={3}>Auth Connectors</H3>
-            <P mb={3}>{description}</P>
-            <P mb={2}>
-              Please{' '}
-              <Link
-                color="text.main"
-                // This URL is the OSS documentation for auth connectors
-                href="https://goteleport.com/docs/admin-guides/access-controls/sso/github-sso/"
-                target="_blank"
-              >
-                view our documentation
-              </Link>{' '}
-              on how to configure a GitHub connector.
-            </P>
-          </DesktopDescription>
         </Flex>
       )}
       {resources.status === 'removing' && (
@@ -219,3 +205,27 @@ export function AuthConnectors() {
     </FeatureBox>
   );
 }
+
+export const InfoGuide = ({ isGitHub = false }) => (
+  <Box>
+    <InfoTitle>Auth Connectors</InfoTitle>
+    <InfoParagraph>
+      Auth connectors allow Teleport to authenticate users via an external
+      identity source such as Okta, Microsoft Entra ID, GitHub, etc. This
+      authentication method is commonly known as single sign-on (SSO).
+    </InfoParagraph>
+    <ReferenceLinks
+      links={[
+        isGitHub
+          ? {
+              title: 'Configure GitHub connector',
+              href: 'https://goteleport.com/docs/admin-guides/access-controls/sso/github-sso/',
+            }
+          : {
+              title: 'Samples of different connectors',
+              href: 'https://goteleport.com/docs/admin-guides/access-controls/sso/',
+            },
+      ]}
+    />
+  </Box>
+);
