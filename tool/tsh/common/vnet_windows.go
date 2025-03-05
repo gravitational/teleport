@@ -17,6 +17,8 @@
 package common
 
 import (
+	"context"
+
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"golang.org/x/sys/windows/svc"
@@ -31,7 +33,7 @@ type vnetServiceCommand struct {
 
 func newPlatformVnetServiceCommand(app *kingpin.Application) *vnetServiceCommand {
 	cmd := &vnetServiceCommand{
-		CmdClause: app.Command(vnet.ServiceCommand, "Start the VNet service.").Hidden(),
+		CmdClause: app.Command(vnet.ServiceCommand, "Start the VNet Windows service.").Hidden(),
 	}
 	return cmd
 }
@@ -51,7 +53,41 @@ func isWindowsService() bool {
 	return err == nil && isSvc
 }
 
+type vnetInstallServiceCommand struct {
+	*kingpin.CmdClause
+}
+
+func newPlatformVnetInstallServiceCommand(app *kingpin.Application) *vnetInstallServiceCommand {
+	cmd := &vnetInstallServiceCommand{
+		CmdClause: app.Command("vnet-install-service", "Install the VNet Windows service.").Hidden(),
+	}
+	return cmd
+}
+
+func (c *vnetInstallServiceCommand) run(cf *CLIConf) error {
+	return trace.Wrap(vnet.InstallService(cf.Context), "installing Windows service")
+}
+
+type vnetUninstallServiceCommand struct {
+	*kingpin.CmdClause
+}
+
+func newPlatformVnetUninstallServiceCommand(app *kingpin.Application) *vnetUninstallServiceCommand {
+	cmd := &vnetUninstallServiceCommand{
+		CmdClause: app.Command("vnet-uninstall-service", "Uninstall the VNet Windows service.").Hidden(),
+	}
+	return cmd
+}
+
+func (c *vnetUninstallServiceCommand) run(cf *CLIConf) error {
+	return trace.Wrap(vnet.UninstallService(cf.Context), "uninstalling Windows service")
+}
+
 // the admin-setup command is only supported on darwin.
 func newPlatformVnetAdminSetupCommand(*kingpin.Application) vnetCommandNotSupported {
 	return vnetCommandNotSupported{}
+}
+
+func runVnetDiagnostics(ctx context.Context, nsi vnet.NetworkStackInfo) error {
+	return trace.NotImplemented("diagnostics are not implemented yet on Windows")
 }

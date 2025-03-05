@@ -2047,7 +2047,7 @@ func TestTerminal(t *testing.T) {
 			})
 
 			require.NoError(t, err)
-			t.Cleanup(func() { require.True(t, utils.IsOKNetworkError(term.Close())) })
+			t.Cleanup(func() { require.NoError(t, term.Close()) })
 
 			// Send a command and validate the output
 			validateTerminal(t, term)
@@ -3643,6 +3643,7 @@ func TestKnownWebPathsWithAndWithoutV1Prefix(t *testing.T) {
 
 func TestInstallDatabaseScriptGeneration(t *testing.T) {
 	const username = "test-user@example.com"
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildCommunity})
 
 	// Users should be able to create Tokens even if they can't update them
 	roleTokenCRD, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
@@ -4648,6 +4649,71 @@ func TestApplicationWebSessionsDeletedAfterLogout(t *testing.T) {
 	require.Empty(t, collectAppSessions(context.Background()))
 }
 
+func TestGetAppDetails(t *testing.T) {
+	ctx := context.Background()
+	s := newWebSuite(t)
+	pack := s.authPack(t, "foo@example.com")
+
+	// Register an application called "api".
+	apiApp, err := types.NewAppV3(types.Metadata{
+		Name: "api",
+	}, types.AppSpecV3{
+		URI:        "http://127.0.0.1:8080",
+		PublicAddr: "api.example.com",
+	})
+	require.NoError(t, err)
+	server, err := types.NewAppServerV3FromApp(apiApp, "host", uuid.New().String())
+	require.NoError(t, err)
+	_, err = s.server.Auth().UpsertApplicationServer(s.ctx, server)
+	require.NoError(t, err)
+
+	// Register an application called "client" and have "api" required.
+	clientApp, err := types.NewAppV3(types.Metadata{
+		Name: "client",
+	}, types.AppSpecV3{
+		URI:              "http://127.0.0.1:8080",
+		PublicAddr:       "client.example.com",
+		RequiredAppNames: []string{"api"},
+	})
+	require.NoError(t, err)
+	server2, err := types.NewAppServerV3FromApp(clientApp, "host", uuid.New().String())
+	require.NoError(t, err)
+	_, err = s.server.Auth().UpsertApplicationServer(s.ctx, server2)
+	require.NoError(t, err)
+
+	clientFQDN := "client.example.com"
+
+	tests := []struct {
+		name     string
+		endpoint string
+	}{
+		{
+			name:     "request app details with clientName and publicAddr",
+			endpoint: pack.clt.Endpoint("webapi", "apps", clientFQDN, s.server.ClusterName(), clientApp.GetPublicAddr()),
+		},
+		{
+			name:     "request app details with fqdn only",
+			endpoint: pack.clt.Endpoint("webapi", "apps", clientFQDN),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			re, err := pack.clt.Get(ctx, tc.endpoint, url.Values{})
+			require.NoError(t, err)
+			resp := GetAppDetailsResponse{}
+
+			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+			require.Equal(t, GetAppDetailsResponse{
+				FQDN:             "client.example.com",
+				RequiredAppFQDNs: []string{"api.example.com", "client.example.com"},
+			}, resp)
+		})
+	}
+}
+
 func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
@@ -4736,6 +4802,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 		TunnelPublicAddress:            "",
 		RecoveryCodesEnabled:           false,
 		UI:                             webclient.UIConfig{},
+		IsPolicyRoleVisualizerEnabled:  true,
 		IsDashboard:                    false,
 		IsUsageBasedBilling:            false,
 		AutomaticUpgradesTargetVersion: "",
@@ -4917,7 +4984,8 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 			string(entitlements.UsageReporting):         {Enabled: false},
 			string(entitlements.LicenseAutoUpdate):      {Enabled: false},
 		},
-		PlayableDatabaseProtocols: player.SupportedDatabaseProtocols,
+		PlayableDatabaseProtocols:     player.SupportedDatabaseProtocols,
+		IsPolicyRoleVisualizerEnabled: true,
 	}
 
 	clt := env.proxies[0].newClient(t)
@@ -8323,7 +8391,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		// Build the client CA pool containing the cluster's user CA in
 		// order to be able to validate certificates provided by users.
 		var err error
-		tlsClone.ClientCAs, _, err = authclient.DefaultClientCertPool(info.Context(), authServer.Auth(), clustername)
+		tlsClone.ClientCAs, _, _, err = authclient.DefaultClientCertPool(info.Context(), authServer.Auth(), clustername)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -8471,9 +8539,9 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		},
 	)
 	handler.handler.cfg.ProxyKubeAddr = utils.FromAddr(kubeProxyAddr)
+	handler.handler.cfg.PublicProxyAddr = webServer.Listener.Addr().String()
 	url, err := url.Parse("https://" + webServer.Listener.Addr().String())
 	require.NoError(t, err)
-	handler.handler.cfg.PublicProxyAddr = url.String()
 
 	return &testProxy{
 		clock:   clock,

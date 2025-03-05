@@ -93,10 +93,10 @@ Or the following:
 GKE Autopilot denies requests that impersonate "system:masters" group
 ```
 
-<Notice type="note">
+<Admonition type="note">
 This issue only affects GKE Autopilot clusters. If you're using a standard GKE
 cluster, this issue doesn't apply to you.
-</Notice>
+</Admonition>
 
 ### Explanation
 
@@ -186,7 +186,7 @@ $ helm install teleport-agent teleport/teleport-kube-agent \
   --version (=teleport.version=)
 ```
 
-Make sure that the Teleport agent pod is running. You should see one Teleport
+Make sure that the Teleport Agent pod is running. You should see one Teleport
 agent pod pod with a single ready container:
 
 ```code

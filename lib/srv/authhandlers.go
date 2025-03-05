@@ -377,7 +377,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 			UserMetadata: apievents.UserMetadata{
 				Login:         principal,
 				User:          ident.Username,
-				TrustedDevice: eventDeviceMetadataFromIdentity(ident),
+				TrustedDevice: ident.GetDeviceMetadata(),
 			},
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  conn.LocalAddr().String(),
@@ -439,6 +439,23 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		permissions.Extensions[utils.ExtIntCertType] = utils.ExtIntCertTypeHost
 	default:
 		log.WarnContext(ctx, "Received unexpected cert type", "cert_type", cert.CertType)
+	}
+
+	// the git forwarding component currently only supports an authorization model that makes sense
+	// for local identities. reject all non-local identities explicitly.
+	if h.c.Component == teleport.ComponentForwardingGit {
+		ca, err := h.authorityForCert(types.UserCA, cert.SignatureKey)
+		if err != nil {
+			log.ErrorContext(ctx, "permission denied", "error", err)
+			recordFailedLogin(err)
+			return nil, trace.Wrap(err)
+		}
+
+		if clusterName.GetClusterName() != ca.GetClusterName() {
+			log.ErrorContext(ctx, "cross-cluster git forwarding is not supported", "local_cluster", clusterName.GetClusterName(), "remote_cluster", ca.GetClusterName())
+			recordFailedLogin(trace.AccessDenied("cross-cluster git forwarding is not supported"))
+			return nil, trace.AccessDenied("cross-cluster git forwarding is not supported")
+		}
 	}
 
 	// Skip RBAC check for proxy or git servers. RBAC check on git servers are

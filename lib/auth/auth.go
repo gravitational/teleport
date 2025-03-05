@@ -102,7 +102,6 @@ import (
 	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/inventory"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
-	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/loginrule"
 	"github.com/gravitational/teleport/lib/modules"
@@ -405,6 +404,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 		cfg.WorkloadIdentity = workloadIdentity
 	}
+	if cfg.WorkloadIdentityX509Revocations == nil {
+		cfg.WorkloadIdentityX509Revocations, err = local.NewWorkloadIdentityX509RevocationService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating WorkloadIdentityX509Revocation service")
+		}
+	}
 	if cfg.StableUNIXUsers == nil {
 		cfg.StableUNIXUsers = &local.StableUNIXUsersService{
 			Backend: cfg.Backend,
@@ -464,53 +469,54 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
-		TrustInternal:                cfg.Trust,
-		PresenceInternal:             cfg.Presence,
-		Provisioner:                  cfg.Provisioner,
-		Identity:                     cfg.Identity,
-		Access:                       cfg.Access,
-		DynamicAccessExt:             cfg.DynamicAccessExt,
-		ClusterConfigurationInternal: cfg.ClusterConfiguration,
-		AutoUpdateService:            cfg.AutoUpdateService,
-		Restrictions:                 cfg.Restrictions,
-		Apps:                         cfg.Apps,
-		Kubernetes:                   cfg.Kubernetes,
-		Databases:                    cfg.Databases,
-		DatabaseServices:             cfg.DatabaseServices,
-		AuditLogSessionStreamer:      cfg.AuditLog,
-		Events:                       cfg.Events,
-		WindowsDesktops:              cfg.WindowsDesktops,
-		DynamicWindowsDesktops:       cfg.DynamicWindowsDesktops,
-		SAMLIdPServiceProviders:      cfg.SAMLIdPServiceProviders,
-		UserGroups:                   cfg.UserGroups,
-		SessionTrackerService:        cfg.SessionTrackerService,
-		ConnectionsDiagnostic:        cfg.ConnectionsDiagnostic,
-		Integrations:                 cfg.Integrations,
-		UserTasks:                    cfg.UserTasks,
-		DiscoveryConfigs:             cfg.DiscoveryConfigs,
-		Okta:                         cfg.Okta,
-		AccessLists:                  cfg.AccessLists,
-		DatabaseObjectImportRules:    cfg.DatabaseObjectImportRules,
-		DatabaseObjects:              cfg.DatabaseObjects,
-		SecReports:                   cfg.SecReports,
-		UserLoginStates:              cfg.UserLoginState,
-		StatusInternal:               cfg.Status,
-		UsageReporter:                cfg.UsageReporter,
-		UserPreferences:              cfg.UserPreferences,
-		PluginData:                   cfg.PluginData,
-		KubeWaitingContainer:         cfg.KubeWaitingContainers,
-		Notifications:                cfg.Notifications,
-		AccessMonitoringRules:        cfg.AccessMonitoringRules,
-		CrownJewels:                  cfg.CrownJewels,
-		BotInstance:                  cfg.BotInstance,
-		SPIFFEFederations:            cfg.SPIFFEFederations,
-		StaticHostUser:               cfg.StaticHostUsers,
-		ProvisioningStates:           cfg.ProvisioningStates,
-		IdentityCenter:               cfg.IdentityCenter,
-		PluginStaticCredentials:      cfg.PluginStaticCredentials,
-		GitServers:                   cfg.GitServers,
-		WorkloadIdentities:           cfg.WorkloadIdentity,
-		StableUNIXUsersInternal:      cfg.StableUNIXUsers,
+		TrustInternal:                   cfg.Trust,
+		PresenceInternal:                cfg.Presence,
+		Provisioner:                     cfg.Provisioner,
+		Identity:                        cfg.Identity,
+		Access:                          cfg.Access,
+		DynamicAccessExt:                cfg.DynamicAccessExt,
+		ClusterConfigurationInternal:    cfg.ClusterConfiguration,
+		AutoUpdateService:               cfg.AutoUpdateService,
+		Restrictions:                    cfg.Restrictions,
+		Apps:                            cfg.Apps,
+		Kubernetes:                      cfg.Kubernetes,
+		Databases:                       cfg.Databases,
+		DatabaseServices:                cfg.DatabaseServices,
+		AuditLogSessionStreamer:         cfg.AuditLog,
+		Events:                          cfg.Events,
+		WindowsDesktops:                 cfg.WindowsDesktops,
+		DynamicWindowsDesktops:          cfg.DynamicWindowsDesktops,
+		SAMLIdPServiceProviders:         cfg.SAMLIdPServiceProviders,
+		UserGroups:                      cfg.UserGroups,
+		SessionTrackerService:           cfg.SessionTrackerService,
+		ConnectionsDiagnostic:           cfg.ConnectionsDiagnostic,
+		Integrations:                    cfg.Integrations,
+		UserTasks:                       cfg.UserTasks,
+		DiscoveryConfigs:                cfg.DiscoveryConfigs,
+		Okta:                            cfg.Okta,
+		AccessLists:                     cfg.AccessLists,
+		DatabaseObjectImportRules:       cfg.DatabaseObjectImportRules,
+		DatabaseObjects:                 cfg.DatabaseObjects,
+		SecReports:                      cfg.SecReports,
+		UserLoginStates:                 cfg.UserLoginState,
+		StatusInternal:                  cfg.Status,
+		UsageReporter:                   cfg.UsageReporter,
+		UserPreferences:                 cfg.UserPreferences,
+		PluginData:                      cfg.PluginData,
+		KubeWaitingContainer:            cfg.KubeWaitingContainers,
+		Notifications:                   cfg.Notifications,
+		AccessMonitoringRules:           cfg.AccessMonitoringRules,
+		CrownJewels:                     cfg.CrownJewels,
+		BotInstance:                     cfg.BotInstance,
+		SPIFFEFederations:               cfg.SPIFFEFederations,
+		StaticHostUser:                  cfg.StaticHostUsers,
+		ProvisioningStates:              cfg.ProvisioningStates,
+		IdentityCenter:                  cfg.IdentityCenter,
+		PluginStaticCredentials:         cfg.PluginStaticCredentials,
+		GitServers:                      cfg.GitServers,
+		WorkloadIdentities:              cfg.WorkloadIdentity,
+		StableUNIXUsersInternal:         cfg.StableUNIXUsers,
+		WorkloadIdentityX509Revocations: cfg.WorkloadIdentityX509Revocations,
 	}
 
 	as := Server{
@@ -733,6 +739,7 @@ type Services struct {
 	services.GitServers
 	services.WorkloadIdentities
 	services.StableUNIXUsersInternal
+	services.WorkloadIdentityX509Revocations
 }
 
 // GetWebSession returns existing web session described by req.
@@ -1512,62 +1519,46 @@ func (a *Server) runPeriodicOperations() {
 				}()
 			case heartbeatCheckKey:
 				go func() {
-					req := &proto.ListUnifiedResourcesRequest{Kinds: []string{types.KindNode}, SortBy: types.SortBy{Field: types.ResourceKind}}
-
-					for {
-						_, next, err := a.UnifiedResourceCache.IterateUnifiedResources(a.closeCtx,
-							func(rwl types.ResourceWithLabels) (bool, error) {
-								srv, ok := rwl.(types.Server)
-								if !ok {
-									return false, nil
-								}
-								if services.NodeHasMissedKeepAlives(srv) {
-									heartbeatsMissedByAuth.Inc()
-								}
-
-								if srv.GetSubKind() != types.SubKindOpenSSHNode {
-									return false, nil
-								}
-								// TODO(tross) DELETE in v20.0.0 - all invalid hostnames should have been sanitized by then.
-								if !validServerHostname(srv.GetHostname()) {
-									logger := a.logger.With("server", srv.GetName(), "hostname", srv.GetHostname())
-
-									logger.DebugContext(a.closeCtx, "sanitizing invalid static SSH server hostname")
-									// Any existing static hosts will not have their
-									// hostname sanitized since they don't heartbeat.
-									if err := sanitizeHostname(srv); err != nil {
-										logger.WarnContext(a.closeCtx, "failed to sanitize static SSH server hostname", "error", err)
-										return false, nil
-									}
-
-									if _, err := a.Services.UpdateNode(a.closeCtx, srv); err != nil && !trace.IsCompareFailed(err) {
-										logger.WarnContext(a.closeCtx, "failed to update SSH server hostname", "error", err)
-									}
-								} else if oldHostname, ok := srv.GetLabel(replacedHostnameLabel); ok && validServerHostname(oldHostname) {
-									// If the hostname has been replaced by a sanitized version, revert it back to the original
-									// if the original is valid under the most recent rules.
-									logger := a.logger.With("server", srv.GetName(), "old_hostname", oldHostname, "sanitized_hostname", srv.GetHostname())
-									if err := restoreSanitizedHostname(srv); err != nil {
-										logger.WarnContext(a.closeCtx, "failed to restore sanitized static SSH server hostname", "error", err)
-										return false, nil
-									}
-									if _, err := a.Services.UpdateNode(a.closeCtx, srv); err != nil && !trace.IsCompareFailed(err) {
-										logger.WarnContext(a.closeCtx, "Failed to update node hostname", "error", err)
-									}
-								}
-
-								return false, nil
-							},
-							req,
-						)
+					for srv, err := range a.UnifiedResourceCache.Nodes(a.closeCtx, services.UnifiedResourcesIterateParams{}) {
 						if err != nil {
 							a.logger.ErrorContext(a.closeCtx, "Failed to load nodes for heartbeat metric calculation", "error", err)
 							return
 						}
 
-						req.StartKey = next
-						if req.StartKey == "" {
-							break
+						if services.NodeHasMissedKeepAlives(srv) {
+							heartbeatsMissedByAuth.Inc()
+						}
+
+						if srv.GetSubKind() != types.SubKindOpenSSHNode {
+							continue
+						}
+
+						// TODO(tross) DELETE in v20.0.0 - all invalid hostnames should have been sanitized by then.
+						if !validServerHostname(srv.GetHostname()) {
+							logger := a.logger.With("server", srv.GetName(), "hostname", srv.GetHostname())
+
+							logger.DebugContext(a.closeCtx, "sanitizing invalid static SSH server hostname")
+							// Any existing static hosts will not have their
+							// hostname sanitized since they don't heartbeat.
+							if err := sanitizeHostname(srv); err != nil {
+								logger.WarnContext(a.closeCtx, "failed to sanitize static SSH server hostname", "error", err)
+								continue
+							}
+
+							if _, err := a.Services.UpdateNode(a.closeCtx, srv); err != nil && !trace.IsCompareFailed(err) {
+								logger.WarnContext(a.closeCtx, "failed to update SSH server hostname", "error", err)
+							}
+						} else if oldHostname, ok := srv.GetLabel(replacedHostnameLabel); ok && validServerHostname(oldHostname) {
+							// If the hostname has been replaced by a sanitized version, revert it back to the original
+							// if the original is valid under the most recent rules.
+							logger := a.logger.With("server", srv.GetName(), "old_hostname", oldHostname, "sanitized_hostname", srv.GetHostname())
+							if err := restoreSanitizedHostname(srv); err != nil {
+								logger.WarnContext(a.closeCtx, "failed to restore sanitized static SSH server hostname", "error", err)
+								continue
+							}
+							if _, err := a.Services.UpdateNode(a.closeCtx, srv); err != nil && !trace.IsCompareFailed(err) {
+								logger.WarnContext(a.closeCtx, "Failed to update node hostname", "error", err)
+							}
 						}
 					}
 				}()
@@ -3309,8 +3300,19 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	// If the certificate is targeting a trusted Teleport cluster, it is the
 	// responsibility of the cluster to ensure its existence.
 	if req.routeToCluster == clusterName && req.kubernetesCluster != "" {
-		if err := kubeutils.CheckKubeCluster(a.closeCtx, a, req.kubernetesCluster); err != nil {
-			return nil, trace.Wrap(err)
+		var found bool
+		for ks, err := range a.UnifiedResourceCache.KubernetesServers(a.closeCtx, services.UnifiedResourcesIterateParams{}) {
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			if ks.GetCluster().GetName() == req.kubernetesCluster {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, trace.BadParameter("Kubernetes cluster %q is not registered in this Teleport cluster; you can list registered Kubernetes clusters using 'tsh kube ls'", req.kubernetesCluster)
 		}
 	}
 

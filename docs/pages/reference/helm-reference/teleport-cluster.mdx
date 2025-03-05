@@ -1513,9 +1513,9 @@ You should create the secret in the same namespace as Teleport using a command l
 kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
 ```
 
-<Notice type="warning" title="Root CA filename">
+<Admonition type="warning" title="Root CA filename">
   The filename used for the root CA in the secret must be `ca.pem`.
-</Notice>
+</Admonition>
 
 `values.yaml` example:
 
@@ -2323,3 +2323,46 @@ Kubernetes timeouts for the liveness and readiness probes.
   ```yaml
   probeTimeoutSeconds: 5
   ```
+
+## `readinessProbe`
+
+`readinessProbe` configures the readiness probe settings.
+This can be tuned to keep proxy pods ready even when the auth is unavailable.
+
+The default values mark the pod unready after one minute of failing readiness probe.
+
+### `readinessProbe.initialDelaySeconds`
+
+| Type      | Default value |
+|-----------|---------------|
+| `integer` | `5`           |
+
+`readinessProbe.initialDelaySeconds` controls the number of seconds after the container has started before
+liveness probes are initiated. More info [in the Kubernetes documentation
+](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes)
+
+### `readinessProbe.periodSeconds`
+| Type      | Default value |
+|-----------|---------------|
+| `integer` | `5`           |
+
+`readinessProbe.periodSeconds` controls how often (in seconds) to perform the probe. Minimum value is 1.
+
+### `readinessProbe.failureThreshold`
+
+| Type      | Default value |
+|-----------|---------------|
+| `integer` | `12`          |
+
+`readinessProbe.failureThreshold` is the minimum consecutive failures for the probe to be considered failed
+after having succeeded. Minimum value is 1.
+failureThreshold: 12
+
+## `readinessProbe.successThreshold`
+
+| Type      | Default value |
+|-----------|---------------|
+| `integer` | `1`           |
+
+`readinessProbe.successThreshold` is the minimum consecutive successes for the probe to be considered
+successful after having failed. Minimum value is 1.

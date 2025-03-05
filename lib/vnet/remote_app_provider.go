@@ -19,8 +19,10 @@ package vnet
 import (
 	"context"
 	"crypto"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"io"
 
 	"github.com/gravitational/trace"
@@ -43,6 +45,10 @@ func newRemoteAppProvider(clt *clientApplicationServiceClient) *remoteAppProvide
 // ResolveAppInfo implements [appProvider.ResolveAppInfo].
 func (p *remoteAppProvider) ResolveAppInfo(ctx context.Context, fqdn string) (*vnetv1.AppInfo, error) {
 	appInfo, err := p.clt.ResolveAppInfo(ctx, fqdn)
+	// Avoid wrapping errNoTCPHandler, no need to collect a stack trace.
+	if errors.Is(err, errNoTCPHandler) {
+		return nil, errNoTCPHandler
+	}
 	return appInfo, trace.Wrap(err)
 }
 
@@ -96,19 +102,24 @@ func (s *rpcAppCertSigner) Public() crypto.PublicKey {
 // Sign implements [crypto.Signer.Sign] and issues a signature over digest for
 // the associated app.
 func (s *rpcAppCertSigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
-	protoHash := vnetv1.Hash_HASH_UNSPECIFIED
-	switch opts.HashFunc() {
-	case 0:
-		protoHash = vnetv1.Hash_HASH_NONE
-	case crypto.SHA256:
-		protoHash = vnetv1.Hash_HASH_SHA256
-	}
-	signature, err := s.clt.SignForApp(context.TODO(), &vnetv1.SignForAppRequest{
+	req := &vnetv1.SignForAppRequest{
 		AppKey:     s.appKey,
 		TargetPort: uint32(s.targetPort),
 		Digest:     digest,
-		Hash:       protoHash,
-	})
+	}
+	switch opts.HashFunc() {
+	case 0:
+		req.Hash = vnetv1.Hash_HASH_NONE
+	case crypto.SHA256:
+		req.Hash = vnetv1.Hash_HASH_SHA256
+	default:
+		return nil, trace.BadParameter("unsupported signature hash func %v", opts.HashFunc())
+	}
+	if pssOpts, ok := opts.(*rsa.PSSOptions); ok {
+		saltLen := int32(pssOpts.SaltLength)
+		req.PssSaltLength = &saltLen
+	}
+	signature, err := s.clt.SignForApp(context.TODO(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

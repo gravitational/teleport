@@ -44,7 +44,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	grpccredentials "google.golang.org/grpc/credentials"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/link/channel"
@@ -122,7 +122,7 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 	require.Nil(t, tcpErr)
 
 	// Route the VNet range to the TUN interface - this emulates the route that will be installed on the host.
-	vnetIPv6Prefix, err := NewIPv6Prefix()
+	vnetIPv6Prefix, err := newIPv6Prefix()
 	require.NoError(t, err)
 	subnet, err := tcpip.NewSubnet(vnetIPv6Prefix, tcpip.MaskFromBytes(net.CIDRMask(64, 128)))
 	require.NoError(t, err)
@@ -514,7 +514,7 @@ func TestDialFakeApp(t *testing.T) {
 
 	const appCertLifetime = time.Hour
 	reissueClientCert := func() tls.Certificate {
-		return newClientCert(t, ca, "testclient", clock.Now().Add(appCertLifetime))
+		return newClientCert(t, ca, "testclient", clock.Now().Add(appCertLifetime), cryptosuites.ECDSAP256)
 	}
 
 	clientApp := newFakeClientApp(map[string]testClusterSpec{
@@ -808,7 +808,7 @@ func TestOnNewConnection(t *testing.T) {
 
 	const appCertLifetime = time.Hour
 	reissueClientCert := func() tls.Certificate {
-		return newClientCert(t, ca, "testclient", clock.Now().Add(appCertLifetime))
+		return newClientCert(t, ca, "testclient", clock.Now().Add(appCertLifetime), cryptosuites.ECDSAP256)
 	}
 
 	clientApp := newFakeClientApp(map[string]testClusterSpec{
@@ -845,8 +845,20 @@ func TestOnNewConnection(t *testing.T) {
 }
 
 // TestRemoteAppProvider tests basic VNet functionality when remoteAppProvider
-// is used to provider access to the client application over gRPC.
+// is used to provide access to the client application over gRPC.
 func TestRemoteAppProvider(t *testing.T) {
+	t.Parallel()
+	for _, alg := range []cryptosuites.Algorithm{
+		cryptosuites.RSA2048,
+		cryptosuites.ECDSAP256,
+	} {
+		t.Run(alg.String(), func(t *testing.T) {
+			testRemoteAppProvider(t, alg)
+		})
+	}
+}
+
+func testRemoteAppProvider(t *testing.T, alg cryptosuites.Algorithm) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -857,7 +869,7 @@ func TestRemoteAppProvider(t *testing.T) {
 
 	const appCertLifetime = time.Hour
 	reissueClientCert := func() tls.Certificate {
-		return newClientCert(t, ca, "testclient", clock.Now().Add(appCertLifetime))
+		return newClientCert(t, ca, "testclient", clock.Now().Add(appCertLifetime), alg)
 	}
 
 	clientApp := newFakeClientApp(map[string]testClusterSpec{
@@ -877,8 +889,13 @@ func TestRemoteAppProvider(t *testing.T) {
 		},
 	}, dialOpts, reissueClientCert, clock)
 
+	ipcCredentials, err := newIPCCredentials()
+	require.NoError(t, err)
+	serverTLSConfig, err := ipcCredentials.server.serverTLSConfig()
+	require.NoError(t, err)
+
 	grpcServer := grpc.NewServer(
-		grpc.Creds(insecure.NewCredentials()),
+		grpc.Creds(grpccredentials.NewTLS(serverTLSConfig)),
 		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
 		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
 	)
@@ -898,7 +915,14 @@ func TestRemoteAppProvider(t *testing.T) {
 		},
 	})
 
-	clt, err := newClientApplicationServiceClient(ctx, listener.Addr().String())
+	// Test writing the service credentials to and from disk as that's what
+	// really happens on Windows.
+	credDir := t.TempDir()
+	require.NoError(t, ipcCredentials.client.write(credDir), "writing service credentials to disk")
+	clientCreds, err := readCredentials(credDir)
+	require.NoError(t, err, "reading service credentials from disk")
+
+	clt, err := newClientApplicationServiceClient(ctx, clientCreds, listener.Addr().String())
 	require.NoError(t, err)
 	defer clt.close()
 	remoteAppProvider := newRemoteAppProvider(clt)
@@ -1034,15 +1058,15 @@ func newSelfSignedCA(t *testing.T) tls.Certificate {
 }
 
 func newServerCert(t *testing.T, ca tls.Certificate, cn string, expires time.Time) tls.Certificate {
-	return newLeafCert(t, ca, cn, expires, x509.ExtKeyUsageServerAuth)
+	return newLeafCert(t, ca, cn, expires, x509.ExtKeyUsageServerAuth, cryptosuites.ECDSAP256)
 }
 
-func newClientCert(t *testing.T, ca tls.Certificate, cn string, expires time.Time) tls.Certificate {
-	return newLeafCert(t, ca, cn, expires, x509.ExtKeyUsageClientAuth)
+func newClientCert(t *testing.T, ca tls.Certificate, cn string, expires time.Time, alg cryptosuites.Algorithm) tls.Certificate {
+	return newLeafCert(t, ca, cn, expires, x509.ExtKeyUsageClientAuth, alg)
 }
 
-func newLeafCert(t *testing.T, ca tls.Certificate, cn string, expires time.Time, keyUsage x509.ExtKeyUsage) tls.Certificate {
-	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+func newLeafCert(t *testing.T, ca tls.Certificate, cn string, expires time.Time, keyUsage x509.ExtKeyUsage, alg cryptosuites.Algorithm) tls.Certificate {
+	signer, err := cryptosuites.GenerateKeyWithAlgorithm(alg)
 	require.NoError(t, err)
 
 	caCert, err := x509.ParseCertificate(ca.Certificate[0])

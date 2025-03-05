@@ -14,11 +14,11 @@ authenticates to Azure as a principal with permissions to manage the database.
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Teleport Database Access Azure Cache for Redis Self-Hosted](../../../../img/database-access/guides/azure/redis-self-hosted.png)
+![Enroll Azure Cache for Redis with a Self-Hosted Teleport Cluster](../../../../img/database-access/guides/azure/redis-self-hosted.png)
 </TabItem>
 
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Teleport Database Access Azure Cache for Redis Cloud](../../../../img/database-access/guides/azure/redis-cloud.png)
+![Enroll Azure Cache for Redis with a Cloud-Hosted Teleport Cluster](../../../../img/database-access/guides/azure/redis-cloud.png)
 </TabItem>
 
 </Tabs>
@@ -64,7 +64,7 @@ $ sudo teleport db configure create \
 ```code
 $ sudo teleport db configure create \
   -o file \
-  --proxy=teleport.example.com:3080 \
+  --proxy=teleport.example.com:443 \
   --token=/tmp/token \
   --azure-redis-discovery=eastus
 ```

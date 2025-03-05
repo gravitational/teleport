@@ -270,17 +270,6 @@ export default function useAccessRequestCheckout() {
     );
   }
 
-  function getAssumedRequests() {
-    if (!rootClusterUri) {
-      return [];
-    }
-    const assumed = ctx.clustersService.getAssumedRequests(rootClusterUri);
-    if (!assumed) {
-      return [];
-    }
-    return Object.values(assumed);
-  }
-
   /**
    * Shared logic used both during dry runs and regular access request creation.
    */
@@ -338,6 +327,7 @@ export default function useAccessRequestCheckout() {
 
     try {
       const { accessRequest } = await prepareAndCreateRequest({
+        reason: 'placeholder-reason',
         dryRun: true,
         maxDuration: getDryRunMaxDuration(),
       });
@@ -431,7 +421,6 @@ export default function useAccessRequestCheckout() {
   return {
     showCheckout,
     isCollapsed,
-    assumedRequests: getAssumedRequests(),
     toggleResource,
     pendingAccessRequests,
     shouldShowClusterNameColumn,

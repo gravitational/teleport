@@ -91,3 +91,6 @@ export const EditorSaveCancelButton = ({
     </Flex>
   );
 };
+
+export const unableToUpdatePreviewMessage =
+  'Unable to update the role preview. You can still try and save the role anyway.';

@@ -418,6 +418,10 @@ func (t *WSStream) Close() error {
 type Stream struct {
 	*WSStream
 
+	// mu guards session creation and stream closure.
+	mu sync.Mutex
+	// closed is set to true after the stream is closed.
+	closed bool
 	// sshSession holds the "shell" SSH channel to the node.
 	sshSession    *tracessh.Session
 	sessionReadyC chan struct{}
@@ -485,19 +489,13 @@ func NewStream(ctx context.Context, cfg StreamConfig) *Stream {
 // handleWindowResize receives window resize events and forwards
 // them to the SSH session.
 func (t *Stream) handleWindowResize(ctx context.Context, envelope Envelope) {
-	select {
-	case <-ctx.Done():
-		return
-	case <-t.sessionReadyC:
-	}
-
-	if t.sshSession == nil {
+	sshSession, err := t.waitForSSHSession(ctx)
+	if err != nil {
 		return
 	}
 
 	var e map[string]interface{}
-	err := json.Unmarshal([]byte(envelope.Payload), &e)
-	if err != nil {
+	if err := json.Unmarshal([]byte(envelope.Payload), &e); err != nil {
 		t.log.WarnContext(ctx, "Failed to parse resize payload", "error", err)
 		return
 	}
@@ -519,25 +517,19 @@ func (t *Stream) handleWindowResize(ctx context.Context, envelope Envelope) {
 		return
 	}
 
-	if err := t.sshSession.WindowChange(ctx, params.H, params.W); err != nil {
+	if err := sshSession.WindowChange(ctx, params.H, params.W); err != nil {
 		t.log.ErrorContext(ctx, "failed to send window change request", "error", err)
 	}
 }
 
 func (t *Stream) handleFileTransferDecision(ctx context.Context, envelope Envelope) {
-	select {
-	case <-ctx.Done():
-		return
-	case <-t.sessionReadyC:
-	}
-
-	if t.sshSession == nil {
+	sshSession, err := t.waitForSSHSession(ctx)
+	if err != nil {
 		return
 	}
 
 	var e utils.Fields
-	err := json.Unmarshal([]byte(envelope.Payload), &e)
-	if err != nil {
+	if err := json.Unmarshal([]byte(envelope.Payload), &e); err != nil {
 		return
 	}
 	approved, ok := e["approved"].(bool)
@@ -547,9 +539,9 @@ func (t *Stream) handleFileTransferDecision(ctx context.Context, envelope Envelo
 	}
 
 	if approved {
-		err = t.sshSession.ApproveFileTransferRequest(ctx, e.GetString("requestId"))
+		err = sshSession.ApproveFileTransferRequest(ctx, e.GetString("requestId"))
 	} else {
-		err = t.sshSession.DenyFileTransferRequest(ctx, e.GetString("requestId"))
+		err = sshSession.DenyFileTransferRequest(ctx, e.GetString("requestId"))
 	}
 	if err != nil {
 		t.log.ErrorContext(ctx, "Unable to respond to file transfer request", "error", err)
@@ -557,19 +549,13 @@ func (t *Stream) handleFileTransferDecision(ctx context.Context, envelope Envelo
 }
 
 func (t *Stream) handleFileTransferRequest(ctx context.Context, envelope Envelope) {
-	select {
-	case <-ctx.Done():
-		return
-	case <-t.sessionReadyC:
-	}
-
-	if t.sshSession == nil {
+	sshSession, err := t.waitForSSHSession(ctx)
+	if err != nil {
 		return
 	}
 
 	var e utils.Fields
-	err := json.Unmarshal([]byte(envelope.Payload), &e)
-	if err != nil {
+	if err := json.Unmarshal([]byte(envelope.Payload), &e); err != nil {
 		return
 	}
 	download, ok := e["download"].(bool)
@@ -578,7 +564,7 @@ func (t *Stream) handleFileTransferRequest(ctx context.Context, envelope Envelop
 		return
 	}
 
-	if err := t.sshSession.RequestFileTransfer(ctx, tracessh.FileTransferReq{
+	if err := sshSession.RequestFileTransfer(ctx, tracessh.FileTransferReq{
 		Download: download,
 		Location: e.GetString("location"),
 		Filename: e.GetString("filename"),
@@ -587,12 +573,39 @@ func (t *Stream) handleFileTransferRequest(ctx context.Context, envelope Envelop
 	}
 }
 
-func (t *Stream) SessionCreated(s *tracessh.Session) {
+// waitForSSHSession waits for and returns the ssh session after it is ready.
+func (t *Stream) waitForSSHSession(ctx context.Context) (*tracessh.Session, error) {
+	select {
+	case <-ctx.Done():
+		return nil, trace.Wrap(ctx.Err())
+	case <-t.sessionReadyC:
+	}
+	if t.sshSession == nil {
+		return nil, trace.NotFound("missing ssh session")
+	}
+	return t.sshSession, nil
+}
+
+func (t *Stream) SessionCreated(s *tracessh.Session) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.closed {
+		close(t.sessionReadyC)
+		return trace.BadParameter("websocket was closed before the ssh session was ready")
+	}
+
 	t.sshSession = s
 	close(t.sessionReadyC)
+	return nil
 }
 
 func (t *Stream) Close() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.closed {
+		return nil
+	}
+	t.closed = true
 	if t.sshSession != nil {
 		return trace.NewAggregate(t.sshSession.Close(), t.WSStream.Close())
 	} else {

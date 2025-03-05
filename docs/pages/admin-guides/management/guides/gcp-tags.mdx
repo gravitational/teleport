@@ -1,7 +1,7 @@
 ---
 title: GCP Tags and Labels as Teleport Agent Labels
-description: How to set up Teleport agent labels based on GCP tags and labels
-h1: Sync GCP Tags/Labels and Teleport agent labels
+description: How to set up Teleport Agent labels based on GCP tags and labels
+h1: Sync GCP Tags/Labels and Teleport Agent labels
 ---
 
 When running on an Google Compute Engine instance, Teleport will automatically detect and import GCP
@@ -27,10 +27,10 @@ Node Name            Address        Labels
 fakehost.example.com 127.0.0.1:3022 gcp/label/testing=yes,gcp/tag/environment=staging,gcp/TeleportHostname=fakehost.example.com
 ```
 
-<Notice type="note">
+<Admonition type="note">
   For services that manage multiple resources (such as the Database Service), each resource will receive the
   same tags and labels from GCP.
-</Notice>
+</Admonition>
 
 ## Prerequisites
 

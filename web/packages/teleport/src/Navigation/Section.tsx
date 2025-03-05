@@ -163,12 +163,7 @@ export function StandaloneSection({
   $active: boolean;
 }) {
   return (
-    <CategoryButton
-      as={NavLink}
-      $active={$active}
-      isExpanded={false}
-      to={route}
-    >
+    <CategoryButton as={NavLink} $active={$active} to={route}>
       <Icon />
       {title}
     </CategoryButton>
@@ -269,7 +264,7 @@ const AnimatedArrow = styled(ArrowLineLeft)<{ $isSticky: boolean }>`
 
 export const CategoryButton = styled.button<{
   $active: boolean;
-  isExpanded: boolean;
+  isExpanded?: boolean;
 }>`
   min-height: 60px;
   min-width: 60px;

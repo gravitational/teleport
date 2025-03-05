@@ -3,8 +3,6 @@ title: Configuring Workload Identity and AWS Roles Anywhere
 description: Configuring AWS to accept Workload Identity certificates as authentication using AWS Roles Anywhere
 ---
 
-(!/docs/pages/includes/workload-id-preview.mdx!)
-
 Teleport Workload Identity issues flexible short-lived identities in X.509
 certificates. AWS Roles Anywhere allows you to use these certificates to
 authenticate to AWS services.
@@ -299,7 +297,7 @@ For example, to issue a SPIFFE SVID for `/svc/example-service` with an 8 hour
 TTL:
 
 ```code
-$ tsh svid issue --output /opt/roles-anywhere-svid --svid-ttl 8h /svc/example-service
+$ tsh workload-identity issue-x509 --name-selector example-workload-identity --credential-ttl 8h --output /opt/roles-anywhere-svid
 ```
 
 ## Step 4/4. Configure the AWS CLI and SDKs to use Roles Anywhere to authenticate

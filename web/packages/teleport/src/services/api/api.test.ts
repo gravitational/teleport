@@ -78,6 +78,14 @@ describe('api.fetch', () => {
     });
   });
 
+  test('no json in response', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({ ok: true } as Response);
+    const resp = await api.fetch('/something');
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+
+    expect(resp).toStrictEqual({ ok: true });
+  });
+
   test('with customOptions', async () => {
     await api.fetch('/something', customOpts);
     expect(mockedFetch).toHaveBeenCalledTimes(1);

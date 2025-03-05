@@ -254,11 +254,11 @@ Edit the `agent_installation_dev` and `agent_installation_prod` blocks in
 1. Assign `proxy_service_address` to the host and HTTPS port of your Teleport
    Proxy Service, e.g., `mytenant.teleport.sh:443`.
 
-   <Notice type="tip">
+   <Admonition type="tip">
    
    Make sure to include the port.
    
-   </Notice>
+   </Admonition>
 
 1. Make sure `teleport_edition` matches your Teleport edition. Assign this to
    `oss`, `cloud`, or `enterprise`. The default is `oss`.
@@ -358,7 +358,7 @@ provider "aws" {
 }
 
 provider "teleport" {
-  # Update addr to point to your Teleport Enterprise (managed) tenant URL's host:port
+  # Update addr to point to your Teleport Enterprise (Cloud) tenant URL's host:port
   addr               = PROXY_SERVICE_ADDRESS
 }
 ```
@@ -393,7 +393,7 @@ provider "google" {
 }
 
 provider "teleport" {
-  # Update addr to point to your Teleport Enterprise (managed) tenant URL's host:port
+  # Update addr to point to your Teleport Enterprise (Cloud) tenant URL's host:port
   addr               = PROXY_SERVICE_ADDRESS
 }
 ```

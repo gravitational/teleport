@@ -607,6 +607,10 @@ const (
 	// KindWorkloadIdentity is the WorkloadIdentity resource.
 	KindWorkloadIdentity = "workload_identity"
 
+	// KindWorkloadIdentityX509Revocation is the WorkloadIdentityX509Revocation
+	// resource.
+	KindWorkloadIdentityX509Revocation = "workload_identity_x509_revocation"
+
 	// KindGitServer represents a Git server that can proxy git commands.
 	KindGitServer = "git_server"
 	// SubKindGitHub specifies the GitHub subkind of a Git server.
@@ -847,6 +851,8 @@ const (
 	DiscoveryAppInsecureSkipVerify = TeleportNamespace + "/insecure-skip-verify"
 	// DiscoveryAppIgnore specifies if a Kubernetes service should be ignored by discovery service.
 	DiscoveryAppIgnore = TeleportNamespace + "/ignore"
+	// DiscoveryPublicAddr specifies the public address for a discovered app created from a Kubernetes service.
+	DiscoveryPublicAddr = TeleportNamespace + "/public-addr"
 
 	// ReqAnnotationApproveSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationApproveSchedulesLabel = "/schedules"
@@ -1225,6 +1231,7 @@ const (
 	InstanceMetadataTypeEC2      InstanceMetadataType = "EC2"
 	InstanceMetadataTypeAzure    InstanceMetadataType = "Azure"
 	InstanceMetadataTypeGCP      InstanceMetadataType = "GCP"
+	InstanceMetadataTypeOracle   InstanceMetadataType = "Oracle"
 )
 
 // OriginValues lists all possible origin values.

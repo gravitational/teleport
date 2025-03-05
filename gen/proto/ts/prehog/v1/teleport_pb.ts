@@ -198,6 +198,48 @@ export interface UserActivityRecord {
      * @generated from protobuf field: uint64 certificates_issued = 17;
      */
     certificatesIssued: bigint;
+    /**
+     * counter of SVIDs issued for each SPIFFE ID.
+     *
+     * @generated from protobuf field: repeated prehog.v1.SPIFFEIDRecord spiffe_ids_issued = 18;
+     */
+    spiffeIdsIssued: SPIFFEIDRecord[];
+    /**
+     * Indicates origin of user account.
+     *
+     * @generated from protobuf field: prehog.v1.UserOrigin user_origin = 19;
+     */
+    userOrigin: UserOrigin;
+    /**
+     * counter of Access Requests created by this user.
+     *
+     * @generated from protobuf field: uint64 access_requests_created = 20;
+     */
+    accessRequestsCreated: bigint;
+    /**
+     * counter of Access Requests reviewed by this user.
+     *
+     * @generated from protobuf field: uint64 access_requests_reviewed = 21;
+     */
+    accessRequestsReviewed: bigint;
+    /**
+     * counter of Access List review.
+     *
+     * @generated from protobuf field: uint64 access_lists_reviewed = 22;
+     */
+    accessListsReviewed: bigint;
+    /**
+     * counter of roles or traits grant event based on Access List membership.
+     *
+     * @generated from protobuf field: uint64 access_lists_grants = 23;
+     */
+    accessListsGrants: bigint;
+    /**
+     * counter of successful SAML IdP authentication by this user.
+     *
+     * @generated from protobuf field: uint64 saml_idp_sessions = 24;
+     */
+    samlIdpSessions: bigint;
 }
 /**
  * @generated from protobuf message prehog.v1.ResourcePresenceReport
@@ -346,6 +388,25 @@ export interface BotInstanceActivityRecord {
     certificatesIssued: bigint;
 }
 /**
+ * Used to record the issuance of a specific SPIFFE ID.
+ *
+ * @generated from protobuf message prehog.v1.SPIFFEIDRecord
+ */
+export interface SPIFFEIDRecord {
+    /**
+     * The anonymized SPIFFE ID - HMAC-SHA-256 (32 bytes)
+     *
+     * @generated from protobuf field: bytes spiffe_id = 1;
+     */
+    spiffeId: Uint8Array;
+    /**
+     * Number of SVIDs issued for the given spiffe_id.
+     *
+     * @generated from protobuf field: uint32 svids_issued = 2;
+     */
+    svidsIssued: number;
+}
+/**
  * @generated from protobuf message prehog.v1.SubmitUsageReportsRequest
  */
 export interface SubmitUsageReportsRequest {
@@ -418,6 +479,51 @@ export enum UserKind {
      * @generated from protobuf enum value: USER_KIND_BOT = 2;
      */
     BOT = 2
+}
+/**
+ * UserOrigin is the origin of a user account.
+ * Keep the values in sync with UserOrigin enum defined in
+ * API events and prehogv1alpha.
+ *
+ * @generated from protobuf enum prehog.v1.UserOrigin
+ */
+export enum UserOrigin {
+    /**
+     * Indicates a legacy cluster emitting events without a defined user origin.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * Indicates a local user.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_LOCAL = 1;
+     */
+    LOCAL = 1,
+    /**
+     * Indicates an SSO user originated from the SAML or OIDC connector.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_SSO = 2;
+     */
+    SSO = 2,
+    /**
+     * Indicates a user originated from the Okta integration.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_OKTA = 3;
+     */
+    OKTA = 3,
+    /**
+     * Indicates a user originated from the SCIM integration.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_SCIM = 4;
+     */
+    SCIM = 4,
+    /**
+     * Indicates a user originated from the EntraID integration.
+     *
+     * @generated from protobuf enum value: USER_ORIGIN_ENTRAID = 5;
+     */
+    ENTRAID = 5
 }
 /**
  * the kind of a "resource" (e.g. a node, a database, a desktop, etc.)
@@ -579,7 +685,14 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
             { no: 13, name: "kube_port_sessions", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 15, name: "spiffe_svids_issued", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 16, name: "bot_joins", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
-            { no: 17, name: "certificates_issued", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+            { no: 17, name: "certificates_issued", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 18, name: "spiffe_ids_issued", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SPIFFEIDRecord },
+            { no: 19, name: "user_origin", kind: "enum", T: () => ["prehog.v1.UserOrigin", UserOrigin, "USER_ORIGIN_"] },
+            { no: 20, name: "access_requests_created", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 21, name: "access_requests_reviewed", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 22, name: "access_lists_reviewed", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 23, name: "access_lists_grants", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 24, name: "saml_idp_sessions", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
         ]);
     }
     create(value?: PartialMessage<UserActivityRecord>): UserActivityRecord {
@@ -601,6 +714,13 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         message.spiffeSvidsIssued = 0n;
         message.botJoins = 0n;
         message.certificatesIssued = 0n;
+        message.spiffeIdsIssued = [];
+        message.userOrigin = 0;
+        message.accessRequestsCreated = 0n;
+        message.accessRequestsReviewed = 0n;
+        message.accessListsReviewed = 0n;
+        message.accessListsGrants = 0n;
+        message.samlIdpSessions = 0n;
         if (value !== undefined)
             reflectionMergePartial<UserActivityRecord>(this, message, value);
         return message;
@@ -660,6 +780,27 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
                     break;
                 case /* uint64 certificates_issued */ 17:
                     message.certificatesIssued = reader.uint64().toBigInt();
+                    break;
+                case /* repeated prehog.v1.SPIFFEIDRecord spiffe_ids_issued */ 18:
+                    message.spiffeIdsIssued.push(SPIFFEIDRecord.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* prehog.v1.UserOrigin user_origin */ 19:
+                    message.userOrigin = reader.int32();
+                    break;
+                case /* uint64 access_requests_created */ 20:
+                    message.accessRequestsCreated = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 access_requests_reviewed */ 21:
+                    message.accessRequestsReviewed = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 access_lists_reviewed */ 22:
+                    message.accessListsReviewed = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 access_lists_grants */ 23:
+                    message.accessListsGrants = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 saml_idp_sessions */ 24:
+                    message.samlIdpSessions = reader.uint64().toBigInt();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -724,6 +865,27 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         /* uint64 certificates_issued = 17; */
         if (message.certificatesIssued !== 0n)
             writer.tag(17, WireType.Varint).uint64(message.certificatesIssued);
+        /* repeated prehog.v1.SPIFFEIDRecord spiffe_ids_issued = 18; */
+        for (let i = 0; i < message.spiffeIdsIssued.length; i++)
+            SPIFFEIDRecord.internalBinaryWrite(message.spiffeIdsIssued[i], writer.tag(18, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1.UserOrigin user_origin = 19; */
+        if (message.userOrigin !== 0)
+            writer.tag(19, WireType.Varint).int32(message.userOrigin);
+        /* uint64 access_requests_created = 20; */
+        if (message.accessRequestsCreated !== 0n)
+            writer.tag(20, WireType.Varint).uint64(message.accessRequestsCreated);
+        /* uint64 access_requests_reviewed = 21; */
+        if (message.accessRequestsReviewed !== 0n)
+            writer.tag(21, WireType.Varint).uint64(message.accessRequestsReviewed);
+        /* uint64 access_lists_reviewed = 22; */
+        if (message.accessListsReviewed !== 0n)
+            writer.tag(22, WireType.Varint).uint64(message.accessListsReviewed);
+        /* uint64 access_lists_grants = 23; */
+        if (message.accessListsGrants !== 0n)
+            writer.tag(23, WireType.Varint).uint64(message.accessListsGrants);
+        /* uint64 saml_idp_sessions = 24; */
+        if (message.samlIdpSessions !== 0n)
+            writer.tag(24, WireType.Varint).uint64(message.samlIdpSessions);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1032,6 +1194,61 @@ class BotInstanceActivityRecord$Type extends MessageType<BotInstanceActivityReco
  * @generated MessageType for protobuf message prehog.v1.BotInstanceActivityRecord
  */
 export const BotInstanceActivityRecord = new BotInstanceActivityRecord$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SPIFFEIDRecord$Type extends MessageType<SPIFFEIDRecord> {
+    constructor() {
+        super("prehog.v1.SPIFFEIDRecord", [
+            { no: 1, name: "spiffe_id", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
+            { no: 2, name: "svids_issued", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SPIFFEIDRecord>): SPIFFEIDRecord {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.spiffeId = new Uint8Array(0);
+        message.svidsIssued = 0;
+        if (value !== undefined)
+            reflectionMergePartial<SPIFFEIDRecord>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SPIFFEIDRecord): SPIFFEIDRecord {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* bytes spiffe_id */ 1:
+                    message.spiffeId = reader.bytes();
+                    break;
+                case /* uint32 svids_issued */ 2:
+                    message.svidsIssued = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SPIFFEIDRecord, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* bytes spiffe_id = 1; */
+        if (message.spiffeId.length)
+            writer.tag(1, WireType.LengthDelimited).bytes(message.spiffeId);
+        /* uint32 svids_issued = 2; */
+        if (message.svidsIssued !== 0)
+            writer.tag(2, WireType.Varint).uint32(message.svidsIssued);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1.SPIFFEIDRecord
+ */
+export const SPIFFEIDRecord = new SPIFFEIDRecord$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class SubmitUsageReportsRequest$Type extends MessageType<SubmitUsageReportsRequest> {
     constructor() {

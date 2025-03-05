@@ -110,7 +110,7 @@ type mockUserTasksLister struct {
 	userTasks       []*usertasksv1.UserTask
 }
 
-func (m *mockUserTasksLister) ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextToken string, integration string) ([]*usertasksv1.UserTask, string, error) {
+func (m *mockUserTasksLister) ListUserTasks(ctx context.Context, pageSize int64, nextToken string, filters *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error) {
 	var ret []*usertasksv1.UserTask
 	if pageSize == 0 {
 		pageSize = m.defaultPageSize
@@ -203,9 +203,16 @@ func TestCollectAWSOIDCAutoDiscoverStats(t *testing.T) {
 		}
 
 		var userTasksList []*usertasksv1.UserTask
-		for range 10 {
-			userTasksList = append(userTasksList, &usertasksv1.UserTask{Spec: &usertasksv1.UserTaskSpec{State: usertasks.TaskStateOpen}})
-			userTasksList = append(userTasksList, &usertasksv1.UserTask{Spec: &usertasksv1.UserTaskSpec{State: usertasks.TaskStateResolved}})
+		ec2UserTasks := 10
+		for range ec2UserTasks {
+			userTasksList = append(userTasksList, &usertasksv1.UserTask{Spec: &usertasksv1.UserTaskSpec{State: usertasks.TaskStateOpen, TaskType: usertasks.TaskTypeDiscoverEC2}})
+		}
+		rdsUserTasks := 20
+		for range rdsUserTasks {
+			userTasksList = append(userTasksList, &usertasksv1.UserTask{Spec: &usertasksv1.UserTaskSpec{State: usertasks.TaskStateOpen, TaskType: usertasks.TaskTypeDiscoverRDS}})
+		}
+		for range 100 {
+			userTasksList = append(userTasksList, &usertasksv1.UserTask{Spec: &usertasksv1.UserTaskSpec{State: usertasks.TaskStateResolved, TaskType: usertasks.TaskTypeDiscoverEC2}})
 		}
 
 		userTasksClient := &mockUserTasksLister{
@@ -229,7 +236,13 @@ func TestCollectAWSOIDCAutoDiscoverStats(t *testing.T) {
 				SubKind: "aws-oidc",
 				AWSOIDC: &ui.IntegrationAWSOIDCSpec{RoleARN: "arn:role"},
 			},
-			UnresolvedUserTasks: 10,
+			UnresolvedUserTasks: ec2UserTasks + rdsUserTasks,
+			AWSEC2: ui.ResourceTypeSummary{
+				UnresolvedUserTasks: ec2UserTasks,
+			},
+			AWSRDS: ui.ResourceTypeSummary{
+				UnresolvedUserTasks: rdsUserTasks,
+			},
 		}
 		require.Equal(t, expectedSummary, gotSummary)
 	})
@@ -784,13 +797,28 @@ func TestGitHubIntegration(t *testing.T) {
 	})
 
 	t.Run("delete", func(t *testing.T) {
+		githubServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
+			Integration:  integrationName,
+			Organization: orgName,
+		})
+		require.NoError(t, err)
+		_, err = proxy.auth.AuthServer.AuthServer.CreateGitServer(ctx, githubServer)
+		require.NoError(t, err)
+
 		endpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations", integrationName)
-		t.Run("success", func(t *testing.T) {
+		t.Run("failed because existing git server ", func(t *testing.T) {
 			_, err := authPack.clt.Delete(ctx, endpoint)
+			require.Error(t, err)
+		})
+
+		t.Run("success with associated resources param", func(t *testing.T) {
+			_, err := authPack.clt.Delete(ctx, endpoint+"?associatedresources=true")
 			require.NoError(t, err)
 
 			_, err = authPack.clt.Get(ctx, endpoint, nil)
 			require.Error(t, err)
+			require.True(t, trace.IsNotFound(err))
+			_, err = proxy.auth.AuthServer.AuthServer.GetGitServer(ctx, githubServer.GetName())
 			require.True(t, trace.IsNotFound(err))
 		})
 

@@ -25,6 +25,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -55,6 +56,7 @@ func TestLocalInstaller_Install(t *testing.T) {
 		reservedInstall uint64
 		existingSum     string
 		flags           autoupdate.InstallFlags
+		force           bool
 
 		errMatch string
 	}{
@@ -68,10 +70,18 @@ func TestLocalInstaller_Install(t *testing.T) {
 		{
 			name:        "mismatched checksum",
 			existingSum: hex.EncodeToString(sha256.New().Sum(nil)),
+			force:       true,
 		},
 		{
 			name:        "unreadable checksum",
 			existingSum: "bad",
+			force:       true,
+		},
+		{
+			name:        "unreadable checksum, force false",
+			existingSum: "bad",
+			force:       false,
+			errMatch:    "refusing",
 		},
 		{
 			name:        "out of space in /tmp",
@@ -89,9 +99,11 @@ func TestLocalInstaller_Install(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
+			err := os.MkdirAll(filepath.Join(dir, version), os.ModePerm)
+			require.NoError(t, err)
 
 			if tt.existingSum != "" {
-				err := os.WriteFile(filepath.Join(dir, checksumType), []byte(tt.existingSum), os.ModePerm)
+				err := os.WriteFile(filepath.Join(dir, version, checksumType), []byte(tt.existingSum), os.ModePerm)
 				require.NoError(t, err)
 			}
 
@@ -127,7 +139,7 @@ func TestLocalInstaller_Install(t *testing.T) {
 				Template:                "{{.BaseURL}}/{{.Package}}-{{.OS}}/{{.Arch}}/{{.Version}}",
 			}
 			ctx := context.Background()
-			err := installer.Install(ctx, NewRevision(version, tt.flags), server.URL)
+			err = installer.Install(ctx, NewRevision(version, tt.flags), server.URL, tt.force)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
@@ -136,8 +148,13 @@ func TestLocalInstaller_Install(t *testing.T) {
 			require.NoError(t, err)
 
 			const expectedPath = "/teleport-" + runtime.GOOS + "/" + runtime.GOARCH + "/" + version
-			require.Equal(t, expectedPath, dlPath)
 			require.Equal(t, expectedPath+"."+checksumType, shaPath)
+
+			if tt.existingSum == testSum {
+				return
+			}
+
+			require.Equal(t, expectedPath, dlPath)
 
 			for _, p := range []string{
 				filepath.Join(dir, version, "lib", "systemd", "system", "teleport.service"),
@@ -259,7 +276,7 @@ func TestLocalInstaller_Link(t *testing.T) {
 			},
 			installFileMode: 0644,
 
-			errMatch: "no binaries",
+			errMatch: ErrNoBinaries.Error(),
 		},
 		{
 			name: "present with existing links",
@@ -395,13 +412,13 @@ func TestLocalInstaller_Link(t *testing.T) {
 			installFiles: []string{"README"},
 			installDirs:  []string{"bin"},
 
-			errMatch: "no binaries",
+			errMatch: ErrNoBinaries.Error(),
 		},
 		{
 			name:         "no bin directory",
 			installFiles: []string{"README"},
 
-			errMatch: "binary directory",
+			errMatch: ErrNoBinaries.Error(),
 		},
 	}
 
@@ -439,18 +456,17 @@ func TestLocalInstaller_Link(t *testing.T) {
 
 			validator := Validator{Log: slog.Default()}
 			installer := &LocalInstaller{
-				InstallDir:      versionsDir,
-				LinkBinDir:      filepath.Join(linkDir, "bin"),
-				CopyServiceFile: filepath.Join(linkDir, serviceDir, serviceName),
-				Log:             slog.Default(),
-				TransformService: func(b []byte) []byte {
-					return []byte("[transform]" + string(b))
+				InstallDir:        versionsDir,
+				TargetServiceFile: filepath.Join(linkDir, serviceDir, serviceName),
+				Log:               slog.Default(),
+				TransformService: func(b []byte, pathDir string) []byte {
+					return []byte(fmt.Sprintf("[service=%s][path=%s]", string(b), pathDir))
 				},
 				ValidateBinary: validator.IsExecutable,
 				Template:       autoupdate.DefaultCDNURITemplate,
 			}
 			ctx := context.Background()
-			revert, err := installer.Link(ctx, NewRevision(version, 0), tt.force)
+			revert, err := installer.Link(ctx, NewRevision(version, 0), filepath.Join(linkDir, "bin"), tt.force)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
@@ -483,7 +499,7 @@ func TestLocalInstaller_Link(t *testing.T) {
 			for _, svc := range tt.resultServices {
 				v, err := os.ReadFile(filepath.Join(linkDir, svc))
 				require.NoError(t, err)
-				require.Equal(t, "[transform]"+filepath.Base(svc), string(v))
+				require.Equal(t, fmt.Sprintf("[service=%s][path=%s]", filepath.Base(svc), filepath.Join(linkDir, "bin")), string(v))
 			}
 
 			// verify manual revert
@@ -567,7 +583,7 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 			},
 			installFileMode: 0644,
 
-			errMatch: "no binaries",
+			errMatch: ErrNoBinaries.Error(),
 		},
 		{
 			name: "present with existing links",
@@ -651,13 +667,13 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 			installFiles: []string{"README"},
 			installDirs:  []string{"bin"},
 
-			errMatch: "no binaries",
+			errMatch: ErrNoBinaries.Error(),
 		},
 		{
 			name:         "no bin directory",
 			installFiles: []string{"README"},
 
-			errMatch: "binary directory",
+			errMatch: ErrNoBinaries.Error(),
 		},
 	}
 
@@ -695,17 +711,16 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 
 			validator := Validator{Log: slog.Default()}
 			installer := &LocalInstaller{
-				InstallDir:      versionsDir,
-				LinkBinDir:      filepath.Join(linkDir, "bin"),
-				CopyServiceFile: filepath.Join(linkDir, serviceDir, serviceName),
-				Log:             slog.Default(),
-				TransformService: func(b []byte) []byte {
-					return []byte("[transform]" + string(b))
+				InstallDir:        versionsDir,
+				TargetServiceFile: filepath.Join(linkDir, serviceDir, serviceName),
+				Log:               slog.Default(),
+				TransformService: func(b []byte, pathDir string) []byte {
+					return []byte(fmt.Sprintf("[service=%s][path=%s]", string(b), pathDir))
 				},
 				ValidateBinary: validator.IsExecutable,
 			}
 			ctx := context.Background()
-			err = installer.TryLink(ctx, NewRevision(version, 0))
+			err = installer.TryLink(ctx, NewRevision(version, 0), filepath.Join(linkDir, "bin"))
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
@@ -734,7 +749,7 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 			for _, svc := range tt.resultServices {
 				v, err := os.ReadFile(filepath.Join(linkDir, svc))
 				require.NoError(t, err)
-				require.Equal(t, "[transform]"+filepath.Base(svc), string(v))
+				require.Equal(t, fmt.Sprintf("[service=%s][path=%s]", filepath.Base(svc), filepath.Join(linkDir, "bin")), string(v))
 			}
 
 		})
@@ -744,52 +759,40 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 func TestLocalInstaller_Remove(t *testing.T) {
 	t.Parallel()
 	const version = "existing-version"
-	servicePath := filepath.Join(serviceDir, serviceName)
 
 	tests := []struct {
 		name          string
 		dirs          []string
 		files         []string
 		createVersion string
-		linkedVersion string
 		removeVersion string
 
 		errMatch string
 	}{
 		{
 			name:          "present",
-			dirs:          []string{"bin", "bin/somedir", "somedir"},
+			dirs:          []string{"bin/somedir", "somedir"},
 			files:         []string{checksumType, "bin/teleport", "bin/tsh", "bin/tbot", "README"},
 			createVersion: version,
 			removeVersion: version,
 		},
 		{
 			name:          "present missing checksum",
-			dirs:          []string{"bin", "bin/somedir", "somedir"},
+			dirs:          []string{"bin/somedir", "somedir"},
 			files:         []string{"bin/teleport", "bin/tsh", "bin/tbot", "README"},
 			createVersion: version,
 			removeVersion: version,
 		},
 		{
 			name:          "not present",
-			dirs:          []string{"bin", "bin/somedir", "somedir"},
+			dirs:          []string{"bin/somedir", "somedir"},
 			files:         []string{checksumType, "bin/teleport", "bin/tsh", "bin/tbot", "README"},
 			createVersion: version,
 			removeVersion: "missing-version",
 		},
 		{
-			name:          "version linked",
-			dirs:          []string{"bin", "bin/somedir", "somedir", "lib", "lib/systemd", "lib/systemd/system"},
-			files:         []string{checksumType, "bin/teleport", "bin/tsh", "bin/tbot", "README", servicePath},
-			createVersion: version,
-			linkedVersion: version,
-			removeVersion: version,
-
-			errMatch: ErrLinked.Error(),
-		},
-		{
 			name:          "version empty",
-			dirs:          []string{"bin", "bin/somedir", "somedir"},
+			dirs:          []string{"bin/somedir", "somedir"},
 			files:         []string{checksumType, "bin/teleport", "bin/tsh", "bin/tbot", "README"},
 			createVersion: version,
 			removeVersion: "",
@@ -798,7 +801,7 @@ func TestLocalInstaller_Remove(t *testing.T) {
 		},
 		{
 			name:          "version has path",
-			dirs:          []string{"bin", "bin/somedir", "somedir"},
+			dirs:          []string{"bin/somedir", "somedir"},
 			files:         []string{checksumType, "bin/teleport", "bin/tsh", "bin/tbot", "README"},
 			createVersion: version,
 			removeVersion: "one/two",
@@ -807,7 +810,7 @@ func TestLocalInstaller_Remove(t *testing.T) {
 		},
 		{
 			name:          "version is ..",
-			dirs:          []string{"bin", "bin/somedir", "somedir"},
+			dirs:          []string{"bin/somedir", "somedir"},
 			files:         []string{checksumType, "bin/teleport", "bin/tsh", "bin/tbot", "README"},
 			createVersion: version,
 			removeVersion: "..",
@@ -816,7 +819,7 @@ func TestLocalInstaller_Remove(t *testing.T) {
 		},
 		{
 			name:          "version is .",
-			dirs:          []string{"bin", "bin/somedir", "somedir"},
+			dirs:          []string{"bin/somedir", "somedir"},
 			files:         []string{checksumType, "bin/teleport", "bin/tsh", "bin/tbot", "README"},
 			createVersion: version,
 			removeVersion: ".",
@@ -833,7 +836,7 @@ func TestLocalInstaller_Remove(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, d := range tt.dirs {
-				err := os.Mkdir(filepath.Join(versionDir, d), os.ModePerm)
+				err := os.MkdirAll(filepath.Join(versionDir, d), os.ModePerm)
 				require.NoError(t, err)
 			}
 			for _, n := range tt.files {
@@ -845,21 +848,15 @@ func TestLocalInstaller_Remove(t *testing.T) {
 
 			validator := Validator{Log: slog.Default()}
 			installer := &LocalInstaller{
-				InstallDir:      versionsDir,
-				LinkBinDir:      filepath.Join(linkDir, "bin"),
-				CopyServiceFile: filepath.Join(linkDir, serviceDir, serviceName),
-				Log:             slog.Default(),
-				TransformService: func(b []byte) []byte {
-					return []byte("[transform]" + string(b))
+				InstallDir:        versionsDir,
+				TargetServiceFile: filepath.Join(linkDir, serviceDir, serviceName),
+				Log:               slog.Default(),
+				TransformService: func(b []byte, pathDir string) []byte {
+					return []byte(fmt.Sprintf("[service=%s][path=%s]", string(b), pathDir))
 				},
 				ValidateBinary: validator.IsExecutable,
 			}
 			ctx := context.Background()
-
-			if tt.linkedVersion != "" {
-				_, err = installer.Link(ctx, NewRevision(tt.linkedVersion, 0), false)
-				require.NoError(t, err)
-			}
 			err = installer.Remove(ctx, NewRevision(tt.removeVersion, 0))
 			if tt.errMatch != "" {
 				require.Error(t, err)
@@ -869,6 +866,93 @@ func TestLocalInstaller_Remove(t *testing.T) {
 			require.NoError(t, err)
 			_, err = os.Stat(filepath.Join(versionDir, "bin", tt.removeVersion))
 			require.ErrorIs(t, err, os.ErrNotExist)
+		})
+	}
+}
+
+func TestLocalInstaller_IsLinked(t *testing.T) {
+	t.Parallel()
+	const version = "existing-version"
+	servicePath := filepath.Join(serviceDir, serviceName)
+
+	tests := []struct {
+		name          string
+		dirs          []string
+		files         []string
+		createVersion string
+		linkVersion   string
+		checkVersion  string
+
+		result   bool
+		errMatch string
+	}{
+		{
+			name:          "linked",
+			dirs:          []string{"bin/somedir", "somedir", serviceDir},
+			files:         []string{checksumType, "bin/teleport", "bin/tsh", "bin/tbot", "README", servicePath},
+			createVersion: version,
+			linkVersion:   version,
+			checkVersion:  version,
+			result:        true,
+		},
+		{
+			name:          "other linked",
+			dirs:          []string{"bin/somedir", "somedir", serviceDir},
+			files:         []string{checksumType, "bin/teleport", "bin/tsh", "bin/tbot", "README", servicePath},
+			createVersion: version,
+			linkVersion:   version,
+			checkVersion:  "other",
+			result:        false,
+		},
+		{
+			name:         "not linked",
+			checkVersion: version,
+			result:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			versionsDir := t.TempDir()
+			linkDir := t.TempDir()
+
+			validator := Validator{Log: slog.Default()}
+			installer := &LocalInstaller{
+				InstallDir:        versionsDir,
+				TargetServiceFile: filepath.Join(linkDir, serviceDir, serviceName),
+				Log:               slog.Default(),
+				TransformService: func(b []byte, pathDir string) []byte {
+					return []byte(fmt.Sprintf("[service=%s][path=%s]", string(b), pathDir))
+				},
+				ValidateBinary: validator.IsExecutable,
+			}
+			ctx := context.Background()
+			if tt.createVersion != "" {
+				versionDir := filepath.Join(versionsDir, tt.createVersion)
+				err := os.MkdirAll(versionDir, 0o755)
+				require.NoError(t, err)
+
+				for _, d := range tt.dirs {
+					err := os.MkdirAll(filepath.Join(versionDir, d), os.ModePerm)
+					require.NoError(t, err)
+				}
+				for _, n := range tt.files {
+					err := os.WriteFile(filepath.Join(versionDir, n), []byte(filepath.Base(n)), os.ModePerm)
+					require.NoError(t, err)
+				}
+			}
+			if tt.linkVersion != "" {
+				_, err := installer.Link(ctx, NewRevision(tt.linkVersion, 0), linkDir, false)
+				require.NoError(t, err)
+			}
+			result, err := installer.IsLinked(ctx, NewRevision(tt.checkVersion, 0), linkDir)
+			if tt.errMatch != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMatch)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.result, result)
 		})
 	}
 }
@@ -897,7 +981,7 @@ func TestLocalInstaller_Unlink(t *testing.T) {
 				{oldname: "bin/teleport", newname: "bin/teleport"},
 				{oldname: "bin/tsh", newname: "bin/tsh"},
 			},
-			svcCopy: []byte("[transform]orig"),
+			svcCopy: []byte("[service=orig][path=bin]"),
 		},
 		{
 			name:    "different services",
@@ -937,7 +1021,7 @@ func TestLocalInstaller_Unlink(t *testing.T) {
 			links: []symlink{
 				{oldname: "bin/tsh", newname: "bin/tsh"},
 			},
-			svcCopy:   []byte("[transform]orig"),
+			svcCopy:   []byte("[service=orig][path=bin]"),
 			remaining: []string{servicePath},
 		},
 		{
@@ -947,7 +1031,7 @@ func TestLocalInstaller_Unlink(t *testing.T) {
 			links: []symlink{
 				{oldname: "bin/teleport", newname: "bin/teleport"},
 			},
-			svcCopy: []byte("[transform]orig"),
+			svcCopy: []byte("[service=orig][path=bin]"),
 		},
 		{
 			name:    "wrong teleport link",
@@ -957,7 +1041,7 @@ func TestLocalInstaller_Unlink(t *testing.T) {
 				{oldname: "other", newname: "bin/teleport"},
 				{oldname: "bin/tsh", newname: "bin/tsh"},
 			},
-			svcCopy:   []byte("[transform]orig"),
+			svcCopy:   []byte("[service=orig][path=bin]"),
 			remaining: []string{servicePath, "bin/teleport"},
 		},
 		{
@@ -968,7 +1052,7 @@ func TestLocalInstaller_Unlink(t *testing.T) {
 				{oldname: "bin/teleport", newname: "bin/teleport"},
 				{oldname: "wrong", newname: "bin/tsh"},
 			},
-			svcCopy:   []byte("[transform]orig"),
+			svcCopy:   []byte("[service=orig][path=bin]"),
 			remaining: []string{"bin/tsh"},
 		},
 	}
@@ -1020,16 +1104,15 @@ func TestLocalInstaller_Unlink(t *testing.T) {
 			}
 
 			installer := &LocalInstaller{
-				InstallDir:      versionsDir,
-				LinkBinDir:      filepath.Join(linkDir, "bin"),
-				CopyServiceFile: filepath.Join(linkDir, serviceDir, serviceName),
-				Log:             slog.Default(),
-				TransformService: func(b []byte) []byte {
-					return []byte("[transform]" + string(b))
+				InstallDir:        versionsDir,
+				TargetServiceFile: filepath.Join(linkDir, serviceDir, serviceName),
+				Log:               slog.Default(),
+				TransformService: func(b []byte, pathDir string) []byte {
+					return []byte(fmt.Sprintf("[service=%s][path=%s]", string(b), filepath.Base(pathDir)))
 				},
 			}
 			ctx := context.Background()
-			err = installer.Unlink(ctx, NewRevision(version, 0))
+			err = installer.Unlink(ctx, NewRevision(version, 0), filepath.Join(linkDir, "bin"))
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)

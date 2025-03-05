@@ -224,7 +224,9 @@ func TestUserPreferencesCRUD(t *testing.T) {
 			req: &userpreferencesv1.UpsertUserPreferencesRequest{
 				Preferences: &userpreferencesv1.UserPreferences{
 					DiscoverResourcePreferences: &userpreferencesv1.DiscoverResourcePreferences{
-						PinnedGuides: []string{"guide-1", "guide-2"},
+						DiscoverGuide: &userpreferencesv1.DiscoverGuide{
+							Pinned: []string{"guide-1", "guide-2"},
+						},
 					},
 				},
 			},
@@ -235,7 +237,9 @@ func TestUserPreferencesCRUD(t *testing.T) {
 				ClusterPreferences:         defaultPref.ClusterPreferences,
 				SideNavDrawerMode:          defaultPref.SideNavDrawerMode,
 				DiscoverResourcePreferences: &userpreferencesv1.DiscoverResourcePreferences{
-					PinnedGuides: []string{"guide-1", "guide-2"},
+					DiscoverGuide: &userpreferencesv1.DiscoverGuide{
+						Pinned: []string{"guide-1", "guide-2"},
+					},
 				},
 			},
 		},
@@ -266,7 +270,9 @@ func TestUserPreferencesCRUD(t *testing.T) {
 						},
 					},
 					DiscoverResourcePreferences: &userpreferencesv1.DiscoverResourcePreferences{
-						PinnedGuides: []string{"guide-3", "guide-4"},
+						DiscoverGuide: &userpreferencesv1.DiscoverGuide{
+							Pinned: []string{"guide-3", "guide-4"},
+						},
 					},
 				},
 			},
@@ -293,7 +299,9 @@ func TestUserPreferencesCRUD(t *testing.T) {
 					},
 				},
 				DiscoverResourcePreferences: &userpreferencesv1.DiscoverResourcePreferences{
-					PinnedGuides: []string{"guide-3", "guide-4"},
+					DiscoverGuide: &userpreferencesv1.DiscoverGuide{
+						Pinned: []string{"guide-3", "guide-4"},
+					},
 				},
 				SideNavDrawerMode: userpreferencesv1.SideNavDrawerMode_SIDE_NAV_DRAWER_MODE_STICKY,
 			},

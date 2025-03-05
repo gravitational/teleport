@@ -1335,6 +1335,155 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 	}
 }
 
+// TestRolesRequestsExplicitAllowReissue ensures that the client can explicitly
+// request role impersonation with reissuance allowed. It then checks that the
+// impersonated client can reissue certificates but that role impersonation
+// cannot be escaped.
+func TestRolesRequestsExplicitAllowReissue(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	app, err := types.NewAppServerV3(types.Metadata{Name: "my-app"}, types.AppServerSpecV3{
+		HostID:   "my-app",
+		Hostname: "example.com",
+		App: &types.AppV3{
+			Metadata: types.Metadata{
+				Name: "my-app",
+				Labels: map[string]string{
+					"foo": "bar",
+				},
+			},
+			Spec: types.AppSpecV3{
+				URI:        "http://127.0.0.1",
+				PublicAddr: "my-app.example.com",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = srv.Auth().UpsertApplicationServer(ctx, app)
+	require.NoError(t, err)
+
+	accessFooRole, err := CreateRole(ctx, srv.Auth(), "test-access-foo", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins: []string{"foo"},
+			AppLabels: types.Labels{
+				"foo": []string{"bar"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	accessBarRole, err := CreateRole(ctx, srv.Auth(), "test-access-bar", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins: []string{"bar"},
+		},
+	})
+	require.NoError(t, err)
+
+	impersonatorRole, err := CreateRole(ctx, srv.Auth(), "test-impersonator", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Impersonate: &types.ImpersonateConditions{
+				Roles: []string{accessFooRole.GetName(), accessBarRole.GetName()},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create a testing user.
+	user, err := CreateUser(ctx, srv.Auth(), "alice")
+	require.NoError(t, err)
+	user.AddRole(impersonatorRole.GetName())
+	user, err = srv.Auth().UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	// Generate cert with a role request.
+	client, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	_, sshPubKey, tlsPrivKey, tlsPubKey := newSSHAndTLSKeyPairs(t)
+
+	// Request certs for only the `foo` role.
+	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		SSHPublicKey:                sshPubKey,
+		TLSPublicKey:                tlsPubKey,
+		Username:                    user.GetName(),
+		Expires:                     time.Now().Add(time.Hour),
+		RoleRequests:                []string{accessFooRole.GetName()},
+		ReissuableRoleImpersonation: true,
+	})
+	require.NoError(t, err)
+
+	// Make an impersonated client.
+	impersonatedTLSCert, err := tls.X509KeyPair(certs.TLS, tlsPrivKey)
+	require.NoError(t, err)
+	impersonatedClient := srv.NewClientWithCert(impersonatedTLSCert)
+
+	ident, err := tlsca.FromSubject(
+		impersonatedTLSCert.Leaf.Subject,
+		impersonatedTLSCert.Leaf.NotAfter,
+	)
+	require.NoError(t, err)
+	require.False(t, ident.DisallowReissue)
+	require.Equal(t, []string{"test-access-foo"}, ident.Groups)
+
+	// Attempt to switch to a different role. This should be disallowed.
+	_, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		SSHPublicKey: sshPubKey,
+		TLSPublicKey: tlsPubKey,
+		Username:     user.GetName(),
+		Expires:      time.Now().Add(time.Hour),
+		RoleRequests: []string{accessBarRole.GetName()},
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Try generation without requesting roles. This should be allowed but
+	// we should ensure we still have our impersonated role,.
+	certs, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		SSHPublicKey: sshPubKey,
+		TLSPublicKey: tlsPubKey,
+		Username:     user.GetName(),
+		Expires:      time.Now().Add(time.Hour),
+	})
+	require.NoError(t, err)
+	parsedCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+	require.NoError(t, err)
+	ident, err = tlsca.FromSubject(
+		parsedCert.Subject,
+		parsedCert.NotAfter,
+	)
+	require.NoError(t, err)
+	require.False(t, ident.DisallowReissue)
+	require.Equal(t, []string{"test-access-foo"}, ident.Groups)
+
+	// Attempt to reissue for an app access cert. This should work, we must
+	// also keep our impersonated role.
+	certs, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		SSHPublicKey: sshPubKey,
+		TLSPublicKey: tlsPubKey,
+		Username:     user.GetName(),
+		Expires:      time.Now().Add(time.Hour),
+		RouteToApp: proto.RouteToApp{
+			Name:       app.GetApp().GetName(),
+			PublicAddr: app.GetApp().GetPublicAddr(),
+		},
+	})
+	require.NoError(t, err)
+	parsedCert, err = tlsca.ParseCertificatePEM(certs.TLS)
+	require.NoError(t, err)
+	ident, err = tlsca.FromSubject(
+		parsedCert.Subject,
+		parsedCert.NotAfter,
+	)
+	require.NoError(t, err)
+	require.False(t, ident.DisallowReissue)
+	require.Equal(t, []string{"test-access-foo"}, ident.Groups)
+	require.Equal(t, "my-app", ident.RouteToApp.Name)
+	require.Equal(t, "my-app.example.com", ident.RouteToApp.PublicAddr)
+	require.NotEmpty(t, ident.RouteToApp.SessionID)
+}
+
 // TestRoleRequestDenyReimpersonation make sure role requests can't be used to
 // re-escalate privileges using a (perhaps compromised) set of role
 // impersonated certs.
@@ -1982,9 +2131,8 @@ func benchmarkListNodes(
 	require.NoError(b, err)
 
 	b.ReportAllocs()
-	b.ResetTimer()
 
-	for n := 0; n < b.N; n++ {
+	for b.Loop() {
 		var resources []types.ResourceWithLabels
 		req := proto.ListResourcesRequest{
 			ResourceType: types.KindNode,
@@ -5435,13 +5583,12 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 		require.Equal(t, types.KindDatabaseServer, r.GetKind())
 	}
 
-	// Check for invalid sort error message
+	// Check that sorting is not required
 	_, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
-		Kinds:  []string{types.KindDatabase},
-		Limit:  5,
-		SortBy: types.SortBy{},
+		Kinds: []string{types.KindDatabase},
+		Limit: 5,
 	})
-	require.ErrorContains(t, err, "sort field is required")
+	require.NoError(t, err, "sort field is not required")
 }
 
 func TestListUnifiedResources_WithPinnedResources(t *testing.T) {
@@ -6331,9 +6478,8 @@ func benchmarkListUnifiedResources(
 	require.NoError(b, err)
 
 	b.ReportAllocs()
-	b.ResetTimer()
 
-	for n := 0; n < b.N; n++ {
+	for b.Loop() {
 		var resources []*proto.PaginatedResource
 		req := &proto.ListUnifiedResourcesRequest{
 			SortBy: types.SortBy{IsDesc: false, Field: types.ResourceMetadataName},
@@ -10014,4 +10160,89 @@ func paginatedAppPermissionSet(src *identitycenterv1.PermissionSetInfo) *types.I
 		Name:         src.Name,
 		AssignmentID: src.AssignmentId,
 	}
+}
+
+func TestValidateOracleJoinToken(t *testing.T) {
+	t.Parallel()
+	makeToken := func(spec types.ProvisionTokenSpecV2) types.ProvisionToken {
+		spec.JoinMethod = types.JoinMethodOracle
+		spec.Roles = []types.SystemRole{types.RoleNode}
+		token, err := types.NewProvisionTokenFromSpec("foo", time.Now().Add(time.Hour), spec)
+		require.NoError(t, err)
+		return token
+	}
+
+	t.Run("oracle", func(t *testing.T) {
+		tests := []struct {
+			name   string
+			token  types.ProvisionToken
+			assert require.ErrorAssertionFunc
+		}{
+			{
+				name: "ok",
+				token: makeToken(types.ProvisionTokenSpecV2{
+					Oracle: &types.ProvisionTokenSpecV2Oracle{
+						Allow: []*types.ProvisionTokenSpecV2Oracle_Rule{
+							{
+								Tenancy:            makeTenancyID("foo"),
+								ParentCompartments: []string{makeCompartmentID("foo"), makeCompartmentID("bar")},
+								Regions:            []string{"us-phoenix-1", "iad"},
+							},
+						},
+					},
+				}),
+				assert: require.NoError,
+			},
+			{
+				name: "invalid tenant",
+				token: makeToken(types.ProvisionTokenSpecV2{
+					Oracle: &types.ProvisionTokenSpecV2Oracle{
+						Allow: []*types.ProvisionTokenSpecV2Oracle_Rule{
+							{
+								Tenancy:            "foo",
+								ParentCompartments: []string{makeCompartmentID("foo"), makeCompartmentID("bar")},
+								Regions:            []string{"us-phoenix-1", "iad"},
+							},
+						},
+					},
+				}),
+				assert: require.Error,
+			},
+			{
+				name: "invalid compartment",
+				token: makeToken(types.ProvisionTokenSpecV2{
+					Oracle: &types.ProvisionTokenSpecV2Oracle{
+						Allow: []*types.ProvisionTokenSpecV2Oracle_Rule{
+							{
+								Tenancy:            makeTenancyID("foo"),
+								ParentCompartments: []string{"foo", makeCompartmentID("bar")},
+								Regions:            []string{"us-phoenix-1", "iad"},
+							},
+						},
+					},
+				}),
+				assert: require.Error,
+			},
+			{
+				name: "invalid region",
+				token: makeToken(types.ProvisionTokenSpecV2{
+					Oracle: &types.ProvisionTokenSpecV2Oracle{
+						Allow: []*types.ProvisionTokenSpecV2Oracle_Rule{
+							{
+								Tenancy:            makeTenancyID("foo"),
+								ParentCompartments: []string{makeCompartmentID("foo"), makeCompartmentID("bar")},
+								Regions:            []string{"invalid", "iad"},
+							},
+						},
+					},
+				}),
+				assert: require.Error,
+			},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				tc.assert(t, validateOracleJoinToken(tc.token))
+			})
+		}
+	})
 }

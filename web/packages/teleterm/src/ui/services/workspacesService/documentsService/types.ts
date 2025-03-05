@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Report } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 import { SharedUnifiedResource } from 'shared/components/UnifiedResources';
 
 import type * as tsh from 'teleterm/services/tshd/types';
@@ -252,6 +253,15 @@ export interface DocumentConnectMyComputer extends DocumentBase {
   status: '' | 'connecting' | 'connected' | 'error';
 }
 
+export interface DocumentVnetDiagReport extends DocumentBase {
+  kind: 'doc.vnet_diag_report';
+  // VNet itself is not bound to any workspace, but a document must belong to a workspace. Also, it
+  // must be possible to determine the relation between a document and a cluster just by looking at
+  // the document fields, hence why rootClusterUri is defined here.
+  rootClusterUri: uri.RootClusterUri;
+  report: Report;
+}
+
 /**
  * Document to authorize a web session with device trust.
  * Unlike other documents, it is not persisted on disk.
@@ -286,6 +296,7 @@ export type Document =
   | DocumentCluster
   | DocumentTerminal
   | DocumentConnectMyComputer
+  | DocumentVnetDiagReport
   | DocumentAuthorizeWebSession;
 
 /**
@@ -342,7 +353,6 @@ export type CreateTshKubeDocumentOptions = {
 export type CreateAccessRequestDocumentOpts = {
   clusterUri: uri.ClusterUri;
   state: AccessRequestDocumentState;
-  title?: string;
   requestId?: string;
 };
 

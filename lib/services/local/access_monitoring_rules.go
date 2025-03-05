@@ -106,10 +106,10 @@ func (s *AccessMonitoringRulesService) DeleteAllAccessMonitoringRules(ctx contex
 }
 
 // ListAccessMonitoringRulesWithFilter returns a paginated list of access monitoring rules that match the given filter.
-func (s *AccessMonitoringRulesService) ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, pageToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
-	resources, nextKey, err := s.svc.ListResourcesWithFilter(ctx, pageSize, pageToken,
+func (s *AccessMonitoringRulesService) ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
+	resources, nextKey, err := s.svc.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(),
 		func(resource *accessmonitoringrulesv1.AccessMonitoringRule) bool {
-			return match(resource, subjects, notificationName)
+			return match(resource, req.GetSubjects(), req.GetNotificationName(), req.GetAutomaticApprovalName())
 		})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -117,9 +117,17 @@ func (s *AccessMonitoringRulesService) ListAccessMonitoringRulesWithFilter(ctx c
 	return resources, nextKey, nil
 }
 
-func match(rule *accessmonitoringrulesv1.AccessMonitoringRule, subjects []string, notificationName string) bool {
+// match returns true if the provided rule matches the provided match fields.
+// The match fields are optional. If a match field is not provided, then the
+// rule matches any value for that field.
+func match(rule *accessmonitoringrulesv1.AccessMonitoringRule, subjects []string, notificationName, automaticApprovalName string) bool {
 	if notificationName != "" {
 		if rule.Spec.Notification == nil || rule.Spec.Notification.Name != notificationName {
+			return false
+		}
+	}
+	if automaticApprovalName != "" {
+		if rule.GetSpec().GetAutomaticApproval().GetName() != automaticApprovalName {
 			return false
 		}
 	}

@@ -145,6 +145,99 @@ Removes a user from an Access List.
 $ tctl acl users rm <access-list-name> <user>
 ```
 
+## tctl notifications create
+
+Create a new notification for users in the cluster:
+
+```code
+$ tctl notifications create [<flags>]
+```
+
+There are several ways to specify which users see the notification. To target a specific user, use the `--user` flag. To target
+all users with a particular role (or set of roles), use the `--roles` flag. If you specify multiple roles, all users with at least
+one of the roles will see the notification, in order to require users to have all of the roles specified, add the `--require-all-roles` flag.
+If neither `--user` nor `--roles` are provided, the notification will default to targeting all users in the cluster, regardless of their roles.
+
+### Flags
+
+| Name                  | Default Value(s) | Allowed Value(s)        | Description                                                                                                                                                                        |
+| --------------------- | ---------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-t, --title`         | none             | **string**              | Required. Sets the notification's title                                                                                                                                            |
+| `--content`           | none             | **string**              | Required. Sets the notification's text content, this is the text that will be displayed when a user clicks on the notification.                                                    |
+| `--user`              | none             | **string**              | If user-specific, the username of the specific user this notification will target.                                                                                                 |
+| `--roles`             | none             | Comma-separated strings | If role-specific, the set of roles users must have to receive this notification.                                                                                                   |
+| `--require-all-roles` | `false`          | `true`,`false`          | If role-specific, setting this to `true` will only targets users who have _all_ of the roles specified in `--roles`. If `false`, users only need to have one or more of the roles. |
+| `--ttl`               | `30d`            | Any duration            | Time duration after which the notification will expire and be deleted.                                                                                                             |
+| `--warning`           | `false`          | `true`,`false`          | Whether this notification should be displayed as a warning.                                                                                                                        |
+| `--labels`            | none             | Comma-separated strings | Custom labels to attach to the notification's metadata. Note that these will have no effect on the native behavior of the notification.                                            |
+
+### Examples
+
+```code
+# Create a notification for a specific user
+$ tctl notifications create --user=alice --title="Upcoming Database Maintenance" --content="We will be conducting a database upgrade tomorrow at 2AM UTC"
+
+# Create a warning notification for all users
+$ tctl notifications create --warning --title="Enroll an MFA device" --content="We will soon be enforcing MFA in this cluster, please enroll a device to avoid being locked out of your account."
+
+# Create a notification for users with the `engineer` role that expires in 2 days
+$ tctl notifications create --roles=engineer --title="Reminder" --content="Please use access requests to request access to production servers" --ttl=2d
+```
+
+## tctl notifications ls
+
+List notifications:
+
+```code
+$ tctl notifications ls [<flags>]
+```
+
+### Flags
+
+| Name       | Default Value(s) | Allowed Value(s)        | Description                                                                                                                                        |
+| ---------- | ---------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--user`   | none             | **string**              | List only a specific user's notifications.                                                                                                         |
+| `--format` | `text`           | `text`,`yaml`,`json`    | The format of the output.                                                                                                                          |
+| `--all`    | `false`          | `true`,`false`          | If `true`, notifications generated by Teleport will also be returned, as opposed to only notifications created by admins via the `tctl` interface. |
+| `--labels` | none             | Comma-separated strings | Filter notifications by labels.                                                                                                                    |
+
+### Examples
+
+```code
+$ tctl notifications ls
+ID                                   Created             Expires             Title                Labels
+------------------------------------ ------------------- ------------------- -------------------- ------
+0194d8b2-5a38-7858-88fe-5fcee3ff1ceb 06 Feb 25 00:39 UTC 08 Mar 25 00:39 UTC Example notification
+```
+
+## tctl notifications rm
+
+Delete a notification:
+
+```code
+$ tctl notifications rm [<flags>] <id>
+```
+
+### Arguments
+
+- `<id>`: the ID of the notification to delete. This can be retrieved from the output of `tctl notifications ls`.
+
+### Flags
+
+| Name     | Default Value(s) | Allowed Value(s) | Description                                                                                  |
+| -------- | ---------------- | ---------------- | -------------------------------------------------------------------------------------------- |
+| `--user` | none             | string           | The username of the user this notification belongs to, if the notification is user-specific. |
+
+### Examples
+
+```code
+# Delete a notification which was either for all users, or role-based.
+$ tctl notifications rm 3b8eb3d6-da9a-5353-aece-cbc885ecbf73
+
+# Delete a notification which was specific to a user.
+$ tctl notifications rm --user=alice 4f548918-c853-52a6-b98b-5718b79d0e96
+```
+
 ## tctl alerts ack
 
 Temporarily acknowledges a cluster alert, preventing the alert from being
@@ -387,7 +480,7 @@ $ tctl auth sign --ttl=2190h --user=jenkins --out=jenkins.pem
 # create a certificate with a TTL of 1 day for the jenkins user
 # The kubeconfig file can later be used with `kubectl` or compatible tooling.
 $ tctl auth sign --ttl=24h --user=jenkins --out=kubeconfig --format=kubernetes
-# Exports an identity from the Auth Server in preparation for remote
+# Exports an identity from the Auth Service in preparation for remote
 # tctl execution.
 $ tctl auth sign --user=admin --out=identity.pem
 ```
@@ -1849,6 +1942,113 @@ Set the user `priya`'s Azure identities to `developer` and `dba`:
 $ tctl users update priya --set-azure-identities \
  `/subscriptions/${SUBSCRIPTION_ID?}/resourceGroups/${MY_RESOURCE_GROUP?}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/developer,\
  `/subscriptions/${SUBSCRIPTION_ID?}/resourceGroups/${MY_RESOURCE_GROUP?}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/dba
+```
+
+## tctl autoupdate client-tools status
+
+```code
+$ tctl autoupdate client-tools status [<flags>]
+```
+
+Requests the current status of client tool managed updates, indicating whether managed updates are enabled and displaying the target version for the update.
+If the `--proxy` flag is defined, tctl sends a request to an unauthenticated endpoint to retrieve the data.
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--proxy` | none | none | Address of the Teleport Proxy Service. When defined this address will be used to retrieve client tool auto update configuration. |
+| `--format` | yaml | `json`, `yaml` | Output format: 'yaml' or 'json'. |
+
+### Examples
+
+```code
+$ tctl autoupdate client-tools status
+mode: enabled
+target_version: 17.2.7
+
+$ tctl autoupdate client-tools status --format json
+{
+    "mode": "enabled",
+    "target_version": "17.2.7"
+}
+
+# Request to an unauthenticated endpoint.
+$ tctl autoupdate client-tools status --proxy proxy.example.com
+mode: enabled
+target_version: 17.2.7
+```
+
+## tctl autoupdate client-tools enable
+
+Enables managed updates for client tools in the cluster. If the target version is not set, the proxy version will be advertised.
+
+### Examples
+
+```code
+$ tctl autoupdate client-tools enable
+client tools auto update mode has been changed
+```
+
+## tctl autoupdate client-tools disable
+
+Disables managed updates for client tools in the cluster.
+
+### Examples
+
+```code
+$ tctl autoupdate client-tools disable
+client tools auto update mode has been changed
+```
+
+## tctl autoupdate client-tools target
+
+```code
+$ tctl autoupdate client-tools target [<flags>] <target-version>
+```
+
+Sets the target version for client tools in the cluster. After login, client tools will be advertised to this version and initiate the update process.
+
+### Arguments
+
+- `<target-version>` - Client tools target version. Clients will be told to update to this version.
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--clear` | none | none | Removes the target version, Teleport will default to its current proxy version. |
+
+### Examples
+
+```code
+$ tctl autoupdate client-tools target 17.2.7
+client tools auto update target version has been set
+
+$ tctl autoupdate client-tools target --clear
+client tools auto update target version has been cleared
+```
+
+## tctl autoupdate agents status
+
+Prints the status of automatic updates for Teleport Agents.
+
+### Examples
+
+```code
+$ tctl autoupdate agents status
+Agent autoupdate mode: enabled
+Rollout creation date: 2025-01-14 16:17:36
+Start version: 17.0.1
+Target version: 17.1.5
+Rollout state: Done
+
+Group Name State Start Time          State Reason
+---------- ----- ------------------- --------------
+dev        Done  2025-01-15 12:00:08 outside_window
+stage      Done  2025-01-15 16:17:45 outside_window
+prod       Done  2025-01-15 18:00:12 outside_window
+backup     Done  2025-01-14 20:00:31 outside_window
 ```
 
 ## tctl version

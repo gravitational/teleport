@@ -21,7 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	grpccredentials "google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
@@ -36,10 +36,13 @@ type clientApplicationServiceClient struct {
 	conn *grpc.ClientConn
 }
 
-func newClientApplicationServiceClient(ctx context.Context, addr string) (*clientApplicationServiceClient, error) {
-	// TODO(nklaassen): add mTLS credentials for client application service.
+func newClientApplicationServiceClient(ctx context.Context, creds *credentials, addr string) (*clientApplicationServiceClient, error) {
+	tlsConfig, err := creds.clientTLSConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	conn, err := grpc.NewClient(addr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithTransportCredentials(grpccredentials.NewTLS(tlsConfig)),
 		grpc.WithUnaryInterceptor(interceptors.GRPCClientUnaryErrorInterceptor),
 		grpc.WithStreamInterceptor(interceptors.GRPCClientStreamErrorInterceptor),
 	)
@@ -86,6 +89,11 @@ func (c *clientApplicationServiceClient) ResolveAppInfo(ctx context.Context, fqd
 	resp, err := c.clt.ResolveAppInfo(ctx, &vnetv1.ResolveAppInfoRequest{
 		Fqdn: fqdn,
 	})
+	// Convert NotFound errors to errNoTCPHandler, which is what the network
+	// stack is looking for. Avoid wrapping, no need to collect a stack trace.
+	if trace.IsNotFound(err) {
+		return nil, errNoTCPHandler
+	}
 	if err != nil {
 		return nil, trace.Wrap(err, "calling ResolveAppInfo rpc")
 	}
@@ -136,4 +144,16 @@ func (c *clientApplicationServiceClient) OnInvalidLocalPort(ctx context.Context,
 		return trace.Wrap(err, "calling OnInvalidLocalPort rpc")
 	}
 	return nil
+}
+
+// GetTargetOSConfiguration returns the configuration values that should be
+// configured in the OS, including DNS zones that should be handled by the VNet
+// DNS nameserver and the IPv4 CIDR ranges that should be routed to the VNet TUN
+// interface.
+func (c *clientApplicationServiceClient) GetTargetOSConfiguration(ctx context.Context) (*vnetv1.TargetOSConfiguration, error) {
+	resp, err := c.clt.GetTargetOSConfiguration(ctx, &vnetv1.GetTargetOSConfigurationRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err, "calling GetTargetOSConfiguration rpc")
+	}
+	return resp.GetTargetOsConfiguration(), nil
 }

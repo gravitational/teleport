@@ -19,11 +19,14 @@ package sortcache
 
 import (
 	"context"
-	"fmt"
+	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 const (
@@ -43,10 +46,10 @@ func TestBasics(t *testing.T) {
 	cache := New(Config[resource]{
 		Indexes: map[string]func(resource) string{
 			Kind: func(r resource) string {
-				return fmt.Sprintf("%s/%s", r.kind, r.name)
+				return r.kind + "/" + r.name
 			},
 			Name: func(r resource) string {
-				return fmt.Sprintf("%s/%s", r.name, r.kind)
+				return r.name + "/" + r.kind
 			},
 		},
 	})
@@ -79,11 +82,7 @@ func TestBasics(t *testing.T) {
 	require.Equal(t, resource{"kube", "002"}, r)
 
 	// check ascending iteration
-	var out []resource
-	cache.Ascend(Kind, "kube/", NextKey("kube/"), func(r resource) bool {
-		out = append(out, r)
-		return true
-	})
+	out := slices.Collect(cache.Ascend(Kind, "kube/", NextKey("kube/")))
 
 	require.Len(t, out, 2)
 	require.Equal(t, []resource{
@@ -92,11 +91,7 @@ func TestBasics(t *testing.T) {
 	}, out)
 
 	// check descending iteration
-	out = nil
-	cache.Descend(Kind, NextKey("kube/"), "kube/", func(r resource) bool {
-		out = append(out, r)
-		return true
-	})
+	out = slices.Collect(cache.Descend(Kind, NextKey("kube/"), "kube/"))
 
 	require.Len(t, out, 2)
 	require.Equal(t, []resource{
@@ -109,6 +104,12 @@ func TestBasics(t *testing.T) {
 	require.Equal(t, 3, cache.Len())
 	_, ok = cache.Get(Kind, "kube/002")
 	require.False(t, ok)
+
+	// check clear resets cache
+	cache.Clear()
+	require.Equal(t, 0, cache.Len())
+	_, ok = cache.Get(Kind, "node/001")
+	require.False(t, ok)
 }
 
 func TestOpenBounds(t *testing.T) {
@@ -117,10 +118,10 @@ func TestOpenBounds(t *testing.T) {
 	cache := New(Config[resource]{
 		Indexes: map[string]func(resource) string{
 			Kind: func(r resource) string {
-				return fmt.Sprintf("%s/%s", r.kind, r.name)
+				return r.kind + "/" + r.name
 			},
 			Name: func(r resource) string {
-				return fmt.Sprintf("%s/%s", r.name, r.kind)
+				return r.name + "/" + r.kind
 			},
 		},
 	})
@@ -137,14 +138,8 @@ func TestOpenBounds(t *testing.T) {
 		require.Equal(t, 0, cache.Put(rsc))
 	}
 
-	var out []resource
-	iterator := func(r resource) bool {
-		out = append(out, r)
-		return true
-	}
-
 	// verify fully open ascend
-	cache.Ascend(Name, "", "", iterator)
+	out := slices.Collect(cache.Ascend(Name, "", ""))
 	require.Equal(t, []resource{
 		{"kube", "001"},
 		{"node", "001"},
@@ -153,8 +148,7 @@ func TestOpenBounds(t *testing.T) {
 	}, out)
 
 	// verify fully open descend
-	out = nil
-	cache.Descend(Name, "", "", iterator)
+	out = slices.Collect(cache.Descend(Name, "", ""))
 	require.Equal(t, []resource{
 		{"node", "002"},
 		{"kube", "002"},
@@ -163,134 +157,32 @@ func TestOpenBounds(t *testing.T) {
 	}, out)
 
 	// verify open-ended ascend
-	out = nil
-	cache.Ascend(Name, "002/kube", "", iterator)
+	out = slices.Collect(cache.Ascend(Name, "002/kube", ""))
 	require.Equal(t, []resource{
 		{"kube", "002"},
 		{"node", "002"},
 	}, out)
 
 	// verify open-ended descend
-	out = nil
-	cache.Descend(Name, "001/node", "", iterator)
+	out = slices.Collect(cache.Descend(Name, "001/node", ""))
 	require.Equal(t, []resource{
 		{"node", "001"},
 		{"kube", "001"},
 	}, out)
 
 	// verify open-start ascend
-	out = nil
-	cache.Ascend(Name, "", "002/kube", iterator)
+	out = slices.Collect(cache.Ascend(Name, "", "002/kube"))
 	require.Equal(t, []resource{
 		{"kube", "001"},
 		{"node", "001"},
 	}, out)
 
 	// verify open-start descend
-	out = nil
-	cache.Descend(Name, "", "001/node", iterator)
+	out = slices.Collect(cache.Descend(Name, "", "001/node"))
 	require.Equal(t, []resource{
 		{"node", "002"},
 		{"kube", "002"},
 	}, out)
-}
-
-// TestAscendingPagination verifies expected behavior using a basic pagination setup.
-func TestAscendingPagination(t *testing.T) {
-	const (
-		totalResources = 100_000
-		pageSize       = 101
-	)
-
-	t.Parallel()
-
-	cache := New(Config[resource]{
-		Indexes: map[string]func(resource) string{
-			Kind: func(r resource) string {
-				return fmt.Sprintf("%s/%s", r.kind, r.name)
-			},
-			Name: func(r resource) string {
-				return fmt.Sprintf("%s/%s", r.name, r.kind)
-			},
-		},
-	})
-
-	// insert a bunch of test resources
-	for i := 0; i < totalResources; i++ {
-		require.Equal(t, 0, cache.Put(resource{"node", uuid.New().String()}))
-	}
-
-	// consume and aggregate pages from AscendPaginated.
-	var out []resource
-	var k string
-	var n int
-	for {
-		n++
-		if n > totalResources {
-			require.FailNow(t, "too many iterations")
-		}
-		page, nk := cache.AscendPaginated(Kind, k, "", pageSize)
-		if len(page) != pageSize {
-			require.Empty(t, nk)
-		}
-		out = append(out, page...)
-		if nk == "" {
-			break
-		}
-		k = nk
-	}
-
-	// verify that we got the expected number of resources
-	require.Len(t, out, totalResources)
-}
-
-// TestDescendingPagination verifies expected behavior using a basic pagination setup.
-func TestDescendingPagination(t *testing.T) {
-	const (
-		totalResources = 100_000
-		pageSize       = 101
-	)
-
-	t.Parallel()
-
-	cache := New(Config[resource]{
-		Indexes: map[string]func(resource) string{
-			Kind: func(r resource) string {
-				return fmt.Sprintf("%s/%s", r.kind, r.name)
-			},
-			Name: func(r resource) string {
-				return fmt.Sprintf("%s/%s", r.name, r.kind)
-			},
-		},
-	})
-
-	// insert a bunch of test resources
-	for i := 0; i < totalResources; i++ {
-		require.Equal(t, 0, cache.Put(resource{"node", uuid.New().String()}))
-	}
-
-	// consume and aggregate pages from nextPage.
-	var out []resource
-	var k string
-	var n int
-	for {
-		n++
-		if n > totalResources {
-			require.FailNow(t, "too many iterations")
-		}
-		page, nk := cache.DescendPaginated(Kind, k, "", pageSize)
-		if len(page) != pageSize {
-			require.Empty(t, nk)
-		}
-		out = append(out, page...)
-		if nk == "" {
-			break
-		}
-		k = nk
-	}
-
-	// verify that we got the expected number of resources
-	require.Len(t, out, totalResources)
 }
 
 // TestOverlap verifies basic expected behavior when multiple resources map to the same
@@ -403,10 +295,10 @@ func BenchmarkSortCache(b *testing.B) {
 	cache := New(Config[resource]{
 		Indexes: map[string]func(resource) string{
 			Kind: func(r resource) string {
-				return fmt.Sprintf("%s/%s", r.kind, r.name)
+				return r.kind + "/" + r.name
 			},
 			Name: func(r resource) string {
-				return fmt.Sprintf("%s/%s", r.name, r.kind)
+				return r.name + "/" + r.kind
 			},
 		},
 	})
@@ -430,11 +322,11 @@ func BenchmarkSortCache(b *testing.B) {
 	for i := 0; i < resourcesPerKind-1; i++ {
 		cache.Put(resource{
 			kind: "node",
-			name: uuid.New().String(),
+			name: strconv.Itoa(i),
 		})
 		cache.Put(resource{
 			kind: "kube",
-			name: uuid.New().String(),
+			name: strconv.Itoa(i),
 		})
 	}
 
@@ -469,10 +361,9 @@ func BenchmarkSortCache(b *testing.B) {
 					key = "kube/"
 				}
 
-				cache.Ascend(Kind, key, NextKey(key), func(r resource) bool {
+				for r := range cache.Ascend(Kind, key, NextKey(key)) {
 					buf = append(buf, r)
-					return true
-				})
+				}
 
 				if len(buf) != resourcesPerKind {
 					panic("benchmark is misconfigured")
@@ -484,11 +375,9 @@ func BenchmarkSortCache(b *testing.B) {
 	// actual benchmark gets performed against one singular read loop. the goal here being to
 	// figure out what a single reader would experience when trying to pull a large block of
 	// values from a SortCache that is under high concurrent load.
-	b.ResetTimer()
-
 	var n int
 	buf := make([]resource, 0, resourcesPerKind)
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		buf = buf[:0]
 		n++
 		key := "node/"
@@ -496,13 +385,58 @@ func BenchmarkSortCache(b *testing.B) {
 			key = "kube/"
 		}
 
-		cache.Ascend(Kind, key, NextKey(key), func(r resource) bool {
+		for r := range cache.Ascend(Kind, key, NextKey(key)) {
 			buf = append(buf, r)
-			return true
-		})
+		}
 
 		if len(buf) != resourcesPerKind {
 			panic("benchmark is misconfigured")
 		}
 	}
+}
+
+// TestSortCachePagination validates that iterating items in the
+// cache correctly paginates chunks internally.
+func TestSortCachePagination(t *testing.T) {
+	// set up a basic cache configuration
+	cache := New(Config[resource]{
+		Indexes: map[string]func(resource) string{
+			Name: func(r resource) string {
+				return r.name + "/" + r.kind
+			},
+		},
+	})
+
+	const count = 1501
+	expected := make([]string, 0, count)
+
+	for i := range count {
+		name := strconv.Itoa(i)
+		r := resource{
+			kind: types.KindNode,
+			name: name,
+		}
+		cache.Put(r)
+		expected = append(expected, name)
+	}
+
+	slices.Sort(expected)
+
+	t.Run("ascending", func(t *testing.T) {
+		i := 0
+		for r := range cache.Ascend(Name, "", "") {
+			require.Equal(t, expected[i], r.name)
+			i++
+		}
+		require.Equal(t, count, i)
+	})
+
+	t.Run("descending", func(t *testing.T) {
+		i := count - 1
+		for r := range cache.Descend(Name, "", "") {
+			require.Equal(t, expected[i], r.name)
+			i--
+		}
+		require.Equal(t, -1, i)
+	})
 }

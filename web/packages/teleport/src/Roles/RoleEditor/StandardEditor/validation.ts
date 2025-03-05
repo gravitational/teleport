@@ -40,7 +40,7 @@ import {
   RuleModel,
 } from './standardmodel';
 
-const kubernetesClusterWideResourceKinds: KubernetesResourceKind[] = [
+export const kubernetesClusterWideResourceKinds: KubernetesResourceKind[] = [
   'namespace',
   'kube_node',
   'persistentvolume',

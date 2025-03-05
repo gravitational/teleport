@@ -158,13 +158,16 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 
 	teleportVersionTag := teleport.Version
 	if automaticUpgrades(h.GetClusterFeatures()) {
-		cloudStableVersion, err := h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
+		const group, updaterUUID = "", ""
+		autoUpdateVersion, err := h.autoUpdateAgentVersion(r.Context(), group, updaterUUID)
 		if err != nil {
-			return "", trace.Wrap(err)
+			h.logger.WarnContext(r.Context(),
+				"Cannot read autoupdate target version, falling back to our own version",
+				"error", err,
+				"version", teleport.Version)
+		} else {
+			teleportVersionTag = autoUpdateVersion
 		}
-
-		// cloudStableVersion has vX.Y.Z format, however the container image tag does not include the `v`.
-		teleportVersionTag = strings.TrimPrefix(cloudStableVersion, "v")
 	}
 
 	deployServiceResp, err := clt.IntegrationAWSOIDCClient().DeployService(ctx, &integrationv1.DeployServiceRequest{
@@ -211,13 +214,17 @@ func (h *Handler) awsOIDCDeployDatabaseServices(w http.ResponseWriter, r *http.R
 
 	teleportVersionTag := teleport.Version
 	if automaticUpgrades(h.GetClusterFeatures()) {
-		cloudStableVersion, err := h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
+		const group, updaterUUID = "", ""
+		autoUpdateVersion, err := h.autoUpdateAgentVersion(r.Context(), group, updaterUUID)
 		if err != nil {
-			return "", trace.Wrap(err)
+			h.logger.WarnContext(r.Context(),
+				"Cannot read autoupdate target version, falling back to self version.",
+				"error", err,
+				"version", teleport.Version)
+		} else {
+			teleportVersionTag = autoUpdateVersion
 		}
 
-		// cloudStableVersion has vX.Y.Z format, however the container image tag does not include the `v`.
-		teleportVersionTag = strings.TrimPrefix(cloudStableVersion, "v")
 	}
 
 	iamTokenName := deployserviceconfig.DefaultTeleportIAMTokenName
@@ -280,19 +287,29 @@ func (h *Handler) awsOIDCListDeployedDatabaseService(w http.ResponseWriter, r *h
 		return nil, trace.Wrap(err)
 	}
 
-	services, err := listDeployedDatabaseServices(ctx, h.logger, integrationName, regions, clt.IntegrationAWSOIDCClient())
+	if len(regions) == 0 {
+		// return an empty list if there are no relevant regions in which to fetch database services
+		return ui.AWSOIDCListDeployedDatabaseServiceResponse{}, nil
+	}
+
+	s, err := listDeployedDatabaseServices(ctx, h.logger, integrationName, regions, clt.IntegrationAWSOIDCClient())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return ui.AWSOIDCListDeployedDatabaseServiceResponse{
-		Services: services,
+		Services: s,
 	}, nil
 }
 
 func extractAWSRegionsFromQuery(r *http.Request) ([]string, error) {
 	var ret []string
 	for _, region := range r.URL.Query()["regions"] {
+		if region == "" {
+			// no regions passed in params, empty key
+			return ret, nil
+		}
+
 		if err := aws.IsValidRegion(region); err != nil {
 			return nil, trace.BadParameter("invalid region %s", region)
 		}
@@ -302,21 +319,36 @@ func extractAWSRegionsFromQuery(r *http.Request) ([]string, error) {
 	return ret, nil
 }
 
+// regionsForListingDeployedDatabaseService fetches relevant AWS regions and parses the regions query param.
+// If no query params are present, relevant regions are returned.
+// If query params are present, we take the intersection of relevant regions and filter regions to avoid requesting
+// services which have not been set up which would result in an error.
+// ex: relevant = ["us-west-1"]; params = []; returns ["us-west-1"]
+// ex: relevant = []; params = ["us-west-1"]; returns []
+// ex: relevant = ["us-west-1"]; params = ["us-west-1"]; returns ["us-west-1"]
+// ex: relevant = ["us-west-1"]; params = ["us-west-2"]; returns []
 func regionsForListingDeployedDatabaseService(ctx context.Context, r *http.Request, authClient databaseGetter, discoveryConfigsClient discoveryConfigLister) ([]string, error) {
-	if r.URL.Query().Has("regions") {
-		regions, err := extractAWSRegionsFromQuery(r)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return regions, err
-	}
-
-	regions, err := fetchRelevantAWSRegions(ctx, authClient, discoveryConfigsClient)
+	// use the auth client & discover configs to collect a list of relevant AWS regions
+	relevant, err := fetchRelevantAWSRegions(ctx, authClient, discoveryConfigsClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return regions, nil
+	if r.URL.Query().Has("regions") {
+		params, err := extractAWSRegionsFromQuery(r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if len(params) > 0 {
+			a := libutils.NewSet(relevant...)
+			b := libutils.NewSet(params...)
+			a.Intersection(b)
+			return a.Elements(), nil
+		}
+	}
+
+	return relevant, nil
 }
 
 type databaseGetter interface {
@@ -568,7 +600,7 @@ func (h *Handler) awsOIDCConfigureDeployServiceIAM(w http.ResponseWriter, r *htt
 		fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
-		TeleportArgs:   strings.Join(argsList, " "),
+		EntrypointArgs: strings.Join(argsList, " "),
 		SuccessMessage: "Success! You can now go back to the Teleport Web UI to complete the database enrollment.",
 	})
 	if err != nil {
@@ -601,7 +633,7 @@ func (h *Handler) awsOIDCConfigureAWSAppAccessIAM(w http.ResponseWriter, r *http
 		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
-		TeleportArgs:   strings.Join(argsList, " "),
+		EntrypointArgs: strings.Join(argsList, " "),
 		SuccessMessage: "Success! You can now go back to the Teleport Web UI to use AWS App Access.",
 	})
 	if err != nil {
@@ -672,7 +704,7 @@ func (h *Handler) awsOIDCConfigureEC2SSMIAM(w http.ResponseWriter, r *http.Reque
 		fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
-		TeleportArgs:   strings.Join(argsList, " "),
+		EntrypointArgs: strings.Join(argsList, " "),
 		SuccessMessage: "Success! You can now go back to the Teleport Web UI to finish the EC2 auto discover set up.",
 	})
 	if err != nil {
@@ -713,7 +745,7 @@ func (h *Handler) awsOIDCConfigureEKSIAM(w http.ResponseWriter, r *http.Request,
 		fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
-		TeleportArgs:   strings.Join(argsList, " "),
+		EntrypointArgs: strings.Join(argsList, " "),
 		SuccessMessage: "Success! You can now go back to the Teleport Web UI to complete the EKS enrollment.",
 	})
 	if err != nil {
@@ -746,7 +778,8 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 		return nil, trace.BadParameter("an integration name is required")
 	}
 
-	agentVersion, err := kubeutils.GetKubeAgentVersion(ctx, h.cfg.ProxyClient, h.GetClusterFeatures(), h.cfg.AutomaticUpgradesChannels)
+	versionGetter := &handlerVersionGetter{h}
+	agentVersion, err := kubeutils.GetKubeAgentVersion(ctx, h.cfg.ProxyClient, h.GetClusterFeatures(), versionGetter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1070,6 +1103,18 @@ func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
+	// If the integration name contains a dot, then the proxy must provide a certificate allowing *.<something>.<proxyPublicAddr>
+	if strings.Contains(integrationName, ".") {
+		// Teleport Cloud only provides certificates for *.<tenant>.teleport.sh, so this would generate an invalid address.
+		if h.GetClusterFeatures().Cloud {
+			return nil, trace.BadParameter(`Invalid integration name (%q) for enabling AWS Access. Please re-create the integration without the "."`, integrationName)
+		}
+
+		// Typically, self-hosted clusters will also have a single wildcard for the name.
+		// Logging a warning message should help debug the problem in case the certificate is not valid.
+		h.logger.WarnContext(ctx, `Enabling AWS Access using an integration with a "." might not work unless your Proxy's certificate is valid for the address`, "public_addr", appServer.GetApp().GetPublicAddr())
+	}
+
 	if _, err := clt.UpsertApplicationServer(ctx, appServer); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1207,7 +1252,7 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
-		TeleportArgs:   strings.Join(argsList, " "),
+		EntrypointArgs: strings.Join(argsList, " "),
 		SuccessMessage: "Success! You can now go back to the Teleport Web UI to use the integration with AWS.",
 	})
 	if err != nil {
@@ -1248,7 +1293,7 @@ func (h *Handler) awsOIDCConfigureListDatabasesIAM(w http.ResponseWriter, r *htt
 		fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
-		TeleportArgs:   strings.Join(argsList, " "),
+		EntrypointArgs: strings.Join(argsList, " "),
 		SuccessMessage: "Success! You can now go back to the Teleport Web UI to complete the Database enrollment.",
 	})
 	if err != nil {
@@ -1294,7 +1339,7 @@ func (h *Handler) awsAccessGraphOIDCSync(w http.ResponseWriter, r *http.Request,
 		fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
-		TeleportArgs:   strings.Join(argsList, " "),
+		EntrypointArgs: strings.Join(argsList, " "),
 		SuccessMessage: "Success! You can now go back to the Teleport Web UI to complete the Access Graph AWS Sync enrollment.",
 	})
 	if err != nil {

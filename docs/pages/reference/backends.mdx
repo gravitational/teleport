@@ -651,6 +651,10 @@ Service reads these parameters to configure its interactions with S3:
 - `use_fips_endpoint=true` -  [Configure S3 FIPS
   endpoints](#configuring-aws-fips-endpoints)
 
+- `use_s3_virtual_style_addressing` - Whether to use virtual-host-style instead of path-style URLs for the
+  bucket. Only applies when a custom endpoint is set. Defaults to false when unset. If used
+  without a custom endpoint set, this option has no effect.
+
 ### S3 IAM policy
 
 (!docs/pages/includes/s3-iam-policy.mdx!)
@@ -852,7 +856,7 @@ To configure Teleport to use DynamoDB:
 - Make sure that all Teleport resource services have the `auth_servers` configuration setting
   populated with the addresses of your cluster's Auth Service instances.
 
-<Notice type="danger">
+<Admonition type="danger">
 
 AWS can throttle DynamoDB if more than two processes are reading from the same
 stream's shard simultaneously, so you must not deploy more than two Auth Service
@@ -860,7 +864,7 @@ instances that read from a DynamoDB backend. For details on DynamoDB Streams,
 read the [AWS
 documentation](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.html).
 
-</Notice>
+</Admonition>
 
 ```yaml
 teleport:

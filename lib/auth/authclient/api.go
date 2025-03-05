@@ -1160,9 +1160,7 @@ type Cache interface {
 	// GetUserTask returns the user tasks resource by name.
 	GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error)
 	// ListUserTasks returns the user tasks resources.
-	ListUserTasks(ctx context.Context, pageSize int64, nextToken string) ([]*usertasksv1.UserTask, string, error)
-	// ListUserTasksByIntegration returns the user tasks resources filtered by an integration.
-	ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextToken string, integration string) ([]*usertasksv1.UserTask, string, error)
+	ListUserTasks(ctx context.Context, pageSize int64, nextToken string, filters *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error)
 
 	// NotificationGetter defines list methods for notifications.
 	services.NotificationGetter
@@ -1172,7 +1170,7 @@ type Cache interface {
 	// GetAccessMonitoringRule returns the specified access monitoring rule.
 	GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrules.AccessMonitoringRule, error)
 	// ListAccessMonitoringRulesWithFilter returns a paginated list of access monitoring rules.
-	ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, nextToken string, subjects []string, notificationName string) ([]*accessmonitoringrules.AccessMonitoringRule, string, error)
+	ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrules.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrules.AccessMonitoringRule, string, error)
 
 	// DatabaseObjectsGetter defines methods for fetching database objects.
 	services.DatabaseObjectsGetter

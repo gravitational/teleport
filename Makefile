@@ -357,6 +357,14 @@ all: version
 binaries:
 	$(MAKE) $(BINARIES)
 
+# Appending new conditional settings for community build type for tools.
+ifeq ("$(GITHUB_REPOSITORY_OWNER)","gravitational")
+# TELEPORT_LDFLAGS and TOOLS_LDFLAGS if appended will overwrite the previous LDFLAGS set in the BUILDFLAGS.
+# This is done here to prevent any changes to the (BUI)LDFLAGS passed to the other binaries
+TELEPORT_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community'
+TOOLS_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community'
+endif
+
 # By making these 3 targets below (tsh, tctl and teleport) PHONY we are solving
 # several problems:
 # * Build will rely on go build internal caching https://golang.org/doc/go1.10 at all times
@@ -370,15 +378,9 @@ $(BUILDDIR)/tctl:
 	@if [[ "$(OS)" != "windows" && -z "$(LIBFIDO2_BUILD_TAG)" ]]; then \
 		echo 'Warning: Building tctl without libfido2. Install libfido2 to have access to MFA.' >&2; \
 	fi
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) $(TOOLS_LDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
-# Appending new conditional settings for community build type
-ifeq ("$(GITHUB_REPOSITORY_OWNER)","gravitational")
-# TELEPORT_LDFLAGS if appended will overwrite the previous LDFLAGS set in the BUILDFLAGS.
-# This is done here to prevent any changes to the (BUI)LDFLAGS passed to the other binaries
-TELEPORT_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community'
-endif
 $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "webassets_embed $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) $(TELEPORT_LDFLAGS) ./tool/teleport
 
@@ -391,19 +393,20 @@ $(BUILDDIR)/tsh:
 	@if [[ "$(OS)" != "windows" && -z "$(LIBFIDO2_BUILD_TAG)" ]]; then \
 		echo 'Warning: Building tsh without libfido2. Install libfido2 to have access to MFA.' >&2; \
 	fi
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(VNETDAEMON_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(VNETDAEMON_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) $(TOOLS_LDFLAGS) ./tool/tsh
 
 .PHONY: $(BUILDDIR)/tbot
 # tbot is CGO-less by default except on Windows because lib/client/terminal/ wants CGO on this OS
-$(BUILDDIR)/tbot: TBOT_CGO_FLAGS ?= $(if $(filter windows,$(OS)),$(CGOFLAG))
+# We force cgo to be disabled, else the compiler might decide to enable it.
+$(BUILDDIR)/tbot: TBOT_CGO_FLAGS ?= $(if $(filter windows,$(OS)),$(CGOFLAG),CGO_ENABLED=0)
 # Build mode pie requires CGO
-$(BUILDDIR)/tbot: BUILDFLAGS_TBOT += $(if $(TBOT_CGO_FLAGS), -buildmode=pie)
+$(BUILDDIR)/tbot: BUILDFLAGS_TBOT += $(if $(findstring CGO_ENABLED=1,$(TBOT_CGO_FLAGS)), -buildmode=pie)
 $(BUILDDIR)/tbot:
-	GOOS=$(OS) GOARCH=$(ARCH) $(TBOT_CGO_FLAGS) go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) ./tool/tbot
+	GOOS=$(OS) GOARCH=$(ARCH) $(TBOT_CGO_FLAGS) go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) $(TOOLS_LDFLAGS) ./tool/tbot
 
 .PHONY: $(BUILDDIR)/teleport-update
 $(BUILDDIR)/teleport-update:
-	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -o $(BUILDDIR)/teleport-update $(BUILDFLAGS_TELEPORT_UPDATE) ./tool/teleport-update
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -o $(BUILDDIR)/teleport-update $(BUILDFLAGS_TELEPORT_UPDATE) $(TOOLS_LDFLAGS) ./tool/teleport-update
 
 TELEPORT_ARGS ?= start
 .PHONY: teleport-hot-reload
@@ -1360,7 +1363,7 @@ $(VERSRC): Makefile
 # 5. Make sure it all builds (`make release` or equivalent)
 # 6. Run `make update-tag` to tag repos with $(VERSION)
 # 7. Run `make tag-build` to build the tag on GitHub Actions
-# 8. Run `make tag-publish` after `make-build` tag has completed to
+# 8. Run `make tag-publish` after `make tag-build` tag has completed to
 #    publish the built artifacts.
 #
 # GHA tag builds: https://github.com/gravitational/teleport.e/actions/workflows/tag-build.yaml
@@ -1400,7 +1403,7 @@ IS_PROD_SEMVER = $(if $(findstring -,$(VERSION)),$(call find-any,$(PROD_VERSIONS
 # specified explicitly with `make tag-build CLOUD_ONLY=<true|false>`.
 .PHONY: tag-build
 tag-build: CLOUD_ONLY = $(if $(IS_CLOUD_SEMVER),true,false)
-tag-build: ENVIRONMENT = $(if $(IS_PROD_SEMVER),build-prod,build-stage)
+tag-build: ENVIRONMENT = $(if $(IS_PROD_SEMVER),prod/build,stage/build)
 tag-build:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
 	gh workflow run tag-build.yaml \
@@ -1420,7 +1423,7 @@ tag-build:
 # specified explicitly with `make tag-publish CLOUD_ONLY=<true|false>`.
 .PHONY: tag-publish
 tag-publish: CLOUD_ONLY = $(if $(IS_CLOUD_SEMVER),true,false)
-tag-publish: ENVIRONMENT = $(if $(IS_PROD_SEMVER),publish-prod,publish-stage)
+tag-publish: ENVIRONMENT = $(if $(IS_PROD_SEMVER),prod/publish,stage/publish)
 tag-publish:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
 	gh workflow run tag-publish.yaml \

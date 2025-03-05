@@ -563,8 +563,12 @@ export class FeatureClusters implements TeleportFeature {
     return cfg.isDashboard || flags.trustedClusters;
   }
 
+  showInDashboard = true;
+
   navigationItem = {
-    title: NavTitle.ManageClusters,
+    title: cfg.isDashboard
+      ? NavTitle.ManageClustersShortened
+      : NavTitle.ManageClusters,
     icon: SlidersVertical,
     exact: false,
     getLink() {

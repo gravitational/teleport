@@ -34,12 +34,12 @@ some additional context:
 
 ### Explanation
 
-<Notice type="note">
+<Admonition type="note">
 This applies only to bots using the `token` join method, which makes use of
 one-time use shared secrets. Provider-specific join methods, such as GitHub,
 AWS IAM, etc will not be locked in this fashion unless another instance of the
 bot uses `token` joining.
-</Notice>
+</Admonition>
 
 Machine ID (with token-based joining) uses a certificate generation counter to
 detect potentially stolen renewable certificates. Each time a bot fetches a new
@@ -47,7 +47,7 @@ renewable certificate, the Auth Service increments the counter, stores it on the
 backend, and embeds a copy of the counter in the certificate.
 
 If the counter embedded in your bot certificate doesn't match the counter
-stored in Teleport's Auth Server, the renewal will fail and the bot user will
+stored in Teleport's Auth Service, the renewal will fail and the bot user will
 be automatically [locked](../../admin-guides/access-controls/guides/locking.mdx).
 
 Renewable certificates are exclusively stored in the bot's internal data
@@ -219,8 +219,9 @@ $ pkill -sigusr1 tbot
 
 ### Symptoms
 
-When requesting [Database Access](../database-access/database-access.mdx)
-certificates, the certificate request fails with an error like the following:
+When requesting certificates for Teleport-protected
+[databases](../database-access/database-access.mdx), the certificate request
+fails with an error like the following:
 
 ```text
 ERROR: Failed to generate impersonated certs for directory /opt/machine-id: database "example" not found
@@ -245,9 +246,11 @@ or more roles.
 
 ### Resolution
 
+{/* vale messaging.protocol-products = NO */}
 Per the [Machine ID Database Access Guide](./access-guides/databases.mdx), ensure at
 least one role providing database permissions has been granted to the
 output listed in the error.
+{/* vale messaging.protocol-products = YES */}
 
 For example, note the `rules` section in the following example role:
 ```yaml
@@ -285,7 +288,7 @@ Edit the role, then save and close the file to apply your changes.
 
 (!docs/pages/includes/create-role-using-web.mdx!)
 
-<Notice type="note">
+<Admonition type="note">
 By default, outputs (like `/opt/machine-id`) are granted all roles provided
 to the bot via `tctl bots add --roles=...`, but it's possible to grant only a
 subset of these roles using the `roles: ...` parameter in `tbot.yaml`.
@@ -293,7 +296,7 @@ subset of these roles using the `roles: ...` parameter in `tbot.yaml`.
 If permissions are unexpectedly missing, ensure `tbot.yaml` requests your
 database role, either by relying on default behavior or adding the role to the
 `roles: ...` list.
-</Notice>
+</Admonition>
 
 Once fixed, restart or reload the `tbot` clients for the updated role to take
 effect.

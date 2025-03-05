@@ -12,14 +12,14 @@ Crown Jewels, and how to see permission changes for these resources.
 
 ## Prerequisites
 
-<Notice type="tip">
+<Admonition type="tip">
 
 For an improved experience, we recommend using Crown Jewels in conjunction with Teleport local users or integrating with
 [Okta](../../enroll-resources/application-access/okta/okta.mdx) or [Microsoft Entra ID](./integrations/entra-id.mdx).
 This setup helps minimize the number of access path change entries generated when highly privileged ephemeral users
 log in via Teleport Auth Connectors.
 
-</Notice>
+</Admonition>
 
 - A running Teleport Enterprise cluster v16.2.0 or later.
 - For self-hosted clusters, an updated `license.pem` with Teleport Policy enabled.
@@ -27,9 +27,7 @@ log in via Teleport Auth Connectors.
 Check [Access Graph page](teleport-policy.mdx) for details on
 how to set up Access Graph.
 
-Access Graph is a feature of the [Teleport Policy](https://goteleport.com/platform/policy/) product available to Teleport Enterprise edition customers.
-
-To verify the availability of the Access Graph, ensure that the Policy icon is present in the navigation sidebar.
+(!docs/pages/includes/policy/access-graph.mdx!)
 
 ## Required RBAC permissions
 

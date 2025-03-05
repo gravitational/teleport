@@ -186,7 +186,11 @@ func (r *Reporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
 			*usagereporter.ResourceHeartbeatEvent,
 			*usagereporter.UserCertificateIssuedEvent,
 			*usagereporter.BotJoinEvent,
-			*usagereporter.SPIFFESVIDIssuedEvent:
+			*usagereporter.SPIFFESVIDIssuedEvent,
+			*usagereporter.AccessRequestCreateEvent,
+			*usagereporter.AccessRequestReviewEvent,
+			*usagereporter.AccessListReviewCreateEvent,
+			*usagereporter.AccessListGrantsToUserEvent:
 			filtered = append(filtered, event)
 		}
 	}
@@ -236,7 +240,6 @@ func (r *Reporter) run(ctx context.Context) {
 	userActivityWindowEnd := userActivityStartTime.Add(userActivityReportGranularity)
 
 	userActivity := make(map[string]*prehogv1.UserActivityRecord)
-
 	userRecord := func(userName string, v1AlphaUserKind prehogv1alpha.UserKind) *prehogv1.UserActivityRecord {
 		v1UserKind := convertUserKind(v1AlphaUserKind)
 
@@ -271,6 +274,27 @@ func (r *Reporter) run(ctx context.Context) {
 		}
 
 		return record
+	}
+	userRecordWithOrigin := func(userName string, v1AlphaUserKind prehogv1alpha.UserKind, v1AlphaUserOrigin prehogv1alpha.UserOrigin) *prehogv1.UserActivityRecord {
+		record := userRecord(userName, v1AlphaUserKind)
+		if v1AlphaUserOrigin == prehogv1alpha.UserOrigin_USER_ORIGIN_UNSPECIFIED {
+			// Ignore unspecified value cause the request may be coming from an
+			// older auth that does not process user_origin.
+			return record
+		}
+		// Allow overriding origin value with a new value.
+		record.UserOrigin = prehogv1.UserOrigin(v1AlphaUserOrigin)
+		return record
+	}
+	// userSPIFFEIDActivity is map[username]map[spiffeid]count
+	userSPIFFEIDActivity := make(map[string]map[string]uint32)
+	incrementUserSPIFFEIDActivity := func(userName string, spiffeID string) {
+		user := userSPIFFEIDActivity[userName]
+		if user == nil {
+			user = make(map[string]uint32)
+			userSPIFFEIDActivity[userName] = user
+		}
+		user[spiffeID]++
 	}
 
 	botInstanceActivityStartTime := r.clock.Now().UTC().Truncate(botInstanceActivityReportGranularity)
@@ -323,16 +347,22 @@ Ingest:
 		if now := r.clock.Now().UTC(); now.Before(userActivityWindowStart) || !now.Before(userActivityWindowEnd) {
 			if len(userActivity) > 0 {
 				wg.Add(1)
-				go func(ctx context.Context, startTime time.Time, userActivity map[string]*prehogv1.UserActivityRecord) {
+				go func(
+					ctx context.Context,
+					startTime time.Time,
+					userActivity map[string]*prehogv1.UserActivityRecord,
+					userSPIFFEIDActivity map[string]map[string]uint32,
+				) {
 					defer wg.Done()
-					r.persistUserActivity(ctx, startTime, userActivity)
-				}(ctx, userActivityStartTime, userActivity)
+					r.persistUserActivity(ctx, startTime, userActivity, userSPIFFEIDActivity)
+				}(ctx, userActivityStartTime, userActivity, userSPIFFEIDActivity)
 			}
 
 			userActivityStartTime = now.Truncate(userActivityReportGranularity)
 			userActivityWindowStart = userActivityStartTime.Add(-rollbackGrace)
 			userActivityWindowEnd = userActivityStartTime.Add(userActivityReportGranularity)
 			userActivity = make(map[string]*prehogv1.UserActivityRecord, len(userActivity))
+			userSPIFFEIDActivity = make(map[string]map[string]uint32, len(userSPIFFEIDActivity))
 		}
 
 		if now := r.clock.Now().UTC(); now.Before(botInstanceActivityWindowStart) || !now.Before(botInstanceActivityWindowEnd) {
@@ -372,7 +402,7 @@ Ingest:
 		switch te := ae.(type) {
 		case *usagereporter.UserLoginEvent:
 			// Bots never generate tp.user.login events.
-			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).Logins++
+			userRecordWithOrigin(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN, te.UserOrigin).Logins++
 		case *usagereporter.SessionStartEvent:
 			switch te.SessionType {
 			case string(types.SSHSessionKind):
@@ -391,6 +421,8 @@ Ingest:
 				userRecord(te.UserName, te.UserKind).KubePortSessions++
 			case usagereporter.TCPSessionType:
 				userRecord(te.UserName, te.UserKind).AppTcpSessions++
+			case string(types.KindSAMLIdPSession):
+				userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).SamlIdpSessions++
 			}
 		case *usagereporter.KubeRequestEvent:
 			userRecord(te.UserName, te.UserKind).KubeRequests++
@@ -401,6 +433,7 @@ Ingest:
 			resourcePresence(prehogv1.ResourceKind(te.Kind))[te.Name] = struct{}{}
 		case *usagereporter.SPIFFESVIDIssuedEvent:
 			userRecord(te.UserName, te.UserKind).SpiffeSvidsIssued++
+			incrementUserSPIFFEIDActivity(te.UserName, te.SpiffeId)
 			if te.BotInstanceId != "" {
 				botInstanceRecord(te.UserName, te.BotInstanceId).SpiffeSvidsIssued++
 			}
@@ -422,6 +455,14 @@ Ingest:
 			if te.BotInstanceId != "" {
 				botInstanceRecord(te.UserName, te.BotInstanceId).CertificatesIssued++
 			}
+		case *usagereporter.AccessRequestCreateEvent:
+			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).AccessRequestsCreated++
+		case *usagereporter.AccessRequestReviewEvent:
+			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).AccessRequestsReviewed++
+		case *usagereporter.AccessListReviewCreateEvent:
+			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).AccessListsReviewed++
+		case *usagereporter.AccessListGrantsToUserEvent:
+			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).AccessListsGrants++
 		}
 
 		if ae != nil && r.ingested != nil {
@@ -430,7 +471,7 @@ Ingest:
 	}
 
 	if len(userActivity) > 0 {
-		r.persistUserActivity(ctx, userActivityStartTime, userActivity)
+		r.persistUserActivity(ctx, userActivityStartTime, userActivity, userSPIFFEIDActivity)
 	}
 
 	if len(botInstanceActivity) > 0 {
@@ -495,10 +536,25 @@ func (r *Reporter) persistBotInstanceActivity(
 	}
 }
 
-func (r *Reporter) persistUserActivity(ctx context.Context, startTime time.Time, userActivity map[string]*prehogv1.UserActivityRecord) {
+func (r *Reporter) persistUserActivity(
+	ctx context.Context,
+	startTime time.Time,
+	userActivity map[string]*prehogv1.UserActivityRecord,
+	issuedSPIFFEIDs map[string]map[string]uint32,
+) {
 	records := make([]*prehogv1.UserActivityRecord, 0, len(userActivity))
 	for userName, record := range userActivity {
 		record.UserName = r.anonymizer.AnonymizeNonEmpty(userName)
+
+		spiffeIDRecords := make([]*prehogv1.SPIFFEIDRecord, 0, len(issuedSPIFFEIDs[userName]))
+		for spiffeID, count := range issuedSPIFFEIDs[userName] {
+			spiffeIDRecords = append(spiffeIDRecords, &prehogv1.SPIFFEIDRecord{
+				SpiffeId:    r.anonymizer.AnonymizeNonEmpty(spiffeID),
+				SvidsIssued: count,
+			})
+		}
+		record.SpiffeIdsIssued = spiffeIDRecords
+
 		records = append(records, record)
 	}
 

@@ -28,6 +28,7 @@ import {
   NotificationItem,
   NotificationSeverity,
 } from 'shared/components/Notification';
+import { Attempt } from 'shared/hooks/useAsync';
 
 import { useServerSidePagination } from 'teleport/components/hooks';
 import {
@@ -48,11 +49,23 @@ import { RoleList } from './RoleList';
 import templates from './templates';
 import { State, useRoles } from './useRoles';
 
-// RoleDiffProps are an optional set of props to render the role diff visualizer.
+/** Optional set of props to render the role diff visualizer. */
 type RoleDiffProps = {
   roleDiffElement: React.ReactNode;
   updateRoleDiff: (role: Role) => void;
-  errorMessage: string;
+
+  /** @deprecated Use {@link RoleDiffProps.roleDiffAttempt} instead. */
+  // TODO(bl-nero): Remove this property once the Enterprise code is updated.
+  errorMessage?: string;
+
+  /**
+   * State of the attempt to fetch the information required by the role diff
+   * visualizer. Required to show an error message in the editor UI.
+   */
+  // TODO(bl-nero): Make this property required once the Enterprise code is
+  // updated.
+  roleDiffAttempt?: Attempt<unknown>;
+  clearRoleDiffAttempt?: () => void;
 };
 
 export type RolesProps = {
@@ -227,7 +240,10 @@ export function Roles(props: State & RolesProps) {
             open={
               resources.status === 'creating' || resources.status === 'editing'
             }
-            onClose={resources.disregard}
+            onClose={() => {
+              resources.disregard();
+              props.roleDiffProps?.clearRoleDiffAttempt();
+            }}
             resources={resources}
             onSave={handleSave}
             roleDiffProps={props.roleDiffProps}

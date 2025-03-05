@@ -18,7 +18,10 @@ package vnet
 
 import (
 	"context"
+	"net"
 	"net/netip"
+	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -33,8 +36,12 @@ type osConfig struct {
 	dnsZones   []string
 }
 
-func configureOS(ctx context.Context, osConfig *osConfig) error {
-	return trace.Wrap(platformConfigureOS(ctx, osConfig))
+type osConfigState struct {
+	platformOSConfigState platformOSConfigState
+}
+
+func configureOS(ctx context.Context, osConfig *osConfig, osConfigState *osConfigState) error {
+	return trace.Wrap(platformConfigureOS(ctx, osConfig, &osConfigState.platformOSConfigState))
 }
 
 type targetOSConfigProvider interface {
@@ -43,6 +50,7 @@ type targetOSConfigProvider interface {
 
 type osConfigurator struct {
 	targetOSConfigProvider targetOSConfigProvider
+	osConfigState          osConfigState
 }
 
 func newOSConfigurator(targetOSConfigProvider targetOSConfigProvider) *osConfigurator {
@@ -56,7 +64,7 @@ func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := configureOS(ctx, desiredOSConfig); err != nil {
+	if err := configureOS(ctx, desiredOSConfig, &c.osConfigState); err != nil {
 		return trace.Wrap(err, "configuring OS")
 	}
 	return nil
@@ -64,7 +72,7 @@ func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 
 func (c *osConfigurator) deconfigureOS(ctx context.Context) error {
 	// configureOS is meant to be called with an empty config to deconfigure anything necessary.
-	return trace.Wrap(configureOS(ctx, &osConfig{}))
+	return trace.Wrap(configureOS(ctx, &osConfig{}, &c.osConfigState))
 }
 
 // runOSConfigurationLoop will keep running until ctx is canceled or an
@@ -119,4 +127,31 @@ func tunIPv6ForPrefix(ipv6Prefix string) (string, error) {
 		return "", trace.BadParameter("IPv6 prefix %s is not an IPv6 address", ipv6Prefix)
 	}
 	return addr.Next().String(), nil
+}
+
+// tunIPv4ForCIDR returns the IPv4 address to use for the TUN interface in
+// cidrRange. It always returns the second address in the range.
+func tunIPv4ForCIDR(cidrRange string) (string, error) {
+	_, ipnet, err := net.ParseCIDR(cidrRange)
+	if err != nil {
+		return "", trace.Wrap(err, "parsing CIDR %q", cidrRange)
+	}
+	// ipnet.IP is the network address, ending in 0s, like 100.64.0.0
+	// Add 1 to assign the TUN address, like 100.64.0.1
+	tunAddress := ipnet.IP
+	tunAddress[len(tunAddress)-1]++
+	return tunAddress.String(), nil
+}
+
+func runCommand(ctx context.Context, path string, args ...string) error {
+	cmdString := strings.Join(append([]string{path}, args...), " ")
+	log.DebugContext(ctx, "Running command", "cmd", cmdString)
+	cmd := exec.CommandContext(ctx, path, args...)
+	var output strings.Builder
+	cmd.Stderr = &output
+	cmd.Stdout = &output
+	if err := cmd.Run(); err != nil {
+		return trace.Wrap(err, `running "%s" output: %s`, cmdString, output.String())
+	}
+	return nil
 }
