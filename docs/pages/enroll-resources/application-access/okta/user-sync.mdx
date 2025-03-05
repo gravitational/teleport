@@ -1,0 +1,102 @@
+---
+title: Okta user sync
+description: Details on Okta integration user synchronization
+---
+
+Teleport uses two complimentary methods for synchronizing Teleport resources with
+an upstream Okta Organization:
+
+- the Okta integration user sync process
+- provisioning via SCIM
+
+Okta user sync works in tandem with [SCIM integration](./scim-integration.mdx#how-it-works). Unlike
+SCIM integration, it is initiated from the Teleport side, and therefore requires API access to Okta
+and it is slower than SCIM, but it provides following benefits:
+
+- robustness:
+  - it does retries, it will fetch the users if for whatever reason SCIM request doesn't reach
+    the Teleport cluster
+  - it will fetch users that are assigned to the SSO app before SCIM was enabled
+- provides ability to synchronize users for the private Teleport clusters which are not accessible
+  over internet
+- unlocks enrollment of [synchronizing Okta apps and groups](./app-and-group-sync.mdx) as
+  Teleport Access Lists 
+
+On the whole, it doesn't matter to the wider Teleport system which method was
+used to import a user as both processes create identical resources inside
+Teleport.
+
+## Enrollment
+
+To enroll the Okta user sync follow the instructions of *Level 1. SSO*, *Level 2. SCIM* (optional)
+and *Level 3. User sync* enrollment in the [Okta integration setup guide](./integration-enrollment.mdx).
+
+## User import
+
+During synchronization, the Okta integration will create Teleport user accounts for all users
+assigned to the Okta SAML app for the Teleport Auth Connector used to enroll Okta integration. 
+
+The Teleport users created by the synchronization process or SCIM provisioning
+all inherit their username from the upstream Okta organization, and are given a
+default role of `okta-requester`.
+
+This Role allows the user to log into Teleport, but grants no default access to
+Teleport resources. The Teleport admin can use Access Requests and Access Lists
+to grant access to Teleport resources as they see fit, once the user is
+imported.
+
+## User traits
+
+All non-empty values in the Okta User/AppUser profile are converted to Teleport
+user traits. For example, an imported Okta user might look like this:
+
+```yaml
+kind: user
+metadata:
+  name: hiro@enzos-pizza.com
+  labels:
+    okta/org: https://enzos-pizza.okta.com
+    teleport.dev/origin: okta
+roles:
+  - okta-requester
+spec:
+  traits:
+    okta/email:
+      - hiro@enzos-pizza.com
+    okta/firstName:
+      - Hiro
+    okta/lastName:
+      - Protagonist
+    okta/login:
+      - hiro@enzos-pizza.com
+```
+
+Teleport administrators can then use these traits as conditions in Access Lists
+in order to grant (or deny) the Okta-derived Teleport users access to Teleport
+resources.
+
+## User deletion
+
+Given a case where
+ 1. the synchronization process detects that an Okta user has been deactivated,
+    deleted or removed from the Okta App, or
+ 1. the Okta organization explicitly disables the account via SCIM,
+
+The Okta integration will immediately delete the corresponding Teleport
+account and create a temporary Teleport user lock. The user lock will
+ - terminate any active Teleport sessions, and
+ - prevent the disabled user from accessing any Teleport resources with
+   credentials issued before their Teleport account was deleted.
+
+The user lock will expire after the maximum possible credential lifetime, plus
+a small safety margin.
+
+<Admonition type="warning">
+Suspended Okta users will not be locked by Teleport.
+
+When a user is suspended in Okta, Okta does not communicate the suspension to
+Teleport and so Teleport will not automatically lock and remove that user.
+
+Be sure to either deactivate the user, or unassign them from the Okta SAML
+Application in order to make sure their status is updated in Teleport.
+</Admonition>
