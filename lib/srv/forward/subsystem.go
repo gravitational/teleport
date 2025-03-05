@@ -143,20 +143,18 @@ func (r *remoteSubsystem) Wait() error {
 	var lastErr error
 
 	r.wg.Wait()
-	ok := true
-	for ok {
-		var err error
+outer:
+	for {
 		select {
-		case err, ok = <-r.errorCh:
-			if !ok {
-				break
-			}
+		case err := <-r.errorCh:
 			if err != nil && !errors.Is(err, io.EOF) {
 				r.logger.WarnContext(r.ctx, "Connection problem", "error", err)
 				lastErr = err
 			}
 		case <-r.ctx.Done():
 			lastErr = trace.ConnectionProblem(nil, "context is closing")
+		default:
+			break outer
 		}
 	}
 

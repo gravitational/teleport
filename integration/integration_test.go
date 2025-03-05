@@ -8112,6 +8112,9 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 	err := teleport.WaitForNodeCount(context.Background(), helpers.Site, 1)
 	require.NoError(t, err)
 
+	agentlessHost := "agentless-node"
+	agentlessNode := testenv.CreateAgentlessNode(t, teleport.Process.GetAuthServer(), helpers.Site, agentlessHost)
+
 	teleportClient, err := teleport.NewClient(helpers.ClientConfig{
 		Login:   suite.Me.Username,
 		Cluster: helpers.Site,
@@ -8119,168 +8122,186 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	// Create SFTP session.
-	ctx := context.Background()
-	clusterClient, err := teleportClient.ConnectToCluster(ctx)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = clusterClient.Close()
-	})
-
-	nodeClient, err := teleportClient.ConnectToNode(
-		ctx,
-		clusterClient,
-		client.NodeDetails{
-			Addr:    teleport.Config.SSH.Addr.Addr,
-			Cluster: helpers.Site,
+	tests := []struct {
+		name     string
+		nodeAddr string
+	}{
+		{
+			name:     "regular",
+			nodeAddr: teleport.Config.SSH.Addr.Addr,
 		},
-		suite.Me.Username,
-	)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, nodeClient.Close())
-	})
+		{
+			name:     "agentless",
+			nodeAddr: agentlessNode.Spec.Addr,
+		},
+	}
 
-	sftpClient, err := sftp.NewClient(nodeClient.Client.Client)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, sftpClient.Close())
-	})
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create SFTP session.
+			ctx := context.Background()
+			clusterClient, err := teleportClient.ConnectToCluster(ctx)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_ = clusterClient.Close()
+			})
 
-	// Create file that will be uploaded and downloaded.
-	tempDir := t.TempDir()
-	testFilePath := filepath.Join(tempDir, "testfile")
-	testFile, err := os.Create(testFilePath)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, testFile.Close())
-	})
+			nodeClient, err := teleportClient.ConnectToNode(
+				ctx,
+				clusterClient,
+				client.NodeDetails{
+					Addr:    tc.nodeAddr,
+					Cluster: helpers.Site,
+				},
+				suite.Me.Username,
+			)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, nodeClient.Close())
+			})
 
-	contents := []byte("This is test data.")
-	_, err = testFile.Write(contents)
-	require.NoError(t, err)
-	require.NoError(t, testFile.Sync())
-	_, err = testFile.Seek(0, io.SeekStart)
-	require.NoError(t, err)
+			sftpClient, err := sftp.NewClient(nodeClient.Client.Client)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, sftpClient.Close())
+			})
 
-	// Test stat'ing a file.
-	t.Run("stat", func(t *testing.T) {
-		fi, err := sftpClient.Stat(testFilePath)
-		require.NoError(t, err)
-		require.NotNil(t, fi)
-	})
+			// Create file that will be uploaded and downloaded.
+			tempDir := t.TempDir()
+			testFilePath := filepath.Join(tempDir, "testfile")
+			testFile, err := os.Create(testFilePath)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, testFile.Close())
+			})
 
-	// Test downloading a file.
-	t.Run("download", func(t *testing.T) {
-		testFileDownload := testFilePath + "-download"
-		downloadFile, err := os.Create(testFileDownload)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			require.NoError(t, downloadFile.Close())
+			contents := []byte("This is test data.")
+			_, err = testFile.Write(contents)
+			require.NoError(t, err)
+			require.NoError(t, testFile.Sync())
+			_, err = testFile.Seek(0, io.SeekStart)
+			require.NoError(t, err)
+
+			// Test stat'ing a file.
+			t.Run("stat", func(t *testing.T) {
+				fi, err := sftpClient.Stat(testFilePath)
+				require.NoError(t, err)
+				require.NotNil(t, fi)
+			})
+
+			// Test downloading a file.
+			t.Run("download", func(t *testing.T) {
+				testFileDownload := testFilePath + "-download"
+				downloadFile, err := os.Create(testFileDownload)
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					require.NoError(t, downloadFile.Close())
+				})
+
+				remoteDownloadFile, err := sftpClient.Open(testFilePath)
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					require.NoError(t, remoteDownloadFile.Close())
+				})
+
+				_, err = io.Copy(downloadFile, remoteDownloadFile)
+				require.NoError(t, err)
+
+				_, err = downloadFile.Seek(0, io.SeekStart)
+				require.NoError(t, err)
+				data, err := io.ReadAll(downloadFile)
+				require.NoError(t, err)
+				require.Equal(t, contents, data)
+			})
+
+			// Test uploading a file.
+			t.Run("upload", func(t *testing.T) {
+				testFileUpload := testFilePath + "-upload"
+				remoteUploadFile, err := sftpClient.Create(testFileUpload)
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					require.NoError(t, remoteUploadFile.Close())
+				})
+
+				_, err = io.Copy(remoteUploadFile, testFile)
+				require.NoError(t, err)
+
+				_, err = remoteUploadFile.Seek(0, io.SeekStart)
+				require.NoError(t, err)
+				data, err := io.ReadAll(remoteUploadFile)
+				require.NoError(t, err)
+				require.Equal(t, contents, data)
+			})
+
+			// Test changing file permissions.
+			t.Run("chmod", func(t *testing.T) {
+				err := sftpClient.Chmod(testFilePath, 0o777)
+				require.NoError(t, err)
+
+				fi, err := os.Stat(testFilePath)
+				require.NoError(t, err)
+				require.Equal(t, fs.FileMode(0o777), fi.Mode().Perm())
+			})
+
+			// Test operations on a directory.
+			t.Run("mkdir", func(t *testing.T) {
+				dirPath := filepath.Join(tempDir, "dir")
+				require.NoError(t, sftpClient.Mkdir(dirPath))
+
+				err := sftpClient.Chmod(dirPath, 0o777)
+				require.NoError(t, err)
+
+				fi, err := os.Stat(dirPath)
+				require.NoError(t, err)
+				require.Equal(t, fs.FileMode(0o777), fi.Mode().Perm())
+
+				f, err := sftpClient.Create(filepath.Join(dirPath, "file"))
+				require.NoError(t, err)
+				require.NoError(t, f.Close())
+
+				fileInfos, err := sftpClient.ReadDir(dirPath)
+				require.NoError(t, err)
+				require.Len(t, fileInfos, 1)
+				require.Equal(t, "file", fileInfos[0].Name())
+			})
+
+			// Test renaming a file.
+			t.Run("rename", func(t *testing.T) {
+				path := filepath.Join(tempDir, "to-be-renamed")
+				f, err := sftpClient.Create(path)
+				require.NoError(t, err)
+				require.NoError(t, f.Close())
+
+				newPath := path + "-done"
+				err = sftpClient.Rename(path, newPath)
+				require.NoError(t, err)
+
+				_, err = sftpClient.Stat(path)
+				require.ErrorIs(t, err, os.ErrNotExist)
+				_, err = sftpClient.Stat(newPath)
+				require.NoError(t, err)
+			})
+
+			// Test removing a file.
+			t.Run("remove", func(t *testing.T) {
+				path := filepath.Join(tempDir, "to-be-removed")
+				f, err := sftpClient.Create(path)
+				require.NoError(t, err)
+				require.NoError(t, f.Close())
+
+				err = sftpClient.Remove(path)
+				require.NoError(t, err)
+
+				_, err = sftpClient.Stat(path)
+				require.ErrorIs(t, err, os.ErrNotExist)
+			})
+
+			// Ensure SFTP audit events are present.
+			sftpEvent, err := findEventInLog(teleport, events.SFTPEvent)
+			require.NoError(t, err)
+			require.Equal(t, testFilePath, sftpEvent.GetString(events.SFTPPath))
 		})
-
-		remoteDownloadFile, err := sftpClient.Open(testFilePath)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			require.NoError(t, remoteDownloadFile.Close())
-		})
-
-		_, err = io.Copy(downloadFile, remoteDownloadFile)
-		require.NoError(t, err)
-
-		_, err = downloadFile.Seek(0, io.SeekStart)
-		require.NoError(t, err)
-		data, err := io.ReadAll(downloadFile)
-		require.NoError(t, err)
-		require.Equal(t, contents, data)
-	})
-
-	// Test uploading a file.
-	t.Run("upload", func(t *testing.T) {
-		testFileUpload := testFilePath + "-upload"
-		remoteUploadFile, err := sftpClient.Create(testFileUpload)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			require.NoError(t, remoteUploadFile.Close())
-		})
-
-		_, err = io.Copy(remoteUploadFile, testFile)
-		require.NoError(t, err)
-
-		_, err = remoteUploadFile.Seek(0, io.SeekStart)
-		require.NoError(t, err)
-		data, err := io.ReadAll(remoteUploadFile)
-		require.NoError(t, err)
-		require.Equal(t, contents, data)
-	})
-
-	// Test changing file permissions.
-	t.Run("chmod", func(t *testing.T) {
-		err := sftpClient.Chmod(testFilePath, 0o777)
-		require.NoError(t, err)
-
-		fi, err := os.Stat(testFilePath)
-		require.NoError(t, err)
-		require.Equal(t, fs.FileMode(0o777), fi.Mode().Perm())
-	})
-
-	// Test operations on a directory.
-	t.Run("mkdir", func(t *testing.T) {
-		dirPath := filepath.Join(tempDir, "dir")
-		require.NoError(t, sftpClient.Mkdir(dirPath))
-
-		err := sftpClient.Chmod(dirPath, 0o777)
-		require.NoError(t, err)
-
-		fi, err := os.Stat(dirPath)
-		require.NoError(t, err)
-		require.Equal(t, fs.FileMode(0o777), fi.Mode().Perm())
-
-		f, err := sftpClient.Create(filepath.Join(dirPath, "file"))
-		require.NoError(t, err)
-		require.NoError(t, f.Close())
-
-		fileInfos, err := sftpClient.ReadDir(dirPath)
-		require.NoError(t, err)
-		require.Len(t, fileInfos, 1)
-		require.Equal(t, "file", fileInfos[0].Name())
-	})
-
-	// Test renaming a file.
-	t.Run("rename", func(t *testing.T) {
-		path := filepath.Join(tempDir, "to-be-renamed")
-		f, err := sftpClient.Create(path)
-		require.NoError(t, err)
-		require.NoError(t, f.Close())
-
-		newPath := path + "-done"
-		err = sftpClient.Rename(path, newPath)
-		require.NoError(t, err)
-
-		_, err = sftpClient.Stat(path)
-		require.ErrorIs(t, err, os.ErrNotExist)
-		_, err = sftpClient.Stat(newPath)
-		require.NoError(t, err)
-	})
-
-	// Test removing a file.
-	t.Run("remove", func(t *testing.T) {
-		path := filepath.Join(tempDir, "to-be-removed")
-		f, err := sftpClient.Create(path)
-		require.NoError(t, err)
-		require.NoError(t, f.Close())
-
-		err = sftpClient.Remove(path)
-		require.NoError(t, err)
-
-		_, err = sftpClient.Stat(path)
-		require.ErrorIs(t, err, os.ErrNotExist)
-	})
-
-	// Ensure SFTP audit events are present.
-	sftpEvent, err := findEventInLog(teleport, events.SFTPEvent)
-	require.NoError(t, err)
-	require.Equal(t, testFilePath, sftpEvent.GetString(events.SFTPPath))
+	}
 }
 
 func testAgentlessConnection(t *testing.T, suite *integrationTestSuite) {
