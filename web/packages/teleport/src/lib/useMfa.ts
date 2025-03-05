@@ -85,12 +85,12 @@ export function useMfa(props?: MfaProps): MfaState {
 
         // Caller didn't pass a challenge and the mfa required is true or unknown.
         if (!challenge) {
-          let req = props.req;
+          if (props?.req) {
+            // We already know MFA is required, skip the extra check.
+            if (mfaRequired === true) props.req.isMfaRequiredRequest = null;
 
-          // We already know MFA is required, skip the extra check.
-          if (mfaRequired === true) req.isMfaRequiredRequest = null;
-
-          challenge = await auth.getMfaChallenge(props.req);
+            challenge = await auth.getMfaChallenge(props.req);
+          }
 
           // An empty challenge means either mfa is not required, or the user has no mfa devices.
           if (!challenge) {
