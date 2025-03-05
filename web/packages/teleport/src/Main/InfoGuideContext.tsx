@@ -18,15 +18,24 @@
 
 import {
   createContext,
+  MutableRefObject,
   PropsWithChildren,
+  ReactNode,
+  ReactPortal,
+  useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react';
+import { createPortal } from 'react-dom';
 
 type InfoGuidePanelContextState = {
-  setInfoGuideElement: (element: JSX.Element | null) => void;
-  infoGuideElement: JSX.Element | null;
+  sidePanelRef: MutableRefObject<HTMLDivElement>;
+  isOpen: boolean;
+  open: () => void;
+  close: () => void;
+  toggle: () => void;
 };
 
 const InfoGuidePanelContext = createContext<InfoGuidePanelContextState>(null);
@@ -34,19 +43,25 @@ const InfoGuidePanelContext = createContext<InfoGuidePanelContextState>(null);
 export const InfoGuidePanelProvider: React.FC<PropsWithChildren> = ({
   children,
 }) => {
-  const [infoGuideElement, setInfoGuideElement] = useState<JSX.Element | null>(
-    null
-  );
+  // sidePanelRef should be accessible only by the callsites that render the side panel itself, not
+  // by callsites that want to render something in the side panel.
+  const sidePanelRef = useRef<HTMLDivElement>();
+
+  const [isOpen, setIsOpen] = useState(false);
+  const close = useCallback(() => setIsOpen(false), []);
+  const open = useCallback(() => setIsOpen(true), []);
+  const toggle = useCallback(() => setIsOpen(current => !current), []);
 
   return (
     <InfoGuidePanelContext.Provider
-      value={{ infoGuideElement, setInfoGuideElement }}
+      value={{ sidePanelRef, isOpen, close, open, toggle }}
     >
       {children}
     </InfoGuidePanelContext.Provider>
   );
 };
 
+// TODO: Update comment, explain which callsites this hook is for.
 /**
  * hook that allows you to set the info guide element that
  * will render in the InfoGuideSidePanel component.
@@ -54,19 +69,40 @@ export const InfoGuidePanelProvider: React.FC<PropsWithChildren> = ({
  * To close the InfoGuideSidePanel component, set infoGuideElement
  * state back to null.
  */
-export const useInfoGuide = () => {
-  const { infoGuideElement, setInfoGuideElement } = useContext(
+export const useInfoGuide = (): Pick<
+  InfoGuidePanelContextState,
+  'isOpen' | 'close' | 'open' | 'toggle'
+> & { createInfoGuidePortal: (node: ReactNode) => ReactPortal } => {
+  const { isOpen, close, open, toggle, sidePanelRef } = useContext(
     InfoGuidePanelContext
   );
 
   useEffect(() => {
     return () => {
-      setInfoGuideElement(null);
+      close();
     };
-  }, []);
+  }, [close]);
+
+  const createInfoGuidePortal = useCallback(
+    (node: ReactNode) =>
+      sidePanelRef.current &&
+      isOpen &&
+      createPortal(node, sidePanelRef.current),
+    [sidePanelRef, isOpen]
+  );
 
   return {
-    setInfoGuideElement,
-    infoGuideElement,
+    isOpen,
+    close,
+    open,
+    toggle,
+    createInfoGuidePortal,
   };
+};
+
+// TODO: Explain which callsites this hook is for.
+export const useSidePanel = () => {
+  const { sidePanelRef, isOpen, close } = useContext(InfoGuidePanelContext);
+
+  return { ref: sidePanelRef, isOpen, close };
 };

@@ -308,8 +308,7 @@ export const useNoMinWidth = () => {
 export const ContentMinWidth = ({ children }: { children: ReactNode }) => {
   const [enforceMinWidth, setEnforceMinWidth] = useState(true);
 
-  const { infoGuideElement, setInfoGuideElement } = useInfoGuide();
-  const infoGuideSidePanelOpened = infoGuideElement != null;
+  const { isOpen: infoGuideSidePanelOpened } = useInfoGuide();
 
   return (
     <ContentMinWidthContext.Provider value={{ setEnforceMinWidth }}>
@@ -331,12 +330,7 @@ export const ContentMinWidth = ({ children }: { children: ReactNode }) => {
       >
         {children}
       </div>
-      <InfoGuideSidePanel
-        isVisible={infoGuideSidePanelOpened}
-        onClose={() => setInfoGuideElement(null)}
-      >
-        {infoGuideElement}
-      </InfoGuideSidePanel>
+      <InfoGuideSidePanel />
     </ContentMinWidthContext.Provider>
   );
 };
