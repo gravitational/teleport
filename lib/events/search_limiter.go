@@ -22,10 +22,33 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/time/rate"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+)
+
+var (
+	searchEventsLimiterEventCounter = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: auditSubsystem,
+			Name:      "rate_limited_events_total",
+			Help:      "Number of times queries to the audit events backend were rate limited.",
+		},
+	)
+
+	searchEventsLimiterSessionCounter = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: auditSubsystem,
+			Name:      "rate_limited_sessions_total",
+			Help:      "Number of times queries to the audit session events backend were rate limited.",
+		},
+	)
 )
 
 // SearchEventsLimiter allows to wrap any AuditLogger with rate limit on
@@ -80,6 +103,7 @@ func NewSearchEventLimiter(cfg SearchEventsLimiterConfig) (*SearchEventsLimiter,
 
 func (s *SearchEventsLimiter) SearchEvents(ctx context.Context, req SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
 	if !s.limiter.Allow() {
+		searchEventsLimiterEventCounter.Inc()
 		return nil, "", trace.LimitExceeded("rate limit exceeded for searching events")
 	}
 	out, keyset, err := s.AuditLogger.SearchEvents(ctx, req)
@@ -88,6 +112,7 @@ func (s *SearchEventsLimiter) SearchEvents(ctx context.Context, req SearchEvents
 
 func (s *SearchEventsLimiter) SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	if !s.limiter.Allow() {
+		searchEventsLimiterSessionCounter.Inc()
 		return nil, "", trace.LimitExceeded("rate limit exceeded for searching events")
 	}
 	out, keyset, err := s.AuditLogger.SearchSessionEvents(ctx, req)
