@@ -20,6 +20,7 @@ package accesslists
 
 import (
 	"context"
+	"log/slog"
 	"maps"
 	"slices"
 
@@ -630,16 +631,16 @@ func UserMeetsRequirements(identity types.User, requires accesslist.Requires) bo
 
 // GetAncestorsFor calculates and returns the set of Ancestor ACLs depending on
 // the supplied relationship criteria. Order of the ancestor list is undefined.
-func GetAncestorsFor(ctx context.Context, accessList *accesslist.AccessList, kind RelationshipKind, g AccessListAndMembersGetter) ([]*accesslist.AccessList, error) {
+func GetAncestorsFor(ctx context.Context, accessList *accesslist.AccessList, kind RelationshipKind, g AccessListAndMembersGetter, log *slog.Logger) ([]*accesslist.AccessList, error) {
 	ancestorsMap := make(map[string]*accesslist.AccessList)
-	if err := collectAncestors(ctx, accessList, kind, g, make(map[string]struct{}), ancestorsMap); err != nil {
+	if err := collectAncestors(ctx, accessList, kind, g, log, make(map[string]struct{}), ancestorsMap); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	ancestors := slices.Collect(maps.Values(ancestorsMap))
 	return ancestors, nil
 }
 
-func collectAncestors(ctx context.Context, accessList *accesslist.AccessList, kind RelationshipKind, g AccessListAndMembersGetter, visited map[string]struct{}, ancestors map[string]*accesslist.AccessList) error {
+func collectAncestors(ctx context.Context, accessList *accesslist.AccessList, kind RelationshipKind, g AccessListAndMembersGetter, log *slog.Logger, visited map[string]struct{}, ancestors map[string]*accesslist.AccessList) error {
 	if _, ok := visited[accessList.GetName()]; ok {
 		return nil
 	}
@@ -651,6 +652,12 @@ func collectAncestors(ctx context.Context, accessList *accesslist.AccessList, ki
 		for _, ownerParent := range accessList.Status.OwnerOf {
 			ownerParentAcl, err := g.GetAccessList(ctx, ownerParent)
 			if err != nil {
+				log.DebugContext(ctx, "Failed to get parent Access List", "access_list_id", ownerParent, "error", err)
+
+				// If parent list doesn't exist, may be recently deleted, so ignore
+				if trace.IsNotFound(err) {
+					continue
+				}
 				return trace.Wrap(err)
 			}
 			ancestors[ownerParent] = ownerParentAcl
@@ -659,9 +666,15 @@ func collectAncestors(ctx context.Context, accessList *accesslist.AccessList, ki
 		for _, memberParent := range accessList.Status.MemberOf {
 			memberParentAcl, err := g.GetAccessList(ctx, memberParent)
 			if err != nil {
+				log.DebugContext(ctx, "Failed to get parent Access List", "access_list_id", memberParent, "error", err)
+
+				// If parent list doesn't exist, may be recently deleted, so ignore
+				if trace.IsNotFound(err) {
+					continue
+				}
 				return trace.Wrap(err)
 			}
-			if err := collectAncestors(ctx, memberParentAcl, kind, g, visited, ancestors); err != nil {
+			if err := collectAncestors(ctx, memberParentAcl, kind, g, log, visited, ancestors); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -673,7 +686,7 @@ func collectAncestors(ctx context.Context, accessList *accesslist.AccessList, ki
 				return trace.Wrap(err)
 			}
 			ancestors[memberParent] = memberParentAcl
-			if err := collectAncestors(ctx, memberParentAcl, kind, g, visited, ancestors); err != nil {
+			if err := collectAncestors(ctx, memberParentAcl, kind, g, log, visited, ancestors); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -683,7 +696,7 @@ func collectAncestors(ctx context.Context, accessList *accesslist.AccessList, ki
 }
 
 // GetInheritedGrants returns the combined Grants for an Access List's members, inherited from any ancestor lists.
-func GetInheritedGrants(ctx context.Context, accessList *accesslist.AccessList, g AccessListAndMembersGetter) (*accesslist.Grants, error) {
+func GetInheritedGrants(ctx context.Context, accessList *accesslist.AccessList, g AccessListAndMembersGetter, log *slog.Logger) (*accesslist.Grants, error) {
 	grants := accesslist.Grants{
 		Traits: trait.Traits{},
 	}
@@ -712,7 +725,7 @@ func GetInheritedGrants(ctx context.Context, accessList *accesslist.AccessList, 
 	}
 
 	// Get ancestors via member relationship
-	ancestorLists, err := GetAncestorsFor(ctx, accessList, RelationshipKindMember, g)
+	ancestorLists, err := GetAncestorsFor(ctx, accessList, RelationshipKindMember, g, log)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -722,7 +735,7 @@ func GetInheritedGrants(ctx context.Context, accessList *accesslist.AccessList, 
 	}
 
 	// Get ancestors via owner relationship
-	ancestorOwnerLists, err := GetAncestorsFor(ctx, accessList, RelationshipKindOwner, g)
+	ancestorOwnerLists, err := GetAncestorsFor(ctx, accessList, RelationshipKindOwner, g, log)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
