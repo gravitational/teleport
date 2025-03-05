@@ -198,7 +198,22 @@
     },
     {
       "source": "/application-access/okta/hosted-guide/",
-      "destination": "/enroll-resources/application-access/okta/hosted-guide/",
+      "destination": "/enroll-resources/application-access/okta/integration-enrollment/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/hosted-guide/",
+      "destination": "/enroll-resources/application-access/okta/integration-enrollment/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/scim-only/",
+      "destination": "/enroll-resources/application-access/okta/scim-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/sync-scim/",
+      "destination": "/enroll-resources/application-access/okta/user-sync/",
       "permanent": true
     },
     {
