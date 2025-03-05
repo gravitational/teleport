@@ -35,6 +35,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -709,6 +710,7 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 		var agentForwarded bool
 		var shellRequested bool
 		var execRequested bool
+		var sftpRequested bool
 		for channelReq := range channels {
 			if !assert.Equal(t, "session", channelReq.ChannelType()) {
 				assert.NoError(t, channelReq.Reject(ssh.Prohibited, "only session channels expected"))
@@ -739,10 +741,21 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 					assert.NoError(t, channel.Close())
 					execRequested = true
 					break outer
+				case sshutils.SubsystemRequest:
+					var r sshutils.SubsystemReq
+					err := ssh.Unmarshal(req.Payload, &r)
+					assert.NoError(t, err)
+					assert.Equal(t, "sftp", r.Name)
+					sftpRequested = true
+					sftpServer, err := sftp.NewServer(channel)
+					assert.NoError(t, err)
+					go sftpServer.Serve()
+					t.Cleanup(func() { assert.NoError(t, sftpServer.Close()) })
+					break outer
 				}
 			}
 		}
-		assert.True(t, (agentForwarded && shellRequested) || execRequested)
+		assert.True(t, (agentForwarded && shellRequested) || execRequested || sftpRequested)
 	}()
 
 	return lis.Addr().String()
