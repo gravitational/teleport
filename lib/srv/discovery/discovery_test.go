@@ -912,7 +912,7 @@ func TestDiscoveryKubeServices(t *testing.T) {
 
 	appProtocolHTTP := "http"
 	mockKubeServices := []*corev1.Service{
-		newMockKubeService("service1", "ns1", "", map[string]string{"test-label": "testval"}, nil,
+		newMockKubeService("service1", "ns1", "", map[string]string{"test-label": "testval"}, map[string]string{types.DiscoveryPublicAddr: "custom.example.com"},
 			[]corev1.ServicePort{{Port: 42, Name: "http", Protocol: corev1.ProtocolTCP}}),
 		newMockKubeService("service2", "ns2", "", map[string]string{
 			"test-label":  "testval",
@@ -1732,6 +1732,8 @@ func mustConvertKubeServiceToApp(t *testing.T, discoveryGroup, protocol string, 
 	port.Name = ""
 	app, err := services.NewApplicationFromKubeService(*kubeService, discoveryGroup, protocol, port)
 	require.NoError(t, err)
+	require.Equal(t, kubeService.Annotations[types.DiscoveryPublicAddr], app.GetPublicAddr())
+
 	app.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	app.GetStaticLabels()[types.OriginLabel] = types.OriginDiscoveryKubernetes
 	return app
