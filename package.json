@@ -31,6 +31,7 @@
       "minimist": "^1.2.8",
       "trim": "0.0.3",
       "webpack": "^5.88.2",
+      "electron-vite@^3.0.0>esbuild@0.24.2": "^0.25.0",
       "x-default-browser": "^0.5.2"
     }
   },
