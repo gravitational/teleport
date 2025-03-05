@@ -1,5 +1,17 @@
 # Changelog
 
+## 17.3.2 (03/04/25)
+
+* Updated Go to 1.23.7. [#52772](https://github.com/gravitational/teleport/pull/52772)
+* Fixed VNet on Windows when the cluster uses the `legacy` signature algorithm suite. [#52767](https://github.com/gravitational/teleport/pull/52767)
+* Fixed Connect installer on Windows systems using languages other than English. [#52765](https://github.com/gravitational/teleport/pull/52765)
+* Allow `teleport-update` to be used in shells that set a restrictive umask. [#52755](https://github.com/gravitational/teleport/pull/52755)
+* Updated `tctl create` to automatically fill the metadata and name on the `autoupdate_config` and `autoupdate_version` resources. [#52751](https://github.com/gravitational/teleport/pull/52751)
+* Added version compatibility warnings to Teleport Connect when logging in to a cluster. [#52709](https://github.com/gravitational/teleport/pull/52709)
+* Support setting the public address for discovered apps based on Kubernetes annotations. [#52700](https://github.com/gravitational/teleport/pull/52700)
+* Fixed `cannot execute: required file not found` error with the `teleport-spacelift-runner` image. [#52560](https://github.com/gravitational/teleport/pull/52560)
+* Machine ID: Added new Prometheus metrics to track success and failure of renewal loops. [#52496](https://github.com/gravitational/teleport/pull/52496)
+
 ## 17.3.1 (03/03/25)
 
 * Fixes two issues in the 17.3.0 RPM causing package upgrades to fail and leading to teleport binaries not being symlinked in /usr/local/bin. [#52704](https://github.com/gravitational/teleport/pull/52704)
