@@ -1810,40 +1810,40 @@ export type RawEvents = {
     typeof eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE
   >;
   [eventCodes.AUTOUPDATE_CONFIG_CREATE]: RawEvent<
-      typeof eventCodes.AUTOUPDATE_CONFIG_CREATE,
-      {
-        user: string;
-      }
+    typeof eventCodes.AUTOUPDATE_CONFIG_CREATE,
+    {
+      user: string;
+    }
   >;
   [eventCodes.AUTOUPDATE_CONFIG_UPDATE]: RawEvent<
-      typeof eventCodes.AUTOUPDATE_CONFIG_UPDATE,
-      {
-        user: string;
-      }
+    typeof eventCodes.AUTOUPDATE_CONFIG_UPDATE,
+    {
+      user: string;
+    }
   >;
   [eventCodes.AUTOUPDATE_CONFIG_DELETE]: RawEvent<
-      typeof eventCodes.AUTOUPDATE_CONFIG_DELETE,
-      {
-        user: string;
-      }
+    typeof eventCodes.AUTOUPDATE_CONFIG_DELETE,
+    {
+      user: string;
+    }
   >;
   [eventCodes.AUTOUPDATE_VERSION_CREATE]: RawEvent<
-      typeof eventCodes.AUTOUPDATE_VERSION_CREATE,
-      {
-        user: string;
-      }
+    typeof eventCodes.AUTOUPDATE_VERSION_CREATE,
+    {
+      user: string;
+    }
   >;
   [eventCodes.AUTOUPDATE_VERSION_UPDATE]: RawEvent<
-      typeof eventCodes.AUTOUPDATE_VERSION_UPDATE,
-      {
-        user: string;
-      }
+    typeof eventCodes.AUTOUPDATE_VERSION_UPDATE,
+    {
+      user: string;
+    }
   >;
   [eventCodes.AUTOUPDATE_VERSION_DELETE]: RawEvent<
-      typeof eventCodes.AUTOUPDATE_VERSION_DELETE,
-      {
-        user: string;
-      }
+    typeof eventCodes.AUTOUPDATE_VERSION_DELETE,
+    {
+      user: string;
+    }
   >;
 };
 
