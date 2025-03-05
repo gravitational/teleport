@@ -218,6 +218,17 @@ export type MfaState = {
   cancelAttempt: () => void;
 };
 
+/** Indicates if an MFA dialog should be visible. */
+export function shouldShowMfaPrompt(
+  mfa: Pick<MfaState, 'challenge' | 'attempt'>
+): boolean {
+  return (
+    !!mfa.challenge ||
+    (mfa.attempt.status === 'error' &&
+      !(mfa.attempt.error instanceof MfaCanceledError))
+  );
+}
+
 // used for testing
 export function makeDefaultMfaState(): MfaState {
   return {
