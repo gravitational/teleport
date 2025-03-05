@@ -243,8 +243,10 @@ For Teleport version before 15.1, the reverse proxy must support custom
 upgrades](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Upgrade)
 and long-lived connections.
 
-You can set up a Teleport Proxy Service behind the reverse proxy and run the
-following command to test the connection:
+You can set up the Teleport Proxy Service behind the reverse proxy and run the
+following command to test the connection, assigning 
+<Var name="teleport.example.com" /> to the domain name of the Proxy Service:
+
 ```code
 $ curl -v https://<Var name="teleport.example.com" />/webapi/connectionupgrade -H "Connection: Upgrade" -H "Upgrade: alpn-ping" --no-alpn
 ```
