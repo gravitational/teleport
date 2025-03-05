@@ -135,9 +135,10 @@ func userTaskTitleAndDescription(ut *usertasksv1.UserTask) (string, string) {
 
 	case apiusertasks.TaskTypeDiscoverRDS:
 		return usertasks.DescriptionForDiscoverRDSIssue(ut.GetSpec().GetIssueType())
-	}
 
-	return "", ""
+	default:
+		return "", ""
+	}
 }
 
 // MakeUserTask creates a UI UserTask representation.
