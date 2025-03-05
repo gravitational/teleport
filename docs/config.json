@@ -197,18 +197,18 @@
     "teleport": {
       "git": "api/14.0.0-gd1e081e",
       "major_version": "17",
-      "version": "17.3.1",
+      "version": "17.3.2",
       "url": "teleport.example.com",
-      "golang": "1.23.6",
+      "golang": "1.23.7",
       "plugin": {
-        "version": "17.3.1"
+        "version": "17.3.2"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:17.3.1",
-      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:17.3.1",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:17.3.1",
-      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:17.3.1",
-      "teleport_install_script_url": "https://cdn.teleport.dev/install-v17.3.1.sh"
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:17.3.2",
+      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:17.3.2",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:17.3.2",
+      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:17.3.2",
+      "teleport_install_script_url": "https://cdn.teleport.dev/install-v17.3.2.sh"
     },
     "terraform": {
       "version": "1.0.0"
