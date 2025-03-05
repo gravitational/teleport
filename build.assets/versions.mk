@@ -3,7 +3,7 @@
 # Keep versions in sync with devbox.json, when applicable.
 
 # Sync with devbox.json.
-GOLANG_VERSION ?= go1.23.6
+GOLANG_VERSION ?= go1.23.7
 GOLANGCI_LINT_VERSION ?= v1.64.5
 
 # TODO(ravicious): When updating Node.js, see if corepack distributed with the new Node.JS version
