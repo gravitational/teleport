@@ -9,47 +9,9 @@ The Teleport team delivers a new major release roughly every 4 months.
 
 | Version | Date                        |
 |---------|-----------------------------|
-| 17.3.0  | Week of February 24th, 2025 |
 | 17.4.0  | Week of March 24th, 2025    |
 | 17.5.0  | Week of May 19th, 2025      |
 | 18.0.0  | Week of May 26th, 2025      |
-
-### 17.3.0
-
-#### Delegated joining for Oracle Cloud Infrastructure
-
-Teleport agents running on Oracle Cloud Infrastructure (OCI) will be able to
-join the Teleport cluster without a static join token.
-
-#### Stable UIDs for host-user creation
-
-Teleport will provide the ability to create host users with stable UIDs across
-the entire Teleport cluster.
-
-#### VNet for Windows
-
-Teleport's VNet feature will be available for Windows, allowing users to access
-TCP applications protected by Teleport as if they were on the same network.
-
-#### Improved GitHub Proxy enrollment flow
-
-{/* lint ignore absolute-docs-links */}
-Teleport web UI will provide wizard-like guided enrollment flow for the new
-[GitHub
-Proxy](https://goteleport.com/docs/admin-guides/management/guides/github-integration)
-integration.
-
-#### AWS Identity Center integration improvements
-
-AWS Identity Center integration will support using IAM authentication instead
-of OIDC (useful for private clusters) and a hybrid setup that allows to use
-another IdP as external identity source.
-
-#### Okta integration improvements
-
-Teleport Okta integration will include updated guided enrollment flow and will
-allow updating integration settings (such as sync configuration or group filters)
-without having to recreate the integration.
 
 ### 17.4.0
 
@@ -96,6 +58,9 @@ the Teleport Connect application without needing to use a browser.
 Teleport's VNet feature will be available for SSH, allowing users to access
 SSH servers protected by Teleport as if they were on the same network.
 
+TODO(zmb3): Migrating exisiting workloads easier, configuration easier, client
+compatability, per-session MFA.
+
 ### 18.0.0
 
 #### Identity Activity Center
@@ -111,8 +76,10 @@ The key deliverables for Teleport Cloud in the next quarter:
 
 | Week of               | Description                                                    |
 |-----------------------|----------------------------------------------------------------|
-| March 3rd, 2025       | Teleport 17.3 will begin rollout on Cloud.                     |
-| March 3rd, 2025       | Teleport 17.3 agents will begin rollout to eligible tenants.   |
+| March 10, 2025       | Teleport 17.3 will begin rollout on Cloud.                      |
+| March 10, 2025       | Teleport 17.3 agents will begin rollout to eligible tenants.    |
+| March 31, 2025       | Teleport 17.4 will begin rollout on Cloud.                      |
+| March 31, 2025       | Teleport 17.4 agents will begin rollout to eligible tenants.    |
 
 ## Production readiness
 
