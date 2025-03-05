@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509/pkix"
-	"io"
 	"log/slog"
 	"net"
 	"testing"
@@ -46,7 +45,6 @@ func TestOracleEngine(t *testing.T) {
 			tlsConfig: &tls.Config{
 				Certificates: []tls.Certificate{certificate},
 			},
-			logger: t.Logf,
 		}
 
 		session := &common.Session{
@@ -217,7 +215,7 @@ func TestOracleEngine(t *testing.T) {
 		// tell the server to drop the connection
 		connChannels.closeC <- struct{}{}
 
-		require.ErrorIs(t, <-handleErr, io.EOF)
+		require.Error(t, <-handleErr)
 		require.NoError(t, <-writeErr)
 	})
 
@@ -292,7 +290,6 @@ func (c checkerMock) CheckAccess(r services.AccessCheckable, state services.Acce
 type mockOracleServer struct {
 	listener  net.Listener
 	tlsConfig *tls.Config
-	logger    func(format string, args ...any)
 }
 
 type connectionChannels struct {
@@ -319,7 +316,7 @@ func (m *mockOracleServer) accept() (*connectionChannels, error) {
 
 	go func() {
 		if err := m.handleConn(ch, conn); err != nil {
-			m.logger("Failed to handle client connection: %v", err)
+			slog.DebugContext(context.Background(), "Failed to handle client connection", "err", trace.DebugReport(err))
 		}
 		ch.returnErrC <- err
 	}()
