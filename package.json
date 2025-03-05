@@ -30,7 +30,8 @@
   "private": true,
   "pnpm": {
     "overrides": {
-      "@bundled-es-modules/cookie>cookie": "0.7.1"
+      "@bundled-es-modules/cookie>cookie": "0.7.1",
+      "electron-vite@^3.0.0>esbuild@0.24.2": "^0.25.0"
     }
   },
   "devDependencies": {
