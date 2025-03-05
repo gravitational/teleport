@@ -78,11 +78,14 @@ are not logged in to Teleport or may not have access to a browser.
 
 ## `tsh` is very slow on Windows, what to do?
 
-If your host machine is joined to an Active Directory domain, you might find user lookups take a
-lot longer than you expect. The number of Active Directory accounts that must be scanned to
-perform a user lookup can cause tsh to hang waiting to get information about the current user.
-To fix this issue, you can use environment variables to set default account information for your
-Teleport user. If you are experiencing long lookup times on Windows, do the following:
+If your host machine is joined to an Active Directory domain, you might find
+user lookups take a lot longer than you expect. If possible, we recommend
+updating `tsh` to v18 or later, which contains an optimized user lookup
+algorithm.
+
+If upgrading is not possible, you can use environment variables to set default
+account information for your Teleport user. If you are experiencing long lookup
+times on Windows, do the following:
 
 - Either set the `TELEPORT_USER` environment variable or set the `--user` flag to the name of your Teleport user.
 - Either set the `TELEPORT_LOGIN` environment variable or set the `--login` flag to the name of current host user. This setting can be overridden if you open a new SSH session on a machine as a different user.
