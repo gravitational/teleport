@@ -268,7 +268,7 @@ const requiredPort: Rule = port => () => {
  * @returns a rule function that ANDs all input rules
  */
 const requiredAll =
-  <T>(...rules: Rule<T | string | string[], ValidationResult>[]): Rule<T> =>
+  <T>(...rules: Rule<T, ValidationResult>[]): Rule<T> =>
   (value: T) =>
   () => {
     let messages = [];
