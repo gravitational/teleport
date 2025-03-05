@@ -32,6 +32,7 @@ func TestIdentityOutput_YAML(t *testing.T) {
 				Roles:         []string{"access"},
 				Cluster:       "leaf.example.com",
 				SSHConfigMode: SSHConfigModeOff,
+				AllowReissue:  true,
 			},
 		},
 		{

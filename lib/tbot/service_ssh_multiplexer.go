@@ -274,13 +274,16 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (
 	if err != nil {
 		return nil, nil, "", nil, trace.Wrap(err)
 	}
-	proxyAddr, err := proxyPing.proxyWebAddr()
+	proxyAddr, err := proxyPing.proxySSHAddr()
 	if err != nil {
-		return nil, nil, "", nil, trace.Wrap(err, "determining proxy web addr")
+		return nil, nil, "", nil, trace.Wrap(err, "determining proxy ssh addr")
 	}
-	proxyHost, _, err = net.SplitHostPort(proxyAddr)
+	proxyHost, _, err = utils.SplitHostPort(proxyAddr)
 	if err != nil {
-		return nil, nil, "", nil, trace.Wrap(err)
+		return nil, nil, "", nil, trace.BadParameter(
+			"proxy %+v has no usable public address: %v",
+			proxyAddr, err,
+		)
 	}
 
 	connUpgradeRequired := false

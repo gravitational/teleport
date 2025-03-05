@@ -10,7 +10,7 @@ Host *.tele.blackmesa.gov tele.blackmesa.gov
 # Flags for all tele.blackmesa.gov hosts except the proxy
 Host *.tele.blackmesa.gov !tele.blackmesa.gov
     Port 3022
-    ProxyCommand '/path/to/tbot' ssh-proxy-command --destination-dir='/test/dir' --proxy-server='tele.blackmesa.gov:443' --cluster='tele.blackmesa.gov' --no-tls-routing --no-connection-upgrade --resume --user=%r --host=%h --port=%p
+    ProxyCommand '/path/to/tbot' ssh-proxy-command --destination-dir='/test/dir' --proxy-server='tele.blackmesa.gov:3023' --cluster='tele.blackmesa.gov' --no-tls-routing --no-connection-upgrade --resume --user=%r --host=%h --port=%p
 # Common flags for all tele.aperture.labs hosts
 Host *.tele.aperture.labs tele.blackmesa.gov
     UserKnownHostsFile "/test/dir/known_hosts"
@@ -21,6 +21,6 @@ Host *.tele.aperture.labs tele.blackmesa.gov
 # Flags for all tele.aperture.labs hosts except the proxy
 Host *.tele.aperture.labs !tele.blackmesa.gov
     Port 3022
-    ProxyCommand '/path/to/tbot' ssh-proxy-command --destination-dir='/test/dir' --proxy-server='tele.blackmesa.gov:443' --cluster='tele.aperture.labs' --no-tls-routing --no-connection-upgrade --resume --user=%r --host=%h --port=%p
+    ProxyCommand '/path/to/tbot' ssh-proxy-command --destination-dir='/test/dir' --proxy-server='tele.blackmesa.gov:3023' --cluster='tele.aperture.labs' --no-tls-routing --no-connection-upgrade --resume --user=%r --host=%h --port=%p
 
 # End generated Teleport configuration

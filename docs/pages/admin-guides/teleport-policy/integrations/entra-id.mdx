@@ -8,12 +8,12 @@ and offers insights into relationships in your Entra ID directory.
 Additionally, when Entra ID is used as an SSO identity provider, Teleport Policy visualizes
 SSO grants across your services.
 
-<Notice type="note">
+<Admonition type="note">
 SSO grant analysis is currently only supported in situations where Entra ID acts as the identity provider,
 and AWS accounts are set up as relying parties using AWS IAM role federation.
 
 Support for additional relying parties will be added in the future.
-</Notice>
+</Admonition>
 
 ## How it works
 
@@ -55,9 +55,9 @@ configuration and user requirements.
 
 ### Automatic setup with Teleport as an OIDC Provider for Entra ID
 
-<Notice type="tip">
+<Admonition type="tip">
 This method is recommended and is required if you are a Teleport Enterprise (Cloud) customer.
-</Notice>
+</Admonition>
 
 This method is suitable for Teleport clusters that are publicly accessible and lack Azure credentials on Auth
 Service nodes or pods.
@@ -252,10 +252,10 @@ Be sure to follow each step in the `tctl plugins install entraid` guide closely 
 
 This step configures the Azure Identity on your Auth Service machine with the required Entra ID permissions.
 
-<Notice type="warning">
+<Admonition type="warning">
 Follow this step only if you want to use system-available credentials to authenticate Teleport with Entra ID. 
 If you intend to use Teleport as an OIDC provider for Entra ID, you can skip this step.
-</Notice>
+</Admonition>
 
 
 - `Application.Read.All`
@@ -513,9 +513,9 @@ For clusters running in multiplex mode, this address will be the same as your pr
 If you chose to use Teleport as the OIDC provider for Entra ID in the previous step, remove the `--use-system-credentials`
 flag from the command below.
 
-<Notice type="note">
+<Admonition type="note">
 Currently, when using manual mode, it is not possible to operate without the `--no-access-graph` flag.
-</Notice>
+</Admonition>
 
 ```code
 # enable Access Graph integration if your license supports Teleport Policy.

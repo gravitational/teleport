@@ -19,7 +19,7 @@
 package common
 
 const (
-	GlobalHelpString = "Admin tool for the Teleport Access Platform"
+	GlobalHelpString = "Admin tool for the Teleport Infrastructure Identity Platform"
 
 	AddUserHelp = `Notes:
 

@@ -78,7 +78,7 @@ func (s *Server) updateDiscoveryConfigStatus(discoveryConfigName string) {
 	case trace.IsNotImplemented(err):
 		s.Log.WarnContext(ctx, "UpdateDiscoveryConfigStatus method is not implemented in Auth Server. Please upgrade it to a recent version.")
 	case err != nil:
-		s.Log.InfoContext(ctx, "Error updating discovery config status", "discovery_config_name", discoveryConfigName, "error", err)
+		s.Log.WarnContext(ctx, "Error updating discovery config status", "discovery_config_name", discoveryConfigName, "error", err)
 	}
 }
 
