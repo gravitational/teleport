@@ -363,8 +363,8 @@ github.com/go-sql-driver/mysql v1.8.1/go.mod h1:wEBSXgmK//2ZFJyE+qWnIsVGmvmEKlqw
 github.com/go-stack/stack v1.8.0/go.mod h1:v0f6uXyyMGvRgIKkXu+yp6POWl0qKG85gN/melR3HDY=
 github.com/go-task/slim-sprig/v3 v3.0.0 h1:sUs3vkvUymDpBKi3qH1YSqBQk9+9D/8M2mN1vB6EwHI=
 github.com/go-task/slim-sprig/v3 v3.0.0/go.mod h1:W848ghGpv3Qj3dhTPRyJypKRiqCdHZiAzKg9hl15HA8=
-github.com/go-webauthn/webauthn v0.12.1 h1:fQNKWc+gd7i1TW8FmlB0jQTHyc2GYYlV/QdLUxo+MSA=
-github.com/go-webauthn/webauthn v0.12.1/go.mod h1:Q13xKHZi459wU8IoFjm8jQ6CMRyad+kegblwMFFhQGU=
+github.com/go-webauthn/webauthn v0.11.2 h1:Fgx0/wlmkClTKlnOsdOQ+K5HcHDsDcYIvtYmfhEOSUc=
+github.com/go-webauthn/webauthn v0.11.2/go.mod h1:aOtudaF94pM71g3jRwTYYwQTG1KyTILTcZqN1srkmD0=
 github.com/go-webauthn/x v0.1.18 h1:9xxiKRKCHx/1R2RF+4xb1qY5QDIO0RlTmH5L02lmRH4=
 github.com/go-webauthn/x v0.1.18/go.mod h1:Q/uHdGGFrZ7psEcoEStYunurZuG3Z9UDZJetM8qDTtA=
 github.com/gobwas/glob v0.2.3 h1:A4xDbljILXROh+kObIiy5kIaPYD8e96x1tgBhUI5J+Y=
