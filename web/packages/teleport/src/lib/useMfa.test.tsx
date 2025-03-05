@@ -184,7 +184,7 @@ describe('useMfa', () => {
       throw err;
     });
 
-    const { result: mfa } = renderHook(() => useMfa({}));
+    const { result: mfa } = renderHook(() => useMfa({ req: mockChallengeReq }));
 
     await act(async () => {
       await expect(mfa.current.getChallengeResponse()).rejects.toThrow(err);
