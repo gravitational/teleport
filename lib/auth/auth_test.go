@@ -4526,13 +4526,20 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 		name      string
 		dueInDays int
 	}{
+		// These should trigger a single "due in less than 14 days" notification.
 		{name: "al-due-13d", dueInDays: 13},
 		{name: "al-due-12d", dueInDays: 12},
+		// This should trigger a "due in less than 7 days" notification.
 		{name: "al-due-5d", dueInDays: 5},
+		// This should trigger a "due in less than 3 days" notification.
 		{name: "al-due-2d", dueInDays: 2},
+		// This should trigger an "overdue by more than 3 days" notification.
 		{name: "al-overdue-4d", dueInDays: -4},
-		{name: "al-overdue-8d", dueInDays: -8},
-		{name: "al-due-60d", dueInDays: 60}, // there should be no notification for this one
+		// This should trigger an "overdue by more than 7 days" notification.
+		{name: "al-overdue-10d", dueInDays: -10},
+		// This should not trigger a notification.
+		{name: "al-due-60d", dueInDays: 60},
+		// This should trigger a "due today" notification.
 		{name: "al-overdue-today", dueInDays: 0},
 	}
 
