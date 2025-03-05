@@ -4,40 +4,37 @@ description: A guide for gradually migrating an Identity Center instance from Ok
 tocDepth: 3
 ---
 
-## Overview
+The goal of this guide is to allow you to perform a staged migration from
+Okta-managed Identity Center users & groups, to having them managed by Teleport
+while preserving Okta as your AWS SSO provider.
 
-The goal of this guide is to alow you to transition from Okta managing
-Identity Center users and groups to Teleport management, including having
-Teleport control individual user and group Account Assignments.
+This approach lets you get set up with a minimal Teleport Identity Center
+integration that you can expand as you gain expertise and confidence with
+Teleport, as well as offering deployment options that are not available with a 
+"standard" Teleport Identity Center configuration, such as having Teleport deployed
+in a private network.
 
-By default, Teleport controls all user and group provisioning into 
-Identity Center, which is fine for a new deployment, but can cause issues in an
-existing deployment. In this guide we will describe how to transition control
-from Okta to Teleport in a staged fashion, so that you can move across
-incrementally as you gain confidence with Teleport's Identity Center integration.
+## How it works
 
-## Prerequisites
+By default, the Teleport Identity Center integration
+- controls all user and group provisioning into Identity Center, and 
+- becomes the SSO provider for AWS. 
 
- - A working Teleport cluster
- - An AWS role configured as per the [Identity Center guide](./aws-iam-identity-center.mdx)
-   for the integration to use
- - AWS credentials configured for the Teleport auth process to pick up and use 
-   (e.g. as environment vars, system profiles, etc)
- - An Okta API token, with the following privileges:
-   - View users and their details
-   - View groups and their details
-   - View applications and their details
- - The AWS Identity Center ARN, AWS region, SCIM base address and SCIM bearer token
+This is fine for most deployments, but can cause difficulties when deploying into
+a sophisticated, Okta-managed AWS Identity Center configuration. 
 
-## Migration Path
+By contrast, the deployment in this guide will transition transition control
+from Okta to Teleport in a staged fashion.
 
-### Starting Point
+### Migration Path
+
+#### Starting Point
 
 This is our starting configuration: Okta as sole Identity Source for Identity Center
 
 ![Migration Starting Point](../../../../img/identity-center/ic-migrate-start.png)
 
-### Midway
+#### Midway
 
 This is the point where you can start migrating control of users and groups from
 Okta to Teleport. At this stage:
@@ -51,13 +48,26 @@ Okta to Teleport. At this stage:
 
 ![Migration Mid Point](../../../../img/identity-center/ic-migrate-mid.png)
 
-### Ending point
+#### Ending point
 
 Once Teleport is in control of all the users and groups you want to provision
 into Identity Center, the Okta Provisioning and Push Groups functions can be
 retired, leaving Okta only providing SSO login.
 
 ![Migration End Point](../../../../img/identity-center/ic-migrate-end.png)
+
+## Prerequisites
+
+ - A working Teleport cluster
+ - An AWS role configured as per the [Identity Center guide](./aws-iam-identity-center.mdx)
+   for the integration to use
+ - AWS credentials configured for the Teleport auth process to pick up and use 
+   (e.g. as environment vars, system profiles, etc)
+ - An Okta API token, with the following privileges:
+   - View users and their details
+   - View groups and their details
+   - View applications and their details
+ - The AWS Identity Center ARN, AWS region, SCIM base address and SCIM bearer token
 
 ## Step 1: Install Okta SAML connector
 
@@ -199,12 +209,117 @@ Assignment roles created by the Identity Center integration, assigning it a
 custom Teleport role that specifies a specific combination of access, or a
 combination of each.
 
-For more information, see the [Identity Center Integration guide](./aws-iam-identity-center.mdx)
+For more information, see the [Identity Center integration guide](./aws-iam-identity-center.mdx)
 
-## Step 6: Retire Okta group provisioning
+## Step 6: Expanding Teleport integration scope
+
+Once you are satisfied with the way Teleport is handling the initial set of
+imported AWS resources, you can expand the scope of the Identity Center
+integration by editing the plugin import features. 
+
+
+### With `tctl edit`
+
+<Admonition type="warning">
+This currently involves manually editing the Identity Center's integration 
+resource using `tctl`, which is a dangerous operation. Please ensure you take a
+backup of the plugin resource so you can roll back if necessary.
+
+A guided editing workflow is currently under development.
+</Admonition>
+
+You can expand the scope of the Teleport Identity Center integration by editing
+the integration's plugin resource with `tctl`.
+
+```console
+./tctl edit plugins/aws-identity-center
+```
+
+The plugin resource is a YAML document that looks something like this:
+
+```YAML
+kind: plugin
+version: v1
+metadata:
+  labels:
+    teleport.dev/hosted-plugin: "true"
+  name: aws-identity-center
+spec:
+  Settings:
+    aws_ic:
+      # Account import filters. An absent or empty list of filters implies "manage all AWS accounts"
+      aws_accounts_filters:
+      - Include:
+          id: "637423191929"
+      - Include:
+          id: "730335414865"
+      - Include:
+          id: "058264527036"
+      - Include:
+          name_regex: ^Staging-.*$
+
+      # User provisioning filters. An absent or empty list of filters implies "provision all users to AWS"
+      user_sync_filters:
+      - labels:
+          teleport.dev/origin: okta
+
+      # Group import filters. See notes below. 
+      group_sync_filters:
+      - Include:
+          name_regex: '^Group #00\d+$'
+
+      access_list_default_owners:
+      - admin
+      arn: arn:aws:sso:::instance/ssoins-722326ecc902a06a
+      credentials_source: 2
+      integration_name: aws-identity-center
+      provisioning_spec:
+        base_url: https://scim.us-east-1.amazonaws.com/f3v9c6bc2ca-b104-4571-b669-f2eba522efe8/scim/v2
+      region: us-east-1
+```
+
+You can add or remove filters to the various filters. Once you save and quit the
+editor, `tctl` will replace the existing resource with your updated version. This
+will automatically restart the Identity Center Integration with the ne2 filters.
+
+<Admonition type="note">
+As of Teleport 17.3, the `group_sync_filters` are only applied during the initial
+import at installation time, and there is no user accessible method of re-triggering
+the import. The only way to apply new group filters is to uninstall and re-install
+the plugin. 
+
+A later release of Teleport will re-trigger a group import when it detects a
+change in the group import filters.
+</Admonition>
+
+### Uninstall/reinstall
+
+A second alternative is to [uninstall](#deleting-the-identity-center-integration)
+and re-install the integration with the new parameters. Be warned that this may 
+result in user access disruptions while the integration is offline.
+
+## Step 7: Retire Okta group provisioning
 
 Once you are happy that a group has been migrated to Teleport control, you can
 remove the corresponding push Group from the Okta Identity Center integration.
 
 Depending on the version of Okta, you _may_ have to manually delete the Identity
 Center Group using the AWS console. 
+
+## Deleting the Identity Center integration
+
+If you decide not to switch over to Teleport you can delete the Identity Center
+integration in two ways.
+
+### Delete integration in Teleport UI
+
+Find the `AWS IAM Identity Center` integration in the Teleport integrations page
+and select *Delete...* from  the integration options.
+
+![Delete Integration](../../../../img/identity-center/ic-delete.png)
+
+### Delete integration with `tctl`
+
+```
+$ ./tctl plugins delete aws-identity-center
+```
