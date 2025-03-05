@@ -1,0 +1,42 @@
+---
+title: "Connecting to AWS RDS Oracle with Kerberos Authentication"
+description: "Guide to accessing an AWS RDS Oracle instance using Kerberos authentication."
+---
+
+This is a placeholder guide with minimal instructions. A more comprehensive version will be available later.
+
+
+## Prepare the Oracle RDS Instance  
+Ensure your Oracle RDS instance has Kerberos authentication enabled. Follow the AWS setup guide:  
+[**AWS RDS Oracle Kerberos Setup**](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/oracle-kerberos-setting-up.html).
+
+## Install Teleport with a Database Agent  
+Deploy Teleport with a database agent on a machine that can reach your Oracle RDS instance.  
+Verify connectivity manually or use the AWS Console helper to grant access to an EC2 instance.
+
+## Generate a Keytab File for Your Database User  
+Use `ktutil` to create a keytab file or refer to the keytab section of this guide:  
+[**Teleport AWS Database Enrollment - SQL Server**](https://goteleport.com/docs/enroll-resources/database-access/enroll-aws-databases/sql-server-ad/).
+
+## Configure Teleport for RDS Oracle  
+Add an entry for your RDS Oracle instance in your `teleport.yaml` configuration:
+
+```yaml
+db_service:
+  enabled: true
+  databases:
+  - name: oracle-rds
+    protocol: oracle
+    uri: oracle-instance.aabbccddeegg.eu-central-1.rds.amazonaws.com:2484
+    ad:
+      keytab_file: /path/to/kerberos/teleport.keytab
+      krb5_file: /path/to/kerberos/krb5.conf
+      domain: YOURDOMAIN.COM
+```
+
+## Connect to the Database  
+Run the following command to establish a connection:
+
+```sh
+tsh db connect --db-user my_user --db-name MYPDB
+```
