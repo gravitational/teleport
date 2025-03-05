@@ -427,6 +427,54 @@ command supports these additional flags:
 | `--reader-group`       | An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux. |
 | `--kubernetes-cluster` | The name of the Kubernetes cluster in Teleport for which to fetch credentials |
 
+## tbot start kubernetes/v2
+
+Starts the Machine ID client `tbot` with a Kubernetes V2 output, fetching and
+writing Kubernetes credentials to a `kubeconfig.yaml` at a regular interval to
+the output specified with `--destination`.
+
+Unlike the `kubernetes` output, `kubernetes/v2` allows fetching many Kubernetes
+clusters at once, as multiple contexts within the generated `kubeconfig.yaml`.
+If label selectors are used and clusters are added or removed, the list of
+clusters will be updated on the bot's next renewal. At least one selector -
+either name or label - is required.
+
+Note that as with human users using `tsh kube ls`, only clusters the bot user
+has permission to access will be matched. Additionally, note that label
+selectors do not currently support wildcards.
+
+### Flags
+
+In addition to the [common `tbot start` flags](#common-start-flags), this
+command supports these additional flags:
+
+| Flag                    | Description |
+|-------------------------|-------------|
+| `--destination`         | A destination URI, such as file:///foo/bar. See [Destination URIs](#destination-uris) for more info. Required. |
+| `--reader-user`         | An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux. |
+| `--reader-group`        | An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux. |
+| `--name-selector`       | Selects a Kubernetes cluster by exact name match. Repeatable. |
+| `--label-selector`      | Selects many Kubernetes clusters by label match, e.g. `env=dev,role=ci`. Repeatable. |
+| `--disable-exec-plugin` | If set, disables the exec plugin. Allows credentials to be used without the `tbot` binary. |
+
+### Examples
+
+First, run `tbot` to generate credentials:
+
+```code
+$ tbot start kubernetes/v2 --proxy-server=example.teleport.sh:443 --destination=./example --label-selector env=dev --name-selector example --oneshot
+```
+
+This will fetch credentials for all clusters with the label `env: dev`, plus the
+cluster named `example`. You can then access the clusters using `kubectl`:
+
+```code
+$ kubectl --kubeconfig ./example/kubeconfig.yaml --context example.teleport.sh-example get pods
+```
+
+You can inspect the generated `kubeconfig.yaml` to see which clusters were
+matched by the label selector.
+
 ## tbot start application
 
 Starts the Machine ID client `tbot` with an application output, fetching and
