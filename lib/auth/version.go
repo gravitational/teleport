@@ -36,19 +36,33 @@ const (
 // meets our upgrade compatibility guide.
 func validateAndUpdateTeleportVersion(
 	ctx context.Context,
-	storage VersionStorage,
+	procStorage VersionStorage,
+	backendStorage VersionStorage,
+	serverID string,
 	currentVersion *semver.Version,
 ) error {
 	if skip := os.Getenv(skipVersionUpgradeCheckEnv); skip != "" {
 		return nil
 	}
 
-	lastKnownVersion, err := storage.GetTeleportVersion(ctx)
+	lastKnownVersion, err := backendStorage.GetTeleportVersion(ctx, serverID)
 	if trace.IsNotFound(err) {
-		if err := storage.WriteTeleportVersion(ctx, currentVersion); err != nil {
+		// TODO(vapopov): DELETE IN v19.0.0 last known version must be already migrated to backed storage.
+		// Fallback to local process storage for backward compatibility with previous versions.
+		lastKnownVersion, err = procStorage.GetTeleportVersion(ctx, serverID)
+		if trace.IsNotFound(err) {
+			if err := backendStorage.WriteTeleportVersion(ctx, serverID, currentVersion); err != nil {
+				return trace.Wrap(err)
+			}
+			return nil
+		} else if err != nil {
 			return trace.Wrap(err)
 		}
-		return nil
+
+		// Preserve last known version from process storage to backed storage.
+		if err := backendStorage.WriteTeleportVersion(ctx, serverID, lastKnownVersion); err != nil {
+			return trace.Wrap(err)
+		}
 	} else if err != nil {
 		return trace.Wrap(err)
 	}
@@ -67,8 +81,10 @@ func validateAndUpdateTeleportVersion(
 			"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
 			lastKnownVersion, currentVersion.String(), lastKnownVersion.Major-1)
 	}
-	if err := storage.WriteTeleportVersion(ctx, currentVersion); err != nil {
+
+	if err := backendStorage.WriteTeleportVersion(ctx, serverID, currentVersion); err != nil {
 		return trace.Wrap(err)
 	}
+
 	return nil
 }
