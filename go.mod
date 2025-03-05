@@ -186,7 +186,7 @@ require (
 	github.com/shirou/gopsutil/v4 v4.25.1
 	github.com/sigstore/cosign/v2 v2.4.1
 	github.com/sigstore/sigstore v1.8.12
-	github.com/sijms/go-ora/v2 v2.8.23
+	github.com/sijms/go-ora/v2 v2.8.24
 	github.com/snowflakedb/gosnowflake v1.13.0
 	github.com/spf13/cobra v1.8.1
 	github.com/spiffe/go-spiffe/v2 v2.5.0
