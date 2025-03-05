@@ -58,7 +58,6 @@ import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 import type * as docTypes from 'teleterm/ui/services/workspacesService';
 
 import imgNoVnetCurl from './no-vnet-curl.png';
-import imgNoVnetProxy from './no-vnet-proxy.png';
 import svgWebAppWithoutVnet from './recording-proxy.svg';
 import svgWebAppVnet from './session-recording.svg';
 import imgVnetCurl from './vnet-curl.png';
@@ -159,15 +158,13 @@ export function DocumentVnetDiagReport(props: {
         mx="auto"
         mt={4}
         p={5}
-        backgroundColor="levels.surface"
-        borderRadius={2}
         // Without this, the Stack would span the whole height of the Document, no matter how much
         // content was displayed in the Stack.
         alignSelf="flex-start"
       >
         <Flex width="100%" gap={5} flexWrap="wrap">
-          <Stack gap={2}>
-            <H1>Teleport VNet</H1>
+          <Stack gap={3}>
+            <H1 fontSize={32}>Teleport VNet</H1>
 
             <P1
               css={`
@@ -177,9 +174,17 @@ export function DocumentVnetDiagReport(props: {
               VNet automatically proxies connections from your computer to TCP
               apps available through Teleport. Any program on your device can
               connect to an application behind Teleport with no extra steps.
+            </P1>
+            <P1
+              m={0}
+              css={`
+                max-width: 60ch;
+              `}
+            >
               Underneath, VNet authenticates the connection with your
-              credentials. This is all done client-side – VNet sets up a local
-              DNS name server, a virtual network device, and a proxy.
+              credentials. Everything&nbsp;happens client-side – VNet sets up a
+              local DNS name server, a&nbsp;virtual&nbsp;network device, and a
+              proxy.
             </P1>
             <P1 m={0}>VNet makes it easy to connect to…</P1>
           </Stack>
@@ -208,96 +213,89 @@ export function DocumentVnetDiagReport(props: {
         </Flex>
 
         <Stack gap={5}>
-          <Stack gap={3} width="100%">
-            <Flex
-              width="100%"
-              alignItems="baseline"
-              gap={4}
-              flexWrap="wrap"
-              justifyContent="space-between"
-            >
-              <H2>TCP APIs</H2>
+          {/* TCP APIs */}
+          <Stack
+            pt={3}
+            pb={4}
+            px={4}
+            gap={3}
+            width="100%"
+            borderRadius={3}
+            backgroundColor="levels.surface"
+            alignItems="center"
+            css={`
+              position: relative;
+              // TODO: Create a prop for box shadow.
+              box-shadow: ${props => props.theme.boxShadow[0]};
+            `}
+          >
+            <H1>TCP APIs</H1>
 
-              <Button
-                fill="minimal"
-                intent="neutral"
-                as="a"
-                href="https://goteleport.com/docs/enroll-resources/application-access/guides/vnet/"
-                target="_blank"
-                inputAlignment
-              >
-                Learn More
-              </Button>
-            </Flex>
+            <LearnMoreButton href="https://goteleport.com/docs/enroll-resources/application-access/guides/vnet/">
+              Learn More
+            </LearnMoreButton>
 
-            <Flex width="100%" gap={4} flexWrap="wrap">
-              <Stack
-                flex={1}
-                p={3}
-                gap={2}
-                borderRadius={3}
-                minWidth="400px"
-                maxWidth="600px"
-                backgroundColor="levels.elevated"
-                borderColor="levels.popout"
-                borderWidth={2}
-                borderStyle="solid"
-              >
-                <Stack>
-                  <H3>With VNet</H3>
+            <Flex width="100%" gap={7} flexWrap="wrap">
+              <Stack flex={1} gap={2} width="100%">
+                <Stack alignItems="center" width="100%">
+                  <H2>With VNet</H2>
                   {/*
                 <P2>No local proxy needed – connect directly to the app.</P2>
                   */}
-                  <P2>Connect directly to the app.</P2>
+                  <P1>Connect directly to the app.</P1>
                 </Stack>
 
-                <ResponsiveImage src={imgVnetCurl} alt="curl call with VNet" />
+                <ResponsiveImage
+                  src={imgVnetCurl}
+                  alt="curl call with VNet"
+                  css={`
+                    box-shadow: ${props => props.theme.boxShadow[2]};
+                  `}
+                />
               </Stack>
 
-              <Stack
-                flex={2}
-                p={3}
-                gap={2}
-                borderRadius={3}
-                minWidth="800px"
-                // backgroundColor="levels.elevated"
-                borderColor="levels.popout"
-                borderWidth={2}
-                borderStyle="dashed"
-              >
-                <Stack>
-                  <H3>Without VNet</H3>
-                  <P2>
-                    A local proxy has to be set up first. The client program
-                    needs to connect over localhost on the correct port.
-                  </P2>
+              <Stack flex={1} gap={2} width="100%">
+                <Stack alignItems="center" width="100%">
+                  <H2>Without VNet</H2>
+                  <P1 textAlign="center">
+                    Cannot connect directly, a proxy has to be set up first with
+                    its&nbsp;own port.
+                  </P1>
                 </Stack>
 
-                <Flex width="100%" gap={3}>
-                  <div>
-                    <ResponsiveImage src={imgNoVnetProxy} alt="tsh proxy app" />
-                  </div>
-                  <div>
-                    <ResponsiveImage
-                      src={imgNoVnetCurl}
-                      alt="curl call without VNet"
-                    />
-                  </div>
-                </Flex>
+                <ResponsiveImage
+                  src={imgNoVnetCurl}
+                  alt="curl call without VNet"
+                  css={`
+                    box-shadow: ${props => props.theme.boxShadow[2]};
+                  `}
+                />
               </Stack>
             </Flex>
           </Stack>
 
-          <Stack gap={3} width="100%">
-            <Flex
-              width="100%"
-              alignItems="baseline"
-              gap={4}
-              flexWrap="wrap"
-              justifyContent="space-between"
-            >
-              <H2>Web Applications With 3rd-Party SSO</H2>
+          {/* Web apps */}
+          <Stack
+            pt={3}
+            pb={4}
+            px={4}
+            gap={3}
+            width="100%"
+            borderRadius={3}
+            backgroundColor="levels.surface"
+            alignItems="center"
+            css={`
+              position: relative;
+              // TODO: Create a prop for box shadow.
+              box-shadow: ${props => props.theme.boxShadow[0]};
+            `}
+          >
+            <H1>Web Applications With 3rd-Party SSO</H1>
 
+            <LearnMoreButton href="https://goteleport.com/docs/enroll-resources/application-access/guides/vnet/#accessing-web-apps-through-vnet">
+              Learn More
+            </LearnMoreButton>
+            {/*
               <Button
                 fill="minimal"
                 intent="neutral"
@@ -308,59 +306,39 @@ export function DocumentVnetDiagReport(props: {
               >
                 Learn More
               </Button>
-            </Flex>
+                */}
 
-            <Flex width="100%" gap={4} flexWrap="wrap">
-              <Box
-                p={3}
-                flex={1}
-                borderRadius={3}
-                backgroundColor="levels.elevated"
-                borderColor="levels.popout"
-                borderWidth={2}
-                borderStyle="solid"
-                css={`
-                  display: grid;
-                  gap: ${props => props.theme.space[2]}px;
-                  grid-auto-flow: row;
-                  grid-auto-columns: 1fr;
-                `}
-              >
-                <Stack>
-                  <H3>With VNet</H3>
-                  <P2>
-                    The app is protected from unauthenticated traffic by
-                    Teleport in a way that is transparent to&nbsp;VNet users.
-                    It's accessible under the same domain with no changes to the
-                    SSO setup.
-                  </P2>
+            <Flex width="100%" gap={7} flexWrap="wrap">
+              <Stack flex={1} gap={2} width="100%">
+                <Stack alignItems="center" width="100%">
+                  <H2>With VNet</H2>
+                  <P1>
+                    The app is protected from unauthenticated traffic in a way
+                    that is transparent to&nbsp;users, accessible under the same
+                    domain with no changes to the SSO setup.
+                  </P1>
                 </Stack>
 
-                <Box flex={1} backgroundColor="white" px={2} py={3}>
+                <Box
+                  flex={1}
+                  backgroundColor="white"
+                  px={2}
+                  py={3}
+                  width="100%"
+                  css={`
+                    box-shadow: ${props => props.theme.boxShadow[2]};
+                  `}
+                >
                   <ResponsiveImage
                     alt="Web app with VNet"
                     src={svgWebAppVnet}
                   />
                 </Box>
-              </Box>
+              </Stack>
 
-              <Box
-                p={3}
-                flex={1}
-                borderRadius={3}
-                // backgroundColor="levels.elevated"
-                borderColor="levels.popout"
-                borderWidth={2}
-                borderStyle="dashed"
-                css={`
-                  display: grid;
-                  gap: ${props => props.theme.space[2]}px;
-                  grid-auto-flow: row;
-                  grid-auto-columns: 1fr;
-                `}
-              >
-                <Stack>
-                  <H3>Without VNet</H3>
+              <Stack flex={1} gap={2} width="100%">
+                <Stack alignItems="center" width="100%">
+                  <H2>Without VNet</H2>
                   {/*
                   <P2>
                     Access to the app is gated by both Teleport Proxy Service
@@ -368,22 +346,38 @@ export function DocumentVnetDiagReport(props: {
                     domain of the Proxy Service, so SSO redirect URLs need to be
                     updated.
                   </P2>
-                  */}
                   <P2>
                     Either the app accepts Internet traffic and is protected
                     only by SSO or it is behind Teleport, so admins have to
                     update redirect URLs and users authenticate with both
                     Teleport and SSO.
                   </P2>
+                  */}
+                  <P1>
+                    The app is <em>not</em> protected from unauthenticated
+                    traffic, with access gated only by&nbsp;SSO. If put behind
+                    Teleport, the app's domain changes and redirect URLs have to
+                    be updated. Users must log&nbsp;in to both Teleport and the
+                    SSO provider.
+                  </P1>
                 </Stack>
 
-                <Box backgroundColor="white" px={2} py={3}>
+                <Box
+                  flex={1}
+                  backgroundColor="white"
+                  px={2}
+                  py={3}
+                  width="100%"
+                  css={`
+                    box-shadow: ${props => props.theme.boxShadow[2]};
+                  `}
+                >
                   <ResponsiveImage
                     alt="Web app without VNet"
                     src={svgWebAppWithoutVnet}
                   />
                 </Box>
-              </Box>
+              </Stack>
             </Flex>
           </Stack>
         </Stack>
@@ -391,6 +385,40 @@ export function DocumentVnetDiagReport(props: {
     </Document>
   );
 }
+
+const wip = (
+  <Box
+    p={3}
+    flex={1}
+    css={`
+      display: grid;
+      gap: ${props => props.theme.space[2]}px;
+      grid-auto-flow: row;
+      grid-auto-columns: 1fr;
+    `}
+  >
+    <Stack>
+      <H2>Without VNet</H2>
+      {/*
+                  <P2>
+                    Access to the app is gated by both Teleport Proxy Service
+                    and 3rd-party SSO. The app is now accessible under the
+                    domain of the Proxy Service, so SSO redirect URLs need to be
+                    updated.
+                  </P2>
+                  */}
+      <P2>
+        Either the app accepts Internet traffic and is protected only by SSO or
+        it is behind Teleport, so admins have to update redirect URLs and users
+        authenticate with both Teleport and SSO.
+      </P2>
+    </Stack>
+
+    <Box backgroundColor="white" px={2} py={3}>
+      <ResponsiveImage alt="Web app without VNet" src={svgWebAppWithoutVnet} />
+    </Box>
+  </Box>
+);
 
 /**
  * CheckAttempt displays the result of attempting to run an individual check along with the outputs
@@ -554,3 +582,15 @@ const Success = styled(SuccessIcon).attrs({
 const Alert = (props: Pick<AlertProps, 'children' | 'details' | 'kind'>) => (
   <DesignAlert m={0} width="100%" {...props} />
 );
+
+const LearnMoreButton = styled(Button).attrs({
+  size: 'small',
+  fill: 'minimal',
+  intent: 'neutral',
+  forwardedAs: 'a',
+  target: '_blank',
+})`
+  // TODO: Make sure it doesn't overlap with the section header on narrow widths.
+  position: absolute;
+  right: ${props => props.theme.space[3]}px;
+`;
