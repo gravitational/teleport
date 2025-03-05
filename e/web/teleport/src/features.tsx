@@ -74,7 +74,7 @@ class FeatureRoles extends OSS.FeatureRoles {
 }
 
 class FeatureNewAccessRequest implements TeleportFeature {
-  category = NavigationCategory.Identity;
+  category = NavigationCategory.IdentityGovernance;
 
   parent = FeatureAccessRequests;
 
@@ -98,7 +98,7 @@ class FeatureNewAccessRequest implements TeleportFeature {
 }
 
 class FeatureAccessRequests implements TeleportFeature {
-  category = NavigationCategory.Identity;
+  category = NavigationCategory.IdentityGovernance;
 
   route = {
     title: 'Access Requests',
@@ -213,7 +213,7 @@ class FeatureSupport implements TeleportFeature {
 // ****************************
 
 class FeatureAccessMonitoring implements TeleportFeature {
-  category = NavigationCategory.Identity;
+  category = NavigationCategory.IdentityGovernance;
 
   route = {
     title: 'Access Monitoring',
@@ -246,7 +246,7 @@ class FeatureAuthConnectors extends OSS.FeatureAuthConnectors {
 }
 
 class FeatureAccessListManagement implements TeleportFeature {
-  category = NavigationCategory.Identity;
+  category = NavigationCategory.IdentityGovernance;
 
   route = {
     title: 'Manage Access Lists',
@@ -300,7 +300,7 @@ class FeatureNewAccessList implements TeleportFeature {
 }
 
 class FeatureDeviceTrust implements TeleportFeature {
-  category = NavigationCategory.Identity;
+  category = NavigationCategory.IdentityGovernance;
 
   route = {
     title: 'Trusted Devices',
@@ -442,7 +442,7 @@ class FeatureUsersE extends OSS.FeatureUsers {
 }
 
 class FeatureAccessGraph implements TeleportFeature {
-  category = NavigationCategory.Policy;
+  category = NavigationCategory.IdentitySecurity;
 
   route = {
     title: `Access Graph - ${NavTitle.AccessGraphDashboard}`,
@@ -594,6 +594,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     new FeatureUsersE(),
     new FeatureRoles(),
     new OSS.FeatureBots(),
+    new OSS.FeatureAddBotsShortcut(),
     new OSS.FeatureJoinTokens(),
     new FeatureAuthConnectors(),
     new FeatureIntegrations(),
