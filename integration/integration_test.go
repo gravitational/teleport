@@ -7520,9 +7520,8 @@ type serviceCfgOpt func(cfg *servicecfg.Config, isRoot bool)
 func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraServices func(*testing.T, *helpers.TeleInstance, *helpers.TeleInstance), cfgOpts ...serviceCfgOpt) (*client.TeleportClient, *helpers.TeleInstance, *helpers.TeleInstance) {
 	ctx := context.Background()
 	username := suite.Me.Username
-	name := "test"
-	rootName := fmt.Sprintf("root-%s", name)
-	leafName := fmt.Sprintf("leaf-%s", name)
+	rootName := "root-test"
+	leafName := "leaf-test"
 
 	// Create root and leaf clusters.
 	rootCfg := helpers.InstanceConfig{
@@ -7647,6 +7646,14 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 		require.NoError(t, tc.AddTrustedCA(context.Background(), leafCA))
 	}
 
+	// Wait for the nodes to be visible to both Proxy instances.
+	if root.Config.SSH.Enabled {
+		require.NoError(t, root.WaitForNodeCount(ctx, rootName, 2))
+	}
+	if leaf.Config.SSH.Enabled {
+		instance := helpers.TeleInstance{Tunnel: leaf.Tunnel}
+		require.NoError(t, instance.WaitForNodeCount(ctx, leafName, 2))
+	}
 	return tc, root, leaf
 }
 
