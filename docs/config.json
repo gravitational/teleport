@@ -394,7 +394,7 @@
     },
     {
       "source": "/enroll-resources/auto-discovery/reference/aws-iam/",
-      "destination": "/reference/agent-services/auto-discovery-reference/aws-iam",
+      "destination": "/reference/agent-services/auto-discovery-reference/aws-iam/",
       "permanent": true
     },
     {
