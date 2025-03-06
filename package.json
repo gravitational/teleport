@@ -30,7 +30,7 @@
   "private": true,
   "pnpm": {
     "overrides": {
-      "jsdom@^20.0.3>nwsapi@^2.2.0": "2.2.9",
+      "jsdom@^20.0.3>nwsapi@^2": "2.2.9",
       "electron-vite@^3.0.0>esbuild@0.24.2": "^0.25.0"
     }
   },
