@@ -34,14 +34,14 @@ import (
 
 // SystemdAttestor attests the identity of a Systemd service.
 type SystemdAttestor struct {
-	cfg        SystemdAttestorConfig
 	log        *slog.Logger
 	dbusDialer func(context.Context) (dbusConn, error)
 }
 
 // NewSystemdAttestor creates a SystemdAttestor with the given configuration.
-func NewSystemdAttestor(cfg SystemdAttestorConfig, log *slog.Logger) *SystemdAttestor {
+func NewSystemdAttestor(_ SystemdAttestorConfig, log *slog.Logger) *SystemdAttestor {
 	return &SystemdAttestor{
+		log: log,
 		dbusDialer: func(ctx context.Context) (dbusConn, error) {
 			return dbus.NewWithContext(ctx)
 		},
