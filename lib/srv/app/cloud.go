@@ -225,9 +225,8 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 	awsCfg, err := awsconfig.GetConfig(ctx, region,
 		append(c.cfg.AWSConfigOptions,
 			awsconfig.WithCredentialsMaybeIntegration(req.Integration),
-			awsconfig.WithDetailedAssumeRole(assumeRole),
-			awsconfig.WithCredentialsMaybeIntegration(req.Integration),
 			awsconfig.WithBaseConfig(baseCfg),
+			awsconfig.WithDetailedAssumeRole(assumeRole),
 		)...,
 	)
 	if err != nil {

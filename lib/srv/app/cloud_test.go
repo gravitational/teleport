@@ -249,9 +249,9 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 
 			c, err := NewCloud(CloudConfig{
 				AWSConfigOptions: []awsconfig.OptionsFn{
-					awsconfig.WithSTSClientProvider(func(_ aws.Config) awsconfig.STSClient {
-						return &mocks.STSClient{}
-					}),
+					awsconfig.WithSTSClientProvider(
+						mocks.NewAssumeRoleClientProviderFunc(&mocks.STSClient{}),
+					),
 				},
 				Logger: slog.New(logutils.DiscardHandler{}),
 			})
