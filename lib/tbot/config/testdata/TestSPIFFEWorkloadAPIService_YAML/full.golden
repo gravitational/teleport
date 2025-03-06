@@ -32,4 +32,6 @@ attestors:
       anonymous: true
   podman:
     enabled: false
+  docker:
+    enabled: false
 jwt_svid_ttl: 5m0s

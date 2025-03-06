@@ -11,5 +11,7 @@ attestors:
       anonymous: true
   podman:
     enabled: false
+  docker:
+    enabled: false
 selector:
   name: my-workload-identity

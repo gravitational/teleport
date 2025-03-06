@@ -44,6 +44,8 @@ services:
         enabled: false
       podman:
         enabled: false
+      docker:
+        enabled: false
   - type: example
     message: llama
   - type: ssh-multiplexer
@@ -69,6 +71,8 @@ services:
       kubernetes:
         enabled: false
       podman:
+        enabled: false
+      docker:
         enabled: false
     selector:
       name: my-workload-identity
