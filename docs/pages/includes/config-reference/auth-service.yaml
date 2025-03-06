@@ -415,3 +415,34 @@ auth_service:
       report_results: s3://audit-long-term/report_results
       # (Optional) Athena workgroup used by access monitoring queries (if not set, the default primary workgroup will be used).
       workgroup: access_monitoring_workgroup
+    # Enables storing CAs in an external Hardware Security Module(HSM) or Key Management Service(KMS)
+    # Only one of the options can be enbabled at a given time.
+    ca_key_params:
+      # Persist CAs to Google Cloud KMS.
+      gcp_kms:
+        # The fully qualified path to the GCP key ring where CAs are to be stored.
+        keyring: 'projects/<your-gcp-project>/locations/<location>/keyRings/<your-teleport-keyring>'
+        # The protection level of the keys. Must be either SOFTWARE or HSM.
+        protection_level: 'SOFTWARE'
+      # Persist CAs to AWS KMS.
+      aws_kms:
+        # The AWS account where keys should be stored.
+        account: '123456789012'
+        # The AWS region where keys will be stored.
+        region: 'us-west-2'
+      # Persist CAs to a PKCS#11 compliant HSM.
+      pkcs11:
+        # this is the default install location of the PKCS#11 module for the HSM.
+        module_path: /opt/cloudhsm/lib/libcloudhsm_pkcs11.so
+        # slot_number is the PKCS#11 slot number to use for HSM connections.
+        slot_number: 0
+        # token_label is the label of the PKCS#11 token to use for HSM connections.
+        token_label: 'hsm1'
+        # max_sessions configures the maximum number of open sessions for the HSM.
+        # If not set, it will default to the minimum of 1024 or the MaxRWSessionCount
+        # reported by the PKCS#11 module for the token. If set, must be greater than 1.
+        max_sessions: 10
+        # pin is the PKCS#11 pin to use for HSM connections.
+        pin: '0001password'
+        # pin_path can optionally be used to read the pin from a file
+        # pin_path: /path/to/pin_file
