@@ -618,11 +618,6 @@ func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *authpb.UserCert
 	}
 
 	if req.Purpose == authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
-		if req.MFAResponse != nil {
-			if _, ok := req.MFAResponse.Response.(*authpb.MFAAuthenticateResponse_TOTP); ok {
-				return nil, trace.BadParameter("per-session MFA is not satisfied by OTP devices")
-			}
-		}
 		certs, err := g.generateUserSingleUseCerts(ctx, auth, req)
 		return certs, trace.Wrap(err)
 	}
@@ -666,6 +661,12 @@ func validateUserCertsRequest(actx *grpcContext, req *authpb.UserCertsRequest) e
 
 	if req.Purpose != authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
 		return nil
+	}
+
+	if req.MFAResponse != nil {
+		if _, ok := req.MFAResponse.Response.(*authpb.MFAAuthenticateResponse_TOTP); ok {
+			return trace.BadParameter("per-session MFA is not satisfied by OTP devices")
+		}
 	}
 
 	// Single-use certs require current user.
