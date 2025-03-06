@@ -66,9 +66,9 @@ type App struct {
 	SAMLAppPreset string `json:"samlAppPreset,omitempty"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
-	// AlwaysUseProxyPublicAddr will rebuild this app's fqdn based on the proxy public addr that the
+	// UseProxyPublicAddrAsFQDN will rebuild this app's fqdn based on the proxy public addr that the
 	// request originated from.
-	AlwaysUseProxyPublicAddr bool `json:"alwaysUseProxyPublicAddr,omitempty"`
+	UseProxyPublicAddrAsFQDN bool `json:"alwaysUseProxyPublicAddr,omitempty"`
 	// Integration is the integration name that must be used to access this Application.
 	// Only applicable to AWS App Access.
 	Integration string `json:"integration,omitempty"`
@@ -128,7 +128,7 @@ type MakeAppsConfig struct {
 // MakeApp creates an application object for the WebUI.
 func MakeApp(app types.Application, c MakeAppsConfig) App {
 	labels := ui.MakeLabelsWithoutInternalPrefixes(app.GetAllLabels())
-	proxyPublicAddr := utils.InferProxyPublicAddr(c.RequestHost, c.ProxyPublicAddrs, c.LocalProxyDNSName)
+	proxyPublicAddr := utils.InferProxyPublicAddr(c.RequestHost, c.ProxyPublicAddrs)
 
 	fqdn := utils.AssembleAppFQDN(c.LocalClusterName, proxyPublicAddr, c.AppClusterName, app)
 	var ugs types.UserGroups
@@ -176,7 +176,7 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		RequiresRequest:          c.RequiresRequest,
 		Integration:              app.GetIntegration(),
 		PermissionSets:           permissionSets,
-		AlwaysUseProxyPublicAddr: app.GetAlwaysUseProxyPublicAddr(),
+		UseProxyPublicAddrAsFQDN: app.GetAlwaysUseProxyPublicAddr(),
 	}
 
 	if app.IsAWSConsole() {

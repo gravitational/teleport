@@ -22,53 +22,46 @@ import (
 
 func TestInferProxyPublicAddr(t *testing.T) {
 	tests := []struct {
-		name              string
-		fqdn              string
-		proxyDNSNames     []string
-		defaultPublicAddr string
-		expected          string
-		expectErr         bool
+		name          string
+		fqdn          string
+		proxyDNSNames []string
+		expected      string
 	}{
 		{
-			name:              "Exact match",
-			fqdn:              "proxy.example.com",
-			proxyDNSNames:     []string{"proxy.example.com"},
-			defaultPublicAddr: "default",
-			expected:          "proxy.example.com",
+			name:          "Exact match",
+			fqdn:          "proxy.example.com",
+			proxyDNSNames: []string{"proxy.example.com"},
+			expected:      "proxy.example.com",
 		},
 		{
-			name:              "Tail match",
-			fqdn:              "app.proxy.example.com",
-			proxyDNSNames:     []string{"proxy.example.com"},
-			defaultPublicAddr: "default",
-			expected:          "proxy.example.com",
+			name:          "Tail match",
+			fqdn:          "app.proxy.example.com",
+			proxyDNSNames: []string{"proxy.example.com"},
+			expected:      "proxy.example.com",
 		},
 		{
-			name:              "No match returns default",
-			fqdn:              "nonexistent.domain.com",
-			proxyDNSNames:     []string{"proxy.example.com"},
-			defaultPublicAddr: "default",
-			expected:          "default",
+			name:          "No match returns first proxy DNS",
+			fqdn:          "nonexistent.domain.com",
+			proxyDNSNames: []string{"proxy.example.com"},
+			expected:      "proxy.example.com",
 		},
 		{
-			name:              "Empty FQDN returns default",
-			fqdn:              "",
-			proxyDNSNames:     []string{"proxy.example.com"},
-			defaultPublicAddr: "default",
-			expected:          "default",
+			name:          "Empty FQDN returns empty string",
+			fqdn:          "",
+			proxyDNSNames: []string{"proxy.example.com"},
+			expected:      "",
 		},
 		{
-			name:              "Empty proxy list returns default",
-			fqdn:              "some.domain.com",
-			proxyDNSNames:     []string{},
-			defaultPublicAddr: "default",
-			expected:          "default",
+			name:          "Empty proxy list returns empty string",
+			fqdn:          "some.domain.com",
+			proxyDNSNames: []string{},
+			expected:      "",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := InferProxyPublicAddr(tt.fqdn, tt.proxyDNSNames, tt.defaultPublicAddr)
+			result := InferProxyPublicAddr(tt.fqdn, tt.proxyDNSNames)
 			if result != tt.expected {
 				t.Errorf("expected %q, got %q", tt.expected, result)
 			}

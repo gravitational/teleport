@@ -92,7 +92,7 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 		publicAddrs = append(publicAddrs, addr.Host())
 	}
 
-	proxyPublicAddr := utils.InferProxyPublicAddr(addr.Host(), publicAddrs, h.c.WebPublicAddr)
+	proxyPublicAddr := utils.InferProxyPublicAddr(addr.Host(), publicAddrs)
 
 	urlString := makeAppRedirectURL(r, proxyPublicAddr, addr.Host(), p)
 	http.Redirect(w, r, urlString, http.StatusFound)

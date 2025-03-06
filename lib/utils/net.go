@@ -38,11 +38,27 @@ func ClientIPFromConn(conn net.Conn) (string, error) {
 	return clientIP, nil
 }
 
-// InferProxyPublicAddr tries to extract a proxyDNSName from a given fqdn and the list of proxy public addrs.
-// If a proxyDNS name is not found, the default param will be returned.
-func InferProxyPublicAddr(fqdn string, proxyDNSNames []string, defaultPublicAddr string) string {
-	if fqdn == "" || defaultPublicAddr == "" {
-		return defaultPublicAddr
+// InferProxyPublicAddr infers the proxy public address from a fully
+// qualified domain name (FQDN) by checking against a list of proxy
+// DNS names.
+//
+// Parameters:
+//
+//	fqdn - A string representing the fully qualified domain name to be
+//	       checked.
+//	proxyDNSNames - A slice of strings containing the list of known
+//	                proxy DNS names.
+//
+// Returns:
+//
+//	A string representing the best match for the proxy public address.
+//	If no match is found or if either argument is invalid (empty fqdn or
+//	empty proxyDNSNames), it returns an empty string. If no part of
+//	the FQDN matches any of the proxy DNS names, it defaults to
+//	returning the first proxy DNS name.
+func InferProxyPublicAddr(fqdn string, proxyDNSNames []string) string {
+	if len(proxyDNSNames) == 0 || fqdn == "" {
+		return ""
 	}
 	// Split the FQDN into its components.
 	fqdnParts := strings.Split(fqdn, ".")
@@ -55,5 +71,5 @@ func InferProxyPublicAddr(fqdn string, proxyDNSNames []string, defaultPublicAddr
 		}
 	}
 
-	return defaultPublicAddr
+	return proxyDNSNames[0]
 }

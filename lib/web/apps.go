@@ -164,7 +164,7 @@ func (h *Handler) getAppDetails(w http.ResponseWriter, r *http.Request, p httpro
 
 	fqdn := result.FQDN
 
-	proxyPublicAddr := utils.InferProxyPublicAddr(req.FQDNHint, h.proxyDNSNames(), h.proxyDNSName())
+	proxyPublicAddr := utils.InferProxyPublicAddr(req.FQDNHint, h.proxyDNSNames())
 	alwaysUseProxyPublicAddr := result.App.GetAlwaysUseProxyPublicAddr()
 	if alwaysUseProxyPublicAddr {
 		appName := strings.TrimSuffix(req.FQDNHint, proxyPublicAddr)
@@ -368,7 +368,7 @@ func (h *Handler) resolveApp(ctx context.Context, scx *SessionContext, params Re
 
 	resolvedApp := server.GetApp()
 
-	proxyPublicAddr := utils.InferProxyPublicAddr(params.FQDNHint, h.proxyDNSNames(), h.proxyDNSName())
+	proxyPublicAddr := utils.InferProxyPublicAddr(params.FQDNHint, h.proxyDNSNames())
 	fqdn := utils.AssembleAppFQDN(h.auth.clusterName, proxyPublicAddr, appClusterName, resolvedApp)
 
 	return &resolveAppResult{

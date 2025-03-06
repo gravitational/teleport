@@ -556,7 +556,7 @@ func HasName(r *http.Request, proxyPublicAddrs []utils.NetAddr) (string, bool) {
 		publicAddrs = append(publicAddrs, addr.Host())
 	}
 
-	proxyPublicAddr := utils.InferProxyPublicAddr(raddr.Host(), publicAddrs, publicAddrs[0])
+	proxyPublicAddr := utils.InferProxyPublicAddr(raddr.Host(), publicAddrs)
 
 	urlString := makeAppRedirectURL(r, proxyPublicAddr, raddr.Host(), launcherURLParams{})
 	return urlString, true

@@ -157,7 +157,7 @@ func ResolveFQDN(ctx context.Context, clt Getter, tunnel reversetunnelclient.Tun
 		return servers[0], clusterName.GetClusterName(), nil
 	}
 
-	proxyPublicAddr := utils.InferProxyPublicAddr(fqdn, proxyDNSNames, proxyDNSNames[0])
+	proxyPublicAddr := utils.InferProxyPublicAddr(fqdn, proxyDNSNames)
 
 	if !strings.HasSuffix(fqdn, proxyPublicAddr) {
 		return nil, "", trace.BadParameter("FQDN %q is not a subdomain of the proxy", fqdn)
