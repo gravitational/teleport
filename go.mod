@@ -91,11 +91,13 @@ require (
 	github.com/coreos/go-oidc v2.2.1+incompatible // replaced
 	github.com/coreos/go-oidc/v3 v3.12.0
 	github.com/coreos/go-semver v0.3.1
+	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/creack/pty v1.1.24
 	github.com/crewjam/saml v0.4.14
 	github.com/datastax/go-cassandra-native-protocol v0.0.0-20220706104457-5e8aad05cf90
 	github.com/digitorus/pkcs7 v0.0.0-20230818184609-3a137a874352
 	github.com/distribution/reference v0.6.0
+	github.com/docker/docker v27.5.1+incompatible
 	github.com/dustin/go-humanize v1.0.1
 	github.com/elastic/go-elasticsearch/v8 v8.17.1
 	github.com/elimity-com/scim v0.0.0-20240320110924-172bf2aee9c8
@@ -247,10 +249,6 @@ require (
 	sigs.k8s.io/yaml v1.4.0
 	software.sslmate.com/src/go-pkcs12 v0.5.0
 )
-
-require github.com/docker/docker v27.5.1+incompatible
-
-require github.com/coreos/go-systemd/v22 v22.5.0
 
 require (
 	cel.dev/expr v0.19.1 // indirect
