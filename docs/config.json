@@ -386,6 +386,21 @@
     {
       "source": "/upgrading/automatic-agent-updates/",
       "destination": "/upgrading/agent-managed-updates-v1/"
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/reference/",
+      "destination": "/reference/agent-services/auto-discovery-reference/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/reference/aws-iam/",
+      "destination": "/reference/agent-services/auto-discovery-reference/aws-iam",
+      "permanent": true
+    },
+    {
+      "source": "/reference/agent-services/kubernetes-application-discovery/",
+      "destination": "/reference/agent-services/auto-discovery-reference/kubernetes-application-discovery/",
+      "permanent": true
     }
   ]
 }
