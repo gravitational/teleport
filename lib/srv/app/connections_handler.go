@@ -141,6 +141,9 @@ func (c *ConnectionsHandlerConfig) CheckAndSetDefaults() error {
 	if c.TLSConfig == nil {
 		return trace.BadParameter("tls config missing")
 	}
+	if c.Logger == nil {
+		c.Logger = slog.Default().With(teleport.ComponentKey, teleport.Component(c.ServiceComponent))
+	}
 	if c.Cloud == nil {
 		cloud, err := NewCloud(CloudConfig{
 			Clock:            c.Clock,
@@ -157,9 +160,6 @@ func (c *ConnectionsHandlerConfig) CheckAndSetDefaults() error {
 	}
 	if c.ServiceComponent == "" {
 		return trace.BadParameter("service component missing")
-	}
-	if c.Logger == nil {
-		c.Logger = slog.Default().With(teleport.ComponentKey, teleport.Component(c.ServiceComponent))
 	}
 	return nil
 }
