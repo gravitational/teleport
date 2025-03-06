@@ -499,9 +499,6 @@ Only users who can `tctl get db_server` can see health info, so it's already gua
 
 We will enforce a minimum interval between health checks to prevent accidentally or intentionally dialing too often from agent to database.
 
-### Privacy
-
-N/A
 
 ### Proto Specification
 
