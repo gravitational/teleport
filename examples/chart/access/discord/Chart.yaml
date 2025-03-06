@@ -1,4 +1,4 @@
-.version: &version "16.4.17"
+.version: &version "16.4.17-dev.proxyipv6.1"
 
 apiVersion: v2
 name: teleport-plugin-discord

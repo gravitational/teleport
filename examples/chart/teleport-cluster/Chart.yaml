@@ -1,4 +1,4 @@
-.version: &version "16.4.17"
+.version: &version "16.4.17-dev.proxyipv6.1"
 
 name: teleport-cluster
 apiVersion: v2
