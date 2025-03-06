@@ -39,6 +39,7 @@ func TestWithLeaderLock(t *testing.T) {
 	require.NoError(t, process.Start())
 	t.Cleanup(func() {
 		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
