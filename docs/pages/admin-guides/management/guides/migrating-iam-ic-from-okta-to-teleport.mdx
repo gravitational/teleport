@@ -5,10 +5,10 @@ tocDepth: 3
 ---
 
 The goal of this guide is to allow you to perform a staged migration from
-Okta-managed Identity Center users & groups, to having them managed by Teleport
+Okta-managed AWS Identity Center users & groups, to having them managed by Teleport
 while preserving Okta as your AWS SSO provider.
 
-This approach lets you get set up with a minimal Teleport Identity Center
+This approach lets you get set up with a minimal Teleport AWS Identity Center
 integration that you can expand as you gain expertise and confidence with
 Teleport, as well as offering deployment options that are not available with a 
 "standard" Teleport Identity Center configuration, such as having Teleport deployed
@@ -16,7 +16,7 @@ in a private network.
 
 ## How it works
 
-By default, the Teleport Identity Center integration
+By default, the Teleport AWS Identity Center integration:
 - controls all user and group provisioning into Identity Center, and 
 - becomes the SSO provider for AWS. 
 
@@ -30,7 +30,7 @@ from Okta to Teleport in a staged fashion.
 
 #### Starting Point
 
-This is our starting configuration: Okta as sole Identity Source for Identity Center
+This is our starting configuration: Okta as sole Identity Source for Identity Center.
 
 ![Migration Starting Point](../../../../img/identity-center/ic-migrate-start.png)
 
@@ -75,9 +75,9 @@ Install Okta SAML connector into Teleport as per the Teleport
 [Okta as an SSO provider](../../access-controls/sso/okta.mdx) guide.
 
 <Admonition type="note">
- Ideally, both Identity Center and Teleport will use the same Okta SAML application
- for their signin, which guarantees that both Okta and Teleport will view the same 
- user set. 
+ For the integration to function properly, both AWS Identity Center and Teleport must view the
+ same user set which can be achieved by using the same Okta SAML application for both Identity
+ Center and Teleport SAML connector.
 
  If this is not possible, the most flexible approach we've found is having an
  an Okta Group for those users that should have IC access, and then assigning
@@ -93,11 +93,11 @@ step.
 
 We will be using a very limited subset of the Teleport Okta integration in this 
 deployment, disabling all features except periodic user synchronization. This
-configuration is not supported by the normal installation UI, so we will have to
+configuration is not currently supported by the normal installation UI, so we will have to
 use `tctl` to install it:
 
 ```console
-$ ./tctl plugins install okta \
+$ tctl plugins install okta \
     --org ${OKTA_ORG_URL} \
     --saml-connector ${TELEPORT_SAML_CONNECTOR_NAME} \
     --app-id ${OKTA_SAML_APP_ID} \
@@ -125,7 +125,7 @@ step.
 Again, we need to install the plugin using `tctl`. 
 
 ```console
-$ ./tctl plugins install awsic \
+$ tctl plugins install awsic \
     --arn ${IDENTITY_CENTER_INSTANCE_ARN} \
     --region ${IDENTITY_CENTER_INSTANCE_REGION} \
     --use-system-credentials \
@@ -150,7 +150,7 @@ prior to installation.
 
 ### Group import control
 
-The Group import allow-list is controlled by the `--group-name` option. You can
+The Group import allow list is controlled by the `--group-name` option. You can
 specify multiple filters and a Group will be imported if matches _any_ of the
 supplied filters. Filters can be either literal names, globbed names or Go
 compatible regular expressions. To treat a filter as a regular expression, 
@@ -232,7 +232,7 @@ You can expand the scope of the Teleport Identity Center integration by editing
 the integration's plugin resource with `tctl`.
 
 ```console
-./tctl edit plugins/aws-identity-center
+$ tctl edit plugins/aws-identity-center
 ```
 
 The plugin resource is a YAML document that looks something like this:
@@ -280,7 +280,7 @@ spec:
 
 You can add or remove filters to the various filters. Once you save and quit the
 editor, `tctl` will replace the existing resource with your updated version. This
-will automatically restart the Identity Center Integration with the ne2 filters.
+will automatically restart the Identity Center Integration with the new filters.
 
 <Admonition type="note">
 As of Teleport 17.3, the `group_sync_filters` are only applied during the initial
@@ -321,5 +321,5 @@ and select *Delete...* from  the integration options.
 ### Delete integration with `tctl`
 
 ```
-$ ./tctl plugins delete aws-identity-center
+$ tctl plugins delete aws-identity-center
 ```
