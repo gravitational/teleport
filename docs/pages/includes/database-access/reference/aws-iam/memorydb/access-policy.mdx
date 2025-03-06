@@ -1,6 +1,41 @@
-{/* this comment is here to make the include below it render */}
+MemoryDB supports IAM authentication for Redis engine version
+7.0 or above.
+This is the recommended way to configure Teleport access to MemoryDB.
 
-(!docs/pages/includes/database-access/reference/aws-iam/redis/access-policy.mdx dbType="MemoryDB" permissionType="memorydb"!)
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "MemoryDBFetchMetadata",
+            "Effect": "Allow",
+            "Action": "memorydb:DescribeClusters",
+            "Resource": "*"
+        },
+        {
+            "Sid": "MemoryDBDescribeUsers",
+            "Effect": "Allow",
+            "Action": "memorydb:DescribeUsers",
+            "Resource": "*"
+        },
+        {
+            "Sid": "MemoryDBConnect",
+            "Effect": "Allow",
+            "Action": "memorydb:Connect",
+            "Resource": [
+                "arn:aws:memorydb:<Var name="us-east-2"/>:<Var name="aws-account-id"/>:cluster:<Var name="cluster-name"/>",
+                "arn:aws:memorydb:<Var name="us-east-2"/>:<Var name="aws-account-id"/>:user:*"
+            ]
+        }
+    ]
+}
+```
+
+| Statement | Purpose |
+| ---------- | ------- |
+|`MemoryDBFetchMetadata` | Automatically import AWS tags as database labels or find missing information such as the database's AWS region. |
+|`MemoryDBDescribeUsers` | Determine whether a user is compatible with IAM authentication. |
+|`MemoryDBConnect` | Connect using IAM authentication. |
 
 See
 [Authenticating with IAM for

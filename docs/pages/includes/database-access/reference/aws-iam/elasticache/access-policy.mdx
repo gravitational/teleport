@@ -1,6 +1,41 @@
-{/* this comment is here to make the include below it render */}
+ElastiCache supports IAM authentication for Redis engine version
+7.0 or above.
+This is the recommended way to configure Teleport access to ElastiCache.
 
-(!docs/pages/includes/database-access/reference/aws-iam/redis/access-policy.mdx dbType="ElastiCache" permissionType="elasticache"!)
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "ElastiCacheFetchMetadata",
+            "Effect": "Allow",
+            "Action": "elasticache:DescribeReplicationGroups",
+            "Resource": "*"
+        },
+        {
+            "Sid": "ElastiCacheDescribeUsers",
+            "Effect": "Allow",
+            "Action": "elasticache:DescribeUsers",
+            "Resource": "*"
+        },
+        {
+            "Sid": "ElastiCacheConnect",
+            "Effect": "Allow",
+            "Action": "elasticache:Connect",
+            "Resource": [
+                "arn:aws:elasticache:<Var name="us-east-2"/>:<Var name="aws-account-id"/>:eplicationgroup:<Var name="replication-group"/>",
+                "arn:aws:elasticache:<Var name="us-east-2"/>:<Var name="aws-account-id"/>:user:*"
+            ]
+        }
+    ]
+}
+```
+
+| Statement | Purpose |
+| ---------- | ------- |
+|`ElastiCacheFetchMetadata` | Automatically import AWS tags as database labels or find missing information such as the database's AWS region. |
+|`ElastiCacheDescribeUsers` | Determine whether a user is compatible with IAM authentication. |
+|`ElastiCacheConnect` | Connect using IAM authentication. |
 
 See
 [Authenticating with IAM for
