@@ -258,6 +258,7 @@ computed_fields:
     - "RoleV6.Spec.Allow.KubernetesResources.Verbs"
     - "RoleV6.Spec.Options.BPF"
     - "RoleV6.Kind"
+    - "RoleV6.Spec.Options"
     - "RoleV6.Spec.Options.SSHFileCopy"
     - "RoleV6.Spec.Options.CreateDatabaseUser"
     - "RoleV6.Spec.Options.CreateDesktopUser"
@@ -417,6 +418,8 @@ plan_modifiers:
     ProvisionTokenV2.Metadata.Name:
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+    RoleV6.Spec.Options:
+      - "DefaultRoleOptions()"
 
 validators:
   # Expires must be in the future
