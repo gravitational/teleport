@@ -289,7 +289,8 @@ func newTestCredentials(t *testing.T, rc *helpers.TeleInstance, user types.User)
 	}
 
 	pool := x509.NewCertPool()
-	pool.AppendCertsFromPEM(rc.Secrets.TLSCACert)
+	pool.AppendCertsFromPEM(rc.Secrets.TLSHostCACert)
+	pool.AppendCertsFromPEM(rc.Secrets.TLSUserCACert)
 
 	tlsConf := &tls.Config{
 		Certificates: []tls.Certificate{cert},

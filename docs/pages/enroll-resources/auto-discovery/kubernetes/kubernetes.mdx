@@ -35,7 +35,7 @@ cloud provider such as:
   - Cluster location.
   - Identification of which cloud account the cluster belongs to — AWS Account ID / Azure Subscription ID.
 
-<Notice type="tip">
+<Admonition type="tip">
 You can import the cluster under a different name into Teleport's registry.
 To achieve this, you must attach the following tag to the resources — EKS, AKS, GKE — in your cloud provider:
  - ***key***: `TeleportKubernetesName`
@@ -47,7 +47,7 @@ as the resource name in Teleport.
 You should use this feature whenever there are clusters in different regions/cloud providers
 with the same name to prevent them from colliding in Teleport.
 
-</Notice>
+</Admonition>
 
 In addition to detecting new Kubernetes clusters, the Discovery Service also removes
 — from Teleport's registry — the Kubernetes clusters that have been deleted or whose tags

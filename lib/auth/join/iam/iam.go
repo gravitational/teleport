@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 
 	cloudaws "github.com/gravitational/teleport/lib/cloud/imds/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 const (
@@ -94,7 +95,7 @@ func newSTSClient(ctx context.Context, cfg *stsIdentityRequestConfig) (*sts.STS,
 		return nil, trace.Wrap(err)
 	}
 
-	stsClient := sts.New(sess)
+	stsClient := stsutils.NewV1(sess)
 
 	if slices.Contains(GlobalSTSEndpoints(), strings.TrimPrefix(stsClient.Endpoint, "https://")) {
 		// If the caller wants to use the regional endpoint but it was not resolved
@@ -104,7 +105,7 @@ func newSTSClient(ctx context.Context, cfg *stsIdentityRequestConfig) (*sts.STS,
 			if err != nil {
 				return nil, trace.Wrap(err, "failed to resolve local AWS region from environment or IMDS")
 			}
-			stsClient = sts.New(sess, awssdk.NewConfig().WithRegion(region))
+			stsClient = stsutils.NewV1(sess, awssdk.NewConfig().WithRegion(region))
 		} else {
 			const msg = "Attempting to use the global STS endpoint for the IAM join method. " +
 				"This will probably fail in non-default AWS partitions such as China or GovCloud, or if FIPS mode is enabled. " +
@@ -124,7 +125,7 @@ func newSTSClient(ctx context.Context, cfg *stsIdentityRequestConfig) (*sts.STS,
 		const msg = "AWS SDK resolved invalid FIPS STS endpoint. " +
 			"Attempting to use the FIPS STS endpoint for us-east-1."
 		slog.InfoContext(ctx, msg, "resolved", stsClient.Endpoint)
-		stsClient = sts.New(sess, awssdk.NewConfig().WithRegion("us-east-1"))
+		stsClient = stsutils.NewV1(sess, awssdk.NewConfig().WithRegion("us-east-1"))
 	}
 
 	return stsClient, nil

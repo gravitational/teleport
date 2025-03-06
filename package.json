@@ -36,6 +36,7 @@
     "**/@types/react-dom": "^18.2.17",
     "**/trim": "0.0.3",
     "webpack": "^5.88.2",
+    "electron-vite/esbuild": "^0.25.0",
     "x-default-browser": "^0.5.2"
   },
   "devDependencies": {

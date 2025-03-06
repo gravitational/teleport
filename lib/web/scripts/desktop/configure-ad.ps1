@@ -202,7 +202,7 @@ $OUTPUT=@'
 Use the following teleport.yaml to start a Windows Desktop Service.
 For a detailed configuration reference, see
 
-https://goteleport.com/docs/desktop-access/reference/configuration/
+https://goteleport.com/docs/reference/agent-services/desktop-access-reference/configuration/
 
 
 {0}

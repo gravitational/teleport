@@ -27,6 +27,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
@@ -202,7 +203,17 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		return nil, trace.Wrap(err)
 	}
 
-	ig, err := s.backend.CreateIntegration(ctx, req.GetIntegration())
+	switch req.Integration.GetSubKind() {
+	case types.IntegrationSubKindAWSOIDC:
+		// AWS OIDC Integration can be used as source of credentials to access AWS Web/CLI.
+		// This creates a new AppServer whose endpoint is <integrationName>.<proxyURL>, which can fail if integrationName is not a valid DNS Label.
+		// Instead of failing when the integration is already created, it fails at creation time.
+		if errs := validation.IsDNS1035Label(req.GetIntegration().GetName()); len(errs) > 0 {
+			return nil, trace.BadParameter("integration name %q must be a valid DNS subdomain so that it can be used to allow Web/CLI access", req.GetIntegration().GetName())
+		}
+	}
+
+	ig, err := s.backend.CreateIntegration(ctx, req.Integration)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

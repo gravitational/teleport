@@ -3258,7 +3258,7 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 // PreAuthenticatedSignIn is for MFA authentication methods where the password
 // is already checked before issuing the second factor challenge
 func (a *Server) PreAuthenticatedSignIn(ctx context.Context, user string, identity tlsca.Identity) (types.WebSession, error) {
-	accessInfo, err := services.AccessInfoFromLocalIdentity(identity, a)
+	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(identity, a)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3986,7 +3986,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		return nil, trace.NotFound("web session has expired")
 	}
 
-	accessInfo, err := services.AccessInfoFromLocalIdentity(identity, a)
+	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(identity, a)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

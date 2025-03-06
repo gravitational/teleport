@@ -151,8 +151,9 @@ type WindowsServiceConfig struct {
 	// Log is the logging sink for the service.
 	Log logrus.FieldLogger
 	// Clock provides current time.
-	Clock   clockwork.Clock
-	DataDir string
+	Clock        clockwork.Clock
+	DataDir      string
+	LicenseStore rdpclient.LicenseStore
 	// Authorizer is used to authorize requests.
 	Authorizer authz.Authorizer
 	// LockWatcher is used to monitor for new locks.
@@ -860,7 +861,9 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 
 	//nolint:staticcheck // SA4023. False positive, depends on build tags.
 	rdpc, err := rdpclient.New(rdpclient.Config{
-		Log: log,
+		Log:          log,
+		LicenseStore: s.cfg.LicenseStore,
+		HostID:       s.cfg.Heartbeat.HostUUID,
 		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {
 			return s.generateUserCert(ctx, username, ttl, desktop, createUsers, groups)
 		},

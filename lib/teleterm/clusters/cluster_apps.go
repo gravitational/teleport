@@ -155,7 +155,7 @@ func (c *Cluster) reissueAppCert(ctx context.Context, proxyClient *client.ProxyC
 	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
 	err := proxyClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
-		AccessRequests: c.status.ActiveRequests.AccessRequests,
+		AccessRequests: c.status.ActiveRequests,
 	})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
@@ -186,7 +186,7 @@ func (c *Cluster) reissueAppCert(ctx context.Context, proxyClient *client.ProxyC
 			AzureIdentity:     "",
 			GCPServiceAccount: "",
 		},
-		AccessRequests: c.status.ActiveRequests.AccessRequests,
+		AccessRequests: c.status.ActiveRequests,
 	})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)

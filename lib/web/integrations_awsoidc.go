@@ -976,6 +976,18 @@ func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
+	// If the integration name contains a dot, then the proxy must provide a certificate allowing *.<something>.<proxyPublicAddr>
+	if strings.Contains(integrationName, ".") {
+		// Teleport Cloud only provides certificates for *.<tenant>.teleport.sh, so this would generate an invalid address.
+		if h.GetClusterFeatures().Cloud {
+			return nil, trace.BadParameter(`Invalid integration name (%q) for enabling AWS Access. Please re-create the integration without the "."`, integrationName)
+		}
+
+		// Typically, self-hosted clusters will also have a single wildcard for the name.
+		// Logging a warning message should help debug the problem in case the certificate is not valid.
+		h.logger.WarnContext(ctx, `Enabling AWS Access using an integration with a "." might not work unless your Proxy's certificate is valid for the address`, "public_addr", appServer.GetApp().GetPublicAddr())
+	}
+
 	if _, err := clt.UpsertApplicationServer(ctx, appServer); err != nil {
 		return nil, trace.Wrap(err)
 	}

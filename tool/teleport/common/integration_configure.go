@@ -26,9 +26,7 @@ import (
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/athena"
 	"github.com/aws/aws-sdk-go-v2/service/glue"
-	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
 	ecatypes "github.com/gravitational/teleport/api/types/externalauditstorage"
@@ -41,6 +39,8 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/samlidp"
 	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 func onIntegrationConfDeployService(ctx context.Context, params config.IntegrationConfDeployServiceIAM) error {
@@ -164,7 +164,7 @@ func onIntegrationConfListDatabasesIAM(ctx context.Context, params config.Integr
 		return trace.Wrap(err)
 	}
 
-	iamClient := iam.NewFromConfig(cfg)
+	iamClient := iamutils.NewFromConfig(cfg)
 
 	confReq := awsoidc.ConfigureIAMListDatabasesRequest{
 		Region:          params.Region,
@@ -201,8 +201,8 @@ func onIntegrationConfExternalAuditCmd(ctx context.Context, params easconfig.Ext
 	}
 
 	clt := &awsoidc.DefaultConfigureExternalAuditStorageClient{
-		Iam: iam.NewFromConfig(cfg),
-		Sts: sts.NewFromConfig(cfg),
+		Iam: iamutils.NewFromConfig(cfg),
+		Sts: stsutils.NewFromConfig(cfg),
 	}
 	return trace.Wrap(awsoidc.ConfigureExternalAuditStorage(ctx, clt, params))
 }

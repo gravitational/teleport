@@ -17,12 +17,14 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
 	"time"
 
 	"github.com/grafana/pyroscope-go"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 )
@@ -33,24 +35,35 @@ type pyroscopeLogger struct {
 }
 
 func (l pyroscopeLogger) Infof(format string, args ...interface{}) {
+	if !l.l.Handler().Enabled(context.Background(), slog.LevelInfo) {
+		return
+	}
 	//nolint:sloglint // msg cannot be constant
 	l.l.Info(fmt.Sprintf(format, args...))
 }
 
 func (l pyroscopeLogger) Debugf(format string, args ...interface{}) {
+	if !l.l.Handler().Enabled(context.Background(), slog.LevelDebug) {
+		return
+	}
+
 	//nolint:sloglint // msg cannot be constant
 	l.l.Debug(fmt.Sprintf(format, args...))
 }
 
 func (l pyroscopeLogger) Errorf(format string, args ...interface{}) {
+	if !l.l.Handler().Enabled(context.Background(), slog.LevelError) {
+		return
+	}
+
 	//nolint:sloglint // msg cannot be constant
 	l.l.Error(fmt.Sprintf(format, args...))
 }
 
-// initPyroscope instruments Teleport to run with continuous profiling for Pyroscope
-func (process *TeleportProcess) initPyroscope(address string) {
+// createPyroscopeConfig generates the Pyroscope configuration for the Teleport process.
+func createPyroscopeConfig(ctx context.Context, logger *slog.Logger, address string) (pyroscope.Config, error) {
 	if address == "" {
-		return
+		return pyroscope.Config{}, trace.BadParameter("pyroscope address is empty")
 	}
 
 	hostname, err := os.Hostname()
@@ -58,11 +71,10 @@ func (process *TeleportProcess) initPyroscope(address string) {
 		hostname = "unknown"
 	}
 
-	// Build pyroscope config
 	config := pyroscope.Config{
 		ApplicationName: teleport.ComponentTeleport,
 		ServerAddress:   address,
-		Logger:          pyroscope.Logger(pyroscopeLogger{l: slog.Default()}),
+		Logger:          pyroscope.Logger(pyroscopeLogger{l: logger}),
 		Tags: map[string]string{
 			"host":    hostname,
 			"version": teleport.Version,
@@ -72,21 +84,22 @@ func (process *TeleportProcess) initPyroscope(address string) {
 
 	// Evaluate if profile configuration is customized
 	if p := getPyroscopeProfileTypesFromEnv(); len(p) == 0 {
-		slog.InfoContext(process.ExitContext(), "No profile types enabled, using default")
+		logger.InfoContext(ctx, "No profile types enabled, using default")
 	} else {
 		config.ProfileTypes = p
+		logger.InfoContext(ctx, "Pyroscope will configure profiles from env")
 	}
 
 	var uploadRate *time.Duration
 	if rate := os.Getenv("TELEPORT_PYROSCOPE_UPLOAD_RATE"); rate != "" {
 		parsedRate, err := time.ParseDuration(rate)
 		if err != nil {
-			slog.InfoContext(process.ExitContext(), "invalid TELEPORT_PYROSCOPE_UPLOAD_RATE, ignoring value", "provided_value", rate, "error", err)
+			logger.InfoContext(ctx, "invalid TELEPORT_PYROSCOPE_UPLOAD_RATE, ignoring value", "provided_value", rate, "error", err)
 		} else {
 			uploadRate = &parsedRate
 		}
 	} else {
-		slog.InfoContext(process.ExitContext(), "TELEPORT_PYROSCOPE_UPLOAD_RATE not specified, using default")
+		logger.InfoContext(ctx, "TELEPORT_PYROSCOPE_UPLOAD_RATE not specified, using default")
 	}
 
 	// Set UploadRate or fall back to defaults
@@ -94,16 +107,36 @@ func (process *TeleportProcess) initPyroscope(address string) {
 		config.UploadRate = *uploadRate
 	}
 
+	if value, isSet := os.LookupEnv("TELEPORT_PYROSCOPE_KUBE_COMPONENT"); isSet {
+		config.Tags["component"] = value
+	}
+
+	if value, isSet := os.LookupEnv("TELEPORT_PYROSCOPE_KUBE_NAMESPACE"); isSet {
+		config.Tags["namespace"] = value
+	}
+
+	return config, nil
+}
+
+// initPyroscope instruments Teleport to run with continuous profiling for Pyroscope
+func (process *TeleportProcess) initPyroscope(address string) {
+	logger := process.logger.With(teleport.ComponentKey, "pyroscope")
+	config, err := createPyroscopeConfig(process.ExitContext(), logger, address)
+	if err != nil {
+		logger.ErrorContext(process.ExitContext(), "failed to create Pyroscope config", "address", address, "error", err)
+		return
+	}
+
 	profiler, err := pyroscope.Start(config)
 	if err != nil {
-		slog.ErrorContext(process.ExitContext(), "error starting pyroscope profiler", "error", err)
+		logger.ErrorContext(process.ExitContext(), "error starting pyroscope profiler", "address", address, "error", err)
 	} else {
 		process.OnExit("pyroscope.profiler", func(payload any) {
 			profiler.Flush(payload == nil)
 			_ = profiler.Stop()
 		})
 	}
-	slog.InfoContext(process.ExitContext(), "Pyroscope has successfully started")
+	logger.InfoContext(process.ExitContext(), "Pyroscope has successfully started")
 }
 
 // getPyroscopeProfileTypesFromEnv sets the profile types based on environment variables.

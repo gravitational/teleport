@@ -118,7 +118,7 @@ func onAppLogin(cf *CLIConf) error {
 			AzureIdentity:     azureIdentity,
 			GCPServiceAccount: gcpServiceAccount,
 		},
-		AccessRequests: profile.ActiveRequests.AccessRequests,
+		AccessRequests: profile.ActiveRequests,
 	}
 
 	err = tc.ReissueUserCerts(cf.Context, client.CertCacheKeep, params)

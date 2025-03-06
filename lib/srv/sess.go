@@ -821,7 +821,7 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 		serverCtx:                      scx.srv.Context(),
 		access:                         &access,
 		scx:                            scx,
-		presenceEnabled:                scx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified] != "",
+		presenceEnabled:                scx.Identity.UnmappedIdentity.MFAVerified != "",
 		io:                             NewTermManager(),
 		doneCh:                         make(chan struct{}),
 		initiator:                      scx.Identity.TeleportUser,

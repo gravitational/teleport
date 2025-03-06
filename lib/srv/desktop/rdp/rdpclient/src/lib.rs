@@ -28,6 +28,7 @@ use crate::client::global::get_client_handle;
 use crate::client::Client;
 use crate::rdpdr::tdp::SharedDirectoryAnnounce;
 use client::{ClientHandle, ClientResult, ConnectParams};
+use ironrdp_session::x224::DisconnectDescription;
 use log::{error, trace, warn};
 use rdpdr::path::UnixPath;
 use rdpdr::tdp::{
@@ -44,6 +45,7 @@ use std::ptr;
 use util::{from_c_string, from_go_array};
 pub mod client;
 mod cliprdr;
+mod license;
 mod piv;
 mod rdpdr;
 mod ssl;
@@ -102,14 +104,22 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
             allow_clipboard: params.allow_clipboard,
             allow_directory_sharing: params.allow_directory_sharing,
             show_desktop_wallpaper: params.show_desktop_wallpaper,
+            client_id: params.client_id,
         },
     ) {
         Ok(res) => CGOResult {
             err_code: CGOErrCode::ErrCodeSuccess,
             message: match res {
-                Some(reason) => CString::new(reason.description().to_string())
-                    .map(|c| c.into_raw())
-                    .unwrap_or(ptr::null_mut()),
+                Some(DisconnectDescription::McsDisconnect(reason)) => {
+                    CString::new(reason.description().to_string())
+                        .map(|c| c.into_raw())
+                        .unwrap_or(ptr::null_mut())
+                }
+                Some(DisconnectDescription::ErrorInfo(info)) => {
+                    CString::new(info.description().to_string())
+                        .map(|c| c.into_raw())
+                        .unwrap_or(ptr::null_mut())
+                }
                 None => ptr::null_mut(),
             },
         },
@@ -474,6 +484,7 @@ pub struct CGOConnectParams {
     allow_clipboard: bool,
     allow_directory_sharing: bool,
     show_desktop_wallpaper: bool,
+    client_id: [u32; 4],
 }
 
 /// CGOKeyboardEvent is a CGO-compatible version of KeyboardEvent that we pass back to Go.
@@ -544,6 +555,7 @@ pub enum CGOErrCode {
     ErrCodeSuccess = 0,
     ErrCodeFailure = 1,
     ErrCodeClientPtr = 2,
+    ErrCodeNotFound = 3,
 }
 
 #[repr(C)]
@@ -698,6 +710,19 @@ pub type CGOSharedDirectoryTruncateResponse = SharedDirectoryTruncateResponse;
 // These functions are defined on the Go side.
 // Look for functions with '//export funcname' comments.
 extern "C" {
+    fn cgo_free_rdp_license(data: *mut u8);
+    fn cgo_read_rdp_license(
+        cgo_handle: CgoHandle,
+        req: *mut CGOLicenseRequest,
+        data_out: *mut *mut u8,
+        len_out: *mut usize,
+    ) -> CGOErrCode;
+    fn cgo_write_rdp_license(
+        cgo_handle: CgoHandle,
+        req: *mut CGOLicenseRequest,
+        data: *mut u8,
+        length: usize,
+    ) -> CGOErrCode;
     fn cgo_handle_remote_copy(cgo_handle: CgoHandle, data: *mut u8, len: u32) -> CGOErrCode;
     fn cgo_handle_fastpath_pdu(cgo_handle: CgoHandle, data: *mut u8, len: u32) -> CGOErrCode;
     fn cgo_handle_rdp_connection_activated(
@@ -749,3 +774,11 @@ extern "C" {
 ///
 /// [cgo.Handle]: https://pkg.go.dev/runtime/cgo#Handle
 type CgoHandle = usize;
+
+#[repr(C)]
+pub struct CGOLicenseRequest {
+    version: u32,
+    issuer: *const c_char,
+    company: *const c_char,
+    product_id: *const c_char,
+}

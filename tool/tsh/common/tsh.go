@@ -1733,6 +1733,7 @@ func onVersion(cf *CLIConf) error {
 		proxyPublicAddr = ppa
 	}
 
+	reExecFromVersion := tools.GetReExecFromVersion(cf.Context)
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
@@ -1741,8 +1742,11 @@ func onVersion(cf *CLIConf) error {
 			fmt.Printf("Proxy version: %s\n", proxyVersion)
 			fmt.Printf("Proxy: %s\n", proxyPublicAddr)
 		}
+		if reExecFromVersion != "" {
+			fmt.Printf("Re-executed from version: %s\n", reExecFromVersion)
+		}
 	case teleport.JSON, teleport.YAML:
-		out, err := serializeVersion(format, proxyVersion, proxyPublicAddr)
+		out, err := serializeVersion(format, proxyVersion, proxyPublicAddr, reExecFromVersion)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1789,19 +1793,21 @@ type benchKubeOptions struct {
 	namespace string
 }
 
-func serializeVersion(format string, proxyVersion string, proxyPublicAddress string) (string, error) {
+func serializeVersion(format string, proxyVersion string, proxyPublicAddress string, reExecFromVersion string) (string, error) {
 	versionInfo := struct {
-		Version            string `json:"version"`
-		Gitref             string `json:"gitref"`
-		Runtime            string `json:"runtime"`
-		ProxyVersion       string `json:"proxyVersion,omitempty"`
-		ProxyPublicAddress string `json:"proxyPublicAddress,omitempty"`
+		Version               string `json:"version"`
+		Gitref                string `json:"gitref"`
+		Runtime               string `json:"runtime"`
+		ProxyVersion          string `json:"proxyVersion,omitempty"`
+		ProxyPublicAddress    string `json:"proxyPublicAddress,omitempty"`
+		ReExecutedFromVersion string `json:"reExecutedFromVersion,omitempty"`
 	}{
 		teleport.Version,
 		teleport.Gitref,
 		runtime.Version(),
 		proxyVersion,
 		proxyPublicAddress,
+		reExecFromVersion,
 	}
 	var out []byte
 	var err error
@@ -1928,7 +1934,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 			}
 			// trigger reissue, preserving any active requests.
 			err = tc.ReissueUserCerts(cf.Context, client.CertCacheKeep, client.ReissueParams{
-				AccessRequests: profile.ActiveRequests.AccessRequests,
+				AccessRequests: profile.ActiveRequests,
 				RouteToCluster: cf.SiteName,
 			})
 			if err != nil {
@@ -4948,7 +4954,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 	out := &profileInfo{
 		ProxyURL:           p.ProxyURL.String(),
 		Username:           p.Username,
-		ActiveRequests:     p.ActiveRequests.AccessRequests,
+		ActiveRequests:     p.ActiveRequests,
 		Cluster:            p.Cluster,
 		Roles:              p.Roles,
 		Traits:             p.Traits,
@@ -5154,7 +5160,7 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, newRequests []s
 		RouteToCluster:     cf.SiteName,
 	}
 	// If the certificate already had active requests, add them to our inputs parameters.
-	for _, reqID := range profile.ActiveRequests.AccessRequests {
+	for _, reqID := range profile.ActiveRequests {
 		if !slices.Contains(dropRequests, reqID) {
 			params.AccessRequests = append(params.AccessRequests, reqID)
 		}

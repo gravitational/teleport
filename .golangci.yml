@@ -24,6 +24,23 @@ issues:
     - linters: [testifylint]
       text: "suite-thelper: suite helper method must start with"
       path: 'integrations/.+'
+      # lib/utils/aws/ subpackages are allowed to use AWS SDK constructors.
+    # lib/utils/aws/ subpackages are allowed to use AWS SDK constructors.
+    - path: lib/utils/aws/iamutils/iam.go
+      linters: [forbidigo]
+      text: 'iam.NewFromConfig'
+    - path: lib/utils/aws/iamutils/iam_v1.go
+      linters: [forbidigo]
+      text: 'iam.New'
+    - path: lib/utils/aws/stsutils/sts.go
+      linters: [forbidigo]
+      text: 'sts.NewFromConfig'
+    - path: lib/utils/aws/stsutils/sts_v1.go
+      linters: [forbidigo]
+      text: 'sts.New'
+    - path: lib/utils/aws/stsutils/stscreds_v1.go
+      linters: [forbidigo]
+      text: 'stscreds.NewCredentials'
   exclude-use-default: true
   max-same-issues: 0
   max-issues-per-linter: 0
@@ -34,6 +51,7 @@ linters:
   enable:
     - bodyclose
     - depguard
+    - forbidigo
     - gci
     - goimports
     - gosimple
@@ -146,8 +164,21 @@ linters-settings:
       - len
       - suite-extra-assert-call
       - suite-thelper
+  forbidigo:
+    forbid:
+      # AWS SDK wrapped constructors.
+      - p: '^iam\.NewFromConfig$'
+        msg: 'Use iamutils.NewFromConfig'
+      - p: '^iam\.New$'
+        msg: 'Use iamutils.NewV1'
+      - p: '^sts\.NewFromConfig$'
+        msg: 'Use stsutils.NewFromConfig'
+      - p: '^sts\.New$'
+        msg: 'Use stsutils.NewV1'
+      - p: '^stscreds\.NewCredentials$'
+        msg: 'Use stsutils.NewCredentials'
 
 run:
-  go: '1.22'
+  go: '1.23'
   build-tags: []
   timeout: 15m

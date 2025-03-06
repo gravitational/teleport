@@ -15,14 +15,14 @@ when gradually transitioning large server fleets to Teleport.
   ![Teleport OpenSSH Recording Proxy](../../../../img/server-access/openssh-proxy.svg)
 </Figure>
 
-<Notice type="warning">
+<Admonition type="warning">
 
 Teleport Cloud only supports session recording at the Node level. If you are
 interested in setting up session recording, read our
 [Server Access Getting Started Guide](../getting-started.mdx) so you can start
 replacing your OpenSSH servers with Teleport Nodes.
 
-</Notice>
+</Admonition>
 
 We consider Recording Proxy Mode to be less secure than recording at the Node
 level for two reasons:
@@ -100,7 +100,7 @@ Now, `sshd` will trust users who present a Teleport-issued certificate.
 The next step is to configure host authentication.
 
 The recommended solution is to ask Teleport to issue valid host certificates for
-all OpenSSH nodes. To generate a host certificate, run this on your Teleport Auth Server:
+all OpenSSH nodes. To generate a host certificate, run this command:
 
 ```code
 # Creating host certs, with an array of every host to be accessed.
@@ -108,7 +108,7 @@ all OpenSSH nodes. To generate a host certificate, run this on your Teleport Aut
 # qualified.
 # Management of the host certificates can become complex. This is another
 # reason we recommend using Teleport SSH on nodes.
-$ sudo tctl auth sign \
+$ tctl auth sign \
       --host=api.example.com,ssh.example.com,64.225.88.175,64.225.88.178 \
       --format=openssh \
       --out=api.example.com

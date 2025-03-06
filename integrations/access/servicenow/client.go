@@ -27,7 +27,6 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/defaults"
 	"github.com/go-resty/resty/v2"
 	"github.com/gravitational/trace"
 
@@ -86,7 +85,7 @@ func NewClient(conf ClientConfig) (*Client, error) {
 	if err := conf.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	client := resty.NewWithClient(defaults.Config().HTTPClient)
+
 	apiURL, err := url.Parse(conf.APIEndpoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -99,7 +98,19 @@ func NewClient(conf ClientConfig) (*Client, error) {
 		apiURL.Scheme = "https"
 	}
 
-	client.SetBaseURL(conf.APIEndpoint).
+	const (
+		maxConns      = 100
+		clientTimeout = 10 * time.Second
+	)
+
+	client := resty.NewWithClient(&http.Client{
+		Timeout: clientTimeout,
+		Transport: &http.Transport{
+			MaxConnsPerHost:     maxConns,
+			MaxIdleConnsPerHost: maxConns,
+			Proxy:               http.ProxyFromEnvironment,
+		}}).
+		SetBaseURL(apiURL.String()).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Accept", "application/json").
 		SetBasicAuth(conf.Username, conf.APIToken)

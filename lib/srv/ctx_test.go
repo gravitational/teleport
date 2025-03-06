@@ -28,14 +28,13 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/testing/protocmp"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 )
 
@@ -209,17 +208,14 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 		{
 			name: "device metadata",
 			idCtx: IdentityContext{
+				UnmappedIdentity: &sshca.Identity{
+					Username:           "alpaca",
+					DeviceID:           "deviceid1",
+					DeviceAssetTag:     "assettag1",
+					DeviceCredentialID: "credentialid1",
+				},
 				TeleportUser: "alpaca",
 				Login:        "alpaca1",
-				Certificate: &ssh.Certificate{
-					Permissions: ssh.Permissions{
-						Extensions: map[string]string{
-							teleport.CertExtensionDeviceID:           "deviceid1",
-							teleport.CertExtensionDeviceAssetTag:     "assettag1",
-							teleport.CertExtensionDeviceCredentialID: "credentialid1",
-						},
-					},
-				},
 			},
 			want: apievents.UserMetadata{
 				User:  "alpaca",
@@ -255,17 +251,14 @@ func TestComputeLockTargets(t *testing.T) {
 		accessRequests := []string{"access-request-1", "access-request-2"}
 
 		identityCtx := IdentityContext{
+			UnmappedIdentity: &sshca.Identity{
+				Username:    "llama",
+				MFAVerified: mfaDevice,
+				DeviceID:    trustedDevice,
+			},
 			TeleportUser: "llama",
 			Impersonator: "alpaca",
 			Login:        "camel",
-			Certificate: &ssh.Certificate{
-				Permissions: ssh.Permissions{
-					Extensions: map[string]string{
-						teleport.CertExtensionMFAVerified: mfaDevice,
-						teleport.CertExtensionDeviceID:    trustedDevice,
-					},
-				},
-			},
 			AccessChecker: &fixedRolesChecker{
 				roleNames: mappedRoles,
 			},

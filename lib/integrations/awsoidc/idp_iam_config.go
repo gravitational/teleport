@@ -34,6 +34,8 @@ import (
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
+	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 const (
@@ -160,8 +162,8 @@ func NewIdPIAMConfigureClient(ctx context.Context) (IdPIAMConfigureClient, error
 	return &defaultIdPIAMConfigureClient{
 		httpClient: httpClient,
 		awsConfig:  cfg,
-		Client:     iam.NewFromConfig(cfg),
-		stsClient:  sts.NewFromConfig(cfg),
+		Client:     iamutils.NewFromConfig(cfg),
+		stsClient:  stsutils.NewFromConfig(cfg),
 	}, nil
 }
 

@@ -39,6 +39,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/integration/helpers/archive"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 const (
@@ -59,6 +60,7 @@ var (
 )
 
 func TestMain(m *testing.M) {
+	modules.SetModules(&modules.TestModules{TestBuildType: "CLI"})
 	ctx := context.Background()
 	tmp, err := os.MkdirTemp(os.TempDir(), testBinaryName)
 	if err != nil {

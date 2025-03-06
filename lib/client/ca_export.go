@@ -57,7 +57,7 @@ type ExportedAuthority struct {
 	// Data is the output of the exported authority.
 	// May be an SSH authorized key, an SSH known hosts entry, a DER or a PEM,
 	// depending on the type of the exported authority.
-	Data []byte
+	Data []byte `json:"data"`
 }
 
 // ExportAllAuthorities exports public keys of all authorities of a particular

@@ -29,7 +29,7 @@ should match the snapshot (full):
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: tbot
-            helm.sh/chart: tbot-15.4.26
+            helm.sh/chart: tbot-15.4.30
             test-key: test-label-pod
         spec:
           affinity:
@@ -68,7 +68,7 @@ should match the snapshot (full):
               value: "1"
             - name: TEST_ENV
               value: test-value
-            image: public.ecr.aws/gravitational/tbot-distroless:15.4.26
+            image: public.ecr.aws/gravitational/tbot-distroless:15.4.30
             imagePullPolicy: Always
             livenessProbe:
               failureThreshold: 6
@@ -98,6 +98,16 @@ should match the snapshot (full):
               requests:
                 cpu: 250m
                 memory: 64Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+              seccompProfile:
+                type: RuntimeDefault
             volumeMounts:
             - mountPath: /config
               name: config
@@ -154,7 +164,7 @@ should match the snapshot (simple):
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: tbot
-            helm.sh/chart: tbot-15.4.26
+            helm.sh/chart: tbot-15.4.30
         spec:
           containers:
           - args:
@@ -176,7 +186,7 @@ should match the snapshot (simple):
                   fieldPath: spec.nodeName
             - name: KUBERNETES_TOKEN_PATH
               value: /var/run/secrets/tokens/join-sa-token
-            image: public.ecr.aws/gravitational/tbot-distroless:15.4.26
+            image: public.ecr.aws/gravitational/tbot-distroless:15.4.30
             imagePullPolicy: IfNotPresent
             livenessProbe:
               failureThreshold: 6

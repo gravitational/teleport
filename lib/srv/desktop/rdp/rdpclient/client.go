@@ -72,6 +72,7 @@ import "C"
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"os"
 	"runtime/cgo"
@@ -80,6 +81,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
@@ -304,6 +306,19 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 		return trace.BadParameter("user key was nil")
 	}
 
+	hostID, err := uuid.Parse(c.cfg.HostID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	nextHostID := hostID[:]
+	cHostID := [4]C.uint32_t{}
+	for i := 0; i < len(cHostID); i++ {
+		const uint32Len = 4
+		cHostID[i] = (C.uint32_t)(binary.LittleEndian.Uint32(nextHostID[:uint32Len]))
+		nextHostID = nextHostID[uint32Len:]
+	}
+
 	res := C.client_run(
 		C.uintptr_t(c.handle),
 		C.CGOConnectParams{
@@ -319,6 +334,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 			allow_clipboard:         C.bool(c.cfg.AllowClipboard),
 			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
 			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
+			client_id:               cHostID,
 		},
 	)
 
@@ -714,6 +730,106 @@ func toClient(handle C.uintptr_t) (value *Client, err error) {
 		}
 	}()
 	return cgo.Handle(handle).Value().(*Client), nil
+}
+
+//export cgo_read_rdp_license
+func cgo_read_rdp_license(handle C.uintptr_t, req *C.CGOLicenseRequest, data_out **C.uint8_t, len_out *C.size_t) C.CGOErrCode {
+	*data_out = nil
+	*len_out = 0
+
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+
+	issuer := C.GoString(req.issuer)
+	company := C.GoString(req.company)
+	productID := C.GoString(req.product_id)
+
+	license, err := client.readRDPLicense(context.Background(), types.RDPLicenseKey{
+		Version:   uint32(req.version),
+		Issuer:    issuer,
+		Company:   company,
+		ProductID: productID,
+	})
+	if trace.IsNotFound(err) {
+		return C.ErrCodeNotFound
+	} else if err != nil {
+		return C.ErrCodeFailure
+	}
+
+	// in this case, we expect the caller to use cgo_free_rdp_license
+	// when the data is no longer needed
+	*data_out = (*C.uint8_t)(C.CBytes(license))
+	*len_out = C.size_t(len(license))
+	return C.ErrCodeSuccess
+}
+
+//export cgo_free_rdp_license
+func cgo_free_rdp_license(p *C.uint8_t) {
+	C.free(unsafe.Pointer(p))
+}
+
+//export cgo_write_rdp_license
+func cgo_write_rdp_license(handle C.uintptr_t, req *C.CGOLicenseRequest, data *C.uint8_t, length C.size_t) C.CGOErrCode {
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+
+	issuer := C.GoString(req.issuer)
+	company := C.GoString(req.company)
+	productID := C.GoString(req.product_id)
+
+	licenseData := C.GoBytes(unsafe.Pointer(data), C.int(length))
+
+	err = client.writeRDPLicense(context.Background(), types.RDPLicenseKey{
+		Version:   uint32(req.version),
+		Issuer:    issuer,
+		Company:   company,
+		ProductID: productID,
+	}, licenseData)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+
+	return C.ErrCodeSuccess
+}
+
+func (c *Client) readRDPLicense(ctx context.Context, key types.RDPLicenseKey) ([]byte, error) {
+	log := c.cfg.Log.WithFields(logrus.Fields{
+		"issuer":  key.Issuer,
+		"company": key.Company,
+		"version": key.Version,
+		"product": key.ProductID,
+	})
+
+	license, err := c.cfg.LicenseStore.ReadRDPLicense(ctx, &key)
+	switch {
+	case trace.IsNotFound(err):
+		log.Info("existing RDP license not found")
+	case err != nil:
+		log.Error("could not look up existing RDP license", "error", err)
+	case len(license) > 0:
+		log.Info("found existing RDP license")
+	}
+
+	return license, trace.Wrap(err)
+}
+
+func (c *Client) writeRDPLicense(ctx context.Context, key types.RDPLicenseKey, license []byte) error {
+	log := c.cfg.Log.WithFields(logrus.Fields{
+		"issuer":  key.Issuer,
+		"company": key.Company,
+		"version": key.Version,
+		"product": key.ProductID,
+	})
+	log.Info("writing RDP license to storage")
+	err := c.cfg.LicenseStore.WriteRDPLicense(ctx, &key, license)
+	if err != nil {
+		log.Error("could not write RDP license", "error", err)
+	}
+	return trace.Wrap(err)
 }
 
 //export cgo_handle_fastpath_pdu
