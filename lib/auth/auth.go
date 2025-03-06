@@ -6214,6 +6214,10 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 
 	now := a.clock.Now()
 
+	// TODO(kiosion): Check possible Okta plugin configuration – if Bidirectional Sync is explicitly disabled,
+	// we shouldn't create notifications for any Okta-synced Access Lists, as they are managed in Okta and
+	// their grants, owners/members, and ownership/membership requirements cannot be edited in Teleport.
+
 	// Fetch all access lists
 	var accessLists []*accesslist.AccessList
 	var accessListsPageKey string
