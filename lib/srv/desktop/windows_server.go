@@ -1325,7 +1325,7 @@ type generateCredentialsRequest struct {
 	username string
 	// domain is the Windows domain
 	domain string
-	// ad is true if we're connection to AD-joined desktop
+	// ad is true if we're connecting to a domain-joined desktop
 	ad bool
 	// ttl for the certificate
 	ttl time.Duration
