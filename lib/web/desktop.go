@@ -386,7 +386,7 @@ func (h *Handler) performSessionMFACeremony(
 				codec := tdpMFACodec{}
 
 				if chal.WebauthnChallenge == nil {
-					return nil, trace.AccessDenied("Desktop Access requires WebAuthn MFA, please register a WebAuthn device to connect")
+					return nil, trace.AccessDenied("Desktop access requires WebAuthn MFA, please register a WebAuthn device to connect")
 				}
 				// Send the challenge over the socket.
 				msg, err := codec.Encode(
