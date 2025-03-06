@@ -1,5 +1,10 @@
 # Changelog
 
+## 17.3.3 (03/06/25)
+
+* Updated golang.org/x/net (addresses CVE-2025-22870). [#52846](https://github.com/gravitational/teleport/pull/52846)
+* Fix the issue with multiple Okta app links that is causing a high level of Okta API usage. [#52841](https://github.com/gravitational/teleport/pull/52841)
+
 ## 17.3.2 (03/04/25)
 
 * Updated Go to 1.23.7. [#52772](https://github.com/gravitational/teleport/pull/52772)
