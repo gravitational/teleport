@@ -50,6 +50,8 @@ func NewSystemdAttestor(cfg SystemdAttestorConfig, log *slog.Logger) *SystemdAtt
 
 // Attest the identity of the given systemd workload.
 func (a *SystemdAttestor) Attest(ctx context.Context, pid int) (*workloadidentityv1pb.WorkloadAttrsSystemd, error) {
+	a.log.DebugContext(ctx, "Starting Systemd workload attestation", "pid", pid)
+
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
