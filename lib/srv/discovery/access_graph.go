@@ -33,6 +33,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/defaults"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/metadata"
@@ -490,6 +491,11 @@ func (s *Server) updateDiscoveryConfigStatus(fetchers []aws_sync.AWSSync, pushEr
 			// If this is a pre-run, the status is syncing.
 			status.State = discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_SYNCING.String()
 		}
+
+		// Ensure the error message is truncated to the maximum allowed size.
+		// Too large error messages will cause failures when clients (which use the default MaxCallRecvMsgSize of 4MB) try to read DiscoveryConfigs.
+		status.ErrorMessage = truncateErrorMessage(status)
+
 		ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
 		defer cancel()
 		_, err := s.AccessPoint.UpdateDiscoveryConfigStatus(ctx, fetcher.DiscoveryConfigName(), status)
@@ -500,6 +506,20 @@ func (s *Server) updateDiscoveryConfigStatus(fetchers []aws_sync.AWSSync, pushEr
 			s.Log.InfoContext(s.ctx, "Error updating discovery config status", "discovery_config_name", fetcher.DiscoveryConfigName(), "error", err)
 		}
 	}
+}
+
+func truncateErrorMessage(discoveryConfigStatus discoveryconfig.Status) *string {
+	if discoveryConfigStatus.ErrorMessage == nil {
+		return nil
+	}
+
+	if len(*discoveryConfigStatus.ErrorMessage) <= defaults.DefaultMaxErrorMessageSize {
+		return discoveryConfigStatus.ErrorMessage
+	}
+
+	newErrorMessage := (*discoveryConfigStatus.ErrorMessage)[:defaults.DefaultMaxErrorMessageSize]
+
+	return &newErrorMessage
 }
 
 func buildFetcherStatus(fetcher aws_sync.AWSSync, pushErr error, lastUpdate time.Time) discoveryconfig.Status {
