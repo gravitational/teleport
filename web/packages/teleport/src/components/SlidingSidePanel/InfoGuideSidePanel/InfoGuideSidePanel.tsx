@@ -23,7 +23,7 @@ import { Box, ButtonIcon, Flex, H3, Link, Text } from 'design';
 import { Cross, Info } from 'design/Icon';
 import { P } from 'design/Text/Text';
 
-import { useInfoGuide } from 'teleport/Main/InfoGuideContext';
+import { useInfoGuide, useSidePanel } from 'teleport/Main/InfoGuideContext';
 import { zIndexMap } from 'teleport/Navigation/zIndexMap';
 
 import { SlidingSidePanel } from '..';
@@ -34,25 +34,20 @@ export const infoGuidePanelWidth = 300;
  * An info panel that always slides from the right and supports closing
  * from inside of panel (by clicking on x button from the sticky header).
  */
-export const InfoGuideSidePanel: React.FC<
-  PropsWithChildren<{
-    isVisible: boolean;
-    onClose(): void;
-  }>
-> = ({ isVisible, children, onClose }) => {
+export const InfoGuideSidePanel = () => {
+  const { ref, close, isOpen } = useSidePanel();
+
   return (
     <SlidingSidePanel
-      isVisible={isVisible}
+      isVisible={isOpen}
       skipAnimation={false}
       panelWidth={infoGuidePanelWidth}
       zIndex={zIndexMap.infoGuideSidePanel}
       slideFrom="right"
     >
       <Box css={{ height: '100%', overflow: 'auto' }}>
-        <InfoGuideHeader onClose={onClose} />
-        <Box px={3} pb={3}>
-          {children}
-        </Box>
+        <InfoGuideHeader onClose={close} />
+        <Box px={3} pb={3} ref={ref} />
       </Box>
     </SlidingSidePanel>
   );
@@ -87,16 +82,14 @@ export const InfoGuideWrapper: React.FC<
     guide: JSX.Element;
   }>
 > = ({ guide, children }) => {
-  const { setInfoGuideElement } = useInfoGuide();
+  const { open, createInfoGuidePortal } = useInfoGuide();
 
   return (
     <Flex alignItems="center" gap={2}>
       {children}
-      <ButtonIcon
-        onClick={() => setInfoGuideElement(guide)}
-        data-testid="info-guide-btn-open"
-      >
+      <ButtonIcon onClick={open} data-testid="info-guide-btn-open">
         <Info size="small" />
+        {createInfoGuidePortal(guide)}
       </ButtonIcon>
     </Flex>
   );

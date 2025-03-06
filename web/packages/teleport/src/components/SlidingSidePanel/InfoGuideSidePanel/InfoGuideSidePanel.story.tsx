@@ -18,8 +18,6 @@
 
 import { Box } from 'design';
 
-import { useInfoGuide } from 'teleport/Main/InfoGuideContext';
-
 import { DevInfo, LongContent, TopBar } from '../storyHelpers';
 import {
   InfoGuideSidePanel as Component,
@@ -39,21 +37,11 @@ export const InfoGuideSidePanel = () => {
         <InfoGuideWrapper guide={<LongContent />}>
           Click on the info icon
         </InfoGuideWrapper>
+        <InfoGuideWrapper guide={<p>Lorem ipsum dolor sit amet.</p>}>
+          Open shorter guide
+        </InfoGuideWrapper>
       </Box>
-      <SidePanel />
+      <Component />
     </TopBar>
-  );
-};
-
-const SidePanel = () => {
-  const { infoGuideElement, setInfoGuideElement } = useInfoGuide();
-
-  return (
-    <Component
-      isVisible={infoGuideElement != null}
-      onClose={() => setInfoGuideElement(null)}
-    >
-      <LongContent />
-    </Component>
   );
 };
