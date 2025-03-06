@@ -291,6 +291,8 @@ export type PluginOktaSpec = {
   defaultOwners: string[];
   // The Okta organization's base URL
   orgUrl: string;
+  // Whether changes made in Teleport should be synced back to Okta.
+  enableBidirectionalSync?: boolean;
   // Whether User Sync is enabled
   enableUserSync?: boolean;
   // Whether Access List Sync is enabled. Should match App/Group sync.
