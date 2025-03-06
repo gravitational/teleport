@@ -584,13 +584,13 @@ func TestGenericKeyOverride(t *testing.T) {
 	defer memBackend.Close()
 
 	service, err := NewService(&ServiceConfig[*testResource]{
-		Backend:         memBackend,
-		ResourceKind:    "generic resource",
-		PageLimit:       200,
-		BackendPrefix:   backend.NewKey("generic_prefix"),
-		UnmarshalFunc:   unmarshalResource,
-		MarshalFunc:     marshalResource,
-		ResourceKeyFunc: func(tr *testResource) string { return "llama" },
+		Backend:       memBackend,
+		ResourceKind:  "generic resource",
+		PageLimit:     200,
+		BackendPrefix: backend.NewKey("generic_prefix"),
+		UnmarshalFunc: unmarshalResource,
+		MarshalFunc:   marshalResource,
+		NameKeyFunc:   func(string) string { return "llama" },
 	})
 	require.NoError(t, err)
 
@@ -656,68 +656,17 @@ func TestGenericKeyOverride(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, item)
 
-	// Validate that getting the resource through the service requires the
-	// overridden name and not the resource name because we've configured
-	// ResourceKeyFunc and not NameKeyFunc
+	// Validate that getting the resource through the service uses the overridden name
 	_, err = service.GetResource(ctx, r1.GetName())
-	require.ErrorAs(t, err, new(*trace.NotFoundError))
+	require.NoError(t, err)
 	_, err = service.GetResource(ctx, "llama")
 	require.NoError(t, err)
-
-	service2, err := NewService(&ServiceConfig[*testResource]{
-		Backend:       memBackend,
-		ResourceKind:  "generic resource",
-		PageLimit:     200,
-		BackendPrefix: backend.NewKey("generic_prefix"),
-		UnmarshalFunc: unmarshalResource,
-		MarshalFunc:   marshalResource,
-		NameKeyFunc:   func(string) string { return "llama" },
-	})
+	_, err = service.GetResource(ctx, "notllama")
 	require.NoError(t, err)
 
-	// Validate that when NameKeyFunc is set we can override the key for reads
-	// and deletes too
-	_, err = service2.GetResource(ctx, "llama")
-	require.NoError(t, err)
-	_, err = service2.GetResource(ctx, r1.GetName())
-	require.NoError(t, err)
-	_, err = service2.GetResource(ctx, "notllama")
-	require.NoError(t, err)
-
-	err = service2.DeleteResource(ctx, "notllama")
+	// Validate that deleting the resource also uses the overridden name
+	err = service.DeleteResource(ctx, "notllama")
 	require.NoError(t, err)
 	_, err = memBackend.Get(ctx, backend.NewKey("generic_prefix", "llama"))
-	require.ErrorAs(t, err, new(*trace.NotFoundError))
-
-	// Validate that when NameKeyFunc is set and ResourceKeyFunc is unset we
-	// will use NameKeyFunc for writes
-	_, err = service2.CreateResource(ctx, r1)
-	require.NoError(t, err)
-	_, err = memBackend.Get(ctx, backend.NewKey("generic_prefix", "llama"))
-	require.NoError(t, err)
-
-	service3, err := NewService(&ServiceConfig[*testResource]{
-		Backend:         memBackend,
-		ResourceKind:    "generic resource",
-		PageLimit:       200,
-		BackendPrefix:   backend.NewKey("generic_prefix"),
-		UnmarshalFunc:   unmarshalResource,
-		MarshalFunc:     marshalResource,
-		NameKeyFunc:     func(string) string { return "llama" },
-		ResourceKeyFunc: func(*testResource) string { return "notllama" },
-	})
-	require.NoError(t, err)
-
-	// Validate that ResourceKeyFunc takes priority over NameKeyFunc (deletes
-	// and reads will use NameKeyFunc, writes will use ResourceKeyFunc)
-	err = service3.DeleteResource(ctx, "llamallama")
-	require.NoError(t, err)
-
-	_, err = service3.CreateResource(ctx, r1)
-	require.NoError(t, err)
-	_, err = memBackend.Get(ctx, backend.NewKey("generic_prefix", "notllama"))
-	require.NoError(t, err)
-
-	_, err = service3.GetResource(ctx, "notllama")
 	require.ErrorAs(t, err, new(*trace.NotFoundError))
 }

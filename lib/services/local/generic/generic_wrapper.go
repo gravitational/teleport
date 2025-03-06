@@ -50,12 +50,6 @@ func NewServiceWrapper[T types.ResourceMetadata](cfg ServiceConfig[T]) (*Service
 		}
 	}
 
-	if cfg.ResourceKeyFunc != nil {
-		serviceConfig.ResourceKeyFunc = func(rma resourceMetadataAdapter[T]) string {
-			return cfg.ResourceKeyFunc(rma.resource)
-		}
-	}
-
 	service, err := NewService(serviceConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
