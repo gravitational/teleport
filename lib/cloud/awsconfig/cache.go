@@ -97,8 +97,8 @@ func (c *Cache) GetConfig(ctx context.Context, region string, optFns ...OptionsF
 }
 
 func (c *Cache) getBaseConfig(ctx context.Context, region string, opts *options) (aws.Config, error) {
-	if opts.baseConfig != nil {
-		return loadDefaultConfig(ctx, region, opts.baseConfig.Credentials, opts)
+	if opts.baseCredentials != nil {
+		return loadDefaultConfig(ctx, region, opts.baseCredentials, opts)
 	}
 
 	// The AWS SDK combines config loading with default credential chain

@@ -106,8 +106,8 @@ type options struct {
 	maxRetries *int
 	// stsClientProvider sets the STS assume role client provider func.
 	stsClientProvider STSClientProviderFunc
-	// baseConfig is the base config used to assume the roles.
-	baseConfig *aws.Config
+	// baseCredentials is the base config used to assume the roles.
+	baseCredentials aws.CredentialsProvider
 }
 
 func buildOptions(optFns ...OptionsFn) (*options, error) {
@@ -122,7 +122,7 @@ func buildOptions(optFns ...OptionsFn) (*options, error) {
 }
 
 func (o *options) checkAndSetDefaults() error {
-	if o.baseConfig == nil {
+	if o.baseCredentials == nil {
 		switch o.credentialsSource {
 		case credentialsSourceAmbient:
 			if o.integration != "" {
@@ -239,10 +239,11 @@ func WithOIDCIntegrationClient(c OIDCIntegrationClient) OptionsFn {
 	}
 }
 
-// WithBaseConfig sets the base config used for the assumed roles.
-func WithBaseConfig(baseCfg aws.Config) OptionsFn {
+// WithBaseCredentialsProvider sets the base provider credentials used for the
+// assumed roles.
+func WithBaseCredentialsProvider(baseCredentialsProvider aws.CredentialsProvider) OptionsFn {
 	return func(o *options) {
-		o.baseConfig = &baseCfg
+		o.baseCredentials = baseCredentialsProvider
 	}
 }
 
@@ -289,8 +290,8 @@ func buildConfigOptions(region string, cred aws.CredentialsProvider, opts *optio
 
 // getBaseConfig returns an AWS config without assuming any roles.
 func getBaseConfig(ctx context.Context, region string, opts *options) (aws.Config, error) {
-	if opts.baseConfig != nil {
-		return loadDefaultConfig(ctx, region, opts.baseConfig.Credentials, opts)
+	if opts.baseCredentials != nil {
+		return loadDefaultConfig(ctx, region, opts.baseCredentials, opts)
 	}
 
 	slog.DebugContext(ctx, "Initializing AWS config from default credential chain",

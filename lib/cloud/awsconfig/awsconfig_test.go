@@ -259,7 +259,7 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 		cfg, err := provider.GetConfig(ctx, dummyRegion,
 			WithSTSClientProvider(stsClt),
 			WithAssumeRole("roleA", "abc123"),
-			WithBaseConfig(baseCfg),
+			WithBaseCredentialsProvider(baseCfg.Credentials),
 		)
 		require.NoError(t, err)
 
