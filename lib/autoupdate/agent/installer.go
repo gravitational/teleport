@@ -64,6 +64,7 @@ const (
 
 // LocalInstaller manages the creation and removal of installations
 // of Teleport.
+// SetRequiredUmask must be called before any methods are executed.
 type LocalInstaller struct {
 	// InstallDir contains each installation, named by version.
 	InstallDir string
@@ -82,7 +83,7 @@ type LocalInstaller struct {
 	// ReservedFreeInstallDisk is the amount of disk that must remain free in the install directory.
 	ReservedFreeInstallDisk uint64
 	// TransformService transforms the systemd service during copying.
-	TransformService func([]byte) []byte
+	TransformService func(cfg []byte, pathDir string) []byte
 	// ValidateBinary returns true if a file is a linkable binary, or
 	// false if a file should not be linked.
 	ValidateBinary func(ctx context.Context, path string) (bool, error)
@@ -585,7 +586,7 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, srcBinDir, srcSvcFile,
 
 	// create systemd service file
 
-	orig, err := li.forceCopyService(li.TargetServiceFile, srcSvcFile, maxServiceFileSize)
+	orig, err := li.forceCopyService(li.TargetServiceFile, srcSvcFile, maxServiceFileSize, dstBinDir)
 	if err != nil && !errors.Is(err, os.ErrExist) {
 		return revert, trace.Wrap(err, "failed to copy service")
 	}
@@ -598,12 +599,12 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, srcBinDir, srcSvcFile,
 // forceCopyService uses forceCopy to copy a systemd service file from src to dst.
 // The contents of both src and dst must be smaller than n.
 // See forceCopy for more details.
-func (li *LocalInstaller) forceCopyService(dst, src string, n int64) (orig *smallFile, err error) {
+func (li *LocalInstaller) forceCopyService(dst, src string, n int64, dstBinDir string) (orig *smallFile, err error) {
 	srcData, err := readFileAtMost(src, n)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return forceCopy(dst, li.TransformService(srcData), n)
+	return forceCopy(dst, li.TransformService(srcData, dstBinDir), n)
 }
 
 // forceLink attempts to create a symlink, atomically replacing an existing link if already present.
@@ -735,7 +736,7 @@ func (li *LocalInstaller) removeLinks(ctx context.Context, srcBinDir, srcSvcFile
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if !bytes.Equal(li.TransformService(srcBytes), dstBytes) {
+	if !bytes.Equal(li.TransformService(srcBytes, dstBinDir), dstBytes) {
 		li.Log.WarnContext(ctx, "Removed teleport binary link, but skipping removal of custom teleport.service: the service file does not match the reference file for this version. The file might have been manually edited.")
 		return nil
 	}
@@ -807,7 +808,7 @@ func (li *LocalInstaller) tryLinks(ctx context.Context, srcBinDir, srcSvcFile, d
 	}
 
 	// if any binaries are linked from srcBinDir, always link the service from svcDir
-	_, err = li.forceCopyService(li.TargetServiceFile, srcSvcFile, maxServiceFileSize)
+	_, err = li.forceCopyService(li.TargetServiceFile, srcSvcFile, maxServiceFileSize, dstBinDir)
 	if err != nil && !errors.Is(err, os.ErrExist) {
 		return trace.Wrap(err, "failed to copy service")
 	}

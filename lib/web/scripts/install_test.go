@@ -40,17 +40,42 @@ func TestGetInstallScript(t *testing.T) {
 		assertFn func(t *testing.T, script string)
 	}{
 		{
-			name: "Legacy install, no autoupdate",
-			opts: InstallScriptOptions{AutoupdateStyle: NoAutoupdate},
+			name: "Legacy install, oss",
+			opts: InstallScriptOptions{
+				AutoupdateStyle: NoAutoupdate,
+				TeleportVersion: testVersion,
+				TeleportFlavor:  types.PackageNameOSS,
+			},
 			assertFn: func(t *testing.T, script string) {
-				require.Equal(t, legacyInstallScript, script)
+				require.Contains(t, script, fmt.Sprintf(`TELEPORT_VERSION="%s"`, testVersion))
+				require.Contains(t, script, `TELEPORT_SUFFIX=""`)
+				require.Contains(t, script, `TELEPORT_EDITION="oss"`)
 			},
 		},
 		{
-			name: "Legacy install, package manager autoupdate",
-			opts: InstallScriptOptions{AutoupdateStyle: NoAutoupdate},
+			name: "Legacy install, enterprise",
+			opts: InstallScriptOptions{
+				AutoupdateStyle: NoAutoupdate,
+				TeleportVersion: testVersion,
+				TeleportFlavor:  types.PackageNameEnt,
+			},
 			assertFn: func(t *testing.T, script string) {
-				require.Equal(t, legacyInstallScript, script)
+				require.Contains(t, script, fmt.Sprintf(`TELEPORT_VERSION="%s"`, testVersion))
+				require.Contains(t, script, `TELEPORT_SUFFIX="-ent"`)
+				require.Contains(t, script, `TELEPORT_EDITION="enterprise"`)
+			},
+		},
+		{
+			name: "Legacy install, cloud",
+			opts: InstallScriptOptions{
+				AutoupdateStyle: PackageManagerAutoupdate,
+				TeleportVersion: testVersion,
+				TeleportFlavor:  types.PackageNameEnt,
+			},
+			assertFn: func(t *testing.T, script string) {
+				require.Contains(t, script, fmt.Sprintf(`TELEPORT_VERSION="%s"`, testVersion))
+				require.Contains(t, script, `TELEPORT_SUFFIX="-ent"`)
+				require.Contains(t, script, `TELEPORT_EDITION="cloud"`)
 			},
 		},
 		{
@@ -85,6 +110,24 @@ func TestGetInstallScript(t *testing.T) {
 				require.Contains(t, script, fmt.Sprintf("teleportFlavor='%s'", types.PackageNameOSS))
 				require.Contains(t, script, "cdnBaseURL='https://cdn.example.com'")
 				require.Contains(t, script, fmt.Sprintf("entrypointArgs='enable --proxy %s --base-url %s'", testProxyAddr, "https://cdn.example.com"))
+				require.Contains(t, script, "packageSuffix='bin.tar.gz'")
+			},
+		},
+		{
+			name: "Oneoff install default CDN",
+			opts: InstallScriptOptions{
+				AutoupdateStyle: UpdaterBinaryAutoupdate,
+				TeleportVersion: testVersion,
+				ProxyAddr:       testProxyAddr,
+				TeleportFlavor:  types.PackageNameOSS,
+				CDNBaseURL:      teleportassets.TeleportReleaseCDN,
+			},
+			assertFn: func(t *testing.T, script string) {
+				require.Contains(t, script, "entrypoint='teleport-update'")
+				require.Contains(t, script, fmt.Sprintf("teleportVersion='v%s'", testVersion))
+				require.Contains(t, script, fmt.Sprintf("teleportFlavor='%s'", types.PackageNameOSS))
+				require.Contains(t, script, fmt.Sprintf("cdnBaseURL='%s'", teleportassets.TeleportReleaseCDN))
+				require.Contains(t, script, fmt.Sprintf("entrypointArgs='enable --proxy %s'", testProxyAddr))
 				require.Contains(t, script, "packageSuffix='bin.tar.gz'")
 			},
 		},

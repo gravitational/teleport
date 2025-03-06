@@ -92,21 +92,15 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 
 	// By default, it will use `stable/v<majorVersion>`, eg stable/v12
 	repoChannel := ""
-	installPackageUpdater := false
 
 	switch opts.InstallOptions.AutoupdateStyle {
-	case NoAutoupdate:
+	case NoAutoupdate, UpdaterBinaryAutoupdate:
 	case PackageManagerAutoupdate:
 		// Note: This is a cloud-specific repo. We could use the new stable/rolling
 		// repo in non-cloud case, but the script has never support enabling autoupdates
 		// in a non-cloud cluster.
 		// We will prefer using the new updater binary for autoupdates in self-hosted setups.
 		repoChannel = automaticupgrades.DefaultCloudChannelName
-		installPackageUpdater = true
-	case UpdaterBinaryAutoupdate:
-		// TODO(hugoShaka): add new autoupdate binary support in the node-install script
-		// by using oneoff in another PR
-		return "", trace.NotImplemented("This path is not implemented yet.")
 	default:
 		return "", trace.BadParameter("unsupported autoupdate style: %v", opts.InstallOptions.AutoupdateStyle)
 	}
@@ -120,6 +114,10 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 	// Computing service configuration-related values
 	labelsList := []string{}
 	for labelKey, labelValues := range opts.Labels {
+		labelKey = shsprintf.EscapeDefaultContext(labelKey)
+		for i := range labelValues {
+			labelValues[i] = shsprintf.EscapeDefaultContext(labelValues[i])
+		}
 		labels := strings.Join(labelValues, " ")
 		labelsList = append(labelsList, fmt.Sprintf("%s=%s", labelKey, labels))
 	}
@@ -161,7 +159,7 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 	// This section relies on Go's default zero values to make sure that the settings
 	// are correct when not installing an app.
 	err = installNodeBashScript.Execute(&buf, map[string]interface{}{
-		"token":    opts.Token,
+		"token":    shsprintf.EscapeDefaultContext(opts.Token),
 		"hostname": hostname,
 		"port":     portStr,
 		// The install.sh script has some manually generated configs and some
@@ -173,7 +171,7 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 		"caPins":                  strings.Join(opts.CAPins, ","),
 		"packageName":             opts.InstallOptions.TeleportFlavor,
 		"repoChannel":             repoChannel,
-		"installUpdater":          strconv.FormatBool(installPackageUpdater),
+		"installUpdater":          opts.InstallOptions.AutoupdateStyle.String(),
 		"version":                 shsprintf.EscapeDefaultContext(opts.InstallOptions.TeleportVersion),
 		"appInstallMode":          strconv.FormatBool(opts.AppServiceEnabled),
 		"appServerResourceLabels": appServerResourceLabels,

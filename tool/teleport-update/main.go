@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
@@ -53,6 +54,8 @@ const (
 	updateGroupEnvVar = "TELEPORT_UPDATE_GROUP"
 	// updateVersionEnvVar forces the version to specified value.
 	updateVersionEnvVar = "TELEPORT_UPDATE_VERSION"
+	// updateLockTimeout is the duration commands will wait for update to complete before failing.
+	updateLockTimeout = 10 * time.Minute
 )
 
 var plog = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentUpdater)
@@ -181,6 +184,13 @@ func Run(args []string) int {
 		return 1
 	}
 
+	// Set required umask for commands that write files to system directories as root, and warn loudly if it changes.
+	switch command {
+	case statusCmd.FullCommand(), versionCmd.FullCommand():
+	default:
+		autoupdate.SetRequiredUmask(ctx, plog)
+	}
+
 	switch command {
 	case enableCmd.FullCommand():
 		ccfg.Enabled = true
@@ -274,7 +284,7 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 	if err != nil {
 		return trace.Wrap(err, "failed to initialize updater")
 	}
-	unlock, err := libutils.FSWriteLock(lockFile)
+	unlock, err := libutils.FSTryWriteLockTimeout(ctx, lockFile, updateLockTimeout)
 	if err != nil {
 		return trace.Wrap(err, "failed to grab concurrent execution lock %s", lockFile)
 	}
@@ -295,7 +305,7 @@ func cmdUnpin(ctx context.Context, ccfg *cliConfig) error {
 	if err != nil {
 		return trace.Wrap(err, "failed to setup updater")
 	}
-	unlock, err := libutils.FSWriteLock(lockFile)
+	unlock, err := libutils.FSTryWriteLockTimeout(ctx, lockFile, updateLockTimeout)
 	if err != nil {
 		return trace.Wrap(err, "failed to grab concurrent execution lock %n", lockFile)
 	}
@@ -312,20 +322,13 @@ func cmdUnpin(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdInstall installs Teleport and sets configuration.
 func cmdInstall(ctx context.Context, ccfg *cliConfig) error {
-	if ccfg.InstallSuffix != "" {
-		ns, err := autoupdate.NewNamespace(ctx, plog, ccfg.InstallSuffix, ccfg.InstallDir)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		ns.LogWarning(ctx)
-	}
 	updater, lockFile, err := initConfig(ctx, ccfg)
 	if err != nil {
 		return trace.Wrap(err, "failed to initialize updater")
 	}
 
 	// Ensure enable can't run concurrently.
-	unlock, err := libutils.FSWriteLock(lockFile)
+	unlock, err := libutils.FSTryWriteLockTimeout(ctx, lockFile, updateLockTimeout)
 	if err != nil {
 		return trace.Wrap(err, "failed to grab concurrent execution lock %s", lockFile)
 	}
@@ -347,7 +350,12 @@ func cmdUpdate(ctx context.Context, ccfg *cliConfig) error {
 		return trace.Wrap(err, "failed to initialize updater")
 	}
 	// Ensure update can't run concurrently.
-	unlock, err := libutils.FSWriteLock(lockFile)
+	var unlock func() error
+	if ccfg.UpdateNow {
+		unlock, err = libutils.FSTryWriteLockTimeout(ctx, lockFile, updateLockTimeout)
+	} else {
+		unlock, err = libutils.FSWriteLock(lockFile)
+	}
 	if err != nil {
 		return trace.Wrap(err, "failed to grab concurrent execution lock %s", lockFile)
 	}
@@ -463,7 +471,7 @@ func cmdUninstall(ctx context.Context, ccfg *cliConfig) error {
 		return trace.Wrap(err, "failed to initialize updater")
 	}
 	// Ensure update can't run concurrently.
-	unlock, err := libutils.FSWriteLock(lockFile)
+	unlock, err := libutils.FSTryWriteLockTimeout(ctx, lockFile, updateLockTimeout)
 	if err != nil {
 		return trace.Wrap(err, "failed to grab concurrent execution lock %s", lockFile)
 	}

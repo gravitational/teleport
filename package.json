@@ -31,7 +31,8 @@
   "pnpm": {
     "overrides": {
       "jsdom@^20.0.3>nwsapi@^2.2.0": "2.2.9",
-      "vite>@types/node": "^20.17.16"
+      "vite>@types/node": "^20.17.16",
+      "electron-vite@^3.0.0>esbuild@0.24.2": "^0.25.0"
     }
   },
   "devDependencies": {
@@ -41,8 +42,8 @@
     "@storybook/addon-toolbars": "^8.5.3",
     "@storybook/components": "^8.5.3",
     "@storybook/preview-api": "^8.5.3",
-    "@storybook/react": "^8.5.3",
-    "@storybook/react-vite": "^8.5.3",
+    "@storybook/react": "^8.6.2",
+    "@storybook/react-vite": "^8.6.2",
     "@storybook/test-runner": "^0.21.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
@@ -65,9 +66,9 @@
     "playwright": "^1.50.1",
     "prettier": "^3.4.2",
     "react-select-event": "^5.5.1",
-    "storybook": "^8.5.3",
+    "storybook": "^8.6.2",
     "typescript": "^5.7.3",
-    "vite": "^6.0.11"
+    "vite": "^6.2.0"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.18.4",

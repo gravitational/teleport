@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Box, ButtonPrimary, ButtonSecondary, Flex, Indicator } from 'design';
 import { Info } from 'design/Alert';
@@ -26,15 +26,20 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
+import { Attempt as AsyncAttempt } from 'shared/hooks/useAsync';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
-import type { MfaState } from 'teleport/lib/useMfa';
+import { TdpClientCanvasRef } from 'teleport/components/TdpClientCanvas/TdpClientCanvas';
+import { useListener } from 'teleport/lib/tdp/client';
+import { MfaState, shouldShowMfaPrompt } from 'teleport/lib/useMfa';
 
 import TopBar from './TopBar';
 import useDesktopSession, {
   clipboardSharingMessage,
+  defaultClipboardSharingState,
+  defaultDirectorySharingState,
   directorySharingPossible,
   isSharingClipboard,
   isSharingDirectory,
@@ -56,20 +61,14 @@ declare global {
 export function DesktopSession(props: State) {
   const {
     mfa,
-    tdpClient,
+    tdpClient: client,
     username,
     hostname,
     directorySharingState,
     setDirectorySharingState,
-    clientOnPngFrame,
-    clientOnBitmapFrame,
-    clientOnClientScreenSpec,
+    setInitialTdpConnectionSucceeded,
     clientOnClipboardData,
-    clientOnTdpError,
-    clientOnTdpWarning,
-    clientOnTdpInfo,
-    clientOnWsClose,
-    clientOnWsOpen,
+    setWsConnection,
     canvasOnKeyDown,
     canvasOnKeyUp,
     canvasOnFocusOut,
@@ -78,7 +77,7 @@ export function DesktopSession(props: State) {
     canvasOnMouseUp,
     canvasOnMouseWheelScroll,
     canvasOnContextMenu,
-    windowOnResize,
+    onResize,
     clientScreenSpecToRequest,
     clipboardSharingState,
     setClipboardSharingState,
@@ -90,12 +89,24 @@ export function DesktopSession(props: State) {
     tdpConnection,
     wsConnection,
     showAnotherSessionActiveDialog,
+    addAlert,
+    setTdpConnection,
   } = props;
 
   const [screenState, setScreenState] = useState<ScreenState>({
     screen: 'processing',
     canvasState: { shouldConnect: false, shouldDisplay: false },
   });
+  const { shouldConnect } = screenState.canvasState;
+  // Call connect after all listeners have been registered
+  useEffect(() => {
+    if (client && shouldConnect) {
+      client.connect(clientScreenSpecToRequest);
+      return () => {
+        client.shutdown();
+      };
+    }
+  }, [client, shouldConnect]);
 
   // Calculate the next `ScreenState` whenever any of the constituent pieces of state change.
   useEffect(() => {
@@ -117,8 +128,110 @@ export function DesktopSession(props: State) {
     mfa,
   ]);
 
+  const tdpClientCanvasRef = useRef<TdpClientCanvasRef>(null);
+  const onInitialTdpConnectionSucceeded = useCallback(() => {
+    setInitialTdpConnectionSucceeded(() => {
+      // TODO(gzdunek): This callback is a temporary fix for focusing the canvas.
+      // Focus the canvas once we start rendering frames.
+      // The timeout it a small hack, we should verify
+      // what is the earliest moment we can focus the canvas.
+      setTimeout(() => {
+        tdpClientCanvasRef.current?.focus();
+      }, 100);
+    });
+  }, [setInitialTdpConnectionSucceeded]);
+
+  useListener(client?.onClipboardData, clientOnClipboardData);
+
+  const handleFatalError = useCallback(
+    (error: Error) => {
+      setDirectorySharingState(defaultDirectorySharingState);
+      setClipboardSharingState(defaultClipboardSharingState);
+      setTdpConnection({
+        status: 'failed',
+        statusText: error.message || error.toString(),
+      });
+    },
+    [setClipboardSharingState, setDirectorySharingState, setTdpConnection]
+  );
+  useListener(client?.onError, handleFatalError);
+  useListener(client?.onClientError, handleFatalError);
+
+  const addWarning = useCallback(
+    (warning: string) => {
+      addAlert({
+        content: warning,
+        severity: 'warn',
+      });
+    },
+    [addAlert]
+  );
+  useListener(client?.onWarning, addWarning);
+  useListener(client?.onClientWarning, addWarning);
+
+  useListener(
+    client?.onInfo,
+    useCallback(
+      info => {
+        addAlert({
+          content: info,
+          severity: 'info',
+        });
+      },
+      [addAlert]
+    )
+  );
+
+  useListener(
+    client?.onWsClose,
+    useCallback(
+      statusText => {
+        setWsConnection({ status: 'closed', statusText });
+      },
+      [setWsConnection]
+    )
+  );
+  useListener(
+    client?.onWsOpen,
+    useCallback(() => {
+      setWsConnection({ status: 'open' });
+    }, [setWsConnection])
+  );
+
+  useListener(client?.onPointer, tdpClientCanvasRef.current?.setPointer);
+  useListener(
+    client?.onPngFrame,
+    useCallback(
+      frame => {
+        onInitialTdpConnectionSucceeded();
+        tdpClientCanvasRef.current?.renderPngFrame(frame);
+      },
+      [onInitialTdpConnectionSucceeded]
+    )
+  );
+  useListener(
+    client?.onBmpFrame,
+    useCallback(
+      frame => {
+        onInitialTdpConnectionSucceeded();
+        tdpClientCanvasRef.current?.renderBitmapFrame(frame);
+      },
+      [onInitialTdpConnectionSucceeded]
+    )
+  );
+  useListener(client?.onReset, tdpClientCanvasRef.current?.clear);
+  useListener(client?.onScreenSpec, tdpClientCanvasRef.current?.setResolution);
+
   return (
-    <Flex flexDirection="column">
+    <Flex
+      flexDirection="column"
+      css={`
+        // Fill the window.
+        position: absolute;
+        width: 100%;
+        height: 100%;
+      `}
+    >
       <TopBar
         onDisconnect={() => {
           setClipboardSharingState(prevState => ({
@@ -129,7 +242,7 @@ export function DesktopSession(props: State) {
             ...prevState,
             isSharing: false,
           }));
-          tdpClient.shutdown();
+          client.shutdown();
         }}
         userHost={`${username}@${hostname}`}
         canShareDirectory={directorySharingPossible(directorySharingState)}
@@ -145,53 +258,30 @@ export function DesktopSession(props: State) {
       {screenState.screen === 'anotherSessionActive' && (
         <AnotherSessionActiveDialog {...props} />
       )}
-      {screenState.screen === 'mfa' && <MfaDialog mfa={mfa} />}
+      {screenState.screen === 'mfa' && <AuthnDialog mfaState={mfa} />}
       {screenState.screen === 'alert dialog' && (
         <AlertDialog screenState={screenState} />
       )}
       {screenState.screen === 'processing' && <Processing />}
 
       <TdpClientCanvas
+        ref={tdpClientCanvasRef}
         style={{
           display: screenState.canvasState.shouldDisplay ? 'flex' : 'none',
         }}
-        client={tdpClient}
-        clientShouldConnect={screenState.canvasState.shouldConnect}
-        clientScreenSpecToRequest={clientScreenSpecToRequest}
-        clientOnPngFrame={clientOnPngFrame}
-        clientOnBmpFrame={clientOnBitmapFrame}
-        clientOnClientScreenSpec={clientOnClientScreenSpec}
-        clientOnClipboardData={clientOnClipboardData}
-        clientOnTdpError={clientOnTdpError}
-        clientOnTdpWarning={clientOnTdpWarning}
-        clientOnTdpInfo={clientOnTdpInfo}
-        clientOnWsClose={clientOnWsClose}
-        clientOnWsOpen={clientOnWsOpen}
-        canvasOnKeyDown={canvasOnKeyDown}
-        canvasOnKeyUp={canvasOnKeyUp}
-        canvasOnFocusOut={canvasOnFocusOut}
-        canvasOnMouseMove={canvasOnMouseMove}
-        canvasOnMouseDown={canvasOnMouseDown}
-        canvasOnMouseUp={canvasOnMouseUp}
-        canvasOnMouseWheelScroll={canvasOnMouseWheelScroll}
-        canvasOnContextMenu={canvasOnContextMenu}
-        windowOnResize={windowOnResize}
-        updatePointer={true}
+        onKeyDown={canvasOnKeyDown}
+        onKeyUp={canvasOnKeyUp}
+        onBlur={canvasOnFocusOut}
+        onMouseMove={canvasOnMouseMove}
+        onMouseDown={canvasOnMouseDown}
+        onMouseUp={canvasOnMouseUp}
+        onMouseWheel={canvasOnMouseWheelScroll}
+        onContextMenu={canvasOnContextMenu}
+        onResize={onResize}
       />
     </Flex>
   );
 }
-
-const MfaDialog = ({ mfa }: { mfa: MfaState }) => {
-  return (
-    <AuthnDialog
-      mfaState={mfa}
-      replaceErrorText={
-        'This session requires multi factor authentication to continue. Please hit try again and follow the prompts given by your browser to complete authentication.'
-      }
-    />
-  );
-};
 
 const AlertDialog = ({ screenState }: { screenState: ScreenState }) => (
   <Dialog dialogCss={() => ({ width: '484px' })} open={true}>
@@ -200,9 +290,13 @@ const AlertDialog = ({ screenState }: { screenState: ScreenState }) => (
     </DialogHeader>
     <DialogContent>
       <>
-        <Info
-          children={<>{screenState.alertMessage || invalidStateMessage}</>}
-        />
+        {typeof screenState.alertMessage === 'object' ? (
+          <Info details={screenState.alertMessage.message}>
+            {screenState.alertMessage.title}
+          </Info>
+        ) : (
+          <Info>{screenState.alertMessage}</Info>
+        )}
         Refresh the page to reconnect.
       </>
     </DialogContent>
@@ -276,7 +370,7 @@ const nextScreenState = (
   tdpConnection: Attempt,
   wsConnection: WebsocketAttempt,
   showAnotherSessionActiveDialog: boolean,
-  webauthn: MfaState
+  mfa: MfaState
 ): ScreenState => {
   // We always want to show the user the first alert that caused the session to fail/end,
   // so if we're already showing an alert, don't change the screen.
@@ -293,12 +387,12 @@ const nextScreenState = (
 
   // Otherwise, calculate a new screen state.
   const showAnotherSessionActive = showAnotherSessionActiveDialog;
-  const showMfa = webauthn.challenge;
+  const showMfa = shouldShowMfaPrompt(mfa);
   const showAlert =
     fetchAttempt.status === 'failed' || // Fetch attempt failed
-    tdpConnection.status === 'failed' || // TDP connection failed
-    tdpConnection.status === '' || // TDP connection ended gracefully server-side
-    wsConnection.status === 'closed'; // Websocket closed (could mean client side graceful close or unexpected close, the message will tell us which)
+    tdpConnection.status === 'failed' || // TDP connection closed by the remote side.
+    mfa.attempt.status === 'error' || // MFA was canceled
+    wsConnection.status === 'closed'; // Websocket closed, means unexpected close.
 
   const atLeastOneAttemptProcessing =
     fetchAttempt.status === 'processing' ||
@@ -332,6 +426,7 @@ const nextScreenState = (
         tdpConnection,
         wsConnection,
         showAnotherSessionActiveDialog,
+        mfa.attempt,
         prevState
       ),
       canvasState: { shouldConnect: false, shouldDisplay: false },
@@ -362,15 +457,21 @@ const calculateAlertMessage = (
   tdpConnection: Attempt,
   wsConnection: WebsocketAttempt,
   showAnotherSessionActiveDialog: boolean,
+  mfaAttempt: AsyncAttempt<unknown>,
   prevState: ScreenState
-): string => {
+) => {
   let message = '';
+  // Errors, except for dialog cancellations, are handled within the MFA dialog.
+  if (mfaAttempt.status === 'error') {
+    return {
+      title: 'This session requires multi factor authentication',
+      message: mfaAttempt.statusText,
+    };
+  }
   if (fetchAttempt.status === 'failed') {
     message = fetchAttempt.statusText || 'fetch attempt failed';
   } else if (tdpConnection.status === 'failed') {
-    message = tdpConnection.statusText || 'TDP connection failed';
-  } else if (tdpConnection.status === '') {
-    message = tdpConnection.statusText || 'TDP connection ended gracefully';
+    message = tdpConnection.statusText || 'Disconnected';
   } else if (wsConnection.status === 'closed') {
     message =
       wsConnection.statusText || 'websocket disconnected for an unknown reason';
@@ -397,7 +498,7 @@ type ScreenState = {
     | 'processing'
     | 'canvas';
 
-  alertMessage?: string;
+  alertMessage?: string | { title: string; message: string };
   canvasState: {
     shouldConnect: boolean;
     shouldDisplay: boolean;

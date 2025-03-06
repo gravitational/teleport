@@ -18,6 +18,9 @@ package tbot
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/pem"
+	"os"
 	"path"
 	"path/filepath"
 	"testing"
@@ -84,6 +87,15 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 		})
 	require.NoError(t, err)
 
+	checkCRL := func(t *testing.T, tmpDir string, bundle *x509bundle.Bundle) {
+		crlPEM, err := os.ReadFile(filepath.Join(tmpDir, config.SVIDCRLPemPath))
+		require.NoError(t, err)
+		crlBytes, _ := pem.Decode(crlPEM)
+		crl, err := x509.ParseRevocationList(crlBytes.Bytes)
+		require.NoError(t, err)
+		require.NoError(t, crl.CheckSignatureFrom(bundle.X509Authorities()[0]))
+	}
+
 	t.Run("By Name", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		onboarding, _ := makeBot(t, rootClient, "by-name", role.GetName())
@@ -123,6 +135,8 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 		require.NoError(t, err)
 		_, _, err = x509svid.Verify(svid.Certificates, bundle)
 		require.NoError(t, err)
+
+		checkCRL(t, tmpDir, bundle)
 	})
 	t.Run("By Labels", func(t *testing.T) {
 		tmpDir := t.TempDir()
@@ -165,5 +179,7 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 		require.NoError(t, err)
 		_, _, err = x509svid.Verify(svid.Certificates, bundle)
 		require.NoError(t, err)
+
+		checkCRL(t, tmpDir, bundle)
 	})
 }

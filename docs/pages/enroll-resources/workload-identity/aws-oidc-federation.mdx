@@ -3,8 +3,6 @@ title: Configuring Workload Identity and AWS OIDC Federation
 description: Configuring AWS to accept Workload Identity JWTs as authentication using OIDC Federation
 ---
 
-(!/docs/pages/includes/workload-id-preview.mdx!)
-
 Teleport Workload Identity issues flexible short-lived identities in JWT format.
 AWS OIDC Federation allows you to use these JWTs to authenticate to AWS
 services.
@@ -59,10 +57,10 @@ This guide covers configuring OIDC federation. For Roles Anywhere, see
   information, see the [deployment
   guides](../machine-id/deployment/deployment.mdx).
 
-<Notice type="warning">
+<Admonition type="warning">
 Issuing JWT SVIDs with Teleport Workload Identity requires at least Teleport
 version 16.4.3.
-</Notice>
+</Admonition>
 
 ### Deciding on a SPIFFE ID structure
 

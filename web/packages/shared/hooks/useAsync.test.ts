@@ -57,6 +57,11 @@ test('run resolves the promise to an error and does not update the state on unmo
   await expect(promise).resolves.toEqual([null, new CanceledError()]);
   const [attempt] = result.current;
   expect(attempt.status).toBe('processing');
+
+  const [, error] = await promise;
+  await expect(
+    error instanceof CanceledError && error.stalePromise
+  ).resolves.toEqual(expect.any(Symbol));
 });
 
 test('run resolves the promise to an error and does not update the state on unmount when the callback returns a rejected promise', async () => {
@@ -74,6 +79,11 @@ test('run resolves the promise to an error and does not update the state on unmo
   await expect(promise).resolves.toEqual([null, new CanceledError()]);
   const [attempt] = result.current;
   expect(attempt.status).toBe('processing');
+
+  const [, error] = await promise;
+  await expect(
+    error instanceof CanceledError && error.stalePromise
+  ).rejects.toThrow(expect.objectContaining({ message: 'oops' }));
 });
 
 test('run resolves the promise to an error after being re-run when the callback returns a resolved promise', async () => {
@@ -94,6 +104,11 @@ test('run resolves the promise to an error after being re-run when the callback 
   await waitFor(() =>
     expect(firstRunPromise).resolves.toEqual([null, new CanceledError()])
   );
+
+  const [, error] = await firstRunPromise;
+  await expect(
+    error instanceof CanceledError && error.stalePromise
+  ).resolves.toEqual(1);
 });
 
 test('run does not update state after being re-run when the callback returns a resolved promise', async () => {
@@ -155,6 +170,11 @@ test('run resolves the promise to an error after being re-run when the callback 
   await waitFor(() =>
     expect(firstRunPromise).resolves.toEqual([null, new CanceledError()])
   );
+
+  const [, error] = await firstRunPromise;
+  await expect(
+    error instanceof CanceledError && error.stalePromise
+  ).rejects.toThrow(expect.objectContaining({ message: 'oops 1' }));
 });
 
 test('run does not update state after being re-run when the callback returns a rejected promise', async () => {

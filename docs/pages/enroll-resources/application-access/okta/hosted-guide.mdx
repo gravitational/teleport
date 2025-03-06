@@ -7,7 +7,7 @@ Teleport can import and grant access to resources from an Okta organizations,
 such as user profiles, groups and applications. Teleport can provision user
 accounts based Okta users, Okta applications can be accessed through Teleport's 
 application access UI, and access to these applications along with user groups
-can be managed by Teleport's RBAC along with access requests.
+can be managed by Teleport's RBAC along with Access Requests.
 
 This guide will help you set up the Okta Service as a Teleport hosted
 integration.
@@ -247,7 +247,7 @@ are deleted by a Teleport Administrator. That is, they will *not* be deleted
 when the hosted integration is deleted.
 
 The easiest way to clean these up is through the use of `tctl`. A batch command
-like this will remove all Okta sourced access lists in a system:
+like this will remove all Okta-sourced Access Lists in a system:
 
 ```
 tctl get access_lists --format json | jq '.[] | select(.metadata.labels["teleport.dev/origin"] == "okta") | .metadata.name' -r | xargs -I{} tctl rm "access_list/{}"

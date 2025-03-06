@@ -26,7 +26,7 @@ reading data from the OAuth 2.0 access token. In particular, the Auth Service:
   permissions. 
 - Assigns the user's Teleport username to their GitHub username.
 
-<Notice type="warning">
+<Admonition type="warning">
 
 GitHub usernames are not formatted as email addresses. As a result, any Teleport
 plugin that expects to send email to a user based on their Teleport username
@@ -34,7 +34,7 @@ will not work as expected. For example, the [PagerDuty Access Request
 plugin](../access-request-plugins/ssh-approval-pagerduty.mdx) has this
 limitation.
 
-</Notice>
+</Admonition>
 
 ## Prerequisites
 
@@ -198,8 +198,10 @@ spec.
 
 <Details title="Self-hosting GitHub Enterprise?" scope={["enterprise", "cloud"]} opened>
 
-For self-hosted GitHub Enterprise servers, you can specify the server
-instance endpoints with the `--endpoint-url`, `--api-endpoint-url` parameters:
+For self-hosted GitHub Enterprise servers, you can specify the server instance
+endpoints with the `--endpoint-url`, `--api-endpoint-url` parameters, replacing
+<Var name="github-enterprise-server-address"/> with your endpoint URL and 
+<Var name="api-github-enterprise-server-address"/> with your API endpoint URL:
 
 ```code
 $ tctl sso configure github \

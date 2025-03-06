@@ -2131,9 +2131,8 @@ func benchmarkListNodes(
 	require.NoError(b, err)
 
 	b.ReportAllocs()
-	b.ResetTimer()
 
-	for n := 0; n < b.N; n++ {
+	for b.Loop() {
 		var resources []types.ResourceWithLabels
 		req := proto.ListResourcesRequest{
 			ResourceType: types.KindNode,
@@ -6479,9 +6478,8 @@ func benchmarkListUnifiedResources(
 	require.NoError(b, err)
 
 	b.ReportAllocs()
-	b.ResetTimer()
 
-	for n := 0; n < b.N; n++ {
+	for b.Loop() {
 		var resources []*proto.PaginatedResource
 		req := &proto.ListUnifiedResourcesRequest{
 			SortBy: types.SortBy{IsDesc: false, Field: types.ResourceMetadataName},
