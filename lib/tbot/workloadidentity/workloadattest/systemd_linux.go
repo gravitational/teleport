@@ -34,15 +34,15 @@ import (
 
 // SystemdAttestor attests the identity of a Systemd service.
 type SystemdAttestor struct {
-	cfg    SystemdAttestorConfig
-	log    *slog.Logger
-	dialer func(context.Context) (dbusConn, error)
+	cfg        SystemdAttestorConfig
+	log        *slog.Logger
+	dbusDialer func(context.Context) (dbusConn, error)
 }
 
 // NewSystemdAttestor creates a SystemdAttestor with the given configuration.
 func NewSystemdAttestor(cfg SystemdAttestorConfig, log *slog.Logger) *SystemdAttestor {
 	return &SystemdAttestor{
-		dialer: func(ctx context.Context) (dbusConn, error) {
+		dbusDialer: func(ctx context.Context) (dbusConn, error) {
 			return dbus.NewWithContext(ctx)
 		},
 	}
@@ -53,7 +53,7 @@ func (a *SystemdAttestor) Attest(ctx context.Context, pid int) (*workloadidentit
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	conn, err := a.dialer(ctx)
+	conn, err := a.dbusDialer(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating dbus connection")
 	}

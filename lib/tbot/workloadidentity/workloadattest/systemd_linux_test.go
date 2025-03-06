@@ -40,7 +40,7 @@ func TestSystemdAttestor_Success(t *testing.T) {
 		utils.NewSlogLoggerForTests(),
 	)
 
-	attestor.dialer = func(context.Context) (dbusConn, error) {
+	attestor.dbusDialer = func(context.Context) (dbusConn, error) {
 		return testDbusConn{unit: "foo.service"}, nil
 	}
 
@@ -62,7 +62,7 @@ func TestSystemdAttestor_NonService(t *testing.T) {
 		utils.NewSlogLoggerForTests(),
 	)
 
-	attestor.dialer = func(context.Context) (dbusConn, error) {
+	attestor.dbusDialer = func(context.Context) (dbusConn, error) {
 		return testDbusConn{unit: "user.scope"}, nil
 	}
 
