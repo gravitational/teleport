@@ -62,6 +62,8 @@ test('highlights the current cycle', async () => {
     cycleEndFormatted: 'Jan 01, 2100',
     mau: 100,
     tpr: 1000,
+    mwi: 100,
+    igmau: 10,
   };
   render(
     <UsageHistory

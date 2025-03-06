@@ -39,6 +39,8 @@ export function SummaryPageViewWithUsage() {
         cycleEndFormatted: 'Oct 31, 2024',
         mau: 45,
         tpr: 43009,
+        mwi: 20,
+        igmau: 10,
       },
       {
         cycleStart: 1725159600,
@@ -47,6 +49,8 @@ export function SummaryPageViewWithUsage() {
         cycleEndFormatted: 'Aug 31, 2024',
         mau: 52,
         tpr: 43020,
+        mwi: 33,
+        igmau: 40,
       },
       {
         cycleStart: 1722481200,
@@ -55,6 +59,8 @@ export function SummaryPageViewWithUsage() {
         cycleEndFormatted: 'Jul 31, 2024',
         mau: 38,
         tpr: 42120,
+        mwi: 38,
+        igmau: 2,
       },
     ],
   });

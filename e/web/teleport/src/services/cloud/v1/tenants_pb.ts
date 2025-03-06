@@ -940,6 +940,18 @@ export interface UsageSummary {
      * @generated from protobuf field: repeated gravitational.cloud.tenants.v1.UsageHistoryItem usage_history = 14;
      */
     usageHistory: UsageHistoryItem[];
+    /**
+     * mwi represents the Machine & Workload Identity usage metrics
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.UsageMetricPerCycle mwi = 15;
+     */
+    mwi?: UsageMetricPerCycle;
+    /**
+     * igmau represents the Identity Governance monthly active users metric
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.UsageMetricPerCycle igmau = 16;
+     */
+    igmau?: UsageMetricPerCycle;
 }
 /**
  * UsageHistoryItem is a customer's cycle usage, including
@@ -986,6 +998,18 @@ export interface UsageHistoryItem {
      * @generated from protobuf field: string cycle_end_formatted = 6;
      */
     cycleEndFormatted: string;
+    /**
+     * mwi represents the Machine & Workload Identity metric
+     *
+     * @generated from protobuf field: int64 mwi = 7;
+     */
+    mwi: number;
+    /**
+     * igmau represents the Identity Governance monthly active users metric
+     *
+     * @generated from protobuf field: int64 igmau = 8 [json_name = "ig_mau"];
+     */
+    igmau: number;
 }
 /**
  * UsageMetricPerCycle contains a metrics details
@@ -3389,7 +3413,9 @@ class UsageSummary$Type extends MessageType<UsageSummary> {
             { no: 11, name: "usage_based", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 12, name: "mau", kind: "message", T: () => UsageMetricPerCycle },
             { no: 13, name: "tpr", kind: "message", T: () => UsageMetricPerCycle },
-            { no: 14, name: "usage_history", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => UsageHistoryItem }
+            { no: 14, name: "usage_history", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => UsageHistoryItem },
+            { no: 15, name: "mwi", kind: "message", T: () => UsageMetricPerCycle },
+            { no: 16, name: "igmau", kind: "message", T: () => UsageMetricPerCycle }
         ]);
     }
     create(value?: PartialMessage<UsageSummary>): UsageSummary {
@@ -3457,6 +3483,12 @@ class UsageSummary$Type extends MessageType<UsageSummary> {
                 case /* repeated gravitational.cloud.tenants.v1.UsageHistoryItem usage_history */ 14:
                     message.usageHistory.push(UsageHistoryItem.internalBinaryRead(reader, reader.uint32(), options));
                     break;
+                case /* gravitational.cloud.tenants.v1.UsageMetricPerCycle mwi */ 15:
+                    message.mwi = UsageMetricPerCycle.internalBinaryRead(reader, reader.uint32(), options, message.mwi);
+                    break;
+                case /* gravitational.cloud.tenants.v1.UsageMetricPerCycle igmau */ 16:
+                    message.igmau = UsageMetricPerCycle.internalBinaryRead(reader, reader.uint32(), options, message.igmau);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -3511,6 +3543,12 @@ class UsageSummary$Type extends MessageType<UsageSummary> {
         /* repeated gravitational.cloud.tenants.v1.UsageHistoryItem usage_history = 14; */
         for (let i = 0; i < message.usageHistory.length; i++)
             UsageHistoryItem.internalBinaryWrite(message.usageHistory[i], writer.tag(14, WireType.LengthDelimited).fork(), options).join();
+        /* gravitational.cloud.tenants.v1.UsageMetricPerCycle mwi = 15; */
+        if (message.mwi)
+            UsageMetricPerCycle.internalBinaryWrite(message.mwi, writer.tag(15, WireType.LengthDelimited).fork(), options).join();
+        /* gravitational.cloud.tenants.v1.UsageMetricPerCycle igmau = 16; */
+        if (message.igmau)
+            UsageMetricPerCycle.internalBinaryWrite(message.igmau, writer.tag(16, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -3530,7 +3568,9 @@ class UsageHistoryItem$Type extends MessageType<UsageHistoryItem> {
             { no: 3, name: "cycle_start", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
             { no: 4, name: "cycle_start_formatted", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 5, name: "cycle_end", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
-            { no: 6, name: "cycle_end_formatted", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 6, name: "cycle_end_formatted", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 7, name: "mwi", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 8, name: "igmau", kind: "scalar", jsonName: "ig_mau", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ }
         ]);
     }
     create(value?: PartialMessage<UsageHistoryItem>): UsageHistoryItem {
@@ -3541,6 +3581,8 @@ class UsageHistoryItem$Type extends MessageType<UsageHistoryItem> {
         message.cycleStartFormatted = "";
         message.cycleEnd = 0;
         message.cycleEndFormatted = "";
+        message.mwi = 0;
+        message.igmau = 0;
         if (value !== undefined)
             reflectionMergePartial<UsageHistoryItem>(this, message, value);
         return message;
@@ -3567,6 +3609,12 @@ class UsageHistoryItem$Type extends MessageType<UsageHistoryItem> {
                     break;
                 case /* string cycle_end_formatted */ 6:
                     message.cycleEndFormatted = reader.string();
+                    break;
+                case /* int64 mwi */ 7:
+                    message.mwi = reader.int64().toNumber();
+                    break;
+                case /* int64 igmau = 8 [json_name = "ig_mau"];*/ 8:
+                    message.igmau = reader.int64().toNumber();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -3598,6 +3646,12 @@ class UsageHistoryItem$Type extends MessageType<UsageHistoryItem> {
         /* string cycle_end_formatted = 6; */
         if (message.cycleEndFormatted !== "")
             writer.tag(6, WireType.LengthDelimited).string(message.cycleEndFormatted);
+        /* int64 mwi = 7; */
+        if (message.mwi !== 0)
+            writer.tag(7, WireType.Varint).int64(message.mwi);
+        /* int64 igmau = 8 [json_name = "ig_mau"]; */
+        if (message.igmau !== 0)
+            writer.tag(8, WireType.Varint).int64(message.igmau);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
