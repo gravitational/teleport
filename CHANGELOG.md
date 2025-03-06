@@ -267,6 +267,26 @@ credential for per-session MFA.
 
 TOTP will continue to be accepted for the initial login.
 
+## 16.4.17 (03/05/25)
+
+* Escape user provided labels when creating the shell script that enrolls servers, applications and databases into Teleport. [#52705](https://github.com/gravitational/teleport/pull/52705)
+* Support setting the public address for discovered apps based on Kubernetes annotations. [#52701](https://github.com/gravitational/teleport/pull/52701)
+* Workload ID: Support for Teleport Predicate Language in Workload Identity templates and rules. [#52565](https://github.com/gravitational/teleport/pull/52565)
+* Fixed `cannot execute: required file not found` error with the `teleport-spacelift-runner` image. [#52561](https://github.com/gravitational/teleport/pull/52561)
+* Added support for X509 revocations to Workload Identity. [#52502](https://github.com/gravitational/teleport/pull/52502)
+* Updated go-jose/v4 to v4.0.5 (addresses CVE-2025-27144). [#52468](https://github.com/gravitational/teleport/pull/52468)
+* Updated /x/crypto and /x/oauth2 (addresses CVE-2025-22869 and CVE-2025-22868). [#52438](https://github.com/gravitational/teleport/pull/52438)
+* Logging out from a cluster no longer clears the client autoupdate binaries. [#52338](https://github.com/gravitational/teleport/pull/52338)
+* Added JSON response support to the `/webapi/auth/export` public certificate API endpoint. [#52326](https://github.com/gravitational/teleport/pull/52326)
+* Resolved an issue with `tbot` where the web proxy port would be used instead of the SSH proxy port when ports separate mode is in use. [#52309](https://github.com/gravitational/teleport/pull/52309)
+* Fixed Azure SQL Servers connect failures when the database agent runs on a VM scale set. [#52268](https://github.com/gravitational/teleport/pull/52268)
+* Removed the ability of `tctl` to load the default configuration file on Windows. [#52189](https://github.com/gravitational/teleport/pull/52189)
+* Added support for non-FIPS AWS endpoints for IAM and STS on FIPS binaries (`TELEPORT_UNSTABLE_DISABLE_AWS_FIPS=yes`). [#52129](https://github.com/gravitational/teleport/pull/52129)
+* Introduced the `allow_reissue` property to the tbot identity output for compatibility with tsh based reissuance. [#52115](https://github.com/gravitational/teleport/pull/52115)
+
+Enterprise:
+* Reduce resource consumption resolving Okta applications during login.
+
 ## 16.4.16 (02/13/25)
 
 ### Security Fixes
