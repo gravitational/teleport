@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import styled from 'styled-components';
 
-import { Flex } from 'design';
+import { Box, Flex } from 'design';
 import { Danger } from 'design/Alert';
 import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
@@ -61,16 +62,23 @@ export function UnifiedResources() {
 
   return (
     <FeatureBox px={4}>
-      <SamlAppActionProvider>
-        <ClusterResources
-          key={clusterId} // when the current cluster changes, remount the component
-          clusterId={clusterId}
-          isLeafCluster={isLeafCluster}
-        />
-      </SamlAppActionProvider>
+      <ResizingResourceWrapper>
+        <SamlAppActionProvider>
+          <ClusterResources
+            key={clusterId} // when the current cluster changes, remount the component
+            clusterId={clusterId}
+            isLeafCluster={isLeafCluster}
+          />
+        </SamlAppActionProvider>
+      </ResizingResourceWrapper>
     </FeatureBox>
   );
 }
+
+const ResizingResourceWrapper = styled(Box)`
+  width: 100%;
+  padding-right: ${props => props.theme.space[3]}px;
+`;
 
 const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
   return [
@@ -289,9 +297,9 @@ export function ClusterResources({
         Header={
           <>
             <FeatureHeader
-              css={`
-                border-bottom: none;
-              `}
+              style={{
+                borderBottom: 'none',
+              }}
               mb={1}
               alignItems="center"
               justifyContent="space-between"
