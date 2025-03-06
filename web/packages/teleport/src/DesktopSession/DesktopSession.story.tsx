@@ -79,8 +79,8 @@ const props: State = {
   },
   showAnotherSessionActiveDialog: false,
   setShowAnotherSessionActiveDialog: () => {},
-  warnings: [],
-  onRemoveWarning: () => {},
+  alerts: [],
+  onRemoveAlert: () => {},
   onResize: () => {},
 };
 
@@ -343,8 +343,8 @@ export const Warnings = () => {
           browserSupported: true,
           directorySelected: true,
         }}
-        warnings={warnings}
-        onRemoveWarning={removeWarning}
+        alerts={warnings}
+        onRemoveAlert={removeWarning}
       />
     </>
   );

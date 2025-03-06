@@ -119,12 +119,12 @@ export default function useDesktopSession() {
     );
   }, [clusterId, desktopName, run]);
 
-  const [warnings, setWarnings] = useState<NotificationItem[]>([]);
-  const onRemoveWarning = (id: string) => {
-    setWarnings(prevState => prevState.filter(warning => warning.id !== id));
+  const [alerts, setAlerts] = useState<NotificationItem[]>([]);
+  const onRemoveAlert = (id: string) => {
+    setAlerts(prevState => prevState.filter(warning => warning.id !== id));
   };
   const addAlert = useCallback((alert: Omit<NotificationItem, 'id'>) => {
-    setWarnings(prevState => [
+    setAlerts(prevState => [
       ...prevState,
       { ...alert, id: crypto.randomUUID() },
     ]);
@@ -139,7 +139,7 @@ export default function useDesktopSession() {
     setClipboardSharingState,
     setDirectorySharingState,
     clipboardSharingState,
-    setWarnings,
+    setAlerts,
   });
   const tdpClient = clientCanvasProps.tdpClient;
 
@@ -218,8 +218,8 @@ export default function useDesktopSession() {
     setShowAnotherSessionActiveDialog,
     onShareDirectory,
     onCtrlAltDel,
-    warnings,
-    onRemoveWarning,
+    alerts,
+    onRemoveAlert,
     addAlert,
     setWsConnection,
     ...clientCanvasProps,

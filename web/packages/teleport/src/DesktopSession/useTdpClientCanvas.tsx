@@ -33,6 +33,8 @@ import {
   ClipboardSharingState,
   DirectorySharingState,
   isSharingClipboard,
+  Setter,
+  clipboardSharingPossible,
 } from './useDesktopSession';
 import { KeyboardHandler } from './KeyboardHandler';
 
@@ -229,7 +231,7 @@ type Props = {
   clipboardSharingState: ClipboardSharingState;
   setClipboardSharingState: Setter<ClipboardSharingState>;
   setDirectorySharingState: Setter<DirectorySharingState>;
-  setWarnings: Setter<NotificationItem[]>;
+  setAlerts: Setter<NotificationItem[]>;
 };
 
 /**
