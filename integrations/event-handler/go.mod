@@ -16,7 +16,7 @@ require (
 	github.com/sethvargo/go-limiter v0.7.2
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.10.0
-	golang.org/x/net v0.33.0
+	golang.org/x/net v0.36.0
 	golang.org/x/time v0.5.0
 	google.golang.org/protobuf v1.34.2
 )
