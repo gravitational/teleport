@@ -1,4 +1,4 @@
-.version: &version "16.4.17-dev.proxyipv6.3"
+.version: &version "16.4.17-dev.proxyipv6.4"
 
 apiVersion: v2
 name: teleport-plugin-msteams
