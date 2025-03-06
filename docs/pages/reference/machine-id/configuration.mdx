@@ -664,6 +664,13 @@ attestors:
     # supported. This field is required and there is no default value. See the
     # Workload Identity API & Workload Attestation reference for more information.
     addr: unix:///run/podman/podman.sock
+  # systemd is configuration for the Systemd Workload Attestor. See the Workload
+  # Identity API & Workload Attestation reference for more information.
+  systemd:
+    # enabled specifies whether the workload's identity should be attested with
+    # information about its Systemd service. If unspecified, this defaults to
+    # false.
+    enabled: true
 # svids specifies the SPIFFE SVIDs that the Workload API should provide.
 svids:
     # path specifies what the path element should be requested for the SPIFFE
