@@ -540,9 +540,9 @@ func isUnknownGroupError(err error, groupName string) bool {
 		strings.HasSuffix(err.Error(), syscall.ESRCH.Error())
 }
 
-// DeleteAllUsers deletes all host users in the teleport service group.
+// DeleteAllUsers removes all temporary users in the [types.TeleportDropGroup]
+// without any active sessions.
 func (u *HostUserManagement) DeleteAllUsers() error {
-	u.log.InfoContext(u.ctx, "Attempting to delete all temporary host users")
 	users, err := u.backend.GetAllUsers()
 	if err != nil {
 		return trace.Wrap(err)
@@ -584,7 +584,6 @@ func (u *HostUserManagement) DeleteAllUsers() error {
 func (u *HostUserManagement) DeleteUser(username string, gid string) error {
 	log := u.log.With("host_username", username, "gid", gid)
 
-	log.DebugContext(u.ctx, "Attempting to delete host user")
 	tempUser, err := u.backend.Lookup(username)
 	if err != nil {
 		return trace.Wrap(err)
@@ -598,32 +597,27 @@ func (u *HostUserManagement) DeleteUser(username string, gid string) error {
 			err := u.backend.DeleteUser(username)
 			if err != nil {
 				if errors.Is(err, ErrUserLoggedIn) {
-					u.log.DebugContext(u.ctx, "Not deleting user because user has another session or running process")
+					log.DebugContext(u.ctx, "Skipping deletion of temporary insecure-drop user with an active session")
 					return nil
 				}
 				return trace.Wrap(err)
 			}
 
+			log.DebugContext(u.ctx, "Deleted temporary insecure-drop user")
 			return nil
 		}
 	}
-	u.log.DebugContext(u.ctx, "User not deleted: not a temporary user")
 	return nil
 }
 
-// UserCleanup starts a periodic user deletion cleanup loop for
-// users that failed to delete
+// UserCleanup periodically removes temporary users created
+// when insecure-drop mode is enabled.
 func (u *HostUserManagement) UserCleanup() {
 	cleanupTicker := time.NewTicker(time.Minute * 5)
 	defer cleanupTicker.Stop()
 	for {
-		err := u.DeleteAllUsers()
-		switch {
-		case trace.IsNotFound(err):
-			u.log.DebugContext(u.ctx, "Error during temporary user cleanup, stopping cleanup job", "error", err)
-			return
-		case err != nil:
-			u.log.ErrorContext(u.ctx, "Error during temporary user cleanup", "error", err)
+		if err := u.DeleteAllUsers(); err != nil {
+			u.log.ErrorContext(u.ctx, "Error during temporary insecure-drop user cleanup", "error", err)
 		}
 
 		select {
