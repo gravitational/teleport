@@ -615,6 +615,14 @@ attestors:
     # information about its Systemd service. If unspecified, this defaults to
     # false.
     enabled: true
+  # unix is configuration for the Unix Workload Attestor.
+  unix:
+    # binary_hash_max_size_bytes is the maximum number of bytes that will be
+    # read from a process' binary to calculate its SHA-256 checksum. If the
+    # binary is larger than this, the `workload.unix.binary_hash` attribute
+    # will be empty. If unspecified, this defaults to 1GiB. Set it to -1 to
+    # make it unlimited.
+    binary_hash_max_size_bytes: 1024
 # svids specifies the SPIFFE SVIDs that the Workload API should provide.
 svids:
     # path specifies what the path element should be requested for the SPIFFE
