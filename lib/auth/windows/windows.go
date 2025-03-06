@@ -202,7 +202,7 @@ type GenerateCredentialsRequest struct {
 	// for RDP, but they can be omitted for certs that are used for LDAP binds.
 	OmitCDP bool
 
-	// AD is true if we're connection to AD-joined desktop
+	// AD is true if we're connecting to a domain-joined desktop.
 	AD bool
 }
 
