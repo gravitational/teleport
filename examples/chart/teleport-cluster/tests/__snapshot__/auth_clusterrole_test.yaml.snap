@@ -8,8 +8,8 @@ adds operator permissions to ClusterRole:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-cluster
-        app.kubernetes.io/version: 16.4.17-dev.proxyipv6.1
-        helm.sh/chart: teleport-cluster-16.4.17-dev.proxyipv6.1
+        app.kubernetes.io/version: 16.4.17-dev.proxyipv6.2
+        helm.sh/chart: teleport-cluster-16.4.17-dev.proxyipv6.2
         teleport.dev/majorVersion: "16"
       name: RELEASE-NAME
     rules:

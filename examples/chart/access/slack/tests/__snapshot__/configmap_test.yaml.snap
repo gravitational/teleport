@@ -24,6 +24,6 @@ should match the snapshot:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-slack
-        app.kubernetes.io/version: 16.4.17-dev.proxyipv6.1
-        helm.sh/chart: teleport-plugin-slack-16.4.17-dev.proxyipv6.1
+        app.kubernetes.io/version: 16.4.17-dev.proxyipv6.2
+        helm.sh/chart: teleport-plugin-slack-16.4.17-dev.proxyipv6.2
       name: RELEASE-NAME-teleport-plugin-slack
