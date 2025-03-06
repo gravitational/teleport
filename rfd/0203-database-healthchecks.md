@@ -332,7 +332,7 @@ It makes sense to bias the health status to `unhealthy` when the network is unre
 
     $ tctl get health_check_config/default
     kind: health_check_config
-    version: v3
+    version: v1
     metadata:
       name: "default"
       labels:
