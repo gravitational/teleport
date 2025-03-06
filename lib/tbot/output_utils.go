@@ -396,6 +396,47 @@ func generateIdentity(
 	return newIdentity, nil
 }
 
+// warnOnEarlyExpiration logs a warning if the given identity is likely to
+// expire problematically early. This can happen if either the configured TTL is
+// less than the renewal interval, or if the server returns certs valid for a
+// shorter-than-expected period of time.
+// This assumes the identity was just renewed, for the purposes of calculating
+// TTLs.
+func warnOnEarlyExpiration(
+	ctx context.Context,
+	log *slog.Logger,
+	ident *identity.Identity,
+	lifetime config.CredentialLifetime,
+) {
+	// Calculate a rough TTL, assuming this was called shortly after the
+	// identity was returned. We'll add a minute buffer to compensate and avoid
+	// superfluous warning messages.
+	effectiveTTL := ident.TLSIdentity.Expires.Sub(time.Now()) + time.Minute
+
+	if effectiveTTL < lifetime.TTL {
+		l := log.With(
+			"requested_ttl", lifetime.TTL,
+			"renewal_interval", lifetime.RenewalInterval,
+			"effective_ttl", effectiveTTL,
+			"expires", ident.TLSIdentity.Expires,
+			"roles", ident.TLSIdentity.Groups,
+		)
+
+		if effectiveTTL < lifetime.RenewalInterval {
+			l.WarnContext(ctx, "The server returned an identity shorter than "+
+				"expected and below the configured renewal interval, probably "+
+				"due to a `max_session_ttl` configured on a server-side role. "+
+				"Unless corrected, the credentials will be invalid for some "+
+				"period until renewal.")
+		} else {
+			l.WarnContext(ctx, "The server returned an identity shorter than "+
+				"the requested TTL, probably due to a `max_session_ttl` "+
+				"configured on a server-side role. It may not remain valid as "+
+				"long as expected.")
+		}
+	}
+}
+
 // fetchDefaultRoles requests the bot's own role from the auth server and
 // extracts its full list of allowed roles.
 func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, identity *identity.Identity) ([]string, error) {
