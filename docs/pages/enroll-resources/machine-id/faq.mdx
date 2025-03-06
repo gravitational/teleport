@@ -101,6 +101,9 @@ output type in `tbot`. This service can expose many clusters at once via
 contexts in the generated `kubeconfig.yaml`, and if label selectors are used,
 will dynamically add contexts as clusters are added and removed in Teleport.
 
+Note that both `tbot` and the Teleport Proxy need to be running v17.2.7 to take
+advantage of this functionality.
+
 Refer to the
 [CLI reference](../../reference/cli/tbot#tbot-start-kubernetesv2) and
 [config reference](../../reference/machine-id/configuration.mdx#kubernetesv2)
