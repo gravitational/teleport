@@ -327,6 +327,12 @@ export const eventCodes = {
   PLUGIN_DELETE: 'PG003I',
   CONTACT_CREATE: 'TCTC001I',
   CONTACT_DELETE: 'TCTC002I',
+  AUTOUPDATE_CONFIG_CREATE: 'AUC001I',
+  AUTOUPDATE_CONFIG_UPDATE: 'AUC002I',
+  AUTOUPDATE_CONFIG_DELETE: 'AUC003I',
+  AUTOUPDATE_VERSION_CREATE: 'AUV001I',
+  AUTOUPDATE_VERSION_UPDATE: 'AUV002I',
+  AUTOUPDATE_VERSION_DELETE: 'AUV003I',
 } as const;
 
 /**
@@ -1807,6 +1813,42 @@ export type RawEvents = {
       email: string;
       contact_type: number;
     }
+  >;
+  [eventCodes.AUTOUPDATE_CONFIG_CREATE]: RawEvent<
+      typeof eventCodes.AUTOUPDATE_CONFIG_CREATE,
+      {
+        user: string;
+      }
+  >;
+  [eventCodes.AUTOUPDATE_CONFIG_UPDATE]: RawEvent<
+      typeof eventCodes.AUTOUPDATE_CONFIG_UPDATE,
+      {
+        user: string;
+      }
+  >;
+  [eventCodes.AUTOUPDATE_CONFIG_DELETE]: RawEvent<
+      typeof eventCodes.AUTOUPDATE_CONFIG_DELETE,
+      {
+        user: string;
+      }
+  >;
+  [eventCodes.AUTOUPDATE_VERSION_CREATE]: RawEvent<
+      typeof eventCodes.AUTOUPDATE_VERSION_CREATE,
+      {
+        user: string;
+      }
+  >;
+  [eventCodes.AUTOUPDATE_VERSION_UPDATE]: RawEvent<
+      typeof eventCodes.AUTOUPDATE_VERSION_UPDATE,
+      {
+        user: string;
+      }
+  >;
+  [eventCodes.AUTOUPDATE_VERSION_DELETE]: RawEvent<
+      typeof eventCodes.AUTOUPDATE_VERSION_DELETE,
+      {
+        user: string;
+      }
   >;
 };
 
