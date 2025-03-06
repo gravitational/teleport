@@ -273,6 +273,19 @@ for more information.
 | `workload.podman.pod.name`         | Name of the pod.                                    |
 | `workload.podman.pod.labels`       | Labels of the pod.                                  |
 
+### `workload.systemd`
+
+Attributes sourced from the Systemd workload attestor.
+
+See the
+[Workload API and Workload Attestation reference](./workload-identity-api-and-workload-attestation.mdx#Systemd)
+for more information.
+
+| Attribute                   | Description                                      |
+|-----------------------------|--------------------------------------------------|
+| `workload.systemd.attested` | Whether the workload passed Systemd attestation. |
+| `workload.systemd.service`  | Name of the service unit.                        |
+
 ## User attributes
 
 User attributes are sourced from the Bot or User that is requesting the
