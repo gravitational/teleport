@@ -152,6 +152,8 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 		}
 	}
 
+	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime))
+
 	hostCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
