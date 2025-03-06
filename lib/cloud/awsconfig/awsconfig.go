@@ -106,6 +106,8 @@ type options struct {
 	maxRetries *int
 	// stsClientProvider sets the STS assume role client provider func.
 	stsClientProvider STSClientProviderFunc
+	// baseConfig is the base config used to assume the roles.
+	baseConfig *aws.Config
 }
 
 func buildOptions(optFns ...OptionsFn) (*options, error) {
@@ -120,20 +122,22 @@ func buildOptions(optFns ...OptionsFn) (*options, error) {
 }
 
 func (o *options) checkAndSetDefaults() error {
-	switch o.credentialsSource {
-	case credentialsSourceAmbient:
-		if o.integration != "" {
-			return trace.BadParameter("integration and ambient credentials cannot be used at the same time")
+	if o.baseConfig == nil {
+		switch o.credentialsSource {
+		case credentialsSourceAmbient:
+			if o.integration != "" {
+				return trace.BadParameter("integration and ambient credentials cannot be used at the same time")
+			}
+		case credentialsSourceIntegration:
+			if o.integration == "" {
+				return trace.BadParameter("missing integration name")
+			}
+			if o.oidcIntegrationClient == nil {
+				return trace.BadParameter("missing AWS OIDC integration client")
+			}
+		default:
+			return trace.BadParameter("missing credentials source (ambient or integration)")
 		}
-	case credentialsSourceIntegration:
-		if o.integration == "" {
-			return trace.BadParameter("missing integration name")
-		}
-		if o.oidcIntegrationClient == nil {
-			return trace.BadParameter("missing AWS OIDC integration client")
-		}
-	default:
-		return trace.BadParameter("missing credentials source (ambient or integration)")
 	}
 	if len(o.assumeRoles) > 2 {
 		return trace.BadParameter("role chain contains more than 2 roles")
@@ -235,6 +239,13 @@ func WithOIDCIntegrationClient(c OIDCIntegrationClient) OptionsFn {
 	}
 }
 
+// WithBaseConfig sets the base config used for the assumed roles.
+func WithBaseConfig(baseCfg aws.Config) OptionsFn {
+	return func(o *options) {
+		o.baseConfig = &baseCfg
+	}
+}
+
 // GetConfig returns an AWS config for the specified region, optionally
 // assuming AWS IAM Roles.
 func GetConfig(ctx context.Context, region string, optFns ...OptionsFn) (aws.Config, error) {
@@ -278,6 +289,10 @@ func buildConfigOptions(region string, cred aws.CredentialsProvider, opts *optio
 
 // getBaseConfig returns an AWS config without assuming any roles.
 func getBaseConfig(ctx context.Context, region string, opts *options) (aws.Config, error) {
+	if opts.baseConfig != nil {
+		return loadDefaultConfig(ctx, region, opts.baseConfig.Credentials, opts)
+	}
+
 	slog.DebugContext(ctx, "Initializing AWS config from default credential chain",
 		"region", region,
 	)
