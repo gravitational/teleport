@@ -601,7 +601,11 @@ func makeResourceSortKey(resource types.Resource) resourceSortKey {
 		if app != nil {
 			friendlyName := types.FriendlyName(app)
 			if friendlyName != "" {
-				name = friendlyName
+				sanitizedFriendlyName := strings.ReplaceAll(types.FriendlyName(app), "/", "-")
+				// FriendlyName is not unique, and multiple apps may have the same friendly name.
+				// To prevent collisions in the resource cache, we append the app name to the
+				// friendly name, ensuring uniqueness.
+				name = sanitizedFriendlyName + "/" + app.GetName()
 			} else {
 				name = app.GetName()
 			}
