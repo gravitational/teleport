@@ -3,12 +3,12 @@ title: Managed Updates (v2) for Teleport Agents
 description: Describes how to set up Managed Updates (v2) for Teleport Agents
 ---
 
-<Notice type="warning">
+<Admonition type="warning">
 This document describes Managed Updates for Agents (v2), which is currently in beta.
 
 For Managed Updates v1 instructions, see
 [Managed Updates for Agents (v1)](./agent-managed-updates-v1.mdx).
-</Notice>
+</Admonition>
 
 In Managed Updates v2, a binary called `teleport-update` is distributed in
 all Teleport packages, alongside the `teleport` binary. Admins configure updates
@@ -83,10 +83,10 @@ a Teleport Agent by running the following command on every server:
 $ sudo teleport-update enable
 ```
 
-<Notice type="note">
+<Admonition type="note">
 If this command is not available, update the `teleport` package
 to the latest version that is supported by your cluster.
-</Notice>
+</Admonition>
 
 The `teleport-update enable` command will disable (but not remove)
 the v1 updater if present. No other action is necessary.
@@ -201,12 +201,12 @@ update until the staging group has updated. The `wait_hours` field sets a minimu
 duration between groups, ensuring that `production` happens the day after `staging`,
 and not one hour after.
 
-<Notice type="warning">
+<Admonition type="warning">
 While failed installations will revert automatically on the client-side,
 server-side healthchecks are still in development. To prevent the `production`
 group above from updating after `staging` has failed, you must manually suspend
 the schedule by setting the `spec.agents.mode` to `suspended`.
-</Notice>
+</Admonition>
 
 You may wish to schedule groups of agents to update without any dependence between
 them. For example, groups may represent geographic areas and not environments.
