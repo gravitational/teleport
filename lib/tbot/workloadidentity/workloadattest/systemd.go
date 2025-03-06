@@ -18,6 +18,8 @@
 
 package workloadattest
 
+// SystemdAttestorConfig holds the configuration for the Systemd workload attestor.
 type SystemdAttestorConfig struct {
+	// Enabled determines whether Systemd workload attestation will be performed.
 	Enabled bool `yaml:"enabled"`
 }
