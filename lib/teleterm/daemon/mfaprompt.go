@@ -28,6 +28,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/trail"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
@@ -71,7 +72,7 @@ func (s *Service) promptAppMFA(ctx context.Context, in *api.PromptMFARequest) (*
 
 // Run prompts the user to complete an MFA authentication challenge.
 func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-	promptOTP := chal.TOTP != nil
+	promptOTP := chal.TOTP != nil && p.cfg.Extensions.GetScope() != mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION
 	promptWebauthn := chal.WebauthnChallenge != nil && p.cfg.WebauthnSupported
 	promptSSO := chal.SSOChallenge != nil && p.cfg.SSOMFACeremony != nil
 

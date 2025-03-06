@@ -222,7 +222,6 @@ function makeAvailableMfaTypes(req: PromptMFARequest): AvailableMfaType[] {
   // This shouldn't happen but is technically allowed by the req data structure.
   if (availableMfaTypes.length === 0) {
     availableMfaTypes.push(webauthn);
-    availableMfaTypes.push(totp);
   }
   return availableMfaTypes;
 }
