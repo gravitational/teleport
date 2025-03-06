@@ -32,10 +32,10 @@ import { createPortal } from 'react-dom';
 
 type InfoGuidePanelContextState = {
   sidePanelRef: MutableRefObject<HTMLDivElement>;
+  currentContentId: symbol;
   isOpen: boolean;
-  open: () => void;
+  open: (contentId: symbol) => void;
   close: () => void;
-  toggle: () => void;
 };
 
 const InfoGuidePanelContext = createContext<InfoGuidePanelContextState>(null);
@@ -47,14 +47,14 @@ export const InfoGuidePanelProvider: React.FC<PropsWithChildren> = ({
   // by callsites that want to render something in the side panel.
   const sidePanelRef = useRef<HTMLDivElement>();
 
-  const [isOpen, setIsOpen] = useState(false);
-  const close = useCallback(() => setIsOpen(false), []);
-  const open = useCallback(() => setIsOpen(true), []);
-  const toggle = useCallback(() => setIsOpen(current => !current), []);
+  const [currentContentId, setCurrentContentId] = useState<symbol>(null);
+  const isOpen = !!currentContentId;
+  const close = useCallback(() => setCurrentContentId(null), []);
+  const open = setCurrentContentId;
 
   return (
     <InfoGuidePanelContext.Provider
-      value={{ sidePanelRef, isOpen, close, open, toggle }}
+      value={{ sidePanelRef, currentContentId, isOpen, close, open }}
     >
       {children}
     </InfoGuidePanelContext.Provider>
@@ -71,11 +71,15 @@ export const InfoGuidePanelProvider: React.FC<PropsWithChildren> = ({
  */
 export const useInfoGuide = (): Pick<
   InfoGuidePanelContextState,
-  'isOpen' | 'close' | 'open' | 'toggle'
-> & { createInfoGuidePortal: (node: ReactNode) => ReactPortal } => {
-  const { isOpen, close, open, toggle, sidePanelRef } = useContext(
+  'isOpen' | 'close'
+> & {
+  createInfoGuidePortal: (node: ReactNode) => ReactPortal;
+  open: () => void;
+} => {
+  const { isOpen, close, open, sidePanelRef, currentContentId } = useContext(
     InfoGuidePanelContext
   );
+  const [contentId] = useState(Symbol());
 
   useEffect(() => {
     return () => {
@@ -87,15 +91,15 @@ export const useInfoGuide = (): Pick<
     (node: ReactNode) =>
       sidePanelRef.current &&
       isOpen &&
+      currentContentId === contentId &&
       createPortal(node, sidePanelRef.current),
-    [sidePanelRef, isOpen]
+    [sidePanelRef, isOpen, contentId, currentContentId]
   );
 
   return {
     isOpen,
     close,
-    open,
-    toggle,
+    open: useCallback(() => open(contentId), [contentId, open]),
     createInfoGuidePortal,
   };
 };

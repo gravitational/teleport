@@ -37,6 +37,9 @@ export const InfoGuideSidePanel = () => {
         <InfoGuideWrapper guide={<LongContent />}>
           Click on the info icon
         </InfoGuideWrapper>
+        <InfoGuideWrapper guide={<p>Lorem ipsum dolor sit amet.</p>}>
+          Open shorter guide
+        </InfoGuideWrapper>
       </Box>
       <Component />
     </TopBar>
