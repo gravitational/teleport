@@ -31,12 +31,12 @@ import { Attempt } from 'shared/hooks/useAttemptNext';
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 import { TdpClientCanvasRef } from 'teleport/components/TdpClientCanvas/TdpClientCanvas';
-import { TdpClientEvent } from 'teleport/lib/tdp';
-import { BitmapFrame } from 'teleport/lib/tdp/client';
-import { ClientScreenSpec, PngFrame } from 'teleport/lib/tdp/codec';
+import { useListener } from 'teleport/lib/tdp/client';
 
 import useDesktopSession, {
   clipboardSharingMessage,
+  defaultClipboardSharingState,
+  defaultDirectorySharingState,
   directorySharingPossible,
   isSharingClipboard,
   isSharingDirectory,
@@ -67,11 +67,7 @@ export function DesktopSession(props: State) {
     setDirectorySharingState,
     setInitialTdpConnectionSucceeded,
     clientOnClipboardData,
-    clientOnTdpError,
-    clientOnTdpWarning,
-    clientOnTdpInfo,
-    clientOnWsClose,
-    clientOnWsOpen,
+    setWsConnection,
     canvasOnKeyDown,
     canvasOnKeyUp,
     canvasOnFocusOut,
@@ -92,83 +88,14 @@ export function DesktopSession(props: State) {
     tdpConnection,
     wsConnection,
     showAnotherSessionActiveDialog,
+    addAlert,
+    setTdpConnection,
   } = props;
 
   const [screenState, setScreenState] = useState<ScreenState>({
     screen: 'processing',
     canvasState: { shouldConnect: false, shouldDisplay: false },
   });
-
-  useEffect(() => {
-    if (client && clientOnClipboardData) {
-      client.on(TdpClientEvent.TDP_CLIPBOARD_DATA, clientOnClipboardData);
-
-      return () => {
-        client.removeListener(
-          TdpClientEvent.TDP_CLIPBOARD_DATA,
-          clientOnClipboardData
-        );
-      };
-    }
-  }, [client, clientOnClipboardData]);
-
-  useEffect(() => {
-    if (client && clientOnTdpError) {
-      client.on(TdpClientEvent.TDP_ERROR, clientOnTdpError);
-      client.on(TdpClientEvent.CLIENT_ERROR, clientOnTdpError);
-
-      return () => {
-        client.removeListener(TdpClientEvent.TDP_ERROR, clientOnTdpError);
-        client.removeListener(TdpClientEvent.CLIENT_ERROR, clientOnTdpError);
-      };
-    }
-  }, [client, clientOnTdpError]);
-
-  useEffect(() => {
-    if (client && clientOnTdpWarning) {
-      client.on(TdpClientEvent.TDP_WARNING, clientOnTdpWarning);
-      client.on(TdpClientEvent.CLIENT_WARNING, clientOnTdpWarning);
-
-      return () => {
-        client.removeListener(TdpClientEvent.TDP_WARNING, clientOnTdpWarning);
-        client.removeListener(
-          TdpClientEvent.CLIENT_WARNING,
-          clientOnTdpWarning
-        );
-      };
-    }
-  }, [client, clientOnTdpWarning]);
-
-  useEffect(() => {
-    if (client && clientOnTdpInfo) {
-      client.on(TdpClientEvent.TDP_INFO, clientOnTdpInfo);
-
-      return () => {
-        client.removeListener(TdpClientEvent.TDP_INFO, clientOnTdpInfo);
-      };
-    }
-  }, [client, clientOnTdpInfo]);
-
-  useEffect(() => {
-    if (client && clientOnWsClose) {
-      client.on(TdpClientEvent.WS_CLOSE, clientOnWsClose);
-
-      return () => {
-        client.removeListener(TdpClientEvent.WS_CLOSE, clientOnWsClose);
-      };
-    }
-  }, [client, clientOnWsClose]);
-
-  useEffect(() => {
-    if (client && clientOnWsOpen) {
-      client.on(TdpClientEvent.WS_OPEN, clientOnWsOpen);
-
-      return () => {
-        client.removeListener(TdpClientEvent.WS_OPEN, clientOnWsOpen);
-      };
-    }
-  }, [client, clientOnWsOpen]);
-
   const { shouldConnect } = screenState.canvasState;
   // Call connect after all listeners have been registered
   useEffect(() => {
@@ -201,19 +128,6 @@ export function DesktopSession(props: State) {
   ]);
 
   const tdpClientCanvasRef = useRef<TdpClientCanvasRef>(null);
-
-  useEffect(() => {
-    if (!client) {
-      return;
-    }
-    const setPointer = tdpClientCanvasRef.current?.setPointer;
-    client.addListener(TdpClientEvent.POINTER, setPointer);
-
-    return () => {
-      client.removeListener(TdpClientEvent.POINTER, setPointer);
-    };
-  }, [client]);
-
   const onInitialTdpConnectionSucceeded = useCallback(() => {
     setInitialTdpConnectionSucceeded(() => {
       // TODO(gzdunek): This callback is a temporary fix for focusing the canvas.
@@ -226,63 +140,86 @@ export function DesktopSession(props: State) {
     });
   }, [setInitialTdpConnectionSucceeded]);
 
-  useEffect(() => {
-    if (!client) {
-      return;
-    }
-    const renderFrame = (frame: PngFrame) => {
-      onInitialTdpConnectionSucceeded();
-      tdpClientCanvasRef.current?.renderPngFrame(frame);
-    };
-    client.addListener(TdpClientEvent.TDP_PNG_FRAME, renderFrame);
+  useListener(client?.onClipboardData, clientOnClipboardData);
 
-    return () => {
-      client.removeListener(TdpClientEvent.TDP_PNG_FRAME, renderFrame);
-    };
-  }, [client, onInitialTdpConnectionSucceeded]);
+  const handleFatalError = useCallback(
+    (error: Error) => {
+      setDirectorySharingState(defaultDirectorySharingState);
+      setClipboardSharingState(defaultClipboardSharingState);
+      setTdpConnection({
+        status: 'failed',
+        statusText: error.message || error.toString(),
+      });
+    },
+    [setClipboardSharingState, setDirectorySharingState, setTdpConnection]
+  );
+  useListener(client?.onError, handleFatalError);
+  useListener(client?.onClientError, handleFatalError);
 
-  useEffect(() => {
-    if (!client) {
-      return;
-    }
-    const renderFrame = (frame: BitmapFrame) => {
-      onInitialTdpConnectionSucceeded();
-      tdpClientCanvasRef.current?.renderBitmapFrame(frame);
-    };
-    client.addListener(TdpClientEvent.TDP_BMP_FRAME, renderFrame);
+  const addWarning = useCallback(
+    (warning: string) => {
+      addAlert({
+        content: warning,
+        severity: 'warn',
+      });
+    },
+    [addAlert]
+  );
+  useListener(client?.onWarning, addWarning);
+  useListener(client?.onClientWarning, addWarning);
 
-    return () => {
-      client.removeListener(TdpClientEvent.TDP_BMP_FRAME, renderFrame);
-    };
-  }, [client, onInitialTdpConnectionSucceeded]);
+  useListener(
+    client?.onInfo,
+    useCallback(
+      info => {
+        addAlert({
+          content: info,
+          severity: 'info',
+        });
+      },
+      [addAlert]
+    )
+  );
 
-  useEffect(() => {
-    if (!client) {
-      return;
-    }
-    const clear = () => tdpClientCanvasRef.current?.clear();
-    client.addListener(TdpClientEvent.RESET, clear);
+  useListener(
+    client?.onWsClose,
+    useCallback(
+      statusText => {
+        setWsConnection({ status: 'closed', statusText });
+      },
+      [setWsConnection]
+    )
+  );
+  useListener(
+    client?.onWsOpen,
+    useCallback(() => {
+      setWsConnection({ status: 'open' });
+    }, [setWsConnection])
+  );
 
-    return () => {
-      client.removeListener(TdpClientEvent.RESET, clear);
-    };
-  }, [client]);
-
-  useEffect(() => {
-    if (!client) {
-      return;
-    }
-    const setResolution = (spec: ClientScreenSpec) =>
-      tdpClientCanvasRef.current?.setResolution(spec);
-    client.addListener(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, setResolution);
-
-    return () => {
-      client.removeListener(
-        TdpClientEvent.TDP_CLIENT_SCREEN_SPEC,
-        setResolution
-      );
-    };
-  }, [client]);
+  useListener(client?.onPointer, tdpClientCanvasRef.current?.setPointer);
+  useListener(
+    client?.onPngFrame,
+    useCallback(
+      frame => {
+        onInitialTdpConnectionSucceeded();
+        tdpClientCanvasRef.current?.renderPngFrame(frame);
+      },
+      [onInitialTdpConnectionSucceeded]
+    )
+  );
+  useListener(
+    client?.onBmpFrame,
+    useCallback(
+      frame => {
+        onInitialTdpConnectionSucceeded();
+        tdpClientCanvasRef.current?.renderBitmapFrame(frame);
+      },
+      [onInitialTdpConnectionSucceeded]
+    )
+  );
+  useListener(client?.onReset, tdpClientCanvasRef.current?.clear);
+  useListener(client?.onScreenSpec, tdpClientCanvasRef.current?.setResolution);
 
   return (
     <Flex
@@ -466,9 +403,8 @@ const nextScreenState = (
   const showMfa = webauthn.requested;
   const showAlert =
     fetchAttempt.status === 'failed' || // Fetch attempt failed
-    tdpConnection.status === 'failed' || // TDP connection failed
-    tdpConnection.status === '' || // TDP connection ended gracefully server-side
-    wsConnection.status === 'closed'; // Websocket closed (could mean client side graceful close or unexpected close, the message will tell us which)
+    tdpConnection.status === 'failed' || // TDP connection closed by the remote side.
+    wsConnection.status === 'closed'; // Websocket closed, means unexpected close.
 
   const atLeastOneAttemptProcessing =
     fetchAttempt.status === 'processing' ||
@@ -538,9 +474,7 @@ const calculateAlertMessage = (
   if (fetchAttempt.status === 'failed') {
     message = fetchAttempt.statusText || 'fetch attempt failed';
   } else if (tdpConnection.status === 'failed') {
-    message = tdpConnection.statusText || 'TDP connection failed';
-  } else if (tdpConnection.status === '') {
-    message = tdpConnection.statusText || 'TDP connection ended gracefully';
+    message = tdpConnection.statusText || 'Disconnected';
   } else if (wsConnection.status === 'closed') {
     message =
       wsConnection.statusText || 'websocket disconnected for an unknown reason';
