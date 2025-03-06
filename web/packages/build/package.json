@@ -27,7 +27,7 @@
     "eslint-plugin-react": "^7.37.4",
     "eslint-plugin-react-hooks": "^5.1.0",
     "eslint-plugin-testing-library": "^7.1.1",
-    "globals": "^15.14.0",
+    "globals": "^16.0.0",
     "jest-environment-jsdom": "^29.7.0",
     "jest-fail-on-console": "^3.3.1",
     "jsdom": "^26.0.0",
