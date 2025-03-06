@@ -66,7 +66,7 @@ The tooltip content may look something like this (or equivalent singular form ve
       UUID: <uuid>
       Error: <last health check error message>
 
-Databases with a mix of `healthy` and `""` (unknown) status will also show a tooltip that encourages the user to enable health checks or update to a supported version on all of the agents that proxy the db.
+Databases with a mix of `healthy` and `""` (disabled) status will also show a tooltip that encourages the user to enable health checks or update to a supported version on all of the agents that proxy the db.
 The tooltip content may look something like this: 
 
     M out of N Teleport database services proxying access to this database are not running network health checks for the database endpoint.
@@ -79,6 +79,54 @@ The tooltip content may look something like this:
     - Hostname: <hostname>
       UUID: <uuid>
       Reason: The database service has disabled health checks for this database.
+
+#### User story: updating health check configuration
+
+Alice is a Teleport cluster admin who recently updated her cluster to a Teleport major version that supports health checks.
+
+After reading the changelog and supporting reference documentation for health checks, Alice checks the default settings using tctl:
+
+    $ tctl get health_check_config/default
+    kind: health_check_config
+    version: v3
+    metadata:
+      name: "default"
+      labels:
+        teleport.internal/resource-type: preset
+    spec:
+      enabled: true
+      match:
+        db_labels:
+          - name: '*'
+            values:
+            - '*'
+      interval: 10s
+      timeout: 5s
+      healthy_threshold: 2
+      unhealthy_threshold: 1
+    
+Out of an abundance of caution around this new feature, Alice wants to opt-out of health checks for prod databases.
+
+Alice uses `tctl edit health_check_config/default` to update the default settings and exclude prod databases:
+
+    kind: health_check_config
+    version: v3
+    metadata:
+      name: "default"
+      labels:
+        teleport.internal/resource-type: preset
+    spec:
+      enabled: true
+      match:
+        db_labels:
+          - name: '*'
+            values:
+            - '*'
+        db_labels_expression: "labels.env != `prod`"
+      interval: 10s
+      timeout: 5s
+      healthy_threshold: 2
+      unhealthy_threshold: 1
 
 #### User story: AWS RDS database enrollment
 
@@ -360,9 +408,10 @@ It makes sense to bias the health status to `unhealthy` when the network is unre
         enabled = true
         match = {
           db_labels = [{
-            name = "env"
-            values = ["dev"]
+            name = "*"
+            values = ["*"]
           }]
+          db_labels_expression = "labels.env != `prod`" 
           env = "dev"
         }
         healthy_threshold   = 1
@@ -537,7 +586,13 @@ We will enforce a minimum interval between health checks to prevent accidentally
     // Matcher is a matcher for health check config.
     message Matcher {
       // DBLabels selects the databases to match.
+      // The result is logically ANDed with DBLabelsExpression.
+      // An empty value matches all databases.
       repeated teleport.label.v1.Label db_labels = 1;
+      // DBLabelsExpression is a predicate expression to match databases.
+      // The result is logically ANDed with DBLabels.
+      // An empty value matches all databases.
+      string db_labels_expression = 2;
     }
 
 #### Reporting health status in heartbeat
