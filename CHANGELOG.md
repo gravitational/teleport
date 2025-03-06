@@ -1123,6 +1123,20 @@ follow the manual setup guide.
 All Teleport Assist functionality and OpenAI integration has been removed from
 Teleport.
 
+## 15.4.30 (03/05/25)
+
+* Escape user provided labels when creating the shell script that enrolls servers, applications and databases into Teleport. [#52706](https://github.com/gravitational/teleport/pull/52706)
+* Support setting the public address for discovered apps based on Kubernetes annotations. [#52702](https://github.com/gravitational/teleport/pull/52702)
+* Fixed `cannot execute: required file not found` error with the `teleport-spacelift-runner` image. [#52562](https://github.com/gravitational/teleport/pull/52562)
+* Updated go-jose/v4 to v4.0.5 (addresses CVE-2025-27144). [#52469](https://github.com/gravitational/teleport/pull/52469)
+* Updated /x/crypto and /x/oauth2 (addresses CVE-2025-22869 and CVE-2025-22868). [#52440](https://github.com/gravitational/teleport/pull/52440)
+* Added JSON response support to the `/webapi/auth/export` public certificate API endpoint. [#52328](https://github.com/gravitational/teleport/pull/52328)
+* Fixed Azure SQL Servers connect failures when the database agent runs on a VM scale set. [#52269](https://github.com/gravitational/teleport/pull/52269)
+* Fixed Postgres database access control privileges auto-provisioning to grant USAGE on schemas as needed for table privileges and fixed an issue that prevented user privileges from being revoked at the end of their session in some cases. [#52106](https://github.com/gravitational/teleport/pull/52106)
+
+Enterprise:
+* Reduce resource consumption resolving Okta applications during login.
+
 ## 15.4.29 (02/14/25)
 
 ### Security Fixes
