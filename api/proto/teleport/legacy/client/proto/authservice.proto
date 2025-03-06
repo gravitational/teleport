@@ -269,6 +269,13 @@ message UserCertsRequest {
   }
   // Purpose is the intended purpose of the certificates.
   CertPurpose Purpose = 21 [(gogoproto.jsontag) = "purpose,omitempty"];
+
+  // ReissuableRoleImpersonation is a flag that indicates whether or not a
+  // role impersonation certificate can be reissued. If set to true, the
+  // generated certificate will be re-issuable, by default, it will not be
+  // re-issuable. This flag is only applicable when UseRoleRequests is set to
+  // true.
+  bool ReissuableRoleImpersonation = 27 [(gogoproto.jsontag) = "reissuable_role_impersonation"];
 }
 
 // RouteToDatabase combines parameters for database service routing information.

@@ -242,7 +242,7 @@ repositories.
    <TabItem label="apt">
 
    ```code
-   $ mkdir -p /etc/apt/keyrings
+   $ sudo mkdir -p /etc/apt/keyrings
    # Download the Teleport PGP public key
    $ sudo curl https://apt.releases.teleport.dev/gpg \
    -o /etc/apt/keyrings/teleport-archive-keyring.asc
@@ -856,13 +856,13 @@ You can download one of the following .pkg installers for macOS:
   # /usr/local/bin/teleport
   ```
 
-<Notice type="danger">
+<Admonition type="danger">
 
 We do not recommend using Homebrew to install Teleport.  The Teleport package in
 Homebrew is not maintained by Teleport and we can't guarantee its reliability or
 security.
 
-</Notice>
+</Admonition>
 
 </TabItem>
 </Tabs>

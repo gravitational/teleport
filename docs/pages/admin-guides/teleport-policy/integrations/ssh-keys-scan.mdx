@@ -62,10 +62,10 @@ Teleport cluster with metadata such as:
   public key is extracted from the private key, `public_key_file` if the private key is encrypted and the public key is
     available in a separate file, or `protected` if the public key fingerprint is not available.
 
-<Notice type="warning">
+<Admonition type="warning">
 `tsh` never sends the private key itself to the Teleport cluster, ensuring that the private key remains secure on the device.
 It also never sends the private key path or any other sensitive information.
-</Notice>
+</Admonition>
 
 ## Prerequisites
 
@@ -195,10 +195,10 @@ given that the command may consume system resources during the scan.
 
 ![Example of a recurring Jamf Pro](../../../../img/access-graph/jamf-pro.png)
 
-<Notice type="warning">
+<Admonition type="warning">
     `tsh` must be installed on the devices to run the scan. If the `tsh` binary is not installed, consider distributing it
     to the devices using the same policy or a separate policy.
-</Notice>
+</Admonition>
 
 Once the policy is created, the devices will start scanning for SSH private keys and sending the fingerprints to the Teleport
 Cluster. The keys will be imported and displayed in the Access Graph.

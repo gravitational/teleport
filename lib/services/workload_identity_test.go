@@ -228,6 +228,83 @@ func TestValidateWorkloadIdentity(t *testing.T) {
 			},
 			requireErr: errContains("spec.rules.allow[0].conditions[0]: operator must be specified"),
 		},
+		{
+			name: "expression and conditions",
+			in: &workloadidentityv1pb.WorkloadIdentity{
+				Kind:    types.KindWorkloadIdentity,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "example",
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Rules: &workloadidentityv1pb.WorkloadIdentityRules{
+						Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
+							{
+								Expression: `user.name == "Alan Partridge"`,
+								Conditions: []*workloadidentityv1pb.WorkloadIdentityCondition{
+									{
+										Attribute: "example",
+										Operator: &workloadidentityv1pb.WorkloadIdentityCondition_Eq{
+											Eq: &workloadidentityv1pb.WorkloadIdentityConditionEq{
+												Value: "foo",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+						Id: "/example",
+					},
+				},
+			},
+			requireErr: errContains("spec.rules.allow[0].conditions: is mutually exclusive with expression"),
+		},
+		{
+			name: "neither expression or conditions",
+			in: &workloadidentityv1pb.WorkloadIdentity{
+				Kind:    types.KindWorkloadIdentity,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "example",
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Rules: &workloadidentityv1pb.WorkloadIdentityRules{
+						Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
+							{}, // Empty rule.
+						},
+					},
+					Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+						Id: "/example",
+					},
+				},
+			},
+			requireErr: errContains("spec.rules.allow[0].conditions: must be non-empty"),
+		},
+		{
+			name: "invalid expression",
+			in: &workloadidentityv1pb.WorkloadIdentity{
+				Kind:    types.KindWorkloadIdentity,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "example",
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Rules: &workloadidentityv1pb.WorkloadIdentityRules{
+						Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
+							{
+								Expression: `does_not_exist`,
+							},
+						},
+					},
+					Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+						Id: "/example",
+					},
+				},
+			},
+			requireErr: errContains(`unknown identifier: "does_not_exist"`),
+		},
 	}
 
 	for _, tc := range testCases {

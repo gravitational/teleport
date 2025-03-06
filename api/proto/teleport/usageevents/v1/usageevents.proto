@@ -520,6 +520,9 @@ message AccessListGrantsToUser {
 
   // count_traits_granted is the number of traits granted to a user.
   int32 count_traits_granted = 2;
+
+  // user_name is the Teleport username of the user for whom a role or trait was granted for.
+  string user_name = 5;
 }
 
 // AccessListReviewCreate is an event that is emitted when an access list review is created.

@@ -54,6 +54,33 @@ func (u *UserLoginEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequ
 				ConnectorType:            u.ConnectorType,
 				DeviceId:                 deviceID,
 				RequiredPrivateKeyPolicy: u.RequiredPrivateKeyPolicy,
+				UserOrigin:               u.UserOrigin,
+			},
+		},
+	}
+}
+
+// AccessRequestCreateEvent is emitted when Access Request is created.
+type AccessRequestCreateEvent prehogv1a.AccessRequestEvent
+
+func (e *AccessRequestCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessRequestCreateEvent{
+			AccessRequestCreateEvent: &prehogv1a.AccessRequestEvent{
+				UserName: a.AnonymizeString(e.UserName),
+			},
+		},
+	}
+}
+
+// AccessRequestCreateEvent is emitted when Access Request is reviewed.
+type AccessRequestReviewEvent prehogv1a.AccessRequestEvent
+
+func (e *AccessRequestReviewEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessRequestReviewEvent{
+			AccessRequestReviewEvent: &prehogv1a.AccessRequestEvent{
+				UserName: a.AnonymizeString(e.UserName),
 			},
 		},
 	}
@@ -1721,8 +1748,10 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		}
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_AccessListGrantsToUser:
+		// This event is emitted both as an one-off event as well as an aggregated
+		// user activity record report.
 		ret := &AccessListGrantsToUserEvent{
-			UserName:           userMD.Username,
+			UserName:           e.AccessListGrantsToUser.GetUserName(),
 			CountRolesGranted:  e.AccessListGrantsToUser.CountRolesGranted,
 			CountTraitsGranted: e.AccessListGrantsToUser.CountTraitsGranted,
 		}
@@ -1743,6 +1772,8 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		}
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_AccessListReviewCreate:
+		// This event is emitted both as an one-off event as well as an aggregated
+		// user activity record report.
 		ret := &AccessListReviewCreateEvent{
 			UserName: userMD.Username,
 			Metadata: &prehogv1a.AccessListMetadata{
