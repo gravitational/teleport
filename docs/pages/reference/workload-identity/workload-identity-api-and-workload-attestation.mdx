@@ -324,7 +324,7 @@ Unless `tbot` is also running as root, you'll need to add its user to the docker
 group to grant it permission to access this socket:
 
 ```code
-$ sudo usermod -a -G docker <tbot user>
+$ sudo usermod -a -G docker $TBOT_USER
 ```
 
 ### Rootless Docker
@@ -372,7 +372,7 @@ systemd unit to make the socket owned by a group your tbot user belongs to:
 
 ```code
 $ sudo groupadd podman-root
-$ sudo usermod -a -G podman-root <tbot user>
+$ sudo usermod -a -G podman-root $TBOT_USER
 $ sudo systemctl edit podman.socket
 
 In the override file add:
@@ -394,7 +394,7 @@ If you're running Podman as a non-root user, enable and start the API service by
 running:
 
 ```code
-$ sudo loginctl enable-linger <podman user>
+$ sudo loginctl enable-linger $PODMAN_USER
 $ systemctl --user enable --now podman.socket
 
 The service can now be reached at `$XDG_RUNTIME_DIR/podman/podman.sock`, but
@@ -404,14 +404,14 @@ the socket out of `$XDG_RUNTIME_DIR` and add your tbot user to the podman user's
 group:
 
 ```code
-$ sudo usermod -a -G <podman user group> <tbot user>
+$ sudo usermod -a -G $PODMAN_USER_GROUP $TBOT_USER
 $ systemctl --user edit podman.socket
 
 In the override file add:
 
 ```
 [Socket]
-ListenStream=/path/to/socket # Example: /srv/podman.<podman user>/podman.sock
+ListenStream=/path/to/socket # Example: /srv/podman.$PODMAN_USER/podman.sock
 ```
 
 Reload the systemd daemon and restart the socket unit:
