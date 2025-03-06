@@ -24,6 +24,7 @@ import (
 	"crypto"
 	"crypto/tls"
 	"errors"
+	"github.com/google/uuid"
 	"io"
 	"log/slog"
 	"math/rand/v2"
@@ -33,6 +34,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -48,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -237,7 +240,7 @@ func (h *Handler) createDesktopConnection(
 	// proxyWebsocketConn hangs here until connection is closed
 	handleProxyWebsocketConnErr(
 		ctx,
-		proxyWebsocketConn(ws, serviceConnTLS),
+		proxyWebsocketConn(ws, serviceConnTLS, log),
 		log,
 	)
 
@@ -536,18 +539,117 @@ func (c *connector) tryConnect(ctx context.Context, clusterName, desktopServiceI
 	return conn, ver, trace.Wrap(err)
 }
 
+type desktopPinger struct {
+	wds net.Conn
+	ch  <-chan tdp.Ping
+}
+
+func (d desktopPinger) Ping(ctx context.Context) error {
+	ping := tdp.Ping{
+		UUID: uuid.New(),
+	}
+	buf, err := ping.Encode()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = d.wds.Write(buf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for {
+		select {
+		case p := <-d.ch:
+			if p.UUID == ping.UUID {
+				return nil
+			}
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		}
+	}
+}
+
+// TODO(zmb3): combine with monitorSessionLatency or rename
+func monitorDesktopLatency(ctx context.Context, ch chan<- tdp.Message, clock clockwork.Clock, ws *websocket.Conn, pinger desktopPinger) error {
+	wsPinger, err := latency.NewWebsocketPinger(clock, ws)
+	if err != nil {
+		return trace.Wrap(err, "creating websocket pinger")
+	}
+
+	monitor, err := latency.NewMonitor(latency.MonitorConfig{
+		Clock:        clock,
+		ClientPinger: wsPinger,
+		ServerPinger: pinger,
+		Reporter: latency.ReporterFunc(func(ctx context.Context, stats latency.Statistics) error {
+			ch <- tdp.LatencyStats{
+				BrowserLatency: uint32(stats.Client),
+				DesktopLatency: uint32(stats.Server),
+			}
+			return nil
+		}),
+	})
+	if err != nil {
+		return trace.Wrap(err, "creating latency monitor")
+	}
+
+	monitor.Run(ctx)
+	return nil
+}
+
 // proxyWebsocketConn does a bidrectional copy between the websocket
 // connection to the browser (ws) and the mTLS connection to Windows
 // Desktop Serivce (wds)
-func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
+func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn, log *slog.Logger) error {
+	ctx, cancel := context.WithCancel(context.Background())
 	var closeOnce sync.Once
 	close := func() {
+		cancel()
 		ws.Close()
 		wds.Close()
 	}
 
-	errs := make(chan error, 2)
+	tdpMessagesToSend := make(chan tdp.Message)
+	errs := make(chan error, 3)
 
+	pings := make(chan tdp.Ping)
+
+	pinger := desktopPinger{
+		wds: wds,
+		ch:  pings,
+	}
+
+	go monitorDesktopLatency(ctx, tdpMessagesToSend, clockwork.NewRealClock(), ws, pinger)
+
+	// run a goroutine to pick TDP messages up from a channel and send
+	// them to the browser
+	go func() {
+		for msg := range tdpMessagesToSend {
+			if ping, ok := msg.(tdp.Ping); ok {
+				pings <- ping
+				continue
+			}
+			if ls, ok := msg.(tdp.LatencyStats); ok {
+				log.InfoContext(ctx, "sending latency stats: %v / %v", ls.BrowserLatency, ls.DesktopLatency)
+			}
+			encoded, err := msg.Encode()
+			if err != nil {
+				errs <- err
+				return
+			}
+
+			err = ws.WriteMessage(websocket.BinaryMessage, encoded)
+			if utils.IsOKNetworkError(err) {
+				errs <- nil
+				return
+			}
+			if err != nil {
+				errs <- err
+				return
+			}
+		}
+	}()
+
+	// run a second goroutine to read TDP messages from the Windows
+	// agent and write them to our send channel
 	go func() {
 		defer closeOnce.Do(close)
 
@@ -589,23 +691,12 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 				errs <- err
 				return
 			}
-			encoded, err := msg.Encode()
-			if err != nil {
-				errs <- err
-				return
-			}
-			err = ws.WriteMessage(websocket.BinaryMessage, encoded)
-			if utils.IsOKNetworkError(err) {
-				errs <- nil
-				return
-			}
-			if err != nil {
-				errs <- err
-				return
-			}
+			tdpMessagesToSend <- msg
 		}
 	}()
 
+	// run a goroutine to read TDP messages coming from the browser
+	// and pass them on to the Windows agent
 	go func() {
 		defer closeOnce.Do(close)
 
@@ -634,7 +725,7 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 	}()
 
 	var retErrs []error
-	for i := 0; i < 2; i++ {
+	for i := 0; i < 3; i++ {
 		retErrs = append(retErrs, <-errs)
 	}
 	return trace.NewAggregate(retErrs...)
