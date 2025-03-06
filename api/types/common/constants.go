@@ -88,4 +88,6 @@ var OriginValues = []string{
 	OriginDiscoveryKubernetes,
 	OriginEntraID,
 	OriginAWSIdentityCenter,
+	"scim",
+	"sailpoint",
 }

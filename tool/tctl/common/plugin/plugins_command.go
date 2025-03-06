@@ -51,13 +51,14 @@ func logErrorMessage(err error) slog.Attr {
 }
 
 type pluginInstallArgs struct {
-	cmd     *kingpin.CmdClause
-	name    string
-	okta    oktaArgs
-	scim    scimArgs
-	entraID entraArgs
-	netIQ   netIQArgs
-	awsIC   awsICArgs
+	cmd           *kingpin.CmdClause
+	name          string
+	okta          oktaArgs
+	scim          scimArgs
+	entraID       entraArgs
+	netIQ         netIQArgs
+	awsIC         awsICArgs
+	scimSailpoint scimArgs
 }
 
 type scimArgs struct {
@@ -106,6 +107,7 @@ func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause, config *servicec
 	p.initInstallEntra(p.install.cmd)
 	p.initInstallNetIQ(p.install.cmd)
 	p.initInstallAWSIC(p.install.cmd)
+	p.initSCIMSailpoint(p.install.cmd)
 }
 
 func (p *PluginsCommand) initInstallSCIM(parent *kingpin.CmdClause) {
@@ -334,6 +336,8 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 		commandFunc = p.InstallNetIQ
 	case p.install.awsIC.cmd.FullCommand():
 		commandFunc = p.InstallAWSIC
+	case p.install.scimSailpoint.cmd.FullCommand():
+		commandFunc = p.InstallSCIMSailpoint
 	case p.delete.cmd.FullCommand():
 		commandFunc = p.Delete
 	default:

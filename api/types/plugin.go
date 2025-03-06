@@ -738,10 +738,6 @@ func (c *PluginEntraIDSettings) Validate() error {
 }
 
 func (c *PluginSCIMSettings) CheckAndSetDefaults() error {
-	if c.DefaultRole == "" {
-		return trace.BadParameter("default_role must be set")
-	}
-
 	if c.SamlConnectorName == "" {
 		return trace.BadParameter("saml_connector_name must be set")
 	}
