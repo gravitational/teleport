@@ -131,6 +131,16 @@ func TestEvaluateCondition(t *testing.T) {
 			},
 			match: false,
 		},
+		{
+			description: "both sets are empty",
+			condition: `
+				contains_all(set(), access_request.spec.roles) ||
+				set().contains_all(access_request.spec.roles)`,
+			env: AccessRequestExpressionEnv{
+				Roles: []string{},
+			},
+			match: false,
+		},
 	}
 
 	for _, test := range tests {
