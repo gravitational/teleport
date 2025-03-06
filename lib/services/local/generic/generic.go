@@ -66,13 +66,8 @@ type ServiceConfig[T any] struct {
 	RunWhileLockedRetryInterval time.Duration
 	// NameKeyFunc optionally allows resources to have a custom key suffix, by
 	// transforming the name of the resource or the input given to methods that
-	// take a resource name (if ResourceKeyFunc is unset). If unset, the name is
-	// used without changes.
+	// take a resource name. If unset, the name is used without changes.
 	NameKeyFunc func(name string) string
-	// ResourceKeyFunc optionally allows resources to have a custom key suffix.
-	// If unset, the name of the resource is passed through NameKeyFunc if set,
-	// or used without changes otherwise.
-	ResourceKeyFunc func(T) string
 }
 
 func (c *ServiceConfig[T]) CheckAndSetDefaults() error {
@@ -115,7 +110,6 @@ type Service[T Resource] struct {
 	validateFunc                func(T) error
 	runWhileLockedRetryInterval time.Duration
 	nameKeyFunc                 func(name string) string
-	resourceKeyFunc             func(T) string
 }
 
 // NewService will return a new generic service with the given config. This will
@@ -135,7 +129,6 @@ func NewService[T Resource](cfg *ServiceConfig[T]) (*Service[T], error) {
 		validateFunc:                cfg.ValidateFunc,
 		runWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
 		nameKeyFunc:                 cfg.NameKeyFunc,
-		resourceKeyFunc:             cfg.ResourceKeyFunc,
 	}, nil
 }
 
@@ -154,13 +147,6 @@ func (s *Service[T]) nameKey(name string) string {
 		return s.nameKeyFunc(name)
 	}
 	return name
-}
-
-func (s *Service[T]) resourceKey(resource T) string {
-	if s.resourceKeyFunc != nil {
-		return s.resourceKeyFunc(resource)
-	}
-	return s.nameKey(resource.GetName())
 }
 
 // CountResources will return a count of all resources in the prefix range.
@@ -487,7 +473,7 @@ func (s *Service[T]) MakeBackendItem(resource T, _ ...any) (backend.Item, error)
 		return backend.Item{}, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      s.MakeKey(backend.NewKey(s.resourceKey(resource))),
+		Key:      s.MakeKey(backend.NewKey(s.nameKey(resource.GetName()))),
 		Value:    value,
 		Revision: rev,
 	}

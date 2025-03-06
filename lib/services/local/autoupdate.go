@@ -54,7 +54,7 @@ func NewAutoUpdateService(b backend.Backend) (*AutoUpdateService, error) {
 			MarshalFunc:   services.MarshalProtoResource[*autoupdate.AutoUpdateConfig],
 			UnmarshalFunc: services.UnmarshalProtoResource[*autoupdate.AutoUpdateConfig],
 			ValidateFunc:  update.ValidateAutoUpdateConfig,
-			ResourceKeyFunc: func(*autoupdate.AutoUpdateConfig) string {
+			NameKeyFunc: func(string) string {
 				return types.MetaNameAutoUpdateConfig
 			},
 		})
@@ -69,7 +69,7 @@ func NewAutoUpdateService(b backend.Backend) (*AutoUpdateService, error) {
 			MarshalFunc:   services.MarshalProtoResource[*autoupdate.AutoUpdateVersion],
 			UnmarshalFunc: services.UnmarshalProtoResource[*autoupdate.AutoUpdateVersion],
 			ValidateFunc:  update.ValidateAutoUpdateVersion,
-			ResourceKeyFunc: func(*autoupdate.AutoUpdateVersion) string {
+			NameKeyFunc: func(string) string {
 				return types.MetaNameAutoUpdateVersion
 			},
 		})
@@ -84,7 +84,7 @@ func NewAutoUpdateService(b backend.Backend) (*AutoUpdateService, error) {
 			MarshalFunc:   services.MarshalProtoResource[*autoupdate.AutoUpdateAgentRollout],
 			UnmarshalFunc: services.UnmarshalProtoResource[*autoupdate.AutoUpdateAgentRollout],
 			ValidateFunc:  update.ValidateAutoUpdateAgentRollout,
-			ResourceKeyFunc: func(*autoupdate.AutoUpdateAgentRollout) string {
+			NameKeyFunc: func(string) string {
 				return types.MetaNameAutoUpdateAgentRollout
 			},
 		})
