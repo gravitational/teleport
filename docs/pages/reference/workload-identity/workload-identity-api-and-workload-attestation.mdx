@@ -365,6 +365,7 @@ If you're running Podman as root, enable the API service by running:
 
 ```code
 $ sudo systemctl enable --now podman.socket
+```
 
 At this point, the service can be reached at `/run/podman/podman.sock` but **only
 by root**. If you do not want to run `tbot` as root, you can override the default
@@ -374,6 +375,7 @@ systemd unit to make the socket owned by a group your tbot user belongs to:
 $ sudo groupadd podman-root
 $ sudo usermod -a -G podman-root $TBOT_USER
 $ sudo systemctl edit podman.socket
+```
 
 In the override file add:
 
@@ -387,6 +389,7 @@ Reload the systemd daemon and restart the socket unit:
 ```code
 $ sudo systemctl daemon-reload
 $ sudo systemctl restart podman.socket
+```
 
 ### Rootless Podman
 
@@ -396,6 +399,7 @@ running:
 ```code
 $ sudo loginctl enable-linger $PODMAN_USER
 $ systemctl --user enable --now podman.socket
+```
 
 The service can now be reached at `$XDG_RUNTIME_DIR/podman/podman.sock`, but
 **only by your chosen podman user or root**. If you do not want to run `tbot`
@@ -406,6 +410,7 @@ group:
 ```code
 $ sudo usermod -a -G $PODMAN_USER_GROUP $TBOT_USER
 $ systemctl --user edit podman.socket
+```
 
 In the override file add:
 
@@ -419,6 +424,7 @@ Reload the systemd daemon and restart the socket unit:
 ```code
 $ systemctl --user daemon-reload
 $ systemctl --user restart podman.socket
+```
 
 ### Running `tbot` in a Podman Container
 
@@ -435,6 +441,7 @@ $ podman run \
   --volume /path/to/config:/path/to/config \
   public.ecr.aws/gravitational/tbot-distroless:(=teleport.version=) \
   start -c /path/to/config
+```
 
 ## Envoy SDS
 
