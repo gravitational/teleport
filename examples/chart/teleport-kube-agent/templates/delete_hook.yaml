@@ -18,7 +18,7 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: {{ .Release.Name }}-delete-hook
+  name: {{ include "teleport-kube-agent.fullname" . }}-delete-hook
   namespace: {{ .Release.Namespace }}
   annotations:
     "helm.sh/hook": post-delete
@@ -36,7 +36,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: {{ .Release.Name }}-delete-hook
+  name: {{ include "teleport-kube-agent.fullname" . }}-delete-hook
   namespace: {{ .Release.Namespace }}
   annotations:
     "helm.sh/hook": post-delete
@@ -49,7 +49,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: {{ .Release.Name }}-delete-hook
+  name: {{ include "teleport-kube-agent.fullname" . }}-delete-hook
 subjects:
 - kind: ServiceAccount
   name: {{ template "teleport-kube-agent.deleteHookServiceAccountName" . }}
@@ -59,7 +59,7 @@ subjects:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ .Release.Name }}-delete-hook
+  name: {{ include "teleport-kube-agent.fullname" . }}-delete-hook
   namespace: {{ .Release.Namespace }}
   annotations:
     "helm.sh/hook": post-delete
@@ -72,13 +72,13 @@ metadata:
 spec:
   template:
     metadata:
-      name: {{ .Release.Name }}-delete-hook
+      name: {{ include "teleport-kube-agent.fullname" . }}-delete-hook
 {{- if .Values.annotations.pod }}
       annotations:
   {{- toYaml .Values.annotations.pod | nindent 8 }}
 {{- end }}
       labels:
-        app: {{ .Release.Name }}
+        app: {{ include "teleport-kube-agent.fullname" . }}
 {{- if .Values.extraLabels.pod }}
   {{- toYaml .Values.extraLabels.pod | nindent 8 }}
 {{- end }}
@@ -108,7 +108,7 @@ spec:
               fieldRef:
                 fieldPath: metadata.namespace
           - name: RELEASE_NAME
-            value: {{ .Release.Name }}
+            value: {{ include "teleport-kube-agent.fullname" . }}
         image: {{ include "teleport-kube-agent.image" . | quote }}
         {{- if .Values.imagePullPolicy }}
         imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
