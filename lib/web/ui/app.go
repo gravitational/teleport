@@ -72,6 +72,9 @@ type App struct {
 	// PermissionSets holds the permission sets that this app grants access to.
 	// Only valid for Identity Center Account apps
 	PermissionSets []IdentityCenterPermissionSet `json:"permissionSets,omitempty"`
+	// SAMLAppLaunchURLs is a list of service provider specific authenticaiton endpoints
+	// configured for the SAML app.
+	SAMLAppLaunchURLs []SAMLAppLaunchURL `json:"samlAppLaunchUrls,omitempty"`
 }
 
 // UserGroupAndDescription is a user group name and its description.
@@ -199,17 +202,27 @@ func makePermissionSets(src []*types.IdentityCenterPermissionSet) []IdentityCent
 // Web UI. Thus, this field is currently not available in the Connect App type.
 func MakeAppTypeFromSAMLApp(app types.SAMLIdPServiceProvider, c MakeAppsConfig) App {
 	labels := ui.MakeLabelsWithoutInternalPrefixes(app.GetAllLabels())
+	uiLaunchURLs := func(in []string) []SAMLAppLaunchURL {
+		out := make([]SAMLAppLaunchURL, 0, len(in))
+		for _, u := range in {
+			out = append(out, SAMLAppLaunchURL{
+				URL: u,
+			})
+		}
+		return out
+	}
 	resultApp := App{
-		Kind:            types.KindApp,
-		Name:            app.GetName(),
-		Description:     "SAML Application",
-		PublicAddr:      "",
-		Labels:          labels,
-		ClusterID:       c.AppClusterName,
-		FriendlyName:    types.FriendlyName(app),
-		SAMLApp:         true,
-		SAMLAppPreset:   cmp.Or(app.GetPreset(), "unspecified"),
-		RequiresRequest: c.RequiresRequest,
+		Kind:              types.KindApp,
+		Name:              app.GetName(),
+		Description:       "SAML Application",
+		PublicAddr:        "",
+		Labels:            labels,
+		ClusterID:         c.AppClusterName,
+		FriendlyName:      types.FriendlyName(app),
+		SAMLApp:           true,
+		SAMLAppPreset:     cmp.Or(app.GetPreset(), "unspecified"),
+		RequiresRequest:   c.RequiresRequest,
+		SAMLAppLaunchURLs: uiLaunchURLs(app.GetLaunchURLs()),
 	}
 
 	return resultApp
@@ -274,4 +287,13 @@ func MakeApps(c MakeAppsConfig) []App {
 	}
 
 	return result
+}
+
+// SAMLAppLaunchURLs is a list of service provider specific authenticaiton endpoints
+// configured for the SAML app.
+type SAMLAppLaunchURL struct {
+	// Friendly name of the URL.
+	FriendlyName string `json:"friendlyName"`
+	// URL where the user should be landed onto.
+	URL string `json:"url,omitempty"`
 }
