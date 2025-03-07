@@ -59,10 +59,10 @@
           "title": "Upcoming Releases",
           "slug": "/upcoming-releases/"
         },
-	{
-	  "title": "Cloud IP Addresses",
-	  "slug": "/ips/"
-	},
+        {
+          "title": "Cloud IP Addresses",
+          "slug": "/ips/"
+        },
         {
           "title": "Changelog",
           "slug": "/changelog/"
@@ -320,7 +320,22 @@
     },
     {
       "source": "/application-access/okta/hosted-guide/",
-      "destination": "/enroll-resources/application-access/okta/hosted-guide/",
+      "destination": "/enroll-resources/application-access/okta/integration-enrollment/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/hosted-guide/",
+      "destination": "/enroll-resources/application-access/okta/integration-enrollment/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/scim-only/",
+      "destination": "/enroll-resources/application-access/okta/scim-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/sync-scim/",
+      "destination": "/enroll-resources/application-access/okta/user-sync/",
       "permanent": true
     },
     {
