@@ -331,10 +331,19 @@ If multiple `health_check_config` resources match a database, then the `health_c
 
 #### Configuration restrictions and defaults
 
-There will not be a default for `spec.match` label matchers.
-If we make the `spec.match` default to "match all databases", then it would be easy to inadvertantly override settings from other `health_check_config` resources.
-If we make `spec.match` default to "match nothing", then it would be frustrating for users to discover that by default their custom health check config doesn't do anything.
-Users will be required to configure at least one of `spec.match.db_labels` or `spec.match.db_labels_expression`.
+The default for an empty matcher is that it matches nothing.
+Users will be required to configure at least one of of the matchers under `spec.match`.
+If we make a completely empty `spec.match` default to "match all resources", then it would be easy to inadvertantly override settings from other `health_check_config` resources.
+If we make a completely empty `spec.match` default to "match nothing", then it would be frustrating for users to discover (after troubleshooting) that by default their custom health check config doesn't do anything.
+
+In future work we may expand health checks to other kinds of resources like desktops or kube clusters.
+If a matcher is specified for one type of resource, but not another, then only the configured matcher will match resources.
+For example, if `kube_labels` is given, but `db_labels` is not, then the matcher will only match kube clusters and not databases:
+
+    match:
+      kube_labels:
+      - name: '*'
+        values: ['*']
 
 We will provide a default preset `health_check_config` and that preset will match all databases.
 The preset default will make it so that most users don't have to configure anything.
