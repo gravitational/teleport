@@ -505,6 +505,7 @@ export const integrationService = {
         integration: resp.integration,
         lastStateChange: resp.lastStateChange,
         description: resp.description,
+        title: resp.title,
         discoverEc2: {
           instances: resp.discoverEc2?.instances,
           accountId: resp.discoverEc2?.accountId,

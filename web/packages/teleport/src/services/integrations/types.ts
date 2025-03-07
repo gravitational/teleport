@@ -416,6 +416,8 @@ export type UserTask = {
   state: string;
   // issueType identifies this task's issue type.
   issueType: string;
+  // title is the issue title.
+  title: string;
   // integration is the Integration Name this User Task refers to.
   integration: string;
   // lastStateChange indicates when the current's user task state was last changed.
@@ -424,6 +426,8 @@ export type UserTask = {
 
 // UserTaskDetail contains all the details for a User Task.
 export type UserTaskDetail = UserTask & {
+  // title is the issue title.
+  title: string;
   // description is a markdown document that explains the issue and how to fix it.
   description: string;
   // discoverEc2 contains the task details for the DiscoverEc2 tasks.
