@@ -179,9 +179,6 @@ func (h *Handler) getAppDetails(w http.ResponseWriter, r *http.Request, p httpro
 	requiredAppNames := result.App.GetRequiredAppNames()
 
 	if !isRedirectFlow {
-		if clusterName == "" {
-			clusterName = result.ClusterName
-		}
 		for _, requiredAppName := range requiredAppNames {
 			// craft the fqdn manually so we do not have to resolve required apps
 			requiredAppFQDN := fmt.Sprintf("%s.%s", requiredAppName, proxyPublicAddr)
