@@ -239,7 +239,14 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		urlString := makeAppRedirectURL(r, h.c.WebPublicAddr, addr.Host(), webLauncherURLParams)
+
+		var publicAddrs []string
+		for _, addr := range h.c.ProxyPublicAddrs {
+			publicAddrs = append(publicAddrs, addr.Host())
+		}
+		proxyPublicAddr := utils.InferProxyPublicAddr(addr.Host(), publicAddrs)
+
+		urlString := makeAppRedirectURL(r, proxyPublicAddr, addr.Host(), webLauncherURLParams)
 		// this request does not return a response, so we can pass this value through a custom header instead
 		w.Header().Set(TeleportNextAppRedirectUrlHeader, urlString)
 	}
