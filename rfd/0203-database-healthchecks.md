@@ -252,12 +252,15 @@ The `target_health` will include, among other things, a `status` field.
 
 These are the possible values for the `db_server.status.target_health.status` field:
 - `""`
+- `disabled`
 - `initialized`
 - `healthy`
 - `unhealthy`
 
-An empty status `""` indicates an unknown or disabled status.
-If health checks are disabled or an older agent is proxying the DB, then the health status will be empty.
+An empty status `""` indicates an unknown status.
+If an older agent is proxying the DB, then the health status will be empty.
+
+The `disabled` status indicates that health checks are disabled for this database.
 
 The `initialized` status is the initial health status and means that the health checking has started but the status has yet to be determined as `healthy` or `unhealthy`.
 
@@ -280,7 +283,7 @@ We can also extend this feature to other one-agent-to-many-resources types of re
 
 #### TCP health check
 
-A TCP health attempts to establish a TCP connection to the target address.
+A TCP health check attempts to establish a TCP connection to the target address.
 If dialing the target address times out or receives a TCP reset (RST), then the check has failed.
 Otherwise, the check has passed.
 
@@ -534,13 +537,13 @@ That will be changed to group the agents by health status, shuffle each group, a
 The priority of health statuses will be:
 1. `healthy`
 2. `initialized`
-3. `""` (unknown)
+3. `""` (unknown) and `disabled`
 4. `unhealthy`
 
 The justification for the `healthy` and `unhealthy` status relative ordering should be obvious.
-It is perhaps less obvious why `initialized` should be preferred over `""`.
-By definition, an `initialized` status represents zero failing checks and zero or more passing health checks, whereas `""` represents no health information at all.
-Therefore, the proxy should prefer `initialized` over `""` health status.
+It is perhaps less obvious why `initialized` should be preferred over `""` and `disabled`.
+By definition, an `initialized` status represents zero failing checks and zero or more passing health checks, whereas `""` and `disabled` represents no health information at all.
+Therefore, the proxy should prefer `initialized` over `""` and `disabled` health status.
 
 ### Security
 
@@ -548,6 +551,7 @@ Only users who can `tctl get db_server` can see health info, so it's already gua
 
 We will enforce a minimum interval between health checks to prevent accidentally or intentionally dialing too often from agent to database.
 
+Health check config resources will be guarded by 
 
 ### Proto Specification
 
@@ -629,7 +633,7 @@ TargetHealth will be added as a field to the database heartbeat: `db_server.stat
 
 Older database agents will not perform health checks, so they will always report health status `""` (unknown), which is equivalent to agents that have disabled health checks.
 
-An unknown health status will not prevent connections to that database through that agent, but it will prioritize `healthy` agents first.
+An `""` (unknown) or `disabled` health status will not prevent connections to that database through that agent, but it will prioritize `healthy` agents first.
 
 ### Audit Events
 
