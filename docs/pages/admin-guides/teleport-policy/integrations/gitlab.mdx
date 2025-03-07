@@ -1,9 +1,9 @@
 ---
-title: Discover GitLab Access Patterns with Teleport Policy
-description: Describes how to synchronize GitLab access patterns using Teleport Policy and Access Graph.
+title: Discover GitLab Access Patterns with Teleport Identity Security
+description: Describes how to synchronize GitLab access patterns using Identity Security and Access Graph.
 ---
 
-With Teleport Policy's Access Graph, you gain insights into access patterns within your GitLab account. By scanning all
+Gain insights into access patterns within your GitLab account using Identity Security with Access Graph. By scanning all
 permissions, users, groups, and projects, it provides a visual representation to help enhance the permission model within
 your GitLab environment. This functionality enables you to answer queries such as:
 
@@ -35,18 +35,18 @@ Access Graph, ensuring that it remains updated with the latest information from 
 
 ### Importing resources
 
-Teleport Policy’s Access Graph feature delves into the resources imported and their relationships, crafting a
+Identity Security’s Access Graph feature delves into the resources imported and their relationships, crafting a
 graphical representation thereof.
 
 ## Prerequisites
 
 - A running Teleport Enterprise cluster v14.3.20/v15.3.1/v16.0.0 or later.
-- Teleport Policy enabled for your account.
+- Identity Security enabled for your account.
 - A GitLab instance running GitLab v9.0 or later.
 - For self-hosted clusters:
   - Ensure that an up-to-date `license.pem` is used in the Auth Service configuration.
   - A running Access Graph node v1.21.4 or later.
-Check the [Teleport Policy page](../teleport-policy.mdx) for details on
+Check the [Identity Security page](../teleport-policy.mdx) for details on
 how to set up Access Graph.
   - The node running the Access Graph service must be reachable from the Teleport Auth Service.
 
