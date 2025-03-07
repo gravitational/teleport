@@ -50,10 +50,11 @@ type pkcs11KeyStore struct {
 
 func newPKCS11KeyStore(config *servicecfg.PKCS11Config, opts *Options) (*pkcs11KeyStore, error) {
 	cryptoConfig := &crypto11.Config{
-		Path:       config.Path,
-		TokenLabel: config.TokenLabel,
-		SlotNumber: config.SlotNumber,
-		Pin:        config.PIN,
+		Path:        config.Path,
+		TokenLabel:  config.TokenLabel,
+		SlotNumber:  config.SlotNumber,
+		Pin:         config.PIN,
+		MaxSessions: config.MaxSessions,
 	}
 
 	ctx, err := crypto11.Configure(cryptoConfig)
