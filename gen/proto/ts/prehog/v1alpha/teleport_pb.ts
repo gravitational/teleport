@@ -3966,7 +3966,11 @@ export enum IntegrationEnrollKind {
     /**
      * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER = 26;
      */
-    AWS_IDENTITY_CENTER = 26
+    AWS_IDENTITY_CENTER = 26,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_GITHUB_REPO_ACCESS = 27;
+     */
+    GITHUB_REPO_ACCESS = 27
 }
 /**
  * IntegrationEnrollStep defines inner configuration steps
@@ -3996,7 +4000,25 @@ export enum IntegrationEnrollStep {
     /**
      * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_AWSIC_TEST_SCIM_CONNECTION = 4;
      */
-    AWSIC_TEST_SCIM_CONNECTION = 4
+    AWSIC_TEST_SCIM_CONNECTION = 4,
+    /**
+     * GITHUBRA denotes GitHub Repo Access.
+     *
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_INTEGRATION = 5;
+     */
+    GITHUBRA_CREATE_INTEGRATION = 5,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_GIT_SERVER = 6;
+     */
+    GITHUBRA_CREATE_GIT_SERVER = 6,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_GITHUBRA_CONFIGURE_SSH_CERT = 7;
+     */
+    GITHUBRA_CONFIGURE_SSH_CERT = 7,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_ROLE = 8;
+     */
+    GITHUBRA_CREATE_ROLE = 8
 }
 /**
  * IntegrationEnrollStatusCode defines status code for an integration enroll step.
