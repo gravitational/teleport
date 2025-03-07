@@ -2051,6 +2051,95 @@ prod       Done  2025-01-15 18:00:12 outside_window
 backup     Done  2025-01-14 20:00:31 outside_window
 ```
 
+## tctl plugins install awsic
+
+Install the AWS Identity Center integration.
+
+```code
+$ tctl plugins install awsic <flags>
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--access-list-default-owner` | none | Teleport username | A Teleport user to set as the default owner for the imported access lists. Multiple flags allowed. |
+| `--scim-url` | none | URL | AWS Identity Center SCIM provisioning endpoint. Must be a valid AWS Identity Center SCIM endpoint URL, as per [this AWS Knowledge Center article](https://repost.aws/knowledge-center/iam-identity-center-provision). |
+| `--[no]force-scim-url` |  `--no-force-scim-url` | none | Force the use provided SCIM provisioning endpoint even if it fails SCIM endpoint validation. |
+| `--scim-token` | none | text | The AWS Identify Center SCIM provisioning access bearer token. |
+| `--instance-arn` | none | ARN | The ARN of the Identity Center instance to manage |
+| `--instance-region` | none | text | The AWS region where the Identity Center instance is located. |
+| `--[no-]use-system-credentials` | `--no-use-system-credentials` | none | Use system AWS credentials to authenticate with AWS. Note that currently only `--use-system-credentials` is supported by `tctl`. |
+| `--user-label` | none | text | Add user label filter, in the form of a comma-separated list of "name=value" pairs. All matching users will be provisioned to AWS Identity Center. If no label filters are supplied, *all* Teleport users will be provisioned to Identity Center. Multiple filters allowed. |
+| `--user-origin` | none | text | Shorthand for setting a label filter that filters by origin. For example, `--user-origin $ORIGIN` is identical to specifying `--user-label teleport.dev/origin=$ORIGIN`. |
+| `--group-name` | none | text | Add an AWS Identity Center group to group to the group import list by name. Can be a glob, or enclosed in `^$` to specify a regular expression. If no filters are supplied then *all* AWS groups will be imported. |
+| `--account-name` | none | text | Add an AWS account to the account import list by name. Can be a glob, or enclosed in `^$` to specify a regular expression. *All* AWS accounts will be imported if no items are added to account import list. Multiple filters allowed. |
+| `--account-id` | none | test | Adds a specific AWS account to account import list by ID. *All* AWS accounts will be imported if no items are added to account import list. |
+
+### Example
+
+```code
+$ tctl plugins install awsic \
+    --arn "arn:aws:sso:::instance/ssoins-722326ecc902a06a" \
+    --region us-east-1 \
+    --use-system-credentials \
+    --url https://scim.us-east-1.amazonaws.com/f3v9c6bc2ca-b104-4571-b669-f2eba522efe8/scim/v2 \
+    --token ${IDENTITY_CENTER_SCIM_BEARER_TOKEN} \
+    --default-owner admin \
+    --default-owner root@example.com \
+    --user-origin okta \
+    --user-label "role=aws-admin,dept=engineering" \
+    --account-name "^production ap-southeast-\d$" \
+    --account-id "637423191929" \
+    --group-name "^Group 001\d$"
+```
+
+Multiple `--access-list-default-owner` flags are collected together. In the given
+example, all Access Lists imported by the integration will be created wth owners
+`admin` and `root@example.com`.
+
+Multiple filter flags are ORd together. For example, in the command line above
+the two user filter flags imply that if a user
+
+- was provisioned into Teleport by Okta (from `--user-origin okta`), OR
+- has the label values `role=aws-admin` AND `dept=engineering` (from `--user-label "role=aws-admin,dept=engineering"`)
+
+then they will be provisioned into AWS Identity Center by Teleport. 
+
+## tctl plugins install okta
+
+Install the Okta integration
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--name` | `okta` | text | Name of the plugin resource to create. |
+| `--org` | none | URL | URL of Okta organization. |
+| `--api-token` | none | text | Okta API token for the plugin to use. |
+| `--saml-connector` | none | text | SAML connector used for Okta SSO login. |
+| `--app-id` | none | text | Okta ID of the APP used for SSO via SAML. |
+| `--[no-]scim` | `--no-scim` | none | Enable SCIM Okta integration. |
+| `--[no-]users-sync` | `--users-sync` | none | Enable user synchronization. |
+| `-o`, `--owner` | none | Teleport username | Add a default owner for synced Access Lists. | 
+| `--[no-]accesslist-sync` | `--accesslist-sync` | none | Enable or disable group to Access List synchronization. |
+| `--[no-]appgroup-sync` | `--appgroup-sync` | none | Enable or disable Okta Applications and Groups sync. |
+| `-g`, `--group-filter` | none | text | Add a group filter. Supports globbing by default. Enclose in `^pattern$` for full regex support. |
+| `-a`, `--app-filter` | none | text | Add an app filter. Supports globbing by default. Enclose in `^pattern$` for full regex support. |
+
+### Example
+
+``` code
+$ tctl plugins install okta \
+    --org https://example.okta.com \
+    --saml-connector "okta" \
+    --app-id 00uih637rfmPlqeaL5d7 \
+    --api-token ${OKTA_API_TOKEN} \
+    --no-scim \
+    --no-accesslist-sync \
+    --no-appgroup-sync
+```
+
 ## tctl version
 
 Print the version of your `tctl` binary:
