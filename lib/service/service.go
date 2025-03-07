@@ -2022,6 +2022,8 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	process.backend = b
 
+	// TODO(zmb3) maybe check here
+
 	var emitter apievents.Emitter
 	var streamer events.Streamer
 	var uploadHandler events.MultipartHandler
@@ -6322,6 +6324,8 @@ func (process *TeleportProcess) initAuthStorage() (backend.Backend, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// TODO(zmb3): bk (if firestore or dynamo) should not use same table as recordings
 
 	reporter, err := backend.NewReporter(backend.ReporterConfig{
 		Component: teleport.ComponentBackend,
