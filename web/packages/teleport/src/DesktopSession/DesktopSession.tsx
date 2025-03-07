@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Box, ButtonPrimary, ButtonSecondary, Flex, Indicator } from 'design';
 import { Info } from 'design/Alert';
@@ -32,6 +32,8 @@ import { Attempt } from 'shared/hooks/useAttemptNext';
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 import { TdpClientCanvasRef } from 'teleport/components/TdpClientCanvas/TdpClientCanvas';
+import { KeyboardHandler } from 'teleport/DesktopSession/KeyboardHandler';
+import { ButtonState, ScrollAxis } from 'teleport/lib/tdp';
 import { useListener } from 'teleport/lib/tdp/client';
 import { MfaState, shouldShowMfaPrompt } from 'teleport/lib/useMfa';
 
@@ -67,22 +69,13 @@ export function DesktopSession(props: State) {
     directorySharingState,
     setDirectorySharingState,
     setInitialTdpConnectionSucceeded,
-    clientOnClipboardData,
+    onClipboardData,
+    sendLocalClipboardToRemote,
     setWsConnection,
-    canvasOnKeyDown,
-    canvasOnKeyUp,
-    canvasOnFocusOut,
-    canvasOnMouseMove,
-    canvasOnMouseDown,
-    canvasOnMouseUp,
-    canvasOnMouseWheelScroll,
-    canvasOnContextMenu,
-    onResize,
     clientScreenSpecToRequest,
     clipboardSharingState,
     setClipboardSharingState,
     onShareDirectory,
-    onCtrlAltDel,
     alerts,
     onRemoveAlert,
     fetchAttempt,
@@ -97,6 +90,16 @@ export function DesktopSession(props: State) {
     screen: 'processing',
     canvasState: { shouldConnect: false, shouldDisplay: false },
   });
+  const keyboardHandler = useRef(new KeyboardHandler());
+
+  useEffect(() => {
+    keyboardHandler.current = new KeyboardHandler();
+    // On unmount, clear all the timeouts on the keyboardHandler.
+    return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      keyboardHandler.current.dispose();
+    };
+  }, []);
   const { shouldConnect } = screenState.canvasState;
   // Call connect after all listeners have been registered
   useEffect(() => {
@@ -141,7 +144,7 @@ export function DesktopSession(props: State) {
     });
   }, [setInitialTdpConnectionSucceeded]);
 
-  useListener(client?.onClipboardData, clientOnClipboardData);
+  useListener(client?.onClipboardData, onClipboardData);
 
   const handleFatalError = useCallback(
     (error: Error) => {
@@ -222,6 +225,90 @@ export function DesktopSession(props: State) {
   useListener(client?.onReset, tdpClientCanvasRef.current?.clear);
   useListener(client?.onScreenSpec, tdpClientCanvasRef.current?.setResolution);
 
+  function handleKeyDown(e: React.KeyboardEvent) {
+    keyboardHandler.current.handleKeyboardEvent({
+      cli: client,
+      e: e.nativeEvent,
+      state: ButtonState.DOWN,
+    });
+
+    // The key codes in the if clause below are those that have been empirically determined not
+    // to count as transient activation events. According to the documentation, a keydown for
+    // the Esc key and any "shortcut key reserved by the user agent" don't count as activation
+    // events: https://developer.mozilla.org/en-US/docs/Web/Security/User_activation.
+    if (e.key !== 'Meta' && e.key !== 'Alt' && e.key !== 'Escape') {
+      // Opportunistically sync local clipboard to remote while
+      // transient user activation is in effect.
+      // https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText#security
+      sendLocalClipboardToRemote();
+    }
+  }
+
+  function handleKeyUp(e: React.KeyboardEvent) {
+    keyboardHandler.current.handleKeyboardEvent({
+      cli: client,
+      e: e.nativeEvent,
+      state: ButtonState.UP,
+    });
+  }
+
+  function handleBlur() {
+    keyboardHandler.current.onFocusOut();
+  }
+
+  function handleMouseMove(e: React.MouseEvent) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    client.sendMouseMove(x, y);
+  }
+
+  function handleMouseDown(e: React.MouseEvent) {
+    if (e.button === 0 || e.button === 1 || e.button === 2) {
+      client.sendMouseButton(e.button, ButtonState.DOWN);
+    }
+
+    // Opportunistically sync local clipboard to remote while
+    // transient user activation is in effect.
+    // https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText#security
+    sendLocalClipboardToRemote();
+  }
+
+  function handleMouseUp(e: React.MouseEvent) {
+    if (e.button === 0 || e.button === 1 || e.button === 2) {
+      client.sendMouseButton(e.button, ButtonState.UP);
+    }
+  }
+
+  function handleMouseWheel(e: WheelEvent) {
+    e.preventDefault();
+    // We only support pixel scroll events, not line or page events.
+    // https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent/deltaMode
+    if (e.deltaMode === WheelEvent.DOM_DELTA_PIXEL) {
+      if (e.deltaX) {
+        client.sendMouseWheelScroll(ScrollAxis.HORIZONTAL, -e.deltaX);
+      }
+      if (e.deltaY) {
+        client.sendMouseWheelScroll(ScrollAxis.VERTICAL, -e.deltaY);
+      }
+    }
+  }
+
+  // Block browser context menu so as not to obscure the context menu
+  // on the remote machine.
+  function handleContextMenu(e: React.MouseEvent) {
+    e.preventDefault();
+  }
+
+  function handleCtrlAltDel() {
+    if (!client) {
+      return;
+    }
+    client.sendKeyboardInput('ControlLeft', ButtonState.DOWN);
+    client.sendKeyboardInput('AltLeft', ButtonState.DOWN);
+    client.sendKeyboardInput('Delete', ButtonState.DOWN);
+  }
+
   return (
     <Flex
       flexDirection="column"
@@ -250,7 +337,7 @@ export function DesktopSession(props: State) {
         isSharingClipboard={isSharingClipboard(clipboardSharingState)}
         clipboardSharingMessage={clipboardSharingMessage(clipboardSharingState)}
         onShareDirectory={onShareDirectory}
-        onCtrlAltDel={onCtrlAltDel}
+        onCtrlAltDel={handleCtrlAltDel}
         alerts={alerts}
         onRemoveAlert={onRemoveAlert}
       />
@@ -269,15 +356,15 @@ export function DesktopSession(props: State) {
         style={{
           display: screenState.canvasState.shouldDisplay ? 'flex' : 'none',
         }}
-        onKeyDown={canvasOnKeyDown}
-        onKeyUp={canvasOnKeyUp}
-        onBlur={canvasOnFocusOut}
-        onMouseMove={canvasOnMouseMove}
-        onMouseDown={canvasOnMouseDown}
-        onMouseUp={canvasOnMouseUp}
-        onMouseWheel={canvasOnMouseWheelScroll}
-        onContextMenu={canvasOnContextMenu}
-        onResize={onResize}
+        onKeyDown={handleKeyDown}
+        onKeyUp={handleKeyUp}
+        onBlur={handleBlur}
+        onMouseMove={handleMouseMove}
+        onMouseDown={handleMouseDown}
+        onMouseUp={handleMouseUp}
+        onMouseWheel={handleMouseWheel}
+        onContextMenu={handleContextMenu}
+        onResize={client?.resize}
       />
     </Flex>
   );
