@@ -43,7 +43,7 @@ type WorkloadIdentityService struct {
 // NewWorkloadIdentityService creates a new WorkloadIdentityService
 func NewWorkloadIdentityService(b backend.Backend) (*WorkloadIdentityService, error) {
 	service, err := generic.NewServiceWrapper(
-		generic.ServiceWrapperConfig[*workloadidentityv1pb.WorkloadIdentity]{
+		generic.ServiceConfig[*workloadidentityv1pb.WorkloadIdentity]{
 			Backend:       b,
 			ResourceKind:  types.KindWorkloadIdentity,
 			BackendPrefix: backend.NewKey(workloadIdentityPrefix),

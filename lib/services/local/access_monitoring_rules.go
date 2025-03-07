@@ -41,7 +41,7 @@ type AccessMonitoringRulesService struct {
 // NewAccessMonitoringRulesService creates a new AccessMonitoringRulesService.
 func NewAccessMonitoringRulesService(b backend.Backend) (*AccessMonitoringRulesService, error) {
 	service, err := generic.NewServiceWrapper(
-		generic.ServiceWrapperConfig[*accessmonitoringrulesv1.AccessMonitoringRule]{
+		generic.ServiceConfig[*accessmonitoringrulesv1.AccessMonitoringRule]{
 			Backend:       b,
 			ResourceKind:  types.KindAccessMonitoringRule,
 			BackendPrefix: backend.NewKey(accessMonitoringRulesPrefix),
