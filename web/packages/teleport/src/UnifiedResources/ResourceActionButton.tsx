@@ -28,6 +28,7 @@ import {
 } from 'shared/components/MenuLogin';
 import { AwsRole } from 'shared/services/apps';
 
+import { TcpAppConnectDialog } from 'teleport/Apps/TcpAppConnectDialog';
 import cfg from 'teleport/config';
 import DbConnectDialog from 'teleport/Databases/ConnectDialog';
 import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
@@ -163,7 +164,8 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
     fqdn,
     clusterId,
     publicAddr,
-    isCloudOrTcpEndpoint,
+    isCloud,
+    isTcp,
     samlApp,
     samlAppSsoUrl,
     samlAppPreset,
@@ -207,18 +209,21 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
       />
     );
   }
-  if (isCloudOrTcpEndpoint) {
+  if (isCloud) {
     return (
       <ButtonBorder
         disabled
         width="123px"
         size="small"
-        title="Cloud or TCP applications cannot be launched by the browser"
+        title="Cloud apps cannot be launched by the browser"
         textTransform="none"
       >
         Launch
       </ButtonBorder>
     );
+  }
+  if (isTcp) {
+    return <TcpAppConnect app={app} />;
   }
   if (samlApp) {
     if (actions.showActions) {
@@ -385,6 +390,24 @@ function GitServerConnect({ gitServer }: { gitServer: GitServer }) {
           accessRequestId={accessRequestId}
         />
       )}
+    </>
+  );
+}
+
+function TcpAppConnect({ app }: { app: App }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <ButtonBorder
+        textTransform="none"
+        width="123px"
+        size="small"
+        onClick={() => setOpen(true)}
+      >
+        Connect
+      </ButtonBorder>
+      {open && <TcpAppConnectDialog app={app} onClose={() => setOpen(false)} />}
     </>
   );
 }
