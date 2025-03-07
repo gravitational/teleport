@@ -250,6 +250,8 @@ require (
 	software.sslmate.com/src/go-pkcs12 v0.5.0
 )
 
+require github.com/go-asn1-ber/asn1-ber v1.5.7
+
 require (
 	cel.dev/expr v0.19.1 // indirect
 	cloud.google.com/go v0.118.2 // indirect
@@ -342,7 +344,6 @@ require (
 	github.com/fatih/camelcase v1.0.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
-	github.com/go-asn1-ber/asn1-ber v1.5.7 // indirect
 	github.com/go-chi/chi v4.1.2+incompatible // indirect
 	github.com/go-chi/chi/v5 v5.2.0 // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
