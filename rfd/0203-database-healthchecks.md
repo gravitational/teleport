@@ -675,10 +675,6 @@ Such metrics may be useful to monitor a particular agent and generate alerts, ho
 
 Distributed tracing (OpenTelemetry) is not needed.
 
-### Product Usage
-
-N/A
-
 ### Test Plan
 
 - Dynamic health check configuration
