@@ -539,7 +539,7 @@ When the status is `initialized`, a single pass or failure with transition the s
 
 Example behavior with the default settings (Interval=10s, Timeout=5s, HealthyThreshold=2, UnhealthyThreshold=1):
 
-1. Health checker starts - status=`initialized`, startTime=0s, endTime=0s, count=0, lastErr=nil
+1. health checker starts - status=`initialized`, startTime=0s, endTime=0s, count=0, lastErr=nil
 2. health check passes   - status=`healthy`, startTime=0s, endTime=0s, count=1, lastErr=nil
 3. health check fails    - status=`unhealthy`, startTime=10s, endTime=15s, count=1, lastErr="connection timeout"
 4. health check passes   - status=`unhealthy`, startTime=20s, endTime=20s, count=1, lastErr=nil
