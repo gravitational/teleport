@@ -47,6 +47,7 @@ test('deep links an open task', async () => {
           integration: integrationName,
           lastStateChange: '2025-02-11T20:32:19.482607921Z',
           issueType: 'rds-failure',
+          title: 'RDS Failure',
         },
       ],
       nextKey: 'next',
@@ -70,7 +71,7 @@ test('deep links an open task', async () => {
   );
 
   await screen.findAllByText('Pending Tasks');
-  await userEvent.click(screen.getByText('rds-failure'));
+  await userEvent.click(screen.getByText('RDS Failure'));
 
   await waitFor(() =>
     expect(history.replace).toHaveBeenCalledWith(
