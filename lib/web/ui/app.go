@@ -128,9 +128,12 @@ type MakeAppsConfig struct {
 // MakeApp creates an application object for the WebUI.
 func MakeApp(app types.Application, c MakeAppsConfig) App {
 	labels := ui.MakeLabelsWithoutInternalPrefixes(app.GetAllLabels())
-	proxyPublicAddr := utils.InferProxyPublicAddr(c.RequestHost, c.ProxyPublicAddrs)
+	fqdn := utils.AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, app)
+	if app.GetAlwaysUseProxyPublicAddr() {
+		proxyPublicAddr := utils.InferProxyPublicAddr(c.RequestHost, c.ProxyPublicAddrs)
+		fqdn = utils.AssembleAppFQDN(c.LocalClusterName, proxyPublicAddr, c.AppClusterName, app)
+	}
 
-	fqdn := utils.AssembleAppFQDN(c.LocalClusterName, proxyPublicAddr, c.AppClusterName, app)
 	var ugs types.UserGroups
 	for _, userGroupName := range app.GetUserGroups() {
 		userGroup := c.UserGroupLookup[userGroupName]
