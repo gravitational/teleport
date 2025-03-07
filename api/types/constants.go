@@ -498,6 +498,9 @@ const (
 	// KindHeadlessAuthentication is a headless authentication resource.
 	KindHeadlessAuthentication = "headless_authentication"
 
+	// KindHealthCheckConfig is the resource for health check configuration.
+	KindHealthCheckConfig = "health_check_config"
+
 	// KindAccessGraph is the RBAC kind for access graph.
 	KindAccessGraph = "access_graph"
 
