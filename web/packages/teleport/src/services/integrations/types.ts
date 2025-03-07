@@ -426,8 +426,6 @@ export type UserTask = {
 
 // UserTaskDetail contains all the details for a User Task.
 export type UserTaskDetail = UserTask & {
-  // title is the issue title.
-  title: string;
   // description is a markdown document that explains the issue and how to fix it.
   description: string;
   // discoverEc2 contains the task details for the DiscoverEc2 tasks.
@@ -574,6 +572,8 @@ export type ResourceTypeSummary = {
   resourcesEnrollmentSuccess: number;
   // discoverLastSync contains the time when this integration tried to auto-enroll resources.
   discoverLastSync: number;
+  // unresolvedUserTasks contains the count of unresolved user tasks related to this integration and resource type.
+  unresolvedUserTasks: number;
   // ecsDatabaseServiceCount is the total number of DatabaseServices that were deployed into Amazon ECS.
   // Only applicable for AWS RDS resource summary.
   ecsDatabaseServiceCount: number;

@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { addHours } from 'date-fns';
-
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
 import { AwsOidcStatusContextState } from 'teleport/Integrations/status/AwsOidc/useAwsOidcStatus';
@@ -60,15 +58,13 @@ function makeResourceTypeSummary(
 ): ResourceTypeSummary {
   return Object.assign(
     {
-      rulesCount: Math.floor(Math.random() * 100),
-      resourcesFound: Math.floor(Math.random() * 100),
-      resourcesEnrollmentFailed: Math.floor(Math.random() * 100),
-      resourcesEnrollmentSuccess: Math.floor(Math.random() * 100),
-      discoverLastSync: addHours(
-        new Date().getTime(),
-        -Math.floor(Math.random() * 100)
-      ),
-      ecsDatabaseServiceCount: Math.floor(Math.random() * 100),
+      rulesCount: 11,
+      resourcesFound: 11,
+      resourcesEnrollmentFailed: 11,
+      resourcesEnrollmentSuccess: 11,
+      discoverLastSync: new Date().getTime(),
+      ecsDatabaseServiceCount: 11,
+      unresolvedUserTasks: 11,
     },
     overrides
   );

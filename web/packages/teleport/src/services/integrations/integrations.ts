@@ -539,6 +539,7 @@ export const integrationService = {
           taskType: resp.taskType,
           state: resp.state,
           issueType: resp.issueType,
+          title: resp.title,
           integration: resp.integration,
           lastStateChange: resp.lastStateChange,
         };
