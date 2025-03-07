@@ -16,7 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState, useMemo, Dispatch, SetStateAction } from 'react';
+import {
+  Dispatch,
+  SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { useParams } from 'react-router';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
@@ -112,10 +119,16 @@ export default function useDesktopSession() {
     );
   }, [clusterId, desktopName, run]);
 
-  const [warnings, setWarnings] = useState<NotificationItem[]>([]);
-  const onRemoveWarning = (id: string) => {
-    setWarnings(prevState => prevState.filter(warning => warning.id !== id));
+  const [alerts, setAlerts] = useState<NotificationItem[]>([]);
+  const onRemoveAlert = (id: string) => {
+    setAlerts(prevState => prevState.filter(warning => warning.id !== id));
   };
+  const addAlert = useCallback((alert: Omit<NotificationItem, 'id'>) => {
+    setAlerts(prevState => [
+      ...prevState,
+      { ...alert, id: crypto.randomUUID() },
+    ]);
+  }, []);
 
   const clientCanvasProps = useTdpClientCanvas({
     username,
@@ -126,7 +139,7 @@ export default function useDesktopSession() {
     setClipboardSharingState,
     setDirectorySharingState,
     clipboardSharingState,
-    setWarnings,
+    setAlerts,
   });
   const tdpClient = clientCanvasProps.tdpClient;
 
@@ -150,39 +163,33 @@ export default function useDesktopSession() {
             ...prevState,
             directorySelected: false,
           }));
-          setWarnings(prevState => [
-            ...prevState,
-            {
-              id: crypto.randomUUID(),
-              severity: 'warn',
-              content: 'Failed to open the directory picker: ' + e.message,
-            },
-          ]);
+          addAlert({
+            severity: 'warn',
+            content: 'Failed to open the directory picker: ' + e.message,
+          });
         });
     } catch (e) {
       setDirectorySharingState(prevState => ({
         ...prevState,
         directorySelected: false,
       }));
-      setWarnings(prevState => [
-        ...prevState,
-        {
-          id: crypto.randomUUID(),
-          severity: 'warn',
-          // This is a gross error message, but should be infrequent enough that its worth just telling
-          // the user the likely problem, while also displaying the error message just in case that's not it.
-          // In a perfect world, we could check for which error message this is and display
-          // context appropriate directions.
-          content:
-            'Encountered an error while attempting to share a directory: ' +
+      addAlert({
+        severity: 'warn',
+        // This is a gross error message, but should be infrequent enough that its worth just telling
+        // the user the likely problem, while also displaying the error message just in case that's not it.
+        // In a perfect world, we could check for which error message this is and display
+        // context appropriate directions.
+        content: {
+          title: 'Encountered an error while attempting to share a directory: ',
+          description:
             e.message +
             '. \n\nYour user role supports directory sharing over desktop access, \
-          however this feature is only available by default on some Chromium \
-          based browsers like Google Chrome or Microsoft Edge. Brave users can \
-          use the feature by navigating to brave://flags/#file-system-access-api \
-          and selecting "Enable". If you\'re not already, please switch to a supported browser.',
+  however this feature is only available by default on some Chromium \
+  based browsers like Google Chrome or Microsoft Edge. Brave users can \
+  use the feature by navigating to brave://flags/#file-system-access-api \
+  and selecting "Enable". If you\'re not already, please switch to a supported browser.',
         },
-      ]);
+      });
     }
   };
 
@@ -211,8 +218,10 @@ export default function useDesktopSession() {
     setShowAnotherSessionActiveDialog,
     onShareDirectory,
     onCtrlAltDel,
-    warnings,
-    onRemoveWarning,
+    alerts,
+    onRemoveAlert,
+    addAlert,
+    setWsConnection,
     ...clientCanvasProps,
   };
 }
