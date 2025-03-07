@@ -26,6 +26,7 @@ import {
   MenuInputType,
   MenuLogin,
 } from 'shared/components/MenuLogin';
+import { MenuLoginWithActionMenu } from 'shared/components/MenuLoginWithActionMenu';
 import { AwsRole } from 'shared/services/apps';
 
 import cfg from 'teleport/config';
@@ -37,7 +38,7 @@ import KubeConnectDialog from 'teleport/Kubes/ConnectDialog';
 import { openNewTab } from 'teleport/lib/util';
 import { useSamlAppAction } from 'teleport/SamlApplications/useSamlAppActions';
 import { UnifiedResource } from 'teleport/services/agents';
-import { App, AppSubKind } from 'teleport/services/apps';
+import { App, AppSubKind, SamlAppLaunchUrl } from 'teleport/services/apps';
 import { Database } from 'teleport/services/databases';
 import { Desktop } from 'teleport/services/desktops';
 import { Kube } from 'teleport/services/kube';
@@ -169,6 +170,7 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
     samlAppPreset,
     subKind,
     permissionSets,
+    samlAppLaunchUrls,
   } = app;
   const { actions, userSamlIdPPerm } = useSamlAppAction();
 
@@ -230,18 +232,8 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
         icon: 'application',
         keywords: ['saml'],
       };
-      return (
-        <ButtonWithMenu
-          text="Log In"
-          width="123px"
-          size="small"
-          target="_blank"
-          href={samlAppSsoUrl}
-          rel="noreferrer"
-          textTransform="none"
-          forwardedAs="a"
-          title="Log in to SAML application"
-        >
+      const samlAppActionMenu = (
+        <>
           <MenuItem
             onClick={() => actions.startEdit(currentSamlAppSpec)}
             disabled={!userSamlIdPPerm.edit} // disable props does not disable onClick
@@ -254,13 +246,18 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
           >
             Delete
           </MenuItem>
-        </ButtonWithMenu>
+        </>
+      );
+      return makeSamlAppLoginButton(
+        samlAppSsoUrl,
+        samlAppLaunchUrls,
+        samlAppActionMenu
       );
     } else {
       return (
         <ButtonBorder
           as="a"
-          width="123px"
+          width="100px"
           size="small"
           target="_blank"
           href={samlAppSsoUrl}
@@ -422,6 +419,75 @@ const makeDesktopLoginOptions = (
     return {
       login: username,
       url,
+    };
+  });
+};
+
+/**
+ * makeSamlAppLoginButton returns login button for SAML apps.
+ * If launchUrls is not empty and its length is greater than one,
+ * MenuLoginWithActionMenu button is returned. If  ButtonWithMenu
+ * is returned.
+ * if launchUrls is not empty but its length is exactly one, ButtonWithMenu
+ * is returned with the href value configured with the launchUrls[0] value.
+ * If launchUrls is empty, ButtonWithMenu is returned with the href value
+ * configured with samlAppSsoUrl.
+ * @param samlAppSsoUrl - ACS URL (also known as SSO endpoint) value for SAML app.
+ * @param launchUrls - custom service provider endpoints that will be used to initiate
+ *                     authentication, instead of the ACS URL.
+ * @param SamlActionMenu - SAML app edit and delete action menu items.
+ */
+function makeSamlAppLoginButton(
+  samlAppSsoUrl,
+  launchUrls: SamlAppLaunchUrl[],
+  SamlActionMenu: JSX.Element
+) {
+  let ssoUrl = samlAppSsoUrl;
+  if (launchUrls) {
+    if (launchUrls.length > 1) {
+      return (
+        <MenuLoginWithActionMenu
+          getLoginItems={() => makeSamlAppLoginOptions(launchUrls)}
+          width="100px"
+          onSelect={(e: React.SyntheticEvent, login: string) =>
+            openNewTab(login)
+          }
+          buttonText="Log In"
+          size="small"
+          disableSearchAndFilter={true}
+          placeholder="Select URL to log in"
+        >
+          {SamlActionMenu}
+        </MenuLoginWithActionMenu>
+      );
+    }
+    ssoUrl = launchUrls[0].url;
+  }
+
+  return (
+    <ButtonWithMenu
+      text="Log In"
+      width="100px"
+      size="small"
+      target="_blank"
+      href={ssoUrl}
+      rel="noreferrer"
+      textTransform="none"
+      forwardedAs="a"
+      title="Log in to SAML application"
+    >
+      {SamlActionMenu}
+    </ButtonWithMenu>
+  );
+}
+
+const makeSamlAppLoginOptions = (
+  launchUrls: SamlAppLaunchUrl[]
+): LoginItem[] => {
+  return launchUrls.map(u => {
+    return {
+      login: u.friendlyName,
+      url: u.url,
     };
   });
 };
