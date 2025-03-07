@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ComponentPropsWithRef, ComponentType } from 'react';
+import { ComponentPropsWithRef, ComponentType, CSSProperties } from 'react';
 
 import { ButtonBorder } from 'design/Button';
 
@@ -48,6 +48,12 @@ export type MenuLoginProps = {
   width?: string;
   ButtonComponent?: ComponentType<ComponentPropsWithRef<typeof ButtonBorder>>;
   buttonText?: string;
+  /**
+   * Text label, instead of default search and filter input,
+   * is shown if this value is set to true.
+   */
+  disableSearchAndFilter?: boolean;
+  style?: CSSProperties;
 };
 
 export type MenuLoginHandle = {
