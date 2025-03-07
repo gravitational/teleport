@@ -22,6 +22,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { useParams } from 'react-router';
@@ -30,14 +31,17 @@ import type { NotificationItem } from 'shared/components/Notification';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import type { UrlDesktopParams } from 'teleport/config';
-import { ButtonState } from 'teleport/lib/tdp';
+import { ClipboardData } from 'teleport/lib/tdp/codec';
 import { useMfaEmitter } from 'teleport/lib/useMfa';
+import { Sha256Digest } from 'teleport/lib/util';
 import desktopService from 'teleport/services/desktops';
 import userService from 'teleport/services/user';
 
 import useTdpClientCanvas from './useTdpClientCanvas';
 
 export default function useDesktopSession() {
+  const encoder = useRef(new TextEncoder());
+  const latestClipboardDigest = useRef('');
   const { attempt: fetchAttempt, run } = useAttempt('processing');
 
   // tdpConnection tracks the state of the tdpClient's TDP connection
@@ -129,16 +133,38 @@ export default function useDesktopSession() {
     ]);
   }, []);
 
+  async function sendLocalClipboardToRemote() {
+    if (!(await sysClipboardGuard(clipboardSharingState, 'read'))) {
+      return;
+    }
+    const text = await navigator.clipboard.readText();
+    const digest = await Sha256Digest(text, encoder.current);
+    if (text && digest !== latestClipboardDigest.current) {
+      tdpClient.sendClipboardData({
+        data: text,
+      });
+      latestClipboardDigest.current = digest;
+    }
+  }
+
+  async function onClipboardData(clipboardData: ClipboardData) {
+    if (
+      clipboardData.data &&
+      (await sysClipboardGuard(clipboardSharingState, 'write'))
+    ) {
+      await navigator.clipboard.writeText(clipboardData.data);
+      latestClipboardDigest.current = await Sha256Digest(
+        clipboardData.data,
+        encoder.current
+      );
+    }
+  }
+
   const clientCanvasProps = useTdpClientCanvas({
     username,
     desktopName,
     clusterId,
     setTdpConnection,
-    setWsConnection,
-    setClipboardSharingState,
-    setDirectorySharingState,
-    clipboardSharingState,
-    setAlerts,
   });
   const tdpClient = clientCanvasProps.tdpClient;
 
@@ -192,15 +218,6 @@ export default function useDesktopSession() {
     }
   };
 
-  const onCtrlAltDel = () => {
-    if (!tdpClient) {
-      return;
-    }
-    tdpClient.sendKeyboardInput('ControlLeft', ButtonState.DOWN);
-    tdpClient.sendKeyboardInput('AltLeft', ButtonState.DOWN);
-    tdpClient.sendKeyboardInput('Delete', ButtonState.DOWN);
-  };
-
   return {
     hostname,
     username,
@@ -216,11 +233,12 @@ export default function useDesktopSession() {
     showAnotherSessionActiveDialog,
     setShowAnotherSessionActiveDialog,
     onShareDirectory,
-    onCtrlAltDel,
     alerts,
     onRemoveAlert,
     addAlert,
     setWsConnection,
+    sendLocalClipboardToRemote,
+    onClipboardData,
     ...clientCanvasProps,
   };
 }
@@ -394,3 +412,36 @@ export type WebsocketAttempt = {
   status: 'init' | 'open' | 'closed';
   statusText?: string;
 };
+
+/**
+ * To be called before any system clipboard read/write operation.
+ */
+async function sysClipboardGuard(
+  clipboardSharingState: ClipboardSharingState,
+  checkingFor: 'read' | 'write'
+): Promise<boolean> {
+  // If we're not allowed to share the clipboard according to the acl
+  // or due to the browser we're using, never try to read or write.
+  if (!clipboardSharingPossible(clipboardSharingState)) {
+    return false;
+  }
+
+  // If the relevant state is 'prompt', try the operation so that the
+  // user is prompted to allow it.
+  const checkingForRead = checkingFor === 'read';
+  const checkingForWrite = checkingFor === 'write';
+  const relevantStateIsPrompt =
+    (checkingForRead && clipboardSharingState.readState === 'prompt') ||
+    (checkingForWrite && clipboardSharingState.writeState === 'prompt');
+  if (relevantStateIsPrompt) {
+    return true;
+  }
+
+  // Otherwise try only if both read and write permissions are granted
+  // and the document has focus (without focus we get an uncatchable error).
+  //
+  // Note that there's no situation where only one of read or write is granted,
+  // but the other is denied, and we want to try the operation. The feature is
+  // either fully enabled or fully disabled.
+  return isSharingClipboard(clipboardSharingState) && document.hasFocus();
+}

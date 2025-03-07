@@ -756,9 +756,9 @@ export default class Client extends EventEmitterMfaSender {
     this.send(this.codec.encodeSharedDirectoryTruncateResponse(response));
   }
 
-  resize(spec: ClientScreenSpec) {
+  resize = (spec: ClientScreenSpec) => {
     this.sendClientScreenSpec(spec);
-  }
+  };
 
   sendRdpResponsePDU(responseFrame: ArrayBuffer) {
     this.send(this.codec.encodeRdpResponsePDU(responseFrame));
