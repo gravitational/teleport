@@ -184,17 +184,17 @@ func (h *Handler) getAppDetails(w http.ResponseWriter, r *http.Request, p httpro
 			if alwaysUseProxyPublicAddr {
 				requiredAppFQDN := fmt.Sprintf("%s.%s", requiredAppName, proxyPublicAddr)
 				resp.RequiredAppFQDNs = append(resp.RequiredAppFQDNs, requiredAppFQDN)
-			} else {
-				if clusterName == "" {
-					clusterName = result.ClusterName
-				}
-				res, err := h.resolveApp(r.Context(), ctx, ResolveAppParams{ClusterName: clusterName, AppName: requiredAppName})
-				if err != nil {
-					h.logger.ErrorContext(r.Context(), "Error getting app details for associated required app", "required_app", requiredAppName, "app", result.App.GetName())
-					continue
-				}
-				resp.RequiredAppFQDNs = append(resp.RequiredAppFQDNs, res.FQDN)
+				continue
 			}
+			if clusterName == "" {
+				clusterName = result.ClusterName
+			}
+			res, err := h.resolveApp(r.Context(), ctx, ResolveAppParams{ClusterName: clusterName, AppName: requiredAppName})
+			if err != nil {
+				h.logger.ErrorContext(r.Context(), "Error getting app details for associated required app", "required_app", requiredAppName, "app", result.App.GetName(), "error", err)
+				continue
+			}
+			resp.RequiredAppFQDNs = append(resp.RequiredAppFQDNs, res.FQDN)
 		}
 		// append self to end of required apps so that it can be the final entry in the redirect "chain".
 		resp.RequiredAppFQDNs = append(resp.RequiredAppFQDNs, resp.FQDN)

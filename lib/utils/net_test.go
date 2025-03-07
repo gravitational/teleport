@@ -18,6 +18,8 @@ package utils
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestInferProxyPublicAddr(t *testing.T) {
@@ -37,6 +39,12 @@ func TestInferProxyPublicAddr(t *testing.T) {
 			name:          "Tail match",
 			fqdn:          "app.proxy.example.com",
 			proxyDNSNames: []string{"proxy.example.com"},
+			expected:      "proxy.example.com",
+		},
+		{
+			name:          "Multiple ProxyDNS Names",
+			fqdn:          "app.proxy.example.com",
+			proxyDNSNames: []string{"other.example.com", "proxy.example.com"},
 			expected:      "proxy.example.com",
 		},
 		{
@@ -62,9 +70,7 @@ func TestInferProxyPublicAddr(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := InferProxyPublicAddr(tt.fqdn, tt.proxyDNSNames)
-			if result != tt.expected {
-				t.Errorf("expected %q, got %q", tt.expected, result)
-			}
+			require.Equal(t, tt.expected, result)
 		})
 	}
 }
