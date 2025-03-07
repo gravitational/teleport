@@ -81,6 +81,66 @@ func TestEvaluateCondition(t *testing.T) {
 			},
 			match: false,
 		},
+		{
+			description: "match at least one role",
+			condition: `
+				contains_any(access_request.spec.roles, set("dev")) &&
+				access_request.spec.roles.contains_any(set("dev"))`,
+			env: AccessRequestExpressionEnv{
+				Roles: []string{"dev", "stage", "prod"},
+			},
+			match: true,
+		},
+		{
+			description: "does not match any role",
+			condition: `
+				contains_any(access_request.spec.roles, set("no-match")) ||
+				access_request.spec.roles.contains_any(set("no-match"))`,
+			env: AccessRequestExpressionEnv{
+				Roles: []string{"dev", "stage", "prod"},
+			},
+			match: false,
+		},
+		{
+			description: "matches all requested roles",
+			condition: `
+				contains_all(set("dev", "stage", "prod"), access_request.spec.roles) &&
+				set("dev", "stage", "prod").contains_all(access_request.spec.roles)`,
+			env: AccessRequestExpressionEnv{
+				Roles: []string{"dev", "stage", "prod"},
+			},
+			match: true,
+		},
+		{
+			description: "does not match all requested roles",
+			condition: `
+				contains_all(set("dev"), access_request.spec.roles) ||
+				set("dev").contains_all(access_request.spec.roles)`,
+			env: AccessRequestExpressionEnv{
+				Roles: []string{"dev", "stage", "prod"},
+			},
+			match: false,
+		},
+		{
+			description: "requested roles is empty",
+			condition: `
+				contains_all(set("dev"), access_request.spec.roles) ||
+				set("dev").contains_all(access_request.spec.roles)`,
+			env: AccessRequestExpressionEnv{
+				Roles: []string{},
+			},
+			match: false,
+		},
+		{
+			description: "both sets are empty",
+			condition: `
+				contains_all(set(), access_request.spec.roles) ||
+				set().contains_all(access_request.spec.roles)`,
+			env: AccessRequestExpressionEnv{
+				Roles: []string{},
+			},
+			match: false,
+		},
 	}
 
 	for _, test := range tests {

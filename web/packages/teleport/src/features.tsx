@@ -17,6 +17,7 @@
  */
 
 import {
+  AddCircle,
   Bots as BotsIcon,
   CirclePlay,
   ClipboardUser,
@@ -102,7 +103,7 @@ class AccessRequests implements TeleportFeature {
 }
 
 export class FeatureJoinTokens implements TeleportFeature {
-  category = NavigationCategory.Access;
+  category = NavigationCategory.ZeroTrustAccess;
 
   navigationItem = {
     title: NavTitle.JoinTokens,
@@ -202,7 +203,7 @@ export class FeatureSessions implements TeleportFeature {
 // - Access
 
 export class FeatureUsers implements TeleportFeature {
-  category = NavigationCategory.Access;
+  category = NavigationCategory.ZeroTrustAccess;
 
   route = {
     title: 'Manage Users',
@@ -233,7 +234,7 @@ export class FeatureUsers implements TeleportFeature {
 }
 
 export class FeatureBots implements TeleportFeature {
-  category = NavigationCategory.Access;
+  category = NavigationCategory.MachineWorkloadId;
 
   route = {
     title: 'Manage Bots',
@@ -266,6 +267,24 @@ export class FeatureBots implements TeleportFeature {
   }
 }
 
+export class FeatureAddBotsShortcut implements TeleportFeature {
+  category = NavigationCategory.MachineWorkloadId;
+  isHyperLink = true;
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.addBots;
+  }
+
+  navigationItem = {
+    title: NavTitle.NewBotShortcut,
+    icon: AddCircle,
+    exact: true,
+    getLink() {
+      return cfg.getBotsNewRoute();
+    },
+  };
+}
+
 export class FeatureAddBots implements TeleportFeature {
   category = NavigationCategory.AddNew;
 
@@ -296,7 +315,7 @@ export class FeatureAddBots implements TeleportFeature {
 }
 
 export class FeatureRoles implements TeleportFeature {
-  category = NavigationCategory.Access;
+  category = NavigationCategory.ZeroTrustAccess;
 
   route = {
     title: 'Manage User Roles',
@@ -328,7 +347,7 @@ export class FeatureRoles implements TeleportFeature {
 }
 
 export class FeatureAuthConnectors implements TeleportFeature {
-  category = NavigationCategory.Access;
+  category = NavigationCategory.ZeroTrustAccess;
 
   route = {
     title: 'Manage Auth Connectors',
@@ -357,7 +376,7 @@ export class FeatureAuthConnectors implements TeleportFeature {
 }
 
 export class FeatureLocks implements TeleportFeature {
-  category = NavigationCategory.Identity;
+  category = NavigationCategory.IdentityGovernance;
 
   route = {
     title: 'Session & Identity Locks',
@@ -431,7 +450,7 @@ export class FeatureDiscover implements TeleportFeature {
 }
 
 export class FeatureIntegrations implements TeleportFeature {
-  category = NavigationCategory.Access;
+  category = NavigationCategory.ZeroTrustAccess;
 
   hasAccess(flags: FeatureFlags) {
     // if feature hiding is enabled, only show
@@ -550,7 +569,7 @@ export class FeatureAudit implements TeleportFeature {
 // - Clusters
 
 export class FeatureClusters implements TeleportFeature {
-  category = NavigationCategory.Access;
+  category = NavigationCategory.ZeroTrustAccess;
 
   route = {
     title: 'Clusters',
@@ -583,7 +602,7 @@ export class FeatureClusters implements TeleportFeature {
 }
 
 export class FeatureTrust implements TeleportFeature {
-  category = NavigationCategory.Access;
+  category = NavigationCategory.ZeroTrustAccess;
 
   route = {
     title: 'Trusted Root Clusters',
@@ -606,7 +625,7 @@ export class FeatureTrust implements TeleportFeature {
 }
 
 class FeatureDeviceTrust implements TeleportFeature {
-  category = NavigationCategory.Identity;
+  category = NavigationCategory.IdentityGovernance;
   route = {
     title: 'Trusted Devices',
     path: cfg.routes.deviceTrust,
@@ -703,7 +722,6 @@ export class FeatureHelpAndSupport implements TeleportFeature {
 export function getOSSFeatures(): TeleportFeature[] {
   return [
     // Resources
-    // TODO(rudream): Implement shortcuts to pinned/nodes/apps/dbs/desktops/kubes.
     new FeatureUnifiedResources(),
 
     // AddNew
@@ -714,6 +732,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     // - Access
     new FeatureUsers(),
     new FeatureBots(),
+    new FeatureAddBotsShortcut(),
     new FeatureJoinTokens(),
     new FeatureRoles(),
     new FeatureAuthConnectors(),

@@ -34,14 +34,14 @@ untrusted certificate authority.
 if the certificate has been signed with a valid certificate authority, and does not need to copy user
 credentials over to every service.
 
-<Notice type="tip">
+<Admonition type="tip">
 Teleport issues certificates that are good from a few hours to minutes before they auto-expire without any action.
 The shorter the duration for these certificates, the better.
 Ideally, certs should be issued only for the duration of a session.
 In practice, several hours or the duration of the workday are OK too.
 The expiry date in certificates can not be forged
 without invalidating the certificates, so any system can validate the certificate.
-</Notice>
+</Admonition>
 
 ### X.509 certificates
 
@@ -103,11 +103,11 @@ X.509 certificates issued by Teleport and used for Kubernetes, Databases, Web Ap
 Teleport issues certificates that are good from a few hours to minutes before they auto-expire without any action.
 Instead of distributing revocation lists, Teleport relies on time to do the job for us.
 
-<Notice type="tip">
+<Admonition type="tip">
 In some cases, certificate expiration is not fast enough, and all sessions have to be terminated immediately,
 for example during active security incident.
 For those cases, Teleport Proxy can terminate live connections using [session and identity locking](../../admin-guides/access-controls/guides/locking.mdx).
-</Notice>
+</Admonition>
 
 ### Short-lived Certs For Users
 
@@ -154,12 +154,12 @@ using a new certificate authority.
 Take a look at the [Certificate Rotation Guide](../../admin-guides/management/operations/ca-rotation.mdx) to
 learn how to do certificate rotation in practice.
 
-<Notice type="tip">
+<Admonition type="tip">
 To quickly lock out a potentially compromised Auth Service instance, Proxy
 Service instance, or Teleport Agent without rotating the entire cluster
 certificates, use [session and identity
 locking](../../admin-guides/access-controls/guides/locking.mdx).
-</Notice>
+</Admonition>
 
 ## More concepts
 

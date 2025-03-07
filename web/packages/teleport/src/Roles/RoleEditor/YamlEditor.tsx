@@ -23,7 +23,7 @@ import TextEditor from 'shared/components/TextEditor';
 
 import { RoleWithYaml } from 'teleport/services/resources';
 
-import { EditorSaveCancelButton } from './Shared';
+import { ActionButtonsContainer, PreviewButton, SaveButton } from './Shared';
 import { YamlEditorModel } from './yamlmodel';
 
 type YamlEditorProps = {
@@ -33,7 +33,6 @@ type YamlEditorProps = {
   onChange?(y: YamlEditorModel): void;
   onSave?(content: string): void;
   onPreview?(): void;
-  onCancel?(): void;
 };
 
 export const YamlEditor = ({
@@ -43,7 +42,6 @@ export const YamlEditor = ({
   onChange,
   onSave,
   onPreview,
-  onCancel,
 }: YamlEditorProps) => {
   const isEditing = !!originalRole;
   const [wasPreviewed, setHasPreviewed] = useState(!onPreview);
@@ -76,16 +74,19 @@ export const YamlEditor = ({
           onChange={handleSetYaml}
         />
       </Flex>
-      <EditorSaveCancelButton
-        onSave={handleSave}
-        onPreview={onPreview ? handlePreview : undefined}
-        onCancel={onCancel}
-        saveDisabled={isProcessing || !yamlEditorModel.isDirty || !wasPreviewed}
-        previewDisabled={
-          isProcessing || wasPreviewed || !yamlEditorModel.isDirty
-        }
-        isEditing={isEditing}
-      />
+      <ActionButtonsContainer>
+        <SaveButton
+          isEditing={isEditing}
+          disabled={isProcessing || !yamlEditorModel.isDirty || !wasPreviewed}
+          onClick={handleSave}
+        />
+        {onPreview && (
+          <PreviewButton
+            disabled={isProcessing || wasPreviewed || !yamlEditorModel.isDirty}
+            onClick={handlePreview}
+          />
+        )}
+      </ActionButtonsContainer>
     </Flex>
   );
 };

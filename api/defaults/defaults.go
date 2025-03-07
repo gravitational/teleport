@@ -145,6 +145,12 @@ const (
 )
 
 const (
+	// DefaultMaxErrorMessageSize is the default maximum size of an error message.
+	// This can be used to truncate large error messages, which might cause gRPC messages to exceed the maximum allowed size.
+	DefaultMaxErrorMessageSize = 1024 * 100 // 100KB
+)
+
+const (
 	// When running in "SSH Proxy" role this port will be used for incoming
 	// connections from SSH nodes who wish to use "reverse tunnell" (when they
 	// run behind an environment/firewall which only allows outgoing connections)

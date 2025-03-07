@@ -21,7 +21,7 @@ import { NavLink } from 'react-router-dom';
 import styled, { css, useTheme } from 'styled-components';
 
 import { Box, ButtonIcon, Flex, P2, Text } from 'design';
-import { ArrowLineLeft } from 'design/Icon';
+import { ArrowLineLeft, ArrowSquareIn } from 'design/Icon';
 import { Theme } from 'design/theme';
 import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 
@@ -100,7 +100,10 @@ export function DefaultSection({
             {!section.standalone &&
               section.subsections.map(subsection => (
                 <SubsectionItem
-                  $active={currentView?.route === subsection.route}
+                  $active={
+                    currentView?.route === subsection.route &&
+                    !subsection.isHyperLink
+                  }
                   to={subsection.route}
                   exact={subsection.exact}
                   key={subsection.title}
@@ -110,6 +113,9 @@ export function DefaultSection({
                 >
                   <subsection.icon size={16} />
                   <P2>{subsection.title}</P2>
+                  {subsection.isHyperLink && (
+                    <ArrowSquareIn size={16} color="text.muted" />
+                  )}
                 </SubsectionItem>
               ))}
           </Box>
@@ -170,7 +176,7 @@ export function StandaloneSection({
   );
 }
 
-export const rightPanelWidth = 236;
+export const rightPanelWidth = 274;
 
 export const RightPanel = styled(Box).attrs({ px: '5px' })<{
   isVisible: boolean;
@@ -266,8 +272,8 @@ export const CategoryButton = styled.button<{
   $active: boolean;
   isExpanded?: boolean;
 }>`
-  min-height: 60px;
-  min-width: 60px;
+  height: 68px;
+  width: 68px;
   cursor: pointer;
   outline: hidden;
   border: none;
@@ -282,11 +288,12 @@ export const CategoryButton = styled.button<{
   justify-content: center;
   gap: ${props => props.theme.space[1]}px;
   font-family: ${props => props.theme.font};
+  padding: ${props => props.theme.space[2]}px ${props => props.theme.space[1]}px;
 
   font-size: ${props => props.theme.typography.body4.fontSize};
   font-weight: ${props => props.theme.typography.body4.fontWeight};
   letter-spacing: ${props => props.theme.typography.body4.letterSpacing};
-  line-height: ${props => props.theme.typography.body4.lineHeight};
+  line-height: 12px;
   text-decoration: none;
 
   ${props => getCategoryStyles(props.theme, props.$active, props.isExpanded)}

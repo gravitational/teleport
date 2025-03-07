@@ -110,6 +110,8 @@ export type NavigationSubsection = {
    * Note that this is merely extra logic, and does not replace the default routing behaviour of a subsection which will navigate the user to the route.
    */
   onClick?: () => void;
+  /** isHyperLink is whether this subsection is merely a hyperlink/shortcut to another subsection. */
+  isHyperLink?: boolean;
 };
 
 function getNavigationSections(
@@ -158,12 +160,11 @@ function getSubsectionsForCategory(
       exact: feature.navigationItem.exact,
       icon: feature.navigationItem.icon,
       searchableTags: feature.navigationItem.searchableTags,
+      isHyperLink: feature.isHyperLink,
     };
   });
 }
 
-// getNavSubsectionForRoute returns the sidenav subsection that the user is correctly on (based on route).
-// Note that it is possible for this not to return anything, such as in the case where the user is on a page that isn't in the sidenav (eg. Account Settings).
 /**
  * getTopMenuSection returns a NavigationSection with the top menu items. This is not used in the sidenav, but will be used to make the top menu items searchable.
  */
@@ -184,10 +185,12 @@ function getTopMenuSection(features: TeleportFeature[]): NavigationSection {
   };
 }
 
+/** getNavSubsectionForRoute returns the sidenav subsection that the user is correctly on (based on route).
+ * Note that it is possible for this not to return anything, such as in the case where the user is on a page that isn't in the sidenav (eg. Account Settings). **/
 function getNavSubsectionForRoute(
   features: TeleportFeature[],
   route: history.Location<unknown> | Location
-): NavigationSubsection {
+): NavigationSubsection | undefined {
   let feature = features
     .filter(feature => Boolean(feature.route))
     .find(feature =>
@@ -206,7 +209,8 @@ function getNavSubsectionForRoute(
 
   if (
     !feature ||
-    (!feature.category && !feature.topMenuItem && !feature.navigationItem)
+    (!feature.category && !feature.topMenuItem && !feature.navigationItem) ||
+    feature.isHyperLink
   ) {
     return;
   }

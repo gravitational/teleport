@@ -994,6 +994,7 @@ func applyPKCS11Config(pkcs11Config *PKCS11, cfg *servicecfg.Config) error {
 
 	cfg.Auth.KeyStore.PKCS11.TokenLabel = pkcs11Config.TokenLabel
 	cfg.Auth.KeyStore.PKCS11.SlotNumber = pkcs11Config.SlotNumber
+	cfg.Auth.KeyStore.PKCS11.MaxSessions = pkcs11Config.MaxSessions
 
 	cfg.Auth.KeyStore.PKCS11.PIN = pkcs11Config.PIN
 	if pkcs11Config.PINPath != "" {

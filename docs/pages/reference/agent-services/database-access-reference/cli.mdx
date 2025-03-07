@@ -27,7 +27,7 @@ Starts Teleport Database Service.
 ```code
 $ teleport db start \
     --token=/path/to/token \
-    --auth-server=proxy.example.com:3080 \
+    --auth-server=proxy.example.com:443 \
     --name=example \
     --protocol=postgres \
     --uri=postgres.example.com:5432
@@ -80,7 +80,7 @@ Creates a sample Database Service configuration.
 $ teleport db configure create --rds-discovery=us-west-1 --rds-discovery=us-west-2
 $ teleport db configure create \
   --token=/tmp/token \
-  --proxy=proxy.example.com:3080 \
+  --proxy=proxy.example.com:443 \
   --name=example \
   --protocol=postgres \
   --uri=postgres://postgres.example.com:5432 \

@@ -534,27 +534,26 @@ func TestKubeMiddleware(t *testing.T) {
 		require.NoError(t, err)
 
 		var rw *responsewriters.MemoryResponseWriter
-		// We use `require.Eventually` to avoid a very rare test flakiness case when reissue goroutine manages to
+		// We use `require.EventuallyWithT` to avoid a very rare test flakiness case when reissue goroutine manages to
 		// successfully finish before the parent goroutine has a chance to check the context (and see that it's expired).
-		require.Eventually(t, func() bool {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			rw = responsewriters.NewMemoryResponseWriter()
 			// HandleRequest will reissue certificate if needed.
 			km.HandleRequest(rw, req)
 
 			// request timed out.
-			return rw.Status() == http.StatusInternalServerError
+			assert.Equal(t, http.StatusInternalServerError, rw.Status())
+			assert.Contains(t, rw.Buffer().String(), "context canceled")
 
-		}, 5*time.Second, 100*time.Millisecond)
-		require.Contains(t, rw.Buffer().String(), "context canceled")
+			// but certificate still was reissued.
+			certs, err := km.OverwriteClientCerts(req)
+			assert.NoError(t, err)
+			if !assert.Len(t, certs, 1) {
+				return
+			}
+			assert.Equal(t, newCert, certs[0], "certificate was not reissued")
 
-		// just let the reissuing goroutine some time to replace certs.
-		time.Sleep(10 * time.Millisecond)
-
-		// but certificate still was reissued.
-		certs, err := km.OverwriteClientCerts(req)
-		require.NoError(t, err)
-		require.Len(t, certs, 1)
-		require.Equal(t, newCert, certs[0], "certificate was not reissued")
+		}, 15*time.Second, 100*time.Millisecond)
 	})
 
 	getStartCerts := func() KubeClientCerts {

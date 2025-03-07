@@ -30,6 +30,48 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+func (s *TerraformSuiteOSS) TestRoleDataSource() {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+
+	checkDestroyed := func(state *terraform.State) error {
+		_, err := s.client.GetRole(ctx, "test")
+		if trace.IsNotFound(err) {
+			return nil
+		}
+
+		return err
+	}
+
+	role := &types.RoleV6{
+		Metadata: types.Metadata{
+			Name: "test",
+		},
+	}
+	err := role.CheckAndSetDefaults()
+	require.NoError(s.T(), err)
+
+	_, err = s.client.UpsertRole(ctx, role)
+	require.NoError(s.T(), err)
+
+	name := "data.teleport_role.test"
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		CheckDestroy:             checkDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("role_data_source.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "role"),
+					resource.TestCheckResourceAttr(name, "version", "v7"),
+					resource.TestCheckResourceAttr(name, "metadata.name", "test"),
+				),
+			},
+		},
+	})
+}
+
 func (s *TerraformSuiteOSS) TestRole() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)

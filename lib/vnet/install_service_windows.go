@@ -108,15 +108,20 @@ func grantServiceRights() error {
 	if err != nil {
 		return trace.Wrap(err, "getting current service DACL")
 	}
+	// This is the universal well-known SID for "Authenticated Users".
+	authenticatedUsersSID, err := windows.StringToSid("S-1-5-11")
+	if err != nil {
+		return trace.Wrap(err, "parsing authenticated users SID")
+	}
 	// Build an explicit access entry allowing authenticated users to start,
 	// stop, and query the service.
 	ea := []windows.EXPLICIT_ACCESS{{
 		AccessPermissions: windows.SERVICE_QUERY_STATUS | windows.SERVICE_START | windows.SERVICE_STOP,
 		AccessMode:        windows.GRANT_ACCESS,
 		Trustee: windows.TRUSTEE{
-			TrusteeForm:  windows.TRUSTEE_IS_NAME,
+			TrusteeForm:  windows.TRUSTEE_IS_SID,
 			TrusteeType:  windows.TRUSTEE_IS_WELL_KNOWN_GROUP,
-			TrusteeValue: windows.TrusteeValueFromString("Authenticated Users"),
+			TrusteeValue: windows.TrusteeValueFromSID(authenticatedUsersSID),
 		},
 	}}
 	// Merge the new explicit access entry with the existing DACL.

@@ -3218,6 +3218,27 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 			),
 		},
 		{
+			name: "correct config with max sessions",
+			auth: Auth{
+				CAKeyParams: &CAKeyParams{
+					PKCS11: &PKCS11{
+						ModulePath:  securePKCS11LibPath,
+						TokenLabel:  "foo",
+						SlotNumber:  &slotNumber,
+						MaxSessions: 100,
+					},
+				},
+			},
+			want: servicecfg.KeystoreConfig{
+				PKCS11: servicecfg.PKCS11Config{
+					TokenLabel:  "foo",
+					SlotNumber:  &slotNumber,
+					MaxSessions: 100,
+					Path:        securePKCS11LibPath,
+				},
+			},
+		},
+		{
 			name: "correct gcp config",
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{
