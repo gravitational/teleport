@@ -541,21 +541,44 @@ We can introduce several new lock targets to address this:
   lock is the primary locking solution, however this will prevent joining with
   another token.
 
-#### Token CLI UX Improvements
+#### Bot Joining URIs
 
-Instead of separating join method and token name, we propose combining the two
-into a single CLI flag and referring to tokens as a (method, value) tuple. For
-example:
+Instead of separate flags for proxy, join method, token value, and other
+potential join-method specific parameters, we propose adopting joining URIs.
+These would provide a single value users can copy to pre-fill various
+configuration fields and would greatly improve the onboarding experience.
+
+The URI syntax might look like this:
+```
+tbot+[auth|proxy]://[join method]:[token value]@[addr]:[port]?key=val&foo=bar
+```
+
+Consider these two equivalent commands:
+```
+$ tbot start identity --proxy-server example.teleport.sh:443 --join-method bound-keypair --token example
+
+$ tbot start identity tbot+proxy://bound-keypair:example@example.teleport.sh:443
+```
+
+Joining URIs can greatly simplify the regular onboarding experience by providing
+a single value to copy when onboarding a bot:
 
 ```
 $ tctl bots add example --roles=access
-The bot token: bound-keypair:04f0ceff1bd0589ba45c1832dfc8feaf
+The bot token: tbot+proxy://bound-keypair:example@example.teleport.sh:443
 This token will expire in 59 minutes.
 
 [...snip...]
 
-$ tbot start --token=bound-keypair:04f0ceff1bd0589ba45c1832dfc8feaf ...
+$ tbot start identity tbot+proxy://bound-keypair:example@example.teleport.sh:443 ...
 ```
+
+Given the CLI now supports many operational modes, it's much easier for users to
+write their given starting command (e.g. `tbot start app`) and paste the joining
+URI to get started immediately.
+
+URL paths and query parameters may also provide options for future extension if
+desired.
 
 ## Alternatives and Future Extensions
 
