@@ -1,9 +1,9 @@
 ---
-title: Teleport Policy Connections
-description: Connections in Access Graph with Teleport Policy.
+title: Teleport Identity Security Connections
+description: Connections in Access Graph with Identity Security.
 ---
 
-Teleport Policy's Access Graph feature feature shows the relationships between users, roles, and resources. 
+Identity Security with Access Graph shows the relationships between users, roles, and resources. 
 It does this by showing paths between nodes. Paths are the relationships between nodes. 
 Paths always connect nodes in the following order:
 
@@ -75,7 +75,7 @@ Resource Groups are created from Teleport roles.
 
 Teleport supports [object-level permissions](../../enroll-resources/database-access/rbac.mdx#executing-database-object-permission-rules) for select database protocols.
 
-The database objects-level access information is automatically synchronized to Teleport Policy, making it possible to see who has particular levels of access to the different parts of the database.
+The database objects-level access information is automatically synchronized to Identity Security, making it possible to see who has particular levels of access to the different parts of the database.
 
 When you inspect a particular user's access, the Teleport Access Graph will automatically display the database objects that the user can access.
 
@@ -102,4 +102,4 @@ In the graph, database objects are connected by multiple edges:
 Resources are created from Teleport resources like nodes, databases, and Kubernetes clusters.
 
 ## Next steps
-- Uncover [privileges, permissions, and construct SQL queries](./policy-how-to-use.mdx) in  Teleport Policy.
+- Uncover [privileges, permissions, and construct SQL queries](./policy-how-to-use.mdx) in  Identity Security.

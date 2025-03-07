@@ -833,6 +833,8 @@
     "rollouts",
     "rootca",
     "rootcluster",
+    "rootfully",
+    "rootlessly",
     "rtrzn",
     "runcommand",
     "runscript",
