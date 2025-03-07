@@ -568,9 +568,15 @@ The proxy routing prioritization strategy is a fail-open system: if all database
 
 Only users who can `tctl get db_server` can see health info, so it's already guarded by RBAC.
 
-We will enforce a minimum interval between health checks to prevent accidentally or intentionally dialing too often from agent to database.
+The new `health_check_config` resource will be guarded by RBAC.
 
-Health check config resources will be guarded by 
+The following preset Teleport roles will be updated to add new default resource rules:
+
+- `editor`: full read/write permissions on `health_check_config`
+- `terraform-provider`: full read/write permissions on `health_check_config`
+- `default-implicit-role`: read-only permissions on `health_check_config`
+
+We will enforce a minimum interval between health checks to prevent accidentally or intentionally dialing too often from agent to database.
 
 ### Proto Specification
 
