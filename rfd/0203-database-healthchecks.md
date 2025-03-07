@@ -88,7 +88,7 @@ After reading the changelog and supporting reference documentation for health ch
 
     $ tctl get health_check_config/default
     kind: health_check_config
-    version: v3
+    version: v1
     metadata:
       name: "default"
       labels:
@@ -110,7 +110,7 @@ Out of an abundance of caution around this new feature, Alice wants to opt-out o
 Alice uses `tctl edit health_check_config/default` to update the default settings and exclude prod databases:
 
     kind: health_check_config
-    version: v3
+    version: v1
     metadata:
       name: "default"
       labels:
@@ -325,6 +325,15 @@ If multiple `health_check_config` resources match a database, then the `health_c
 
 #### Configuration restrictions and defaults
 
+There will not be a default for `spec.match` label selectors.
+If we make the `spec.match` default to "match all databases", then it would be easy to inadvertantly override settings from other `health_check_config` resources.
+If we make `spec.match` default to "match nothing", then it would be frustrating for users to discover that by default their custom health check config doesn't do anything.
+Users will be required to configure at least one of `spec.match.db_labels` or `spec.match.db_labels_expression`.
+
+We will provide a default preset `health_check_config` and that preset will match all databases.
+The preset default will make it so that most users don't have to configure anything.
+If users want to opt-out or change the default settings, then it's easy to do so with `tctl edit health_check_config/default`.
+
 Health check settings determine connection rates to targets and the minimum time between resource health status changes.
 
 We should enforce reasonable health check setting restrictions: 
@@ -381,6 +390,8 @@ It makes sense to bias the health status to `unhealthy` when the network is unre
 
 #### Config example
 
+This is the default preset we will create:
+
     $ tctl get health_check_config/default
     kind: health_check_config
     version: v1
@@ -403,7 +414,7 @@ It makes sense to bias the health status to `unhealthy` when the network is unre
 #### Terraform config example
 
     resource "teleport_health_check_config" "example" {
-      version = "v3"
+      version = "v1"
       metadata = {
         name = "example"
       }
