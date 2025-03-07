@@ -93,8 +93,8 @@ export type PermissionSet = {
  * endpoint where user should be launched to start SAML authentication.
  */
 export type SamlAppLaunchUrl = {
-  /* friendly name of the URL. */
-  friendlyName: string;
   /* launch URL. */
   url: string;
+  /* friendly name of the URL. */
+  friendlyName?: string;
 };

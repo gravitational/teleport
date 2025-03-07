@@ -248,26 +248,13 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
           </MenuItem>
         </>
       );
-      return makeSamlAppLoginButton(
+      return makeSamlAppLoginWithMenuButton(
         samlAppSsoUrl,
         samlAppLaunchUrls,
         samlAppActionMenu
       );
     } else {
-      return (
-        <ButtonBorder
-          as="a"
-          width="100px"
-          size="small"
-          target="_blank"
-          href={samlAppSsoUrl}
-          rel="noreferrer"
-          textTransform="none"
-          title="Log in to SAML application"
-        >
-          Log In
-        </ButtonBorder>
-      );
+      return makeSamlAppLoginButton(samlAppSsoUrl, samlAppLaunchUrls);
     }
   }
   return (
@@ -424,10 +411,9 @@ const makeDesktopLoginOptions = (
 };
 
 /**
- * makeSamlAppLoginButton returns login button for SAML apps.
+ * makeSamlAppLoginWithMenuButton returns login button for SAML apps.
  * If launchUrls is not empty and its length is greater than one,
- * MenuLoginWithActionMenu button is returned. If  ButtonWithMenu
- * is returned.
+ * MenuLoginWithActionMenu button is returned.
  * if launchUrls is not empty but its length is exactly one, ButtonWithMenu
  * is returned with the href value configured with the launchUrls[0] value.
  * If launchUrls is empty, ButtonWithMenu is returned with the href value
@@ -437,8 +423,8 @@ const makeDesktopLoginOptions = (
  *                     authentication, instead of the ACS URL.
  * @param SamlActionMenu - SAML app edit and delete action menu items.
  */
-function makeSamlAppLoginButton(
-  samlAppSsoUrl,
+function makeSamlAppLoginWithMenuButton(
+  samlAppSsoUrl: string,
   launchUrls: SamlAppLaunchUrl[],
   SamlActionMenu: JSX.Element
 ) {
@@ -455,6 +441,7 @@ function makeSamlAppLoginButton(
           buttonText="Log In"
           size="small"
           disableSearchAndFilter={true}
+          launchExternalUrl={true}
           placeholder="Select URL to log in"
         >
           {SamlActionMenu}
@@ -481,12 +468,76 @@ function makeSamlAppLoginButton(
   );
 }
 
+/**
+ * makeSamlAppLoginButton returns login button for SAML apps.
+ * If launchUrls is not empty and its length is greater than one,
+ * MenuLogin button is returned.
+ * if launchUrls is not empty but its length is exactly one, ButtonBorder
+ * is returned with the href value configured with the launchUrls[0] value.
+ * If launchUrls is empty, ButtonBorder is returned with the href value
+ * configured with samlAppSsoUrl.
+ * @param samlAppSsoUrl - ACS URL (also known as SSO endpoint) value for SAML app.
+ * @param launchUrls - custom service provider endpoints that will be used to initiate
+ *                     authentication, instead of the ACS URL.
+ */
+function makeSamlAppLoginButton(
+  samlAppSsoUrl: string,
+  launchUrls: SamlAppLaunchUrl[]
+) {
+  let ssoUrl = samlAppSsoUrl;
+  if (launchUrls) {
+    if (launchUrls.length > 1) {
+      return (
+        <MenuLogin
+          width="100px"
+          inputType={MenuInputType.FILTER}
+          onSelect={(e: React.SyntheticEvent, login: string) =>
+            openNewTab(login)
+          }
+          textTransform="none"
+          alignButtonWidthToMenu
+          getLoginItems={() => makeSamlAppLoginOptions(launchUrls)}
+          transformOrigin={{
+            vertical: 'top',
+            horizontal: 'right',
+          }}
+          anchorOrigin={{
+            vertical: 'bottom',
+            horizontal: 'right',
+          }}
+          style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
+          buttonText="Log In"
+          disableSearchAndFilter={true}
+          launchExternalUrl={true}
+          placeholder="Select URL to log in"
+        />
+      );
+    }
+    ssoUrl = launchUrls[0].url;
+  }
+
+  return (
+    <ButtonBorder
+      as="a"
+      width="100px"
+      size="small"
+      target="_blank"
+      href={ssoUrl}
+      rel="noreferrer"
+      textTransform="none"
+      title="Log in to SAML application"
+    >
+      Log In
+    </ButtonBorder>
+  );
+}
+
 const makeSamlAppLoginOptions = (
   launchUrls: SamlAppLaunchUrl[]
 ): LoginItem[] => {
   return launchUrls.map(u => {
     return {
-      login: u.friendlyName,
+      login: u.friendlyName ? u.friendlyName : u.url,
       url: u.url,
     };
   });
