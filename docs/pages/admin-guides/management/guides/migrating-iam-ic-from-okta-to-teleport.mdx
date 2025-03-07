@@ -112,8 +112,14 @@ $ tctl plugins install okta \
     --no-appgroup-sync
 ```
 
-This will install the Okta integration and start the User sync service. You can
-monitor the state of the Okta integration in the Teleport Integrations UI.
+This will install the Okta integration and start the User sync service with a
+configuration that:
+- imports Okta users assigned to the Okta App `${OKTA_SAML_APP_ID}`, and keeps
+  them synced with the upstream Okta organization.
+- does *not* expose a SCIM service.
+- does *not* attempt to sync or manage any other resources from Okta.
+
+You can monitor the state of the Okta integration in the Teleport Integrations UI.
 
 ## Step 3/7. Wait for user sync
 
@@ -131,16 +137,28 @@ Again, we need to install the plugin using `tctl`.
 
 ```console
 $ tctl plugins install awsic \
-    --arn ${IDENTITY_CENTER_INSTANCE_ARN} \
-    --region ${IDENTITY_CENTER_INSTANCE_REGION} \
+    --instance-arn ${IDENTITY_CENTER_INSTANCE_ARN} \
+    --instance-region ${IDENTITY_CENTER_INSTANCE_REGION} \
     --use-system-credentials \
-    --url ${IDENTITY_CENTER_SCIM_BASE_URL} \
-    --token ${IDENTITY_CENTER_SCIM_BEARER_TOKEN} \
+    --scim-url ${IDENTITY_CENTER_SCIM_BASE_URL} \
+    --scim-token ${IDENTITY_CENTER_SCIM_BEARER_TOKEN} \
     --default-owner ${TELEPORT_ACCESS_LIST_DEFAULT_OWNER} \
     --user-origin okta \
     --account-name ${ACCOUNT_NAME_ALLOW_FILTER} \
     --group-name ${GROUP_NAME_ALLOW_FILTER}
 ```
+
+This will install the Teleport AWS Identity Center integration with a
+Teleport configuration that:
+- controls the AWS Identity Center instance indicated by `--instance-arn`.
+- uses the system AWS credentials to authenticate with AWS (from `--use-system-credentials`)
+- manages account assignments all AWS accounts that match the `${ACCOUNT_NAME_ALLOW_FILTER}`.
+- provisions all users imported from Okta into AWS Identity Center (from the `--user-origin okta` flag).
+- only imports all groups matching `${GROUP_NAME_ALLOW_FILTER}` into Teleport as Access
+  Lists, with `${TELEPORT_ACCESS_LIST_DEFAULT_OWNER}` as the owner. 
+
+Note that the `tctl` installer currently only supports installations using
+system-level AWS credentials with `--use-system-credentials`.
 
 You can change the AWS Account, Group and User filters later by following the
 instructions in [Step 6](#step-67-expanding-teleport-integration-scope).
@@ -319,6 +337,13 @@ Deleting the integration will automatically remove all of the Teleport resources
 used by the integration to manage its own state, as well as all of the Teleport
 roles created by the integration used to grant AWS Identity Center account
 assignments and Access Lists imported from AWS Identity Center Groups.
+
+Any user-created Access Lists or account-assignment-granting roles will not be
+deleted.
+
+Any user-created Access List that grants an integration-created role, or any user
+that has an integration-created role a=directly assigned to them will need
+manual cleanup to remove any references to the deleted roles.
 
 ### Delete integration in Teleport UI
 
