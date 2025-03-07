@@ -3,8 +3,6 @@ title: Getting Started with Workload Identity
 description: Getting started with Teleport Workload Identity for SPIFFE and Machine ID
 ---
 
-(!/docs/pages/includes/workload-id-preview.mdx!)
-
 Teleport's Workload Identity issues flexible short-lived identities intended
 for workloads. It is compatible with the industry-standard SPIFFE specification
 meaning that it can be used in place of other SPIFFE compatible identity
@@ -96,7 +94,7 @@ Use `tctl create -f ./workload-identity-issuer-role.yaml` to create the role.
 
 Now, use `tctl bots update` to add the role to the Bot. Replace `example-bot`
 with the name of the Bot you created in the deployment guide and
-`example-workload-identity-issuer with the name of the role you just created:
+`example-workload-identity-issuer` with the name of the role you just created:
 
 ```code
 $ tctl bots update example-bot --add-roles example-workload-identity-issuer

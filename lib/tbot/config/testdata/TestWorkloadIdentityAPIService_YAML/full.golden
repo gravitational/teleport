@@ -9,5 +9,13 @@ attestors:
       ca_path: /path/to/ca.pem
       skip_verify: true
       anonymous: true
+  podman:
+    enabled: false
+  docker:
+    enabled: false
+  systemd:
+    enabled: false
 selector:
   name: my-workload-identity
+credential_ttl: 1m0s
+renewal_interval: 30s

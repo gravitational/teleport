@@ -19,7 +19,7 @@ The Teleport Datadog Incident Management integration connects to the Teleport
 gRPC API and listens for Role Access Requests. When the integration receives a
 status change for a Role Access Request, it either creates a new incident in
 Datadog or, if an incident exists, updates it. The integration also reads
-annotations on each Teleport Access Request and, depending on the annotations,
+annotations on each Access Request and, depending on the annotations,
 may approve the Access Request automatically.
 
 ## Prerequisites
@@ -124,7 +124,7 @@ to view your organization's service accounts. To create a new service account, c
 on **New Service Account** and name it "Teleport Access". You can provide whatever
 email you'd like to associate with the service account, then assign the role
 "Datadog Standard Role". This role provides the required permissions necessary to
-manage the Teleport Access Request incidents.
+manage the incidents in Datadog.
 
 ![Datadog dashboard for Service Accounts](../../../../img/enterprise/plugins/datadog/dashboard-service-accounts.png)
 
@@ -199,7 +199,7 @@ approve or deny the request:
 
 ![Review access request](../../../../img/enterprise/plugins/datadog/review-access-request.png)
 
-<Admonition title="Auditing Access Requests">
+<Admonition type="info" title="Auditing Access Requests">
 
 When the Datadog plugin sends a notification, anyone who receives the
 notification can follow the enclosed link to an Access Request URL. While users

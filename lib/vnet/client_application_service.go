@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/rand"
+	"crypto/rsa"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -69,7 +70,10 @@ func (s *clientApplicationService) AuthenticateProcess(ctx context.Context, req 
 		return nil, trace.BadParameter("version mismatch, user process version is %s, admin process version is %s",
 			api.Version, req.Version)
 	}
-	// TODO(nklaassen): implement process authentication.
+	if err := platformAuthenticateProcess(ctx, req); err != nil {
+		log.ErrorContext(ctx, "Failed to authenticate process", "error", err)
+		return nil, trace.Wrap(err, "authenticating process")
+	}
 	return &vnetv1.AuthenticateProcessResponse{
 		Version: api.Version,
 	}, nil
@@ -110,6 +114,8 @@ func (s *clientApplicationService) SignForApp(ctx context.Context, req *vnetv1.S
 	log.DebugContext(ctx, "Got SignForApp request",
 		"app", req.GetAppKey(),
 		"hash", req.GetHash(),
+		"is_rsa_pss", req.PssSaltLength != nil,
+		"pss_salt_len", req.GetPssSaltLength(),
 		"digest_len", len(req.GetDigest()),
 	)
 	var hash crypto.Hash
@@ -121,6 +127,13 @@ func (s *clientApplicationService) SignForApp(ctx context.Context, req *vnetv1.S
 	default:
 		return nil, trace.BadParameter("unsupported hash %v", req.GetHash())
 	}
+	opts := crypto.SignerOpts(hash)
+	if req.PssSaltLength != nil {
+		opts = &rsa.PSSOptions{
+			Hash:       hash,
+			SaltLength: int(*req.PssSaltLength),
+		}
+	}
 	appKey := req.GetAppKey()
 
 	signer, ok := s.getSignerForApp(req.GetAppKey(), uint16(req.GetTargetPort()))
@@ -128,7 +141,7 @@ func (s *clientApplicationService) SignForApp(ctx context.Context, req *vnetv1.S
 		return nil, trace.BadParameter("no signer for app %v", appKey)
 	}
 
-	signature, err := signer.Sign(rand.Reader, req.GetDigest(), hash)
+	signature, err := signer.Sign(rand.Reader, req.GetDigest(), opts)
 	if err != nil {
 		return nil, trace.Wrap(err, "signing for app %v", appKey)
 	}

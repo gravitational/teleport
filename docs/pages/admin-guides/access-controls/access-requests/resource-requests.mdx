@@ -39,13 +39,13 @@ user named `bob`.
 
 1. Repeat these steps to assign the `reviewer` role to a user named `bob`.
 
-<Notice type="tip">
+<Admonition type="tip">
 
 Consider defining custom roles to limit the scope of a requester or reviewer's
 permissions. Read the [Access Request
 Configuration](./access-request-configuration.mdx) guide for available options.
 
-</Notice>
+</Admonition>
 
 ## Step 2/6. Search for resources
 
@@ -194,11 +194,11 @@ $ tsh request review --approve f406f5d8-3c2a-428f-8547-a1d091a4ddab
 Successfully submitted review.  Request state: APPROVED
 ```
 
-<Notice type="tip">
+<Admonition type="tip">
 Check out our
 [Access Request Integrations](#integrating-with-an-external-tool)
 to notify the right people about new Access Requests.
-</Notice>
+</Admonition>
 
 ## Step 5/6. Access the requested resource
 
@@ -307,8 +307,7 @@ below, edit one of the user's roles so the `search_as_roles` field includes the
 role you have created.
 
 For full details on how to use Teleport roles to configure RBAC, see the
-[Teleport Access Controls
-Reference](../../../reference/access-controls/roles.mdx).
+[Access Controls Reference](../../../reference/access-controls/roles.mdx).
 
 #### `node`
 
@@ -544,7 +543,7 @@ spec:
 ### Request access to Kubernetes resources
 
 Teleport users can request access to a Kubernetes resources by running the following
-command:
+command, where <Var name="resource-id" /> is the ID of the resource:
 
 ```code
 $ tsh request create <Var name="resource-id" />
@@ -626,8 +625,10 @@ spec:
 
 #### Search for Kubernetes resources
 
-If a user has no access to a Kubernetes cluster, they can search the list of resources
-in the cluster by running the following command:
+If a user has no access to a Kubernetes cluster, they can search the list of
+resources in the cluster by running the following command, replacing 
+<Var name="kube-cluster" /> with the name of the Kubernetes cluster and 
+<Var name="namespace" /> with the name of a Kubernetes namespace:
 
 ```code
 $ tsh request search --kind=<kind> --kube-cluster=<Var name="kube-cluster" /> \

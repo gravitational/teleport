@@ -81,67 +81,7 @@ In this section we will create an application in the Okta dashboard to allow our
 Teleport cluster to access Okta as an IdP provider. We'll also locate the
 address that Okta uses to provides their IdP metadata to Teleport.
 
-First, create a SAML 2.0 Web App in Okta:
-
-From the main navigation menu, select **Applications** -> **Applications**, and click
-**Create App Integration**. Select SAML 2.0, then click **Next**.
-
-![Create APP](../../../../img/sso/okta/okta-saml-1.png)
-
-On the next screen (**General Settings**), provide a name and optional logo for
-your new app, then click **Next**. This will bring you to the **Configure SAML** section.
-
-### Configure the App
-
-Provide the following values to their respective fields:
-
-#### General
-
-- Single sign on URL: `https://<cluster-url>:<port>/v1/webapi/saml/acs/okta`
-- Audience URI (SP Entity ID): <nobr>`https://<cluster-url>:<port>/v1/webapi/saml/acs/okta`</nobr>
-- Name ID format `EmailAddress`
-- Application username `Okta username`
-
-Replace `<cluster-url>` with your Teleport Proxy Service address or Enterprise
-Cloud tenant (e.g. `mytenant.teleport.sh`). Replace `<port>` with your Proxy
-Service listening port (`443` by default).
-
-#### Attribute Statements
-
-- Name: `username`  | Name format: `Unspecified` | Value: `user.login`
-
-#### Group Attribute Statements
-
-We will map our Okta groups to SAML attribute statements (special signed metadata
-exposed via a SAML XML response), so that Teleport can discover a user's group
-membership and assign matching roles.
-
-- Name: `groups` | Name format: `Unspecified`
-- Filter: `Matches regex` |  `.*`
-
-The configuration page should now look like this:
-
-![Configure APP](../../../../img/sso/okta/setup-redirection.png)
-
-<Admonition type="warning" >
-The "Matches regex" filter requires the literal string `.*` in order to match all
-content from the group attribute statement.
-</Admonition>
-
-<Admonition type="tip">
-Notice that we have set "NameID" to the email format and mapped the groups with
-a wildcard regex in the Group Attribute statements. We have also set the "Audience"
-and SSO URLs to the same value. This is so Teleport can read and use Okta users'
-email addresses to create their usernames in Teleport, instead of relying on additional
-name fields.
-</Admonition>
-
-Once you've filled the required fields, click **Next**, then finish the app creation wizard.
-
-From the **Assignments** tab of the new application page, click **Assign**.
-Assign the newly created groups access to the app.
-
-![Configure APP](../../../../img/sso/okta/okta-saml-3.1.png)
+(!docs/pages/includes/okta-create-saml-connector.mdx hosted="true"!)
 
 ### Save IdP metadata path
 
@@ -173,7 +113,7 @@ flags for this command:
 
 ```code
 $ tctl sso configure saml --preset=okta \
---entity-descriptor <Var name="https://example.okta.com/app/000000/sso/saml/metadata"/> \
+--entity-descriptor "https://example.okta.com/app/000000/sso/saml/metadata" \
 --attributes-to-roles=groups,okta-admin,editor \
 --attributes-to-roles=groups,okta-dev,dev > okta-connector.yaml
 ```
@@ -295,7 +235,7 @@ Notice the `{{external.username}}` login. It configures Teleport to look at the
 This example uses email as the username format.  The
 `email.local(external.username)` function call will remove the `@domain` and
 leave the username prefix. For full details on how variable expansion works in
-Teleport roles, see the [Teleport Access Controls
+Teleport roles, see the [Access Controls
 Reference](../../../reference/access-controls/roles.mdx).
 
 Use `tctl` to create this role in the Teleport Auth Service:

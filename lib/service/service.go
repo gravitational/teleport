@@ -47,7 +47,6 @@ import (
 	"testing"
 	"time"
 
-	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/google/renameio/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -115,6 +114,7 @@ import (
 	awsimds "github.com/gravitational/teleport/lib/cloud/imds/aws"
 	"github.com/gravitational/teleport/lib/cloud/imds/azure"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
+	oracleimds "github.com/gravitational/teleport/lib/cloud/imds/oracle"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/athena"
@@ -126,7 +126,6 @@ import (
 	"github.com/gravitational/teleport/lib/events/pgevents"
 	"github.com/gravitational/teleport/lib/events/s3sessions"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/joinserver"
@@ -165,7 +164,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/cert"
 	"github.com/gravitational/teleport/lib/utils/hostid"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -1127,6 +1125,9 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 
 				clt, err := gcpimds.NewInstanceMetadataClient(instancesClient)
 				return clt, trace.Wrap(err)
+			},
+			func(ctx context.Context) (imds.Client, error) {
+				return oracleimds.NewInstanceMetadataClient(), nil
 			},
 		}
 
@@ -4858,34 +4859,21 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 
-		awsSessionGetter := func(ctx context.Context, region, integration string) (*awssession.Session, error) {
-			if integration == "" {
-				return awsutils.SessionProviderUsingAmbientCredentials()(ctx, region, integration)
-			}
-
-			return awsoidc.NewSessionV1(ctx, conn.Client, region, integration)
-		}
-		awsConfigProvider, err := awsconfig.NewCache(awsconfig.WithDefaults(
-			awsconfig.WithOIDCIntegrationClient(conn.Client),
-		))
-		if err != nil {
-			return trace.Wrap(err, "unable to create AWS config provider cache")
-		}
-
 		connectionsHandler, err := app.NewConnectionsHandler(process.GracefulExitContext(), &app.ConnectionsHandlerConfig{
-			Clock:              process.Clock,
-			DataDir:            cfg.DataDir,
-			Emitter:            asyncEmitter,
-			Authorizer:         authorizer,
-			HostID:             cfg.HostUUID,
-			AuthClient:         conn.Client,
-			AccessPoint:        accessPoint,
-			TLSConfig:          serverTLSConfig,
-			ConnectionMonitor:  connMonitor,
-			CipherSuites:       cfg.CipherSuites,
-			ServiceComponent:   teleport.ComponentWebProxy,
-			AWSSessionProvider: awsSessionGetter,
-			AWSConfigProvider:  awsConfigProvider,
+			Clock:             process.Clock,
+			DataDir:           cfg.DataDir,
+			Emitter:           asyncEmitter,
+			Authorizer:        authorizer,
+			HostID:            cfg.HostUUID,
+			AuthClient:        conn.Client,
+			AccessPoint:       accessPoint,
+			TLSConfig:         serverTLSConfig,
+			ConnectionMonitor: connMonitor,
+			CipherSuites:      cfg.CipherSuites,
+			ServiceComponent:  teleport.ComponentWebProxy,
+			AWSConfigOptions: []awsconfig.OptionsFn{
+				awsconfig.WithOIDCIntegrationClient(conn.Client),
+			},
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -6201,25 +6189,19 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
-		awsConfigProvider, err := awsconfig.NewCache()
-		if err != nil {
-			return trace.Wrap(err, "unable to create AWS config provider cache")
-		}
 		connectionsHandler, err := app.NewConnectionsHandler(process.ExitContext(), &app.ConnectionsHandlerConfig{
-			Clock:              process.Config.Clock,
-			DataDir:            process.Config.DataDir,
-			AuthClient:         conn.Client,
-			AccessPoint:        accessPoint,
-			Authorizer:         authorizer,
-			TLSConfig:          tlsConfig,
-			CipherSuites:       process.Config.CipherSuites,
-			HostID:             process.Config.HostUUID,
-			Emitter:            asyncEmitter,
-			ConnectionMonitor:  connMonitor,
-			ServiceComponent:   teleport.ComponentApp,
-			Logger:             logger,
-			AWSSessionProvider: awsutils.SessionProviderUsingAmbientCredentials(),
-			AWSConfigProvider:  awsConfigProvider,
+			Clock:             process.Config.Clock,
+			DataDir:           process.Config.DataDir,
+			AuthClient:        conn.Client,
+			AccessPoint:       accessPoint,
+			Authorizer:        authorizer,
+			TLSConfig:         tlsConfig,
+			CipherSuites:      process.Config.CipherSuites,
+			HostID:            process.Config.HostUUID,
+			Emitter:           asyncEmitter,
+			ConnectionMonitor: connMonitor,
+			ServiceComponent:  teleport.ComponentApp,
+			Logger:            logger,
 		})
 		if err != nil {
 			return trace.Wrap(err)

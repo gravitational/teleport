@@ -70,7 +70,7 @@ test('updating target port creates new connection', async () => {
   expect(conn1337.title).toEqual(`${app.name}:1337`);
 
   // Update target port.
-  let targetPortInput = screen.getByLabelText('Target Port');
+  let targetPortInput = screen.getByLabelText('Target Port *');
   await user.clear(targetPortInput);
   await user.type(targetPortInput, '4242');
   // We have to lose focus of that field, otherwise React is going to warn about updates not wrapped
@@ -154,7 +154,7 @@ test('updating target port to match connection params of gateway created by othe
   expect(ctx.connectionTracker.findConnection(conn1337Id).connected).toBe(true);
 
   // Update target port from 1337 to 4242.
-  let targetPortInput = screen.getByLabelText('Target Port');
+  let targetPortInput = screen.getByLabelText('Target Port *');
   await user.clear(targetPortInput);
   await user.type(targetPortInput, '4242');
   await user.tab();

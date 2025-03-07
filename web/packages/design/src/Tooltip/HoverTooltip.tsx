@@ -19,10 +19,11 @@
 import React, { PropsWithChildren, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 
-import { Flex, Popover, Text } from 'design';
-import { Origin } from 'design/Popover';
+import Flex from 'design/Flex';
+import Popover, { Origin } from 'design/Popover';
 import { Position } from 'design/Popover/Popover';
 import { FlexBasisProps, JustifyContentProps } from 'design/system';
+import Text from 'design/Text';
 
 import { anchorOriginForPosition, transformOriginForPosition } from './shared';
 

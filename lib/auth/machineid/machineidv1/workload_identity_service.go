@@ -370,6 +370,11 @@ func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.S
 		res.Svids = append(res.Svids, svidRes)
 	}
 
+	wis.logger.WarnContext(
+		ctx,
+		"The 'SignX509SVIDs' RPC has been invoked. This RPC is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
+	)
+
 	return res, nil
 }
 
@@ -528,6 +533,11 @@ func (wis *WorkloadIdentityService) SignJWTSVIDs(
 		}
 		res.Svids = append(res.Svids, svidRes)
 	}
+
+	wis.logger.WarnContext(
+		ctx,
+		"The 'SignJWTSVIDs' RPC has been invoked. This RPC is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
+	)
 
 	return res, nil
 }

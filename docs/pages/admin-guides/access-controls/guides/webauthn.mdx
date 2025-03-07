@@ -172,12 +172,12 @@ when starting new:
 - Application sessions
 - Desktop sessions
 
-<Notice type="note">
+<Admonition type="note">
   In addition to per-session MFA, enable login MFA in your SSO provider and/or
   for all [local Teleport
   users](../../../reference/access-controls/authentication.mdx)
   to improve security.
-</Notice>
+</Admonition>
 
 To enforce MFA checks for all roles, edit your cluster authentication
 configuration:
@@ -289,9 +289,11 @@ $ tsh device asset-tag
 </Tabs>
 </Details>
 
-Replace <Var name="(=devicetrust.asset_tag=)" description="The serial number to
-be registered"/> with the serial number of the device you wish to enroll and run
-the `tctl devices add` command:
+Replace 
+<Var name="(=devicetrust.asset_tag=)" description="The serial number to be registered"/> 
+with the serial number of the device you wish to enroll, and
+<Var name="macos" /> with your operating system. Run the
+`tctl devices add` command:
 
 ```code
 $ tctl devices add --os='<Var name="macos"/>' --asset-tag='<Var name="(=devicetrust.asset_tag=)"/>'
@@ -411,7 +413,7 @@ layer by re-verifying user identity immediately before any admin action, mitigat
 By adopting these advanced security measures, you can create a robust defense against IdP compromises and significantly reduce your organization's attack surface.
 In the following sections, we'll dive deeper into each of these recommendations, providing step-by-step guidance on implementation and best practices.
 
-<Notice type="warning">
+<Admonition type="warning">
   When MFA for administrative actions is enabled, user certificates produced
   with `tctl auth sign` will no longer be suitable for automation due to the
   additional MFA checks.
@@ -421,7 +423,7 @@ In the following sections, we'll dive deeper into each of these recommendations,
 
   Certificates produced with `tctl auth sign` directly on an Auth Service instance using the super-admin
   role are not subject to MFA checks to support legacy self-hosted setups.
-</Notice>
+</Admonition>
 
 ### Prerequisites
 
@@ -433,10 +435,10 @@ In the following sections, we'll dive deeper into each of these recommendations,
 
 MFA for administrative actions is automatically enforced for clusters where WebAuthn is the only form of multi-factor allowed.
 
-<Notice type="note">
+<Admonition type="note">
   In a future major version, Teleport may enforce MFA for administrative actions
   for a wider range of cluster configurations.
-</Notice>
+</Admonition>
 
 Examples of administrative actions include, but are not limited to:
 

@@ -16,6 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import { ClientVersionStatus } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
+
 import {
   makeApp,
   makeAppGateway,
@@ -72,6 +75,7 @@ export class MockTshClient implements TshdClient {
       authType: 'local',
       allowPasswordless: false,
       localConnectorName: '',
+      clientVersionStatus: ClientVersionStatus.OK,
     });
   removeCluster = () => new MockedUnaryCall({});
   login = () => new MockedUnaryCall({});
@@ -118,5 +122,13 @@ export class MockVnetClient implements VnetClient {
   stop = () => new MockedUnaryCall({});
   listDNSZones = () => new MockedUnaryCall({ dnsZones: [] });
   getBackgroundItemStatus = () => new MockedUnaryCall({ status: 0 });
-  runDiagnostics = () => new MockedUnaryCall({});
+
+  runDiagnostics() {
+    return new MockedUnaryCall({
+      report: {
+        checks: [],
+        createdAt: Timestamp.fromDate(new Date(2025, 0, 1, 12, 0)),
+      },
+    });
+  }
 }

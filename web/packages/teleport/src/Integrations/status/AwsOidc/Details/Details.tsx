@@ -18,12 +18,15 @@
 
 import { useParams } from 'react-router';
 
+import { Danger } from 'design/Alert';
+
 import { FeatureBox } from 'teleport/components/Layout';
 import { AwsOidcHeader } from 'teleport/Integrations/status/AwsOidc/AwsOidcHeader';
 import { AwsOidcTitle } from 'teleport/Integrations/status/AwsOidc/AwsOidcTitle';
 import { Rds } from 'teleport/Integrations/status/AwsOidc/Details/Rds';
 import { Rules } from 'teleport/Integrations/status/AwsOidc/Details/Rules';
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { TaskAlert } from 'teleport/Integrations/status/AwsOidc/Tasks/TaskAlert';
 import { useAwsOidcStatus } from 'teleport/Integrations/status/AwsOidc/useAwsOidcStatus';
 import { IntegrationKind } from 'teleport/services/integrations';
 
@@ -34,18 +37,40 @@ export function Details() {
     resourceKind: AwsResource;
   }>();
 
-  const { integrationAttempt } = useAwsOidcStatus();
+  const { integrationAttempt, statsAttempt } = useAwsOidcStatus();
+
+  if (integrationAttempt.status === 'error') {
+    return <Danger>{integrationAttempt.statusText}</Danger>;
+  }
+
+  if (statsAttempt.status === 'error') {
+    return <Danger>{statsAttempt.statusText}</Danger>;
+  }
+
+  if (!statsAttempt.data || !integrationAttempt.data) {
+    return null;
+  }
+
   const { data: integration } = integrationAttempt;
+  const { unresolvedUserTasks } = statsAttempt.data;
   return (
     <>
       {integration && (
         <AwsOidcHeader integration={integration} resource={resourceKind} />
       )}
-      <FeatureBox css={{ maxWidth: '1400px', paddingTop: '16px', gap: '30px' }}>
-        {integration && (
-          <AwsOidcTitle integration={integration} resource={resourceKind} />
-        )}
-        {resourceKind == AwsResource.rds ? <Rds /> : <Rules />}
+      <FeatureBox maxWidth={1440} margin="auto" gap={3} paddingLeft={5}>
+        <>
+          {integration && (
+            <>
+              <AwsOidcTitle integration={integration} resource={resourceKind} />
+              <TaskAlert
+                name={integration.name}
+                pendingTasksCount={unresolvedUserTasks}
+              />
+            </>
+          )}
+        </>
+        {resourceKind === AwsResource.rds ? <Rds /> : <Rules />}
       </FeatureBox>
     </>
   );

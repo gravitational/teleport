@@ -43,6 +43,7 @@ import {
   createDBUserModeOptionsMap,
   createHostUserModeOptionsMap,
   defaultRoleVersion,
+  gitHubOrganizationsToModel,
   KubernetesAccess,
   kubernetesResourceKindOptionsMap,
   kubernetesVerbOptionsMap,
@@ -292,7 +293,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
   },
 
   {
-    name: 'GitHub organization',
+    name: 'GitHub organizations',
     role: {
       ...minimalRole(),
       spec: {
@@ -542,6 +543,69 @@ test.each<
     ).toEqual(expected);
   }
 );
+
+test.each<{
+  name: string;
+  permissions: GitHubPermission[];
+  expected: ReturnType<typeof gitHubOrganizationsToModel>;
+}>([
+  {
+    name: 'empty permissions array',
+    permissions: [],
+    expected: { model: [], conversionErrors: [] },
+  },
+  {
+    name: 'some organizations',
+    permissions: [{ orgs: ['foo', 'bar'] }],
+    expected: {
+      model: [
+        { label: 'foo', value: 'foo' },
+        { label: 'bar', value: 'bar' },
+      ],
+      conversionErrors: [],
+    },
+  },
+  {
+    name: 'empty permissions object',
+    permissions: [{}],
+    expected: {
+      model: [],
+      conversionErrors: [],
+    },
+  },
+  {
+    name: 'empty organizations array',
+    permissions: [{ orgs: [] }],
+    expected: { model: [], conversionErrors: [] },
+  },
+  {
+    name: 'multiple permission objects',
+    permissions: [{ orgs: ['foo1', 'foo2'] }, { orgs: ['bar'] }],
+    expected: {
+      model: [
+        { label: 'foo1', value: 'foo1' },
+        { label: 'foo2', value: 'foo2' },
+        { label: 'bar', value: 'bar' },
+      ],
+      conversionErrors: [],
+    },
+  },
+  {
+    name: 'invalid fields',
+    permissions: [{ orgs: ['foo'], unknownField: 123 } as GitHubPermission],
+    expected: {
+      model: [{ label: 'foo', value: 'foo' }],
+      conversionErrors: simpleConversionErrors(
+        ConversionErrorType.UnsupportedField,
+        ['spec.allow.github_permissions[0].unknownField']
+      ),
+    },
+  },
+])('gitHubOrganizationsToModel(): $name', ({ permissions, expected }) => {
+  expect(
+    gitHubOrganizationsToModel(permissions, 'spec.allow.github_permissions')
+  ).toEqual(expected);
+});
 
 describe('roleToRoleEditorModel', () => {
   const minRole = minimalRole();

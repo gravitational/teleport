@@ -139,6 +139,38 @@ func TestSanitize(t *testing.T) {
 	}
 }
 
+func BenchmarkIsKeySafe(b *testing.B) {
+	keys := []Key{
+		NewKey("a-b", "c:d", ".e_f", "01"),
+		NewKey("namespaces", "", "params"),
+		NewKey("namespaces", ".."),
+		NewKey("namespaces", "..", "params"),
+		NewKey("namespaces", "..params"),
+		NewKey("namespaces", "."),
+		NewKey("namespaces", ".", "params"),
+		NewKey("namespaces", ".params"),
+		NewKey(".."),
+		NewKey("..params"),
+		NewKey("..", "params"),
+		NewKey("."),
+		NewKey(".params"),
+		NewKey(".", "params"),
+		RangeEnd(NewKey("a-b", "c:d", ".e_f", "01")),
+		RangeEnd(NewKey("")),
+		RangeEnd(NewKey("Malformed \xf0\x90\x28\xbc UTF8")),
+		NewKey("test+subaddr@example.com"),
+		NewKey("xyz"),
+		NewKey("@@"),
+		NewKey("@_:.-+"),
+	}
+
+	for b.Loop() {
+		for _, key := range keys {
+			IsKeySafe(key)
+		}
+	}
+}
+
 type nopBackend struct{}
 
 func (n *nopBackend) GetName() string {

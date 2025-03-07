@@ -894,6 +894,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/tokens", h.WithAuth(h.getTokens))
 	h.DELETE("/webapi/tokens", h.WithAuth(h.deleteToken))
 
+	// install script, the ':token' wildcard is a hack to make the router happy and support
+	// the token-less route "/scripts/install.sh".
+	// h.installScriptHandle Will reject any unknown sub-route.
+	h.GET("/scripts/:token", h.WithHighLimiter(h.installScriptHandle))
+
 	// join scripts
 	h.GET("/scripts/:token/install-node.sh", h.WithLimiter(h.getNodeJoinScriptHandle))
 	h.GET("/scripts/:token/install-app.sh", h.WithLimiter(h.getAppJoinScriptHandle))
@@ -1013,7 +1018,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/integrations/:name/stats", h.WithClusterAuth(h.integrationStats))
 	h.GET("/webapi/sites/:site/integrations/:name/discoveryrules", h.WithClusterAuth(h.integrationDiscoveryRules))
 	h.GET("/webapi/sites/:site/integrations/:name/ca", h.WithClusterAuth(h.integrationsExportCA))
+	// TODO(kimlisa): DELETE IN 19.0 - Replaced by /v2 equivalent endpoint
 	h.DELETE("/webapi/sites/:site/integrations/:name_or_subkind", h.WithClusterAuth(h.integrationsDelete))
+	h.DELETE("/v2/webapi/sites/:site/integrations/:name_or_subkind", h.WithClusterAuth(h.integrationsDelete))
 
 	// GET the Microsoft Teams plugin app.zip file.
 	h.GET("/webapi/sites/:site/plugins/:plugin/files/msteams_app.zip", h.WithClusterAuth(h.integrationsMsTeamsAppZipGet))
@@ -1055,7 +1062,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/scripts/integrations/configure/gcp-workforce-saml.sh", h.WithLimiter(h.gcpWorkforceConfigScript))
 
 	// Okta integration endpoints.
-	h.GET("/.well-known/jwks-okta", h.WithLimiter(h.jwksOkta))
+	h.GET(OktaJWKSWellknownURI, h.WithLimiter(h.jwksOkta))
 
 	// Azure OIDC integration endpoints
 	h.GET("/webapi/scripts/integrations/configure/azureoidc.sh", h.WithLimiter(h.azureOIDCConfigure))
@@ -2245,7 +2252,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	// https://updates.releases.teleport.dev/v1/stable/cloud/version
 	installUpdater := automaticUpgrades(*ping.ServerFeatures)
 	if installUpdater {
-		repoChannel = stableCloudChannelRepo
+		repoChannel = automaticupgrades.DefaultCloudChannelName
 	}
 	azureClientID := r.URL.Query().Get("azure-client-id")
 
@@ -2875,6 +2882,8 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 
 	// Obscure all other errors.
 	case err != nil:
+		// log the actual error.
+		h.logger.WarnContext(r.Context(), "Login attempt denied for user", "user", req.User, "error", err)
 		return nil, trace.AccessDenied("invalid credentials")
 	}
 

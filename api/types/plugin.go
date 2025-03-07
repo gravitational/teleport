@@ -17,9 +17,11 @@ limitations under the License.
 package types
 
 import (
+	"bytes"
 	"net/url"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils"
@@ -135,6 +137,7 @@ type PluginStatus interface {
 	GetOkta() *PluginOktaStatusV1
 	GetAwsIc() *PluginAWSICStatusV1
 	GetNetIq() *PluginNetIQStatusV1
+	SetDetails(isPluginStatusV1_Details)
 }
 
 // NewPluginV1 creates a new PluginV1 resource.
@@ -795,6 +798,28 @@ func (c *AWSICProvisioningSpec) CheckAndSetDefaults() error {
 	return nil
 }
 
+// UnmarshalJSON implements [json.Unmarshaler] for the AWSICResourceFilter, forcing
+// it to use the `jsonpb` unmarshaler, which understands how to unpack values
+// generated from a protobuf `oneof` directive.
+func (s *AWSICResourceFilter) UnmarshalJSON(b []byte) error {
+	if err := jsonpb.Unmarshal(bytes.NewReader(b), s); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// MarshalJSON implements [json.Marshaler] for the AWSICResourceFilter, forcing
+// it to use the `jsonpb` marshaler, which understands how to pack values
+// generated from a protobuf `oneof` directive.
+func (s AWSICResourceFilter) MarshalJSON() ([]byte, error) {
+	m := jsonpb.Marshaler{}
+	var buf bytes.Buffer
+	if err := m.Marshal(&buf, &s); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf.Bytes(), nil
+}
+
 func (c *PluginEmailSettings) CheckAndSetDefaults() error {
 	if c.Sender == "" {
 		return trace.BadParameter("sender must be set")
@@ -857,6 +882,10 @@ func (c PluginStatusV1) GetErrorMessage() string {
 // GetLastSyncTime returns the last run of the plugin.
 func (c PluginStatusV1) GetLastSyncTime() time.Time {
 	return c.LastSyncTime
+}
+
+func (c *PluginStatusV1) SetDetails(settings isPluginStatusV1_Details) {
+	c.Details = settings
 }
 
 // CheckAndSetDefaults checks that the required fields for the Gitlab plugin are set.

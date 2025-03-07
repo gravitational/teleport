@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
@@ -33,7 +34,6 @@ import (
 	"github.com/gravitational/teleport"
 	common "github.com/gravitational/teleport/lib/autoupdate"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
-	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	libutils "github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -54,6 +54,8 @@ const (
 	updateGroupEnvVar = "TELEPORT_UPDATE_GROUP"
 	// updateVersionEnvVar forces the version to specified value.
 	updateVersionEnvVar = "TELEPORT_UPDATE_VERSION"
+	// updateLockTimeout is the duration commands will wait for update to complete before failing.
+	updateLockTimeout = 10 * time.Minute
 )
 
 var plog = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentUpdater)
@@ -71,10 +73,8 @@ type cliConfig struct {
 	// LogFormat controls the format of logging. Can be either `json` or `text`.
 	// By default, this is `text`.
 	LogFormat string
-	// DataDir for Teleport (usually /var/lib/teleport)
-	DataDir string
-	// LinkDir for linking binaries and systemd services
-	LinkDir string
+	// InstallDir for Teleport (usually /opt/teleport)
+	InstallDir string
 	// InstallSuffix is the isolated suffix for the installation.
 	InstallSuffix string
 	// SelfSetup mode for using the current version of the teleport-update to setup the update service.
@@ -90,25 +90,20 @@ type cliConfig struct {
 }
 
 func Run(args []string) int {
-	var (
-		ccfg        cliConfig
-		userLinkDir bool
-		userDataDir bool
-	)
+	var ccfg cliConfig
+
 	ctx := context.Background()
 	ctx, _ = signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 
 	app := libutils.InitCLIParser(autoupdate.BinaryName, appHelp).Interspersed(false)
 	app.Flag("debug", "Verbose logging to stdout.").
 		Short('d').BoolVar(&ccfg.Debug)
-	app.Flag("data-dir", "Teleport data directory. Access to this directory should be limited.").
-		Default(libdefaults.DataDir).IsSetByUser(&userDataDir).StringVar(&ccfg.DataDir)
 	app.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
 		Default(libutils.LogFormatText).EnumVar(&ccfg.LogFormat, libutils.LogFormatJSON, libutils.LogFormatText)
 	app.Flag("install-suffix", "Suffix for creating an agent installation outside of the default $PATH. Note: this changes the default data directory.").
 		Short('i').StringVar(&ccfg.InstallSuffix)
-	app.Flag("link-dir", "Directory to link the active Teleport installation's binaries into.").
-		Default(autoupdate.DefaultLinkDir).IsSetByUser(&userLinkDir).Hidden().StringVar(&ccfg.LinkDir)
+	app.Flag("install-dir", "Directory containing Teleport installations.").
+		Hidden().StringVar(&ccfg.InstallDir)
 	app.Flag("insecure", "Insecure mode disables certificate verification. Do not use in production.").
 		BoolVar(&ccfg.Insecure)
 
@@ -126,9 +121,11 @@ func Run(args []string) int {
 	enableCmd.Flag("overwrite", "Allow existing installed Teleport binaries to be overwritten.").
 		Short('o').BoolVar(&ccfg.AllowOverwrite)
 	enableCmd.Flag("force-version", "Force the provided version instead of using the version provided by the Teleport cluster.").
-		Short('f').Envar(updateVersionEnvVar).Hidden().StringVar(&ccfg.ForceVersion)
+		Hidden().Short('f').Envar(updateVersionEnvVar).StringVar(&ccfg.ForceVersion)
 	enableCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for managed updates.").
-		Short('s').Hidden().BoolVar(&ccfg.SelfSetup)
+		Hidden().BoolVar(&ccfg.SelfSetup)
+	enableCmd.Flag("path", "Directory to link the active Teleport installation's binaries into.").
+		Hidden().StringVar(&ccfg.Path)
 	// TODO(sclevine): add force-fips and force-enterprise as hidden flags
 
 	disableCmd := app.Command("disable", "Disable agent managed updates. Does not affect the active installation of Teleport.")
@@ -140,10 +137,14 @@ func Run(args []string) int {
 		Short('g').Envar(updateGroupEnvVar).StringVar(&ccfg.Group)
 	pinCmd.Flag("base-url", "Base URL used to override the Teleport download URL.").
 		Short('b').Envar(common.BaseURLEnvVar).StringVar(&ccfg.BaseURL)
+	pinCmd.Flag("overwrite", "Allow existing installed Teleport binaries to be overwritten.").
+		Short('o').BoolVar(&ccfg.AllowOverwrite)
 	pinCmd.Flag("force-version", "Force the provided version instead of using the version provided by the Teleport cluster.").
 		Short('f').Envar(updateVersionEnvVar).StringVar(&ccfg.ForceVersion)
 	pinCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for managed updates.").
-		Short('s').Hidden().BoolVar(&ccfg.SelfSetup)
+		Hidden().BoolVar(&ccfg.SelfSetup)
+	pinCmd.Flag("path", "Directory to link the active Teleport installation's binaries into.").
+		Hidden().StringVar(&ccfg.Path)
 
 	unpinCmd := app.Command("unpin", "Unpin the current version, allowing it to be updated.")
 
@@ -151,7 +152,7 @@ func Run(args []string) int {
 	updateCmd.Flag("now", "Force immediate update even if update window is not active.").
 		Short('n').BoolVar(&ccfg.UpdateNow)
 	updateCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for managed updates and verify the Teleport installation.").
-		Short('s').Hidden().BoolVar(&ccfg.SelfSetup)
+		Hidden().BoolVar(&ccfg.SelfSetup)
 
 	linkCmd := app.Command("link-package", "Link the system installation of Teleport from the Teleport package, if managed updates is disabled.")
 	unlinkCmd := app.Command("unlink-package", "Unlink the system installation of Teleport from the Teleport package.")
@@ -159,7 +160,9 @@ func Run(args []string) int {
 	setupCmd := app.Command("setup", "Write configuration files that run the update subcommand on a timer and verify the Teleport installation.").
 		Hidden()
 	setupCmd.Flag("reload", "Reload the Teleport agent. If not set, Teleport is not reloaded or restarted.").
-		Short('r').BoolVar(&ccfg.Reload)
+		BoolVar(&ccfg.Reload)
+	setupCmd.Flag("path", "Directory that the active Teleport installation's binaries are linked into.").
+		Required().StringVar(&ccfg.Path)
 
 	statusCmd := app.Command("status", "Show Teleport agent auto-update status.")
 
@@ -174,20 +177,18 @@ func Run(args []string) int {
 		libutils.FatalError(err)
 	}
 
-	// These have different defaults if --install-suffix is specified.
-	// If the user did not set them, let autoupdate.NewNamespace set them.
-	if !userDataDir {
-		ccfg.DataDir = ""
-	}
-	if !userLinkDir {
-		ccfg.LinkDir = ""
-	}
-
 	// Logging must be configured as early as possible to ensure all log
 	// message are formatted correctly.
 	if err := setupLogger(ccfg.Debug, ccfg.LogFormat); err != nil {
 		plog.ErrorContext(ctx, "Failed to set up logger.", "error", err)
 		return 1
+	}
+
+	// Set required umask for commands that write files to system directories as root, and warn loudly if it changes.
+	switch command {
+	case statusCmd.FullCommand(), versionCmd.FullCommand():
+	default:
+		autoupdate.SetRequiredUmask(ctx, plog)
 	}
 
 	switch command {
@@ -243,8 +244,8 @@ func setupLogger(debug bool, format string) error {
 	return nil
 }
 
-func initConfig(ccfg *cliConfig) (updater *autoupdate.Updater, lockFile string, err error) {
-	ns, err := autoupdate.NewNamespace(plog, ccfg.InstallSuffix, ccfg.DataDir, ccfg.LinkDir)
+func initConfig(ctx context.Context, ccfg *cliConfig) (updater *autoupdate.Updater, lockFile string, err error) {
+	ns, err := autoupdate.NewNamespace(ctx, plog, ccfg.InstallSuffix, ccfg.InstallDir)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -262,8 +263,8 @@ func initConfig(ccfg *cliConfig) (updater *autoupdate.Updater, lockFile string, 
 	return updater, lockFile, trace.Wrap(err)
 }
 
-func statusConfig(ccfg *cliConfig) (*autoupdate.Updater, error) {
-	ns, err := autoupdate.NewNamespace(plog, ccfg.InstallSuffix, ccfg.DataDir, ccfg.LinkDir)
+func statusConfig(ctx context.Context, ccfg *cliConfig) (*autoupdate.Updater, error) {
+	ns, err := autoupdate.NewNamespace(ctx, plog, ccfg.InstallSuffix, ccfg.InstallDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -279,11 +280,11 @@ func statusConfig(ccfg *cliConfig) (*autoupdate.Updater, error) {
 
 // cmdDisable disables updates.
 func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
-	updater, lockFile, err := initConfig(ccfg)
+	updater, lockFile, err := initConfig(ctx, ccfg)
 	if err != nil {
 		return trace.Wrap(err, "failed to initialize updater")
 	}
-	unlock, err := libutils.FSWriteLock(lockFile)
+	unlock, err := libutils.FSTryWriteLockTimeout(ctx, lockFile, updateLockTimeout)
 	if err != nil {
 		return trace.Wrap(err, "failed to grab concurrent execution lock %s", lockFile)
 	}
@@ -300,11 +301,11 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdUnpin unpins the current version.
 func cmdUnpin(ctx context.Context, ccfg *cliConfig) error {
-	updater, lockFile, err := initConfig(ccfg)
+	updater, lockFile, err := initConfig(ctx, ccfg)
 	if err != nil {
 		return trace.Wrap(err, "failed to setup updater")
 	}
-	unlock, err := libutils.FSWriteLock(lockFile)
+	unlock, err := libutils.FSTryWriteLockTimeout(ctx, lockFile, updateLockTimeout)
 	if err != nil {
 		return trace.Wrap(err, "failed to grab concurrent execution lock %n", lockFile)
 	}
@@ -321,20 +322,13 @@ func cmdUnpin(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdInstall installs Teleport and sets configuration.
 func cmdInstall(ctx context.Context, ccfg *cliConfig) error {
-	if ccfg.InstallSuffix != "" {
-		ns, err := autoupdate.NewNamespace(plog, ccfg.InstallSuffix, ccfg.DataDir, ccfg.LinkDir)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		ns.LogWarning(ctx)
-	}
-	updater, lockFile, err := initConfig(ccfg)
+	updater, lockFile, err := initConfig(ctx, ccfg)
 	if err != nil {
 		return trace.Wrap(err, "failed to initialize updater")
 	}
 
 	// Ensure enable can't run concurrently.
-	unlock, err := libutils.FSWriteLock(lockFile)
+	unlock, err := libutils.FSTryWriteLockTimeout(ctx, lockFile, updateLockTimeout)
 	if err != nil {
 		return trace.Wrap(err, "failed to grab concurrent execution lock %s", lockFile)
 	}
@@ -351,12 +345,17 @@ func cmdInstall(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdUpdate updates Teleport to the version specified by cluster reachable at the proxy address.
 func cmdUpdate(ctx context.Context, ccfg *cliConfig) error {
-	updater, lockFile, err := initConfig(ccfg)
+	updater, lockFile, err := initConfig(ctx, ccfg)
 	if err != nil {
 		return trace.Wrap(err, "failed to initialize updater")
 	}
 	// Ensure update can't run concurrently.
-	unlock, err := libutils.FSWriteLock(lockFile)
+	var unlock func() error
+	if ccfg.UpdateNow {
+		unlock, err = libutils.FSTryWriteLockTimeout(ctx, lockFile, updateLockTimeout)
+	} else {
+		unlock, err = libutils.FSWriteLock(lockFile)
+	}
 	if err != nil {
 		return trace.Wrap(err, "failed to grab concurrent execution lock %s", lockFile)
 	}
@@ -374,7 +373,7 @@ func cmdUpdate(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdLinkPackage creates system package links if no version is linked and managed updates is disabled.
 func cmdLinkPackage(ctx context.Context, ccfg *cliConfig) error {
-	updater, lockFile, err := initConfig(ccfg)
+	updater, lockFile, err := initConfig(ctx, ccfg)
 	if err != nil {
 		return trace.Wrap(err, "failed to initialize updater")
 	}
@@ -402,7 +401,7 @@ func cmdLinkPackage(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdUnlinkPackage remove system package links.
 func cmdUnlinkPackage(ctx context.Context, ccfg *cliConfig) error {
-	updater, lockFile, err := initConfig(ccfg)
+	updater, lockFile, err := initConfig(ctx, ccfg)
 	if err != nil {
 		return trace.Wrap(err, "failed to setup updater")
 	}
@@ -430,7 +429,7 @@ func cmdUnlinkPackage(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdSetup writes configuration files that are needed to run teleport-update update.
 func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
-	ns, err := autoupdate.NewNamespace(plog, ccfg.InstallSuffix, ccfg.DataDir, ccfg.LinkDir)
+	ns, err := autoupdate.NewNamespace(ctx, plog, ccfg.InstallSuffix, ccfg.InstallDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -444,7 +443,7 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = updater.Setup(ctx, ccfg.Reload)
+	err = updater.Setup(ctx, ccfg.Path, ccfg.Reload)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -453,7 +452,7 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdStatus displays auto-update status.
 func cmdStatus(ctx context.Context, ccfg *cliConfig) error {
-	updater, err := statusConfig(ccfg)
+	updater, err := statusConfig(ctx, ccfg)
 	if err != nil {
 		return trace.Wrap(err, "failed to initialize updater")
 	}
@@ -467,12 +466,12 @@ func cmdStatus(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdUninstall removes the updater-managed install of Teleport and gracefully reverts back to the Teleport package.
 func cmdUninstall(ctx context.Context, ccfg *cliConfig) error {
-	updater, lockFile, err := initConfig(ccfg)
+	updater, lockFile, err := initConfig(ctx, ccfg)
 	if err != nil {
 		return trace.Wrap(err, "failed to initialize updater")
 	}
 	// Ensure update can't run concurrently.
-	unlock, err := libutils.FSWriteLock(lockFile)
+	unlock, err := libutils.FSTryWriteLockTimeout(ctx, lockFile, updateLockTimeout)
 	if err != nil {
 		return trace.Wrap(err, "failed to grab concurrent execution lock %s", lockFile)
 	}
