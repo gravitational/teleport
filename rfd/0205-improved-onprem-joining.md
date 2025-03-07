@@ -3,7 +3,7 @@ authors: Tim Buckley (<tim@goteleport.com>)
 state: draft
 ---
 
-# RFD 0205 - Improved On-Prem Bot Joining
+# RFD 0205 - Improved On-Prem Bots With `bound-keypair` Joining
 
 ## Required Approvers
 
@@ -16,10 +16,10 @@ state: draft
 This RFD proposes several improvements to better support non-delegated and
 on-prem joining, particularly for Machine ID.
 
-Primarily, we discuss a new `challenge` join method intended to replace the
+Primarily, we discuss a new `bound-keypair` join method intended to replace the
 traditional `token` join method for many use cases, but also proposes a number
-of UX improvements to improve bot joining generally and `token` or
-`challenge-response` joining in particular.
+of related UX improvements to improve bot joining generally and `token` and
+`bound-keypair` joining in particular.
 
 ## Why
 
@@ -120,11 +120,11 @@ making minimal security concessions:
   controls like the generation counter can still effectively prevent unintended
   reuse of the bot identity.
 
-### Challenge-Response Joining
+### Bound Keypair Joining
 
 TODO: Consider alternative join method names?
 
-We believe a new join method, `challenge`, can meet our needs and provide
+We believe a new join method, `bound-keypair`, can meet our needs and provide
 significantly more flexibility than today's `token` join method. This works by -
 in a sense - inverting the token joining procedure: bots generate an ED25519
 keypair, and the public key is copied to the server. The public key can be
@@ -163,8 +163,8 @@ This has several important differences to existing join methods:
 - If a bot exhausts its rejoining limit, it will not be able to fetch new
   certificates, similar to today's behavior. However, this bot can be restored
   without needing to generate a new identity: an admin user can edit the backing
-  `ProvisionToken` to increment `spec.challenge.rejoining.total_rejoins`. The
-  failed `tbot` instance can then retry the joining process, and it will
+  `ProvisionToken` to increment `spec.bound_keypair.rejoining.total_rejoins`.
+  The failed `tbot` instance can then retry the joining process, and it will
   succeed.
 
 It otherwise functions similarly to `token`-joined bots today. It proves its
@@ -187,10 +187,10 @@ This join method creates two new joining flows:
    Wrote id_ed25519
    Wrote id_ed25519.pub
    $ tctl bots add example --public-key id_ed25519.pub
-   $ tbot start identity --token=challenge:id_ed25519
+   $ tbot start identity --token=bound-keypair:id_ed25519
    ```
 
-   (In this example, `tctl bots add` creates a `challenge` token automatically,
+   (In this example, `tctl bots add` creates a `bound-keypair` token automatically,
    much like a `token`-type token is created automatically today.)
 
    The public key can be copied as needed, similar to SSH `authorized_keys` and
@@ -204,10 +204,10 @@ This join method creates two new joining flows:
 
    Example UX:
    ```
-   $ tctl bots add example --join-method=challenge
-   The bot token: challenge:04f0ceff1bd0589ba45c1832dfc8feaf
+   $ tctl bots add example --join-method=bound-keypair
+   The bot token: bound-keypair:04f0ceff1bd0589ba45c1832dfc8feaf
    This token will expire in 59 minutes.
-   $ tbot start identity --token=challenge:04f0ceff1bd0589ba45c1832dfc8feaf
+   $ tbot start identity --token=bound-keypair:04f0ceff1bd0589ba45c1832dfc8feaf
    ```
 
    On `tbot` startup, a keypair is transparently generated and exchanged with
@@ -225,7 +225,7 @@ pregenerated and copied to nodes, which is not ideal from a security PoV.
 
 #### Token Resource Example
 
-`challenge`-type tokens differ from other types in that they are intended to
+`bound-keypair`-type tokens differ from other types in that they are intended to
 have no resource-level expiration (though that is allowed), are meant to have
 their spec modified over time by users or automation tools, and publish
 information about their current state in the immutable (to users) `status`
@@ -239,8 +239,8 @@ metadata:
 spec:
   bot_name: example
 
-  join_method: challenge
-  challenge:
+  join_method: bound-keypair
+  bound_keypair:
 
     # `onboarding` parameters control initial join behavior
     onboarding:
@@ -252,7 +252,7 @@ spec:
 
       # If set, use an explicit initial joining secret; if both this and
       # `public_key` are unset, a value will be generated server-side and
-      # stored in `.status.challenge.initial_join_secret`
+      # stored in `.status.bound_keypair.initial_join_secret`
       initial_join_secret: ""
 
       # Initial joining must take place before this timestamp. May be
@@ -269,7 +269,7 @@ spec:
       # Total number of allowed rejoins; this may be incremented to allow
       # additional rejoins, even if a bot identity has already expired. May
       # be decremented, but only by the current value of
-      # `.status.challenge.remaining_rejoins`.
+      # `.status.bound_keypair.remaining_rejoins`.
       total_rejoins: 10
 
       # If set, rejoining is only valid before this timestamp; may be
@@ -277,7 +277,7 @@ spec:
       expires: ""
 
 status:
-  challenge:
+  bound_keypair:
     # If `spec.onboarding.public_key` is unset, this value will be generated
     # server-side and made available here. If
     # `spec.onboarding.initial_join_secret` is set, its value will be copied
@@ -285,8 +285,8 @@ status:
     initial_join_secret: <random>
 
     # The public key of the bot associated with this token, set on first join.
-    # The bound public key must be unique among all `challenge` tokens; token
-    # resource creation/update or bot joining will fail if a public key is
+    # The bound public key must be unique among all `bound-keypair` tokens;
+    # token resource creation/update or bot joining will fail if a public key is
     # reused.
     bound_public_key: <data>
 
@@ -294,7 +294,7 @@ status:
     # UUID will be linked via a `previous_instance_id` in the bot instance.
     bound_bot_instance_id: <uuid>
 
-    # A count of remaining rejoins; if `.spec.challenge.rejoining.total_rejoins`
+    # A count of remaining rejoins; if `.spec.bound_keypair.rejoining.total_rejoins`
     # is incremented, this value will be incremented by the same amount. If
     # decremented, this value cannot fall below zero.
     remaining_rejoins: 10
@@ -316,7 +316,7 @@ these bots expires, there is no reasonable method to restore it short of
 manually issuing a new join token (`tctl bots instance add foo`), connecting to
 the node, and manually copying the new token into the bot config.
 
-The new `challenge` method improves this situation in two primary ways: one
+The new `bound-keypair` method improves this situation in two primary ways: one
 fewer resource needs to be generated (the secret value), and maintenance can be
 performed simply by adjusting values in the resource. If a bot fails, its rejoin
 counter can be incremented easily.
@@ -351,9 +351,9 @@ resource "teleport_provision_token" "example" {
   spec = {
     roles = ["Bot"]
     bot_name = teleport_bot.example.name
-    join_method = "challenge"
+    join_method = "bound-keypair"
 
-    challenge = {
+    bound_keypair = {
       rejoining = {
         # look up node-specific count in the rejoin overrides map, default to 2
         total_rejoins = lookup(var.bot_rejoin_overrides, each.key, 2)
@@ -369,7 +369,7 @@ resource "aws_instance" "example" {
   instance_type = "t2.micro"
 
   user_data = templatefile("${path.module}/user-data.tpl", {
-    initial_join_token = each.value.status.challenge.initial_join_secret
+    initial_join_token = each.value.status.bound_keypair.initial_join_secret
   })
 }
 ```
@@ -395,13 +395,48 @@ permission to view their own join token, or include the number of remaining
 rejoins as an informational field in the bot's current user certificate. We
 should then expose this as a Prometheus metric to allow for alerting if a bot
 
-We should also investigate hardware key storage backends using HSMs / PKCS#11.
-We have some prior art here in Teleport's [HSM
-support](https://goteleport.com/docs/admin-guides/deploy-a-cluster/hsm/).
+#### Keystore Storage Backends
+
+We should support abstract keystore storage backends to enable storage methods
+beyond plain file storage.
+
+For example:
+
+- HSM storage, for hardware supporting PKCS#11. This includes many TPM 1.2 / 2.0
+  implementations. We have some prior art here in Teleport's [HSM
+  support](https://goteleport.com/docs/admin-guides/deploy-a-cluster/hsm/).
+
+- [Apple Secure Enclave key storage][enclave]. This would require additional
+  changes to our release process, as access to this functionality requires app
+  signing. We again have prior art here with `tsh`.
+
+Further evaluation will be necessary to ensure these backends support our
+challenge process and key types. Libraries like [`sks`] provide compatibility
+across TPM 2.0 (Windows, Linux) and Apple's Secure Enclave, and should be able
+to sign our challenges appropriately, and using our desired key types.
+
+[enclave]: https://developer.apple.com/documentation/security/protecting-keys-with-the-secure-enclave
+[`sks`]: https://github.com/facebookincubator/sks
 
 #### Non-Terraform UX
 
-TODO
+This proposal also aims to improve the non-Terraform UX, particularly when
+automating with `tctl`. All regular token management workflows with
+`tctl create -f` will continue to work; upserting resources to modify runtime
+values will, for example, properly increase
+`status.bound_keypair.remaining_rejoins` while preserving other token fields
+like `status.bound_keypair.bound_public_key`.
+
+Additional `tctl` changes will include:
+
+- Once satisfied with behavior of the join method, replacing the default
+  automatically generated join tokens for `tctl bots add` and
+  `tctl bots instances add` to use this new join method.
+
+- Adding a column for "rejoins remaining" in `tctl bots instances ls` (where
+  relevant).
+
+- Adding support for updating `total_rejoins` in `tctl bots update`
 
 #### Expiration Alerting UX
 
@@ -472,8 +507,8 @@ TODO: Expand this.
 
 ### Other Supporting Improvements
 
-Alongside `challenge` joining, we have several UX proposals to further improve
-the usability of non-delegated joining.
+Alongside `bound-keypair` joining, we have several UX proposals to further
+improve the usability of non-delegated joining.
 
 #### Longer-Lived Bots
 
@@ -491,10 +526,20 @@ generation counter mismatch occurs, the resulting lock is still filed against
 the user as a whole. This means a generation counter lockout in one instance can
 easily impact all other instances under the same bot.
 
-We should make this more granular and make locks that can target a bot instance
-UUID, and as this RFD introduces a method for bots to rejoin as a new instance,
-a lock target for specific join tokens. We may need to introduce join token
-tracking, e.g. by introducing a join token certificate field.
+We can introduce several new lock targets to address this:
+
+- Bot instance UUID locking: prevent access by a particular instance. This will
+  not lock bots that have since reauthenticated and received a new bot instance
+  UUID.
+
+- Join token locking: locks all bot instances that joined with a particular
+  token. This may require introduction of a new certificate field to track the
+  exact join token used.
+
+- Public key locking: locks bots joining with a particular public key. A
+  compromised bot could theoretically generate a fresh keypair so a join token
+  lock is the primary locking solution, however this will prevent joining with
+  another token.
 
 #### Token CLI UX Improvements
 
@@ -504,12 +549,12 @@ example:
 
 ```
 $ tctl bots add example --roles=access
-The bot token: challenge:04f0ceff1bd0589ba45c1832dfc8feaf
+The bot token: bound-keypair:04f0ceff1bd0589ba45c1832dfc8feaf
 This token will expire in 59 minutes.
 
 [...snip...]
 
-$ tbot start --token=challenge:04f0ceff1bd0589ba45c1832dfc8feaf ...
+$ tbot start --token=bound-keypair:04f0ceff1bd0589ba45c1832dfc8feaf ...
 ```
 
 ## Alternatives and Future Extensions
@@ -519,6 +564,33 @@ $ tbot start --token=challenge:04f0ceff1bd0589ba45c1832dfc8feaf ...
 We should explore expanding this join method to cover regular Teleport agent
 joining as well as bots, as a more secure alternative to static or long-lived
 join tokens.
+
+### Additional Keypair Protections
+
+We should investigate supporting additional layers of protection for the private
+key. There are several avenues for this, depending on storage backend:
+
+- Filesystem storage can be encrypted at rest and require a private key to be
+  entered to unlock it, similar to SSH keys without an agent.
+
+- Secure Enclave storage can require that the device be unlocked, or require
+  biometric verification.
+
+- Other HSM-stored keys may support various types of human presence
+  verification. For example, YubiHSM has a touch sensor that can be required for
+  access on a key-by-key basis.
+
+#### Tightly Scoped Token RBAC
+
+To better support use cases where central administrators vend bot tokens for
+teams, we can add scoped RBAC support for `ProvisionToken` CRUD operations.
+
+For example, this would allow a designated team to update a `bound-keypair`
+token to increase the rejoin counter without needing to reach out to the central
+administrator.
+
+This is likely dependent on [Scoped RBAC](https://github.com/gravitational/teleport/pull/38078),
+which is still in the planning stage.
 
 ### Explicitly Insecure Token Joining
 
