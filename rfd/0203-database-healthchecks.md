@@ -305,7 +305,9 @@ Teleport database agents will cache `health_check_config` resources.
 
 The `health_check_config` resource will expose the following settings:
 
-- Match: Resources that match the selectors will use these health check settings.
+- Match: Resources that match these matchers will use these health check settings.
+    - DBLabels: a label matcher
+    - DBLabelsExpression: a predicate label expression
 - Enabled: whether to enable health checks
 - Interval: time between each health check
 - Timeout: the health check connection attempt timeout (timing out fails the check)
@@ -319,13 +321,17 @@ Future work can extend `health_check_config` with more specific settings as need
 
 #### Configuration label matching 
 
-The settings in a `health_check_config` resource will be used for a database if all of the labels in `health_check_config.spec.match.db_labels` match the database's labels.
+The settings in a `health_check_config` resource will be used for a database if the matchers in `health_check_config.spec.match` match the database.
+
+Both `match.db_labels` and `match.db_labels_expression` may be configured, but at least of them must be configured.
+If both are configured, then a database will match only if both matchers match the database, i.e. a logical AND of the matchers.
+If only one matcher is configured, then only the configured matcher will be used to match databases.
 
 If multiple `health_check_config` resources match a database, then the `health_check_config` resources will be sorted by name and only the first will apply.
 
 #### Configuration restrictions and defaults
 
-There will not be a default for `spec.match` label selectors.
+There will not be a default for `spec.match` label matchers.
 If we make the `spec.match` default to "match all databases", then it would be easy to inadvertantly override settings from other `health_check_config` resources.
 If we make `spec.match` default to "match nothing", then it would be frustrating for users to discover that by default their custom health check config doesn't do anything.
 Users will be required to configure at least one of `spec.match.db_labels` or `spec.match.db_labels_expression`.
@@ -455,7 +461,7 @@ When the database is updated, it will be deregistered and then re-registered, ef
 
 DB agents will also watch `health_check_config` resources.
 
-When `health_check_config` resources are created, deleted, or updated, the DB agent will reevaluate the `health_check_config` label selectors for each registered database.
+When `health_check_config` resources are created, deleted, or updated, the DB agent will reevaluate the `health_check_config` label matchers for each registered database.
 
 If the health check settings for a database change, then its current health checker, if any, will be stopped, and a new health checker may be started.
 
