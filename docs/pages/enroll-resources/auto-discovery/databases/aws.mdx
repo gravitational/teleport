@@ -112,7 +112,7 @@ discover AWS databases.
 Once it discovers databases, the Discovery Service will register them as `db`
 resources in your Teleport cluster.
 
-<Notice type="info">
+<Admonition type="info">
 A Teleport `db` resource represents the specification of a database that a
 Teleport Database Service can then use to provide access to the database.
 When a Database Service instance matches the `db` resource via label selectors, it will
@@ -120,7 +120,7 @@ begin to heartbeat the database by regularly creating short-lived `db_server`
 resources in your Teleport cluster.
 Tools like `tsh db ls` and `tctl db ls` will only display `db_server` resources,
 i.e. databases that a Database Service instance is providing access to.
-</Notice>
+</Admonition>
 
 ## Step 5/8. List registered databases
 
@@ -252,13 +252,13 @@ In this case, it will match auto-discovered AWS databases in the
 from any AWS account (`"*"` is a wildcard and it can be used as a label key and/or value).
 You can make it match more specific databases by adjusting the label selectors.
 
-<Notice type="tip">
+<Admonition type="tip">
 The AWS tags attached to AWS databases are imported as Teleport `db` labels
 in addition to some other identifying metadata.
 Refer to
 [Database Labels Reference](../../../reference/agent-services/database-access-reference/labels.mdx)
 for more information about available database labels.
-</Notice>
+</Admonition>
 
 ### Generate a join token
 
@@ -283,7 +283,7 @@ $ tctl db ls teleport.dev/origin=cloud,teleport.dev/cloud=AWS,region=<Var name="
 If you do not see the databases that you expected, then refer to
 [Database Service troubleshooting](#database-service-troubleshooting) below.
 
-<Notice type="note">
+<Admonition type="note">
 This guide shows you how to set-up AWS database auto-discovery with a Discovery
 Service and Database Service, but does not cover database user provisioning.
 
@@ -293,7 +293,7 @@ be required to connect to the discovered databases via Teleport.
 Refer to the appropriate guide in
 [Enroll AWS Databases](../../database-access/enroll-aws-databases/enroll-aws-databases.mdx)
 for information about database user provisioning and configuration.
-</Notice>
+</Admonition>
 
 ## Next
 - Learn about [Dynamic Registration](../../database-access/guides/dynamic-registration.mdx) by the

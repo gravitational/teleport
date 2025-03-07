@@ -159,6 +159,9 @@ message SignForAppRequest {
   bytes digest = 3;
   // Hash is the hash function used to compute digest.
   Hash hash = 4;
+  // PssSaltLength specifies the length of the salt added to the digest before a
+  // signature. Only used and required for RSA PSS signatures.
+  optional int32 pss_salt_length = 5;
 }
 
 // Hash specifies a cryptographic hash function.

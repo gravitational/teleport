@@ -743,7 +743,7 @@ func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey backend.Key
 		}
 		result.Items = append(result.Items, item)
 		if limit != backend.NoLimit && len(result.Items) > limit {
-			return nil, trace.BadParameter("item iterator produced more items than requested (this is a bug). limit=%d, recevied=%d", limit, len(result.Items))
+			return nil, trace.BadParameter("item iterator produced more items than requested (this is a bug). limit=%d, received=%d", limit, len(result.Items))
 		}
 	}
 	return &result, nil
