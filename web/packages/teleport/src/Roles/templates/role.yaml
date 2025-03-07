@@ -80,4 +80,4 @@ spec:
       # Limits user credentials to 8 hours. After the time to live (TTL) expires,
       # users must re-login
       max_session_ttl: 8h0m0s
-version: v7
+version: v8
