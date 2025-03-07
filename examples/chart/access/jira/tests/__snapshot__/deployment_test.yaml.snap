@@ -7,8 +7,8 @@ should match the snapshot:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-jira
-        app.kubernetes.io/version: 18.0.0-dev.braintrust.1
-        helm.sh/chart: teleport-plugin-jira-18.0.0-dev.braintrust.1
+        app.kubernetes.io/version: 18.0.0-dev.braintrust.2
+        helm.sh/chart: teleport-plugin-jira-18.0.0-dev.braintrust.2
       name: RELEASE-NAME-teleport-plugin-jira
     spec:
       replicas: 1
@@ -22,8 +22,8 @@ should match the snapshot:
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: teleport-plugin-jira
-            app.kubernetes.io/version: 18.0.0-dev.braintrust.1
-            helm.sh/chart: teleport-plugin-jira-18.0.0-dev.braintrust.1
+            app.kubernetes.io/version: 18.0.0-dev.braintrust.2
+            helm.sh/chart: teleport-plugin-jira-18.0.0-dev.braintrust.2
         spec:
           containers:
           - command:
