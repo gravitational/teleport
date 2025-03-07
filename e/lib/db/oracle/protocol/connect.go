@@ -159,6 +159,61 @@ func (cp *ConnectPacket) SetProtocolVersion(protocolVersion uint16) error {
 	return nil
 }
 
+// ServiceOptions represent service options.
+// Example, from Wireshark dissector:
+//
+// 0x0c41, Header Checksum, Full Duplex
+//
+//	..0. .... .... .... = Broken Connect Notify: False
+//	...0 .... .... .... = Packet Checksum: False
+//	.... 1... .... .... = Header Checksum: True
+//	.... .1.. .... .... = Full Duplex: True
+//	.... ..0. .... .... = Half Duplex: False
+//	.... .... ...0 .... = Direct IO to Transport: False
+//	.... .... .... 0... = Attention Processing: False
+//	.... .... .... .0.. = Can Receive Attention: False
+//	.... .... .... ..0. = Can Send Attention: False
+type ServiceOptions uint16
+
+const (
+	ServiceOptionCanSendAttention    ServiceOptions = 0x1 << 1
+	ServiceOptionCanReceiveAttention ServiceOptions = 0x1 << 2
+	ServiceOptionAttentionProcessing ServiceOptions = 0x1 << 3
+	ServiceOptionDirectIOToTransport ServiceOptions = 0x1 << 4
+	ServiceOptionFullDuplex          ServiceOptions = 0x1 << 10
+	ServiceOptionHeaderChecksum      ServiceOptions = 0x1 << 11
+)
+
+func (so ServiceOptions) HasFlag(flag ServiceOptions) bool {
+	return so&flag != 0
+}
+
+func (so ServiceOptions) WithFlagSet(flag ServiceOptions) ServiceOptions {
+	return so | flag
+}
+
+func (so ServiceOptions) WithFlagUnset(flag ServiceOptions) ServiceOptions {
+	return so &^ flag
+}
+
+// GetServiceOptions returns the requested service options.
+func (cp *ConnectPacket) GetServiceOptions() (ServiceOptions, error) {
+	if len(cp.Payload()) < PacketHeaderSize+6 {
+		return 0, trace.BadParameter("payload too short for service options: %d", len(cp.Payload()))
+	}
+
+	return ServiceOptions(binary.BigEndian.Uint16(cp.Payload()[PacketHeaderSize+4:])), nil
+}
+
+// SetServiceOptions sets the requested service options.
+func (cp *ConnectPacket) SetServiceOptions(options ServiceOptions) error {
+	if len(cp.Payload()) < PacketHeaderSize+6 {
+		return trace.BadParameter("payload too short for service options: %d", len(cp.Payload()))
+	}
+	binary.BigEndian.PutUint16(cp.Payload()[PacketHeaderSize+4:], uint16(options))
+	return nil
+}
+
 func parseConnectPacket(bp *basePacket) (*ConnectPacket, error) {
 	const connStrOffset = 24 // Offset where the Connection String length is stored.
 

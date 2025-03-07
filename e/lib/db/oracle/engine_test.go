@@ -112,7 +112,7 @@ func TestOracleEngine(t *testing.T) {
 		connectBytes, err := protocol.DecodeHexDump(testdata.ConnectPacketDump)
 		require.NoError(t, err)
 
-		connectBytes317, err := protocol.DecodeHexDump(testdata.ConnectPacketDump317)
+		connectBytesTransformed, err := protocol.DecodeHexDump(testdata.ConnectPacketDumpTransformed)
 		require.NoError(t, err)
 
 		go func() {
@@ -134,8 +134,8 @@ func TestOracleEngine(t *testing.T) {
 		case <-time.After(time.Second * 10):
 			t.Fatal("packet receive timout")
 		case got := <-connChannels.receiveC:
-			// engine will lower protocol version to 317.
-			require.Equal(t, connectBytes317, got.Payload())
+			// engine will lower protocol version to 317 and disable OOB.
+			require.Equal(t, connectBytesTransformed, got.Payload())
 			require.NotNil(t, connectPacket)
 			connString, err := connectPacket.GetConnectionString()
 			require.NoError(t, err)

@@ -20,9 +20,9 @@ const ConnectPacketDump = `
 00000100  3d 3d 29 29 29                                    |==)))|
 `
 
-// ConnectPacketDump317 is same as ConnectPacketDump, except it requests protocol version 317.
-const ConnectPacketDump317 = `
-00000000  01 05 00 00 01 00 00 00  01 3d 01 2c 0c 41 20 00  |.........=.,.A .|
+// ConnectPacketDumpTransformed is same as ConnectPacketDump, except it requests protocol version 317 and has OOB disabled.
+const ConnectPacketDumpTransformed = `
+00000000  01 05 00 00 01 00 00 00  01 3d 01 2c 08 41 20 00  |.........=.,.A .|
 00000010  ff ff 4f 98 00 00 00 01  00 bb 00 4a 00 00 00 00  |..O........J....|
 00000020  81 81 00 00 00 00 00 00  00 00 00 00 00 00 00 00  |................|
 00000030  00 00 00 00 00 00 00 00  00 00 00 00 20 00 00 20  |............ .. |

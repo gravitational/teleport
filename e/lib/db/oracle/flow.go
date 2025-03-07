@@ -150,6 +150,25 @@ func (e *Engine) openServerConnection(ctx context.Context, packetLogger logging.
 		}
 	}
 
+	opts, err := connectPacket.GetServiceOptions()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Disable "full duplex" service option, as having it enabled may cause differences in login flows that we don't want.
+	// This corresponds to `DISABLE_OOB=off` (beware double negative) flag in client/server config.
+	// There is no harm in disabling it:
+	// - the feature is known to be problematic and is disabled by default in various configurations, including RDS Oracle.
+	// - even if enabled on both client and server side, plenty of networks won't work with it anyway.
+	if opts.HasFlag(protocol.ServiceOptionFullDuplex) {
+		e.Log.DebugContext(e.Context, "Found service option full duplex, disabling", "options", opts)
+		opts = opts.WithFlagUnset(protocol.ServiceOptionFullDuplex)
+		err = connectPacket.SetServiceOptions(opts)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+
 	// CONNECT -> ACCEPT loop; may need to restart TLS and retry.
 	// Typical happy flow:
 	// - send CONNECT
