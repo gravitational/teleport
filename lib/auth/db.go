@@ -158,7 +158,9 @@ func (a *Server) generateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 		// Pass through ExtKeyUsage (which we need for Smartcard Logon usage)
 		// and SubjectAltName (which we need for otherName SAN, not supported
 		// out of the box in crypto/x509) extensions only.
-		certReq.ExtraExtensions = filterExtensions(csr.Extensions, oidExtKeyUsage, oidSubjectAltName)
+		// certReq.ExtraExtensions = filterExtensions(csr.Extensions, oidExtKeyUsage, oidSubjectAltName)
+		// TODO check if it is safe to drop this filter
+		certReq.ExtraExtensions = csr.Extensions
 		certReq.KeyUsage = x509.KeyUsageDigitalSignature
 		// CRL is required for Windows smartcard certs.
 		certReq.CRLDistributionPoints = []string{req.CRLEndpoint}
