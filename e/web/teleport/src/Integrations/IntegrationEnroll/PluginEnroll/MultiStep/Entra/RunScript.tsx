@@ -127,7 +127,8 @@ export function RunScript() {
                 </Text>
                 <Text mb={2}>
                   After the script is finished, it will output the remaining
-                  information necessary to finish onboarding the integration.{' '}
+                  information necessary to finish onboarding the
+                  integration.{' '}
                 </Text>
                 <FieldInput
                   disabled={attempt.status === 'processing'}
