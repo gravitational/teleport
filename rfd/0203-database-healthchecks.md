@@ -662,7 +662,7 @@ An `""` (unknown) or `disabled` health status will not prevent connections to th
 
 ### Audit Events
 
-No new audit events will be added.
+We will add new audit events for Create/Update/Delete of the `health_check_config` resource.
 
 ### Observability
 
