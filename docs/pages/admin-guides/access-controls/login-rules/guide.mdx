@@ -56,7 +56,7 @@ of their current `username` trait converted to lowercase.
 Copy this example rule to a file called `my_rule.yaml` to continue with the
 guide.
 
-```
+```yaml
 # my_rule.yaml
 kind: login_rule
 version: v1
@@ -136,8 +136,8 @@ You can check the traits and roles with the following command:
 $ tctl get --format json users/<Var name="username"/> | jq '{traits: first.spec.traits, roles: first.spec.roles}'
 {
   "traits": {
-	"access": [
-	  "staging"
+    "access": [
+      "staging"
     ],
     "groups": [
       "dbs",

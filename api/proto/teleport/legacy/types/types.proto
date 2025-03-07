@@ -6978,6 +6978,9 @@ enum AWSICGroupImportStatusCode {
   DONE = 1;
   // FAILED denotes that the group and group members import met with an error.
   FAILED = 2;
+  // REIMPORT_REQUESTED denotes that the user has requested that the import
+  // process be re-run.
+  REIMPORT_REQUESTED = 3;
 }
 
 // PluginEmailSettings holds the settings for an Email Access Request plugin.

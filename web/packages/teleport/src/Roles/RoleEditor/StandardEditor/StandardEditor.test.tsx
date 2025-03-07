@@ -240,14 +240,14 @@ test('creating a new role', async () => {
   render(<TestStandardEditor onSave={onSave} />);
   await user.type(screen.getByLabelText('Description'), 'foo');
   await forwardToTab('Resources');
-  await forwardToTab('Access Rules');
+  await forwardToTab('Admin Rules');
   await forwardToTab('Options');
   expect(onSave).not.toHaveBeenCalled();
 
   // By now, all the tabs should be enabled.
   expect(getTabByName('Overview')).toBeEnabled();
   expect(getTabByName('Resources')).toBeEnabled();
-  expect(getTabByName('Access Rules')).toBeEnabled();
+  expect(getTabByName('Admin Rules')).toBeEnabled();
   expect(getTabByName('Options')).toBeEnabled();
 
   // Allow free navigation.
@@ -288,16 +288,13 @@ test('tab-level validation when creating a new role', async () => {
   expect(screen.getByPlaceholderText('label key')).toHaveAccessibleDescription(
     ''
   );
-  await user.click(screen.getByRole('button', { name: 'Next: Access Rules' }));
-  expect(getTabByName('Access Rules')).toHaveAttribute(
-    'aria-selected',
-    'false'
-  );
+  await user.click(screen.getByRole('button', { name: 'Next: Admin Rules' }));
+  expect(getTabByName('Admin Rules')).toHaveAttribute('aria-selected', 'false');
   // Fix the field value and retry.
   await user.type(screen.getByPlaceholderText('label key'), 'foo');
   await user.type(screen.getByPlaceholderText('label value'), 'bar');
-  await user.click(screen.getByRole('button', { name: 'Next: Access Rules' }));
-  expect(getTabByName('Access Rules')).toHaveAttribute('aria-selected', 'true');
+  await user.click(screen.getByRole('button', { name: 'Next: Admin Rules' }));
+  expect(getTabByName('Admin Rules')).toHaveAttribute('aria-selected', 'true');
 });
 
 const getAllMenuItemNames = () =>

@@ -24,20 +24,20 @@ import { Validator } from 'shared/components/Validation';
 
 import { ResourceKind } from 'teleport/services/resources';
 
-import { AccessRules } from './AccessRules';
+import { AdminRules } from './AdminRules';
 import { RuleModel } from './standardmodel';
 import { StatefulSectionWithDispatch } from './StatefulSection';
-import { AccessRuleValidationResult } from './validation';
+import { AdminRuleValidationResult } from './validation';
 
-describe('AccessRules', () => {
+describe('AdminRules', () => {
   const setup = () => {
     const modelRef = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSectionWithDispatch<RuleModel[], AccessRuleValidationResult[]>
+      <StatefulSectionWithDispatch<RuleModel[], AdminRuleValidationResult[]>
         selector={m => m.roleModel.rules}
         validationSelector={m => m.validationResult.rules}
-        component={AccessRules}
+        component={AdminRules}
         validatorRef={v => {
           validator = v;
         }}
