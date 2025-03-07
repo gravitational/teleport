@@ -843,6 +843,11 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 		},
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"always_use_proxy_public_addr": {
+					Description: "AlwaysUseProxyPublicAddr will rebuild this app's fqdn based on the proxy public addr that the request originated from. This should be true if your proxy has multiple proxy public addrs and you want the app to be accessible from any of them. If `public_addr` is explicitly set in the app spec, setting this value to true will overwrite that public address in the web UI.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+				},
 				"aws": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"external_id": {
 						Description: "ExternalID is the AWS External ID used when assuming roles in this app.",
@@ -11081,6 +11086,23 @@ func CopyAppV3FromTerraform(_ context.Context, tf github_com_hashicorp_terraform
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["always_use_proxy_public_addr"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"AppV3.Spec.AlwaysUseProxyPublicAddr"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.AlwaysUseProxyPublicAddr", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+							} else {
+								var t bool
+								if !v.Null && !v.Unknown {
+									t = bool(v.Value)
+								}
+								obj.AlwaysUseProxyPublicAddr = t
+							}
+						}
+					}
 				}
 			}
 		}
@@ -12576,6 +12598,28 @@ func CopyAppV3ToTerraform(ctx context.Context, obj *github_com_gravitational_tel
 								c.Unknown = false
 								tf.Attrs["tcp_ports"] = c
 							}
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["always_use_proxy_public_addr"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"AppV3.Spec.AlwaysUseProxyPublicAddr"})
+						} else {
+							v, ok := tf.Attrs["always_use_proxy_public_addr"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"AppV3.Spec.AlwaysUseProxyPublicAddr", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.AlwaysUseProxyPublicAddr", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+								}
+								v.Null = bool(obj.AlwaysUseProxyPublicAddr) == false
+							}
+							v.Value = bool(obj.AlwaysUseProxyPublicAddr)
+							v.Unknown = false
+							tf.Attrs["always_use_proxy_public_addr"] = v
 						}
 					}
 				}
