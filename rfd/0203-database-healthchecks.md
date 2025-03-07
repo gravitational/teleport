@@ -305,7 +305,7 @@ Teleport database agents will cache `health_check_config` resources.
 
 The `health_check_config` resource will expose the following settings:
 
-- Match: Resources with matching labels will use these health check settings.
+- Match: Resources that match the selectors will use these health check settings.
 - Enabled: whether to enable health checks
 - Interval: time between each health check
 - Timeout: the health check connection attempt timeout (timing out fails the check)
@@ -544,6 +544,8 @@ The justification for the `healthy` and `unhealthy` status relative ordering sho
 It is perhaps less obvious why `initialized` should be preferred over `""` and `disabled`.
 By definition, an `initialized` status represents zero failing checks and zero or more passing health checks, whereas `""` and `disabled` represents no health information at all.
 Therefore, the proxy should prefer `initialized` over `""` and `disabled` health status.
+
+The proxy routing prioritization strategy is a fail-open system: if all databases are `unhealthy`, users will still be able to attempt a connection through them, even though their attempt will likely fail.
 
 ### Security
 
