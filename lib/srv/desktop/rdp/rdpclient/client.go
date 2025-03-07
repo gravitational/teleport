@@ -395,7 +395,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 	}
 
 	c.cfg.Logger.InfoContext(ctx, message)
-	c.sendTDPNotification(message, tdp.SeverityInfo)
+	c.sendTDPNotification(message, tdp.SeverityError)
 
 	return nil
 }
