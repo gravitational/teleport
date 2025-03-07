@@ -481,7 +481,7 @@ A health checker manager will be added that manages a mapping from DB name to a 
     	// Name is the uniquely identifying name of the target.
     	Name string
     	// GetEndpoints is callback func that returns the target endpoints.
-    	GetEndpoints func []string
+    	GetEndpoints func(ctx context.Context) ([]string, error)
     	// Spec is the health check configuration to use for the target.
     	Spec healthcheck.HealthCheckSpec
     }
