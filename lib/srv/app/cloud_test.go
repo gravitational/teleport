@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/credentials/ec2rolecreds"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/gravitational/trace"
@@ -249,6 +250,8 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 
 			c, err := NewCloud(CloudConfig{
 				AWSConfigOptions: []awsconfig.OptionsFn{
+					// Ensures the base config has the mocked credentials.
+					awsconfig.WithBaseCredentialsProvider(credentials.NewStaticCredentialsProvider("FAKEACCESSKEYID", "secret", "token")),
 					awsconfig.WithSTSClientProvider(
 						mocks.NewAssumeRoleClientProviderFunc(&mocks.STSClient{}),
 					),
