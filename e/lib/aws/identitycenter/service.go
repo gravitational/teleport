@@ -201,9 +201,6 @@ func (svc *Service) runAWSSyncService(ctx context.Context) {
 
 func (svc *Service) runResourceMonitor(ctx context.Context) {
 	svc.resourceMonitor.Watch(ctx)
-	// the resource monitor event handler is the only thing that writes to this
-	// channel, so it's safe to close it once the monitor has exited
-	close(svc.principalEventCh)
 }
 
 func (svc *Service) runResourceEventHandler(ctx context.Context) {

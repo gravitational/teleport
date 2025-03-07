@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	icfixture "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
+	ictest "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
 	"github.com/gravitational/teleport/e/lib/provisioning"
 	"github.com/gravitational/teleport/entitlements"
 	accesscommon "github.com/gravitational/teleport/integrations/access/common"
@@ -394,6 +395,104 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 			})
 		})
 	}
+}
+
+// TestReimportRequestTriggersImport asserts that groups are imported from AWS
+// only on initial startup, or if the REIMPORT_REQUESTED group import state
+// is set.
+func TestReimportRequestTriggersImport(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.AccessLists: {Enabled: true},
+			},
+		},
+	})
+
+	// GIVEN an IC test fixture, with some known groups in the AWS client
+	fixture := ictest.NewFixture(t, ictest.WithCache(ictest.CacheArgs{Started: true}))
+	ctx := fixture.Ctx
+
+	// GIVEN an IC plugin resource configured to only import the group with id
+	// "group1"
+	fixture.CreatePluginResource(t,
+		icfixture.WithGroupFilters(icfilters.Filters{
+			{Include: &types.AWSICResourceFilter_Id{Id: "group1"}},
+		}))
+
+	// WHEN I create and start the IC integration service...
+	svcCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	svc := newTestService(t, fixture)
+	go svc.Run(svcCtx)
+
+	// EXPECT that a resource event was issued indicating that 1 group was imported
+	expectResourceSyncEvent(t, fixture.Emitter, func(e *apievents.AWSICResourceSync) {
+		require.Equal(t, int32(1), e.TotalUserGroups)
+	})
+
+	// Ensure that any status update that we intercepted with our fake status
+	// sink is pushed down to the underlying plugin resource
+	p := fixture.MustGetPluginResource(t)
+	require.NoError(t, p.SetStatus(fixture.PluginStatusSink.Get()))
+	_, err := fixture.PluginService.UpdatePlugin(context.Background(), p)
+	require.NoError(t, err)
+
+	// Stop the service so the sub-tests can start new ones, mimicking what the
+	// plugin manager would do on a plugin update.
+	cancel()
+
+	t.Run("Non import triggering update", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		// We don't want to accidentally receive events from the previous run of
+		// the service, so replace the ole event emitter
+		fixture.ResetEmitter()
+
+		// GIVEN a plugin update that should not cause a re-import
+		p := fixture.MustGetPluginResource(t)
+		p.Spec.GetAwsIc().AccessListDefaultOwners = []string{"spongebob"}
+		_, err := fixture.PluginService.UpdatePlugin(ctx, p)
+		require.NoError(t, err)
+
+		// WHEN then restart the IC service
+		svc := newTestService(t, fixture)
+		go svc.Run(ctx)
+
+		// EXPECT that we will eventually get a Resource Sync Event indicating
+		// that no groups were imported. This shows that the group import
+		// process wasn't run.
+		expectResourceSyncEvent(t, fixture.Emitter, func(e *apievents.AWSICResourceSync) {
+			require.Equal(t, int32(0), e.TotalUserGroups)
+		})
+	})
+
+	t.Run("import triggering update", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		// We don't want to accidentally receive events from the previous run of
+		// the service, so replace the ole event emitter
+		fixture.ResetEmitter()
+
+		// GIVEN a plugin update that should cause a re-import
+		p := fixture.MustGetPluginResource(t)
+		p.Status.GetAwsIc().GroupImportStatus.StatusCode = types.AWSICGroupImportStatusCode_REIMPORT_REQUESTED
+		_, err := fixture.PluginService.UpdatePlugin(ctx, p)
+		require.NoError(t, err)
+
+		// WHEN then restart the IC service
+		svc := newTestService(t, fixture)
+		go svc.Run(ctx)
+
+		// EXPECT that we will eventually get a Resource Sync Event showing that
+		// a group was imported, indicating that the group import process ran.
+		expectResourceSyncEvent(t, fixture.Emitter, func(e *apievents.AWSICResourceSync) {
+			require.Equal(t, int32(1), e.TotalUserGroups)
+		})
+	})
 }
 
 func countICOriginatedList(in []listWithMembersAndRoles) int {

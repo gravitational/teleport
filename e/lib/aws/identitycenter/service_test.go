@@ -53,7 +53,7 @@ func TestUserCreation(t *testing.T) {
 	}()
 
 	// EXPECT that the AWS resource sync will eventually complete at least one
-	// pass, indicating that the setver is up and running.
+	// pass, indicating that the server is up and running.
 	downstream := fixture.SCIMClient
 	serviceIsReady := func(c *assert.CollectT) {
 		// If Account assignments representing the cartesian product of the IC-

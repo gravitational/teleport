@@ -172,6 +172,9 @@ func (s *Service) startGroupsAndGroupMembersImport(ctx context.Context) error {
 // Role name is configured as "<permission_set_name>-on-<account_name>". This is the same format used
 // by the identity Center role<>permission assignment reconciler.
 func (s *Service) accessListFromICGroups(ctx context.Context, defaultOwners []accesslist.Owner) (map[string]*accesslist.AccessList, error) {
+	// TODO(tcsc): pass the group import filters down to the IC group lister,
+	//             so we don't have to pull down members & assignments down for
+	//             groups that we're not going to import anyway
 	groupsWithAssignments, err := s.icClient.ListGroupsWithAccountAndPermAssignment(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

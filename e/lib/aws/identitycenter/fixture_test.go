@@ -18,6 +18,14 @@ func newTestService(t *testing.T, fixture *ictest.Fixture) *Service {
 	// package, but doing so would cause circular imports that it's probably not
 	// worth rearranging things to avoid.
 
+	plugin, err := fixture.GetPluginResource()
+	if err != nil {
+		fixture.CreatePluginResource(t)
+		plugin = fixture.MustGetPluginResource(t)
+	}
+
+	details := plugin.Spec.GetAwsIc()
+
 	cfg := ServiceConfig{
 		Provisioning: ProvisioningConfig{
 			SCIMClient:          fixture.SCIMClient,
@@ -39,6 +47,7 @@ func newTestService(t *testing.T, fixture *ictest.Fixture) *Service {
 		RolesSvc:                   fixture.Auth.Services,
 		ImportConfig: ImportConfig{
 			AccessListDefaultOwners: []string{"user1", "user2"},
+			GroupSyncFilter:         details.GroupSyncFilters,
 		},
 		PluginsService:   fixture.PluginService,
 		PluginStatusSink: fixture.PluginStatusSink,

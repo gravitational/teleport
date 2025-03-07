@@ -3,6 +3,7 @@ package pluginsv1
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -190,5 +191,176 @@ func newIdentityCenterPluginResource() *types.PluginV1 {
 				},
 			},
 		},
+	}
+}
+
+// TestRewritePluginStatus tests that the supplied plugin resource status gets
+// rewritten as expected  before being committed to the back end data store
+func TestRewritePlugin(t *testing.T) {
+	now := time.Now()
+
+	newValidOktaStatus := func() *types.PluginV1 {
+		return &types.PluginV1{
+			Spec: types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_Okta{Okta: &types.PluginOktaSettings{}},
+			},
+			Status: types.PluginStatusV1{
+				Code:         types.PluginStatusCode_RUNNING,
+				LastSyncTime: now,
+				Details: &types.PluginStatusV1_Okta{
+					Okta: &types.PluginOktaStatusV1{
+						SsoDetails: &types.PluginOktaStatusDetailsSSO{
+							Enabled: true,
+							AppId:   "some-app-id",
+							AppName: "A Valid App Name",
+						},
+						AppGroupSyncDetails: &types.PluginOktaStatusDetailsAppGroupSync{
+							Enabled:         true,
+							LastSuccessful:  &now,
+							NumAppsSynced:   42,
+							NumGroupsSynced: 84,
+						},
+					},
+				},
+			},
+		}
+	}
+
+	testCases := []struct {
+		name                 string
+		makePlugin           func() *types.PluginV1
+		mutateExistingPlugin func(*types.PluginV1)
+		mutateNewPlugin      func(*types.PluginV1)
+		expectedResult       require.ErrorAssertionFunc
+		mutateExpectedPlugin func(*types.PluginV1)
+	}{
+		{
+			name:       "Okta rejects status changes",
+			makePlugin: newValidOktaStatus,
+			mutateNewPlugin: func(p *types.PluginV1) {
+				details := p.GetStatus().GetOkta()
+				details.SsoDetails = nil
+				details.AppGroupSyncDetails = nil
+				details.UsersSyncDetails = nil
+			},
+			expectedResult: require.NoError,
+		},
+		{
+			name:       "AWSIC rejects status change",
+			makePlugin: newIdentityCenterPluginResource,
+			mutateNewPlugin: func(p *types.PluginV1) {
+				status := p.GetStatus().(*types.PluginStatusV1)
+				status.Code = types.PluginStatusCode_OTHER_ERROR
+
+				details := status.GetAwsIc()
+				details.GroupImportStatus.StatusCode = types.AWSICGroupImportStatusCode_REIMPORT_REQUESTED
+				details.GroupImportStatus.ErrorMessage = "some new error message to be ignored"
+			},
+			expectedResult: require.NoError,
+		},
+		{
+			name:       "AWSIC sets REIMPORT_REQUESTED if import filters change",
+			makePlugin: newIdentityCenterPluginResource,
+			mutateNewPlugin: func(p *types.PluginV1) {
+				p.Spec.GetAwsIc().GroupSyncFilters = append(p.Spec.GetAwsIc().GroupSyncFilters,
+					&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: `Another Group`}},
+				)
+			},
+			mutateExpectedPlugin: func(p *types.PluginV1) {
+				p.Spec.GetAwsIc().GroupSyncFilters = append(p.Spec.GetAwsIc().GroupSyncFilters,
+					&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: `Another Group`}},
+				)
+				p.GetStatus().GetAwsIc().GroupImportStatus.StatusCode = types.AWSICGroupImportStatusCode_REIMPORT_REQUESTED
+			},
+			expectedResult: require.NoError,
+		},
+		{
+			name:       "AWSIC handles nil status in existing plugin",
+			makePlugin: newIdentityCenterPluginResource,
+			mutateExistingPlugin: func(p *types.PluginV1) {
+				p.SetStatus(nil)
+			},
+			mutateNewPlugin: func(p *types.PluginV1) {
+				p.Spec.GetAwsIc().GroupSyncFilters = append(p.Spec.GetAwsIc().GroupSyncFilters,
+					&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: `Another Group`}},
+				)
+			},
+			mutateExpectedPlugin: func(p *types.PluginV1) {
+				p.Spec.GetAwsIc().GroupSyncFilters = append(p.Spec.GetAwsIc().GroupSyncFilters,
+					&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: `Another Group`}},
+				)
+				status := p.GetStatus().(*types.PluginStatusV1)
+				status.Code = types.PluginStatusCode_UNKNOWN
+				status.GetAwsIc().GroupImportStatus.StatusCode = types.AWSICGroupImportStatusCode_REIMPORT_REQUESTED
+			},
+			expectedResult: require.NoError,
+		},
+		{
+			name:       "AWSIC handles nil status in new plugin",
+			makePlugin: newIdentityCenterPluginResource,
+			mutateNewPlugin: func(p *types.PluginV1) {
+				p.SetStatus(nil)
+				p.Spec.GetAwsIc().GroupSyncFilters = append(p.Spec.GetAwsIc().GroupSyncFilters,
+					&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: `Another Group`}},
+				)
+			},
+			mutateExpectedPlugin: func(p *types.PluginV1) {
+				p.Spec.GetAwsIc().GroupSyncFilters = append(p.Spec.GetAwsIc().GroupSyncFilters,
+					&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: `Another Group`}},
+				)
+				p.Status.GetAwsIc().GroupImportStatus.StatusCode = types.AWSICGroupImportStatusCode_REIMPORT_REQUESTED
+			},
+			expectedResult: require.NoError,
+		},
+		{
+			name:       "AWSIC handles nil group import status in existing plugin",
+			makePlugin: newIdentityCenterPluginResource,
+			mutateExistingPlugin: func(p *types.PluginV1) {
+				p.GetStatus().GetAwsIc().GroupImportStatus = nil
+			},
+			mutateNewPlugin: func(p *types.PluginV1) {
+				p.Spec.GetAwsIc().GroupSyncFilters = append(p.Spec.GetAwsIc().GroupSyncFilters,
+					&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: `Another Group`}},
+				)
+			},
+			mutateExpectedPlugin: func(p *types.PluginV1) {
+				p.Spec.GetAwsIc().GroupSyncFilters = append(p.Spec.GetAwsIc().GroupSyncFilters,
+					&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: `Another Group`}},
+				)
+				p.GetStatus().GetAwsIc().GroupImportStatus.StatusCode = types.AWSICGroupImportStatusCode_REIMPORT_REQUESTED
+			},
+			expectedResult: require.NoError,
+		},
+		{
+			name:       "AWSIC handles nil group import status in new plugin",
+			makePlugin: newIdentityCenterPluginResource,
+			mutateNewPlugin: func(p *types.PluginV1) {
+				p.GetStatus().GetAwsIc().GroupImportStatus = nil
+			},
+			expectedResult: require.NoError,
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			existingPlugin := test.makePlugin()
+			if test.mutateExistingPlugin != nil {
+				test.mutateExistingPlugin(existingPlugin)
+			}
+
+			newPlugin := test.makePlugin()
+			if test.mutateNewPlugin != nil {
+				test.mutateNewPlugin(newPlugin)
+			}
+
+			err := rewritePlugin(newPlugin, existingPlugin)
+			test.expectedResult(t, err)
+
+			expectedPlugin := test.makePlugin()
+			if test.mutateExpectedPlugin != nil {
+				test.mutateExpectedPlugin(expectedPlugin)
+			}
+			require.Equal(t, expectedPlugin, newPlugin)
+		})
 	}
 }

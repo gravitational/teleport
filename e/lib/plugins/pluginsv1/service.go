@@ -295,14 +295,22 @@ func (s *Service) UpdatePlugin(ctx context.Context, req *pluginspb.UpdatePluginR
 		return nil, trace.BadParameter("plugin %s is disabled", req.Plugin.GetType())
 	}
 
-	// Don't allow to update the plugin state.
-	if err := req.Plugin.SetStatus(oldPlugin.GetStatus()); err != nil {
-		return nil, trace.Wrap(err)
+	if req.Plugin.GetType() != oldPlugin.GetType() {
+		return nil, trace.BadParameter("plugin may not change type")
 	}
 
 	inPlugin, ok := req.GetPlugin().Clone().(*types.PluginV1)
 	if !ok {
 		return nil, trace.BadParameter("unsupported plugin type %T", req.Plugin)
+	}
+
+	oldPluginV1, ok := oldPlugin.(*types.PluginV1)
+	if !ok {
+		return nil, trace.BadParameter("unsupported old plugin type %T", req.Plugin)
+	}
+
+	if err := rewritePlugin(inPlugin, oldPluginV1); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if inPlugin.Credentials == nil {
@@ -360,6 +368,48 @@ func (s *Service) UpdatePlugin(ctx context.Context, req *pluginspb.UpdatePluginR
 	}
 
 	return out, nil
+}
+
+// rewritePlugin updates the [new] plugin based on the implications of any changes
+// between the [old] and [new] plugin resources. In most cases this will be simply
+// preserving the plugin resources's status block against user edits, but individual
+// plugins may have more complex rewriting rules.
+func rewritePlugin(new, old *types.PluginV1) error {
+	switch new.GetType() {
+	case types.PluginTypeAWSIdentityCenter:
+		return trace.Wrap(rewriteAWSICPlugin(new, old))
+	}
+
+	return trace.Wrap(new.SetStatus(old.GetStatus()))
+}
+
+// rewriteAWSICPlugin checks for changes in the group import filter list, and if
+// any changes are detected it will set the plugin group import status to
+// REIMPORT_REQUESTED which will trigger a new group import when the plugin is
+// next restarted.
+func rewriteAWSICPlugin(new, old *types.PluginV1) error {
+	oldSettings := old.Spec.GetAwsIc()
+	newSettings := new.Spec.GetAwsIc()
+	if oldSettings == nil || newSettings == nil {
+		return trace.BadParameter("old and new plugins must both be AWS Identity Center integrations")
+	}
+
+	oldStatus := old.GetStatus()
+
+	filtersEq := func(a, b *types.AWSICResourceFilter) bool {
+		return a.Include.Equal(b.Include)
+	}
+
+	if !slices.EqualFunc(oldSettings.GroupSyncFilters, newSettings.GroupSyncFilters, filtersEq) {
+		if oldStatus.GetAwsIc() == nil {
+			oldStatus.SetDetails(&types.PluginStatusV1_AwsIc{AwsIc: &types.PluginAWSICStatusV1{GroupImportStatus: &types.AWSICGroupImportStatus{}}})
+		}
+		if oldStatus.GetAwsIc().GroupImportStatus == nil {
+			oldStatus.GetAwsIc().GroupImportStatus = &types.AWSICGroupImportStatus{}
+		}
+		oldStatus.GetAwsIc().GroupImportStatus.StatusCode = types.AWSICGroupImportStatusCode_REIMPORT_REQUESTED
+	}
+	return trace.Wrap(new.SetStatus(oldStatus))
 }
 
 // updatePluginWithLiveCredentials will update the plugin with live credentials if needed.

@@ -24,11 +24,11 @@ import (
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	samlidptestenv "github.com/gravitational/teleport/e/lib/idp/saml/testenv"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
-	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
+	icfilters "github.com/gravitational/teleport/lib/aws/identitycenter/filters"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -48,7 +48,7 @@ type Fixture struct {
 	SCIMClient       *scimsdk.ClientMock
 	ICClient         *icsdk.ClientMock
 	PluginService    *local.PluginsService
-	PluginStatusSink common.StatusSink
+	PluginStatusSink *integration.FakeStatusSink
 	Emitter          *eventstest.ChannelEmitter
 }
 
@@ -111,6 +111,10 @@ func NewFixture(t *testing.T, opts ...auth.ServerOption) *Fixture {
 	return fixture
 }
 
+func (f *Fixture) ResetEmitter() {
+	f.Emitter = eventstest.NewChannelEmitter(10)
+}
+
 type ICOption func(*types.PluginV1)
 
 func WithoutImport(plugin *types.PluginV1) {
@@ -125,6 +129,13 @@ func WithoutImport(plugin *types.PluginV1) {
 	}
 }
 
+func WithGroupFilters(filters icfilters.Filters) ICOption {
+	return func(plugin *types.PluginV1) {
+		settings := plugin.Spec.GetAwsIc()
+		settings.GroupSyncFilters = filters
+	}
+}
+
 func (f *Fixture) CreatePluginResource(t *testing.T, options ...ICOption) {
 	createPluginReq := NewPluginV1CreateRequest("test-oidc", "test-saml")
 
@@ -133,6 +144,20 @@ func (f *Fixture) CreatePluginResource(t *testing.T, options ...ICOption) {
 		applyOption(initialPlugin)
 	}
 	require.NoError(t, f.PluginService.CreatePlugin(context.Background(), initialPlugin))
+}
+
+func (f *Fixture) MustGetPluginResource(t *testing.T) *types.PluginV1 {
+	p, err := f.GetPluginResource()
+	require.NoError(t, err)
+	return p
+}
+
+func (f *Fixture) GetPluginResource() (*types.PluginV1, error) {
+	p, err := f.PluginService.GetPlugin(context.Background(), types.PluginTypeAWSIdentityCenter, false)
+	if err != nil {
+		return nil, err
+	}
+	return p.(*types.PluginV1), nil
 }
 
 // ICCreatedData defines resource names for each test resource type.
