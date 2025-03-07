@@ -1016,7 +1016,9 @@ func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTas
 		}
 		existingTasks = allTasks
 
-		assert.GreaterOrEqual(t, len(allTasks), minUserTasks)
+		if !assert.GreaterOrEqual(t, len(allTasks), minUserTasks) {
+			return
+		}
 
 		gotResources := 0
 		for _, task := range allTasks {
