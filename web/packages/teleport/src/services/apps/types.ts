@@ -58,6 +58,11 @@ export interface App {
    * aws_ic_account.
    */
   permissionSets?: PermissionSet[];
+  /**
+   * SamlAppLaunchUrl contains service provider specific authenticaiton
+   * endpoints where user should be launched to start SAML authentication.
+   */
+  samlAppLaunchUrls?: SamlAppLaunchUrl[];
 }
 
 export type UserGroupAndDescription = {
@@ -81,4 +86,15 @@ export type PermissionSet = {
   arn: string;
   /** assignmentId is an account assignment ID. */
   assignmentId: string;
+};
+
+/**
+ * SamlAppLaunchUrl contains service provider specific authenticaiton
+ * endpoint where user should be launched to start SAML authentication.
+ */
+export type SamlAppLaunchUrl = {
+  /* friendly name of the URL. */
+  friendlyName: string;
+  /* launch URL. */
+  url: string;
 };
