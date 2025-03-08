@@ -8,7 +8,7 @@ state: draft
 ## Required Approvers
 
 * Engineering: @rosstimothy && @ravicious
-* Product: @xinding33 || @klizhentas
+* Product: @klizhentas
 
 ## What
 
@@ -41,6 +41,10 @@ When enabled at the cluster-level, Teleport clients (`tsh`, `tctl`, and
 Teleport connect) will cache the user's hardware key PIN in memory for a
 specified duration of time. When the PIN is cached, the Teleport client will
 provide the PIN to the hardware key without prompting the user again.
+
+Note: the PIN will remain cached within the Teleport client so long as it
+remains running. There is no additional manual or automatic mechanism to reset
+the cache before the cache duration has elapsed.
 
 #### Cluster Auth Preference
 
@@ -119,23 +123,20 @@ func (p *PinCachingPrompt) setCachedPIN(pin string) {
 
 ### Hardware Key Agent
 
-The hardware key agent will provide two functionalities:
-
-1. Fetching info for a specific hardware private key, including the public
-key, private key policy, and attestation statement.
-1. Signing with a specific hardware private key
-
-Note: this is the base functionality needed to implement the `crypto.Signer`
-interface and Teleport's `keys.HardwareSigner` interface.
-
-The agent will be served as a [gRPC](#hardwarekeyagentservice) service on a unix
-socket, `$TEMP/.Teleport-PIV/agent.sock`, with [basic TLS](#security).
-
 #### Terminology
 
 An "agent client" is a Teleport client process serving the hardware key agent.
 
 A "dependent client" is a Teleport client process interfacing with the hardware key agent.
+
+#### Signing interface
+
+The hardware key agent will provide the ability to sign with a hardware private
+key key, specified by hardware key serial number, PIV slot, and known public
+key.
+
+The agent will be served as a [gRPC](#hardwarekeyagentservice) service on a unix
+socket, `$TEMP/.Teleport-PIV/agent.sock`, with [basic TLS](#security).
 
 #### `$TEMP/.Teleport-PIV/agent.sock`
 
@@ -169,64 +170,107 @@ optionally cached when [Hardware Key pin caching](#hardware-key-pin-caching)
 is enabled. Like any normal Teleport client, the agent client will only prompt
 for PIN or touch when it isn't cached.
 
+### Dependent client changes
+
+In order for dependent clients to utilize the hardware key agent fully, without
+the need to connect to the hardware key directly outside of login, the changes
+below are needed.
+
+#### Enrich hardware private key PEM encoded file
+
+During hardware key login, the client queries the hardware key's PIV slot
+directly and either uses the existing key or generates a new key befitting the
+private key policy required by the cluster or role. The client then stores some
+basic information in a PEM encoded file so that subsequent clients can determine
+the correct hardware private key to use for the login session:
+
+```text
+-----BEGIN PIV YUBIKEY PRIVATE KEY-----
+######## PEM encoded #########
+{
+  "serial_number": "12345678",
+  "slot_key": "9a"
+}
+##############################
+-----END PIV YUBIKEY PRIVATE KEY-----
+```
+
+However, each subsequent client call needs to retrieve additional information
+on the hardware private key to utilize it, including the public key, touch and
+pin policies, and the attestation statement used to derive/verify additional
+information.
+
+Hardware key agent dependent clients should not need to access the hardware key
+directly for this information. Since all of this information is known at time
+of login, we can add this information to the PEM encoded file:
+
+```text
+-----BEGIN PIV YUBIKEY PRIVATE KEY-----
+######## PEM encoded #########
+{
+  "serial_number": "12345678",
+  "slot_key": "9a",
+  "public_key_der": "...",
+  "touch_required": true,
+  "pin_required": true,
+  "attestation_statement": {...}
+}
+##############################
+-----END PIV YUBIKEY PRIVATE KEY-----
+```
+
+Note: for backwards compatibility, clients will continue to retrieve this
+information directly from the hardware key if it is missing from the PEM
+encoded file. Rephrased for clarity, dependent clients will bypass the
+hardware key agent to retrieve this information directly from the hardware
+key, then continue to use the hardware key agent for signatures as normal.
+
 #### `hardwareKeyAgentService` pseudo-code implementation
+
+Teleport clients will use a `hardwareKeyAgentService` interface to interact
+with hardware private keys, rather than interacting directly with the PIV
+interface.
 
 ```go
 // Pseudo-code
-
-// hardwareKeyRef uniquely identifies a hardware key
-type hardwareKeyRef struct {
-  serialNumber uint32
-  pivSlot      uint32
-}
-
-type hardwareKeyInfo struct {
-  publicKey            crypto.PublicKey
-  privateKeyPolicy     keys.PrivateKeyPolicy
-  attestationStatement keys.AttestationStatement
-}
 
 // hardwareKeyAgentService has two implementations:
 //  - direct implementation with piv-go, adapted slightly from our existing implementation
 //  - hardware key agent gRPC service implementation
 type hardwareKeyAgentService interface {
-  GetInfo(ref hardwareKeyRef) hardwareKeyInfo
-  Sign(ref hardwareKeyRef, digest []byte, opts SignerOpts) (signature []byte, err error)
+  Sign(keyInfo hardwareKeyInfo, rand io.Reader, digest []byte, opts SignerOpts) (signature []byte, err error)
+}
+
+// hardwareKeyInfo contains information on a specific hardware private key.
+type hardwareKeyInfo struct {
+  serialNumber         uint32
+  pivSlot              uint32
+  version              string
+  publicKey            crypto.PublicKey
+  touchRequired        bool
+  pinRequired          bool
+  attestationStatement keys.AttestationStatement
 }
 
 // Implements [crypto.Signer] and [keys.HardwareSigner].
 type hardwareKeyAgentKey struct {
-  agent  keyAgentService
-  keyRef hardwareKeyRef
-  // hardwareKeyInfo is cached after the first call
-  hardwareKeyInfo hardwareKeyInfo
+  agent   keyAgentService
+  keyInfo hardwareKeyInfo
 }
 
 // Implement [crypto.Signer]
 func (s *agentSigner) Public() crypto.PublicKey {
-  return s.hardwareKeyInfo.publicKey
+  return s.keyInfo.publicKey
 }
 
 // Implement [crypto.Signer]
-func (s *agentSigner) Sign(_ io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
-  return s.agent.Sign(as.KeyRef, digest, opts)
+func (s *agentSigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+  return s.agent.Sign(a.keyInfo, rand, digest, opts)
 }
 
 // Implement [keys.HardwareSigner]
 func (s *agentSigner) GetAttestationStatement() *AttestationStatement {
-  return s.hardwareKeyInfo.attestationStatement
-}
-
-// Implement [keys.HardwareSigner]
-func (s *agentSigner) GetPrivateKeyPolicy() PrivateKeyPolicy {
-  return s.hardwareKeyInfo.privateKeyPolicy
-}
-
-func (s *agentSigner) fetchHardwareKeyInfo() (hardwareKeyInfo, error) {
-  if s.hardwareKeyInfo == nil {
-    s.hardwareKeyInfo = s.agent.GetInfo(s.ref)
-  }
-  return s.hardwareKeyInfo
+  return s.keyInfo.attestationStatement
 }
 ```
 
@@ -398,9 +442,6 @@ service HardwareKeyAgentService {
   //
   // This rpc implements Go's crypto.Signer interface.
   rpc Sign(SignRequest) returns (Signature) {}
-  // GetInfo gets info for the specified hardware private key, including the public key,
-  // attestation statement, and supported pin and touch policies.
-  rpc GetInfo(GetInfoRequest) returns (GetInfoResponse) {}
 }
 
 // PingRequest is a request to Ping.
@@ -414,24 +455,20 @@ message PingResponse {
 
 // SignRequest is a request to perform a signature with a specific hardware private key.
 message SignRequest {
-  // KeyRef references a specific hardware private key.
-  KeyRef key_ref = 1;
-  // PublicKeyDer is a public key encoded in PKIX, ASN.1 DER form.
-  // This is provided to verify that the hardware private key has not
-  // been swapped out against the public key expected by the client.
-  bytes public_key_der = 2;
+  // KeyInfo is info for a specific hardware private key.
+  KeyInfo key_info = 1;
   // Digest is a hashed message to sign.
-  bytes digest = 3;
+  bytes digest = 2;
   // Hash is the hash function used to prepare the digest.
-  Hash hash = 4;
+  Hash hash = 3;
   // SaltLength specifies the length of the salt added to the digest before a signature.
   // This salt length is precomputed by the client, following the crypto/rsa implementation.
   // Only used, and required, for PSS RSA signatures.
-  uint32 salt_length = 5;
+  uint32 salt_length = 4;
   // CommandName is the name of the command or action requiring a signature.
   // e.g. "tsh ssh server01". The agent can include this detail in PIN and touch
   // prompts to show the origin of the signature request to the user.
-  string command_name = 6;
+  string command_name = 5;
 }
 
 // Signature is a private key signature.
@@ -446,30 +483,24 @@ message Signature {
 }
 
 // KeyRef references a specific hardware private key.
-message KeyRef {
+message KeyInfo {
   // SerialNumber is the serial number of the hardware key.
   uint32 serial_number = 1;
   // PivSlot is a specific PIV slot on the hardware key.
   PIVSlot piv_slot = 2;
-}
-
-// GetInfoRequest is a response to GetInfo
-message GetInfoRequest {
-  // KeyRef references a specific hardware private key.
-  KeyRef key_ref = 1;
-}
-
-// GetInfoResponse is a response to GetInfo.
-message GetInfoResponse {
-  // PublicKey is the hardware public key encoded in PKIX, ASN.1 DER form.
-  bytes public_key_der = 1;
-  // AttestationStatement is a hardware key attestation statement corresponding
-  // to a hardware private key.
-  teleport.attestation.v1.AttestationStatement attestation_statement = 2;
-  // PinRequired indicates whether the hardware private key requires PIN.
-  bool pin_required = 3;
-  // TouchRequired indicates whether the hardware private key requires touch.
+  // PublicKey is the public key encoded in PKIX, ASN.1 DER form. If the public key does
+  // not match the private key currently in the hardware key's PIV slot, the signature
+  // will fail early.
+  bytes public_key_der = 3;
+  // TouchRequired is a client hint as to whether the hardware private key requires touch.
+  // The agent will use this to provide the ideal UX for the touch prompt. If this client
+  // hint is incorrect, touch will still be prompted.
   bool touch_required = 4;
+  // PinRequired is a client hint as to whether the hardware private key requires PIN.
+  // The agent will use this to provide the ideal UX for the PIN prompt. If this client
+  // hint is incorrect, PIN will still be prompted for YubiKey versions >= 4.3.0, and
+  // failing with an auth error otherwise.
+  bool pin_required = 5;
 }
 
 // PIVSlot is a specific PIV slot on a hardware key.
@@ -488,9 +519,10 @@ enum PIVSlot {
 
 // Hash refers to a specific hash function used during signing.
 enum Hash {
-  HASH_NAME_UNSPECIFIED = 0;
-  HASH_NAME_SHA256 = 1;
-  HASH_NAME_SHA512 = 2;
+  HASH_UNSPECIFIED = 0;
+  HASH_NONE = 1;
+  HASH_SHA256 = 2;
+  HASH_SHA512 = 3;
 }
 ```
 
@@ -520,21 +552,12 @@ for the normal PC/SC (Personal Computer/Smart Card) interface. The only notable
 difference is that the agent can [cache the hardware key PIN](#pin-caching)
 directly when configured.
 
-Still, the hardware key agent will implement some sensible restrictions to
-increase security:
+Still, the hardware key agent will implement sensible restrictions to increase
+security:
 
 * Basic TLS for end-to-end encryption. The agent service will generate a key in
 memory and a self-signed certificate next to the unix socket at `$TEMP/.Teleport-PIV/ca.pem`
 where local Teleport clients can access it.
-* The hardware key agent will not allow access to hardware private keys on PIV slots
-that were not generated for a Teleport client, which can be identified by the presence
-of a [self-signed metadata certificate](./0080-hardware-key-support.md#piv-slot-logic)
-on the PIV slot.
-
-Note: the agent will only serve hardware private keys managed by a Teleport
-client, which can be identified by the [self-signed metadata certificate](./0080-hardware-key-support.md#piv-slot-logic)
-stored on the PIV slot by Teleport clients. This is intended to reduce the chance
-of the hardware key agent being misused for non Teleport use cases.
 
 #### Hardware key agent forwarding
 
