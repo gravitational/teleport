@@ -263,6 +263,7 @@ type Controller struct {
 	clock                      clockwork.Clock
 	closeContext               context.Context
 	cancel                     context.CancelFunc
+	statusLimiter              *rate.Limiter
 }
 
 // NewController sets up a new controller instance.
@@ -543,6 +544,13 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 					}
 				}
 
+			case proto.InventoryHeartbeatStatus:
+				if m.DatabaseServerStatus != nil {
+					if err := c.handleDatabaseServerHBStatus(handle, m.DatabaseServerStatus); err != nil {
+						handle.CloseWithError(err)
+						return
+					}
+				}
 			case proto.UpstreamInventoryPong:
 				c.handlePong(handle, m)
 			case proto.UpstreamInventoryGoodbye:
@@ -980,6 +988,18 @@ func (c *Controller) handleDatabaseServerHB(handle *upstreamHandle, databaseServ
 		srv.retryUpsert = true
 		srv.resource = databaseServer
 	}
+	return nil
+}
+
+func (c *Controller) handleDatabaseServerHBStatus(handle *upstreamHandle, status *types.DatabaseServerStatusV3) error {
+	if !c.statusLimiter.Allow() {
+		// TODO(gavin)(healthcheck): don't error?
+		return trace.LimitExceeded("database server heartbeat status update rate limit exceeded")
+	}
+
+	// TODO(gavin)(healthcheck): use real value
+	dbKey := resourceKey{hostID: "", name: ""}
+	_ = dbKey
 	return nil
 }
 

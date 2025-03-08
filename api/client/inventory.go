@@ -478,6 +478,8 @@ func (i *upstreamICS) runRecvLoop(stream proto.AuthService_InventoryControlStrea
 			msg = *oneOf.GetHello()
 		case oneOf.GetHeartbeat() != nil:
 			msg = *oneOf.GetHeartbeat()
+		case oneOf.GetHeartbeatStatus() != nil:
+			msg = *oneOf.GetHeartbeatStatus()
 		case oneOf.GetPong() != nil:
 			msg = *oneOf.GetPong()
 		case oneOf.GetAgentMetadata() != nil:

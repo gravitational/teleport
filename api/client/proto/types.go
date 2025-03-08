@@ -102,6 +102,8 @@ func (h UpstreamInventoryHello) sealedUpstreamInventoryMessage() {}
 
 func (h InventoryHeartbeat) sealedUpstreamInventoryMessage() {}
 
+func (h InventoryHeartbeatStatus) sealedUpstreamInventoryMessage() {}
+
 func (p UpstreamInventoryPong) sealedUpstreamInventoryMessage() {}
 
 func (a UpstreamInventoryAgentMetadata) sealedUpstreamInventoryMessage() {}

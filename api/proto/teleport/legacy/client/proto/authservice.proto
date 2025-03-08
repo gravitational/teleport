@@ -2436,6 +2436,8 @@ message UpstreamInventoryOneOf {
     UpstreamInventoryAgentMetadata AgentMetadata = 4;
     // UpstreamInventoryGoodbye advertises that the instance is terminating.
     UpstreamInventoryGoodbye Goodbye = 5;
+    // InventoryHeartbeatStatus announces information about heartbeat status.
+    InventoryHeartbeatStatus HeartbeatStatus = 6;
   }
 }
 
@@ -2610,6 +2612,16 @@ message InventoryHeartbeat {
   types.DatabaseServerV3 DatabaseServer = 3;
   // KubeServer is a complete kube server spec to be heartbeated.
   types.KubernetesServerV3 KubernetesServer = 4;
+}
+
+// InventoryHeartbeatStatus announces information about heartbeat status.
+message InventoryHeartbeatStatus {
+  // HostID is the ID of the host proxying the resource.
+  string HostID = 1;
+  // Name is the name of the resource.
+  string Name = 2;
+  // DatabaseServerStatus is a db server status to be heartbeated.
+  types.DatabaseServerStatusV3 DatabaseServerStatus = 3;
 }
 
 // UpstreamInventoryGoodbye informs the upstream service that instance

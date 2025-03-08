@@ -172,6 +172,19 @@ func deriveTeleportEqualMetadata(this, that *Metadata) bool {
 			((this.Expires == nil && that.Expires == nil) || (this.Expires != nil && that.Expires != nil && (*(this.Expires)).Equal(*(that.Expires))))
 }
 
+// deriveTeleportEqualTargetHealth returns whether this and that are equal.
+func deriveTeleportEqualTargetHealth(this, that *TargetHealth) bool {
+	return (this == nil && that == nil) ||
+		this != nil && that != nil &&
+			this.Address == that.Address &&
+			this.Protocol == that.Protocol &&
+			this.Status == that.Status &&
+			((this.TransitionTimestamp == nil && that.TransitionTimestamp == nil) || (this.TransitionTimestamp != nil && that.TransitionTimestamp != nil && (*(this.TransitionTimestamp)).Equal(*(that.TransitionTimestamp)))) &&
+			this.TransitionReason == that.TransitionReason &&
+			this.TransitionError == that.TransitionError &&
+			this.Message == that.Message
+}
+
 // deriveTeleportEqualUserGroupV1 returns whether this and that are equal.
 func deriveTeleportEqualUserGroupV1(this, that *UserGroupV1) bool {
 	return (this == nil && that == nil) ||

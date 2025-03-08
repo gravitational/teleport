@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/inventory/metadata"
 	"github.com/gravitational/teleport/lib/labels"
@@ -168,6 +169,8 @@ type Config struct {
 	// getEngineFn returns a [common.Engine]. It can be overridden in tests to
 	// customize the returned engine.
 	getEngineFn func(types.Database, common.EngineConfig) (common.Engine, error)
+	// healthCheckService monitors database connectivity health.
+	healthCheckService healthcheck.Service
 }
 
 // NewAuditFn defines a function that creates an audit logger.
@@ -324,6 +327,22 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 
 	if c.ShutdownPollPeriod == 0 {
 		c.ShutdownPollPeriod = defaults.ShutdownPollPeriod
+	}
+
+	if c.healthCheckService == nil {
+		svc, err := healthcheck.NewDBHealthService(ctx,
+			healthcheck.ServiceConfig{
+				Clock:  c.Clock,
+				Events: c.AccessPoint,
+				Logger: slog.With(teleport.ComponentKey,
+					teleport.Component(teleport.ComponentDatabase, "health"),
+				),
+				Reader: c.AccessPoint,
+			})
+		if err != nil {
+			return trace.Wrap(err, "failed to start database health check manager")
+		}
+		c.healthCheckService = svc
 	}
 
 	return nil
@@ -486,6 +505,12 @@ func New(ctx context.Context, config Config) (*Server, error) {
 // startDatabase performs initialization actions for the provided database
 // such as starting dynamic labels and initializing CA certificate.
 func (s *Server) startDatabase(ctx context.Context, database types.Database) error {
+	if err := s.startHealthCheck(ctx, database); err != nil {
+		s.log.WarnContext(ctx, "Failed to start database health checker",
+			"db", database.GetName(),
+			"error", err,
+		)
+	}
 	// For cloud-hosted databases (RDS, Redshift, GCP), try to automatically
 	// download a CA certificate.
 	// TODO(r0mant): This should ideally become a part of cloud metadata service.
@@ -541,16 +566,29 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 }
 
 // stopDatabase uninitializes the database with the specified name.
-func (s *Server) stopDatabase(ctx context.Context, name string) error {
+func (s *Server) stopDatabase(ctx context.Context, db types.Database) error {
 	// Stop database object importer.
-	if err := s.cfg.DatabaseObjects.StopImporter(name); err != nil {
-		s.log.WarnContext(ctx, "Failed to stop database object importer.", "db", name, "error", err)
+	if err := s.cfg.DatabaseObjects.StopImporter(db.GetName()); err != nil {
+		s.log.WarnContext(ctx, "Failed to stop database object importer.",
+			"db", db,
+			"error", err,
+		)
 	}
-	s.stopDynamicLabels(name)
-	if err := s.stopHeartbeat(name); err != nil {
+	s.stopDynamicLabels(db.GetName())
+	if err := s.stopHeartbeat(db.GetName()); err != nil {
 		return trace.Wrap(err)
 	}
-	s.log.DebugContext(ctx, "Stopped database.", "db", name)
+
+	if err := s.stopHealthCheck(db); err != nil {
+		if !trace.IsNotFound(err) {
+			s.log.WarnContext(ctx, "Failed to stop database health checker.",
+				"db", db,
+				"error", err,
+			)
+		}
+	}
+
+	s.log.DebugContext(ctx, "Stopped database.", "db", db)
 	return nil
 }
 
@@ -611,7 +649,7 @@ func (s *Server) stopDynamicLabels(name string) {
 func (s *Server) registerDatabase(ctx context.Context, database types.Database) error {
 	if err := s.startDatabase(ctx, database); err != nil {
 		// Cleanup in case database was initialized only partially.
-		if errStop := s.stopDatabase(ctx, database.GetName()); errStop != nil {
+		if errStop := s.stopDatabase(ctx, database); errStop != nil {
 			return trace.NewAggregate(err, errStop)
 		}
 		return trace.Wrap(err)
@@ -625,7 +663,7 @@ func (s *Server) registerDatabase(ctx context.Context, database types.Database) 
 // updateDatabase updates database that is already registered.
 func (s *Server) updateDatabase(ctx context.Context, database types.Database) error {
 	// Stop heartbeat and dynamic labels before starting new ones.
-	if err := s.stopDatabase(ctx, database.GetName()); err != nil {
+	if err := s.stopDatabase(ctx, database); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := s.registerDatabase(ctx, database); err != nil {
@@ -656,7 +694,7 @@ func (s *Server) unregisterDatabase(ctx context.Context, database types.Database
 // unregisters it from the list of proxied databases.
 func (s *Server) stopProxyingAndDeleteDatabase(ctx context.Context, database types.Database) error {
 	// Stop heartbeat and dynamic labels updates.
-	if err := s.stopDatabase(ctx, database.GetName()); err != nil {
+	if err := s.stopDatabase(ctx, database); err != nil {
 		return trace.Wrap(err)
 	}
 	// Heartbeat is stopped but if we don't remove this database server,
@@ -782,6 +820,7 @@ func (s *Server) getServerInfo(ctx context.Context, database types.Database) (*t
 		Database: copy,
 		ProxyIDs: s.cfg.ConnectedProxyGetter.GetProxyIDs(),
 	})
+	server.SetTargetHealth(s.getTargetHealth(ctx, database))
 	return server, trace.Wrap(err)
 }
 
@@ -799,6 +838,12 @@ func (s *Server) getRotationState() types.Rotation {
 
 // Start starts proxying all server's registered databases.
 func (s *Server) Start(ctx context.Context) (err error) {
+	// Start the health check manager that will be monitoring database
+	// connection health.
+	if err := s.cfg.healthCheckService.Start(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Start IAM service that will be configuring IAM auth for databases.
 	if err := s.cfg.CloudIAM.Start(ctx); err != nil {
 		return trace.Wrap(err)
@@ -1010,6 +1055,8 @@ func (s *Server) close(ctx context.Context) error {
 		s.watcher.Close()
 	}
 
+	s.cfg.healthCheckService.Close()
+
 	// Close all cloud clients.
 	return trace.Wrap(s.cfg.CloudClients.Close())
 }
@@ -1214,16 +1261,18 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 				Clock:      s.cfg.Clock,
 			}
 		},
-		UpdateProxiedDatabase: func(name string, doUpdate func(types.Database) error) error {
-			s.mu.Lock()
-			defer s.mu.Unlock()
-			db, found := s.proxiedDatabases[name]
-			if !found {
-				return trace.NotFound("%q not found among registered databases", name)
-			}
-			return trace.Wrap(doUpdate(db))
-		},
+		UpdateProxiedDatabase: s.updateProxiedDatabase,
 	})
+}
+
+func (s *Server) updateProxiedDatabase(name string, doUpdate func(types.Database) error) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	db, found := s.proxiedDatabases[name]
+	if !found {
+		return trace.NotFound("%q not found among registered databases", name)
+	}
+	return trace.Wrap(doUpdate(db))
 }
 
 func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
@@ -1351,4 +1400,50 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 	}()
 
 	return nil
+}
+
+func (s *Server) startHealthCheck(ctx context.Context, db types.Database) error {
+	if !supportsHealthChecks(db) {
+		return nil
+	}
+	err := s.cfg.healthCheckService.AddTarget(ctx, db, s.getTargetEndpointsResolver(db))
+	return trace.Wrap(err)
+}
+
+func (s *Server) stopHealthCheck(db types.Database) error {
+	if !supportsHealthChecks(db) {
+		return nil
+	}
+	return trace.Wrap(s.cfg.healthCheckService.RemoveTarget(db))
+}
+
+func (s *Server) getTargetHealth(ctx context.Context, db types.Database) types.TargetHealth {
+	if !supportsHealthChecks(db) {
+		return types.TargetHealth{}
+	}
+	health, err := s.cfg.healthCheckService.GetTargetHealth(db)
+	if err != nil {
+		s.log.WarnContext(ctx, "Failed to get database connection health",
+			"db", db.GetName(),
+			"error", err,
+		)
+		return types.TargetHealth{}
+	}
+	return *health
+}
+
+func supportsHealthChecks(db types.Database) bool {
+	switch db.GetProtocol() {
+	case types.DatabaseProtocolPostgreSQL,
+		types.DatabaseProtocolMySQL:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *Server) getTargetEndpointsResolver(db types.Database) healthcheck.EndpointsResolverFunc {
+	return func(ctx context.Context) ([]string, error) {
+		return []string{db.GetURI()}, nil
+	}
 }

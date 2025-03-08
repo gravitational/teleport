@@ -33,6 +33,7 @@ import (
 
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -763,6 +764,47 @@ func init() {
 		}
 		return types.Resource153ToLegacy(v), nil
 	})
+	// add health_check_config to tctl get all
+	RegisterResourceMarshaler(types.KindHealthCheckConfig, func(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
+		cfg, err := convertResource[*healthcheckconfigv1.HealthCheckConfig](
+			resource,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		bytes, err := MarshalHealthCheckConfig(cfg, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return bytes, nil
+	})
+	// support health_check_config --bootstrap and --apply-on-startup
+	RegisterResourceUnmarshaler(types.KindHealthCheckConfig, func(data []byte, options ...MarshalOption) (types.Resource, error) {
+		cfg, err := UnmarshalHealthCheckConfig(data, options...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(cfg), nil
+	})
+}
+
+// convertResource is a generic helper func that converts a resource by type
+// assertion directly or, as a fallback, unwrapping [types.Resource153Unwrapper]
+// first and then performing the type assertion.
+func convertResource[T any](resource types.Resource) (T, error) {
+	var zero T
+	switch resource := resource.(type) {
+	case T:
+		return resource, nil
+	case types.Resource153Unwrapper:
+		unwrapped := resource.Unwrap()
+		out, ok := unwrapped.(T)
+		if !ok {
+			return zero, trace.BadParameter("expected resource type %T but got %T", zero, unwrapped)
+		}
+		return out, nil
+	}
+	return zero, trace.BadParameter("expected resource type %T but got %T", zero, resource)
 }
 
 // CheckAndSetDefaults calls [r.CheckAndSetDefaults] if r implements the method.

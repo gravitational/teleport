@@ -2675,6 +2675,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.IdentityCenter = services.IdentityCenter
 	cfg.PluginStaticCredentials = services.PluginStaticCredentials
 	cfg.GitServers = services.GitServers
+	cfg.HealthCheckConfig = services.HealthCheckConfig
 
 	return accesspoint.NewCache(cfg)
 }
@@ -2722,6 +2723,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.DynamicWindowsDesktops = client.DynamicDesktopClient()
 	cfg.AutoUpdateService = client
 	cfg.GitServers = client.GitServerClient()
+	cfg.HealthCheckConfig = client
 
 	return accesspoint.NewCache(cfg)
 }

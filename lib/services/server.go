@@ -247,6 +247,13 @@ func compareDatabaseServers(a, b types.DatabaseServer) int {
 	if !slices.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
 		return Different
 	}
+	// TODO(gavin)(healthcheck): nopush compare target health once we have rate limits.
+	healthA := a.GetTargetHealth()
+	healthB := b.GetTargetHealth()
+	if !healthA.IsEqual(&healthB) {
+		return Different
+	}
+
 	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent

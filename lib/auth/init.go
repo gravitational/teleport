@@ -47,6 +47,7 @@ import (
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
+	healthcheckconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
@@ -610,6 +611,12 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 			asrv.logger.WarnContext(ctx, "error creating preset database object import rules", "error", err)
 		}
 		span.AddEvent("completed creating database object import rules")
+
+		span.AddEvent("creating preset health check config")
+		if err := createPresetHealthCheckConfig(ctx, asrv); err != nil {
+			return trace.Wrap(err)
+		}
+		span.AddEvent("completed creating preset health check config")
 	} else {
 		asrv.logger.InfoContext(ctx, "skipping preset role and user creation")
 	}
@@ -1266,6 +1273,20 @@ func createPresetDatabaseObjectImportRule(ctx context.Context, rules services.Da
 	return nil
 }
 
+// createPresetHealthCheckConfig creates a default preset health check config
+// resource that enables health checks on all resources.
+func createPresetHealthCheckConfig(ctx context.Context, svc services.HealthCheckConfig) error {
+	preset := services.NewPresetHealthCheckConfig()
+	_, err := svc.CreateHealthCheckConfig(ctx, preset)
+	if err != nil && !trace.IsAlreadyExists(err) {
+		return trace.Wrap(err,
+			"failed creating preset health_check_config %s",
+			preset.GetMetadata().GetName(),
+		)
+	}
+	return nil
+}
+
 // isFirstStart returns 'true' if the auth server is starting for the 1st time
 // on this server.
 func isFirstStart(ctx context.Context, authServer *Server, cfg InitConfig) (bool, error) {
@@ -1524,6 +1545,8 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 			_, err = autoupdatev1.UpsertAutoUpdateConfig(ctx, service, r)
 		case *autoupdatev1pb.AutoUpdateVersion:
 			_, err = autoupdatev1.UpsertAutoUpdateVersion(ctx, service, r)
+		case *healthcheckconfigv1pb.HealthCheckConfig:
+			_, err = service.UpsertHealthCheckConfig(ctx, r)
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}

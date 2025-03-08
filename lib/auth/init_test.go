@@ -41,11 +41,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/durationpb"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
+	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/label"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -797,8 +799,14 @@ func TestPresets(t *testing.T) {
 		err := createPresetRoles(ctx, as)
 		require.NoError(t, err)
 
+		err = createPresetHealthCheckConfig(ctx, as)
+		require.NoError(t, err)
+
 		// Second call should not fail
 		err = createPresetRoles(ctx, as)
+		require.NoError(t, err)
+
+		err = createPresetHealthCheckConfig(ctx, as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -806,6 +814,10 @@ func TestPresets(t *testing.T) {
 			_, err := as.GetRole(ctx, role)
 			require.NoError(t, err)
 		}
+
+		cfg, err := as.GetHealthCheckConfig(ctx, teleport.PresetDefaultHealthCheckConfigName)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
 	})
 
 	// Makes sure that existing role with the same name is not modified
@@ -831,6 +843,26 @@ func TestPresets(t *testing.T) {
 		out, err := as.GetRole(ctx, access.GetName())
 		require.NoError(t, err)
 		require.Equal(t, access.GetLogins(types.Allow), out.GetLogins(types.Allow))
+	})
+
+	t.Run("ExistingHealthCheckConfig", func(t *testing.T) {
+		as := newTestAuthServer(ctx, t)
+		clock := clockwork.NewFakeClock()
+		as.SetClock(clock)
+
+		// an existing health check config should not be modified by init
+		cfg := services.NewPresetHealthCheckConfig()
+		cfg.Spec.Interval = durationpb.New(42 * time.Second)
+		cfg, err := as.CreateHealthCheckConfig(ctx, cfg)
+		require.NoError(t, err)
+
+		err = createPresetHealthCheckConfig(ctx, as)
+		require.NoError(t, err)
+
+		// Preset was created. Ensure it didn't overwrite the existing config
+		got, err := as.GetHealthCheckConfig(ctx, cfg.GetMetadata().GetName())
+		require.NoError(t, err)
+		require.Equal(t, cfg.Spec.Interval.AsDuration(), got.Spec.Interval.AsDuration())
 	})
 
 	// If a default allow condition is not present, ensure it gets added.
@@ -1471,6 +1503,18 @@ spec:
   type: saml_idp
 sub_kind: saml_idp
 version: v2`
+	healthCheckConfigYAML = `kind: health_check_config
+metadata:
+  name: valid
+  revision: c1159783-930e-4a79-bb19-0d0d866d7af6
+spec:
+  enabled: true
+  match:
+    db_labels:
+    - name: "*"
+      values:
+      - "*"
+version: v1`
 )
 
 func TestInit_bootstrap(t *testing.T) {
@@ -1499,6 +1543,15 @@ func TestInit_bootstrap(t *testing.T) {
 	invalidSAMLCA := resourceFromYAML(t, samlCAYAML).(types.CertAuthority)
 	invalidSAMLCA.(*types.CertAuthorityV2).Spec.ActiveKeys.TLS = nil
 
+	newHealthCfg := func(t *testing.T, opts ...func(*healthcheckconfigv1.HealthCheckConfig)) types.Resource {
+		r := resourceFromYAML(t, healthCheckConfigYAML)
+		for _, opt := range opts {
+			inner := r.(types.Resource153Unwrapper).Unwrap().(*healthcheckconfigv1.HealthCheckConfig)
+			opt(inner)
+		}
+		return r
+	}
+
 	tests := []struct {
 		name         string
 		modifyConfig func(*InitConfig)
@@ -1520,6 +1573,28 @@ func TestInit_bootstrap(t *testing.T) {
 				)
 			},
 			assertError: require.NoError,
+		},
+		{
+			name: "OK bootstrap health check config",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.BootstrapResources = append(
+					cfg.BootstrapResources,
+					newHealthCfg(t),
+				)
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "NOK bootstrap health check config missing matchers",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.BootstrapResources = append(
+					cfg.BootstrapResources,
+					newHealthCfg(t, func(hcc *healthcheckconfigv1.HealthCheckConfig) {
+						hcc.Spec.Match = nil
+					}),
+				)
+			},
+			assertError: require.Error,
 		},
 		{
 			name: "NOK bootstrap Host CA missing keys",
