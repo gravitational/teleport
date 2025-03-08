@@ -269,6 +269,10 @@ function getLoginItemListContent(
               href={url}
               target="_blank"
               title={login ? login : url}
+              /* onClick only serves to close the menu item on click. */
+              onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
+                onClick(e, url);
+              }}
             >
               {login ? login : url}
             </StyledMenuItem>
