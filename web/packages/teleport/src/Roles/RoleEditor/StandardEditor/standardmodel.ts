@@ -663,7 +663,7 @@ function roleConditionsToModel(
     // GitHub organization access
     github_permissions,
 
-    // Access rules
+    // Admin rules
     rules,
 
     ...unsupported

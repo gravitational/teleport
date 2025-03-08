@@ -28,7 +28,7 @@ import { useValidation } from 'shared/components/Validation';
 import { Role, RoleWithYaml } from 'teleport/services/resources';
 
 import { ActionButtonsContainer, SaveButton } from '../Shared';
-import { AccessRules } from './AccessRules';
+import { AdminRules } from './AdminRules';
 import { MetadataSection } from './MetadataSection';
 import { Options } from './Options';
 import { RequiresResetToStandard } from './RequiresResetToStandard';
@@ -65,7 +65,7 @@ export const StandardEditor = ({
   enum StandardEditorTab {
     Overview,
     Resources,
-    AccessRules,
+    AdminRules,
     Options,
   }
 
@@ -114,7 +114,7 @@ export const StandardEditor = ({
     [setCurrentTab, currentTab]
   );
 
-  const tabTitles = ['Overview', 'Resources', 'Access Rules', 'Options'];
+  const tabTitles = ['Overview', 'Resources', 'Admin Rules', 'Options'];
   const tabElementIDs = [
     `${idPrefix}-overview`,
     `${idPrefix}-resources`,
@@ -161,7 +161,7 @@ export const StandardEditor = ({
                   validationResult.resources.some(s => !s.valid)
               ),
               tabSpec(
-                StandardEditorTab.AccessRules,
+                StandardEditorTab.AdminRules,
                 validator.state.validating &&
                   validationResult.rules.some(s => !s.valid)
               ),
@@ -209,13 +209,13 @@ export const StandardEditor = ({
             />
           </Box>
           <Box
-            id={tabElementIDs[StandardEditorTab.AccessRules]}
+            id={tabElementIDs[StandardEditorTab.AdminRules]}
             style={{
               display:
-                currentTab === StandardEditorTab.AccessRules ? '' : 'none',
+                currentTab === StandardEditorTab.AdminRules ? '' : 'none',
             }}
           >
-            <AccessRules
+            <AdminRules
               isProcessing={isProcessing}
               value={roleModel.rules}
               dispatch={dispatch}
