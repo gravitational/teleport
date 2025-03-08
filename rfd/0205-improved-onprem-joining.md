@@ -3,7 +3,7 @@ authors: Tim Buckley (<tim@goteleport.com>)
 state: draft
 ---
 
-# RFD 0205 - Improved On-Prem Bots With `bound-keypair` Joining
+# RFD 0205 - Improved On-Prem Bots with Bound Keypair Joining
 
 ## Required Approvers
 
@@ -70,6 +70,13 @@ joining was really a *good* experience, effectively just:
   bots since it'll rapidly reschedule any bot deployments that fail... but we
   have a dedicated `kubernetes` delegated join method.)
 
+In short, token joining has a complexity cliff. It's extremely easy to get
+started, but it can feel like a false start when users learn token joining is
+not suitable to their production use case. At best it's back to the docs to
+learn about some more complicated join method; at worst, it's even more
+disappointing when users learn there simply is _no_ good method for on-prem
+joining. (Well, unless they have TPMs.)
+
 End users willing to create their own automation around token issuance could
 work around some of these limitations, but this creates an unnecessary barrier
 to entry for use of Machine ID on-prem.
@@ -87,13 +94,15 @@ create several issues:
 - The initial joining secret would have an ambiguous lifetime. At what point
   does this multi-use token expire?
 
-- How many bots will join?
+- How many times will the token be used? Can we trust it's never been used
+  improperly, and that each use actually originated from the infrastructure we
+  intended to join?
 
-- How can we tell joined bots apart? Can we trust a bot identity if it can be
-  thrown away and regenerated?
+- How can we tell joined bots apart, even over time? If the original joining
+  token is still valid, could a malicious bot purge its identity and rejoin?
 
-- When a bot needs to rejoin, does it use the same token? Can that token *ever*
-  expire?
+- When a bot needs to rejoin, does it use the same token? If so, can that token
+  *ever* expire?
 
 With this in mind, we need to strike some balance between effective UX and a
 system we can trust to not allow unauthorized or unintended access. To that end,
@@ -121,8 +130,6 @@ making minimal security concessions:
   reuse of the bot identity.
 
 ### Bound Keypair Joining
-
-TODO: Consider alternative join method names?
 
 We believe a new join method, `bound-keypair`, can meet our needs and provide
 significantly more flexibility than today's `token` join method. This works by -
@@ -167,11 +174,20 @@ This has several important differences to existing join methods:
   The failed `tbot` instance can then retry the joining process, and it will
   succeed.
 
-It otherwise functions similarly to `token`-joined bots today. It proves its
-identity - either via an onboarding secret or public key - to receive a
-renewable identity and renews it as usual for as long as possible. The
-generation counter is still used to detect identity reuse. When the internal
-identity expires, the bot loses access to resources (until it reauthenticates).
+It otherwise functions similarly to `token`-joined bots today:
+
+- It is still fully infrastructure agnostic and works across operating systems.
+
+- The joining UX is largely compatible with `token` joining and should still
+  work great for experimentation and documentation examples.
+
+- It proves its identity - either via an onboarding secret or public key - to
+  receive a renewable identity and renews it as usual for as long as possible.
+
+- When the internal identity expires, the bot loses access to resources until it
+  reauthenticates.
+
+- The generation counter is still used to detect identity reuse.
 
 #### Joining UX Flows
 
@@ -222,6 +238,10 @@ We expect most users to use Flow 2: it's much easier to provision new nodes and
 requires less back-and-forth between the admin's workstation and bot node. Flow
 1 is particularly ill-suited to Terraform use since keypairs would need to be
 pregenerated and copied to nodes, which is not ideal from a security PoV.
+
+Flow 2 is also mostly equivalent to `token` joining. Current users will already
+be conceptually familiar with the joining process, and documentation updates
+will be minimal.
 
 #### Token Resource Example
 
@@ -390,10 +410,30 @@ TODO: This needs significant further elaboration and feedback.
 
 #### Client-Side Changes in `tbot`
 
-Bots should be informed of their number of remaining rejoins. We can give bots
-permission to view their own join token, or include the number of remaining
-rejoins as an informational field in the bot's current user certificate. We
-should then expose this as a Prometheus metric to allow for alerting if a bot
+Bots should be informed of their number of remaining rejoins. There's a few
+methods by which we could inform bots of their remaining rejoins:
+
+1. (Recommended) Heartbeats: bots submit heartbeats at startup and on a regular
+   interval. It would be trivial to include a remaining rejoin counter in the
+   (currently empty) heartbeat response.
+
+2. Certificate field: we could include the number of remaining rejoins in a
+   certificate field.
+
+3. New RPC: we could add a new RPC for bots to fetch this, alongside any other
+   potentially useful information.
+
+4. We could grant bots permission to view their own join tokens. There is
+   precedent here as bots can view e.g. their own roles without explicitly
+   having RBAC permissions to do so.
+
+The remaining rejoin counter should then be exposed as a Prometheus metric to
+allow for alerting if a bot drops below some threshold.
+
+Importantly, this is a potentially lagging indicator. The design allows for the
+rejoin counter to be decreased (to zero) at any time, so a rejoin attempt may
+still fail at any time. This should be acceptable since it can also be increased
+after the fact to restore access if desired.
 
 #### Keystore Storage Backends
 
@@ -580,7 +620,7 @@ URI to get started immediately.
 URL paths and query parameters may also provide options for future extension if
 desired.
 
-## Alternatives and Future Extensions
+## Future Extensions and Alternatives
 
 ### Agent Joining Support
 
@@ -631,6 +671,44 @@ accept an ordered list of joining token strings which could be used
 sequentially. If the internal identity expires, the next token in the list will
 be used to attempt a rejoin.
 
+This may be interesting for users with workload-critical bots wishing to hedge
+against in outage in a delegated join method's IdP. With Workload ID being used
+to authenticate e.g. database connections, this might be a worthwhile future
+addition.
+
+### Alternative: State in Bot Instances
+
+We could alternatively store state in bot instances, rather than the token
+resource.
+
+To some extent this better matches current Teleport behavior today. Bot instance
+resources already manage quite a bit of backend state and track recent
+authentications, and there isn't much precedent for state to be actively managed
+in provision tokens themselves.
+
+On the other hand, bot instances are created automatically and are not generally
+edited by user - though there's no compelling reason this can't be the case.
+
+In practice, the best argument for keeping state in the provision token is
+probably that we may wish to enable node joining with this method in the future.
+
 ## Rejected Alternatives
 
 ### N-Token Resiliency
+
+This alternative built on top of the existing `token` join method by providing
+bots with additional secrets they could use if their identity expired. Users
+could select their desired level of resiliency by selecting the number of backup
+tokens a bot would receive, thus the name.
+
+This idea still has some merit but we realized this can largely be simplified
+into the bind-on-join flow described above. Multiple secrets mainly served to
+constrain credential reuse by limiting the number of possible rejoins until a
+human has to take some action.
+
+Bound keypair joining replaces the secrets with a rejoin counter, and allows for
+(among other things) resuscitation of dead bots since their credentials remain
+available even once expired.
+
+A lighter weight alternative here could be client-side multi-token support as
+described in the alternatives above.
