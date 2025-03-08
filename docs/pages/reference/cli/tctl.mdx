@@ -2065,9 +2065,9 @@ $ tctl plugins install awsic <flags>
 | - | - | - | - |
 | `--access-list-default-owner` | none | Teleport username | A Teleport user to set as the default owner for the imported Access Lists. Multiple flags allowed. |
 | `--scim-url` | none | URL | AWS Identity Center SCIM provisioning endpoint. Must be a valid AWS Identity Center SCIM endpoint URL, as per [this AWS Knowledge Center article](https://repost.aws/knowledge-center/iam-identity-center-provision). |
-| `--[no]force-scim-url` |  `--no-force-scim-url` | none | Force the use provided SCIM provisioning endpoint even if it fails SCIM endpoint validation. |
+| `--[no]force-scim-url` |  `--no-force-scim-url` | none | Force the use of the provided SCIM provisioning endpoint even if it fails SCIM endpoint validation. |
 | `--scim-token` | none | text | The AWS Identify Center SCIM provisioning access bearer token. |
-| `--instance-arn` | none | ARN | The ARN of the Identity Center instance to manage |
+| `--instance-arn` | none | ARN | The ARN of the Identity Center instance to manage. |
 | `--instance-region` | none | text | The AWS region where the Identity Center instance is located. |
 | `--[no-]use-system-credentials` | `--no-use-system-credentials` | none | Use system AWS credentials to authenticate with AWS. Note that currently only `--use-system-credentials` is supported by `tctl`. |
 | `--user-label` | none | text | Add user label filter, in the form of a comma-separated list of "name=value" pairs. All matching users will be provisioned to AWS Identity Center. If no label filters are supplied, *all* Teleport users will be provisioned to Identity Center. Multiple filters allowed. |
@@ -2108,7 +2108,7 @@ then they will be provisioned into AWS Identity Center by Teleport.
 
 ## tctl plugins install okta
 
-Install the Okta integration
+Install the Okta integration.
 
 ### Flags
 
