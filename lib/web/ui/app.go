@@ -72,8 +72,8 @@ type App struct {
 	// PermissionSets holds the permission sets that this app grants access to.
 	// Only valid for Identity Center Account apps
 	PermissionSets []IdentityCenterPermissionSet `json:"permissionSets,omitempty"`
-	// SAMLAppLaunchURLs is a list of service provider specific authenticaiton endpoints
-	// configured for the SAML app.
+	// SAMLAppLaunchURLs contains service provider specific authentication
+	// endpoints where user should be launched to start SAML authentication.
 	SAMLAppLaunchURLs []SAMLAppLaunchURL `json:"samlAppLaunchUrls,omitempty"`
 }
 
@@ -289,8 +289,8 @@ func MakeApps(c MakeAppsConfig) []App {
 	return result
 }
 
-// SAMLAppLaunchURLs is a list of service provider specific authenticaiton endpoints
-// configured for the SAML app.
+// SAMLAppLaunchURLs contains service provider specific authentication
+// endpoints where user should be launched to start SAML authentication.
 type SAMLAppLaunchURL struct {
 	// Friendly name of the URL.
 	FriendlyName string `json:"friendlyName"`
