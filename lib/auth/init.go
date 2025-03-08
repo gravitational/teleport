@@ -355,6 +355,9 @@ type InitConfig struct {
 
 	// StableUNIXUsers handles the storage for stable UNIX users.
 	StableUNIXUsers services.StableUNIXUsersInternal
+
+	// HealthCheckConfig manages health check config resources.
+	HealthCheckConfig services.HealthCheckConfig
 }
 
 // Init instantiates and configures an instance of AuthServer
