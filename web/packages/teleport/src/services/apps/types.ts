@@ -59,7 +59,7 @@ export interface App {
    */
   permissionSets?: PermissionSet[];
   /**
-   * SamlAppLaunchUrl contains service provider specific authenticaiton
+   * SamlAppLaunchUrl contains service provider specific authentication
    * endpoints where user should be launched to start SAML authentication.
    */
   samlAppLaunchUrls?: SamlAppLaunchUrl[];
@@ -89,7 +89,7 @@ export type PermissionSet = {
 };
 
 /**
- * SamlAppLaunchUrl contains service provider specific authenticaiton
+ * SamlAppLaunchUrl contains service provider specific authentication
  * endpoint where user should be launched to start SAML authentication.
  */
 export type SamlAppLaunchUrl = {
