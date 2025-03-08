@@ -435,7 +435,7 @@ function makeSamlAppLoginWithMenuButton(
         <MenuLoginWithActionMenu
           getLoginItems={() => makeSamlAppLoginOptions(launchUrls)}
           width="100px"
-          onSelect={undefined} // login item rendered as <a> link for saml apps.
+          onSelect={() => {}} // login item rendered as <a> link for saml apps.
           buttonText="Log In"
           size="small"
           disableSearchAndFilter={true}
@@ -489,7 +489,7 @@ function makeSamlAppLoginButton(
         <MenuLogin
           width="100px"
           inputType={MenuInputType.FILTER}
-          onSelect={undefined} // login item rendered as <a> link for saml apps.
+          onSelect={() => {}} // login item rendered as <a> link for saml apps.
           textTransform="none"
           alignButtonWidthToMenu
           getLoginItems={() => makeSamlAppLoginOptions(launchUrls)}
