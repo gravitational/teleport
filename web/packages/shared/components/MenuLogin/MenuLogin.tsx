@@ -25,7 +25,7 @@ import React, {
 import { NavLink } from 'react-router-dom';
 import styled from 'styled-components';
 
-import { ButtonBorder, Flex, Indicator } from 'design';
+import { ButtonBorder, Flex, Indicator, Text } from 'design';
 import { ChevronDown } from 'design/Icon';
 import Menu, { MenuItem } from 'design/Menu';
 import { space, SpaceProps } from 'design/system';
@@ -48,6 +48,9 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
       inputType = MenuInputType.INPUT,
       required = true,
       width,
+      disableSearchAndFilter,
+      launchExternalUrl,
+      style,
     } = props;
     const [filter, setFilter] = useState('');
     const anchorRef = useRef<HTMLButtonElement>();
@@ -131,6 +134,7 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
           size="small"
           setRef={anchorRef}
           onClick={onOpen}
+          style={style}
         >
           {props.buttonText || 'Connect'}
           <ChevronDown ml={1} size="small" color="text.slightlyMuted" />
@@ -154,6 +158,8 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
             onClick={onItemClick}
             placeholder={placeholder}
             width={width}
+            disableSearchAndFilter={disableSearchAndFilter}
+            launchExternalUrl={launchExternalUrl}
           />
         </Menu>
       </React.Fragment>
@@ -169,6 +175,8 @@ const LoginItemList = ({
   items,
   placeholder,
   width,
+  disableSearchAndFilter,
+  launchExternalUrl,
 }: {
   getLoginItemsAttempt: Attempt<LoginItem[]>;
   items: LoginItem[];
@@ -177,28 +185,50 @@ const LoginItemList = ({
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   placeholder: string;
   width?: string;
+  disableSearchAndFilter: boolean;
+  launchExternalUrl: boolean;
 }) => {
-  const content = getLoginItemListContent(items, getLoginItemsAttempt, onClick);
+  const content = getLoginItemListContent(
+    items,
+    getLoginItemsAttempt,
+    onClick,
+    launchExternalUrl
+  );
 
   return (
     <Flex flexDirection="column" minWidth={width}>
-      <Input
-        p="2"
-        m="2"
-        // this prevents safari from adding the autofill options which would cover the available logins and make it
-        // impossible to select. "But why would it do that? this isn't a username or password field?".
-        // Safari includes parsed words in the placeholder as well to determine if that autofill should show.
-        // Since our placeholder has the word "login" in it, it thinks its a login form.
-        // https://github.com/gravitational/teleport/pull/31600
-        // https://stackoverflow.com/questions/22661977/disabling-safari-autofill-on-usernames-and-passwords
-        name="notsearch_password"
-        onKeyPress={onKeyPress}
-        onChange={onChange}
-        type="text"
-        autoFocus
-        placeholder={placeholder}
-        autoComplete="off"
-      />
+      {disableSearchAndFilter ? (
+        /* css and margin value matched with AWS Launch button <RoleItemList> */
+        <Text
+          px="2"
+          mb={2}
+          typography="body3"
+          css={`
+            color: ${props => props.theme.colors.text.main};
+            background: ${props => props.theme.colors.spotBackground[2]};
+          `}
+        >
+          {placeholder}
+        </Text>
+      ) : (
+        <Input
+          p="2"
+          m="2"
+          // this prevents safari from adding the autofill options which would cover the available logins and make it
+          // impossible to select. "But why would it do that? this isn't a username or password field?".
+          // Safari includes parsed words in the placeholder as well to determine if that autofill should show.
+          // Since our placeholder has the word "login" in it, it thinks its a login form.
+          // https://github.com/gravitational/teleport/pull/31600
+          // https://stackoverflow.com/questions/22661977/disabling-safari-autofill-on-usernames-and-passwords
+          name="notsearch_password"
+          onKeyPress={onKeyPress}
+          onChange={onChange}
+          type="text"
+          autoFocus
+          placeholder={placeholder}
+          autoComplete="off"
+        />
+      )}
       {content}
     </Flex>
   );
@@ -207,7 +237,8 @@ const LoginItemList = ({
 function getLoginItemListContent(
   items: LoginItem[],
   getLoginItemsAttempt: Attempt<LoginItem[]>,
-  onClick: (e: React.MouseEvent<HTMLAnchorElement>, login: string) => void
+  onClick: (e: React.MouseEvent<HTMLAnchorElement>, login: string) => void,
+  launchExternalUrl: boolean
 ) {
   switch (getLoginItemsAttempt.status) {
     case '':
@@ -228,6 +259,25 @@ function getLoginItemListContent(
     case 'success':
       return items.map((item, key) => {
         const { login, url } = item;
+        if (launchExternalUrl) {
+          return (
+            <StyledMenuItem
+              key={key}
+              as="a"
+              px="2"
+              mx="2"
+              href={url}
+              target="_blank"
+              title={login ? login : url}
+              /* onClick only serves to close the menu item on click. */
+              onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
+                onClick(e, url);
+              }}
+            >
+              {login ? login : url}
+            </StyledMenuItem>
+          );
+        }
         return (
           <StyledMenuItem
             key={key}
@@ -259,6 +309,11 @@ const StyledMenuItem = styled(MenuItem)(
   font-size: 12px;
   border-bottom: 1px solid ${theme.colors.spotBackground[0]};
   min-height: 32px;
+  display: inline-block;
+  max-width: 450px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 
   &:last-child {
     border-bottom: none;
