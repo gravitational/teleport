@@ -22,10 +22,7 @@ This is the recommended way to configure Teleport access to MemoryDB.
             "Sid": "MemoryDBConnect",
             "Effect": "Allow",
             "Action": "memorydb:Connect",
-            "Resource": [
-                "arn:aws:memorydb:<Var name="us-east-2"/>:<Var name="aws-account-id"/>:cluster:<Var name="cluster-name"/>",
-                "arn:aws:memorydb:<Var name="us-east-2"/>:<Var name="aws-account-id"/>:user:*"
-            ]
+            "Resource": "*"
         }
     ]
 }
@@ -36,6 +33,15 @@ This is the recommended way to configure Teleport access to MemoryDB.
 |`MemoryDBFetchMetadata` | Automatically import AWS tags as database labels or find missing information such as the database's AWS region. |
 |`MemoryDBDescribeUsers` | Determine whether a user is compatible with IAM authentication. |
 |`MemoryDBConnect` | Connect using IAM authentication. |
+
+You can reduce the scope of the `MemoryDBConnect` statement by updating it to
+only allow specific MemoryDB clusters and IAM users. The resource ARN you can
+specify has the following formats:
+
+```code
+arn:aws:memorydb:{Region}:{AccountID}:cluster:{ClusterName}
+arn:aws:memorydb:{Region}:{AccountID}:user:{UserName}
+```
 
 See
 [Authenticating with IAM for

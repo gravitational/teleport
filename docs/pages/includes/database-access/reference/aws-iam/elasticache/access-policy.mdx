@@ -22,10 +22,7 @@ This is the recommended way to configure Teleport access to ElastiCache.
             "Sid": "ElastiCacheConnect",
             "Effect": "Allow",
             "Action": "elasticache:Connect",
-            "Resource": [
-                "arn:aws:elasticache:<Var name="us-east-2"/>:<Var name="aws-account-id"/>:replicationgroup:<Var name="replication-group"/>",
-                "arn:aws:elasticache:<Var name="us-east-2"/>:<Var name="aws-account-id"/>:user:*"
-            ]
+            "Resource": "*"
         }
     ]
 }
@@ -36,6 +33,15 @@ This is the recommended way to configure Teleport access to ElastiCache.
 |`ElastiCacheFetchMetadata` | Automatically import AWS tags as database labels or find missing information such as the database's AWS region. |
 |`ElastiCacheDescribeUsers` | Determine whether a user is compatible with IAM authentication. |
 |`ElastiCacheConnect` | Connect using IAM authentication. |
+
+You can reduce the scope of the `ElastiCacheConnect` statement by updating it to
+only allow specific ElastiCache clusters and IAM users. The resource ARN you can
+specify has the following formats:
+
+```code
+arn:aws:elasticache:{Region}:{AccountID}:replicationgroup:{ReplicationGroup}
+arn:aws:elasticache:{Region}:{AccountID}:user:{UserName}
+```
 
 See
 [Authenticating with IAM for
