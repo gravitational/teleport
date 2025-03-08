@@ -5665,6 +5665,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	healthCheckConfigSvc, err := healthcheckconfigv1.NewService(healthcheckconfigv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services.HealthCheckConfig,
+		Cache:      cfg.AuthServer.Cache,
 		Emitter:    cfg.Emitter,
 	})
 	if err != nil {
