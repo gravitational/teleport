@@ -62,6 +62,7 @@ export const MenuLoginWithActionMenu = ({
   size = 'medium',
   placeholder,
   disableSearchAndFilter,
+  launchExternalUrl,
 }: {
   buttonText: string;
   onSelect: (e: React.SyntheticEvent, login: string) => void;
@@ -71,6 +72,7 @@ export const MenuLoginWithActionMenu = ({
   size?: ButtonSize;
   placeholder?: string;
   disableSearchAndFilter?: boolean;
+  launchExternalUrl?: boolean;
 }) => {
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -94,6 +96,7 @@ export const MenuLoginWithActionMenu = ({
         style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
         buttonText={buttonText}
         disableSearchAndFilter={disableSearchAndFilter}
+        launchExternalUrl={launchExternalUrl}
         placeholder={placeholder}
       />
       <ButtonBorder

@@ -49,6 +49,7 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
       required = true,
       width,
       disableSearchAndFilter,
+      launchExternalUrl,
       style,
     } = props;
     const [filter, setFilter] = useState('');
@@ -158,6 +159,7 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
             placeholder={placeholder}
             width={width}
             disableSearchAndFilter={disableSearchAndFilter}
+            launchExternalUrl={launchExternalUrl}
           />
         </Menu>
       </React.Fragment>
@@ -174,6 +176,7 @@ const LoginItemList = ({
   placeholder,
   width,
   disableSearchAndFilter,
+  launchExternalUrl,
 }: {
   getLoginItemsAttempt: Attempt<LoginItem[]>;
   items: LoginItem[];
@@ -183,8 +186,14 @@ const LoginItemList = ({
   placeholder: string;
   width?: string;
   disableSearchAndFilter: boolean;
+  launchExternalUrl: boolean;
 }) => {
-  const content = getLoginItemListContent(items, getLoginItemsAttempt, onClick);
+  const content = getLoginItemListContent(
+    items,
+    getLoginItemsAttempt,
+    onClick,
+    launchExternalUrl
+  );
 
   return (
     <Flex flexDirection="column" minWidth={width}>
@@ -228,7 +237,8 @@ const LoginItemList = ({
 function getLoginItemListContent(
   items: LoginItem[],
   getLoginItemsAttempt: Attempt<LoginItem[]>,
-  onClick: (e: React.MouseEvent<HTMLAnchorElement>, login: string) => void
+  onClick: (e: React.MouseEvent<HTMLAnchorElement>, login: string) => void,
+  launchExternalUrl: boolean
 ) {
   switch (getLoginItemsAttempt.status) {
     case '':
@@ -249,6 +259,21 @@ function getLoginItemListContent(
     case 'success':
       return items.map((item, key) => {
         const { login, url } = item;
+        if (launchExternalUrl) {
+          return (
+            <StyledMenuItem
+              key={key}
+              as="a"
+              px="2"
+              mx="2"
+              href={url}
+              target="_blank"
+              title={login ? login : url}
+            >
+              {login ? login : url}
+            </StyledMenuItem>
+          );
+        }
         return (
           <StyledMenuItem
             key={key}
@@ -260,7 +285,7 @@ function getLoginItemListContent(
               onClick(e, login);
             }}
           >
-            {login || url}
+            {login}
           </StyledMenuItem>
         );
       });
