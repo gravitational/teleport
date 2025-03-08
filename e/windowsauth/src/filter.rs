@@ -6,6 +6,7 @@ use windows::{
     Win32::System::Com::*, Win32::UI::Shell::*,
 };
 
+use crate::crypto::CryptContext;
 use crate::CLSID;
 
 #[implement(ICredentialProviderFilter)]
@@ -51,7 +52,20 @@ impl ICredentialProviderFilter_Impl for Filter_Impl {
                 *pcpcsout = *pcpcsin;
                 return Err(E_FAIL.into());
             }
-            // logon.Pin.Buffer is marked as pointer but it really is offset from the start of the
+            // If we can tell that this certificate was issued for an AD login,
+            // then we let Windows handle the login instead of attempting to
+            // process it.
+            let mut ctx = CryptContext::new().map_err(|_| E_FAIL)?;
+            if ctx.ad_desktop().map_err(|e| {
+                error!("Could not determine login type: {:?}", e);
+                E_FAIL
+            })? {
+                debug!("AD request, skipping redirection to Teleport Authentication Package");
+                *pcpcsout = *pcpcsin;
+                return Err(E_FAIL.into());
+            }
+
+            // logon.Pin.Buffer is marked as pointer, but it really is offset from the start of the
             // cpcsin.rgbSerialization structure, we have to calculate real pointer by hand
             let pin: *const u8 =
                 ptr::addr_of!(*cpcsin.rgbSerialization).add(logon.Pin.Buffer.as_ptr() as _);

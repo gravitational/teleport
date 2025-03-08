@@ -29,8 +29,8 @@ fn dispatch_table() -> LSA_SECPKG_FUNCTION_TABLE {
     unsafe { *DISPATCH_TABLE.load(Ordering::SeqCst) }
 }
 
-/// allocate_lsa_heap_size allocates memory using [`AllocateLsaHeap`] function. 
-/// It's used in most places where we need to return data to LSA. If used in such context 
+/// allocate_lsa_heap_size allocates memory using [`AllocateLsaHeap`] function.
+/// It's used in most places where we need to return data to LSA. If used in such context
 /// the LSA will be responsible for freeing memory, and we must not use FreeLsaHeap.
 ///
 /// [`AllocateLsaHeap`]: https://learn.microsoft.com/en-us/windows/win32/api/ntsecpkg/nc-ntsecpkg-lsa_allocate_lsa_heap

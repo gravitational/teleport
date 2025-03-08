@@ -42,6 +42,7 @@ const SMART_CARD_USAGE_OID: PCSTR = s!("1.3.6.1.4.1.311.20.2.2");
 const CREATE_USER_EXT_OID: PCSTR = s!("1.3.9999.2.16");
 const LICENSE_EXT_OID: PCSTR = s!("1.3.9999.2.14");
 const DESKTOPS_COUNT_EXT_OID: PCSTR = s!("1.3.9999.2.17");
+const AD_EXT_OID: PCSTR = s!("1.3.9999.2.22");
 
 pub enum UserCreation {
     Yes(HashSet<String>),
@@ -119,6 +120,11 @@ impl CryptContext {
             }
         }
         Ok(No)
+    }
+
+    pub fn ad_desktop(&mut self) -> Result<bool> {
+        let cert = self.init_cert()?;
+        Ok(Self::get_extension(cert, AD_EXT_OID).is_some())
     }
 
     pub fn get_license(&mut self) -> Result<LicenseType> {
