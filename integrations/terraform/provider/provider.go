@@ -534,6 +534,7 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_workload_identity":          resourceTeleportWorkloadIdentityType{},
 		"teleport_autoupdate_version":         resourceTeleportAutoUpdateVersionType{},
 		"teleport_autoupdate_config":          resourceTeleportAutoUpdateConfigType{},
+		"teleport_health_check_config":        resourceTeleportHealthCheckConfigType{},
 	}, nil
 }
 
@@ -564,6 +565,7 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_workload_identity":          dataSourceTeleportWorkloadIdentityType{},
 		"teleport_autoupdate_version":         dataSourceTeleportAutoUpdateVersionType{},
 		"teleport_autoupdate_config":          dataSourceTeleportAutoUpdateConfigType{},
+		"teleport_health_check_config":        dataSourceTeleportHealthCheckConfigType{},
 	}, nil
 }
 
