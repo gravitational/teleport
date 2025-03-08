@@ -2083,10 +2083,10 @@ $ tctl plugins install awsic \
     --arn "arn:aws:sso:::instance/ssoins-722326ecc902a06a" \
     --region us-east-1 \
     --use-system-credentials \
-    --url https://scim.us-east-1.amazonaws.com/f3v9c6bc2ca-b104-4571-b669-f2eba522efe8/scim/v2 \
-    --token ${IDENTITY_CENTER_SCIM_BEARER_TOKEN} \
-    --default-owner admin \
-    --default-owner root@example.com \
+    --scim-url https://scim.us-east-1.amazonaws.com/f3v9c6bc2ca-b104-4571-b669-f2eba522efe8/scim/v2 \
+    --scim-token ${IDENTITY_CENTER_SCIM_BEARER_TOKEN} \
+    --access-list-default-owner admin \
+    --access-list-default-owner root@example.com \
     --user-origin okta \
     --user-label "role=aws-admin,dept=engineering" \
     --account-name "^production ap-southeast-\d$" \
