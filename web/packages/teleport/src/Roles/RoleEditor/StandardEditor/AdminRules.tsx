@@ -40,25 +40,25 @@ import {
   RuleModel,
   verbOptions,
 } from './standardmodel';
-import { AccessRuleValidationResult } from './validation';
+import { AdminRuleValidationResult } from './validation';
 
 /**
- * Access rules tab. This component is memoized to optimize performance; make
+ * Admin rules tab. This component is memoized to optimize performance; make
  * sure that the properties don't change unless necessary.
  */
-export const AccessRules = memo(function AccessRules({
+export const AdminRules = memo(function AdminRules({
   value,
   isProcessing,
   validation,
   dispatch,
-}: SectionPropsWithDispatch<RuleModel[], AccessRuleValidationResult[]>) {
+}: SectionPropsWithDispatch<RuleModel[], AdminRuleValidationResult[]>) {
   function addRule() {
     dispatch({ type: 'add-access-rule' });
   }
   return (
     <Flex flexDirection="column" gap={3}>
       {value.map((rule, i) => (
-        <AccessRule
+        <AdminRule
           key={rule.id}
           isProcessing={isProcessing}
           value={rule}
@@ -74,12 +74,12 @@ export const AccessRules = memo(function AccessRules({
   );
 });
 
-const AccessRule = memo(function AccessRule({
+const AdminRule = memo(function AdminRule({
   value,
   isProcessing,
   validation,
   dispatch,
-}: SectionPropsWithDispatch<RuleModel, AccessRuleValidationResult>) {
+}: SectionPropsWithDispatch<RuleModel, AdminRuleValidationResult>) {
   const { id, resources, verbs, where } = value;
   const theme = useTheme();
   function setRule(rule: RuleModel) {
@@ -90,7 +90,7 @@ const AccessRule = memo(function AccessRule({
   }
   return (
     <SectionBox
-      title="Access Rule"
+      title="Admin Rule"
       tooltip="A rule that gives users access to certain kinds of resources"
       removable
       isProcessing={isProcessing}

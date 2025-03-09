@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,23 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package app
+package workloadattest
 
-import (
-	"context"
-
-	"github.com/aws/aws-sdk-go-v2/aws"
-)
-
-// mockCredentialsProvider mocks AWS aws.CredentialsProvider interface.
-type mockCredentialsProvider struct {
-	retrieveValue aws.Credentials
-	retrieveError error
-}
-
-func (m mockCredentialsProvider) Retrieve(_ context.Context) (aws.Credentials, error) {
-	return m.retrieveValue, m.retrieveError
-}
-func (m mockCredentialsProvider) IsExpired() bool {
-	return false
+// SystemdAttestorConfig holds the configuration for the Systemd workload attestor.
+type SystemdAttestorConfig struct {
+	// Enabled determines whether Systemd workload attestation will be performed.
+	Enabled bool `yaml:"enabled"`
 }

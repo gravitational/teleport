@@ -88,7 +88,15 @@ export interface SamlAppAction {
 export const SamlAppActionContext = createContext<SamlAppAction>(null);
 
 export function useSamlAppAction() {
-  return useContext(SamlAppActionContext);
+  const context = useContext(SamlAppActionContext);
+
+  if (!context) {
+    throw new Error(
+      'useSamlAppAction must be used within a SamlAppActionProvider'
+    );
+  }
+
+  return context;
 }
 
 /**

@@ -121,7 +121,7 @@ func (m *STSClient) record(roleARN, externalID string) {
 	}
 }
 
-func newAssumeRoleClientProviderFunc(base *STSClient) awsconfig.STSClientProviderFunc {
+func NewAssumeRoleClientProviderFunc(base *STSClient) awsconfig.STSClientProviderFunc {
 	return func(cfg aws.Config) awsconfig.STSClient {
 		if cfg.Credentials != nil {
 			if _, ok := cfg.Credentials.(*stscreds.AssumeRoleProvider); ok {
