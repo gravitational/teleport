@@ -129,6 +129,10 @@ spec:
   allow:
     #....
   options:
+    # Sets the default shell for auto-provisioned SSH users. An absolute path to a shell or a name
+    # reachable through the system PATH are both valid values. Only applies when
+    # create_host_user_mode is not set to off.
+    create_host_user_default_shell: bash
     # Controls whether this role supports auto provisioning of users.
     # Options: keep (keep users at session end), insecure-drop (remove user on session end),
     #          and off (disable host user creation)
