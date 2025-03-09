@@ -16,14 +16,14 @@ $GOHOME/gravitational/teleport  <-- open source public Teleport repo
 
 ## Binaries
 
-Regular OSS version of `tsh` is used for Enterprise, while `tctl` and
-`teleport` binaries are built differently. Differences:
+The OSS versions of Teleport clients (`tsh`, `tctl`,...) are used for OSS and Enterprise,
+while the Enterprise teleport binary is built differently. Differences:
 
-- `teleport` has different UI
-- `tctl` supports additional commands
+teleport has different UI for Enterprise features
+teleport reports different version string when given version CLI command (`Teleport Enterprise` vs `Teleport`).
 
-Both `teleport` and `tctl` report different version string when given `version`
-CLI command.
+Prior to v16 an Enterprise version of `tctl` was provided. The OSS version includes all enterprise commands with
+v16+.
 
 ## Getting Started
 
