@@ -21,11 +21,10 @@ $ readlink /sbin/init
 
 <Admonition
   type="danger"
-  scope={["oss", "enterprise"]}
 >
 
-  Teleport stores data in `/var/lib/teleport`. Make sure that regular/non-admin
-  users do not have access to this folder on the Auth Service host.
+  Teleport stores data in a data directory defaulted to `/var/lib/teleport`. Make sure that regular/non-admin
+  users do not have access to the data directory used by the `teleport` process.
 
 </Admonition>
 
