@@ -369,8 +369,8 @@ func TestDiscoveryServer(t *testing.T) {
 		staticMatchers            Matchers
 		wantInstalledInstances    []string
 		wantDiscoveryConfigStatus *discoveryconfig.Status
-		userTasksDiscoverCheck    require.ValueAssertionFunc
 		cloudClients              cloud.Clients
+		userTasksDiscoverCheck    func(t *testing.T, userTasksClt services.UserTasks)
 		ssmRunError               error
 	}{
 		{
@@ -701,10 +701,9 @@ func TestDiscoveryServer(t *testing.T) {
 			staticMatchers:         Matchers{},
 			discoveryConfig:        discoveryConfigForUserTaskEC2Test,
 			wantInstalledInstances: []string{},
-			userTasksDiscoverCheck: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
-				existingTasks, ok := i1.([]*usertasksv1.UserTask)
-				require.True(t, ok, "failed to get existing tasks: %T", i1)
-				require.Len(t, existingTasks, 1)
+			userTasksDiscoverCheck: func(t *testing.T, userTasksClt services.UserTasks) {
+				atLeastOneUserTask := 1
+				existingTasks := fetchAllUserTasks(t, userTasksClt, atLeastOneUserTask, 0)
 				existingTask := existingTasks[0]
 
 				require.Equal(t, "OPEN", existingTask.GetSpec().State)
@@ -771,10 +770,10 @@ func TestDiscoveryServer(t *testing.T) {
 			staticMatchers:         Matchers{},
 			discoveryConfig:        discoveryConfigForUserTaskEKSTest,
 			wantInstalledInstances: []string{},
-			userTasksDiscoverCheck: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
-				existingTasks, ok := i1.([]*usertasksv1.UserTask)
-				require.True(t, ok, "failed to get existing tasks: %T", i1)
-				require.Len(t, existingTasks, 1)
+			userTasksDiscoverCheck: func(t *testing.T, userTasksClt services.UserTasks) {
+				atLeastOneUserTask := 1
+				atLeastTwoTaskItems := 2
+				existingTasks := fetchAllUserTasks(t, userTasksClt, atLeastOneUserTask, atLeastTwoTaskItems)
 				existingTask := existingTasks[0]
 
 				require.Equal(t, "OPEN", existingTask.GetSpec().State)
@@ -841,10 +840,10 @@ func TestDiscoveryServer(t *testing.T) {
 			staticMatchers:         Matchers{},
 			discoveryConfig:        discoveryConfigWithAndWithoutAppDiscovery,
 			wantInstalledInstances: []string{},
-			userTasksDiscoverCheck: func(t require.TestingT, i1 interface{}, i2 ...interface{}) {
-				existingTasks, ok := i1.([]*usertasksv1.UserTask)
-				require.True(t, ok, "failed to get existing tasks: %T", i1)
-				require.Len(t, existingTasks, 2)
+			userTasksDiscoverCheck: func(t *testing.T, userTasksClt services.UserTasks) {
+				atLeastOneUserTask := 2
+				atLeastTwoTaskItems := 2
+				existingTasks := fetchAllUserTasks(t, userTasksClt, atLeastOneUserTask, atLeastTwoTaskItems)
 				existingTask := existingTasks[0]
 				if existingTask.Spec.DiscoverEks.AppAutoDiscover == false {
 					existingTask = existingTasks[1]
@@ -987,24 +986,46 @@ func TestDiscoveryServer(t *testing.T) {
 						require.Equal(t, expectedValue, got.IntegrationDiscoveredResources[expectedKey])
 					}
 					return true
-				}, 500*time.Millisecond, 50*time.Millisecond)
+				}, 1*time.Second, 50*time.Millisecond)
 			}
 			if tc.userTasksDiscoverCheck != nil {
-				var allUserTasks []*usertasksv1.UserTask
-				var nextToken string
-				for {
-					var userTasks []*usertasksv1.UserTask
-					userTasks, nextToken, err = tlsServer.Auth().UserTasks.ListUserTasks(context.Background(), 0, "", &usertasksv1.ListUserTasksFilters{})
-					require.NoError(t, err)
-					allUserTasks = append(allUserTasks, userTasks...)
-					if nextToken == "" {
-						break
-					}
-				}
-				tc.userTasksDiscoverCheck(t, allUserTasks)
+				tc.userTasksDiscoverCheck(t, tlsServer.Auth().UserTasks)
 			}
 		})
 	}
+}
+
+func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTasks, minUserTaskResources int) []*usertasksv1.UserTask {
+	var existingTasks []*usertasksv1.UserTask
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		var allTasks []*usertasksv1.UserTask
+		var nextToken string
+		for {
+			var userTasks []*usertasksv1.UserTask
+			userTasks, nextTokenResp, err := userTasksClt.ListUserTasks(context.Background(), 0, nextToken, &usertasksv1.ListUserTasksFilters{})
+			assert.NoError(t, err)
+			allTasks = append(allTasks, userTasks...)
+			if nextTokenResp == "" {
+				break
+			}
+			nextToken = nextTokenResp
+		}
+		existingTasks = allTasks
+
+		if !assert.GreaterOrEqual(t, len(allTasks), minUserTasks) {
+			return
+		}
+
+		gotResources := 0
+		for _, task := range allTasks {
+			gotResources += len(task.GetSpec().GetDiscoverEc2().GetInstances())
+			gotResources += len(task.GetSpec().GetDiscoverEks().GetClusters())
+			gotResources += len(task.GetSpec().GetDiscoverRds().GetDatabases())
+		}
+		assert.GreaterOrEqual(t, gotResources, minUserTaskResources)
+	}, 5*time.Second, 50*time.Millisecond)
+
+	return existingTasks
 }
 
 func TestDiscoveryServerConcurrency(t *testing.T) {

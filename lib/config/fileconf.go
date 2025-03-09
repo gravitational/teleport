@@ -895,6 +895,8 @@ type PKCS11 struct {
 	// Trailing newlines will be removed, other whitespace will be left. Set
 	// this or Pin to set the pin.
 	PINPath string `yaml:"pin_path,omitempty"`
+	// MaxSessions is the upper limit of sessions allowed by the HSM.
+	MaxSessions int `yaml:"max_sessions"`
 }
 
 // GoogleCloudKMS configures Google Cloud Key Management Service to to be used for
