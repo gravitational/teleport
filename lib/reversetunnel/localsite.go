@@ -254,6 +254,10 @@ func shouldDialAndForward(params reversetunnelclient.DialParams, recConfig types
 }
 
 func (s *localSite) Dial(params reversetunnelclient.DialParams) (net.Conn, error) {
+	if params.TargetServer == nil && params.ConnType == types.NodeTunnel {
+		return nil, trace.BadParameter("target server is required for teleport nodes")
+	}
+
 	if params.TargetServer != nil && params.TargetServer.GetKind() == types.KindGitServer {
 		return s.dialAndForwardGit(params)
 	}
@@ -282,7 +286,8 @@ func shouldSendSignedPROXYHeader(signer multiplexer.PROXYHeaderSigner, useTunnel
 }
 
 func (s *localSite) maybeSendSignedPROXYHeader(params reversetunnelclient.DialParams, conn net.Conn, useTunnel bool) error {
-	if !shouldSendSignedPROXYHeader(s.srv.proxySigner, useTunnel, params.IsAgentlessNode, params.From, params.OriginalClientDstAddr) {
+	isAgentless := params.ConnType == types.NodeTunnel && params.TargetServer != nil && params.TargetServer.IsOpenSSHNode()
+	if !shouldSendSignedPROXYHeader(s.srv.proxySigner, useTunnel, isAgentless, params.From, params.OriginalClientDstAddr) {
 		return nil
 	}
 
@@ -404,7 +409,7 @@ func (s *localSite) dialAndForwardGit(params reversetunnelclient.DialParams) (_ 
 func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net.Conn, retErr error) {
 	ctx := s.srv.ctx
 
-	if params.GetUserAgent == nil && !params.IsAgentlessNode {
+	if params.GetUserAgent == nil && !params.TargetServer.IsOpenSSHNode() {
 		return nil, trace.BadParameter("agentless node require an agent getter")
 	}
 	s.logger.DebugContext(ctx, "Initiating dial and forwarding request",
@@ -451,7 +456,6 @@ func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net
 		LocalAuthClient:          s.client,
 		TargetClusterAccessPoint: s.accessPoint,
 		UserAgent:                userAgent,
-		IsAgentlessNode:          params.IsAgentlessNode,
 		AgentlessSigner:          params.AgentlessSigner,
 		TargetConn:               targetConn,
 		SrcAddr:                  params.From,
@@ -467,15 +471,9 @@ func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net
 		Emitter:                  s.srv.Config.Emitter,
 		ParentContext:            s.srv.Context,
 		LockWatcher:              s.srv.LockWatcher,
-		TargetID:                 params.ServerID,
 		TargetAddr:               params.To.String(),
-		TargetHostname:           params.Address,
 		TargetServer:             params.TargetServer,
 		Clock:                    s.clock,
-	}
-	// Ensure the hostname is set correctly if we have details of the target
-	if params.TargetServer != nil {
-		serverConfig.TargetHostname = params.TargetServer.GetHostname()
 	}
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {
