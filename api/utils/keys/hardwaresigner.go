@@ -25,6 +25,8 @@ import (
 
 // HardwareSigner is a crypto.Signer which can be attested as being backed by a hardware key.
 // This enables the ability to enforce hardware key private key policies.
+//
+// TODO: Delete in favor of HardwarePrivateKey
 type HardwareSigner interface {
 	crypto.Signer
 

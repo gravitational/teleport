@@ -19,6 +19,7 @@ package keys
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
@@ -89,6 +90,38 @@ func NewSoftwarePrivateKey(signer crypto.Signer) (*PrivateKey, error) {
 		sshPub: sshPub,
 		keyPEM: keyPEM,
 	}, nil
+}
+
+// NewHardwarePrivateKey creates or retrieves a hardware private key from from the given hardware key
+// service that matches the given PIV slot and private key policy, returning the hardware private key
+// as a [PrivateKey].
+func NewHardwarePrivateKey(ctx context.Context, s HardwareKeyService, customSlot PIVSlot, requiredPolicy PrivateKeyPolicy) (*PrivateKey, error) {
+	if s == nil {
+		return nil, trace.BadParameter("cannot create a new hardware private key without a hardware key service provided")
+	}
+
+	keyRef, err := s.NewPrivateKey(ctx, customSlot, requiredPolicy)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	hwPrivateKey := &HardwarePrivateKey{
+		service: s,
+		ref:     keyRef,
+	}
+
+	encodedKeyRef, err := encodeHardwarePrivateKeyRef(keyRef)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	keyRefPEM := pem.EncodeToMemory(&pem.Block{
+		Type:    pivYubiKeyPrivateKeyType,
+		Headers: nil,
+		Bytes:   encodedKeyRef,
+	})
+
+	return NewPrivateKey(hwPrivateKey, keyRefPEM)
 }
 
 // SSHPublicKey returns the ssh.PublicKey representation of the public key.
@@ -211,6 +244,7 @@ type ParsePrivateKeyOptions struct {
 	// for a hardware key PIN, touch, etc.
 	// If empty, a default CLI prompt is used.
 	CustomHardwareKeyPrompt HardwareKeyPrompt
+	HardwareKeyService      HardwareKeyService
 }
 
 // ParsePrivateKeyOpt applies configuration options.
@@ -220,6 +254,13 @@ type ParsePrivateKeyOpt func(o *ParsePrivateKeyOptions)
 func WithCustomPrompt(prompt HardwareKeyPrompt) ParsePrivateKeyOpt {
 	return func(o *ParsePrivateKeyOptions) {
 		o.CustomHardwareKeyPrompt = prompt
+	}
+}
+
+// WithHardwareKeyService sets the hardware key service.
+func WithHardwareKeyService(hwKeyService HardwareKeyService) ParsePrivateKeyOpt {
+	return func(o *ParsePrivateKeyOptions) {
+		o.HardwareKeyService = hwKeyService
 	}
 }
 
@@ -238,8 +279,19 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 
 	switch block.Type {
 	case pivYubiKeyPrivateKeyType:
-		priv, err := parseYubiKeyPrivateKeyData(block.Bytes, appliedOpts.CustomHardwareKeyPrompt)
-		return priv, trace.Wrap(err, "parsing YubiKey private key")
+		if appliedOpts.HardwareKeyService == nil {
+			return nil, trace.BadParameter("cannot parse hardware private key without an initialized hardware key service")
+		}
+
+		keyRef, err := decodeHardwarePrivateKeyRef(block.Bytes)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to parse hardware private key")
+		}
+
+		return NewPrivateKey(&HardwarePrivateKey{
+			service: appliedOpts.HardwareKeyService,
+			ref:     keyRef,
+		}, keyPEM)
 	case OpenSSHPrivateKeyType:
 		priv, err := ssh.ParseRawPrivateKey(keyPEM)
 		if err != nil {
@@ -316,7 +368,7 @@ func MarshalPrivateKey(key crypto.Signer) ([]byte, error) {
 }
 
 // LoadKeyPair returns the PrivateKey for the given private and public key files.
-func LoadKeyPair(privFile, sshPubFile string, customPrompt HardwareKeyPrompt) (*PrivateKey, error) {
+func LoadKeyPair(privFile, sshPubFile string, opts ...ParsePrivateKeyOpt) (*PrivateKey, error) {
 	privPEM, err := os.ReadFile(privFile)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
@@ -327,7 +379,7 @@ func LoadKeyPair(privFile, sshPubFile string, customPrompt HardwareKeyPrompt) (*
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	priv, err := ParseKeyPair(privPEM, marshaledSSHPub, customPrompt)
+	priv, err := ParseKeyPair(privPEM, marshaledSSHPub, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -335,8 +387,8 @@ func LoadKeyPair(privFile, sshPubFile string, customPrompt HardwareKeyPrompt) (*
 }
 
 // ParseKeyPair returns the PrivateKey for the given private and public key PEM blocks.
-func ParseKeyPair(privPEM, marshaledSSHPub []byte, customPrompt HardwareKeyPrompt) (*PrivateKey, error) {
-	priv, err := ParsePrivateKey(privPEM, WithCustomPrompt(customPrompt))
+func ParseKeyPair(privPEM, marshaledSSHPub []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, error) {
+	priv, err := ParsePrivateKey(privPEM, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
