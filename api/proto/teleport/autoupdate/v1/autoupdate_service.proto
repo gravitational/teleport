@@ -67,6 +67,17 @@ service AutoUpdateService {
 
   // DeleteAutoUpdateAgentRollout hard deletes the specified AutoUpdateAgentRolloutRequest.
   rpc DeleteAutoUpdateAgentRollout(DeleteAutoUpdateAgentRolloutRequest) returns (google.protobuf.Empty);
+
+  // TriggerAutoUpdateAgentGroup changes the state of an agent group from `unstarted` to `active`.
+  // This RPC will be extended later to switch the group state to `canary` by default,
+  // and `active` if a flag is set.
+  rpc TriggerAutoUpdateAgentGroup(TriggerAutoUpdateAgentGroupRequest) returns (AutoUpdateAgentRollout);
+
+  // ForceAutoUpdateAgentGroup changes the state of an agent group from `unstarted`, `canary`, or `active` to the `done` state.
+  rpc ForceAutoUpdateAgentGroup(ForceAutoUpdateAgentGroupRequest) returns (AutoUpdateAgentRollout);
+
+  // RollbackAutoUpdateAgentGroup changes the state of an agent group to `rolledback`.
+  rpc RollbackAutoUpdateAgentGroup(RollbackAutoUpdateAgentGroupRequest) returns (AutoUpdateAgentRollout);
 }
 
 // Request for GetAutoUpdateConfig.
@@ -131,3 +142,27 @@ message UpsertAutoUpdateAgentRolloutRequest {
 
 // Request for DeleteAutoUpdateAgentRollout.
 message DeleteAutoUpdateAgentRolloutRequest {}
+
+// Request for TriggerAutoUpdateAgentGroup.
+message TriggerAutoUpdateAgentGroupRequest {
+  // groups contains the agent update group names whose maintenance should be triggered.
+  repeated string groups = 1;
+
+  // desired_state describes the desired start state.
+  // Supported values are AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED, and AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE.
+  // Current default desired state is active. This will change when we'll introduce the
+  // AUTO_UPDATE_AGENT_GROUP_STATE_CANARY state.
+  AutoUpdateAgentGroupState desired_state = 2;
+}
+
+// Request for ForceAutoUpdateAgentGroup.
+message ForceAutoUpdateAgentGroupRequest {
+  // groups contains the agent update group names whose state should be forced to `done`.
+  repeated string groups = 1;
+}
+
+// Request for RollbackAutoUpdateAgentGroup.
+message RollbackAutoUpdateAgentGroupRequest {
+  // groups contains the agent update group name whose state should change to `rolledback`.
+  repeated string groups = 1;
+}
