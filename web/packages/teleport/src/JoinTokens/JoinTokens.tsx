@@ -58,7 +58,6 @@ import {
   InfoExternalTextLink,
   InfoGuideWrapper,
   InfoParagraph,
-  InfoTitle,
   ReferenceLinks,
 } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import useResources from 'teleport/components/useResources';
@@ -149,7 +148,7 @@ export const JoinTokens = () => {
       >
         <FeatureHeaderTitle>Join Tokens</FeatureHeaderTitle>
         {!creatingToken && !editingToken && (
-          <Flex alignItems="center" gap={2}>
+          <InfoGuideWrapper guide={<InfoGuide />}>
             <Button
               intent="primary"
               fill="border"
@@ -159,8 +158,7 @@ export const JoinTokens = () => {
             >
               Create New Token
             </Button>
-            <InfoGuideWrapper guide={<InfoGuide />} />
-          </Flex>
+          </InfoGuideWrapper>
         )}
       </FeatureHeader>
       <Flex>
@@ -488,7 +486,6 @@ const InfoGuideReferenceLinks = {
 
 const InfoGuide = () => (
   <Box>
-    <InfoTitle>Join Tokens</InfoTitle>
     <InfoParagraph>
       <InfoExternalTextLink href={InfoGuideReferenceLinks.JoinTokens.href}>
         Join Tokens

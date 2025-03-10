@@ -115,7 +115,7 @@ test('toggle rendering of info guide panel', async () => {
   fireEvent.click(screen.getByTestId('info-guide-btn-open'));
   expect(screen.getByText(/i am the guide/i)).toBeInTheDocument();
 
-  // test closing of panel
+  // test closing of panel by clicking on explicit close button
   fireEvent.click(screen.getByTestId('info-guide-btn-close'));
   expect(screen.queryByText(/i am the guide/i)).not.toBeInTheDocument();
 });

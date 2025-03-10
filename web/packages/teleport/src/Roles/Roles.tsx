@@ -40,7 +40,6 @@ import {
   InfoExternalTextLink,
   InfoGuideWrapper,
   InfoParagraph,
-  InfoTitle,
   ReferenceLinks,
 } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import useResources from 'teleport/components/useResources';
@@ -327,7 +326,6 @@ const InfoGuideReferenceLinks = {
 function InfoGuide() {
   return (
     <Box>
-      <InfoTitle>Role-based access control</InfoTitle>
       <InfoParagraph>
         Teleport Role-based access control (RBAC) provides fine-grained control
         over who can access resources and in which contexts. A Teleport role can

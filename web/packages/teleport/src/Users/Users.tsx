@@ -39,7 +39,6 @@ import {
   InfoExternalTextLink,
   InfoGuideWrapper,
   InfoParagraph,
-  InfoTitle,
   InfoUl,
   ReferenceLinks,
 } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
@@ -261,10 +260,9 @@ const InfoGuideReferenceLinks = {
 
 const InfoGuide = () => (
   <Box>
-    <InfoTitle>Users</InfoTitle>
     <InfoParagraph>
       Teleport allows for two kinds of{' '}
-      <InfoExternalTextLink href={InfoGuideReferenceLinks.Users}>
+      <InfoExternalTextLink href={InfoGuideReferenceLinks.Users.href}>
         users
       </InfoExternalTextLink>
       :

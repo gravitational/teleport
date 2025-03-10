@@ -30,8 +30,8 @@ import {
 import { FeatureBox, FeatureHeaderTitle } from 'teleport/components/Layout';
 import { Route, Switch } from 'teleport/components/Router';
 import {
+  InfoGuideWrapper,
   InfoParagraph,
-  InfoTitle,
   ReferenceLinks,
 } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import useResources from 'teleport/components/useResources';
@@ -144,14 +144,16 @@ export function AuthConnectors() {
     <FeatureBox>
       <ResponsiveFeatureHeader>
         <FeatureHeaderTitle>Auth Connectors</FeatureHeaderTitle>
-        <ResponsiveAddButton
-          fill="border"
-          onClick={() =>
-            history.push(cfg.getCreateAuthConnectorRoute('github'))
-          }
-        >
-          New GitHub Connector
-        </ResponsiveAddButton>
+        <InfoGuideWrapper guide={<InfoGuide isGitHub={true} />}>
+          <ResponsiveAddButton
+            fill="border"
+            onClick={() =>
+              history.push(cfg.getCreateAuthConnectorRoute('github'))
+            }
+          >
+            New GitHub Connector
+          </ResponsiveAddButton>
+        </InfoGuideWrapper>
       </ResponsiveFeatureHeader>
       {fetchAttempt.status === 'error' && (
         <Alert children={fetchAttempt.statusText} />
@@ -208,7 +210,6 @@ export function AuthConnectors() {
 
 export const InfoGuide = ({ isGitHub = false }) => (
   <Box>
-    <InfoTitle>Auth Connectors</InfoTitle>
     <InfoParagraph>
       Auth connectors allow Teleport to authenticate users via an external
       identity source such as Okta, Microsoft Entra ID, GitHub, etc. This

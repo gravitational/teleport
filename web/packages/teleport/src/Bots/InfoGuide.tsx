@@ -22,7 +22,6 @@ import { Mark } from 'design/Mark';
 import {
   InfoExternalTextLink,
   InfoParagraph,
-  InfoTitle,
   ReferenceLinks,
 } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 
@@ -31,7 +30,7 @@ const InfoGuideReferenceLinks = {
     title: 'What are Bots',
     href: 'https://goteleport.com/docs/enroll-resources/machine-id/introduction/#bots',
   },
-  TBots: {
+  TBot: {
     title: 'What is tbot',
     href: 'https://goteleport.com/docs/reference/architecture/machine-id-architecture/#tbot',
   },
@@ -43,7 +42,6 @@ const InfoGuideReferenceLinks = {
 
 export const InfoGuide = () => (
   <Box>
-    <InfoTitle>Bots</InfoTitle>
     <InfoParagraph>
       <InfoExternalTextLink
         target="_blank"
@@ -67,12 +65,12 @@ export const InfoGuide = () => (
       Bots use the{' '}
       <InfoExternalTextLink
         target="_blank"
-        href={InfoGuideReferenceLinks.TBots.href}
+        href={InfoGuideReferenceLinks.TBot.href}
       >
         tbot
       </InfoExternalTextLink>{' '}
       binary rather than the <Mark>teleport</Mark> binary used for other agents.{' '}
-      <Mark>tbot</Mark> outputs identify files such as certificates and
+      <Mark>tbot</Mark> outputs identity files such as certificates and
       Kubernetes configuration files for processes to use for authentication.
     </InfoParagraph>
     <ReferenceLinks links={Object.values(InfoGuideReferenceLinks)} />
