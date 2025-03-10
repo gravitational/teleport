@@ -95,7 +95,7 @@ func NewSoftwarePrivateKey(signer crypto.Signer) (*PrivateKey, error) {
 // NewHardwarePrivateKey creates or retrieves a hardware private key from from the given hardware key
 // service that matches the given PIV slot and private key policy, returning the hardware private key
 // as a [PrivateKey].
-func NewHardwarePrivateKey(ctx context.Context, s HardwareKeyService, customSlot PIVSlot, requiredPolicy PrivateKeyPolicy) (*PrivateKey, error) {
+func NewHardwarePrivateKey(ctx context.Context, s HardwareKeyService, customSlot PIVSlot, requiredPolicy PrivateKeyPolicy, keyInfo KeyInfo) (*PrivateKey, error) {
 	if s == nil {
 		return nil, trace.BadParameter("cannot create a new hardware private key without a hardware key service provided")
 	}
@@ -108,6 +108,7 @@ func NewHardwarePrivateKey(ctx context.Context, s HardwareKeyService, customSlot
 	hwPrivateKey := &HardwarePrivateKey{
 		service: s,
 		ref:     keyRef,
+		keyInfo: keyInfo,
 	}
 
 	encodedKeyRef, err := encodeHardwarePrivateKeyRef(keyRef)
@@ -241,6 +242,7 @@ func LoadPrivateKey(keyFile string) (*PrivateKey, error) {
 // ParsePrivateKeyOptions contains config options for ParsePrivateKey.
 type ParsePrivateKeyOptions struct {
 	HardwareKeyService HardwareKeyService
+	KeyInfo            KeyInfo
 }
 
 // ParsePrivateKeyOpt applies configuration options.
@@ -250,6 +252,20 @@ type ParsePrivateKeyOpt func(o *ParsePrivateKeyOptions)
 func WithHardwareKeyService(hwKeyService HardwareKeyService) ParsePrivateKeyOpt {
 	return func(o *ParsePrivateKeyOptions) {
 		o.HardwareKeyService = hwKeyService
+	}
+}
+
+// KeyInfo includes info relevant to the key being parsed. Useful for adding context
+// to hardware key pin/touch prompts when performing signatures.
+type KeyInfo struct {
+	// ProxyHost is the root proxy hostname that a key is associated with.
+	ProxyHost string
+}
+
+// WithKeyInfo adds contextual key info to the parsed private key.
+func WithKeyInfo(proxyHost string) ParsePrivateKeyOpt {
+	return func(o *ParsePrivateKeyOptions) {
+		o.KeyInfo = KeyInfo{ProxyHost: proxyHost}
 	}
 }
 
@@ -280,6 +296,7 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 		return NewPrivateKey(&HardwarePrivateKey{
 			service: appliedOpts.HardwareKeyService,
 			ref:     keyRef,
+			keyInfo: appliedOpts.KeyInfo,
 		}, keyPEM)
 	case OpenSSHPrivateKeyType:
 		priv, err := ssh.ParseRawPrivateKey(keyPEM)

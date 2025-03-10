@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport/api/utils/keys"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
-	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
 // NewHardwareKeyPrompt returns a new hardware key prompt.
@@ -50,14 +49,13 @@ func (s *Service) NewHardwareKeyPrompt() keys.HardwareKeyPrompt {
 }
 
 type hardwareKeyPrompter struct {
-	s              *Service
-	rootClusterURI uri.ResourceURI
+	s *Service
 }
 
 // Touch prompts the user to touch the hardware key.
-func (h *hardwareKeyPrompter) Touch(ctx context.Context) error {
+func (h *hardwareKeyPrompter) Touch(ctx context.Context, keyInfo keys.KeyInfo) error {
 	_, err := h.s.tshdEventsClient.PromptHardwareKeyTouch(ctx, &api.PromptHardwareKeyTouchRequest{
-		RootClusterUri: h.rootClusterURI.String(),
+		RootClusterUri: keyInfo.ProxyHost,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -66,9 +64,9 @@ func (h *hardwareKeyPrompter) Touch(ctx context.Context) error {
 }
 
 // AskPIN prompts the user for a PIN.
-func (h *hardwareKeyPrompter) AskPIN(ctx context.Context, requirement keys.PINPromptRequirement) (string, error) {
+func (h *hardwareKeyPrompter) AskPIN(ctx context.Context, requirement keys.PINPromptRequirement, keyInfo keys.KeyInfo) (string, error) {
 	res, err := h.s.tshdEventsClient.PromptHardwareKeyPIN(ctx, &api.PromptHardwareKeyPINRequest{
-		RootClusterUri: h.rootClusterURI.String(),
+		RootClusterUri: keyInfo.ProxyHost,
 		PinOptional:    requirement == keys.PINOptional,
 	})
 	if err != nil {
@@ -80,9 +78,9 @@ func (h *hardwareKeyPrompter) AskPIN(ctx context.Context, requirement keys.PINPr
 // ChangePIN asks for a new PIN.
 // The Electron app prompt must handle default values for PIN and PUK,
 // preventing the user from submitting empty/default values.
-func (h *hardwareKeyPrompter) ChangePIN(ctx context.Context) (*keys.PINAndPUK, error) {
+func (h *hardwareKeyPrompter) ChangePIN(ctx context.Context, keyInfo keys.KeyInfo) (*keys.PINAndPUK, error) {
 	res, err := h.s.tshdEventsClient.PromptHardwareKeyPINChange(ctx, &api.PromptHardwareKeyPINChangeRequest{
-		RootClusterUri: h.rootClusterURI.String(),
+		RootClusterUri: keyInfo.ProxyHost,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -95,9 +93,9 @@ func (h *hardwareKeyPrompter) ChangePIN(ctx context.Context) (*keys.PINAndPUK, e
 }
 
 // ConfirmSlotOverwrite asks the user if the slot's private key and certificate can be overridden.
-func (h *hardwareKeyPrompter) ConfirmSlotOverwrite(ctx context.Context, message string) (bool, error) {
+func (h *hardwareKeyPrompter) ConfirmSlotOverwrite(ctx context.Context, message string, keyInfo keys.KeyInfo) (bool, error) {
 	res, err := h.s.tshdEventsClient.ConfirmHardwareKeySlotOverwrite(ctx, &api.ConfirmHardwareKeySlotOverwriteRequest{
-		RootClusterUri: h.rootClusterURI.String(),
+		RootClusterUri: keyInfo.ProxyHost,
 		Message:        message,
 	})
 	if err != nil {

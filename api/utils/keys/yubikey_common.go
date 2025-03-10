@@ -23,17 +23,17 @@ import (
 type HardwareKeyPrompt interface {
 	// AskPIN prompts the user for a PIN.
 	// The requirement tells if the PIN is required or optional.
-	AskPIN(ctx context.Context, requirement PINPromptRequirement) (string, error)
+	AskPIN(ctx context.Context, requirement PINPromptRequirement, keyInfo KeyInfo) (string, error)
 	// Touch prompts the user to touch the hardware key.
-	Touch(ctx context.Context) error
+	Touch(ctx context.Context, keyInfo KeyInfo) error
 	// ChangePIN asks for a new PIN.
 	// If the PUK has a default value, it should ask for the new value for it.
 	// It is up to the implementer how the validation is handled.
 	// For example, CLI prompt can ask for a valid PIN/PUK in a loop, a GUI
 	// prompt can use the frontend validation.
-	ChangePIN(ctx context.Context) (*PINAndPUK, error)
+	ChangePIN(ctx context.Context, keyInfo KeyInfo) (*PINAndPUK, error)
 	// ConfirmSlotOverwrite asks the user if the slot's private key and certificate can be overridden.
-	ConfirmSlotOverwrite(ctx context.Context, message string) (bool, error)
+	ConfirmSlotOverwrite(ctx context.Context, message string, keyInfo KeyInfo) (bool, error)
 }
 
 // PINPromptRequirement specifies whether a PIN is required.
