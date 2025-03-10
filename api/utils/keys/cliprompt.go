@@ -1,5 +1,3 @@
-//go:build piv && !pivtest
-
 // Copyright 2024 Gravitational, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,9 +25,9 @@ import (
 	"github.com/gravitational/teleport/api/utils/prompt"
 )
 
-type cliPrompt struct{}
+type CLIPrompt struct{}
 
-func (c *cliPrompt) AskPIN(ctx context.Context, requirement PINPromptRequirement) (string, error) {
+func (c *CLIPrompt) AskPIN(ctx context.Context, requirement PINPromptRequirement) (string, error) {
 	message := "Enter your YubiKey PIV PIN"
 	if requirement == PINOptional {
 		message = "Enter your YubiKey PIV PIN [blank to use default PIN]"
@@ -38,12 +36,12 @@ func (c *cliPrompt) AskPIN(ctx context.Context, requirement PINPromptRequirement
 	return password, trace.Wrap(err)
 }
 
-func (c *cliPrompt) Touch(_ context.Context) error {
+func (c *CLIPrompt) Touch(_ context.Context) error {
 	_, err := fmt.Fprintln(os.Stderr, "Tap your YubiKey")
 	return trace.Wrap(err)
 }
 
-func (c *cliPrompt) ChangePIN(ctx context.Context) (*PINAndPUK, error) {
+func (c *CLIPrompt) ChangePIN(ctx context.Context) (*PINAndPUK, error) {
 	var pinAndPUK = &PINAndPUK{}
 	for {
 		fmt.Fprintf(os.Stderr, "Please set a new 6-8 character PIN.\n")
@@ -120,7 +118,7 @@ func (c *cliPrompt) ChangePIN(ctx context.Context) (*PINAndPUK, error) {
 	return pinAndPUK, nil
 }
 
-func (c *cliPrompt) ConfirmSlotOverwrite(ctx context.Context, message string) (bool, error) {
+func (c *CLIPrompt) ConfirmSlotOverwrite(ctx context.Context, message string) (bool, error) {
 	confirmation, err := prompt.Confirmation(ctx, os.Stderr, prompt.Stdin(), message)
 	return confirmation, trace.Wrap(err)
 }
