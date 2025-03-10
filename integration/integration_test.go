@@ -946,6 +946,7 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 		filesessions.SetOpenFileFunc(os.OpenFile)
 	}
 
+	teleport.WaitForNodeCount(ctx, helpers.Site, 1)
 	for name, test := range map[string]struct {
 		recordingMode        constants.SessionRecordingMode
 		expectSessionFailure bool
