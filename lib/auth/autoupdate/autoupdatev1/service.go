@@ -24,6 +24,7 @@ import (
 	"maps"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
@@ -31,6 +32,7 @@ import (
 	update "github.com/gravitational/teleport/api/types/autoupdate"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/autoupdate/rollout"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -73,6 +75,7 @@ type Service struct {
 	backend    services.AutoUpdateService
 	emitter    apievents.Emitter
 	cache      Cache
+	clock      clockwork.Clock
 }
 
 // NewService returns a new AutoUpdate API service using the given storage layer and authorizer.
@@ -92,6 +95,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		backend:    cfg.Backend,
 		cache:      cfg.Cache,
 		emitter:    cfg.Emitter,
+		clock:      clockwork.NewRealClock(),
 	}, nil
 }
 
@@ -646,6 +650,143 @@ func (s *Service) DeleteAutoUpdateAgentRollout(ctx context.Context, req *autoupd
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
+}
+
+// TriggerAutoUpdateAgentGroup triggers automatic updates for one or many groups
+// in the rollout.
+func (s *Service) TriggerAutoUpdateAgentGroup(ctx context.Context, req *autoupdate.TriggerAutoUpdateAgentGroupRequest) (*autoupdate.AutoUpdateAgentRollout, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateAgentRollout, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tries := 0
+	const maxTries = 3
+
+	for {
+		tries++
+		existingRollout, err := s.backend.GetAutoUpdateAgentRollout(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		err = rollout.TriggerGroups(existingRollout, req.Groups, req.DesiredState, s.clock.Now())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		newRollout, err := s.backend.UpdateAutoUpdateAgentRollout(ctx, existingRollout)
+		if err == nil {
+			return newRollout, nil
+		}
+		if !trace.IsCompareFailed(err) {
+			return nil, trace.Wrap(err)
+		}
+		if tries > maxTries {
+			return nil, trace.Wrap(err, "max tries exceeded")
+		}
+	}
+}
+
+// ForceAutoUpdateAgentGroup forces one or many groups of the agent rollout into
+// a DONE state.
+func (s *Service) ForceAutoUpdateAgentGroup(ctx context.Context, req *autoupdate.ForceAutoUpdateAgentGroupRequest) (*autoupdate.AutoUpdateAgentRollout, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateAgentRollout, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tries := 0
+	const maxTries = 3
+
+	for {
+		tries++
+		existingRollout, err := s.backend.GetAutoUpdateAgentRollout(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		err = rollout.ForceGroupsDone(existingRollout, req.Groups, s.clock.Now())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		newRollout, err := s.backend.UpdateAutoUpdateAgentRollout(ctx, existingRollout)
+		if err == nil {
+			return newRollout, nil
+		}
+		if !trace.IsCompareFailed(err) {
+			return nil, trace.Wrap(err)
+		}
+		if tries > maxTries {
+			return nil, trace.Wrap(err, "max tries exceeded")
+		}
+	}
+}
+
+// RollbackAutoUpdateAgentGroup forces one or many groups of the agent rollout into
+// a DONE state.
+func (s *Service) RollbackAutoUpdateAgentGroup(ctx context.Context, req *autoupdate.RollbackAutoUpdateAgentGroupRequest) (*autoupdate.AutoUpdateAgentRollout, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateAgentRollout, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tries := 0
+	const maxTries = 3
+
+	for {
+		tries++
+		existingRollout, err := s.backend.GetAutoUpdateAgentRollout(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if len(req.Groups) == 0 {
+			err = rollout.RollbackStartedGroups(existingRollout, s.clock.Now())
+		} else {
+			err = rollout.RollbackGroups(existingRollout, req.Groups, s.clock.Now())
+		}
+
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		newRollout, err := s.backend.UpdateAutoUpdateAgentRollout(ctx, existingRollout)
+		if err == nil {
+			return newRollout, nil
+		}
+		if !trace.IsCompareFailed(err) {
+			return nil, trace.Wrap(err)
+		}
+		if tries > maxTries {
+			return nil, trace.Wrap(err, "max tries exceeded")
+		}
+	}
 }
 
 func (s *Service) emitEvent(ctx context.Context, e apievents.AuditEvent) {
