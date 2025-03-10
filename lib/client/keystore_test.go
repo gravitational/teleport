@@ -67,7 +67,7 @@ func TestKeyStore(t *testing.T) {
 		// check that the key exists in the store and is the same,
 		// except the key's trusted certs should be empty, to be
 		// filled in by a trusted certs store.
-		retrievedKeyRing, err := keyStore.GetKeyRing(idx, WithAllCerts...)
+		retrievedKeyRing, err := keyStore.GetKeyRing(idx, nil /*hwks*/, WithAllCerts...)
 		require.NoError(t, err)
 		keyRing.TrustedCerts = nil
 		assertEqualKeyRings(t, keyRing, retrievedKeyRing)
@@ -75,14 +75,14 @@ func TestKeyStore(t *testing.T) {
 		// Delete just the db cred, reload & verify it's gone
 		err = keyStore.DeleteUserCerts(idx, WithDBCerts{})
 		require.NoError(t, err)
-		retrievedKeyRing, err = keyStore.GetKeyRing(idx, WithSSHCerts{}, WithDBCerts{})
+		retrievedKeyRing, err = keyStore.GetKeyRing(idx, nil /*hwks*/, WithSSHCerts{}, WithDBCerts{})
 		require.NoError(t, err)
 		expectKeyRing := keyRing.Copy()
 		expectKeyRing.DBTLSCredentials = make(map[string]TLSCredential)
 		assertEqualKeyRings(t, expectKeyRing, retrievedKeyRing)
 
 		// check for the key, now without cluster name
-		retrievedKeyRing, err = keyStore.GetKeyRing(KeyRingIndex{idx.ProxyHost, idx.Username, ""})
+		retrievedKeyRing, err = keyStore.GetKeyRing(KeyRingIndex{idx.ProxyHost, idx.Username, ""}, nil /*hwks*/)
 		require.NoError(t, err)
 		expectKeyRing.ClusterName = ""
 		expectKeyRing.Cert = nil
@@ -93,7 +93,7 @@ func TestKeyStore(t *testing.T) {
 		require.NoError(t, err)
 
 		// check that the key doesn't exist in the store
-		retrievedKeyRing, err = keyStore.GetKeyRing(idx)
+		retrievedKeyRing, err = keyStore.GetKeyRing(idx, nil /*hwks*/)
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err))
 		require.Nil(t, retrievedKeyRing)
@@ -128,14 +128,14 @@ func TestListKeys(t *testing.T) {
 
 		// read all bob keys:
 		for i := 0; i < keyNum; i++ {
-			keyRing, err := keyStore.GetKeyRing(keys[i].KeyRingIndex, WithSSHCerts{}, WithDBCerts{})
+			keyRing, err := keyStore.GetKeyRing(keys[i].KeyRingIndex, nil /*hwks*/, WithSSHCerts{}, WithDBCerts{})
 			require.NoError(t, err)
 			keyRing.TrustedCerts = keys[i].TrustedCerts
 			assertEqualKeyRings(t, &keys[i], keyRing)
 		}
 
 		// read sam's key and make sure it's the same:
-		skeyRing, err := keyStore.GetKeyRing(samIdx, WithSSHCerts{})
+		skeyRing, err := keyStore.GetKeyRing(samIdx, nil /*hwks*/, WithSSHCerts{})
 		require.NoError(t, err)
 		require.Equal(t, samKeyRing.Cert, skeyRing.Cert)
 		require.Equal(t, samKeyRing.TLSCert, skeyRing.TLSCert)
@@ -190,9 +190,9 @@ func TestDeleteAll(t *testing.T) {
 		require.NoError(t, err)
 
 		// check keys exist
-		_, err = keyStore.GetKeyRing(idxFoo)
+		_, err = keyStore.GetKeyRing(idxFoo, nil /*hwks*/)
 		require.NoError(t, err)
-		_, err = keyStore.GetKeyRing(idxBar)
+		_, err = keyStore.GetKeyRing(idxBar, nil /*hwks*/)
 		require.NoError(t, err)
 
 		// delete all keys
@@ -200,9 +200,9 @@ func TestDeleteAll(t *testing.T) {
 		require.NoError(t, err)
 
 		// verify keys are gone
-		_, err = keyStore.GetKeyRing(idxFoo)
+		_, err = keyStore.GetKeyRing(idxFoo, nil /*hwks*/)
 		require.True(t, trace.IsNotFound(err))
-		_, err = keyStore.GetKeyRing(idxBar)
+		_, err = keyStore.GetKeyRing(idxBar, nil /*hwks*/)
 		require.Error(t, err)
 	})
 }
@@ -225,7 +225,7 @@ func TestCheckKey(t *testing.T) {
 		err = keyStore.AddKeyRing(keyRing)
 		require.NoError(t, err)
 
-		_, err = keyStore.GetKeyRing(idx)
+		_, err = keyStore.GetKeyRing(idx, nil /*hwks*/)
 		require.NoError(t, err)
 	})
 }
@@ -254,7 +254,7 @@ func TestCheckKeyFIPS(t *testing.T) {
 		require.NoError(t, err)
 
 		// Should return trace.BadParameter error because only RSA keys are supported.
-		_, err = keyStore.GetKeyRing(idx)
+		_, err = keyStore.GetKeyRing(idx, nil /*hwks*/)
 		require.True(t, trace.IsBadParameter(err))
 	})
 }
@@ -276,7 +276,7 @@ func TestAddKey_withoutSSHCert(t *testing.T) {
 	require.ErrorIs(t, err, os.ErrNotExist)
 
 	// check db creds
-	keyCopy, err := keyStore.GetKeyRing(idx, WithDBCerts{})
+	keyCopy, err := keyStore.GetKeyRing(idx, nil /*hwks*/, WithDBCerts{})
 	require.NoError(t, err)
 	require.Len(t, keyCopy.DBTLSCredentials, 1)
 }

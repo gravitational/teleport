@@ -240,22 +240,11 @@ func LoadPrivateKey(keyFile string) (*PrivateKey, error) {
 
 // ParsePrivateKeyOptions contains config options for ParsePrivateKey.
 type ParsePrivateKeyOptions struct {
-	// CustomHardwareKeyPrompt is a custom hardware key prompt to use when asking
-	// for a hardware key PIN, touch, etc.
-	// If empty, a default CLI prompt is used.
-	CustomHardwareKeyPrompt HardwareKeyPrompt
-	HardwareKeyService      HardwareKeyService
+	HardwareKeyService HardwareKeyService
 }
 
 // ParsePrivateKeyOpt applies configuration options.
 type ParsePrivateKeyOpt func(o *ParsePrivateKeyOptions)
-
-// WithCustomPrompt sets a custom hardware key prompt.
-func WithCustomPrompt(prompt HardwareKeyPrompt) ParsePrivateKeyOpt {
-	return func(o *ParsePrivateKeyOptions) {
-		o.CustomHardwareKeyPrompt = prompt
-	}
-}
 
 // WithHardwareKeyService sets the hardware key service.
 func WithHardwareKeyService(hwKeyService HardwareKeyService) ParsePrivateKeyOpt {

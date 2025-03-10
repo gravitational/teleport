@@ -4575,10 +4575,12 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 }
 
 func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
+	hardwareKeyService := keys.NewHardwareKeyService(&keys.CLIPrompt{})
+
 	switch {
 	case cf.IdentityFileIn != "":
 		// Import identity file keys to in-memory client store.
-		clientStore, err := identityfile.NewClientStoreFromIdentityFile(cf.IdentityFileIn, proxy, cf.SiteName)
+		clientStore, err := identityfile.NewClientStoreFromIdentityFile(cf.IdentityFileIn, proxy, cf.SiteName, hardwareKeyService)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4587,16 +4589,16 @@ func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
 	case cf.IdentityFileOut != "", cf.AuthConnector == constants.HeadlessConnector:
 		// Store client keys in memory, where they can be exported to non-standard
 		// FS formats (e.g. identity file) or used for a single client call in memory.
-		return client.NewMemClientStore(), nil
+		return client.NewMemClientStore(hardwareKeyService), nil
 
 	case cf.AddKeysToAgent == client.AddKeysToAgentOnly:
 		// Store client keys in memory, but save trusted certs and profile to disk.
-		clientStore := client.NewFSClientStore(cf.HomePath)
+		clientStore := client.NewFSClientStore(cf.HomePath, hardwareKeyService)
 		clientStore.KeyStore = client.NewMemKeyStore()
 		return clientStore, nil
 
 	default:
-		return client.NewFSClientStore(cf.HomePath), nil
+		return client.NewFSClientStore(cf.HomePath, hardwareKeyService), nil
 	}
 }
 

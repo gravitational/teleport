@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
@@ -39,16 +40,18 @@ import (
 
 // LoadConfigFromProfile applies config from ~/.tsh/ profile if it's present
 func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Config, error) {
+	hwKeyService := keys.NewHardwareKeyService(&keys.CLIPrompt{})
+
 	ctx := context.TODO()
 	proxyAddr := ""
 	if len(ccf.AuthServerAddr) != 0 {
 		proxyAddr = ccf.AuthServerAddr[0]
 	}
 
-	clientStore := client.NewFSClientStore(cfg.TeleportHome)
+	clientStore := client.NewFSClientStore(cfg.TeleportHome, hwKeyService)
 	if ccf.IdentityFilePath != "" {
 		var err error
-		clientStore, err = identityfile.NewClientStoreFromIdentityFile(ccf.IdentityFilePath, proxyAddr, "")
+		clientStore, err = identityfile.NewClientStoreFromIdentityFile(ccf.IdentityFilePath, proxyAddr, "", hwKeyService)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -28,8 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
-// NewHardwareKeyPromptConstructor returns a new hardware key prompt constructor
-// for this service and the given root cluster URI.
+// NewHardwareKeyPrompt returns a new hardware key prompt.
 //
 // TODO(gzdunek): Improve multi-cluster and multi-hardware keys support.
 // The code in yubikey.go doesn't really support using multiple hardware keys (like one per cluster):
@@ -46,8 +45,8 @@ import (
 // Because the code in yubikey.go assumes you use a single key, we don't have any mutex here.
 // (unlike other modals triggered by tshd).
 // We don't expect receiving prompts from different hardware keys.
-func (s *Service) NewHardwareKeyPromptConstructor(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
-	return &hardwareKeyPrompter{s: s, rootClusterURI: rootClusterURI}
+func (s *Service) NewHardwareKeyPrompt() keys.HardwareKeyPrompt {
+	return &hardwareKeyPrompter{s: s}
 }
 
 type hardwareKeyPrompter struct {

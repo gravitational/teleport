@@ -459,7 +459,7 @@ func testDatabaseLogin(t *testing.T) {
 			require.NoError(t, err)
 
 			// Fetch the active profile.
-			clientStore := client.NewFSClientStore(tmpHomePath)
+			clientStore := client.NewFSClientStore(tmpHomePath, nil /*hwKeyService*/)
 			profile, err := clientStore.ReadProfileStatus(s.root.Config.Proxy.WebAddr.String())
 			require.NoError(t, err)
 			require.Equal(t, s.user.GetName(), profile.Username)

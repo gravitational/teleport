@@ -95,7 +95,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 
 	agent, err := NewLocalAgent(LocalAgentConfig{
-		ClientStore: NewMemClientStore(),
+		ClientStore: NewMemClientStore(nil /*hwKeyService*/),
 		ProxyHost:   "test",
 		Username:    "alice",
 		Insecure:    true,
@@ -278,7 +278,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 		{
 			name: "no keys loaded",
 			agent: &LocalKeyAgent{
-				clientStore: NewMemClientStore(),
+				clientStore: NewMemClientStore(nil /*hwKeyService*/),
 			},
 			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
 				require.Error(t, err)

@@ -246,11 +246,9 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 		InsecureSkipVerify: tc.InsecureSkipVerify,
 		// Inject a fake clock into clusters.Storage so we can control when the middleware thinks the
 		// db cert has expired.
-		Clock:         fakeClock,
-		WebauthnLogin: webauthnLogin,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
-			return nil
-		},
+		Clock:              fakeClock,
+		WebauthnLogin:      webauthnLogin,
+		HardwareKeyService: keys.NewHardwareKeyService(nil /*prompt*/),
 	})
 	require.NoError(t, err)
 
@@ -882,9 +880,7 @@ func testTeletermAppGatewayTargetPortValidation(t *testing.T, pack *appaccess.Pa
 		storage, err := clusters.NewStorage(clusters.Config{
 			Dir:                tc.KeysDir,
 			InsecureSkipVerify: tc.InsecureSkipVerify,
-			HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
-				return nil
-			},
+			HardwareKeyService: keys.NewHardwareKeyService(nil /*prompt*/),
 		})
 		require.NoError(t, err)
 		daemonService, err := daemon.New(daemon.Config{

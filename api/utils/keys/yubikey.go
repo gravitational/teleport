@@ -99,7 +99,7 @@ func getOrGenerateYubiKeyPrivateKey(ctx context.Context, requiredKeyPolicy Priva
 	}
 
 	// If PIN is required, check that PIN and PUK are not the defaults.
-	if requiredKeyPolicy.isHardwareKeyPINVerified() {
+	if requiredKeyPolicy.IsHardwareKeyPINVerified() {
 		if err := y.checkOrSetPIN(ctx); err != nil {
 			return nil, trace.Wrap(err)
 		}

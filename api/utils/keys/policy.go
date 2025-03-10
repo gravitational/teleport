@@ -66,17 +66,17 @@ func (requiredPolicy PrivateKeyPolicy) IsSatisfiedBy(keyPolicy PrivateKeyPolicy)
 	case PrivateKeyPolicyHardwareKey:
 		return keyPolicy.IsHardwareKeyPolicy()
 	case PrivateKeyPolicyHardwareKeyTouch:
-		return keyPolicy.isHardwareKeyTouchVerified()
+		return keyPolicy.IsHardwareKeyTouchVerified()
 	case PrivateKeyPolicyHardwareKeyPIN:
-		return keyPolicy.isHardwareKeyPINVerified()
+		return keyPolicy.IsHardwareKeyPINVerified()
 	case PrivateKeyPolicyHardwareKeyTouchAndPIN:
-		return keyPolicy.isHardwareKeyTouchVerified() && keyPolicy.isHardwareKeyPINVerified()
+		return keyPolicy.IsHardwareKeyTouchVerified() && keyPolicy.IsHardwareKeyPINVerified()
 	}
 
 	return false
 }
 
-func (p PrivateKeyPolicy) isHardwareKeyTouchVerified() bool {
+func (p PrivateKeyPolicy) IsHardwareKeyTouchVerified() bool {
 	switch p {
 	case PrivateKeyPolicyHardwareKeyTouch, PrivateKeyPolicyHardwareKeyTouchAndPIN:
 		return true
@@ -84,7 +84,7 @@ func (p PrivateKeyPolicy) isHardwareKeyTouchVerified() bool {
 	return false
 }
 
-func (p PrivateKeyPolicy) isHardwareKeyPINVerified() bool {
+func (p PrivateKeyPolicy) IsHardwareKeyPINVerified() bool {
 	switch p {
 	case PrivateKeyPolicyHardwareKeyPIN, PrivateKeyPolicyHardwareKeyTouchAndPIN:
 		return true
@@ -111,7 +111,7 @@ func (p PrivateKeyPolicy) IsHardwareKeyPolicy() bool {
 // of the connection, during the TLS/SSH handshake. For long term connections, MFA should
 // be re-verified through other methods (e.g. webauthn).
 func (p PrivateKeyPolicy) MFAVerified() bool {
-	return p.isHardwareKeyTouchVerified() || p.isHardwareKeyPINVerified()
+	return p.IsHardwareKeyTouchVerified() || p.IsHardwareKeyPINVerified()
 }
 
 func (p PrivateKeyPolicy) validate() error {

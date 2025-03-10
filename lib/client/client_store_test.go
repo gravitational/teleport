@@ -160,7 +160,7 @@ func newSelfSignedCA(privateKey []byte, cluster string) (*tlsca.CertAuthority, a
 }
 
 func newTestFSClientStore(t *testing.T) *Store {
-	fsClientStore := NewFSClientStore(t.TempDir())
+	fsClientStore := NewFSClientStore(t.TempDir(), nil /*hwKeyService*/)
 	return fsClientStore
 }
 
@@ -170,7 +170,7 @@ func testEachClientStore(t *testing.T, testFunc func(t *testing.T, clientStore *
 	})
 
 	t.Run("Mem", func(t *testing.T) {
-		testFunc(t, NewMemClientStore())
+		testFunc(t, NewMemClientStore(nil /*hwKeyService*/))
 	})
 }
 
@@ -198,7 +198,7 @@ func TestClientStore(t *testing.T) {
 		require.Equal(t, keyRing.TrustedCerts, retrievedTrustedCerts)
 
 		// Getting the key from the key store should have no trusted certs.
-		retrievedKeyRing, err := clientStore.KeyStore.GetKeyRing(idx, WithAllCerts...)
+		retrievedKeyRing, err := clientStore.KeyStore.GetKeyRing(idx, clientStore.hwKeyService, WithAllCerts...)
 		require.NoError(t, err)
 		expectKeyRing := keyRing.Copy()
 		expectKeyRing.TrustedCerts = nil
@@ -464,7 +464,7 @@ func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
 			for _, kubeClusterName := range kubeClusterNames {
 				go func() {
 					defer wg.Done()
-					keyRing, err := fsKeyStore.GetKeyRing(keyRing.KeyRingIndex, WithKubeCerts{})
+					keyRing, err := fsKeyStore.GetKeyRing(keyRing.KeyRingIndex, nil /*hwks*/, WithKubeCerts{})
 					require.NoError(b, err)
 					require.NotNil(b, keyRing.KubeTLSCredentials[kubeClusterName].PrivateKey)
 					require.NotEmpty(b, keyRing.KubeTLSCredentials[kubeClusterName].Cert)

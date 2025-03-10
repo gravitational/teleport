@@ -439,7 +439,7 @@ func TestNewClientStoreFromIdentityFile(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	clientStore, err := NewClientStoreFromIdentityFile(identityFilePath, keyRing.ProxyHost+":3080", keyRing.ClusterName)
+	clientStore, err := NewClientStoreFromIdentityFile(identityFilePath, keyRing.ProxyHost+":3080", keyRing.ClusterName, nil /*hwKeyService*/)
 	require.NoError(t, err)
 
 	currentProfile, err := clientStore.CurrentProfile()
