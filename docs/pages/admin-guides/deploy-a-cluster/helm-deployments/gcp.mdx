@@ -39,39 +39,27 @@ Go to the "Roles" section of Google Cloud IAM & Admin.
 
 1. Click the "Create Role" button at the top.
 
-<Figure align="left" bordered caption="Roles section">
-  ![Roles section](../../../../img/helm/gcp/1-roles@1.5x.png)
-</Figure>
+   ![Roles section](../../../../img/helm/gcp/1-roles@1.5x.png)
 
 2. Fill in the details of a "Storage Bucket Creator" role (we suggest using the name `storage-bucket-creator-role`)
 
-<Figure align="left" bordered caption="Create role">
-  ![Create role](../../../../img/helm/gcp/2-createrole@1.5x.png)
-</Figure>
+   ![Create role](../../../../img/helm/gcp/2-createrole@1.5x.png)
 
 3. Click the "Add Permissions" button.
 
-<Figure align="left" bordered caption="Storage bucket creator role">
-  ![Storage bucket creator role](../../../../img/helm/gcp/3-addpermissions@1.5x.png)
-</Figure>
+   ![Storage bucket creator role](../../../../img/helm/gcp/3-addpermissions@1.5x.png)
 
 4. Use the "Filter" box to enter `storage.buckets.create` and select it in the list.
 
-<Figure align="left" bordered caption="Filter the list">
-  ![Filter the list](../../../../img/helm/gcp/4-storagebucketscreate@1.5x.png)
-</Figure>
+   ![Filter the list](../../../../img/helm/gcp/4-storagebucketscreate@1.5x.png)
 
 5. Check the `storage.buckets.create` permission in the list and click the "Add" button to add it to the role.
 
-<Figure align="left" bordered caption="Select storage.buckets.create">
-  ![Select storage.buckets.create](../../../../img/helm/gcp/5-select@1.5x.png)
-</Figure>
+   ![Select storage.buckets.create](../../../../img/helm/gcp/5-select@1.5x.png)
 
 6. Once all these settings are entered successfully, click the "Create" button.
 
-<Figure align="left" bordered caption="Create role">
-  ![Create role](../../../../img/helm/gcp/6-createrole@1.5x.png)
-</Figure>
+   ![Create role](../../../../img/helm/gcp/6-createrole@1.5x.png)
 
 ### Create an IAM role granting Cloud DNS permissions
 
@@ -79,41 +67,34 @@ Go to the "Roles" section of Google Cloud IAM & Admin.
 
 1. Click the "Create Role" button at the top.
 
-<Figure align="left" bordered caption="Roles section">
-  ![Roles section](../../../../img/helm/gcp/1-roles@1.5x.png)
-</Figure>
+   ![Roles section](../../../../img/helm/gcp/1-roles@1.5x.png)
 
 2. Fill in the details of a "DNS Updater" role (we suggest using the name `dns-updater-role`)
 
-<Figure align="left" bordered caption="Create role">
-  ![Create role](../../../../img/helm/gcp/13-dns-createrole@1.5x.png)
-</Figure>
+   ![Create role](../../../../img/helm/gcp/13-dns-createrole@1.5x.png)
 
 3. Click the "Add Permissions" button.
 
-<Figure align="left" bordered caption="DNS updater role">
-  ![DNS updater role](../../../../img/helm/gcp/3-addpermissions@1.5x.png)
-</Figure>
+   ![DNS updater role](../../../../img/helm/gcp/3-addpermissions@1.5x.png)
 
-4. Use the "Filter" box to find each of the following permissions in the list and add it.
-You can type things like `dns.resourceRecordSets.*` to quickly filter the list.
+4. Use the "Filter" box to find each of the following permissions in the list
+   and add it.  You can type things like `dns.resourceRecordSets.*` to quickly
+   filter the list.
 
-```console
-dns.resourceRecordSets.create
-dns.resourceRecordSets.delete
-dns.resourceRecordSets.list
-dns.resourceRecordSets.update
-dns.changes.create
-dns.changes.get
-dns.changes.list
-dns.managedZones.list
-```
+   ```console
+   dns.resourceRecordSets.create
+   dns.resourceRecordSets.delete
+   dns.resourceRecordSets.list
+   dns.resourceRecordSets.update
+   dns.changes.create
+   dns.changes.get
+   dns.changes.list
+   dns.managedZones.list
+   ```
 
 5. Once all these settings are entered successfully, click the "Create" button.
 
-<Figure align="left" bordered caption="Add DNS permissions">
-  ![Add DNS permissions](../../../../img/helm/gcp/14-dns-permissions-create@1.5x.png)
-</Figure>
+   ![Add DNS permissions](../../../../img/helm/gcp/14-dns-permissions-create@1.5x.png)
 
 ### Create a service account for the Teleport Helm chart
 
@@ -127,15 +108,11 @@ Go to the "Service Accounts" section of Google Cloud IAM & Admin.
 
 1. Click the "Create Service Account" button at the top.
 
-<Figure align="left" bordered caption="Create service account">
-  ![Create service account](../../../../img/helm/gcp/7-serviceaccounts@1.5x.png)
-</Figure>
+   ![Create service account](../../../../img/helm/gcp/7-serviceaccounts@1.5x.png)
 
 2. Enter details for the service account (we recommend using the name `teleport-helm`) and click the "Create" button.
 
-<Figure align="left" bordered caption="Enter service account details">
-  ![Enter service account details](../../../../img/helm/gcp/8-createserviceaccount@1.5x.png)
-</Figure>
+   ![Enter service account details](../../../../img/helm/gcp/8-createserviceaccount@1.5x.png)
 
 3. In the "Grant this service account access to project" section, add these four roles:
 
@@ -146,9 +123,7 @@ Go to the "Service Accounts" section of Google Cloud IAM & Admin.
 | Cloud Datastore Owner | Grants permissions to create Cloud Datastore collections |
 | Storage Object Admin | Allows read/write/delete of Google Cloud storage objects |
 
-<Figure align="left" bordered caption="Add roles">
-  ![Add roles](../../../../img/helm/gcp/9-addroles@1.5x.png)
-</Figure>
+![Add roles](../../../../img/helm/gcp/9-addroles@1.5x.png)
 
 4. Click the "continue" button to save these settings, then click the "create" button to create the service account.
 
@@ -158,22 +133,16 @@ Go back to the "Service Accounts" view in Google Cloud IAM & Admin.
 
 1. Click on the `teleport-helm` service account that you just created.
 
-<Figure align="left" bordered caption="Click on the service account">
-  ![Click on the service account](../../../../img/helm/gcp/10-serviceaccountdetails@1.5x.png)
-</Figure>
+   ![Click on the service account](../../../../img/helm/gcp/10-serviceaccountdetails@1.5x.png)
 
 2. Click the "Keys" tab at the top and click "Add Key". Choose "JSON" and click "Create".
 
-<Figure align="left" bordered caption="Create JSON key">
-  ![Create JSON key](../../../../img/helm/gcp/11-createkey.png)
-</Figure>
+   ![Create JSON key](../../../../img/helm/gcp/11-createkey.png)
 
 3. The JSON private key will be downloaded to your computer. Take note of the filename (`bens-demos-24150b1a0a7f.json` in this example)
    as you will need it shortly.
 
-<Figure align="left" bordered caption="Private key saved">
-  ![Private key saved](../../../../img/helm/gcp/12-privatekey@1.5x.png)
-</Figure>
+   ![Private key saved](../../../../img/helm/gcp/12-privatekey@1.5x.png)
 
 #### Create the Kubernetes secret containing the JSON private key for the service account
 
