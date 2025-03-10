@@ -290,6 +290,10 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 	signer := s.cfg.SignerFn(authzContext, req.DialTarget.Cluster)
 	hostConn, err := s.cfg.Dialer.DialHost(ctx, p.Addr, clientDst, host, port, req.DialTarget.Cluster, authzContext.Checker, s.cfg.agentGetterFn(agentStreamRW), signer)
 	if err != nil {
+		// Return ambiguous errors unadorned so that clients can detect them easily.
+		if errors.Is(err, teleport.ErrNodeIsAmbiguous) {
+			return trace.Wrap(err)
+		}
 		return trace.Wrap(err, "failed to dial target host")
 	}
 

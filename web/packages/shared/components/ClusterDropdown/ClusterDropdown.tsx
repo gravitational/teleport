@@ -16,15 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
-import styled from 'styled-components';
+import React, { useEffect, useState } from 'react';
 import { useHistory } from 'react-router';
+import styled from 'styled-components';
+
 import { Box, ButtonSecondary, Flex, Menu, MenuItem, Text } from 'design';
 import { ChevronDown } from 'design/Icon';
+import { HoverTooltip } from 'design/Tooltip';
+
 import cfg from 'teleport/config';
 import { Cluster } from 'teleport/services/clusters';
-
-import { HoverTooltip } from 'design/Tooltip';
 
 export interface ClusterDropdownProps {
   clusterLoader: ClusterLoader;

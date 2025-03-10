@@ -16,28 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
-import { Box, Flex, Link as ExternalLink, Text, ResourceIcon } from 'design';
-
+import { Box, Link as ExternalLink, Flex, ResourceIcon, Text } from 'design';
+import { Server } from 'design/Icon';
 import { P } from 'design/Text/Text';
 
-import { Server } from 'design/Icon';
-
+import { FeatureHeader, FeatureHeaderTitle } from 'teleport/components/Layout';
+import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
 import cfg from 'teleport/config';
-
+import { IntegrationTile } from 'teleport/Integrations';
 import {
   IntegrationEnrollEvent,
   IntegrationEnrollKind,
   userEventService,
 } from 'teleport/services/userEvent';
-import { IntegrationTile } from 'teleport/Integrations';
-import { FeatureHeader, FeatureHeaderTitle } from 'teleport/components/Layout';
-
 import useTeleport from 'teleport/useTeleport';
-import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
 
 import { BotFlowType } from '../types';
 
@@ -66,70 +61,70 @@ const integrations: BotIntegration[] = [
   },
   {
     title: 'CircleCI',
-    link: 'https://goteleport.com/docs/machine-id/deployment/circleci/',
+    link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/circleci/',
     icon: <StyledResourceIcon name="circleci" />,
     kind: IntegrationEnrollKind.MachineIDCircleCI,
     guided: false,
   },
   {
     title: 'GitLab CI/CD',
-    link: 'https://goteleport.com/docs/machine-id/deployment/gitlab/',
+    link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/gitlab/',
     icon: <StyledResourceIcon name="gitlab" />,
     kind: IntegrationEnrollKind.MachineIDGitLab,
     guided: false,
   },
   {
     title: 'Jenkins',
-    link: 'https://goteleport.com/docs/machine-id/deployment/jenkins/',
+    link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/jenkins/',
     icon: <StyledResourceIcon name="jenkins" />,
     kind: IntegrationEnrollKind.MachineIDJenkins,
     guided: false,
   },
   {
     title: 'Ansible',
-    link: 'https://goteleport.com/docs/machine-id/access-guides/ansible/',
+    link: 'https://goteleport.com/docs/enroll-resources/machine-id/access-guides/ansible/',
     icon: <StyledResourceIcon name="ansible" />,
     kind: IntegrationEnrollKind.MachineIDAnsible,
     guided: false,
   },
   {
     title: 'Spacelift',
-    link: 'https://goteleport.com/docs/machine-id/deployment/spacelift/',
+    link: 'https://goteleport.com/docs/admin-guides/infrastructure-as-code/terraform-provider/spacelift/',
     icon: <StyledResourceIcon name="spacelift" />,
     kind: IntegrationEnrollKind.MachineIDSpacelift,
     guided: false,
   },
   {
     title: 'AWS',
-    link: 'https://goteleport.com/docs/machine-id/deployment/aws/',
+    link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/aws/',
     icon: <StyledResourceIcon name="aws" />,
     kind: IntegrationEnrollKind.MachineIDAWS,
     guided: false,
   },
   {
     title: 'GCP',
-    link: 'https://goteleport.com/docs/machine-id/deployment/gcp/',
+    link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/gcp/',
     icon: <StyledResourceIcon name="googlecloud" />,
     kind: IntegrationEnrollKind.MachineIDGCP,
     guided: false,
   },
   {
     title: 'Azure',
-    link: 'https://goteleport.com/docs/machine-id/deployment/azure/',
+    link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/azure/',
     icon: <StyledResourceIcon name="azure" />,
     kind: IntegrationEnrollKind.MachineIDAzure,
     guided: false,
   },
   {
     title: 'Kubernetes',
-    link: 'https://goteleport.com/docs/machine-id/deployment/kubernetes/',
+    link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/kubernetes/',
     icon: <StyledResourceIcon name="kube" />,
     kind: IntegrationEnrollKind.MachineIDKubernetes,
     guided: false,
   },
   {
     title: 'Generic',
-    link: 'https://goteleport.com/docs/machine-id/getting-started/',
+    link: 'https://goteleport.com/docs/enroll-resources/machine-id/getting-started/',
     icon: <Server size={80} />,
     kind: IntegrationEnrollKind.MachineID,
     guided: false,

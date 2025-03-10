@@ -17,18 +17,18 @@
  */
 
 import {
-  useState,
-  useRef,
-  useCallback,
   MutableRefObject,
+  useCallback,
   useEffect,
+  useRef,
+  useState,
 } from 'react';
-
-import { ResourcesResponse } from 'teleport/services/agents';
-import { ApiError } from 'teleport/services/api/parseError';
 
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { isAbortError } from 'shared/utils/abortError';
+
+import { ResourcesResponse } from 'teleport/services/agents';
+import { ApiError } from 'teleport/services/api/parseError';
 
 /**
  * Supports fetching more data from the server when more data is available. Pass

@@ -19,8 +19,10 @@
 package db
 
 import (
+	"context"
+	"log/slog"
+
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -57,26 +59,28 @@ func (p *azureDBServerPlugin) GetServerLocation(server *azure.DBServer) string {
 	return server.Location
 }
 
-func (p *azureDBServerPlugin) NewDatabaseFromServer(server *azure.DBServer, log logrus.FieldLogger) types.Database {
+func (p *azureDBServerPlugin) NewDatabaseFromServer(ctx context.Context, server *azure.DBServer, logger *slog.Logger) types.Database {
 	if !server.IsSupported() {
-		log.Debugf("Azure server %q (version %v) does not support AAD authentication. Skipping.",
-			server.Name,
-			server.Properties.Version)
+		logger.DebugContext(ctx, "Skipping Azure server that does not support AAD authentication",
+			"server", server.Name,
+			"version", server.Properties.Version,
+		)
 		return nil
 	}
 
 	if !server.IsAvailable() {
-		log.Debugf("The current status of Azure server %q is %q. Skipping.",
-			server.Name,
-			server.Properties.UserVisibleState)
+		logger.DebugContext(ctx, "Skipping unavailable Azure server",
+			"server", server.Name,
+			"state", server.Properties.UserVisibleState)
 		return nil
 	}
 
 	database, err := common.NewDatabaseFromAzureServer(server)
 	if err != nil {
-		log.Warnf("Could not convert Azure server %q to database resource: %v.",
-			server.Name,
-			err)
+		logger.WarnContext(ctx, "Could not convert Azure server to database resource",
+			"server", server.Name,
+			"error", err,
+		)
 		return nil
 	}
 	return database

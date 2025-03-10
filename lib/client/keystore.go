@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	iofs "io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -31,7 +32,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -59,6 +59,10 @@ const (
 	// tshAzureDirName is the name of the directory containing the
 	// az cli app-specific profiles.
 	tshAzureDirName = "azure"
+
+	// tshBin is the name of the directory containing the
+	// updated binaries of client tools.
+	tshBin = "bin"
 )
 
 // KeyStore is a storage interface for client session keys and certificates.
@@ -95,7 +99,7 @@ type KeyStore interface {
 // The FS store uses the file layout outlined in `api/utils/keypaths.go`.
 type FSKeyStore struct {
 	// log holds the structured logger.
-	log logrus.FieldLogger
+	log *slog.Logger
 
 	// KeyDir is the directory where all keys are stored.
 	KeyDir string
@@ -111,7 +115,7 @@ type FSKeyStore struct {
 func NewFSKeyStore(dirPath string) *FSKeyStore {
 	dirPath = profile.FullProfilePath(dirPath)
 	return &FSKeyStore{
-		log:    logrus.WithField(teleport.ComponentKey, teleport.ComponentKeyStore),
+		log:    slog.With(teleport.ComponentKey, teleport.ComponentKeyStore),
 		KeyDir: dirPath,
 	}
 }
@@ -225,7 +229,7 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 	if runtime.GOOS == constants.WindowsOS {
 		ppkFile, err := keyRing.SSHPrivateKey.PPKFile()
 		if err != nil {
-			fs.log.Debugf("Cannot convert private key to PPK-formatted keypair: %v", err)
+			fs.log.DebugContext(context.Background(), "Cannot convert private key to PPK-formatted keypair", "error", err)
 		} else {
 			if err := fs.writeBytes(ppkFile, fs.ppkFilePath(keyRing.KeyRingIndex)); err != nil {
 				return trace.Wrap(err)
@@ -353,7 +357,10 @@ func tryLockFile(ctx context.Context, path string, lockFn func(string) (func() e
 		case err == nil:
 			return func() {
 				if err := unlock(); err != nil {
-					log.Errorf("failed to unlock TLS credential at %s: %s", path, err)
+					log.ErrorContext(ctx, "failed to unlock TLS credential",
+						"credential_path", path,
+						"error", err,
+					)
 				}
 			}, nil
 		case errors.Is(err, utils.ErrUnsuccessfulLockTry):
@@ -447,7 +454,7 @@ func (fs *FSKeyStore) DeleteKeyRing(idx KeyRingIndex) error {
 	// And try to delete kube credentials lockfile in case it exists
 	err := utils.RemoveSecure(fs.kubeCredLockfilePath(idx))
 	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
-		log.Debugf("Could not remove kube credentials file: %v", err)
+		log.DebugContext(context.Background(), "Could not remove kube credentials file", "error", err)
 	}
 
 	// Clear ClusterName to delete the user certs stored for all clusters.
@@ -480,13 +487,11 @@ func (fs *FSKeyStore) DeleteKeys() error {
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
+	ignoreDirs := map[string]struct{}{tshConfigFileName: {}, tshAzureDirName: {}, tshBin: {}}
 	for _, file := range files {
-		// Don't delete 'config' and 'azure' directories.
+		// Don't delete 'config', 'azure' and 'bin' directories.
 		// TODO: this is hackish and really shouldn't be needed, but fs.KeyDir is `~/.tsh` while it probably should be `~/.tsh/keys` instead.
-		if file.IsDir() && file.Name() == tshConfigFileName {
-			continue
-		}
-		if file.IsDir() && file.Name() == tshAzureDirName {
+		if _, ok := ignoreDirs[file.Name()]; ok && file.IsDir() {
 			continue
 		}
 		if file.IsDir() {

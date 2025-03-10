@@ -16,27 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import {
-  Text,
-  Flex,
   Box,
-  Indicator,
   ButtonSecondary,
-  Subtitle3,
+  Flex,
+  Indicator,
   P3,
+  Subtitle3,
+  Text,
 } from 'design';
-import * as Icons from 'design/Icon';
 import { FetchStatus } from 'design/DataTable/types';
+import * as Icons from 'design/Icon';
 import { HoverTooltip, IconTooltip } from 'design/Tooltip';
-import { pluralize } from 'shared/utils/text';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
+import { pluralize } from 'shared/utils/text';
 
 import { SubnetIdPicker } from 'teleport/Discover/Shared/SubnetIdPicker';
-import { integrationService, Subnet } from 'teleport/services/integrations';
 import { DbMeta } from 'teleport/Discover/useDiscover';
+import { integrationService, Subnet } from 'teleport/services/integrations';
 import useTeleport from 'teleport/useTeleport';
 
 import { ButtonBlueText } from '../../../Shared';

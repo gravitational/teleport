@@ -307,7 +307,8 @@ Service.
    Application Service.
 
 1. Run the following command to associate the new instance profile with your
-   instance:
+   instance, assigning <Var name="INSTANCE_ID" /> to your instance ID and 
+   <Var name="AWS_REGION" /> to your AWS region:
 
    ```code
    $ aws ec2 associate-iam-instance-profile --iam-instance-profile Name="TeleportAWSAccess" \
@@ -360,6 +361,8 @@ In this step, you will define a Teleport role that confers access to the
    ```code
    $ tctl create aws-ro-access.yaml
    ```
+
+   (!docs/pages/includes/create-role-using-web.mdx!)
 
 1. (!docs/pages/includes/add-role-to-user.mdx role="aws-ro-access"!)
 
@@ -426,7 +429,10 @@ Application Service:
    `example.teleport.sh:443`.
 
    The `app_service` field configures the Teleport Application Service. Each
-   item within `app_service.apps` is an application configuration. 
+   item within `app_service.apps` is an application configuration. If self-hosting
+   the Teleport cluster, you must have [DNS and a TLS certificate](../getting-started.mdx#subdomains-and-applications)
+   configured for the application domain name associated with the Teleport 
+   Proxy Service, e.g., `awsconsole.teleport.example.com`.
 
 </TabItem>
 <TabItem label="EKS">
@@ -458,14 +464,14 @@ Application Service:
 
 1. (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
-1. Install the Helm chart for Teleport agent services, `teleport-kube-agent`:
+1. Install the Helm chart for Teleport Agent services, `teleport-kube-agent`:
 
    ```code
    $ helm -n teleport-agent install teleport-kube-agent teleport/teleport-kube-agent \
      --values values.yaml --create-namespace
    ```
 
-1. Make sure that the Teleport agent pod is running. You should see one
+1. Make sure that the Teleport Agent pod is running. You should see one
    `teleport-kube-agent` pod with a single ready container:
 
    ```code
@@ -774,6 +780,20 @@ instance and attach an IAM role to it.
 
 (!docs/pages/includes/aws-no-credential-provider.mdx service="Application"!)
 
+### Missing X-Forwarded-Host HTTP header
+
+You may encounter the error `proxied requests must include X-Forwarded-Host header`
+when making requests to your `tsh` local proxy. This is because Teleport
+expects the HTTP requests to include the `X-Forwarded-Host` header, containing
+a valid AWS endpoint.
+
+Ensure the application using the Teleport AWS local proxy supports HTTPS proxy
+setting. Passing the local proxy address to applications as the AWS endpoint URL
+is no longer supported.
+
+If you were previously using the `--endpoint-url` flag on `tsh proxy aws`
+command, you must update your applications to use the local HTTPS proxy instead.
+
 ## Next steps
 
 Now that you know how to set up Teleport to protect access to the AWS Management
@@ -795,13 +815,13 @@ user's permitted ARNs based on data from the IdP:
     - {{external.aws_role_arns}}
 ```
 
-See the [Teleport Access Controls
+See the [Access Controls
 Reference](../../../reference/access-controls/roles.mdx)
 for all of the variables and functions you can use in the `aws_role_arns` field.
 
 ### Register the AWS application dynamically
 
-You can deploy a pool of Teleport agents to run the Teleport Application
+You can deploy a pool of Teleport Agents to run the Teleport Application
 Service, then enroll an AWS application in your Teleport cluster as a dynamic
 resource. Read more about [dynamically registering
 applications](../guides/dynamic-registration.mdx).

@@ -16,11 +16,11 @@ the approval of two team members for a privileged role `elevated-access`.
 The steps below describe how to use Teleport with Mattermost. You can also
 [integrate with many other providers](../access-requests/access-requests.mdx).
 
-<Notice type="warning">
+<Admonition type="warning">
 
 Dual Authorization requires Teleport Enterprise.
 
-</Notice>
+</Admonition>
 
 ## Prerequisites
 
@@ -155,6 +155,8 @@ spec:
       'env': 'prod'
       'type': 'db'
 ```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
 
 The commands below create the local users Bob, Alice, and Ivan.
 

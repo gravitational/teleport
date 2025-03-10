@@ -4,7 +4,7 @@ description: An explanation and overview of Access Lists in Teleport.
 ---
 
 Access Lists allow Teleport users to be granted long term access to resources
-managed within Teleport. With Access Lists, administrators and access list
+managed within Teleport. With Access Lists, administrators and Access List
 owners can regularly audit and control membership to specific roles and
 traits, which then tie easily back into Teleport's existing RBAC system.
 
@@ -31,7 +31,7 @@ to live on the order of hours or days.
 
 Access List owners are Teleport users or nested Access Lists who are granted special privileges over
 an Access List. These owners are defined explicitly as part of the Access List, and
-must be added by a Teleport user who has RBAC access to access lists, which the preset `editor`
+must be added by a Teleport user who has RBAC access to Access Lists, which the preset `editor`
 role has. Owners must meet requirements in order for their ownership to be effective.
 
 Provided owners meet requirements, owners are able to do the following:
@@ -178,7 +178,7 @@ Roles intended to reduce privileges should be assigned directly to users.
 ## Managing Access Lists from the CLI
 
 In addition to using the web UI, Access Lists can be created and managed from the CLI
-as well. To create an access list from the CLI, create an Access List YAML file (as described
+as well. To create an Access List from the CLI, create an Access List YAML file (as described
 above) and run `tctl create <filename>`. Access Lists can be updated by using `tctl create -f <filename>`.
 
 `tctl` also supports a subset of Access List focused commands under the `tctl acl` subcommand.

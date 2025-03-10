@@ -154,6 +154,137 @@ func TestConcurrentStreaming(t *testing.T) {
 	}
 }
 
+func TestStreamSessionEvents(t *testing.T) {
+	uploader := eventstest.NewMemoryUploader()
+	alog, err := events.NewAuditLog(events.AuditLogConfig{
+		DataDir:       t.TempDir(),
+		Clock:         clockwork.NewFakeClock(),
+		ServerID:      "remote",
+		UploadHandler: uploader,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { alog.Close() })
+
+	ctx := context.Background()
+	sid := session.NewID()
+	sessionEvents := []apievents.AuditEvent{
+		&apievents.DatabaseSessionStart{
+			Metadata: apievents.Metadata{
+				Type:  events.DatabaseSessionStartEvent,
+				Code:  events.DatabaseSessionStartCode,
+				Index: 0,
+			},
+			SessionMetadata: apievents.SessionMetadata{
+				SessionID: sid.String(),
+			},
+		},
+		&apievents.DatabaseSessionEnd{
+			Metadata: apievents.Metadata{
+				Type:  events.DatabaseSessionEndEvent,
+				Code:  events.DatabaseSessionEndCode,
+				Index: 1,
+			},
+			SessionMetadata: apievents.SessionMetadata{
+				SessionID: sid.String(),
+			},
+		},
+	}
+
+	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+		Uploader: uploader,
+	})
+	require.NoError(t, err)
+	stream, err := streamer.CreateAuditStream(ctx, sid)
+	require.NoError(t, err)
+	for _, event := range sessionEvents {
+		require.NoError(t, stream.RecordEvent(ctx, eventstest.PrepareEvent(event)))
+	}
+	require.NoError(t, stream.Complete(ctx))
+
+	type callbackResult struct {
+		event apievents.AuditEvent
+		err   error
+	}
+
+	t.Run("Success", func(t *testing.T) {
+		for name, withCallback := range map[string]bool{
+			"WithCallback":    true,
+			"WithoutCallback": false,
+		} {
+			t.Run(name, func(t *testing.T) {
+				streamCtx, cancel := context.WithCancel(ctx)
+				defer cancel()
+
+				callbackCh := make(chan callbackResult, 1)
+				if withCallback {
+					streamCtx = events.ContextWithSessionStartCallback(streamCtx, func(ae apievents.AuditEvent, err error) {
+						callbackCh <- callbackResult{ae, err}
+					})
+				}
+
+				ch, _ := alog.StreamSessionEvents(streamCtx, sid, 0)
+				for _, event := range sessionEvents {
+					select {
+					case receivedEvent := <-ch:
+						require.NotNil(t, receivedEvent)
+						require.Equal(t, event.GetCode(), receivedEvent.GetCode())
+						require.Equal(t, event.GetType(), receivedEvent.GetType())
+					case <-time.After(10 * time.Second):
+						require.Fail(t, "expected to receive session event %q but got nothing", event.GetType())
+					}
+				}
+
+				if withCallback {
+					select {
+					case res := <-callbackCh:
+						require.NoError(t, res.err)
+						require.Equal(t, sessionEvents[0].GetCode(), res.event.GetCode())
+						require.Equal(t, sessionEvents[0].GetType(), res.event.GetType())
+					case <-time.After(10 * time.Second):
+						require.Fail(t, "expected to receive callback result but got nothing")
+					}
+				}
+			})
+		}
+	})
+
+	t.Run("Error", func(t *testing.T) {
+		for name, withCallback := range map[string]bool{
+			"WithCallback":    true,
+			"WithoutCallback": false,
+		} {
+			t.Run(name, func(t *testing.T) {
+				streamCtx, cancel := context.WithCancel(ctx)
+				defer cancel()
+
+				callbackCh := make(chan callbackResult, 1)
+				if withCallback {
+					streamCtx = events.ContextWithSessionStartCallback(streamCtx, func(ae apievents.AuditEvent, err error) {
+						callbackCh <- callbackResult{ae, err}
+					})
+				}
+
+				_, errCh := alog.StreamSessionEvents(streamCtx, session.ID("random"), 0)
+				select {
+				case err := <-errCh:
+					require.Error(t, err)
+				case <-time.After(10 * time.Second):
+					require.Fail(t, "expected to get error while stream but got nothing")
+				}
+
+				if withCallback {
+					select {
+					case res := <-callbackCh:
+						require.Error(t, res.err)
+					case <-time.After(10 * time.Second):
+						require.Fail(t, "expected to receive callback result but got nothing")
+					}
+				}
+			})
+		}
+	})
+}
+
 func TestExternalLog(t *testing.T) {
 	m := &eventstest.MockAuditLog{
 		Emitter: &eventstest.MockRecorderEmitter{},

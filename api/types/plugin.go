@@ -17,8 +17,11 @@ limitations under the License.
 package types
 
 import (
+	"bytes"
+	"net/url"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils"
@@ -83,6 +86,8 @@ const (
 	PluginTypeEmail = "email"
 	// PluginTypeMSTeams indicates a Microsoft Teams integration
 	PluginTypeMSTeams = "msteams"
+	// PluginTypeNetIQ indicates a NetIQ integration
+	PluginTypeNetIQ = "netiq"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -131,6 +136,8 @@ type PluginStatus interface {
 	GetEntraId() *PluginEntraIDStatusV1
 	GetOkta() *PluginOktaStatusV1
 	GetAwsIc() *PluginAWSICStatusV1
+	GetNetIq() *PluginNetIQStatusV1
+	SetDetails(isPluginStatusV1_Details)
 }
 
 // NewPluginV1 creates a new PluginV1 resource.
@@ -377,6 +384,20 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if len(staticCreds.Labels) == 0 {
 			return trace.BadParameter("labels must be specified")
 		}
+	case *PluginSpecV1_NetIq:
+		if settings.NetIq == nil {
+			return trace.BadParameter("missing NetIQ settings")
+		}
+		if err := settings.NetIq.Validate(); err != nil {
+			return trace.Wrap(err)
+		}
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("NetIQ plugin must be used with the static credentials ref type")
+		}
+		if len(staticCreds.Labels) == 0 {
+			return trace.BadParameter("labels must be specified")
+		}
 	default:
 		return nil
 	}
@@ -547,6 +568,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeEmail
 	case *PluginSpecV1_Msteams:
 		return PluginTypeMSTeams
+	case *PluginSpecV1_NetIq:
+		return PluginTypeNetIQ
 	default:
 		return PluginTypeUnknown
 	}
@@ -583,6 +606,10 @@ func (s *PluginOktaSettings) CheckAndSetDefaults() error {
 
 	if s.SyncSettings.SyncAccessLists && len(s.SyncSettings.DefaultOwners) == 0 {
 		return trace.BadParameter("default owners must be set when access list import is enabled")
+	}
+
+	if s.SyncSettings.UserSyncSource == "" {
+		s.SyncSettings.UserSyncSource = string(OktaUserSyncSourceUnknown)
 	}
 
 	return nil
@@ -734,7 +761,13 @@ func (c *PluginDatadogAccessSettings) CheckAndSetDefaults() error {
 }
 
 func (c *PluginAWSICSettings) CheckAndSetDefaults() error {
-	if c.IntegrationName == "" {
+	// Promote "unknown" credential source values to OIDC for backwards
+	// compatibility with old plugin records
+	if c.CredentialsSource == AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_UNKNOWN {
+		c.CredentialsSource = AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_OIDC
+	}
+
+	if c.CredentialsSource == AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_OIDC && c.IntegrationName == "" {
 		return trace.BadParameter("AWS OIDC integration name must be set")
 	}
 
@@ -763,6 +796,28 @@ func (c *AWSICProvisioningSpec) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// UnmarshalJSON implements [json.Unmarshaler] for the AWSICResourceFilter, forcing
+// it to use the `jsonpb` unmarshaler, which understands how to unpack values
+// generated from a protobuf `oneof` directive.
+func (s *AWSICResourceFilter) UnmarshalJSON(b []byte) error {
+	if err := jsonpb.Unmarshal(bytes.NewReader(b), s); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// MarshalJSON implements [json.Marshaler] for the AWSICResourceFilter, forcing
+// it to use the `jsonpb` marshaler, which understands how to pack values
+// generated from a protobuf `oneof` directive.
+func (s AWSICResourceFilter) MarshalJSON() ([]byte, error) {
+	m := jsonpb.Marshaler{}
+	var buf bytes.Buffer
+	if err := m.Marshal(&buf, &s); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf.Bytes(), nil
 }
 
 func (c *PluginEmailSettings) CheckAndSetDefaults() error {
@@ -829,10 +884,33 @@ func (c PluginStatusV1) GetLastSyncTime() time.Time {
 	return c.LastSyncTime
 }
 
+func (c *PluginStatusV1) SetDetails(settings isPluginStatusV1_Details) {
+	c.Details = settings
+}
+
 // CheckAndSetDefaults checks that the required fields for the Gitlab plugin are set.
 func (c *PluginGitlabSettings) Validate() error {
 	if c.ApiEndpoint == "" {
 		return trace.BadParameter("API endpoint must be set")
+	}
+
+	return nil
+}
+
+func (c *PluginNetIQSettings) Validate() error {
+	if c.OauthIssuerEndpoint == "" {
+		return trace.BadParameter("oauth_issuer endpoint must be set")
+	}
+
+	if _, err := url.Parse(c.OauthIssuerEndpoint); err != nil {
+		return trace.BadParameter("oauth_issuer endpoint must be a valid URL")
+	}
+
+	if c.ApiEndpoint == "" {
+		return trace.BadParameter("api_endpoint must be set")
+	}
+	if _, err := url.Parse(c.ApiEndpoint); err != nil {
+		return trace.BadParameter("api_endpoint endpoint must be a valid URL")
 	}
 
 	return nil

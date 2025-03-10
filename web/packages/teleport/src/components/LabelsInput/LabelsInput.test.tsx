@@ -16,24 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, fireEvent, screen } from 'design/utils/testing';
-import Validation, { Validator } from 'shared/components/Validation';
 import { act } from '@testing-library/react';
+
+import { fireEvent, render, screen } from 'design/utils/testing';
+import Validation, { Validator } from 'shared/components/Validation';
 
 import { Label, LabelsInput, LabelsRule, nonEmptyLabels } from './LabelsInput';
 import {
-  Default,
-  Custom,
-  Disabled,
   AtLeastOneRequired,
+  Custom,
+  Default,
+  Disabled,
 } from './LabelsInput.story';
+
+/** Marks asterisks in the required column headings. */
+const requiredMarkRegexp = /\*/;
 
 test('defaults, with empty labels', async () => {
   render(<Default />);
 
   expect(screen.queryByText(/key/i)).not.toBeInTheDocument();
   expect(screen.queryByText(/value/i)).not.toBeInTheDocument();
-  expect(screen.queryByText(/required field/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(requiredMarkRegexp)).not.toBeInTheDocument();
   expect(screen.queryByPlaceholderText('label key')).not.toBeInTheDocument();
   expect(screen.queryByPlaceholderText('label value')).not.toBeInTheDocument();
 
@@ -41,7 +45,7 @@ test('defaults, with empty labels', async () => {
 
   expect(screen.getByText(/key/i)).toBeInTheDocument();
   expect(screen.getByText(/value/i)).toBeInTheDocument();
-  expect(screen.getAllByText(/required field/i)).toHaveLength(2);
+  expect(screen.getAllByText(requiredMarkRegexp)).toHaveLength(2);
   expect(screen.getByPlaceholderText('label key')).toBeInTheDocument();
   expect(screen.getByPlaceholderText('label value')).toBeInTheDocument();
   expect(screen.getByTitle(/remove label/i)).toBeInTheDocument();
@@ -60,7 +64,7 @@ test('with custom texts', async () => {
 
   expect(screen.getByText(/custom key name/i)).toBeInTheDocument();
   expect(screen.getByText(/custom value/i)).toBeInTheDocument();
-  expect(screen.getAllByText(/required field/i)).toHaveLength(2);
+  expect(screen.getAllByText(requiredMarkRegexp)).toHaveLength(2);
   expect(
     screen.getByPlaceholderText('custom key placeholder')
   ).toBeInTheDocument();

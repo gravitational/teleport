@@ -16,42 +16,85 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import styled from 'styled-components';
+
 import { Alert, Box, Button, Flex, H3, Link } from 'design';
 import { P } from 'design/Text/Text';
+import { HoverTooltip } from 'design/Tooltip';
 import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import {
+  Notification,
+  NotificationItem,
+  NotificationSeverity,
+} from 'shared/components/Notification';
+import { Attempt } from 'shared/hooks/useAsync';
 
+import { useServerSidePagination } from 'teleport/components/hooks';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import ResourceEditor from 'teleport/components/ResourceEditor';
-import useTeleport from 'teleport/useTeleport';
-import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
-import { useServerSidePagination } from 'teleport/components/hooks';
-import { storageService } from 'teleport/services/storageService';
-import { RoleWithYaml, RoleResource } from 'teleport/services/resources';
 import useResources from 'teleport/components/useResources';
+import { Role, RoleResource, RoleWithYaml } from 'teleport/services/resources';
+import { storageService } from 'teleport/services/storageService';
+import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
+import useTeleport from 'teleport/useTeleport';
 
-import { RoleList } from './RoleList';
 import DeleteRole from './DeleteRole';
-import { useRoles, State } from './useRoles';
-import templates from './templates';
 import { RoleEditorDialog } from './RoleEditor/RoleEditorDialog';
+import { RoleList } from './RoleList';
+import templates from './templates';
+import { State, useRoles } from './useRoles';
 
-export function RolesContainer() {
+/** Optional set of props to render the role diff visualizer. */
+type RoleDiffProps = {
+  roleDiffElement: React.ReactNode;
+  updateRoleDiff: (role: Role) => void;
+
+  /** @deprecated Use {@link RoleDiffProps.roleDiffAttempt} instead. */
+  // TODO(bl-nero): Remove this property once the Enterprise code is updated.
+  errorMessage?: string;
+
+  /**
+   * State of the attempt to fetch the information required by the role diff
+   * visualizer. Required to show an error message in the editor UI.
+   */
+  // TODO(bl-nero): Make this property required once the Enterprise code is
+  // updated.
+  roleDiffAttempt?: Attempt<unknown>;
+  clearRoleDiffAttempt?: () => void;
+};
+
+export type RolesProps = {
+  roleDiffProps?: RoleDiffProps;
+};
+
+export function RolesContainer({ roleDiffProps }: RolesProps) {
   const ctx = useTeleport();
   const state = useRoles(ctx);
-  return <Roles {...state} />;
+  return <Roles {...state} roleDiffProps={roleDiffProps} />;
 }
 
 const useNewRoleEditor = storageService.getUseNewRoleEditor();
 
-export function Roles(props: State) {
+export function Roles(props: State & RolesProps) {
   const { remove, create, update, fetch, rolesAcl } = props;
   const [search, setSearch] = useState('');
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+
+  function addNotification(content: string, severity: NotificationSeverity) {
+    setNotifications(notifications => [
+      ...notifications,
+      { id: crypto.randomUUID(), content, severity },
+    ]);
+  }
+
+  function removeNotification(id: string) {
+    setNotifications(n => n.filter(item => item.id !== id));
+  }
 
   const serverSidePagination = useServerSidePagination<RoleResource>({
     pageSize: 20,
@@ -75,6 +118,13 @@ export function Roles(props: State) {
     const response: RoleResource = await (resources.status === 'creating'
       ? create(role)
       : update(resources.item.name, role));
+
+    addNotification(
+      resources.status === 'creating'
+        ? `Role ${response.name} has been created`
+        : `Role ${response.name} has been updated`,
+      'success'
+    );
 
     if (useNewRoleEditor) {
       // We don't really disregard anything, since we already saved the role;
@@ -190,10 +240,13 @@ export function Roles(props: State) {
             open={
               resources.status === 'creating' || resources.status === 'editing'
             }
-            onClose={resources.disregard}
+            onClose={() => {
+              resources.disregard();
+              props.roleDiffProps?.clearRoleDiffAttempt();
+            }}
             resources={resources}
             onSave={handleSave}
-            onDelete={handleDelete}
+            roleDiffProps={props.roleDiffProps}
           />
         )}
         <Box
@@ -214,7 +267,7 @@ export function Roles(props: State) {
             <Link
               color="text.main"
               target="_blank"
-              href="https://goteleport.com/docs/access-controls/guides/role-templates/"
+              href="https://goteleport.com/docs/admin-guides/access-controls/guides/role-templates/"
             >
               the cluster management (RBAC)
             </Link>{' '}
@@ -227,7 +280,7 @@ export function Roles(props: State) {
       {!useNewRoleEditor &&
         (resources.status === 'creating' || resources.status === 'editing') && (
           <ResourceEditor
-            docsURL="https://goteleport.com/docs/access-controls/guides/role-templates/"
+            docsURL="https://goteleport.com/docs/admin-guides/access-controls/guides/role-templates/"
             title={title}
             text={resources.item.content}
             name={resources.item.name}
@@ -246,6 +299,17 @@ export function Roles(props: State) {
           onDelete={handleDelete}
         />
       )}
+
+      <NotificationContainer>
+        {notifications.map(item => (
+          <Notification
+            mb={3}
+            key={item.id}
+            item={item}
+            onRemove={() => removeNotification(item.id)}
+          />
+        ))}
+      </NotificationContainer>
     </FeatureBox>
   );
 }
@@ -265,3 +329,9 @@ function Directions() {
     </>
   );
 }
+
+const NotificationContainer = styled.div`
+  position: absolute;
+  bottom: ${props => props.theme.space[2]}px;
+  right: ${props => props.theme.space[5]}px;
+`;

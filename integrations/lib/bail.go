@@ -19,22 +19,24 @@
 package lib
 
 import (
+	"context"
 	"errors"
+	"log/slog"
 	"os"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // Bail exits with nonzero exit code and prints an error to a log.
 func Bail(err error) {
+	ctx := context.Background()
 	var agg trace.Aggregate
 	if errors.As(trace.Unwrap(err), &agg) {
 		for i, err := range agg.Errors() {
-			log.WithError(err).Errorf("Terminating with fatal error [%d]...", i+1)
+			slog.ErrorContext(ctx, "Terminating with fatal error", "error_number", i+1, "error", err)
 		}
 	} else {
-		log.WithError(err).Error("Terminating with fatal error...")
+		slog.ErrorContext(ctx, "Terminating with fatal error", "error", err)
 	}
 	os.Exit(1)
 }

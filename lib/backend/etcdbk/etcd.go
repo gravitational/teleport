@@ -25,9 +25,9 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"errors"
+	"iter"
 	"log/slog"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -537,7 +537,6 @@ type eventResult struct {
 // effective, this strategy still suffers from a "head of line blocking"-esque issue since event order
 // must be preserved.
 func (b *EtcdBackend) watchEvents(ctx context.Context) error {
-
 	// etcd watch client relies on context cancellation for cleanup,
 	// so create a new subscope for this function.
 	ctx, cancel := context.WithCancel(ctx)
@@ -650,6 +649,84 @@ func (b *EtcdBackend) NewWatcher(ctx context.Context, watch backend.Watch) (back
 	return b.buf.NewWatcher(ctx, watch)
 }
 
+func (b *EtcdBackend) Items(ctx context.Context, params backend.IterateParams) iter.Seq2[backend.Item, error] {
+	if params.StartKey.IsZero() {
+		err := trace.BadParameter("missing parameter startKey")
+		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
+	}
+	if params.EndKey.IsZero() {
+		err := trace.BadParameter("missing parameter endKey")
+		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
+	}
+
+	sort := clientv3.SortAscend
+	if params.Descending {
+		sort = clientv3.SortDescend
+	}
+
+	const defaultPageSize = 1000
+	return func(yield func(backend.Item, error) bool) {
+		inclusiveStartKey := b.prependPrefix(params.StartKey)
+		// etcd's range query includes the start point and excludes the end point,
+		// but Backend.GetRange is supposed to be inclusive at both ends, so we
+		// query until the very next key in lexicographic order (i.e., the same key
+		// followed by a 0 byte)
+		endKey := b.prependPrefix(params.EndKey) + "\x00"
+		count := 0
+
+		pageSize := defaultPageSize
+		for {
+			if params.Limit > backend.NoLimit {
+				pageSize = min(params.Limit-count, defaultPageSize)
+			}
+
+			start := b.clock.Now()
+			re, err := b.clients.Next().Get(ctx, inclusiveStartKey,
+				clientv3.WithRange(endKey),
+				clientv3.WithSort(clientv3.SortByKey, sort),
+				clientv3.WithLimit(int64(pageSize)),
+			)
+			batchReadLatencies.Observe(time.Since(start).Seconds())
+			batchReadRequests.Inc()
+			if err := convertErr(err); err != nil {
+				yield(backend.Item{}, trace.Wrap(err))
+				return
+			}
+
+			if len(re.Kvs) == 0 {
+				return
+			}
+
+			for _, kv := range re.Kvs {
+				value, err := unmarshal(kv.Value)
+				if err != nil {
+					yield(backend.Item{}, trace.Wrap(err))
+					return
+				}
+
+				if !yield(backend.Item{
+					Key:      b.trimPrefix(kv.Key),
+					Value:    value,
+					Revision: toBackendRevision(kv.ModRevision),
+				}, nil) {
+					return
+				}
+
+				count++
+				if params.Limit != backend.NoLimit && count >= params.Limit {
+					return
+				}
+			}
+
+			if params.Descending {
+				endKey = string(re.Kvs[len(re.Kvs)-1].Key)
+			} else {
+				inclusiveStartKey = string(re.Kvs[len(re.Kvs)-1].Key) + "\x00"
+			}
+		}
+	}
+}
+
 // GetRange returns query range
 func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
 	if startKey.IsZero() {
@@ -658,31 +735,18 @@ func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey backend.Key
 	if endKey.IsZero() {
 		return nil, trace.BadParameter("missing parameter endKey")
 	}
-	opts := []clientv3.OpOption{clientv3.WithRange(b.prependPrefix(endKey))}
-	if limit > 0 {
-		opts = append(opts, clientv3.WithLimit(int64(limit)))
-	}
-	start := b.clock.Now()
-	re, err := b.clients.Next().Get(ctx, b.prependPrefix(startKey), opts...)
-	batchReadLatencies.Observe(time.Since(start).Seconds())
-	batchReadRequests.Inc()
-	if err := convertErr(err); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	items := make([]backend.Item, 0, len(re.Kvs))
-	for _, kv := range re.Kvs {
-		value, err := unmarshal(kv.Value)
+
+	var result backend.GetResult
+	for item, err := range b.Items(ctx, backend.IterateParams{StartKey: startKey, EndKey: endKey, Limit: limit}) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		items = append(items, backend.Item{
-			Key:      b.trimPrefix(kv.Key),
-			Value:    value,
-			Revision: toBackendRevision(kv.ModRevision),
-		})
+		result.Items = append(result.Items, item)
+		if limit != backend.NoLimit && len(result.Items) > limit {
+			return nil, trace.BadParameter("item iterator produced more items than requested (this is a bug). limit=%d, received=%d", limit, len(result.Items))
+		}
 	}
-	sort.Sort(backend.Items(items))
-	return &backend.GetResult{Items: items}, nil
+	return &result, nil
 }
 
 func toBackendRevision(rev int64) string {
@@ -820,7 +884,7 @@ func (b *EtcdBackend) CompareAndSwap(ctx context.Context, expected backend.Item,
 	if err != nil {
 		err = convertErr(err)
 		if trace.IsNotFound(err) {
-			return nil, trace.CompareFailed(err.Error())
+			return nil, trace.CompareFailed("%s", err)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -1070,14 +1134,14 @@ func convertErr(err error) error {
 	case errors.Is(err, context.DeadlineExceeded):
 		return trace.ConnectionProblem(err, "operation has timed out")
 	case errors.Is(err, rpctypes.ErrEmptyKey):
-		return trace.BadParameter(err.Error())
+		return trace.BadParameter("%s", err)
 	case errors.Is(err, rpctypes.ErrKeyNotFound):
-		return trace.NotFound(err.Error())
+		return trace.NotFound("%s", err)
 	}
 
 	ev, ok := status.FromError(err)
 	if !ok {
-		return trace.ConnectionProblem(err, err.Error())
+		return trace.ConnectionProblem(err, "%s", err.Error())
 	}
 
 	switch ev.Code() {
@@ -1086,15 +1150,15 @@ func convertErr(err error) error {
 	case codes.DeadlineExceeded:
 		return trace.ConnectionProblem(err, "operation has timed out")
 	case codes.NotFound:
-		return trace.NotFound(err.Error())
+		return trace.NotFound("%s", err)
 	case codes.AlreadyExists:
-		return trace.AlreadyExists(err.Error())
+		return trace.AlreadyExists("%s", err)
 	case codes.FailedPrecondition:
-		return trace.CompareFailed(err.Error())
+		return trace.CompareFailed("%s", err)
 	case codes.ResourceExhausted:
-		return trace.LimitExceeded(err.Error())
+		return trace.LimitExceeded("%s", err)
 	default:
-		return trace.BadParameter(err.Error())
+		return trace.BadParameter("%s", err)
 	}
 }
 

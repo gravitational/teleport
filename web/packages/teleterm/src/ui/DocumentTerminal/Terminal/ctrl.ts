@@ -17,18 +17,20 @@
  */
 
 import '@xterm/xterm/css/xterm.css';
-import { IDisposable, ITheme, Terminal } from '@xterm/xterm';
+
 import { FitAddon } from '@xterm/addon-fit';
+import { IDisposable, ITheme, Terminal } from '@xterm/xterm';
+
 import {
   SearchAddon,
   TerminalSearcher,
 } from 'shared/components/TerminalSearch';
 import { debounce } from 'shared/utils/highbar';
 
+import Logger from 'teleterm/logger';
+import { AppConfig, ConfigService } from 'teleterm/services/config';
 import { WindowsPty } from 'teleterm/services/pty';
 import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
-import Logger from 'teleterm/logger';
-import { ConfigService, AppConfig } from 'teleterm/services/config';
 import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
 
 const WINDOW_RESIZE_DEBOUNCE_DELAY = 200;

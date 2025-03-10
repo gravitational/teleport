@@ -115,7 +115,7 @@ spec:
 ```
 
 For full details on how variable expansion works in Teleport roles, see the
-[Teleport Access Controls
+[Access Controls
 Reference](../../reference/access-controls/roles.mdx).
 
 ## Server role options
@@ -135,8 +135,18 @@ spec:
     create_host_user_mode: keep
     # forward_agent controls whether SSH agent forwarding is allowed
     forward_agent: true
-    # port_forwarding controls whether TCP port forwarding is allowed for SSH
-    port_forwarding: true
+    # ssh_port_forwarding controls which TCP port forwarding modes are allowed over SSH. This replaces
+    # the deprecated port_forwarding field, which did not differentiate between remote and local
+    # port forwarding modes. If you have any existing roles that allow forwarding by enabling the
+    # legacy port_forwarding field then the forwarding controls configured in ssh_port_forwarding will be
+    # ignored.
+    ssh_port_forwarding:
+      # configures remote port forwarding behavior
+      remote:
+        enabled: true
+      # configures local port forwarding behavior
+      local:
+        enabled: true
     # ssh_file_copy controls whether file copying (SCP/SFTP) is allowed.
     # Defaults to true.
     ssh_file_copy: false

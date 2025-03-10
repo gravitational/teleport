@@ -29,11 +29,11 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/utils"
 	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	apiteleterm "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1"
+	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
@@ -63,6 +63,7 @@ type Service struct {
 	usageReporter      usageReporter
 	processManager     *vnet.ProcessManager
 	clusterConfigCache *vnet.ClusterConfigCache
+	networkStackInfo   vnet.NetworkStackInfo
 }
 
 // New creates an instance of Service.
@@ -72,7 +73,8 @@ func New(cfg Config) (*Service, error) {
 	}
 
 	return &Service{
-		cfg: cfg,
+		cfg:                cfg,
+		clusterConfigCache: vnet.NewClusterConfigCache(cfg.Clock),
 	}, nil
 }
 
@@ -124,7 +126,7 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 		return nil, trace.AlreadyExists("VNet is already running")
 	}
 
-	appProvider := &appProvider{
+	clientApplication := &clientApplication{
 		daemonService:      s.cfg.DaemonService,
 		insecureSkipVerify: s.cfg.InsecureSkipVerify,
 		usageReporter:      &disabledTelemetryUsageReporter{},
@@ -155,13 +157,11 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 				usageReporter.Stop()
 			}
 		}()
-		appProvider.usageReporter = usageReporter
+		clientApplication.usageReporter = usageReporter
 	}
 
-	s.clusterConfigCache = vnet.NewClusterConfigCache(s.cfg.Clock)
-	processManager, err := vnet.Run(ctx, &vnet.RunConfig{
-		AppProvider:        appProvider,
-		ClusterConfigCache: s.clusterConfigCache,
+	processManager, nsi, err := vnet.RunUserProcess(ctx, &vnet.UserProcessConfig{
+		ClientApplication: clientApplication,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -195,7 +195,8 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 	}()
 
 	s.processManager = processManager
-	s.usageReporter = appProvider.usageReporter
+	s.networkStackInfo = nsi
+	s.usageReporter = clientApplication.usageReporter
 	s.status = statusRunning
 	return &api.StartResponse{}, nil
 }
@@ -238,8 +239,14 @@ func (s *Service) ListDNSZones(ctx context.Context, req *api.ListDNSZonesRequest
 		return nil, trace.Wrap(err)
 	}
 
-	dnsZones := []string{}
+	dnsZones, _ := s.listDNSZonesAndCIDRRanges(ctx, profileNames)
 
+	return &api.ListDNSZonesResponse{
+		DnsZones: dnsZones,
+	}, nil
+}
+
+func (s *Service) listDNSZonesAndCIDRRanges(ctx context.Context, profileNames []string) (dnsZones []string, cidrRanges []string) {
 	for _, profileName := range profileNames {
 		rootClusterURI := uri.NewClusterURI(profileName)
 		cLog := log.With("cluster", rootClusterURI)
@@ -256,6 +263,7 @@ func (s *Service) ListDNSZones(ctx context.Context, req *api.ListDNSZonesRequest
 		}
 
 		dnsZones = append(dnsZones, clusterConfig.DNSZones...)
+		cidrRanges = append(cidrRanges, clusterConfig.IPv4CIDRRange)
 
 		leafClusters, err := s.cfg.DaemonService.ListLeafClusters(ctx, rootClusterURI.String())
 		if err != nil {
@@ -278,14 +286,14 @@ func (s *Service) ListDNSZones(ctx context.Context, req *api.ListDNSZonesRequest
 			}
 
 			dnsZones = append(dnsZones, clusterConfig.DNSZones...)
+			cidrRanges = append(cidrRanges, clusterConfig.IPv4CIDRRange)
 		}
 	}
 
 	dnsZones = utils.Deduplicate(dnsZones)
+	cidrRanges = utils.Deduplicate(cidrRanges)
 
-	return &api.ListDNSZonesResponse{
-		DnsZones: dnsZones,
-	}, nil
+	return dnsZones, cidrRanges
 }
 
 func (s *Service) stopLocked() error {
@@ -354,31 +362,33 @@ func (s *Service) reportUnexpectedShutdown(ctx context.Context, shutdownErr erro
 	return trace.Wrap(err, "sending shutdown report")
 }
 
-type appProvider struct {
+type clientApplication struct {
 	daemonService      *daemon.Service
 	usageReporter      usageReporter
 	insecureSkipVerify bool
 }
 
-func (p *appProvider) ListProfiles() ([]string, error) {
+func (p *clientApplication) ListProfiles() ([]string, error) {
 	profiles, err := p.daemonService.ListProfileNames()
 	return profiles, trace.Wrap(err)
 }
 
-func (p *appProvider) GetCachedClient(ctx context.Context, profileName, leafClusterName string) (vnet.ClusterClient, error) {
+func (p *clientApplication) GetCachedClient(ctx context.Context, profileName, leafClusterName string) (vnet.ClusterClient, error) {
 	return p.getCachedClient(ctx, profileName, leafClusterName)
 }
 
-func (p *appProvider) getCachedClient(ctx context.Context, profileName, leafClusterName string) (*client.ClusterClient, error) {
+func (p *clientApplication) getCachedClient(ctx context.Context, profileName, leafClusterName string) (*client.ClusterClient, error) {
 	uri := uri.NewClusterURI(profileName).AppendLeafCluster(leafClusterName)
 	client, err := p.daemonService.GetCachedClient(ctx, uri)
 	return client, trace.Wrap(err)
 }
 
-func (p *appProvider) ReissueAppCert(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) (tls.Certificate, error) {
-	clusterURI := uri.NewClusterURI(profileName).AppendLeafCluster(leafClusterName)
-	appURI := clusterURI.AppendApp(routeToApp.Name)
+func (p *clientApplication) ReissueAppCert(ctx context.Context, appInfo *vnetv1.AppInfo, targetPort uint16) (tls.Certificate, error) {
+	appKey := appInfo.GetAppKey()
+	clusterURI := uri.NewClusterURI(appKey.GetProfile()).AppendLeafCluster(appKey.GetLeafCluster())
+	appURI := clusterURI.AppendApp(appKey.GetName())
 
+	routeToApp := vnet.RouteToApp(appInfo, targetPort)
 	apiteletermRouteToApp := apiteleterm.RouteToApp{
 		Name:        routeToApp.Name,
 		PublicAddr:  routeToApp.PublicAddr,
@@ -410,7 +420,7 @@ func (p *appProvider) ReissueAppCert(ctx context.Context, profileName, leafClust
 			return trace.Wrap(err)
 		}
 
-		cert, err = cluster.ReissueAppCert(ctx, client, routeToApp)
+		cert, err = cluster.ReissueAppCert(ctx, client, *routeToApp)
 		return trace.Wrap(err)
 	}
 
@@ -420,7 +430,11 @@ func (p *appProvider) ReissueAppCert(ctx context.Context, profileName, leafClust
 				CannotProxyVnetConnection: &apiteleterm.CannotProxyVnetConnection{
 					TargetUri:  appURI.String(),
 					RouteToApp: &apiteletermRouteToApp,
-					Error:      err.Error(),
+					Reason: &apiteleterm.CannotProxyVnetConnection_CertReissueError{
+						CertReissueError: &apiteleterm.CertReissueError{
+							Error: err.Error(),
+						},
+					},
 				},
 			},
 		})
@@ -436,19 +450,19 @@ func (p *appProvider) ReissueAppCert(ctx context.Context, profileName, leafClust
 }
 
 // GetDialOptions returns ALPN dial options for the profile.
-func (p *appProvider) GetDialOptions(ctx context.Context, profileName string) (*vnet.DialOptions, error) {
+func (p *clientApplication) GetDialOptions(ctx context.Context, profileName string) (*vnetv1.DialOptions, error) {
 	cluster, tc, err := p.daemonService.ResolveClusterURI(uri.NewClusterURI(profileName))
 	if err != nil {
 		return nil, trace.Wrap(err, "resolving cluster by URI")
 	}
 
-	dialOpts := &vnet.DialOptions{
+	dialOpts := &vnetv1.DialOptions{
 		WebProxyAddr:            cluster.GetProxyHost(),
-		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
+		AlpnConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
 		InsecureSkipVerify:      p.insecureSkipVerify,
 	}
-	if dialOpts.ALPNConnUpgradeRequired {
-		dialOpts.RootClusterCACertPool, err = tc.RootClusterCACertPool(ctx)
+	if dialOpts.AlpnConnUpgradeRequired {
+		dialOpts.RootClusterCaCertPool, err = tc.RootClusterCACertPoolPEM(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err, "loading root cluster CA cert pool")
 		}
@@ -456,15 +470,15 @@ func (p *appProvider) GetDialOptions(ctx context.Context, profileName string) (*
 	return dialOpts, nil
 }
 
-// OnNewConnection submits a usage event once per appProvider lifetime.
+// OnNewConnection submits a usage event once per clientApplication lifetime.
 // That is, if a user makes multiple connections to a single app, OnNewConnection submits a single
 // event. This is to mimic how Connect submits events for its app gateways. This lets us compare
 // popularity of VNet and app gateways.
-func (p *appProvider) OnNewConnection(ctx context.Context, profileName, leafClusterName string, routeToApp proto.RouteToApp) error {
+func (p *clientApplication) OnNewConnection(ctx context.Context, appKey *vnetv1.AppKey) error {
 	// Enqueue the event from a separate goroutine since we don't care about errors anyway and we also
 	// don't want to slow down VNet connections.
 	go func() {
-		uri := uri.NewClusterURI(profileName).AppendLeafCluster(leafClusterName).AppendApp(routeToApp.Name)
+		uri := uri.NewClusterURI(appKey.GetProfile()).AppendLeafCluster(appKey.GetLeafCluster()).AppendApp(appKey.GetName())
 
 		// Not passing ctx to ReportApp since ctx is tied to the lifetime of the connection.
 		// If it's a short-lived connection, inheriting its context would interrupt reporting.
@@ -475,6 +489,59 @@ func (p *appProvider) OnNewConnection(ctx context.Context, profileName, leafClus
 	}()
 
 	return nil
+}
+
+// OnInvalidLocalPort gets called before VNet refuses to handle a connection to a multi-port TCP app
+// because the provided port does not match any of the TCP ports in the app spec.
+func (p *clientApplication) OnInvalidLocalPort(ctx context.Context, appInfo *vnetv1.AppInfo, targetPort uint16) {
+	// If something is wrong with the Electron app to the point that it stopped accepting RPCs, return
+	// quickly rather than being blocked on sending a notification.
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	appKey := appInfo.GetAppKey()
+	appURI := uri.NewClusterURI(appKey.GetProfile()).
+		AppendLeafCluster(appKey.GetLeafCluster()).
+		AppendApp(appKey.GetName())
+	routeToApp := vnet.RouteToApp(appInfo, targetPort)
+	apiteletermRouteToApp := apiteleterm.RouteToApp{
+		Name:        routeToApp.Name,
+		PublicAddr:  routeToApp.PublicAddr,
+		ClusterName: routeToApp.ClusterName,
+		Uri:         routeToApp.URI,
+		TargetPort:  routeToApp.TargetPort,
+	}
+
+	invalidLocalPort := &apiteleterm.InvalidLocalPort{}
+	// Send ports only if there's less than 10 ranges. A bigger number would be difficult to show in
+	// the UI.
+	tcpPorts := appInfo.GetApp().GetTCPPorts()
+	if len(tcpPorts) <= 10 {
+		apiTCPPorts := make([]*apiteleterm.PortRange, 0, len(tcpPorts))
+		for _, portRange := range tcpPorts {
+			apiTCPPorts = append(apiTCPPorts, &apiteleterm.PortRange{Port: portRange.Port, EndPort: portRange.EndPort})
+		}
+		invalidLocalPort.TcpPorts = apiTCPPorts
+	}
+
+	err := p.daemonService.NotifyApp(ctx, &apiteleterm.SendNotificationRequest{
+		Subject: &apiteleterm.SendNotificationRequest_CannotProxyVnetConnection{
+			CannotProxyVnetConnection: &apiteleterm.CannotProxyVnetConnection{
+				TargetUri:  appURI.String(),
+				RouteToApp: &apiteletermRouteToApp,
+				Reason: &apiteleterm.CannotProxyVnetConnection_InvalidLocalPort{
+					InvalidLocalPort: invalidLocalPort,
+				},
+			},
+		},
+	})
+	if err != nil {
+		log.ErrorContext(ctx, "Could not notify the Electron app about invalid local port",
+			"notify_error", err,
+			"profile_name", appKey.GetProfile(),
+			"leaf_cluster_name", appKey.GetLeafCluster(),
+			"route_to_app", routeToApp)
+	}
 }
 
 type usageReporter interface {

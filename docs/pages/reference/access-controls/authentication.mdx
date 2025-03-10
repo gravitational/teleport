@@ -17,10 +17,10 @@ possible values (types) of MFA:
 - `otp` is the default. It implements the [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
   standard. You can use [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator), [Authy](https://www.authy.com/) or any other TOTP client.
 - `webauthn` implements the [Web Authentication standard](https://webauthn.guide) for utilizing
-  second factor authenticators and hardware devices.
+  multi-factor authenticators and hardware devices.
   You can use [YubiKeys](https://www.yubico.com/), [SoloKeys](https://solokeys.com/) or any other authenticator that
   implements FIDO2 or FIDO U2F standards.
-  See our [Second Factor - WebAuthn](../../admin-guides/access-controls/guides/webauthn.mdx) guide for detailed
+  See our [Harden your Cluster Against IdP Compromises](../../admin-guides/access-controls/guides/webauthn.mdx) guide for detailed
   instructions on setting up WebAuthn for Teleport.
 - `on` enables both TOTP and WebAuthn, and all local users are required to have at least one MFA device registered.
 - `optional` enables both TOTP and WebAuthn but makes it optional for users. Local users that register a MFA device will
@@ -47,7 +47,7 @@ Add the following to your Teleport configuration file, which is stored in
   auth_service:
     authentication:
       type: local
-      second_factor: on
+      second_factors: ["webauthn"]
       webauthn:
         rp_id: example.teleport.sh
   ```
@@ -68,7 +68,7 @@ metadata:
   name: cluster-auth-preference
 spec:
   type: local
-  second_factor: "on"
+  second_factors: ["webauthn"]
   webauthn:
     rp_id: example.teleport.sh
 version: v2
@@ -102,7 +102,7 @@ metadata:
   name: cluster-auth-preference
 spec:
   type: local
-  second_factor: "on"
+  second_factors: ["webauthn"]
   webauthn:
     rp_id: example.teleport.sh
 version: v2

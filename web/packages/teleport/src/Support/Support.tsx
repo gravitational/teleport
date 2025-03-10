@@ -18,22 +18,22 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
+import styled from 'styled-components';
+
 import { Box, Flex, H2, H3, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { MultiRowBox, Row } from 'design/MultiRowBox';
 
-import styled from 'styled-components';
-
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import useTeleport from 'teleport/useTeleport';
 import cfg from 'teleport/config';
-import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
-import { CtaEvent } from 'teleport/services/userEvent';
 import { useNoMinWidth } from 'teleport/Main';
+import { CtaEvent } from 'teleport/services/userEvent';
+import useTeleport from 'teleport/useTeleport';
 
 export function SupportContainer({ children }: { children?: React.ReactNode }) {
   const ctx = useTeleport();
@@ -95,27 +95,6 @@ export const Support = ({
           )}
           {isEnterprise && !cfg.isCloud && licenseExpiryDateText && (
             <DataItem title="License Expiry" data={licenseExpiryDateText} />
-          )}
-          {isCloud && (
-            <Flex mt="5">
-              <Icons.Info mr="2" />
-              <Text>
-                Looking for{' '}
-                <Text
-                  fontWeight={'bold'}
-                  css={`
-                    display: inline;
-                  `}
-                >
-                  Scheduled Upgrades?
-                </Text>{' '}
-                It is now in{' '}
-                <Link to={cfg.getManageClusterRoute(clusterId)}>
-                  Cluster Management
-                </Link>{' '}
-                page.
-              </Text>
-            </Flex>
           )}
         </StyledRow>
       </StyledMultiRowBox>
@@ -303,10 +282,12 @@ const getDocUrls = (version = '', isEnterprise: boolean) => {
   return {
     getStarted: withUTM(`https://goteleport.com/docs/get-started/`),
     tshGuide: withUTM(`https://goteleport.com/docs/connect-your-client/tsh/`),
-    adminGuide: withUTM(`https://goteleport.com/docs/management/admin/`),
+    adminGuide: withUTM(
+      `https://goteleport.com/docs/admin-guides/management/admin/`
+    ),
     faq: withUTM(`https://goteleport.com/docs/faq`),
     troubleshooting: withUTM(
-      `https://goteleport.com/docs/management/admin/troubleshooting/`
+      `https://goteleport.com/docs/admin-guides/management/admin/troubleshooting/`
     ),
 
     // there isn't a version-specific changelog page
@@ -332,8 +313,8 @@ const DownloadLink = ({
   if (isEnterprise) {
     return (
       <ExternalSupportLink
-        title="Download Page"
-        url="https://goteleport.com/docs/choose-an-edition/teleport-enterprise/introduction/?scope=enterprise#dedicated-account-dashboard"
+        title="Self-Hosting Teleport"
+        url="https://goteleport.com/docs/admin-guides/deploy-a-cluster/"
       />
     );
   }

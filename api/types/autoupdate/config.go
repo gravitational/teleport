@@ -79,21 +79,41 @@ func ValidateAutoUpdateConfig(c *autoupdate.AutoUpdateConfig) error {
 			return trace.BadParameter("spec.agents.maintenance_window_duration must be greater than 10 minutes when the strategy is %q", c.Spec.Agents.Strategy)
 		}
 
-		if err := checkAgentSchedules(c.Spec.Agents.Schedules); err != nil {
+		if err := checkAgentSchedules(c); err != nil {
 			return trace.Wrap(err, "validating spec.agents.schedules")
 		}
-
 	}
 
 	return nil
 }
 
-func checkAgentSchedules(schedules *autoupdate.AgentAutoUpdateSchedules) error {
-	// TODO: change this logic when we implement group support.
-	// Currently we reject any non-nil schedule
-	// When we'll implement schedule support, we'll treat an empty schedule as the default schedule.
-	if schedules == nil {
-		return nil
+func checkAgentSchedules(c *autoupdate.AutoUpdateConfig) error {
+	// Validate groups
+	groups := c.Spec.Agents.GetSchedules().GetRegular()
+	seenGroups := make(map[string]int, len(groups))
+	for i, group := range groups {
+		if group.Name == "" {
+			return trace.BadParameter("spec.agents.schedules.regular[%d].name should not be empty", i)
+		}
+		if _, err := types.ParseWeekdays(group.Days); err != nil {
+			return trace.Wrap(err, "validating spec.agents.schedules.regular[%d].days", i)
+		}
+		if group.WaitHours < 0 {
+			return trace.BadParameter("spec.agents.schedules.regular[%d].wait_hours cannot be negative", i)
+		}
+		if group.StartHour > 23 || group.StartHour < 0 {
+			return trace.BadParameter("spec.agents.schedules.regular[%d].start_hour must be between 0 and 23", i)
+		}
+		if c.Spec.Agents.Strategy == AgentsStrategyTimeBased && group.WaitHours != 0 {
+			return trace.BadParameter("spec.agents.schedules.regular[%d].wait_hours must be zero when strategy is %s", i, AgentsStrategyTimeBased)
+		}
+		if c.Spec.Agents.Strategy == AgentsStrategyHaltOnError && i == 0 && group.WaitHours != 0 {
+			return trace.BadParameter("spec.agents.schedules.regular[0].wait_hours must be zero as it's the first group")
+		}
+		if conflictingGroup, ok := seenGroups[group.Name]; ok {
+			return trace.BadParameter("spec.agents.schedules.regular contains groups with the same name %q at indices %d and %d", group.Name, conflictingGroup, i)
+		}
+		seenGroups[group.Name] = i
 	}
-	return trace.NotImplemented("agent schedules are not implemented yet")
+	return nil
 }

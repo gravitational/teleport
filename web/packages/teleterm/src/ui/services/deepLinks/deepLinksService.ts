@@ -19,13 +19,13 @@
 import { AuthenticateWebDeviceDeepURL, DeepURL } from 'shared/deepLinks';
 
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
-import { RootClusterUri, routing } from 'teleterm/ui/uri';
-import { assertUnreachable } from 'teleterm/ui/utils';
 import { RuntimeSettings } from 'teleterm/types';
 import { ClustersService } from 'teleterm/ui/services/clusters';
-import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
+import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
+import { assertUnreachable } from 'teleterm/ui/utils';
 
 export class DeepLinksService {
   constructor(
@@ -73,6 +73,14 @@ export class DeepLinksService {
       });
       return;
     }
+
+    // Before we start, let's close any open dialogs, for a few reasons:
+    // 1. Activating a deep link may require changing the workspace, and we don't
+    // want to see dialogs from the previous one.
+    // 2. A login dialog could be covered by an important dialog.
+    // 3. The user could be confused, since Connect My Computer or Authorize Web
+    // Session documents would be displayed below a dialog.
+    this.modalsService.cancelAndCloseAll();
 
     // launchDeepLink cannot throw if it receives a pathname that doesn't match any supported
     // pathnames. The user might simply be using a version of Connect that doesn't support the given
@@ -163,6 +171,16 @@ export class DeepLinksService {
         rootClusterUri: RootClusterUri;
       }
   > {
+    const currentlyActiveWorkspace = this.workspacesService.getRootClusterUri();
+    // If we closed the dialog to reopen documents when launching a deep link,
+    // setting the active workspace again will reopen it.
+    const reopenCurrentlyActiveWorkspace = async () => {
+      if (currentlyActiveWorkspace) {
+        await this.workspacesService.setActiveWorkspace(
+          currentlyActiveWorkspace
+        );
+      }
+    };
     const rootClusterId = url.hostname;
     const clusterAddress = url.host;
     const prefill = {
@@ -186,6 +204,7 @@ export class DeepLinksService {
       });
 
       if (canceled) {
+        await reopenCurrentlyActiveWorkspace();
         return {
           isAtDesiredWorkspace: false,
         };
@@ -201,6 +220,11 @@ export class DeepLinksService {
         prefill
       );
 
-    return { isAtDesiredWorkspace, rootClusterUri };
+    if (isAtDesiredWorkspace) {
+      return { isAtDesiredWorkspace: true, rootClusterUri };
+    }
+
+    await reopenCurrentlyActiveWorkspace();
+    return { isAtDesiredWorkspace: false };
   }
 }

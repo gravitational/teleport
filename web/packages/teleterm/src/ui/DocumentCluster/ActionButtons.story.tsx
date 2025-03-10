@@ -16,28 +16,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Flex, Text, Box } from 'design';
-
 import { Meta } from '@storybook/react';
+
+import { Box, Flex, Text } from 'design';
+import { HoverTooltip } from 'design/Tooltip';
 
 import {
   makeApp,
-  makeRootCluster,
-  makeServer,
   makeDatabase,
   makeKube,
+  makeRootCluster,
+  makeServer,
 } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { VnetContextProvider } from 'teleterm/ui/Vnet';
 import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
+import { VnetContextProvider } from 'teleterm/ui/Vnet';
 
 import {
+  AccessRequestButton,
   ConnectAppActionButton,
-  ConnectServerActionButton,
   ConnectDatabaseActionButton,
   ConnectKubeActionButton,
-  AccessRequestButton,
+  ConnectServerActionButton,
 } from './ActionButtons';
 
 type StoryProps = {
@@ -83,7 +84,7 @@ export function Story(props: StoryProps) {
 
 function Buttons(props: StoryProps) {
   return (
-    <Flex gap={4}>
+    <Flex gap={4} flexWrap="wrap">
       <Flex gap={3} flexDirection="column">
         <Box>
           <Text>TCP app</Text>
@@ -101,6 +102,12 @@ function Buttons(props: StoryProps) {
           <Text>AWS console</Text>
           <AwsConsole />
         </Box>
+        <HoverTooltip tipContent="Connect doesn't support cloud apps properly yet and shows them as TCP apps instead.">
+          <Box>
+            <Text>Cloud app (GCP)</Text>
+            <CloudApp />
+          </Box>
+        </HoverTooltip>
         <Box>
           <Text>SAML app</Text>
           <SamlApp />
@@ -212,6 +219,17 @@ function AwsConsole() {
             accountId: '123456789012',
           },
         ],
+        uri: `${testCluster.uri}/apps/bar`,
+      })}
+    />
+  );
+}
+
+function CloudApp() {
+  return (
+    <ConnectAppActionButton
+      app={makeApp({
+        endpointUri: 'cloud://GCP',
         uri: `${testCluster.uri}/apps/bar`,
       })}
     />

@@ -16,41 +16,46 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled from 'styled-components';
 
-import { Label, Alert, ButtonBorder, Flex, ButtonPrimary, Box } from 'design';
+import { Alert, Box, ButtonBorder, ButtonPrimary, Flex, Label } from 'design';
 import Table, { Cell } from 'design/DataTable';
-import { Attempt } from 'shared/hooks/useAttemptNext';
-import { Attempt as AsyncAttempt } from 'shared/hooks/useAsync';
-
-import { AccessRequest, canAssumeNow } from 'shared/services/accessRequests';
+import { displayDateTime } from 'design/datetime';
+import { requestMatcher } from 'shared/components/AccessRequests/NewRequest/matcher';
 import {
   renderIdCell,
   renderStatusCell,
   renderUserCell,
-  formattedName,
   RequestFlags,
 } from 'shared/components/AccessRequests/ReviewRequests';
 import {
   BlockedByStartTimeButton,
   ButtonPromotedInfo,
+  getResourcesOrRolesFromRequest,
 } from 'shared/components/AccessRequests/Shared/Shared';
-import { requestMatcher } from 'shared/components/AccessRequests/NewRequest/matcher';
+import { Attempt } from 'shared/hooks/useAsync';
+import { AccessRequest, canAssumeNow } from 'shared/services/accessRequests';
 
 export function RequestList({
   attempt,
-  requests,
   getFlags,
   viewRequest,
   assumeRoleAttempt,
   assumeRole,
   getRequests,
   assumeAccessList,
-}: Props) {
+}: {
+  attempt: Attempt<AccessRequest[]>;
+  getFlags(accessRequest: AccessRequest): RequestFlags;
+  assumeRole(request: AccessRequest): void;
+  assumeRoleAttempt: Attempt<void>;
+  getRequests(): void;
+  viewRequest(requestId: string): void;
+  assumeAccessList(): void;
+}) {
   return (
     <Layout mx="auto" px={5} pt={3} height="100%">
-      {attempt.status === 'failed' && (
+      {attempt.status === 'error' && (
         <Alert kind="danger" details={attempt.statusText}>
           Could not fetch access requests
         </Alert>
@@ -71,7 +76,7 @@ export function RequestList({
         </ButtonPrimary>
       </Flex>
       <Table
-        data={requests}
+        data={attempt.data || []}
         columns={[
           {
             key: 'id',
@@ -94,9 +99,7 @@ export function RequestList({
           {
             key: 'roles',
             headerText: 'Requested',
-            render: ({ resources, roles, id }) => (
-              <RequestedCell resources={resources} roles={roles} id={id} />
-            ),
+            render: request => <RequestedCell request={request} />,
           },
           {
             key: 'resources',
@@ -106,7 +109,9 @@ export function RequestList({
             key: 'created',
             headerText: 'Created',
             isSortable: true,
-            render: ({ createdDuration }) => <Cell>{createdDuration}</Cell>,
+            render: ({ createdDuration, created }) => (
+              <Cell title={displayDateTime(created)}>{createdDuration}</Cell>
+            ),
           },
           {
             key: 'assumeStartTime',
@@ -120,8 +125,10 @@ export function RequestList({
             key: 'expires',
             headerText: 'Expires',
             isSortable: true,
-            render: ({ requestTTLDuration }) => (
-              <Cell>{requestTTLDuration}</Cell>
+            render: ({ requestTTLDuration, requestTTL }) => (
+              <Cell title={displayDateTime(requestTTL)}>
+                {requestTTLDuration}
+              </Cell>
             ),
           },
           {
@@ -151,7 +158,7 @@ const renderActionCell = (
   request: AccessRequest,
   flags: RequestFlags,
   assumeRole: (request: AccessRequest) => void,
-  assumeRoleAttempt: AsyncAttempt<void>,
+  assumeRoleAttempt: Attempt<void>,
   viewRequest: (id: string) => void,
   assumeAccessList: () => void
 ) => {
@@ -200,38 +207,33 @@ const renderActionCell = (
   );
 };
 
-const RequestedCell = ({
-  roles,
-  resources,
-  id,
-}: Pick<AccessRequest, 'roles' | 'resources' | 'id'>) => {
-  if (resources?.length > 0) {
-    return (
-      <Cell key={id}>
-        {resources.map((resource, index) => (
-          <Label
-            mb="0"
-            mr="1"
-            key={`${resource.id.kind}${formattedName(resource)}${index}`}
-            kind="secondary"
+const RequestedCell = ({ request }: { request: AccessRequest }) => (
+  <Cell>
+    <Flex gap={1} flexWrap="wrap">
+      {getResourcesOrRolesFromRequest(request).map((r, index) => (
+        <Label
+          kind="secondary"
+          key={`${r.title}${index}`}
+          title={r.title}
+          m={0}
+          css={`
+            display: flex;
+            gap: ${props => props.theme.space[1]}px;
+          `}
+        >
+          <r.Icon size="small" />
+          <span
+            css={`
+              white-space: nowrap;
+            `}
           >
-            {resource.id.kind}: {formattedName(resource)}
-          </Label>
-        ))}
-      </Cell>
-    );
-  }
-
-  return (
-    <Cell>
-      {roles.sort().map(role => (
-        <Label mb="0" mr="1" key={role} kind="secondary">
-          role: {role}
+            {r.name}
+          </span>
         </Label>
       ))}
-    </Cell>
-  );
-};
+    </Flex>
+  </Cell>
+);
 
 const Layout = styled(Box)`
   flex-direction: column;
@@ -244,14 +246,3 @@ const Layout = styled(Box)`
     padding-bottom: 24px;
   }
 `;
-
-type Props = {
-  attempt: Attempt;
-  requests: AccessRequest[];
-  getFlags: (accessRequest: AccessRequest) => RequestFlags;
-  assumeRole: (request: AccessRequest) => void;
-  assumeRoleAttempt: AsyncAttempt<void>;
-  getRequests: () => void;
-  viewRequest: (requestId: string) => void;
-  assumeAccessList: () => void;
-};

@@ -16,17 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import Store from './store';
 
 // This is the primary method to subscribe to store updates
 // using React hooks mechanism.
 export default function useStore<T extends Store<any>>(store: T): T {
-  const [, rerender] = React.useState<any>();
-  const memoizedState = React.useMemo(() => store.state, [store.state]);
+  const [, rerender] = useState<any>();
+  const memoizedState = useMemo(() => store.state, [store.state]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     function syncState() {
       // do not re-render if state has not changed since last call
       if (memoizedState !== store.state) {

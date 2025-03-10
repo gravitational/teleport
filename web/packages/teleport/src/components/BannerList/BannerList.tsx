@@ -16,14 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import { Box } from 'design';
 
-import { StandardBanner } from './StandardBanner';
-
-import type { Severity } from './StandardBanner';
-import type { ReactNode } from 'react';
+import { StandardBanner, type Severity } from './StandardBanner';
 
 export const BannerList = ({
   banners = [],

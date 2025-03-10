@@ -16,16 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import styled, { useTheme } from 'styled-components';
 
 import { getPlatformType } from 'design/platform';
-import styled, { useTheme } from 'styled-components';
 import { TerminalSearch } from 'shared/components/TerminalSearch';
 
+import StyledXterm from 'teleport/Console/StyledXterm';
+import { TermEvent } from 'teleport/lib/term/enums';
 import Terminal from 'teleport/lib/term/terminal';
 import Tty from 'teleport/lib/term/tty';
-import { TermEvent } from 'teleport/lib/term/enums';
-import StyledXterm from 'teleport/Console/StyledXterm';
 
 export default function Xterm({ tty }: { tty: Tty }) {
   const refContainer = useRef<HTMLDivElement>();

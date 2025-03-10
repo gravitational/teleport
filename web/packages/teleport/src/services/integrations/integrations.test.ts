@@ -16,17 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api from 'teleport/services/api';
 import cfg from 'teleport/config';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
+import api from 'teleport/services/api';
 
 import { integrationService } from './integrations';
-import { IntegrationStatusCode, IntegrationAudience } from './types';
+import {
+  IntegrationAudience,
+  IntegrationAwsOidc,
+  IntegrationStatusCode,
+} from './types';
+
+beforeEach(() => {
+  jest.resetAllMocks();
+});
 
 test('fetch a single integration: fetchIntegration()', async () => {
   // test a valid response
   jest.spyOn(api, 'get').mockResolvedValue(awsOidcIntegration);
 
-  let response = await integrationService.fetchIntegration('integration-name');
+  let response =
+    await integrationService.fetchIntegration<IntegrationAwsOidc>(
+      'integration-name'
+    );
   expect(api.get).toHaveBeenCalledWith(
     cfg.getIntegrationsUrl('integration-name')
   );
@@ -34,6 +47,8 @@ test('fetch a single integration: fetchIntegration()', async () => {
     kind: 'aws-oidc',
     name: 'aws-oidc-integration',
     resourceType: 'integration',
+    details:
+      'Enroll EC2, RDS and EKS resources or enable Web/CLI access to your AWS Account.',
     spec: {
       roleArn: 'arn-123',
       origin: undefined,
@@ -44,16 +59,15 @@ test('fetch a single integration: fetchIntegration()', async () => {
   // test null response
   jest.spyOn(api, 'get').mockResolvedValue(null);
 
-  response = await integrationService.fetchIntegration('integration-name');
+  response =
+    await integrationService.fetchIntegration<IntegrationAwsOidc>(
+      'integration-name'
+    );
   expect(response).toEqual({
     resourceType: 'integration',
     statusCode: IntegrationStatusCode.Running,
     kind: undefined,
     name: undefined,
-    spec: {
-      roleArn: undefined,
-      origin: undefined,
-    },
   });
 });
 
@@ -78,9 +92,10 @@ test('fetch integration list: fetchIntegrations()', async () => {
         kind: 'aws-oidc',
         name: 'aws-oidc-integration',
         resourceType: 'integration',
+        details:
+          'Enroll EC2, RDS and EKS resources or enable Web/CLI access to your AWS Account.',
         spec: {
           roleArn: 'arn-123',
-          audience: undefined,
         },
         statusCode: IntegrationStatusCode.Running,
       },
@@ -88,6 +103,8 @@ test('fetch integration list: fetchIntegrations()', async () => {
         kind: 'aws-oidc',
         name: 'aws-oidc-integration2',
         resourceType: 'integration',
+        details:
+          'Enroll EC2, RDS and EKS resources or enable Web/CLI access to your AWS Account.',
         spec: {
           roleArn: 'arn-12345',
           audience: 'aws-identity-center',
@@ -98,21 +115,14 @@ test('fetch integration list: fetchIntegrations()', async () => {
         kind: 'github',
         name: 'github-my-org',
         resourceType: 'integration',
-        spec: {
-          roleArn: undefined,
-          audience: undefined,
-        },
-        details: 'GitHub Organization "my-org"',
+        details: 'GitHub repository access for organization "my-org"',
+        spec: { organization: 'my-org' },
         statusCode: IntegrationStatusCode.Running,
       },
       {
         kind: 'abc',
         name: 'non-aws-oidc-integration',
         resourceType: 'integration',
-        spec: {
-          roleArn: undefined,
-          audience: undefined,
-        },
         statusCode: IntegrationStatusCode.Running,
       },
     ],
@@ -226,10 +236,107 @@ describe('fetchAwsDatabases() request body formatting', () => {
   );
 });
 
+test('fetch integration rules: fetchIntegrationRules()', async () => {
+  // test a valid response
+  jest.spyOn(api, 'get').mockResolvedValue({
+    rules: [
+      {
+        resourceType: 'eks',
+        region: 'us-west-2',
+        labelMatcher: [{ name: 'env', value: 'dev' }],
+        discoveryConfig: 'cfg',
+        lastSync: 1733782634,
+      },
+    ],
+    nextKey: 'some-key',
+  });
+
+  let response = await integrationService.fetchIntegrationRules(
+    'name',
+    AwsResource.eks
+  );
+  expect(api.get).toHaveBeenCalledWith(
+    cfg.getIntegrationRulesUrl('name', AwsResource.eks, [])
+  );
+  expect(response).toEqual({
+    nextKey: 'some-key',
+    rules: [
+      {
+        resourceType: 'eks',
+        region: 'us-west-2',
+        labelMatcher: [{ name: 'env', value: 'dev' }],
+        discoveryConfig: 'cfg',
+        lastSync: 1733782634,
+      },
+    ],
+  });
+
+  // test null response
+  jest.spyOn(api, 'get').mockResolvedValue(null);
+
+  response = await integrationService.fetchIntegrationRules(
+    'name',
+    AwsResource.eks
+  );
+  expect(response).toEqual({
+    nextKey: undefined,
+    rules: [],
+  });
+});
+
+test('fetch integration user task list: fetchIntegrationUserTasksList()', async () => {
+  // test a valid response
+  jest.spyOn(api, 'get').mockResolvedValue({
+    items: [
+      {
+        name: 'task-name',
+        taskType: 'task-type',
+        state: 'task-state',
+        issueType: 'issue-type',
+        integration: 'name',
+      },
+    ],
+    nextKey: 'some-key',
+  });
+
+  let response = await integrationService.fetchIntegrationUserTasksList(
+    'name',
+    TaskState.Open
+  );
+  expect(api.get).toHaveBeenCalledWith(
+    cfg.getIntegrationUserTasksListUrl('name', TaskState.Open)
+  );
+  expect(response).toEqual({
+    nextKey: 'some-key',
+    items: [
+      {
+        name: 'task-name',
+        taskType: 'task-type',
+        state: 'task-state',
+        issueType: 'issue-type',
+        integration: 'name',
+      },
+    ],
+  });
+
+  // test null response
+  jest.spyOn(api, 'get').mockResolvedValue(null);
+
+  response = await integrationService.fetchIntegrationUserTasksList(
+    'name',
+    TaskState.Open
+  );
+  expect(response).toEqual({
+    nextKey: undefined,
+    items: [],
+  });
+});
+
 const nonAwsOidcIntegration = {
   name: 'non-aws-oidc-integration',
   subKind: 'abc',
 };
+
 const awsOidcIntegration = {
   name: 'aws-oidc-integration',
   subKind: 'aws-oidc',

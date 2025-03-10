@@ -41,6 +41,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/parse"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
@@ -142,40 +143,6 @@ func NewAccessRequestWithResources(user string, roles []string, resourceIDs []ty
 		return nil, trace.Wrap(err)
 	}
 	return req, nil
-}
-
-// RequestIDs is a collection of IDs for privilege escalation requests.
-type RequestIDs struct {
-	AccessRequests []string `json:"access_requests,omitempty"`
-}
-
-func (r *RequestIDs) Marshal() ([]byte, error) {
-	data, err := utils.FastMarshal(r)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return data, nil
-}
-
-func (r *RequestIDs) Unmarshal(data []byte) error {
-	if err := utils.FastUnmarshal(data, r); err != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(r.Check())
-}
-
-func (r *RequestIDs) Check() error {
-	for _, id := range r.AccessRequests {
-		_, err := uuid.Parse(id)
-		if err != nil {
-			return trace.BadParameter("invalid request id %q", id)
-		}
-	}
-	return nil
-}
-
-func (r *RequestIDs) IsEmpty() bool {
-	return len(r.AccessRequests) < 1
 }
 
 // AccessRequestGetter defines the interface for fetching access request resources.
@@ -1208,7 +1175,7 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 			return trace.Wrap(err)
 		}
 		if required {
-			return trace.BadParameter(explanation)
+			return trace.BadParameter("%s", explanation)
 		}
 	}
 
@@ -1392,17 +1359,14 @@ func (v *RequestValidator) isReasonRequired(ctx context.Context, requestedRoles 
 func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest, sessionTTL time.Duration) (time.Duration, error) {
 	// Check if the maxDuration time is set.
 	maxDurationTime := req.GetMaxDuration()
-	if maxDurationTime.IsZero() {
-		return 0, nil
-	}
-
 	maxDuration := maxDurationTime.Sub(req.GetCreationTime())
 
 	// For dry run requests, use the maximum possible duration.
 	// This prevents the time drift that can occur as the value is set on the client side.
 	if req.GetDryRun() {
 		maxDuration = MaxAccessDuration
-	} else if maxDuration < 0 {
+		// maxDuration may end up < 0 even if maxDurationTime is set
+	} else if !maxDurationTime.IsZero() && maxDuration < 0 {
 		return 0, trace.BadParameter("invalid maxDuration: must be greater than creation time")
 	}
 
@@ -1410,26 +1374,19 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest, s
 		return 0, trace.BadParameter("max_duration must be less than or equal to %v", MaxAccessDuration)
 	}
 
-	minAdjDuration := maxDuration
+	var minAdjDuration time.Duration
 	// Adjust the expiration time if the max_duration value is set on the request role.
 	for _, roleName := range req.GetRoles() {
-		var maxDurationForRole time.Duration
-		for _, tms := range m.MaxDurationMatchers {
-			for _, matcher := range tms.Matchers {
-				if matcher.Match(roleName) {
-					if tms.MaxDuration > maxDurationForRole {
-						maxDurationForRole = tms.MaxDuration
-					}
-				}
-			}
-		}
-
-		if maxDurationForRole < minAdjDuration {
+		maxDurationForRole := m.maxDurationForRole(roleName)
+		if minAdjDuration == 0 || maxDurationForRole < minAdjDuration {
 			minAdjDuration = maxDurationForRole
 		}
 	}
+	if !maxDurationTime.IsZero() && maxDuration < minAdjDuration {
+		minAdjDuration = maxDuration
+	}
 
-	// minAdjDuration can end up being 0, if any role does not have
+	// minAdjDuration can end up being 0, if no role has a
 	// field `max_duration` defined.
 	// In this case, return the smaller value between the sessionTTL
 	// and the requested max duration.
@@ -1438,6 +1395,20 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest, s
 	}
 
 	return minAdjDuration, nil
+}
+
+func (m *RequestValidator) maxDurationForRole(roleName string) time.Duration {
+	var maxDurationForRole time.Duration
+	for _, tms := range m.MaxDurationMatchers {
+		for _, matcher := range tms.Matchers {
+			if matcher.Match(roleName) {
+				if tms.MaxDuration > maxDurationForRole {
+					maxDurationForRole = tms.MaxDuration
+				}
+			}
+		}
+	}
+	return maxDurationForRole
 }
 
 // calculatePendingRequestTTL calculates the TTL of the Access Request (how long it will await
@@ -2170,10 +2141,9 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 
 	for _, resourceID := range resourceIDs {
 		if resourceID.ClusterName != localClusterName {
-			_, debugf := rbacDebugLogger()
-			debugf("Requested resource %q is in a foreign cluster, unable to prune roles. "+
-				`All available "search_as_roles" will be requested.`,
-				types.ResourceIDToString(resourceID))
+			rbacLogger.LogAttrs(ctx, logutils.TraceLevel, `Requested resource is in a foreign cluster, unable to prune roles - All available "search_as_roles" will be requested`,
+				slog.Any("requested_resources", types.ResourceIDToString(resourceID)),
+			)
 			return roles, nil
 		}
 	}

@@ -16,16 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useStore } from 'shared/libs/stores';
 import * as tshdEventsApi from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
+import { useStore } from 'shared/libs/stores';
 
 import * as types from 'teleterm/services/tshd/types';
-import { RootClusterUri } from 'teleterm/ui/uri';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
+import { RootClusterUri } from 'teleterm/ui/uri';
+import type * as uri from 'teleterm/ui/uri';
 
 import { ImmutableStore } from '../immutableStore';
-
-import type * as uri from 'teleterm/ui/uri';
 
 type State = {
   // One regular dialog and multiple important dialogs can be rendered at the same time.
@@ -39,8 +38,9 @@ type State = {
   // The important dialogs are displayed above the regular one. This is to avoid losing the state of
   // the regular modal if we happen to need to interrupt whatever the user is doing and display an
   // important modal.
-  important: { dialog: Dialog; id: string }[];
-  regular: Dialog | undefined;
+  // `close` function closes the dialog and unregisters event listeners.
+  important: { dialog: Dialog; id: string; close(): void }[];
+  regular: { dialog: Dialog; close(): void } | undefined;
 };
 
 export class ModalsService extends ImmutableStore<State> {
@@ -48,6 +48,15 @@ export class ModalsService extends ImmutableStore<State> {
     important: [],
     regular: undefined,
   };
+
+  private allDialogsController = new AbortController();
+
+  private getSharedAbortSignal(dialogSignal?: AbortSignal): AbortSignal {
+    if (!dialogSignal) {
+      return this.allDialogsController.signal;
+    }
+    return AbortSignal.any([dialogSignal, this.allDialogsController.signal]);
+  }
 
   /**
    * openRegularDialog opens the given dialog as a regular dialog. A regular dialog can get covered
@@ -58,20 +67,52 @@ export class ModalsService extends ImmutableStore<State> {
    * old dialog with the new one.
    * The old dialog is canceled, if possible.
    *
-   * The returned closeDialog function can be used to close the dialog and automatically call the
-   * dialog's onCancel callback (if present).
+   * The passed `abortSignal` or the returned `closeDialog` function can be used to close the dialog
+   * and automatically call the dialog's onCancel callback (if present).
+   * The onCancel function can be called without a user interaction. As of now,
+   * this happens when the user launches a deep link while a regular dialog is open.
+   * As such, if the dialog presents the user with a decision, onCancel should be
+   * treated as no decision being made.
+   * If possible, the user should be prompted again to make the decision later on.
    */
-  openRegularDialog(dialog: Dialog): { closeDialog: () => void } {
-    this.state.regular?.['onCancel']?.();
+  openRegularDialog(
+    dialog: Dialog,
+    abortSignal?: AbortSignal
+  ): {
+    closeDialog: () => void;
+  } {
+    const onCancelDialog = () => dialog['onCancel']?.();
+    const sharedSignal = this.getSharedAbortSignal(abortSignal);
+    if (sharedSignal.aborted) {
+      onCancelDialog();
+      return {
+        closeDialog: () => {},
+      };
+    }
+
+    // If there's a previous dialog, cancel and close it.
+    const previousDialog = this.state.regular;
+    if (previousDialog) {
+      previousDialog.dialog['onCancel']?.();
+      previousDialog.close();
+    }
+
+    const close = () => {
+      sharedSignal.removeEventListener('abort', cancelAndClose);
+      this.closeRegularDialog();
+    };
+    const cancelAndClose = () => {
+      close();
+      onCancelDialog();
+    };
+    sharedSignal.addEventListener('abort', cancelAndClose);
+
     this.setState(draftState => {
-      draftState.regular = dialog;
+      draftState.regular = { dialog, close };
     });
 
     return {
-      closeDialog: () => {
-        this.closeRegularDialog();
-        dialog['onCancel']?.();
-      },
+      closeDialog: cancelAndClose,
     };
   }
 
@@ -93,33 +134,47 @@ export class ModalsService extends ImmutableStore<State> {
    * dialog's onCancel callback (if present).
    */
   openImportantDialog(dialog: Dialog): { closeDialog: () => void; id: string } {
+    const onCancelDialog = () => dialog['onCancel']?.();
+    const allDialogsSignal = this.allDialogsController.signal;
     const id = crypto.randomUUID();
+
+    const close = () => {
+      allDialogsSignal.removeEventListener('abort', cancelAndClose);
+      this.closeImportantDialog(id);
+    };
+    const cancelAndClose = () => {
+      close();
+      onCancelDialog();
+    };
+    allDialogsSignal.addEventListener('abort', cancelAndClose);
     this.setState(draftState => {
-      draftState.important.push({ dialog, id });
+      draftState.important.push({ dialog, id, close });
     });
 
     return {
       id,
-      closeDialog: () => {
-        this.closeImportantDialog(id);
-        dialog['onCancel']?.();
-      },
+      closeDialog: cancelAndClose,
     };
   }
 
-  closeRegularDialog() {
+  private closeRegularDialog() {
     this.setState(draftState => {
       draftState.regular = undefined;
     });
   }
 
-  closeImportantDialog(id: string) {
+  private closeImportantDialog(id: string) {
     this.setState(draftState => {
       const index = draftState.important.findIndex(d => d.id === id);
       if (index >= 0) {
         draftState.important.splice(index, 1);
       }
     });
+  }
+
+  cancelAndCloseAll(): void {
+    this.allDialogsController.abort();
+    this.allDialogsController = new AbortController();
   }
 
   useState() {
@@ -167,6 +222,8 @@ export interface DialogDocumentsReopen {
   rootClusterUri: RootClusterUri;
   numberOfDocuments: number;
   onConfirm?(): void;
+  onDiscard?(): void;
+  /** Cancels the dialog, without discarding documents. */
   onCancel?(): void;
 }
 

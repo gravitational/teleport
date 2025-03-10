@@ -22,13 +22,13 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -163,7 +163,7 @@ func (h *downstreamHandle) autoEmitMetadata() {
 	md, err := h.metadataGetter(h.CloseContext())
 	if err != nil {
 		if !errors.Is(err, context.Canceled) {
-			log.Warnf("Failed to get agent metadata: %v", err)
+			slog.WarnContext(h.CloseContext(), "Failed to get agent metadata", "error", err)
 		}
 		return
 	}
@@ -188,7 +188,7 @@ func (h *downstreamHandle) autoEmitMetadata() {
 
 		// Send metadata.
 		if err := sender.Send(h.CloseContext(), msg); err != nil && !errors.Is(err, context.Canceled) {
-			log.Warnf("Failed to send agent metadata: %v", err)
+			slog.WarnContext(h.CloseContext(), "Failed to send agent metadata", "error", err)
 		}
 
 		// Block for the duration of the stream.
@@ -209,7 +209,7 @@ func (h *downstreamHandle) run(fn DownstreamCreateFunc, hello proto.UpstreamInve
 			return
 		}
 
-		log.Debugf("Re-attempt control stream acquisition in ~%s.", retry.Duration())
+		slog.DebugContext(h.closeContext, "Re-attempt control stream acquisition", "backoff", retry.Duration())
 		select {
 		case <-retry.After():
 			retry.Inc()
@@ -223,14 +223,14 @@ func (h *downstreamHandle) tryRun(fn DownstreamCreateFunc, hello proto.UpstreamI
 	stream, err := fn(h.CloseContext())
 	if err != nil {
 		if !h.closing() {
-			log.Warnf("Failed to create inventory control stream: %v.", err)
+			slog.WarnContext(h.CloseContext(), "Failed to create inventory control stream", "error", err)
 		}
 		return
 	}
 
 	if err := h.handleStream(stream, hello); err != nil {
 		if !h.closing() {
-			log.Warnf("Inventory control stream failed: %v", err)
+			slog.WarnContext(h.CloseContext(), "Inventory control stream failed", "error", err)
 		}
 		return
 	}
@@ -298,7 +298,7 @@ func (h *downstreamHandle) handlePing(sender DownstreamSender, msg proto.Downstr
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if len(h.pingHandlers) == 0 {
-		log.Warnf("Got ping with no handlers registered (id=%d).", msg.ID)
+		slog.WarnContext(h.closeContext, "Got ping with no handlers registered", "ping_id", msg.ID)
 		return
 	}
 	for _, handler := range h.pingHandlers {

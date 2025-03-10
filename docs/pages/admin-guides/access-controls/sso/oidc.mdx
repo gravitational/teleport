@@ -21,8 +21,6 @@ policies like:
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
-- To control the maximum age of users' sessions before they will be forced to
-  reauthenticate, your Teleport cluster must be on version 13.3.7 or above.
 
 ## Identity Providers
 
@@ -42,7 +40,7 @@ Save the relevant information from your identity provider. To make following
 this guide easier, you can add the Client ID here and it will be included in the
 example commands below:
 
-Client ID: <Var name="<CLIENT-ID>" description="The Client ID for your Teleport
+Client ID: <Var name="CLIENT-ID" description="The Client ID for your Teleport
 application, provided by your IdP"/>
 
 ## OIDC Redirect URL
@@ -51,10 +49,11 @@ OIDC relies on HTTP redirects to return control back to Teleport after
 authentication is complete. The redirect URL must be selected by a Teleport
 administrator in advance.
 
-The redirect URL for OIDC authentication in Teleport is <nobr><Var
-name="mytenant.teleport.sh" description="Your Teleport Cloud tenant or Proxy
-Service address"/>`/v1/webapi/oidc/callback`</nobr>. Replace `mytenant.teleport.sh`
-with your Teleport Cloud tenant or Proxy Service address.
+The redirect URL for OIDC authentication in Teleport is <nobr>
+<Var name="mytenant.teleport.sh" description="Your Teleport Cloud tenant or Proxy
+Service address"/>`/v1/webapi/oidc/callback`</nobr>. 
+Replace <Var name="mytenant.teleport.sh" /> with your Teleport Cloud tenant or
+Proxy Service address.
 
 ## OIDC connector configuration
 
@@ -71,7 +70,7 @@ connector resource file in YAML format named `oidc-connector.yaml`:
 ```code
 $ tctl sso configure oidc --name <CONNECTOR-NAME> \
   --issuer-url <PATH-TO-PROVIDER> \
-  --id <CLIENT-ID> \
+  --id <Var name="CLIENT-ID" /> \
   --secret $(cat client-secret.txt) \
   --claims-to-roles <CLAIM-KEY>,<CLAIM-VALUE>,access \
   --claims-to-roles <CLAIM-KEY>,<CLAIM-VALUE>,editor > oidc-connector.yaml
@@ -197,13 +196,13 @@ spec:
 
 ### Optional: Max age
 
-Teleport has supported setting the `max_age` field since version 13.3.7 to control the
-maximum age of users' sessions before they will be forced to reauthenticate. By
-default `max_age` is unset, meaning once a user authenticates using OIDC they will
-not have to reauthenticate unless the configured OIDC provider forces them to. This
-can be set to a duration of time to force users to reauthenticate more often. If
-`max_age` is set to zero seconds, users will be forced to reauthenticate with their
-OIDC provider every time they authenticate with Teleport.
+The `max_age` field controls the maximum age of users' sessions before they will
+be forced to reauthenticate. By default `max_age` is unset, meaning once a user
+authenticates using OIDC they will not have to reauthenticate unless the
+configured OIDC provider forces them to. This can be set to a duration of time
+to force users to reauthenticate more often. If `max_age` is set to zero
+seconds, users will be forced to reauthenticate with their OIDC provider every
+time they authenticate with Teleport.
 
 Note that the specified duration must be in whole seconds. `24h` works because that's
 the same as `1440s`, but `60s500ms` would not be allowed as that is 60.5 seconds.

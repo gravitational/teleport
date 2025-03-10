@@ -163,9 +163,18 @@ func NewEICENode(spec ServerSpecV2, labels map[string]string) (Server, error) {
 
 // NewGitHubServer creates a new Git server for GitHub.
 func NewGitHubServer(githubSpec GitHubServerMetadata) (Server, error) {
+	return NewGitHubServerWithName(uuid.NewString(), githubSpec)
+}
+
+// NewGitHubServerWithName creates a new Git server for GitHub with provided
+// name.
+func NewGitHubServerWithName(name string, githubSpec GitHubServerMetadata) (Server, error) {
 	server := &ServerV2{
 		Kind:    KindGitServer,
 		SubKind: SubKindGitHub,
+		Metadata: Metadata{
+			Name: name,
+		},
 		Spec: ServerSpecV2{
 			GitHub: &githubSpec,
 		},
@@ -626,6 +635,9 @@ func (s *ServerV2) githubCheckAndSetDefaults() error {
 		return trace.Wrap(err, "invalid GitHub organization name")
 	}
 
+	// Set SSH host port for connection and "fake" hostname for routing. These
+	// values are hard-coded and cannot be customized.
+	s.Spec.Addr = "github.com:22"
 	s.Spec.Hostname = MakeGitHubOrgServerDomain(s.Spec.GitHub.Organization)
 	if s.Metadata.Labels == nil {
 		s.Metadata.Labels = make(map[string]string)

@@ -334,6 +334,10 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		return gateway, nil
 	}
 
+	if err := s.checkIfGatewayAlreadyExists(targetURI, params); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clusterClient, err := s.GetCachedClient(ctx, targetURI.GetClusterURI())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -357,7 +361,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 
 	go func() {
 		if err := gateway.Serve(); err != nil {
-			gateway.Log().WithError(err).Warn("Failed to handle a gateway connection.")
+			gateway.Log().WarnContext(ctx, "Failed to handle a gateway connection", "error", err)
 		}
 	}()
 
@@ -416,7 +420,7 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (t
 			},
 		})
 		if notifyErr != nil {
-			s.cfg.Log.WithError(notifyErr).Error("Failed to send a notification for an error encountered during gateway cert reissue")
+			s.cfg.Logger.ErrorContext(ctx, "Failed to send a notification for an error encountered during gateway cert reissue", "error", notifyErr)
 		}
 
 		// Return the error to the alpn.LocalProxy's middleware.
@@ -511,13 +515,42 @@ func (s *Service) GetGatewayCLICommand(ctx context.Context, gateway gateway.Gate
 
 // SetGatewayTargetSubresourceName updates the TargetSubresourceName field of a gateway stored in
 // s.gateways.
-func (s *Service) SetGatewayTargetSubresourceName(gatewayURI, targetSubresourceName string) (gateway.Gateway, error) {
+func (s *Service) SetGatewayTargetSubresourceName(ctx context.Context, gatewayURI, targetSubresourceName string) (gateway.Gateway, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	gateway, err := s.findGateway(gatewayURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if err := s.checkIfGatewayAlreadyExists(gateway.TargetURI(), CreateGatewayParams{
+		TargetURI:             gateway.TargetURI().String(),
+		TargetSubresourceName: targetSubresourceName,
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	targetURI := gateway.TargetURI()
+	switch {
+	case targetURI.IsApp():
+		clusterClient, err := s.GetCachedClient(ctx, targetURI)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		var app types.Application
+		if err := clusters.AddMetadataToRetryableError(ctx, func() error {
+			var err error
+			app, err = clusters.GetApp(ctx, clusterClient.CurrentCluster(), targetURI.GetAppName())
+			return trace.Wrap(err)
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if _, err := clusters.ValidateTargetPort(app, targetSubresourceName); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	gateway.SetTargetSubresourceName(targetSubresourceName)
@@ -559,9 +592,9 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (gateway.Gat
 		// Rather than continuing in presence of the race condition, let's attempt to close the new
 		// gateway (since it shouldn't be used anyway) and return the error.
 		if newGatewayCloseErr := newGateway.Close(); newGatewayCloseErr != nil {
-			newGateway.Log().Warnf(
-				"Failed to close the new gateway after failing to close the old gateway: %v",
-				newGatewayCloseErr,
+			newGateway.Log().WarnContext(s.closeContext,
+				"Failed to close the new gateway after failing to close the old gateway",
+				"error", newGatewayCloseErr,
 			)
 		}
 		return nil, trace.Wrap(err)
@@ -571,7 +604,7 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (gateway.Gat
 
 	go func() {
 		if err := newGateway.Serve(); err != nil {
-			newGateway.Log().WithError(err).Warn("Failed to handle a gateway connection.")
+			newGateway.Log().WarnContext(s.closeContext, "Failed to handle a gateway connection", "error", err)
 		}
 	}()
 
@@ -789,6 +822,28 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 		return trace.Wrap(err)
 	}
 
+	// Clear certs in kube gateways.
+	// Access requests may grant elevated permissions for accessing a kube cluster.
+	// To allow the user to use these permissions, we clear the existing certs.
+	// When a kube proxy receives a new request, it will issue new certs,
+	// similarly to the process when certs expire.
+	//
+	// We don't know which gateways are affected by the access request,
+	// so we need to clear certs for all of them.
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, gw := range s.gateways {
+		targetURI := gw.TargetURI()
+		if !(targetURI.IsKube() && targetURI.GetRootClusterURI() == cluster.URI) {
+			continue
+		}
+		kubeGw, err := gateway.AsKube(gw)
+		if err != nil {
+			s.cfg.Logger.ErrorContext(ctx, "Could not clear certs for kube when assuming request", "error", err, "target_uri", targetURI)
+		}
+		kubeGw.ClearCerts()
+	}
+
 	// We have to reconnect using the updated cert.
 	return trace.Wrap(s.ClearCachedClientsForRoot(cluster.URI))
 }
@@ -842,7 +897,7 @@ func (s *Service) Stop() {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	s.cfg.Log.Info("Stopping")
+	s.cfg.Logger.InfoContext(s.closeContext, "Stopping")
 
 	for _, gateway := range s.gateways {
 		gateway.Close()
@@ -851,14 +906,14 @@ func (s *Service) Stop() {
 	s.StopHeadlessWatchers()
 
 	if err := s.clientCache.Clear(); err != nil {
-		s.cfg.Log.WithError(err).Error("Failed to close remote clients")
+		s.cfg.Logger.ErrorContext(s.closeContext, "Failed to close remote clients", "error", err)
 	}
 
 	timeoutCtx, cancel := context.WithTimeout(s.closeContext, time.Second*10)
 	defer cancel()
 
 	if err := s.usageReporter.GracefulStop(timeoutCtx); err != nil {
-		s.cfg.Log.WithError(err).Error("Gracefully stopping usage reporter failed")
+		s.cfg.Logger.ErrorContext(timeoutCtx, "Gracefully stopping usage reporter failed", "error", err)
 	}
 
 	// s.closeContext is used for the tshd events client which might make requests as long as any of

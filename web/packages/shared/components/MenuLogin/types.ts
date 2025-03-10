@@ -16,6 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ComponentPropsWithRef, ComponentType } from 'react';
+
+import { ButtonBorder } from 'design/Button';
+
 export type LoginItem = {
   url: string;
   login: string;
@@ -42,6 +46,8 @@ export type MenuLoginProps = {
   placeholder?: string;
   required?: boolean;
   width?: string;
+  ButtonComponent?: ComponentType<ComponentPropsWithRef<typeof ButtonBorder>>;
+  buttonText?: string;
 };
 
 export type MenuLoginHandle = {

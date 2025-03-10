@@ -37,7 +37,7 @@ Here is a detailed breakdown of the differences between Teleport's editions.
 
 ## Can individual agents create reverse tunnels to the Proxy Service without creating a new cluster?
 
-Yes. When running a Teleport agent, use the `--auth-server` flag to point to the
+Yes. When running a Teleport Agent, use the `--auth-server` flag to point to the
 Proxy Service address (this would be `public_addr` and `web_listen_addr` in your
 file configuration). For more information, see
 [Adding Nodes to the
@@ -78,11 +78,14 @@ are not logged in to Teleport or may not have access to a browser.
 
 ## `tsh` is very slow on Windows, what to do?
 
-If your host machine is joined to an Active Directory domain, you might find user lookups take a
-lot longer than you expect. The number of Active Directory accounts that must be scanned to
-perform a user lookup can cause tsh to hang waiting to get information about the current user.
-To fix this issue, you can use environment variables to set default account information for your
-Teleport user. If you are experiencing long lookup times on Windows, do the following:
+If your host machine is joined to an Active Directory domain, you might find
+user lookups take a lot longer than you expect. If possible, we recommend
+updating `tsh` to v18 or later, which contains an optimized user lookup
+algorithm.
+
+If upgrading is not possible, you can use environment variables to set default
+account information for your Teleport user. If you are experiencing long lookup
+times on Windows, do the following:
 
 - Either set the `TELEPORT_USER` environment variable or set the `--user` flag to the name of your Teleport user.
 - Either set the `TELEPORT_LOGIN` environment variable or set the `--login` flag to the name of current host user. This setting can be overridden if you open a new SSH session on a machine as a different user.
@@ -102,11 +105,11 @@ months.
 
 Here are the major versions of Teleport and their support windows:
 
-| Release | Release Date       | EOL            | Minimum `tsh` version |
-|---------|--------------------|----------------|-----------------------|
-| v16.0   | June 14, 2024      | June 2025      | v15.0.0               |
-| v15.0   | January 29, 2024   | January 2025   | v14.0.0               |
-| v14.0   | September 20, 2023 | September 2024 | v13.0.0               |
+| Release | Release Date      | EOL           | Minimum `tsh` version |
+|---------|-------------------|---------------|-----------------------|
+| v17.0   | November 16, 2024 | November 2025 | v16.0.0               |
+| v16.0   | June 14, 2024     | June 2025     | v15.0.0               |
+| v15.0   | January 29, 2024  | January 2025  | v14.0.0               |
 
 ### Version compatibility
 
@@ -186,7 +189,7 @@ anonymized information, depending on the license purchased. This information
 contains the following:
 
 - Teleport license identifier;
-- anonymized cluster name and Teleport auth server host ID;
+- anonymized cluster name and Teleport Auth Service host ID;
 - for each Teleport user, the anonymized user name and a per-protocol count of
   interactions - Teleport logins, SSH and Kubernetes exec sessions, Application
   access web sessions and TCP connections, SSH port forwards, Kubernetes API

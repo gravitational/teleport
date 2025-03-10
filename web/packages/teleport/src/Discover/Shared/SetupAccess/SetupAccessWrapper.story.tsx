@@ -16,12 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { SetupAccessWrapper } from './SetupAccessWrapper';
-
-import type { Props } from './SetupAccessWrapper';
+import { SetupAccessWrapper, type Props } from './SetupAccessWrapper';
 
 export default {
   title: 'Teleport/Discover/Shared/SetupAccessWrapper',

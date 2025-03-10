@@ -19,16 +19,16 @@ Node Name            Address        Labels
 fakehost.example.com 127.0.0.1:3022 env=example,hostname=ip-172-31-53-70,aws/Name=atburke-dev,aws/TagKey=TagValue,aws/TeleportHostname=fakehost.example.com
 ```
 
-<Notice type="note">
+<Admonition type="note">
   For services that manage multiple resources (such as the Database Service), each resource will receive the
   same labels from EC2.
-</Notice>
+</Admonition>
 
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
-- One Teleport agent running on an Amazon EC2 instance. See
-  [our guides](../../../enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx) for how to set up Teleport agents.
+- One Teleport Agent running on an Amazon EC2 instance. See
+  [our guides](../../../enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx) for how to set up Teleport Agents.
 
 ## Enable tags in instance metadata
 

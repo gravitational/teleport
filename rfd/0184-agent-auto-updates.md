@@ -1300,7 +1300,7 @@ An alert will eventually fire, warning the user about the stuck update.
 > [!NOTE]
 > In the first version, canary selection will happen randomly. As most instances are running the ssh_service and not
 > the other ones, we are less likely to catch an issue in a less common service.
-> An optimisation would be to try to pick canaries maximizing the service coverage.
+> An optimization would be to try to pick canaries maximizing the service coverage.
 > This would make the test more robust and provide better availability guarantees.
 
 #### Updating a group
@@ -1656,7 +1656,7 @@ $ ls -l /usr/local/bin/teleport
 $ ls -l /usr/local/bin/teleport-update
 /usr/local/teleport/clusterA/bin/teleport-update -> /var/lib/teleport/install/clusterA/versions/15.0.0/bin/teleport-update
 $ ls -l /usr/local/lib/systemd/system/teleport-clusterA.service
-/usr/local/lib/systemd/system/teleport-clutserA.service -> /var/lib/teleport/install/clusterA/versions/15.0.0/etc/systemd/teleport.service
+/usr/local/lib/systemd/system/teleport-clusterA.service -> /var/lib/teleport/install/clusterA/versions/15.0.0/etc/systemd/teleport.service
 ```
 
 ##### update.yaml

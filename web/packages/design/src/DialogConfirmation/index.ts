@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { DialogConfirmation } from './DialogConfirmation';
 import {
-  DialogTitle,
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogTitle,
 } from './../Dialog';
+import { DialogConfirmation } from './DialogConfirmation';
 
 export default DialogConfirmation;
 export { DialogTitle, DialogContent, DialogFooter, DialogHeader };

@@ -16,16 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Attempt } from 'shared/hooks/useAttemptNext';
-
-import { Auth2faType, PrimaryAuthType } from 'shared/services';
-
-import { NewFlow, StepComponentProps } from 'design/StepSlider';
-
 import { ReactElement } from 'react';
 
-import { RecoveryCodes, ResetToken } from 'teleport/services/auth';
+import { NewFlow, StepComponentProps } from 'design/StepSlider';
+import { Attempt } from 'shared/hooks/useAttemptNext';
+import { Auth2faType, PrimaryAuthType } from 'shared/services';
+
 import { RecoveryCodesProps } from 'teleport/components/RecoveryCodes';
+import { RecoveryCodes, ResetToken } from 'teleport/services/auth';
 import { DeviceUsage } from 'teleport/services/mfa';
 
 export type UseTokenState = {
@@ -46,13 +44,6 @@ export type UseTokenState = {
   finishedRegister: () => void;
 };
 
-// Note: QuestionnaireProps is duplicated in Enterprise (e-teleport/Welcome/Questionnaire/Questionnaire)
-export type QuestionnaireProps = {
-  onboard: boolean;
-  username?: string;
-  onSubmit?: () => void;
-};
-
 // Note: InviteCollaboratorsCardProps is duplicated in Enterprise
 // (e-teleport/Welcome/InviteCollaborators/InviteCollaborators)
 export type InviteCollaboratorsCardProps = {
@@ -62,15 +53,6 @@ export type InviteCollaboratorsCardProps = {
 export type NewCredentialsProps = UseTokenState & {
   resetMode?: boolean;
   isDashboard: boolean;
-
-  // support E questionnaire
-  displayOnboardingQuestionnaire?: boolean;
-  setDisplayOnboardingQuestionnaire?: (bool: boolean) => void;
-  Questionnaire?: ({
-    onboard,
-    username,
-    onSubmit,
-  }: QuestionnaireProps) => ReactElement;
 
   // support for E's invite collaborators at onboarding
   displayInviteCollaborators?: boolean;

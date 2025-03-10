@@ -19,7 +19,6 @@
 package services
 
 import (
-	"bytes"
 	"cmp"
 	"context"
 	"encoding/json"
@@ -47,6 +46,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -1184,8 +1184,7 @@ func BenchmarkValidateRole(b *testing.B) {
 	})
 	require.NoError(b, err)
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		require.NoError(b, ValidateRole(role))
 	}
 }
@@ -2180,27 +2179,13 @@ func makeAccessCheckerWithRoleSet(roleSet RoleSet) AccessChecker {
 	return NewAccessCheckerWithRoleSet(accessInfo, "clustername", roleSet)
 }
 
-// testContext overrides context and captures log writes in action
-type testContext struct {
-	Context
-	// Buffer captures log writes
-	buffer *bytes.Buffer
-}
-
-// Write is implemented explicitly to avoid collision
-// of String methods when embedding
-func (t *testContext) Write(data []byte) (int, error) {
-	return t.buffer.Write(data)
-}
-
 func TestCheckRuleAccess(t *testing.T) {
 	type check struct {
-		hasAccess   bool
-		verb        string
-		namespace   string
-		rule        string
-		context     testContext
-		matchBuffer string
+		hasAccess bool
+		verb      string
+		namespace string
+		rule      string
+		context   Context
 	}
 	testCases := []struct {
 		name   string
@@ -2320,9 +2305,6 @@ func TestCheckRuleAccess(t *testing.T) {
 									Resources: []string{types.KindSession},
 									Verbs:     []string{types.VerbRead},
 									Where:     `contains(user.spec.traits["group"], "prod")`,
-									Actions: []string{
-										`log("info", "4 - tc match for user %v", user.metadata.name)`,
-									},
 								},
 							},
 						},
@@ -2333,17 +2315,14 @@ func TestCheckRuleAccess(t *testing.T) {
 				{rule: types.KindSession, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: false},
 				{rule: types.KindSession, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: false},
 				{
-					context: testContext{
-						buffer: &bytes.Buffer{},
-						Context: Context{
-							User: &types.UserV2{
-								Metadata: types.Metadata{
-									Name: "bob",
-								},
-								Spec: types.UserSpecV2{
-									Traits: map[string][]string{
-										"group": {"dev", "prod"},
-									},
+					context: Context{
+						User: &types.UserV2{
+							Metadata: types.Metadata{
+								Name: "bob",
+							},
+							Spec: types.UserSpecV2{
+								Traits: map[string][]string{
+									"group": {"dev", "prod"},
 								},
 							},
 						},
@@ -2354,14 +2333,11 @@ func TestCheckRuleAccess(t *testing.T) {
 					hasAccess: true,
 				},
 				{
-					context: testContext{
-						buffer: &bytes.Buffer{},
-						Context: Context{
-							User: &types.UserV2{
-								Spec: types.UserSpecV2{
-									Traits: map[string][]string{
-										"group": {"dev"},
-									},
+					context: Context{
+						User: &types.UserV2{
+							Spec: types.UserSpecV2{
+								Traits: map[string][]string{
+									"group": {"dev"},
 								},
 							},
 						},
@@ -2389,9 +2365,6 @@ func TestCheckRuleAccess(t *testing.T) {
 									Resources: []string{types.KindRole},
 									Verbs:     []string{types.VerbRead},
 									Where:     `equals(resource.metadata.labels["team"], "dev")`,
-									Actions: []string{
-										`log("error", "4 - tc match")`,
-									},
 								},
 							},
 						},
@@ -2402,13 +2375,10 @@ func TestCheckRuleAccess(t *testing.T) {
 				{rule: types.KindRole, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: false},
 				{rule: types.KindRole, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: false},
 				{
-					context: testContext{
-						buffer: &bytes.Buffer{},
-						Context: Context{
-							Resource: &types.RoleV6{
-								Metadata: types.Metadata{
-									Labels: map[string]string{"team": "dev"},
-								},
+					context: Context{
+						Resource: &types.RoleV6{
+							Metadata: types.Metadata{
+								Labels: map[string]string{"team": "dev"},
 							},
 						},
 					},
@@ -2439,9 +2409,6 @@ func TestCheckRuleAccess(t *testing.T) {
 									Resources: []string{types.KindRole},
 									Verbs:     []string{types.VerbRead},
 									Where:     `equals(resource.metadata.labels["team"], "dev")`,
-									Actions: []string{
-										`log("info", "matched more specific rule")`,
-									},
 								},
 							},
 						},
@@ -2450,21 +2417,17 @@ func TestCheckRuleAccess(t *testing.T) {
 			},
 			checks: []check{
 				{
-					context: testContext{
-						buffer: &bytes.Buffer{},
-						Context: Context{
-							Resource: &types.RoleV6{
-								Metadata: types.Metadata{
-									Labels: map[string]string{"team": "dev"},
-								},
+					context: Context{
+						Resource: &types.RoleV6{
+							Metadata: types.Metadata{
+								Labels: map[string]string{"team": "dev"},
 							},
 						},
 					},
-					rule:        types.KindRole,
-					verb:        types.VerbRead,
-					namespace:   apidefaults.Namespace,
-					hasAccess:   true,
-					matchBuffer: "more specific rule",
+					rule:      types.KindRole,
+					verb:      types.VerbRead,
+					namespace: apidefaults.Namespace,
+					hasAccess: true,
 				},
 			},
 		},
@@ -2486,9 +2449,6 @@ func TestCheckRuleAccess(t *testing.T) {
 			} else {
 				require.True(t, trace.IsAccessDenied(result), comment)
 			}
-			if check.matchBuffer != "" {
-				require.Contains(t, check.context.buffer.String(), check.matchBuffer, comment)
-			}
 		}
 	}
 }
@@ -2498,7 +2458,7 @@ func TestDefaultImplicitRules(t *testing.T) {
 		hasAccess bool
 		verb      string
 		rule      string
-		context   testContext
+		context   Context
 	}
 	testCases := []struct {
 		name   string
@@ -2679,7 +2639,7 @@ func TestMFAVerificationInterval(t *testing.T) {
 }
 
 func TestGuessIfAccessIsPossible(t *testing.T) {
-	// Examples from https://goteleport.com/docs/access-controls/reference/#rbac-for-sessions.
+	// Examples from https://goteleport.com/docs/reference/access-controls/roles/#rbac-for-sessions.
 	ownSessions, err := types.NewRole("own-sessions", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
@@ -3000,6 +2960,8 @@ func TestApplyTraits(t *testing.T) {
 		inSudoers               []string
 		outSudoers              []string
 		outKubeResources        []types.KubernetesResource
+		inGitHubPermissions     []types.GitHubPermission
+		outGitHubPermissions    []types.GitHubPermission
 	}
 	tests := []struct {
 		comment  string
@@ -3768,6 +3730,34 @@ func TestApplyTraits(t *testing.T) {
 				},
 			},
 		},
+		{
+			comment: "GitHub permissions in allow rule",
+			inTraits: map[string][]string{
+				"github_orgs": {"my-org1", "my-org2"},
+			},
+			allow: rule{
+				inGitHubPermissions: []types.GitHubPermission{{
+					Organizations: []string{"{{internal.github_orgs}}"},
+				}},
+				outGitHubPermissions: []types.GitHubPermission{{
+					Organizations: []string{"my-org1", "my-org2"},
+				}},
+			},
+		},
+		{
+			comment: "GitHub permissions in deny rule",
+			inTraits: map[string][]string{
+				"orgs": {"my-org1", "my-org2"},
+			},
+			deny: rule{
+				inGitHubPermissions: []types.GitHubPermission{{
+					Organizations: []string{"{{external.orgs}}"},
+				}},
+				outGitHubPermissions: []types.GitHubPermission{{
+					Organizations: []string{"my-org1", "my-org2"},
+				}},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
@@ -3799,6 +3789,7 @@ func TestApplyTraits(t *testing.T) {
 						Impersonate:          &tt.allow.inImpersonate,
 						HostSudoers:          tt.allow.inSudoers,
 						KubernetesResources:  tt.allow.inKubeResources,
+						GitHubPermissions:    tt.allow.inGitHubPermissions,
 					},
 					Deny: types.RoleConditions{
 						Logins:               tt.deny.inLogins,
@@ -3820,6 +3811,7 @@ func TestApplyTraits(t *testing.T) {
 						Impersonate:          &tt.deny.inImpersonate,
 						HostSudoers:          tt.deny.outSudoers,
 						KubernetesResources:  tt.deny.inKubeResources,
+						GitHubPermissions:    tt.deny.inGitHubPermissions,
 					},
 				},
 			}
@@ -3853,6 +3845,7 @@ func TestApplyTraits(t *testing.T) {
 				require.Equal(t, rule.spec.outImpersonate, outRole.GetImpersonateConditions(rule.condition))
 				require.Equal(t, rule.spec.outSudoers, outRole.GetHostSudoers(rule.condition))
 				require.Equal(t, rule.spec.outKubeResources, outRole.GetRoleConditions(rule.condition).KubernetesResources)
+				require.Equal(t, rule.spec.outGitHubPermissions, outRole.GetRoleConditions(rule.condition).GitHubPermissions)
 			}
 		})
 	}
@@ -3880,26 +3873,26 @@ func TestExtractFrom(t *testing.T) {
 
 	// At this point, services.User and the certificate/identity are still in
 	// sync. The roles and traits returned should be the same as the original.
-	roles, traits, err := ExtractFromCertificate(cert)
+	ident, err := sshca.DecodeIdentity(cert)
 	require.NoError(t, err)
-	require.Equal(t, roles, origRoles)
-	require.Equal(t, traits, origTraits)
+	require.Equal(t, origRoles, ident.Roles)
+	require.Equal(t, origTraits, ident.Traits)
 
-	roles, traits, err = ExtractFromIdentity(ctx, &userGetter{
+	roles, traits, err := ExtractFromIdentity(ctx, &userGetter{
 		roles:  origRoles,
 		traits: origTraits,
 	}, *identity)
 	require.NoError(t, err)
-	require.Equal(t, roles, origRoles)
-	require.Equal(t, traits, origTraits)
+	require.Equal(t, origRoles, roles)
+	require.Equal(t, origTraits, traits)
 
 	// The backend now returns new roles and traits, however because the roles
 	// and traits are extracted from the certificate/identity, the original
 	// roles and traits will be returned.
-	roles, traits, err = ExtractFromCertificate(cert)
+	ident, err = sshca.DecodeIdentity(cert)
 	require.NoError(t, err)
-	require.Equal(t, roles, origRoles)
-	require.Equal(t, traits, origTraits)
+	require.Equal(t, origRoles, ident.Roles)
+	require.Equal(t, origTraits, ident.Traits)
 
 	roles, traits, err = ExtractFromIdentity(ctx, &userGetter{
 		roles:  origRoles,
@@ -7068,7 +7061,7 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 	}
 
 	// Check access to all 4,000 nodes.
-	for n := 0; n < b.N; n++ {
+	for b.Loop() {
 		for i := 0; i < 4000; i++ {
 			for login := range allowLogins {
 				// note: we don't check the error here because this benchmark

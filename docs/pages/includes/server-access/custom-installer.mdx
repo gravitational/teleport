@@ -21,6 +21,8 @@ $ tctl create -f installer-manager.yaml
 # role 'installer-manager' has been created
 ```
 
+(!docs/pages/includes/create-role-using-web.mdx!)
+
 The preset `editor` role has the required permissions by default.
 
 To customize the default installer script, execute the following command on
@@ -65,7 +67,7 @@ connect to.
 Has format `<channel>/<version>` e.g. stable/v(=teleport.major_version=). See [installation](../../installation.mdx#linux) for more details.
 - `{{ .AutomaticUpgrades }}`: indicates whether Automatic Updates are enabled or disabled.
   Its value is either `true` or `false`. See
-  [Automatic Agent Updates](../../upgrading/automatic-agent-updates.mdx)
+  [Automatic Agent Updates](../../upgrading/agent-managed-updates.mdx)
   for more information.
 - `{{ .TeleportPackage }}`: the Teleport package to use.
   Its value is either `teleport-ent` or `teleport` depending on whether the

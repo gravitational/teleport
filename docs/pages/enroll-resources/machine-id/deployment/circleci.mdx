@@ -26,7 +26,7 @@ joining method to eliminate the need for long-lived secrets.
 
 In order to allow your CircleCI workflow to authenticate with your Teleport
 cluster, you'll first need to create a join token. These tokens set out criteria
-by which the Auth Server decides whether or not to allow a bot or node to join.
+by which the Auth Service decides whether or not to allow a bot or node to join.
 
 Create a file named `bot-token.yaml`, ensuring that you replace
 <Var name="organization-id" /> and <Var name="context-id" /> with the values from Step 1.
@@ -42,7 +42,7 @@ spec:
   bot_name: example
   circleci:
     organization_id: <Var name="organization-id" />
-    # allow specifies the rules by which the Auth Server determines if `tbot`
+    # allow specifies the rules by which the Auth Service determines if `tbot`
     # should be allowed to join.
     allow:
     - context_id: <Var name="context-id" />
@@ -97,7 +97,7 @@ outputs: []
 Replace:
 
 - `example.teleport.sh:443` with the address of your Teleport Proxy or
-  Auth Server. Prefer using the address of a Teleport Proxy.
+  Auth Service. Prefer using the address of a Teleport Proxy.
 - `example-bot` with the name of the token you created in the second step
 
 Now, the CircleCI pipeline can be defined. Before the pipeline can use `tbot`,
@@ -135,7 +135,7 @@ workflows:
     jobs:
       - write-run-log:
           context:
-            - <Var name="teleport-access"/>
+            - teleport-access
 ```
 
 `TELEPORT_ANONYMOUS_TELEMETRY` enables the submission of anonymous usage

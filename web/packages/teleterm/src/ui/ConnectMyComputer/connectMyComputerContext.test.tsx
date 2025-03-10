@@ -19,19 +19,22 @@
 import { EventEmitter } from 'node:events';
 
 import { act, renderHook, waitFor } from '@testing-library/react';
+
 import { makeErrorAttempt } from 'shared/hooks/useAsync';
 
-import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import Logger, { NullService } from 'teleterm/logger';
 import { AgentProcessState } from 'teleterm/mainProcess/types';
-import * as resourcesContext from 'teleterm/ui/DocumentCluster/resourcesContext';
 import {
   makeAcl,
   makeLoggedInUser,
   makeRootCluster,
   makeServer,
 } from 'teleterm/services/tshd/testHelpers';
-import Logger, { NullService } from 'teleterm/logger';
+import type { Cluster } from 'teleterm/services/tshd/types';
+import * as resourcesContext from 'teleterm/ui/DocumentCluster/resourcesContext';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import type { IAppContext } from 'teleterm/ui/types';
 
 import {
   AgentCompatibilityError,
@@ -39,9 +42,6 @@ import {
   ConnectMyComputerContextProvider,
   useConnectMyComputerContext,
 } from './connectMyComputerContext';
-
-import type { IAppContext } from 'teleterm/ui/types';
-import type { Cluster } from 'teleterm/services/tshd/types';
 
 beforeAll(() => {
   Logger.init(new NullService());
@@ -65,19 +65,7 @@ function getMocks() {
   const appContext = new MockAppContext({
     appVersion: rootCluster.proxyVersion,
   });
-
-  appContext.clustersService.setState(draftState => {
-    draftState.clusters.set(rootCluster.uri, rootCluster);
-  });
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = rootCluster.uri;
-    draftState.workspaces[rootCluster.uri] = {
-      documents: [],
-      location: undefined,
-      localClusterUri: rootCluster.uri,
-      accessRequests: undefined,
-    };
-  });
+  appContext.addRootCluster(rootCluster);
 
   return { appContext, rootCluster };
 }

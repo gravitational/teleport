@@ -16,9 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { Box, Toggle } from 'design';
-
 import { IconTooltip } from 'design/Tooltip';
 
 export function AutoDiscoverToggle({

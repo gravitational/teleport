@@ -127,7 +127,7 @@ message AzureRoleDefinition {
   string type = 9;
 }
 
-// AzurePermission defines the actions and not (disallowed) actions for a role definition
+// AzureRBACPermission defines the actions and not (disallowed) actions for a role definition
 message AzureRBACPermission {
   // actions define the resources and verbs allowed on the resources
   repeated string actions = 1;

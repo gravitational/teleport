@@ -16,44 +16,43 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useState, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import styled from 'styled-components';
 
-import { Flex } from 'design';
+import { Box, Flex } from 'design';
 import { Danger } from 'design/Alert';
-
+import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 import {
-  FilterKind,
-  UnifiedResources as SharedUnifiedResources,
-  useUnifiedResourcesFetch,
-  UnifiedResourcesPinning,
   BulkAction,
+  FilterKind,
   IncludedResourceMode,
   ResourceAvailabilityFilter,
+  UnifiedResources as SharedUnifiedResources,
+  UnifiedResourcesPinning,
+  useUnifiedResourcesFetch,
 } from 'shared/components/UnifiedResources';
-import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 
-import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-
-import useStickyClusterId from 'teleport/useStickyClusterId';
-import { useUser } from 'teleport/User/UserContext';
 import { useTeleport } from 'teleport';
+import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
+import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import { useUrlFiltering } from 'teleport/components/hooks';
 import {
+  FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
-  FeatureBox,
 } from 'teleport/components/Layout';
-import { useNoMinWidth } from 'teleport/Main';
-import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
-import { SearchResource } from 'teleport/Discover/SelectResource';
-import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
-import { FeatureFlags } from 'teleport/types';
-import { UnifiedResource } from 'teleport/services/agents';
-import {
-  useSamlAppAction,
-  SamlAppActionProvider,
-} from 'teleport/SamlApplications/useSamlAppActions';
 import { ServersideSearchPanel } from 'teleport/components/ServersideSearchPanel';
+import { SearchResource } from 'teleport/Discover/SelectResource';
+import { useNoMinWidth } from 'teleport/Main';
+import {
+  SamlAppActionProvider,
+  useSamlAppAction,
+} from 'teleport/SamlApplications/useSamlAppActions';
+import { UnifiedResource } from 'teleport/services/agents';
+import { FeatureFlags } from 'teleport/types';
+import { useUser } from 'teleport/User/UserContext';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { ResourceActionButton } from './ResourceActionButton';
 
@@ -62,16 +61,23 @@ export function UnifiedResources() {
 
   return (
     <FeatureBox px={4}>
-      <SamlAppActionProvider>
-        <ClusterResources
-          key={clusterId} // when the current cluster changes, remount the component
-          clusterId={clusterId}
-          isLeafCluster={isLeafCluster}
-        />
-      </SamlAppActionProvider>
+      <ResizingResourceWrapper>
+        <SamlAppActionProvider>
+          <ClusterResources
+            key={clusterId} // when the current cluster changes, remount the component
+            clusterId={clusterId}
+            isLeafCluster={isLeafCluster}
+          />
+        </SamlAppActionProvider>
+      </ResizingResourceWrapper>
     </FeatureBox>
   );
 }
+
+const ResizingResourceWrapper = styled(Box)`
+  width: 100%;
+  padding-right: ${props => props.theme.space[3]}px;
+`;
 
 const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
   return [
@@ -94,6 +100,10 @@ const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
     {
       kind: 'windows_desktop',
       disabled: !flags.desktops,
+    },
+    {
+      kind: 'git_server',
+      disabled: !flags.gitServers,
     },
   ];
 };

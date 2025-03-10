@@ -46,8 +46,6 @@ const (
 )
 
 func main() {
-	// This initializes the legacy logrus logger. This has been kept in place
-	// in case any of the dependencies are still using logrus.
 	logger.Init()
 
 	ctx := kong.Parse(
@@ -64,17 +62,13 @@ func main() {
 		Format:   "text",
 	}
 	if cli.Debug {
-		enableLogDebug()
 		logCfg.Severity = "debug"
 	}
-	log, err := logCfg.NewSLogLogger()
-	if err != nil {
-		fmt.Println(trace.DebugReport(trace.Wrap(err, "initializing logger")))
+
+	if err := logger.Setup(logCfg); err != nil {
+		fmt.Println(trace.DebugReport(err))
 		os.Exit(-1)
 	}
-	// Whilst this package mostly dependency injects slog, upstream dependencies
-	// may still use the default slog logger.
-	slog.SetDefault(log)
 
 	switch {
 	case ctx.Command() == "version":
@@ -86,22 +80,13 @@ func main() {
 			os.Exit(-1)
 		}
 	case ctx.Command() == "start":
-		err := start(log)
+		err := start(slog.Default())
 
 		if err != nil {
 			lib.Bail(err)
 		} else {
-			log.InfoContext(context.TODO(), "Successfully shut down")
+			slog.InfoContext(context.TODO(), "Successfully shut down")
 		}
-	}
-}
-
-// turn on log debugging
-func enableLogDebug() {
-	err := logger.Setup(logger.Config{Severity: "debug", Output: "stderr"})
-	if err != nil {
-		fmt.Println(trace.DebugReport(err))
-		os.Exit(-1)
 	}
 }
 

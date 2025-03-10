@@ -123,10 +123,9 @@ All actions should require re-authn with a webauthn device.
 For each, test the invite, reset, and login flows
 
 - [ ] Verify that input fields validates
-- [ ] Verify with `second_factor` type to `off`
-- [ ] Verify with `second_factor` type to `otp`, requires otp
-- [ ] Verify with `second_factor` type to `webauthn`, requires hardware key
-- [ ] Verify with `second_factor` type to `on`, requires a MFA device
+- [ ] Verify with `second_factors` set to `["otp"]`, requires otp
+- [ ] Verify with `second_factors` set to `["webauthn"]`, requires hardware key
+- [ ] Verify with `second_factors` set to `["webauthn", "otp"]`, requires a MFA device
 - [ ] Verify that error message is shown if an invite/reset is expired/invalid
 - [ ] Verify that account is locked after several unsuccessful login attempts
 
@@ -230,15 +229,16 @@ spec:
 
 - [ ] Existing locks listing page.
   - [ ] It lists all of the existing locks in the system.
-  - [ ] Locks without a `Locked By` and `Start Date` are still shown with those fields empty.
+  - [ ] Locks without a `Message` are shown with this field as empty.
+  - [ ] Locks without an `Expiration` field are shown with this field as "Never".
   - [ ] Clicking the trash can deletes the lock with a spinner.
-  - [ ] Table columns are sortable.
+  - [ ] Table columns are sortable, except for the `Locked Items` column.
   - [ ] Table search field filters the results.
 - [ ] Adding a new lock. (+ Add New Lock).
   - [ ] Target switcher shows the locks for the various target types (User, Role, Login, Node, MFA Device, Windows Desktop, Access Request).
   - [ ] Target switcher has "Access Request" in E build but not in OSS.
   - [ ] You can add lock targets from multiple target types.
-  - [ ] Adding a target disables that "add button".
+  - [ ] Adding a target turnst the `Add Target` button into a `Remove` button.
   - [ ] You cannot proceed if you haven't selected targets to lock.
   - [ ] You can clear the selected targets prior to creating locks.
   - [ ] Proceeding to lock opens an animated slide panel from the right.
@@ -807,23 +807,23 @@ Add the following to enable read access to trusted clusters
 - Auth methods
   - Verify that the app supports clusters using different auth settings
     (`auth_service.authentication` in the cluster config):
-    - [ ] `type: local`, `second_factor: "otp"`
+    - [ ] `type: local`, `second_factors: ["otp"]`
       - [ ] Test per-session MFA items listed later in the test plan.
-    - [ ] `type: local`, `second_factor: "webauthn"`,
+    - [ ] `type: local`, `second_factors: ["webauthn"]`,
       - [ ] Test per-session MFA items listed later in the test plan.
-    - [ ] `type: local`, `second_factor: "webauthn"`, log in passwordlessly with hardware key
-    - [ ] `type: local`, `second_factor: "webauthn"`, log in passwordlessly with touch ID
-    - [ ] `type: local`, `second_factor: "on"`, log in with OTP
+    - [ ] `type: local`, `second_factors: ["webauthn"]`, log in passwordlessly with hardware key
+    - [ ] `type: local`, `second_factors: ["webauthn"]`, log in passwordlessly with touch ID
+    - [ ] `type: local`, `second_factors: ["webauthn", "otp"]`, log in with OTP
       - [ ] Test per-session MFA items listed later in the test plan.
-    - [ ] `type: local`, `second_factor: "on"`, log in with hardware key
-    - [ ] `type: local`, `second_factor: "on"`, log in with passwordless auth
+    - [ ] `type: local`, `second_factors: ["webauthn", "otp"]`, log in with hardware key
+    - [ ] `type: local`, `second_factors: ["webauthn", "otp"]`, log in with passwordless auth
     - [ ] Verify that the passwordless credential picker works.
       - To make the picker show up, you need to add the same MFA device with passwordless
         capabilities to multiple users.
     - [Authentication connectors](https://goteleport.com/docs/setup/reference/authentication/#authentication-connectors):
       - For those you might want to use clusters that are deployed on the web, specified in
         parens. Or set up the connectors on a local enterprise cluster following [the guide from
-        our wiki](https://gravitational.slab.com/posts/quick-git-hub-saml-oidc-setup-6dfp292a).
+        our wiki](https://www.notion.so/goteleport/Quick-SSO-setup-fb1a64504115414ca50a965390105bee).
       - [ ] GitHub (asteroid)
       - [ ] SAML (platform cluster)
       - [ ] OIDC (e-demo)

@@ -190,7 +190,7 @@ pnpm dlx browserslist 'last 2 chrome version, last 2 edge version, last 2 firefo
     // Set the default
     "editor.formatOnSave": false,
     // absolute config path
-    "prettier.configPath": ".prettierrc",
+    "prettier.configPath": ".prettierrc.js",
     // enable per-language
     "[html]": {
         "editor.formatOnSave": true,

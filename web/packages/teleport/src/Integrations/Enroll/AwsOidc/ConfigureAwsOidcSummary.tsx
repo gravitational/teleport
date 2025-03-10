@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled from 'styled-components';
-import { Flex, Box, H3, Text } from 'design';
-import TextEditor from 'shared/components/TextEditor';
+
+import { Box, Flex, H3, Text } from 'design';
 import { IconTooltip } from 'design/Tooltip';
+import TextEditor from 'shared/components/TextEditor';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
 

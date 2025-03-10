@@ -929,7 +929,7 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"assignment_name": {
-									Description: "AssignmentID is the ID of the Teelport Account Assignment resource that represents this permission being assigned on the enclosing Account.",
+									Description: "AssignmentID is the ID of the Teleport Account Assignment resource that represents this permission being assigned on the enclosing Account.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
@@ -1458,13 +1458,13 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 				},
 				"second_factor": {
 					Computed:      true,
-					Description:   "SecondFactor is the type of mult-factor.",
+					Description:   "SecondFactor is the type of mult-factor. Deprecated: Prefer using SecondFactors instead.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"second_factors": {
-					Description: "SecondFactors is a list of supported second factor types.",
+					Description: "SecondFactors is a list of supported multi-factor types. 1 is \"otp\", 2 is \"webauthn\", 3 is \"sso\", If unspecified, the current default value is [1], or [\"otp\"].",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.Int64Type},
 				},
@@ -1472,6 +1472,27 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 					Description: "SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster. If unspecified, the current default value is \"legacy\". 1 is \"legacy\", 2 is \"balanced-v1\", 3 is \"fips-v1\", 4 is \"hsm-v1\".",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+				},
+				"stable_unix_user_config": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"enabled": {
+							Description: "Enabled signifies that (UNIX) Teleport SSH hosts should obtain a UID from the control plane if they're about to provision a host user with no other configured UID.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"first_uid": {
+							Description: "FirstUid is the start of the range of UIDs for autoprovisioned host users. The range is inclusive on both ends, so the specified UID can be assigned.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+						"last_uid": {
+							Description: "LastUid is the end of the range of UIDs for autoprovisioned host users. The range is inclusive on both ends, so the specified UID can be assigned.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+					}),
+					Description: "StableUnixUserConfig contains the cluster-wide configuration for stable UNIX users.",
+					Optional:    true,
 				},
 				"type": {
 					Computed:      true,
@@ -2075,6 +2096,15 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
+						"workload_identity_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.",
+							Optional:    true,
+						}),
+						"workload_identity_labels_expression": {
+							Description: "WorkloadIdentityLabelsExpression is a predicate expression used to allow/deny access to issuing a WorkloadIdentity.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
 					}),
 					Description: "Allow is the set of conditions evaluated to grant access.",
 					Optional:    true,
@@ -2550,6 +2580,15 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Description: "WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"workload_identity_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.",
+							Optional:    true,
+						}),
+						"workload_identity_labels_expression": {
+							Description: "WorkloadIdentityLabelsExpression is a predicate expression used to allow/deny access to issuing a WorkloadIdentity.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
 					Description: "Deny is the set of conditions evaluated to deny access. Deny takes priority over allow.",
@@ -15014,6 +15053,75 @@ func CopyAuthPreferenceV2FromTerraform(_ context.Context, tf github_com_hashicor
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["stable_unix_user_config"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"AuthPreferenceV2.Spec.stable_unix_user_config"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"AuthPreferenceV2.Spec.stable_unix_user_config", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.StableUnixUserConfig = nil
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj.StableUnixUserConfig = &github_com_gravitational_teleport_api_types.StableUNIXUserConfig{}
+									obj := obj.StableUnixUserConfig
+									{
+										a, ok := tf.Attrs["enabled"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AuthPreferenceV2.Spec.stable_unix_user_config.enabled"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AuthPreferenceV2.Spec.stable_unix_user_config.enabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+											} else {
+												var t bool
+												if !v.Null && !v.Unknown {
+													t = bool(v.Value)
+												}
+												obj.Enabled = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["first_uid"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AuthPreferenceV2.Spec.stable_unix_user_config.first_uid"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AuthPreferenceV2.Spec.stable_unix_user_config.first_uid", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+											} else {
+												var t int32
+												if !v.Null && !v.Unknown {
+													t = int32(v.Value)
+												}
+												obj.FirstUid = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["last_uid"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AuthPreferenceV2.Spec.stable_unix_user_config.last_uid"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AuthPreferenceV2.Spec.stable_unix_user_config.last_uid", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+											} else {
+												var t int32
+												if !v.Null && !v.Unknown {
+													t = int32(v.Value)
+												}
+												obj.LastUid = t
+											}
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -16260,6 +16368,104 @@ func CopyAuthPreferenceV2ToTerraform(ctx context.Context, obj *github_com_gravit
 								}
 								c.Unknown = false
 								tf.Attrs["second_factors"] = c
+							}
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["stable_unix_user_config"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"AuthPreferenceV2.Spec.stable_unix_user_config"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"AuthPreferenceV2.Spec.stable_unix_user_config", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["stable_unix_user_config"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								if obj.StableUnixUserConfig == nil {
+									v.Null = true
+								} else {
+									obj := obj.StableUnixUserConfig
+									tf := &v
+									{
+										t, ok := tf.AttrTypes["enabled"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AuthPreferenceV2.Spec.stable_unix_user_config.enabled"})
+										} else {
+											v, ok := tf.Attrs["enabled"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AuthPreferenceV2.Spec.stable_unix_user_config.enabled", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AuthPreferenceV2.Spec.stable_unix_user_config.enabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+												}
+												v.Null = bool(obj.Enabled) == false
+											}
+											v.Value = bool(obj.Enabled)
+											v.Unknown = false
+											tf.Attrs["enabled"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["first_uid"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AuthPreferenceV2.Spec.stable_unix_user_config.first_uid"})
+										} else {
+											v, ok := tf.Attrs["first_uid"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AuthPreferenceV2.Spec.stable_unix_user_config.first_uid", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AuthPreferenceV2.Spec.stable_unix_user_config.first_uid", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+												}
+												v.Null = int64(obj.FirstUid) == 0
+											}
+											v.Value = int64(obj.FirstUid)
+											v.Unknown = false
+											tf.Attrs["first_uid"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["last_uid"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AuthPreferenceV2.Spec.stable_unix_user_config.last_uid"})
+										} else {
+											v, ok := tf.Attrs["last_uid"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AuthPreferenceV2.Spec.stable_unix_user_config.last_uid", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AuthPreferenceV2.Spec.stable_unix_user_config.last_uid", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+												}
+												v.Null = int64(obj.LastUid) == 0
+											}
+											v.Value = int64(obj.LastUid)
+											v.Unknown = false
+											tf.Attrs["last_uid"] = v
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["stable_unix_user_config"] = v
 							}
 						}
 					}
@@ -19152,6 +19358,30 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["workload_identity_labels"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.WorkloadIdentityLabels"})
+										}
+										CopyFromLabels(diags, a, &obj.WorkloadIdentityLabels)
+									}
+									{
+										a, ok := tf.Attrs["workload_identity_labels_expression"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.WorkloadIdentityLabelsExpression"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.WorkloadIdentityLabelsExpression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.WorkloadIdentityLabelsExpression = t
+											}
+										}
+									}
 								}
 							}
 						}
@@ -21153,6 +21383,30 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 														}
 													}
 												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["workload_identity_labels"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Deny.WorkloadIdentityLabels"})
+										}
+										CopyFromLabels(diags, a, &obj.WorkloadIdentityLabels)
+									}
+									{
+										a, ok := tf.Attrs["workload_identity_labels_expression"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Deny.WorkloadIdentityLabelsExpression"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Deny.WorkloadIdentityLabelsExpression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.WorkloadIdentityLabelsExpression = t
 											}
 										}
 									}
@@ -25943,6 +26197,37 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 											}
 										}
 									}
+									{
+										t, ok := tf.AttrTypes["workload_identity_labels"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.WorkloadIdentityLabels"})
+										} else {
+											v := CopyToLabels(diags, obj.WorkloadIdentityLabels, t, tf.Attrs["workload_identity_labels"])
+											tf.Attrs["workload_identity_labels"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["workload_identity_labels_expression"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.WorkloadIdentityLabelsExpression"})
+										} else {
+											v, ok := tf.Attrs["workload_identity_labels_expression"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"RoleV6.Spec.Allow.WorkloadIdentityLabelsExpression", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Allow.WorkloadIdentityLabelsExpression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.WorkloadIdentityLabelsExpression) == ""
+											}
+											v.Value = string(obj.WorkloadIdentityLabelsExpression)
+											v.Unknown = false
+											tf.Attrs["workload_identity_labels_expression"] = v
+										}
+									}
 								}
 								v.Unknown = false
 								tf.Attrs["allow"] = v
@@ -29448,6 +29733,37 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 												c.Unknown = false
 												tf.Attrs["github_permissions"] = c
 											}
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["workload_identity_labels"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.WorkloadIdentityLabels"})
+										} else {
+											v := CopyToLabels(diags, obj.WorkloadIdentityLabels, t, tf.Attrs["workload_identity_labels"])
+											tf.Attrs["workload_identity_labels"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["workload_identity_labels_expression"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.WorkloadIdentityLabelsExpression"})
+										} else {
+											v, ok := tf.Attrs["workload_identity_labels_expression"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"RoleV6.Spec.Deny.WorkloadIdentityLabelsExpression", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Deny.WorkloadIdentityLabelsExpression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.WorkloadIdentityLabelsExpression) == ""
+											}
+											v.Value = string(obj.WorkloadIdentityLabelsExpression)
+											v.Unknown = false
+											tf.Attrs["workload_identity_labels_expression"] = v
 										}
 									}
 								}

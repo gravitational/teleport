@@ -15,9 +15,9 @@ or database sessions without MFA) and provides users with recommendations on sug
 
 Users are able to write their own custom access monitoring queries by querying the audit log.
 
-<Admonition type="notice">
+<Admonition type="note">
   Access Monitoring is not currently supported with External Audit Storage
-  in Teleport Enterprise (cloud-hosted). This functionality will be
+  in Teleport Enterprise (Cloud). This functionality will be
   enabled in a future Teleport release.
 </Admonition>
 
@@ -31,7 +31,7 @@ Users are able to write their own custom access monitoring queries by querying t
 <Tabs>
 <TabItem scope={["cloud","team"]} label="Teleport Enterprise (cloud-hosted)">
 
-Teleport Access Monitoring is enabled by default for all Teleport Enterprise (cloud-hosted) accounts.
+Access Monitoring is enabled by default for all Teleport Enterprise (cloud-hosted) accounts.
 
 </TabItem>
 <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
@@ -177,9 +177,11 @@ spec:
       - use
 ```
 
+(!docs/pages/includes/create-role-using-web.mdx!)
+
 ## Query Editor
 
-The Query Editor in Teleport Access Monitoring provides users with an interface to interactively query audit logs and generate reports.
+The Query Editor in Access Monitoring provides users with an interface to interactively query audit logs and generate reports.
 Users can write custom SQL queries for these views to build custom reports akin to querying a relational database.
 
 Within the Query Editor, users have access to a number of SQL views representing audit events captured by Teleport.

@@ -16,23 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
 import { StoryObj } from '@storybook/react';
 import { delay, http, HttpResponse } from 'msw';
+import { useEffect, useState } from 'react';
+
 import { Info } from 'design/Alert';
-import Flex from 'design/Flex';
 import { ButtonPrimary } from 'design/Button';
+import Flex from 'design/Flex';
 
-import { createTeleportContext } from 'teleport/mocks/contexts';
-import TeleportContextProvider from 'teleport/TeleportContextProvider';
-import cfg from 'teleport/config';
-import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
-import { Access } from 'teleport/services/user';
 import useResources from 'teleport/components/useResources';
+import cfg from 'teleport/config';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import { RoleVersion } from 'teleport/services/resources';
+import { Access } from 'teleport/services/user';
+import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
-import { withDefaults } from './withDefaults';
 import { RoleEditor } from './RoleEditor';
 import { RoleEditorDialog } from './RoleEditorDialog';
+import { withDefaults } from './StandardEditor/withDefaults';
+
+const defaultIsPolicyEnabled = cfg.isPolicyEnabled;
 
 export default {
   title: 'Teleport/Roles/Role Editor',
@@ -42,6 +46,12 @@ export default {
       if (parameters.acl) {
         ctx.storeUser.getRoleAccess = () => parameters.acl;
       }
+      useEffect(() => {
+        // Clean up
+        return () => {
+          cfg.isPolicyEnabled = defaultIsPolicyEnabled;
+        };
+      }, []);
       return (
         <TeleportContextProvider ctx={ctx}>
           <Flex flexDirection="column" width="700px" height="800px">
@@ -64,7 +74,7 @@ const parseHandler = http.post(
     HttpResponse.json({
       resource: withDefaults({
         metadata: { name: 'dummy-role' },
-        version: 'v7',
+        version: RoleVersion.V7,
       }),
     })
 );
@@ -278,7 +288,30 @@ export const Dialog: StoryObj = {
           open={open}
           onClose={() => setOpen(false)}
           onSave={async () => setOpen(false)}
-          onDelete={async () => setOpen(false)}
+        />
+      </>
+    );
+  },
+  parameters: {
+    msw: {
+      handlers: [yamlifyHandler, parseHandler],
+    },
+  },
+};
+
+export const DialogWithPolicyEnabled: StoryObj = {
+  render() {
+    cfg.isPolicyEnabled = true;
+    const [open, setOpen] = useState(false);
+    const resources = useResources([], {});
+    return (
+      <>
+        <ButtonPrimary onClick={() => setOpen(true)}>Open</ButtonPrimary>
+        <RoleEditorDialog
+          resources={resources}
+          open={open}
+          onClose={() => setOpen(false)}
+          onSave={async () => setOpen(false)}
         />
       </>
     );
@@ -311,7 +344,11 @@ spec:
         enabled: true
     max_session_ttl: 30h0m0s
     pin_source_ip: false
-    port_forwarding: true
+    ssh_port_forwarding:
+      remote:
+        enabled: false
+      local:
+        enabled: false
     record_session:
       default: best_effort
       desktop: true
@@ -343,7 +380,11 @@ spec:
         enabled: true
     max_session_ttl: 30h0m0s
     pin_source_ip: false
-    port_forwarding: true
+    ssh_port_forwarding:
+      remote:
+        enabled: false
+      local:
+        enabled: false
     record_session:
       default: best_effort
       desktop: true

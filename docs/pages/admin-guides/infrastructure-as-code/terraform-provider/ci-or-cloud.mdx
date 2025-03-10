@@ -150,7 +150,8 @@ spec:
 
 (!docs/pages/includes/machine-id/recover-circle-ci-claims.mdx!)
 
-Then, create the following `terraform-bot-token.yaml`:
+Then, create the following `terraform-bot-token.yaml`, replacing <Var
+name="context-id" /> with your context ID:
 
 ```yaml
 kind: token
@@ -163,7 +164,7 @@ spec:
   bot_name: terraform
   circleci:
     organization_id: <Var name="organization-id" />
-    # allow specifies the rules by which the Auth Server determines if `tbot`
+    # allow specifies the rules by which the Auth Service determines if `tbot`
     # should be allowed to join.
     allow:
     - context_id: <Var name="context-id" />
@@ -371,7 +372,7 @@ terraform-job:
       # Teleport cluster. This is not necessarily the address of your Teleport
       # cluster and will not include a port or scheme (http/https)
       #
-      # This helps the Teleport Auth Server know that the token is intended for
+      # This helps the Teleport Auth Service know that the token is intended for
       # it, and not a different service or Teleport cluster.
       aud: "<Var name="teleport.example.com"/>"
   script:

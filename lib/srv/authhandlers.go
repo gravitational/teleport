@@ -20,14 +20,11 @@ package srv
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
-	"strconv"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -36,15 +33,14 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/connectmycomputer"
-	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -153,9 +149,25 @@ func NewAuthHandlers(config *AuthHandlerConfig) (*AuthHandlers, error) {
 // CreateIdentityContext returns an IdentityContext populated with information
 // about the logged in user on the connection.
 func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityContext, error) {
-	identity := IdentityContext{
-		TeleportUser: sconn.Permissions.Extensions[utils.CertTeleportUser],
-		Login:        sconn.User(),
+	certRaw := []byte(sconn.Permissions.Extensions[utils.CertTeleportUserCertificate])
+	certificate, err := apisshutils.ParseCertificate(certRaw)
+	if err != nil {
+		return IdentityContext{}, trace.Wrap(err)
+	}
+
+	unmappedIdentity, err := sshca.DecodeIdentity(certificate)
+	if err != nil {
+		return IdentityContext{}, trace.Wrap(err)
+	}
+
+	var certValidBefore time.Time
+	if unmappedIdentity.ValidBefore != 0 {
+		certValidBefore = time.Unix(int64(unmappedIdentity.ValidBefore), 0)
+	}
+
+	certAuthority, err := h.authorityForCert(types.UserCA, certificate.SignatureKey)
+	if err != nil {
+		return IdentityContext{}, trace.Wrap(err)
 	}
 
 	clusterName, err := h.c.AccessPoint.GetClusterName()
@@ -163,78 +175,34 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		return IdentityContext{}, trace.Wrap(err)
 	}
 
-	certRaw := []byte(sconn.Permissions.Extensions[utils.CertTeleportUserCertificate])
-	certificate, err := apisshutils.ParseCertificate(certRaw)
+	accessInfo, err := fetchAccessInfo(unmappedIdentity, certAuthority, clusterName.GetClusterName())
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
 	}
-	identity.Certificate = certificate
-	identity.RouteToCluster = certificate.Extensions[teleport.CertExtensionTeleportRouteToCluster]
-	if certificate.ValidBefore != 0 {
-		identity.CertValidBefore = time.Unix(int64(certificate.ValidBefore), 0)
-	}
-	certAuthority, err := h.authorityForCert(types.UserCA, certificate.SignatureKey)
-	if err != nil {
-		return IdentityContext{}, trace.Wrap(err)
-	}
-	identity.CertAuthority = certAuthority
-
-	identity.UnmappedRoles, err = services.ExtractRolesFromCert(certificate)
+	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), h.c.AccessPoint)
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
 	}
 
-	accessInfo, err := fetchAccessInfo(certificate, certAuthority, identity.TeleportUser, clusterName.GetClusterName())
-	if err != nil {
-		return IdentityContext{}, trace.Wrap(err)
-	}
-	identity.AllowedResourceIDs = accessInfo.AllowedResourceIDs
-	identity.AccessChecker, err = services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), h.c.AccessPoint)
-	if err != nil {
-		return IdentityContext{}, trace.Wrap(err)
-	}
-
-	identity.Impersonator = certificate.Extensions[teleport.CertExtensionImpersonator]
-	accessRequestIDs, err := ParseAccessRequestIDs(certificate.Extensions[teleport.CertExtensionTeleportActiveRequests])
-	if err != nil {
-		return IdentityContext{}, trace.Wrap(err)
-	}
-	identity.ActiveRequests = accessRequestIDs
-	if _, ok := certificate.Extensions[teleport.CertExtensionDisallowReissue]; ok {
-		identity.DisallowReissue = true
-	}
-	if _, ok := certificate.Extensions[teleport.CertExtensionRenewable]; ok {
-		identity.Renewable = true
-	}
-	if botName, ok := certificate.Extensions[teleport.CertExtensionBotName]; ok {
-		identity.BotName = botName
-	}
-	if botInstanceID, ok := certificate.Extensions[teleport.CertExtensionBotInstanceID]; ok {
-		identity.BotInstanceID = botInstanceID
-	}
-	if generationStr, ok := certificate.Extensions[teleport.CertExtensionGeneration]; ok {
-		generation, err := strconv.ParseUint(generationStr, 10, 64)
-		if err != nil {
-			return IdentityContext{}, trace.Wrap(err)
-		}
-		identity.Generation = generation
-	}
-	if allowedResourcesStr, ok := certificate.Extensions[teleport.CertExtensionAllowedResources]; ok {
-		allowedResourceIDs, err := types.ResourceIDsFromString(allowedResourcesStr)
-		if err != nil {
-			return IdentityContext{}, trace.Wrap(err)
-		}
-		identity.AllowedResourceIDs = allowedResourceIDs
-	}
-	if previousIdentityExpires, ok := certificate.Extensions[teleport.CertExtensionPreviousIdentityExpires]; ok {
-		asTime, err := time.Parse(time.RFC3339, previousIdentityExpires)
-		if err != nil {
-			return IdentityContext{}, trace.Wrap(err)
-		}
-		identity.PreviousIdentityExpires = asTime
-	}
-
-	return identity, nil
+	return IdentityContext{
+		UnmappedIdentity:        unmappedIdentity,
+		Login:                   sconn.User(),
+		CertAuthority:           certAuthority,
+		AccessChecker:           accessChecker,
+		TeleportUser:            unmappedIdentity.Username,
+		RouteToCluster:          unmappedIdentity.RouteToCluster,
+		UnmappedRoles:           unmappedIdentity.Roles,
+		CertValidBefore:         certValidBefore,
+		AllowedResourceIDs:      unmappedIdentity.AllowedResourceIDs,
+		Impersonator:            unmappedIdentity.Impersonator,
+		ActiveRequests:          unmappedIdentity.ActiveRequests,
+		DisallowReissue:         unmappedIdentity.DisallowReissue,
+		Renewable:               unmappedIdentity.Renewable,
+		BotName:                 unmappedIdentity.BotName,
+		BotInstanceID:           unmappedIdentity.BotInstanceID,
+		Generation:              unmappedIdentity.Generation,
+		PreviousIdentityExpires: unmappedIdentity.PreviousIdentityExpires,
+	}, nil
 }
 
 // CheckAgentForward checks if agent forwarding is allowed for the users RoleSet.
@@ -294,7 +262,7 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, request
 
 		h.log.WarnContext(h.c.Server.Context(), "Port forwarding request denied", "error", systemErrorMessage)
 
-		return trace.AccessDenied(userErrorMessage)
+		return trace.AccessDenied("%s", userErrorMessage)
 	}
 
 	return nil
@@ -342,9 +310,12 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		log.DebugContext(ctx, "rejecting auth attempt without valid key ID")
 		return nil, trace.BadParameter("need a valid key for key %v", fingerprint)
 	}
-	teleportUser := cert.KeyId
 
-	connectionDiagnosticID := cert.Extensions[teleport.CertExtensionConnectionDiagnosticID]
+	ident, err := sshca.DecodeIdentity(cert)
+	if err != nil {
+		log.WarnContext(ctx, "failed to decode ssh identity from cert", "error", err)
+		return nil, trace.BadParameter("failed to decode ssh identity from cert: %v", fingerprint)
+	}
 
 	// only failed attempts are logged right now
 	recordFailedLogin := func(err error) {
@@ -364,7 +335,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 			//
 			// The only way this could happen is if the backend state got updated between fetching the
 			// logins from the role and actually performing the test.
-			connectMyComputerRoleName := connectmycomputer.GetRoleNameForUser(teleportUser)
+			connectMyComputerRoleName := connectmycomputer.GetRoleNameForUser(ident.Username)
 
 			message = fmt.Sprintf("Principal %q is not allowed by this certificate. Ensure that the role %q includes %q in the 'login' property. ",
 				principal, connectMyComputerRoleName, principal) +
@@ -379,8 +350,8 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 				// types.ConnectMyComputerNodeOwnerLabel. If a role denies access to the Connect My Computer
 				// node through node_labels, the user would never be able to see that the node has joined
 				// the cluster and would not be able to get to the connection test step.
-				connectMyComputerRoleName := connectmycomputer.GetRoleNameForUser(teleportUser)
-				nodeLabel := fmt.Sprintf("%s: %s", types.ConnectMyComputerNodeOwnerLabel, teleportUser)
+				connectMyComputerRoleName := connectmycomputer.GetRoleNameForUser(ident.Username)
+				nodeLabel := fmt.Sprintf("%s: %s", types.ConnectMyComputerNodeOwnerLabel, ident.Username)
 				message = fmt.Sprintf(
 					"You are not authorized to access this node. Ensure that you hold the role %q and that "+
 						"no role denies you access to the login %q and to nodes labeled with %q.",
@@ -390,7 +361,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 			traceType = types.ConnectionDiagnosticTrace_RBAC_NODE
 		}
 
-		if err := h.maybeAppendDiagnosticTrace(ctx, connectionDiagnosticID,
+		if err := h.maybeAppendDiagnosticTrace(ctx, ident.ConnectionDiagnosticID,
 			traceType,
 			message,
 			err,
@@ -405,8 +376,8 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 			},
 			UserMetadata: apievents.UserMetadata{
 				Login:         principal,
-				User:          teleportUser,
-				TrustedDevice: eventDeviceMetadataFromCert(cert),
+				User:          ident.Username,
+				TrustedDevice: ident.GetDeviceMetadata(),
 			},
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  conn.LocalAddr().String(),
@@ -422,7 +393,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 
 		auditdMsg := auditd.Message{
 			SystemUser:   principal,
-			TeleportUser: teleportUser,
+			TeleportUser: ident.Username,
 			ConnAddress:  conn.RemoteAddr().String(),
 		}
 
@@ -457,11 +428,11 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 
 	// this is the only way we know of to pass valid additional data about the
 	// connection to the handlers
-	permissions.Extensions[utils.CertTeleportUser] = teleportUser
+	permissions.Extensions[utils.CertTeleportUser] = ident.Username
 	permissions.Extensions[utils.CertTeleportClusterName] = clusterName.GetClusterName()
 	permissions.Extensions[utils.CertTeleportUserCertificate] = string(ssh.MarshalAuthorizedKey(cert))
 
-	switch cert.CertType {
+	switch ident.CertType {
 	case ssh.UserCert:
 		permissions.Extensions[utils.ExtIntCertType] = utils.ExtIntCertTypeUser
 	case ssh.HostCert:
@@ -470,7 +441,26 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		log.WarnContext(ctx, "Received unexpected cert type", "cert_type", cert.CertType)
 	}
 
-	if h.isProxy() {
+	// the git forwarding component currently only supports an authorization model that makes sense
+	// for local identities. reject all non-local identities explicitly.
+	if h.c.Component == teleport.ComponentForwardingGit {
+		ca, err := h.authorityForCert(types.UserCA, cert.SignatureKey)
+		if err != nil {
+			log.ErrorContext(ctx, "permission denied", "error", err)
+			recordFailedLogin(err)
+			return nil, trace.Wrap(err)
+		}
+
+		if clusterName.GetClusterName() != ca.GetClusterName() {
+			log.ErrorContext(ctx, "cross-cluster git forwarding is not supported", "local_cluster", clusterName.GetClusterName(), "remote_cluster", ca.GetClusterName())
+			recordFailedLogin(trace.AccessDenied("cross-cluster git forwarding is not supported"))
+			return nil, trace.AccessDenied("cross-cluster git forwarding is not supported")
+		}
+	}
+
+	// Skip RBAC check for proxy or git servers. RBAC check on git servers are
+	// performed outside this handler.
+	if h.isProxy() || h.c.Component == teleport.ComponentForwardingGit {
 		return permissions, nil
 	}
 
@@ -491,11 +481,11 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		// Otherwise if the target node does not exist the node is
 		// probably an unregistered SSH node; do not preform an RBAC check
 		if h.c.TargetServer != nil && h.c.TargetServer.IsOpenSSHNode() {
-			err = h.canLoginWithRBAC(cert, ca, clusterName.GetClusterName(), h.c.TargetServer, teleportUser, conn.User())
+			err = h.canLoginWithRBAC(ident, ca, clusterName.GetClusterName(), h.c.TargetServer, conn.User())
 		}
 	} else {
 		// the SSH server is a Teleport node, preform an RBAC check now
-		err = h.canLoginWithRBAC(cert, ca, clusterName.GetClusterName(), h.c.Server.GetInfo(), teleportUser, conn.User())
+		err = h.canLoginWithRBAC(ident, ca, clusterName.GetClusterName(), h.c.Server.GetInfo(), conn.User())
 	}
 	if err != nil {
 		log.ErrorContext(ctx, "Permission denied", "error", err)
@@ -503,7 +493,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		return nil, trace.Wrap(err)
 	}
 
-	if err := h.maybeAppendDiagnosticTrace(ctx, connectionDiagnosticID,
+	if err := h.maybeAppendDiagnosticTrace(ctx, ident.ConnectionDiagnosticID,
 		types.ConnectionDiagnosticTrace_RBAC_NODE,
 		"You have access to the Node.",
 		nil,
@@ -511,7 +501,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		return nil, trace.Wrap(err)
 	}
 
-	if err := h.maybeAppendDiagnosticTrace(ctx, connectionDiagnosticID,
+	if err := h.maybeAppendDiagnosticTrace(ctx, ident.ConnectionDiagnosticID,
 		types.ConnectionDiagnosticTrace_CONNECTIVITY,
 		"Node is alive and reachable.",
 		nil,
@@ -519,7 +509,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		return nil, trace.Wrap(err)
 	}
 
-	if err := h.maybeAppendDiagnosticTrace(ctx, connectionDiagnosticID,
+	if err := h.maybeAppendDiagnosticTrace(ctx, ident.ConnectionDiagnosticID,
 		types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
 		"The requested principal is allowed.",
 		nil,
@@ -618,7 +608,7 @@ type loginChecker interface {
 	// canLoginWithRBAC checks the given certificate (supplied by a connected
 	// client) to see if this certificate can be allowed to login as user:login
 	// pair to requested server and if RBAC rules allow login.
-	canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAuthority, clusterName string, target types.Server, teleportUser, osUser string) error
+	canLoginWithRBAC(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string) error
 }
 
 type ahLoginChecker struct {
@@ -629,14 +619,14 @@ type ahLoginChecker struct {
 // canLoginWithRBAC checks the given certificate (supplied by a connected
 // client) to see if this certificate can be allowed to login as user:login
 // pair to requested server and if RBAC rules allow login.
-func (a *ahLoginChecker) canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAuthority, clusterName string, target types.Server, teleportUser, osUser string) error {
+func (a *ahLoginChecker) canLoginWithRBAC(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string) error {
 	// Use the server's shutdown context.
 	ctx := a.c.Server.Context()
 
-	a.log.DebugContext(ctx, "Checking permissions for (%v,%v) to login to node with RBAC checks.", teleportUser, osUser)
+	a.log.DebugContext(ctx, "Checking permissions to login to node with RBAC checks", "teleport_user", ident.Username, "os_user", osUser)
 
 	// get roles assigned to this user
-	accessInfo, err := fetchAccessInfo(cert, ca, teleportUser, clusterName)
+	accessInfo, err := fetchAccessInfo(ident, ca, clusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -645,18 +635,9 @@ func (a *ahLoginChecker) canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAu
 		return trace.Wrap(err)
 	}
 
-	authPref, err := a.c.AccessPoint.GetAuthPreference(ctx)
+	state, err := services.AccessStateFromSSHIdentity(ctx, ident, accessChecker, a.c.AccessPoint)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-	state := accessChecker.GetAccessState(authPref)
-	_, state.MFAVerified = cert.Extensions[teleport.CertExtensionMFAVerified]
-
-	// Certain hardware-key based private key policies are treated as MFA verification.
-	if policyString, ok := cert.Extensions[teleport.CertExtensionPrivateKeyPolicy]; ok {
-		if keys.PrivateKeyPolicy(policyString).MFAVerified() {
-			state.MFAVerified = true
-		}
 	}
 
 	// we don't need to check the RBAC for the node if they are only allowed to join sessions
@@ -675,9 +656,6 @@ func (a *ahLoginChecker) canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAu
 		}
 	}
 
-	state.EnableDeviceVerification = true
-	state.DeviceVerified = dtauthz.IsSSHDeviceVerified(cert)
-
 	// check if roles allow access to server
 	if err := accessChecker.CheckAccess(
 		target,
@@ -685,7 +663,7 @@ func (a *ahLoginChecker) canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAu
 		services.NewLoginMatcher(osUser),
 	); err != nil {
 		return trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
-			teleportUser, ca.GetClusterName(), osUser, clusterName, err)
+			ident.Username, ca.GetClusterName(), osUser, clusterName, err)
 	}
 
 	return nil
@@ -694,13 +672,13 @@ func (a *ahLoginChecker) canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAu
 // fetchAccessInfo fetches the services.AccessChecker (after role mapping)
 // together with the original roles (prior to role mapping) assigned to a
 // Teleport user.
-func fetchAccessInfo(cert *ssh.Certificate, ca types.CertAuthority, teleportUser string, clusterName string) (*services.AccessInfo, error) {
+func fetchAccessInfo(ident *sshca.Identity, ca types.CertAuthority, clusterName string) (*services.AccessInfo, error) {
 	var accessInfo *services.AccessInfo
 	var err error
 	if clusterName == ca.GetClusterName() {
-		accessInfo, err = services.AccessInfoFromLocalCertificate(cert)
+		accessInfo = services.AccessInfoFromLocalSSHIdentity(ident)
 	} else {
-		accessInfo, err = services.AccessInfoFromRemoteCertificate(cert, ca.CombinedMapping())
+		accessInfo, err = services.AccessInfoFromRemoteSSHIdentity(ident, ca.CombinedMapping())
 	}
 	return accessInfo, trace.Wrap(err)
 }
@@ -754,33 +732,4 @@ func (h *AuthHandlers) authorityForCert(caType types.CertAuthType, key ssh.Publi
 // isProxy returns true if it's a regular SSH proxy.
 func (h *AuthHandlers) isProxy() bool {
 	return h.c.Component == teleport.ComponentProxy
-}
-
-// AccessRequests are the access requests associated with a session
-type AccessRequests struct {
-	IDs []string `json:"access_requests"`
-}
-
-func ParseAccessRequestIDs(str string) ([]string, error) {
-	var accessRequestIDs []string
-	var ar AccessRequests
-
-	if str == "" {
-		return []string{}, nil
-	}
-	err := json.Unmarshal([]byte(str), &ar)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, v := range ar.IDs {
-		id, err := uuid.Parse(v)
-		if err != nil {
-			return nil, trace.WrapWithMessage(err, "failed to parse access request ID")
-		}
-		if fmt.Sprintf("%v", id) == "" {
-			return nil, trace.Errorf("invalid uuid: %v", id)
-		}
-		accessRequestIDs = append(accessRequestIDs, v)
-	}
-	return accessRequestIDs, nil
 }

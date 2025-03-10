@@ -26,9 +26,9 @@ import {
 } from 'react';
 
 import { ButtonBorder, Flex, Menu, MenuItem } from 'design';
+import { ButtonSize } from 'design/Button';
 import * as icons from 'design/Icon';
 import { IconProps } from 'design/Icon/Icon';
-import { ButtonSize } from 'design/Button';
 
 /**
  * Displays a button with a menu to the right of it. Unlike with a regular <Button>, the text of

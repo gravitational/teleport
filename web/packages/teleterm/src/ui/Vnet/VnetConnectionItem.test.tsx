@@ -18,21 +18,27 @@
 import { render, screen, userEvent } from 'design/utils/testing';
 import { wait } from 'shared/utils/wait';
 
+import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
+import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 
-import { VnetContextProvider } from './vnetContext';
 import { VnetSliderStepHeader } from './VnetConnectionItem';
+import { VnetContextProvider } from './vnetContext';
 
 describe('VnetSliderStepHeader', () => {
   it('allows to tab through the header itself as well as the buttons', async () => {
     const user = userEvent.setup();
     render(
       <MockAppContextProvider>
-        <VnetContextProvider>
-          <VnetSliderStepHeader goBack={() => {}} />
-        </VnetContextProvider>
+        <ConnectionsContextProvider>
+          <VnetContextProvider>
+            <VnetSliderStepHeader
+              goBack={() => {}}
+              runDiagnosticsFromVnetPanel={() => Promise.resolve()}
+            />
+          </VnetContextProvider>
+        </ConnectionsContextProvider>
       </MockAppContextProvider>
     );
 
@@ -67,9 +73,14 @@ describe('VnetSliderStepHeader', () => {
     const user = userEvent.setup();
     render(
       <MockAppContextProvider appContext={appContext}>
-        <VnetContextProvider>
-          <VnetSliderStepHeader goBack={() => {}} />
-        </VnetContextProvider>
+        <ConnectionsContextProvider>
+          <VnetContextProvider>
+            <VnetSliderStepHeader
+              goBack={() => {}}
+              runDiagnosticsFromVnetPanel={() => Promise.resolve()}
+            />
+          </VnetContextProvider>
+        </ConnectionsContextProvider>
       </MockAppContextProvider>
     );
 

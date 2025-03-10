@@ -32,7 +32,7 @@ import (
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/cloud/aws/config"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 )
 
 type mockEC2Client struct {
@@ -228,7 +228,7 @@ func TestEC2Watcher(t *testing.T) {
 
 	const noDiscoveryConfig = ""
 	fetchersFn := func() []Fetcher {
-		fetchers, err := MatchersToEC2InstanceFetchers(ctx, matchers, func(ctx context.Context, region string, opts ...config.AWSOptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+		fetchers, err := MatchersToEC2InstanceFetchers(ctx, matchers, func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
 			return client, nil
 		}, noDiscoveryConfig)
 		require.NoError(t, err)

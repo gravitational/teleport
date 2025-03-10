@@ -278,7 +278,7 @@ func TestNotificationCleanupOnUserDelete(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	identitySvc, err := local.NewIdentityServiceV2(backend)
+	identitySvc, err := local.NewIdentityService(backend)
 	require.NoError(t, err)
 	notificationsSvc, err := local.NewNotificationsService(backend, backend.Clock())
 	require.NoError(t, err)

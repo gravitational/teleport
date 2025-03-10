@@ -16,19 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled from 'styled-components';
-import { Flex, Link, Box, H3 } from 'design';
-import { assertUnreachable } from 'shared/utils/assertUnreachable';
-import TextEditor from 'shared/components/TextEditor';
-import { IconTooltip } from 'design/Tooltip';
 
+import { Box, Flex, H3, Link } from 'design';
 import { P } from 'design/Text/Text';
+import { IconTooltip } from 'design/Tooltip';
+import TextEditor from 'shared/components/TextEditor';
+import { assertUnreachable } from 'shared/utils/assertUnreachable';
 
-import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
-import { Regions } from 'teleport/services/integrations';
 import cfg from 'teleport/config';
+import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
+import { Regions } from 'teleport/services/integrations';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
 type AwsResourceKind = 'rds' | 'ec2' | 'eks';
@@ -52,44 +51,7 @@ export function ConfigureIamPerms({
 
   switch (kind) {
     case 'ec2': {
-      iamPolicyName = 'EC2InstanceConnectEndpoint';
-      msg = 'We were unable to list your EC2 instances.';
-      scriptUrl = cfg.getEc2InstanceConnectIAMConfigureScriptUrl({
-        region,
-        iamRoleName,
-        accountID,
-      });
-
-      const json = `{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "ec2:DescribeInstances",
-        "ec2:DescribeInstanceConnectEndpoints",
-        "ec2:DescribeSecurityGroups",
-        "ec2:CreateInstanceConnectEndpoint",
-        "ec2:CreateTags",
-        "ec2:CreateNetworkInterface",
-        "iam:CreateServiceLinkedRole",
-        "ec2-instance-connect:SendSSHPublicKey",
-        "ec2-instance-connect:OpenTunnel"
-      ],
-      "Resource": "*"
-    }
-  ]
-}`;
-
-      editor = (
-        <EditorWrapper $height={345}>
-          <TextEditor
-            readOnly={true}
-            data={[{ content: json, type: 'json' }]}
-            bg="levels.deep"
-          />
-        </EditorWrapper>
-      );
+      // TODO(marco): should we remove `ec2` from the AwsResourceKind?
       break;
     }
     case 'eks': {

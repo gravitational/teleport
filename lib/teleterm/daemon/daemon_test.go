@@ -19,8 +19,10 @@
 package daemon
 
 import (
+	"cmp"
 	"context"
 	"errors"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -30,7 +32,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -78,11 +79,13 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		KubernetesCluster: params.TargetURI.GetKubeName(),
 	}
 
+	targetURI := params.TargetURI
+
 	config := gateway.Config{
 		LocalPort:             params.LocalPort,
 		TargetURI:             params.TargetURI,
 		TargetUser:            params.TargetUser,
-		TargetName:            params.TargetURI.GetDbName() + params.TargetURI.GetKubeName(),
+		TargetName:            cmp.Or(targetURI.GetDbName(), targetURI.GetKubeName(), targetURI.GetAppName()),
 		TargetSubresourceName: params.TargetSubresourceName,
 		Protocol:              defaults.ProtocolPostgres,
 		Insecure:              true,
@@ -240,6 +243,52 @@ func TestGatewayCRUD(t *testing.T) {
 				})
 				require.NoError(t, err)
 				require.Equal(t, wantGateway, actualGateway)
+			},
+		},
+		{
+			name:                   "CreateGateway returns error if db gateway already exists",
+			gatewayNamesToCreate:   []string{"gateway"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
+			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
+				createdGateway := c.nameToGateway["gateway"]
+				_, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
+					TargetURI:  createdGateway.TargetURI().String(),
+					TargetUser: createdGateway.TargetUser(),
+				})
+				require.Error(t, err)
+				require.True(t, trace.IsAlreadyExists(err))
+			},
+		},
+		{
+			name:                   "CreateGateway returns error if app gateway already exists",
+			gatewayNamesToCreate:   []string{"gateway"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendApp,
+			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
+				createdGateway := c.nameToGateway["gateway"]
+				_, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
+					TargetURI:             createdGateway.TargetURI().String(),
+					TargetSubresourceName: createdGateway.TargetSubresourceName(),
+				})
+				require.Error(t, err)
+				require.True(t, trace.IsAlreadyExists(err))
+			},
+		},
+		{
+			name:                   "SetTargetSubresourceName returns error if db gateway already exists",
+			gatewayNamesToCreate:   []string{"gateway"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
+			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
+				createdGateway := c.nameToGateway["gateway"]
+				_, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
+					TargetURI:             createdGateway.TargetURI().String(),
+					TargetSubresourceName: "4242",
+				})
+				require.NoError(t, err)
+
+				_, err = daemon.SetGatewayTargetSubresourceName(context.Background(),
+					createdGateway.URI().String(), "4242")
+				require.Error(t, err)
+				require.True(t, trace.IsAlreadyExists(err))
 			},
 		},
 	}
@@ -694,7 +743,7 @@ func TestGetGatewayCLICommand(t *testing.T) {
 		},
 		{
 			name: "kube gateway",
-			inputGateway: fakeGateway{
+			inputGateway: fakeKubeGateway{
 				targetURI: uri.NewClusterURI("profile").AppendKube("kube"),
 			},
 			checkError: require.NoError,
@@ -722,15 +771,31 @@ type fakeGateway struct {
 }
 
 func (m fakeGateway) TargetURI() uri.ResourceURI    { return m.targetURI }
-func (m fakeGateway) TargetName() string            { return m.targetURI.GetDbName() + m.targetURI.GetKubeName() }
+func (m fakeGateway) TargetName() string            { return m.targetURI.GetDbName() }
 func (m fakeGateway) TargetUser() string            { return "alice" }
 func (m fakeGateway) TargetSubresourceName() string { return m.subresourceName }
 func (m fakeGateway) Protocol() string              { return defaults.ProtocolSQLServer }
-func (m fakeGateway) Log() *logrus.Entry            { return nil }
+func (m fakeGateway) Log() *slog.Logger             { return nil }
 func (m fakeGateway) LocalAddress() string          { return "localhost" }
 func (m fakeGateway) LocalPortInt() int             { return 8888 }
 func (m fakeGateway) LocalPort() string             { return "8888" }
-func (m fakeGateway) KubeconfigPath() string        { return "test.kubeconfig" }
+
+type fakeKubeGateway struct {
+	gateway.Kube
+	targetURI       uri.ResourceURI
+	subresourceName string
+}
+
+func (m fakeKubeGateway) TargetURI() uri.ResourceURI    { return m.targetURI }
+func (m fakeKubeGateway) TargetName() string            { return m.targetURI.GetKubeName() }
+func (m fakeKubeGateway) TargetUser() string            { return "alice" }
+func (m fakeKubeGateway) TargetSubresourceName() string { return m.subresourceName }
+func (m fakeKubeGateway) Protocol() string              { return "" }
+func (m fakeKubeGateway) Log() *slog.Logger             { return nil }
+func (m fakeKubeGateway) LocalAddress() string          { return "localhost" }
+func (m fakeKubeGateway) LocalPortInt() int             { return 8888 }
+func (m fakeKubeGateway) LocalPort() string             { return "8888" }
+func (m fakeKubeGateway) KubeconfigPath() string        { return "test.kubeconfig" }
 
 type fakeStorage struct {
 	Storage

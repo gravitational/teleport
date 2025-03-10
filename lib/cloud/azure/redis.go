@@ -26,7 +26,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v3"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // armRedisClient is an interface defines a subset of functions of armredis.Client.
@@ -43,7 +42,6 @@ type redisClient struct {
 
 // NewRedisClient creates a new Azure Redis client by subscription and credentials.
 func NewRedisClient(subscription string, cred azcore.TokenCredential, options *arm.ClientOptions) (RedisClient, error) {
-	logrus.Debug("Initializing Azure Redis client.")
 	api, err := armredis.NewClient(subscription, cred, options)
 	if err != nil {
 		return nil, trace.Wrap(err)

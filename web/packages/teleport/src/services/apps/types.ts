@@ -19,7 +19,6 @@
 import { AwsRole } from 'shared/services/apps';
 
 import { ResourceLabel } from 'teleport/services/agents';
-
 import type { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
 export interface App {

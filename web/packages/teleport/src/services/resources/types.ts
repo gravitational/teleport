@@ -16,6 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { AuthType } from 'shared/services';
+
+import { ResourceLabel } from '../agents';
+
 export type Resource<T extends Kind> = {
   id: string;
   kind: T;
@@ -44,6 +48,7 @@ export type RoleResource = Resource<KindRole>;
  */
 export type Role = {
   kind: KindRole;
+  version: RoleVersion;
   metadata: {
     name: string;
     description?: string;
@@ -56,8 +61,15 @@ export type Role = {
     deny: RoleConditions;
     options: RoleOptions;
   };
-  version: string;
 };
+
+export enum RoleVersion {
+  V3 = 'v3',
+  V4 = 'v4',
+  V5 = 'v5',
+  V6 = 'v6',
+  V7 = 'v7',
+}
 
 /**
  * A set of conditions that must be matched to allow or deny access. Fields
@@ -70,6 +82,7 @@ export type RoleConditions = {
   kubernetes_groups?: string[];
   kubernetes_labels?: Labels;
   kubernetes_resources?: KubernetesResource[];
+  kubernetes_users?: string[];
 
   app_labels?: Labels;
   aws_role_arns?: string[];
@@ -80,14 +93,22 @@ export type RoleConditions = {
   db_names?: string[];
   db_users?: string[];
   db_roles?: string[];
+  db_service_labels?: Labels;
 
   windows_desktop_labels?: Labels;
   windows_desktop_logins?: string[];
+
+  github_permissions?: GitHubPermission[];
 
   rules?: Rule[];
 };
 
 export type Labels = Record<string, string | string[]>;
+
+export type DefaultAuthConnector = {
+  name?: string;
+  type: AuthType;
+};
 
 export type KubernetesResource = {
   kind?: KubernetesResourceKind;
@@ -148,6 +169,7 @@ export type KubernetesVerb =
 export type Rule = {
   resources?: ResourceKind[];
   verbs?: Verb[];
+  where?: string;
 };
 
 export enum ResourceKind {
@@ -327,6 +349,10 @@ export type Verb =
   | 'update'
   | 'use';
 
+export type GitHubPermission = {
+  orgs?: string[];
+};
+
 /**
  * Teleport role options in full format, as returned from Teleport API. Note
  * that its fields follow the snake case convention to match the wire format.
@@ -351,9 +377,11 @@ export type RoleOptions = {
   };
   max_session_ttl: string;
   pin_source_ip: boolean;
-  port_forwarding: boolean;
+  ssh_port_forwarding?: SSHPortForwarding;
+  port_forwarding?: boolean;
   record_session: {
-    default: string;
+    default?: SessionRecordingMode;
+    ssh?: SessionRecordingMode;
     desktop: boolean;
   };
   ssh_file_copy: boolean;
@@ -362,6 +390,15 @@ export type RoleOptions = {
   require_session_mfa?: RequireMFAType;
   create_host_user_mode?: CreateHostUserMode;
   create_db_user_mode?: CreateDBUserMode;
+};
+
+export type SSHPortForwarding = {
+  local?: {
+    enabled?: boolean;
+  };
+  remote?: {
+    enabled?: boolean;
+  };
 };
 
 export type RequireMFAType =
@@ -375,6 +412,8 @@ export type CreateHostUserMode = '' | 'off' | 'keep' | 'insecure-drop';
 
 export type CreateDBUserMode = '' | 'off' | 'keep' | 'best_effort_drop';
 
+export type SessionRecordingMode = '' | 'strict' | 'best_effort';
+
 export type RoleWithYaml = {
   object: Role;
   /**
@@ -382,3 +421,50 @@ export type RoleWithYaml = {
    */
   yaml: string;
 };
+
+export type GitHubServerMetadata = {
+  /**
+   * specifies the name of the github org
+   */
+  organization: string;
+  /**
+   * name of the github integration associated with this server
+   */
+  integration: string;
+};
+
+export type GitServer = {
+  // Kind is the kind of resource.
+  kind: string;
+  // SubKind is a git server subkind such as GitHub
+  subKind: string;
+  // Name is this server name
+  id: string;
+  // ClusterName is this server cluster name
+  siteId: string;
+  // Hostname is this server hostname
+  hostname: string;
+  // Addr is this server ip address
+  addr: string;
+  // Labels is this server list of labels
+  tags: ResourceLabel[];
+  // RequireRequest indicates if a returned resource is only accessible after an access request
+  requiresRequest: boolean;
+  // GitHub contains metadata for GitHub proxy severs.
+  github: GitHubServerMetadata;
+};
+
+export type CreateOrOverwriteGitServerBase = {
+  id: string;
+  /**
+   * if true, performs an update of existing resource
+   */
+  overwrite?: boolean;
+};
+
+export type CreateOrOverwriteGithubServer = CreateOrOverwriteGitServerBase & {
+  subKind: 'github';
+  github?: GitHubServerMetadata;
+};
+
+export type CreateOrOverwriteGitServer = CreateOrOverwriteGithubServer;

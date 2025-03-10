@@ -156,11 +156,18 @@ auth_service:
         # Possible values: true, false, "hardware_key", "hardware_key_touch".
         # Defaults to false.
         require_session_mfa: false
+        
+        # second_factors is the list of allowed second factors for the cluster.
+        # Possible values: "otp", "webauthn", and "sso". Order does not matter.
+        # Defaults to ["otp"].
+        second_factors: ["webauthn", "otp"]
 
         # second_factor can be 'on', 'otp' or 'webauthn'.
         # - 'on' requires either otp or webauthn second factor.
         # - 'otp' and 'webauthn' require the corresponding second factor.
-        second_factor: otp
+        #
+        # Prefer setting second_factors instead.
+        #second_factor: otp
 
         # Sets whether passwordless authentication is allowed.
         # Passwordless requires WebAuthn.
@@ -258,6 +265,16 @@ auth_service:
         # issued by this auth server, defaults to 12 hours.  Examples:
         # "14h30m", "1h" etc.
         default_session_ttl: 12h
+
+        stable_unix_user_config:
+            # If set to true, SSH instances will use the same UID for each given
+            # username when automatically creating users. Defaults to false.
+            enabled: false
+
+            # The range of UIDs (including both ends) used for automatic UID
+            # assignment. Ignored if enabled is set to false.
+            #first_uid: 90000
+            #last_uid: 95000
 
     # IP and the port to bind to. Other Teleport Nodes will be connecting to
     # this port (AKA "Auth API" or "Cluster API") to validate client
@@ -415,3 +432,34 @@ auth_service:
       report_results: s3://audit-long-term/report_results
       # (Optional) Athena workgroup used by access monitoring queries (if not set, the default primary workgroup will be used).
       workgroup: access_monitoring_workgroup
+    # Enables storing CAs in an external Hardware Security Module(HSM) or Key Management Service(KMS)
+    # Only one of the options can be enbabled at a given time.
+    ca_key_params:
+      # Persist CAs to Google Cloud KMS.
+      gcp_kms:
+        # The fully qualified path to the GCP key ring where CAs are to be stored.
+        keyring: 'projects/<your-gcp-project>/locations/<location>/keyRings/<your-teleport-keyring>'
+        # The protection level of the keys. Must be either SOFTWARE or HSM.
+        protection_level: 'SOFTWARE'
+      # Persist CAs to AWS KMS.
+      aws_kms:
+        # The AWS account where keys should be stored.
+        account: '123456789012'
+        # The AWS region where keys will be stored.
+        region: 'us-west-2'
+      # Persist CAs to a PKCS#11 compliant HSM.
+      pkcs11:
+        # this is the default install location of the PKCS#11 module for the HSM.
+        module_path: /opt/cloudhsm/lib/libcloudhsm_pkcs11.so
+        # slot_number is the PKCS#11 slot number to use for HSM connections.
+        slot_number: 0
+        # token_label is the label of the PKCS#11 token to use for HSM connections.
+        token_label: 'hsm1'
+        # max_sessions configures the maximum number of open sessions for the HSM.
+        # If not set, it will default to the minimum of 1024 or the MaxRWSessionCount
+        # reported by the PKCS#11 module for the token. If set, must be greater than 1.
+        max_sessions: 10
+        # pin is the PKCS#11 pin to use for HSM connections.
+        pin: '0001password'
+        # pin_path can optionally be used to read the pin from a file
+        # pin_path: /path/to/pin_file

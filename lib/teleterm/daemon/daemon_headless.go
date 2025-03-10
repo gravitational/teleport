@@ -30,6 +30,7 @@ import (
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // UpdateHeadlessAuthenticationState updates a headless authentication state.
@@ -96,7 +97,7 @@ func (s *Service) startHeadlessWatcher(rootCluster *clusters.Cluster, waitInit b
 	watchCtx, watchCancel := context.WithCancel(s.closeContext)
 	s.headlessWatcherClosers[rootCluster.URI.String()] = watchCancel
 
-	log := s.cfg.Log.WithField("cluster", rootCluster.URI.String())
+	log := s.cfg.Logger.With("cluster", logutils.StringerAttr(rootCluster.URI))
 
 	pendingRequests := make(map[string]context.CancelFunc)
 	pendingRequestsMu := sync.Mutex{}
@@ -180,7 +181,7 @@ func (s *Service) startHeadlessWatcher(rootCluster *clusters.Cluster, waitInit b
 					defer cancelSend()
 					if err := s.sendPendingHeadlessAuthentication(sendCtx, ha, rootCluster.URI.String()); err != nil {
 						if !strings.Contains(err.Error(), context.Canceled.Error()) && !strings.Contains(err.Error(), context.DeadlineExceeded.Error()) {
-							log.WithError(err).Debug("sendPendingHeadlessAuthentication resulted in unexpected error.")
+							log.DebugContext(sendCtx, "sendPendingHeadlessAuthentication resulted in unexpected error", "error", err)
 						}
 					}
 				}()
@@ -210,7 +211,7 @@ func (s *Service) startHeadlessWatcher(rootCluster *clusters.Cluster, waitInit b
 		}
 	}
 
-	log.Debugf("Starting headless watch loop.")
+	log.DebugContext(watchCtx, "Starting headless watch loop")
 	go func() {
 		defer func() {
 			s.headlessWatcherClosersMu.Lock()
@@ -222,31 +223,36 @@ func (s *Service) startHeadlessWatcher(rootCluster *clusters.Cluster, waitInit b
 			default:
 				// watcher closed due to error or cluster disconnect.
 				if err := s.stopHeadlessWatcher(rootCluster.URI.String()); err != nil {
-					log.WithError(err).Debug("Failed to remove headless watcher.")
+					log.DebugContext(watchCtx, "Failed to remove headless watcher", "error", err)
 				}
 			}
 		}()
 
 		for {
 			if !rootCluster.Connected() {
-				log.Debugf("Not connected to cluster. Returning from headless watch loop.")
+				log.DebugContext(watchCtx, "Not connected to cluster, terminating headless watch loop")
 				return
 			}
 
 			err := watch()
 			if trace.IsNotImplemented(err) {
 				// Don't retry watch if we are connecting to an old Auth Server.
-				log.WithError(err).Debug("Headless watcher not supported.")
+				log.DebugContext(watchCtx, "Headless watcher not supported", "error", err)
 				return
 			}
 
 			startedWaiting := s.cfg.Clock.Now()
 			select {
 			case t := <-retry.After():
-				log.WithError(err).Debugf("Restarting watch on error after waiting %v.", t.Sub(startedWaiting))
+				log.DebugContext(watchCtx, "Restarting watch on error",
+					"backoff", t.Sub(startedWaiting),
+					"error", err,
+				)
 				retry.Inc()
 			case <-watchCtx.Done():
-				log.WithError(watchCtx.Err()).Debugf("Context closed with err. Returning from headless watch loop.")
+				log.DebugContext(watchCtx, "Context closed with error, ending headless watch loop",
+					"error", watchCtx.Err(),
+				)
 				return
 			}
 		}
@@ -295,7 +301,10 @@ func (s *Service) StopHeadlessWatchers() {
 
 	for uri := range s.headlessWatcherClosers {
 		if err := s.stopHeadlessWatcher(uri); err != nil {
-			s.cfg.Log.WithField("cluster", uri).WithError(err).Debug("Encountered unexpected error closing headless watcher")
+			s.cfg.Logger.DebugContext(s.closeContext, "Encountered unexpected error closing headless watcher",
+				"error", err,
+				"cluster", uri,
+			)
 		}
 	}
 }

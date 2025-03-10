@@ -180,6 +180,14 @@ func (m *SSHRouteMatcher) RouteToServerScore(server RouteableServer) (score int)
 		score = max(score, matchAddr(addr))
 	}
 
+	// Allow a match on name, even though it may not be a UUID or EC2 ID,
+	// to support agentless hosts that were created without their name being a UUID.
+	// The score however, is lower than a true direct match, to prevent any
+	// breaking changes to routing.
+	if server.GetName() == m.cfg.Host {
+		score = max(score, indirectMatch)
+	}
+
 	return score
 }
 

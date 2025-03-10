@@ -16,29 +16,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
-import { Text, Flex, Box, Indicator, ButtonSecondary, Subtitle3 } from 'design';
-import * as Icons from 'design/Icon';
+import { Box, ButtonSecondary, Flex, Indicator, Subtitle3, Text } from 'design';
 import { FetchStatus } from 'design/DataTable/types';
+import * as Icons from 'design/Icon';
+import { P, P3 } from 'design/Text/Text';
 import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
 import { pluralize } from 'shared/utils/text';
-import { P, P3 } from 'design/Text/Text';
 
+import { DbMeta } from 'teleport/Discover/useDiscover';
 import {
   AwsRdsDatabase,
   integrationService,
   SecurityGroup,
   SecurityGroupRule,
 } from 'teleport/services/integrations';
-import { DbMeta } from 'teleport/Discover/useDiscover';
 
 import {
+  ButtonBlueText,
   SecurityGroupPicker,
   SecurityGroupWithRecommendation,
-  ButtonBlueText,
 } from '../../../Shared';
 
 type TableData = {

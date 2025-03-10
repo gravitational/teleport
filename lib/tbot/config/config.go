@@ -19,7 +19,10 @@
 package config
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -152,10 +155,9 @@ type BotConfig struct {
 	// ProxyServer is the teleport proxy address. Unlike `AuthServer` this must
 	// explicitly point to a Teleport proxy.
 	// Example: "example.teleport.sh:443"
-	ProxyServer     string        `yaml:"proxy_server,omitempty"`
-	CertificateTTL  time.Duration `yaml:"certificate_ttl"`
-	RenewalInterval time.Duration `yaml:"renewal_interval"`
-	Oneshot         bool          `yaml:"oneshot"`
+	ProxyServer        string             `yaml:"proxy_server,omitempty"`
+	CredentialLifetime CredentialLifetime `yaml:",inline"`
+	Oneshot            bool               `yaml:"oneshot"`
 	// FIPS instructs `tbot` to run in a mode designed to comply with FIPS
 	// regulations. This means the bot should:
 	// - Refuse to run if not compiled with boringcrypto
@@ -207,6 +209,34 @@ func (conf *BotConfig) CipherSuites() []uint16 {
 	return utils.DefaultCipherSuites()
 }
 
+func (conf *BotConfig) UnmarshalYAML(node *yaml.Node) error {
+	// Wrap conf in an anonymous struct to avoid having the deprecated field on
+	// the BotConfig or CredentialLifetime structs, and keep it purely a config
+	// file parsing concern.
+	//
+	// The type alias prevents infinite recursion by obscuring UnmarshalYAML.
+	type alias BotConfig
+	output := struct {
+		*alias                   `yaml:",inline"`
+		DeprecatedCertificateTTL *time.Duration `yaml:"certificate_ttl"`
+	}{alias: (*alias)(conf)}
+	if err := node.Decode(&output); err != nil {
+		return err
+	}
+
+	if output.DeprecatedCertificateTTL != nil {
+		log.WarnContext(context.TODO(), "Config option certificate_ttl is deprecated and will be removed in a future release. Please use credential_ttl instead.")
+
+		if conf.CredentialLifetime.TTL == 0 {
+			conf.CredentialLifetime.TTL = *output.DeprecatedCertificateTTL
+		} else {
+			log.WarnContext(context.TODO(), "Both certificate_ttl and credential_ttl config options were given, credential_ttl will be used.")
+		}
+	}
+
+	return nil
+}
+
 func (conf *BotConfig) CheckAndSetDefaults() error {
 	if conf.Version == "" {
 		conf.Version = V2
@@ -224,6 +254,9 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	conf.Services = append(conf.Services, conf.Outputs...)
 	for i, service := range conf.Services {
 		if err := service.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "validating service[%d]", i)
+		}
+		if err := service.GetCredentialLifetime().Validate(conf.Oneshot); err != nil {
 			return trace.Wrap(err, "validating service[%d]", i)
 		}
 	}
@@ -259,12 +292,12 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		}
 	}
 
-	if conf.CertificateTTL == 0 {
-		conf.CertificateTTL = DefaultCertificateTTL
+	if conf.CredentialLifetime.TTL == 0 {
+		conf.CredentialLifetime.TTL = DefaultCertificateTTL
 	}
 
-	if conf.RenewalInterval == 0 {
-		conf.RenewalInterval = DefaultRenewInterval
+	if conf.CredentialLifetime.RenewalInterval == 0 {
+		conf.CredentialLifetime.RenewalInterval = DefaultRenewInterval
 	}
 
 	// We require the join method for `configure` and `start` but not for `init`
@@ -291,23 +324,18 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		}
 	}
 
-	// Warn about config where renewals will fail due to weird TTL vs Interval
-	if !conf.Oneshot && conf.RenewalInterval > conf.CertificateTTL {
-		log.WarnContext(
-			context.TODO(),
-			"Certificate TTL is shorter than the renewal interval. This is likely an invalid configuration. Increase the certificate TTL or decrease the renewal interval",
-			"ttl", conf.CertificateTTL,
-			"interval", conf.RenewalInterval,
-		)
-	}
-
-	if conf.CertificateTTL > defaults.MaxRenewableCertTTL {
-		log.WarnContext(
-			context.TODO(),
-			"Requested certificate TTL exceeds the maximum TTL allowed and will likely be reduced by the Teleport server",
-			"requested_ttl", conf.CertificateTTL,
-			"maximum_ttl", defaults.MaxRenewableCertTTL,
-		)
+	// Validate CertificateTTL and RenewalInterval options
+	var ttlErr SuboptimalCredentialTTLError
+	err := conf.CredentialLifetime.Validate(conf.Oneshot)
+	switch {
+	case errors.As(err, &ttlErr):
+		// Note: we log this as a warning for backward-compatibility, but should
+		// just reject the configuration in a future release.
+		//
+		//nolint:sloglint // msg cannot be constant
+		log.WarnContext(context.TODO(), ttlErr.msg, ttlErr.LogLabels()...)
+	case err != nil:
+		return err
 	}
 
 	return nil
@@ -317,6 +345,11 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 type ServiceConfig interface {
 	Type() string
 	CheckAndSetDefaults() error
+
+	// GetCredentialLifetime returns the service's custom certificate TTL and
+	// RenewalInterval. It's used for validation purposes; services that do not
+	// support these options should return the zero value.
+	GetCredentialLifetime() CredentialLifetime
 }
 
 // ServiceConfigs assists polymorphic unmarshaling of a slice of ServiceConfigs.
@@ -363,6 +396,12 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
+		case KubernetesV2OutputType:
+			v := &KubernetesV2Output{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
 		case SPIFFESVIDOutputType:
 			v := &SPIFFESVIDOutput{}
 			if err := node.Decode(v); err != nil {
@@ -395,6 +434,24 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 			out = append(out, v)
 		case ApplicationTunnelServiceType:
 			v := &ApplicationTunnelService{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case WorkloadIdentityX509OutputType:
+			v := &WorkloadIdentityX509Service{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case WorkloadIdentityAPIServiceType:
+			v := &WorkloadIdentityAPIService{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case WorkloadIdentityJWTOutputType:
+			v := &WorkloadIdentityJWTService{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
@@ -537,6 +594,16 @@ func ReadConfigFromFile(filePath string, manualMigration bool) (*BotConfig, erro
 	return ReadConfig(f, manualMigration)
 }
 
+// ReadConfigFromBase64String reads and parses a YAML config from a base64 encoded string.
+func ReadConfigFromBase64String(b64Str string, manualMigration bool) (*BotConfig, error) {
+	data, err := base64.StdEncoding.DecodeString(b64Str)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to decode base64 encoded config")
+	}
+	r := bytes.NewReader(data)
+	return ReadConfig(r, manualMigration)
+}
+
 type Version string
 
 var (
@@ -564,7 +631,7 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 	case V1, "":
 		if !manualMigration {
 			log.WarnContext(
-				context.TODO(), "Deprecated config version (V1) detected. Attempting to perform an on-the-fly in-memory migration to latest version. Please persist the config migration by following the guidance at https://goteleport.com/docs/machine-id/reference/v14-upgrade-guide/")
+				context.TODO(), "Deprecated config version (V1) detected. Attempting to perform an on-the-fly in-memory migration to latest version. Please persist the config migration by following the guidance at https://goteleport.com/docs/reference/machine-id/v14-upgrade-guide/")
 		}
 		config := &configV1{}
 		if err := decoder.Decode(config); err != nil {
@@ -574,7 +641,7 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 		if err != nil {
 			return nil, trace.WithUserMessage(
 				trace.Wrap(err, "migrating v1 config"),
-				"Failed to migrate. See https://goteleport.com/docs/machine-id/reference/v14-upgrade-guide/",
+				"Failed to migrate. See https://goteleport.com/docs/reference/machine-id/v14-upgrade-guide/",
 			)
 		}
 		return latestConfig, nil
@@ -591,4 +658,95 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 	default:
 		return nil, trace.BadParameter("unrecognized config version %q", version.Version)
 	}
+}
+
+// CredentialLifetime contains configuration for how long credentials will
+// last (TTL) and the frequency at which they'll be renewed (RenewalInterval).
+//
+// It's a member on the BotConfig and service/output config structs, marked with
+// the `inline` YAML tag so its fields become individual fields in the YAML
+// config format.
+type CredentialLifetime struct {
+	TTL             time.Duration `yaml:"credential_ttl,omitempty"`
+	RenewalInterval time.Duration `yaml:"renewal_interval,omitempty"`
+}
+
+// IsEmpty returns whether none of the fields is set (i.e. it is unconfigured).
+func (l CredentialLifetime) IsEmpty() bool {
+	return l == CredentialLifetime{}
+}
+
+// Validate checks whether the combination of the fields is valid.
+func (l CredentialLifetime) Validate(oneShot bool) error {
+	if l.IsEmpty() {
+		return nil
+	}
+
+	if l.TTL == 0 || l.RenewalInterval == 0 {
+		return trace.BadParameter("credential_ttl and renewal_interval must both be specified if either is")
+	}
+
+	if l.TTL < 0 {
+		return trace.BadParameter("credential_ttl must be positive")
+	}
+
+	if l.RenewalInterval < 0 {
+		return trace.BadParameter("renewal_interval must be positive")
+	}
+
+	if l.TTL < l.RenewalInterval && !oneShot {
+		return SuboptimalCredentialTTLError{
+			msg: "Credential TTL is shorter than the renewal interval. This is likely an invalid configuration. Increase the credential TTL or decrease the renewal interval",
+			details: map[string]any{
+				"ttl":      l.TTL,
+				"interval": l.RenewalInterval,
+			},
+		}
+	}
+
+	if l.TTL > defaults.MaxRenewableCertTTL {
+		return SuboptimalCredentialTTLError{
+			msg: "Requested certificate TTL exceeds the maximum TTL allowed and will likely be reduced by the Teleport server",
+			details: map[string]any{
+				"requested_ttl": l.TTL,
+				"maximum_ttl":   defaults.MaxRenewableCertTTL,
+			},
+		}
+	}
+
+	return nil
+}
+
+// SuboptimalCredentialTTLError is returned from CredentialLifetime.Validate
+// when the user has set CredentialTTL to something unusual that we can work
+// around (e.g. if they exceed MaxRenewableCertTTL the server will reduce it)
+// rather than rejecting their configuration.
+//
+// In the future, these probably *should* be hard failures - but that would be
+// a breaking change.
+type SuboptimalCredentialTTLError struct {
+	msg     string
+	details map[string]any
+}
+
+// Error satisfies the error interface.
+func (e SuboptimalCredentialTTLError) Error() string {
+	if len(e.details) == 0 {
+		return e.msg
+	}
+	parts := make([]string, 0, len(e.details))
+	for k, v := range e.details {
+		parts = append(parts, fmt.Sprintf("%s=%v", k, v))
+	}
+	return fmt.Sprintf("%s (%s)", e.msg, strings.Join(parts, ", "))
+}
+
+// LogLabels returns the error's details as a slice that can be passed as the
+// varadic args parameter to log functions.
+func (e SuboptimalCredentialTTLError) LogLabels() []any {
+	labels := make([]any, 0, len(e.details)*2)
+	for k, v := range e.details {
+		labels = append(labels, k, v)
+	}
+	return labels
 }

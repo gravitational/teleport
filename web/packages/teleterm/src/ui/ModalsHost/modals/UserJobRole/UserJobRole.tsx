@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import styled from 'styled-components';
+
 import { ButtonIcon, ButtonPrimary, ButtonSecondary, H2, Input } from 'design';
 import DialogConfirmation, {
   DialogContent,

@@ -20,10 +20,10 @@ package clusters
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -49,8 +49,8 @@ type Cluster struct {
 	Name string
 	// ProfileName is the name of the tsh profile
 	ProfileName string
-	// Log is a component logger
-	Log *logrus.Entry
+	// Logger is a component logger
+	Logger *slog.Logger
 	// dir is the directory where cluster certificates are stored
 	dir string
 	// Status is the cluster status
@@ -192,9 +192,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 		return roles, nil
 	})
 	if err != nil {
-		c.Log.
-			WithError(err).
-			Warn("Failed to calculate trusted device requirement")
+		c.Logger.WarnContext(ctx, "Failed to calculate trusted device requirement", "error", err)
 	}
 
 	roleSet := services.NewRoleSet(roles...)
@@ -311,7 +309,7 @@ func (c *Cluster) GetLoggedInUser() LoggedInUser {
 		Name:           c.status.Username,
 		SSHLogins:      c.status.Logins,
 		Roles:          c.status.Roles,
-		ActiveRequests: c.status.ActiveRequests.AccessRequests,
+		ActiveRequests: c.status.ActiveRequests,
 	}
 }
 

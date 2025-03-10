@@ -15,17 +15,14 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { Box, Flex, Input, Text, Mark, H3, Subtitle3 } from 'design';
 import styled from 'styled-components';
 
+import { Box, Flex, H3, Input, Mark, Subtitle3, Text } from 'design';
+import { P } from 'design/Text/Text';
 import { IconTooltip } from 'design/Tooltip';
 
-import React from 'react';
-
-import { P } from 'design/Text/Text';
-
-import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { Tabs } from 'teleport/components/Tabs';
+import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 
 const discoveryGroupToolTip = `Discovery group name is used to group discovered resources into different sets. \
 This parameter is used to prevent Discovery Agents watching different sets of cloud resources from \

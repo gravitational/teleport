@@ -16,25 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import styled, { css } from 'styled-components';
 
 import { Box, ButtonLink, Flex, Label, Text } from 'design';
 import { CheckboxInput } from 'design/Checkbox';
-
 import { ResourceIcon } from 'design/ResourceIcon';
+import { HoverTooltip } from 'design/Tooltip';
 
 import { makeLabelTag } from 'teleport/components/formatters';
 
-import { HoverTooltip } from 'design/Tooltip';
-
-import { ResourceItemProps } from '../types';
-import { PinButton } from '../shared/PinButton';
 import { CopyButton } from '../shared/CopyButton';
 import {
   BackgroundColorProps,
   getBackgroundColor,
 } from '../shared/getBackgroundColor';
+import { PinButton } from '../shared/PinButton';
+import { ResourceItemProps } from '../types';
 
 // Since we do a lot of manual resizing and some absolute positioning, we have
 // to put some layout constants in place here.

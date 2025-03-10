@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Flex from 'design/Flex';
-import React from 'react';
 import styled from 'styled-components';
+
+import Flex from 'design/Flex';
 
 export type Props = {
   isDone?: boolean;

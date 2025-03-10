@@ -35,7 +35,7 @@ import (
 
 const defaultChannelTimeout = 5 * time.Second
 
-// automaticUpgrades implements a version server in the Teleport Proxy following the RFD 109 spec.
+// automaticUpgrades109 implements a version server in the Teleport Proxy following the RFD 109 spec.
 // It is configured through the Teleport Proxy configuration and tells agent updaters
 // which version they should install.
 func (h *Handler) automaticUpgrades109(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -62,10 +62,10 @@ func (h *Handler) automaticUpgrades109(w http.ResponseWriter, r *http.Request, p
 	// Finally, we treat the request based on its type
 	switch requestType {
 	case "version":
-		h.log.Debugf("Agent requesting version for channel %s", channelName)
+		h.logger.DebugContext(r.Context(), "Agent requesting version for channel", "channel", channelName)
 		return h.automaticUpgradesVersion109(w, r, channelName)
 	case "critical":
-		h.log.Debugf("Agent requesting criticality for channel %s", channelName)
+		h.logger.DebugContext(r.Context(), "Agent requesting criticality for channel", "channel", channelName)
 		return h.automaticUpgradesCritical109(w, r, channelName)
 	default:
 		return nil, trace.BadParameter("requestType path must end with 'version' or 'critical'")

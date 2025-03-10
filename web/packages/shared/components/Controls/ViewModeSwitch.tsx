@@ -16,13 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled from 'styled-components';
+
 import { Rows, SquaresFour } from 'design/Icon';
-
-import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-
 import { HoverTooltip } from 'design/Tooltip';
+import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 export const ViewModeSwitch = ({
   currentViewMode,

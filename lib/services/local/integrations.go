@@ -212,9 +212,11 @@ func integrationReferencedByAWSICPlugin(ctx context.Context, bk backend.Backend,
 		if !ok {
 			continue
 		}
-
-		if pluginV1.GetType() == types.PluginType(types.PluginTypeAWSIdentityCenter) {
-			switch pluginV1.Spec.GetAwsIc().IntegrationName {
+		if pluginV1.GetType() != types.PluginType(types.PluginTypeAWSIdentityCenter) {
+			continue
+		}
+		if awsIC := pluginV1.Spec.GetAwsIc(); awsIC != nil {
+			switch awsIC.IntegrationName {
 			case name:
 				return nil, trace.BadParameter("cannot delete AWS OIDC integration currently referenced by AWS Identity Center integration %q", pluginV1.GetName())
 			default:

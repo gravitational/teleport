@@ -134,6 +134,8 @@ Create the new role:
 $ tctl create -f aws-dynamodb-access.yaml
 ```
 
+(!docs/pages/includes/create-role-using-web.mdx!)
+
 (!docs/pages/includes/add-role-to-user.mdx role="aws-dynamodb-access"!)
 
 ## Step 3/4. Install the Teleport Database Service
@@ -216,7 +218,9 @@ $ aws dynamodb list-tables --endpoint-url=http://localhost:8000
 }
 ```
 
+{/* vale messaging.protocol-products = NO */}
 You can also connect to this database from the AWS NoSQL Workbench, as documented in our [Database Access GUI Clients](../../../connect-your-client/gui-clients.mdx#nosql-workbench) guide.
+{/* vale messaging.protocol-products = YES */}
 
 You can also use this tunnel for programmatic access. The example below uses the `boto3` SDK from AWS:
 

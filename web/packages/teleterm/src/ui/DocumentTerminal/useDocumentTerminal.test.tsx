@@ -16,39 +16,37 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { renderHook, waitFor } from '@testing-library/react';
+
 import 'jest-canvas-mock';
 
 import Logger, { NullService } from 'teleterm/logger';
 import { PtyCommand, PtyProcessCreationStatus } from 'teleterm/services/pty';
+import {
+  makeLeafCluster,
+  makeRootCluster,
+  makeServer,
+} from 'teleterm/services/tshd/testHelpers';
+import type * as tsh from 'teleterm/services/tshd/types';
+import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import {
+  AmbiguousHostnameError,
+  ResourcesService,
+} from 'teleterm/ui/services/resources';
+import {
+  DocumentPtySession,
   DocumentTerminal,
   DocumentTshNode,
   DocumentTshNodeWithLoginHost,
   DocumentTshNodeWithServerId,
-  DocumentPtySession,
 } from 'teleterm/ui/services/workspacesService';
-import {
-  ResourcesService,
-  AmbiguousHostnameError,
-} from 'teleterm/ui/services/resources';
-import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
-import {
-  makeRootCluster,
-  makeLeafCluster,
-  makeServer,
-} from 'teleterm/services/tshd/testHelpers';
+import type { IAppContext } from 'teleterm/ui/types';
+import type * as uri from 'teleterm/ui/uri';
 
 import { WorkspaceContextProvider } from '../Documents';
-
 import { useDocumentTerminal } from './useDocumentTerminal';
-
-import type { IAppContext } from 'teleterm/ui/types';
-import type * as tsh from 'teleterm/services/tshd/types';
-import type * as uri from 'teleterm/ui/uri';
 
 beforeAll(() => {
   Logger.init(new NullService());

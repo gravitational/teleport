@@ -26,6 +26,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -39,7 +40,6 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -60,16 +60,17 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/web"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/terminal"
@@ -82,7 +83,11 @@ const (
 
 func fatalIf(err error) {
 	if err != nil {
-		log.Fatalf("%v at %v", string(debug.Stack()), err)
+		slog.ErrorContext(context.Background(), "Fatal error",
+			"stack", string(debug.Stack()),
+			"error", err,
+		)
+		os.Exit(1)
 	}
 }
 
@@ -102,11 +107,15 @@ type InstanceSecrets struct {
 	// PrivKey is instance private key
 	PrivKey []byte `json:"priv"`
 	// Cert is SSH host certificate
-	Cert []byte `json:"cert"`
-	// TLSCACert is the certificate of the trusted certificate authority
-	TLSCACert []byte `json:"tls_ca_cert"`
-	// TLSCert is client TLS X509 certificate
-	TLSCert []byte `json:"tls_cert"`
+	SSHHostCert []byte `json:"cert"`
+	// TLSHostCACert is the certificate of the trusted host certificate authority
+	TLSHostCACert []byte `json:"tls_host_ca_cert"`
+	// TLSCert is client TLS host X509 certificate
+	TLSHostCert []byte `json:"tls_host_cert"`
+	// TLSUserCACert is the certificate of the trusted user certificate authority
+	TLSUserCACert []byte `json:"tls_user_ca_cert"`
+	// TLSUserCert is client TLS user X509 certificate
+	TLSUserCert []byte `json:"tls_user_cert"`
 	// TunnelAddr is a reverse tunnel listening port, allowing
 	// other sites to connect to i instance. Set to empty
 	// string if i instance is not allowing incoming tunnels
@@ -137,9 +146,7 @@ func (s *InstanceSecrets) GetRoles(t *testing.T) []types.Role {
 	return roles
 }
 
-// GetCAs return an array of CAs stored by the secrets object. In i
-// case we always return hard-coded userCA + hostCA (and they share keys
-// for simplicity)
+// GetCAs return an array of CAs stored by the secrets object
 func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 	hostCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.HostCA,
@@ -153,7 +160,7 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 			TLS: []*types.TLSKeyPair{{
 				Key:     s.PrivKey,
 				KeyType: types.PrivateKeyType_RAW,
-				Cert:    s.TLSCACert,
+				Cert:    s.TLSHostCACert,
 			}},
 		},
 	})
@@ -173,7 +180,7 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 			TLS: []*types.TLSKeyPair{{
 				Key:     s.PrivKey,
 				KeyType: types.PrivateKeyType_RAW,
-				Cert:    s.TLSCACert,
+				Cert:    s.TLSUserCACert,
 			}},
 		},
 		Roles: []string{services.RoleNameForCertAuthority(s.SiteName)},
@@ -189,7 +196,7 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 			TLS: []*types.TLSKeyPair{{
 				Key:     s.PrivKey,
 				KeyType: types.PrivateKeyType_RAW,
-				Cert:    s.TLSCACert,
+				Cert:    s.TLSHostCACert,
 			}},
 		},
 	})
@@ -204,7 +211,7 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 			TLS: []*types.TLSKeyPair{{
 				Key:     s.PrivKey,
 				KeyType: types.PrivateKeyType_RAW,
-				Cert:    s.TLSCACert,
+				Cert:    s.TLSHostCACert,
 			}},
 		},
 	})
@@ -261,9 +268,9 @@ func (s *InstanceSecrets) AsSlice() []*InstanceSecrets {
 
 func (s *InstanceSecrets) GetIdentity() *state.Identity {
 	i, err := state.ReadIdentityFromKeyPair(s.PrivKey, &clientproto.Certs{
-		SSH:        s.Cert,
-		TLS:        s.TLSCert,
-		TLSCACerts: [][]byte{s.TLSCACert},
+		SSH:        s.SSHHostCert,
+		TLS:        s.TLSHostCert,
+		TLSCACerts: [][]byte{s.TLSHostCACert},
 	})
 	fatalIf(err)
 	return i
@@ -296,7 +303,7 @@ type TeleInstance struct {
 	tempDirs []string
 
 	// Log specifies the instance logger
-	Log utils.Logger
+	Log *slog.Logger
 	InstanceListeners
 	Fds []*servicecfg.FileDescriptor
 	// ProcessProvider creates a Teleport process (OSS or Enterprise)
@@ -322,8 +329,8 @@ type InstanceConfig struct {
 	Priv []byte
 	// Pub is SSH public key of the instance
 	Pub []byte
-	// Log specifies the logger
-	Log utils.Logger
+	// Logger specifies the logger
+	Logger *slog.Logger
 	// Ports is a collection of instance ports.
 	Listeners *InstanceListeners
 
@@ -345,6 +352,10 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 		cfg.Listeners = StandardListenerSetup(t, &cfg.Fds)
 	}
 
+	if cfg.Logger == nil {
+		cfg.Logger = slog.New(logutils.DiscardHandler{})
+	}
+
 	// generate instance secrets (keys):
 	if cfg.Priv == nil || cfg.Pub == nil {
 		privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
@@ -355,43 +366,64 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	key, err := keys.ParsePrivateKey(cfg.Priv)
 	fatalIf(err)
 
-	tlsCACert, err := tlsca.GenerateSelfSignedCAWithSigner(key, pkix.Name{
-		CommonName:   cfg.ClusterName,
-		Organization: []string{cfg.ClusterName},
-	}, nil, defaults.CATTL)
-	fatalIf(err)
-
 	sshSigner, err := ssh.NewSignerFromSigner(key)
 	fatalIf(err)
 
 	keygen := keygen.New(context.TODO())
-	cert, err := keygen.GenerateHostCert(services.HostCertParams{
+	hostCert, err := keygen.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      sshSigner,
 		PublicHostKey: cfg.Pub,
 		HostID:        cfg.HostID,
 		NodeName:      cfg.NodeName,
-		ClusterName:   cfg.ClusterName,
-		Role:          types.RoleAdmin,
 		TTL:           24 * time.Hour,
+		Identity: sshca.Identity{
+			ClusterName: cfg.ClusterName,
+			SystemRole:  types.RoleAdmin,
+		},
 	})
 	fatalIf(err)
-	tlsCA, err := tlsca.FromKeys(tlsCACert, cfg.Priv)
-	fatalIf(err)
-	cryptoPubKey, err := sshutils.CryptoPublicKey(cfg.Pub)
-	fatalIf(err)
-	identity := tlsca.Identity{
-		Username: fmt.Sprintf("%v.%v", cfg.HostID, cfg.ClusterName),
-		Groups:   []string{string(types.RoleAdmin)},
-	}
+
 	clock := cfg.Clock
 	if clock == nil {
 		clock = clockwork.NewRealClock()
 	}
+
+	identity := tlsca.Identity{
+		Username: fmt.Sprintf("%v.%v", cfg.HostID, cfg.ClusterName),
+		Groups:   []string{string(types.RoleAdmin)},
+	}
 	subject, err := identity.Subject()
 	fatalIf(err)
-	tlsCert, err := tlsCA.GenerateCertificate(tlsca.CertificateRequest{
+
+	tlsCAHostCert, err := tlsca.GenerateSelfSignedCAWithSigner(key, pkix.Name{
+		CommonName:   cfg.ClusterName,
+		Organization: []string{cfg.ClusterName},
+	}, nil, defaults.CATTL)
+	fatalIf(err)
+	tlsHostCA, err := tlsca.FromKeys(tlsCAHostCert, cfg.Priv)
+	fatalIf(err)
+	hostCryptoPubKey, err := sshutils.CryptoPublicKey(cfg.Pub)
+	fatalIf(err)
+	tlsHostCert, err := tlsHostCA.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
-		PublicKey: cryptoPubKey,
+		PublicKey: hostCryptoPubKey,
+		Subject:   subject,
+		NotAfter:  clock.Now().UTC().Add(time.Hour * 24),
+	})
+	fatalIf(err)
+
+	tlsCAUserCert, err := tlsca.GenerateSelfSignedCAWithSigner(key, pkix.Name{
+		CommonName:   cfg.ClusterName,
+		Organization: []string{cfg.ClusterName},
+	}, nil, defaults.CATTL)
+	fatalIf(err)
+	tlsUserCA, err := tlsca.FromKeys(tlsCAHostCert, cfg.Priv)
+	fatalIf(err)
+	userCryptoPubKey, err := sshutils.CryptoPublicKey(cfg.Pub)
+	fatalIf(err)
+	tlsUserCert, err := tlsUserCA.GenerateCertificate(tlsca.CertificateRequest{
+		Clock:     clock,
+		PublicKey: userCryptoPubKey,
 		Subject:   subject,
 		NotAfter:  clock.Now().UTC().Add(time.Hour * 24),
 	})
@@ -400,20 +432,22 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	i := &TeleInstance{
 		Hostname:          cfg.NodeName,
 		UploadEventsC:     make(chan events.UploadEvent, 100),
-		Log:               cfg.Log,
+		Log:               cfg.Logger,
 		InstanceListeners: *cfg.Listeners,
 		Fds:               cfg.Fds,
 	}
 
 	secrets := InstanceSecrets{
-		SiteName:   cfg.ClusterName,
-		PrivKey:    cfg.Priv,
-		PubKey:     cfg.Pub,
-		Cert:       cert,
-		TLSCACert:  tlsCACert,
-		TLSCert:    tlsCert,
-		TunnelAddr: i.ReverseTunnel,
-		Users:      make(map[string]*User),
+		SiteName:      cfg.ClusterName,
+		PrivKey:       cfg.Priv,
+		PubKey:        cfg.Pub,
+		SSHHostCert:   hostCert,
+		TLSHostCACert: tlsCAHostCert,
+		TLSHostCert:   tlsHostCert,
+		TLSUserCACert: tlsCAUserCert,
+		TLSUserCert:   tlsUserCert,
+		TunnelAddr:    i.ReverseTunnel,
+		Users:         make(map[string]*User),
 	}
 
 	i.Secrets = secrets
@@ -426,12 +460,12 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 func (i *TeleInstance) GetSiteAPI(siteName string) authclient.ClientI {
 	siteTunnel, err := i.Tunnel.GetSite(siteName)
 	if err != nil {
-		log.Warn(err)
+		i.Log.WarnContext(context.Background(), "failed to get site", "error", err, "siter", siteName)
 		return nil
 	}
 	siteAPI, err := siteTunnel.GetClient()
 	if err != nil {
-		log.Warn(err)
+		i.Log.WarnContext(context.Background(), "failed to get site client", "error", err, "site", siteName)
 		return nil
 	}
 	return siteAPI
@@ -439,15 +473,15 @@ func (i *TeleInstance) GetSiteAPI(siteName string) authclient.ClientI {
 
 // Create creates a new instance of Teleport which trusts a list of other clusters (other
 // instances)
-func (i *TeleInstance) Create(t *testing.T, trustedSecrets []*InstanceSecrets, enableSSH bool, console io.Writer) error {
+func (i *TeleInstance) Create(t *testing.T, trustedSecrets []*InstanceSecrets, enableSSH bool) error {
 	tconf := servicecfg.MakeDefaultConfig()
 	tconf.SSH.Enabled = enableSSH
-	tconf.Console = console
-	tconf.Log = i.Log
+	tconf.Logger = i.Log
 	tconf.Proxy.DisableWebService = true
 	tconf.Proxy.DisableWebInterface = true
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	tconf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+	tconf.DebugService.Enabled = false
 	return i.CreateEx(t, trustedSecrets, tconf)
 }
 
@@ -466,13 +500,14 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 	if tconf.InstanceMetadataClient == nil {
 		tconf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	}
-	tconf.Log = i.Log
+	tconf.Logger = i.Log
 	tconf.DataDir = dataDir
 	tconf.Testing.UploadEventsC = i.UploadEventsC
 	tconf.CachePolicy.Enabled = true
 	tconf.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: i.Secrets.SiteName,
 	})
+	tconf.DebugService.Enabled = false
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -741,6 +776,7 @@ func (i *TeleInstance) StartNodeWithTargetPort(tconf *servicecfg.Config, authPor
 	}
 	tconf.Auth.Enabled = false
 	tconf.Proxy.Enabled = false
+	tconf.DebugService.Enabled = false
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
@@ -762,8 +798,12 @@ func (i *TeleInstance) StartNodeWithTargetPort(tconf *servicecfg.Config, authPor
 		return nil, trace.Wrap(err)
 	}
 
-	log.Debugf("Teleport node %s (in instance %s) started: %v/%v expected events received.",
-		process.Config.Hostname, i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
+	i.Log.DebugContext(context.Background(), "Teleport node started",
+		"node_name", process.Config.Hostname,
+		"instance", i.Secrets.SiteName,
+		"expected_events_count", len(expectedEvents),
+		"received_events_count", len(receivedEvents),
+	)
 	return process, nil
 }
 
@@ -783,6 +823,7 @@ func (i *TeleInstance) StartApp(conf *servicecfg.Config) (*service.TeleportProce
 	conf.Testing.UploadEventsC = i.UploadEventsC
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
+	conf.DebugService.Enabled = false
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
@@ -804,8 +845,11 @@ func (i *TeleInstance) StartApp(conf *servicecfg.Config) (*service.TeleportProce
 		return nil, trace.Wrap(err)
 	}
 
-	log.Debugf("Teleport Application Server (in instance %v) started: %v/%v events received.",
-		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
+	i.Log.DebugContext(context.Background(), "Teleport Application Server started",
+		"instance", i.Secrets.SiteName,
+		"expected_events_count", len(expectedEvents),
+		"received_events_count", len(receivedEvents),
+	)
 	return process, nil
 }
 
@@ -833,6 +877,7 @@ func (i *TeleInstance) StartApps(configs []*servicecfg.Config) ([]*service.Telep
 			cfg.Testing.UploadEventsC = i.UploadEventsC
 			cfg.Auth.Enabled = false
 			cfg.Proxy.Enabled = false
+			cfg.DebugService.Enabled = false
 
 			// Create a new Teleport process and add it to the list of nodes that
 			// compose this "cluster".
@@ -853,8 +898,11 @@ func (i *TeleInstance) StartApps(configs []*servicecfg.Config) ([]*service.Telep
 				results <- result{err: err, tmpDir: dataDir}
 			}
 
-			log.Debugf("Teleport Application Server (in instance %v) started: %v/%v events received.",
-				i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
+			i.Log.DebugContext(context.Background(), "Teleport Application Server started",
+				"instance", i.Secrets.SiteName,
+				"expected_events_count", len(expectedEvents),
+				"received_events_count", len(receivedEvents),
+			)
 
 			results <- result{err: err, tmpDir: dataDir, process: process}
 		}(conf)
@@ -898,6 +946,7 @@ func (i *TeleInstance) StartDatabase(conf *servicecfg.Config) (*service.Teleport
 	conf.Proxy.Enabled = false
 	conf.Apps.Enabled = false
 	conf.SSH.Enabled = false
+	conf.DebugService.Enabled = false
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
@@ -936,8 +985,12 @@ func (i *TeleInstance) StartDatabase(conf *servicecfg.Config) (*service.Teleport
 		return nil, nil, trace.BadParameter("failed to retrieve auth client")
 	}
 
-	log.Debugf("Teleport Database Server (in instance %v) started: %v/%v events received.",
-		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
+	i.Log.DebugContext(context.Background(), "Teleport Database Server started",
+		"instance", i.Secrets.SiteName,
+		"expected_events_count", len(expectedEvents),
+		"received_events_count", len(receivedEvents),
+	)
+
 	return process, client, nil
 }
 
@@ -960,6 +1013,7 @@ func (i *TeleInstance) StartKube(t *testing.T, conf *servicecfg.Config, clusterN
 	conf.Apps.Enabled = false
 	conf.SSH.Enabled = false
 	conf.Databases.Enabled = false
+	conf.DebugService.Enabled = false
 
 	conf.Kube.KubeconfigPath = filepath.Join(dataDir, "kube_config")
 	if err := EnableKube(t, conf, clusterName); err != nil {
@@ -983,8 +1037,13 @@ func (i *TeleInstance) StartKube(t *testing.T, conf *servicecfg.Config, clusterN
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Debugf("Teleport Kube Server (in instance %v) started: %v/%v events received.",
-		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
+
+	i.Log.DebugContext(context.Background(), "Teleport Kube Server started",
+		"instance", i.Secrets.SiteName,
+		"expected_events_count", len(expectedEvents),
+		"received_events_count", len(receivedEvents),
+	)
+
 	return process, nil
 }
 
@@ -998,7 +1057,7 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 
 	tconf := servicecfg.MakeDefaultConfig()
 
-	tconf.Log = i.Log
+	tconf.Logger = i.Log
 	authServer := utils.MustParseAddr(i.Auth)
 	tconf.SetAuthServerAddress(*authServer)
 	tconf.SetToken("token")
@@ -1035,6 +1094,7 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 	}
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	tconf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+	tconf.DebugService.Enabled = false
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
@@ -1053,8 +1113,11 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 	receivedEvents, err := StartAndWait(process, expectedEvents)
 	require.NoError(t, err)
 
-	log.Debugf("Teleport node and proxy (in instance %v) started: %v/%v events received.",
-		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
+	i.Log.DebugContext(context.Background(), "Teleport node and proxy started",
+		"instance", i.Secrets.SiteName,
+		"expected_events_count", len(expectedEvents),
+		"received_events_count", len(receivedEvents),
+	)
 
 	return
 }
@@ -1091,8 +1154,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig, opts ...Option) (reversetunne
 	i.tempDirs = append(i.tempDirs, dataDir)
 
 	tconf := servicecfg.MakeDefaultConfig()
-	tconf.Console = nil
-	tconf.Log = i.Log
+	tconf.Logger = i.Log
 	authServer := utils.MustParseAddr(i.Auth)
 	tconf.SetAuthServerAddress(*authServer)
 	tconf.CachePolicy = servicecfg.CachePolicy{Enabled: true}
@@ -1128,6 +1190,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig, opts ...Option) (reversetunne
 	tconf.Proxy.DisableALPNSNIListener = cfg.DisableALPNSNIListener
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	tconf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+	tconf.DebugService.Enabled = false
 	tconf.FileDescriptors = cfg.FileDescriptors
 	// apply options
 	for _, o := range opts {
@@ -1154,8 +1217,11 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig, opts ...Option) (reversetunne
 		return nil, nil, trace.Wrap(err)
 	}
 
-	log.Debugf("Teleport proxy (in instance %v) started: %v/%v events received.",
-		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
+	i.Log.DebugContext(context.Background(), "Teleport proxy started",
+		"instance", i.Secrets.SiteName,
+		"expected_events_count", len(expectedEvents),
+		"received_events_count", len(receivedEvents),
+	)
 
 	// Extract and set reversetunnelclient.Server and reversetunnel.AgentPool upon
 	// receipt of a ProxyReverseTunnelReady event
@@ -1220,7 +1286,7 @@ func (i *TeleInstance) AddUserWithRole(username string, roles ...types.Role) *Us
 // Adds a new user into i Teleport instance. 'mappings' is a comma-separated
 // list of OS users
 func (i *TeleInstance) AddUser(username string, mappings []string) *User {
-	log.Infof("teleInstance.AddUser(%v) mapped to %v", username, mappings)
+	i.Log.InfoContext(context.Background(), "Adding user to teleInstance", "user", username, "mappings", mappings)
 	if mappings == nil {
 		mappings = make([]string, 0)
 	}
@@ -1291,8 +1357,12 @@ func (i *TeleInstance) Start() error {
 		}
 	}
 
-	log.Debugf("Teleport instance %v started: %v/%v events received.",
-		i.Secrets.SiteName, len(receivedEvents), len(expectedEvents))
+	i.Log.DebugContext(context.Background(), "Teleport instance started",
+		"instance", i.Secrets.SiteName,
+		"expected_events_count", len(expectedEvents),
+		"received_events_count", len(receivedEvents),
+	)
+
 	return nil
 }
 
@@ -1522,18 +1592,7 @@ func CreateWebSession(proxyHost, user, password string) (*web.CreateSessionRespo
 		return nil, nil, trace.Wrap(err)
 	}
 
-	// Attach CSRF token in cookie and header.
-	csrfToken, err := utils.CryptoRandomHex(32)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	req.AddCookie(&http.Cookie{
-		Name:  csrf.CookieName,
-		Value: csrfToken,
-	})
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
-	req.Header.Set(csrf.HeaderName, csrfToken)
 
 	// Issue request.
 	httpClient := &http.Client{
@@ -1672,11 +1731,11 @@ func (i *TeleInstance) StopProxy() error {
 		if p.Config.Proxy.Enabled {
 			if err := p.Close(); err != nil {
 				errors = append(errors, err)
-				i.Log.Errorf("Failed closing extra proxy: %v.", err)
+				i.Log.ErrorContext(context.Background(), "Failed closing extra proxy", "error", err)
 			}
 			if err := p.Wait(); err != nil {
 				errors = append(errors, err)
-				i.Log.Errorf("Failed to stop extra proxy: %v.", err)
+				i.Log.ErrorContext(context.Background(), "Failed to stop extra proxy", "error", err)
 			}
 		}
 	}
@@ -1690,11 +1749,11 @@ func (i *TeleInstance) StopNodes() error {
 	for _, node := range i.Nodes {
 		if err := node.Close(); err != nil {
 			errors = append(errors, err)
-			i.Log.Errorf("Failed closing extra node %v", err)
+			i.Log.ErrorContext(context.Background(), "Failed closing extra node", "error", err)
 		}
 		if err := node.Wait(); err != nil {
 			errors = append(errors, err)
-			i.Log.Errorf("Failed stopping extra node %v", err)
+			i.Log.ErrorContext(context.Background(), "Failed stopping extra node", "error", err)
 		}
 	}
 	return trace.NewAggregate(errors...)
@@ -1706,13 +1765,13 @@ func (i *TeleInstance) RestartAuth() error {
 		return nil
 	}
 
-	i.Log.Infof("Asking Teleport instance %q to stop", i.Secrets.SiteName)
+	i.Log.InfoContext(context.Background(), "Asking Teleport instance to stop", "instance", i.Secrets.SiteName)
 	err := i.Process.Close()
 	if err != nil {
-		i.Log.WithError(err).Error("Failed closing the teleport process.")
+		i.Log.ErrorContext(context.Background(), "Failed closing the teleport process", "error", err)
 		return trace.Wrap(err)
 	}
-	i.Log.Infof("Teleport instance %q stopped!", i.Secrets.SiteName)
+	i.Log.InfoContext(context.Background(), "Teleport instance stopped", "instance", i.Secrets.SiteName)
 
 	if err := i.Process.Wait(); err != nil {
 		return trace.Wrap(err)
@@ -1726,9 +1785,9 @@ func (i *TeleInstance) RestartAuth() error {
 func (i *TeleInstance) StopAuth(removeData bool) error {
 	defer func() {
 		if i.Config != nil && removeData {
-			i.Log.Infoln("Removing data dir", i.Config.DataDir)
+			i.Log.InfoContext(context.Background(), "Removing data dir", "data_dir", i.Config.DataDir)
 			if err := os.RemoveAll(i.Config.DataDir); err != nil {
-				i.Log.WithError(err).Error("Failed removing temporary local Teleport directory.")
+				i.Log.ErrorContext(context.Background(), "Failed removing temporary local Teleport directory", "error", err)
 			}
 		}
 		i.Process = nil
@@ -1737,14 +1796,14 @@ func (i *TeleInstance) StopAuth(removeData bool) error {
 	if i.Process == nil {
 		return nil
 	}
-	i.Log.Infof("Asking Teleport instance %q to stop", i.Secrets.SiteName)
+	i.Log.InfoContext(context.Background(), "Asking Teleport instance to stop", "instance", i.Secrets.SiteName)
 	err := i.Process.Close()
 	if err != nil {
-		i.Log.WithError(err).Error("Failed closing the teleport process.")
+		i.Log.ErrorContext(context.Background(), "Failed closing the teleport process", "error", err)
 		return trace.Wrap(err)
 	}
 	defer func() {
-		i.Log.Infof("Teleport instance %q stopped!", i.Secrets.SiteName)
+		i.Log.InfoContext(context.Background(), "Teleport instance stopped", "instance", i.Secrets.SiteName)
 	}()
 	return i.Process.Wait()
 }
@@ -1764,7 +1823,7 @@ func (i *TeleInstance) StopAll() error {
 		errors = append(errors, os.RemoveAll(dir))
 	}
 
-	i.Log.Infof("Stopped all teleport services for site %q", i.Secrets.SiteName)
+	i.Log.InfoContext(context.Background(), "Stopped all teleport services for site", "instance", i.Secrets.SiteName)
 	return trace.NewAggregate(errors...)
 }
 

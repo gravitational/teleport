@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/gravitational/teleport"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/devicetrust"
@@ -247,7 +248,7 @@ func (c *deviceActivateCredentialCommand) run(cf *CLIConf) error {
 		// On error, wait for user input before executing. This is because this
 		// opens in a second window. If we return the error immediately, then
 		// this window closes before the user can inspect it.
-		log.WithError(err).Error("An error occurred during credential activation. Press enter to close this window.")
+		logger.ErrorContext(cf.Context, "An error occurred during credential activation, press enter to close this window", "error", err)
 		_, _ = fmt.Scanln()
 	}
 	return trace.Wrap(err)
@@ -260,7 +261,10 @@ type deviceDMIReadCommand struct {
 func (c *deviceDMIReadCommand) run(cf *CLIConf) error {
 	dmiInfo, err := linux.DMIInfoFromSysfs()
 	if err != nil {
-		log.WithError(err).Warn("Device Trust: Failed to read DMI information")
+		logger.WarnContext(cf.Context, "Failed to read DMI information",
+			teleport.ComponentKey, "DeviceTrust",
+			"error", err,
+		)
 		// err swallowed on purpose.
 	}
 	if dmiInfo != nil {

@@ -16,31 +16,31 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonPrimary, Flex, Text, Alert, H1 } from 'design';
+
+import { Alert, Box, ButtonPrimary, Flex, H1, Text } from 'design';
+import * as Alerts from 'design/Alert';
 import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 import { wait } from 'shared/utils/wait';
-import * as Alerts from 'design/Alert';
 
+import { isTshdRpcError } from 'teleterm/services/tshd/cloneableClient';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { useWorkspaceContext } from 'teleterm/ui/Documents';
-import { assertUnreachable, retryWithRelogin } from 'teleterm/ui/utils';
 import {
   AgentProcessError,
   NodeWaitJoinTimeout,
   useConnectMyComputerContext,
 } from 'teleterm/ui/ConnectMyComputer';
-import { codeOrSignal } from 'teleterm/ui/utils/process';
-import { isTshdRpcError } from 'teleterm/services/tshd/cloneableClient';
 import { useResourcesContext } from 'teleterm/ui/DocumentCluster/resourcesContext';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { DocumentConnectMyComputer } from 'teleterm/ui/services/workspacesService';
+import { assertUnreachable, retryWithRelogin } from 'teleterm/ui/utils';
+import { codeOrSignal } from 'teleterm/ui/utils/process';
 
-import { useAgentProperties } from '../useAgentProperties';
-import { Logs } from '../Logs';
-import { CompatibilityError } from '../CompatibilityPromise';
 import { ConnectMyComputerAccessNoAccess } from '../access';
-
+import { CompatibilityError } from '../CompatibilityPromise';
+import { Logs } from '../Logs';
+import { useAgentProperties } from '../useAgentProperties';
 import { ProgressBar } from './ProgressBar';
 
 export function Setup(props: {

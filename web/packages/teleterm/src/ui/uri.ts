@@ -16,9 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { matchPath, generatePath } from 'react-router';
-
-import type { RouteProps } from 'react-router';
+import { generatePath, matchPath, type RouteProps } from 'react-router';
 
 /*
  * Resource URIs

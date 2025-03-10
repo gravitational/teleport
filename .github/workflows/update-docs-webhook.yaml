@@ -15,18 +15,11 @@ jobs:
     environment: update-docs
     strategy:
       fail-fast: false
-      matrix:
-        webhooks:
-        - url_secret_name: DOCS_DEPLOY_HOOK
-          http_method: GET
-        - url_secret_name: AMPLIFY_DOCS_DEPLOY_HOOK
-          http_method: POST
     steps:
       - name: Call deployment webhook
         env:
-          WEBHOOK_URL: ${{ secrets[matrix.webhooks.url_secret_name] }}
-          HTTP_METHOD: ${{ matrix.webhooks.http_method }}
+          WEBHOOK_URL: ${{ secrets.AMPLIFY_DOCS_DEPLOY_HOOK }}
         run: |
-          if curl -X "$HTTP_METHOD" --silent --fail --show-error "$WEBHOOK_URL" > /dev/null; then
+          if curl -X POST --silent --fail --show-error "$WEBHOOK_URL" > /dev/null; then
             echo "Triggered successfully"
           fi

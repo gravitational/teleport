@@ -19,6 +19,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"strconv"
@@ -29,13 +30,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -305,7 +306,7 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 		return
 	}
 
-	log.WithFields(log.Fields{"addr": addr}).Debug("Using Teleport address")
+	slog.DebugContext(ctx, "Using Teleport address", "addr", addr)
 
 	dialTimeoutDuration, err := time.ParseDuration(dialTimeoutDurationStr)
 	if err != nil {
@@ -393,7 +394,7 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 
 // checkTeleportVersion ensures that Teleport version is at least minServerVersion
 func (p *Provider) checkTeleportVersion(ctx context.Context, client *client.Client, resp *tfsdk.ConfigureProviderResponse) bool {
-	log.Debug("Checking Teleport server version")
+	slog.DebugContext(ctx, "Checking Teleport server version")
 	pong, err := client.Ping(ctx)
 	if err != nil {
 		if trace.IsNotImplemented(err) {
@@ -403,13 +404,13 @@ func (p *Provider) checkTeleportVersion(ctx context.Context, client *client.Clie
 			)
 			return false
 		}
-		log.WithError(err).Debug("Teleport version check error!")
+		slog.DebugContext(ctx, "Teleport version check error", "error", err)
 		resp.Diagnostics.AddError("Unable to get Teleport server version!", "Unable to get Teleport server version!")
 		return false
 	}
 	err = utils.CheckMinVersion(pong.ServerVersion, minServerVersion)
 	if err != nil {
-		log.WithError(err).Debug("Teleport version check error!")
+		slog.DebugContext(ctx, "Teleport version check error", "error", err)
 		resp.Diagnostics.AddError("Teleport version check error!", err.Error())
 		return false
 	}
@@ -447,7 +448,7 @@ func (p *Provider) validateAddr(addr string, resp *tfsdk.ConfigureProviderRespon
 
 	_, _, err := net.SplitHostPort(addr)
 	if err != nil {
-		log.WithField("addr", addr).WithError(err).Debug("Teleport address format error!")
+		slog.DebugContext(context.Background(), "Teleport address format error", "error", err, "addr", addr)
 		resp.Diagnostics.AddError(
 			"Invalid Teleport address format",
 			fmt.Sprintf("Teleport address must be specified as host:port. Got %q", addr),
@@ -461,20 +462,32 @@ func (p *Provider) validateAddr(addr string, resp *tfsdk.ConfigureProviderRespon
 
 // configureLog configures logging
 func (p *Provider) configureLog() {
+	level := slog.LevelError
 	// Get Terraform log level
-	level, err := log.ParseLevel(os.Getenv("TF_LOG"))
-	if err != nil {
-		log.SetLevel(log.ErrorLevel)
-	} else {
-		log.SetLevel(level)
+	switch strings.ToLower(os.Getenv("TF_LOG")) {
+	case "panic", "fatal", "error":
+		level = slog.LevelError
+	case "warn", "warning":
+		level = slog.LevelWarn
+	case "info":
+		level = slog.LevelInfo
+	case "debug":
+		level = slog.LevelDebug
+	case "trace":
+		level = logutils.TraceLevel
 	}
 
-	log.SetFormatter(&log.TextFormatter{})
+	_, _, err := logutils.Initialize(logutils.Config{
+		Severity: level.String(),
+		Format:   "text",
+	})
+	if err != nil {
+		return
+	}
 
 	// Show GRPC debug logs only if TF_LOG=DEBUG
-	if log.GetLevel() >= log.DebugLevel {
-		l := grpclog.NewLoggerV2(log.StandardLogger().Out, log.StandardLogger().Out, log.StandardLogger().Out)
-		grpclog.SetLoggerV2(l)
+	if level <= slog.LevelDebug {
+		grpclog.SetLoggerV2(grpclog.NewLoggerV2(os.Stderr, os.Stderr, os.Stderr))
 	}
 }
 
@@ -504,6 +517,7 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_installer":                  resourceTeleportInstallerType{},
 		"teleport_access_monitoring_rule":     resourceTeleportAccessMonitoringRuleType{},
 		"teleport_static_host_user":           resourceTeleportStaticHostUserType{},
+		"teleport_workload_identity":          resourceTeleportWorkloadIdentityType{},
 	}, nil
 }
 
@@ -531,6 +545,7 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_installer":                  dataSourceTeleportInstallerType{},
 		"teleport_access_monitoring_rule":     dataSourceTeleportAccessMonitoringRuleType{},
 		"teleport_static_host_user":           dataSourceTeleportStaticHostUserType{},
+		"teleport_workload_identity":          dataSourceTeleportWorkloadIdentityType{},
 	}, nil
 }
 

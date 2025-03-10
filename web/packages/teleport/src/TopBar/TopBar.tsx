@@ -16,103 +16,41 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useCallback, useState } from 'react';
-import styled, { useTheme } from 'styled-components';
-import { Link } from 'react-router-dom';
-import { Flex, Image, Text, TopNav } from 'design';
+import React from 'react';
 import { matchPath, useHistory } from 'react-router';
+import { Link } from 'react-router-dom';
+import styled, { useTheme } from 'styled-components';
+
+import { Flex, Image, TopNav } from 'design';
 import { Theme } from 'design/theme/themes/types';
-import { ArrowLeft, Download, Server, SlidersVertical } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 
-import useTeleport from 'teleport/useTeleport';
-import { UserMenuNav } from 'teleport/components/UserMenuNav';
-import { useFeatures } from 'teleport/FeaturesContext';
-import { NavigationCategory } from 'teleport/Navigation/categories';
-import useStickyClusterId from 'teleport/useStickyClusterId';
-import cfg from 'teleport/config';
-import { TeleportFeature } from 'teleport/types';
-import { useLayout } from 'teleport/Main/LayoutContext';
-import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
 import { logos } from 'teleport/components/LogoHero/LogoHero';
-
+import { UserMenuNav } from 'teleport/components/UserMenuNav';
+import cfg from 'teleport/config';
+import { useFeatures } from 'teleport/FeaturesContext';
+import { useLayout } from 'teleport/Main/LayoutContext';
+import { zIndexMap } from 'teleport/Navigation/zIndexMap';
 import { Notifications } from 'teleport/Notifications';
-
-import { ButtonIconContainer } from './Shared';
-
-import type * as history from 'history';
-
-function getCategoryForRoute(
-  features: TeleportFeature[],
-  route: history.Location<unknown> | Location
-) {
-  const feature = features
-    .filter(feature => Boolean(feature.route))
-    .find(feature =>
-      matchPath(route.pathname, {
-        path: feature.route.path,
-      })
-    );
-
-  if (!feature) {
-    return;
-  }
-
-  return feature.category;
-}
+import useTeleport from 'teleport/useTeleport';
 
 export function TopBar({ CustomLogo }: TopBarProps) {
   const ctx = useTeleport();
-  const { clusterId } = useStickyClusterId();
   const history = useHistory();
   const features = useFeatures();
-  const topBarLinks = features.filter(
-    feature =>
-      feature.category === NavigationCategory.Resources && feature.topMenuItem
-  );
   const { currentWidth } = useLayout();
   const theme: Theme = useTheme();
-  const [previousManagementRoute, setPreviousManagementRoute] = useState('');
-
-  const handleLocationChange = useCallback(
-    (next: history.Location<unknown> | Location) => {
-      const category = getCategoryForRoute(features, next);
-      if (category && category === NavigationCategory.Management) {
-        setPreviousManagementRoute(next.pathname);
-      }
-    },
-    [features]
-  );
-
-  useEffect(() => {
-    return history.listen(handleLocationChange);
-  }, [history, handleLocationChange]);
 
   // find active feature
-  const feature = features
-    .filter(feature => Boolean(feature.route))
-    .find(f =>
+  const feature = features.find(
+    f =>
+      f.route &&
       matchPath(history.location.pathname, {
         path: f.route.path,
         exact: f.route.exact ?? false,
       })
-    );
+  );
 
-  function handleBack() {
-    const firstRouteForCategory = getFirstRouteForCategory(
-      features,
-      feature.category
-    );
-
-    history.push(firstRouteForCategory);
-  }
-
-  const resourceTabSelected =
-    history?.location?.pathname === cfg.getUnifiedResourcesRoute(clusterId);
-  const managementTabSelected =
-    feature?.category === NavigationCategory.Management;
-  const downloadTabSelected =
-    history?.location?.pathname === cfg.routes.downloadCenter;
   const iconSize =
     currentWidth >= theme.breakpoints.medium
       ? navigationIconSizeMedium
@@ -120,92 +58,7 @@ export function TopBar({ CustomLogo }: TopBarProps) {
 
   return (
     <TopBarContainer navigationHidden={feature?.hideNavigation}>
-      {!feature?.hideNavigation && (
-        <>
-          <TeleportLogo CustomLogo={CustomLogo} />
-          {!feature?.logoOnlyTopbar && (
-            <Flex
-              height="100%"
-              css={`
-                margin-left: auto;
-                @media screen and (min-width: ${p =>
-                    p.theme.breakpoints.medium}px) {
-                  margin-left: 0;
-                  margin-right: auto;
-                }
-              `}
-            >
-              {cfg.isDashboard ? (
-                <MainNavItem
-                  name="Downloads"
-                  to={cfg.routes.downloadCenter}
-                  isSelected={downloadTabSelected}
-                  size={iconSize}
-                  Icon={Download}
-                />
-              ) : (
-                <MainNavItem
-                  name="Resources"
-                  to={cfg.getUnifiedResourcesRoute(clusterId)}
-                  isSelected={resourceTabSelected}
-                  size={iconSize}
-                  Icon={Server}
-                />
-              )}
-              {ctx.getFeatureFlags().managementSection && (
-                <MainNavItem
-                  name="Access Management"
-                  to={
-                    previousManagementRoute ||
-                    getFirstRouteForCategory(
-                      features,
-                      NavigationCategory.Management
-                    )
-                  }
-                  size={iconSize}
-                  isSelected={managementTabSelected}
-                  Icon={SlidersVertical}
-                />
-              )}
-
-              {topBarLinks.map(({ topMenuItem, navigationItem, hasAccess }) => {
-                const canAccess = hasAccess(ctx.getFeatureFlags());
-                if (!canAccess) {
-                  return;
-                }
-                const link = navigationItem.getLink(clusterId);
-                const currentPath = history.location.pathname;
-                const selected =
-                  navigationItem.isSelected?.(clusterId, currentPath) ||
-                  history.location.pathname.includes(link);
-                return (
-                  <NavigationButton
-                    key={topMenuItem.title}
-                    to={topMenuItem.getLink(clusterId)}
-                    selected={selected}
-                    title={topMenuItem.title}
-                    css={`
-                      &:hover {
-                        color: red;
-                      }
-                    `}
-                  >
-                    <topMenuItem.icon
-                      color={selected ? 'text.main' : 'text.muted'}
-                      size={iconSize}
-                    />
-                  </NavigationButton>
-                );
-              })}
-            </Flex>
-          )}
-        </>
-      )}
-      {feature?.hideNavigation && (
-        <ButtonIconContainer onClick={handleBack}>
-          <ArrowLeft size="medium" />
-        </ButtonIconContainer>
-      )}
+      <TeleportLogo CustomLogo={CustomLogo} />
       {!feature?.logoOnlyTopbar && (
         <Flex height="100%" alignItems="center">
           <Notifications iconSize={iconSize} />
@@ -217,7 +70,7 @@ export function TopBar({ CustomLogo }: TopBarProps) {
 }
 
 export const TopBarContainer = styled(TopNav)`
-  position: absolute;
+  position: fixed;
   width: 100%;
   display: flex;
   justify-content: space-between;
@@ -225,15 +78,12 @@ export const TopBarContainer = styled(TopNav)`
   overflow-y: initial;
   overflow-x: none;
   flex-shrink: 0;
-  z-index: 10;
+  z-index: ${zIndexMap.topBar};
   border-bottom: 1px solid ${({ theme }) => theme.colors.spotBackground[1]};
 
   height: ${p => p.theme.topBarHeight[0]}px;
   @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
     height: ${p => p.theme.topBarHeight[1]}px;
-  }
-  @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
-    height: ${p => p.theme.topBarHeight[2]}px;
   }
 `;
 
@@ -262,8 +112,7 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
           cursor: pointer;
           display: flex;
           transition: background-color 0.1s linear;
-          &:hover,
-          &:focus-visible {
+          &:hover {
             background-color: ${p =>
               p.theme.colors.interactive.tonal.primary[0]};
           }
@@ -302,110 +151,6 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
 
 export const navigationIconSizeSmall = 20;
 export const navigationIconSizeMedium = 24;
-const NavigationButton = ({
-  to,
-  selected,
-  children,
-  title,
-  ...props
-}: {
-  to: string;
-  selected: boolean;
-  children: React.ReactNode;
-  title?: string;
-}) => {
-  const theme = useTheme();
-  const selectedBorder = `2px solid ${theme.colors.brand}`;
-  const selectedBackground = theme.colors.interactive.tonal.neutral[0];
-
-  return (
-    <HoverTooltip
-      anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      transformOrigin={{ vertical: 'top', horizontal: 'center' }}
-      tipContent={title}
-      css={`
-        height: 100%;
-      `}
-    >
-      <Link
-        to={to}
-        css={`
-          box-sizing: border-box;
-          text-decoration: none;
-          color: rgba(0, 0, 0, 0.54);
-          height: 100%;
-          padding-left: 16px;
-          padding-right: 16px;
-          @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
-            padding-left: 24px;
-            padding-right: 24px;
-          }
-          border-bottom: ${selected ? selectedBorder : 'none'};
-          background-color: ${selected ? selectedBackground : 'inherit'};
-          &:hover,
-          &:focus-visible {
-            background-color: ${selected
-              ? selectedBackground
-              : theme.colors.buttons.secondary.default};
-          }
-        `}
-        aria-label={title || undefined}
-        {...props}
-      >
-        <Flex
-          css={`
-            height: 100%;
-          `}
-          justifyContent="center"
-          alignItems="center"
-        >
-          {children}
-        </Flex>
-      </Link>
-    </HoverTooltip>
-  );
-};
-
-const MainNavItem = ({
-  isSelected,
-  to,
-  size,
-  name,
-  Icon,
-}: {
-  isSelected: boolean;
-  to: string;
-  size: number;
-  name: string;
-  Icon: (props: { color: string; size: number }) => JSX.Element;
-}) => {
-  const { currentWidth } = useLayout();
-  const theme: Theme = useTheme();
-  const mediumAndUp = currentWidth >= theme.breakpoints.medium;
-  return (
-    <NavigationButton
-      selected={isSelected}
-      to={to}
-      title={!mediumAndUp ? name : ''}
-    >
-      <Icon color={isSelected ? 'text.main' : 'text.muted'} size={size} />
-      <Text
-        ml={3}
-        fontSize={3}
-        fontWeight={500}
-        color={isSelected ? 'text.main' : 'text.muted'}
-        css={`
-          display: none;
-          @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
-            display: block;
-          }
-        `}
-      >
-        {name}
-      </Text>
-    </NavigationButton>
-  );
-};
 
 export type NavigationItem = {
   title: string;

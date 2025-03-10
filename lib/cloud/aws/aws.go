@@ -17,19 +17,21 @@
 package aws
 
 import (
+	"context"
+	"log/slog"
 	"slices"
 	"strings"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/elasticache"
-	"github.com/aws/aws-sdk-go/service/memorydb"
-	"github.com/aws/aws-sdk-go/service/opensearchservice"
-	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/redshift"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
+	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
+	opensearchtypes "github.com/aws/aws-sdk-go-v2/service/opensearch/types"
+	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
+	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	"github.com/coreos/go-semver/semver"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/services"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // IsResourceAvailable checks if the input status indicates the resource is
@@ -38,8 +40,8 @@ import (
 // Note that this function checks some common values but not necessarily covers
 // everything. For types that have other known status values, separate
 // functions (e.g. IsDBClusterAvailable) can be implemented.
-func IsResourceAvailable(r interface{}, status *string) bool {
-	switch strings.ToLower(aws.StringValue(status)) {
+func IsResourceAvailable(r any, status *string) bool {
+	switch strings.ToLower(aws.ToString(status)) {
 	case "available", "modifying", "snapshotting", "active":
 		return true
 
@@ -47,49 +49,85 @@ func IsResourceAvailable(r interface{}, status *string) bool {
 		return false
 
 	default:
-		log.WithField("aws_resource", r).Warnf("Unknown status type: %q. Assuming the AWS resource %T is available.", aws.StringValue(status), r)
+		slog.WarnContext(context.Background(), "Assuming that AWS resource with an unknown status is available",
+			"status", aws.ToString(status),
+			"resource", logutils.TypeAttr(r),
+		)
 		return true
 	}
 }
 
 // IsElastiCacheClusterAvailable checks if the ElastiCache cluster is
 // available.
-func IsElastiCacheClusterAvailable(cluster *elasticache.ReplicationGroup) bool {
+func IsElastiCacheClusterAvailable(cluster *ectypes.ReplicationGroup) bool {
 	return IsResourceAvailable(cluster, cluster.Status)
 }
 
 // IsMemoryDBClusterAvailable checks if the MemoryDB cluster is available.
-func IsMemoryDBClusterAvailable(cluster *memorydb.Cluster) bool {
+func IsMemoryDBClusterAvailable(cluster *memorydbtypes.Cluster) bool {
 	return IsResourceAvailable(cluster, cluster.Status)
 }
 
 // IsOpenSearchDomainAvailable checks if the OpenSearch domain is available.
-func IsOpenSearchDomainAvailable(domain *opensearchservice.DomainStatus) bool {
-	return aws.BoolValue(domain.Created) && !aws.BoolValue(domain.Deleted)
+func IsOpenSearchDomainAvailable(domain *opensearchtypes.DomainStatus) bool {
+	return aws.ToBool(domain.Created) && !aws.ToBool(domain.Deleted)
 }
 
 // IsRDSProxyAvailable checks if the RDS Proxy is available.
-func IsRDSProxyAvailable(dbProxy *rds.DBProxy) bool {
-	return IsResourceAvailable(dbProxy, dbProxy.Status)
+func IsRDSProxyAvailable(dbProxy *rdstypes.DBProxy) bool {
+	switch dbProxy.Status {
+	case
+		rdstypes.DBProxyStatusAvailable,
+		rdstypes.DBProxyStatusModifying,
+		rdstypes.DBProxyStatusReactivating:
+		return true
+	case
+		rdstypes.DBProxyStatusCreating,
+		rdstypes.DBProxyStatusDeleting,
+		rdstypes.DBProxyStatusIncompatibleNetwork,
+		rdstypes.DBProxyStatusInsufficientResourceLimits,
+		rdstypes.DBProxyStatusSuspended,
+		rdstypes.DBProxyStatusSuspending:
+		return false
+	}
+	slog.WarnContext(context.Background(), "Assuming RDS Proxy with unknown status is available",
+		"status", dbProxy.Status,
+	)
+	return true
 }
 
 // IsRDSProxyCustomEndpointAvailable checks if the RDS Proxy custom endpoint is available.
-func IsRDSProxyCustomEndpointAvailable(customEndpoint *rds.DBProxyEndpoint) bool {
-	return IsResourceAvailable(customEndpoint, customEndpoint.Status)
+func IsRDSProxyCustomEndpointAvailable(customEndpoint *rdstypes.DBProxyEndpoint) bool {
+	switch customEndpoint.Status {
+	case
+		rdstypes.DBProxyEndpointStatusAvailable,
+		rdstypes.DBProxyEndpointStatusModifying:
+		return true
+	case
+		rdstypes.DBProxyEndpointStatusCreating,
+		rdstypes.DBProxyEndpointStatusDeleting,
+		rdstypes.DBProxyEndpointStatusIncompatibleNetwork,
+		rdstypes.DBProxyEndpointStatusInsufficientResourceLimits:
+		return false
+	}
+	slog.WarnContext(context.Background(), "Assuming RDS Proxy custom endpoint with unknown status is available",
+		"status", customEndpoint.Status,
+	)
+	return true
 }
 
 // IsRDSInstanceSupported returns true if database supports IAM authentication.
 // Currently, only MariaDB is being checked.
-func IsRDSInstanceSupported(instance *rds.DBInstance) bool {
+func IsRDSInstanceSupported(instance *rdstypes.DBInstance) bool {
 	// TODO(jakule): Check other engines.
-	if aws.StringValue(instance.Engine) != services.RDSEngineMariaDB {
+	if aws.ToString(instance.Engine) != services.RDSEngineMariaDB {
 		return true
 	}
 
 	// MariaDB follows semver schema: https://mariadb.org/about/
-	ver, err := semver.NewVersion(aws.StringValue(instance.EngineVersion))
+	ver, err := semver.NewVersion(aws.ToString(instance.EngineVersion))
 	if err != nil {
-		log.Errorf("Failed to parse RDS MariaDB version: %s", aws.StringValue(instance.EngineVersion))
+		slog.ErrorContext(context.Background(), "Failed to parse RDS MariaDB version", "version", aws.ToString(instance.EngineVersion))
 		return false
 	}
 
@@ -100,8 +138,8 @@ func IsRDSInstanceSupported(instance *rds.DBInstance) bool {
 }
 
 // IsRDSClusterSupported checks whether the Aurora cluster is supported.
-func IsRDSClusterSupported(cluster *rds.DBCluster) bool {
-	switch aws.StringValue(cluster.EngineMode) {
+func IsRDSClusterSupported(cluster *rdstypes.DBCluster) bool {
+	switch aws.ToString(cluster.EngineMode) {
 	// Aurora Serverless v1 does NOT support IAM authentication.
 	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless.html#aurora-serverless.limitations
 	//
@@ -124,7 +162,7 @@ func IsRDSClusterSupported(cluster *rds.DBCluster) bool {
 }
 
 // AuroraMySQLVersion extracts aurora mysql version from engine version
-func AuroraMySQLVersion(cluster *rds.DBCluster) string {
+func AuroraMySQLVersion(cluster *rdstypes.DBCluster) string {
 	// version guide: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraMySQL.Updates.Versions.html
 	// a list of all the available versions: https://docs.aws.amazon.com/cli/latest/reference/rds/describe-db-engine-versions.html
 	//
@@ -137,7 +175,7 @@ func AuroraMySQLVersion(cluster *rds.DBCluster) string {
 	//
 	// general format is: <mysql-major-version>.mysql_aurora.<aurora-mysql-version>
 	// 5.6.10a and 5.7.12 are "legacy" versions and they are returned as it is
-	version := aws.StringValue(cluster.EngineVersion)
+	version := aws.ToString(cluster.EngineVersion)
 	parts := strings.Split(version, ".mysql_aurora.")
 	if len(parts) == 2 {
 		return parts[1]
@@ -149,10 +187,10 @@ func AuroraMySQLVersion(cluster *rds.DBCluster) string {
 // for this DocumentDB cluster.
 //
 // https://docs.aws.amazon.com/documentdb/latest/developerguide/iam-identity-auth.html
-func IsDocumentDBClusterSupported(cluster *rds.DBCluster) bool {
-	ver, err := semver.NewVersion(aws.StringValue(cluster.EngineVersion))
+func IsDocumentDBClusterSupported(cluster *rdstypes.DBCluster) bool {
+	ver, err := semver.NewVersion(aws.ToString(cluster.EngineVersion))
 	if err != nil {
-		log.Errorf("Failed to parse DocumentDB engine version: %s", aws.StringValue(cluster.EngineVersion))
+		slog.ErrorContext(context.Background(), "Failed to parse DocumentDB engine version", "version", aws.ToString(cluster.EngineVersion))
 		return false
 	}
 
@@ -161,20 +199,20 @@ func IsDocumentDBClusterSupported(cluster *rds.DBCluster) bool {
 
 // IsElastiCacheClusterSupported checks whether the ElastiCache cluster is
 // supported.
-func IsElastiCacheClusterSupported(cluster *elasticache.ReplicationGroup) bool {
-	return aws.BoolValue(cluster.TransitEncryptionEnabled)
+func IsElastiCacheClusterSupported(cluster *ectypes.ReplicationGroup) bool {
+	return aws.ToBool(cluster.TransitEncryptionEnabled)
 }
 
 // IsMemoryDBClusterSupported checks whether the MemoryDB cluster is supported.
-func IsMemoryDBClusterSupported(cluster *memorydb.Cluster) bool {
-	return aws.BoolValue(cluster.TLSEnabled)
+func IsMemoryDBClusterSupported(cluster *memorydbtypes.Cluster) bool {
+	return aws.ToBool(cluster.TLSEnabled)
 }
 
 // IsRDSInstanceAvailable checks if the RDS instance is available.
 func IsRDSInstanceAvailable(instanceStatus, instanceIdentifier *string) bool {
 	// For a full list of status values, see:
 	// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/accessing-monitoring.html
-	switch aws.StringValue(instanceStatus) {
+	switch aws.ToString(instanceStatus) {
 	// Statuses marked as "Billed" in the above guide.
 	case "available", "backing-up", "configuring-enhanced-monitoring",
 		"configuring-iam-database-auth", "configuring-log-exports",
@@ -201,9 +239,9 @@ func IsRDSInstanceAvailable(instanceStatus, instanceIdentifier *string) bool {
 		return false
 
 	default:
-		log.Warnf("Unknown status type: %q. Assuming RDS instance %q is available.",
-			aws.StringValue(instanceStatus),
-			aws.StringValue(instanceIdentifier),
+		slog.WarnContext(context.Background(), "Assuming RDS instance with unknown status is available",
+			"status", aws.ToString(instanceStatus),
+			"instance", aws.ToString(instanceIdentifier),
 		)
 		return true
 	}
@@ -213,7 +251,7 @@ func IsRDSInstanceAvailable(instanceStatus, instanceIdentifier *string) bool {
 func IsDBClusterAvailable(clusterStatus, clusterIndetifier *string) bool {
 	// For a full list of status values, see:
 	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/accessing-monitoring.html
-	switch aws.StringValue(clusterStatus) {
+	switch aws.ToString(clusterStatus) {
 	// Statuses marked as "Billed" in the above guide.
 	case "active", "available", "backing-up", "backtracking", "failing-over",
 		"maintenance", "migrating", "modifying", "promoting", "renaming",
@@ -230,16 +268,16 @@ func IsDBClusterAvailable(clusterStatus, clusterIndetifier *string) bool {
 		return false
 
 	default:
-		log.Warnf("Unknown status type: %q. Assuming Aurora cluster %q is available.",
-			aws.StringValue(clusterStatus),
-			aws.StringValue(clusterIndetifier),
+		slog.WarnContext(context.Background(), "Assuming Aurora cluster with unknown status is available",
+			"status", aws.ToString(clusterStatus),
+			"cluster", aws.ToString(clusterIndetifier),
 		)
 		return true
 	}
 }
 
 // IsRedshiftClusterAvailable checks if the Redshift cluster is available.
-func IsRedshiftClusterAvailable(cluster *redshift.Cluster) bool {
+func IsRedshiftClusterAvailable(cluster *redshifttypes.Cluster) bool {
 	// For a full list of status values, see:
 	// https://docs.aws.amazon.com/redshift/latest/mgmt/working-with-clusters.html#rs-mgmt-cluster-status
 	//
@@ -251,7 +289,7 @@ func IsRedshiftClusterAvailable(cluster *redshift.Cluster) bool {
 	// For "incompatible-xxx" statuses, the cluster is assumed to be available
 	// if the status is resulted by modifying the cluster, and the cluster is
 	// assumed to be unavailable if the cluster cannot be created or restored.
-	switch aws.StringValue(cluster.ClusterStatus) {
+	switch aws.ToString(cluster.ClusterStatus) {
 	//nolint:misspell // cancelling is marked as non-existing word
 	case "available", "available, prep-for-resize", "available, resize-cleanup",
 		"cancelling-resize", "final-snapshot", "modifying", "rebooting",
@@ -264,9 +302,9 @@ func IsRedshiftClusterAvailable(cluster *redshift.Cluster) bool {
 		return false
 
 	default:
-		log.Warnf("Unknown status type: %q. Assuming Redshift cluster %q is available.",
-			aws.StringValue(cluster.ClusterStatus),
-			aws.StringValue(cluster.ClusterIdentifier),
+		slog.WarnContext(context.Background(), "Assuming Redshift cluster with unknown status is available",
+			"status", aws.ToString(cluster.ClusterStatus),
+			"cluster", aws.ToString(cluster.ClusterIdentifier),
 		)
 		return true
 	}

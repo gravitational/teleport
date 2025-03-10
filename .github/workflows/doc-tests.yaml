@@ -14,6 +14,8 @@ jobs:
     outputs:
       changed: ${{ steps.changes.outputs.changed }}
       changed_files: ${{ steps.changes.outputs.changed_files }}
+      new_docs_content: ${{ steps.changes.outputs.new_docs_content }}
+      new_docs_content_files: ${{ steps.changes.outputs.new_docs_content_files }}
     steps:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
@@ -30,6 +32,8 @@ jobs:
               - 'CHANGELOG.md'
               - 'docs/**'
               - 'examples/**'
+            new_docs_content:
+              - added|modified: 'docs/pages/**/*.mdx'
 
   doc-tests:
     name: Lint (Docs)
@@ -41,7 +45,7 @@ jobs:
       contents: read
 
     steps:
-      - name: Checkout
+      - name: Check out teleport
         uses: actions/checkout@v4
         with:
           repository: 'gravitational/teleport'
@@ -50,9 +54,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          repository: 'gravitational/docs'
+          repository: 'gravitational/docs-website'
           path: 'docs'
 
+      - name: Generate GitHub Token
+        id: generate_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.REVIEWERS_APP_ID }}
+          private-key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
+
+      - name: Check out shared-workflows
+        uses: actions/checkout@v4
+        with:
+          repository: gravitational/shared-workflows
+          path: shared-workflows
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Ensure docs changes include redirects
+        env:
+          TOKEN: ${{ steps.generate_token.outputs.token }}
+          REVIEWERS: ${{ secrets.reviewers }}
+        run: cd shared-workflows/bot && go run main.go -workflow=docpaths -token="${TOKEN}" -teleport-path="${GITHUB_WORKSPACE}/teleport" -reviewers="${REVIEWERS}"
       # Cache node_modules. Unlike the example in the actions/cache repo, this
       # caches the node_modules directory instead of the yarn cache. This is
       # because yarn needs to build fresh packages even when it copies files
@@ -80,30 +107,35 @@ jobs:
         # use for the live docs site in that we only test a single version of
         # the content.
         #
-        # To do this, we replace the three submodules we use for building the
-        # live docs site with a single submodule, pointing to the
-        # gravitational/teleport branch we are linting.
-        #
+        # To do this, we delete the three submodules we use for building the
+        # live docs site and copy a gravitational/teleport clone into the
+        # content directory.
+        # 
         # The docs engine expects a config.json file at the root of the
         # gravitational/docs clone that associates directories with git
         # submodules. By default, these directories represent versioned branches
         # of gravitational/teleport. We override this in order to build only a
         # single version of the docs.
+        #
+        # We also replace data fetched from Sanity CMS with hardcoded JSON
+        # objects to remove the need to authenticate with Sanity. Each includes
+        # the minimal set of data required for docs builds to succeed.
         run: |
           echo "" > .gitmodules
           rm -rf content/*
-          cd content
           # Rather than using a submodule, copy the teleport source into the
           # content directory.
-          cp -r $GITHUB_WORKSPACE/teleport $GITHUB_WORKSPACE/docs/content
-          cd $GITHUB_WORKSPACE/docs
-          echo "{\"versions\": [{\"name\": \"teleport\", \"branch\": \"teleport\", \"deprecated\": false}]}" > $GITHUB_WORKSPACE/docs/config.json
-          cat <<< "$(jq '.scripts."git-update" = "echo Skipping submodule update"' package.json)" > package.json
-          yarn build-node
+          cp -r "$GITHUB_WORKSPACE/teleport" "$GITHUB_WORKSPACE/docs/content/current"
+          jq -nr --arg version "current" '{"versions": [{"name": $version,"branch": $version,"deprecated": false,"isDefault": true}]}' > config.json
+          NEW_PACKAGE_JSON=$(jq '.scripts."git-update" = "echo Skipping submodule update"' package.json);
+          NEW_PACKAGE_JSON=$(jq '.scripts."prepare-sanity-data" = "echo Using pre-populated Sanity data"' <<< "$NEW_PACKAGE_JSON");
+          echo "$NEW_PACKAGE_JSON" > package.json;
+          echo "{}" > data/events.json
+          echo '{"bannerButtons":{"second":{"title":"LOG IN","url":"https://teleport.sh"},"first":{"title":"Support","url":"https://goteleport.com/support/"}},"navbarData":{"rightSide":{},"logo":"/favicon.svg","menu":[]}}' > data/navbar.json
 
       - name: Check spelling
         working-directory: 'docs'
-        run: yarn spellcheck content/teleport
+        run: yarn spellcheck content/current
 
       - name: Lint docs formatting
         working-directory: 'docs'
@@ -117,7 +149,7 @@ jobs:
     name: Lint docs prose style
     runs-on: ubuntu-latest
     needs: changes
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' && github.event_name == 'pull_request' }}
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.new_docs_content == 'true' && github.event_name == 'pull_request' }}
     permissions:
       pull-requests: read
     steps:
@@ -129,11 +161,11 @@ jobs:
       - name: Run the linter
         uses: errata-ai/vale-action@d89dee975228ae261d22c15adcd03578634d429c # v2.1.1
         with:
-          version: 2.30.0
+          version: 3.9.4
           # Take the comma-separated list of files returned by the "Check for
           # relevant changes" job.
           separator: ","
-          files: ${{ needs.changes.outputs.changed_files }}
+          files: ${{ needs.changes.outputs.new_docs_content_files }}
           # Restrict the linter to lines modified/added by a PR, not entire
           # changed files.
           filter_mode: added

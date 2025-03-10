@@ -39,11 +39,13 @@ use rdpdr::tdp::{
 };
 use std::ffi::CString;
 use std::fmt::Debug;
+use std::io::ErrorKind;
 use std::os::raw::c_char;
 use std::ptr;
 use util::{from_c_string, from_go_array};
 pub mod client;
 mod cliprdr;
+mod license;
 mod network_client;
 mod piv;
 mod rdpdr;
@@ -92,6 +94,7 @@ pub unsafe extern "C" fn free_string(ptr: *mut c_char) {
 pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectParams) -> CGOResult {
     trace!("client_run");
     // Convert from C to Rust types.
+    let username = from_c_string(params.go_username);
     let addr = from_c_string(params.go_addr);
     let cert_der = from_go_array(params.cert_der, params.cert_der_len);
     let key_der = from_go_array(params.key_der, params.key_der_len);
@@ -111,6 +114,7 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
         ConnectParams {
             ad: params.ad,
             nla: params.nla,
+            username,
             addr,
             computer_name,
             cert_der,
@@ -121,6 +125,7 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
             allow_clipboard: params.allow_clipboard,
             allow_directory_sharing: params.allow_directory_sharing,
             show_desktop_wallpaper: params.show_desktop_wallpaper,
+            client_id: params.client_id,
         },
     ) {
         Ok(res) => CGOResult {
@@ -139,18 +144,30 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
                 None => ptr::null_mut(),
             },
         },
-
         Err(e) => {
             error!("client_run failed: {:?}", e);
+            let message = match e {
+                client::ClientError::Tcp(io_err) if io_err.kind() == ErrorKind::TimedOut => {
+                    String::from(TIMEOUT_ERROR_MESSAGE)
+                }
+                _ => format!("{}", e),
+            };
             CGOResult {
                 err_code: CGOErrCode::ErrCodeFailure,
-                message: CString::new(format!("{}", e))
+                message: CString::new(message)
                     .map(|c| c.into_raw())
                     .unwrap_or(ptr::null_mut()),
             }
         }
     }
 }
+
+const TIMEOUT_ERROR_MESSAGE: &str = "Connection Timed Out\n\n\
+Teleport could not connect to the host within the timeout period. \
+This could be due to a firewall blocking connections, an overloaded system, \
+or network congestion. To resolve this issue, ensure that the Teleport agent \
+has connectivity to the Windows host.\n\n\
+Use \"nc -vz HOST 3389\" to help debug this issue.";
 
 fn handle_operation<T>(cgo_handle: CgoHandle, ctx: &'static str, f: T) -> CGOErrCode
 where
@@ -480,6 +497,7 @@ pub unsafe extern "C" fn client_write_screen_resize(
 pub struct CGOConnectParams {
     ad: bool,
     nla: bool,
+    go_username: *const c_char,
     go_addr: *const c_char,
     go_domain: *const c_char,
     go_kdc_addr: *const c_char,
@@ -493,6 +511,7 @@ pub struct CGOConnectParams {
     allow_clipboard: bool,
     allow_directory_sharing: bool,
     show_desktop_wallpaper: bool,
+    client_id: [u32; 4],
 }
 
 /// CGOKeyboardEvent is a CGO-compatible version of KeyboardEvent that we pass back to Go.
@@ -563,6 +582,7 @@ pub enum CGOErrCode {
     ErrCodeSuccess = 0,
     ErrCodeFailure = 1,
     ErrCodeClientPtr = 2,
+    ErrCodeNotFound = 3,
 }
 
 #[repr(C)]
@@ -717,6 +737,19 @@ pub type CGOSharedDirectoryTruncateResponse = SharedDirectoryTruncateResponse;
 // These functions are defined on the Go side.
 // Look for functions with '//export funcname' comments.
 extern "C" {
+    fn cgo_free_rdp_license(data: *mut u8);
+    fn cgo_read_rdp_license(
+        cgo_handle: CgoHandle,
+        req: *mut CGOLicenseRequest,
+        data_out: *mut *mut u8,
+        len_out: *mut usize,
+    ) -> CGOErrCode;
+    fn cgo_write_rdp_license(
+        cgo_handle: CgoHandle,
+        req: *mut CGOLicenseRequest,
+        data: *mut u8,
+        length: usize,
+    ) -> CGOErrCode;
     fn cgo_handle_remote_copy(cgo_handle: CgoHandle, data: *mut u8, len: u32) -> CGOErrCode;
     fn cgo_handle_fastpath_pdu(cgo_handle: CgoHandle, data: *mut u8, len: u32) -> CGOErrCode;
     fn cgo_handle_rdp_connection_activated(
@@ -768,3 +801,11 @@ extern "C" {
 ///
 /// [cgo.Handle]: https://pkg.go.dev/runtime/cgo#Handle
 type CgoHandle = usize;
+
+#[repr(C)]
+pub struct CGOLicenseRequest {
+    version: u32,
+    issuer: *const c_char,
+    company: *const c_char,
+    product_id: *const c_char,
+}

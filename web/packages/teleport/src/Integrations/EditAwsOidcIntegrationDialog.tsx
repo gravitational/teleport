@@ -16,52 +16,53 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import styled from 'styled-components';
+
 import {
-  ButtonSecondary,
-  ButtonPrimary,
-  ButtonBorder,
   Alert,
-  Text,
   Box,
+  ButtonBorder,
+  ButtonPrimary,
+  ButtonSecondary,
   Link,
+  Text,
 } from 'design';
+import { OutlineInfo, OutlineWarn } from 'design/Alert/Alert';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/DialogConfirmation';
-import { OutlineInfo, OutlineWarn } from 'design/Alert/Alert';
+import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 import FieldInput from 'shared/components/FieldInput';
+import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredRoleArn } from 'shared/components/Validation/rules';
-import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
-
-import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 import { useAsync } from 'shared/hooks/useAsync';
 
-import {
-  Integration,
-  AwsOidcPolicyPreset,
-} from 'teleport/services/integrations';
 import cfg from 'teleport/config';
+import {
+  AwsOidcPolicyPreset,
+  IntegrationAwsOidc,
+  IntegrationKind,
+} from 'teleport/services/integrations';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
-import { EditableIntegrationFields } from './Operations/useIntegrationOperation';
 import { S3BucketConfiguration } from './Enroll/AwsOidc/S3BucketConfiguration';
+import { EditableIntegrationFields } from './Operations/useIntegrationOperation';
 
 type Props = {
   close(): void;
-  edit(integration: Integration, req: EditableIntegrationFields): Promise<void>;
-  integration: Integration;
+  edit(req: EditableIntegrationFields): Promise<void>;
+  integration: IntegrationAwsOidc;
 };
 
 export function EditAwsOidcIntegrationDialog(props: Props) {
   const { close, edit, integration } = props;
   const [updateAttempt, runUpdate] = useAsync(async () => {
-    await edit(integration, { roleArn });
+    await edit({ kind: IntegrationKind.AwsOidc, roleArn });
   });
 
   const [roleArn, setRoleArn] = useState(integration.spec.roleArn);

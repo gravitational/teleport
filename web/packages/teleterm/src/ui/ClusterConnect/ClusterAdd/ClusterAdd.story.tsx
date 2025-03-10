@@ -16,19 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { PropsWithChildren } from 'react';
+import { PropsWithChildren } from 'react';
 
 import Dialog from 'design/Dialog';
 
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import type * as tshd from 'teleterm/services/tshd/types';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 
 import { dialogCss } from '../spacing';
-
 import { ClusterAdd } from './ClusterAdd';
-
-import type * as tshd from 'teleterm/services/tshd/types';
 
 export default {
   title: 'Teleterm/ModalsHost/ClusterAdd',

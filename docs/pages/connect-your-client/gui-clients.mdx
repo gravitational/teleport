@@ -21,7 +21,7 @@ work with Teleport.
 - To check that you can connect to your Teleport cluster, sign in with `tsh login`. For example:
 
   ```code
-  $ tsh login --proxy=<Var name="teleport.example.com" /> --user=<Var name="email@example.com" />
+  $ tsh login --proxy=teleport.example.com --user=myuser@example.com
   ```
 
 - The Teleport Database Service configured to access a database. See one of our
@@ -501,31 +501,160 @@ Click "Proceed", then click "Finish".
 
 (!docs/pages/includes/database-access/gui-clients/spanner-reuse-port-note.mdx!)
 
-## Oracle SQL Developer
+## Oracle graphical clients
 
 The Oracle integration works only in the authenticated proxy mode. Start a local proxy for connections to your Oracle database by using the command below:
+
 ```
-tsh proxy db --tunnel --port 1521 --db-user=<user> --db-name=<db-name> oracle
+> tsh proxy db --tunnel --port 11555 --db-user=<user> --db-name=<db-name> oracle
+
+Started authenticated tunnel for the Oracle database "oracle" in cluster "teleport.example.com" on 127.0.0.1:11555.
 ```
 
-<Notice type="tip">
-This command uses the local port 1521, but you can choose any port, or let
-`tsh` pick a local port at random if you omit the `--port` flag.
-You should specify a port to avoid the need to reconfigure your GUI client again
-later.
-</Notice>
+<Admonition type="tip">
+The command above uses the local port 11555, but you can choose any available port. Leaving `--port` empty will cause `tsh` to pick a random one.
+</Admonition>
+
+The local proxy supports TCP and TCPS modes. Different clients prefer different modes.
+
+TCP:
+- requires no username or password
+- generally easier to configure
+
+TCPS:
+- requires no username or password
+- depends on automatically created wallet
+- uses JDBC URL for configuration
+
+<Admonition type="warning">
+Teleport versions earlier than 17.2.0 support only a limited range of clients and only offer TCPS mode. `tsh` will automatically detect this situation and warn the user. We recommend updating to the latest version of Teleport to access full client support and additional connection options.
+</Admonition>
+
+### Oracle SQL Developer (standalone)
 
 In "Connections" click the "+" button for a new database connection:
 
-![Oracle SQL Developer Add Database Connection](../../img/database-access/guides/oracle/oracle-sql-developer-add-database.png)
+![Oracle SQL Developer Add Database Connection](../../img/database-access/guides/oracle/sql-developer-standalone-add-database.png)
 
 Next, set the name and username from the `--db-user` parameter. Set connection type to "Custom JDBC" and 
 set the "Custom JDBC URL" from the `tsh proxy db` command.
 
-![Oracle SQL Developer](../../img/database-access/guides/oracle/oracle-sql-developer-general.png)
+![Oracle SQL Developer](../../img/database-access/guides/oracle/sql-developer-standalone-conn-details-tcps.png)
 
 Now you can click "Test" to check your configuration.
 
-![Oracle SQL Developer Success](../../img/database-access/guides/oracle/oracle-sql-developer-success.png)
+![Oracle SQL Developer Success](../../img/database-access/guides/oracle/sql-developer-standalone-success.png)
 
-Congratulations! You have just connected to your Oracle instance.
+### Oracle SQL Developer (VS Code extension)
+
+Install the extension from [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=Oracle.sql-developer).
+
+Both TCP and TCPS modes can be used.
+
+<Tabs>
+<TabItem label="TCP">
+
+Open the extension toolbar and click on "Create Connection" button.
+
+![SQL Developer (VS Code) Start](../../img/database-access/guides/oracle/sql-developer-vscode-start@2x.png)
+
+Enter the following connection details:
+
+| Field           | Value                  |
+|-----------------|------------------------|
+| Connection name | Choose unique name     |
+| User name       | `/`                    |
+| Password        | `/`                    |
+| Save Password   | Mark checkbox          |
+| Connection type | Basic                  |
+| Host name       | `localhost`            |
+| Port number     | `--port` flag value    |
+| Type            | Service Name           |
+| Service name    | `--db-name` flag value |
+
+Test and create the connection.
+
+![SQL Developer (VS Code) Connection Details (basic)](../../img/database-access/guides/oracle/sql-developer-vscode-conn-details-basic@2x.png)
+
+The new connection should appear on the list.
+
+<Figure width="400">
+![SQL Developer (VS Code) Connected (basic)](../../img/database-access/guides/oracle/sql-developer-vscode-connected-basic@2x.png)
+</Figure>
+
+</TabItem>
+
+<TabItem label="TCPS">
+
+Open the extension toolbar and click on "Create Connection" button.
+
+![SQL Developer (VS Code) Start](../../img/database-access/guides/oracle/sql-developer-vscode-start@2x.png)
+
+Enter the following connection details:
+
+| Field            | Value                           |
+|------------------|---------------------------------|
+| Connection name  | (choose per your preference)    |
+| User name        | `/`                             |
+| Password         | `/`                             |
+| Save Password    | Mark the checkbox               |
+| Connection type  | "Custom JDBC"                   |
+| Custom JDBC URL  | Copy from `tsh proxy db` output |
+
+Test and create the connection.
+
+![SQL Developer (VS Code) Connection Details (JDBC)](../../img/database-access/guides/oracle/sql-developer-vscode-conn-details-jdbc@2x.png)
+
+The new connection should appear on the list.
+
+<Figure width="400">
+![SQL Developer (VS Code) Connected (JDBC)](../../img/database-access/guides/oracle/sql-developer-vscode-connected-jdbc@2x.png)
+</Figure>
+
+
+</TabItem>
+</Tabs>
+
+### Toad
+
+Add new login record in the logins dialog.
+
+![Toad Add Login Record](../../img/database-access/guides/oracle/toad-add-login-record@2x.png)
+
+Enter the connection details in "Direct" tab:
+
+| Field           | Value                        |
+|-----------------|------------------------------|
+| Host name       | `127.0.0.1`                  |
+| Port number     | `--port` flag value          |
+| Service name    | `--db-name` flag value       |
+| User name       | `EXTERNAL`                   |
+| Password        | (leave empty)                |
+| Connection name | (choose per your preference) |
+
+Test the connection to verify the setup.
+
+![Toad Add Login Tested](../../img/database-access/guides/oracle/toad-add-login-tested@2x.png)
+
+The newly added login should appear on the login list.
+
+![Toad Login List](../../img/database-access/guides/oracle/toad-login-list@2x.png)
+
+<Admonition type="tip">
+You can also configure Toad to use an external Oracle client. Both native and external clients are supported.
+</Admonition>
+
+### DBeaver
+
+Click on the "New Database Connection" button.
+
+![DBeaver new connection button](../../img/database-access/guides/oracle/dbeaver-new-connection@2x.png)
+
+Select "Oracle" from the driver list. You may use the search toolbar to narrow down the list.
+![DBeaver connect to a database](../../img/database-access/guides/oracle/dbeaver-connect-to-a-database@2x.png)
+
+Choose "Custom" connection type and paste the JDBC connection string printed by `tsh proxy db`.
+![DBeaver JDBC details](../../img/database-access/guides/oracle/dbeaver-jdbc-details@2x.png)
+
+Test the connection to verify the setup. Finalize by clicking "Finish".
+

@@ -229,7 +229,7 @@ func (s *sftpSubsys) Wait() error {
 	waitErr := s.sftpCmd.Wait()
 	s.logger.DebugContext(ctx, "SFTP process finished")
 
-	s.serverCtx.SendExecResult(srv.ExecResult{
+	s.serverCtx.SendExecResult(ctx, srv.ExecResult{
 		Command: s.sftpCmd.String(),
 		Code:    s.sftpCmd.ProcessState.ExitCode(),
 	})

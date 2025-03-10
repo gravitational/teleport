@@ -74,6 +74,8 @@ least privilege and reduces damage that exfiltrated credentials can do.
 
 Use `tctl create -f ./role.yaml` to create the role.
 
+(!docs/pages/includes/create-role-using-web.mdx!)
+
 Now, use `tctl bots update` to add the role to the Bot. Replace `example`
 with the name of the Bot you created in the deployment guide and `example-role`
 with the name of the role you just created:
@@ -202,7 +204,7 @@ $ ansible-playbook playbook.yaml
 
 You are all set. You have provided your machine with short-lived certificates
 tied to a machine identity that can be rotated, audited, and controlled with
-all the familiar Teleport access controls.
+all the familiar access controls.
 
 ## Troubleshooting
 

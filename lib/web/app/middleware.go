@@ -77,7 +77,7 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 		// admins as well.
 		const msg = "Application Service requires public_addr to be set in the Teleport Proxy Service configuration. " +
 			"Please contact your Teleport cluster administrator or refer to " +
-			"https://goteleport.com/docs/application-access/guides/connecting-apps/#start-authproxy-service."
+			"https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/."
 		h.logger.ErrorContext(r.Context(), msg)
 		return trace.BadParameter("public address of the proxy is not set")
 	}

@@ -30,7 +30,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 
@@ -40,6 +39,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
@@ -51,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
+	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -63,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // ServerWithRoles is a wrapper around auth service
@@ -161,14 +164,17 @@ func (a *ServerWithRoles) identityCenterAction(namespace string, resource string
 
 // actionForListWithCondition extracts a restrictive filter condition to be
 // added to a list query after a simple resource check fails.
-func (a *ServerWithRoles) actionForListWithCondition(resource, identifier string) (*types.WhereExpr, error) {
+func (a *ServerWithRoles) actionForListWithCondition(ctx context.Context, resource, identifier string) (*types.WhereExpr, error) {
 	origErr := a.action(resource, types.VerbList)
 	if origErr == nil || !trace.IsAccessDenied(origErr) {
 		return nil, trace.Wrap(origErr)
 	}
 	cond, err := a.context.Checker.ExtractConditionForIdentifier(&services.Context{User: a.context.User}, apidefaults.Namespace, resource, types.VerbList, identifier)
 	if trace.IsAccessDenied(err) {
-		log.WithError(err).Infof("Access to %v %v in namespace %v denied to %v.", types.VerbList, resource, apidefaults.Namespace, a.context.Checker)
+		a.authServer.logger.InfoContext(ctx, "Access to list resource denied",
+			"error", err,
+			"resource", resource,
+		)
 		// Return the original AccessDenied to avoid leaking information.
 		return nil, trace.Wrap(origErr)
 	}
@@ -177,14 +183,14 @@ func (a *ServerWithRoles) actionForListWithCondition(resource, identifier string
 
 // actionWithExtendedContext performs an additional RBAC check with extended
 // rule context after a simple resource check fails.
-func (a *ServerWithRoles) actionWithExtendedContext(kind, verb string, extendContext func(*services.Context) error) error {
+func (a *ServerWithRoles) actionWithExtendedContext(ctx context.Context, kind, verb string, extendContext func(*services.Context) error) error {
 	ruleCtx := &services.Context{User: a.context.User}
 	origErr := a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, kind, verb)
 	if origErr == nil || !trace.IsAccessDenied(origErr) {
 		return trace.Wrap(origErr)
 	}
 	if err := extendContext(ruleCtx); err != nil {
-		log.WithError(err).Warning("Failed to extend context for second RBAC check.")
+		a.authServer.logger.WarnContext(ctx, "Failed to extend context for second RBAC check", "error", err)
 		// Return the original AccessDenied to avoid leaking information.
 		return trace.Wrap(origErr)
 	}
@@ -194,30 +200,14 @@ func (a *ServerWithRoles) actionWithExtendedContext(kind, verb string, extendCon
 // actionForKindSession is a special checker that grants access to session
 // recordings. It can allow access to a specific recording based on the
 // `where` section of the user's access rule for kind `session`.
-func (a *ServerWithRoles) actionForKindSession(ctx context.Context, sid session.ID) (types.SessionKind, error) {
-	sessionEnd, err := a.findSessionEndEvent(ctx, sid)
-
-	extendContext := func(ctx *services.Context) error {
-		ctx.Session = sessionEnd
+func (a *ServerWithRoles) actionForKindSession(ctx context.Context, sid session.ID) error {
+	extendContext := func(servicesCtx *services.Context) error {
+		sessionEnd, err := a.findSessionEndEvent(ctx, sid)
+		servicesCtx.Session = sessionEnd
 		return trace.Wrap(err)
 	}
 
-	var sessionKind types.SessionKind
-	switch e := sessionEnd.(type) {
-	case *apievents.SessionEnd:
-		sessionKind = types.SSHSessionKind
-		if e.KubernetesCluster != "" {
-			sessionKind = types.KubernetesSessionKind
-		}
-	case *apievents.DatabaseSessionEnd:
-		sessionKind = types.DatabaseSessionKind
-	case *apievents.AppSessionEnd:
-		sessionKind = types.AppSessionKind
-	case *apievents.WindowsDesktopSessionEnd:
-		sessionKind = types.WindowsDesktopSessionKind
-	}
-
-	return sessionKind, trace.Wrap(a.actionWithExtendedContext(types.KindSession, types.VerbRead, extendContext))
+	return trace.Wrap(a.actionWithExtendedContext(ctx, types.KindSession, types.VerbRead, extendContext))
 }
 
 // localServerAction returns an access denied error if the role is not one of the builtin server roles.
@@ -610,17 +600,17 @@ func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.Reg
 	// service). They will be derived from the client certificate otherwise.
 	if !isProxy {
 		if req.BotInstanceID != "" {
-			log.WithFields(logrus.Fields{
-				"bot_instance_id": req.BotInstanceID,
-			}).Warnf("Untrusted client attempted to provide a bot instance ID, this will be ignored")
+			a.authServer.logger.WarnContext(ctx, "Untrusted client attempted to provide a bot instance ID, this will be ignored",
+				"bot_instance_id", req.BotInstanceID,
+			)
 
 			req.BotInstanceID = ""
 		}
 
 		if req.BotGeneration > 0 {
-			log.WithFields(logrus.Fields{
-				"bot_generation": req.BotGeneration,
-			}).Warnf("Untrusted client attempted to provide a bot generation, this will be ignored")
+			a.authServer.logger.WarnContext(ctx, "Untrusted client attempted to provide a bot generation, this will be ignored",
+				"bot_generation", req.BotGeneration,
+			)
 
 			req.BotGeneration = 0
 		}
@@ -698,7 +688,11 @@ func (a *ServerWithRoles) checkAdditionalSystemRoles(ctx context.Context, req *p
 		if err != nil {
 			// include this error in the logs, since it might be indicative of a bug if it occurs outside of the context
 			// of a general backend outage.
-			log.Warnf("Failed to load system role assertion set %q for instance %q: %v", req.SystemRoleAssertionID, req.HostID, err)
+			a.authServer.logger.WarnContext(ctx, "Failed to load system role assertion set for instance",
+				"system_role_assertion", req.SystemRoleAssertionID,
+				"instance", req.HostID,
+				"error", err,
+			)
 			return trace.AccessDenied("failed to load system role assertion set with ID %q", req.SystemRoleAssertionID)
 		}
 	}
@@ -787,7 +781,10 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 	var filteredServices []types.SystemRole
 	for _, service := range hello.Services {
 		if !a.hasBuiltinRole(service) {
-			log.Warnf("Omitting service %q for control stream of instance %q (unknown or unauthorized).", service, role.GetServerID())
+			a.authServer.logger.WarnContext(a.CloseContext(), "Omitting unknown or unauthorized service for instance control stream",
+				"omitted_service", service,
+				"instance", role.GetServerID(),
+			)
 			continue
 		}
 		filteredServices = append(filteredServices, service)
@@ -859,7 +856,7 @@ func (a *ServerWithRoles) GetClusterAlerts(ctx context.Context, query types.GetC
 		if err != nil {
 			// we don't fail here since users are allowed to see acknowledged alerts, acks
 			// are intended only as a tool for reducing noise.
-			log.Warnf("Failed to load alert acks: %v", err)
+			a.authServer.logger.WarnContext(ctx, "Failed to load alert acks", "error", err)
 		}
 	}
 
@@ -1259,12 +1256,11 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 	// Filter first and only check RBAC if there is a match to improve perf.
 	match, err := services.MatchResourceByFilters(resource, filter, nil)
 	if err != nil {
-		log.WithFields(logrus.Fields{
-			"resource_name": resource.GetName(),
-			"resource_kind": resourceKind,
-			"error":         err,
-		}).
-			Warn("Unable to determine access to resource, matching with filter failed")
+		logger.WarnContext(context.Background(), "Unable to determine access to resource, matching with filter failed",
+			"resource_name", resource.GetName(),
+			"resource_kind", resourceKind,
+			"error", err,
+		)
 		return false, nil
 	}
 
@@ -1272,7 +1268,7 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 		return false, nil
 	}
 
-	// check access normally if base checker doesnt exist
+	// check access normally if base checker doesn't exist
 	if c.baseAuthChecker == nil {
 		if err := c.accessChecker.CanAccess(resource); err != nil {
 			if trace.IsAccessDenied(err) {
@@ -1462,21 +1458,43 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			if n := r.GetNode(); n != nil {
 				logins, err := checker.GetAllowedLoginsForResource(n)
 				if err != nil {
-					log.WithError(err).WithField("resource", n.GetName()).Warn("Unable to determine logins for node")
+					a.authServer.logger.WarnContext(ctx, "Unable to determine logins for node",
+						"error", err,
+						"resource", n.GetName(),
+					)
 					continue
 				}
 				r.Logins = logins
 			} else if d := r.GetWindowsDesktop(); d != nil {
 				logins, err := checker.GetAllowedLoginsForResource(d)
 				if err != nil {
-					log.WithError(err).WithField("resource", d.GetName()).Warn("Unable to determine logins for desktop")
+					a.authServer.logger.WarnContext(ctx, "Unable to determine logins for desktop",
+						"error", err,
+						"resource", d.GetName(),
+					)
 					continue
 				}
 				r.Logins = logins
 			} else if d := r.GetAppServer(); d != nil {
+				// Apps representing an Identity Center Account have a collection of Permission Sets
+				// that can be thought of as individually-addressable sub-resources. To present a consitent
+				// view of the account we check access for each Permission Set, filter out those that have
+				// no access and treat the whole app as requiring an access request if _any_ of the contained
+				// permission sets require one.
+				if err := a.filterICPermissionSets(r, d.GetApp(), resourceAccess); err != nil {
+					a.authServer.logger.WarnContext(ctx, "Unable to filter",
+						"error", err,
+						"resource", d.GetApp().GetName(),
+					)
+					continue
+				}
+
 				logins, err := checker.GetAllowedLoginsForResource(d.GetApp())
 				if err != nil {
-					log.WithError(err).WithField("resource", d.GetApp().GetName()).Warn("Unable to determine logins for app")
+					a.authServer.logger.WarnContext(ctx, "Unable to determine logins for app",
+						"error", err,
+						"resource", d.GetApp().GetName(),
+					)
 					continue
 				}
 				r.Logins = logins
@@ -1488,6 +1506,56 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		NextKey:   nextKey,
 		Resources: paginatedResources,
 	}, nil
+}
+
+func (a *ServerWithRoles) filterICPermissionSets(r *proto.PaginatedResource, app types.Application, checker *resourceAccess) error {
+	appV3, ok := app.(*types.AppV3)
+	if !ok {
+		return trace.BadParameter("resource must be an app")
+	}
+
+	pss := appV3.Spec.IdentityCenter.GetPermissionSets()
+	if pss == nil {
+		return nil
+	}
+
+	assignment := services.IdentityCenterAccountAssignment{
+		AccountAssignment: &identitycenterv1.AccountAssignment{
+			Kind:     types.KindIdentityCenterAccountAssignment,
+			Version:  types.V1,
+			Metadata: &headerv1.Metadata{},
+			Spec: &identitycenterv1.AccountAssignmentSpec{
+				AccountId:     appV3.GetName(),
+				PermissionSet: &identitycenterv1.PermissionSetInfo{},
+			},
+		},
+	}
+	permissionSetQuery := assignment.Spec.PermissionSet
+	checkable := types.Resource153ToResourceWithLabels(assignment)
+
+	var output []*types.IdentityCenterPermissionSet
+	for _, ps := range pss {
+		assignment.Metadata.Name = ps.AssignmentID
+		permissionSetQuery.Arn = ps.ARN
+
+		hasAccess, err := checker.checkAccess(checkable, services.MatchResourceFilter{
+			ResourceKind: types.KindIdentityCenterAccountAssignment,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !hasAccess {
+			continue
+		}
+		output = append(output, ps)
+		if _, requestable := checker.requestableMap[ps.AssignmentID]; requestable {
+			r.RequiresRequest = true
+		}
+	}
+	appV3.Spec.IdentityCenter.PermissionSets = output
+
+	return nil
 }
 
 func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
@@ -1519,13 +1587,14 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]typ
 	}
 	elapsedFilter := time.Since(startFilter)
 
-	log.WithFields(logrus.Fields{
-		"user":           a.context.User.GetName(),
-		"elapsed_fetch":  elapsedFetch,
-		"elapsed_filter": elapsedFilter,
-	}).Debugf(
-		"GetServers(%v->%v) in %v.",
-		len(nodes), len(filteredNodes), elapsedFetch+elapsedFilter)
+	a.authServer.logger.DebugContext(ctx, "Retrieved servers",
+		"node_count", len(nodes),
+		"filtered_node_count", len(filteredNodes),
+		"user", a.context.User.GetName(),
+		"elapsed_fetch", elapsedFetch,
+		"elapsed_filter", elapsedFilter,
+		"elapsed_total", elapsedFetch+elapsedFilter,
+	)
 
 	return filteredNodes, nil
 }
@@ -1586,23 +1655,26 @@ func (a *ServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTa
 		return nil, trace.Wrap(err)
 	}
 
-	lreq := proto.ListResourcesRequest{
-		ResourceType:     types.KindNode,
+	lreq := &proto.ListUnifiedResourcesRequest{
+		Kinds:            []string{types.KindNode},
+		SortBy:           types.SortBy{Field: types.ResourceMetadataName},
 		UseSearchAsRoles: true,
 	}
 	var servers []*types.ServerV2
 	for {
-		// note that we're calling ServerWithRoles.ListResources here rather than some internal method. This method
+		// note that we're calling ServerWithRoles.ListUnifiedResources here rather than some internal method. This method
 		// delegates all RBAC filtering to ListResources, and then performs additional filtering on top of that.
-		lrsp, err := a.ListResources(ctx, lreq)
+		lrsp, err := a.ListUnifiedResources(ctx, lreq)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		for _, rsc := range lrsp.Resources {
-			srv, ok := rsc.(*types.ServerV2)
-			if !ok {
-				log.Warnf("Unexpected resource type %T, expected *types.ServerV2 (skipping)", rsc)
+			srv := rsc.GetNode()
+			if srv == nil {
+				a.authServer.logger.WarnContext(ctx, "Skipping unexpected resource type, expected *types.ServerV2",
+					"resource_type", logutils.TypeAttr(rsc),
+				)
 				continue
 			}
 
@@ -1623,6 +1695,94 @@ func (a *ServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTa
 	return &proto.GetSSHTargetsResponse{
 		Servers: servers,
 	}, nil
+}
+
+// ResolveSSHTarget gets a server that would match an equivalent ssh dial request.
+func (a *ServerWithRoles) ResolveSSHTarget(ctx context.Context, req *proto.ResolveSSHTargetRequest) (*proto.ResolveSSHTargetResponse, error) {
+	// try to detect case-insensitive routing setting, but default to false if we can't load
+	// networking config (equivalent to proxy routing behavior).
+	var routeToMostRecent bool
+	if cfg, err := a.authServer.GetReadOnlyClusterNetworkingConfig(ctx); err == nil {
+		routeToMostRecent = cfg.GetRoutingStrategy() == types.RoutingStrategy_MOST_RECENT
+	}
+
+	var servers []*types.ServerV2
+	switch {
+	case req.Host != "":
+		if len(req.Labels) > 0 || req.PredicateExpression != "" || len(req.SearchKeywords) > 0 {
+			a.authServer.logger.WarnContext(ctx, "ssh target resolution request contained both host and a resource matcher - ignoring resource matcher")
+		}
+
+		resp, err := a.GetSSHTargets(ctx, &proto.GetSSHTargetsRequest{
+			Host: req.Host,
+			Port: req.Port,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		servers = resp.Servers
+	case len(req.Labels) > 0 || req.PredicateExpression != "" || len(req.SearchKeywords) > 0:
+		lreq := &proto.ListUnifiedResourcesRequest{
+			Kinds:               []string{types.KindNode},
+			SortBy:              types.SortBy{Field: types.ResourceMetadataName},
+			Labels:              req.Labels,
+			PredicateExpression: req.PredicateExpression,
+			SearchKeywords:      req.SearchKeywords,
+		}
+		for {
+			// note that we're calling ServerWithRoles.ListUnifiedResources here rather than some internal method. This method
+			// delegates all RBAC filtering to ListResources, and then performs additional filtering on top of that.
+			lrsp, err := a.ListUnifiedResources(ctx, lreq)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			for _, rsc := range lrsp.Resources {
+				srv := rsc.GetNode()
+				if srv == nil {
+					a.authServer.logger.WarnContext(ctx, "Skipping unexpected resource type, expected *types.ServerV2",
+						"resource_type", logutils.TypeAttr(rsc),
+					)
+					continue
+				}
+
+				servers = append(servers, srv)
+			}
+
+			// If the routing strategy doesn't permit ambiguous matches, then abort
+			// early if more than one server has been found already
+			if !routeToMostRecent && len(servers) > 1 {
+				break
+			}
+
+			if lrsp.NextKey == "" || len(lrsp.Resources) == 0 {
+				break
+			}
+
+			lreq.StartKey = lrsp.NextKey
+
+		}
+	default:
+		return nil, trace.BadParameter("request did not contain any host information or resource matcher")
+	}
+
+	switch len(servers) {
+	case 1:
+		return &proto.ResolveSSHTargetResponse{Server: servers[0]}, nil
+	case 0:
+		return nil, trace.NotFound("no matching hosts")
+	default:
+		if !routeToMostRecent {
+			return nil, trace.Wrap(teleport.ErrNodeIsAmbiguous)
+		}
+
+		// Return the most recent version of the resource.
+		server := slices.MaxFunc(servers, func(a, b *types.ServerV2) int {
+			return a.Expiry().Compare(b.Expiry())
+		})
+		return &proto.ResolveSSHTargetResponse{Server: server}, nil
+	}
 }
 
 // ListResources returns a paginated list of resources filtered by user access.
@@ -1764,7 +1924,10 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 
 				logins, err := resourceChecker.GetAllowedLoginsForResource(checkableResource)
 				if err != nil {
-					log.WithError(err).WithField("resource", resource.GetName()).Warn("Unable to determine logins for resource")
+					a.authServer.logger.WarnContext(ctx, "Unable to determine logins for resource",
+						"error", err,
+						"resource", resource.GetName(),
+					)
 				}
 
 				resource = &types.EnrichedResource{
@@ -1831,8 +1994,18 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 		return r.CheckAccess(rr, state)
 
 	case types.Resource153Unwrapper:
-		if checkable, ok := rr.(services.AccessCheckable); ok {
-			return r.CheckAccess(checkable, state)
+		checkable, isCheckable := rr.(services.AccessCheckable)
+		if isCheckable {
+			switch unwrapped := rr.Unwrap().(type) {
+			case services.IdentityCenterAccount:
+				return r.CheckAccess(checkable, state, services.NewIdentityCenterAccountMatcher(unwrapped))
+
+			case services.IdentityCenterAccountAssignment:
+				return r.CheckAccess(checkable, state, services.NewIdentityCenterAccountAssignmentMatcher(unwrapped))
+
+			default:
+				return r.CheckAccess(checkable, state)
+			}
 		}
 	}
 
@@ -2036,7 +2209,10 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 
 			logins, err := resourceChecker.GetAllowedLoginsForResource(checkableResource)
 			if err != nil {
-				log.WithError(err).WithField("resource", r.GetName()).Warn("Unable to determine logins for resource")
+				a.authServer.logger.WarnContext(ctx, "Unable to determine logins for resource",
+					"error", err,
+					"resource", r.GetName(),
+				)
 			}
 
 			return &types.EnrichedResource{ResourceWithLabels: r, Logins: logins}, nil
@@ -2217,6 +2393,40 @@ func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
 	return nil
 }
 
+// validateOracleJoinToken validates the fields in a token using the Oracle
+// join method. It's done here instead of in the client so the client doesn't
+// have to import the Oracle SDK.
+func validateOracleJoinToken(token types.ProvisionToken) error {
+	if token.GetJoinMethod() != types.JoinMethodOracle {
+		return nil
+	}
+
+	tokenV2, ok := token.(*types.ProvisionTokenV2)
+	if !ok {
+		return trace.BadParameter("%v join method requires ProvisionTokenV2", types.JoinMethodOracle)
+	}
+	oracleSpec := tokenV2.Spec.Oracle
+	if oracleSpec == nil {
+		return trace.BadParameter("missing spec")
+	}
+	for _, allow := range oracleSpec.Allow {
+		if _, err := oracle.ParseRegionFromOCID(allow.Tenancy); err != nil {
+			return trace.BadParameter("invalid tenant: %v", allow.Tenancy)
+		}
+		for _, compartment := range allow.ParentCompartments {
+			if _, err := oracle.ParseRegionFromOCID(compartment); err != nil {
+				return trace.BadParameter("invalid compartment: %v", compartment)
+			}
+		}
+		for _, region := range allow.Regions {
+			if canonicalRegion, _ := oracle.ParseRegion(region); canonicalRegion == "" {
+				return trace.BadParameter("invalid region: %v", region)
+			}
+		}
+	}
+	return nil
+}
+
 // emitTokenEvent is called by Create/Upsert Token in order to emit any relevant
 // events.
 func emitTokenEvent(ctx context.Context, e apievents.Emitter, token types.ProvisionToken,
@@ -2236,7 +2446,7 @@ func emitTokenEvent(ctx context.Context, e apievents.Emitter, token types.Provis
 		Roles:        token.GetRoles(),
 		JoinMethod:   token.GetJoinMethod(),
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit join token create event.")
+		logger.WarnContext(ctx, "Failed to emit join token create event", "error", err)
 	}
 }
 
@@ -2251,6 +2461,10 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 	}
 
 	if err := enforceEnterpriseJoinMethodCreation(token); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := validateOracleJoinToken(token); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2272,6 +2486,10 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 	}
 
 	if err := enforceEnterpriseJoinMethodCreation(token); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := validateOracleJoinToken(token); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2549,7 +2767,11 @@ func (a *ServerWithRoles) ListAccessRequests(ctx context.Context, req *proto.Lis
 
 		canReview, err := checker.CanReviewRequest(accessRequest)
 		if err != nil {
-			log.Warnf("Failed to evaluate review permissions for user %q against request %q: %v", a.context.User.GetName(), accessRequest.GetName(), err)
+			a.authServer.logger.WarnContext(ctx, "Failed to evaluate review permissions for user against access request",
+				"user", a.context.User.GetName(),
+				"access_request", accessRequest.GetName(),
+				"error", err,
+			)
 			return false
 		}
 
@@ -2577,7 +2799,10 @@ func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.A
 			return nil, trace.AccessDenied("cannot create access requests in non-pending state while using an access request")
 		}
 
-		log.Warnf("Use of resource-level access request 'create' permission by user %q to create non-pending access request for user %q. Creation of non-pending requests will be deprecated in future version of teleport. Consider migrating to a workflow with a separate approval step.", a.context.User.GetName(), req.GetUser())
+		a.authServer.logger.WarnContext(ctx, "Use of resource-level access request 'create' permission by user to create non-pending access request for user. Creation of non-pending requests will be deprecated in future version of teleport. Consider migrating to a workflow with a separate approval step.",
+			"user", a.context.User.GetName(),
+			"request_user", req.GetUser(),
+		)
 	}
 
 	if !authz.IsCurrentUser(a.context, req.GetUser()) {
@@ -2780,22 +3005,25 @@ func (a *ServerWithRoles) GetCurrentUserRoles(ctx context.Context) ([]types.Role
 func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.UserCertsRequest, user types.User) (*services.AccessInfo, error) {
 	if req.Username != a.context.User.GetName() {
 		if isRoleImpersonation(*req) {
-			err := trace.AccessDenied("User %v tried to issue a cert for %v and added role requests. This is not supported.", a.context.User.GetName(), req.Username)
-			log.WithError(err).Warn()
-			return nil, err
+			a.authServer.logger.WarnContext(ctx, "User tried to issue a cert for another user while adding role requests",
+				"user", a.context.User.GetName(),
+				"requested_user", req.Username,
+			)
+			return nil, trace.AccessDenied("User %v tried to issue a cert for %v and added role requests. This is not supported.", a.context.User.GetName(), req.Username)
 		}
 		if len(req.AccessRequests) > 0 {
-			err := trace.AccessDenied("User %v tried to issue a cert for %v and added access requests. This is not supported.", a.context.User.GetName(), req.Username)
-			log.WithError(err).Warn()
-			return nil, err
+			a.authServer.logger.WarnContext(ctx, "User tried to issue a cert for another user while adding access requests",
+				"user", a.context.User.GetName(),
+				"requested_user", req.Username,
+			)
+			return nil, trace.AccessDenied("User %v tried to issue a cert for %v and added access requests. This is not supported.", a.context.User.GetName(), req.Username)
 		}
 		return a.desiredAccessInfoForImpersonation(user)
 	}
 	if isRoleImpersonation(*req) {
 		if len(req.AccessRequests) > 0 {
-			err := trace.AccessDenied("User %v tried to issue a cert with both role and access requests. This is not supported.", a.context.User.GetName())
-			log.WithError(err).Warn()
-			return nil, err
+			a.authServer.logger.WarnContext(ctx, "User tried to issue a cert with both role and access requests", "user", a.context.User.GetName())
+			return nil, trace.AccessDenied("User %v tried to issue a cert with both role and access requests. This is not supported.", a.context.User.GetName())
 		}
 		return a.desiredAccessInfoForRoleRequest(req, user.GetTraits())
 	}
@@ -2842,7 +3070,7 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 	// considering new or dropped access requests. This will include roles from
 	// currently assumed role access requests, and allowed resources from
 	// currently assumed resource access requests.
-	accessInfo, err := services.AccessInfoFromLocalIdentity(currentIdentity, a.authServer)
+	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(currentIdentity, a.authServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2949,7 +3177,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.verifyUserDeviceForCertIssuance(req.Usage, readOnlyAuthPref.GetDeviceTrust()); err != nil {
+	if err := a.verifyUserDeviceForCertIssuance(ctx, req.Usage, readOnlyAuthPref.GetDeviceTrust()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2993,8 +3221,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			return nil, trace.AccessDenied("access denied: impersonated user can not request new roles")
 		}
 		if isRoleImpersonation(req) {
-			// Note: technically this should never be needed as all role
-			// impersonated certs should have the DisallowReissue set.
+			// Disallow role impersonated certs from performing further role
+			// impersonation, to reduce the risk of privilege escalation.
 			return nil, trace.AccessDenied("access denied: impersonated roles can not request other roles")
 		}
 		if req.Username != a.context.User.GetName() {
@@ -3010,13 +3238,19 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	// permissions to read user data.
 	user, err := a.authServer.GetUser(ctx, req.Username, false)
 	if err != nil {
-		log.WithError(err).Debugf("Could not impersonate user %v. The user could not be fetched from local store.", req.Username)
+		a.authServer.logger.DebugContext(ctx, "Could not impersonate user, the user could not be fetched from local store",
+			"error", err,
+			"user", req.Username,
+		)
 		return nil, trace.AccessDenied("access denied")
 	}
 
 	// Do not allow SSO users to be impersonated.
 	if req.Username != a.context.User.GetName() && user.GetUserType() == types.UserTypeSSO {
-		log.Warningf("User %v tried to issue a cert for externally managed user %v, this is not supported.", a.context.User.GetName(), req.Username)
+		a.authServer.logger.WarnContext(ctx, "User tried to issue a cert for externally managed user",
+			"user", a.context.User.GetName(),
+			"external_user", req.Username,
+		)
 		return nil, trace.AccessDenied("access denied")
 	}
 
@@ -3026,7 +3260,9 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		identity := a.context.Identity.GetIdentity()
 		sessionExpires := identity.Expires
 		if sessionExpires.IsZero() {
-			log.Warningf("Encountered identity with no expiry: %v and denied request. Must be internal logic error.", a.context.Identity)
+			a.authServer.logger.WarnContext(ctx, "Denied cert issuance for identity with no expiry",
+				"identity", identity.Username,
+			)
 			return nil, trace.AccessDenied("access denied")
 		}
 		if req.Expires.Before(a.authServer.GetClock().Now()) {
@@ -3114,7 +3350,10 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			// certificates with alternate RoleRequests.
 			err = a.context.Checker.CheckImpersonateRoles(a.context.User, parsedRoles)
 			if err != nil {
-				log.Warning(err)
+				a.authServer.logger.WarnContext(ctx, "user request for role impersonation denied",
+					"user", a.context.User.GetName(),
+					"error", err,
+				)
 				err := trace.AccessDenied("user %q has requested role impersonation for %q", a.context.User.GetName(), accessInfo.Roles)
 				if err := a.authServer.emitter.EmitAuditEvent(a.CloseContext(), &apievents.UserLogin{
 					Metadata: apievents.Metadata{
@@ -3128,7 +3367,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 						UserMessage: err.Error(),
 					},
 				}); err != nil {
-					log.WithError(err).Warn("Failed to emit local login failure event.")
+					a.authServer.logger.WarnContext(ctx, "Failed to emit local login failure event", "error", err)
 				}
 				return nil, trace.Wrap(err)
 			}
@@ -3141,7 +3380,10 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		ttl = checker.AdjustSessionTTL(ttl)
 		req.Expires = a.authServer.GetClock().Now().Add(ttl)
 		if err != nil {
-			log.Warning(err)
+			a.authServer.logger.WarnContext(ctx, "user request for user impersonation denied",
+				"user", a.context.User.GetName(),
+				"error", err,
+			)
 			err := trace.AccessDenied("user %q has requested to generate certs for %q.", a.context.User.GetName(), accessInfo.Roles)
 			if err := a.authServer.emitter.EmitAuditEvent(a.CloseContext(), &apievents.UserLogin{
 				Metadata: apievents.Metadata{
@@ -3155,7 +3397,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 					UserMessage: err.Error(),
 				},
 			}); err != nil {
-				log.WithError(err).Warn("Failed to emit local login failure event.")
+				a.authServer.logger.WarnContext(ctx, "Failed to emit local login failure event", "error", err)
 			}
 			return nil, trace.Wrap(err)
 		}
@@ -3241,11 +3483,9 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		checker:                          checker,
 		// Copy IP from current identity to the generated certificate, if present,
 		// to avoid generateUserCerts() being used to drop IP pinning in the new certificates.
-		loginIP: a.context.Identity.GetIdentity().LoginIP,
-		traits:  accessInfo.Traits,
-		activeRequests: services.RequestIDs{
-			AccessRequests: req.AccessRequests,
-		},
+		loginIP:                a.context.Identity.GetIdentity().LoginIP,
+		traits:                 accessInfo.Traits,
+		activeRequests:         req.AccessRequests,
 		connectionDiagnosticID: req.ConnectionDiagnosticID,
 		botName:                getBotName(user),
 
@@ -3254,6 +3494,9 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		// `updateBotInstance()` is called below, and this (empty) value will be
 		// overridden.
 		botInstanceID: a.context.Identity.GetIdentity().BotInstanceID,
+		// Propagate any join attributes from the current identity to the new
+		// identity.
+		joinAttributes: a.context.Identity.GetIdentity().JoinAttributes,
 	}
 
 	if user.GetName() != a.context.User.GetName() {
@@ -3262,8 +3505,16 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		// Role impersonation uses the user's own name as the impersonator value.
 		certReq.impersonator = a.context.User.GetName()
 
-		// Deny reissuing certs to prevent privilege re-escalation.
+		// By default, deny reissuing certs to prevent privilege re-escalation.
+		// (E.g a cert generated intended for use for Kubernetes Access against
+		// a specific cluster could be reissued with a different cluster name.)
+		// This can be overridden by the user if they acknowledge the risk and
+		// require a certificate which can be reissued (e.g dynamic app access
+		// use-case).
 		certReq.disallowReissue = true
+		if req.ReissuableRoleImpersonation {
+			certReq.disallowReissue = false
+		}
 	} else if a.context.Identity != nil && a.context.Identity.GetIdentity().Impersonator != "" {
 		// impersonating users can receive new certs
 		certReq.impersonator = a.context.Identity.GetIdentity().Impersonator
@@ -3345,14 +3596,14 @@ func (a *ServerWithRoles) GetAccessRequestAllowedPromotions(ctx context.Context,
 // is not paramount to the access system itself, but it stops bad attempts from
 // progressing further and provides better feedback than other protocol-specific
 // failures.
-func (a *ServerWithRoles) verifyUserDeviceForCertIssuance(usage proto.UserCertsRequest_CertUsage, dt *types.DeviceTrust) error {
+func (a *ServerWithRoles) verifyUserDeviceForCertIssuance(ctx context.Context, usage proto.UserCertsRequest_CertUsage, dt *types.DeviceTrust) error {
 	// Ignore App or WindowsDeskop requests, they do not support device trust.
 	if usage == proto.UserCertsRequest_App || usage == proto.UserCertsRequest_WindowsDesktop {
 		return nil
 	}
 
 	identity := a.context.Identity.GetIdentity()
-	return trace.Wrap(dtauthz.VerifyTLSUser(dt, identity))
+	return trace.Wrap(dtauthz.VerifyTLSUser(ctx, dt, identity))
 }
 
 func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req authclient.CreateUserTokenRequest) (types.UserToken, error) {
@@ -3391,7 +3642,7 @@ func (a *ServerWithRoles) ChangeUserAuthentication(ctx context.Context, req *pro
 	isPasswordless := req.NewMFARegisterResponse != nil && len(req.NewPassword) == 0
 	if isPasswordless && modules.GetModules().Features().Cloud {
 		if err := a.trySettingConnectorNameToPasswordless(ctx); err != nil {
-			log.WithError(err).Error("Failed to set passwordless as connector name.")
+			a.authServer.logger.ErrorContext(ctx, "Failed to set passwordless as connector name", "error", err)
 		}
 	}
 
@@ -3603,7 +3854,14 @@ func (a *ServerWithRoles) CreateOIDCAuthRequest(ctx context.Context, req types.O
 
 	oidcReq, err := a.authServer.CreateOIDCAuthRequest(ctx, req)
 	if err != nil {
-		emitSSOLoginFailureEvent(a.CloseContext(), a.authServer.emitter, events.LoginMethodOIDC, err, req.SSOTestFlow)
+		if trace.IsNotFound(err) {
+			// This flow is triggered via an unauthenticated endpoint, so it's not unusual to see
+			// attempts to hit this API with an invalid connector ID. These are not legitimate SSO
+			// attempts, so avoid cluttering the audit log with them.
+			a.authServer.logger.InfoContext(ctx, "rejecting invalid OIDC auth request", "connector", req.ConnectorID)
+		} else {
+			emitSSOLoginFailureEvent(a.CloseContext(), a.authServer.emitter, events.LoginMethodOIDC, err, req.SSOTestFlow)
+		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -3761,7 +4019,14 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.S
 
 	samlReq, err := a.authServer.CreateSAMLAuthRequest(ctx, req)
 	if err != nil {
-		emitSSOLoginFailureEvent(a.CloseContext(), a.authServer.emitter, events.LoginMethodSAML, err, req.SSOTestFlow)
+		if trace.IsNotFound(err) {
+			// This flow is triggered via an unauthenticated endpoint, so it's not unusual to see
+			// attempts to hit this API with an invalid connector ID. These are not legitimate SSO
+			// attempts, so avoid cluttering the audit log with them.
+			a.authServer.logger.InfoContext(ctx, "rejecting invalid SAML auth request", "connector", req.ConnectorID)
+		} else {
+			emitSSOLoginFailureEvent(a.CloseContext(), a.authServer.emitter, events.LoginMethodSAML, err, req.SSOTestFlow)
+		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -3975,7 +4240,14 @@ func (a *ServerWithRoles) CreateGithubAuthRequest(ctx context.Context, req types
 
 	githubReq, err := a.authServer.CreateGithubAuthRequest(ctx, req)
 	if err != nil {
-		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodGithub, err, req.SSOTestFlow)
+		if trace.IsNotFound(err) {
+			// This flow is triggered via an unauthenticated endpoint, so it's not unusual to see
+			// attempts to hit this API with an invalid connector ID. These are not legitimate SSO
+			// attempts, so avoid cluttering the audit log with them.
+			a.authServer.logger.InfoContext(ctx, "rejecting invalid GitHub auth request", "connector", req.ConnectorID)
+		} else {
+			emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodGithub, err, req.SSOTestFlow)
+		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -4020,9 +4292,13 @@ func (a *ServerWithRoles) EmitAuditEvent(ctx context.Context, event apievents.Au
 	if err != nil {
 		// TODO: this should be a proper audit event
 		// notifying about access violation
-		log.Warningf("Rejecting audit event %v(%q) from %q: %v. The client is attempting to "+
-			"submit events for an identity other than the one on its x509 certificate.",
-			event.GetType(), event.GetID(), role.GetServerID(), err)
+		const msg = "Rejecting audit event, the client is attempting to " +
+			"submit events for an identity other than the one on its x509 certificate."
+		a.authServer.logger.WarnContext(ctx, msg,
+			"event_type", event.GetType(),
+			"event_id", event.GetID(),
+			"server_id", role.GetServerID(),
+			"error", err)
 		// this message is sparse on purpose to avoid conveying extra data to an attacker
 		return trace.AccessDenied("failed to validate event metadata")
 	}
@@ -4104,9 +4380,14 @@ func (s *streamWithRoles) RecordEvent(ctx context.Context, pe apievents.Prepared
 	if err != nil {
 		// TODO: this should be a proper audit event
 		// notifying about access violation
-		log.Warningf("Rejecting audit event %v from %v: %v. A node is attempting to "+
-			"submit events for an identity other than the one on its x509 certificate.",
-			event.GetID(), s.serverID, err)
+		const msg = "Rejecting audit event, a node is attempting to " +
+			"submit events for an identity other than the one on its x509 certificate."
+		s.a.authServer.logger.WarnContext(ctx, msg,
+			"event_id", event.GetID(),
+			"event_type", event.GetType(),
+			"server_id", s.serverID,
+			"error", err,
+		)
 		// this message is sparse on purpose to avoid conveying extra data to an attacker
 		return trace.AccessDenied("failed to validate event metadata")
 	}
@@ -4133,38 +4414,6 @@ func (a *ServerWithRoles) findSessionEndEvent(ctx context.Context, sid session.I
 	}
 
 	return nil, trace.NotFound("session end event not found for session ID %q", sid)
-}
-
-// GetNamespaces returns a list of namespaces
-func (a *ServerWithRoles) GetNamespaces() ([]types.Namespace, error) {
-	if err := a.action(types.KindNamespace, types.VerbList, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.GetNamespaces()
-}
-
-// GetNamespace returns namespace by name
-func (a *ServerWithRoles) GetNamespace(name string) (*types.Namespace, error) {
-	if err := a.action(types.KindNamespace, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.GetNamespace(name)
-}
-
-// UpsertNamespace upserts namespace
-func (a *ServerWithRoles) UpsertNamespace(ns types.Namespace) error {
-	if err := a.action(types.KindNamespace, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.UpsertNamespace(ns)
-}
-
-// DeleteNamespace deletes namespace by name
-func (a *ServerWithRoles) DeleteNamespace(name string) error {
-	if err := a.action(types.KindNamespace, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteNamespace(name)
 }
 
 // GetRoles returns a list of roles
@@ -4552,6 +4801,10 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 		return trace.Wrap(err)
 	}
 
+	if err := services.ValidateAuthPreference(newAuthPref); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// check that the given RequireMFAType is supported in this build.
 	if newAuthPref.GetPrivateKeyPolicy().IsHardwareKeyPolicy() {
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {
@@ -4592,7 +4845,7 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 		},
 		AdminActionsMFA: clusterconfigv1.GetAdminActionsMFAStatus(storedAuthPref, newAuthPref),
 	}); auditErr != nil {
-		log.WithError(auditErr).Warn("Failed to emit auth preference update event event.")
+		a.authServer.logger.WarnContext(ctx, "Failed to emit auth preference update event event", "error", auditErr)
 	}
 
 	return trace.Wrap(err)
@@ -4642,7 +4895,7 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 		},
 		AdminActionsMFA: clusterconfigv1.GetAdminActionsMFAStatus(storedAuthPref, defaultAuthPref),
 	}); auditErr != nil {
-		log.WithError(auditErr).Warn("Failed to emit auth preference update event event.")
+		a.authServer.logger.WarnContext(ctx, "Failed to emit auth preference update event event", "error", auditErr)
 	}
 
 	return trace.Wrap(err)
@@ -4726,7 +4979,7 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 			UserMessage: msg,
 		},
 	}); auditErr != nil {
-		log.WithError(auditErr).Warn("Failed to emit cluster networking config update event event.")
+		a.authServer.logger.WarnContext(ctx, "Failed to emit cluster networking config update event event", "error", auditErr)
 	}
 	return trace.Wrap(err)
 }
@@ -4778,7 +5031,7 @@ func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) erro
 			UserMessage: msg,
 		},
 	}); auditErr != nil {
-		log.WithError(auditErr).Warn("Failed to emit cluster networking config update event event.")
+		a.authServer.logger.WarnContext(ctx, "Failed to emit cluster networking config update event event", "error", auditErr)
 	}
 
 	return trace.Wrap(err)
@@ -4831,7 +5084,7 @@ func (a *ServerWithRoles) SetSessionRecordingConfig(ctx context.Context, newRecC
 			UserMessage: msg,
 		},
 	}); auditErr != nil {
-		log.WithError(auditErr).Warn("Failed to emit session recording config update event event.")
+		a.authServer.logger.WarnContext(ctx, "Failed to emit session recording config update event event", "error", auditErr)
 	}
 
 	return trace.Wrap(err)
@@ -4876,7 +5129,7 @@ func (a *ServerWithRoles) ResetSessionRecordingConfig(ctx context.Context) error
 			UserMessage: msg,
 		},
 	}); auditErr != nil {
-		log.WithError(auditErr).Warn("Failed to emit session recording config update event event.")
+		a.authServer.logger.WarnContext(ctx, "Failed to emit session recording config update event event", "error", auditErr)
 	}
 
 	return trace.Wrap(err)
@@ -5088,12 +5341,10 @@ func (a *ServerWithRoles) ProcessKubeCSR(req authclient.KubeCSR) (*authclient.Ku
 	if proxyClusterName != "" &&
 		proxyClusterName != clusterName.GetClusterName() &&
 		proxyClusterName != identityClusterName {
-		log.WithFields(
-			logrus.Fields{
-				"proxy_cluster_name":    proxyClusterName,
-				"identity_cluster_name": identityClusterName,
-			},
-		).Warn("KubeCSR request denied because the proxy and identity clusters didn't match")
+		a.authServer.logger.WarnContext(a.CloseContext(), "KubeCSR request denied because the proxy and identity clusters didn't match",
+			"proxy_cluster_name", proxyClusterName,
+			"identity_cluster_name", identityClusterName,
+		)
 		return nil, trace.AccessDenied("can not sign certs for users via a different cluster proxy")
 	}
 	return a.authServer.ProcessKubeCSR(req)
@@ -5237,8 +5488,12 @@ func (a *ServerWithRoles) checkAccessToGenerateDatabaseCert(resourceKind string)
 		// user that is allowed to impersonate database service.
 		if !a.hasBuiltinRole(types.RoleDatabase, types.RoleAdmin) {
 			if err := a.canImpersonateBuiltinRole(types.RoleDatabase); err != nil {
-				log.WithError(err).Warnf("User %v tried to generate database certificate but does not have '%s' permission for '%s' kind, nor is allowed to impersonate %q system role",
-					a.context.User.GetName(), verb, resourceKind, types.RoleDatabase)
+				a.authServer.logger.WarnContext(a.CloseContext(), "User tried to generate database certificate but does not have permissions, nor is allowed to impersonate database system role",
+					"user", a.context.User.GetName(),
+					"verb", verb,
+					"resource_kind", resourceKind,
+					"error", err,
+				)
 				return trace.AccessDenied("access denied. User must have '%s' permission for '%s' kind to generate the certificate ",
 					verb, resourceKind)
 			}
@@ -5253,9 +5508,11 @@ func (a *ServerWithRoles) GenerateSnowflakeJWT(ctx context.Context, req *proto.S
 	// user that is allowed to impersonate database service.
 	if !a.hasBuiltinRole(types.RoleDatabase, types.RoleAdmin) {
 		if err := a.canImpersonateBuiltinRole(types.RoleDatabase); err != nil {
-			log.WithError(err).Warnf("User %v tried to generate database certificate but is not allowed to impersonate %q system role.",
-				a.context.User.GetName(), types.RoleDatabase)
-			return nil, trace.AccessDenied(`access denied. The user must be able to impersonate the builtin role and user "Db" in order to generate database certificates, for more info see https://goteleport.com/docs/database-access/reference/cli/#tctl-auth-sign.`)
+			a.authServer.logger.WarnContext(ctx, "User tried to generate database certificate but is not allowed to impersonate Database system role.",
+				"user", a.context.User.GetName(),
+				"error", err,
+			)
+			return nil, trace.AccessDenied(`access denied. The user must be able to impersonate the builtin role and user "Db" in order to generate database certificates, for more info see https://goteleport.com/docs/reference/agent-services/database-access-reference/cli/#tctl-auth-sign.`)
 		}
 	}
 	return a.authServer.GenerateSnowflakeJWT(ctx, req)
@@ -5799,15 +6056,15 @@ func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFAReq
 	// Check if MFA is required for admin actions. We don't currently have
 	// a reason to check the name of the admin action in question.
 	if _, ok := req.Target.(*proto.IsMFARequiredRequest_AdminAction); ok {
-		if a.context.AdminActionAuthState == authz.AdminActionAuthUnauthorized {
-			return &proto.IsMFARequiredResponse{
-				Required:    true,
-				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
-			}, nil
-		} else {
+		if a.context.AdminActionAuthState == authz.AdminActionAuthNotRequired {
 			return &proto.IsMFARequiredResponse{
 				Required:    false,
 				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+			}, nil
+		} else {
+			return &proto.IsMFARequiredResponse{
+				Required:    true,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
 			}, nil
 		}
 	}
@@ -5871,7 +6128,7 @@ func (a *ServerWithRoles) SearchSessionEvents(ctx context.Context, req events.Se
 		return nil, "", trace.BadParameter("cond is an internal parameter, should not be set by client")
 	}
 
-	cond, err := a.actionForListWithCondition(types.KindSession, services.SessionIdentifier)
+	cond, err := a.actionForListWithCondition(ctx, types.KindSession, services.SessionIdentifier)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -5962,29 +6219,25 @@ func (a *ServerWithRoles) ReplaceRemoteLocks(ctx context.Context, clusterName st
 // channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
 func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	createErrorChannel := func(err error) (chan apievents.AuditEvent, chan error) {
-		e := make(chan error, 1)
-		e <- trace.Wrap(err)
-		return nil, e
-	}
-
 	err := a.localServerAction()
 	isTeleportServer := err == nil
 
-	var sessionType types.SessionKind
-	if !isTeleportServer {
-		var err error
-		sessionType, err = a.actionForKindSession(ctx, sessionID)
-		if err != nil {
-			c, e := make(chan apievents.AuditEvent), make(chan error, 1)
-			e <- trace.Wrap(err)
-			return c, e
-		}
+	// StreamSessionEvents can be called internally, and when that
+	// happens we don't want to emit an event or check for permissions.
+	if isTeleportServer {
+		return a.alog.StreamSessionEvents(ctx, sessionID, startIndex)
 	}
 
-	// StreamSessionEvents can be called internally, and when that happens we don't want to emit an event.
-	shouldEmitAuditEvent := !isTeleportServer
-	if shouldEmitAuditEvent {
+	if err := a.actionForKindSession(ctx, sessionID); err != nil {
+		c, e := make(chan apievents.AuditEvent), make(chan error, 1)
+		e <- trace.Wrap(err)
+		return c, e
+	}
+
+	// We can only determine the session type after the streaming started. For
+	// this reason, we delay the emit audit event until the first event or if
+	// the streaming returns an error.
+	cb := func(evt apievents.AuditEvent, _ error) {
 		if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SessionRecordingAccess{
 			Metadata: apievents.Metadata{
 				Type: events.SessionRecordingAccessEvent,
@@ -5992,14 +6245,34 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 			},
 			SessionID:    sessionID.String(),
 			UserMetadata: a.context.Identity.GetIdentity().GetUserMetadata(),
-			SessionType:  string(sessionType),
+			SessionType:  string(sessionTypeFromStartEvent(evt)),
 			Format:       metadata.SessionRecordingFormatFromContext(ctx),
 		}); err != nil {
-			return createErrorChannel(err)
+			a.authServer.logger.ErrorContext(ctx, "Failed to emit stream session event audit event", "error", err)
 		}
 	}
 
-	return a.alog.StreamSessionEvents(ctx, sessionID, startIndex)
+	return a.alog.StreamSessionEvents(events.ContextWithSessionStartCallback(ctx, cb), sessionID, startIndex)
+}
+
+// sessionTypeFromStartEvent determines the session type given the session start
+// event.
+func sessionTypeFromStartEvent(sessionStart apievents.AuditEvent) types.SessionKind {
+	switch e := sessionStart.(type) {
+	case *apievents.SessionStart:
+		if e.KubernetesCluster != "" {
+			return types.KubernetesSessionKind
+		}
+		return types.SSHSessionKind
+	case *apievents.DatabaseSessionStart:
+		return types.DatabaseSessionKind
+	case *apievents.AppSessionStart:
+		return types.AppSessionKind
+	case *apievents.WindowsDesktopSessionStart:
+		return types.WindowsDesktopSessionKind
+	default:
+		return types.UnknownSessionKind
+	}
 }
 
 // CreateApp creates a new application resource.
@@ -6741,7 +7014,7 @@ func (a *ServerWithRoles) enforceGlobalModeTrustedDevice(ctx context.Context) er
 		return trace.Wrap(err)
 	}
 
-	err = dtauthz.VerifyTLSUser(readOnlyAuthPref.GetDeviceTrust(), a.context.Identity.GetIdentity())
+	err = dtauthz.VerifyTLSUser(ctx, readOnlyAuthPref.GetDeviceTrust(), a.context.Identity.GetIdentity())
 	return trace.Wrap(err)
 }
 
@@ -6896,7 +7169,7 @@ func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp t
 				AttributeMapping:        typesAttrMapToEventAttrMap(sp.GetAttributeMapping()),
 			},
 		}); emitErr != nil {
-			log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider created event.")
+			a.authServer.logger.WarnContext(ctx, "Failed to emit SAML IdP service provider created event", "error", emitErr)
 		}
 	}()
 
@@ -6949,7 +7222,7 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 				AttributeMapping:        typesAttrMapToEventAttrMap(sp.GetAttributeMapping()),
 			},
 		}); emitErr != nil {
-			log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider updated event.")
+			a.authServer.logger.WarnContext(ctx, "Failed to emit SAML IdP service provider updated event", "error", emitErr)
 		}
 	}()
 
@@ -7015,7 +7288,7 @@ func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name
 				ServiceProviderEntityID: entityID,
 			},
 		}); emitErr != nil {
-			log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider deleted event.")
+			a.authServer.logger.WarnContext(ctx, "Failed to emit SAML IdP service provider deleted event", "error", emitErr)
 		}
 	}()
 
@@ -7063,7 +7336,7 @@ func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) 
 				UpdatedBy: authz.ClientUsername(ctx),
 			},
 		}); emitErr != nil {
-			log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider deleted all event.")
+			a.authServer.logger.WarnContext(ctx, "Failed to emit SAML IdP service provider deleted all event", "error", emitErr)
 		}
 	}()
 
@@ -7486,7 +7759,7 @@ func emitHeadlessLoginEvent(ctx context.Context, code string, emitter apievents.
 	}
 
 	if emitErr := emitter.EmitAuditEvent(ctx, &event); emitErr != nil {
-		log.WithError(err).Warnf("Failed to emit %q login event, code %q: %v", events.LoginMethodHeadless, code, emitErr)
+		logger.WarnContext(ctx, "Failed to emit headless login event", "event_code", code, "error", emitErr)
 	}
 }
 
@@ -7510,7 +7783,11 @@ func emitSSOLoginFailureEvent(ctx context.Context, emitter apievents.Emitter, me
 	})
 
 	if emitErr != nil {
-		log.WithError(err).Warnf("Failed to emit %v login failure event: %v", method, emitErr)
+		logger.WarnContext(ctx, "Failed to emit sso login event",
+			"sso_method", method,
+			"event_code", code,
+			"error", emitErr,
+		)
 	}
 }
 
@@ -7536,22 +7813,22 @@ func checkOktaLockTarget(ctx context.Context, authzCtx *authz.Context, users ser
 	target := lock.Target()
 	switch {
 	case !target.Equals(types.LockTarget{User: target.User}):
-		return trace.BadParameter(errorMsg)
+		return trace.BadParameter("%s", errorMsg)
 
 	case target.User == "":
-		return trace.BadParameter(errorMsg)
+		return trace.BadParameter("%s", errorMsg)
 	}
 
 	targetUser, err := users.GetUser(ctx, target.User, false /* withSecrets */)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return trace.AccessDenied(errorMsg)
+			return trace.AccessDenied("%s", errorMsg)
 		}
 		return trace.Wrap(err)
 	}
 
 	if targetUser.Origin() != types.OriginOkta {
-		return trace.AccessDenied(errorMsg)
+		return trace.AccessDenied("%s", errorMsg)
 	}
 
 	return nil

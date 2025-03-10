@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -31,7 +32,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 	authzapi "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apimachineryversion "k8s.io/apimachinery/pkg/version"
@@ -140,7 +140,6 @@ func TestGetKubeCreds(t *testing.T) {
 	rbacSupportedTypes[allowedResourcesKey{apiGroup: "resources.teleport.dev", resourceKind: "teleportroles"}] = utils.KubeCustomResource
 	rbacSupportedTypes[allowedResourcesKey{apiGroup: "resources.teleport.dev", resourceKind: "teleportroles/status"}] = utils.KubeCustomResource
 
-	logger := utils.NewLoggerForTests()
 	ctx := context.TODO()
 	const teleClusterName = "teleport-cluster"
 	dir := t.TempDir()
@@ -351,7 +350,7 @@ current-context: foo
 					CheckImpersonationPermissions: tt.impersonationCheck,
 					Clock:                         clockwork.NewFakeClock(),
 				},
-				log: logger,
+				log: utils.NewSlogLoggerForTests(),
 			}
 			err := fwd.getKubeDetails(ctx)
 			tt.assertErr(t, err)

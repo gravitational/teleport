@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
-import { render, screen, userEvent, fireEvent } from 'design/utils/testing';
+
+import { fireEvent, render, screen, userEvent } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
 import { createTeleportContext } from 'teleport/mocks/contexts';

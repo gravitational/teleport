@@ -13,9 +13,6 @@ token, and removing a trusted device.
 
 (!docs/pages/includes/device-trust/prereqs.mdx!)
 
-- For clusters created after v13.3.6, Teleport supports the preset `device-admin`
-  role to manage devices.
-
 ## Register a trusted device
 
 The `tctl` tool is used to manage the device inventory. A device admin is
@@ -70,9 +67,10 @@ $ tsh device asset-tag
 </Details>
 
 
-Replace <Var name="(=devicetrust.asset_tag=)" description="The serial number to
-be registered"/> with the serial number of the device you wish to enroll and run
-the `tctl devices add` command:
+Replace 
+<Var name="(=devicetrust.asset_tag=)" description="The serial number to be registered"/> 
+with the serial number of the device you wish to enroll and
+<Var name="macos" /> with your operating system. Run the `tctl devices add` command:
 
 ```code
 $ tctl devices add --os='<Var name="macos"/>' --asset-tag='<Var name="(=devicetrust.asset_tag=)"/>'

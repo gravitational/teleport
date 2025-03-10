@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Box, Flex, H2, ResourceIcon } from 'design';
 import styled from 'styled-components';
+
+import { Box, Flex, H2, ResourceIcon } from 'design';
 import { P } from 'design/Text/Text';
 
 export const IntegrationTile = styled(Flex)<{

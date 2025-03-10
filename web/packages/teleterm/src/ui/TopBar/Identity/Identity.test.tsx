@@ -16,17 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render } from 'design/utils/testing';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+
+import { render } from 'design/utils/testing';
 import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
 
-import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import {
-  rootClusterUri,
-  makeRootCluster,
   makeLoggedInUser,
+  makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 
 import { IdentityContainer } from './Identity';
@@ -72,28 +72,11 @@ test.each([
   },
 ])('$name', async testCase => {
   const appContext = new MockAppContext();
-  appContext.clustersService.setState(draft => {
-    draft.clusters.set(
-      rootClusterUri,
-      makeRootCluster({
-        uri: rootClusterUri,
-        loggedInUser: testCase.user,
-      })
-    );
-  });
-
-  appContext.workspacesService.setState(draft => {
-    draft.rootClusterUri = rootClusterUri;
-    draft.workspaces[rootClusterUri] = {
-      localClusterUri: rootClusterUri,
-      documents: [],
-      location: undefined,
-      accessRequests: {
-        isBarCollapsed: true,
-        pending: { kind: 'resource', resources: new Map() },
-      },
-    };
-  });
+  appContext.addRootCluster(
+    makeRootCluster({
+      loggedInUser: testCase.user,
+    })
+  );
 
   render(
     <MockAppContextProvider appContext={appContext}>

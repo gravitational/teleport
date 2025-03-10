@@ -16,10 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
-
 import { SearchPanel } from 'shared/components/Search';
 
 import { SeversidePagination } from 'teleport/components/hooks/useServersidePagination';
@@ -41,6 +39,7 @@ export function RoleList({
   serversidePagination: SeversidePagination<RoleResource>;
   rolesAcl: Access;
 }) {
+  const canView = rolesAcl.list && rolesAcl.read;
   const canEdit = rolesAcl.edit;
   const canDelete = rolesAcl.remove;
 
@@ -74,6 +73,7 @@ export function RoleList({
           altKey: 'options-btn',
           render: (role: RoleResource) => (
             <ActionCell
+              canView={canView}
               canDelete={canDelete}
               canEdit={canEdit}
               onEdit={() => onEdit(role.id)}
@@ -89,18 +89,23 @@ export function RoleList({
 }
 
 const ActionCell = (props: {
+  canView: boolean;
   canEdit: boolean;
   canDelete: boolean;
   onEdit(): void;
   onDelete(): void;
 }) => {
-  if (!(props.canEdit || props.canDelete)) {
+  if (!(props.canView || props.canDelete)) {
     return <Cell align="right" />;
   }
   return (
     <Cell align="right">
       <MenuButton>
-        {props.canEdit && <MenuItem onClick={props.onEdit}>Edit</MenuItem>}
+        {props.canView && (
+          <MenuItem onClick={props.onEdit}>
+            {props.canEdit ? 'Edit' : 'View Details'}
+          </MenuItem>
+        )}
         {props.canDelete && (
           <MenuItem onClick={props.onDelete}>Delete</MenuItem>
         )}

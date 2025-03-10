@@ -291,6 +291,13 @@ message UserCertsRequest {
   teleport.attestation.v1.AttestationStatement SSHPublicKeyAttestationStatement = 25 [(gogoproto.jsontag) = "ssh_public_key_attestation_statement,omitempty"];
   // TLSPublicKeyAttestationStatement is an attestation statement for TLSPublicKey.
   teleport.attestation.v1.AttestationStatement TLSPublicKeyAttestationStatement = 26 [(gogoproto.jsontag) = "tls_public_key_attestation_statement,omitempty"];
+
+  // ReissuableRoleImpersonation is a flag that indicates whether or not a
+  // role impersonation certificate can be reissued. If set to true, the
+  // generated certificate will be re-issuable, by default, it will not be
+  // re-issuable. This flag is only applicable when UseRoleRequests is set to
+  // true.
+  bool ReissuableRoleImpersonation = 27 [(gogoproto.jsontag) = "reissuable_role_impersonation"];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -2145,6 +2152,36 @@ message ListResourcesRequest {
   bool IncludeLogins = 13 [(gogoproto.jsontag) = "include_logins,omitempty"];
 }
 
+// ResolveSSHTargetRequest provides details about a server to be resolved in
+// an equivalent manner to a ssh dial request.
+//
+// Resolution can happen in two modes:
+//  1) searching for hosts based on labels, a predicate expression, or keywords
+//  2) searching based on hostname
+//
+// If a Host is provided, resolution will only operate in the second mode and
+// will not perform any resolution based on labels. In order to resolve via
+// labels the Host must not be populated.
+message ResolveSSHTargetRequest {
+  // The target host as would be sent to the proxy during a dial request.
+  string host = 1;
+  // The ssh port. This value is optional, and both empty string and "0" are typically
+  // treated as meaning that any port should match.
+  string port = 2;
+  // If not empty, a label-based matcher.
+  map<string, string> labels = 3;
+  // Boolean conditions that will be matched against the resource.
+  string predicate_expression = 4;
+  // A list of search keywords to match against resource field values.
+  repeated string search_keywords = 5;
+}
+
+// GetSSHTargetsResponse holds ssh servers that match an ssh targets request.
+message ResolveSSHTargetResponse {
+  // The target matching the supplied request.
+  types.ServerV2 server = 1;
+}
+
 // GetSSHTargetsRequest gets all servers that might match an equivalent ssh dial request.
 message GetSSHTargetsRequest {
   // Host is the target host as would be sent to the proxy during a dial request.
@@ -3278,7 +3315,11 @@ service AuthService {
   // GetTrustedClusters gets all current Trusted Cluster resources.
   rpc GetTrustedClusters(google.protobuf.Empty) returns (types.TrustedClusterV2List);
   // UpsertTrustedCluster upserts a Trusted Cluster in a backend.
-  rpc UpsertTrustedCluster(types.TrustedClusterV2) returns (types.TrustedClusterV2);
+  //
+  // Deprecated: Use [teleport.trust.v1.UpsertTrustedCluster] instead.
+  rpc UpsertTrustedCluster(types.TrustedClusterV2) returns (types.TrustedClusterV2) {
+    option deprecated = true;
+  }
   // DeleteTrustedCluster deletes an existing Trusted Cluster in a backend by name.
   rpc DeleteTrustedCluster(types.ResourceRequest) returns (google.protobuf.Empty);
 
@@ -3552,6 +3593,9 @@ service AuthService {
   // which is what we want when handling things like ambiguous host errors and resource-based access requests,
   // but may result in confusing behavior if it is used outside of those contexts.
   rpc GetSSHTargets(GetSSHTargetsRequest) returns (GetSSHTargetsResponse);
+
+  // ResolveSSHTarget returns the server that would be resolved in an equivalent ssh dial request.
+  rpc ResolveSSHTarget(ResolveSSHTargetRequest) returns (ResolveSSHTargetResponse);
 
   // GetDomainName returns local auth domain of the current auth server
   rpc GetDomainName(google.protobuf.Empty) returns (GetDomainNameResponse);

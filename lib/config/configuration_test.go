@@ -2648,7 +2648,7 @@ func TestAppsCLF(t *testing.T) {
 			outApps:   nil,
 			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
-				require.ErrorContains(t, err, "application name \"-foo\" must be a valid DNS subdomain: https://goteleport.com/docs/application-access/guides/connecting-apps/#application-name")
+				require.ErrorContains(t, err, "application name \"-foo\" must be a valid DNS subdomain: https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name")
 			},
 		},
 		{
@@ -3216,6 +3216,27 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 				"HSM pin file (%s) must not be world-readable",
 				worldReadablePinFilePath,
 			),
+		},
+		{
+			name: "correct config with max sessions",
+			auth: Auth{
+				CAKeyParams: &CAKeyParams{
+					PKCS11: &PKCS11{
+						ModulePath:  securePKCS11LibPath,
+						TokenLabel:  "foo",
+						SlotNumber:  &slotNumber,
+						MaxSessions: 100,
+					},
+				},
+			},
+			want: servicecfg.KeystoreConfig{
+				PKCS11: servicecfg.PKCS11Config{
+					TokenLabel:  "foo",
+					SlotNumber:  &slotNumber,
+					MaxSessions: 100,
+					Path:        securePKCS11LibPath,
+				},
+			},
 		},
 		{
 			name: "correct gcp config",
@@ -3957,7 +3978,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				},
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.BadParameter(`okta_service is enabled but no api_endpoint is specified`))
+				require.ErrorIs(t, err, trace.BadParameter("okta_service is enabled but no api_endpoint is specified"))
 			},
 		},
 		{
@@ -3983,7 +4004,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				APIEndpoint: `http://`,
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.BadParameter(`api_endpoint has no host`))
+				require.ErrorIs(t, err, trace.BadParameter("api_endpoint has no host"))
 			},
 		},
 		{
@@ -3996,7 +4017,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				APIEndpoint: `//hostname`,
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.BadParameter(`api_endpoint has no scheme`))
+				require.ErrorIs(t, err, trace.BadParameter("api_endpoint has no scheme"))
 			},
 		},
 		{
@@ -4008,7 +4029,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				APIEndpoint: "https://test-endpoint",
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.BadParameter(`okta_service is enabled but no api_token_path is specified`))
+				require.ErrorIs(t, err, trace.BadParameter("okta_service is enabled but no api_token_path is specified"))
 			},
 		},
 		{
@@ -4021,7 +4042,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				APITokenPath: "/non-existent/path",
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.BadParameter(`error trying to find file %s`, i...))
+				require.ErrorIs(t, err, trace.BadParameter("error trying to find file %s", i...))
 			},
 		},
 		{

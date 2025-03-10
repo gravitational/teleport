@@ -19,18 +19,18 @@
 import React, { PropsWithChildren } from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { ResourceSpec } from 'teleport/Discover/SelectResource';
 import { ContextProvider } from 'teleport';
-import {
-  DiscoverProvider,
-  DiscoverContextState,
-  AgentMeta,
-} from 'teleport/Discover/useDiscover';
-import { createTeleportContext } from 'teleport/mocks/contexts';
-import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-import { ResourceKind } from 'teleport/Discover/Shared';
 import cfg from 'teleport/config';
+import { ResourceSpec } from 'teleport/Discover/SelectResource';
+import { ResourceKind } from 'teleport/Discover/Shared';
+import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
+import {
+  AgentMeta,
+  DiscoverContextState,
+  DiscoverProvider,
+} from 'teleport/Discover/useDiscover';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import { Acl, AuthType } from 'teleport/services/user';
 
 export const TeleportProvider: React.FC<

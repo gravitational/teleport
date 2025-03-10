@@ -16,18 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
+
 import { ButtonBorder, Flex } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import { dateTimeMatcher } from 'design/utils/match';
 
 import { Event } from 'teleport/services/audit';
 
-import { State } from '../useAuditEvents';
 import EventDialog from '../EventDialog';
-
+import { State } from '../useAuditEvents';
 import renderTypeCell from './EventTypeCell';
-
 import { ViewInPolicyButton } from './ViewInPolicyButton';
 
 export default function EventList(props: Props) {

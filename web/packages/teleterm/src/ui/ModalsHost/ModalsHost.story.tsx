@@ -16,15 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import {
   DialogDocumentsReopen,
-  ModalsService,
-  DialogHardwareKeyTouch,
   DialogHardwareKeyPin,
+  DialogHardwareKeyTouch,
+  ModalsService,
 } from 'teleterm/ui/services/modals';
 
 import ModalsHost from './ModalsHost';
@@ -56,6 +54,7 @@ const documentsReopenDialog: DialogDocumentsReopen = {
   rootClusterUri: '/clusters/foo',
   numberOfDocuments: 1,
   onConfirm: () => {},
+  onDiscard: () => {},
   onCancel: () => {},
 };
 

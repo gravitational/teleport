@@ -276,6 +276,7 @@ export const eventCodes = {
   ACCESS_LIST_MEMBER_DELETE_FAILURE: 'TAL007E',
   ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST: 'TAL008I',
   ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE: 'TAL008E',
+  USER_LOGIN_INVALID_ACCESS_LIST: 'TAL009W',
   SECURITY_REPORT_AUDIT_QUERY_RUN: 'SRE001I',
   SECURITY_REPORT_RUN: 'SRE002I',
   EXTERNAL_AUDIT_STORAGE_ENABLE: 'TEA001I',
@@ -309,6 +310,17 @@ export const eventCodes = {
   PLUGIN_DELETE: 'PG003I',
   CONTACT_CREATE: 'TCTC001I',
   CONTACT_DELETE: 'TCTC002I',
+  GIT_COMMAND: 'TGIT001I',
+  GIT_COMMAND_FAILURE: 'TGIT001E',
+  STABLE_UNIX_USER_CREATE: 'TSUU001I',
+  AWS_IC_RESOURCE_SYNC_SUCCESS: 'TAIC001I',
+  AWS_IC_RESOURCE_SYNC_FAILURE: 'TAIC001E',
+  AUTOUPDATE_CONFIG_CREATE: 'AUC001I',
+  AUTOUPDATE_CONFIG_UPDATE: 'AUC002I',
+  AUTOUPDATE_CONFIG_DELETE: 'AUC003I',
+  AUTOUPDATE_VERSION_CREATE: 'AUV001I',
+  AUTOUPDATE_VERSION_UPDATE: 'AUV002I',
+  AUTOUPDATE_VERSION_DELETE: 'AUV003I',
 } as const;
 
 /**
@@ -1568,6 +1580,14 @@ export type RawEvents = {
       updated_by: string;
     }
   >;
+  [eventCodes.USER_LOGIN_INVALID_ACCESS_LIST]: RawEvent<
+    typeof eventCodes.USER_LOGIN_INVALID_ACCESS_LIST,
+    {
+      access_list_name: string;
+      user: string;
+      missing_roles: string[];
+    }
+  >;
   [eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN]: RawEvent<
     typeof eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN,
     {
@@ -1751,6 +1771,78 @@ export type RawEvents = {
     {
       email: string;
       contact_type: number;
+    }
+  >;
+  [eventCodes.GIT_COMMAND]: RawEvent<
+    typeof eventCodes.GIT_COMMAND,
+    {
+      service: string;
+      path: string;
+      actions?: {
+        action: string;
+        reference: string;
+        new?: string;
+        old?: string;
+      }[];
+    }
+  >;
+  [eventCodes.GIT_COMMAND_FAILURE]: RawEvent<
+    typeof eventCodes.GIT_COMMAND_FAILURE,
+    {
+      service: string;
+      path: string;
+      exitError: string;
+    }
+  >;
+  [eventCodes.STABLE_UNIX_USER_CREATE]: RawEvent<
+    typeof eventCodes.STABLE_UNIX_USER_CREATE,
+    {
+      stable_unix_user: {
+        username: string;
+        uid: number;
+      };
+    }
+  >;
+  [eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS]: RawEventAwsIcResourceSync<
+    typeof eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS
+  >;
+  [eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE]: RawEventAwsIcResourceSync<
+    typeof eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE
+  >;
+  [eventCodes.AUTOUPDATE_CONFIG_CREATE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_CONFIG_CREATE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.AUTOUPDATE_CONFIG_UPDATE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_CONFIG_UPDATE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.AUTOUPDATE_CONFIG_DELETE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_CONFIG_DELETE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.AUTOUPDATE_VERSION_CREATE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_VERSION_CREATE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.AUTOUPDATE_VERSION_UPDATE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_VERSION_UPDATE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.AUTOUPDATE_VERSION_DELETE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_VERSION_DELETE,
+    {
+      user: string;
     }
   >;
 };
@@ -1954,12 +2046,29 @@ type RawSpannerRPCEvent<T extends EventCode> = RawEvent<
 >;
 
 /**
+ * RawEventAwsIcResourceSync extends RawEvent with custom fields
+ * present in the AWS Identity Center resource sync event.
+ */
+type RawEventAwsIcResourceSync<T extends EventCode> = RawEvent<
+  T,
+  {
+    total_accounts: number;
+    total_account_assignments: number;
+    total_user_groups: number;
+    total_permission_sets: number;
+    status: boolean;
+    /* message contains user message for both success and failed status */
+    message: string;
+  }
+>;
+
+/**
  * A map of event formatters that provide short and long description
  */
 export type Formatters = {
   [key in EventCode]: {
     type: string;
-    desc: string;
+    desc: string | ((json: RawEvents[key]) => string);
     format: (json: RawEvents[key]) => string;
   };
 };

@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ITheme } from '@xterm/xterm';
 import React, {
   forwardRef,
   useEffect,
@@ -23,14 +24,13 @@ import React, {
   useRef,
 } from 'react';
 import styled from 'styled-components';
-import { Flex } from 'design';
-import { ITheme } from '@xterm/xterm';
 
+import { Flex } from 'design';
 import { getPlatformType } from 'design/platform';
 
-import Tty from 'teleport/lib/term/tty';
-import XTermCtrl from 'teleport/lib/term/terminal';
 import { getMappedAction } from 'teleport/Console/useKeyboardNav';
+import XTermCtrl from 'teleport/lib/term/terminal';
+import Tty from 'teleport/lib/term/tty';
 
 import StyledXterm from '../../StyledXterm';
 
@@ -43,6 +43,7 @@ export interface TerminalProps {
   convertEol?: boolean;
   // terminalAddons is used to pass the tty to the parent component to enable any optional components like search or filetransfers.
   terminalAddons?: (terminalRef: XTermCtrl) => React.JSX.Element;
+  disableCtrlC?: boolean;
 }
 
 export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
@@ -73,6 +74,10 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
     termCtrl.open();
 
     const { unregister } = termCtrl.registerCustomKeyEventHandler(event => {
+      if (props.disableCtrlC && event.ctrlKey && event.key === 'c') {
+        return false;
+      }
+
       const { tabSwitch } = getMappedAction(event);
       if (tabSwitch) {
         return false;

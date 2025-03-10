@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
@@ -90,8 +91,9 @@ type ConnectionsHandlerConfig struct {
 	// Cloud provides cloud provider access related functionality.
 	Cloud Cloud
 
-	// AWSSessionProvider is used to provide AWS Sessions.
-	AWSSessionProvider awsutils.AWSSessionProvider
+	// AWSConfigOptions is used to provide additional options when getting
+	// config.
+	AWSConfigOptions []awsconfig.OptionsFn
 
 	// TLSConfig is the *tls.Config for this server.
 	TLSConfig *tls.Config
@@ -139,13 +141,14 @@ func (c *ConnectionsHandlerConfig) CheckAndSetDefaults() error {
 	if c.TLSConfig == nil {
 		return trace.BadParameter("tls config missing")
 	}
-	if c.AWSSessionProvider == nil {
-		return trace.BadParameter("aws session provider missing")
+	if c.Logger == nil {
+		c.Logger = slog.Default().With(teleport.ComponentKey, teleport.Component(c.ServiceComponent))
 	}
 	if c.Cloud == nil {
 		cloud, err := NewCloud(CloudConfig{
-			Clock:         c.Clock,
-			SessionGetter: c.AWSSessionProvider,
+			Clock:            c.Clock,
+			AWSConfigOptions: c.AWSConfigOptions,
+			Logger:           c.Logger,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -157,9 +160,6 @@ func (c *ConnectionsHandlerConfig) CheckAndSetDefaults() error {
 	}
 	if c.ServiceComponent == "" {
 		return trace.BadParameter("service component missing")
-	}
-	if c.Logger == nil {
-		c.Logger = slog.Default().With(teleport.ComponentKey, teleport.Component(c.ServiceComponent))
 	}
 	return nil
 }
@@ -206,16 +206,14 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		return nil, trace.Wrap(err)
 	}
 
-	awsSigner, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{
-		Clock:           cfg.Clock,
-		SessionProvider: cfg.AWSSessionProvider,
-	})
+	awsConfigProvider, err := awsconfig.NewCache(awsconfig.WithDefaults(cfg.AWSConfigOptions...))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	awsHandler, err := appaws.NewAWSSignerHandler(closeContext, appaws.SignerHandlerConfig{
-		SigningService: awsSigner,
-		Clock:          cfg.Clock,
+		AWSConfigProvider: awsConfigProvider,
+		Clock:             cfg.Clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -692,7 +690,7 @@ func (c *ConnectionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// Return a nicer error message for device trust errors.
 			text = `Access to this app requires a trusted device.
 
-See https://goteleport.com/docs/access-controls/device-trust/device-management/#troubleshooting for help.
+See https://goteleport.com/docs/admin-guides/access-controls/device-trust/device-management/#troubleshooting for help.
 `
 		} else {
 			text = http.StatusText(code)
@@ -784,7 +782,7 @@ func newGetConfigForClientFn(log *slog.Logger, client authclient.AccessCache, tl
 
 		// Fetch list of CAs that could have signed this certificate. If clusterName
 		// is empty, all CAs that this cluster knows about are returned.
-		pool, _, err := authclient.DefaultClientCertPool(info.Context(), client, clusterName)
+		pool, _, _, err := authclient.DefaultClientCertPool(info.Context(), client, clusterName)
 		if err != nil {
 			// If this request fails, return nil and fallback to the default ClientCAs.
 			log.DebugContext(info.Context(), "Failed to retrieve client pool", "error", err)

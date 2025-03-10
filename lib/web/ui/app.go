@@ -20,9 +20,9 @@ package ui
 
 import (
 	"cmp"
+	"context"
+	"log/slog"
 	"sort"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/ui"
@@ -113,7 +113,7 @@ type MakeAppsConfig struct {
 	// UserGroupLookup is a map of user groups to provide to each App
 	UserGroupLookup map[string]types.UserGroup
 	// Logger is a logger used for debugging while making an app
-	Logger logrus.FieldLogger
+	Logger *slog.Logger
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool
 }
@@ -126,7 +126,7 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 	for _, userGroupName := range app.GetUserGroups() {
 		userGroup := c.UserGroupLookup[userGroupName]
 		if userGroup == nil {
-			c.Logger.Debugf("Unable to find user group %s when creating user groups, skipping", userGroupName)
+			c.Logger.DebugContext(context.Background(), "Unable to find user group when creating user groups, skipping", "user_group", userGroupName)
 			continue
 		}
 

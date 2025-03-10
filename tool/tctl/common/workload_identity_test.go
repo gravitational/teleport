@@ -20,13 +20,17 @@ package common
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v3"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -34,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/golden"
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -44,6 +48,9 @@ func runWorkloadIdentityCommand(
 	var stdoutBuf bytes.Buffer
 	cmd := &WorkloadIdentityCommand{
 		stdout: &stdoutBuf,
+		now: func() time.Time {
+			return time.Date(2024, 2, 5, 15, 4, 0, 0, time.UTC)
+		},
 	}
 	return &stdoutBuf, runCommand(t, clt, cmd, args)
 }
@@ -159,5 +166,133 @@ spec:
 
 		resources := mustDecodeJSON[[]*workloadidentityv1pb.WorkloadIdentity](t, buf)
 		require.Empty(t, resources)
+	})
+}
+
+func TestWorkloadIdentityRevocation(t *testing.T) {
+	t.Parallel()
+
+	process := testenv.MakeTestServer(t, testenv.WithLogger(utils.NewSlogLoggerForTests()))
+	rootClient := testenv.MakeDefaultAuthClient(t, process)
+
+	t.Run("workload-identity revocations ls empty", func(t *testing.T) {
+		buf, err := runWorkloadIdentityCommand(
+			t, rootClient, []string{
+				"workload-identity", "revocations", "ls",
+			},
+		)
+		require.NoError(t, err)
+		if golden.ShouldSet() {
+			golden.Set(t, buf.Bytes())
+		}
+		require.Equal(t, string(golden.Get(t)), buf.String())
+	})
+
+	t.Run("get list empty", func(t *testing.T) {
+		buf, err := runResourceCommand(
+			t, rootClient, []string{
+				"get",
+				types.KindWorkloadIdentityX509Revocation,
+				"--format=json",
+			},
+		)
+		require.NoError(t, err)
+		require.Equal(t, "[]", buf.String())
+	})
+
+	t.Run("workload-identity revocations add", func(t *testing.T) {
+		buf, err := runWorkloadIdentityCommand(
+			t, rootClient, []string{
+				"workload-identity",
+				"revocations",
+				"add",
+				"--type=x509",
+				"--serial=aa:bb:cc:dd",
+				"--reason=compromised",
+				"--expires-at=2030-02-24T15:04:00Z",
+			},
+		)
+		require.NoError(t, err)
+		if golden.ShouldSet() {
+			golden.Set(t, buf.Bytes())
+		}
+		require.Equal(t, string(golden.Get(t)), buf.String())
+	})
+
+	t.Run("workload-identity revocations ls with value", func(t *testing.T) {
+		buf, err := runWorkloadIdentityCommand(
+			t, rootClient, []string{
+				"workload-identity", "revocations", "ls",
+			},
+		)
+		require.NoError(t, err)
+		if golden.ShouldSet() {
+			golden.Set(t, buf.Bytes())
+		}
+		require.Equal(t, string(golden.Get(t)), buf.String())
+	})
+
+	t.Run("get list with value", func(t *testing.T) {
+		buf, err := runResourceCommand(
+			t, rootClient, []string{
+				"get",
+				types.KindWorkloadIdentityX509Revocation,
+				"--format=json",
+			},
+		)
+		require.NoError(t, err)
+
+		resources := mustDecodeJSON[[]json.RawMessage](t, buf)
+		require.Len(t, resources, 1)
+		resource := &workloadidentityv1pb.WorkloadIdentityX509Revocation{}
+		err = protojson.Unmarshal(resources[0], resource)
+		require.NoError(t, err)
+
+		require.Empty(t, cmp.Diff(
+			&workloadidentityv1pb.WorkloadIdentityX509Revocation{
+				Kind:    types.KindWorkloadIdentityX509Revocation,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name:    "aabbccdd",
+					Expires: timestamppb.New(time.Date(2030, 2, 24, 15, 4, 0, 0, time.UTC)),
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentityX509RevocationSpec{
+					Reason:    "compromised",
+					RevokedAt: timestamppb.New(time.Date(2024, 2, 5, 15, 4, 0, 0, time.UTC)),
+				},
+			},
+			resource,
+			protocmp.Transform(),
+			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		))
+	})
+
+	t.Run("workload-identity revocations rm", func(t *testing.T) {
+		buf, err := runWorkloadIdentityCommand(
+			t, rootClient, []string{
+				"workload-identity",
+				"revocations",
+				"rm",
+				"--serial=aa:bb:cc:dd",
+				"--type=x509",
+			},
+		)
+		require.NoError(t, err)
+		if golden.ShouldSet() {
+			golden.Set(t, buf.Bytes())
+		}
+		require.Equal(t, string(golden.Get(t)), buf.String())
+	})
+
+	t.Run("get list empty after delete", func(t *testing.T) {
+		buf, err := runResourceCommand(
+			t, rootClient, []string{
+				"get",
+				types.KindWorkloadIdentityX509Revocation,
+				"--format=json",
+			},
+		)
+		require.NoError(t, err)
+		require.Equal(t, "[]", buf.String())
 	})
 }

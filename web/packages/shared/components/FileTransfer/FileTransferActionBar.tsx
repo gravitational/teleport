@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Flex, ButtonIcon, Text } from 'design';
+import { ButtonIcon, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 

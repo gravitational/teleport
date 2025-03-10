@@ -16,16 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { createTeleportContext } from 'teleport/mocks/contexts';
+import { Route } from 'teleport/components/Router';
 import { ContextProvider } from 'teleport/index';
 import { ContentMinWidth } from 'teleport/Main/Main';
-import { Route } from 'teleport/components/Router';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { clusterInfoFixture } from '../fixtures';
-
 import { ManageCluster } from './ManageCluster';
 
 export default {

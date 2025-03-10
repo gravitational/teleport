@@ -16,14 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { render, fireEvent, screen } from 'design/utils/testing';
+import { fireEvent, render, screen } from 'design/utils/testing';
 
-import Table from './Table';
 import { SortIndicator } from './Cells';
+import Table from './Table';
 
 const data = [
   {

@@ -16,19 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import styled from 'styled-components';
 
-import { Box, Text, Link, Flex, ButtonPrimary, H1 } from 'design';
-
+import { Box, ButtonPrimary, Flex, H1, Link, Text } from 'design';
 import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 
 import FormLogin from 'teleport/components/FormLogin';
 import { LogoHero } from 'teleport/components/LogoHero';
 import cfg from 'teleport/config';
 
-import useLogin, { State } from './useLogin';
 import Motd from './Motd';
+import useLogin, { State } from './useLogin';
 
 export function Login() {
   const state = useLogin();

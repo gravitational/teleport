@@ -20,7 +20,6 @@ package rollout
 
 import (
 	"context"
-	"sync"
 	"testing"
 	"time"
 
@@ -33,6 +32,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	"github.com/gravitational/teleport/api/types"
 	update "github.com/gravitational/teleport/api/types/autoupdate"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -138,6 +138,8 @@ func TestTryReconcile(t *testing.T) {
 	t.Parallel()
 	log := utils.NewSlogLoggerForTests()
 	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
 	// Test setup: creating fixtures
 	configOK, err := update.NewAutoUpdateConfig(&autoupdate.AutoUpdateConfigSpec{
 		Tools: &autoupdate.AutoUpdateConfigSpecTools{
@@ -185,7 +187,7 @@ func TestTryReconcile(t *testing.T) {
 		Strategy:       update.AgentsStrategyHaltOnError,
 	})
 	require.NoError(t, err)
-	upToDateRollout.Status = &autoupdate.AutoUpdateAgentRolloutStatus{}
+	upToDateRollout.Status = &autoupdate.AutoUpdateAgentRolloutStatus{StartTime: timestamppb.New(clock.Now())}
 
 	outOfDateRollout, err := update.NewAutoUpdateAgentRollout(&autoupdate.AutoUpdateAgentRolloutSpec{
 		StartVersion:   "1.2.2",
@@ -314,8 +316,10 @@ func TestTryReconcile(t *testing.T) {
 			// Test execution: Running the reconciliation
 
 			reconciler := &reconciler{
-				clt: client,
-				log: log,
+				clt:     client,
+				log:     log,
+				clock:   clock,
+				metrics: newMetricsForTest(t),
 			}
 
 			require.NoError(t, reconciler.tryReconcile(ctx))
@@ -329,6 +333,7 @@ func TestTryReconcile(t *testing.T) {
 func TestReconciler_Reconcile(t *testing.T) {
 	log := utils.NewSlogLoggerForTests()
 	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
 	// Test setup: creating fixtures
 	config, err := update.NewAutoUpdateConfig(&autoupdate.AutoUpdateConfigSpec{
 		Tools: &autoupdate.AutoUpdateConfigSpecTools{
@@ -360,7 +365,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 		Strategy:       update.AgentsStrategyHaltOnError,
 	})
 	require.NoError(t, err)
-	upToDateRollout.Status = &autoupdate.AutoUpdateAgentRolloutStatus{}
+	upToDateRollout.Status = &autoupdate.AutoUpdateAgentRolloutStatus{StartTime: timestamppb.New(clock.Now())}
 
 	outOfDateRollout, err := update.NewAutoUpdateAgentRollout(&autoupdate.AutoUpdateAgentRolloutSpec{
 		StartVersion:   "1.2.2",
@@ -384,8 +389,10 @@ func TestReconciler_Reconcile(t *testing.T) {
 
 		client := newMockClient(t, stubs)
 		reconciler := &reconciler{
-			clt: client,
-			log: log,
+			clt:     client,
+			log:     log,
+			clock:   clock,
+			metrics: newMetricsForTest(t),
 		}
 
 		// Test execution: run the reconciliation loop
@@ -406,8 +413,10 @@ func TestReconciler_Reconcile(t *testing.T) {
 
 		client := newMockClient(t, stubs)
 		reconciler := &reconciler{
-			clt: client,
-			log: log,
+			clt:     client,
+			log:     log,
+			clock:   clock,
+			metrics: newMetricsForTest(t),
 		}
 
 		// Test execution: run the reconciliation loop
@@ -430,8 +439,10 @@ func TestReconciler_Reconcile(t *testing.T) {
 
 		client := newMockClient(t, stubs)
 		reconciler := &reconciler{
-			clt: client,
-			log: log,
+			clt:     client,
+			log:     log,
+			clock:   clock,
+			metrics: newMetricsForTest(t),
 		}
 
 		// Test execution: run the reconciliation loop
@@ -470,8 +481,10 @@ func TestReconciler_Reconcile(t *testing.T) {
 
 		client := newMockClient(t, stubs)
 		reconciler := &reconciler{
-			clt: client,
-			log: log,
+			clt:     client,
+			log:     log,
+			clock:   clock,
+			metrics: newMetricsForTest(t),
 		}
 
 		// Test execution: run the reconciliation loop
@@ -508,8 +521,10 @@ func TestReconciler_Reconcile(t *testing.T) {
 
 		client := newMockClient(t, stubs)
 		reconciler := &reconciler{
-			clt: client,
-			log: log,
+			clt:     client,
+			log:     log,
+			clock:   clock,
+			metrics: newMetricsForTest(t),
 		}
 
 		// Test execution: run the reconciliation loop
@@ -532,8 +547,10 @@ func TestReconciler_Reconcile(t *testing.T) {
 
 		client := newMockClient(t, stubs)
 		reconciler := &reconciler{
-			clt: client,
-			log: log,
+			clt:     client,
+			log:     log,
+			clock:   clock,
+			metrics: newMetricsForTest(t),
 		}
 
 		// Test execution: run the reconciliation loop
@@ -562,8 +579,10 @@ func TestReconciler_Reconcile(t *testing.T) {
 
 		client := newMockClient(t, stubs)
 		reconciler := &reconciler{
-			clt: client,
-			log: log,
+			clt:     client,
+			log:     log,
+			clock:   clock,
+			metrics: newMetricsForTest(t),
 		}
 
 		// Test execution: run the reconciliation loop
@@ -576,6 +595,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 
 func Test_makeGroupsStatus(t *testing.T) {
 	now := time.Now()
+	ctx := context.Background()
 
 	tests := []struct {
 		name      string
@@ -594,7 +614,6 @@ func Test_makeGroupsStatus(t *testing.T) {
 					LastUpdateReason: updateReasonCreated,
 					ConfigDays:       defaultUpdateDays,
 					ConfigStartHour:  defaultStartHour,
-					ConfigWaitDays:   0,
 				},
 			},
 		},
@@ -610,7 +629,6 @@ func Test_makeGroupsStatus(t *testing.T) {
 					LastUpdateReason: updateReasonCreated,
 					ConfigDays:       defaultUpdateDays,
 					ConfigStartHour:  defaultStartHour,
-					ConfigWaitDays:   0,
 				},
 			},
 		},
@@ -622,7 +640,6 @@ func Test_makeGroupsStatus(t *testing.T) {
 						Name:      "group1",
 						Days:      everyWeekday,
 						StartHour: matchingStartHour,
-						WaitDays:  0,
 					},
 				},
 			},
@@ -634,7 +651,6 @@ func Test_makeGroupsStatus(t *testing.T) {
 					LastUpdateReason: updateReasonCreated,
 					ConfigDays:       everyWeekday,
 					ConfigStartHour:  matchingStartHour,
-					ConfigWaitDays:   0,
 				},
 			},
 		},
@@ -646,13 +662,12 @@ func Test_makeGroupsStatus(t *testing.T) {
 						Name:      "group1",
 						Days:      everyWeekday,
 						StartHour: matchingStartHour,
-						WaitDays:  0,
 					},
 					{
 						Name:      "group2",
 						Days:      everyWeekdayButSunday,
 						StartHour: nonMatchingStartHour,
-						WaitDays:  1,
+						WaitHours: 1,
 					},
 				},
 			},
@@ -664,7 +679,6 @@ func Test_makeGroupsStatus(t *testing.T) {
 					LastUpdateReason: updateReasonCreated,
 					ConfigDays:       everyWeekday,
 					ConfigStartHour:  matchingStartHour,
-					ConfigWaitDays:   0,
 				},
 				{
 					Name:             "group2",
@@ -673,14 +687,22 @@ func Test_makeGroupsStatus(t *testing.T) {
 					LastUpdateReason: updateReasonCreated,
 					ConfigDays:       everyWeekdayButSunday,
 					ConfigStartHour:  nonMatchingStartHour,
-					ConfigWaitDays:   1,
+					ConfigWaitHours:  1,
 				},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := makeGroupsStatus(tt.schedules, now)
+			// We craft a mock client always answering there's no cmc.
+			// It's not the point of this test to check the cmc client usage so we don't count the number of calls here.
+			// CMC-specific tests happen in TestDefaultConfigGroup().
+			clt := newMockClient(t, mockClientStubs{cmcAnswers: []callAnswer[*types.ClusterMaintenanceConfigV1]{{
+				result: nil,
+				err:    trace.NotFound("no cmc"),
+			}}})
+			r := reconciler{clt: clt}
+			result, err := r.makeGroupsStatus(ctx, tt.schedules, now)
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, result)
 		})
@@ -700,7 +722,7 @@ func (f *fakeRolloutStrategy) name() string {
 	return f.strategyName
 }
 
-func (f *fakeRolloutStrategy) progressRollout(ctx context.Context, groups []*autoupdate.AutoUpdateAgentRolloutStatusGroup) error {
+func (f *fakeRolloutStrategy) progressRollout(ctx context.Context, spec *autoupdate.AutoUpdateAgentRolloutSpec, status *autoupdate.AutoUpdateAgentRolloutStatus, now time.Time) error {
 	f.calls++
 	return nil
 }
@@ -734,11 +756,13 @@ func Test_reconciler_computeStatus(t *testing.T) {
 			},
 		},
 	}
-	newGroups, err := makeGroupsStatus(schedules, clock.Now())
+	r := reconciler{}
+	newGroups, err := r.makeGroupsStatus(ctx, schedules, clock.Now())
 	require.NoError(t, err)
 	newStatus := &autoupdate.AutoUpdateAgentRolloutStatus{
-		Groups: newGroups,
-		State:  autoupdate.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_UNSTARTED,
+		Groups:    newGroups,
+		State:     autoupdate.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_UNSTARTED,
+		StartTime: timestamppb.New(clock.Now()),
 	}
 
 	tests := []struct {
@@ -830,7 +854,9 @@ func Test_reconciler_computeStatus(t *testing.T) {
 				Strategy:       fakeRolloutStrategyName,
 			},
 			// groups should be unset
-			expectedStatus:        &autoupdate.AutoUpdateAgentRolloutStatus{},
+			expectedStatus: &autoupdate.AutoUpdateAgentRolloutStatus{
+				StartTime: timestamppb.New(clock.Now()),
+			},
 			expectedStrategyCalls: 0,
 		},
 		{
@@ -838,7 +864,9 @@ func Test_reconciler_computeStatus(t *testing.T) {
 			existingRollout: &autoupdate.AutoUpdateAgentRollout{
 				Spec: oldSpec,
 				// old groups were empty
-				Status: &autoupdate.AutoUpdateAgentRolloutStatus{},
+				Status: &autoupdate.AutoUpdateAgentRolloutStatus{
+					StartTime: timestamppb.New(clock.Now()),
+				},
 			},
 			// no spec change
 			newSpec: oldSpec,
@@ -854,12 +882,106 @@ func Test_reconciler_computeStatus(t *testing.T) {
 				log:               log,
 				clock:             clock,
 				rolloutStrategies: []rolloutStrategy{strategy},
-				mutex:             sync.Mutex{},
+				metrics:           newMetricsForTest(t),
 			}
 			result, err := r.computeStatus(ctx, tt.existingRollout, tt.newSpec, schedules)
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(tt.expectedStatus, result, protocmp.Transform()))
 			require.Equal(t, tt.expectedStrategyCalls, strategy.calls)
+		})
+	}
+}
+
+func TestDefaultConfigGroup(t *testing.T) {
+	ctx := context.Background()
+	testStartHour := 16
+
+	tests := []struct {
+		name           string
+		cmcAnswer      callAnswer[*types.ClusterMaintenanceConfigV1]
+		expectedResult *autoupdate.AgentAutoUpdateGroup
+		expectError    require.ErrorAssertionFunc
+	}{
+		{
+			name: "no CMC",
+			cmcAnswer: callAnswer[*types.ClusterMaintenanceConfigV1]{
+				nil, trace.NotFound("no cmc"),
+			},
+			expectedResult: defaultGroup(),
+			expectError:    require.NoError,
+		},
+		{
+			name: "CMC with no upgrade window",
+			cmcAnswer: callAnswer[*types.ClusterMaintenanceConfigV1]{
+				&types.ClusterMaintenanceConfigV1{
+					Spec: types.ClusterMaintenanceConfigSpecV1{
+						AgentUpgrades: nil,
+					},
+				}, nil,
+			},
+			expectedResult: defaultGroup(),
+			expectError:    require.NoError,
+		},
+		{
+			name: "CMC with no weekdays",
+			cmcAnswer: callAnswer[*types.ClusterMaintenanceConfigV1]{
+				&types.ClusterMaintenanceConfigV1{
+					Spec: types.ClusterMaintenanceConfigSpecV1{
+						AgentUpgrades: &types.AgentUpgradeWindow{
+							UTCStartHour: uint32(testStartHour),
+							Weekdays:     nil,
+						},
+					},
+				}, nil,
+			},
+			expectedResult: &autoupdate.AgentAutoUpdateGroup{
+				Name:      defaultCMCGroupName,
+				Days:      []string{"*"},
+				StartHour: int32(testStartHour),
+				WaitHours: 0,
+			},
+			expectError: require.NoError,
+		},
+		{
+			name: "CMC with weekdays",
+			cmcAnswer: callAnswer[*types.ClusterMaintenanceConfigV1]{
+				&types.ClusterMaintenanceConfigV1{
+					Spec: types.ClusterMaintenanceConfigSpecV1{
+						AgentUpgrades: &types.AgentUpgradeWindow{
+							UTCStartHour: uint32(testStartHour),
+							Weekdays:     everyWeekdayButSunday,
+						},
+					},
+				}, nil,
+			},
+			expectedResult: &autoupdate.AgentAutoUpdateGroup{
+				Name:      defaultCMCGroupName,
+				Days:      everyWeekdayButSunday,
+				StartHour: int32(testStartHour),
+				WaitHours: 0,
+			},
+			expectError: require.NoError,
+		},
+		{
+			name: "unexpected error getting CMC",
+			cmcAnswer: callAnswer[*types.ClusterMaintenanceConfigV1]{
+				nil, trace.ConnectionProblem(trace.Errorf("oh no"), "connection failed"),
+			},
+			expectedResult: nil,
+			expectError:    require.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Test setup: loading fixtures.
+			clt := newMockClient(t, mockClientStubs{cmcAnswers: []callAnswer[*types.ClusterMaintenanceConfigV1]{tt.cmcAnswer}})
+			r := &reconciler{clt: clt}
+			// Test execution.
+			result, err := r.defaultConfigGroup(ctx)
+			tt.expectError(t, err)
+			require.Equal(t, tt.expectedResult, result)
+			// Test validation: the mock client should be empty.
+			clt.checkIfEmpty(t)
 		})
 	}
 }

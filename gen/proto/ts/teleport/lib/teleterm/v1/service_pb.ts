@@ -1180,6 +1180,24 @@ export interface AuthenticateWebDeviceResponse {
     confirmationToken?: DeviceConfirmationToken;
 }
 /**
+ * @generated from protobuf message teleport.lib.teleterm.v1.GetAppRequest
+ */
+export interface GetAppRequest {
+    /**
+     * @generated from protobuf field: string app_uri = 1;
+     */
+    appUri: string;
+}
+/**
+ * @generated from protobuf message teleport.lib.teleterm.v1.GetAppResponse
+ */
+export interface GetAppResponse {
+    /**
+     * @generated from protobuf field: teleport.lib.teleterm.v1.App app = 1;
+     */
+    app?: App;
+}
+/**
  * PasswordlessPrompt describes different prompts we need from users
  * during the passwordless login flow.
  *
@@ -5235,6 +5253,99 @@ class AuthenticateWebDeviceResponse$Type extends MessageType<AuthenticateWebDevi
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse
  */
 export const AuthenticateWebDeviceResponse = new AuthenticateWebDeviceResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetAppRequest$Type extends MessageType<GetAppRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.GetAppRequest", [
+            { no: 1, name: "app_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<GetAppRequest>): GetAppRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.appUri = "";
+        if (value !== undefined)
+            reflectionMergePartial<GetAppRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetAppRequest): GetAppRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string app_uri */ 1:
+                    message.appUri = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetAppRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string app_uri = 1; */
+        if (message.appUri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.appUri);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.GetAppRequest
+ */
+export const GetAppRequest = new GetAppRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetAppResponse$Type extends MessageType<GetAppResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.GetAppResponse", [
+            { no: 1, name: "app", kind: "message", T: () => App }
+        ]);
+    }
+    create(value?: PartialMessage<GetAppResponse>): GetAppResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<GetAppResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetAppResponse): GetAppResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.lib.teleterm.v1.App app */ 1:
+                    message.app = App.internalBinaryRead(reader, reader.uint32(), options, message.app);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetAppResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.lib.teleterm.v1.App app = 1; */
+        if (message.app)
+            App.internalBinaryWrite(message.app, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.GetAppResponse
+ */
+export const GetAppResponse = new GetAppResponse$Type();
 /**
  * @generated ServiceType for protobuf service teleport.lib.teleterm.v1.TerminalService
  */
@@ -5278,5 +5389,6 @@ export const TerminalService = new ServiceType("teleport.lib.teleterm.v1.Termina
     { name: "ListUnifiedResources", options: {}, I: ListUnifiedResourcesRequest, O: ListUnifiedResourcesResponse },
     { name: "GetUserPreferences", options: {}, I: GetUserPreferencesRequest, O: GetUserPreferencesResponse },
     { name: "UpdateUserPreferences", options: {}, I: UpdateUserPreferencesRequest, O: UpdateUserPreferencesResponse },
-    { name: "AuthenticateWebDevice", options: {}, I: AuthenticateWebDeviceRequest, O: AuthenticateWebDeviceResponse }
+    { name: "AuthenticateWebDevice", options: {}, I: AuthenticateWebDeviceRequest, O: AuthenticateWebDeviceResponse },
+    { name: "GetApp", options: {}, I: GetAppRequest, O: GetAppResponse }
 ]);

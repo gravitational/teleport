@@ -178,17 +178,19 @@ spec:
   *"email"* GitLab claim and use that field as an allowed login for each user.
   The `email.local(external.trait)` function removes the `@domain` and preserves
   the username prefix. For full details on how variable expansion works in
-  Teleport roles, see the [Teleport Access Controls
+  Teleport roles, see the [Access Controls
   Reference](../../../reference/access-controls/roles.mdx).
 - Developers also do not have any "allow rules" i.e. they will not be able to
   see/replay past sessions or re-configure the Teleport cluster.
 
-Create both roles on the auth server:
+Create both roles on the Auth Service:
 
 ```code
 $ tctl create -f admin.yaml
 $ tctl create -f dev.yaml
 ```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
 
 ## Enable default OIDC authentication
 

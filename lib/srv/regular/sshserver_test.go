@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -41,17 +42,18 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/moby/term"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -114,7 +116,7 @@ type sshTestFixture struct {
 	up      *upack
 	signer  ssh.Signer
 	user    string
-	clock   clockwork.FakeClock
+	clock   *clockwork.FakeClock
 	testSrv *auth.TestServer
 }
 
@@ -474,8 +476,6 @@ func TestSessionAuditLog(t *testing.T) {
 	roleOptions := role.GetOptions()
 	roleOptions.PermitX11Forwarding = types.NewBool(true)
 	roleOptions.ForwardAgent = types.NewBool(true)
-	//nolint:staticcheck // this field is preserved for existing deployments, but shouldn't be used going forward
-	roleOptions.PortForwarding = types.NewBoolOption(true)
 	role.SetOptions(roleOptions)
 	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
@@ -517,32 +517,82 @@ func TestSessionAuditLog(t *testing.T) {
 	x11Event := nextEvent()
 	require.IsType(t, &apievents.X11Forward{}, x11Event, "expected X11Forward event but got event of tgsype %T", x11Event)
 
-	// Request a remote port forwarding listener.
+	// LOCAL PORT FORWARDING
+	// Start up a test server that doesn't do any remote port forwarding
+	nonForwardServer := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "hello, world")
+	}))
+	t.Cleanup(nonForwardServer.Close)
+	nonForwardServer.Start()
+
+	// Each locally forwarded dial should result in a new "start" event and each closed connection should result in a "stop"
+	// event. Note that we don't know what port the server will forward the connection on, so we don't have an easy way to validate the
+	// event's addr field.
+	localConn, err := f.ssh.clt.DialContext(context.Background(), "tcp", nonForwardServer.Listener.Addr().String())
+	require.NoError(t, err)
+
+	e = nextEvent()
+	localForwardStart, ok := e.(*apievents.PortForward)
+	require.True(t, ok, "expected PortForward event but got event of type %T", e)
+	require.Equal(t, events.PortForwardLocalEvent, localForwardStart.GetType())
+	require.Equal(t, events.PortForwardCode, localForwardStart.GetCode())
+	require.Equal(t, nonForwardServer.Listener.Addr().String(), localForwardStart.Addr)
+
+	// closed connections should result in PortForwardLocal stop events
+	localConn.Close()
+	e = nextEvent()
+	localForwardStop, ok := e.(*apievents.PortForward)
+	require.True(t, ok, "expected PortForward event but got event of type %T", e)
+	require.Equal(t, events.PortForwardLocalEvent, localForwardStop.GetType())
+	require.Equal(t, events.PortForwardStopCode, localForwardStop.GetCode())
+	require.Equal(t, nonForwardServer.Listener.Addr().String(), localForwardStop.Addr)
+
+	// REMOTE PORT FORWARDING
+	// Creation of a port forwarded listener should generate PortForwardRemote start events
 	listener, err := f.ssh.clt.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
-	// Start up a test server that uses the port forwarded listener.
-	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	e = nextEvent()
+	remoteForwardStart, ok := e.(*apievents.PortForward)
+	require.True(t, ok, "expected PortForward event but got event of type %T", e)
+	require.Equal(t, listener.Addr().String(), remoteForwardStart.Addr)
+	require.Equal(t, events.PortForwardRemoteEvent, remoteForwardStart.GetType())
+	require.Equal(t, events.PortForwardCode, remoteForwardStart.GetCode())
+
+	// Start up a test server that uses the remote port forwarded listener.
+	remoteForwardServer := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "hello, world")
 	}))
-	t.Cleanup(ts.Close)
-	ts.Listener = listener
-	ts.Start()
+	t.Cleanup(remoteForwardServer.Close)
+	remoteForwardServer.Listener = listener
+	remoteForwardServer.Start()
 
-	// Request forward to remote port. Each dial should result in a new event. Note that we don't
-	// know what port the server will forward the connection on, so we don't have an easy way to
-	// validate the event's addr field.
-	conn, err := f.ssh.clt.DialContext(context.Background(), "tcp", listener.Addr().String())
+	// Each dial to the remote listener should result in a new "start" event and each closed connection should result in a "stop" event.
+	// Note that we don't know what port the server will forward the connection on, so we don't have an easy way to validate the event's
+	// addr field.
+	remoteConn, err := net.Dial("tcp", listener.Addr().String())
 	require.NoError(t, err)
-	conn.Close()
-
-	directPortForwardEvent := nextEvent()
-	require.IsType(t, &apievents.PortForward{}, directPortForwardEvent, "expected PortForward event but got event of type %T", directPortForwardEvent)
-
 	e = nextEvent()
-	remotePortForwardEvent, ok := e.(*apievents.PortForward)
+	remoteConnStart, ok := e.(*apievents.PortForward)
 	require.True(t, ok, "expected PortForward event but got event of type %T", e)
-	require.Equal(t, listener.Addr().String(), remotePortForwardEvent.Addr)
+	require.Equal(t, events.PortForwardRemoteConnEvent, remoteConnStart.GetType())
+	require.Equal(t, events.PortForwardCode, remoteConnStart.GetCode())
+
+	remoteConn.Close()
+	e = nextEvent()
+	remoteConnStop, ok := e.(*apievents.PortForward)
+	require.True(t, ok, "expected PortForward event but got event of type %T", e)
+	require.Equal(t, events.PortForwardRemoteConnEvent, remoteConnStop.GetType())
+	require.Equal(t, events.PortForwardStopCode, remoteConnStop.GetCode())
+
+	// Closing the server (and therefore the listener) should generate an PortForwardRemote stop event
+	remoteForwardServer.Close()
+	e = nextEvent()
+	remoteForwardStop, ok := e.(*apievents.PortForward)
+	require.True(t, ok, "expected PortForward event but got event of type %T", e)
+	require.Equal(t, events.PortForwardRemoteEvent, remoteForwardStop.GetType())
+	require.Equal(t, events.PortForwardStopCode, remoteForwardStop.Code)
+	require.Equal(t, listener.Addr().String(), remoteForwardStop.Addr)
 
 	// End the session. Session leave, data, and end events should be emitted.
 	se.Close()
@@ -805,7 +855,6 @@ func TestDirectTCPIP(t *testing.T) {
 
 	// Startup a test server that will reply with "hello, world\n"
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
 		fmt.Fprintln(w, "hello, world")
 	}))
 	defer ts.Close()
@@ -1220,6 +1269,7 @@ func TestAgentForward(t *testing.T) {
 
 // TestX11Forward tests x11 forwarding via unix sockets
 func TestX11Forward(t *testing.T) {
+	ctx := context.Background()
 	if os.Getenv("TELEPORT_XAUTH_TEST") == "" {
 		t.Skip("Skipping test as xauth is not enabled")
 	}
@@ -1231,9 +1281,6 @@ func TestX11Forward(t *testing.T) {
 		DisplayOffset: x11.DefaultDisplayOffset,
 		MaxDisplay:    x11.DefaultMaxDisplays,
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	roleName := services.RoleNameForUser(f.user)
 	role, err := f.testSrv.Auth().GetRole(ctx, roleName)
@@ -1268,7 +1315,7 @@ func TestX11Forward(t *testing.T) {
 		errCh <- x11EchoRequest(serverDisplay2)
 	}()
 
-	for i := 0; i > 4; i++ {
+	for i := 0; i < 4; i++ {
 		select {
 		case err := <-errCh:
 			assert.NoError(t, err)
@@ -1321,7 +1368,11 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 		}()
 
 		err = utils.ProxyConn(ctx, clientXConn, sch)
-		assert.NoError(t, err)
+
+		// Error should be nil if the ssh client is closed first, or canceled if the context is closed first.
+		if !errors.Is(err, context.Canceled) {
+			assert.NoError(t, err)
+		}
 	})
 	require.NoError(t, err)
 
@@ -1350,24 +1401,30 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 		os.Remove(tmpFile.Name())
 	})
 
-	// type 'printenv DISPLAY > /path/to/tmp/file' into the session (dumping the value of DISPLAY into the temp file)
-	_, err = keyboard.Write([]byte(fmt.Sprintf("printenv %v >> %s\n\r", x11.DisplayEnv, tmpFile.Name())))
-	require.NoError(t, err)
+	// Reading the display may fail if the session is not fully initialized
+	// and the write to stdin is swallowed.
+	display := make(chan string, 1)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		// enter 'printenv DISPLAY > /path/to/tmp/file' into the session (dumping the value of DISPLAY into the temp file)
+		_, err = keyboard.Write([]byte(fmt.Sprintf("printenv %v > %s\n\r", x11.DisplayEnv, tmpFile.Name())))
+		assert.NoError(t, err)
 
-	// wait for the output
-	var display string
-	require.Eventually(t, func() bool {
-		output, err := os.ReadFile(tmpFile.Name())
-		if err == nil && len(output) != 0 {
-			display = strings.TrimSpace(string(output))
-			return true
-		}
-		return false
-	}, 10*time.Second, 100*time.Millisecond, "failed to read display")
+		assert.Eventually(t, func() bool {
+			output, err := os.ReadFile(tmpFile.Name())
+			if err == nil && len(output) != 0 {
+				select {
+				case display <- strings.TrimSpace(string(output)):
+				default:
+				}
+				return true
+			}
+			return false
+		}, time.Second, 100*time.Millisecond, "failed to read display")
+	}, 10*time.Second, 1*time.Second)
 
 	// Make a new connection to the XServer proxy, the client
 	// XServer should echo back anything written on it.
-	serverDisplay, err := x11.ParseDisplay(display)
+	serverDisplay, err := x11.ParseDisplay(<-display)
 	require.NoError(t, err)
 
 	return serverDisplay
@@ -1652,7 +1709,6 @@ func TestProxyRoundRobin(t *testing.T) {
 	proxyClient, _ := newProxyClient(t, f.testSrv)
 	nodeClient, _ := newNodeClient(t, f.testSrv)
 
-	logger := logrus.WithField("test", "TestProxyRoundRobin")
 	listener, reverseTunnelAddress := mustListen(t)
 	defer listener.Close()
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
@@ -1672,21 +1728,19 @@ func TestProxyRoundRobin(t *testing.T) {
 		NewCachingAccessPoint: noCache,
 		DataDir:               t.TempDir(),
 		Emitter:               proxyClient,
-		Log:                   logger,
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
+		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 	})
 	require.NoError(t, err)
-	logger.WithField("tun-addr", reverseTunnelAddress.String()).Info("Created reverse tunnel server.")
 
 	require.NoError(t, reverseTunnelServer.Start())
 	defer reverseTunnelServer.Close()
 
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:      f.testSrv.ClusterName(),
-		Log:              utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
 		LocalAccessPoint: proxyClient,
 		SiteGetter:       reverseTunnelServer,
 		TracerProvider:   tracing.NoopProvider(),
@@ -1792,7 +1846,6 @@ func TestProxyDirectAccess(t *testing.T) {
 	ctx := context.Background()
 
 	listener, _ := mustListen(t)
-	logger := logrus.WithField("test", "TestProxyDirectAccess")
 	proxyClient, _ := newProxyClient(t, f.testSrv)
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
 	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
@@ -1811,9 +1864,9 @@ func TestProxyDirectAccess(t *testing.T) {
 		NewCachingAccessPoint: noCache,
 		DataDir:               t.TempDir(),
 		Emitter:               proxyClient,
-		Log:                   logger,
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
+		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 	})
@@ -1826,7 +1879,6 @@ func TestProxyDirectAccess(t *testing.T) {
 
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:      f.testSrv.ClusterName(),
-		Log:              utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
 		LocalAccessPoint: proxyClient,
 		SiteGetter:       reverseTunnelServer,
 		TracerProvider:   tracing.NoopProvider(),
@@ -2499,9 +2551,9 @@ func TestParseSubsystemRequest(t *testing.T) {
 			NewCachingAccessPoint: noCache,
 			DataDir:               t.TempDir(),
 			Emitter:               proxyClient,
-			Log:                   logrus.StandardLogger(),
 			LockWatcher:           lockWatcher,
 			NodeWatcher:           nodeWatcher,
+			GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 			CertAuthorityWatcher:  caWatcher,
 		})
 		require.NoError(t, err)
@@ -2516,7 +2568,6 @@ func TestParseSubsystemRequest(t *testing.T) {
 
 		router, err := libproxy.NewRouter(libproxy.RouterConfig{
 			ClusterName:      f.testSrv.ClusterName(),
-			Log:              utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
 			LocalAccessPoint: proxyClient,
 			SiteGetter:       reverseTunnelServer,
 			TracerProvider:   tracing.NoopProvider(),
@@ -2744,7 +2795,6 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	ctx := context.Background()
 
 	listener, _ := mustListen(t)
-	logger := logrus.WithField("test", "TestIgnorePuTTYSimpleChannel")
 	proxyClient, _ := newProxyClient(t, f.testSrv)
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
 	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
@@ -2763,9 +2813,9 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		NewCachingAccessPoint: noCache,
 		DataDir:               t.TempDir(),
 		Emitter:               proxyClient,
-		Log:                   logger,
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
+		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 	})
 	require.NoError(t, err)
@@ -2777,7 +2827,6 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:      f.testSrv.ClusterName(),
-		Log:              utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
 		LocalAccessPoint: proxyClient,
 		SiteGetter:       reverseTunnelServer,
 		TracerProvider:   tracing.NoopProvider(),
@@ -3106,6 +3155,19 @@ func newNodeWatcher(ctx context.Context, t *testing.T, client *authclient.Client
 	return nodeWatcher
 }
 
+func newGitServerWatcher(ctx context.Context, t *testing.T, client *authclient.Client) *services.GenericWatcher[types.Server, readonly.Server] {
+	watcher, err := services.NewGitServerWatcher(ctx, services.GitServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Client:    client,
+		},
+		GitServerGetter: client.GitServerReadOnlyClient(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(watcher.Close)
+	return watcher
+}
+
 func newCertAuthorityWatcher(ctx context.Context, t *testing.T, client types.Events) *services.CertAuthorityWatcher {
 	caWatcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -3166,8 +3228,7 @@ func TestHostUserCreationProxy(t *testing.T) {
 	proxyClient, _ := newProxyClient(t, f.testSrv)
 	nodeClient, _ := newNodeClient(t, f.testSrv)
 
-	logger := logrus.WithField("test", "TestHostUserCreationProxy")
-	listener, reverseTunnelAddress := mustListen(t)
+	listener, _ := mustListen(t)
 	defer listener.Close()
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
 	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
@@ -3186,21 +3247,19 @@ func TestHostUserCreationProxy(t *testing.T) {
 		NewCachingAccessPoint: noCache,
 		DataDir:               t.TempDir(),
 		Emitter:               proxyClient,
-		Log:                   logger,
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
+		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 	})
 	require.NoError(t, err)
-	logger.WithField("tun-addr", reverseTunnelAddress.String()).Info("Created reverse tunnel server.")
 
 	require.NoError(t, reverseTunnelServer.Start())
 	defer reverseTunnelServer.Close()
 
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:      f.testSrv.ClusterName(),
-		Log:              utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
 		LocalAccessPoint: proxyClient,
 		SiteGetter:       reverseTunnelServer,
 		TracerProvider:   tracing.NoopProvider(),
@@ -3260,9 +3319,120 @@ func TestHostUserCreationProxy(t *testing.T) {
 
 	_, _, err = reg.UpsertHostUser(srv.IdentityContext{
 		AccessChecker: &fakeAccessChecker{},
-	})
+	}, srv.ObtainFallbackUIDFunc(nil))
 	assert.NoError(t, err)
 	assert.Empty(t, usersBackend.calls, 0)
+}
+
+func TestObtainFallbackUID(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	type testCase struct {
+		config     *types.StableUNIXUserConfig
+		obtainFunc func(username string) (int32, error)
+		username   string
+		required   func(uid int32, ok bool, err error)
+	}
+
+	for _, tc := range []testCase{{
+		config: nil,
+		obtainFunc: func(username string) (int32, error) {
+			require.FailNow(t, "called obtainFunc")
+			panic("unreachable")
+		},
+		username: "",
+		required: func(uid int32, ok bool, err error) {
+			require.NoError(t, err)
+			require.False(t, ok)
+		},
+	}, {
+		config: &types.StableUNIXUserConfig{
+			Enabled: false,
+		},
+		obtainFunc: func(username string) (int32, error) {
+			require.FailNow(t, "called obtainFunc")
+			panic("unreachable")
+		},
+		username: "",
+		required: func(uid int32, ok bool, err error) {
+			require.NoError(t, err)
+			require.False(t, ok)
+		},
+	}, {
+		config: &types.StableUNIXUserConfig{
+			Enabled: true,
+		},
+		obtainFunc: func(username string) (int32, error) {
+			require.Equal(t, "foo", username)
+			return 325872, nil
+		},
+		username: "foo",
+		required: func(uid int32, ok bool, err error) {
+			require.NoError(t, err)
+			require.True(t, ok)
+			require.Equal(t, int32(325872), uid)
+		},
+	}, {
+		config: &types.StableUNIXUserConfig{
+			Enabled: true,
+		},
+		obtainFunc: func(username string) (int32, error) {
+			require.Equal(t, "bar", username)
+			return 0, trace.LimitExceeded("no UIDs or something")
+		},
+		username: "bar",
+		required: func(uid int32, ok bool, err error) {
+			require.ErrorIs(t, err, &trace.LimitExceededError{Message: "no UIDs or something"})
+		},
+	}, {
+		config: &types.StableUNIXUserConfig{
+			Enabled: true,
+		},
+		obtainFunc: func(username string) (int32, error) {
+			require.Equal(t, "baz", username)
+			return 0, trace.BadParameter("some bug, idk")
+		},
+		username: "baz",
+		required: func(uid int32, ok bool, err error) {
+			require.ErrorIs(t, err, &trace.BadParameterError{Message: "some bug, idk"})
+		},
+	}} {
+		srv := &Server{
+			authService: getAuthPreferenceAccessPoint{
+				authPreference: &types.AuthPreferenceV2{Spec: types.AuthPreferenceSpecV2{
+					StableUnixUserConfig: tc.config,
+				}},
+			},
+			stableUnixUsers: obtainUIDForUsernameFunc(tc.obtainFunc),
+		}
+		tc.required(srv.obtainFallbackUID(ctx, tc.username))
+	}
+}
+
+type getAuthPreferenceAccessPoint struct {
+	srv.AccessPoint
+	authPreference types.AuthPreference
+}
+
+func (a getAuthPreferenceAccessPoint) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
+	return a.authPreference, nil
+}
+
+type obtainUIDForUsernameFunc func(username string) (int32, error)
+
+func (f obtainUIDForUsernameFunc) ObtainUIDForUsername(ctx context.Context, in *stableunixusersv1.ObtainUIDForUsernameRequest, opts ...grpc.CallOption) (*stableunixusersv1.ObtainUIDForUsernameResponse, error) {
+	uid, err := f(in.GetUsername())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &stableunixusersv1.ObtainUIDForUsernameResponse{Uid: uid}, nil
+}
+
+func (f obtainUIDForUsernameFunc) ListStableUNIXUsers(ctx context.Context, in *stableunixusersv1.ListStableUNIXUsersRequest, opts ...grpc.CallOption) (*stableunixusersv1.ListStableUNIXUsersResponse, error) {
+	return nil, trace.NotImplemented("ListStableUNIXUsers")
 }
 
 type fakeAccessChecker struct {

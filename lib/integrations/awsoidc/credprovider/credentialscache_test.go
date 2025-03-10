@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -29,19 +28,18 @@ import (
 	ststypes "github.com/aws/aws-sdk-go-v2/service/sts/types"
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type fakeSTSClient struct {
 	clock clockwork.Clock
 	err   error
 	sync.Mutex
-	called int32
 }
 
 func (f *fakeSTSClient) setError(err error) {
@@ -57,7 +55,6 @@ func (f *fakeSTSClient) getError() error {
 }
 
 func (f *fakeSTSClient) AssumeRoleWithWebIdentity(ctx context.Context, params *sts.AssumeRoleWithWebIdentityInput, optFns ...func(*sts.Options)) (*sts.AssumeRoleWithWebIdentityOutput, error) {
-	atomic.AddInt32(&f.called, 1)
 	if err := f.getError(); err != nil {
 		return nil, err
 	}
@@ -75,8 +72,6 @@ func (f *fakeSTSClient) AssumeRoleWithWebIdentity(ctx context.Context, params *s
 }
 
 func TestCredentialsCache(t *testing.T) {
-	logrus.SetLevel(logrus.DebugLevel)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
@@ -98,6 +93,9 @@ func TestCredentialsCache(t *testing.T) {
 		STSClient:   stsClient,
 		Integration: "test",
 		Clock:       clock,
+		GenerateOIDCTokenFn: func(ctx context.Context, integration string) (string, error) {
+			return uuid.NewString(), nil
+		},
 	})
 	require.NoError(t, err)
 	require.NotNil(t, cacheUnderTest)
@@ -109,12 +107,6 @@ func TestCredentialsCache(t *testing.T) {
 		clock.BlockUntil(1)
 		clock.Advance(d)
 	}
-
-	// Set the GenerateOIDCTokenFn to a dumb faked function.
-	cacheUnderTest.SetGenerateOIDCTokenFn(
-		func(ctx context.Context, integration string) (string, error) {
-			return uuid.NewString(), nil
-		})
 
 	checkRetrieveCredentials := func(t require.TestingT, expectErr error) {
 		_, err := cacheUnderTest.Retrieve(ctx)
@@ -226,4 +218,51 @@ func TestCredentialsCache(t *testing.T) {
 			checkRetrieveCredentials(t, nil)
 		}
 	})
+}
+
+func TestCredentialsCacheRetrieveBeforeInit(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	clock := clockwork.NewFakeClock()
+	stsClient := &fakeSTSClient{
+		clock: clock,
+	}
+	cache, err := NewCredentialsCache(CredentialsCacheOptions{
+		STSClient:               stsClient,
+		Integration:             "test",
+		Clock:                   clock,
+		AllowRetrieveBeforeInit: true,
+	})
+	require.NoError(t, err)
+
+	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+		Name: "cache.Run",
+		Task: func(ctx context.Context) error {
+			cache.Run(ctx)
+			return nil
+		},
+		Terminate: func() error {
+			cancel()
+			return nil
+		},
+	})
+
+	// cache.Retrieve should return immediately with errNotReady if
+	// SetGenerateOIDCTokenFn has not been called yet.
+	_, err = cache.Retrieve(ctx)
+	require.ErrorIs(t, err, errNotReady)
+
+	// The GenerateOIDCTokenFn can be set after the cache has been initialized.
+	cache.SetGenerateOIDCTokenFn(func(ctx context.Context, integration string) (string, error) {
+		return uuid.NewString(), nil
+	})
+	// WaitForFirstCredsOrErr should usually be called after
+	// SetGenerateOIDCTokenFn to make sure credentials are ready before they
+	// will be relied upon.
+	cache.WaitForFirstCredsOrErr(ctx)
+	// Now cache.Retrieve should not return an error.
+	creds, err := cache.Retrieve(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, creds.SecretAccessKey)
 }

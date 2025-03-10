@@ -17,21 +17,23 @@
  */
 
 import { useState } from 'react';
+
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import useTeleport from 'teleport/useTeleport';
+import {
+  getDatabaseProtocol,
+  type ResourceSpec,
+} from 'teleport/Discover/SelectResource';
 import { useDiscover } from 'teleport/Discover/useDiscover';
-import { DiscoverEventStatus } from 'teleport/services/userEvent';
-import auth from 'teleport/services/auth/auth';
-import { getDatabaseProtocol } from 'teleport/Discover/SelectResource';
-import { agentService } from 'teleport/services/agents';
-
-import type {
-  ConnectionDiagnostic,
-  ConnectionDiagnosticRequest,
+import {
+  agentService,
+  type ConnectionDiagnostic,
+  type ConnectionDiagnosticRequest,
 } from 'teleport/services/agents';
+import auth from 'teleport/services/auth/auth';
 import type { MfaChallengeResponse } from 'teleport/services/mfa';
-import type { ResourceSpec } from 'teleport/Discover/SelectResource';
+import { DiscoverEventStatus } from 'teleport/services/userEvent';
+import useTeleport from 'teleport/useTeleport';
 
 export function useConnectionDiagnostic() {
   const ctx = useTeleport();

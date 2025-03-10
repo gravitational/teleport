@@ -54,11 +54,13 @@ const (
 //
 // AWSOIDCService provides access to AWS APIs using the AWS OIDC Integration.
 type AWSOIDCServiceClient interface {
+	// Deprecated: Do not use.
 	// ListEICE returns a list of EC2 Instance Connect Endpoints.
 	// An optional NextToken that can be used to fetch the next page.
 	// It uses the following API:
 	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstanceConnectEndpoints.html
 	ListEICE(ctx context.Context, in *ListEICERequest, opts ...grpc.CallOption) (*ListEICEResponse, error)
+	// Deprecated: Do not use.
 	// CreateEICE creates multiple EC2 Instance Connect Endpoint using the provided Subnets and Security Group IDs.
 	// It uses the following API:
 	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_CreateInstanceConnectEndpoint.html
@@ -88,6 +90,7 @@ type AWSOIDCServiceClient interface {
 	DeployService(ctx context.Context, in *DeployServiceRequest, opts ...grpc.CallOption) (*DeployServiceResponse, error)
 	// EnrollEKSClusters enrolls EKS clusters by installing kube agent Helm chart.
 	EnrollEKSClusters(ctx context.Context, in *EnrollEKSClustersRequest, opts ...grpc.CallOption) (*EnrollEKSClustersResponse, error)
+	// Deprecated: Do not use.
 	// ListEC2 lists the EC2 instances of the AWS account per region.
 	// It uses the following API:
 	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html
@@ -112,6 +115,7 @@ func NewAWSOIDCServiceClient(cc grpc.ClientConnInterface) AWSOIDCServiceClient {
 	return &aWSOIDCServiceClient{cc}
 }
 
+// Deprecated: Do not use.
 func (c *aWSOIDCServiceClient) ListEICE(ctx context.Context, in *ListEICERequest, opts ...grpc.CallOption) (*ListEICEResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListEICEResponse)
@@ -122,6 +126,7 @@ func (c *aWSOIDCServiceClient) ListEICE(ctx context.Context, in *ListEICERequest
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *aWSOIDCServiceClient) CreateEICE(ctx context.Context, in *CreateEICERequest, opts ...grpc.CallOption) (*CreateEICEResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CreateEICEResponse)
@@ -212,6 +217,7 @@ func (c *aWSOIDCServiceClient) EnrollEKSClusters(ctx context.Context, in *Enroll
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *aWSOIDCServiceClient) ListEC2(ctx context.Context, in *ListEC2Request, opts ...grpc.CallOption) (*ListEC2Response, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListEC2Response)
@@ -248,11 +254,13 @@ func (c *aWSOIDCServiceClient) Ping(ctx context.Context, in *PingRequest, opts .
 //
 // AWSOIDCService provides access to AWS APIs using the AWS OIDC Integration.
 type AWSOIDCServiceServer interface {
+	// Deprecated: Do not use.
 	// ListEICE returns a list of EC2 Instance Connect Endpoints.
 	// An optional NextToken that can be used to fetch the next page.
 	// It uses the following API:
 	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstanceConnectEndpoints.html
 	ListEICE(context.Context, *ListEICERequest) (*ListEICEResponse, error)
+	// Deprecated: Do not use.
 	// CreateEICE creates multiple EC2 Instance Connect Endpoint using the provided Subnets and Security Group IDs.
 	// It uses the following API:
 	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_CreateInstanceConnectEndpoint.html
@@ -282,6 +290,7 @@ type AWSOIDCServiceServer interface {
 	DeployService(context.Context, *DeployServiceRequest) (*DeployServiceResponse, error)
 	// EnrollEKSClusters enrolls EKS clusters by installing kube agent Helm chart.
 	EnrollEKSClusters(context.Context, *EnrollEKSClustersRequest) (*EnrollEKSClustersResponse, error)
+	// Deprecated: Do not use.
 	// ListEC2 lists the EC2 instances of the AWS account per region.
 	// It uses the following API:
 	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html

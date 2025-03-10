@@ -29,13 +29,13 @@ import (
 	"github.com/go-jose/go-jose/v3"
 	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
-	"github.com/mitchellh/mapstructure"
 	v1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 )
@@ -60,24 +60,14 @@ type ValidationResult struct {
 	// This will be prepended with `system:serviceaccount:` for service
 	// accounts.
 	Username string `json:"username"`
+	attrs    *workloadidentityv1pb.JoinAttrsKubernetes
 }
 
-// JoinAuditAttributes returns a series of attributes that can be inserted into
-// audit events related to a specific join.
-func (c *ValidationResult) JoinAuditAttributes() (map[string]interface{}, error) {
-	res := map[string]interface{}{}
-	d, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
-		TagName: "json",
-		Result:  &res,
-		Squash:  true,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := d.Decode(c); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return res, nil
+// JoinAttrs returns the protobuf representation of the attested identity.
+// This is used for auditing and for evaluation of WorkloadIdentity rules and
+// templating.
+func (c *ValidationResult) JoinAttrs() *workloadidentityv1pb.JoinAttrsKubernetes {
+	return c.attrs
 }
 
 // TokenReviewValidator validates a Kubernetes Service Account JWT using the
@@ -180,8 +170,11 @@ func (v *TokenReviewValidator) Validate(ctx context.Context, token, clusterName 
 
 	// Check the Username is a service account.
 	// A user token would not match rules anyway, but we can produce a more relevant error message here.
-	if !strings.HasPrefix(reviewResult.Status.User.Username, ServiceAccountNamePrefix) {
-		return nil, trace.BadParameter("token user is not a service account: %s", reviewResult.Status.User.Username)
+	namespace, serviceAccount, err := serviceAccountFromUsername(
+		reviewResult.Status.User.Username,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if !slices.Contains(reviewResult.Status.User.Groups, serviceAccountGroup) {
@@ -203,18 +196,45 @@ func (v *TokenReviewValidator) Validate(ctx context.Context, token, clusterName 
 
 	// We know if the token is bound to a pod if its name is in the Extra userInfo.
 	// If the token is not bound while Kubernetes supports bound tokens we abort.
-	if _, ok := reviewResult.Status.User.Extra[extraDataPodNameField]; !ok && boundTokenSupport {
+	podName, podNamePresent := reviewResult.Status.User.Extra[extraDataPodNameField]
+	if !podNamePresent && boundTokenSupport {
 		return nil, trace.BadParameter(
 			"legacy SA tokens are not accepted as kubernetes version %s supports bound tokens",
 			kubeVersion.String(),
 		)
 	}
 
+	attrs := &workloadidentityv1pb.JoinAttrsKubernetes{
+		Subject: reviewResult.Status.User.Username,
+		ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+			Name:      serviceAccount,
+			Namespace: namespace,
+		},
+	}
+	if podNamePresent && len(podName) == 1 {
+		attrs.Pod = &workloadidentityv1pb.JoinAttrsKubernetesPod{
+			Name: podName[0],
+		}
+	}
+
 	return &ValidationResult{
 		Raw:      reviewResult.Status,
 		Type:     types.KubernetesJoinTypeInCluster,
 		Username: reviewResult.Status.User.Username,
+		attrs:    attrs,
 	}, nil
+}
+
+func serviceAccountFromUsername(username string) (namespace, name string, err error) {
+	cut, hasPrefix := strings.CutPrefix(username, ServiceAccountNamePrefix+":")
+	if !hasPrefix {
+		return "", "", trace.BadParameter("token user is not a service account: %s", username)
+	}
+	parts := strings.Split(cut, ":")
+	if len(parts) != 2 {
+		return "", "", trace.BadParameter("token user has malformed service account name: %s", username)
+	}
+	return parts[0], parts[1], nil
 }
 
 func kubernetesSupportsBoundTokens(gitVersion string) (bool, error) {
@@ -319,5 +339,15 @@ func ValidateTokenWithJWKS(
 		Raw:      claims,
 		Type:     types.KubernetesJoinTypeStaticJWKS,
 		Username: claims.Subject,
+		attrs: &workloadidentityv1pb.JoinAttrsKubernetes{
+			Subject: claims.Subject,
+			Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
+				Name: claims.Kubernetes.Pod.Name,
+			},
+			ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+				Name:      claims.Kubernetes.ServiceAccount.Name,
+				Namespace: claims.Kubernetes.Namespace,
+			},
+		},
 	}, nil
 }

@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -50,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/uacc"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
@@ -190,6 +190,10 @@ type Server interface {
 // IdentityContext holds all identity information associated with the user
 // logged on the connection.
 type IdentityContext struct {
+	// UnmappedIdentity is the base identity of the user derived from the cert, without any
+	// cross-cluster mapping applied.
+	UnmappedIdentity *sshca.Identity
+
 	// TeleportUser is the Teleport user associated with the connection.
 	TeleportUser string
 
@@ -198,10 +202,6 @@ type IdentityContext struct {
 
 	// Login is the operating system user associated with the connection.
 	Login string
-
-	// Certificate is the SSH user certificate bytes marshaled in the OpenSSH
-	// authorized_keys format.
-	Certificate *ssh.Certificate
 
 	// CertAuthority is the Certificate Authority that signed the Certificate.
 	CertAuthority types.CertAuthority
@@ -265,7 +265,7 @@ type ServerContext struct {
 	// ConnectionContext is the parent context which manages connection-level
 	// resources.
 	*sshutils.ConnectionContext
-	*log.Entry
+	Logger *slog.Logger
 
 	mu sync.RWMutex
 
@@ -434,17 +434,14 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		ServerSubKind:          srv.TargetMetadata().ServerSubKind,
 	}
 
-	fields := log.Fields{
-		"local":        child.ServerConn.LocalAddr(),
-		"remote":       child.ServerConn.RemoteAddr(),
-		"login":        child.Identity.Login,
-		"teleportUser": child.Identity.TeleportUser,
-		"id":           child.id,
-	}
-	child.Entry = log.WithFields(log.Fields{
-		teleport.ComponentKey:    child.srv.Component(),
-		teleport.ComponentFields: fields,
-	})
+	child.Logger = slog.With(
+		teleport.ComponentKey, srv.Component(),
+		"local_addr", child.ServerConn.LocalAddr(),
+		"remote_addr", child.ServerConn.RemoteAddr(),
+		"login", child.Identity.Login,
+		"teleport_user", child.Identity.TeleportUser,
+		"id", child.id,
+	)
 
 	if identityContext.Login == teleport.SSHSessionJoinPrincipal {
 		child.JoinOnly = true
@@ -462,15 +459,11 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 
 	// Update log entry fields.
 	if !child.disconnectExpiredCert.IsZero() {
-		fields["cert"] = child.disconnectExpiredCert
+		child.Logger = child.Logger.With("cert", child.disconnectExpiredCert)
 	}
 	if child.clientIdleTimeout != 0 {
-		fields["idle"] = child.clientIdleTimeout
+		child.Logger = child.Logger.With("idle", child.clientIdleTimeout)
 	}
-	child.Entry = log.WithFields(log.Fields{
-		teleport.ComponentKey:    srv.Component(),
-		teleport.ComponentFields: fields,
-	})
 
 	clusterName, err := srv.GetAccessPoint().GetClusterName()
 	if err != nil {
@@ -491,11 +484,9 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		TeleportUser:          child.Identity.TeleportUser,
 		Login:                 child.Identity.Login,
 		ServerID:              child.srv.ID(),
-		// TODO(tross) update this to use the child logger
-		// once ServerContext is converted to use a slog.Logger
-		Logger:         slog.Default(),
-		Emitter:        child.srv,
-		EmitterContext: ctx,
+		Logger:                child.Logger,
+		Emitter:               child.srv,
+		EmitterContext:        ctx,
 	}
 	for _, opt := range monitorOpts {
 		opt(&monitorConfig)
@@ -573,7 +564,7 @@ func (c *ServerContext) GetServer() Server {
 
 // CreateOrJoinSession will look in the SessionRegistry for the session ID. If
 // no session is found, a new one is created. If one is found, it is returned.
-func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
+func (c *ServerContext) CreateOrJoinSession(ctx context.Context, reg *SessionRegistry) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	// As SSH conversation progresses, at some point a session will be created and
@@ -581,7 +572,7 @@ func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
 	ssid, found := c.getEnvLocked(sshutils.SessionEnvVar)
 	if !found {
 		c.sessionID = rsession.NewID()
-		c.Logger.Debugf("Will create new session for SSH connection %v.", c.ServerConn.RemoteAddr())
+		c.Logger.DebugContext(ctx, "Will create new session for SSH connection")
 		return nil
 	}
 
@@ -595,7 +586,7 @@ func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
 	if sess, found := reg.findSession(*id); found {
 		c.sessionID = *id
 		c.session = sess
-		c.Logger.Debugf("Will join session %v for SSH connection %v.", c.session.id, c.ServerConn.RemoteAddr())
+		c.Logger.DebugContext(ctx, "Joining active SSH session", "session_id", c.session.id)
 	} else {
 		// TODO(capnspacehook): DELETE IN 17.0.0 - by then all supported
 		// clients should only set TELEPORT_SESSION when they want to
@@ -605,7 +596,7 @@ func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
 		// to prevent the user from controlling the session ID, generate
 		// a new one
 		c.sessionID = rsession.NewID()
-		c.Logger.Debugf("Will create new session for SSH connection %v.", c.ServerConn.RemoteAddr())
+		c.Logger.DebugContext(ctx, "Creating new SSH session")
 	}
 
 	return nil
@@ -676,7 +667,7 @@ func (c *ServerContext) getEnvLocked(key string) (string, bool) {
 }
 
 // setSession sets the context's session
-func (c *ServerContext) setSession(sess *session, ch ssh.Channel) {
+func (c *ServerContext) setSession(ctx context.Context, sess *session, ch ssh.Channel) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.session = sess
@@ -684,10 +675,10 @@ func (c *ServerContext) setSession(sess *session, ch ssh.Channel) {
 	// inform the client of the session ID that is being used in a new
 	// goroutine to reduce latency
 	go func() {
-		c.Logger.Debug("Sending current session ID.")
+		c.Logger.DebugContext(ctx, "Sending current session ID")
 		_, err := ch.SendRequest(teleport.CurrentSessionIDRequest, false, []byte(sess.ID()))
 		if err != nil {
-			c.Logger.WithError(err).Debug("Failed to send the current session ID.")
+			c.Logger.DebugContext(ctx, "Failed to send the current session ID", "error", err)
 		}
 	}()
 }
@@ -754,7 +745,7 @@ func (c *ServerContext) CheckSFTPAllowed(registry *SessionRegistry) error {
 }
 
 // OpenXServerListener opens a new XServer unix listener.
-func (c *ServerContext) HandleX11Listener(l net.Listener, singleConnection bool) error {
+func (c *ServerContext) HandleX11Listener(ctx context.Context, l net.Listener, singleConnection bool) error {
 	display, err := x11.ParseDisplayFromUnixSocket(l.Addr().String())
 	if err != nil {
 		return trace.Wrap(err)
@@ -780,7 +771,7 @@ func (c *ServerContext) HandleX11Listener(l net.Listener, singleConnection bool)
 			xconn, err := l.Accept()
 			if err != nil {
 				if !utils.IsOKNetworkError(err) {
-					c.Logger.WithError(err).Debug("Encountered error accepting XServer connection")
+					c.Logger.DebugContext(ctx, "Encountered error accepting XServer connection", "error", err)
 				}
 				return
 			}
@@ -790,7 +781,7 @@ func (c *ServerContext) HandleX11Listener(l net.Listener, singleConnection bool)
 
 				xchan, sin, err := c.ServerConn.OpenChannel(x11.ChannelRequest, x11ChannelReqPayload)
 				if err != nil {
-					c.Logger.WithError(err).Debug("Failed to open a new X11 channel")
+					c.Logger.DebugContext(ctx, "Failed to open a new X11 channel", "error", err)
 					return
 				}
 				defer xchan.Close()
@@ -802,12 +793,12 @@ func (c *ServerContext) HandleX11Listener(l net.Listener, singleConnection bool)
 				go func() {
 					err := sshutils.ForwardRequests(ctx, sin, c.RemoteSession)
 					if err != nil {
-						c.Logger.WithError(err).Debug("Failed to forward ssh request from server during X11 forwarding")
+						c.Logger.DebugContext(ctx, "Failed to forward ssh request from server during X11 forwarding", "error", err)
 					}
 				}()
 
 				if err := utils.ProxyConn(ctx, xconn, xchan); err != nil {
-					c.Logger.WithError(err).Debug("Encountered error during X11 forwarding")
+					c.Logger.DebugContext(ctx, "Encountered error during X11 forwarding", "error", err)
 				}
 			}()
 
@@ -850,7 +841,9 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 	// Never emit session data events for the proxy or from a Teleport node if
 	// sessions are being recorded at the proxy (this would result in double
 	// events).
-	if c.GetServer().Component() == teleport.ComponentProxy {
+	// Do not emit session data for git commands as they have their own events.
+	if c.GetServer().Component() == teleport.ComponentProxy ||
+		c.GetServer().Component() == teleport.ComponentForwardingGit {
 		return
 	}
 	if services.IsRecordAtProxy(c.SessionRecordingConfig.GetMode()) &&
@@ -884,7 +877,7 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 		sessionDataEvent.ConnectionMetadata.LocalAddr = c.ServerConn.LocalAddr().String()
 	}
 	if err := c.GetServer().EmitAuditEvent(c.GetServer().Context(), sessionDataEvent); err != nil {
-		c.WithError(err).Warn("Failed to emit session data event.")
+		c.Logger.WarnContext(c.GetServer().Context(), "Failed to emit session data event", "error", err)
 	}
 
 	// Emit TX and RX bytes to their respective Prometheus counters.
@@ -926,21 +919,21 @@ func (c *ServerContext) CancelFunc() context.CancelFunc {
 
 // SendExecResult sends the result of execution of the "exec" command over the
 // ExecResultCh.
-func (c *ServerContext) SendExecResult(r ExecResult) {
+func (c *ServerContext) SendExecResult(ctx context.Context, r ExecResult) {
 	select {
 	case c.ExecResultCh <- r:
 	default:
-		c.Infof("Blocked on sending exec result %v.", r)
+		c.Logger.InfoContext(ctx, "Blocked on sending exec result", "code", r.Code, "command", r.Command)
 	}
 }
 
 // SendSubsystemResult sends the result of running the subsystem over the
 // SubsystemResultCh.
-func (c *ServerContext) SendSubsystemResult(r SubsystemResult) {
+func (c *ServerContext) SendSubsystemResult(ctx context.Context, r SubsystemResult) {
 	select {
 	case c.SubsystemResultCh <- r:
 	default:
-		c.Info("Blocked on sending subsystem result.")
+		c.Logger.InfoContext(ctx, "Blocked on sending subsystem result")
 	}
 }
 
@@ -982,11 +975,6 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 	environment["TELEPORT_LOGIN"] = c.Identity.Login
 	environment["TELEPORT_ROLES"] = strings.Join(roleNames, " ")
 	if localPAMConfig.Environment != nil {
-		traits, err := services.ExtractTraitsFromCert(c.Identity.Certificate)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
 		for key, value := range localPAMConfig.Environment {
 			expr, err := parse.NewTraitsTemplateExpression(value)
 			if err != nil {
@@ -1000,12 +988,16 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 				return nil
 			}
 
-			result, err := expr.Interpolate(varValidation, traits)
+			result, err := expr.Interpolate(varValidation, c.Identity.UnmappedIdentity.Traits)
 			if err != nil {
 				// If the trait isn't passed by the IdP due to misconfiguration
 				// we fallback to setting a value which will indicate this.
 				if trace.IsNotFound(err) {
-					c.Logger.WithError(err).Warnf("Attempted to interpolate custom PAM environment with external trait but received SAML response does not contain claim")
+					c.Logger.WarnContext(
+						c.CancelContext(),
+						"Attempted to interpolate custom PAM environment with external trait but received SAML response does not contain claim",
+						"error", err,
+					)
 					continue
 				}
 
@@ -1074,25 +1066,6 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 	}, nil
 }
 
-func eventDeviceMetadataFromCert(cert *ssh.Certificate) *apievents.DeviceMetadata {
-	if cert == nil {
-		return nil
-	}
-
-	devID := cert.Extensions[teleport.CertExtensionDeviceID]
-	assetTag := cert.Extensions[teleport.CertExtensionDeviceAssetTag]
-	credID := cert.Extensions[teleport.CertExtensionDeviceCredentialID]
-	if devID == "" && assetTag == "" && credID == "" {
-		return nil
-	}
-
-	return &apievents.DeviceMetadata{
-		DeviceId:     devID,
-		AssetTag:     assetTag,
-		CredentialId: credID,
-	}
-}
-
 func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 	userKind := apievents.UserKind_USER_KIND_HUMAN
 	if id.BotName != "" {
@@ -1104,7 +1077,7 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 		User:           id.TeleportUser,
 		Impersonator:   id.Impersonator,
 		AccessRequests: id.ActiveRequests,
-		TrustedDevice:  eventDeviceMetadataFromCert(id.Certificate),
+		TrustedDevice:  id.UnmappedIdentity.GetDeviceMetadata(),
 		UserKind:       userKind,
 		BotName:        id.BotName,
 		BotInstanceID:  id.BotInstanceID,
@@ -1120,11 +1093,11 @@ func buildEnvironment(ctx *ServerContext) []string {
 	// SSH_CONNECTION environment variables.
 	remoteHost, remotePort, err := net.SplitHostPort(ctx.ServerConn.RemoteAddr().String())
 	if err != nil {
-		ctx.Logger.Debugf("Failed to split remote address: %v.", err)
+		ctx.Logger.DebugContext(ctx.CancelContext(), "Failed to split remote address", "error", err)
 	} else {
 		localHost, localPort, err := net.SplitHostPort(ctx.ServerConn.LocalAddr().String())
 		if err != nil {
-			ctx.Logger.Debugf("Failed to split local address: %v.", err)
+			ctx.Logger.DebugContext(ctx.CancelContext(), "Failed to split local address", "error", err)
 		} else {
 			env.AddTrusted("SSH_CLIENT", fmt.Sprintf("%s %s %s", remoteHost, remotePort, localPort))
 			env.AddTrusted("SSH_CONNECTION", fmt.Sprintf("%s %s %s %s", remoteHost, remotePort, localHost, localPort))
@@ -1203,10 +1176,10 @@ func ComputeLockTargets(clusterName, serverID string, id IdentityContext) []type
 		{Node: serverID, ServerID: serverID},
 		{Node: authclient.HostFQDN(serverID, clusterName), ServerID: authclient.HostFQDN(serverID, clusterName)},
 	}
-	if mfaDevice := id.Certificate.Extensions[teleport.CertExtensionMFAVerified]; mfaDevice != "" {
+	if mfaDevice := id.UnmappedIdentity.MFAVerified; mfaDevice != "" {
 		lockTargets = append(lockTargets, types.LockTarget{MFADevice: mfaDevice})
 	}
-	if trustedDevice := id.Certificate.Extensions[teleport.CertExtensionDeviceID]; trustedDevice != "" {
+	if trustedDevice := id.UnmappedIdentity.DeviceID; trustedDevice != "" {
 		lockTargets = append(lockTargets, types.LockTarget{Device: trustedDevice})
 	}
 	roles := apiutils.Deduplicate(append(id.AccessChecker.RoleNames(), id.UnmappedRoles...))
@@ -1268,24 +1241,24 @@ func (c *ServerContext) GetExecRequest() (Exec, error) {
 func (c *ServerContext) GetSessionMetadata() apievents.SessionMetadata {
 	return apievents.SessionMetadata{
 		SessionID:        string(c.SessionID()),
-		WithMFA:          c.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
-		PrivateKeyPolicy: c.Identity.Certificate.Extensions[teleport.CertExtensionPrivateKeyPolicy],
+		WithMFA:          c.Identity.UnmappedIdentity.MFAVerified,
+		PrivateKeyPolicy: string(c.Identity.UnmappedIdentity.PrivateKeyPolicy),
 	}
 }
 
-func (c *ServerContext) GetPortForwardEvent() apievents.PortForward {
+func (c *ServerContext) GetPortForwardEvent(evType, code, addr string) apievents.PortForward {
 	sconn := c.ConnectionContext.ServerConn
 	return apievents.PortForward{
 		Metadata: apievents.Metadata{
-			Type: events.PortForwardEvent,
-			Code: events.PortForwardCode,
+			Type: evType,
+			Code: code,
 		},
 		UserMetadata: c.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  sconn.LocalAddr().String(),
 			RemoteAddr: sconn.RemoteAddr().String(),
 		},
-		Addr: c.DstAddr,
+		Addr: addr,
 		Status: apievents.Status{
 			Success: true,
 		},

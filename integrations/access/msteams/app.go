@@ -62,14 +62,9 @@ type App struct {
 
 // NewApp initializes a new teleport-msteams app and returns it.
 func NewApp(conf Config) (*App, error) {
-	log, err := conf.Log.NewSLogLogger()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	app := &App{
 		conf: conf,
-		log:  log.With("plugin", pluginName),
+		log:  slog.With("plugin", pluginName),
 	}
 
 	app.mainJob = lib.NewServiceJob(app.run)

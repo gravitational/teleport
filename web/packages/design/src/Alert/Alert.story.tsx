@@ -16,13 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { action } from '@storybook/addon-actions';
 
 import { Restore } from 'design/Icon';
 
 import { Box } from '..';
-
 import { Alert, AlertProps, Banner } from './Alert';
 
 export default {

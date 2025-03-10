@@ -17,12 +17,16 @@
  */
 
 import styled from 'styled-components';
-import { Flex, Box, ButtonSecondary, ButtonIcon } from 'design';
+
+import { Box, ButtonIcon, ButtonSecondary, Flex } from 'design';
+import * as Icons from 'design/Icon';
+import { inputGeometry } from 'design/Input/Input';
+import { LabelContent } from 'design/LabelInput/LabelInput';
 import FieldInput from 'shared/components/FieldInput';
 import {
-  Validator,
   useRule,
   useValidation,
+  Validator,
 } from 'shared/components/Validation';
 import {
   precomputed,
@@ -30,8 +34,6 @@ import {
   Rule,
   ValidationResult,
 } from 'shared/components/Validation/rules';
-import * as Icons from 'design/Icon';
-import { inputGeometry } from 'design/Input/Input';
 
 export type Label = {
   name: string;
@@ -62,17 +64,23 @@ type LabelValidationResult = {
 export type LabelsRule = Rule<Label[], LabelListValidationResult>;
 
 export function LabelsInput({
+  legend,
+  tooltipContent,
+  tooltipSticky,
   labels = [],
   setLabels,
   disableBtns = false,
   autoFocus = false,
-  areLabelsRequired = false,
+  required = false,
   adjective = 'Label',
   labelKey = { fieldName: 'Key', placeholder: 'label key' },
   labelVal = { fieldName: 'Value', placeholder: 'label value' },
   inputWidth = 200,
   rule = defaultRule,
 }: {
+  legend?: string;
+  tooltipContent?: string;
+  tooltipSticky?: boolean;
   labels: Label[];
   setLabels(l: Label[]): void;
   disableBtns?: boolean;
@@ -84,7 +92,7 @@ export function LabelsInput({
   /**
    * Makes it so at least one label is required
    */
-  areLabelsRequired?: boolean;
+  required?: boolean;
   /**
    * A rule for validating the list of labels as a whole. Note that contrary to
    * other input fields, the labels input will default to validating every
@@ -100,7 +108,7 @@ export function LabelsInput({
   }
 
   function removeLabel(index: number) {
-    if (areLabelsRequired && labels.length === 1) {
+    if (required && labels.length === 1) {
       // Since at least one label is required
       // instead of removing the last row, clear
       // the input and turn on error.
@@ -140,15 +148,24 @@ export function LabelsInput({
   const width = `${inputWidth}px`;
   const inputSize = 'medium';
   return (
-    <>
+    <Fieldset>
+      {legend && (
+        <Legend>
+          <LabelContent
+            required={required}
+            tooltipContent={tooltipContent}
+            tooltipSticky={tooltipSticky}
+          >
+            {legend}
+          </LabelContent>
+        </Legend>
+      )}
       {labels.length > 0 && (
-        <Flex mt={2}>
+        <Flex mt={legend ? 1 : 0} mb={1}>
           <Box width={width} mr="3">
-            {labelKey.fieldName} <SmallText>(required field)</SmallText>
+            <LabelContent required>{labelKey.fieldName}</LabelContent>
           </Box>
-          <Box>
-            {labelVal.fieldName} <SmallText>(required field)</SmallText>
-          </Box>
+          <LabelContent required>{labelVal.fieldName}</LabelContent>
         </Flex>
       )}
       <Box>
@@ -228,16 +245,11 @@ export function LabelsInput({
         <Icons.Add className="icon-add" disabled={disableBtns} size="small" />
         {labels.length > 0 ? `Add another ${adjective}` : `Add a ${adjective}`}
       </ButtonSecondary>
-    </>
+    </Fieldset>
   );
 }
 
 const defaultRule = () => () => ({ valid: true });
-
-const SmallText = styled.span`
-  font-size: ${p => p.theme.fontSizes[1]}px;
-  font-weight: lighter;
-`;
 
 export const nonEmptyLabels: LabelsRule = labels => () => {
   const results = labels.map(label => ({
@@ -249,3 +261,15 @@ export const nonEmptyLabels: LabelsRule = labels => () => {
     results: results,
   };
 };
+
+const Fieldset = styled.fieldset`
+  border: none;
+  margin: 0;
+  padding: 0;
+`;
+
+const Legend = styled.legend`
+  margin: 0 0 ${props => props.theme.space[1]}px 0;
+  padding: 0;
+  ${props => props.theme.typography.body3}
+`;

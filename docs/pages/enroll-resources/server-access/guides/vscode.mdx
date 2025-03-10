@@ -13,9 +13,9 @@ This guide explains how to use Teleport and Visual Studio Code's remote SSH exte
 - OpenSSH client.
 - Visual Studio Code with the [Remote - SSH extension](https://code.visualstudio.com/docs/remote/ssh#_system-requirements)
   for the Remote - SSH extension.
-- One or more Teleport agents running the Teleport SSH Service. If you have not yet
+- One or more Teleport Agents running the Teleport SSH Service. If you have not yet
   done this, read the
-  [Server Access Getting Started Guide](../getting-started.mdx) to learn how.
+  [getting started guide](../getting-started.mdx) to learn how.
 
 <Admonition type="note">
 Linux and macOS clients should rely on their operating system-provided OpenSSH
@@ -60,10 +60,12 @@ $ tsh.exe config | out-file .ssh\config -encoding utf8 -append
 </TabItem>
 </Tabs>
 
-You should be able to connect to the desired node using following command, replacing `user` with the username you would like to assume on the node.
+You should be able to connect to the desired node using following command,
+replacing <Var name="user" /> with the username you would like to assume on the
+node and <Var name="example-node" /> with the node name:
 
 ```code
-$ ssh user@<Var name="example-node" description="An SSH node in your Teleport cluster"/>.<Var name="teleport.example.com"/>
+$ ssh <Var name="user" />@<Var name="example-node" description="An SSH node in your Teleport cluster"/>.<Var name="teleport.example.com"/>
 ```
 
 <Details scopeOnly={true} scope={["cloud"]} title="Teleport Cloud">

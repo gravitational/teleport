@@ -17,11 +17,9 @@
  */
 
 import { render, screen } from 'design/utils/testing';
-
 import { makeEmptyAttempt, makeSuccessAttempt } from 'shared/hooks/useAsync';
 
 import { requestRolePending } from '../../fixtures';
-
 import { RequestView, RequestViewProps } from './RequestView';
 import { RequestFlags } from './types';
 

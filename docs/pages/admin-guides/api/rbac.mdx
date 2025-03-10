@@ -20,12 +20,12 @@ This is especially useful for:
 In this guide, we will build a small demo application to show you how to
 generate Teleport roles using Teleport's API client library.
 
-<Notice type="danger">
+<Admonition type="danger">
 
 The program we will build in this guide is intended as a learning tool. **Do not
 connect it to your production Teleport cluster.**  Use a demo cluster instead.
 
-</Notice>
+</Admonition>
 
 ## Prerequisites
 
@@ -141,6 +141,8 @@ namespace/app created
 role.rbac.authorization.k8s.io/pod-reader created
 rolebinding.rbac.authorization.k8s.io/read-pods created
 ```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
 
 Next, define a cluster role and cluster role binding that allow users in the
 `ops` group to read, create, and execute commands on pods in all namespaces. Add
@@ -859,7 +861,11 @@ spec:
         enabled: true
     max_session_ttl: 30h0m0s
     pin_source_ip: false
-    port_forwarding: true
+    ssh_port_forwarding:
+      remote:
+        enabled: true
+      local:
+        enabled: true
     record_session:
       default: best_effort
       desktop: true
@@ -906,7 +912,11 @@ spec:
         enabled: true
     max_session_ttl: 30h0m0s
     pin_source_ip: false
-    port_forwarding: true
+    ssh_port_forwarding:
+      remote:
+        enabled: true
+      local:
+        enabled: true
     record_session:
       default: best_effort
       desktop: true

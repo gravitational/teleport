@@ -19,6 +19,7 @@
 package tbot
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -150,7 +151,7 @@ func (s *ApplicationTunnelService) buildLocalProxyConfig(ctx context.Context) (l
 			ctx, span := tracer.Start(ctx, "ApplicationTunnelService/OnNewConnection")
 			defer span.End()
 
-			if err := lp.CheckCertExpiry(); err != nil {
+			if err := lp.CheckCertExpiry(ctx); err != nil {
 				s.log.InfoContext(ctx, "Certificate for tunnel needs reissuing.", "reason", err.Error())
 				cert, _, err := s.issueCert(ctx, roles)
 				if err != nil {
@@ -201,7 +202,7 @@ func (s *ApplicationTunnelService) issueCert(
 		s.botClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateTTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		nil,
 	)
 	if err != nil {
@@ -233,7 +234,7 @@ func (s *ApplicationTunnelService) issueCert(
 		s.botClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateTTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		func(req *proto.UserCertsRequest) {
 			req.RouteToApp = route
 		})

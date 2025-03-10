@@ -221,6 +221,8 @@ func TestCertificateVerification(t *testing.T) {
 }
 
 func TestBasicFunctionality(t *testing.T) {
+	t.Skip("disabled until quic-go/quic-go#4303 is fixed (data race)")
+
 	t.Parallel()
 
 	hostCA := newCA(t)

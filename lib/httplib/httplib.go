@@ -22,6 +22,7 @@ package httplib
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -33,6 +34,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -41,7 +43,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
-	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -155,23 +156,6 @@ func MakeStdHandlerWithErrorWriter(fn StdHandlerFunc, errWriter ErrorWriter) htt
 	}
 }
 
-// WithCSRFProtection ensures that request to unauthenticated API is checked against CSRF attacks
-func WithCSRFProtection(fn HandlerFunc) httprouter.Handle {
-	handlerFn := MakeHandler(fn)
-	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-		if r.Method != http.MethodGet && r.Method != http.MethodHead {
-			errHeader := csrf.VerifyHTTPHeader(r)
-			errForm := csrf.VerifyFormField(r)
-			if errForm != nil && errHeader != nil {
-				slog.WarnContext(r.Context(), "unable to validate CSRF token", "header_error", errHeader, "form_error", errForm)
-				trace.WriteError(w, trace.AccessDenied("access denied"))
-				return
-			}
-		}
-		handlerFn(w, r, p)
-	}
-}
-
 // ReadJSON reads HTTP json request and unmarshals it
 // into passed any obj. A reasonable maximum size is enforced
 // to mitigate resource exhaustion attacks.
@@ -188,6 +172,7 @@ func ReadResourceJSON(r *http.Request, val any) error {
 
 func readJSON(r *http.Request, val any, maxSize int64) error {
 	// Check content type to mitigate CSRF attack.
+	// (Form POST requests don't support application/json payloads.)
 	contentType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil {
 		slog.WarnContext(r.Context(), "Error parsing media type for reading JSON", "error", err)
@@ -226,6 +211,51 @@ func ConvertResponse(re *roundtrip.Response, err error) (*roundtrip.Response, er
 		return nil, trace.ConvertSystemError(err)
 	}
 	return re, trace.ReadError(re.Code(), re.Bytes())
+}
+
+// ProxyVersion describes the parts of a Proxy semver
+// version in the format: major.minor.patch-preRelease
+type ProxyVersion struct {
+	// Major is the first part of version.
+	Major int64 `json:"major"`
+	// Minor is the second part of version.
+	Minor int64 `json:"minor"`
+	// Patch is the third part of version.
+	Patch int64 `json:"patch"`
+	// PreRelease is only defined if there was a hyphen
+	// and a word at the end of version eg: the prerelease
+	// value of version 18.0.0-dev is "dev".
+	PreRelease string `json:"preRelease"`
+	// String contains the whole version.
+	String string `json:"string"`
+}
+
+// RouteNotFoundResponse writes a JSON error reply containing
+// a not found error, a Version object, and a not found HTTP status code.
+func RouteNotFoundResponse(ctx context.Context, w http.ResponseWriter, proxyVersion string) {
+	SetDefaultSecurityHeaders(w.Header())
+
+	errObj := &trace.TraceErr{
+		Err: trace.NotFound("path not found"),
+	}
+
+	ver, err := semver.NewVersion(proxyVersion)
+	if err != nil {
+		slog.DebugContext(ctx, "Error parsing Teleport proxy semver version", "err", err)
+	} else {
+		verObj := ProxyVersion{
+			Major:      ver.Major,
+			Minor:      ver.Minor,
+			Patch:      ver.Patch,
+			String:     proxyVersion,
+			PreRelease: string(ver.PreRelease),
+		}
+		fields := make(map[string]interface{})
+		fields["proxyVersion"] = verObj
+		errObj.Fields = fields
+	}
+
+	roundtrip.ReplyJSON(w, http.StatusNotFound, errObj)
 }
 
 // ParseBool will parse boolean variable from url query

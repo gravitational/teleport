@@ -83,6 +83,10 @@ set up records for:
 
 ## Step 2/4. Set up Teleport on your Linux host
 
+In this step, you will log into your Linux host, download the Teleport binary,
+generate a Teleport configuration file, and start the Teleport Auth Service,
+Proxy Service, and SSH Service on the host.
+
 ### Install Teleport
 
 On your Linux host, run the following command to install the Teleport binary:
@@ -102,9 +106,12 @@ This command requires information about a TLS certificate and private key.
 
 (!docs/pages/includes/start-teleport.mdx!)
 
-Access Teleport's Web UI via HTTPS at the domain you created earlier (e.g.,
-`https://teleport.example.com`). You should see a welcome screen similar to the
-following:
+Access the Teleport Web UI via HTTPS at the domain you created earlier at 
+<Var name="teleport.example.com" /> and accept the terms of using Teleport
+Community Edition.
+
+You should see a welcome screen similar to
+the following:
 
 ![Teleport Welcome Screen](../../../img/quickstart/welcome.png)
 
@@ -164,10 +171,11 @@ Install `tsh` on your local workstation:
 
 (!docs/pages/includes/install-tsh.mdx!)
 
-Log in to receive short-lived certificates from Teleport:
+Log in to receive short-lived certificates from Teleport. Replace 
+<Var name="teleport.example.com" /> with your Teleport cluster's public address
+as configured above:
 
 ```code
-# Replace teleport.example.com with your Teleport cluster's public address as configured above.
 $ tsh login --proxy=<Var name="teleport.example.com" /> --user=teleport-admin
 > Profile URL:        https://teleport.example.com:443
   Logged in as:       teleport-admin
@@ -183,6 +191,11 @@ $ tsh login --proxy=<Var name="teleport.example.com" /> --user=teleport-admin
 
 ## Step 4/4. Enroll your infrastructure
 
+Once you finish setting up your user, you will see your SSH server in the
+Teleport Web UI:
+
+![Teleport Web UI showing an SSH server](../../../img/new-ssh-server.png)
+
 With Teleport, you can protect all of the resources in your infrastructure
 behind a single identity-aware access proxy, including servers, databases,
 applications, Kubernetes clusters, Windows desktops, and cloud provider APIs.
@@ -191,18 +204,12 @@ To enroll a resource with Teleport, visit the Web UI and click **Enroll New
 Resource**. The Web UI will show you the steps you can take to enroll your new
 resource.
 
-![Adding resources](../../../img/add-resources.png)
-
-On the home page of the Web UI, you can see that you have already enrolled your
-Linux server. 
-
-## Next step: deploy agents
+## Next step: deploy Teleport Agents
 
 Teleport **Agents** proxy traffic to infrastructure resources like servers,
 databases, Kubernetes clusters, cloud provider APIs, and Windows desktops. 
 
 Step 4 showed you how to install agents manually, and you can also launch agents
 and enroll resources with them using infrastructure-as-code tools. For example,
-you can use Terraform to declare a pool of Teleport agents and configure them to
-proxy your infrastructure. Read [Deploy Teleport Agents with
-Terraform](../../enroll-resources/agents/introduction.mdx) to get started.
+you can use Terraform to declare a pool of Teleport Agents and configure them to
+proxy your infrastructure. Read [Protect Infrastructure with Teleport](../../enroll-resources/agents/introduction.mdx) to get started.

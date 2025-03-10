@@ -74,7 +74,7 @@ type Delay struct {
 }
 
 // Elapsed returns the channel on which the ticks are delivered. This method can
-// be called on a nil delay, resulting in a nil channel. The [*Delay.Advance]
+// be called on a nil delay, resulting in a nil channel. The [Delay.Advance]
 // method must be called after receiving a tick from the channel.
 //
 //	select {
@@ -102,7 +102,7 @@ func (i *Delay) interval() time.Duration {
 }
 
 // Advance sets up the next tick of the delay. Must be called after receiving
-// from the [*Delay.Elapsed] channel; specifically, to maintain compatibility
+// from the [Delay.Elapsed] channel; specifically, to maintain compatibility
 // with [clockwork.Clock], it must only be called with a drained timer channel.
 // For consistency, the value passed to Advance should be the value received
 // from the Elapsed channel (passing the current time will also work, but will
@@ -111,8 +111,20 @@ func (i *Delay) Advance(now time.Time) {
 	i.timer.Reset(i.interval() - i.clock.Since(now))
 }
 
-// Stop stops the delay. Only needed for [clockwork.Clock] compatibility. Can be
-// called on a nil delay, as a no-op. The delay should not be used afterwards.
+// Reset restarts the ticker from the current time. Must only be called while
+// the timer is running (i.e. it must not be called between receiving from
+// [Delay.Elapsed] and calling [Delay.Advance]).
+func (i *Delay) Reset() {
+	// the drain is for Go earlier than 1.23 and for [clockwork.Clock]
+	if !i.timer.Stop() {
+		<-i.timer.Chan()
+	}
+	i.timer.Reset(i.interval())
+}
+
+// Stop stops the delay. Only needed for Go 1.22 and [clockwork.Clock]
+// compatibility. Can be called on a nil delay, as a no-op. The delay should not
+// be used afterwards.
 func (i *Delay) Stop() {
 	if i == nil {
 		return

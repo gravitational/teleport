@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { render, screen } from 'design/utils/testing';
 import { MemoryRouter } from 'react-router';
+
+import { render, screen } from 'design/utils/testing';
 
 import Empty, { Props } from './Empty';
 
@@ -53,7 +53,8 @@ const props: Props = {
     title: 'Add your first Linux server to Teleport',
     byline:
       'Teleport Server Access consolidates SSH access across all environments.',
-    docsURL: 'https://goteleport.com/docs/server-access/getting-started/',
+    docsURL:
+      'https://goteleport.com/docs/enroll-resources/server-access/getting-started/',
     readOnly: {
       title: 'No Servers Found',
       resource: 'servers',

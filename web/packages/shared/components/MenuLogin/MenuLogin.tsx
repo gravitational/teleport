@@ -22,21 +22,20 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import styled from 'styled-components';
 import { NavLink } from 'react-router-dom';
-import Menu, { MenuItem } from 'design/Menu';
-import { space, SpaceProps } from 'design/system';
+import styled from 'styled-components';
 
 import { ButtonBorder, Flex, Indicator } from 'design';
 import { ChevronDown } from 'design/Icon';
-
-import { useAsync, Attempt } from 'shared/hooks/useAsync';
+import Menu, { MenuItem } from 'design/Menu';
+import { space, SpaceProps } from 'design/system';
+import { Attempt, useAsync } from 'shared/hooks/useAsync';
 
 import {
-  MenuLoginProps,
   LoginItem,
-  MenuLoginHandle,
   MenuInputType,
+  MenuLoginHandle,
+  MenuLoginProps,
 } from './types';
 
 export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
@@ -122,18 +121,20 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
       },
     }));
 
+    const ButtonComponent = props.ButtonComponent || ButtonBorder;
+
     return (
       <React.Fragment>
-        <ButtonBorder
+        <ButtonComponent
           width={alignButtonWidthToMenu ? width : null}
           textTransform={props.textTransform}
           size="small"
           setRef={anchorRef}
           onClick={onOpen}
         >
-          Connect
+          {props.buttonText || 'Connect'}
           <ChevronDown ml={1} size="small" color="text.slightlyMuted" />
-        </ButtonBorder>
+        </ButtonComponent>
         <Menu
           anchorOrigin={anchorOrigin}
           transformOrigin={transformOrigin}

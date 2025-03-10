@@ -52,6 +52,7 @@ import (
 // TestTCTLTerraformCommand_ProxyJoin validates that the command `tctl terraform env` can run against a Teleport Proxy
 // service and generates valid credentials Terraform can use to connect to Teleport.
 func TestTCTLTerraformCommand_ProxyJoin(t *testing.T) {
+	// test is not Parallel because of the metrics black hole
 	testDir := t.TempDir()
 	prometheus.DefaultRegisterer = metricRegistryBlackHole{}
 
@@ -61,7 +62,7 @@ func TestTCTLTerraformCommand_ProxyJoin(t *testing.T) {
 		ClusterName: clusterName,
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      utils.NewSlogLoggerForTests(),
 	}
 	cfg.Listeners = helpers.SingleProxyPortSetup(t, &cfg.Fds)
 	rc := helpers.NewInstance(t, cfg)
@@ -105,7 +106,7 @@ func TestTCTLTerraformCommand_ProxyJoin(t *testing.T) {
 	tctlCommand := common.TerraformCommand{}
 
 	app := kingpin.New("test", "test")
-	tctlCommand.Initialize(app, tctlCfg)
+	tctlCommand.Initialize(app, nil, tctlCfg)
 	_, err = app.Parse([]string{"terraform", "env"})
 	require.NoError(t, err)
 	// Create io buffer writer
@@ -127,7 +128,7 @@ func TestTCTLTerraformCommand_ProxyJoin(t *testing.T) {
 // TestTCTLTerraformCommand_AuthJoin validates that the command `tctl terraform env` can run against a Teleport Auth
 // service and generates valid credentials Terraform can use to connect to Teleport.
 func TestTCTLTerraformCommand_AuthJoin(t *testing.T) {
-	t.Parallel()
+	// test is not Parallel because of the metrics black hole
 	testDir := t.TempDir()
 	prometheus.DefaultRegisterer = metricRegistryBlackHole{}
 
@@ -137,7 +138,7 @@ func TestTCTLTerraformCommand_AuthJoin(t *testing.T) {
 		ClusterName: clusterName,
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      utils.NewSlogLoggerForTests(),
 	}
 	cfg.Listeners = helpers.SingleProxyPortSetup(t, &cfg.Fds)
 	rc := helpers.NewInstance(t, cfg)
@@ -179,7 +180,7 @@ func TestTCTLTerraformCommand_AuthJoin(t *testing.T) {
 	tctlCommand := common.TerraformCommand{}
 
 	app := kingpin.New("test", "test")
-	tctlCommand.Initialize(app, tctlCfg)
+	tctlCommand.Initialize(app, nil, tctlCfg)
 	_, err = app.Parse([]string{"terraform", "env"})
 	require.NoError(t, err)
 	// Create io buffer writer

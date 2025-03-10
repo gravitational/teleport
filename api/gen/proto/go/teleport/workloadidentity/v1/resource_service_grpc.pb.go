@@ -18,7 +18,7 @@
 // - protoc             (unknown)
 // source: teleport/workloadidentity/v1/resource_service.proto
 
-package workloadidentityv1pb
+package workloadidentityv1
 
 import (
 	context "context"

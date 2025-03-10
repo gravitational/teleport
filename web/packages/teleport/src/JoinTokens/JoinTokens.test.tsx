@@ -15,13 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { render, screen, fireEvent, act, tick } from 'design/utils/testing';
 import userEvent from '@testing-library/user-event';
-
 import selectEvent from 'react-select-event';
 
-import { createTeleportContext } from 'teleport/mocks/contexts';
+import { act, fireEvent, render, screen, tick } from 'design/utils/testing';
+
 import { ContextProvider } from 'teleport';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import makeJoinToken from 'teleport/services/joinToken/makeJoinToken';
 
 import { JoinTokens } from './JoinTokens';

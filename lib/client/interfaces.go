@@ -28,6 +28,8 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -35,14 +37,13 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -79,6 +80,14 @@ func (idx KeyRingIndex) Match(matchKeyRing KeyRingIndex) bool {
 	return (matchKeyRing.ProxyHost == "" || matchKeyRing.ProxyHost == idx.ProxyHost) &&
 		(matchKeyRing.ClusterName == "" || matchKeyRing.ClusterName == idx.ClusterName) &&
 		(matchKeyRing.Username == "" || matchKeyRing.Username == idx.Username)
+}
+
+func (idx KeyRingIndex) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("proxy", idx.ProxyHost),
+		slog.String("cluster", idx.ClusterName),
+		slog.String("username", idx.Username),
+	)
 }
 
 // TLSCredential holds a signed TLS certificate and matching private key.
@@ -294,21 +303,39 @@ func (k *KeyRing) clientTLSConfig(cipherSuites []uint16, cred TLSCredential, clu
 
 // ClientCertPool returns x509.CertPool containing trusted CA.
 func (k *KeyRing) clientCertPool(clusters ...string) (*x509.CertPool, error) {
+	certPoolPEM, err := k.clientCertPoolPEM(clusters...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	pool := x509.NewCertPool()
+	if len(certPoolPEM) == 0 {
+		// It's valid to have no matching CAs and therefore an empty cert pool.
+		return pool, nil
+	}
+	if !pool.AppendCertsFromPEM(certPoolPEM) {
+		return nil, trace.BadParameter("failed to parse TLS CA certificate")
+	}
+	return pool, nil
+}
+
+func (k *KeyRing) clientCertPoolPEM(clusters ...string) ([]byte, error) {
+	var certPoolPEM bytes.Buffer
 	for _, caPEM := range k.TLSCAs() {
 		cert, err := tlsca.ParseCertificatePEM(caPEM)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "parsing TLS CA certificate")
 		}
-		for _, k := range clusters {
-			if cert.Subject.CommonName == k {
-				if !pool.AppendCertsFromPEM(caPEM) {
-					return nil, trace.BadParameter("failed to parse TLS CA certificate")
-				}
-			}
+		if !slices.Contains(clusters, cert.Subject.CommonName) {
+			continue
+		}
+		certPoolPEM.Write(caPEM)
+		// PEM files should end with a trailing newline, just double check
+		// before potentially concatenating multiple together.
+		if caPEM[len(caPEM)-1] != '\n' {
+			certPoolPEM.WriteByte('\n')
 		}
 	}
-	return pool, nil
+	return certPoolPEM.Bytes(), nil
 }
 
 // ProxyClientSSHConfig returns an ssh.ClientConfig with SSH credentials from this
@@ -358,17 +385,13 @@ func (k *KeyRing) CertRoles() ([]string, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Extract roles from certificate. Note, if the certificate is in old format,
-	// this will be empty.
-	var roles []string
-	rawRoles, ok := cert.Extensions[teleport.CertExtensionTeleportRoles]
-	if ok {
-		roles, err = services.UnmarshalCertRoles(rawRoles)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+
+	ident, err := sshca.DecodeIdentity(cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return roles, nil
+
+	return ident.Roles, nil
 }
 
 const (
@@ -560,19 +583,18 @@ func (k *KeyRing) SSHCert() (*ssh.Certificate, error) {
 }
 
 // ActiveRequests gets the active requests associated with this key.
-func (k *KeyRing) ActiveRequests() (services.RequestIDs, error) {
-	var activeRequests services.RequestIDs
+func (k *KeyRing) ActiveRequests() ([]string, error) {
 	sshCert, err := k.SSHCert()
 	if err != nil {
-		return activeRequests, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	rawRequests, ok := sshCert.Extensions[teleport.CertExtensionTeleportActiveRequests]
-	if ok {
-		if err := activeRequests.Unmarshal([]byte(rawRequests)); err != nil {
-			return activeRequests, trace.Wrap(err)
-		}
+
+	ident, err := sshca.DecodeIdentity(sshCert)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return activeRequests, nil
+
+	return ident.ActiveRequests, nil
 }
 
 // CheckCert makes sure the key's SSH certificate is valid.

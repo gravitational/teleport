@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { fonts } from 'design/theme/fonts';
 import {
   darkTheme as designDarkTheme,
   lightTheme as designLightTheme,
 } from 'design/theme';
+import { fonts } from 'design/theme/fonts';
 
 const sansSerif = 'system-ui';
 

@@ -16,41 +16,34 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { MemoryRouter } from 'react-router';
 
 import { render, screen } from 'design/utils/testing';
-
 import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
 
-import TeleportContextProvider from 'teleport/TeleportContextProvider';
+import cfg from 'teleport/config';
 import { Discover, DiscoverComponent } from 'teleport/Discover/Discover';
 import { ResourceViewConfig } from 'teleport/Discover/flow';
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
-import { getOSSFeatures } from 'teleport/features';
-import cfg from 'teleport/config';
 import {
   APPLICATIONS,
-  KUBERNETES,
-  SERVERS,
-} from 'teleport/Discover/SelectResource/resources';
-import {
   DATABASES,
   DATABASES_UNGUIDED,
   DATABASES_UNGUIDED_DOC,
-} from 'teleport/Discover/SelectResource/databases';
-
-import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
-import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
-
+  KUBERNETES,
+  SERVERS,
+} from 'teleport/Discover/SelectResource/resources';
+import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
+import { getOSSFeatures } from 'teleport/features';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
+import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
+import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
 
 import { ResourceKind } from './Shared';
-import { useDiscover, DiscoverUpdateProps } from './useDiscover';
-
-import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
+import { getGuideTileId } from './testUtils';
+import { DiscoverUpdateProps, useDiscover } from './useDiscover';
 
 beforeEach(() => {
   jest.restoreAllMocks();
@@ -96,18 +89,24 @@ test('displays all resources by default', () => {
 
   expect(
     screen
-      .getAllByTestId(ResourceKind.Server)
-      .concat(screen.getAllByTestId(ResourceKind.ConnectMyComputer))
+      .getAllByTestId(getGuideTileId({ kind: ResourceKind.Server }))
+      .concat(
+        screen.getAllByTestId(
+          getGuideTileId({ kind: ResourceKind.ConnectMyComputer })
+        )
+      )
   ).toHaveLength(SERVERS.length);
-  expect(screen.getAllByTestId(ResourceKind.Database)).toHaveLength(
+  expect(
+    screen.getAllByTestId(getGuideTileId({ kind: ResourceKind.Database }))
+  ).toHaveLength(
     DATABASES.length + DATABASES_UNGUIDED.length + DATABASES_UNGUIDED_DOC.length
   );
-  expect(screen.getAllByTestId(ResourceKind.Application)).toHaveLength(
-    APPLICATIONS.length
-  );
-  expect(screen.getAllByTestId(ResourceKind.Kubernetes)).toHaveLength(
-    KUBERNETES.length
-  );
+  expect(
+    screen.getAllByTestId(getGuideTileId({ kind: ResourceKind.Application }))
+  ).toHaveLength(APPLICATIONS.length);
+  expect(
+    screen.getAllByTestId(getGuideTileId({ kind: ResourceKind.Kubernetes }))
+  ).toHaveLength(KUBERNETES.length);
 });
 
 test('location state applies filter/search', () => {
@@ -117,11 +116,17 @@ test('location state applies filter/search', () => {
   });
 
   expect(
-    screen.queryByTestId(ResourceKind.Application)
+    screen.queryByTestId(getGuideTileId({ kind: ResourceKind.Application }))
   ).not.toBeInTheDocument();
-  expect(screen.queryByTestId(ResourceKind.Server)).not.toBeInTheDocument();
-  expect(screen.queryByTestId(ResourceKind.Database)).not.toBeInTheDocument();
-  expect(screen.queryByTestId(ResourceKind.Kubernetes)).not.toBeInTheDocument();
+  expect(
+    screen.queryByTestId(getGuideTileId({ kind: ResourceKind.Server }))
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByTestId(getGuideTileId({ kind: ResourceKind.Database }))
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByTestId(getGuideTileId({ kind: ResourceKind.Kubernetes }))
+  ).not.toBeInTheDocument();
 });
 
 describe('location state', () => {
@@ -130,79 +135,109 @@ describe('location state', () => {
 
     expect(
       screen
-        .getAllByTestId(ResourceKind.Server)
-        .concat(screen.getAllByTestId(ResourceKind.ConnectMyComputer))
+        .getAllByTestId(getGuideTileId({ kind: ResourceKind.Server }))
+        .concat(
+          screen.getAllByTestId(
+            getGuideTileId({ kind: ResourceKind.ConnectMyComputer })
+          )
+        )
     ).toHaveLength(SERVERS.length);
 
     // we assert three databases for servers because the naming convention includes "server"
-    expect(screen.queryAllByTestId(ResourceKind.Database)).toHaveLength(4);
-
-    expect(screen.queryByTestId(ResourceKind.Desktop)).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId(ResourceKind.Application)
+      screen.queryAllByTestId(getGuideTileId({ kind: ResourceKind.Database }))
+    ).toHaveLength(4);
+
+    expect(
+      screen.queryByTestId(getGuideTileId({ kind: ResourceKind.Desktop }))
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId(ResourceKind.Kubernetes)
+      screen.queryByTestId(getGuideTileId({ kind: ResourceKind.Application }))
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId(getGuideTileId({ kind: ResourceKind.Kubernetes }))
     ).not.toBeInTheDocument();
   });
 
   test('displays desktops when the location state is desktop', () => {
     create({ initialEntry: 'desktop' });
 
-    expect(screen.queryByTestId(ResourceKind.Server)).not.toBeInTheDocument();
-    expect(screen.queryByTestId(ResourceKind.Database)).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId(ResourceKind.Application)
+      screen.queryByTestId(getGuideTileId({ kind: ResourceKind.Server }))
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId(ResourceKind.Kubernetes)
+      screen.queryByTestId(getGuideTileId({ kind: ResourceKind.Database }))
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId(getGuideTileId({ kind: ResourceKind.Application }))
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId(getGuideTileId({ kind: ResourceKind.Kubernetes }))
     ).not.toBeInTheDocument();
   });
 
   test('displays apps when the location state is application', () => {
     create({ initialEntry: 'application' });
 
-    expect(screen.getAllByTestId(ResourceKind.Application)).toHaveLength(
-      APPLICATIONS.length
-    );
-
-    expect(screen.queryByTestId(ResourceKind.Server)).not.toBeInTheDocument();
-    expect(screen.queryByTestId(ResourceKind.Desktop)).not.toBeInTheDocument();
-    expect(screen.queryByTestId(ResourceKind.Database)).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId(ResourceKind.Kubernetes)
+      screen.getAllByTestId(getGuideTileId({ kind: ResourceKind.Application }))
+    ).toHaveLength(APPLICATIONS.length);
+
+    expect(
+      screen.queryByTestId(getGuideTileId({ kind: ResourceKind.Server }))
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId(getGuideTileId({ kind: ResourceKind.Desktop }))
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId(getGuideTileId({ kind: ResourceKind.Database }))
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId(getGuideTileId({ kind: ResourceKind.Kubernetes }))
     ).not.toBeInTheDocument();
   });
 
   test('displays databases when the location state is database', () => {
     create({ initialEntry: 'database' });
 
-    expect(screen.getAllByTestId(ResourceKind.Database)).toHaveLength(
+    expect(
+      screen.getAllByTestId(getGuideTileId({ kind: ResourceKind.Database }))
+    ).toHaveLength(
       DATABASES.length +
         DATABASES_UNGUIDED.length +
         DATABASES_UNGUIDED_DOC.length
     );
 
-    expect(screen.queryByTestId(ResourceKind.Server)).not.toBeInTheDocument();
-    expect(screen.queryByTestId(ResourceKind.Desktop)).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId(ResourceKind.Application)
+      screen.queryByTestId(getGuideTileId({ kind: ResourceKind.Server }))
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId(ResourceKind.Kubernetes)
+      screen.queryByTestId(getGuideTileId({ kind: ResourceKind.Desktop }))
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId(getGuideTileId({ kind: ResourceKind.Application }))
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId(getGuideTileId({ kind: ResourceKind.Kubernetes }))
     ).not.toBeInTheDocument();
   });
 
   test('displays kube resources when the location state is kubernetes', () => {
     create({ initialEntry: 'kubernetes' });
 
-    expect(screen.getAllByTestId(ResourceKind.Kubernetes)).toHaveLength(
-      KUBERNETES.length
-    );
+    expect(
+      screen.getAllByTestId(getGuideTileId({ kind: ResourceKind.Kubernetes }))
+    ).toHaveLength(KUBERNETES.length);
 
-    expect(screen.queryByTestId(ResourceKind.Server)).not.toBeInTheDocument();
-    expect(screen.queryByTestId(ResourceKind.Desktop)).not.toBeInTheDocument();
-    expect(screen.queryByTestId(ResourceKind.Database)).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId(getGuideTileId({ kind: ResourceKind.Server }))
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId(getGuideTileId({ kind: ResourceKind.Desktop }))
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId(getGuideTileId({ kind: ResourceKind.Database }))
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByTestId(ResourceKind.Application)
     ).not.toBeInTheDocument();

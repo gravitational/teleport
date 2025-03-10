@@ -16,12 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import { Text, Toggle, Link, Flex, H2 } from 'design';
-
+import { Flex, H2, Link, Text, Toggle } from 'design';
 import { P } from 'design/Text/Text';
-
 import { IconTooltip } from 'design/Tooltip';
 
 const GUIDE_URL =
@@ -77,7 +73,9 @@ function PredicateDocumentation() {
       <P>
         Label Matching:{' '}
         <Text ml={1} as="span" bold>
-          <code>labels["key"] == "value" && labels["key2"] != "value2"</code>{' '}
+          <code>
+            labels["key"] == "value" && labels["key2"] != "value2"
+          </code>{' '}
         </Text>{' '}
       </P>
       <P>

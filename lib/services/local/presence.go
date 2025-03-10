@@ -26,7 +26,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -45,7 +44,7 @@ import (
 // PresenceService records and reports the presence of all components
 // of the cluster - Nodes, Proxies and SSH nodes
 type PresenceService struct {
-	log    *logrus.Entry
+	logger *slog.Logger
 	jitter retryutils.Jitter
 	backend.Backend
 }
@@ -57,95 +56,10 @@ type backendItemToResourceFunc func(item backend.Item) (types.ResourceWithLabels
 // NewPresenceService returns new presence service instance
 func NewPresenceService(b backend.Backend) *PresenceService {
 	return &PresenceService{
-		log:     logrus.WithFields(logrus.Fields{teleport.ComponentKey: "Presence"}),
+		logger:  slog.With(teleport.ComponentKey, "Presence"),
 		jitter:  retryutils.FullJitter,
 		Backend: b,
 	}
-}
-
-// DeleteAllNamespaces deletes all namespaces
-func (s *PresenceService) DeleteAllNamespaces() error {
-	startKey := backend.ExactKey(namespacesPrefix)
-	endKey := backend.RangeEnd(startKey)
-	return s.DeleteRange(context.TODO(), startKey, endKey)
-}
-
-// GetNamespaces returns a list of namespaces
-func (s *PresenceService) GetNamespaces() ([]types.Namespace, error) {
-	startKey := backend.ExactKey(namespacesPrefix)
-	endKey := backend.RangeEnd(startKey)
-	result, err := s.GetRange(context.TODO(), startKey, endKey, backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out := make([]types.Namespace, 0, len(result.Items))
-	for _, item := range result.Items {
-		if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
-			continue
-		}
-		ns, err := services.UnmarshalNamespace(
-			item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out = append(out, *ns)
-	}
-	sort.Sort(types.SortedNamespaces(out))
-	return out, nil
-}
-
-// UpsertNamespace upserts namespace
-func (s *PresenceService) UpsertNamespace(n types.Namespace) error {
-	if err := n.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-	rev := n.GetRevision()
-	value, err := services.MarshalNamespace(n)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:      backend.NewKey(namespacesPrefix, n.Metadata.Name, paramsPrefix),
-		Value:    value,
-		Expires:  n.Metadata.Expiry(),
-		Revision: rev,
-	}
-
-	_, err = s.Put(context.TODO(), item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// GetNamespace returns a namespace by name
-func (s *PresenceService) GetNamespace(name string) (*types.Namespace, error) {
-	if name == "" {
-		return nil, trace.BadParameter("missing namespace name")
-	}
-	item, err := s.Get(context.TODO(), backend.NewKey(namespacesPrefix, name, paramsPrefix))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("namespace %q is not found", name)
-		}
-		return nil, trace.Wrap(err)
-	}
-	return services.UnmarshalNamespace(
-		item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
-}
-
-// DeleteNamespace deletes a namespace with all the keys from the backend
-func (s *PresenceService) DeleteNamespace(namespace string) error {
-	if namespace == "" {
-		return trace.BadParameter("missing namespace name")
-	}
-	err := s.Delete(context.TODO(), backend.NewKey(namespacesPrefix, namespace, paramsPrefix))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return trace.NotFound("namespace %q is not found", namespace)
-		}
-	}
-	return trace.Wrap(err)
 }
 
 // GetServerInfos returns a stream of ServerInfos.
@@ -160,7 +74,10 @@ func (s *PresenceService) GetServerInfos(ctx context.Context) stream.Stream[type
 			services.WithRevision(item.Revision),
 		)
 		if err != nil {
-			s.log.Warnf("Skipping server info at %s, failed to unmarshal: %v", item.Key, err)
+			s.logger.WarnContext(ctx, "Failed to unmarshal server info",
+				"key", item.Key,
+				"error", err,
+			)
 			return nil, false
 		}
 		return si, true

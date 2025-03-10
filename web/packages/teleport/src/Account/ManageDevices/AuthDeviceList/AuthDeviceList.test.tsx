@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen } from 'design/utils/testing';
 import { within } from '@testing-library/react';
-import React from 'react';
+
+import { render, screen } from 'design/utils/testing';
 
 import { MfaDevice } from 'teleport/services/mfa';
 

@@ -17,29 +17,29 @@
  */
 
 import React from 'react';
-import * as Alerts from 'design/Alert';
+
 import {
-  ButtonIcon,
-  Text,
-  Indicator,
   Box,
+  ButtonIcon,
+  ButtonPrimary,
   Flex,
   H2,
-  ButtonPrimary,
+  Indicator,
+  Text,
 } from 'design';
+import * as Alerts from 'design/Alert';
+import { DialogContent, DialogHeader } from 'design/Dialog';
 import * as Icons from 'design/Icon';
-import { DialogHeader, DialogContent } from 'design/Dialog';
+import { AuthSettings } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 import { PrimaryAuthType } from 'shared/services';
 
-import { AuthSettings } from 'teleterm/ui/services/clusters/types';
-import { ClusterConnectReason } from 'teleterm/ui/services/modals';
-import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
 import { publicAddrWithTargetPort } from 'teleterm/services/tshd/app';
+import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
+import { ClusterConnectReason } from 'teleterm/ui/services/modals';
 
 import { outermostPadding } from '../spacing';
-
 import LoginForm from './FormLogin';
-import useClusterLogin, { State, Props } from './useClusterLogin';
+import useClusterLogin, { Props, State } from './useClusterLogin';
 
 export function ClusterLogin(props: Props & { reason: ClusterConnectReason }) {
   const { reason, ...otherProps } = props;
@@ -66,6 +66,9 @@ export function ClusterLoginPresentation({
   shouldPromptSsoStatus,
   passwordlessLoginState,
   reason,
+  shouldSkipVersionCheck,
+  disableVersionCheck,
+  platform,
 }: ClusterLoginPresentationProps) {
   return (
     <>
@@ -108,7 +111,7 @@ export function ClusterLoginPresentation({
         )}
         {initAttempt.status === 'success' && (
           <LoginForm
-            {...initAttempt.data}
+            authSettings={initAttempt.data}
             primaryAuthType={getPrimaryAuthType(initAttempt.data)}
             loggedInUserName={loggedInUserName}
             onLoginWithSso={onLoginWithSso}
@@ -119,6 +122,9 @@ export function ClusterLoginPresentation({
             clearLoginAttempt={clearLoginAttempt}
             shouldPromptSsoStatus={shouldPromptSsoStatus}
             passwordlessLoginState={passwordlessLoginState}
+            shouldSkipVersionCheck={shouldSkipVersionCheck}
+            disableVersionCheck={disableVersionCheck}
+            platform={platform}
           />
         )}
       </DialogContent>

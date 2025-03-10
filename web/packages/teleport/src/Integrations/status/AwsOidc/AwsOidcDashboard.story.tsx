@@ -16,26 +16,37 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import {
+  makeErrorAttempt,
+  makeProcessingAttempt,
+  makeSuccessAttempt,
+} from 'shared/hooks/useAsync';
 
-import { addHours } from 'date-fns';
-
+import cfg from 'teleport/config';
 import { AwsOidcDashboard } from 'teleport/Integrations/status/AwsOidc/AwsOidcDashboard';
 import { MockAwsOidcStatusProvider } from 'teleport/Integrations/status/AwsOidc/testHelpers/mockAwsOidcStatusProvider';
-import {
-  IntegrationKind,
-  ResourceTypeSummary,
-} from 'teleport/services/integrations';
-import { AwsOidcStatusContextState } from 'teleport/Integrations/status/AwsOidc/useAwsOidcStatus';
+import { IntegrationKind } from 'teleport/services/integrations';
+
+import { makeAwsOidcStatusContextState } from './testHelpers/makeAwsOidcStatusContextState';
 
 export default {
   title: 'Teleport/Integrations/AwsOidc',
 };
 
+const setup = {
+  path: cfg.routes.integrationStatus,
+  initialEntries: [
+    cfg.getIntegrationStatusRoute(IntegrationKind.AwsOidc, 'oidc-int'),
+  ],
+};
+
 // Loaded dashboard with data for each aws resource and a navigation header
 export function Dashboard() {
   return (
-    <MockAwsOidcStatusProvider value={makeAwsOidcStatusContextState()}>
+    <MockAwsOidcStatusProvider
+      {...setup}
+      value={makeAwsOidcStatusContextState()}
+    >
       <AwsOidcDashboard />
     </MockAwsOidcStatusProvider>
   );
@@ -44,11 +55,22 @@ export function Dashboard() {
 // Loaded dashboard with missing data for each aws resource and a navigation header
 export function DashboardMissingData() {
   const state = makeAwsOidcStatusContextState();
+  state.statsAttempt.data = undefined;
+  return (
+    <MockAwsOidcStatusProvider {...setup} value={state}>
+      <AwsOidcDashboard />
+    </MockAwsOidcStatusProvider>
+  );
+}
+
+// Loaded dashboard with missing data for each aws resource and a navigation header
+export function DashboardMissingSummary() {
+  const state = makeAwsOidcStatusContextState();
   state.statsAttempt.data.awseks = undefined;
   state.statsAttempt.data.awsrds = undefined;
   state.statsAttempt.data.awsec2 = undefined;
   return (
-    <MockAwsOidcStatusProvider value={state}>
+    <MockAwsOidcStatusProvider {...setup} value={state}>
       <AwsOidcDashboard />
     </MockAwsOidcStatusProvider>
   );
@@ -57,10 +79,10 @@ export function DashboardMissingData() {
 // Loading screen
 export function StatsProcessing() {
   const props = makeAwsOidcStatusContextState({
-    statsAttempt: { status: 'processing', data: null, statusText: '' },
+    statsAttempt: makeProcessingAttempt(),
   });
   return (
-    <MockAwsOidcStatusProvider value={props}>
+    <MockAwsOidcStatusProvider {...setup} value={props}>
       <AwsOidcDashboard />
     </MockAwsOidcStatusProvider>
   );
@@ -69,14 +91,10 @@ export function StatsProcessing() {
 // No header, no loading indicator
 export function IntegrationProcessing() {
   const props = makeAwsOidcStatusContextState({
-    integrationAttempt: {
-      status: 'processing',
-      data: null,
-      statusText: '',
-    },
+    integrationAttempt: makeProcessingAttempt(),
   });
   return (
-    <MockAwsOidcStatusProvider value={props}>
+    <MockAwsOidcStatusProvider {...setup} value={props}>
       <AwsOidcDashboard />
     </MockAwsOidcStatusProvider>
   );
@@ -85,32 +103,39 @@ export function IntegrationProcessing() {
 // Loaded error message
 export function StatsFailed() {
   const props = makeAwsOidcStatusContextState({
-    statsAttempt: {
-      status: 'error',
-      data: null,
-      statusText: 'failed to get stats',
-      error: {},
-    },
+    statsAttempt: makeErrorAttempt(new Error('failed  to get stats')),
   });
   return (
-    <MockAwsOidcStatusProvider value={props}>
+    <MockAwsOidcStatusProvider {...setup} value={props}>
       <AwsOidcDashboard />
     </MockAwsOidcStatusProvider>
   );
 }
 
-// Loaded dashboard with data for each aws resource but no navigation header
+// Loaded error message
 export function IntegrationFailed() {
   const props = makeAwsOidcStatusContextState({
-    integrationAttempt: {
-      status: 'error',
-      data: null,
-      statusText: 'failed  to get integration',
-      error: {},
-    },
+    integrationAttempt: makeErrorAttempt(
+      new Error('failed  to get integration')
+    ),
   });
   return (
-    <MockAwsOidcStatusProvider value={props}>
+    <MockAwsOidcStatusProvider {...setup} value={props}>
+      <AwsOidcDashboard />
+    </MockAwsOidcStatusProvider>
+  );
+}
+
+// Loaded error message
+export function BothFailed() {
+  const props = makeAwsOidcStatusContextState({
+    statsAttempt: makeErrorAttempt(new Error('failed  to get stats')),
+    integrationAttempt: makeErrorAttempt(
+      new Error('failed  to get integration')
+    ),
+  });
+  return (
+    <MockAwsOidcStatusProvider {...setup} value={props}>
       <AwsOidcDashboard />
     </MockAwsOidcStatusProvider>
   );
@@ -119,10 +144,10 @@ export function IntegrationFailed() {
 // Blank screen
 export function StatsNoData() {
   const props = makeAwsOidcStatusContextState({
-    statsAttempt: { status: 'success', data: null, statusText: '' },
+    statsAttempt: makeSuccessAttempt(null),
   });
   return (
-    <MockAwsOidcStatusProvider value={props}>
+    <MockAwsOidcStatusProvider {...setup} value={props}>
       <AwsOidcDashboard />
     </MockAwsOidcStatusProvider>
   );
@@ -131,71 +156,11 @@ export function StatsNoData() {
 // No header, no loading indicator
 export function IntegrationNoData() {
   const props = makeAwsOidcStatusContextState({
-    integrationAttempt: {
-      status: 'success',
-      data: null,
-      statusText: '',
-    },
+    integrationAttempt: makeSuccessAttempt(null),
   });
   return (
-    <MockAwsOidcStatusProvider value={props}>
+    <MockAwsOidcStatusProvider {...setup} value={props}>
       <AwsOidcDashboard />
     </MockAwsOidcStatusProvider>
-  );
-}
-
-function makeAwsOidcStatusContextState(
-  overrides: Partial<AwsOidcStatusContextState> = {}
-): AwsOidcStatusContextState {
-  return Object.assign(
-    {
-      integrationAttempt: {
-        status: 'success',
-        statusText: '',
-        data: {
-          resourceType: 'integration',
-          name: 'integration-one',
-          kind: IntegrationKind.AwsOidc,
-          spec: {
-            roleArn: 'arn:aws:iam::111456789011:role/bar',
-          },
-          statusCode: 1,
-        },
-      },
-      statsAttempt: {
-        status: 'success',
-        statusText: '',
-        data: {
-          name: 'integration-one',
-          subKind: IntegrationKind.AwsOidc,
-          awsoidc: {
-            roleArn: 'arn:aws:iam::111456789011:role/bar',
-          },
-          awsec2: makeResourceTypeSummary(),
-          awsrds: makeResourceTypeSummary(),
-          awseks: makeResourceTypeSummary(),
-        },
-      },
-    },
-    overrides
-  );
-}
-
-function makeResourceTypeSummary(
-  overrides: Partial<ResourceTypeSummary> = {}
-): ResourceTypeSummary {
-  return Object.assign(
-    {
-      rulesCount: Math.floor(Math.random() * 100),
-      resourcesFound: Math.floor(Math.random() * 100),
-      resourcesEnrollmentFailed: Math.floor(Math.random() * 100),
-      resourcesEnrollmentSuccess: Math.floor(Math.random() * 100),
-      discoverLastSync: addHours(
-        new Date().getTime(),
-        -Math.floor(Math.random() * 100)
-      ),
-      ecsDatabaseServiceCount: Math.floor(Math.random() * 100),
-    },
-    overrides
   );
 }

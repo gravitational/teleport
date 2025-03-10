@@ -16,18 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen } from 'design/utils/testing';
 import userEvent from '@testing-library/user-event';
 
-import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
-import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
+import { render, screen } from 'design/utils/testing';
+
 import {
-  makeRootCluster,
   makeLoggedInUser,
+  makeRootCluster,
   rootClusterUri,
 } from 'teleterm/services/tshd/testHelpers';
-import * as types from 'teleterm/ui/services/workspacesService';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
+import * as types from 'teleterm/ui/services/workspacesService';
 
 import { DocumentAuthorizeWebSession } from './DocumentAuthorizeWebSession';
 
@@ -94,17 +95,7 @@ test('authorizing a session opens its URL and closes document', async () => {
     loggedInUser: makeLoggedInUser({ isDeviceTrusted: true }),
   });
   const appContext = new MockAppContext();
-  appContext.clustersService.setState(draftState => {
-    draftState.clusters.set(rootCluster.uri, rootCluster);
-  });
-  appContext.workspacesService.setState(draftState => {
-    draftState.workspaces[rootCluster.uri] = {
-      localClusterUri: rootCluster.uri,
-      documents: [doc],
-      location: undefined,
-      accessRequests: undefined,
-    };
-  });
+  appContext.addRootClusterWithDoc(rootCluster, doc);
 
   render(
     <MockAppContextProvider appContext={appContext}>

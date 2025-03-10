@@ -85,7 +85,7 @@ migrating from Teleport Enterprise to Teleport Community Edition.
    ```
 
 1. We recommend that Teleport Enterprise (Self-Hosted) customers set up automatic updates to maintain a healthy set of Agents, and require this in Teleport Enterprise (Cloud). See how to 
-   [Set up Automatic Agent Updates](../upgrading/automatic-agent-updates.mdx) to
+   [Set up Automatic Agent Updates](../upgrading/agent-managed-updates.mdx) to
    incorporate this into your migration.
 
 
@@ -93,7 +93,8 @@ Validate connectivity to both the new Teleport Enterprise cluster and your
 original Teleport Enterprise cluster. You should be able to connect to both
 Teleport clusters and execute `tctl` commands using your current credentials.
 
-1. Log in to the original Teleport cluster:
+1. Log in to the original Teleport cluster, replacing 
+   <Var name="enterprise.example.com" /> with the cluster domain name:
 
    ```code
    # Use the --auth flag instead of --user to log in with Single Sign-On.
@@ -101,7 +102,8 @@ Teleport clusters and execute `tctl` commands using your current credentials.
    $ tctl status
    ```
 
-1. Log in to the new Teleport Enterprise cluster:
+1. Log in to the new Teleport Enterprise cluster, replacing <Var
+   name="example.teleport.sh" /> with the domain name of your new cluster:
 
    ```code
    # Use the --auth flag instead of --user to log in with Single Sign-On.
@@ -113,7 +115,7 @@ Teleport clusters and execute `tctl` commands using your current credentials.
    website](https://status.teleport.sh/) to stay current on any issues impacting
    the performance of your new cluster.
 
-<Notice
+<Admonition
   type="danger"
 >
 
@@ -123,7 +125,7 @@ Teleport clusters and execute `tctl` commands using your current credentials.
   security, Teleport Support cannot assist with resetting passwords or
   recovering lost credentials.
 
-</Notice>
+</Admonition>
 
 ## Step 2/4. Migrate Teleport resources
 
@@ -168,13 +170,13 @@ To achieve this:
    $ tctl create -f user.yaml
    ```
 
-<Notice type="tip">
+<Admonition type="tip">
 
 We recommend managing dynamic resources with the Teleport Terraform provider or
 Kubernetes operator. In this case, you can configure these tools to manage
 dynamic resources on your new Teleport cluster.
 
-</Notice>
+</Admonition>
 
 For your SSO auth connector, most SSO integrations only work for a single
 configured endpoint. It is recommended to create a separate SSO connector in
@@ -183,11 +185,11 @@ and configure a new Auth Connector in the new Teleport Enterprise tenant.
 
 ## Step 3/4. Migrate Teleport services and plugins
 
-To migrate services such as Teleport agents, Machine ID Bots, and plugins, start
+To migrate services such as Teleport Agents, Machine ID Bots, and plugins, start
 by cataloging the various services you're managing with Teleport. The following
 resources should be considered for migration:
 
- - Teleport agents 
+ - Teleport Agents 
  - Machine ID Bots
  - Access Request plugins
  - The Teleport Event Handler
@@ -200,9 +202,9 @@ business requirements. If running Teleport at scale, you'll generally want to
 use a configuration management tool to automate and streamline the process of
 carrying out the actions involved in migrating agent configurations. 
 
-### Migrate Teleport agents
+### Migrate Teleport Agents
 
-To migrate Teleport agents:
+To migrate Teleport Agents:
 
 1. For each Agent and Machine ID Bot, obtain a valid join token. We recommend
    using a [delegated join

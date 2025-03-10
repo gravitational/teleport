@@ -18,19 +18,18 @@
 
 import { PropsWithChildren, useRef, useState } from 'react';
 
-import { ButtonPrimary } from '../Button';
 import Box from '../Box';
+import { ButtonPrimary } from '../Button';
 import Flex from '../Flex';
 import * as Icons from '../Icon';
-import { H3 } from '../Text';
 import { Origin } from '../Popover';
-
-import MenuItemIcon from './MenuItemIcon';
+import { H3 } from '../Text';
+import Menu from './Menu';
 import MenuItem, {
   MenuItemSectionLabel,
   MenuItemSectionSeparator,
 } from './MenuItem';
-import Menu from './Menu';
+import MenuItemIcon from './MenuItemIcon';
 import MenuList from './MenuList';
 
 export default {
@@ -106,6 +105,18 @@ export const MenuItems = () => (
         <MenuItem>Donec volutpat</MenuItem>
         <MenuItem>Mauris sit</MenuItem>
         <MenuItem>Amet nisi tempor</MenuItem>
+      </OpenMenu>
+    </Flex>
+    <Flex gap={3} flexDirection="column">
+      <H3>Label as first child</H3>
+      <OpenMenu>
+        <MenuItemSectionLabel>Tempus ut libero</MenuItemSectionLabel>
+        <MenuItem>Lorem ipsum</MenuItem>
+        <MenuItem>Dolor sit amet</MenuItem>
+        <MenuItemSectionSeparator />
+        <MenuItemSectionLabel>Leo vitae arcu</MenuItemSectionLabel>
+        <MenuItem>Donec volutpat</MenuItem>
+        <MenuItem>Mauris sit</MenuItem>
       </OpenMenu>
     </Flex>
   </Flex>

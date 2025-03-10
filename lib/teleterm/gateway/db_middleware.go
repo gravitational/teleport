@@ -23,9 +23,9 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -33,7 +33,7 @@ import (
 
 type dbMiddleware struct {
 	onExpiredCert func(context.Context) (tls.Certificate, error)
-	log           *logrus.Entry
+	logger        *slog.Logger
 	dbRoute       tlsca.RouteToDatabase
 }
 
@@ -44,7 +44,7 @@ type dbMiddleware struct {
 // In the future, DBCertChecker is going to be extended so that it's used by both tsh and Connect
 // and this middleware will be removed.
 func (m *dbMiddleware) OnNewConnection(ctx context.Context, lp *alpn.LocalProxy) error {
-	err := lp.CheckDBCert(m.dbRoute)
+	err := lp.CheckDBCert(ctx, m.dbRoute)
 	if err == nil {
 		return nil
 	}
@@ -54,7 +54,7 @@ func (m *dbMiddleware) OnNewConnection(ctx context.Context, lp *alpn.LocalProxy)
 		return trace.Wrap(err)
 	}
 
-	m.log.WithError(err).Debug("Gateway certificates have expired")
+	m.logger.DebugContext(ctx, "Gateway certificates have expired", "error", err)
 
 	cert, err := m.onExpiredCert(ctx)
 	if err != nil {

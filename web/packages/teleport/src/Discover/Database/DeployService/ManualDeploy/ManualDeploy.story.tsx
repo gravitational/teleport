@@ -16,25 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { MemoryRouter } from 'react-router';
 import { http, HttpResponse } from 'msw';
+import { MemoryRouter } from 'react-router';
 
-import { Context as TeleportContext, ContextProvider } from 'teleport';
+import { ContextProvider, Context as TeleportContext } from 'teleport';
 import cfg from 'teleport/config';
-import { ResourceKind } from 'teleport/Discover/Shared';
-import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
-import { getUserContext } from 'teleport/mocks/contexts';
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-import { INTERNAL_RESOURCE_ID_LABEL_KEY } from 'teleport/services/joinToken';
 import {
   DatabaseEngine,
   DatabaseLocation,
 } from 'teleport/Discover/SelectResource';
+import { ResourceKind } from 'teleport/Discover/Shared';
+import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
 import {
-  DiscoverProvider,
   DiscoverContextState,
+  DiscoverProvider,
 } from 'teleport/Discover/useDiscover';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { getUserContext } from 'teleport/mocks/contexts';
+import { INTERNAL_RESOURCE_ID_LABEL_KEY } from 'teleport/services/joinToken';
 
 import ManualDeploy from './ManualDeploy';
 
@@ -54,7 +53,9 @@ export const Init = () => {
 Init.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.joinTokenPath, () => HttpResponse.json(rawJoinToken)),
+      http.post(cfg.api.discoveryJoinToken.createV2, () =>
+        HttpResponse.json(rawJoinToken)
+      ),
     ],
   },
 };
@@ -75,7 +76,11 @@ export const InitWithLabels = () => {
 };
 InitWithLabels.parameters = {
   msw: {
-    handlers: [http.post(cfg.api.joinTokenPath, () => HttpResponse.json({}))],
+    handlers: [
+      http.post(cfg.api.discoveryJoinToken.createV2, () =>
+        HttpResponse.json({})
+      ),
+    ],
   },
 };
 

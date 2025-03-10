@@ -141,6 +141,7 @@ export type ThemeColors = {
 
   tooltip: {
     background: string;
+    inverseBackground: string;
   };
 
   progressBarColor: string;

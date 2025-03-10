@@ -19,6 +19,8 @@ package types
 import (
 	"fmt"
 	"net/url"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -88,7 +90,7 @@ type Application interface {
 	// GetCORS returns the CORS configuration for the app.
 	GetCORS() *CORSPolicy
 	// GetTCPPorts returns port ranges supported by the app to which connections can be forwarded to.
-	GetTCPPorts() []*PortRange
+	GetTCPPorts() PortRanges
 	// SetTCPPorts sets port ranges to which connections can be forwarded to.
 	SetTCPPorts([]*PortRange)
 	// GetIdentityCenter fetches identity center info for the app, if any.
@@ -314,7 +316,7 @@ func (a *AppV3) SetUserGroups(userGroups []string) {
 }
 
 // GetTCPPorts returns port ranges supported by the app to which connections can be forwarded to.
-func (a *AppV3) GetTCPPorts() []*PortRange {
+func (a *AppV3) GetTCPPorts() PortRanges {
 	return a.Spec.TCPPorts
 }
 
@@ -472,7 +474,7 @@ func (a *AppV3) GetDisplayName() string {
 	if a.Spec.IdentityCenter == nil {
 		return ""
 	}
-	return a.GetName()
+	return a.Metadata.Description
 }
 
 // IsEqual determines if two application resources are equivalent to one another.
@@ -536,4 +538,35 @@ func (a *AppIdentityCenter) GetPermissionSets() []*IdentityCenterPermissionSet {
 		return nil
 	}
 	return a.PermissionSets
+}
+
+// PortRanges is a list of port ranges.
+type PortRanges []*PortRange
+
+// Contains checks if targetPort is within any of the port ranges.
+func (p PortRanges) Contains(targetPort int) bool {
+	return slices.ContainsFunc(p, func(portRange *PortRange) bool {
+		return netutils.IsPortInRange(int(portRange.Port), int(portRange.EndPort), targetPort)
+	})
+}
+
+// String returns a string representation of port ranges.
+func (p PortRanges) String() string {
+	var builder strings.Builder
+	for i, portRange := range p {
+		if i > 0 {
+			builder.WriteString(", ")
+		}
+		builder.WriteString(portRange.String())
+	}
+	return builder.String()
+}
+
+// String returns a string representation of a port range.
+func (p *PortRange) String() string {
+	if p.EndPort == 0 {
+		return strconv.Itoa(int(p.Port))
+	} else {
+		return fmt.Sprintf("%d-%d", p.Port, p.EndPort)
+	}
 }

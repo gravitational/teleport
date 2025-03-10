@@ -495,12 +495,14 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		process.logger.WarnContext(process.ExitContext(), "Failed to write identity to storage.", "identity", role, "error", err)
 	}
 
-	if err := process.storage.WriteState(role, state.StateV2{
+	err = process.storage.WriteState(role, state.StateV2{
 		Spec: state.StateSpecV2{
 			Rotation:            ca.GetRotation(),
 			InitialLocalVersion: teleport.Version,
 		},
-	}); err != nil {
+	})
+	process.rotationCache.Remove(role)
+	if err != nil {
 		return nil, trace.NewAggregate(err, connector.Close())
 	}
 	process.logger.InfoContext(process.ExitContext(), "The process successfully wrote the credentials and state to the disk.", "identity", role)
@@ -912,6 +914,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 		}
 		localState.Spec.Rotation = remote
 		err = storage.WriteState(id.Role, localState)
+		process.rotationCache.Remove(id.Role)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -982,6 +985,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 			// only update local phase, there is no need to reload
 			localState.Spec.Rotation = remote
 			err = storage.WriteState(id.Role, localState)
+			process.rotationCache.Remove(id.Role)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

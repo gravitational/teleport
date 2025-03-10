@@ -11,7 +11,7 @@ hardware security module (HSM) to store and handle private keys.
 
 - Teleport v(=teleport.version=) Enterprise (self-hosted).
 - (!docs/pages/includes/tctl.mdx!)
-- An HSM reachable from your Teleport auth server.
+- An HSM reachable from your Teleport Auth Service.
 - The PKCS#11 module for your HSM.
 
 (!docs/pages/includes/enterprise/hsm-warning.mdx!)
@@ -22,17 +22,20 @@ CloudHSM, YubiHSM2, and SoftHSM2.
 ## Step 1/5. Set up your HSM
 
 You will need to set up your HSM and make sure that it is accessible from your
-Teleport Auth Server. You should create a unique HSM user or token for Teleport
+Teleport Auth Service. You should create a unique HSM user or token for Teleport
 to use.
 
 <Tabs>
   <TabItem label="AWS CloudHSM">
-1. Create a CloudHSM cluster in the VPC where you will run your Teleport Auth Server.
+1. Create a CloudHSM cluster in the VPC where you will run your Teleport Auth
+   Service.
    https://docs.aws.amazon.com/cloudhsm/latest/userguide/create-cluster.html
 
 1. Wait for the newly created cluster to enter the "Uninitialized" state.
 
-1. Add an HSM to the new cluster, using the AWS Console or the AWS CLI:
+1. Add an HSM to the new cluster, using the AWS Console or the AWS CLI,
+   assigning <Var name="region"/> to your AWS region and <Var name="availability zone"/>
+   to your availability zone:
 
    ```code
    $ aws --region <Var name="region"/> cloudhsmv2 create-hsm --cluster-id <Var name="cluster ID"/> --availability-zone <Var name="availability zone"/>
@@ -106,9 +109,9 @@ to use.
 1. A security group with the same name as your CloudHSM cluster will have been
    automatically created when you created the cluster.
    Attach this security group to the EC2 instance where you will run your
-   Teleport Auth Server to allow traffic between the Auth Server and your HSM.
+   Teleport Auth Service to allow traffic between the Auth Service and your HSM.
 
-1. On the Auth Server EC2 instance, install the CloudHSM CLI for the CloudHSM
+1. On the Auth Service EC2 instance, install the CloudHSM CLI for the CloudHSM
     Client SDK 5.
     https://docs.aws.amazon.com/cloudhsm/latest/userguide/gs_cloudhsm_cli-install.html
 
@@ -163,7 +166,7 @@ to use.
    aws-cloudhsm > quit
    ```
 
-1. Install the PKCS#11 library for the Client SDK 5 on the same Auth Server EC2 instance
+1. Install the PKCS#11 library for the Client SDK 5 on the same Auth Service EC2 instance
     https://docs.aws.amazon.com/cloudhsm/latest/userguide/pkcs11-library-install.html
 
    Bootstrap the PKCS#11 library by configuring the HSM IP address.
@@ -243,7 +246,7 @@ to use.
 1. Set the environment variable `YUBIHSM_PKCS11_CONF` to the path of your
    configuration file.
    This will be read by the PKCS#11 module and needs to be set in the Teleport
-   auth server's environment.
+   Auth Service's environment.
    ```code
    $ export YUBIHSM_PKCS11_CONF=/etc/yubihsm_pkcs11.conf
    ```
@@ -254,7 +257,7 @@ to use.
 
 To configure Teleport to use an HSM for all CA private key generation, storage,
 and signing, include the `ca_key_params` section in `/etc/teleport.yaml` on the
-auth server.
+Auth Service.
 
 <Tabs>
   <TabItem label="AWS CloudHSM">
@@ -282,6 +285,11 @@ auth_service:
       pin: "<CU_username>:<CU_password>"
       # pin_path can optionally be used to read the pin from a file
       # pin_path: /path/to/pin_file
+
+      # max_sessions configures the maximum number of open sessions for the HSM.
+      # If not set, it will default to the minimum of 1024 or the MaxRWSessionCount
+      # reported by the PKCS#11 module for the token. If set, must be greater than 1.
+      max_sessions: 10
 ```
   </TabItem>
 
@@ -306,6 +314,10 @@ auth_service:
       pin: "85cfpassword"
       # pin_path can optionally be used to read the pin from a file
       # pin_path: /path/to/pin_file
+
+      # Optionally specify the maximum number of open sessions for the HSM.
+      # If not set, it will default to 1024. If set, must be greater than 1.
+      max_sessions: 10
 ```
   </TabItem>
 </Tabs>

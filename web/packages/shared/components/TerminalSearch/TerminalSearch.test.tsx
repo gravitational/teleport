@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, act, screen } from 'design/utils/testing';
 import { SearchAddon } from '@xterm/addon-search';
+
+import { act, render, screen } from 'design/utils/testing';
 
 import { TerminalSearch } from './TerminalSearch';
 

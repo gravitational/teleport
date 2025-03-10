@@ -24,6 +24,7 @@ import (
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/expression"
 )
 
 // WorkloadIdentities is an interface over the WorkloadIdentities service. This
@@ -97,23 +98,25 @@ func ValidateWorkloadIdentity(s *workloadidentityv1pb.WorkloadIdentity) error {
 	}
 
 	for i, rule := range s.GetSpec().GetRules().GetAllow() {
-		if len(rule.Conditions) == 0 {
-			return trace.BadParameter("spec.rules.allow[%d].conditions: must be non-empty", i)
+		if rule.Expression == "" {
+			if len(rule.Conditions) == 0 {
+				return trace.BadParameter("spec.rules.allow[%d].conditions: must be non-empty", i)
+			}
+		} else {
+			if len(rule.Conditions) != 0 {
+				return trace.BadParameter("spec.rules.allow[%d].conditions: is mutually exclusive with expression", i)
+			}
+			if err := expression.Validate(rule.Expression); err != nil {
+				return trace.BadParameter("spec.rules.allow[%d].expression: invalid expression: %s", i, err.Error())
+			}
 		}
+
 		for j, condition := range rule.Conditions {
 			if condition.Attribute == "" {
 				return trace.BadParameter("spec.rules.allow[%d].conditions[%d].attribute: must be non-empty", i, j)
 			}
-			// Ensure exactly one operator is set.
-			operatorsSet := 0
-			if condition.Equals != "" {
-				operatorsSet++
-			}
-			if operatorsSet == 0 || operatorsSet > 1 {
-				return trace.BadParameter(
-					"spec.rules.allow[%d].conditions[%d]: exactly one operator must be specified, found %d",
-					i, j, operatorsSet,
-				)
+			if condition.Operator == nil {
+				return trace.BadParameter("spec.rules.allow[%d].conditions[%d]: operator must be specified", i, j)
 			}
 		}
 	}

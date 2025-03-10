@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
@@ -82,10 +81,10 @@ func (a *Server) checkKubernetesJoinRequest(ctx context.Context, req *types.Regi
 		)
 	}
 
-	log.WithFields(logrus.Fields{
-		"validated_identity": result,
-		"token":              token.GetName(),
-	}).Info("Kubernetes workload trying to join cluster")
+	a.logger.InfoContext(ctx, "Kubernetes workload trying to join cluster",
+		"validated_identity", result,
+		"token", token.GetName(),
+	)
 
 	return result, trace.Wrap(checkKubernetesAllowRules(token, result))
 }

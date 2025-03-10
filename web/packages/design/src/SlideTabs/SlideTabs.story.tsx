@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 
-import * as Icon from 'design/Icon';
 import Flex from 'design/Flex';
+import * as Icon from 'design/Icon';
 
 import { SlideTabs, TabSpec } from './SlideTabs';
 
@@ -208,13 +208,29 @@ export const StatusIcons = () => {
   );
 };
 
-export const DisabledTab = () => {
+export const Disabled = () => {
   return (
     <SlideTabs
       tabs={threeSimpleTabs}
       onChange={() => null}
       activeIndex={1}
       disabled={true}
+    />
+  );
+};
+
+export const DisabledTab = () => {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const tabs = [
+    { key: 'aws', title: 'aws' },
+    { key: 'automatically', title: 'automatically', disabled: true },
+    { key: 'manually', title: 'manually' },
+  ];
+  return (
+    <SlideTabs
+      tabs={tabs}
+      activeIndex={activeIndex}
+      onChange={setActiveIndex}
     />
   );
 };

@@ -16,21 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled from 'styled-components';
 
 import {
-  fontSize,
-  FontSizeProps,
   color,
   ColorProps,
-  width,
-  WidthProps,
+  fontSize,
+  FontSizeProps,
   space,
   SpaceProps,
+  width,
+  WidthProps,
 } from 'design/system';
-import { fade } from 'design/theme/utils/colorManipulator';
 import { Theme } from 'design/theme/themes/types';
+import { fade } from 'design/theme/utils/colorManipulator';
 
 export type LabelKind =
   | 'primary'

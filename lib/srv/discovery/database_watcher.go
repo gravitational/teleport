@@ -20,16 +20,19 @@ package discovery
 
 import (
 	"context"
-	"log/slog"
 	"sync"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 const databaseEventPrefix = "db/"
@@ -53,8 +56,7 @@ func (s *Server) startDatabaseWatchers() error {
 				defer mu.Unlock()
 				return utils.FromSlice(newDatabases, types.Database.GetName)
 			},
-			// TODO(tross): update to use the server logger once it is converted to use slog
-			Logger:   slog.With("kind", types.KindDatabase),
+			Logger:   s.Log.With("kind", types.KindDatabase),
 			OnCreate: s.onDatabaseCreate,
 			OnUpdate: s.onDatabaseUpdate,
 			OnDelete: s.onDatabaseDelete,
@@ -67,15 +69,13 @@ func (s *Server) startDatabaseWatchers() error {
 	watcher, err := common.NewWatcher(s.ctx,
 		common.WatcherConfig{
 			FetchersFn:     s.getAllDatabaseFetchers,
-			Log:            s.LegacyLogger.WithField("kind", types.KindDatabase),
+			Logger:         s.Log.With("kind", types.KindDatabase),
 			DiscoveryGroup: s.DiscoveryGroup,
 			Interval:       s.PollInterval,
 			TriggerFetchC:  s.newDiscoveryConfigChangedSub(),
 			Origin:         types.OriginCloud,
 			Clock:          s.clock,
-			PreFetchHookFn: func() {
-				s.awsRDSResourcesStatus.reset()
-			},
+			PreFetchHookFn: s.databaseWatcherIterationStarted,
 		},
 	)
 	if err != nil {
@@ -85,7 +85,6 @@ func (s *Server) startDatabaseWatchers() error {
 
 	go func() {
 		for {
-			discoveryConfigsChanged := map[string]struct{}{}
 			resourcesFoundByGroup := make(map[awsResourceGroup]int)
 
 			select {
@@ -99,9 +98,10 @@ func (s *Server) startDatabaseWatchers() error {
 
 					resourceGroup := awsResourceGroupFromLabels(db.GetStaticLabels())
 					resourcesFoundByGroup[resourceGroup] += 1
-					discoveryConfigsChanged[resourceGroup.discoveryConfig] = struct{}{}
 
 					dbs = append(dbs, db)
+
+					s.collectRDSIssuesAsUserTasks(db, resourceGroup.integration, resourceGroup.discoveryConfigName)
 				}
 				mu.Lock()
 				newDatabases = dbs
@@ -134,12 +134,80 @@ func (s *Server) startDatabaseWatchers() error {
 				return
 			}
 
-			for dc := range discoveryConfigsChanged {
-				s.updateDiscoveryConfigStatus(dc)
-			}
+			s.upsertTasksForAWSRDSFailedEnrollments()
 		}
 	}()
 	return nil
+}
+
+// collectRDSIssuesAsUserTasks receives a discovered database converted into a Teleport Database resource and creates
+// an User Task (discover-rds) if that Database is not properly configured to be accessed from Teleport.
+// Eg, an UserTask is created if the IAM DB Authentication is not enabled
+func (s *Server) collectRDSIssuesAsUserTasks(db types.Database, integration, discoveryConfigName string) {
+	if integration == "" || discoveryConfigName == "" || !db.IsRDS() {
+		return
+	}
+
+	if db.GetAWS().RDS.IAMAuth {
+		return
+	}
+
+	isCluster := db.GetAWS().RDS.ClusterID != ""
+	databaseIdentifier := db.GetAWS().RDS.InstanceID
+	if isCluster {
+		databaseIdentifier = db.GetAWS().RDS.ClusterID
+	}
+
+	engine := db.GetStaticLabels()[types.DiscoveryLabelEngine]
+
+	s.awsRDSTasks.addFailedEnrollment(
+		awsRDSTaskKey{
+			integration: integration,
+			issueType:   usertasks.AutoDiscoverRDSIssueIAMAuthenticationDisabled,
+			accountID:   db.GetAWS().AccountID,
+			region:      db.GetAWS().Region,
+		},
+		&usertasksv1.DiscoverRDSDatabase{
+			DiscoveryConfig: discoveryConfigName,
+			DiscoveryGroup:  s.DiscoveryGroup,
+			SyncTime:        timestamppb.New(s.clock.Now()),
+			Name:            databaseIdentifier,
+			IsCluster:       isCluster,
+			Engine:          engine,
+		},
+	)
+}
+
+func (s *Server) databaseWatcherIterationStarted() {
+	allFetchers := s.getAllDatabaseFetchers()
+	if len(allFetchers) == 0 {
+		return
+	}
+
+	s.submitFetchersEvent(allFetchers)
+
+	awsResultGroups := slices.FilterMapUnique(
+		allFetchers,
+		func(f common.Fetcher) (awsResourceGroup, bool) {
+			include := f.GetDiscoveryConfigName() != "" && f.IntegrationName() != ""
+			resourceGroup := awsResourceGroup{
+				discoveryConfigName: f.GetDiscoveryConfigName(),
+				integration:         f.IntegrationName(),
+			}
+			return resourceGroup, include
+		},
+	)
+
+	discoveryConfigs := slices.FilterMapUnique(awsResultGroups, func(g awsResourceGroup) (s string, include bool) {
+		return g.discoveryConfigName, true
+	})
+	s.updateDiscoveryConfigStatus(discoveryConfigs...)
+	s.awsRDSResourcesStatus.reset()
+	for _, g := range awsResultGroups {
+		s.awsRDSResourcesStatus.iterationStarted(g)
+	}
+
+	s.awsRDSTasks.reset()
 }
 
 func (s *Server) getAllDatabaseFetchers() []common.Fetcher {
@@ -152,8 +220,6 @@ func (s *Server) getAllDatabaseFetchers() []common.Fetcher {
 	s.muDynamicDatabaseFetchers.RUnlock()
 
 	allFetchers = append(allFetchers, s.databaseFetchers...)
-
-	s.submitFetchersEvent(allFetchers)
 
 	return allFetchers
 }

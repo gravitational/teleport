@@ -18,8 +18,7 @@
 
 import { EventMeta } from 'teleport/services/userEvent';
 
-import { DeviceUsage, WebauthnAssertionResponse } from '../mfa';
-
+import { DeviceUsage, MfaChallengeResponse } from '../mfa';
 import { IsMfaRequiredRequest, MfaChallengeScope } from './auth';
 
 export type Base64urlString = string;
@@ -73,8 +72,7 @@ export type CreateAuthenticateChallengeRequest = {
 export type ChangePasswordReq = {
   oldPassword: string;
   newPassword: string;
-  secondFactorToken: string;
-  webauthnResponse?: WebauthnAssertionResponse;
+  mfaResponse?: MfaChallengeResponse;
 };
 
 export type CreateNewHardwareDeviceRequest = {

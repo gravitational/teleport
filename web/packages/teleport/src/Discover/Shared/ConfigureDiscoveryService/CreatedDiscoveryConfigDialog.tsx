@@ -16,18 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import {
-  Text,
-  Flex,
   AnimatedProgressBar,
   ButtonPrimary,
   ButtonSecondary,
+  Flex,
   Mark,
+  Text,
 } from 'design';
-import * as Icons from 'design/Icon';
 import Dialog, { DialogContent } from 'design/DialogConfirmation';
-
+import * as Icons from 'design/Icon';
 import type { Attempt } from 'shared/hooks/useAttemptNext';
 
 export type CreatedDiscoveryConfigDialog = {
@@ -90,9 +88,7 @@ export function CreatedDiscoveryConfigDialog({
               <>
                 {' '}
                 The discovery service can take a few minutes to finish
-                auto-enrolling resources found in region <Mark>
-                  {region}
-                </Mark>.
+                auto-enrolling resources found in region <Mark>{region}</Mark>.
               </>
             )}
           </Text>

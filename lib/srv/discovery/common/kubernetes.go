@@ -17,14 +17,14 @@
 package common
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"maps"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -39,7 +39,7 @@ func setAWSKubeName(meta types.Metadata, firstNamePart string, extraNameParts ..
 }
 
 // NewKubeClusterFromAWSEKS creates a kube_cluster resource from an EKS cluster.
-func NewKubeClusterFromAWSEKS(clusterName, clusterArn string, tags map[string]*string) (types.KubeCluster, error) {
+func NewKubeClusterFromAWSEKS(clusterName, clusterArn string, tags map[string]string) (types.KubeCluster, error) {
 	parsedARN, err := arn.Parse(clusterArn)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -63,7 +63,7 @@ func NewKubeClusterFromAWSEKS(clusterName, clusterArn string, tags map[string]*s
 }
 
 // labelsFromAWSKubeClusterTags creates kube cluster labels.
-func labelsFromAWSKubeClusterTags(tags map[string]*string, parsedARN arn.ARN) map[string]string {
+func labelsFromAWSKubeClusterTags(tags map[string]string, parsedARN arn.ARN) map[string]string {
 	labels := awsEKSTagsToLabels(tags)
 	labels[types.CloudLabel] = types.CloudAWS
 	labels[types.DiscoveryLabelRegion] = parsedARN.Region
@@ -73,13 +73,13 @@ func labelsFromAWSKubeClusterTags(tags map[string]*string, parsedARN arn.ARN) ma
 }
 
 // awsEKSTagsToLabels converts AWS tags to a labels map.
-func awsEKSTagsToLabels(tags map[string]*string) map[string]string {
+func awsEKSTagsToLabels(tags map[string]string) map[string]string {
 	labels := make(map[string]string)
 	for key, val := range tags {
 		if types.IsValidLabelKey(key) {
-			labels[key] = aws.StringValue(val)
+			labels[key] = val
 		} else {
-			logrus.Debugf("Skipping EKS tag %q, not a valid label key.", key)
+			slog.DebugContext(context.Background(), "Skipping EKS tag that is not a valid label key", "tag", key)
 		}
 	}
 	return labels
@@ -97,7 +97,7 @@ func addLabels(labels map[string]string, moreLabels map[string]string) map[strin
 		if types.IsValidLabelKey(key) {
 			labels[key] = value
 		} else {
-			logrus.Debugf("Skipping %q, not a valid label key.", key)
+			slog.DebugContext(context.Background(), "Skipping label that is not a valid label key", "label", key)
 		}
 	}
 	return labels

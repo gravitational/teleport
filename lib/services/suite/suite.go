@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/x509/pkix"
 	"fmt"
+	"log/slog"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -33,7 +34,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 	protobuf "google.golang.org/protobuf/proto"
@@ -70,9 +70,12 @@ func NewTestCA(caType types.CertAuthType, clusterName string, privateKeys ...[]b
 // a test certificate authority
 type TestCAConfig struct {
 	Type        types.CertAuthType
-	ClusterName string
 	PrivateKeys [][]byte
 	Clock       clockwork.Clock
+	ClusterName string
+	// the below string fields default to ClusterName if left empty
+	ResourceName        string
+	SubjectOrganization string
 }
 
 // NewTestCAWithConfig generates a new certificate authority with the specified
@@ -82,6 +85,13 @@ type TestCAConfig struct {
 func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 	var keyPEM []byte
 	var key *keys.PrivateKey
+
+	if config.ResourceName == "" {
+		config.ResourceName = config.ClusterName
+	}
+	if config.SubjectOrganization == "" {
+		config.SubjectOrganization = config.ClusterName
+	}
 
 	switch config.Type {
 	case types.DatabaseCA, types.SAMLIDPCA, types.OIDCIdPCA:
@@ -127,7 +137,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 		SubKind: string(config.Type),
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name:      config.ClusterName,
+			Name:      config.ResourceName,
 			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.CertAuthoritySpecV2{
@@ -152,7 +162,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 			Signer: key.Signer,
 			Entity: pkix.Name{
 				CommonName:   config.ClusterName,
-				Organization: []string{config.ClusterName},
+				Organization: []string{config.SubjectOrganization},
 			},
 			TTL:   defaults.CATTL,
 			Clock: config.Clock,
@@ -202,7 +212,7 @@ type ServicesTestSuite struct {
 	UsersS        services.UsersService
 	RestrictionsS services.Restrictions
 	ChangesC      chan interface{}
-	Clock         clockwork.FakeClock
+	Clock         *clockwork.FakeClock
 }
 
 func (s *ServicesTestSuite) Users() services.UsersService {
@@ -830,32 +840,6 @@ func (s *ServicesTestSuite) RolesCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = s.Access.GetRole(ctx, role.Metadata.Name)
-	require.True(t, trace.IsNotFound(err))
-}
-
-func (s *ServicesTestSuite) NamespacesCRUD(t *testing.T) {
-	out, err := s.PresenceS.GetNamespaces()
-	require.NoError(t, err)
-	require.Empty(t, out)
-
-	ns := types.Namespace{
-		Kind:    types.KindNamespace,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Name:      apidefaults.Namespace,
-			Namespace: apidefaults.Namespace,
-		},
-	}
-	err = s.PresenceS.UpsertNamespace(ns)
-	require.NoError(t, err)
-	nsout, err := s.PresenceS.GetNamespace(ns.Metadata.Name)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(nsout, &ns))
-
-	err = s.PresenceS.DeleteNamespace(ns.Metadata.Name)
-	require.NoError(t, err)
-
-	_, err = s.PresenceS.GetNamespace(ns.Metadata.Name)
 	require.True(t, trace.IsNotFound(err))
 }
 
@@ -1715,32 +1699,6 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			},
 		},
 		{
-			name: "Namespace",
-			kind: types.WatchKind{
-				Kind: types.KindNamespace,
-			},
-			crud: func(context.Context) types.Resource {
-				ns := types.Namespace{
-					Kind:    types.KindNamespace,
-					Version: types.V2,
-					Metadata: types.Metadata{
-						Name:      "testnamespace",
-						Namespace: apidefaults.Namespace,
-					},
-				}
-				err := s.PresenceS.UpsertNamespace(ns)
-				require.NoError(t, err)
-
-				out, err := s.PresenceS.GetNamespace(ns.Metadata.Name)
-				require.NoError(t, err)
-
-				err = s.PresenceS.DeleteNamespace(ns.Metadata.Name)
-				require.NoError(t, err)
-
-				return out
-			},
-		},
-		{
 			name: "Static tokens",
 			kind: types.WatchKind{
 				Kind: types.KindStaticTokens,
@@ -1927,38 +1885,6 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 		AllowPartialSuccess: true,
 	})
 
-	// Namespace with a name
-	testCases = []eventTest{
-		{
-			name: "Namespace with a name",
-			kind: types.WatchKind{
-				Kind: types.KindNamespace,
-				Name: "shmest",
-			},
-			crud: func(context.Context) types.Resource {
-				ns := types.Namespace{
-					Kind:    types.KindNamespace,
-					Version: types.V2,
-					Metadata: types.Metadata{
-						Name:      "shmest",
-						Namespace: apidefaults.Namespace,
-					},
-				}
-				err := s.PresenceS.UpsertNamespace(ns)
-				require.NoError(t, err)
-
-				out, err := s.PresenceS.GetNamespace(ns.Metadata.Name)
-				require.NoError(t, err)
-
-				err = s.PresenceS.DeleteNamespace(ns.Metadata.Name)
-				require.NoError(t, err)
-
-				return out
-			},
-		},
-	}
-	s.runEventsTests(t, testCases, types.Watch{Kinds: eventsTestKinds(testCases)})
-
 	// tests that a watch fails given an unknown kind when the partial success mode is not enabled
 	s.runUnknownEventsTest(t, types.Watch{Kinds: []types.WatchKind{
 		{Kind: types.KindNamespace},
@@ -2140,7 +2066,7 @@ skiploop:
 	for {
 		select {
 		case event := <-w.Events():
-			log.Debugf("Skipping pre-test event: %v", event)
+			slog.DebugContext(ctx, "Skipping pre-test event", "event", event)
 			continue skiploop
 		default:
 			break skiploop
@@ -2215,11 +2141,11 @@ waitLoop:
 			t.Fatalf("Watcher exited with error %v", w.Error())
 		case event := <-w.Events():
 			if event.Type != types.OpPut {
-				log.Debugf("Skipping event %+v", event)
+				slog.DebugContext(context.Background(), "Skipping event", "event", event)
 				continue
 			}
 			if resource.GetName() != event.Resource.GetName() || resource.GetKind() != event.Resource.GetKind() || resource.GetSubKind() != event.Resource.GetSubKind() {
-				log.Debugf("Skipping event %v resource %v, expecting %v", event.Type, event.Resource.GetMetadata(), event.Resource.GetMetadata())
+				slog.DebugContext(context.Background(), "Skipping event", "event", event)
 				continue waitLoop
 			}
 			require.Empty(t, cmp.Diff(resource, event.Resource))
@@ -2240,7 +2166,10 @@ waitLoop:
 			t.Fatalf("Watcher exited with error %v", w.Error())
 		case event := <-w.Events():
 			if event.Type != types.OpDelete {
-				log.Debugf("Skipping stale event %v %v", event.Type, event.Resource.GetName())
+				slog.DebugContext(context.Background(), "Skipping stale event",
+					"event_type", event.Type,
+					"resource_name", event.Resource.GetName(),
+				)
 				continue
 			}
 

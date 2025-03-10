@@ -16,11 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState, useRef, useCallback } from 'react';
-import styled, { useTheme } from 'styled-components';
-import { Flex, ButtonIcon, Box, P2, Input } from 'design';
-import { ChevronDown, ChevronUp, Cross } from 'design/Icon';
 import { SearchAddon } from '@xterm/addon-search';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import styled, { useTheme } from 'styled-components';
+
+import { Box, ButtonIcon, Flex, Input, P2 } from 'design';
+import { ChevronDown, ChevronUp, Cross } from 'design/Icon';
 
 export interface TerminalSearcher {
   getSearchAddon(): SearchAddon;

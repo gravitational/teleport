@@ -85,14 +85,33 @@ type ALPNAuthTunnelConfig struct {
 	// RouteToDatabase contains the destination server that must receive the connection.
 	// Specific for database proxying.
 	RouteToDatabase proto.RouteToDatabase
+
+	// TLSCert specifies the TLS certificate used on the proxy connection.
+	TLSCert *tls.Certificate
+}
+
+func (c *ALPNAuthTunnelConfig) CheckAndSetDefaults(ctx context.Context) error {
+	if c.AuthClient == nil {
+		return trace.BadParameter("missing auth client")
+	}
+
+	if c.TLSCert == nil {
+		tlsCert, err := getUserCerts(ctx, c.AuthClient, c.MFAResponse, c.Expires, c.RouteToDatabase, c.ConnectionDiagnosticID)
+		if err != nil {
+			return trace.BadParameter("failed to parse private key: %v", err)
+		}
+
+		c.TLSCert = &tlsCert
+	}
+
+	return nil
 }
 
 // RunALPNAuthTunnel runs a local authenticated ALPN proxy to another service.
 // At least one Route (which defines the service) must be defined
 func RunALPNAuthTunnel(ctx context.Context, cfg ALPNAuthTunnelConfig) error {
-	tlsCert, err := getUserCerts(ctx, cfg.AuthClient, cfg.MFAResponse, cfg.Expires, cfg.RouteToDatabase, cfg.ConnectionDiagnosticID)
-	if err != nil {
-		return trace.BadParameter("failed to parse private key: %v", err)
+	if err := cfg.CheckAndSetDefaults(ctx); err != nil {
+		return trace.Wrap(err)
 	}
 
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
@@ -101,7 +120,7 @@ func RunALPNAuthTunnel(ctx context.Context, cfg ALPNAuthTunnelConfig) error {
 		Protocols:          []alpn.Protocol{cfg.Protocol},
 		Listener:           cfg.Listener,
 		ParentContext:      ctx,
-		Cert:               tlsCert,
+		Cert:               *cfg.TLSCert,
 	}, alpnproxy.WithALPNConnUpgradeTest(ctx, getClusterCACertPool(cfg.AuthClient)))
 	if err != nil {
 		return trace.Wrap(err)
@@ -110,7 +129,7 @@ func RunALPNAuthTunnel(ctx context.Context, cfg ALPNAuthTunnelConfig) error {
 	go func() {
 		defer cfg.Listener.Close()
 		if err := lp.Start(ctx); err != nil {
-			log.WithError(err).Info("ALPN proxy stopped.")
+			log.InfoContext(ctx, "ALPN proxy stopped", "error", err)
 		}
 	}()
 

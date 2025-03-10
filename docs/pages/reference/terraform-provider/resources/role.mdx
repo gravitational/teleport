@@ -27,9 +27,17 @@ resource "teleport_role" "example" {
 
   spec = {
     options = {
-      forward_agent           = false
-      max_session_ttl         = "7m"
-      port_forwarding         = false
+      forward_agent   = false
+      max_session_ttl = "7m"
+      ssh_port_forwarding = {
+        remote = {
+          enabled = false
+        }
+
+        local = {
+          enabled = false
+        }
+      }
       client_idle_timeout     = "1h"
       disconnect_expired_cert = true
       permit_x11_forwarding   = false
@@ -143,6 +151,8 @@ Optional:
 - `windows_desktop_labels` (Map of List of String) WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.
 - `windows_desktop_labels_expression` (String) WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.
 - `windows_desktop_logins` (List of String) WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.
+- `workload_identity_labels` (Map of List of String) WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.
+- `workload_identity_labels_expression` (String) WorkloadIdentityLabelsExpression is a predicate expression used to allow/deny access to issuing a WorkloadIdentity.
 
 ### Nested Schema for `spec.allow.account_assignments`
 
@@ -339,6 +349,8 @@ Optional:
 - `windows_desktop_labels` (Map of List of String) WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.
 - `windows_desktop_labels_expression` (String) WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.
 - `windows_desktop_logins` (List of String) WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.
+- `workload_identity_labels` (Map of List of String) WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.
+- `workload_identity_labels_expression` (String) WorkloadIdentityLabelsExpression is a predicate expression used to allow/deny access to issuing a WorkloadIdentity.
 
 ### Nested Schema for `spec.deny.account_assignments`
 

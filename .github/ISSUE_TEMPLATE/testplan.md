@@ -1644,6 +1644,35 @@ Verify SAML IdP service provider resource management.
   - [ ] Verify that when a SAML resource is created with preset value `preset: gcp-workforce`, Teleport adds
         relay state `relay_state: https://console.cloud.google/` value in the resulting resource spec.
 
+## SSO MFA
+
+Verify SSO MFA core functionality. The tests below should be performed once
+with OIDC and once with SAML.
+
+Configure both an OIDC connector and a SAML connector following the [Quick GitHub/SAML/OIDC Setup Tips]
+and [enable MFA on them](https://goteleport.com/docs/ver/17.x/admin-guides/access-controls/sso/#configuring-sso-for-mfa-checks).
+
+For simplicity, you can use the same IdP App (client id/secret or entity descriptor)
+for both login and MFA. This way, each Teleport MFA check will make you re-login via SSO.
+
+Ensure [SSO is allowed as a second factor](https://goteleport.com/docs/ver/17.x/admin-guides/access-controls/sso/#allowing-sso-as-an-mfa-method-in-your-cluster).
+e.g. `cap.second_factors: ['webauthn', 'sso']`.
+
+The following should work with SSO MFA, automatically opening the SSO MFA redirect URL:
+
+- [ ] `tsh mfa ls` should display the SSO MFA device.
+  - [ ] SSO MFA device cannot be deleted or added
+- [ ] Add another MFA device (`tsh mfa add`)
+- [ ] Delete the other MFA device (`tsh --mfa-mode=sso mfa rm`)
+- [ ] Moderated Sessions
+- [ ] Admin Actions (e.g. `tctl tokens ls`)
+- [ ] Per-session MFA
+  - [ ] Server Access
+  - [ ] File Transfers
+  - [ ] Kubernetes Access
+  - [ ] App Access
+  - [ ] Database Access
+  - [ ] Desktop Access
 
 ## Resources
 
@@ -1652,4 +1681,4 @@ Verify SAML IdP service provider resource management.
 <!---
 reference style links
 -->
-[Quick GitHub/SAML/OIDC Setup Tips]: https://gravitational.slab.com/posts/quick-git-hub-saml-oidc-setup-6dfp292a
+[Quick GitHub/SAML/OIDC Setup Tips]: https://www.notion.so/goteleport/Quick-SSO-setup-fb1a64504115414ca50a965390105bee

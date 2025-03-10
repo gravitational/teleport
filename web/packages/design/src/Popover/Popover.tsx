@@ -40,13 +40,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-import React, { createRef, Component } from 'react';
+import React, { Component, createRef } from 'react';
 import styled, { CSSProp } from 'styled-components';
 
 import Flex from 'design/Flex';
 
-import Modal, { BackdropProps, ModalProps as ModalProps } from '../Modal';
-
+import Modal, { BackdropProps, ModalProps } from '../Modal';
 import { Transition } from './Transition';
 
 type Offset = { top: number; left: number };

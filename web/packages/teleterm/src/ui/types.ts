@@ -17,28 +17,28 @@
  */
 import * as tshdEventsApi from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
+import { ConfigService } from 'teleterm/services/config';
+import { TshdClient, VnetClient } from 'teleterm/services/tshd';
 import {
   MainProcessClient,
   TshdEventContextBridgeService,
 } from 'teleterm/types';
-import { ClustersService } from 'teleterm/ui/services/clusters';
-import { ModalsService } from 'teleterm/ui/services/modals';
-import { TerminalsService } from 'teleterm/ui/services/terminals';
-import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
 import { CommandLauncher } from 'teleterm/ui/commandLauncher';
-import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
-import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
-import { NotificationsService } from 'teleterm/ui/services/notifications';
+import { ClustersService } from 'teleterm/ui/services/clusters';
 import { ConnectionTrackerService } from 'teleterm/ui/services/connectionTracker';
+import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
 import { FileTransferService } from 'teleterm/ui/services/fileTransferClient';
-import { ResourcesService } from 'teleterm/ui/services/resources';
+import { HeadlessAuthenticationService } from 'teleterm/ui/services/headlessAuthn/headlessAuthnService';
+import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
+import { ModalsService } from 'teleterm/ui/services/modals';
+import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { ReloginService } from 'teleterm/ui/services/relogin/reloginService';
+import { ResourcesService } from 'teleterm/ui/services/resources';
+import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
+import { TerminalsService } from 'teleterm/ui/services/terminals';
 import { TshdNotificationsService } from 'teleterm/ui/services/tshdNotifications/tshdNotificationService';
 import { UsageService } from 'teleterm/ui/services/usage';
-import { ConfigService } from 'teleterm/services/config';
-import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
-import { HeadlessAuthenticationService } from 'teleterm/ui/services/headlessAuthn/headlessAuthnService';
-import { TshdClient, VnetClient } from 'teleterm/services/tshd';
+import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
 
 export interface IAppContext {
   clustersService: ClustersService;

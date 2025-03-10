@@ -27,9 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -75,7 +73,6 @@ const (
 // consistent view to the rest of the Teleport application. It makes no decisions
 // about granting or withholding list membership.
 type AccessListService struct {
-	log           logrus.FieldLogger
 	clock         clockwork.Clock
 	service       *generic.Service[*accesslist.AccessList]
 	memberService *generic.Service[*accesslist.AccessListMember]
@@ -144,7 +141,6 @@ func NewAccessListService(b backend.Backend, clock clockwork.Clock, opts ...Serv
 	}
 
 	return &AccessListService{
-		log:           logrus.WithFields(logrus.Fields{teleport.ComponentKey: "access-list:local-service"}),
 		clock:         clock,
 		service:       service,
 		memberService: memberService,
@@ -1039,7 +1035,7 @@ func (a *AccessListService) VerifyAccessListCreateLimit(ctx context.Context, tar
 	}
 
 	const limitReachedMessage = "cluster has reached its limit for creating access lists, please contact the cluster administrator"
-	return trace.AccessDenied(limitReachedMessage)
+	return trace.AccessDenied("%s", limitReachedMessage)
 }
 
 // keepAWSIdentityCenterLabels preserves member labels if

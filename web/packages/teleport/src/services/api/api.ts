@@ -17,19 +17,27 @@
  */
 
 import 'whatwg-fetch';
+
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import websession from 'teleport/services/websession';
 
-import { storageService } from '../storageService';
 import { MfaChallengeResponse } from '../mfa';
-
-import parseError, { ApiError } from './parseError';
+import { storageService } from '../storageService';
+import parseError, { ApiError, parseProxyVersion } from './parseError';
 
 export const MFA_HEADER = 'Teleport-Mfa-Response';
 
 const api = {
-  get(url: string, abortSignal?: AbortSignal) {
-    return api.fetchJsonWithMfaAuthnRetry(url, { signal: abortSignal });
+  get(
+    url: string,
+    abortSignal?: AbortSignal,
+    mfaResponse?: MfaChallengeResponse
+  ) {
+    return api.fetchJsonWithMfaAuthnRetry(
+      url,
+      { signal: abortSignal },
+      mfaResponse
+    );
   },
 
   post(url, data?, abortSignal?, mfaResponse?: MfaChallengeResponse) {
@@ -142,16 +150,31 @@ const api = {
     customOptions: RequestInit,
     mfaResponse?: MfaChallengeResponse
   ): Promise<any> {
-    const response = await api.fetch(url, customOptions, mfaResponse);
+    try {
+      const response = await api.fetch(url, customOptions, mfaResponse);
+      return await api.getJsonFromFetchResponse(response);
+    } catch (err) {
+      // Retry with MFA if we get an admin action MFA error.
+      if (!mfaResponse && isAdminActionRequiresMfaError(err)) {
+        mfaResponse = await api.getAdminActionMfaResponse();
+        const response = await api.fetch(url, customOptions, mfaResponse);
+        return await api.getJsonFromFetchResponse(response);
+      } else {
+        throw err;
+      }
+    }
+  },
 
+  async getJsonFromFetchResponse(response: Response) {
     let json;
     try {
       json = await response.json();
     } catch (err) {
+      // error reading JSON
       const message = response.ok
         ? err.message
         : `${response.status} - ${response.url}`;
-      throw new ApiError(message, response, { cause: err });
+      throw new ApiError({ message, response, opts: { cause: err } });
     }
 
     if (response.ok) {
@@ -170,32 +193,26 @@ const api = {
       return;
     }
 
-    // Retry with MFA if we get an admin action missing MFA error.
-    const isAdminActionMfaError = isAdminActionRequiresMfaError(
-      parseError(json)
-    );
-    const shouldRetry = isAdminActionMfaError && !mfaResponse;
-    if (!shouldRetry) {
-      throw new ApiError(parseError(json), response, undefined, json.messages);
-    }
+    throw new ApiError({
+      message: parseError(json),
+      response,
+      proxyVersion: parseProxyVersion(json),
+      messages: json.messages,
+    });
+  },
 
-    let mfaResponseForRetry;
-    try {
-      const challenge = await auth.getMfaChallenge({
-        scope: MfaChallengeScope.ADMIN_ACTION,
-      });
-      mfaResponseForRetry = await auth.getMfaChallengeResponse(challenge);
-    } catch {
+  async getAdminActionMfaResponse() {
+    const challenge = await auth.getMfaChallenge({
+      scope: MfaChallengeScope.ADMIN_ACTION,
+    });
+
+    if (!challenge) {
       throw new Error(
-        'Failed to fetch MFA challenge. Please connect a registered hardware key and try again. If you do not have a hardware key registered, you can add one from your account settings page.'
+        'This is an admin-level API request and requires MFA verification. Please try again with a registered MFA device. If you do not have an MFA device registered, you can add one in the account settings page.'
       );
     }
 
-    return api.fetchJsonWithMfaAuthnRetry(
-      url,
-      customOptions,
-      mfaResponseForRetry
-    );
+    return auth.getMfaChallengeResponse(challenge);
   },
 
   /**
@@ -237,14 +254,16 @@ const api = {
    * If customOptions field is not provided, only fields defined in
    * `defaultRequestOptions` will be used.
    *
-   * @param webauthnResponse if defined (eg: `fetchJsonWithMfaAuthnRetry`)
-   * will add a custom MFA header field that will hold the webauthn response.
+   * @param mfaResponse if defined (eg: `fetchJsonWithMfaAuthnRetry`)
+   * will add a custom MFA header field that will hold the mfaResponse.
+   *
+   * @returns the native fetch's response object.
    */
-  fetch(
+  async fetch(
     url: string,
     customOptions: RequestInit = {},
     mfaResponse?: MfaChallengeResponse
-  ) {
+  ): Promise<Response> {
     url = window.location.origin + url;
     const options = {
       ...defaultRequestOptions,
@@ -258,13 +277,15 @@ const api = {
 
     if (mfaResponse) {
       options.headers[MFA_HEADER] = JSON.stringify({
-        // TODO(Joerger): Handle non-webauthn response.
+        ...mfaResponse,
+        // TODO(Joerger): DELETE IN v19.0.0.
+        // We include webauthnAssertionResponse for backwards compatibility.
         webauthnAssertionResponse: mfaResponse.webauthn_response,
       });
     }
 
     // native call
-    return fetch(url, options);
+    return await fetch(url, options);
   },
 };
 
@@ -310,8 +331,8 @@ export function getHostName() {
   return location.hostname + (location.port ? ':' + location.port : '');
 }
 
-function isAdminActionRequiresMfaError(errMessage) {
-  return errMessage.includes(
+function isAdminActionRequiresMfaError(err: Error) {
+  return err.message.includes(
     'admin-level API request requires MFA verification'
   );
 }

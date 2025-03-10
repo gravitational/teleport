@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, fireEvent } from 'design/utils/testing';
+import { fireEvent, render } from 'design/utils/testing';
 
 import { DialogConfirmation } from './DialogConfirmation';
 

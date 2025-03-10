@@ -19,10 +19,11 @@
 package services
 
 import (
+	"context"
+	"log/slog"
 	"slices"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -115,8 +116,11 @@ func MatchResourceLabels(matchers []ResourceMatcher, labels map[string]string) b
 		}
 		match, _, err := MatchLabels(matcher.Labels, labels)
 		if err != nil {
-			logrus.WithError(err).Errorf("Failed to match labels %v: %v.",
-				matcher.Labels, labels)
+			slog.ErrorContext(context.Background(), "Failed to match labels",
+				"error", err,
+				"matcher_labels", matcher.Labels,
+				"resource_labels", labels,
+			)
 			return false
 		}
 		if match {

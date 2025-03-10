@@ -244,7 +244,7 @@ func (s *StaticHostUserHandler) handleNewHostUser(ctx context.Context, hostUser 
 				slog.Group("first_match", "labels", createUser.NodeLabels, "expression", createUser.NodeLabelsExpression),
 				slog.Group("second_match", "labels", matcher.NodeLabels, "expression", matcher.NodeLabelsExpression),
 			)
-			return trace.BadParameter(msg)
+			return trace.BadParameter("%s", msg)
 		}
 		createUser = matcher
 	}

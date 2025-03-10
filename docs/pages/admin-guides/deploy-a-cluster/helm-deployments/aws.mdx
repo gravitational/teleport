@@ -109,7 +109,6 @@ You should be aware of these potential limitations and differences when using La
   that it terminate all inbound TLS traffic itself on the Teleport proxy. This is not directly possible when using
   a Layer 7 load balancer, so the `tsh` client implements this flow itself
   [using ALPN connection upgrades](../../../reference/architecture/tls-routing.mdx).
-- The use of Teleport and `tsh` v13 or higher is required.
 
 <Admonition type="warning">
   Using ACM with an ALB also requires that your cluster has a fully functional installation of the AWS Load Balancer
@@ -446,7 +445,7 @@ You'll need to set up a DNS `A` record for `teleport.example.com`. In our exampl
 (!docs/pages/includes/dns-app-access.mdx!)
 </Details>
 
-Here's how to do this in a hosted zone with AWS Route 53:
+Here's how to do this in a hosted zone with Amazon Route 53:
 
 <Tabs>
 <TabItem label="cert-manager">
@@ -576,7 +575,7 @@ $ aws route53 get-change --id "${CHANGEID?}" | jq '.ChangeInfo.Status'
 
 ## Step 7/7. Create a Teleport user
 
-Create a user to be able to log into Teleport. This needs to be done on the Teleport auth server,
+Create a user to be able to log into Teleport. This needs to be done on the Teleport Auth Service,
 so we can run the command using `kubectl`:
 
 <Tabs>

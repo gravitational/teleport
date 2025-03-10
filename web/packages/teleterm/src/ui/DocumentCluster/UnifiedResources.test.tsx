@@ -16,36 +16,35 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useImperativeHandle, forwardRef, createRef } from 'react';
-import { render, screen } from 'design/utils/testing';
-import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 import { act } from '@testing-library/react';
+import { mockIntersectionObserver } from 'jsdom-testing-mocks';
+import { createRef, forwardRef, useImperativeHandle } from 'react';
 
+import { render, screen } from 'design/utils/testing';
+import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import {
   AvailableResourceMode,
   DefaultTab,
-  ViewMode,
   LabelsViewMode,
+  ViewMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
-import { UnifiedResources } from 'teleterm/ui/DocumentCluster/UnifiedResources';
-import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
+import {
+  makeRootCluster,
+  makeServer,
+  rootClusterUri,
+} from 'teleterm/services/tshd/testHelpers';
+import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer';
 import {
   ResourcesContextProvider,
   useResourcesContext,
 } from 'teleterm/ui/DocumentCluster/resourcesContext';
-import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer';
+import { UnifiedResources } from 'teleterm/ui/DocumentCluster/UnifiedResources';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import {
-  makeRootCluster,
-  rootClusterUri,
-  makeServer,
-} from 'teleterm/services/tshd/testHelpers';
-import { getEmptyPendingAccessRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
-import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import * as uri from 'teleterm/ui/uri';
 
 const mio = mockIntersectionObserver();
@@ -175,39 +174,25 @@ test.each([
   const doc = makeDocumentCluster();
 
   const appContext = new MockAppContext({ platform: 'darwin' });
-  appContext.clustersService.setState(draft => {
-    draft.clusters.set(
-      doc.clusterUri,
-      makeRootCluster({
-        uri: doc.clusterUri,
-        features: {
-          advancedAccessWorkflows:
-            testCase.conditions.isClusterSupportingAccessRequests,
-          isUsageBasedBilling: false,
-        },
-        showResources: testCase.conditions.showResources,
-      })
-    );
-  });
-
+  appContext.addRootClusterWithDoc(
+    makeRootCluster({
+      uri: doc.clusterUri,
+      features: {
+        advancedAccessWorkflows:
+          testCase.conditions.isClusterSupportingAccessRequests,
+        isUsageBasedBilling: false,
+      },
+      showResources: testCase.conditions.showResources,
+    }),
+    doc
+  );
   appContext.workspacesService.setState(draftState => {
-    const rootClusterUri = doc.clusterUri;
-    draftState.rootClusterUri = rootClusterUri;
-    draftState.workspaces[rootClusterUri] = {
-      localClusterUri: doc.clusterUri,
-      documents: [doc],
-      location: doc.uri,
-      unifiedResourcePreferences: {
-        defaultTab: DefaultTab.ALL,
-        viewMode: ViewMode.CARD,
-        labelsViewMode: LabelsViewMode.COLLAPSED,
-        availableResourceMode:
-          testCase.conditions.availableResourceModePreference,
-      },
-      accessRequests: {
-        pending: getEmptyPendingAccessRequest(),
-        isBarCollapsed: true,
-      },
+    draftState.workspaces[doc.clusterUri].unifiedResourcePreferences = {
+      defaultTab: DefaultTab.ALL,
+      viewMode: ViewMode.CARD,
+      labelsViewMode: LabelsViewMode.COLLAPSED,
+      availableResourceMode:
+        testCase.conditions.availableResourceModePreference,
     };
   });
 
@@ -302,22 +287,7 @@ test.each([
   });
   const serverResource = makeServer();
   const appContext = new MockAppContext();
-  appContext.clustersService.setState(draft => {
-    draft.clusters.set(rootCluster.uri, rootCluster);
-  });
-
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = rootCluster.uri;
-    draftState.workspaces[rootCluster.uri] = {
-      localClusterUri: rootCluster.uri,
-      documents: [doc],
-      location: doc.uri,
-      accessRequests: {
-        pending: getEmptyPendingAccessRequest(),
-        isBarCollapsed: true,
-      },
-    };
-  });
+  appContext.addRootClusterWithDoc(rootCluster, doc);
 
   jest
     .spyOn(appContext.resourcesService, 'listUnifiedResources')

@@ -276,7 +276,7 @@ To configure Teleport to use PostgreSQL:
   `storage` section of `teleport.yaml` as shown below.
 - Deploy several Auth Service instances connected to the PostgreSQL storage backend.
 - Deploy several Proxy Service nodes.
-- Make sure that the Proxy Service instances and all Teleport agent services that
+- Make sure that the Proxy Service instances and all Teleport Agent services that
   connect directly to the Auth Service have the `auth_server` configuration
   setting populated with the address of a load balancer for Auth Service
   instances.
@@ -361,9 +361,10 @@ If the use of passwords is unavoidable, we recommend configuring them in [the
 `~/.pgpass` file](https://www.postgresql.org/docs/current/libpq-pgpass.html)
 rather than storing them in Teleport's configuration file.
 
-### Azure AD authentication
+### Microsoft Entra ID authentication
 
-If you are running Teleport on Azure, Teleport can make use of [Azure AD
+If you are running Teleport on Azure, Teleport can make use of [Microsoft Entra
+ID
 authentication](https://learn.microsoft.com/azure/postgresql/flexible-server/concepts-azure-ad-authentication)
 to connect to an Azure Database for PostgreSQL server without having to manage
 any secrets:
@@ -383,13 +384,13 @@ teleport:
 When `auth_mode` is set to `azure`, Teleport will automatically fetch
 short-lived tokens from the credentials available to it, to be used as database
 passwords. The database user must be [configured to allow connections using
-Azure
-AD](https://learn.microsoft.com/azure/postgresql/flexible-server/how-to-configure-sign-in-azure-ad-authentication).
+Microsoft Entra ID](https://learn.microsoft.com/azure/postgresql/flexible-server/how-to-configure-sign-in-azure-ad-authentication).
 
-Teleport will make use of the Azure AD credentials specified by [environment
+Teleport will make use of the Microsoft Entra ID credentials specified by
+[environment
 variables](https://learn.microsoft.com/azure/developer/go/azure-sdk-authentication#2-authenticate-with-azure),
-[Azure AD Workload
-Identity](https://learn.microsoft.com/azure/aks/workload-identity-overview)
+[Microsoft Entra Workload
+ID](https://learn.microsoft.com/azure/aks/workload-identity-overview)
 credentials, or [managed
 identity](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview)
 credentials.
@@ -650,6 +651,10 @@ Service reads these parameters to configure its interactions with S3:
 - `use_fips_endpoint=true` -  [Configure S3 FIPS
   endpoints](#configuring-aws-fips-endpoints)
 
+- `use_s3_virtual_style_addressing` - Whether to use virtual-host-style instead of path-style URLs for the
+  bucket. Only applies when a custom endpoint is set. Defaults to false when unset. If used
+  without a custom endpoint set, this option has no effect.
+
 ### S3 IAM policy
 
 (!docs/pages/includes/s3-iam-policy.mdx!)
@@ -851,7 +856,7 @@ To configure Teleport to use DynamoDB:
 - Make sure that all Teleport resource services have the `auth_servers` configuration setting
   populated with the addresses of your cluster's Auth Service instances.
 
-<Notice type="danger">
+<Admonition type="danger">
 
 AWS can throttle DynamoDB if more than two processes are reading from the same
 stream's shard simultaneously, so you must not deploy more than two Auth Service
@@ -859,7 +864,7 @@ instances that read from a DynamoDB backend. For details on DynamoDB Streams,
 read the [AWS
 documentation](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.html).
 
-</Notice>
+</Admonition>
 
 ```yaml
 teleport:
@@ -1390,10 +1395,10 @@ to define a custom role for it.
 
 ### Authentication
 
-Teleport will make use of the Azure AD credentials specified by [environment
+Teleport will make use of the Microsoft Entra ID credentials specified by [environment
 variables](https://learn.microsoft.com/azure/developer/go/azure-sdk-authentication#2-authenticate-with-azure),
-[Azure AD Workload
-Identity](https://learn.microsoft.com/azure/aks/workload-identity-overview)
+[Microsoft Entra Workload
+ID](https://learn.microsoft.com/azure/aks/workload-identity-overview)
 credentials, or [managed
 identity](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview)
 credentials.
@@ -1495,7 +1500,7 @@ To configure Teleport to use CockroachDB as a storage backend:
   `storage` section of `teleport.yaml` as shown below.
 - Deploy several Auth Service instances connected to the CockroachDB storage backend.
 - Deploy several Proxy Service instances.
-- Make sure that the Proxy Service instances and all Teleport agent services that
+- Make sure that the Proxy Service instances and all Teleport Agent services that
   connect directly to to the Auth Service have the `auth_server` configuration
   setting populated with the address of a load balancer for Auth Service
   instances.

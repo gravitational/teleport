@@ -16,29 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-  useImperativeHandle,
-} from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
+
 import { Box } from 'design';
 import Popover from 'design/Popover';
 import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
 
+import * as tshd from 'teleterm/services/tshd/types';
+import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 import {
-  useKeyboardShortcuts,
   useKeyboardShortcutFormatters,
+  useKeyboardShortcuts,
 } from 'teleterm/ui/services/keyboardShortcuts';
 
-import * as tshd from 'teleterm/services/tshd/types';
-
-import { IdentityRootCluster, useIdentity } from './useIdentity';
-import { IdentityList } from './IdentityList/IdentityList';
+import { ActiveCluster, ClusterList } from './IdentityList/IdentityList';
 import { IdentitySelector } from './IdentitySelector/IdentitySelector';
-import { EmptyIdentityList } from './EmptyIdentityList/EmptyIdentityList';
+import { useIdentity } from './useIdentity';
 
 export function IdentityContainer() {
   const {
@@ -47,17 +42,27 @@ export function IdentityContainer() {
     changeRootCluster,
     logout,
     addCluster,
+    refreshCluster,
+    changeColor,
   } = useIdentity();
+  const selectorRef = useRef<HTMLButtonElement>();
+  const [open, setOpen] = useState(false);
   const { getLabelWithAccelerator } = useKeyboardShortcutFormatters();
-
-  const presenterRef = useRef<IdentityHandler>();
+  const hasClusters = activeRootCluster || rootClusters.length;
+  const togglePopoverOrAddCluster = useCallback(() => {
+    if (hasClusters) {
+      setOpen(o => !o);
+    } else {
+      addCluster();
+    }
+  }, [addCluster, hasClusters]);
 
   useKeyboardShortcuts(
     useMemo(
       () => ({
-        openProfiles: presenterRef.current?.togglePopover,
+        openProfiles: togglePopoverOrAddCluster,
       }),
-      [presenterRef.current?.togglePopover]
+      [togglePopoverOrAddCluster]
     )
   );
 
@@ -67,109 +72,71 @@ export function IdentityContainer() {
       'openProfiles'
     );
 
+  function withClose<T extends (...args: any[]) => any>(
+    fn: T
+  ): (...args: Parameters<T>) => ReturnType<T> {
+    return (...args) => {
+      setOpen(false);
+      return fn(...args);
+    };
+  }
+
+  const deviceTrustStatus = calculateDeviceTrustStatus(
+    activeRootCluster?.loggedInUser
+  );
+  const activeColor = useStoreSelector(
+    'workspacesService',
+    useCallback(state => state.workspaces[state.rootClusterUri]?.color, [])
+  );
+
   return (
-    <Identity
-      ref={presenterRef}
-      activeRootCluster={activeRootCluster}
-      rootClusters={rootClusters}
-      changeRootCluster={changeRootCluster}
-      logout={logout}
-      addCluster={addCluster}
-      makeTitle={makeTitle}
-    />
+    <>
+      <IdentitySelector
+        ref={selectorRef}
+        onClick={togglePopoverOrAddCluster}
+        open={open}
+        activeCluster={activeRootCluster}
+        activeColor={activeColor}
+        makeTitle={makeTitle}
+        deviceTrustStatus={deviceTrustStatus}
+      />
+      <Popover
+        open={open}
+        anchorEl={selectorRef.current}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        onClose={() => setOpen(false)}
+        popoverCss={() => `max-width: min(450px, 90%)`}
+      >
+        <Container>
+          {activeRootCluster && (
+            <ActiveCluster
+              activeCluster={activeRootCluster}
+              activeColor={activeColor}
+              onChangeColor={changeColor}
+              onLogout={withClose(() => logout(activeRootCluster.uri))}
+              onRefresh={withClose(() => refreshCluster(activeRootCluster.uri))}
+              deviceTrustStatus={deviceTrustStatus}
+            />
+          )}
+          <KeyboardArrowsNavigation>
+            {focusGrabber}
+            <ClusterList
+              clusters={rootClusters}
+              onSelect={withClose(changeRootCluster)}
+              onLogout={withClose(logout)}
+              onAdd={withClose(addCluster)}
+            />
+          </KeyboardArrowsNavigation>
+        </Container>
+      </Popover>
+    </>
   );
 }
 
-export type IdentityHandler = { togglePopover: () => void };
-
-export type IdentityProps = {
-  activeRootCluster: tshd.Cluster | undefined;
-  rootClusters: IdentityRootCluster[];
-  changeRootCluster: (clusterUri: string) => Promise<void>;
-  logout: (clusterUri: string) => void;
-  addCluster: () => void;
-  makeTitle: (userWithClusterName: string | undefined) => string;
-};
-
-export const Identity = React.forwardRef<IdentityHandler, IdentityProps>(
-  (
-    {
-      activeRootCluster,
-      rootClusters,
-      changeRootCluster,
-      logout,
-      addCluster,
-      makeTitle,
-    },
-    ref
-  ) => {
-    const selectorRef = useRef<HTMLButtonElement>();
-    const [isPopoverOpened, setIsPopoverOpened] = useState(false);
-
-    const togglePopover = useCallback(() => {
-      setIsPopoverOpened(wasOpened => !wasOpened);
-    }, [setIsPopoverOpened]);
-
-    function withClose<T extends (...args) => any>(
-      fn: T
-    ): (...args: Parameters<T>) => ReturnType<T> {
-      return (...args) => {
-        setIsPopoverOpened(false);
-        return fn(...args);
-      };
-    }
-
-    useImperativeHandle(ref, () => ({
-      togglePopover: () => {
-        togglePopover();
-      },
-    }));
-
-    const loggedInUser = activeRootCluster?.loggedInUser;
-
-    const deviceTrustStatus = calculateDeviceTrustStatus(loggedInUser);
-
-    return (
-      <>
-        <IdentitySelector
-          ref={selectorRef}
-          onClick={togglePopover}
-          isOpened={isPopoverOpened}
-          userName={loggedInUser?.name}
-          clusterName={activeRootCluster?.name}
-          makeTitle={makeTitle}
-          deviceTrustStatus={deviceTrustStatus}
-        />
-        <Popover
-          open={isPopoverOpened}
-          anchorEl={selectorRef.current}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-          onClose={() => setIsPopoverOpened(false)}
-          popoverCss={() => `max-width: min(560px, 90%)`}
-        >
-          <Container>
-            {rootClusters.length ? (
-              <IdentityList
-                loggedInUser={loggedInUser}
-                clusters={rootClusters}
-                onSelectCluster={withClose(changeRootCluster)}
-                onLogout={withClose(logout)}
-                onAddCluster={withClose(addCluster)}
-                deviceTrustStatus={deviceTrustStatus}
-              />
-            ) : (
-              <EmptyIdentityList onConnect={withClose(addCluster)} />
-            )}
-          </Container>
-        </Popover>
-      </>
-    );
-  }
-);
-
 const Container = styled(Box)`
   background: ${props => props.theme.colors.levels.elevated};
+  min-width: 300px;
   width: 100%;
 `;
 
@@ -191,3 +158,18 @@ function calculateDeviceTrustStatus(
   }
   return 'none';
 }
+
+// Hack - for some reason xterm.js doesn't allow moving focus to the Identity popover
+// when it is focused using element.focus().
+// It used to restore focus after the popover was closed, but this no longer seems to work.
+const focusGrabber = (
+  <input
+    style={{
+      opacity: 0,
+      position: 'absolute',
+      height: 0,
+      zIndex: -1,
+    }}
+    autoFocus={true}
+  />
+);

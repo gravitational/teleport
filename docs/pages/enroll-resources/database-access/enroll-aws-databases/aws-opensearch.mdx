@@ -155,6 +155,8 @@ Create the new role:
 $ tctl create -f aws-opensearch-access.yaml
 ```
 
+(!docs/pages/includes/create-role-using-web.mdx!)
+
 (!docs/pages/includes/add-role-to-user.mdx role="aws-opensearch-access"!)
 
 ## Step 3/4. Install the Teleport Database Service
@@ -195,7 +197,8 @@ your terminal, and manually adjust `/etc/teleport.yaml`.
 
 Generate a configuration file at `/etc/teleport.yaml` for the Database Service.
 Set the `--proxy` command-line option to the address for your Teleport cluster
-and database parameters to your AWS environment.
+and database parameters to your AWS environment. Assign <Var
+name="opensearch-uri" /> to the hostname of your OpenSearch instance:
 
 ```code
 $ sudo teleport db configure create \
@@ -219,7 +222,7 @@ Create a proxy tunnel:
 
 ```code
 $ tsh proxy db --tunnel --port=8000 --db-user=ExampleTeleportOpenSearchRole example-opensearch
-Started authenticated tunnel for the OpenSearch database "example-opensearch" in cluster "teleport.example.com" on 127.0.0.1:8000.
+Started authenticated tunnel for the OpenSearch database "example-opensearch" in cluster <Var name="teleport.example.com" /> on 127.0.0.1:8000.
 
 Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
 
@@ -229,7 +232,7 @@ Use one of the following commands to connect to the database or to the address a
 
   * run request with opensearch-cli:
 
-  $ opensearch-cli --profile teleport --config /Users/alice/.tsh/teleport.example.dev/example-opensearch/opensearch-cli/8a5ce249.yml curl get --path /
+  $ opensearch-cli --profile teleport --config /Users/alice/.tsh/<Var name="teleport.example.com" />/example-opensearch/opensearch-cli/8a5ce249.yml curl get --path /
 
   * run request with curl:
 

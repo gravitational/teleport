@@ -20,11 +20,11 @@ package local
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -48,14 +48,14 @@ import (
 
 // EventsService implements service to watch for events
 type EventsService struct {
-	*logrus.Entry
+	logger  *slog.Logger
 	backend backend.Backend
 }
 
 // NewEventsService returns new events service instance
 func NewEventsService(b backend.Backend) *EventsService {
 	return &EventsService{
-		Entry:   logrus.WithFields(logrus.Fields{teleport.ComponentKey: "Events"}),
+		logger:  slog.With(teleport.ComponentKey, "Events"),
 		backend: b,
 	}
 }
@@ -254,6 +254,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newGitServerParser()
 		case types.KindWorkloadIdentity:
 			parser = newWorkloadIdentityParser()
+		case types.KindWorkloadIdentityX509Revocation:
+			parser = newWorkloadIdentityX509RevocationParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -287,13 +289,13 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newWatcher(w, e.Entry, parsers, validKinds), nil
+	return newWatcher(w, e.logger, parsers, validKinds), nil
 }
 
-func newWatcher(backendWatcher backend.Watcher, l *logrus.Entry, parsers []resourceParser, kinds []types.WatchKind) *watcher {
+func newWatcher(backendWatcher backend.Watcher, l *slog.Logger, parsers []resourceParser, kinds []types.WatchKind) *watcher {
 	w := &watcher{
 		backendWatcher: backendWatcher,
-		Entry:          l,
+		logger:         l,
 		parsers:        parsers,
 		eventsC:        make(chan types.Event),
 		kinds:          kinds,
@@ -303,7 +305,7 @@ func newWatcher(backendWatcher backend.Watcher, l *logrus.Entry, parsers []resou
 }
 
 type watcher struct {
-	*logrus.Entry
+	logger         *slog.Logger
 	parsers        []resourceParser
 	backendWatcher backend.Watcher
 	eventsC        chan types.Event
@@ -350,7 +352,7 @@ func (w *watcher) forwardEvents() {
 				// node events as well, and there could be no
 				// handler registered for nodes, only for namespaces
 				if !trace.IsNotFound(err) {
-					w.Warning(trace.DebugReport(err))
+					w.logger.WarnContext(context.Background(), "failed parsing event", "error", err)
 				}
 			}
 			for _, c := range converted {
@@ -2944,7 +2946,7 @@ func WaitForEvent(ctx context.Context, watcher types.Watcher, m EventMatcher, cl
 				return res, nil
 			}
 			if !trace.IsCompareFailed(err) {
-				logrus.WithError(err).Debug("Failed to match event.")
+				slog.DebugContext(ctx, "Failed to match event", "error", err)
 			}
 		case <-watcher.Done():
 			// Watcher closed, probably due to a network error.
@@ -3141,86 +3143,6 @@ func (p *accessGraphSettingsParser) parse(event backend.Event) (types.Resource, 
 	}
 }
 
-func newSPIFFEFederationParser() *spiffeFederationParser {
-	return &spiffeFederationParser{
-		baseParser: newBaseParser(backend.NewKey(spiffeFederationPrefix)),
-	}
-}
-
-type spiffeFederationParser struct {
-	baseParser
-}
-
-func (p *spiffeFederationParser) parse(event backend.Event) (types.Resource, error) {
-	switch event.Type {
-	case types.OpDelete:
-		name := event.Item.Key.TrimPrefix(backend.NewKey(spiffeFederationPrefix)).String()
-		if name == "" {
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
-		}
-
-		return &types.ResourceHeader{
-			Kind:    types.KindSPIFFEFederation,
-			Version: types.V1,
-			Metadata: types.Metadata{
-				Name:      strings.TrimPrefix(name, backend.SeparatorString),
-				Namespace: apidefaults.Namespace,
-			},
-		}, nil
-	case types.OpPut:
-		federation, err := services.UnmarshalSPIFFEFederation(
-			event.Item.Value,
-			services.WithExpires(event.Item.Expires),
-			services.WithRevision(event.Item.Revision))
-		if err != nil {
-			return nil, trace.Wrap(err, "unmarshalling resource from event")
-		}
-		return types.Resource153ToLegacy(federation), nil
-	default:
-		return nil, trace.BadParameter("event %v is not supported", event.Type)
-	}
-}
-
-func newWorkloadIdentityParser() *workloadIdentityParser {
-	return &workloadIdentityParser{
-		baseParser: newBaseParser(backend.NewKey(workloadIdentityPrefix)),
-	}
-}
-
-type workloadIdentityParser struct {
-	baseParser
-}
-
-func (p *workloadIdentityParser) parse(event backend.Event) (types.Resource, error) {
-	switch event.Type {
-	case types.OpDelete:
-		name := event.Item.Key.TrimPrefix(backend.NewKey(workloadIdentityPrefix)).String()
-		if name == "" {
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
-		}
-
-		return &types.ResourceHeader{
-			Kind:    types.KindWorkloadIdentity,
-			Version: types.V1,
-			Metadata: types.Metadata{
-				Name:      strings.TrimPrefix(name, backend.SeparatorString),
-				Namespace: apidefaults.Namespace,
-			},
-		}, nil
-	case types.OpPut:
-		resource, err := services.UnmarshalWorkloadIdentity(
-			event.Item.Value,
-			services.WithExpires(event.Item.Expires),
-			services.WithRevision(event.Item.Revision))
-		if err != nil {
-			return nil, trace.Wrap(err, "unmarshalling resource from event")
-		}
-		return types.Resource153ToLegacy(resource), nil
-	default:
-		return nil, trace.BadParameter("event %v is not supported", event.Type)
-	}
-}
-
 func newProvisioningStateParser() *provisioningStateParser {
 	return &provisioningStateParser{
 		baseParser: newBaseParser(backend.NewKey(provisioningStatePrefix)),
@@ -3272,3 +3194,7 @@ func (p *provisioningStateParser) parse(event backend.Event) (types.Resource, er
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
 }
+
+// Thinking of adding a new parser? To avoid this file growing unreasonably
+// large, instead add the parser into the resource specific file, e.g, for the
+// workloadIdentityParser, use the existing `workload_identity.go`.

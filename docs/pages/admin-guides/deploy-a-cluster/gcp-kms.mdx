@@ -39,7 +39,7 @@ learn more.
 
 Each Teleport Auth Service instance will need to be configured to use a GCP key
 ring which will hold all keys generated and used by that Auth Service instance.
-If running a High-Availability Teleport cluster with two or more Auth Servers,
+If running a High-Availability Teleport cluster with two or more Auth Service instances,
 every Auth Service instance can be configured to use the same key ring, or if
 desired each can be configured to use a unique key ring in a different region
 (for redundancy or to decrease latency).
@@ -48,7 +48,7 @@ It is recommended to create a dedicated key ring for use by Teleport to logicall
 separate it from any other keys in your cloud account.
 Choose a supported
 [KMS location](https://cloud.google.com/kms/docs/locations)
-for the key ring which is geographically near to your Teleport Auth Servers.
+for the key ring which is geographically near to your Teleport Auth Service instances.
 
 You can create a key ring from the Google Cloud Console or from the `gcloud` CLI
 tool. Follow
@@ -62,7 +62,7 @@ $ gcloud kms keyrings create "<Var name="teleport-keyring" description="The name
 ## Step 2/5. Create a GCP service account
 
 Teleport needs permissions to create, list, destroy, sign with, and view KMS
-keys in your key ring. Start by creating the following custom IAM role.
+keys in your key ring. Start by defining the following custom IAM role.
 
 ```yaml
 # teleport_kms_role.yaml
@@ -77,6 +77,8 @@ includedPermissions:
 - cloudkms.cryptoKeyVersions.useToSign
 - cloudkms.cryptoKeyVersions.viewPublicKey
 ```
+
+Create the role, assigning <Var name="GCP-Project-ID" /> to your Google Cloud project ID:
 
 ```code
 $ gcloud iam roles create teleport_kms_role \
@@ -98,8 +100,8 @@ service account.
 
 ```code
 $ gcloud iam service-accounts create teleport-auth-server \
-    --description="Service account for Teleport Auth Server" \
-    --display-name="Teleport Auth Server" \
+    --description="Service account for Teleport Auth Service" \
+    --display-name="Teleport Auth Service" \
     --format=yaml
 ```
 
