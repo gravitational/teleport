@@ -40,7 +40,7 @@ const userTasksKey = "user_tasks"
 // NewUserTasksService creates a new UserTasksService.
 func NewUserTasksService(b backend.Backend) (*UserTasksService, error) {
 	service, err := generic.NewServiceWrapper(
-		generic.ServiceWrapperConfig[*usertasksv1.UserTask]{
+		generic.ServiceConfig[*usertasksv1.UserTask]{
 			Backend:       b,
 			ResourceKind:  types.KindUserTask,
 			BackendPrefix: backend.NewKey(userTasksKey),

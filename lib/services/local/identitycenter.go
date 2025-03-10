@@ -90,7 +90,7 @@ func NewIdentityCenterService(cfg IdentityCenterServiceConfig) (*IdentityCenterS
 		return nil, trace.Wrap(err)
 	}
 
-	accountsSvc, err := generic.NewServiceWrapper(generic.ServiceWrapperConfig[*identitycenterv1.Account]{
+	accountsSvc, err := generic.NewServiceWrapper(generic.ServiceConfig[*identitycenterv1.Account]{
 		Backend:       cfg.Backend,
 		ResourceKind:  types.KindIdentityCenterAccount,
 		BackendPrefix: backend.NewKey(awsResourcePrefix, awsAccountPrefix),
@@ -101,7 +101,7 @@ func NewIdentityCenterService(cfg IdentityCenterServiceConfig) (*IdentityCenterS
 		return nil, trace.Wrap(err, "creating accounts service")
 	}
 
-	permissionSetSvc, err := generic.NewServiceWrapper(generic.ServiceWrapperConfig[*identitycenterv1.PermissionSet]{
+	permissionSetSvc, err := generic.NewServiceWrapper(generic.ServiceConfig[*identitycenterv1.PermissionSet]{
 		Backend:       cfg.Backend,
 		ResourceKind:  types.KindIdentityCenterPermissionSet,
 		BackendPrefix: backend.NewKey(awsResourcePrefix, awsPermissionSetPrefix),
@@ -112,7 +112,7 @@ func NewIdentityCenterService(cfg IdentityCenterServiceConfig) (*IdentityCenterS
 		return nil, trace.Wrap(err, "creating permission sets service")
 	}
 
-	principalsSvc, err := generic.NewServiceWrapper(generic.ServiceWrapperConfig[*identitycenterv1.PrincipalAssignment]{
+	principalsSvc, err := generic.NewServiceWrapper(generic.ServiceConfig[*identitycenterv1.PrincipalAssignment]{
 		Backend:       cfg.Backend,
 		ResourceKind:  types.KindIdentityCenterPrincipalAssignment,
 		BackendPrefix: backend.NewKey(awsResourcePrefix, awsPrincipalAssignmentPrefix),
@@ -123,7 +123,7 @@ func NewIdentityCenterService(cfg IdentityCenterServiceConfig) (*IdentityCenterS
 		return nil, trace.Wrap(err, "creating principal assignments service")
 	}
 
-	accountAssignmentsSvc, err := generic.NewServiceWrapper(generic.ServiceWrapperConfig[*identitycenterv1.AccountAssignment]{
+	accountAssignmentsSvc, err := generic.NewServiceWrapper(generic.ServiceConfig[*identitycenterv1.AccountAssignment]{
 		Backend:       cfg.Backend,
 		ResourceKind:  types.KindIdentityCenterAccountAssignment,
 		BackendPrefix: backend.NewKey(awsResourcePrefix, awsAccountAssignmentPrefix),
