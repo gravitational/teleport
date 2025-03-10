@@ -82,8 +82,10 @@ Executing command for 'mysql-db2':
 mysql-db2-hostname
 ```
 
-The cached MFA response does not persist through the command and so you can
-expect a new MFA challenge when running another `tsh db exec` command.
+The query is executed sequentially and the outputs are printed sequentially.
+
+The cached MFA response does not persist through the command so 
+a new MFA challenge is expected when running another `tsh db exec` command.
 
 #### UX - concurrent connections with "tsh db exec"
 
@@ -261,8 +263,10 @@ to allow reuse for `CHALLENGE_SCOPE_USER_SESSION`:
 enum ChallengeScope {
 ...
 - // Used for per-session MFA and moderated session presence checks.
-+ // Used for user sessions and moderated session presence checks. Can be
-+ // requested with reuse when retention policy is "multi_session".
++ // Used for user sessions and moderated session presence checks. 
++ // This scope can be requested with reuse and the resuable response will be
++ // allowed when generating user certificates if retention policy is set to
++ // "multi_session".
   CHALLENGE_SCOPE_USER_SESSION = 6;
 }
 ```
@@ -336,6 +340,7 @@ existing MFA requirement without reuse.
 ### The `tsh db exec` command
 
 General flow of the command:
+- Create auth client which should be reused for all API calls.
 - Fetch databases (either specified directly or through search).
 - For each database:
   - Check MFA requirement:
