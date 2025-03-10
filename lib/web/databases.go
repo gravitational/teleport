@@ -58,7 +58,6 @@ import (
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 	"github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/listener"
 	"github.com/gravitational/teleport/lib/web/scripts"
 	"github.com/gravitational/teleport/lib/web/terminal"
 	webui "github.com/gravitational/teleport/lib/web/ui"
@@ -450,12 +449,20 @@ func (h *Handler) dbConnect(
 		return nil, trace.NotImplemented("%q database protocol not supported for REPL sessions", req.Protocol)
 	}
 
-	accessPoint, err := site.CachingAccessPoint()
+	netConfig, err := h.GetAccessPoint().GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	netConfig, err := accessPoint.GetClusterNetworkingConfig(ctx)
+	// Get host CA for this Proxy.
+	clusterName, err := h.GetAccessPoint().GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	proxyHostCA, err := h.GetAccessPoint().GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.HostCA,
+		DomainName: clusterName.GetClusterName(),
+	}, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -481,7 +488,9 @@ func (h *Handler) dbConnect(
 		alpnConn:          alpnConn,
 		keepAliveInterval: netConfig.GetKeepAliveInterval(),
 		registry:          h.cfg.DatabaseREPLRegistry,
+		alpnHandler:       h.cfg.ALPNHandler,
 		proxyAddr:         h.PublicProxyAddr(),
+		proxyHostCA:       proxyHostCA,
 	}
 	defer sess.Close()
 
@@ -575,11 +584,17 @@ type databaseInteractiveSession struct {
 	alpnConn          net.Conn
 	keepAliveInterval time.Duration
 	registry          dbrepl.REPLRegistry
+	alpnHandler       ConnectionHandler
 	proxyAddr         string
+	proxyHostCA       types.CertAuthority
 }
 
 func (s *databaseInteractiveSession) Run() error {
-	tlsCert, route, err := s.issueCerts()
+	if s.alpnHandler == nil {
+		return trace.BadParameter("missing ALPN handler for database interactive sessions")
+	}
+
+	replConn, err := s.makeReplConn()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -588,29 +603,22 @@ func (s *databaseInteractiveSession) Run() error {
 		return trace.Wrap(err)
 	}
 
-	alpnProtocol, err := alpncommon.ToALPNProtocol(route.Protocol)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	go startWSPingLoop(s.ctx, s.ws, s.keepAliveInterval, s.log, s.Close)
 
-	err = client.RunALPNAuthTunnel(s.ctx, client.ALPNAuthTunnelConfig{
-		AuthClient:      s.clt,
-		Listener:        listener.NewSingleUseListener(s.alpnConn),
-		Protocol:        alpnProtocol,
-		PublicProxyAddr: s.proxyAddr,
-		RouteToDatabase: *route,
-		TLSCert:         tlsCert,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	// Wrap s.alpnConn with real client addresses and pass it to the ALPN
+	// handler.
+	go func() {
+		alpnConnWithAddr := utils.NewConnWithAddr(s.alpnConn, s.ws.LocalAddr(), s.ws.RemoteAddr())
+		err := s.alpnHandler(s.ctx, alpnConnWithAddr)
+		if !utils.IsOKNetworkError(err) {
+			s.log.ErrorContext(s.ctx, "ALPN handler for database interactive session failed", "error", err)
+		}
+	}()
 
 	repl, err := s.registry.NewInstance(s.ctx, &dbrepl.NewREPLConfig{
 		Client:     s.stream,
-		ServerConn: s.replConn,
-		Route:      *route,
+		ServerConn: replConn,
+		Route:      s.route(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -632,24 +640,18 @@ func (s *databaseInteractiveSession) Close() error {
 
 // issueCerts performs the MFA (if required) and generate the user session
 // certificates.
-func (s *databaseInteractiveSession) issueCerts() (*tls.Certificate, *clientproto.RouteToDatabase, error) {
+func (s *databaseInteractiveSession) issueCerts() (*tls.Certificate, error) {
 	pk, err := keys.ParsePrivateKey(s.sctx.cfg.Session.GetTLSPriv())
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "failed getting user private key from the session")
+		return nil, trace.Wrap(err, "failed getting user private key from the session")
 	}
 
 	publicKeyPEM, err := keys.MarshalPublicKey(pk.Public())
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "failed to marshal public key")
+		return nil, trace.Wrap(err, "failed to marshal public key")
 	}
 
-	routeToDatabase := clientproto.RouteToDatabase{
-		Protocol:    s.req.Protocol,
-		ServiceName: s.req.ServiceName,
-		Username:    s.req.DatabaseUser,
-		Database:    s.req.DatabaseName,
-		Roles:       s.req.DatabaseRoles,
-	}
+	routeToDatabase := s.route()
 
 	certsReq := clientproto.UserCertsRequest{
 		TLSPublicKey:    publicKeyPEM,
@@ -672,22 +674,69 @@ func (s *databaseInteractiveSession) issueCerts() (*tls.Certificate, *clientprot
 		CertsReq: &certsReq,
 	})
 	if err != nil && !errors.Is(err, services.ErrSessionMFANotRequired) {
-		return nil, nil, trace.Wrap(err, "failed performing mfa ceremony")
+		return nil, trace.Wrap(err, "failed performing mfa ceremony")
 	}
 
 	if certs == nil {
 		certs, err = s.sctx.cfg.RootClient.GenerateUserCerts(s.ctx, certsReq)
 		if err != nil {
-			return nil, nil, trace.Wrap(err, "failed issuing user certs")
+			return nil, trace.Wrap(err, "failed issuing user certs")
 		}
 	}
 
 	tlsCert, err := pk.TLSCertificate(certs.TLS)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return &tlsCert, &routeToDatabase, nil
+	return &tlsCert, nil
+}
+
+// makeReplConn wraps the raw repl conn with a TLS certificate to simulate a
+// dialed TLS routing connection.
+func (s *databaseInteractiveSession) makeReplConn() (*tls.Conn, error) {
+	tlsCert, err := s.issueCerts()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	alpnProtocol, err := alpncommon.ToALPNProtocol(s.req.Protocol)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	proxyAddr, err := utils.ParseAddr(s.proxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// The ALPN handler used by the web server was initially intended for ALPN
+	// connection upgrade. Database handlers serve with the Proxy's host cert on
+	// the other side.
+	rootCAs, err := services.CertPool(s.proxyHostCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsConfig := &tls.Config{
+		NextProtos:   []string{string(alpnProtocol)},
+		Certificates: []tls.Certificate{*tlsCert},
+		RootCAs:      rootCAs,
+		ServerName:   proxyAddr.Host(),
+	}
+	utils.SetupTLSConfig(tlsConfig, nil /* let server decide cipher */)
+
+	return tls.Client(s.replConn, tlsConfig), nil
+}
+
+func (s *databaseInteractiveSession) route() clientproto.RouteToDatabase {
+	return clientproto.RouteToDatabase{
+		Protocol:    s.req.Protocol,
+		ServiceName: s.req.ServiceName,
+		Username:    s.req.DatabaseUser,
+		Database:    s.req.DatabaseName,
+		Roles:       s.req.DatabaseRoles,
+	}
 }
 
 func (s *databaseInteractiveSession) sendSessionMetadata() error {
