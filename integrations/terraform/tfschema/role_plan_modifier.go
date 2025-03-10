@@ -20,9 +20,10 @@ import (
 	"context"
 	"fmt"
 
-	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	tftypes "github.com/hashicorp/terraform-plugin-framework/types"
+
+	apitypes "github.com/gravitational/teleport/api/types"
 )
 
 const (
@@ -34,21 +35,27 @@ One way to deal with version change is to force-recreate, but this is too destru
 The workaround we found was to use this plan modifier.`
 )
 
+// DefaultRoleOptions returns the default implementation of the DefaultRoleOptionsModifier
 func DefaultRoleOptions() tfsdk.AttributePlanModifier {
 	return DefaultRoleOptionsModifier{}
 }
 
+// DefaultRoleOptionsModifier implements the tfsdk.AttributePlanModifier interface. It accounts
+// for default values applied by CheckAndSetDefaults that would otherwise create inconsistent states
 type DefaultRoleOptionsModifier struct {
 }
 
+// Description of the RoleOptions plan modifier
 func (d DefaultRoleOptionsModifier) Description(ctx context.Context) string {
 	return DefaultRoleOptionsModifierDescription
 }
 
+// MarkdownDescription of the RoleOptions plan modifier
 func (d DefaultRoleOptionsModifier) MarkdownDescription(ctx context.Context) string {
 	return DefaultRoleOptionsModifierDescription
 }
 
+// Modify the terraform plan to account for defaults applied to RoleOptions by CheckAndSetDefaults
 func (d DefaultRoleOptionsModifier) Modify(ctx context.Context, req tfsdk.ModifyAttributePlanRequest, resp *tfsdk.ModifyAttributePlanResponse) {
 	var config tftypes.Object
 	diags := req.Config.Get(ctx, &config)

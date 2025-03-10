@@ -19,7 +19,7 @@ Teleport 18 removes support for:
 - `tls-ecdhe-ecdsa-with-aes-128-cbc-sha256`
 - `tls-ecdhe-rsa-with-aes-128-cbc-sha256`
 
-### Terraform provider role defaults
+#### Terraform provider role defaults
 
 The Terraform provider previously defaulted unset booleans to `false`, starting
 with v18 it will leave the fields empty and let Teleport pick the same default
