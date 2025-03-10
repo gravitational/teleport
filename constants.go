@@ -394,6 +394,9 @@ const (
 	// S3UseVirtualStyleAddressing is an optional switch to use use a virtual-hosted–style URI.
 	S3UseVirtualStyleAddressing = "use_s3_virtual_style_addressing"
 
+	// S3IgnoreInitiator is an optional configuration to ignore some multipart uploads.
+	S3IgnoreInitiator = "ignore_initiator"
+
 	// SchemeFile configures local disk-based file storage for audit events
 	SchemeFile = "file"
 

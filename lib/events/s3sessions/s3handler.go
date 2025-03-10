@@ -107,6 +107,10 @@ type Config struct {
 	// with 3rd party S3-compatible services out of the box.
 	// See https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html for more details.
 	UseVirtualStyleAddressing bool
+
+	// IgnoreInitiator optionally configures the S3 uploader to ignore uploads
+	// initiated by the specified party.
+	IgnoreInitiator string
 }
 
 // SetFromURL sets values on the Config from the supplied URI
@@ -166,6 +170,10 @@ func (s *Config) SetFromURL(in *url.URL, inRegion string) error {
 	} else {
 		// Default to false for backwards compatibility
 		s.UseVirtualStyleAddressing = false
+	}
+
+	if val := in.Query().Get(teleport.S3IgnoreInitiator); val != "" {
+		s.IgnoreInitiator = val
 	}
 
 	s.Region = region

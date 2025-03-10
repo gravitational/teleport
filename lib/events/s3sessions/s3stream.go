@@ -265,6 +265,13 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 			return nil, awsutils.ConvertS3Error(err)
 		}
 		for _, upload := range page.Uploads {
+			if h.Config.IgnoreInitiator != "" && upload.Initiator != nil && upload.Initiator.DisplayName != nil &&
+				*upload.Initiator.DisplayName == h.Config.IgnoreInitiator {
+				// If configured to do so, we skip uploads from some initiators.
+				// This can be useful when Teleport is not the only thing generating uploads in the bucket
+				// (replication rules, batch jobs, other software, etc.)
+				continue
+			}
 			uploads = append(uploads, events.StreamUpload{
 				ID:        aws.ToString(upload.UploadId),
 				SessionID: h.fromPath(aws.ToString(upload.Key)),
