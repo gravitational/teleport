@@ -235,6 +235,33 @@ func TestServiceAccess(t *testing.T) {
 			allowedVerbs: []string{types.VerbDelete},
 			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
 		},
+		{
+			name: "TriggerAutoUpdateAgentGroup",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbUpdate},
+		},
+		{
+			name: "ForceAutoUpdateAgentGroup",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbUpdate},
+		},
+		{
+			name: "RollbackAutoUpdateAgentGroup",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbUpdate},
+		},
 	}
 
 	for _, tt := range testCases {
@@ -381,6 +408,93 @@ func TestAutoUpdateVersionEvents(t *testing.T) {
 	require.Equal(t, libevents.AutoUpdateVersionDeleteEvent, mockEmitter.LastEvent().GetType())
 	require.Equal(t, libevents.AutoUpdateVersionDeleteCode, mockEmitter.LastEvent().GetCode())
 	require.Equal(t, types.MetaNameAutoUpdateVersion, mockEmitter.LastEvent().(*apievents.AutoUpdateVersionDelete).Name)
+	mockEmitter.Reset()
+}
+
+func TestAutoUpdateAgentRolloutEvents(t *testing.T) {
+	rwVerbs := []string{types.VerbList, types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete}
+	mockEmitter := &eventstest.MockRecorderEmitter{}
+	service := newService(t,
+		authz.AdminActionAuthMFAVerified,
+		fakeChecker{
+			allowedVerbs: rwVerbs,
+			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
+		},
+		mockEmitter)
+	ctx := context.Background()
+
+	rollout, err := autoupdate.NewAutoUpdateAgentRollout(&autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+		StartVersion:   "1.2.3",
+		TargetVersion:  "1.2.4",
+		Schedule:       autoupdate.AgentsScheduleRegular,
+		AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
+		Strategy:       autoupdate.AgentsStrategyHaltOnError,
+	})
+	require.NoError(t, err)
+	rollout.Status = &autoupdatev1pb.AutoUpdateAgentRolloutStatus{
+		Groups: []*autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup{
+			{
+				Name:       "blue",
+				State:      autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
+				ConfigDays: cloudGroupUpdateDays,
+			},
+			{
+				Name:       "dev",
+				State:      autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
+				ConfigDays: cloudGroupUpdateDays,
+			},
+			{
+				Name:       "stage",
+				State:      autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
+				ConfigDays: cloudGroupUpdateDays,
+			},
+			{
+				Name:       "prod",
+				State:      autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
+				ConfigDays: cloudGroupUpdateDays,
+			},
+			{
+				Name:       "backup",
+				State:      autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED,
+				ConfigDays: cloudGroupUpdateDays,
+			},
+		},
+	}
+
+	_, err = service.CreateAutoUpdateAgentRollout(ctx, &autoupdatev1pb.CreateAutoUpdateAgentRolloutRequest{Rollout: rollout})
+	require.NoError(t, err)
+
+	_, err = service.TriggerAutoUpdateAgentGroup(ctx, &autoupdatev1pb.TriggerAutoUpdateAgentGroupRequest{
+		Groups: []string{"prod"},
+	})
+	require.NoError(t, err)
+
+	require.Len(t, mockEmitter.Events(), 1)
+	require.Equal(t, libevents.AutoUpdateAgentRolloutTriggerEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, libevents.AutoUpdateAgentRolloutTriggerCode, mockEmitter.LastEvent().GetCode())
+	require.Equal(t, types.MetaNameAutoUpdateAgentRollout, mockEmitter.LastEvent().(*apievents.AutoUpdateAgentRolloutTrigger).Name)
+	mockEmitter.Reset()
+
+	_, err = service.ForceAutoUpdateAgentGroup(ctx, &autoupdatev1pb.ForceAutoUpdateAgentGroupRequest{
+		Groups: []string{"prod"},
+	})
+	require.NoError(t, err)
+
+	require.Len(t, mockEmitter.Events(), 1)
+	require.Equal(t, libevents.AutoUpdateAgentRolloutForceDoneEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, libevents.AutoUpdateAgentRolloutForceDoneCode, mockEmitter.LastEvent().GetCode())
+	require.Equal(t, types.MetaNameAutoUpdateAgentRollout, mockEmitter.LastEvent().(*apievents.AutoUpdateAgentRolloutForceDone).Name)
+	mockEmitter.Reset()
+
+	_, err = service.RollbackAutoUpdateAgentGroup(ctx, &autoupdatev1pb.RollbackAutoUpdateAgentGroupRequest{
+		Groups: []string{"prod"},
+	})
+	require.NoError(t, err)
+
+	require.Len(t, mockEmitter.Events(), 1)
+	require.Equal(t, libevents.AutoUpdateAgentRolloutRollbackEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, libevents.AutoUpdateAgentRolloutRollbackCode, mockEmitter.LastEvent().GetCode())
+	require.Equal(t, types.MetaNameAutoUpdateAgentRollout, mockEmitter.LastEvent().(*apievents.AutoUpdateAgentRolloutRollback).Name)
 	mockEmitter.Reset()
 }
 

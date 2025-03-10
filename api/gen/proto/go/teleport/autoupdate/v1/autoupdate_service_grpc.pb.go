@@ -49,6 +49,9 @@ const (
 	AutoUpdateService_UpdateAutoUpdateAgentRollout_FullMethodName = "/teleport.autoupdate.v1.AutoUpdateService/UpdateAutoUpdateAgentRollout"
 	AutoUpdateService_UpsertAutoUpdateAgentRollout_FullMethodName = "/teleport.autoupdate.v1.AutoUpdateService/UpsertAutoUpdateAgentRollout"
 	AutoUpdateService_DeleteAutoUpdateAgentRollout_FullMethodName = "/teleport.autoupdate.v1.AutoUpdateService/DeleteAutoUpdateAgentRollout"
+	AutoUpdateService_TriggerAutoUpdateAgentGroup_FullMethodName  = "/teleport.autoupdate.v1.AutoUpdateService/TriggerAutoUpdateAgentGroup"
+	AutoUpdateService_ForceAutoUpdateAgentGroup_FullMethodName    = "/teleport.autoupdate.v1.AutoUpdateService/ForceAutoUpdateAgentGroup"
+	AutoUpdateService_RollbackAutoUpdateAgentGroup_FullMethodName = "/teleport.autoupdate.v1.AutoUpdateService/RollbackAutoUpdateAgentGroup"
 )
 
 // AutoUpdateServiceClient is the client API for AutoUpdateService service.
@@ -87,6 +90,14 @@ type AutoUpdateServiceClient interface {
 	UpsertAutoUpdateAgentRollout(ctx context.Context, in *UpsertAutoUpdateAgentRolloutRequest, opts ...grpc.CallOption) (*AutoUpdateAgentRollout, error)
 	// DeleteAutoUpdateAgentRollout hard deletes the specified AutoUpdateAgentRolloutRequest.
 	DeleteAutoUpdateAgentRollout(ctx context.Context, in *DeleteAutoUpdateAgentRolloutRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// TriggerAutoUpdateAgentGroup changes the state of an agent group from `unstarted` to `active`.
+	// This RPC will be extended later to switch the group state to `canary` by default,
+	// and `active` if a flag is set.
+	TriggerAutoUpdateAgentGroup(ctx context.Context, in *TriggerAutoUpdateAgentGroupRequest, opts ...grpc.CallOption) (*AutoUpdateAgentRollout, error)
+	// ForceAutoUpdateAgentGroup changes the state of an agent group from `unstarted`, `canary`, or `active` to the `done` state.
+	ForceAutoUpdateAgentGroup(ctx context.Context, in *ForceAutoUpdateAgentGroupRequest, opts ...grpc.CallOption) (*AutoUpdateAgentRollout, error)
+	// RollbackAutoUpdateAgentGroup changes the state of an agent group to `rolledback`.
+	RollbackAutoUpdateAgentGroup(ctx context.Context, in *RollbackAutoUpdateAgentGroupRequest, opts ...grpc.CallOption) (*AutoUpdateAgentRollout, error)
 }
 
 type autoUpdateServiceClient struct {
@@ -247,6 +258,36 @@ func (c *autoUpdateServiceClient) DeleteAutoUpdateAgentRollout(ctx context.Conte
 	return out, nil
 }
 
+func (c *autoUpdateServiceClient) TriggerAutoUpdateAgentGroup(ctx context.Context, in *TriggerAutoUpdateAgentGroupRequest, opts ...grpc.CallOption) (*AutoUpdateAgentRollout, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AutoUpdateAgentRollout)
+	err := c.cc.Invoke(ctx, AutoUpdateService_TriggerAutoUpdateAgentGroup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *autoUpdateServiceClient) ForceAutoUpdateAgentGroup(ctx context.Context, in *ForceAutoUpdateAgentGroupRequest, opts ...grpc.CallOption) (*AutoUpdateAgentRollout, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AutoUpdateAgentRollout)
+	err := c.cc.Invoke(ctx, AutoUpdateService_ForceAutoUpdateAgentGroup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *autoUpdateServiceClient) RollbackAutoUpdateAgentGroup(ctx context.Context, in *RollbackAutoUpdateAgentGroupRequest, opts ...grpc.CallOption) (*AutoUpdateAgentRollout, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AutoUpdateAgentRollout)
+	err := c.cc.Invoke(ctx, AutoUpdateService_RollbackAutoUpdateAgentGroup_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AutoUpdateServiceServer is the server API for AutoUpdateService service.
 // All implementations must embed UnimplementedAutoUpdateServiceServer
 // for forward compatibility.
@@ -283,6 +324,14 @@ type AutoUpdateServiceServer interface {
 	UpsertAutoUpdateAgentRollout(context.Context, *UpsertAutoUpdateAgentRolloutRequest) (*AutoUpdateAgentRollout, error)
 	// DeleteAutoUpdateAgentRollout hard deletes the specified AutoUpdateAgentRolloutRequest.
 	DeleteAutoUpdateAgentRollout(context.Context, *DeleteAutoUpdateAgentRolloutRequest) (*emptypb.Empty, error)
+	// TriggerAutoUpdateAgentGroup changes the state of an agent group from `unstarted` to `active`.
+	// This RPC will be extended later to switch the group state to `canary` by default,
+	// and `active` if a flag is set.
+	TriggerAutoUpdateAgentGroup(context.Context, *TriggerAutoUpdateAgentGroupRequest) (*AutoUpdateAgentRollout, error)
+	// ForceAutoUpdateAgentGroup changes the state of an agent group from `unstarted`, `canary`, or `active` to the `done` state.
+	ForceAutoUpdateAgentGroup(context.Context, *ForceAutoUpdateAgentGroupRequest) (*AutoUpdateAgentRollout, error)
+	// RollbackAutoUpdateAgentGroup changes the state of an agent group to `rolledback`.
+	RollbackAutoUpdateAgentGroup(context.Context, *RollbackAutoUpdateAgentGroupRequest) (*AutoUpdateAgentRollout, error)
 	mustEmbedUnimplementedAutoUpdateServiceServer()
 }
 
@@ -337,6 +386,15 @@ func (UnimplementedAutoUpdateServiceServer) UpsertAutoUpdateAgentRollout(context
 }
 func (UnimplementedAutoUpdateServiceServer) DeleteAutoUpdateAgentRollout(context.Context, *DeleteAutoUpdateAgentRolloutRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAutoUpdateAgentRollout not implemented")
+}
+func (UnimplementedAutoUpdateServiceServer) TriggerAutoUpdateAgentGroup(context.Context, *TriggerAutoUpdateAgentGroupRequest) (*AutoUpdateAgentRollout, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TriggerAutoUpdateAgentGroup not implemented")
+}
+func (UnimplementedAutoUpdateServiceServer) ForceAutoUpdateAgentGroup(context.Context, *ForceAutoUpdateAgentGroupRequest) (*AutoUpdateAgentRollout, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ForceAutoUpdateAgentGroup not implemented")
+}
+func (UnimplementedAutoUpdateServiceServer) RollbackAutoUpdateAgentGroup(context.Context, *RollbackAutoUpdateAgentGroupRequest) (*AutoUpdateAgentRollout, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RollbackAutoUpdateAgentGroup not implemented")
 }
 func (UnimplementedAutoUpdateServiceServer) mustEmbedUnimplementedAutoUpdateServiceServer() {}
 func (UnimplementedAutoUpdateServiceServer) testEmbeddedByValue()                           {}
@@ -629,6 +687,60 @@ func _AutoUpdateService_DeleteAutoUpdateAgentRollout_Handler(srv interface{}, ct
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AutoUpdateService_TriggerAutoUpdateAgentGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TriggerAutoUpdateAgentGroupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AutoUpdateServiceServer).TriggerAutoUpdateAgentGroup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AutoUpdateService_TriggerAutoUpdateAgentGroup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AutoUpdateServiceServer).TriggerAutoUpdateAgentGroup(ctx, req.(*TriggerAutoUpdateAgentGroupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AutoUpdateService_ForceAutoUpdateAgentGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ForceAutoUpdateAgentGroupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AutoUpdateServiceServer).ForceAutoUpdateAgentGroup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AutoUpdateService_ForceAutoUpdateAgentGroup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AutoUpdateServiceServer).ForceAutoUpdateAgentGroup(ctx, req.(*ForceAutoUpdateAgentGroupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AutoUpdateService_RollbackAutoUpdateAgentGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RollbackAutoUpdateAgentGroupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AutoUpdateServiceServer).RollbackAutoUpdateAgentGroup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AutoUpdateService_RollbackAutoUpdateAgentGroup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AutoUpdateServiceServer).RollbackAutoUpdateAgentGroup(ctx, req.(*RollbackAutoUpdateAgentGroupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AutoUpdateService_ServiceDesc is the grpc.ServiceDesc for AutoUpdateService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -695,6 +807,18 @@ var AutoUpdateService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteAutoUpdateAgentRollout",
 			Handler:    _AutoUpdateService_DeleteAutoUpdateAgentRollout_Handler,
+		},
+		{
+			MethodName: "TriggerAutoUpdateAgentGroup",
+			Handler:    _AutoUpdateService_TriggerAutoUpdateAgentGroup_Handler,
+		},
+		{
+			MethodName: "ForceAutoUpdateAgentGroup",
+			Handler:    _AutoUpdateService_ForceAutoUpdateAgentGroup_Handler,
+		},
+		{
+			MethodName: "RollbackAutoUpdateAgentGroup",
+			Handler:    _AutoUpdateService_RollbackAutoUpdateAgentGroup_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
