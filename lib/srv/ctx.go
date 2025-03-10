@@ -120,11 +120,14 @@ type Server interface {
 	// event streams for recording sessions
 	events.StreamEmitter
 
-	// ID is the unique ID of the server.
+	// ID is the unique ID of the server. For the forwarding server
+	// this is the UUID of the forwarding proxy, NOT the UUID of
+	// the target host.
 	ID() string
 
 	// HostUUID is the UUID of the underlying host. For the forwarding
-	// server this is the proxy the forwarding server is running in.
+	// server this is the UUID of the target host, NOT the UUID of
+	// the forwarding proxy.
 	HostUUID() string
 
 	// GetNamespace returns the namespace the server was created in.

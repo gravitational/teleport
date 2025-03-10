@@ -31,6 +31,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -259,6 +260,7 @@ func TestCheckTCPIPForward(t *testing.T) {
 			s := Server{
 				logger:          utils.NewSlogLoggerForTests(),
 				identityContext: srv.IdentityContext{Login: tt.login},
+				targetServer:    &types.ServerV2{},
 			}
 			err := s.checkTCPIPForwardRequest(context.Background(),
 				&ssh.Request{
