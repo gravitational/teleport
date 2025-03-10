@@ -23,7 +23,6 @@ package tpm_test
 import (
 	"context"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"io"
@@ -39,6 +38,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/api/fixtures"
 	"github.com/gravitational/teleport/lib/tpm"
 )
@@ -106,7 +106,7 @@ func TestWithSimulator(t *testing.T) {
 		NotBefore:             time.Now().Add(-time.Hour),
 		NotAfter:              time.Now().Add(time.Hour),
 	}
-	caPrivKey, err := rsa.GenerateKey(rand.Reader, 4096)
+	caPrivKey, err := cryptopatch.GenerateRSAKey(rand.Reader, 4096)
 	require.NoError(t, err)
 	caBytes, err := x509.CreateCertificate(
 		rand.Reader, ca, ca, &caPrivKey.PublicKey, caPrivKey,

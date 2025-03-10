@@ -38,6 +38,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
@@ -900,7 +901,7 @@ func (f *fakeNative) ListCredentials() ([]touchid.CredentialInfo, error) {
 }
 
 func (f *fakeNative) Register(rpID, user string, userHandle []byte) (*touchid.CredentialInfo, error) {
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	key, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, err
 	}

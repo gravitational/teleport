@@ -20,7 +20,6 @@ package srv
 
 import (
 	"context"
-	"crypto/ed25519"
 	"io"
 	"net"
 	"os/user"
@@ -39,6 +38,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/cryptopatch"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
@@ -1296,7 +1296,7 @@ func mockSSHSession(t *testing.T) *tracessh.Session {
 
 	ctx := context.Background()
 
-	_, key, err := ed25519.GenerateKey(nil)
+	_, key, err := cryptopatch.GenerateEd25519Key(nil)
 	require.NoError(t, err)
 	signer, err := ssh.NewSignerFromKey(key)
 	require.NoError(t, err)

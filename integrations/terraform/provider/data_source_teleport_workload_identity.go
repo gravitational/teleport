@@ -20,7 +20,6 @@ package provider
 import (
 	"context"
 
-	
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -81,7 +80,7 @@ func (r dataSourceTeleportWorkloadIdentity) Read(ctx context.Context, req tfsdk.
 	}
 
 	workloadIdentity := workloadIdentityI
-	
+
 	diags = schemav1.CopyWorkloadIdentityToTerraform(ctx, workloadIdentity, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

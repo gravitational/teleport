@@ -40,6 +40,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -643,7 +644,7 @@ type Claims struct {
 // GenerateKeyPair generates and return a PEM encoded private and public
 // key in the format used by this package.
 func GenerateKeyPair() ([]byte, []byte, error) {
-	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	privateKey, err := cryptopatch.GenerateRSAKey(rand.Reader, constants.RSAKeySize)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

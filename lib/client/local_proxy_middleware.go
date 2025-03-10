@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -36,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -392,7 +392,7 @@ func (r *LocalCertGenerator) generateCert(host string) (*tls.Certificate, error)
 		return cert, nil
 	}
 
-	certKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	certKey, err := cryptopatch.GenerateRSAKey(rand.Reader, constants.RSAKeySize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

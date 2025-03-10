@@ -20,7 +20,6 @@ package cert
 
 import (
 	"crypto"
-	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"time"
@@ -28,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/lib/auth/native"
 )
 
@@ -56,11 +56,11 @@ func CreateCertificate(principal string, certType uint32) (*ssh.Certificate, ssh
 // such certificates.
 func CreateEllipticCertificate(principal string, certType uint32) (*ssh.Certificate, ssh.Signer, error) {
 	// Create ECDSA key for CA and certificate to be signed by CA.
-	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	caKey, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	key, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

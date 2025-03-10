@@ -19,7 +19,6 @@
 package auth
 
 import (
-	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -31,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules"
@@ -107,7 +107,7 @@ func TestProcessKubeCSR(t *testing.T) {
 func newTestCSR(subj pkix.Name) ([]byte, error) {
 	// Use math/rand to avoid blocking on system entropy.
 	rng := rand.New(rand.NewSource(0))
-	priv, err := rsa.GenerateKey(rng, 2048)
+	priv, err := cryptopatch.GenerateRSAKey(rng, 2048)
 	if err != nil {
 		return nil, err
 	}

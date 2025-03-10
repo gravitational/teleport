@@ -27,6 +27,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/cryptopatch"
 )
 
 // MTLSCerts is the result for mTLS struct generator
@@ -186,7 +188,7 @@ func (c *MTLSCerts) generate(length int) error {
 // genCertAndPK generates and returns certificate and primary key
 func (c *MTLSCerts) genCertAndPK(length int, cert *x509.Certificate, parent *x509.Certificate, signer *rsa.PrivateKey) (*rsa.PrivateKey, []byte, error) {
 	// Generate PK
-	pk, err := rsa.GenerateKey(rand.Reader, length)
+	pk, err := cryptopatch.GenerateRSAKey(rand.Reader, length)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

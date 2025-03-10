@@ -78,8 +78,6 @@ func (r resourceTeleportSessionRecordingConfig) Create(ctx context.Context, req 
 		return
 	}
 
-	
-
 	sessionRecordingConfigBefore, err := r.p.Client.GetSessionRecordingConfig(ctx)
 	if err != nil && !trace.IsNotFound(err) {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading SessionRecordingConfig", trace.Wrap(err), "session_recording_config"))

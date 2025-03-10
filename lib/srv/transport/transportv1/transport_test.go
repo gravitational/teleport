@@ -21,7 +21,6 @@ package transportv1
 import (
 	"context"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
@@ -43,6 +42,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 
+	"github.com/gravitational/teleport/api/cryptopatch"
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
@@ -834,7 +834,7 @@ func (s *sshServer) Stop() error {
 }
 
 func generateSigner(t *testing.T, keyring agent.Agent) ssh.Signer {
-	private, err := rsa.GenerateKey(rand.Reader, 2048)
+	private, err := cryptopatch.GenerateRSAKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
 	block := &pem.Block{

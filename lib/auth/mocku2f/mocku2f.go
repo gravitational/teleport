@@ -37,6 +37,8 @@ import (
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/cryptopatch"
 )
 
 // u2fRegistrationFlags is fixed by the U2F standard.
@@ -77,7 +79,7 @@ type Key struct {
 }
 
 func selfSignPublicKey(keyToSign *ecdsa.PublicKey) (cert []byte, err error) {
-	caPrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	caPrivateKey, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return []byte{}, err
 	}
@@ -114,7 +116,7 @@ func CreateWithKeyHandle(keyHandle []byte) (*Key, error) {
 		return nil, trace.BadParameter("keyHandle length exceeds limit")
 	}
 
-	privatekey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	privatekey, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, err
 	}

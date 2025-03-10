@@ -21,7 +21,6 @@ package multiplexer
 import (
 	"context"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -46,6 +45,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -752,7 +752,7 @@ func TestMux(t *testing.T) {
 		require.NoError(t, err)
 
 		// Sign client certificate with database access identity.
-		clientRSAKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+		clientRSAKey, err := cryptopatch.GenerateRSAKey(rand.Reader, constants.RSAKeySize)
 		require.NoError(t, err)
 		subject, err := (&tlsca.Identity{
 			Username: "alice",
@@ -1180,7 +1180,7 @@ func getTestCertCAsGetterAndSigner(t testing.TB, clusterName string) ([]byte, Ce
 	mockCAGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 		return ca, nil
 	}
-	proxyPriv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	proxyPriv, err := cryptopatch.GenerateRSAKey(rand.Reader, constants.RSAKeySize)
 	require.NoError(t, err)
 
 	// Create host identity with role "Proxy"

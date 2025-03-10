@@ -31,6 +31,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 )
@@ -68,7 +69,7 @@ func (ks *KeyStore) GetKeyPair() (*rsa.PrivateKey, []byte, error) {
 
 // GenerateSelfSignedSigningCert generates self-signed certificate used for digital signatures
 func GenerateSelfSignedSigningCert(entity pkix.Name, dnsNames []string, ttl time.Duration) ([]byte, []byte, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	priv, err := cryptopatch.GenerateRSAKey(rand.Reader, constants.RSAKeySize)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

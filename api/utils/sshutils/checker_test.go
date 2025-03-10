@@ -17,27 +17,26 @@ limitations under the License.
 package sshutils
 
 import (
-	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/rsa"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/cryptopatch"
 )
 
 // TestCheckerValidate checks what algorithm are supported in regular (non-FIPS) mode.
 func TestCheckerValidate(t *testing.T) {
 	checker := CertChecker{}
 
-	rsaKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	rsaKey, err := cryptopatch.GenerateRSAKey(rand.Reader, constants.RSAKeySize)
 	require.NoError(t, err)
-	smallRSAKey, err := rsa.GenerateKey(rand.Reader, 1024)
+	smallRSAKey, err := cryptopatch.GenerateRSAKey(rand.Reader, 1024)
 	require.NoError(t, err)
-	ellipticKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	ellipticKey, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 
 	// 2048-bit RSA keys are valid.
@@ -69,11 +68,11 @@ func TestCheckerValidateFIPS(t *testing.T) {
 		FIPS: true,
 	}
 
-	rsaKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	rsaKey, err := cryptopatch.GenerateRSAKey(rand.Reader, constants.RSAKeySize)
 	require.NoError(t, err)
-	smallRSAKey, err := rsa.GenerateKey(rand.Reader, 1024)
+	smallRSAKey, err := cryptopatch.GenerateRSAKey(rand.Reader, 1024)
 	require.NoError(t, err)
-	ellipticKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	ellipticKey, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 
 	// 2048-bit RSA keys are valid.

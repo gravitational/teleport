@@ -18,18 +18,19 @@ package keys
 import (
 	"context"
 	"crypto"
-	"crypto/ed25519"
 	"crypto/rand"
 	"errors"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/cryptopatch"
 )
 
 var errPIVUnavailable = errors.New("PIV is unavailable in current build")
 
 // Return a fake YubiKey private key.
 func getOrGenerateYubiKeyPrivateKey(_ context.Context, policy PrivateKeyPolicy, _ PIVSlot, _ HardwareKeyPrompt) (*PrivateKey, error) {
-	_, priv, err := ed25519.GenerateKey(rand.Reader)
+	_, priv, err := cryptopatch.GenerateEd25519Key(rand.Reader)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

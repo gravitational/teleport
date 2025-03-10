@@ -21,7 +21,6 @@ package gcp
 import (
 	"context"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
@@ -32,6 +31,7 @@ import (
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 )
@@ -107,7 +107,7 @@ func (g *gcpSQLAdminClient) GenerateEphemeralCert(ctx context.Context, db types.
 	// operation on each connection.
 
 	// Generate RSA private key, x509 encoded public key, and append to certificate request.
-	pkey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	pkey, err := cryptopatch.GenerateRSAKey(rand.Reader, constants.RSAKeySize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

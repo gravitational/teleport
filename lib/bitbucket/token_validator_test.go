@@ -23,7 +23,6 @@ import (
 	"context"
 	"crypto"
 	"crypto/rand"
-	"crypto/rsa"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -34,6 +33,8 @@ import (
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/cryptopatch"
 )
 
 type fakeIDP struct {
@@ -45,7 +46,7 @@ type fakeIDP struct {
 }
 
 func newFakeIDP(t *testing.T, audience string) *fakeIDP {
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	privateKey, err := cryptopatch.GenerateRSAKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
 	signer, err := jose.NewSigner(

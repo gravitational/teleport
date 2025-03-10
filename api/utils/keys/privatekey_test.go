@@ -19,8 +19,6 @@ package keys
 import (
 	"bytes"
 	"crypto"
-	"crypto/ecdsa"
-	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
@@ -33,14 +31,16 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/cryptopatch"
 )
 
 func TestMarshalAndParseKey(t *testing.T) {
-	rsaKey, err := rsa.GenerateKey(rand.Reader, 1024)
+	rsaKey, err := cryptopatch.GenerateRSAKey(rand.Reader, 1024)
 	require.NoError(t, err)
-	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	ecKey, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
-	_, edKey, err := ed25519.GenerateKey(rand.Reader)
+	_, edKey, err := cryptopatch.GenerateEd25519Key(rand.Reader)
 	require.NoError(t, err)
 
 	for keyType, key := range map[string]crypto.Signer{
@@ -74,7 +74,7 @@ func TestParseMismatchedPEMHeader(t *testing.T) {
 	rsaPublicPKIXDER, err := x509.MarshalPKIXPublicKey(rsaKey.Public())
 	require.NoError(t, err)
 
-	ecdsaKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	ecdsaKey, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	ecdsaPKCS8DER, err := x509.MarshalPKCS8PrivateKey(ecdsaKey)
 	require.NoError(t, err)

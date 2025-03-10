@@ -80,7 +80,6 @@ func (r dataSourceTeleportProvisionToken) Read(ctx context.Context, req tfsdk.Re
 		state.Attrs["id"] = id
 	}
 
-	
 	provisionToken := provisionTokenI.(*apitypes.ProvisionTokenV2)
 	diags = token.CopyProvisionTokenV2ToTerraform(ctx, provisionToken, &state)
 	resp.Diagnostics.Append(diags...)

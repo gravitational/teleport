@@ -29,6 +29,8 @@ import (
 	"math/big"
 	"runtime"
 	"time"
+
+	"github.com/gravitational/teleport/api/cryptopatch"
 )
 
 // webpkiCACert and webpkiCAKey are a CA added to the system cert pool.
@@ -66,7 +68,7 @@ func init() {
 		BasicConstraintsValid: true,
 	}
 
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	key, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		panic(err)
 	}

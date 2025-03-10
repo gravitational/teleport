@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/lib/kubernetestoken"
 )
 
@@ -48,7 +49,7 @@ const fakeKeyID = "foo"
 
 // NewKubernetesSigner generates a keypair and creates a new KubernetesSigner.
 func NewKubernetesSigner(clock clockwork.Clock) (*KubernetesSigner, error) {
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	key, err := cryptopatch.GenerateRSAKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, trace.Wrap(err, "generating key")
 	}

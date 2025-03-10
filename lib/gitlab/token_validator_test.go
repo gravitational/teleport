@@ -34,6 +34,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -46,7 +47,7 @@ type fakeIDP struct {
 }
 
 func newFakeIDP(t *testing.T) *fakeIDP {
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	privateKey, err := cryptopatch.GenerateRSAKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
 	signer, err := jose.NewSigner(

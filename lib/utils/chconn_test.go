@@ -20,7 +20,6 @@ package utils
 
 import (
 	"crypto/rand"
-	"crypto/rsa"
 	"io"
 	"net"
 	"os"
@@ -31,6 +30,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 )
@@ -92,7 +92,7 @@ func startSSHServer(t *testing.T, listener net.Listener, sshConnCh chan<- sshCon
 	require.NoError(t, err)
 	t.Cleanup(func() { nConn.Close() })
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	privateKey, err := cryptopatch.GenerateRSAKey(rand.Reader, constants.RSAKeySize)
 	require.NoError(t, err)
 
 	private, err := keys.MarshalPrivateKey(privateKey)

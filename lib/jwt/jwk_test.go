@@ -27,6 +27,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/cryptopatch"
 )
 
 func TestMarshalJWK(t *testing.T) {
@@ -43,7 +45,7 @@ func TestMarshalJWK(t *testing.T) {
 func TestKeyIDHasConsistentOutputForAnInput(t *testing.T) {
 	t.Parallel()
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, 1024)
+	privateKey, err := cryptopatch.GenerateRSAKey(rand.Reader, 1024)
 	require.NoError(t, err)
 	publicKey := privateKey.Public().(*rsa.PublicKey)
 	id1 := KeyID(publicKey)
@@ -58,9 +60,9 @@ func TestKeyIDHasConsistentOutputForAnInput(t *testing.T) {
 func TestKeyIDHasDistinctOutputForDifferingInputs(t *testing.T) {
 	t.Parallel()
 
-	privateKey1, err := rsa.GenerateKey(rand.Reader, 1024)
+	privateKey1, err := cryptopatch.GenerateRSAKey(rand.Reader, 1024)
 	require.NoError(t, err)
-	privateKey2, err := rsa.GenerateKey(rand.Reader, 1024)
+	privateKey2, err := cryptopatch.GenerateRSAKey(rand.Reader, 1024)
 	require.NoError(t, err)
 	publicKey1 := privateKey1.Public().(*rsa.PublicKey)
 	publicKey2 := privateKey2.Public().(*rsa.PublicKey)

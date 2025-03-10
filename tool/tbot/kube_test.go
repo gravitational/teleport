@@ -20,7 +20,6 @@ package main
 
 import (
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509/pkix"
 	"encoding/json"
 	"testing"
@@ -31,6 +30,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -42,7 +42,7 @@ func TestGetKubeCredentialData(t *testing.T) {
 	ca, err := tlsca.FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	privateKey, err := cryptopatch.GenerateRSAKey(rand.Reader, constants.RSAKeySize)
 	require.NoError(t, err)
 
 	clock := clockwork.NewFakeClock()

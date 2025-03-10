@@ -20,10 +20,8 @@ package auth
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -51,6 +49,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/cryptopatch"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -836,7 +835,7 @@ func TestAuthenticateUser_mfaDeviceLocked(t *testing.T) {
 	require.NoError(t, err, "RegisterTestDevice")
 
 	// Prepare an SSH public key for testing.
-	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	privKey, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err, "GenerateKey")
 	signer, err := ssh.NewSignerFromSigner(privKey)
 	require.NoError(t, err, "NewSignerFromSigner")
@@ -1387,7 +1386,7 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 	ca, err := tlsca.FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	privateKey, err := cryptopatch.GenerateRSAKey(rand.Reader, constants.RSAKeySize)
 	require.NoError(t, err)
 
 	testClock := clockwork.NewFakeClock()
@@ -1683,7 +1682,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 	// new pair of certificates, and parsing all relevant responses.
 	authenticate := func(t *testing.T, user, pass string) (tlsRaw, sshRaw []byte, xCert *x509.Certificate, sshCert *ssh.Certificate, identity *tlsca.Identity) {
 		// Avoid using recycled keys here, otherwise the test may flake.
-		privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		privKey, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 		require.NoError(t, err, "GenerateKey failed")
 		sPubKey, err := ssh.NewPublicKey(privKey.Public())
 		require.NoError(t, err, "NewPublicKey failed")
@@ -1722,7 +1721,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 	_, sshRaw11, _, _, _ := authenticate(t, user1.GetName(), pass1)
 
 	// wrongKey is used to represent an invalid/unknown CA.
-	wrongKey, err := rsa.GenerateKey(rand.Reader, 2048 /* bits */)
+	wrongKey, err := cryptopatch.GenerateRSAKey(rand.Reader, 2048)
 	require.NoError(t, err, "GenerateKey failed")
 
 	// Build an invalid version of xCert1 (signed using wrongKey).
@@ -2318,7 +2317,7 @@ func setupUserForAugmentWebSessionCertificatesTest(t *testing.T, testServer *Tes
 	)
 
 	// Generate underlying keys for SSH and TLS.
-	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	privKey, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err, "GenerateKey")
 	pubKeySSH, err := ssh.NewPublicKey(privKey.Public())
 	require.NoError(t, err, "NewPublicKey")
@@ -2840,7 +2839,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
 	require.NoError(t, err)
 
-	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	priv, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	key, err := keys.NewPrivateKey(priv, nil)
 	require.NoError(t, err)

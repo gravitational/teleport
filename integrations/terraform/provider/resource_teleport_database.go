@@ -22,7 +22,7 @@ import (
 	"fmt"
 
 	apitypes "github.com/gravitational/teleport/api/types"
-	
+
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -75,7 +75,6 @@ func (r resourceTeleportDatabase) Create(ctx context.Context, req tfsdk.CreateRe
 		return
 	}
 
-	
 	databaseResource := database
 
 	err = databaseResource.CheckAndSetDefaults()
@@ -105,7 +104,7 @@ func (r resourceTeleportDatabase) Create(ctx context.Context, req tfsdk.CreateRe
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating Database", trace.Wrap(err), "db"))
 		return
 	}
-		
+
 	// Not really an inferface, just using the same name for easier templating.
 	var databaseI apitypes.Database
 	tries := 0
@@ -180,7 +179,7 @@ func (r resourceTeleportDatabase) Read(ctx context.Context, req tfsdk.ReadResour
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading Database", trace.Wrap(err), "db"))
 		return
 	}
-	
+
 	database := databaseI.(*apitypes.DatabaseV3)
 	diags = tfschema.CopyDatabaseV3ToTerraform(ctx, database, &state)
 	resp.Diagnostics.Append(diags...)
@@ -217,7 +216,6 @@ func (r resourceTeleportDatabase) Update(ctx context.Context, req tfsdk.UpdateRe
 	}
 	databaseResource := database
 
-
 	if err := databaseResource.CheckAndSetDefaults(); err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating Database", err, "db"))
 		return
@@ -235,7 +233,7 @@ func (r resourceTeleportDatabase) Update(ctx context.Context, req tfsdk.UpdateRe
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating Database", err, "db"))
 		return
 	}
-		
+
 	// Not really an inferface, just using the same name for easier templating.
 	var databaseI apitypes.Database
 
@@ -307,7 +305,6 @@ func (r resourceTeleportDatabase) ImportState(ctx context.Context, req tfsdk.Imp
 		return
 	}
 
-	
 	databaseResource := database.(*apitypes.DatabaseV3)
 
 	var state types.Object

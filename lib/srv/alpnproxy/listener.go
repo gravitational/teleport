@@ -21,7 +21,6 @@ package alpnproxy
 import (
 	"context"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"net"
 	"sync"
@@ -29,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -228,7 +228,7 @@ func (r *CertGenListener) generateCertFor(host string) (*tls.Certificate, error)
 		return cert, nil
 	}
 
-	certKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	certKey, err := cryptopatch.GenerateRSAKey(rand.Reader, constants.RSAKeySize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

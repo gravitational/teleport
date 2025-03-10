@@ -80,7 +80,6 @@ func (r dataSourceTeleportGithubConnector) Read(ctx context.Context, req tfsdk.R
 		state.Attrs["id"] = id
 	}
 
-	
 	githubConnector := githubConnectorI.(*apitypes.GithubConnectorV3)
 	diags = tfschema.CopyGithubConnectorV3ToTerraform(ctx, githubConnector, &state)
 	resp.Diagnostics.Append(diags...)

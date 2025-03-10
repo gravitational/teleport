@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"crypto/rsa"
 	"encoding/pem"
 	"fmt"
 	"os"
@@ -37,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/cryptopatch"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -930,7 +930,7 @@ func TestDBInfoHasChanged(t *testing.T) {
 
 	ca, err := tlsca.FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
-	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	privateKey, err := cryptopatch.GenerateRSAKey(rand.Reader, constants.RSAKeySize)
 	require.NoError(t, err)
 
 	for _, tc := range tests {

@@ -22,7 +22,7 @@ import (
 	"fmt"
 
 	apitypes "github.com/gravitational/teleport/api/types"
-	
+
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -75,7 +75,6 @@ func (r resourceTeleportInstaller) Create(ctx context.Context, req tfsdk.CreateR
 		return
 	}
 
-	
 	installerResource := installer
 
 	err = installerResource.CheckAndSetDefaults()
@@ -105,7 +104,7 @@ func (r resourceTeleportInstaller) Create(ctx context.Context, req tfsdk.CreateR
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating Installer", trace.Wrap(err), "installer"))
 		return
 	}
-		
+
 	// Not really an inferface, just using the same name for easier templating.
 	var installerI apitypes.Installer
 	tries := 0
@@ -180,7 +179,7 @@ func (r resourceTeleportInstaller) Read(ctx context.Context, req tfsdk.ReadResou
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading Installer", trace.Wrap(err), "installer"))
 		return
 	}
-	
+
 	installer := installerI.(*apitypes.InstallerV1)
 	diags = tfschema.CopyInstallerV1ToTerraform(ctx, installer, &state)
 	resp.Diagnostics.Append(diags...)
@@ -217,7 +216,6 @@ func (r resourceTeleportInstaller) Update(ctx context.Context, req tfsdk.UpdateR
 	}
 	installerResource := installer
 
-
 	if err := installerResource.CheckAndSetDefaults(); err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating Installer", err, "installer"))
 		return
@@ -235,7 +233,7 @@ func (r resourceTeleportInstaller) Update(ctx context.Context, req tfsdk.UpdateR
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating Installer", err, "installer"))
 		return
 	}
-		
+
 	// Not really an inferface, just using the same name for easier templating.
 	var installerI apitypes.Installer
 
@@ -307,7 +305,6 @@ func (r resourceTeleportInstaller) ImportState(ctx context.Context, req tfsdk.Im
 		return
 	}
 
-	
 	installerResource := installer.(*apitypes.InstallerV1)
 
 	var state types.Object

@@ -80,7 +80,6 @@ func (r dataSourceTeleportOIDCConnector) Read(ctx context.Context, req tfsdk.Rea
 		state.Attrs["id"] = id
 	}
 
-	
 	oidcConnector := oidcConnectorI.(*apitypes.OIDCConnectorV3)
 	diags = tfschema.CopyOIDCConnectorV3ToTerraform(ctx, oidcConnector, &state)
 	resp.Diagnostics.Append(diags...)

@@ -21,7 +21,6 @@ package client
 import (
 	"context"
 	"crypto"
-	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
@@ -36,6 +35,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	clientpb "github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -294,9 +294,9 @@ func TestExportAuthorities(t *testing.T) {
 func TestExportAllAuthorities_mutipleActiveKeys(t *testing.T) {
 	t.Parallel()
 
-	softwarePrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	softwarePrivateKey, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err, "GenerateKey errored")
-	hsmPrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	hsmPrivateKey, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err, "GenerateKey errored")
 
 	makeSerialNumber := func() func() *big.Int {

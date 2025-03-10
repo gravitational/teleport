@@ -20,7 +20,7 @@ package provider
 import (
 	"context"
 	"fmt"
-	 "math"
+	"math"
 
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/lib/backoff"
@@ -78,8 +78,6 @@ func (r resourceTeleportClusterMaintenanceConfig) Create(ctx context.Context, re
 		resp.Diagnostics.Append(diagFromWrappedErr("Error setting ClusterMaintenanceConfig defaults", trace.Wrap(err), "cluster_maintenance_config"))
 		return
 	}
-
-	
 
 	clusterMaintenanceConfigBefore, err := r.p.Client.GetClusterMaintenanceConfig(ctx)
 	if err != nil && !trace.IsNotFound(err) {

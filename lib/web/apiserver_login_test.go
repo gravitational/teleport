@@ -20,7 +20,6 @@ package web
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/json"
@@ -36,6 +35,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/cryptopatch"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -80,7 +80,7 @@ func TestWebauthnLogin_ssh(t *testing.T) {
 	require.NoError(t, err)
 
 	// Prepare SSH key to be signed.
-	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	privKey, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	sshPubKey, err := ssh.NewPublicKey(&privKey.PublicKey)
 	require.NoError(t, err)
@@ -211,7 +211,7 @@ func TestAuthenticate_passwordless(t *testing.T) {
 	userHandle := wla.UserID
 
 	// Prepare SSH key to be signed.
-	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	priv, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	pub, err := ssh.NewPublicKey(&priv.PublicKey)
 	require.NoError(t, err)
@@ -363,7 +363,7 @@ func TestPasswordlessProhibitedForSSO(t *testing.T) {
 	require.NoError(t, err, "UpdateAndSwapUser failed")
 
 	// Prepare SSH key to be signed.
-	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	priv, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err, "GenerateKey failed")
 	pub, err := ssh.NewPublicKey(&priv.PublicKey)
 	require.NoError(t, err, "NewPublicKey failed")

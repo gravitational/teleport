@@ -22,7 +22,7 @@ import (
 	"fmt"
 
 	apitypes "github.com/gravitational/teleport/api/types"
-	
+
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -75,7 +75,6 @@ func (r resourceTeleportUser) Create(ctx context.Context, req tfsdk.CreateResour
 		return
 	}
 
-	
 	userResource := user
 
 	err = userResource.CheckAndSetDefaults()
@@ -105,7 +104,7 @@ func (r resourceTeleportUser) Create(ctx context.Context, req tfsdk.CreateResour
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating User", trace.Wrap(err), "user"))
 		return
 	}
-		
+
 	// Not really an inferface, just using the same name for easier templating.
 	var userI apitypes.User
 	tries := 0
@@ -180,7 +179,7 @@ func (r resourceTeleportUser) Read(ctx context.Context, req tfsdk.ReadResourceRe
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading User", trace.Wrap(err), "user"))
 		return
 	}
-	
+
 	user := userI.(*apitypes.UserV2)
 	diags = tfschema.CopyUserV2ToTerraform(ctx, user, &state)
 	resp.Diagnostics.Append(diags...)
@@ -217,7 +216,6 @@ func (r resourceTeleportUser) Update(ctx context.Context, req tfsdk.UpdateResour
 	}
 	userResource := user
 
-
 	if err := userResource.CheckAndSetDefaults(); err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating User", err, "user"))
 		return
@@ -235,7 +233,7 @@ func (r resourceTeleportUser) Update(ctx context.Context, req tfsdk.UpdateResour
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating User", err, "user"))
 		return
 	}
-		
+
 	// Not really an inferface, just using the same name for easier templating.
 	var userI apitypes.User
 
@@ -307,7 +305,6 @@ func (r resourceTeleportUser) ImportState(ctx context.Context, req tfsdk.ImportR
 		return
 	}
 
-	
 	userResource := user.(*apitypes.UserV2)
 
 	var state types.Object

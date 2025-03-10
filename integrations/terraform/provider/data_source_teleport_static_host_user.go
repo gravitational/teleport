@@ -20,7 +20,6 @@ package provider
 import (
 	"context"
 
-	
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -81,7 +80,7 @@ func (r dataSourceTeleportStaticHostUser) Read(ctx context.Context, req tfsdk.Re
 	}
 
 	staticHostUser := staticHostUserI
-	
+
 	diags = schemav1.CopyStaticHostUserToTerraform(ctx, staticHostUser, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

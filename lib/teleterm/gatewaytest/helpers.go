@@ -20,7 +20,6 @@ package gatewaytest
 
 import (
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -36,6 +35,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -162,7 +162,7 @@ func MustGenCertSignedWithCA(t *testing.T, ca *tlsca.CertAuthority, identity tls
 	subj, err := identity.Subject()
 	require.NoError(t, err)
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	privateKey, err := cryptopatch.GenerateRSAKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
 	tlsCert, err := ca.GenerateCertificate(tlsca.CertificateRequest{

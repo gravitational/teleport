@@ -34,6 +34,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -118,7 +119,7 @@ func GenerateSelfSignedCAWithConfig(config GenerateCAConfig) (certPEM []byte, er
 
 // GenerateSelfSignedCA generates self-signed certificate authority used for internal inter-node communications
 func GenerateSelfSignedCA(entity pkix.Name, dnsNames []string, ttl time.Duration) ([]byte, []byte, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	priv, err := cryptopatch.GenerateRSAKey(rand.Reader, constants.RSAKeySize)
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

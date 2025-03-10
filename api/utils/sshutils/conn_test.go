@@ -18,7 +18,6 @@ package sshutils
 
 import (
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"net"
@@ -29,6 +28,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/cryptopatch"
 )
 
 type server struct {
@@ -64,7 +64,7 @@ func (s *server) Stop() error {
 }
 
 func generateSigner(t *testing.T) ssh.Signer {
-	private, err := rsa.GenerateKey(rand.Reader, 2048)
+	private, err := cryptopatch.GenerateRSAKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
 	block := &pem.Block{

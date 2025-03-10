@@ -21,7 +21,6 @@ package alpnproxy
 import (
 	"context"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -38,6 +37,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -196,7 +196,7 @@ func mustGenCertSignedWithCA(t *testing.T, ca *tlsca.CertAuthority, opts ...sign
 	subj, err := options.identity.Subject()
 	require.NoError(t, err)
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	privateKey, err := cryptopatch.GenerateRSAKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
 	tlsCert, err := ca.GenerateCertificate(tlsca.CertificateRequest{

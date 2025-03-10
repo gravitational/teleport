@@ -18,20 +18,20 @@ package sshutils
 
 import (
 	"crypto/rand"
-	"crypto/rsa"
 	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/cryptopatch"
 )
 
 const defaultPrincipal = "127.0.0.1"
 
 // MakeTestSSHCA generates a new SSH certificate authority for tests.
 func MakeTestSSHCA() (ssh.Signer, error) {
-	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	privateKey, err := cryptopatch.GenerateRSAKey(rand.Reader, constants.RSAKeySize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -65,7 +65,7 @@ func MakeRealHostCertWithPrincipals(realCA ssh.Signer, principals ...string) (ss
 }
 
 func makeHostCert(signKey ssh.PublicKey, signer ssh.Signer, principals ...string) (ssh.Signer, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	priv, err := cryptopatch.GenerateRSAKey(rand.Reader, constants.RSAKeySize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -18,7 +18,6 @@ package keys
 import (
 	"context"
 	"crypto"
-	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
@@ -41,6 +40,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api"
+	"github.com/gravitational/teleport/api/cryptopatch"
 	attestation "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
@@ -998,7 +998,7 @@ func parsePIVSlot(slotKey uint32) (piv.Slot, error) {
 const certOrgName = "teleport"
 
 func SelfSignedMetadataCertificate(subject pkix.Name) (*x509.Certificate, error) {
-	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	priv, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

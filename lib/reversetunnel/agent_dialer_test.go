@@ -21,7 +21,6 @@ package reversetunnel
 import (
 	"context"
 	"crypto/rand"
-	"crypto/rsa"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -29,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -82,7 +82,7 @@ func TestAgentCertChecker(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, sshServer.Close()) })
 			require.NoError(t, sshServer.Start())
 
-			priv, err := rsa.GenerateKey(rand.Reader, 2048)
+			priv, err := cryptopatch.GenerateRSAKey(rand.Reader, 2048)
 			require.NoError(t, err)
 
 			signer, err := ssh.NewSignerFromKey(priv)

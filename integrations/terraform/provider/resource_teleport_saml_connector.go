@@ -22,7 +22,7 @@ import (
 	"fmt"
 
 	apitypes "github.com/gravitational/teleport/api/types"
-	
+
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -75,7 +75,6 @@ func (r resourceTeleportSAMLConnector) Create(ctx context.Context, req tfsdk.Cre
 		return
 	}
 
-	
 	samlConnectorResource := samlConnector
 
 	err = samlConnectorResource.CheckAndSetDefaults()
@@ -105,7 +104,7 @@ func (r resourceTeleportSAMLConnector) Create(ctx context.Context, req tfsdk.Cre
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating SAMLConnector", trace.Wrap(err), "saml"))
 		return
 	}
-		
+
 	// Not really an inferface, just using the same name for easier templating.
 	var samlConnectorI apitypes.SAMLConnector
 	tries := 0
@@ -180,7 +179,7 @@ func (r resourceTeleportSAMLConnector) Read(ctx context.Context, req tfsdk.ReadR
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading SAMLConnector", trace.Wrap(err), "saml"))
 		return
 	}
-	
+
 	samlConnector := samlConnectorI.(*apitypes.SAMLConnectorV2)
 	diags = tfschema.CopySAMLConnectorV2ToTerraform(ctx, samlConnector, &state)
 	resp.Diagnostics.Append(diags...)
@@ -217,7 +216,6 @@ func (r resourceTeleportSAMLConnector) Update(ctx context.Context, req tfsdk.Upd
 	}
 	samlConnectorResource := samlConnector
 
-
 	if err := samlConnectorResource.CheckAndSetDefaults(); err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating SAMLConnector", err, "saml"))
 		return
@@ -235,7 +233,7 @@ func (r resourceTeleportSAMLConnector) Update(ctx context.Context, req tfsdk.Upd
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating SAMLConnector", err, "saml"))
 		return
 	}
-		
+
 	// Not really an inferface, just using the same name for easier templating.
 	var samlConnectorI apitypes.SAMLConnector
 
@@ -307,7 +305,6 @@ func (r resourceTeleportSAMLConnector) ImportState(ctx context.Context, req tfsd
 		return
 	}
 
-	
 	samlConnectorResource := samlConnector.(*apitypes.SAMLConnectorV2)
 
 	var state types.Object

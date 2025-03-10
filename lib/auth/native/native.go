@@ -19,7 +19,6 @@
 package native
 
 import (
-	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -33,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/api/utils/keys"
 )
 
@@ -66,7 +66,7 @@ func GenerateEICEKey() (publicKey any, privateKey any, err error) {
 		return privKey.Public(), privKey, nil
 	}
 
-	pubKey, privKey, err := ed25519.GenerateKey(nil)
+	pubKey, privKey, err := cryptopatch.GenerateEd25519Key(nil)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -111,7 +111,7 @@ func getOrGenerateRSAPrivateKey() (*rsa.PrivateKey, error) {
 }
 
 func generateRSAPrivateKey() (*rsa.PrivateKey, error) {
-	return rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	return cryptopatch.GenerateRSAKey(rand.Reader, constants.RSAKeySize)
 }
 
 func precomputeKeys() {

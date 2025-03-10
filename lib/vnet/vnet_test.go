@@ -19,7 +19,6 @@ package vnet
 import (
 	"bytes"
 	"context"
-	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
@@ -49,6 +48,7 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/cryptopatch"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -743,7 +743,7 @@ func (f *fakeTUN) Close() error {
 }
 
 func newSelfSignedCA(t *testing.T) tls.Certificate {
-	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	pub, priv, err := cryptopatch.GenerateEd25519Key(rand.Reader)
 	require.NoError(t, err)
 
 	template := x509.Certificate{
@@ -776,7 +776,7 @@ func newClientCert(t *testing.T, ca tls.Certificate, cn string, expires time.Tim
 }
 
 func newLeafCert(t *testing.T, ca tls.Certificate, cn string, expires time.Time, keyUsage x509.ExtKeyUsage) tls.Certificate {
-	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	pub, priv, err := cryptopatch.GenerateEd25519Key(rand.Reader)
 	require.NoError(t, err)
 
 	caCert, err := x509.ParseCertificate(ca.Certificate[0])

@@ -21,7 +21,6 @@ package windows
 import (
 	"context"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
@@ -33,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -70,7 +70,7 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	// Important: rdpclient currently only supports 2048-bit RSA keys.
 	// If you switch the key type here, update handle_general_authentication in
 	// rdp/rdpclient/src/piv.rs accordingly.
-	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	rsaKey, err := cryptopatch.GenerateRSAKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

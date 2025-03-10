@@ -21,7 +21,6 @@ package kubernetestoken
 import (
 	"context"
 	"crypto/rand"
-	"crypto/rsa"
 	"encoding/json"
 	"testing"
 	"time"
@@ -42,6 +41,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	ctest "k8s.io/client-go/testing"
 
+	"github.com/gravitational/teleport/api/cryptopatch"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 )
@@ -438,7 +438,7 @@ func Test_kubernetesSupportsBoundTokens(t *testing.T) {
 }
 
 func testSigner(t *testing.T) ([]byte, jose.Signer) {
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	key, err := cryptopatch.GenerateRSAKey(rand.Reader, 2048)
 	require.NoError(t, err)
 	signer, err := jose.NewSigner(
 		jose.SigningKey{Algorithm: jose.RS256, Key: key},

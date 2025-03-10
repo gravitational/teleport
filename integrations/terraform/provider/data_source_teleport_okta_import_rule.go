@@ -80,7 +80,6 @@ func (r dataSourceTeleportOktaImportRule) Read(ctx context.Context, req tfsdk.Re
 		state.Attrs["id"] = id
 	}
 
-	
 	oktaImportRule := oktaImportRuleI.(*apitypes.OktaImportRuleV1)
 	diags = tfschema.CopyOktaImportRuleV1ToTerraform(ctx, oktaImportRule, &state)
 	resp.Diagnostics.Append(diags...)

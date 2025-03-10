@@ -20,10 +20,11 @@ package provider
 import (
 	"context"
 	"fmt"
+
 	apitypes "github.com/gravitational/teleport/api/types"
 
 	userprovisioningv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
-	
+
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -76,7 +77,6 @@ func (r resourceTeleportStaticHostUser) Create(ctx context.Context, req tfsdk.Cr
 		return
 	}
 
-	
 	staticHostUserResource := staticHostUser
 
 	staticHostUserResource.Kind = apitypes.KindStaticHostUser
@@ -102,7 +102,7 @@ func (r resourceTeleportStaticHostUser) Create(ctx context.Context, req tfsdk.Cr
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating StaticHostUser", trace.Wrap(err), "static_host_user"))
 		return
 	}
-		var staticHostUserI *userprovisioningv2.StaticHostUser
+	var staticHostUserI *userprovisioningv2.StaticHostUser
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
@@ -128,7 +128,7 @@ func (r resourceTeleportStaticHostUser) Create(ctx context.Context, req tfsdk.Cr
 	}
 
 	staticHostUserResource = staticHostUserI
-	
+
 	staticHostUser = staticHostUserResource
 
 	diags = schemav1.CopyStaticHostUserToTerraform(ctx, staticHostUser, &plan)
@@ -208,8 +208,6 @@ func (r resourceTeleportStaticHostUser) Update(ctx context.Context, req tfsdk.Up
 	}
 	staticHostUserResource := staticHostUser
 
-
-	
 	name := staticHostUserResource.Metadata.Name
 
 	staticHostUserBefore, err := r.p.Client.StaticHostUserClient().GetStaticHostUser(ctx, name)
@@ -223,7 +221,7 @@ func (r resourceTeleportStaticHostUser) Update(ctx context.Context, req tfsdk.Up
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating StaticHostUser", err, "static_host_user"))
 		return
 	}
-		var staticHostUserI *userprovisioningv2.StaticHostUser
+	var staticHostUserI *userprovisioningv2.StaticHostUser
 
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
@@ -250,7 +248,7 @@ func (r resourceTeleportStaticHostUser) Update(ctx context.Context, req tfsdk.Up
 	}
 
 	staticHostUserResource = staticHostUserI
-	
+
 	diags = schemav1.CopyStaticHostUserToTerraform(ctx, staticHostUser, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -291,7 +289,6 @@ func (r resourceTeleportStaticHostUser) ImportState(ctx context.Context, req tfs
 	}
 
 	staticHostUserResource := staticHostUser
-	
 
 	var state types.Object
 
