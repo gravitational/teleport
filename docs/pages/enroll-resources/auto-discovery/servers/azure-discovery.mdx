@@ -182,15 +182,11 @@ you want to further limit the `assignableScopes`, you can use a resource group
 Now go to the [Subscriptions](https://portal.azure.com/#view/Microsoft_Azure_Billing/SubscriptionsBlade) page and select a subscription.
 
 Click on *Access control (IAM)* in the subscription and select *Add > Add custom role*:
-<Figure align="left">
 ![IAM custom role](../../../../img/azure/add-custom-role@2x.png)
-</Figure>
 
 In the custom role creation page, click the *JSON* tab and click *Edit*, then paste the JSON example
 and replace the subscription in `assignableScopes` with your own subscription id:
-<Figure align="left">
 ![Create JSON role](../../../../img/server-access/guides/azure/vm-create-role-from-json@2x.png)
-</Figure>
 
 ### Create a role assignment for the Teleport Discovery Service principal
 
