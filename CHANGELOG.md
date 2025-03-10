@@ -19,6 +19,12 @@ Teleport 18 removes support for:
 - `tls-ecdhe-ecdsa-with-aes-128-cbc-sha256`
 - `tls-ecdhe-rsa-with-aes-128-cbc-sha256`
 
+#### AWS endpoint URL mode removed
+
+The AWS endpoint URL mode (`--endpoint-url`) has been removed for
+`tsh proxy aws` and `tsh aws`. Users using this mode should use the default
+HTTPS Proxy mode from now on.
+
 #### Legacy ALPN connection upgrade mode has been removed
 
 Teleport v15.1 added WebSocket upgrade support for Teleport proxies behind

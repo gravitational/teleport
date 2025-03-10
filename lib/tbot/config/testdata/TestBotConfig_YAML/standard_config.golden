@@ -46,6 +46,10 @@ services:
         enabled: false
       podman:
         enabled: false
+      docker:
+        enabled: false
+      systemd:
+        enabled: false
     credential_ttl: 30s
     renewal_interval: 15s
   - type: example
@@ -79,6 +83,10 @@ services:
       kubernetes:
         enabled: false
       podman:
+        enabled: false
+      docker:
+        enabled: false
+      systemd:
         enabled: false
     selector:
       name: my-workload-identity

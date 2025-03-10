@@ -26,7 +26,7 @@ reading data from the OAuth 2.0 access token. In particular, the Auth Service:
   permissions. 
 - Assigns the user's Teleport username to their GitHub username.
 
-<Notice type="warning">
+<Admonition type="warning">
 
 GitHub usernames are not formatted as email addresses. As a result, any Teleport
 plugin that expects to send email to a user based on their Teleport username
@@ -34,7 +34,7 @@ will not work as expected. For example, the [PagerDuty Access Request
 plugin](../access-request-plugins/ssh-approval-pagerduty.mdx) has this
 limitation.
 
-</Notice>
+</Admonition>
 
 ## Prerequisites
 
@@ -481,6 +481,6 @@ shows the slug is `my-team`. Update the teams to roles mapping.
 The role we illustrated in this guide uses the `internal.logins` trait,
 which Teleport replaces with values from the Teleport local user
 database. For full details on how traits work in Teleport roles,
-see the [Teleport Access Controls
+see the [Access Controls
 Reference](../../../reference/access-controls/roles.mdx).
 

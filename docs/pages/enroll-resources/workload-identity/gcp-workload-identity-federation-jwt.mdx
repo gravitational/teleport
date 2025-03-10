@@ -3,8 +3,6 @@ title: Configuring Workload Identity and GCP Workload Identity Federation with J
 description: Configuring GCP to accept Workload Identity JWTs as authentication using Workload Identity Federation
 ---
 
-(!/docs/pages/includes/workload-id-preview.mdx!)
-
 Teleport Workload Identity issues flexible short-lived identities in JWT format.
 GCP Workload Identity Federation allows you to use these JWTs to authenticate to
 GCP services.
@@ -40,10 +38,10 @@ GCP APIs in a few ways:
 workloads which need to access Teleport Workload Identity will run. For more
 information, see the [deployment guides](../machine-id/deployment/deployment.mdx).
 
-<Notice type="warning">
+<Admonition type="warning">
 Issuing JWT SVIDs with Teleport Workload Identity requires at minimum version
 16.4.3.
-</Notice>
+</Admonition>
 
 ### Deciding on a SPIFFE ID structure
 

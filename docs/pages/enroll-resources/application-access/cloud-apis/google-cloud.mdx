@@ -32,13 +32,13 @@ prevent unauthorized access to your organization's Google Cloud service accounts
   page](https://cloud.google.com/sdk/docs/install-sdk) to install and
   authenticate to `gcloud`.
 
-  <Notice type="tip">
+  <Admonition type="tip">
 
   While this guide focuses on `gcloud`, once you set up Google Cloud API access
   with Teleport, you can also manage access to `gsutil` and other Google Cloud
   CLI tools using the Teleport Application Service.
 
-  </Notice>
+  </Admonition>
 
 - Either a Google Compute Engine VM where you will run the Teleport Application
   Service *or* permissions to create VMs in your Google Cloud project. If you
@@ -106,14 +106,14 @@ permissions to impersonate target service accounts.
 
 #### Create a service account and enable it to view resources
 
-<Notice type="tip">
+<Admonition type="tip">
 
 If you are enabling access to an existing service account, you can skip to the
 [next
 section](#enable-teleport-google-cloud-cli-to-impersonate-target-service-accounts
 ).
 
-</Notice>
+</Admonition>
 
 Create a target service account:
 
@@ -139,12 +139,12 @@ Enable the `teleport-google-cloud-cli` service account to impersonate
 `teleport-google-cloud-cli` account to the predefined "Service Account Token
 Creator Role" for the `teleport-vm-viewer` service account:
 
-<Notice type="tip">
+<Admonition type="tip">
 
 To enable Google Cloud CLI access for pre-existing service accounts, you must
 run this command for each service account.
 
-</Notice>
+</Admonition>
 
 ```code
 $ gcloud iam service-accounts add-iam-policy-binding \
@@ -209,13 +209,13 @@ $ gcloud compute instances set-service-account <Var name="vm-name" /> \
    --scopes=cloud-platform
 ```
 
-<Notice type="warning">
+<Admonition type="warning">
 
 You must use the `scopes` flag in the `gcloud compute instances
 set-service-account` command. Otherwise, your Google Cloud VM will fail to
 obtain the required authorization to access Google Cloud.
 
-</Notice>
+</Admonition>
 
 Once you have attached the service account, restart your VM:
 
@@ -295,7 +295,7 @@ service accounts:
 |**Dynamic**|A Teleport role includes a template variable that grants a user access to all Google Cloud service accounts assigned directly to them.|Local users, OIDC, SAML|
 |**Static**|A Teleport role explicitly specifies the Google Cloud service accounts a user is allowed to assume.|Local users, OIDC, SAML, GitHub|
 
-<Notice type="tip">
+<Admonition type="tip">
 
 We recommend using the dynamic approach, since it scales more easily as you add
 service accounts to your Google Cloud account. If you have configured an open
@@ -303,7 +303,7 @@ source Teleport cluster to authenticate users via GitHub SSO, you must use the
 static approach, as OAuth-based GitHub applications do not support custom
 claims.
 
-</Notice>
+</Admonition>
 
 <Tabs dropdownCaption="Approach">
 <TabItem options="Dynamic Identities" label="Local Users">
@@ -590,13 +590,13 @@ Use the following credentials and HTTPS proxy setting to connect to the proxy:
   export HTTPS_PROXY=http://127.0.0.1:50614
 ```
 
-<Notice type="warning">
+<Admonition type="warning">
 
 `tsh proxy gcloud` runs the local proxy in the foreground, so don't interrupt
 the process or exit the terminal where you ran the command until you're ready
 to close the local proxy.
 
-</Notice>
+</Admonition>
 
 Copy the `export` commands and paste them into a second terminal. In that
 terminal, you can now run your Google Cloud CLI application of choice. For
@@ -621,13 +621,13 @@ ERROR: (gcloud.iam.service-accounts.create) User [myuser] does not have permissi
   reason: IAM_PERMISSION_DENIED
 ```
 
-<Notice type="info">
+<Admonition type="info">
 
 When you run a `gcloud` or `gsutil` command via `tsh gcloud` or `tsh gsutil`,
 `tsh` starts the local proxy in the background and uses it to execute the
 command.
 
-</Notice>
+</Admonition>
 
 ## Next steps
 
@@ -643,6 +643,6 @@ command.
   [`gsutil`](https://cloud.google.com/storage/docs/gsutil).
 - For full details on how Teleport populates the `internal` and `external`
   traits we illustrated in the Teleport roles within this guide, see
-  the [Teleport Access Controls
+  the [Access Controls
   Reference](../../../reference/access-controls/roles.mdx).
 
