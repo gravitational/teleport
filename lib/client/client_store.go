@@ -43,7 +43,8 @@ import (
 // when using `tsh --add-keys-to-agent=only`, Store will be made up of an in-memory
 // key store and an FS (~/.tsh) profile and trusted certs store.
 type Store struct {
-	log *slog.Logger
+	log          *slog.Logger
+	hwKeyService keys.HardwareKeyService
 
 	KeyStore
 	TrustedCertsStore
@@ -51,20 +52,26 @@ type Store struct {
 }
 
 // NewMemClientStore initializes an FS backed client store with the given base dir.
-func NewFSClientStore(dirPath string) *Store {
+func NewFSClientStore(dirPath string, hwKeyService keys.HardwareKeyService) *Store {
 	dirPath = profile.FullProfilePath(dirPath)
 	return &Store{
 		log:               slog.With(teleport.ComponentKey, teleport.ComponentKeyStore),
+		hwKeyService:      hwKeyService,
 		KeyStore:          NewFSKeyStore(dirPath),
 		TrustedCertsStore: NewFSTrustedCertsStore(dirPath),
 		ProfileStore:      NewFSProfileStore(dirPath),
 	}
 }
 
+func (s *Store) NewHardwarePrivateKey(ctx context.Context, customSlot keys.PIVSlot, requiredPolicy keys.PrivateKeyPolicy) (*keys.PrivateKey, error) {
+	return keys.NewHardwarePrivateKey(ctx, s.hwKeyService, customSlot, requiredPolicy)
+}
+
 // NewMemClientStore initializes a new in-memory client store.
-func NewMemClientStore() *Store {
+func NewMemClientStore(hwKeyService keys.HardwareKeyService) *Store {
 	return &Store{
 		log:               slog.With(teleport.ComponentKey, teleport.ComponentKeyStore),
+		hwKeyService:      hwKeyService,
 		KeyStore:          NewMemKeyStore(),
 		TrustedCertsStore: NewMemTrustedCertsStore(),
 		ProfileStore:      NewMemProfileStore(),
@@ -81,12 +88,6 @@ func (s *Store) AddKeyRing(keyRing *KeyRing) error {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// SetCustomHardwareKeyPrompt sets a custom hardware key prompt
-// used to interact with a YubiKey private key.
-func (s *Store) SetCustomHardwareKeyPrompt(prompt keys.HardwareKeyPrompt) {
-	s.KeyStore.SetCustomHardwareKeyPrompt(prompt)
 }
 
 // ErrNoProfile is returned by the client store when a specific profile is not found.
@@ -121,7 +122,7 @@ func IsNoCredentialsError(err error) bool {
 // certs store. If the key ring is not found or is missing data (certificates, etc.),
 // then an ErrNoCredentials error is returned.
 func (s *Store) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRing, error) {
-	keyRing, err := s.KeyStore.GetKeyRing(idx, opts...)
+	keyRing, err := s.KeyStore.GetKeyRing(idx, s.hwKeyService, opts...)
 	if trace.IsNotFound(err) {
 		return nil, newNoCredentialsError(err)
 	} else if err != nil {

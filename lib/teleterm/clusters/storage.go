@@ -280,13 +280,12 @@ func (s *Storage) loadProfileStatusAndClusterKey(clusterClient *client.TeleportC
 
 func (s *Storage) makeDefaultClientConfig(rootClusterURI uri.ResourceURI) *client.Config {
 	cfg := client.MakeDefaultConfig()
-
 	cfg.HomePath = s.Dir
 	cfg.KeysDir = s.Dir
 	cfg.InsecureSkipVerify = s.InsecureSkipVerify
 	cfg.AddKeysToAgent = s.AddKeysToAgent
 	cfg.WebauthnLogin = s.WebauthnLogin
-	cfg.CustomHardwareKeyPrompt = s.HardwareKeyPromptConstructor(rootClusterURI)
+	cfg.ClientStore = client.NewFSClientStore(s.Dir, s.HardwareKeyService)
 	cfg.DTAuthnRunCeremony = dtauthn.NewCeremony().Run
 	cfg.DTAutoEnroll = dtenroll.AutoEnroll
 	return cfg

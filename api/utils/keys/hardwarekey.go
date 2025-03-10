@@ -38,6 +38,10 @@ type HardwareKeyService interface {
 	// Sign performs a cryptographic signature using the specified hardware
 	// private key and provided signature parameters.
 	Sign(ref *HardwarePrivateKeyRef, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error)
+	// SetPrompt sets the hardware key prompt used by the hardware key service, if applicable.
+	// This is used by Teleport Connect which sets the prompt later than the hardware key service,
+	// due to process initialization constraints.
+	SetPrompt(prompt HardwareKeyPrompt)
 }
 
 // HardwarePrivateKey is a hardware private key.

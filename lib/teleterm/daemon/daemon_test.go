@@ -348,9 +348,7 @@ func TestUpdateTshdEventsServerAddress(t *testing.T) {
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                homeDir,
 		InsecureSkipVerify: true,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
-			return nil
-		},
+		HardwareKeyService: keys.NewHardwareKeyService(nil /*prompt*/),
 	})
 	require.NoError(t, err)
 
@@ -385,9 +383,7 @@ func TestUpdateTshdEventsServerAddress_CredsErr(t *testing.T) {
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                homeDir,
 		InsecureSkipVerify: true,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
-			return nil
-		},
+		HardwareKeyService: keys.NewHardwareKeyService(nil /*prompt*/),
 	})
 	require.NoError(t, err)
 
@@ -489,9 +485,7 @@ func TestRetryWithRelogin(t *testing.T) {
 			storage, err := clusters.NewStorage(clusters.Config{
 				Dir:                t.TempDir(),
 				InsecureSkipVerify: true,
-				HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
-					return nil
-				},
+				HardwareKeyService: keys.NewHardwareKeyService(nil /*prompt*/),
 			})
 			require.NoError(t, err)
 
@@ -545,9 +539,7 @@ func TestConcurrentHeadlessAuthPrompts(t *testing.T) {
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                t.TempDir(),
 		InsecureSkipVerify: true,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
-			return nil
-		},
+		HardwareKeyService: keys.NewHardwareKeyService(nil /*prompt*/),
 	})
 	require.NoError(t, err)
 
