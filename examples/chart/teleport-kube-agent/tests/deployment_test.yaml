@@ -781,3 +781,16 @@ tests:
           content:
             name: TELEPORT_EXT_UPGRADER_VERSION
             value: 13.4.5
+
+  - it: should set name to fullnameOverride when set in values if action is Upgrade
+    template: deployment.yaml
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+    values:
+      - ../.lint/fullname-override.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: teleport
