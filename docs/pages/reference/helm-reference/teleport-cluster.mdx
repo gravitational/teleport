@@ -327,6 +327,37 @@ For example, if users are accessing the cluster with the domain
 Changing the RP ID will invalidate all already registered webauthn second factors.
 </Admonition>
 
+### `authentication.secondFactors`
+
+| Type     | Default value | Required? | `teleport.yaml` equivalent                  |
+|----------|---------------|-----------|---------------------------------------------|
+| `array`  | `[]`          | No        | `auth_service.authentication.second_factors` |
+
+`authentication.secondFactors` configures multi-factor authentication types. Possible values supported by this chart
+are `otp`, `sso`, and `webauthn`.
+
+`authentication.secondFactors` takes precedence over any value that is set in `authentication.secondFactor`.
+If `webauthn` is passed, the `authentication.webauthn` section can also be used.
+The configured `rp_id` defaults to `clusterName`.
+
+<Admonition type="warning">
+If you set `publicAddr` for users to access the cluster under a domain different
+to [`clusterName`](#clusterName), you must manually set the webauthn [Relying
+Party Identifier (RP
+ID)](https://www.w3.org/TR/webauthn-2/#relying-party-identifier). If you don't,
+RP ID will default to `clusterName` and users will fail to register second
+factors.
+
+You can do this by setting the value
+`auth.teleportConfig.auth_service.authentication.webauthn.rp_id`.
+
+RP ID must be both a valid domain, and part of the full domain users are connecting to.
+For example, if users are accessing the cluster with the domain
+"teleport.example.com", RP ID can be "teleport.example.com" or "example.com".
+
+Changing the RP ID will invalidate all already registered webauthn second factors.
+</Admonition>
+
 ### `authentication.webauthn`
 
 See [Harden your Cluster Against IdP Compromises](../../admin-guides/access-controls/guides/webauthn.mdx) for more details.

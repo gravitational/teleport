@@ -126,6 +126,19 @@
                     ],
                     "default": "otp"
                 },
+                "secondFactors": {
+                    "$id": "#/properties/authentication/properties/secondFactors",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "otp",
+                            "sso",
+                            "webauthn"
+                        ]
+                    },
+                    "default": []
+                },
                 "webauthn": {
                     "$id": "#/properties/authentication/properties/webauthn",
                     "type": "object",
