@@ -7111,7 +7111,6 @@ func eventsInLog(path string, eventName string) ([]events.EventFields, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		fmt.Println(fields.GetType())
 		ret = append(ret, fields)
 	}
 
