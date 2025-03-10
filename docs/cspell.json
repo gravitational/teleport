@@ -1042,6 +1042,6 @@
   "ignorePaths": [
     "**/reference/terraform-provider/**",
     "**/reference/operator-resources/**",
-    "**/includes/reference/code-blocks/**"
+    "**/includes/reference/code-blocks-no-cspell/**"
   ]
 }

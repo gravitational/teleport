@@ -236,11 +236,13 @@ TLS routing is compatible with any reverse proxies that supports WebSocket.
 
 You can set up a Teleport Proxy Service behind the reverse proxy and run the
 following command to test the connection:
-(!docs/pages/includes/reference/code-blocks/tls-routing-conn-upgrade-test-command.mdx!)
+
+(!docs/pages/includes/reference/code-blocks-no-cspell/tls-routing-conn-upgrade-test-command.mdx!)
 
 For a successful upgrade, the server should return "101 Switching Protocols"
 with an empty response:
-(!docs/pages/includes/reference/code-blocks/tls-routing-conn-upgrade-test-result.mdx!)
+
+(!docs/pages/includes/reference/code-blocks-no-cspell/tls-routing-conn-upgrade-test-result.mdx!)
 
 ### How can I access Kubernetes clusters without using `tsh proxy kube`?
 
