@@ -30,25 +30,20 @@ import (
 // EvaluateSSHCommand is a command to evaluate
 // SSH access via the Teleport Decision Service.
 type EvaluateSSHCommand struct {
-	output io.Writer
-
-	sshDetails sshDetails
-	command    *kingpin.CmdClause
-}
-
-type sshDetails struct {
-	serverID string
-	username string
-	login    string
+	Output   io.Writer
+	Username string
+	ServerID string
+	Login    string
+	command  *kingpin.CmdClause
 }
 
 // Initialize sets up the "tctl decision evaluate ssh" command.
 func (c *EvaluateSSHCommand) Initialize(cmd *kingpin.CmdClause, output io.Writer) {
-	c.output = output
+	c.Output = output
 	c.command = cmd.Command("evaluate-ssh-access", "Evaluate SSH access for a user.").Hidden()
-	c.command.Flag("username", "The username to evaluate access for.").StringVar(&c.sshDetails.username)
-	c.command.Flag("login", "The os login to evaluate access for.").StringVar(&c.sshDetails.login)
-	c.command.Flag("server-id", "The host id of the target server.").StringVar(&c.sshDetails.serverID)
+	c.command.Flag("username", "The username to evaluate access for.").StringVar(&c.Username)
+	c.command.Flag("login", "The os login to evaluate access for.").StringVar(&c.Login)
+	c.command.Flag("server-id", "The host id of the target server.").StringVar(&c.ServerID)
 }
 
 // FullCommand returns the fully qualified name of
@@ -58,20 +53,41 @@ func (c *EvaluateSSHCommand) FullCommand() string {
 }
 
 // Run executes the subcommand.
-func (c *EvaluateSSHCommand) Run(ctx context.Context, clt decisionpb.DecisionServiceClient) error {
-	resp, err := clt.EvaluateSSHAccess(ctx, &decisionpb.EvaluateSSHAccessRequest{
-		Metadata:    &decisionpb.RequestMetadata{PepVersionHint: teleport.Version},
-		SshIdentity: &decisionpb.SSHIdentity{},
+func (c *EvaluateSSHCommand) Run(ctx context.Context, clt Client) error {
+	if c.Username == "" {
+		return trace.BadParameter("please specify an extant teleport user with --username")
+	}
+
+	clusterName, err := clt.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	resp, err := clt.DecisionClient().EvaluateSSHAccess(ctx, &decisionpb.EvaluateSSHAccessRequest{
+		Metadata: &decisionpb.RequestMetadata{
+			PepVersionHint: teleport.Version,
+			DryRun:         true,
+			DryRunOptions: &decisionpb.DryRunOptions{
+				GenerateIdentity: &decisionpb.DryRunIdentity{
+					Username: c.Username,
+				},
+			},
+		},
+		SshAuthority: &decisionpb.SSHAuthority{
+			ClusterName:   clusterName.GetClusterName(),
+			AuthorityType: string(types.UserCA),
+		},
 		Node: &decisionpb.Resource{
 			Kind: types.KindNode,
-			Name: c.sshDetails.serverID,
+			Name: c.ServerID,
 		},
+		OsUser: c.Login,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := WriteProtoJSON(c.output, resp); err != nil {
+	if err := WriteProtoJSON(c.Output, resp); err != nil {
 		return trace.Wrap(err, "failed to marshal result")
 	}
 

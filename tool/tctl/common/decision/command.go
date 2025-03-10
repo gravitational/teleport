@@ -18,6 +18,7 @@ package decision
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 
@@ -28,9 +29,16 @@ import (
 
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
+
+// Client is the interface used by the decision family of commands to represent the remote auth server.
+type Client interface {
+	services.ClusterNameGetter
+	DecisionClient() decisionpb.DecisionServiceClient
+}
 
 // Command is a group of commands to interact with the Teleport Decision Service.
 type Command struct {
@@ -54,7 +62,7 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 
 // TryRun attempts to run subcommands.
 func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (bool, error) {
-	var run func(context.Context, decisionpb.DecisionServiceClient) error
+	var run func(context.Context, Client) error
 	switch cmd {
 	case c.evaluateSSHCommand.FullCommand():
 		run = c.evaluateSSHCommand.Run
@@ -70,7 +78,10 @@ func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclien
 	}
 
 	defer closeFn(ctx)
-	return true, trace.Wrap(run(ctx, client.DecisionClient()))
+
+	fmt.Fprintf(os.Stderr, "WARNING: decision service and its associated commands are experimental. APIs and behavior may change without warning.\n")
+
+	return true, trace.Wrap(run(ctx, client))
 }
 
 // WriteProtoJSON outputs the the given [proto.Message] in
@@ -84,6 +95,7 @@ func WriteProtoJSON(w io.Writer, v proto.Message) error {
 		return trace.Wrap(err)
 	}
 
+	out = append(out, '\n')
 	_, err = w.Write(out)
 	return trace.Wrap(err)
 }

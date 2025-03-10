@@ -21,9 +21,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/alecthomas/kingpin/v2"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
@@ -56,12 +54,9 @@ func TestEvaluateSSH(t *testing.T) {
 						Metadata: &decisionpb.PermitMetadata{
 							PdpVersion: teleport.Version,
 						},
-						Logins:                []string{"llama", "beast"},
-						ForwardAgent:          true,
-						MaxSessionTtl:         durationpb.New(10),
-						PortForwarding:        false,
-						ClientIdleTimeout:     1000,
-						DisconnectExpiredCert: true,
+						ForwardAgent:    true,
+						X11Forwarding:   true,
+						PortForwardMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_LOCAL,
 					},
 				},
 			},
@@ -70,13 +65,20 @@ func TestEvaluateSSH(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cmd := decision.EvaluateSSHCommand{}
-
 			var output bytes.Buffer
-			cmd.Initialize(kingpin.New("tctl", "test").Command("decision", ""), &output)
 
-			clt := fakeDecisionServiceClient{
-				sshResponse: test.response,
+			cmd := decision.EvaluateSSHCommand{
+				Output:   &output,
+				Username: "alice",
+				ServerID: "server",
+				Login:    "root",
+			}
+
+			clt := fakeClient{
+				clusterName: "cluster",
+				decisionClient: fakeDecisionServiceClient{
+					sshResponse: test.response,
+				},
 			}
 
 			err := cmd.Run(context.Background(), clt)
