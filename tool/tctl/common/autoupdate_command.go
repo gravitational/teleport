@@ -50,15 +50,19 @@ type AutoUpdateCommand struct {
 	app *kingpin.Application
 	ccf *tctlcfg.GlobalCLIFlags
 
-	toolsTargetCmd  *kingpin.CmdClause
-	toolsEnableCmd  *kingpin.CmdClause
-	toolsDisableCmd *kingpin.CmdClause
-	toolsStatusCmd  *kingpin.CmdClause
-	agentsStatusCmd *kingpin.CmdClause
+	toolsTargetCmd       *kingpin.CmdClause
+	toolsEnableCmd       *kingpin.CmdClause
+	toolsDisableCmd      *kingpin.CmdClause
+	toolsStatusCmd       *kingpin.CmdClause
+	agentsStatusCmd      *kingpin.CmdClause
+	agentsStartUpdateCmd *kingpin.CmdClause
+	agentsMarkDoneCmd    *kingpin.CmdClause
+	agentsRollbackCmd    *kingpin.CmdClause
 
 	toolsTargetVersion string
 	proxy              string
 	format             string
+	groups             []string
 
 	clear bool
 
@@ -87,6 +91,12 @@ func (c *AutoUpdateCommand) Initialize(app *kingpin.Application, ccf *tctlcfg.Gl
 
 	agentsCmd := autoUpdateCmd.Command("agents", "Manage agents auto update configuration.")
 	c.agentsStatusCmd = agentsCmd.Command("status", "Prints agents auto update status.")
+	c.agentsStartUpdateCmd = agentsCmd.Command("start-update", "Starts updating one or many groups.")
+	c.agentsStartUpdateCmd.Arg("groups", "Groups to start updating.").StringsVar(&c.groups)
+	c.agentsMarkDoneCmd = agentsCmd.Command("mark-done", "Marks one or many groups as done updating.")
+	c.agentsMarkDoneCmd.Arg("groups", "Groups to mark as done updating.").StringsVar(&c.groups)
+	c.agentsRollbackCmd = agentsCmd.Command("rollback", "Rolls back one or many groups.")
+	c.agentsRollbackCmd.Arg("groups", "Groups to rollback. When empty, every group already started is rolled back.").StringsVar(&c.groups)
 
 	if c.stdout == nil {
 		c.stdout = os.Stdout
@@ -110,6 +120,12 @@ func (c *AutoUpdateCommand) TryRun(ctx context.Context, cmd string, clientFunc c
 		return true, trace.Wrap(err)
 	case cmd == c.agentsStatusCmd.FullCommand():
 		commandFunc = c.agentsStatusCommand
+	case cmd == c.agentsStartUpdateCmd.FullCommand():
+		commandFunc = c.agentsStartUpdateCommand
+	case cmd == c.agentsMarkDoneCmd.FullCommand():
+		commandFunc = c.agentsMarkDoneCommand
+	case cmd == c.agentsRollbackCmd.FullCommand():
+		commandFunc = c.agentsRollbackCommand
 	default:
 		return false, nil
 	}
@@ -182,6 +198,9 @@ type autoupdateClient interface {
 	CreateAutoUpdateVersion(context.Context, *autoupdatev1pb.AutoUpdateVersion) (*autoupdatev1pb.AutoUpdateVersion, error)
 	UpdateAutoUpdateConfig(context.Context, *autoupdatev1pb.AutoUpdateConfig) (*autoupdatev1pb.AutoUpdateConfig, error)
 	UpdateAutoUpdateVersion(context.Context, *autoupdatev1pb.AutoUpdateVersion) (*autoupdatev1pb.AutoUpdateVersion, error)
+	TriggerAutoUpdateAgentGroup(ctx context.Context, groups []string, state autoupdatev1pb.AutoUpdateAgentGroupState) (*autoupdatev1pb.AutoUpdateAgentRollout, error)
+	ForceAutoUpdateAgentGroup(ctx context.Context, groups []string) (*autoupdatev1pb.AutoUpdateAgentRollout, error)
+	RollbackAutoUpdateAgentGroup(ctx context.Context, groups []string) (*autoupdatev1pb.AutoUpdateAgentRollout, error)
 }
 
 func (c *AutoUpdateCommand) agentsStatusCommand(ctx context.Context, client autoupdateClient) error {
@@ -216,8 +235,15 @@ func (c *AutoUpdateCommand) agentsStatusCommand(ctx context.Context, client auto
 		sb.WriteString("Strategy: " + strategy + "\n")
 	}
 
+	sb.WriteRune('\n')
+	rolloutGroupTable(rollout, &sb)
+
+	fmt.Fprint(c.stdout, sb.String())
+	return nil
+}
+
+func rolloutGroupTable(rollout *autoupdatev1pb.AutoUpdateAgentRollout, writer io.Writer) {
 	if groups := rollout.GetStatus().GetGroups(); len(groups) > 0 {
-		sb.WriteRune('\n')
 		headers := []string{"Group Name", "State", "Start Time", "State Reason"}
 		table := asciitable.MakeTable(headers)
 		for _, group := range groups {
@@ -227,10 +253,75 @@ func (c *AutoUpdateCommand) agentsStatusCommand(ctx context.Context, client auto
 				formatTimeIfNotEmpty(group.GetStartTime().AsTime(), time.DateTime),
 				group.GetLastUpdateReason()})
 		}
-		sb.Write(table.AsBuffer().Bytes())
+		writer.Write(table.AsBuffer().Bytes())
+	}
+}
+
+func (c *AutoUpdateCommand) agentsStartUpdateCommand(ctx context.Context, client autoupdateClient) error {
+	groups := make([]string, 0, len(c.groups))
+	for _, group := range c.groups {
+		if grp := strings.TrimSpace(group); grp != "" {
+			groups = append(groups, grp)
+		}
 	}
 
-	fmt.Fprint(c.stdout, sb.String())
+	if len(c.groups) == 0 {
+		return trace.BadParameter("no groups specified")
+	}
+
+	rollout, err := client.TriggerAutoUpdateAgentGroup(ctx, groups, autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Fprintf(c.stdout, "Started updating agents groups: %v.\n", groups)
+
+	fmt.Fprint(c.stdout, "New agent rollout status:\n\n")
+	rolloutGroupTable(rollout, c.stdout)
+	return nil
+}
+
+func (c *AutoUpdateCommand) agentsMarkDoneCommand(ctx context.Context, client autoupdateClient) error {
+	groups := make([]string, 0, len(c.groups))
+	for _, group := range c.groups {
+		if grp := strings.TrimSpace(group); grp != "" {
+			groups = append(groups, grp)
+		}
+	}
+
+	rollout, err := client.ForceAutoUpdateAgentGroup(ctx, groups)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(c.groups) == 0 {
+		fmt.Fprintln(c.stdout, "Rolledback already started agent groups.")
+	} else {
+		fmt.Fprintf(c.stdout, "Rolledback agents groups: %v.\n", groups)
+	}
+
+	fmt.Fprint(c.stdout, "New agent rollout status:\n\n")
+	rolloutGroupTable(rollout, c.stdout)
+	return nil
+}
+
+func (c *AutoUpdateCommand) agentsRollbackCommand(ctx context.Context, client autoupdateClient) error {
+	groups := make([]string, 0, len(c.groups))
+	for _, group := range c.groups {
+		if grp := strings.TrimSpace(group); grp != "" {
+			groups = append(groups, grp)
+		}
+	}
+
+	rollout, err := client.RollbackAutoUpdateAgentGroup(ctx, groups)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Fprintf(c.stdout, "Marked done the agent groups: %v.\n", groups)
+
+	fmt.Fprint(c.stdout, "New agent rollout status:\n\n")
+	rolloutGroupTable(rollout, c.stdout)
 	return nil
 }
 
