@@ -847,6 +847,16 @@ const (
 	// AutoUpdateVersionDeleteEvent is emitted when a AutoUpdateVersion resource is deleted.
 	AutoUpdateVersionDeleteEvent = "auto_update_version.delete"
 
+	// AutoUpdateAgentRolloutTriggerEvent is emitted when one or many groups
+	// from AutoUpdateAgentRollout resource are manually triggered.
+	AutoUpdateAgentRolloutTriggerEvent = "auto_update_agent_rollout.trigger"
+	// AutoUpdateAgentRolloutForceDoneEvent is emitted when one or many groups
+	// from AutoUpdateAgentRollout resource are manually forced to a done state.
+	AutoUpdateAgentRolloutForceDoneEvent = "auto_update_agent_rollout.force_done"
+	// AutoUpdateAgentRolloutRollbackEvent is emitted when one or many groups
+	// from AutoUpdateAgentRollout resource are manually rolledback.
+	AutoUpdateAgentRolloutRollbackEvent = "auto_update_agent_rollout.rollback"
+
 	// ContactCreateEvent is emitted when a Contact resource is created.
 	ContactCreateEvent = "contact.create"
 	// ContactDeleteEvent is emitted when a Contact resource is deleted.

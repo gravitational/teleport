@@ -785,7 +785,6 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AutoUpdateConfigDelete{
 			AutoUpdateConfigDelete: e,
 		}
-
 	case *AutoUpdateVersionCreate:
 		out.Event = &OneOf_AutoUpdateVersionCreate{
 			AutoUpdateVersionCreate: e,
@@ -797,6 +796,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *AutoUpdateVersionDelete:
 		out.Event = &OneOf_AutoUpdateVersionDelete{
 			AutoUpdateVersionDelete: e,
+		}
+	case *AutoUpdateAgentRolloutTrigger:
+		out.Event = &OneOf_AutoUpdateAgentRolloutTrigger{
+			AutoUpdateAgentRolloutTrigger: e,
+		}
+	case *AutoUpdateAgentRolloutForceDone:
+		out.Event = &OneOf_AutoUpdateAgentRolloutForceDone{
+			AutoUpdateAgentRolloutForceDone: e,
+		}
+	case *AutoUpdateAgentRolloutRollback:
+		out.Event = &OneOf_AutoUpdateAgentRolloutRollback{
+			AutoUpdateAgentRolloutRollback: e,
 		}
 	case *ContactCreate:
 		out.Event = &OneOf_ContactCreate{

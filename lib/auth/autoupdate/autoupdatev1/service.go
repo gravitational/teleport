@@ -654,7 +654,7 @@ func (s *Service) DeleteAutoUpdateAgentRollout(ctx context.Context, req *autoupd
 
 // TriggerAutoUpdateAgentGroup triggers automatic updates for one or many groups
 // in the rollout.
-func (s *Service) TriggerAutoUpdateAgentGroup(ctx context.Context, req *autoupdate.TriggerAutoUpdateAgentGroupRequest) (*autoupdate.AutoUpdateAgentRollout, error) {
+func (s *Service) TriggerAutoUpdateAgentGroup(ctx context.Context, req *autoupdate.TriggerAutoUpdateAgentGroupRequest) (result *autoupdate.AutoUpdateAgentRollout, err error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -667,6 +667,30 @@ func (s *Service) TriggerAutoUpdateAgentGroup(ctx context.Context, req *autoupda
 	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	defer func() {
+		var errMsg string
+		if err != nil {
+			errMsg = err.Error()
+		}
+		userMetadata := authz.ClientUserMetadata(ctx)
+		s.emitEvent(ctx, &apievents.AutoUpdateAgentRolloutTrigger{
+			Metadata: apievents.Metadata{
+				Type: events.AutoUpdateAgentRolloutTriggerEvent,
+				Code: events.AutoUpdateAgentRolloutTriggerCode,
+			},
+			UserMetadata: userMetadata,
+			ResourceMetadata: apievents.ResourceMetadata{
+				Name:      types.MetaNameAutoUpdateAgentRollout,
+				UpdatedBy: userMetadata.User,
+			},
+			ConnectionMetadata: authz.ConnectionMetadata(ctx),
+			Status: apievents.Status{
+				Success: err == nil,
+				Error:   errMsg,
+			},
+		})
+	}()
 
 	tries := 0
 	const maxTries = 3
@@ -712,6 +736,30 @@ func (s *Service) ForceAutoUpdateAgentGroup(ctx context.Context, req *autoupdate
 		return nil, trace.Wrap(err)
 	}
 
+	defer func() {
+		var errMsg string
+		if err != nil {
+			errMsg = err.Error()
+		}
+		userMetadata := authz.ClientUserMetadata(ctx)
+		s.emitEvent(ctx, &apievents.AutoUpdateAgentRolloutForceDone{
+			Metadata: apievents.Metadata{
+				Type: events.AutoUpdateAgentRolloutForceDoneEvent,
+				Code: events.AutoUpdateAgentRolloutForceDoneCode,
+			},
+			UserMetadata: userMetadata,
+			ResourceMetadata: apievents.ResourceMetadata{
+				Name:      types.MetaNameAutoUpdateAgentRollout,
+				UpdatedBy: userMetadata.User,
+			},
+			ConnectionMetadata: authz.ConnectionMetadata(ctx),
+			Status: apievents.Status{
+				Success: err == nil,
+				Error:   errMsg,
+			},
+		})
+	}()
+
 	tries := 0
 	const maxTries = 3
 
@@ -755,6 +803,30 @@ func (s *Service) RollbackAutoUpdateAgentGroup(ctx context.Context, req *autoupd
 	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	defer func() {
+		var errMsg string
+		if err != nil {
+			errMsg = err.Error()
+		}
+		userMetadata := authz.ClientUserMetadata(ctx)
+		s.emitEvent(ctx, &apievents.AutoUpdateAgentRolloutRollback{
+			Metadata: apievents.Metadata{
+				Type: events.AutoUpdateAgentRolloutRollbackEvent,
+				Code: events.AutoUpdateAgentRolloutRollbackCode,
+			},
+			UserMetadata: userMetadata,
+			ResourceMetadata: apievents.ResourceMetadata{
+				Name:      types.MetaNameAutoUpdateAgentRollout,
+				UpdatedBy: userMetadata.User,
+			},
+			ConnectionMetadata: authz.ConnectionMetadata(ctx),
+			Status: apievents.Status{
+				Success: err == nil,
+				Error:   errMsg,
+			},
+		})
+	}()
 
 	tries := 0
 	const maxTries = 3
