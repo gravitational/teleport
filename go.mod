@@ -575,7 +575,9 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.2 // indirect
 )
 
-// Update also `ignore` in .github/dependabot.yml.
+// when changing the replace directives make sure to also apply the same changes
+// to integrations/event-handler/go.mod and integrations/terraform/go.mod, and
+// update "ignore" in .github/dependabot.yml.
 replace (
 	github.com/alecthomas/kingpin/v2 => github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33
 	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.1.1
