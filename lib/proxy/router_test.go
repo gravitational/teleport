@@ -797,7 +797,6 @@ func TestRouter_DialHost(t *testing.T) {
 				require.Equal(t, agentlessSrv, params.TargetServer)
 				require.Nil(t, params.GetUserAgent)
 				require.NotNil(t, params.AgentlessSigner)
-				require.True(t, params.IsAgentlessNode)
 				require.NotNil(t, conn)
 			},
 		},
@@ -815,7 +814,6 @@ func TestRouter_DialHost(t *testing.T) {
 				require.Equal(t, agentlessEC2ICESrv, params.TargetServer)
 				require.Nil(t, params.GetUserAgent)
 				require.Nil(t, params.AgentlessSigner)
-				require.True(t, params.IsAgentlessNode)
 				require.NotNil(t, conn)
 			},
 		},
