@@ -26,7 +26,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"log/slog"
 	"os"
 	"os/user"
@@ -134,18 +133,6 @@ func (s *sftpHandler) ensureReqIsAllowed(req *sftp.Request) error {
 	}
 
 	return nil
-}
-
-// OpenFile handles 'open' requests when opening a file for reading
-// and writing is desired.
-func (s *sftpHandler) OpenFile(req *sftp.Request) (_ sftp.WriterAtReaderAt, retErr error) {
-	defer s.sendSFTPEvent(req, retErr)
-
-	if req.Filepath == "" {
-		return nil, os.ErrInvalid
-	}
-
-	return s.openFile(req)
 }
 
 // Fileread handles 'open' requests when opening a file for reading
@@ -257,130 +244,19 @@ func (s *sftpHandler) Filelist(req *sftp.Request) (_ sftp.ListerAt, retErr error
 
 func (s *sftpHandler) sendSFTPEvent(req *sftp.Request, reqErr error) {
 	ctx := context.TODO()
-	event := &apievents.SFTP{
-		Metadata: apievents.Metadata{
-			Type: events.SFTPEvent,
-			Time: time.Now(),
-		},
-	}
-
-	switch req.Method {
-	case sftputils.MethodOpen, sftputils.MethodGet, sftputils.MethodPut:
-		if reqErr == nil {
-			event.Code = events.SFTPOpenCode
-		} else {
-			event.Code = events.SFTPOpenFailureCode
-		}
-		event.Action = apievents.SFTPAction_OPEN
-	case sftputils.MethodSetStat:
-		if reqErr == nil {
-			event.Code = events.SFTPSetstatCode
-		} else {
-			event.Code = events.SFTPSetstatFailureCode
-		}
-		event.Action = apievents.SFTPAction_SETSTAT
-	case sftputils.MethodList:
-		if reqErr == nil {
-			event.Code = events.SFTPReaddirCode
-		} else {
-			event.Code = events.SFTPReaddirFailureCode
-		}
-		event.Action = apievents.SFTPAction_READDIR
-	case sftputils.MethodRemove:
-		if reqErr == nil {
-			event.Code = events.SFTPRemoveCode
-		} else {
-			event.Code = events.SFTPRemoveFailureCode
-		}
-		event.Action = apievents.SFTPAction_REMOVE
-	case sftputils.MethodMkdir:
-		if reqErr == nil {
-			event.Code = events.SFTPMkdirCode
-		} else {
-			event.Code = events.SFTPMkdirFailureCode
-		}
-		event.Action = apievents.SFTPAction_MKDIR
-	case sftputils.MethodRmdir:
-		if reqErr == nil {
-			event.Code = events.SFTPRmdirCode
-		} else {
-			event.Code = events.SFTPRmdirFailureCode
-		}
-		event.Action = apievents.SFTPAction_RMDIR
-	case sftputils.MethodRename:
-		if reqErr == nil {
-			event.Code = events.SFTPRenameCode
-		} else {
-			event.Code = events.SFTPRenameFailureCode
-		}
-		event.Action = apievents.SFTPAction_RENAME
-	case sftputils.MethodSymlink:
-		if reqErr == nil {
-			event.Code = events.SFTPSymlinkCode
-		} else {
-			event.Code = events.SFTPSymlinkFailureCode
-		}
-		event.Action = apievents.SFTPAction_SYMLINK
-	case sftputils.MethodLink:
-		if reqErr == nil {
-			event.Code = events.SFTPLinkCode
-		} else {
-			event.Code = events.SFTPLinkFailureCode
-		}
-		event.Action = apievents.SFTPAction_LINK
-	default:
+	event, err := sftputils.ParseSFTPEvent(req, reqErr)
+	if err != nil {
 		s.logger.WarnContext(ctx, "Unknown SFTP request", "request", req.Method)
 		return
+	} else if reqErr != nil {
+		s.logger.DebugContext(ctx, "failed handling SFTP request", "request", req.Method, "error", reqErr)
 	}
 
 	wd, err := os.Getwd()
 	if err != nil {
 		s.logger.WarnContext(ctx, "Failed to get working dir", "error", err)
 	}
-
 	event.WorkingDirectory = wd
-	event.Path = req.Filepath
-	event.TargetPath = req.Target
-	event.Flags = req.Flags
-	if req.Method == sftputils.MethodSetStat {
-		attrFlags := req.AttrFlags()
-		attrs := req.Attributes()
-		event.Attributes = new(apievents.SFTPAttributes)
-
-		if attrFlags.Acmodtime {
-			atime := time.Unix(int64(attrs.Atime), 0)
-			mtime := time.Unix(int64(attrs.Mtime), 0)
-			event.Attributes.AccessTime = &atime
-			event.Attributes.ModificationTime = &mtime
-		}
-		if attrFlags.Permissions {
-			perms := uint32(attrs.FileMode().Perm())
-			event.Attributes.Permissions = &perms
-		}
-		if attrFlags.Size {
-			event.Attributes.FileSize = &attrs.Size
-		}
-		if attrFlags.UidGid {
-			event.Attributes.UID = &attrs.UID
-			event.Attributes.GID = &attrs.GID
-		}
-	}
-	if reqErr != nil {
-		s.logger.DebugContext(ctx, "failed handling SFTP request", "request", req.Method, "error", reqErr)
-		// If possible, strip the filename from the error message. The
-		// path will be included in audit events already, no need to
-		// make the error message longer than it needs to be.
-		var pathErr *fs.PathError
-		var linkErr *os.LinkError
-		if errors.As(reqErr, &pathErr) {
-			event.Error = pathErr.Err.Error()
-		} else if errors.As(reqErr, &linkErr) {
-			event.Error = linkErr.Err.Error()
-		} else {
-			event.Error = reqErr.Error()
-		}
-	}
-
 	s.events <- event
 }
 

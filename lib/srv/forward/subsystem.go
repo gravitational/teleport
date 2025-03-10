@@ -32,7 +32,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv"
-	sftputils "github.com/gravitational/teleport/lib/sshutils/sftp"
 )
 
 // remoteSubsystem is a subsystem that executes on a remote node.
@@ -45,7 +44,7 @@ type remoteSubsystem struct {
 	ctx     context.Context
 	errorCh chan error
 	wg      sync.WaitGroup
-	proxy   *sftputils.SFTPProxy
+	proxy   *SFTPProxy
 }
 
 // parseRemoteSubsystem returns *remoteSubsystem which can be used to run a subsystem on a remote node.
@@ -65,7 +64,7 @@ func parseRemoteSubsystem(ctx context.Context, subsystemName string, serverConte
 // Start will begin execution of the remote subsystem on the passed in channel.
 func (r *remoteSubsystem) Start(ctx context.Context, channel ssh.Channel) error {
 	if r.subsystemName == "sftp" {
-		proxy, err := sftputils.NewSFTPProxy(ctx, channel, r.serverContext.RemoteClient.Client)
+		proxy, err := NewSFTPProxy(r.serverContext, channel)
 		if err != nil {
 			return trace.Wrap(err)
 		}

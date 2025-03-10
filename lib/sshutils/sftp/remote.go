@@ -33,6 +33,10 @@ type remoteFS struct {
 	c *sftp.Client
 }
 
+func NewRemoteFilesystem(c *sftp.Client) FileSystem {
+	return &remoteFS{c: c}
+}
+
 func (r *remoteFS) Type() string {
 	return "remote"
 }

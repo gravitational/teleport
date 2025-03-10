@@ -25,7 +25,11 @@ import (
 	"io/fs"
 	"os"
 	"sync/atomic"
+	"time"
 
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
 )
 
@@ -114,4 +118,124 @@ func (t *TrackedFile) WriteAt(b []byte, off int64) (int, error) {
 
 func (t *TrackedFile) Close() error {
 	return t.File.Close()
+}
+
+func ParseSFTPEvent(req *sftp.Request, reqErr error) (*apievents.SFTP, error) {
+	event := &apievents.SFTP{
+		Metadata: apievents.Metadata{
+			Type: events.SFTPEvent,
+			Time: time.Now(),
+		},
+	}
+
+	switch req.Method {
+	case MethodOpen, MethodGet, MethodPut:
+		if reqErr == nil {
+			event.Code = events.SFTPOpenCode
+		} else {
+			event.Code = events.SFTPOpenFailureCode
+		}
+		event.Action = apievents.SFTPAction_OPEN
+	case MethodSetStat:
+		if reqErr == nil {
+			event.Code = events.SFTPSetstatCode
+		} else {
+			event.Code = events.SFTPSetstatFailureCode
+		}
+		event.Action = apievents.SFTPAction_SETSTAT
+	case MethodList:
+		if reqErr == nil {
+			event.Code = events.SFTPReaddirCode
+		} else {
+			event.Code = events.SFTPReaddirFailureCode
+		}
+		event.Action = apievents.SFTPAction_READDIR
+	case MethodRemove:
+		if reqErr == nil {
+			event.Code = events.SFTPRemoveCode
+		} else {
+			event.Code = events.SFTPRemoveFailureCode
+		}
+		event.Action = apievents.SFTPAction_REMOVE
+	case MethodMkdir:
+		if reqErr == nil {
+			event.Code = events.SFTPMkdirCode
+		} else {
+			event.Code = events.SFTPMkdirFailureCode
+		}
+		event.Action = apievents.SFTPAction_MKDIR
+	case MethodRmdir:
+		if reqErr == nil {
+			event.Code = events.SFTPRmdirCode
+		} else {
+			event.Code = events.SFTPRmdirFailureCode
+		}
+		event.Action = apievents.SFTPAction_RMDIR
+	case MethodRename:
+		if reqErr == nil {
+			event.Code = events.SFTPRenameCode
+		} else {
+			event.Code = events.SFTPRenameFailureCode
+		}
+		event.Action = apievents.SFTPAction_RENAME
+	case MethodSymlink:
+		if reqErr == nil {
+			event.Code = events.SFTPSymlinkCode
+		} else {
+			event.Code = events.SFTPSymlinkFailureCode
+		}
+		event.Action = apievents.SFTPAction_SYMLINK
+	case MethodLink:
+		if reqErr == nil {
+			event.Code = events.SFTPLinkCode
+		} else {
+			event.Code = events.SFTPLinkFailureCode
+		}
+		event.Action = apievents.SFTPAction_LINK
+	default:
+		return nil, trace.BadParameter("unknown SFTP request %q", req.Method)
+	}
+
+	event.Path = req.Filepath
+	event.TargetPath = req.Target
+	event.Flags = req.Flags
+	if req.Method == MethodSetStat {
+		attrFlags := req.AttrFlags()
+		attrs := req.Attributes()
+		event.Attributes = new(apievents.SFTPAttributes)
+
+		if attrFlags.Acmodtime {
+			atime := time.Unix(int64(attrs.Atime), 0)
+			mtime := time.Unix(int64(attrs.Mtime), 0)
+			event.Attributes.AccessTime = &atime
+			event.Attributes.ModificationTime = &mtime
+		}
+		if attrFlags.Permissions {
+			perms := uint32(attrs.FileMode().Perm())
+			event.Attributes.Permissions = &perms
+		}
+		if attrFlags.Size {
+			event.Attributes.FileSize = &attrs.Size
+		}
+		if attrFlags.UidGid {
+			event.Attributes.UID = &attrs.UID
+			event.Attributes.GID = &attrs.GID
+		}
+	}
+	if reqErr != nil {
+		// If possible, strip the filename from the error message. The
+		// path will be included in audit events already, no need to
+		// make the error message longer than it needs to be.
+		var pathErr *fs.PathError
+		var linkErr *os.LinkError
+		if errors.As(reqErr, &pathErr) {
+			event.Error = pathErr.Err.Error()
+		} else if errors.As(reqErr, &linkErr) {
+			event.Error = linkErr.Err.Error()
+		} else {
+			event.Error = reqErr.Error()
+		}
+	}
+
+	return event, nil
 }
