@@ -18,11 +18,8 @@ package sshutils
 
 import (
 	"crypto"
-	"crypto/ecdsa"
-	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/rsa"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -30,6 +27,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/cryptopatch"
 )
 
 // TestCheckerValidateFIPS makes sure the public key is a valid algorithm
@@ -41,18 +39,18 @@ func TestCheckerValidateFIPS(t *testing.T) {
 	}
 
 	//nolint:forbidigo // Generating RSA keys allowed for key check test.
-	rsaKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	rsaKey, err := cryptopatch.GenerateRSAKey(rand.Reader, constants.RSAKeySize)
 	require.NoError(t, err)
 	//nolint:forbidigo // Generating RSA keys allowed for key check test.
-	smallRSAKey, err := rsa.GenerateKey(rand.Reader, 1024)
+	smallRSAKey, err := cryptopatch.GenerateRSAKey(rand.Reader, 1024)
 	require.NoError(t, err)
-	ellipticKeyP224, err := ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
+	ellipticKeyP224, err := cryptopatch.GenerateECDSAKey(elliptic.P224(), rand.Reader)
 	require.NoError(t, err)
-	ellipticKeyP256, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	ellipticKeyP256, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
-	ellipticKeyP384, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	ellipticKeyP384, err := cryptopatch.GenerateECDSAKey(elliptic.P384(), rand.Reader)
 	require.NoError(t, err)
-	_, ed25519Key, err := ed25519.GenerateKey(rand.Reader)
+	_, ed25519Key, err := cryptopatch.GenerateEd25519Key(rand.Reader)
 	require.NoError(t, err)
 
 	for _, tc := range []struct {

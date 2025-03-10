@@ -23,7 +23,7 @@ import (
 
 	"github.com/google/uuid"
 	apitypes "github.com/gravitational/teleport/api/types"
-	
+
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -79,9 +79,8 @@ func (r resourceTeleportDeviceV1) Create(ctx context.Context, req tfsdk.CreateRe
 	if trustedDevice.Metadata.Name == "" {
 		trustedDevice.Metadata.Name = uuid.NewString()
 	}
-	
-	trustedDeviceResource := trustedDevice
 
+	trustedDeviceResource := trustedDevice
 
 	id := trustedDeviceResource.Metadata.Name
 
@@ -104,7 +103,7 @@ func (r resourceTeleportDeviceV1) Create(ctx context.Context, req tfsdk.CreateRe
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating DeviceV1", trace.Wrap(err), "device"))
 		return
 	}
-		var trustedDeviceI *apitypes.DeviceV1
+	var trustedDeviceI *apitypes.DeviceV1
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
@@ -130,7 +129,7 @@ func (r resourceTeleportDeviceV1) Create(ctx context.Context, req tfsdk.CreateRe
 	}
 
 	trustedDeviceResource = trustedDeviceI
-	
+
 	trustedDevice = trustedDeviceResource
 
 	diags = schemav1.CopyDeviceV1ToTerraform(ctx, trustedDevice, &plan)
@@ -210,8 +209,6 @@ func (r resourceTeleportDeviceV1) Update(ctx context.Context, req tfsdk.UpdateRe
 	}
 	trustedDeviceResource := trustedDevice
 
-
-	
 	name := trustedDeviceResource.Metadata.Name
 
 	trustedDeviceBefore, err := r.p.Client.GetDeviceResource(ctx, name)
@@ -225,7 +222,7 @@ func (r resourceTeleportDeviceV1) Update(ctx context.Context, req tfsdk.UpdateRe
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating DeviceV1", err, "device"))
 		return
 	}
-		var trustedDeviceI *apitypes.DeviceV1
+	var trustedDeviceI *apitypes.DeviceV1
 
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
@@ -252,7 +249,7 @@ func (r resourceTeleportDeviceV1) Update(ctx context.Context, req tfsdk.UpdateRe
 	}
 
 	trustedDeviceResource = trustedDeviceI
-	
+
 	diags = schemav1.CopyDeviceV1ToTerraform(ctx, trustedDevice, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -293,7 +290,6 @@ func (r resourceTeleportDeviceV1) ImportState(ctx context.Context, req tfsdk.Imp
 	}
 
 	trustedDeviceResource := trustedDevice
-	
 
 	var state types.Object
 

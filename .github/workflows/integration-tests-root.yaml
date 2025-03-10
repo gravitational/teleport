@@ -60,3 +60,6 @@ jobs:
         timeout-minutes: 40
         run: |
           make integration-root RDPCLIENT_SKIP_BUILD=1
+
+      - name: Print crypto metrics
+        run: cat /tmp/cryptolog.csv

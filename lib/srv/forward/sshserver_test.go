@@ -20,7 +20,6 @@ package forward
 
 import (
 	"context"
-	"crypto/ed25519"
 	"crypto/rand"
 	"errors"
 	"os/user"
@@ -31,6 +30,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -123,7 +123,7 @@ func TestSignersWithSHA1Fallback(t *testing.T) {
 		{
 			name: "Ed25519 host key",
 			signersCb: func(t *testing.T) []ssh.Signer {
-				_, hostKey, err := ed25519.GenerateKey(rand.Reader)
+				_, hostKey, err := cryptopatch.GenerateEd25519Key(rand.Reader)
 				require.NoError(t, err)
 				hostSigner, err := ssh.NewSignerFromSigner(hostKey)
 				require.NoError(t, err)

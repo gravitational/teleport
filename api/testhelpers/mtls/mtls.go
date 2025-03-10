@@ -15,7 +15,6 @@
 package mtls
 
 import (
-	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
@@ -28,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/api/utils/keys"
 )
 
@@ -54,7 +54,7 @@ func NewConfig(t *testing.T) *Config {
 func generateCA(t *testing.T) (*keys.PrivateKey, *x509.Certificate) {
 	t.Helper()
 
-	caPub, caPriv, err := ed25519.GenerateKey(rand.Reader)
+	caPub, caPriv, err := cryptopatch.GenerateEd25519Key(rand.Reader)
 	require.NoError(t, err)
 	caKey, err := keys.NewPrivateKey(caPriv, nil)
 	require.NoError(t, err)
@@ -94,7 +94,7 @@ func generateCA(t *testing.T) (*keys.PrivateKey, *x509.Certificate) {
 func generateChildTLSConfigFromCA(t *testing.T, caKey *keys.PrivateKey, caCert *x509.Certificate) *tls.Config {
 	t.Helper()
 
-	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	pub, priv, err := cryptopatch.GenerateEd25519Key(rand.Reader)
 	require.NoError(t, err)
 
 	key, err := keys.NewPrivateKey(priv, nil)

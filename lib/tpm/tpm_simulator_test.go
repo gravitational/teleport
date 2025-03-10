@@ -23,7 +23,6 @@ package tpm_test
 import (
 	"context"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"io"
@@ -107,7 +106,7 @@ func TestWithSimulator(t *testing.T) {
 		NotAfter:              time.Now().Add(time.Hour),
 	}
 	//nolint:forbidigo // Generating large RSA key allowed for TPM simulator.
-	caPrivKey, err := rsa.GenerateKey(rand.Reader, 4096)
+	caPrivKey, err := cryptopatch.GenerateRSAKey(rand.Reader, 4096)
 	require.NoError(t, err)
 	caBytes, err := x509.CreateCertificate(
 		rand.Reader, ca, ca, &caPrivKey.PublicKey, caPrivKey,

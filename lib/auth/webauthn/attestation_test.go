@@ -38,6 +38,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/api/types"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
@@ -350,7 +351,7 @@ func TestVerifyAttestation(t *testing.T) {
 }
 
 func makeSelfSigned(template *x509.Certificate) (*x509.Certificate, *ecdsa.PrivateKey, error) {
-	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	privKey, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -363,7 +364,7 @@ func makeCertificate(template, parent *x509.Certificate, signingKey *ecdsa.Priva
 		certKey = signingKey // aka self-signed
 	} else {
 		var err error
-		if certKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader); err != nil {
+		if certKey, err = cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 	}

@@ -22,7 +22,7 @@ import (
 	"fmt"
 
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
-	
+
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -75,7 +75,6 @@ func (r resourceTeleportWorkloadIdentity) Create(ctx context.Context, req tfsdk.
 		return
 	}
 
-	
 	workloadIdentityResource := workloadIdentity
 
 	workloadIdentityResource.Kind = "workload_identity"
@@ -101,7 +100,7 @@ func (r resourceTeleportWorkloadIdentity) Create(ctx context.Context, req tfsdk.
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating WorkloadIdentity", trace.Wrap(err), "workload_identity"))
 		return
 	}
-		var workloadIdentityI *workloadidentityv1.WorkloadIdentity
+	var workloadIdentityI *workloadidentityv1.WorkloadIdentity
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
@@ -127,7 +126,7 @@ func (r resourceTeleportWorkloadIdentity) Create(ctx context.Context, req tfsdk.
 	}
 
 	workloadIdentityResource = workloadIdentityI
-	
+
 	workloadIdentity = workloadIdentityResource
 
 	diags = schemav1.CopyWorkloadIdentityToTerraform(ctx, workloadIdentity, &plan)
@@ -207,8 +206,6 @@ func (r resourceTeleportWorkloadIdentity) Update(ctx context.Context, req tfsdk.
 	}
 	workloadIdentityResource := workloadIdentity
 
-
-	
 	name := workloadIdentityResource.Metadata.Name
 
 	workloadIdentityBefore, err := r.p.Client.GetWorkloadIdentity(ctx, name)
@@ -222,7 +219,7 @@ func (r resourceTeleportWorkloadIdentity) Update(ctx context.Context, req tfsdk.
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating WorkloadIdentity", err, "workload_identity"))
 		return
 	}
-		var workloadIdentityI *workloadidentityv1.WorkloadIdentity
+	var workloadIdentityI *workloadidentityv1.WorkloadIdentity
 
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
@@ -249,7 +246,7 @@ func (r resourceTeleportWorkloadIdentity) Update(ctx context.Context, req tfsdk.
 	}
 
 	workloadIdentityResource = workloadIdentityI
-	
+
 	diags = schemav1.CopyWorkloadIdentityToTerraform(ctx, workloadIdentity, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -290,7 +287,6 @@ func (r resourceTeleportWorkloadIdentity) ImportState(ctx context.Context, req t
 	}
 
 	workloadIdentityResource := workloadIdentity
-	
 
 	var state types.Object
 

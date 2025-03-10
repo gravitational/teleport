@@ -20,7 +20,6 @@ package srv
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"fmt"
@@ -42,6 +41,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/sshutils/networking"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -303,7 +303,7 @@ func testAgentForward(ctx context.Context, t *testing.T, proc *networking.Proces
 	keyring, ok := agent.NewKeyring().(agent.ExtendedAgent)
 	require.True(t, ok)
 
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	key, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	testKey := agent.AddedKey{
 		PrivateKey: key,

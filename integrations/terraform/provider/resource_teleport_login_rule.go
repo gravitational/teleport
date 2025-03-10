@@ -22,7 +22,7 @@ import (
 	"fmt"
 
 	loginrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
-	
+
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -75,9 +75,7 @@ func (r resourceTeleportLoginRule) Create(ctx context.Context, req tfsdk.CreateR
 		return
 	}
 
-	
 	loginRuleResource := loginRule
-
 
 	id := loginRuleResource.Metadata.Name
 
@@ -100,7 +98,7 @@ func (r resourceTeleportLoginRule) Create(ctx context.Context, req tfsdk.CreateR
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating LoginRule", trace.Wrap(err), "login_rule"))
 		return
 	}
-		var loginRuleI *loginrulev1.LoginRule
+	var loginRuleI *loginrulev1.LoginRule
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
@@ -126,7 +124,7 @@ func (r resourceTeleportLoginRule) Create(ctx context.Context, req tfsdk.CreateR
 	}
 
 	loginRuleResource = loginRuleI
-	
+
 	loginRule = loginRuleResource
 
 	diags = schemav1.CopyLoginRuleToTerraform(ctx, loginRule, &plan)
@@ -206,8 +204,6 @@ func (r resourceTeleportLoginRule) Update(ctx context.Context, req tfsdk.UpdateR
 	}
 	loginRuleResource := loginRule
 
-
-	
 	name := loginRuleResource.Metadata.Name
 
 	loginRuleBefore, err := r.p.Client.GetLoginRule(ctx, name)
@@ -221,7 +217,7 @@ func (r resourceTeleportLoginRule) Update(ctx context.Context, req tfsdk.UpdateR
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating LoginRule", err, "login_rule"))
 		return
 	}
-		var loginRuleI *loginrulev1.LoginRule
+	var loginRuleI *loginrulev1.LoginRule
 
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
@@ -248,7 +244,7 @@ func (r resourceTeleportLoginRule) Update(ctx context.Context, req tfsdk.UpdateR
 	}
 
 	loginRuleResource = loginRuleI
-	
+
 	diags = schemav1.CopyLoginRuleToTerraform(ctx, loginRule, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -289,7 +285,6 @@ func (r resourceTeleportLoginRule) ImportState(ctx context.Context, req tfsdk.Im
 	}
 
 	loginRuleResource := loginRule
-	
 
 	var state types.Object
 

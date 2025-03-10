@@ -22,7 +22,7 @@ import (
 	"fmt"
 
 	apitypes "github.com/gravitational/teleport/api/types"
-	
+
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -75,7 +75,6 @@ func (r resourceTeleportTrustedCluster) Create(ctx context.Context, req tfsdk.Cr
 		return
 	}
 
-	
 	trustedClusterResource := trustedCluster
 
 	err = trustedClusterResource.CheckAndSetDefaults()
@@ -105,7 +104,7 @@ func (r resourceTeleportTrustedCluster) Create(ctx context.Context, req tfsdk.Cr
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating TrustedCluster", trace.Wrap(err), "trusted_cluster"))
 		return
 	}
-		
+
 	// Not really an inferface, just using the same name for easier templating.
 	var trustedClusterI apitypes.TrustedCluster
 	tries := 0
@@ -180,7 +179,7 @@ func (r resourceTeleportTrustedCluster) Read(ctx context.Context, req tfsdk.Read
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading TrustedCluster", trace.Wrap(err), "trusted_cluster"))
 		return
 	}
-	
+
 	trustedCluster := trustedClusterI.(*apitypes.TrustedClusterV2)
 	diags = tfschema.CopyTrustedClusterV2ToTerraform(ctx, trustedCluster, &state)
 	resp.Diagnostics.Append(diags...)
@@ -217,7 +216,6 @@ func (r resourceTeleportTrustedCluster) Update(ctx context.Context, req tfsdk.Up
 	}
 	trustedClusterResource := trustedCluster
 
-
 	if err := trustedClusterResource.CheckAndSetDefaults(); err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating TrustedCluster", err, "trusted_cluster"))
 		return
@@ -235,7 +233,7 @@ func (r resourceTeleportTrustedCluster) Update(ctx context.Context, req tfsdk.Up
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating TrustedCluster", err, "trusted_cluster"))
 		return
 	}
-		
+
 	// Not really an inferface, just using the same name for easier templating.
 	var trustedClusterI apitypes.TrustedCluster
 
@@ -307,7 +305,6 @@ func (r resourceTeleportTrustedCluster) ImportState(ctx context.Context, req tfs
 		return
 	}
 
-	
 	trustedClusterResource := trustedCluster.(*apitypes.TrustedClusterV2)
 
 	var state types.Object

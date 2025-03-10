@@ -18,8 +18,6 @@ package keystore
 
 import (
 	"crypto"
-	"crypto/ecdsa"
-	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"testing"
@@ -28,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/api/utils/keys"
 )
 
@@ -41,13 +40,13 @@ func TestSSHSignatureAlgorithm(t *testing.T) {
 	rsa4096Key, err := keys.ParsePrivateKey(testRSA4096PrivateKeyPEM)
 	require.NoError(t, err)
 
-	ecdsaKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	ecdsaKey, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 
-	_, ed25519Key, err := ed25519.GenerateKey(rand.Reader)
+	_, ed25519Key, err := cryptopatch.GenerateEd25519Key(rand.Reader)
 	require.NoError(t, err)
 
-	_, subjectKey, err := ed25519.GenerateKey(rand.Reader)
+	_, subjectKey, err := cryptopatch.GenerateEd25519Key(rand.Reader)
 	require.NoError(t, err)
 	subjectPubKey, err := ssh.NewPublicKey(subjectKey.Public())
 	require.NoError(t, err)

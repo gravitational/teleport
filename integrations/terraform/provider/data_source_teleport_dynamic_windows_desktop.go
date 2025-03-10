@@ -80,7 +80,6 @@ func (r dataSourceTeleportDynamicWindowsDesktop) Read(ctx context.Context, req t
 		state.Attrs["id"] = id
 	}
 
-	
 	desktop := desktopI.(*apitypes.DynamicWindowsDesktopV1)
 	diags = tfschema.CopyDynamicWindowsDesktopV1ToTerraform(ctx, desktop, &state)
 	resp.Diagnostics.Append(diags...)

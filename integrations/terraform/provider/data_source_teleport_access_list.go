@@ -81,7 +81,7 @@ func (r dataSourceTeleportAccessList) Read(ctx context.Context, req tfsdk.ReadDa
 	}
 
 	accessList := convert.ToProto(accessListI)
-	
+
 	diags = schemav1.CopyAccessListToTerraform(ctx, accessList, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

@@ -22,7 +22,7 @@ import (
 	"fmt"
 
 	apitypes "github.com/gravitational/teleport/api/types"
-	
+
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -75,7 +75,6 @@ func (r resourceTeleportGithubConnector) Create(ctx context.Context, req tfsdk.C
 		return
 	}
 
-	
 	githubConnectorResource := githubConnector
 
 	err = githubConnectorResource.CheckAndSetDefaults()
@@ -105,7 +104,7 @@ func (r resourceTeleportGithubConnector) Create(ctx context.Context, req tfsdk.C
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating GithubConnector", trace.Wrap(err), "github"))
 		return
 	}
-		
+
 	// Not really an inferface, just using the same name for easier templating.
 	var githubConnectorI apitypes.GithubConnector
 	tries := 0
@@ -180,7 +179,7 @@ func (r resourceTeleportGithubConnector) Read(ctx context.Context, req tfsdk.Rea
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading GithubConnector", trace.Wrap(err), "github"))
 		return
 	}
-	
+
 	githubConnector := githubConnectorI.(*apitypes.GithubConnectorV3)
 	diags = tfschema.CopyGithubConnectorV3ToTerraform(ctx, githubConnector, &state)
 	resp.Diagnostics.Append(diags...)
@@ -217,7 +216,6 @@ func (r resourceTeleportGithubConnector) Update(ctx context.Context, req tfsdk.U
 	}
 	githubConnectorResource := githubConnector
 
-
 	if err := githubConnectorResource.CheckAndSetDefaults(); err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating GithubConnector", err, "github"))
 		return
@@ -235,7 +233,7 @@ func (r resourceTeleportGithubConnector) Update(ctx context.Context, req tfsdk.U
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating GithubConnector", err, "github"))
 		return
 	}
-		
+
 	// Not really an inferface, just using the same name for easier templating.
 	var githubConnectorI apitypes.GithubConnector
 
@@ -307,7 +305,6 @@ func (r resourceTeleportGithubConnector) ImportState(ctx context.Context, req tf
 		return
 	}
 
-	
 	githubConnectorResource := githubConnector.(*apitypes.GithubConnectorV3)
 
 	var state types.Object

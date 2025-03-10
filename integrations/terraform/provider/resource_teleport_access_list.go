@@ -75,7 +75,6 @@ func (r resourceTeleportAccessList) Create(ctx context.Context, req tfsdk.Create
 		return
 	}
 
-	
 	accessListResource, err := convert.FromProto(accessList)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading AccessList", trace.Errorf("Can not convert %T to AccessList: %s", accessListResource, err), "access_list"))
@@ -108,7 +107,7 @@ func (r resourceTeleportAccessList) Create(ctx context.Context, req tfsdk.Create
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating AccessList", trace.Wrap(err), "access_list"))
 		return
 	}
-		var accessListI = accessListResource
+	var accessListI = accessListResource
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
@@ -134,9 +133,8 @@ func (r resourceTeleportAccessList) Create(ctx context.Context, req tfsdk.Create
 	}
 
 	accessListResource = accessListI
-	
+
 	accessList = convert.ToProto(accessListResource)
-	
 
 	diags = schemav1.CopyAccessListToTerraform(ctx, accessList, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -237,7 +235,7 @@ func (r resourceTeleportAccessList) Update(ctx context.Context, req tfsdk.Update
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating AccessList", err, "access_list"))
 		return
 	}
-		var accessListI = accessListResource
+	var accessListI = accessListResource
 
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
@@ -264,7 +262,7 @@ func (r resourceTeleportAccessList) Update(ctx context.Context, req tfsdk.Update
 	}
 
 	accessListResource = accessListI
-	
+
 	diags = schemav1.CopyAccessListToTerraform(ctx, accessList, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -305,7 +303,6 @@ func (r resourceTeleportAccessList) ImportState(ctx context.Context, req tfsdk.I
 	}
 
 	accessListResource := convert.ToProto(accessList)
-	
 
 	var state types.Object
 

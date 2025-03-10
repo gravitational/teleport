@@ -18,19 +18,20 @@ package sshutils
 
 import (
 	"crypto"
-	"crypto/ed25519"
 	"crypto/rand"
 	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/cryptopatch"
 )
 
 const defaultPrincipal = "127.0.0.1"
 
 // MakeTestSSHCA generates a new SSH certificate authority for tests.
 func MakeTestSSHCA() (ssh.Signer, error) {
-	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	_, privateKey, err := cryptopatch.GenerateEd25519Key(rand.Reader)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -48,7 +49,7 @@ func MakeSpoofedHostCert(realCA ssh.Signer) (ssh.Signer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	_, hostKey, err := ed25519.GenerateKey(rand.Reader)
+	_, hostKey, err := cryptopatch.GenerateEd25519Key(rand.Reader)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -58,7 +59,7 @@ func MakeSpoofedHostCert(realCA ssh.Signer) (ssh.Signer, error) {
 // MakeRealHostCert makes an SSH host certificate that is signed by the
 // provided CA.
 func MakeRealHostCert(realCA ssh.Signer) (ssh.Signer, error) {
-	_, hostKey, err := ed25519.GenerateKey(rand.Reader)
+	_, hostKey, err := cryptopatch.GenerateEd25519Key(rand.Reader)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -74,7 +75,7 @@ func MakeRealHostCertWithKey(hostKey crypto.Signer, realCA ssh.Signer) (ssh.Sign
 // MakeRealHostCertWithPrincipals makes an SSH host certificate that is signed by the
 // provided CA for the provided principals.
 func MakeRealHostCertWithPrincipals(realCA ssh.Signer, principals ...string) (ssh.Signer, error) {
-	_, hostKey, err := ed25519.GenerateKey(rand.Reader)
+	_, hostKey, err := cryptopatch.GenerateEd25519Key(rand.Reader)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

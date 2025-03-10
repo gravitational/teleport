@@ -17,13 +17,13 @@ limitations under the License.
 package keys_test
 
 import (
-	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/api/utils/keys"
 )
 
@@ -32,7 +32,7 @@ import (
 // HardwareSigners require the piv go tag and should be tested individually in tests
 // like `TestGetYubiKeyPrivateKey_Interactive`.
 func TestNonHardwareSigner(t *testing.T) {
-	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	priv, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 
 	key, err := keys.NewPrivateKey(priv, nil)

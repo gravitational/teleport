@@ -22,7 +22,7 @@ import (
 	"fmt"
 
 	apitypes "github.com/gravitational/teleport/api/types"
-	
+
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -75,7 +75,6 @@ func (r resourceTeleportDynamicWindowsDesktop) Create(ctx context.Context, req t
 		return
 	}
 
-	
 	desktopResource := desktop
 
 	err = desktopResource.CheckAndSetDefaults()
@@ -105,7 +104,7 @@ func (r resourceTeleportDynamicWindowsDesktop) Create(ctx context.Context, req t
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating DynamicWindowsDesktop", trace.Wrap(err), "dynamic_windows_desktop"))
 		return
 	}
-		
+
 	// Not really an inferface, just using the same name for easier templating.
 	var desktopI apitypes.DynamicWindowsDesktop
 	tries := 0
@@ -180,7 +179,7 @@ func (r resourceTeleportDynamicWindowsDesktop) Read(ctx context.Context, req tfs
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", trace.Wrap(err), "dynamic_windows_desktop"))
 		return
 	}
-	
+
 	desktop := desktopI.(*apitypes.DynamicWindowsDesktopV1)
 	diags = tfschema.CopyDynamicWindowsDesktopV1ToTerraform(ctx, desktop, &state)
 	resp.Diagnostics.Append(diags...)
@@ -217,7 +216,6 @@ func (r resourceTeleportDynamicWindowsDesktop) Update(ctx context.Context, req t
 	}
 	desktopResource := desktop
 
-
 	if err := desktopResource.CheckAndSetDefaults(); err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating DynamicWindowsDesktop", err, "dynamic_windows_desktop"))
 		return
@@ -235,7 +233,7 @@ func (r resourceTeleportDynamicWindowsDesktop) Update(ctx context.Context, req t
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating DynamicWindowsDesktop", err, "dynamic_windows_desktop"))
 		return
 	}
-		
+
 	// Not really an inferface, just using the same name for easier templating.
 	var desktopI apitypes.DynamicWindowsDesktop
 
@@ -307,7 +305,6 @@ func (r resourceTeleportDynamicWindowsDesktop) ImportState(ctx context.Context, 
 		return
 	}
 
-	
 	desktopResource := desktop.(*apitypes.DynamicWindowsDesktopV1)
 
 	var state types.Object

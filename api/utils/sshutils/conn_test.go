@@ -17,7 +17,6 @@ limitations under the License.
 package sshutils
 
 import (
-	"crypto/ed25519"
 	"crypto/rand"
 	"net"
 	"testing"
@@ -27,6 +26,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/cryptopatch"
 )
 
 type server struct {
@@ -62,7 +62,7 @@ func (s *server) Stop() error {
 }
 
 func generateSigner(t *testing.T) ssh.Signer {
-	_, private, err := ed25519.GenerateKey(rand.Reader)
+	_, private, err := cryptopatch.GenerateEd25519Key(rand.Reader)
 	require.NoError(t, err)
 	sshSigner, err := ssh.NewSignerFromSigner(private)
 	require.NoError(t, err)

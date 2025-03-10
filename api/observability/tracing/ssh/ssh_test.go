@@ -16,7 +16,6 @@ package ssh
 
 import (
 	"context"
-	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/json"
@@ -31,6 +30,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/api/observability/tracing"
 )
 
@@ -71,7 +71,7 @@ func (s *server) Stop() error {
 }
 
 func generateSigner(t *testing.T) ssh.Signer {
-	_, private, err := ed25519.GenerateKey(rand.Reader)
+	_, private, err := cryptopatch.GenerateEd25519Key(rand.Reader)
 	require.NoError(t, err)
 	sshSigner, err := ssh.NewSignerFromSigner(private)
 	require.NoError(t, err)

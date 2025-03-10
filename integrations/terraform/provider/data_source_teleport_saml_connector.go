@@ -80,7 +80,6 @@ func (r dataSourceTeleportSAMLConnector) Read(ctx context.Context, req tfsdk.Rea
 		state.Attrs["id"] = id
 	}
 
-	
 	samlConnector := samlConnectorI.(*apitypes.SAMLConnectorV2)
 	diags = tfschema.CopySAMLConnectorV2ToTerraform(ctx, samlConnector, &state)
 	resp.Diagnostics.Append(diags...)

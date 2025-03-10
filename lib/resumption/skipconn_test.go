@@ -18,7 +18,6 @@ package resumption
 
 import (
 	"bytes"
-	"crypto/ed25519"
 	"io"
 	"net"
 	"testing"
@@ -29,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/lib/multiplexer"
 )
 
@@ -127,7 +127,7 @@ func serveOneSSH(t *testing.T, listener net.Listener) {
 	}
 	t.Cleanup(func() { _ = nc.Close() })
 
-	_, privKey, err := ed25519.GenerateKey(nil)
+	_, privKey, err := cryptopatch.GenerateEd25519Key(nil)
 	if !assert.NoError(err) {
 		return
 	}

@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/cryptopatch"
 )
 
 var log = slog.With(teleport.ComponentKey, teleport.ComponentKeyGen)
@@ -57,7 +58,7 @@ func getOrGenerateRSAPrivateKey() (*rsa.PrivateKey, error) {
 
 func generateRSAPrivateKey() (*rsa.PrivateKey, error) {
 	//nolint:forbidigo // This is the one function allowed to generate RSA keys.
-	return rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	return cryptopatch.GenerateRSAKey(rand.Reader, constants.RSAKeySize)
 }
 
 func precomputeKeys() {

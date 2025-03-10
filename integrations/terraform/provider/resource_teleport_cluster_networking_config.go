@@ -78,8 +78,6 @@ func (r resourceTeleportClusterNetworkingConfig) Create(ctx context.Context, req
 		return
 	}
 
-	
-
 	clusterNetworkingConfigBefore, err := r.p.Client.GetClusterNetworkingConfig(ctx)
 	if err != nil && !trace.IsNotFound(err) {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading ClusterNetworkingConfig", trace.Wrap(err), "cluster_networking_config"))

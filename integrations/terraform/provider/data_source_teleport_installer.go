@@ -80,7 +80,6 @@ func (r dataSourceTeleportInstaller) Read(ctx context.Context, req tfsdk.ReadDat
 		state.Attrs["id"] = id
 	}
 
-	
 	installer := installerI.(*apitypes.InstallerV1)
 	diags = tfschema.CopyInstallerV1ToTerraform(ctx, installer, &state)
 	resp.Diagnostics.Append(diags...)

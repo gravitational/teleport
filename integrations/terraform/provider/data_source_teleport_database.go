@@ -80,7 +80,6 @@ func (r dataSourceTeleportDatabase) Read(ctx context.Context, req tfsdk.ReadData
 		state.Attrs["id"] = id
 	}
 
-	
 	database := databaseI.(*apitypes.DatabaseV3)
 	diags = tfschema.CopyDatabaseV3ToTerraform(ctx, database, &state)
 	resp.Diagnostics.Append(diags...)

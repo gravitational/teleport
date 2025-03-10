@@ -19,12 +19,12 @@ package provider
 
 import (
 	"context"
-    "crypto/rand"
-    "encoding/hex"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 
 	apitypes "github.com/gravitational/teleport/api/types"
-	
+
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -86,7 +86,7 @@ func (r resourceTeleportProvisionToken) Create(ctx context.Context, req tfsdk.Cr
 		}
 		provisionToken.Metadata.Name = hex.EncodeToString(b)
 	}
-	
+
 	provisionTokenResource := provisionToken
 
 	err = provisionTokenResource.CheckAndSetDefaults()
@@ -116,7 +116,7 @@ func (r resourceTeleportProvisionToken) Create(ctx context.Context, req tfsdk.Cr
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating ProvisionToken", trace.Wrap(err), "token"))
 		return
 	}
-		
+
 	// Not really an inferface, just using the same name for easier templating.
 	var provisionTokenI apitypes.ProvisionToken
 	tries := 0
@@ -191,7 +191,7 @@ func (r resourceTeleportProvisionToken) Read(ctx context.Context, req tfsdk.Read
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading ProvisionToken", trace.Wrap(err), "token"))
 		return
 	}
-	
+
 	provisionToken := provisionTokenI.(*apitypes.ProvisionTokenV2)
 	diags = token.CopyProvisionTokenV2ToTerraform(ctx, provisionToken, &state)
 	resp.Diagnostics.Append(diags...)
@@ -228,7 +228,6 @@ func (r resourceTeleportProvisionToken) Update(ctx context.Context, req tfsdk.Up
 	}
 	provisionTokenResource := provisionToken
 
-
 	if err := provisionTokenResource.CheckAndSetDefaults(); err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating ProvisionToken", err, "token"))
 		return
@@ -246,7 +245,7 @@ func (r resourceTeleportProvisionToken) Update(ctx context.Context, req tfsdk.Up
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating ProvisionToken", err, "token"))
 		return
 	}
-		
+
 	// Not really an inferface, just using the same name for easier templating.
 	var provisionTokenI apitypes.ProvisionToken
 
@@ -318,7 +317,6 @@ func (r resourceTeleportProvisionToken) ImportState(ctx context.Context, req tfs
 		return
 	}
 
-	
 	provisionTokenResource := provisionToken.(*apitypes.ProvisionTokenV2)
 
 	var state types.Object

@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	internalrsa "github.com/gravitational/teleport/lib/cryptosuites/internal/rsa"
@@ -457,11 +458,11 @@ func generateRSA2048() (*rsa.PrivateKey, error) {
 }
 
 func generateECDSAP256() (*ecdsa.PrivateKey, error) {
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	key, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 	return key, trace.Wrap(err)
 }
 
 func generateEd25519() (ed25519.PrivateKey, error) {
-	_, key, err := ed25519.GenerateKey(rand.Reader)
+	_, key, err := cryptopatch.GenerateEd25519Key(rand.Reader)
 	return key, trace.Wrap(err)
 }

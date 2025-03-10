@@ -22,7 +22,8 @@ import (
 	"fmt"
 
 	apitypes "github.com/gravitational/teleport/api/types"
-	
+
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -30,7 +31,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/jonboulle/clockwork"
-	"github.com/gravitational/teleport/api/defaults"
 
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
 )
@@ -76,7 +76,6 @@ func (r resourceTeleportServer) Create(ctx context.Context, req tfsdk.CreateReso
 		return
 	}
 
-	
 	serverResource := server
 
 	serverResource.Kind = apitypes.KindNode
@@ -107,7 +106,7 @@ func (r resourceTeleportServer) Create(ctx context.Context, req tfsdk.CreateReso
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating Server", trace.Wrap(err), "node"))
 		return
 	}
-		
+
 	// Not really an inferface, just using the same name for easier templating.
 	var serverI apitypes.Server
 	tries := 0
@@ -182,7 +181,7 @@ func (r resourceTeleportServer) Read(ctx context.Context, req tfsdk.ReadResource
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading Server", trace.Wrap(err), "node"))
 		return
 	}
-	
+
 	server := serverI.(*apitypes.ServerV2)
 	diags = tfschema.CopyServerV2ToTerraform(ctx, server, &state)
 	resp.Diagnostics.Append(diags...)
@@ -219,7 +218,6 @@ func (r resourceTeleportServer) Update(ctx context.Context, req tfsdk.UpdateReso
 	}
 	serverResource := server
 
-
 	if err := serverResource.CheckAndSetDefaults(); err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating Server", err, "node"))
 		return
@@ -237,7 +235,7 @@ func (r resourceTeleportServer) Update(ctx context.Context, req tfsdk.UpdateReso
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating Server", err, "node"))
 		return
 	}
-		
+
 	// Not really an inferface, just using the same name for easier templating.
 	var serverI apitypes.Server
 
@@ -309,7 +307,6 @@ func (r resourceTeleportServer) ImportState(ctx context.Context, req tfsdk.Impor
 		return
 	}
 
-	
 	serverResource := server.(*apitypes.ServerV2)
 
 	var state types.Object

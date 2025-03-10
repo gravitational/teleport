@@ -22,7 +22,7 @@ import (
 	"fmt"
 
 	apitypes "github.com/gravitational/teleport/api/types"
-	
+
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -75,7 +75,6 @@ func (r resourceTeleportOktaImportRule) Create(ctx context.Context, req tfsdk.Cr
 		return
 	}
 
-	
 	oktaImportRuleResource := oktaImportRule
 
 	err = oktaImportRuleResource.CheckAndSetDefaults()
@@ -105,7 +104,7 @@ func (r resourceTeleportOktaImportRule) Create(ctx context.Context, req tfsdk.Cr
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating OktaImportRule", trace.Wrap(err), "okta_import_rule"))
 		return
 	}
-		
+
 	// Not really an inferface, just using the same name for easier templating.
 	var oktaImportRuleI apitypes.OktaImportRule
 	tries := 0
@@ -180,7 +179,7 @@ func (r resourceTeleportOktaImportRule) Read(ctx context.Context, req tfsdk.Read
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading OktaImportRule", trace.Wrap(err), "okta_import_rule"))
 		return
 	}
-	
+
 	oktaImportRule := oktaImportRuleI.(*apitypes.OktaImportRuleV1)
 	diags = tfschema.CopyOktaImportRuleV1ToTerraform(ctx, oktaImportRule, &state)
 	resp.Diagnostics.Append(diags...)
@@ -217,7 +216,6 @@ func (r resourceTeleportOktaImportRule) Update(ctx context.Context, req tfsdk.Up
 	}
 	oktaImportRuleResource := oktaImportRule
 
-
 	if err := oktaImportRuleResource.CheckAndSetDefaults(); err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating OktaImportRule", err, "okta_import_rule"))
 		return
@@ -235,7 +233,7 @@ func (r resourceTeleportOktaImportRule) Update(ctx context.Context, req tfsdk.Up
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating OktaImportRule", err, "okta_import_rule"))
 		return
 	}
-		
+
 	// Not really an inferface, just using the same name for easier templating.
 	var oktaImportRuleI apitypes.OktaImportRule
 
@@ -307,7 +305,6 @@ func (r resourceTeleportOktaImportRule) ImportState(ctx context.Context, req tfs
 		return
 	}
 
-	
 	oktaImportRuleResource := oktaImportRule.(*apitypes.OktaImportRuleV1)
 
 	var state types.Object

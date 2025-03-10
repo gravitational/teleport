@@ -80,7 +80,6 @@ func (r dataSourceTeleportRole) Read(ctx context.Context, req tfsdk.ReadDataSour
 		state.Attrs["id"] = id
 	}
 
-	
 	role := roleI.(*apitypes.RoleV6)
 	diags = tfschema.CopyRoleV6ToTerraform(ctx, role, &state)
 	resp.Diagnostics.Append(diags...)

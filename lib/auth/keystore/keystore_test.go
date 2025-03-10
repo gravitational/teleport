@@ -38,6 +38,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -270,7 +271,7 @@ func TestManager(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	sshSubjectKey, _, err := ed25519.GenerateKey(rand.Reader)
+	sshSubjectKey, _, err := cryptopatch.GenerateEd25519Key(rand.Reader)
 	require.NoError(t, err)
 	sshSubjectPubKey, err := ssh.NewPublicKey(sshSubjectKey)
 	require.NoError(t, err)

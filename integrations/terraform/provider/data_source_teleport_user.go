@@ -80,7 +80,6 @@ func (r dataSourceTeleportUser) Read(ctx context.Context, req tfsdk.ReadDataSour
 		state.Attrs["id"] = id
 	}
 
-	
 	user := userI.(*apitypes.UserV2)
 	diags = tfschema.CopyUserV2ToTerraform(ctx, user, &state)
 	resp.Diagnostics.Append(diags...)

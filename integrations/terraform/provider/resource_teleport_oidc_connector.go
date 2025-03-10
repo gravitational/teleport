@@ -22,7 +22,7 @@ import (
 	"fmt"
 
 	apitypes "github.com/gravitational/teleport/api/types"
-	
+
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -75,7 +75,6 @@ func (r resourceTeleportOIDCConnector) Create(ctx context.Context, req tfsdk.Cre
 		return
 	}
 
-	
 	oidcConnectorResource := oidcConnector
 
 	err = oidcConnectorResource.CheckAndSetDefaults()
@@ -105,7 +104,7 @@ func (r resourceTeleportOIDCConnector) Create(ctx context.Context, req tfsdk.Cre
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating OIDCConnector", trace.Wrap(err), "oidc"))
 		return
 	}
-		
+
 	// Not really an inferface, just using the same name for easier templating.
 	var oidcConnectorI apitypes.OIDCConnector
 	tries := 0
@@ -180,7 +179,7 @@ func (r resourceTeleportOIDCConnector) Read(ctx context.Context, req tfsdk.ReadR
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading OIDCConnector", trace.Wrap(err), "oidc"))
 		return
 	}
-	
+
 	oidcConnector := oidcConnectorI.(*apitypes.OIDCConnectorV3)
 	diags = tfschema.CopyOIDCConnectorV3ToTerraform(ctx, oidcConnector, &state)
 	resp.Diagnostics.Append(diags...)
@@ -217,7 +216,6 @@ func (r resourceTeleportOIDCConnector) Update(ctx context.Context, req tfsdk.Upd
 	}
 	oidcConnectorResource := oidcConnector
 
-
 	if err := oidcConnectorResource.CheckAndSetDefaults(); err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating OIDCConnector", err, "oidc"))
 		return
@@ -235,7 +233,7 @@ func (r resourceTeleportOIDCConnector) Update(ctx context.Context, req tfsdk.Upd
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating OIDCConnector", err, "oidc"))
 		return
 	}
-		
+
 	// Not really an inferface, just using the same name for easier templating.
 	var oidcConnectorI apitypes.OIDCConnector
 
@@ -307,7 +305,6 @@ func (r resourceTeleportOIDCConnector) ImportState(ctx context.Context, req tfsd
 		return
 	}
 
-	
 	oidcConnectorResource := oidcConnector.(*apitypes.OIDCConnectorV3)
 
 	var state types.Object

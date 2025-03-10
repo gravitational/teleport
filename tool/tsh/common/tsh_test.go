@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"context"
 	"crypto"
-	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/json"
@@ -60,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/cryptopatch"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
@@ -5876,7 +5876,7 @@ func TestLogout(t *testing.T) {
 		{
 			name: "public key mismatch",
 			modifyKeyDir: func(t *testing.T, homePath string) {
-				newKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+				newKey, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 				require.NoError(t, err)
 				sshPub, err := ssh.NewPublicKey(newKey.Public())
 				require.NoError(t, err)

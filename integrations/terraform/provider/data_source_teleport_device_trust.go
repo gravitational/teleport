@@ -20,7 +20,6 @@ package provider
 import (
 	"context"
 
-	
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -81,7 +80,7 @@ func (r dataSourceTeleportDeviceV1) Read(ctx context.Context, req tfsdk.ReadData
 	}
 
 	trustedDevice := trustedDeviceI
-	
+
 	diags = schemav1.CopyDeviceV1ToTerraform(ctx, trustedDevice, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

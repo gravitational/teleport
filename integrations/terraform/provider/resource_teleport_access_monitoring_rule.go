@@ -20,10 +20,11 @@ package provider
 import (
 	"context"
 	"fmt"
+
 	apitypes "github.com/gravitational/teleport/api/types"
 
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
-	
+
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -76,7 +77,6 @@ func (r resourceTeleportAccessMonitoringRule) Create(ctx context.Context, req tf
 		return
 	}
 
-	
 	accessMonitoringRuleResource := accessMonitoringRule
 
 	accessMonitoringRuleResource.Kind = apitypes.KindAccessMonitoringRule
@@ -102,7 +102,7 @@ func (r resourceTeleportAccessMonitoringRule) Create(ctx context.Context, req tf
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating AccessMonitoringRule", trace.Wrap(err), "access_monitoring_rule"))
 		return
 	}
-		var accessMonitoringRuleI *accessmonitoringrulesv1.AccessMonitoringRule
+	var accessMonitoringRuleI *accessmonitoringrulesv1.AccessMonitoringRule
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
@@ -128,7 +128,7 @@ func (r resourceTeleportAccessMonitoringRule) Create(ctx context.Context, req tf
 	}
 
 	accessMonitoringRuleResource = accessMonitoringRuleI
-	
+
 	accessMonitoringRule = accessMonitoringRuleResource
 
 	diags = schemav1.CopyAccessMonitoringRuleToTerraform(ctx, accessMonitoringRule, &plan)
@@ -208,8 +208,6 @@ func (r resourceTeleportAccessMonitoringRule) Update(ctx context.Context, req tf
 	}
 	accessMonitoringRuleResource := accessMonitoringRule
 
-
-	
 	name := accessMonitoringRuleResource.Metadata.Name
 
 	accessMonitoringRuleBefore, err := r.p.Client.AccessMonitoringRulesClient().GetAccessMonitoringRule(ctx, name)
@@ -223,7 +221,7 @@ func (r resourceTeleportAccessMonitoringRule) Update(ctx context.Context, req tf
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating AccessMonitoringRule", err, "access_monitoring_rule"))
 		return
 	}
-		var accessMonitoringRuleI *accessmonitoringrulesv1.AccessMonitoringRule
+	var accessMonitoringRuleI *accessmonitoringrulesv1.AccessMonitoringRule
 
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
@@ -250,7 +248,7 @@ func (r resourceTeleportAccessMonitoringRule) Update(ctx context.Context, req tf
 	}
 
 	accessMonitoringRuleResource = accessMonitoringRuleI
-	
+
 	diags = schemav1.CopyAccessMonitoringRuleToTerraform(ctx, accessMonitoringRule, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -291,7 +289,6 @@ func (r resourceTeleportAccessMonitoringRule) ImportState(ctx context.Context, r
 	}
 
 	accessMonitoringRuleResource := accessMonitoringRule
-	
 
 	var state types.Object
 

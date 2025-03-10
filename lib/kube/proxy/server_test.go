@@ -20,7 +20,6 @@ package proxy
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/tls"
@@ -39,6 +38,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -64,7 +64,7 @@ func TestMTLSClientCAs(t *testing.T) {
 		cas: make(map[string]types.CertAuthority),
 	}
 	// Reuse the same CA private key for performance.
-	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	caKey, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 
 	addCA := func(t *testing.T, name string) (key, cert []byte) {
@@ -93,7 +93,7 @@ func TestMTLSClientCAs(t *testing.T) {
 	require.NoError(t, err)
 
 	// Generate user and host credentials, using the same private key.
-	userHostKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	userHostKey, err := cryptopatch.GenerateECDSAKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	genCert := func(t *testing.T, cn string, sans ...string) tls.Certificate {
 		certRaw, err := ca.GenerateCertificate(tlsca.CertificateRequest{

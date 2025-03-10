@@ -19,7 +19,6 @@ package resumption
 import (
 	"bufio"
 	"context"
-	"crypto/ed25519"
 	"io"
 	"net"
 	"strings"
@@ -32,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/cryptopatch"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -236,7 +236,7 @@ func sshClient(nc net.Conn) (*ssh.Client, error) {
 }
 
 func discardingSSHServer(t *testing.T) func(nc net.Conn) {
-	_, key, err := ed25519.GenerateKey(nil)
+	_, key, err := cryptopatch.GenerateEd25519Key(nil)
 	if err != nil {
 		require.NoError(t, err)
 	}

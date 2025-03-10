@@ -22,7 +22,7 @@ import (
 	"fmt"
 
 	apitypes "github.com/gravitational/teleport/api/types"
-	
+
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -75,7 +75,6 @@ func (r resourceTeleportRole) Create(ctx context.Context, req tfsdk.CreateResour
 		return
 	}
 
-	
 	roleResource := role
 
 	err = roleResource.CheckAndSetDefaults()
@@ -105,7 +104,7 @@ func (r resourceTeleportRole) Create(ctx context.Context, req tfsdk.CreateResour
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating Role", trace.Wrap(err), "role"))
 		return
 	}
-		
+
 	// Not really an inferface, just using the same name for easier templating.
 	var roleI apitypes.Role
 	tries := 0
@@ -180,7 +179,7 @@ func (r resourceTeleportRole) Read(ctx context.Context, req tfsdk.ReadResourceRe
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading Role", trace.Wrap(err), "role"))
 		return
 	}
-	
+
 	role := roleI.(*apitypes.RoleV6)
 	diags = tfschema.CopyRoleV6ToTerraform(ctx, role, &state)
 	resp.Diagnostics.Append(diags...)
@@ -217,7 +216,6 @@ func (r resourceTeleportRole) Update(ctx context.Context, req tfsdk.UpdateResour
 	}
 	roleResource := role
 
-
 	if err := roleResource.CheckAndSetDefaults(); err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating Role", err, "role"))
 		return
@@ -235,7 +233,7 @@ func (r resourceTeleportRole) Update(ctx context.Context, req tfsdk.UpdateResour
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating Role", err, "role"))
 		return
 	}
-		
+
 	// Not really an inferface, just using the same name for easier templating.
 	var roleI apitypes.Role
 
@@ -307,7 +305,6 @@ func (r resourceTeleportRole) ImportState(ctx context.Context, req tfsdk.ImportR
 		return
 	}
 
-	
 	roleResource := role.(*apitypes.RoleV6)
 
 	var state types.Object

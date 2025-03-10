@@ -20,13 +20,13 @@ package provider
 import (
 	"context"
 
+	"github.com/gravitational/teleport/api/defaults"
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/gravitational/teleport/api/defaults"
 
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
 )
@@ -81,7 +81,6 @@ func (r dataSourceTeleportServer) Read(ctx context.Context, req tfsdk.ReadDataSo
 		state.Attrs["id"] = id
 	}
 
-	
 	server := serverI.(*apitypes.ServerV2)
 	diags = tfschema.CopyServerV2ToTerraform(ctx, server, &state)
 	resp.Diagnostics.Append(diags...)
