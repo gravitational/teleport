@@ -34,6 +34,7 @@ test('renders ec2 impacts', async () => {
     integration: '',
     lastStateChange: '2025-02-11T20:32:19.482607921Z',
     issueType: 'ec2-ssm-invocation-failure',
+    title: 'ec2 ssm invocation failure',
     description:
       'Teleport failed to access the SSM Agent to auto enroll the instance.\nSome instances failed to communicate with the AWS Systems Manager service to execute the install script.\n\nUsually this happens when:\n\n**Missing policies**\n\nThe IAM Role used by the integration might be missing some required permissions.\nEnsure the following actions are allowed in the IAM Role used by the integration:\n- `ec2:DescribeInstances`\n- `ssm:DescribeInstanceInformation`\n- `ssm:GetCommandInvocation`\n- `ssm:ListCommandInvocations`\n- `ssm:SendCommand`\n\n**SSM Document is invalid**\n\nTeleport uses an SSM Document to run an installation script.\nIf the document is changed or removed, it might no longer work.',
     discoverEks: undefined,
@@ -94,6 +95,7 @@ test('renders eks impacts', async () => {
     integration: 'integration-001',
     lastStateChange: '2025-02-11T20:32:19.482607921Z',
     issueType: 'eks-failure',
+    title: 'eks failure',
     description:
       'Only EKS Clusters whose status is active can be automatically enrolled into teleport.\n',
     discoverEc2: undefined,
@@ -145,6 +147,7 @@ test('renders rds impacts', async () => {
     integration: 'integration-001',
     lastStateChange: '2025-02-11T20:32:19.482607921Z',
     issueType: 'rds-failure',
+    title: 'rds failure',
     description:
       'The Teleport Database Service uses [IAM authentication](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html) to communicate with RDS.\n',
     discoverEks: undefined,
