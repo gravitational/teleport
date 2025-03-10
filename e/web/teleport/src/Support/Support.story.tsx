@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
+import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import { ContentMinWidth } from 'teleport/Main/Main';
 import { Support } from 'teleport/Support';
 
@@ -20,11 +21,13 @@ export const WithoutExternalAuditStorages = () => {
   return (
     <MemoryRouter>
       <ContextProvider ctx={ctx}>
-        <ContentMinWidth>
-          <Support>
-            <SupportE />
-          </Support>
-        </ContentMinWidth>
+        <InfoGuidePanelProvider>
+          <ContentMinWidth>
+            <Support>
+              <SupportE />
+            </Support>
+          </ContentMinWidth>
+        </InfoGuidePanelProvider>
       </ContextProvider>
     </MemoryRouter>
   );
@@ -38,11 +41,13 @@ export const WithExternalAuditStorageCTA = () => {
   return (
     <MemoryRouter>
       <ContextProvider ctx={ctx}>
-        <ContentMinWidth>
-          <Support>
-            <SupportE />
-          </Support>
-        </ContentMinWidth>
+        <InfoGuidePanelProvider>
+          <ContentMinWidth>
+            <Support>
+              <SupportE />
+            </Support>
+          </ContentMinWidth>
+        </InfoGuidePanelProvider>
       </ContextProvider>
     </MemoryRouter>
   );

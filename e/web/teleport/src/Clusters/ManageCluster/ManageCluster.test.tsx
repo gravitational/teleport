@@ -5,6 +5,7 @@ import { render, screen, waitFor } from 'design/utils/testing';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import { clusterInfoFixture } from 'teleport/Clusters/fixtures';
 import { ContextProvider } from 'teleport/index';
+import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import { ContentMinWidth } from 'teleport/Main/Main';
 
 import { ManageCluster } from './ManageCluster';
@@ -13,9 +14,11 @@ function renderElement(element, ctx) {
   return render(
     <MemoryRouter initialEntries={[`/clusters/cluster-id`]}>
       <Route path="/clusters/:clusterId">
-        <ContentMinWidth>
-          <ContextProvider ctx={ctx}>{element}</ContextProvider>
-        </ContentMinWidth>
+        <InfoGuidePanelProvider>
+          <ContentMinWidth>
+            <ContextProvider ctx={ctx}>{element}</ContextProvider>
+          </ContentMinWidth>
+        </InfoGuidePanelProvider>
       </Route>
     </MemoryRouter>
   );

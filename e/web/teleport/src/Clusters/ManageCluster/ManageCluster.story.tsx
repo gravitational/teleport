@@ -7,6 +7,7 @@ import { upgradeWindowService } from 'e-teleport/services/upgradeWindow';
 import { clusterInfoFixture } from 'teleport/Clusters/fixtures';
 import { Route } from 'teleport/components/Router';
 import { ContextProvider } from 'teleport/index';
+import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import { ContentMinWidth } from 'teleport/Main/Main';
 import { ClusterInfo } from 'teleport/services/clusters';
 
@@ -41,11 +42,13 @@ function render(
   return (
     <MemoryRouter initialEntries={['/clusters/test-cluster']}>
       <Route path="/clusters/:clusterId">
-        <ContentMinWidth>
-          <ContextProvider ctx={ctx}>
-            <ManageCluster />
-          </ContextProvider>
-        </ContentMinWidth>
+        <InfoGuidePanelProvider>
+          <ContentMinWidth>
+            <ContextProvider ctx={ctx}>
+              <ManageCluster />
+            </ContextProvider>
+          </ContentMinWidth>
+        </InfoGuidePanelProvider>
       </Route>
     </MemoryRouter>
   );

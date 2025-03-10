@@ -8,6 +8,7 @@ import {
   ContactVerification,
 } from 'e-teleport/services/contacts/types';
 import { ContextProvider } from 'teleport/index';
+import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import { ContentMinWidth } from 'teleport/Main/Main';
 import { Access } from 'teleport/services/user';
 import { defaultAccess } from 'teleport/services/user/makeAcl';
@@ -67,9 +68,11 @@ function renderElement(element, access?: Partial<Access>) {
   return render(
     <MemoryRouter initialEntries={[`/clusters/cluster-id`]}>
       <Route path="/clusters/:clusterId">
-        <ContentMinWidth>
-          <ContextProvider ctx={ctx}>{element}</ContextProvider>
-        </ContentMinWidth>
+        <InfoGuidePanelProvider>
+          <ContentMinWidth>
+            <ContextProvider ctx={ctx}>{element}</ContextProvider>
+          </ContentMinWidth>
+        </InfoGuidePanelProvider>
       </Route>
     </MemoryRouter>
   );

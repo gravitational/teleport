@@ -13,6 +13,7 @@ import {
   DiscoverContextState,
   DiscoverProvider,
 } from 'teleport/Discover/useDiscover';
+import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import { ContentMinWidth } from 'teleport/Main/Main';
 import { allAccessAcl } from 'teleport/mocks/contexts';
 import { ResourcesResponse, UnifiedResource } from 'teleport/services/agents';
@@ -80,29 +81,31 @@ const Provider = props => {
   ctx.idpService.updateSamlIdpServiceProvider = () => Promise.resolve(null);
 
   return (
-    <ContentMinWidth>
-      <MemoryRouter
-        initialEntries={[
-          { pathname: cfg.routes.discover, state: { entity: 'app' } },
-        ]}
-      >
-        <UserContext.Provider
-          value={{
-            preferences,
-            updatePreferences,
-            getClusterPinnedResources,
-            updateClusterPinnedResources,
-            updateDiscoverResourcePreferences,
-          }}
+    <InfoGuidePanelProvider>
+      <ContentMinWidth>
+        <MemoryRouter
+          initialEntries={[
+            { pathname: cfg.routes.discover, state: { entity: 'app' } },
+          ]}
         >
-          <ContextProvider ctx={ctx}>
-            <DiscoverProvider mockCtx={discoverCtx}>
-              {props.children}
-            </DiscoverProvider>
-          </ContextProvider>
-        </UserContext.Provider>
-      </MemoryRouter>
-    </ContentMinWidth>
+          <UserContext.Provider
+            value={{
+              preferences,
+              updatePreferences,
+              getClusterPinnedResources,
+              updateClusterPinnedResources,
+              updateDiscoverResourcePreferences,
+            }}
+          >
+            <ContextProvider ctx={ctx}>
+              <DiscoverProvider mockCtx={discoverCtx}>
+                {props.children}
+              </DiscoverProvider>
+            </ContextProvider>
+          </UserContext.Provider>
+        </MemoryRouter>
+      </ContentMinWidth>
+    </InfoGuidePanelProvider>
   );
 };
 

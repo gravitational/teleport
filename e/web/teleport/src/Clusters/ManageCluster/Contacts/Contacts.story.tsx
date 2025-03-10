@@ -5,6 +5,7 @@ import cfg from 'e-teleport/config';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import { Route } from 'teleport/components/Router';
 import { ContextProvider } from 'teleport/index';
+import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import { ContentMinWidth } from 'teleport/Main/Main';
 
 import { Contacts } from './Contacts';
@@ -27,11 +28,13 @@ function render({ read, write }: { read: boolean; write: boolean }) {
   return (
     <MemoryRouter initialEntries={['/clusters/test-cluster']}>
       <Route path="/clusters/:clusterId">
-        <ContentMinWidth>
-          <ContextProvider ctx={ctx}>
-            <Contacts />
-          </ContextProvider>
-        </ContentMinWidth>
+        <InfoGuidePanelProvider>
+          <ContentMinWidth>
+            <ContextProvider ctx={ctx}>
+              <Contacts />
+            </ContextProvider>
+          </ContentMinWidth>
+        </InfoGuidePanelProvider>
       </Route>
     </MemoryRouter>
   );
