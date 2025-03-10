@@ -668,6 +668,30 @@ func (s *Service) TriggerAutoUpdateAgentGroup(ctx context.Context, req *autoupda
 		return nil, trace.Wrap(err)
 	}
 
+	defer func() {
+		var errMsg string
+		if err != nil {
+			errMsg = err.Error()
+		}
+		userMetadata := authz.ClientUserMetadata(ctx)
+		s.emitEvent(ctx, &apievents.AutoUpdateAgentRolloutTrigger{
+			Metadata: apievents.Metadata{
+				Type: events.AutoUpdateAgentRolloutTriggerEvent,
+				Code: events.AutoUpdateAgentRolloutTriggerCode,
+			},
+			UserMetadata: userMetadata,
+			ResourceMetadata: apievents.ResourceMetadata{
+				Name:      types.MetaNameAutoUpdateAgentRollout,
+				UpdatedBy: userMetadata.User,
+			},
+			ConnectionMetadata: authz.ConnectionMetadata(ctx),
+			Status: apievents.Status{
+				Success: err == nil,
+				Error:   errMsg,
+			},
+		})
+	}()
+
 	const maxTries = 3
 
 	var existingRollout, newRollout *autoupdate.AutoUpdateAgentRollout
@@ -708,6 +732,30 @@ func (s *Service) ForceAutoUpdateAgentGroup(ctx context.Context, req *autoupdate
 	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	defer func() {
+		var errMsg string
+		if err != nil {
+			errMsg = err.Error()
+		}
+		userMetadata := authz.ClientUserMetadata(ctx)
+		s.emitEvent(ctx, &apievents.AutoUpdateAgentRolloutForceDone{
+			Metadata: apievents.Metadata{
+				Type: events.AutoUpdateAgentRolloutForceDoneEvent,
+				Code: events.AutoUpdateAgentRolloutForceDoneCode,
+			},
+			UserMetadata: userMetadata,
+			ResourceMetadata: apievents.ResourceMetadata{
+				Name:      types.MetaNameAutoUpdateAgentRollout,
+				UpdatedBy: userMetadata.User,
+			},
+			ConnectionMetadata: authz.ConnectionMetadata(ctx),
+			Status: apievents.Status{
+				Success: err == nil,
+				Error:   errMsg,
+			},
+		})
+	}()
 
 	const maxTries = 3
 
@@ -753,6 +801,30 @@ func (s *Service) RollbackAutoUpdateAgentGroup(ctx context.Context, req *autoupd
 	if len(req.Groups) == 0 && !req.AllStartedGroups {
 		return nil, trace.BadParameter("at least one group must be specified or the all_started_groups flag set")
 	}
+
+	defer func() {
+		var errMsg string
+		if err != nil {
+			errMsg = err.Error()
+		}
+		userMetadata := authz.ClientUserMetadata(ctx)
+		s.emitEvent(ctx, &apievents.AutoUpdateAgentRolloutRollback{
+			Metadata: apievents.Metadata{
+				Type: events.AutoUpdateAgentRolloutRollbackEvent,
+				Code: events.AutoUpdateAgentRolloutRollbackCode,
+			},
+			UserMetadata: userMetadata,
+			ResourceMetadata: apievents.ResourceMetadata{
+				Name:      types.MetaNameAutoUpdateAgentRollout,
+				UpdatedBy: userMetadata.User,
+			},
+			ConnectionMetadata: authz.ConnectionMetadata(ctx),
+			Status: apievents.Status{
+				Success: err == nil,
+				Error:   errMsg,
+			},
+		})
+	}()
 
 	const maxTries = 3
 
