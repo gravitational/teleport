@@ -702,8 +702,8 @@ github.com/gravitational/license v0.0.0-20240313232707-8312e719d624 h1:TjiJ98fWU
 github.com/gravitational/license v0.0.0-20240313232707-8312e719d624/go.mod h1:pERQ8qtFfvV0Pfw9jA5o1WH1snupQQ3SZ+n8CVdRJNs=
 github.com/gravitational/predicate v1.3.2 h1:NAdaWihgGVS3nuKDZZHTda4wwNjGlvG4a+UYQ4f3gQc=
 github.com/gravitational/predicate v1.3.2/go.mod h1:cTQkp40X3YejTcWsZGvzAtfa28VXfBxT10H/Grt0Fzs=
-github.com/gravitational/protobuf v1.3.2-teleport.1 h1:h5mh+UOKPurqDxn1hRVcr1WzSkmBi+D9qkXpaXA9PFM=
-github.com/gravitational/protobuf v1.3.2-teleport.1/go.mod h1:P1XiOD3dCwIKUDQYPy72D8LYyHL2YPYrpS2s69NZV8Q=
+github.com/gravitational/protobuf v1.3.2-teleport.2 h1:MO5eFXfGfDiAbBA7X8tDW2EMLfRWQVJMmK+MA6gV8AI=
+github.com/gravitational/protobuf v1.3.2-teleport.2/go.mod h1:P1XiOD3dCwIKUDQYPy72D8LYyHL2YPYrpS2s69NZV8Q=
 github.com/gravitational/redis/v9 v9.6.1-teleport.1 h1:gPirfPKArN2nPhTKR3h9fnEg5YuYU933+CjlDJMo4H0=
 github.com/gravitational/redis/v9 v9.6.1-teleport.1/go.mod h1:0C0c6ycQsdpVNQpxb1njEQIqkx5UcsM8FJCQLgE9+RA=
 github.com/gravitational/roundtrip v1.0.2 h1:eOCY0NEKKaB0ksJmvhO6lPMFz1pIIef+vyPBTBROQ5c=
