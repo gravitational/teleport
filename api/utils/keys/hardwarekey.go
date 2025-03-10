@@ -48,6 +48,7 @@ type HardwareKeyService interface {
 type HardwarePrivateKey struct {
 	service HardwareKeyService
 	ref     *HardwarePrivateKeyRef
+	keyInfo KeyInfo
 }
 
 // Public implements [crypto.Signer].

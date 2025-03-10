@@ -81,8 +81,6 @@ func Serve(ctx context.Context, cfg Config) error {
 		return trace.Wrap(err)
 	}
 
-	// TODO(Joerger): add rootClusterURI, or some other identifiable information, to the prompts
-	// at the client store level, since the hardware key service is shared across clusters.
 	hardwareKeyService.SetPrompt(daemonService.NewHardwareKeyPrompt())
 
 	apiServer, err := apiserver.New(apiserver.Config{

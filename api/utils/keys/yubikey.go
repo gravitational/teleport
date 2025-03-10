@@ -107,7 +107,7 @@ func getOrGenerateYubiKeyPrivateKey(ctx context.Context, requiredKeyPolicy Priva
 
 	promptOverwriteSlot := func(msg string) error {
 		promptQuestion := fmt.Sprintf("%v\nWould you like to overwrite this slot's private key and certificate?", msg)
-		if confirmed, confirmErr := prompt.ConfirmSlotOverwrite(ctx, promptQuestion); confirmErr != nil {
+		if confirmed, confirmErr := prompt.ConfirmSlotOverwrite(ctx, promptQuestion, KeyInfo{}); confirmErr != nil {
 			return trace.Wrap(confirmErr)
 		} else if !confirmed {
 			return trace.Wrap(trace.CompareFailed(msg), "user declined to overwrite slot")
@@ -348,7 +348,7 @@ func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []b
 			select {
 			case <-touchPromptDelayTimer.C:
 				// Prompt for touch after a delay, in case the function succeeds without touch due to a cached touch.
-				err := y.prompt.Touch(ctx)
+				err := y.prompt.Touch(ctx, KeyInfo{})
 				if err != nil {
 					// Cancel the entire function when an error occurs.
 					// This is typically used for aborting the prompt.
@@ -370,7 +370,7 @@ func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []b
 				defer touchPromptDelayTimer.Reset(signTouchPromptDelay)
 			}
 		}
-		pass, err := y.prompt.AskPIN(ctx, PINRequired)
+		pass, err := y.prompt.AskPIN(ctx, PINRequired, KeyInfo{})
 		return pass, trace.Wrap(err)
 	}
 
@@ -662,7 +662,7 @@ func (y *YubiKey) SetPIN(oldPin, newPin string) error {
 // If the user provides the default PIN, they will be prompted to set a
 // non-default PIN and PUK before continuing.
 func (y *YubiKey) checkOrSetPIN(ctx context.Context) error {
-	pin, err := y.prompt.AskPIN(ctx, PINOptional)
+	pin, err := y.prompt.AskPIN(ctx, PINOptional, KeyInfo{})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -878,7 +878,7 @@ func (c *sharedPIVConnection) verifyPIN(pin string) error {
 }
 
 func (c *sharedPIVConnection) setPINAndPUKFromDefault(ctx context.Context, prompt HardwareKeyPrompt) (string, error) {
-	pinAndPUK, err := prompt.ChangePIN(ctx)
+	pinAndPUK, err := prompt.ChangePIN(ctx, KeyInfo{})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
