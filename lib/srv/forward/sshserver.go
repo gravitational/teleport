@@ -875,7 +875,7 @@ func (s *Server) handleConnection(ctx context.Context, chans <-chan ssh.NewChann
 
 // handleClientChannels handles channel open requests from the remote server.
 func (s *Server) handleClientChannels(ctx context.Context, forwardedTCPIP <-chan ssh.NewChannel, localAddr, remoteAddr string) {
-	forwarding := false
+	var forwarding bool
 	defer func() {
 		// don't log the stop code unless we've logged the start code
 		if !forwarding {
@@ -1710,7 +1710,15 @@ func isTeleportEnv(varName string) bool {
 }
 
 func (s *Server) emitAuditEventWithLog(ctx context.Context, event apievents.AuditEvent) {
+	// avoid emitting duplicate port forward audit events when targeting an agent
+	if !s.targetServer.IsOpenSSHNode() {
+		switch event.GetType() {
+		case events.PortForwardEvent, events.PortForwardLocalEvent, events.PortForwardRemoteEvent, events.PortForwardRemoteConnEvent:
+			return
+		}
+	}
+
 	if err := s.EmitAuditEvent(ctx, event); err != nil {
-		s.logger.WarnContext(ctx, "Failed to emit event", "type", event.GetType(), "code", event.GetCode())
+		s.logger.WarnContext(ctx, "Failed to emit event", "type", event.GetType(), "code", event.GetCode(), "error", err)
 	}
 }

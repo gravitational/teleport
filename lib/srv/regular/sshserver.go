@@ -1384,7 +1384,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 			d, ok := ccx.IncrSessions(max)
 			if !ok {
 				// user has exceeded their max concurrent ssh sessions.
-				if err := s.EmitAuditEvent(s.ctx, &apievents.SessionReject{
+				s.emitAuditEventWithLog(s.ctx, &apievents.SessionReject{
 					Metadata: apievents.Metadata{
 						Type: events.SessionRejectedEvent,
 						Code: events.SessionRejectedCode,
@@ -1402,9 +1402,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 					},
 					Reason:  events.SessionRejectedReasonMaxSessions,
 					Maximum: max,
-				}); err != nil {
-					s.logger.WarnContext(ctx, "Failed to emit session reject event", "error", err)
-				}
+				})
 				s.rejectChannel(ctx, nch, ssh.Prohibited, fmt.Sprintf("too many session channels for user %q (max=%d)", identityContext.TeleportUser, max))
 				return
 			}
@@ -2339,9 +2337,7 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 	// been closed already via a cancel-tcpip-forward request.
 	ccx.AddCloser(utils.CloseFunc(func() error {
 		event := scx.GetPortForwardEvent(events.PortForwardRemoteEvent, events.PortForwardStopCode, addr)
-		if err := s.EmitAuditEvent(context.Background(), &event); err != nil {
-			s.logger.WarnContext(context.Background(), "Failed to emit audit event", "error", err)
-		}
+		s.emitAuditEventWithLog(ctx, &event)
 
 		listener, ok := s.remoteForwardingMap.LoadAndDelete(scx.SrcAddr)
 		if ok {
@@ -2461,6 +2457,6 @@ func (s *Server) handlePuTTYWinadj(ctx context.Context, req *ssh.Request) error 
 
 func (s *Server) emitAuditEventWithLog(ctx context.Context, event apievents.AuditEvent) {
 	if err := s.EmitAuditEvent(ctx, event); err != nil {
-		s.logger.WarnContext(ctx, "Failed to emit event", "type", event.GetType(), "code", event.GetCode())
+		s.logger.WarnContext(ctx, "Failed to emit event", "type", event.GetType(), "code", event.GetCode(), "error", err)
 	}
 }
