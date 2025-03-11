@@ -455,8 +455,14 @@ func (u *Updater) Remove(ctx context.Context, force bool) error {
 	}
 
 	// Do not link system package installation if the installation we are removing
-	// is not installed into /usr/local/bin.
+	// is not installed into /usr/local/bin. In this case, we also need to make sure
+	// it is clear we are not going to recover the package's systemd service if it
+	// was overwritten.
 	if filepath.Clean(cfg.Spec.Path) != filepath.Clean(defaultPathDir) {
+		if u.TeleportServiceName == serviceName && !force {
+			u.Log.ErrorContext(ctx, "Default Teleport systemd service would be removed, and --force was not passed. Refusing to remove Teleport from this system.")
+			return trace.Errorf("unable to remove Teleport completely without --force")
+		}
 		return u.removeWithoutSystem(ctx, cfg)
 	}
 	revert, err := u.Installer.LinkSystem(ctx)
