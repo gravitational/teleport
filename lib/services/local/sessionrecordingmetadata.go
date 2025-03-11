@@ -19,3 +19,40 @@
  */
 
 package local
+
+import (
+	sessionrecordingmetatadav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionrecordingmetatada/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
+	"github.com/gravitational/trace"
+)
+
+// SessionRecordingMetadataService manages session recording metadata resources in the backend.
+type SessionRecordingMetadataService struct {
+	service *generic.ServiceWrapper[*sessionrecordingmetatadav1.SessionRecordingMetadata]
+}
+
+// NewSessionRecordingMetadataService creates a new WindowsDesktopsService.
+func NewSessionRecordingMetadataService(b backend.Backend) (*SessionRecordingMetadataService, error) {
+	service, err := generic.NewServiceWrapper(generic.ServiceWrapperConfig[*sessionrecordingmetatadav1.SessionRecordingMetadata]{
+		Backend:       b,
+		ResourceKind:  types.KindSessionRecordingMetadata,
+		PageLimit:     defaults.MaxIterationLimit,
+		BackendPrefix: backend.NewKey(sessionRecordingMetadataPrefix),
+		MarshalFunc:   services.MarshalSessionRecordingMetadata,
+		UnmarshalFunc: services.UnmarshalSessionRecordingMetadata,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &SessionRecordingMetadataService{
+		service: service,
+	}, nil
+}
+
+const (
+	sessionRecordingMetadataPrefix = "sessionRecordingMetadata"
+)

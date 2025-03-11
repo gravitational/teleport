@@ -620,6 +620,9 @@ const (
 	// stable UNIX users.
 	KindStableUNIXUser = "stable_unix_user"
 
+	// KindSessionRecordingMetadata is a metadata for session recording.
+	KindSessionRecordingMetadata = "session_recording_metadata"
+
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"
