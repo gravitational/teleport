@@ -2098,7 +2098,7 @@ func kubeJoin(kubeConfig kube.ProxyConfig, tc *client.TeleportClient, meta types
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := client.NewKubeSession(context.TODO(), tc, meta, tc.KubeProxyAddr, "", mode, tlsConfig)
+	sess, err := client.NewKubeSession(context.TODO(), tc, meta, "", mode, tlsConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
