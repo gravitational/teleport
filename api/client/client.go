@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"github.com/gravitational/teleport/api/client/sessionrecordingmetadata"
 	"io"
 	"log/slog"
 	"net"
@@ -94,6 +95,7 @@ import (
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
+	sessionrecordingmetatadav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionrecordingmetatada/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
@@ -4915,6 +4917,14 @@ func (c *Client) SCIMClient() *scim.Client {
 // (as per the default gRPC behavior).
 func (c *Client) AccessListClient() *accesslist.Client {
 	return accesslist.NewClient(accesslistv1.NewAccessListServiceClient(c.conn))
+}
+
+// SessionRecordingMetadataClient returns an access list client.
+// Clients connecting to  older Teleport versions, still get an access list client
+// when calling this method, but all RPCs will return "not implemented" errors
+// (as per the default gRPC behavior).
+func (c *Client) SessionRecordingMetadataClient() *sessionrecordingmetadata.Client {
+	return sessionrecordingmetadata.NewClient(sessionrecordingmetatadav1.NewSessionRecordingMetadataServiceClient(c.conn))
 }
 
 // AccessMonitoringRulesClient returns an Access Monitoring Rules client.
