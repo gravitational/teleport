@@ -8,16 +8,18 @@
 import SwiftUI
 
 struct MenuBar: Scene {
-  @State var counter: Int = 0
+  @State var isVnetRunning: Bool = false
 
   var body: some Scene {
     MenuBarExtra("Teleport Menu Bar App", systemImage: "gearshape.fill") {
-      Text("The counter is \(counter)")
-      Button("Increase") {
-        counter += 1
-      }
-      Button("Decrease") {
-        counter -= 1
+      if isVnetRunning {
+        Button("Stop VNet") {
+          isVnetRunning = false
+        }
+      } else {
+        Button("Start VNet") {
+          isVnetRunning = true
+        }
       }
       Divider()
       Button("Quit") {
@@ -26,3 +28,4 @@ struct MenuBar: Scene {
     }
   }
 }
+
