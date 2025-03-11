@@ -1,48 +1,367 @@
 ---
-title: "Connecting to AWS RDS Oracle with Kerberos Authentication"
-description: "Guide to accessing an AWS RDS Oracle instance using Kerberos authentication."
+title: Database Access with AWS RDS Oracle with Kerberos Authentication
+description: How to configure Teleport Database Access with AWS RDS Oracle with Kerberos authentication.
 ---
 
-This is a placeholder guide with minimal instructions. A more comprehensive version will be available later.
+(!docs/pages/includes/database-access/db-introduction.mdx dbType="Amazon RDS for Oracle" dbConfigure="with Kerberos authentication"!)
 
+## How it works
 
-## Prepare the Oracle RDS Instance  
-Ensure your Oracle RDS instance has Kerberos authentication enabled. Follow the AWS setup guide:  
-[**AWS RDS Oracle Kerberos Setup**](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/oracle-kerberos-setting-up.html).
+The Teleport Database Service joins the same Active Directory domain as the Oracle
+database and uses the Kerberos protocol to authenticate with Oracle.
+When a user connects to Oracle via Teleport, the Database Service obtains a
+service ticket from Active Directory, then uses a long-term key for the database
+user to decrypt the ticket and connect to Oracle. At that point, the
+Database Service forwards user traffic to the database.
 
-## Enable TLS on your Oracle RDS Instance
+## Prerequisites
 
-Follow AWS docs: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.Oracle.Options.SSL.html
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-Make sure `SQLNET.SSL_VERSION` is `1.2`.
+- An AWS account with the necessary permissions to create RDS instances and AWS Directory Service directories.
+- An Amazon RDS for Oracle database instance.
+- An AWS Directory Service Managed Microsoft AD.
+- A Linux node joined to the same Active Directory domain as the database. This
+  guide will walk you through the joining steps if you don't have one.
+- (!docs/pages/includes/tctl.mdx!)
 
-## Install Teleport with a Database Agent  
-Deploy Teleport with a database agent on a machine that can reach your Oracle RDS instance.  
-Verify connectivity manually or use the AWS Console helper to grant access to an EC2 instance.
+## Step 1/8. Prepare the Oracle RDS Instance
 
-## Generate a Keytab File for Your Database User  
-Use `ktutil` to create a keytab file or refer to the keytab section of this guide:  
-[**Teleport AWS Database Enrollment - SQL Server**](https://goteleport.com/docs/enroll-resources/database-access/enroll-aws-databases/sql-server-ad/).
+Before configuring Teleport, ensure your Oracle RDS instance has Kerberos authentication and TLS properly configured:
 
-## Configure Teleport for RDS Oracle  
-Add an entry for your RDS Oracle instance in your `teleport.yaml` configuration:
+1. Follow the [AWS RDS Oracle Kerberos Setup guide](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/oracle-kerberos-setting-up.html) to enable Kerberos authentication on your instance.
 
-```yaml
-db_service:
-  enabled: true
-  databases:
-  - name: oracle-rds
-    protocol: oracle
-    uri: oracle-instance.aabbccddeegg.eu-central-1.rds.amazonaws.com:2484
-    ad:
-      keytab_file: /path/to/kerberos/teleport.keytab
-      krb5_file: /path/to/kerberos/krb5.conf
-      domain: YOURDOMAIN.COM
+2. Enable TLS on your Oracle RDS instance by following the [AWS RDS Oracle SSL Setup documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.Oracle.Options.SSL.html). Ensure `SQLNET.SSL_VERSION` is set to `1.2` for optimal security.
+
+<Admonition type="note">
+  Verify connectivity between your Teleport database service host and the Oracle RDS instance before proceeding.
+</Admonition>
+
+## Step 2/8. Create Oracle AD users
+
+<Admonition type="note">
+  You can skip this step if you already have Active Directory logins in your
+  Oracle.
+</Admonition>
+
+Connect to your Oracle as an administrative account (e.g. `admin`) and create
+users that will use Active Directory authentication:
+
+```sql
+CREATE USER "alice@EXAMPLE.COM" IDENTIFIED EXTERNALLY;
+GRANT CREATE SESSION TO "alice@EXAMPLE.COM";
 ```
 
-## Connect to the Database  
-Run the following command to establish a connection:
+## Step 3/8. Join the Linux node to Active Directory
 
-```sh
-tsh db connect --db-user my_user --db-name MYPDB
+<Admonition type="note">
+  You can skip this step if you already have a Linux node joined to the same
+  Active Directory domain as your Oracle instance.
+</Admonition>
+
+The Linux node where the Database Service will run must be joined to the same
+Active Directory domain as the Oracle database.
+
+Note that in order to be able to join, the Linux node must be able to resolve
+your Active Directory fully-qualified domain name. For example, for AWS-managed
+AD, use nameservers provided under "Networking details" on the directory's
+overview page.
+
+Install necessary packages:
+
+<Tabs>
+  <TabItem label="Ubuntu">
+    ```code
+    $ sudo apt-get update
+    $ sudo apt-get -y install sssd realmd krb5-user samba-common packagekit adcli
+    ```
+  </TabItem>
+  <TabItem label="RHEL / CentOS 7">
+    ```code
+    $ sudo yum -y update
+    $ sudo yum -y install sssd realmd krb5-workstation samba-common-tools
+    ```
+  </TabItem>
+</Tabs>
+
+Edit `/etc/krb5.conf` to disable reverse DNS resolution and set the default
+realm. Make sure that the `[realms]` section contains your domain definition
+and has `admin_server` and `kdc` fields set pointing to the domain controllers:
+
+```ini
+[libdefaults]
+default_realm = EXAMPLE.COM
+rdns = false
+
+[realms]
+  EXAMPLE.COM = {
+    kdc = example.com
+    admin_server = example.com
+  }
 ```
+
+Join the realm:
+
+```code
+$ sudo realm join -v -U admin@EXAMPLE.COM example.com
+...
+ * Successfully enrolled machine in realm
+```
+
+<Admonition type="warning">
+  Note that the realm name in `admin@EXAMPLE.COM` **must** be capital case,
+  otherwise the node might not be able to join.
+</Admonition>
+
+To confirm the node has joined the realm, use the `realm list` command:
+
+```code
+$ sudo realm list
+example.com
+  type: kerberos
+  realm-name: EXAMPLE.COM
+  domain-name: example.com
+  configured: kerberos-member
+  server-software: active-directory
+  client-software: sssd
+  ...
+```
+
+## Step 4/8. Create keytab file
+
+Teleport requires a keytab file to obtain Kerberos service tickets from your
+Active Directory for authentication with SQL Server. The easiest way to generate
+it is to use the `adutil` Linux CLI utility.
+
+Install `adutil` on the Linux node you have joined to your Active Directory
+domain:
+
+<Tabs>
+  <TabItem label="Ubuntu 18.04">
+    ```code
+    $ curl https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc
+    $ curl https://packages.microsoft.com/config/ubuntu/18.04/prod.list | sudo tee /etc/apt/sources.list.d/msprod.list
+    $ sudo apt-get update
+    $ sudo ACCEPT_EULA=Y apt-get install -y adutil
+    ```
+  </TabItem>
+  <TabItem label="Ubuntu 20.04">
+    ```code
+    $ curl https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc
+    $ curl https://packages.microsoft.com/config/ubuntu/20.04/prod.list | sudo tee /etc/apt/sources.list.d/msprod.list
+    $ sudo apt-get update
+    $ sudo ACCEPT_EULA=Y apt-get install -y adutil
+    ```
+  </TabItem>
+  <TabItem label="Ubuntu 22.04">
+    ```code
+    $ curl https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc
+    $ curl https://packages.microsoft.com/config/ubuntu/22.04/prod.list | sudo tee /etc/apt/sources.list.d/msprod.list
+    $ sudo apt-get update
+    $ sudo ACCEPT_EULA=Y apt-get install -y adutil
+    ```
+  </TabItem>
+  <TabItem label="RHEL 8">
+    ```code
+    $ sudo curl -o /etc/yum.repos.d/msprod.repo https://packages.microsoft.com/config/rhel/8/prod.repo
+    $ sudo ACCEPT_EULA=Y yum install -y adutil
+    ```
+  </TabItem>
+  <TabItem label="RHEL 9">
+    ```code
+    $ sudo curl -o /etc/yum.repos.d/msprod.repo https://packages.microsoft.com/config/rhel/9/prod.repo
+    $ sudo ACCEPT_EULA=Y yum install -y adutil
+    ```
+  </TabItem>
+  <TabItem label="Other">
+  If `adutil` is not available for your distributon, you can use `ktutil` instead. It should be available as a standard Kerberos utility.
+  ```code
+  $ ktutil
+ktutil: addent -password -p alice@EXAMPLE.COM -k 1 -e aes256-cts-hmac-sha1-96
+Password for alice@EXAMPLE.COM: [enter password here]
+ktutil: wkt teleport.keytab
+ktutil: quit
+  ```
+  </TabItem>
+</Tabs>
+
+Log in to Active Directory using the `kinit` command:
+
+```code
+$ kinit admin@EXAMPLE.COM
+```
+
+Use the `adutil keytab create` command to generate keytab entries for each
+Active Directory user that will be connecting to the SQL Server database:
+
+```code
+$ adutil keytab create teleport.keytab alice
+$ adutil keytab create teleport.keytab bob
+```
+
+You will be prompted to enter each user's password. All keytab entries will
+be merged into the same `teleport.keytab` file.
+
+<Admonition type="note" title="Assign Service Principal Names">
+  For the `adutil keytab create` command to work, each user account must be
+  assigned a Service Principal Name, otherwise the command will not be able
+  to determine its `kvno` (key version number).
+
+  To check if the user has any SPNs assigned, run the following command on the
+  Windows machine joined to your Active Directory domain:
+
+  ```code
+  $ setspn -L alice
+  ```
+
+  To assign an SPN to a user account, use the following command:
+
+  ```code
+  $ setspn -s user/alice alice
+  ```
+</Admonition>
+
+You can verify entries in the keytab file using `klist` command:
+
+```code
+$ klist -ke teleport.keytab
+Keytab name: FILE:teleport.keytab
+KVNO Principal
+---- --------------------------------------------------------------------------
+   5 alice@EXAMPLE.COM (aes256-cts-hmac-sha1-96)
+   2 bob@EXAMPLE.COM (aes256-cts-hmac-sha1-96)
+```
+
+<Admonition type="warning">
+  You must update the keytab file after updating a user's password to avoid
+  authentication failures.
+</Admonition>
+
+## Step 5/8. Set up the Teleport Database Service
+
+(!docs/pages/includes/tctl-token.mdx serviceName="Database" tokenType="db" tokenFile="/tmp/token"!)
+
+(!docs/pages/includes/install-linux.mdx!)
+
+<Admonition type="note">
+  Teleport Database Service must run on a Linux server joined to the same
+  Active Directory domain as the Oracle instance.
+</Admonition>
+
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+
+Configure the Teleport Database Service. Make sure to update `--proxy` to
+point to your Teleport Proxy Service address and `--uri` to the Oracle
+endpoint.
+
+  ```code
+  $ sudo teleport db configure create \
+    -o file \
+    --token=/tmp/token \
+    --proxy=teleport.example.com:443 \
+    --name=oracle \
+    --protocol=oracle \
+    --uri=oracle-instance.aabbccddeegg.eu-central-1.rds.amazonaws.com:2484 \
+    --ad-keytab-file=/etc/teleport/teleport.keytab \
+    --ad-domain=EXAMPLE.COM \
+    --labels=env=dev
+  ```
+  
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+
+Configure the Teleport Database Service. Make sure to update `--proxy` to
+point to your Teleport Cloud tenant address and `--uri` to the Oracle
+endpoint.
+
+  ```code
+  $ sudo teleport db configure create \
+    -o file \
+    --token=/tmp/token \
+    --proxy=mytenant.teleport.sh:443 \
+    --name=oracle \
+    --protocol=oracle \
+    --uri=oracle-instance.aabbccddeegg.eu-central-1.rds.amazonaws.com:2484 \
+    --ad-keytab-file=/etc/teleport/teleport.keytab \
+    --ad-domain=EXAMPLE.COM \
+    --labels=env=dev
+  ```
+
+</TabItem>
+
+</Tabs>
+
+Provide Active Directory parameters:
+
+| Flag | Description |
+| ---- | ----------- |
+| `--ad-keytab-file` | Path to Kerberos keytab file generated above. |
+| `--ad-domain` | Active Directory domain (Kerberos realm) that Oracle is joined. |
+
+## Step 6/8. Start the Database Service
+
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
+
+## Step 7/8. Create a Teleport users
+
+(!docs/pages/includes/database-access/create-user.mdx!)
+
+## Step 8/8. Connect
+
+Log in to your Teleport cluster. Your Oracle database should appear in the
+list of available databases:
+
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+
+```code
+$ tsh login --proxy=teleport.example.com --user=alice
+$ tsh db ls
+# Name      Description         Labels
+# --------- ------------------- -------
+# oracle                     env=dev
+```
+
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+
+```code
+$ tsh login --proxy=mytenant.teleport.sh --user=alice
+$ tsh db ls
+# Name      Description         Labels
+# --------- ------------------- -------
+# oracle                     env=dev
+```
+
+</TabItem>
+</Tabs>
+
+To retrieve credentials for a database and connect to it:
+
+```code
+$ tsh db connect --db-user="alice" oracle --db-name MYPDB
+```
+
+To log out of the database and remove credentials:
+
+```code
+$ tsh db logout oracle
+```
+
+## Next steps
+
+(!docs/pages/includes/database-access/guides-next-steps.mdx!)
+
+## Troubleshooting
+
+### Teleport can reach RDS Oracle instance, but TLS negotiation fails.
+
+Ensure that `SQLNET.SSL_VERSION` parameter enables `TLS 1.2` version. TLS 1.0 is rejected by Teleport due to known weaknesses. See [AWS RDS Oracle SSL Setup documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.Oracle.Options.SSL.html) for more information.
+
+## Further reading
+
+- [AWS RDS Oracle Kerberos Setup](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/oracle-kerberos-setting-up.html).
+- [AWS RDS Oracle SSL Setup](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.Oracle.Options.SSL.html).
+- [Manually join a Linux instance](https://docs.aws.amazon.com/directoryservice/latest/admin-guide/join_linux_instance.html) in the AWS documentation.
+- [Introduction to `adutil`](https://docs.microsoft.com/en-us/sql/linux/sql-server-linux-ad-auth-adutil-introduction) in the Microsoft documentation.
