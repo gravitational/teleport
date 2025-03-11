@@ -1058,6 +1058,7 @@ func TestUpdater_Remove(t *testing.T) {
 		reloadErr     error
 		processActive bool
 		force         bool
+		serviceName   string
 
 		unlinkedVersion string
 		teardownCalls   int
@@ -1159,6 +1160,53 @@ func TestUpdater_Remove(t *testing.T) {
 			linkSystemErr:   ErrNoBinaries,
 			linkSystemCalls: 1,
 			isActiveErr:     ErrNotSupported,
+			unlinkedVersion: version,
+			teardownCalls:   1,
+			force:           true,
+		},
+		{
+			name: "no system links, process disabled, custom path, force",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Path: "custom",
+				},
+				Status: UpdateStatus{
+					Active: NewRevision(version, 0),
+				},
+			},
+			unlinkedVersion: version,
+			teardownCalls:   1,
+			force:           true,
+		},
+		{
+			name: "no system links, process disabled, custom path, no force",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Path: "custom",
+				},
+				Status: UpdateStatus{
+					Active: NewRevision(version, 0),
+				},
+			},
+			errMatch: "unable to remove",
+		},
+		{
+			name: "no system links, process disabled, custom path, no force, custom service",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Path: "custom",
+				},
+				Status: UpdateStatus{
+					Active: NewRevision(version, 0),
+				},
+			},
+			serviceName:     "custom",
 			unlinkedVersion: version,
 			teardownCalls:   1,
 			force:           true,
@@ -1268,6 +1316,10 @@ func TestUpdater_Remove(t *testing.T) {
 				InsecureSkipVerify: true,
 			}, ns)
 			require.NoError(t, err)
+			updater.TeleportServiceName = serviceName
+			if tt.serviceName != "" {
+				updater.TeleportServiceName = tt.serviceName
+			}
 
 			// Create config file only if provided in test case
 			if tt.cfg != nil {
