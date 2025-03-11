@@ -385,7 +385,18 @@
     },
     {
       "source": "/upgrading/automatic-agent-updates/",
-      "destination": "/upgrading/agent-managed-updates-v1/"
+      "destination": "/upgrading/agent-managed-updates-v1/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/compliance-frameworks/fedramp/",
+      "destination": "/admin-guides/access-controls/compliance-frameworks/fedramp/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/introduction/",
+      "destination": "/enroll-resources/server-access/",
+      "permanent": true
     }
   ]
 }
