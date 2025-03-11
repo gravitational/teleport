@@ -184,10 +184,14 @@ func Run(args []string) int {
 		return 1
 	}
 
-	// Set required umask for commands that write files to system directories as root, and warn loudly if it changes.
 	switch command {
 	case statusCmd.FullCommand(), versionCmd.FullCommand():
 	default:
+		if os.Geteuid() != 0 {
+			plog.ErrorContext(ctx, "This command must be run as root. Try running with sudo.")
+			return 1
+		}
+		// Set required umask for commands that write files to system directories as root, and warn loudly if it changes.
 		autoupdate.SetRequiredUmask(ctx, plog)
 	}
 
