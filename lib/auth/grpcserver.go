@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	sessionrecordingmetatadapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionrecordingmetatada/v1"
 	"io"
 	"log/slog"
 	"net"
@@ -102,6 +103,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
+	"github.com/gravitational/teleport/lib/auth/sessionrecordingmetadata/sessionrecordingmetadatav1"
 	"github.com/gravitational/teleport/lib/auth/stableunixusers"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/auth/userloginstate/userloginstatev1"
@@ -5213,6 +5215,16 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	usersv1pb.RegisterUsersServiceServer(server, usersService)
+
+	sessionRecordingMetadataService, err := sessionrecordingmetadatav1.NewService(sessionrecordingmetadatav1.ServiceConfig{
+		Logger:  cfg.AuthServer.logger.With(teleport.ComponentKey, "sessionrecordingmetadata.service"),
+		Backend: cfg.AuthServer.Services.SessionRecordingMetadata,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sessionrecordingmetatadapb.RegisterSessionRecordingMetadataServiceServer(server, sessionRecordingMetadataService)
 
 	presenceService, err := presencev1.NewService(presencev1.ServiceConfig{
 		Authorizer: cfg.Authorizer,

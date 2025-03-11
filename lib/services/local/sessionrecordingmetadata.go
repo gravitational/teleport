@@ -21,6 +21,7 @@
 package local
 
 import (
+	"context"
 	sessionrecordingmetatadav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionrecordingmetatada/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -28,11 +29,34 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/trace"
+	"slices"
 )
 
 // SessionRecordingMetadataService manages session recording metadata resources in the backend.
 type SessionRecordingMetadataService struct {
 	service *generic.ServiceWrapper[*sessionrecordingmetatadav1.SessionRecordingMetadata]
+}
+
+func (s SessionRecordingMetadataService) CreateSessionRecordingMetadata(ctx context.Context, metadata *sessionrecordingmetatadav1.SessionRecordingMetadata) (*sessionrecordingmetatadav1.SessionRecordingMetadata, error) {
+	return s.service.CreateResource(ctx, metadata)
+}
+
+func (s SessionRecordingMetadataService) UpdateSessionRecordingMetadata(ctx context.Context, metadata *sessionrecordingmetatadav1.SessionRecordingMetadata) (*sessionrecordingmetatadav1.SessionRecordingMetadata, error) {
+	return s.service.ConditionalUpdateResource(ctx, metadata)
+}
+
+func (s SessionRecordingMetadataService) GetSessionRecordingMetadata(ctx context.Context, sessionID string) (*sessionrecordingmetatadav1.SessionRecordingMetadata, error) {
+	return s.service.GetResource(ctx, sessionID)
+}
+
+func (s SessionRecordingMetadataService) DeleteSessionRecordingMetadata(ctx context.Context, sessionID string) error {
+	return s.service.DeleteResource(ctx, sessionID)
+}
+
+func (s SessionRecordingMetadataService) ListSessionRecordingMetadata(ctx context.Context, pageSize int, nextToken string, sessionIDs []string, withSummary bool) ([]*sessionrecordingmetatadav1.SessionRecordingMetadata, string, error) {
+	return s.service.ListResourcesWithFilter(ctx, pageSize, nextToken, func(metadata *sessionrecordingmetatadav1.SessionRecordingMetadata) bool {
+		return (len(sessionIDs) == 0 || slices.Contains(sessionIDs, metadata.Metadata.Name)) && (!withSummary || len(metadata.Spec.GetSummary()) > 0)
+	})
 }
 
 // NewSessionRecordingMetadataService creates a new WindowsDesktopsService.

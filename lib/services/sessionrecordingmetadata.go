@@ -21,10 +21,16 @@
 package services
 
 import (
+	"context"
 	sessionrecordingmetatadav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionrecordingmetatada/v1"
 )
 
 type SessionRecordingMetadata interface {
+	CreateSessionRecordingMetadata(ctx context.Context, metadata *sessionrecordingmetatadav1.SessionRecordingMetadata) (*sessionrecordingmetatadav1.SessionRecordingMetadata, error)
+	UpdateSessionRecordingMetadata(ctx context.Context, metadata *sessionrecordingmetatadav1.SessionRecordingMetadata) (*sessionrecordingmetatadav1.SessionRecordingMetadata, error)
+	GetSessionRecordingMetadata(ctx context.Context, sessionID string) (*sessionrecordingmetatadav1.SessionRecordingMetadata, error)
+	DeleteSessionRecordingMetadata(ctx context.Context, sessionID string) error
+	ListSessionRecordingMetadata(ctx context.Context, pageSize int, nextToken string, sessionIDs []string, withSummary bool) ([]*sessionrecordingmetatadav1.SessionRecordingMetadata, string, error)
 }
 
 // MarshalSessionRecordingMetadata marshals the SessionRecordingMetadata resource to JSON.

@@ -226,6 +226,8 @@ type InitConfig struct {
 	// DynamicWindowsServices is a service that manages dynamic Windows desktop resources.
 	DynamicWindowsDesktops services.DynamicWindowsDesktops
 
+	SessionRecordingMetadataService services.SessionRecordingMetadata
+
 	// SAMLIdPServiceProviders is a service that manages SAML IdP service providers.
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
 
