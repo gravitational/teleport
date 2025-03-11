@@ -39,6 +39,9 @@ export default function useRouting(ctx: ConsoleContext) {
   const joinSshRouteMatch = useRouteMatch<UrlSshParams>(
     cfg.routes.consoleSession
   );
+  const joinKubeExecRouteMatch = useRouteMatch<UrlKubeExecParams>(
+    cfg.routes.kubeExecSession
+  );
   const dbConnectMatch = useRouteMatch<UrlDbConnectParams>(
     cfg.routes.dbConnect
   );
@@ -65,6 +68,15 @@ export default function useRouting(ctx: ConsoleContext) {
       ctx.addNodeDocument(clusterId);
     } else if (kubeExecRouteMatch) {
       ctx.addKubeExecDocument(kubeExecRouteMatch.params);
+    } else if (joinKubeExecRouteMatch) {
+      // Extract the mode param from the URL if it is present.
+      const searchParams = new URLSearchParams(search);
+      const mode = searchParams.get('mode');
+      if (mode) {
+        joinKubeExecRouteMatch.params.mode = mode as ParticipantMode;
+      }
+
+      ctx.addKubeExecDocument(joinKubeExecRouteMatch.params);
     } else if (dbConnectMatch) {
       ctx.addDbDocument(dbConnectMatch.params);
     }
