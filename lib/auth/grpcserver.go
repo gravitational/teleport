@@ -5217,8 +5217,9 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	usersv1pb.RegisterUsersServiceServer(server, usersService)
 
 	sessionRecordingMetadataService, err := sessionrecordingmetadatav1.NewService(sessionrecordingmetadatav1.ServiceConfig{
-		Logger:  cfg.AuthServer.logger.With(teleport.ComponentKey, "sessionrecordingmetadata.service"),
-		Backend: cfg.AuthServer.Services.SessionRecordingMetadata,
+		Authorizer: cfg.Authorizer,
+		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "sessionrecordingmetadata.service"),
+		Backend:    cfg.AuthServer.Services.SessionRecordingMetadata,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
