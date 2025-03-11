@@ -372,6 +372,7 @@ func (s SystemdService) Enable(ctx context.Context, now bool) error {
 	if err := s.checkSystem(ctx); err != nil {
 		return trace.Wrap(err)
 	}
+	// The --now flag is not supported in systemd versions older than 219.
 	code := s.systemctl(ctx, slog.LevelInfo, "enable", s.ServiceName)
 	if code != 0 {
 		return trace.Errorf("unable to enable systemd service")
@@ -391,6 +392,7 @@ func (s SystemdService) Disable(ctx context.Context, now bool) error {
 	if err := s.checkSystem(ctx); err != nil {
 		return trace.Wrap(err)
 	}
+	// The --now flag is not supported in systemd versions older than 219.
 	code := s.systemctl(ctx, slog.LevelInfo, "disable", s.ServiceName)
 	if code != 0 {
 		return trace.Errorf("unable to disable systemd service")
