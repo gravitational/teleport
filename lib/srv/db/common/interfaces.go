@@ -98,6 +98,24 @@ type AutoUsers interface {
 	DeleteUser(context.Context, *Session) error
 }
 
+// IngressReporter provides an interface for ingress.Report that tracks
+// connection ingress metrics.
+type IngressReporter interface {
+	// ConnectionAccepted reports a new connection, ConnectionClosed must be
+	// called when the connection closes.
+	ConnectionAccepted(service string, conn net.Conn)
+	// ConnectionClosed reports a closed connection. This should only be called
+	// after ConnectionAccepted.
+	ConnectionClosed(service string, conn net.Conn)
+	// ConnectionAuthenticated reports a new authenticated connection,
+	// AuthenticatedConnectionClosed must be called when the connection is
+	// closed.
+	ConnectionAuthenticated(service string, conn net.Conn)
+	// AuthenticatedConnectionClosed reports a closed authenticated connection,
+	// this should only be called after ConnectionAuthenticated.
+	AuthenticatedConnectionClosed(service string, conn net.Conn)
+}
+
 // Limiter defines an interface for limiting database connections.
 type Limiter interface {
 	// RegisterClientIP applies connection and rate limiting by the client IP.

@@ -2266,30 +2266,41 @@ func init() {
 	SetShuffleFunc(dbconnect.ShuffleSort)
 }
 
-type setupOptions struct {
-	proxyLimiter  *limiter.Limiter
-	withDatabases []withDatabaseOption
+type testOptions struct {
+	proxyLimiter    *limiter.Limiter
+	ingressReporter common.IngressReporter
+	withDatabases   []withDatabaseOption
 }
 
-type applySetupOption interface {
-	apply(*setupOptions)
+// applyTestSetupOption is a test setup option that can be passed into
+// setupTestContext. An interface is used instead of a function to adapt
+// usage of withDatabaseOption.
+type applyTestSetupOption interface {
+	apply(*testOptions)
 }
 
-// applySetupOptionFunc is a generic wrapper to implement applySetupOption.
-type applySetupOptionFunc func(*setupOptions)
+// applyTestSetupOptionFunc is a simple function wrapper that implements
+// applyTestSetupOption.
+type applyTestSetupOptionFunc func(*testOptions)
 
-func (f applySetupOptionFunc) apply(o *setupOptions) {
+func (f applyTestSetupOptionFunc) apply(o *testOptions) {
 	f(o)
 }
 
-func withProxyLimiter(limiter *limiter.Limiter) applySetupOption {
-	return applySetupOptionFunc(func(o *setupOptions) {
+func withProxyLimiter(limiter *limiter.Limiter) applyTestSetupOption {
+	return applyTestSetupOptionFunc(func(o *testOptions) {
 		o.proxyLimiter = limiter
 	})
 }
 
-func setupTestContext(ctx context.Context, t testing.TB, applyOpts ...applySetupOption) *testContext {
-	opts := &setupOptions{}
+func withIngressReporter(ingressReporter common.IngressReporter) applyTestSetupOption {
+	return applyTestSetupOptionFunc(func(o *testOptions) {
+		o.ingressReporter = ingressReporter
+	})
+}
+
+func setupTestContext(ctx context.Context, t testing.TB, applyOpts ...applyTestSetupOption) *testContext {
+	opts := &testOptions{}
 	for _, opt := range applyOpts {
 		opt.apply(opts)
 	}
@@ -2438,6 +2449,7 @@ func setupTestContext(ctx context.Context, t testing.TB, applyOpts ...applySetup
 		Tunnel:            tunnel,
 		TLSConfig:         tlsConfig,
 		Limiter:           opts.proxyLimiter,
+		IngressReporter:   opts.ingressReporter,
 		ConnectionMonitor: connMonitor,
 	})
 	require.NoError(t, err)
@@ -2753,8 +2765,8 @@ func TestAccessClickHouse(t *testing.T) {
 
 type withDatabaseOption func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database
 
-// apply implements applySetupOption and append the database creation func.
-func (f withDatabaseOption) apply(options *setupOptions) {
+// apply implements applyTestSetupOption and append the database creation func.
+func (f withDatabaseOption) apply(options *testOptions) {
 	options.withDatabases = append(options.withDatabases, f)
 }
 

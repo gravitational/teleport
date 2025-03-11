@@ -46,10 +46,10 @@ type Proxy struct {
 	Service common.Service
 	// Log is used for logging.
 	Log *slog.Logger
-	// Limiter limits database connections.
+	// Limiter applies limits for database connections.
 	Limiter common.Limiter
 	// IngressReporter reports new and active connections.
-	IngressReporter *ingress.Reporter
+	IngressReporter common.IngressReporter
 }
 
 // HandleConnection accepts connection from a Postgres client, authenticates

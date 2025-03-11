@@ -32,7 +32,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
@@ -69,7 +68,7 @@ type ProxyServer struct {
 	closeCtx context.Context
 	// log is used for logging.
 	log *slog.Logger
-	// limiter implements common.Limiter
+	// limiter applies limits for database connections.
 	limiter common.Limiter
 }
 
@@ -94,7 +93,7 @@ type ProxyServerConfig struct {
 	// Limiter is the connection/rate limiter.
 	Limiter *limiter.Limiter
 	// IngressReporter reports new and active connections.
-	IngressReporter *ingress.Reporter
+	IngressReporter common.IngressReporter
 	// ConnectionMonitor monitors and closes connections if session controls
 	// prevent the connections.
 	ConnectionMonitor ConnMonitor
@@ -181,7 +180,6 @@ func NewProxyServer(ctx context.Context, config ProxyServerConfig) (*ProxyServer
 			service:     config.AuthClient,
 			connLimiter: config.Limiter,
 			accessPoint: config.AccessPoint,
-			clock:       clockwork.NewRealClock(),
 		},
 	}
 	server.cfg.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
@@ -557,7 +555,6 @@ type proxyLimiter struct {
 	connLimiter *limiter.Limiter
 	service     types.Semaphores
 	accessPoint authclient.ReadDatabaseAccessPoint
-	clock       clockwork.Clock
 }
 
 // RegisterClientIP applies connection and rate limiting by the client IP.
@@ -600,7 +597,6 @@ func (l *proxyLimiter) RegisterIdentity(ctx context.Context, proxyCtx *common.Pr
 			MaxLeases:     maxConnections,
 			Holder:        proxyCtx.Identity.Username,
 		},
-		Clock: l.clock,
 	})
 	if err != nil {
 		if strings.Contains(err.Error(), teleport.MaxLeases) {

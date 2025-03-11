@@ -52,10 +52,10 @@ type Proxy struct {
 	Service common.Service
 	// Log is used for logging.
 	Log *slog.Logger
-	// Limiter limits database connections.
+	// Limiter applies limits for database connections.
 	Limiter common.Limiter
 	// IngressReporter reports new and active connections.
-	IngressReporter *ingress.Reporter
+	IngressReporter common.IngressReporter
 	// ServerVersion allows to overwrite the default Proxy MySQL Engine Version. Note that for TLS Routing connection
 	// the dynamic service version propagation by ALPN extension will take precedes over Proxy ServerVersion.
 	ServerVersion string
