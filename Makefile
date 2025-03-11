@@ -1915,3 +1915,7 @@ dump-preset-roles:
 .PHONY: test-e2e
 test-e2e: ensure-webassets
 	(cd e2e && pnpm install) && $(CGOFLAG) go test -tags=webassets_embed ./e2e/web_e2e_test.go
+
+.PHONY: gen-resource-docs
+gen-resource-docs:
+	cd build.assets/tooling/cmd/resource-ref-generator && go run . -config config.yaml
