@@ -3149,9 +3149,10 @@ func (process *TeleportProcess) initSSH() error {
 		var resumableServer *resumption.SSHServerWrapper
 		if os.Getenv("TELEPORT_UNSTABLE_DISABLE_SSH_RESUMPTION") == "" {
 			resumableServer = resumption.NewSSHServerWrapper(resumption.SSHServerWrapperConfig{
-				SSHServer: s.HandleConnection,
-				HostID:    serverID,
-				DataDir:   cfg.DataDir,
+				SSHServer:        s.HandleConnection,
+				SSHStapledServer: s.HandleStapledConnection,
+				HostID:           serverID,
+				DataDir:          cfg.DataDir,
 			})
 
 			go func() {

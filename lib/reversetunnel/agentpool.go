@@ -70,6 +70,10 @@ type ServerHandler interface {
 	HandleConnection(conn net.Conn)
 }
 
+type StapledServerHandler interface {
+	HandleStapledConnection(conn net.Conn, stapled []byte)
+}
+
 type newAgentFunc func(context.Context, *track.Tracker, *track.Lease) (Agent, error)
 
 // AgentPool manages a pool of reverse tunnel agents.
@@ -119,6 +123,9 @@ type AgentPoolConfig struct {
 	// Server is either an SSH or application server. It can handle a connection
 	// (perform handshake and handle request).
 	Server ServerHandler
+
+	StapledServer StapledServerHandler
+
 	// Component is the Teleport component this agent pool is running in. It can
 	// either be proxy (trusted clusters) or node (dial back).
 	Component string
@@ -606,6 +613,11 @@ func (p *AgentPool) handleLocalTransport(ctx context.Context, channel ssh.Channe
 	}
 	if src, err := utils.ParseAddr(dialReq.ClientSrcAddr); err == nil {
 		conn = utils.NewConnWithSrcAddr(conn, getTCPAddr(src))
+	}
+
+	if p.StapledServer != nil && len(dialReq.Permit) > 0 {
+		p.StapledServer.HandleStapledConnection(conn, dialReq.Permit)
+		return
 	}
 
 	p.Server.HandleConnection(conn)

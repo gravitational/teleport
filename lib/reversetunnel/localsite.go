@@ -658,6 +658,7 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 		ConnType:      params.ConnType,
 		ClientSrcAddr: stringOrEmpty(params.From),
 		ClientDstAddr: stringOrEmpty(params.OriginalClientDstAddr),
+		Permit:        params.Permit,
 	}
 	if params.To != nil {
 		dreq.Address = params.To.String()

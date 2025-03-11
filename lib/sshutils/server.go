@@ -694,6 +694,12 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	}
 }
 
+func (s *Server) HandleStapledConnection(conn net.Conn, permit []byte) {
+	// TODO: unmarshal and use the permit
+	s.logger.ErrorContext(context.TODO(), "=== GOT STAPLED CONNECTION, PROCEEDING NORMALLY ===", "permit", permit)
+	s.HandleConnection(conn)
+}
+
 type RequestHandler interface {
 	HandleRequest(ctx context.Context, ccx *ConnectionContext, r *ssh.Request)
 }

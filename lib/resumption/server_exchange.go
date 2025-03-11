@@ -49,7 +49,7 @@ const (
 // handleResumptionExchangeV1 takes over after having sent the magic server
 // version with the ECDH key in dhKey and right after receiving the v1 client
 // prelude (but no other data).
-func (r *SSHServerWrapper) handleResumptionExchangeV1(conn *multiplexer.Conn, dhKey *ecdh.PrivateKey) {
+func (r *SSHServerWrapper) handleResumptionExchangeV1(conn *multiplexer.Conn, maybePermit *[]byte, dhKey *ecdh.PrivateKey) {
 	defer conn.Close()
 
 	const ecdhP256UncompressedSize = 65
@@ -134,7 +134,7 @@ func (r *SSHServerWrapper) handleResumptionExchangeV1(conn *multiplexer.Conn, dh
 			}()
 			defer entry.increaseRunning() // stop grace timeouts
 			slog.InfoContext(context.TODO(), "handing resumable connection to the SSH server")
-			r.sshServer(resumableConn)
+			r.runConn(resumableConn, maybePermit)
 		}()
 
 		entry.increaseRunning()

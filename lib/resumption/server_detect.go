@@ -65,6 +65,8 @@ type SSHServerWrapperConfig struct {
 	// the server should use the overridden server version.
 	SSHServer func(net.Conn)
 
+	SSHStapledServer func(net.Conn, []byte)
+
 	// HostID is the host ID of the Teleport instance running the server;
 	// compliant connection resumption clients will reconnect to the host ID
 	// expecting to reach the instance.
@@ -78,9 +80,10 @@ type SSHServerWrapperConfig struct {
 // NewSSHServerWrapper creates a [SSHServerWrapper].
 func NewSSHServerWrapper(cfg SSHServerWrapperConfig) *SSHServerWrapper {
 	return &SSHServerWrapper{
-		sshServer: cfg.SSHServer,
-		hostID:    cfg.HostID,
-		dataDir:   cfg.DataDir,
+		sshServer:        cfg.SSHServer,
+		sshStapledServer: cfg.SSHStapledServer,
+		hostID:           cfg.HostID,
+		dataDir:          cfg.DataDir,
 
 		conns: make(map[resumptionToken]*connEntry),
 	}
@@ -93,13 +96,22 @@ type resumptionToken = [16]byte
 // active underlying connection for a given time ([detachedTimeout]) are
 // forcibly closed.
 type SSHServerWrapper struct {
-	sshServer func(net.Conn)
+	sshServer        func(net.Conn)
+	sshStapledServer func(net.Conn, []byte)
 
 	hostID  string
 	dataDir string
 
 	mu    sync.Mutex
 	conns map[resumptionToken]*connEntry
+}
+
+func (r *SSHServerWrapper) runConn(nc net.Conn, maybePermit *[]byte) {
+	if r.sshStapledServer != nil && maybePermit != nil {
+		r.sshStapledServer(nc, *maybePermit)
+		return
+	}
+	r.sshServer(nc)
 }
 
 type connEntry struct {
@@ -171,7 +183,8 @@ func (r *SSHServerWrapper) PreDetect(nc net.Conn) (multiplexer.PostDetectFunc, e
 		slog.DebugContext(context.TODO(), "proceeding with connection resumption exchange")
 		// this is the post detect hook in the multiplexer, we return nil here
 		// to signify that the connection has been hijacked
-		r.handleResumptionExchangeV1(conn, dhKey)
+		var maybePermitNil *[]byte
+		r.handleResumptionExchangeV1(conn, maybePermitNil, dhKey)
 		return nil
 	}, nil
 }
@@ -183,10 +196,19 @@ var _ multiplexer.PreDetectFunc = (*SSHServerWrapper)(nil).PreDetect
 // running the connection as a resumable connection if that's the case, or
 // handing the connection to the underlying SSH server otherwise.
 func (r *SSHServerWrapper) HandleConnection(nc net.Conn) {
+	var maybePermitNil *[]byte
+	r.handleConnection(nc, maybePermitNil)
+}
+
+func (r *SSHServerWrapper) HandleStapledConnection(nc net.Conn, permit []byte) {
+	r.handleConnection(nc, &permit)
+}
+
+func (r *SSHServerWrapper) handleConnection(nc net.Conn, maybePermit *[]byte) {
 	dhKey, err := ecdh.P256().GenerateKey(rand.Reader)
 	if err != nil {
 		slog.ErrorContext(context.TODO(), "failed to generate ECDH key, proceeding without resumption (this is a bug)", "error", err)
-		r.sshServer(nc)
+		r.runConn(nc, maybePermit)
 		return
 	}
 
@@ -212,12 +234,12 @@ func (r *SSHServerWrapper) HandleConnection(nc net.Conn) {
 
 	if !isResumeV1 {
 		slog.DebugContext(context.TODO(), "returning non-resumable connection to multiplexer")
-		r.sshServer(&sshVersionSkipConn{
+		r.runConn(&sshVersionSkipConn{
 			Conn: conn,
 
 			serverVersion:  serverVersionCRLF[:len(serverVersionCRLF)-2],
 			alreadyWritten: serverVersionCRLF,
-		})
+		}, maybePermit)
 		return
 	}
 
@@ -225,5 +247,5 @@ func (r *SSHServerWrapper) HandleConnection(nc net.Conn) {
 	_, _ = conn.Discard(len(clientPreludeV1))
 
 	slog.DebugContext(context.TODO(), "proceeding with connection resumption exchange")
-	r.handleResumptionExchangeV1(conn, dhKey)
+	r.handleResumptionExchangeV1(conn, maybePermit, dhKey)
 }

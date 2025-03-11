@@ -432,6 +432,10 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	s.srv.HandleConnection(conn)
 }
 
+func (s *Server) HandleStapledConnection(conn net.Conn, permit []byte) {
+	s.srv.HandleStapledConnection(conn, permit)
+}
+
 // SetUserAccountingPaths is a functional server option to override the user accounting database and log path.
 func SetUserAccountingPaths(utmpPath, wtmpPath, btmpPath string) ServerOption {
 	return func(s *Server) error {

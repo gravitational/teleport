@@ -104,6 +104,8 @@ type DialReq struct {
 
 	// IsAgentlessNode specifies whether the target is an agentless node.
 	IsAgentlessNode bool `json:"is_agentless_node,omitempty"`
+
+	Permit []byte `json:"permit,omitempty"`
 }
 
 // CheckAndSetDefaults verifies all the values are valid.
