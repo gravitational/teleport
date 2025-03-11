@@ -887,18 +887,20 @@ func (u *Updater) Setup(ctx context.Context, path string, restart bool) error {
 		return trace.Wrap(err, "failed to setup updater")
 	}
 
+	if ok, err := hasSystemD(); err == nil && !ok {
+		u.Log.WarnContext(ctx, "Skipping all systemd setup because systemd is not running.")
+		return nil
+	}
+
 	present, err := u.Process.IsPresent(ctx)
 	if errors.Is(err, context.Canceled) {
 		return trace.Errorf("config check canceled")
 	}
 	if errors.Is(err, ErrNotSupported) {
-		u.Log.WarnContext(ctx, "Skipping all systemd setup because systemd is not running.")
-		return nil
-	}
-	if err != nil {
+		u.Log.DebugContext(ctx, "Systemd version is outdated. Skipping SELinux verification.")
+	} else if err != nil {
 		return trace.Wrap(err, "failed to determine if new version of Teleport has an installed systemd service")
-	}
-	if !present {
+	} else if !present {
 		return trace.Errorf("cannot find systemd service for new version of Teleport, check SELinux settings")
 	}
 
