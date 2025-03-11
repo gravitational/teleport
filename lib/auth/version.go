@@ -24,6 +24,8 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/services"
 )
 
 const (
@@ -37,7 +39,7 @@ const (
 func validateAndUpdateTeleportVersion(
 	ctx context.Context,
 	procStorage VersionStorage,
-	backendStorage VersionStorage,
+	backendStorage services.AuthInfoService,
 	serverID string,
 	currentVersion *semver.Version,
 ) error {
@@ -45,11 +47,26 @@ func validateAndUpdateTeleportVersion(
 		return nil
 	}
 
-	lastKnownVersion, err := backendStorage.GetTeleportVersion(ctx, serverID)
-	if trace.IsNotFound(err) {
+	servers, err := backendStorage.GetAuthInfoList(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	minVersion, maxVersion := currentVersion, currentVersion
+	for _, server := range servers {
+		if v, err := semver.NewVersion(server.GetSpec().GetTeleportVersion()); err == nil {
+			if v.Compare(*minVersion) < 0 {
+				minVersion = v
+			}
+			if v.Compare(*maxVersion) > 0 {
+				maxVersion = v
+			}
+		}
+	}
+
+	if len(servers) == 0 {
 		// TODO(vapopov): DELETE IN v19.0.0 last known version must be already migrated to backed storage.
 		// Fallback to local process storage for backward compatibility with previous versions.
-		lastKnownVersion, err = procStorage.GetTeleportVersion(ctx, serverID)
+		lastKnownVersion, err := procStorage.GetTeleportVersion(ctx)
 		if trace.IsNotFound(err) {
 			if err := backendStorage.WriteTeleportVersion(ctx, serverID, currentVersion); err != nil {
 				return trace.Wrap(err)
@@ -58,28 +75,27 @@ func validateAndUpdateTeleportVersion(
 		} else if err != nil {
 			return trace.Wrap(err)
 		}
+		minVersion, maxVersion = lastKnownVersion, lastKnownVersion
 
 		// Preserve last known version from process storage to backed storage.
 		if err := backendStorage.WriteTeleportVersion(ctx, serverID, lastKnownVersion); err != nil {
 			return trace.Wrap(err)
 		}
-	} else if err != nil {
-		return trace.Wrap(err)
 	}
 
-	if currentVersion.Major-lastKnownVersion.Major > 1 {
+	if currentVersion.Major-minVersion.Major > 1 {
 		return trace.BadParameter("Unsupported upgrade path detected: from %v to %v. "+
 			"Teleport supports direct upgrades to the next major version only.\n Please upgrade "+
 			"your cluster to version %d.x.x first. See compatibility guarantees for details: "+
 			"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
-			lastKnownVersion, currentVersion.String(), lastKnownVersion.Major+1)
+			minVersion, currentVersion.String(), minVersion.Major+1)
 	}
-	if lastKnownVersion.Major-currentVersion.Major > 1 {
+	if maxVersion.Major-currentVersion.Major > 1 {
 		return trace.BadParameter("Unsupported downgrade path detected: from %v to %v. "+
 			"Teleport doesn't support major version downgrade.\n Please downgrade "+
 			"your cluster to version %d.x.x first. See compatibility guarantees for details: "+
 			"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
-			lastKnownVersion, currentVersion.String(), lastKnownVersion.Major-1)
+			maxVersion, currentVersion.String(), maxVersion.Major-1)
 	}
 
 	if err := backendStorage.WriteTeleportVersion(ctx, serverID, currentVersion); err != nil {

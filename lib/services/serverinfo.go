@@ -22,6 +22,8 @@ import (
 	"context"
 
 	"github.com/coreos/go-semver/semver"
+
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/authinfo/v1"
 )
 
 // AuthInfoService stores information about auth server.
@@ -30,4 +32,6 @@ type AuthInfoService interface {
 	GetTeleportVersion(ctx context.Context, serverID string) (*semver.Version, error)
 	// WriteTeleportVersion writes the last known Teleport version to the storage.
 	WriteTeleportVersion(ctx context.Context, serverID string, version *semver.Version) error
+	// GetAuthInfoList returns list of all registered auth servers in cluster.
+	GetAuthInfoList(ctx context.Context) ([]*authinfo.AuthInfo, error)
 }

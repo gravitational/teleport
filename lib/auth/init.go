@@ -81,9 +81,9 @@ var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.Component
 // VersionStorage local storage for saving the version.
 type VersionStorage interface {
 	// GetTeleportVersion reads the last known Teleport version from storage.
-	GetTeleportVersion(ctx context.Context, serverID string) (*semver.Version, error)
+	GetTeleportVersion(ctx context.Context) (*semver.Version, error)
 	// WriteTeleportVersion writes the last known Teleport version to the storage.
-	WriteTeleportVersion(ctx context.Context, serverID string, version *semver.Version) error
+	WriteTeleportVersion(ctx context.Context, version *semver.Version) error
 }
 
 // InitConfig is auth server init config

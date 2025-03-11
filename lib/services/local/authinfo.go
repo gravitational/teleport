@@ -112,3 +112,26 @@ func (s *AuthInfoService) WriteTeleportVersion(ctx context.Context, serverID str
 
 	return nil
 }
+
+// GetAuthInfoList returns list of all registered auth servers in cluster.
+func (s *AuthInfoService) GetAuthInfoList(ctx context.Context) ([]*authinfo.AuthInfo, error) {
+	startKey := backend.ExactKey(authInfoPrefix)
+	endKey := backend.RangeEnd(startKey)
+	result, err := s.backed.GetRange(ctx, startKey, endKey, backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers := make([]*authinfo.AuthInfo, len(result.Items))
+	for i, item := range result.Items {
+		info, err := services.UnmarshalProtoResource[*authinfo.AuthInfo](item.Value)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := authinfotype.ValidateAuthInfo(info); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		servers[i] = info
+	}
+
+	return servers, nil
+}
