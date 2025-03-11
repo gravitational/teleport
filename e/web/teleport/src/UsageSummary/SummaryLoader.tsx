@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
-import { Alert, Box, Flex, Indicator, Text } from 'design';
-import { Info } from 'design/Icon';
+import { Alert, Box, Flex, Indicator } from 'design';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { UsageSummary } from 'e-teleport/services/cloud/v1/tenants_pb';
@@ -13,6 +12,12 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+import {
+  InfoGuideWrapper,
+  InfoParagraph,
+  InfoTitle,
+  ReferenceLinks,
+} from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import { useNoMinWidth } from 'teleport/Main';
 
 export const SummaryLoader = (): React.ReactElement => {
@@ -35,8 +40,9 @@ export const SummaryLoader = (): React.ReactElement => {
       <StyledContainer>
         <FeatureBox>
           <Box>
-            <FeatureHeader alignItems="center">
-              <FeatureHeaderTitle mr="8">Billing Summary</FeatureHeaderTitle>
+            <FeatureHeader alignItems="center" justifyContent="space-between">
+              <FeatureHeaderTitle>Billing Summary</FeatureHeaderTitle>
+              <InfoGuideWrapper guide={<InfoGuide />} />
             </FeatureHeader>
 
             {attempt.status === 'failed' && (
@@ -53,7 +59,6 @@ export const SummaryLoader = (): React.ReactElement => {
             )}
           </Box>
         </FeatureBox>
-        <InfoGuide />
       </StyledContainer>
     </Box>
   );
@@ -73,10 +78,7 @@ const StyledContainer = styled(Flex)`
 
 function InfoGuide() {
   return (
-    <InfoGuideContainer>
-      <Flex alignItems="flex-start" mb="3">
-        <Info mr="2" /> <Text bold>Info Guide</Text>
-      </Flex>
+    <Box>
       <InfoTitle>How are Monthly Active Users (MAU) calculated?</InfoTitle>
       <InfoParagraph>
         Monthly Active Users (MAU) is the aggregate number of unique active
@@ -89,40 +91,27 @@ function InfoGuide() {
         Teleport Protected Resources (TPR) is an averaged aggregate number of
         unique resources connected to Teleport.
       </InfoParagraph>
-      <InfoParagraph mt="2">
-        A "resource" is any unique bot, such as a CI/CD Jenkins or GitHub
-        Actions job, or a distinct computing resource, including a Kubernetes
-        cluster, SSH server, database instance, or serverless endpoint, that
-        registers with the Teleport cluster at least once a month.
+      <InfoParagraph>
+        A &quot;resource&quot; is any unique bot, such as a CI/CD Jenkins or
+        GitHub Actions job, or a distinct computing resource, including a
+        Kubernetes cluster, SSH server, database instance, or serverless
+        endpoint, that registers with the Teleport cluster at least once a
+        month.
       </InfoParagraph>
-      <InfoParagraph mt="2">
+      <InfoParagraph>
         TPR is calculated by aggregating the total number of unique resources
         during the span of each hour in the day, and averaging the hourly count
         to create a daily TPR. The daily TPRs are then averaged across each
         billing period.
       </InfoParagraph>
-    </InfoGuideContainer>
+      <ReferenceLinks
+        links={[
+          {
+            title: 'Usage Reporting and Billing',
+            href: 'https://goteleport.com/docs/usage-billing/',
+          },
+        ]}
+      />
+    </Box>
   );
 }
-
-const InfoGuideContainer = styled(Flex)`
-  flex-direction: column;
-  padding-left: ${({ theme }) => theme.space[6]}px;
-  @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
-    border: none;
-    border-left: 1px solid ${p => p.theme.colors.interactive.tonal.neutral[0]};
-    width: 400px;
-    height: 100%;
-    padding: ${({ theme }) => theme.space[3]}px;
-  }
-`;
-
-const InfoTitle = styled(Text)`
-  font-weight: 700;
-  margin-bottom: ${p => p.theme.space[1]}px;
-`;
-
-const InfoParagraph = styled(Text)`
-  font-weight: 200;
-  margin-bottom: ${p => p.theme.space[3]}px;
-`;

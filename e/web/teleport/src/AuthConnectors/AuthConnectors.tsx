@@ -1,25 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useHistory } from 'react-router';
 
-import { Alert, Box, Flex, H3, Indicator, Text } from 'design';
-import { H2, P } from 'design/Text/Text';
+import { Alert, Box, Flex, Indicator } from 'design';
+import { H2 } from 'design/Text/Text';
 import { useAsync } from 'shared/hooks/useAsync';
 
 import cfg from 'e-teleport/config';
 import useTeleportE from 'e-teleport/useTeleportE';
+import { InfoGuide } from 'teleport/AuthConnectors/AuthConnectors';
 import {
   ConnectorList,
   CtaConnectors,
 } from 'teleport/AuthConnectors/ConnectorList';
 import DeleteConnectorDialog from 'teleport/AuthConnectors/DeleteConnectorDialog';
 import {
-  DesktopDescription,
-  MobileDescription,
   ResponsiveAddButton,
   ResponsiveFeatureHeader,
 } from 'teleport/AuthConnectors/styles/AuthConnectors.styles';
 import { FeatureBox, FeatureHeaderTitle } from 'teleport/components/Layout';
 import { Route, Switch } from 'teleport/components/Router';
+import { InfoGuideWrapper } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import useResources from 'teleport/components/useResources';
 import {
   DefaultAuthConnector,
@@ -33,9 +33,6 @@ import {
 } from './AddNewConnectorList/AddNewConnectorList';
 import { AuthConnectorEditor } from './AuthConnectorEditor';
 import templates from './templates';
-
-export const description =
-  'Auth connectors allow Teleport to authenticate users via an external identity source such as Okta, Microsoft Entra ID, GitHub, etc. This authentication method is commonly known as single sign-on (SSO).';
 
 export default function AuthConnectorsContainer() {
   return (
@@ -136,14 +133,15 @@ export function AuthConnectors() {
     <FeatureBox>
       <ResponsiveFeatureHeader>
         <FeatureHeaderTitle>Auth Connectors</FeatureHeaderTitle>
-        <MobileDescription>{description}</MobileDescription>
         {(!showAuthConnectorsCTA || !isEmpty) && (
-          <ResponsiveAddButton
-            fill="border"
-            onClick={() => history.push(cfg.routes.ssoNewConnectorList)}
-          >
-            Add Auth Connector
-          </ResponsiveAddButton>
+          <InfoGuideWrapper guide={<InfoGuide />}>
+            <ResponsiveAddButton
+              fill="border"
+              onClick={() => history.push(cfg.routes.ssoNewConnectorList)}
+            >
+              Add Auth Connector
+            </ResponsiveAddButton>
+          </InfoGuideWrapper>
         )}
       </ResponsiveFeatureHeader>
       {fetchAttempt.status === 'error' && (
@@ -180,22 +178,6 @@ export function AuthConnectors() {
             )}
             {showAuthConnectorsCTA && <CtaConnectors />}
           </Flex>
-          <DesktopDescription>
-            <H3 mb={3}>Auth Connectors</H3>
-            <P>{description}</P>
-            <P>
-              Please{' '}
-              <Text
-                as="a"
-                color="text.main"
-                href="https://goteleport.com/docs/admin-guides/access-controls/sso/"
-                target="_blank"
-              >
-                view our documentation
-              </Text>{' '}
-              for samples of each connector.
-            </P>
-          </DesktopDescription>
         </Flex>
       )}
       {resources.status === 'removing' && (
