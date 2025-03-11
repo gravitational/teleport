@@ -387,7 +387,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 
 	// Iterate over types.JoinMethods and append new methods to joinMethods
 	joinMethods := make([]string, 0, len(types.JoinMethods))
-        for _, m := range types.JoinMethods {
+	for _, m := range types.JoinMethods {
 		joinMethods = append(joinMethods, string(m))
 	}
 	// dump flags
