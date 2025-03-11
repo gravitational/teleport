@@ -70,6 +70,7 @@ export default function makeSession(json): Session {
 export function makeParticipant(json): Participant {
   return {
     user: json.user,
+    mode: json.mode,
   };
 }
 

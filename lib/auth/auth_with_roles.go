@@ -310,6 +310,7 @@ func (a *ServerWithRoles) filterSessionTracker(joinerRoles []types.Role, tracker
 			// We only need to fill in User here since other fields get discarded anyway.
 			ruleCtx.SSHSession.Parties = append(ruleCtx.SSHSession.Parties, session.Party{
 				User: participant.User,
+				Mode: participant.Mode,
 			})
 		}
 

@@ -18,6 +18,7 @@
 
 export interface Participant {
   user: string;
+  mode: string;
 }
 
 export interface Session {

@@ -170,6 +170,8 @@ type Party struct {
 	RemoteAddr string `json:"remote_addr"`
 	// User is a teleport user using this session
 	User string `json:"user"`
+	// Mode is the participant mode (peer, observer, or moderator)
+	Mode string `json:"mode"`
 	// ServerID is an address of the server
 	ServerID string `json:"server_id"`
 	// LastActive is a last time this party was active
