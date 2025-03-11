@@ -418,7 +418,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("data-dir", "Path to a directory where Teleport keep its data.").Default(defaults.DataDir).StringVar(&dumpFlags.DataDir)
 	dump.Flag("token", "Invitation token or path to file with token value to register with an auth server.").StringVar(&dumpFlags.AuthToken)
 	dump.Flag("join-method", fmt.Sprintf("Method to use to join the cluster (%s)", strings.Join(joinMethods, ", "))).Default("token").EnumVar(&dumpFlags.JoinMethod, joinMethods...)
- 	dump.Flag("roles", "Comma-separated list of roles to create config with.").StringVar(&dumpFlags.Roles)
 	dump.Flag("roles", "Comma-separated list of roles to create config with.").StringVar(&dumpFlags.Roles)
 	dump.Flag("auth-server", "Address of the auth server.").StringVar(&dumpFlags.AuthServer)
 	dump.Flag("proxy", "Address of the proxy.").StringVar(&dumpFlags.ProxyAddress)
