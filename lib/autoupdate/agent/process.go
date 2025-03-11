@@ -372,7 +372,8 @@ func (s SystemdService) Enable(ctx context.Context, now bool) error {
 	if err := s.checkSystem(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	// The --now flag is not supported in systemd versions older than 219.
+	// The --now flag is not supported in systemd versions older than 219,
+	// so perform enable + start commands instead.
 	code := s.systemctl(ctx, slog.LevelInfo, "enable", s.ServiceName)
 	if code != 0 {
 		return trace.Errorf("unable to enable systemd service")
@@ -487,10 +488,8 @@ func hasSystemDBelow(ctx context.Context, i int) bool {
 	if err != nil {
 		return false
 	}
-	if v, ok := parseSystemDVersion(out); ok && v < i {
-		return true
-	}
-	return false
+	v, ok := parseSystemDVersion(out)
+	return ok && v < i
 }
 
 // parseSystemDVersion parses the SystemD version from systemctl command output.
