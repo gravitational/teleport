@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ButtonPrimary } from 'design';
+import { ButtonPrimary, ButtonSecondary } from 'design';
 import Table, { Cell, TextCell } from 'design/DataTable';
 import * as Icons from 'design/Icon';
 import { dateTimeMatcher } from 'design/utils/match';
@@ -33,6 +33,7 @@ export default function RecordingsList(props: Props) {
     pageSize = 50,
     fetchMore,
     fetchStatus,
+    onSummarize,
   } = props;
 
   return (
@@ -73,6 +74,10 @@ export default function RecordingsList(props: Props) {
         {
           key: 'sid',
           headerText: 'Session ID',
+        },
+        {
+          altKey: 'summarize',
+          render: recording => renderSummarizeCell(recording, onSummarize),
         },
         {
           altKey: 'play-btn',
@@ -152,10 +157,24 @@ const renderPlayCell = (
   );
 };
 
+const renderSummarizeCell = (
+  { sid, summary }: Recording,
+  onSummarize: (sessionId: string) => void
+) => (
+  <Cell>
+    {summary && (
+      <ButtonSecondary size="small" onClick={() => onSummarize(sid)}>
+        Summary
+      </ButtonSecondary>
+    )}
+  </Cell>
+);
+
 type Props = {
   pageSize?: number;
   recordings: State['recordings'];
   clusterId: State['clusterId'];
   fetchMore: State['fetchMore'];
   fetchStatus: State['fetchStatus'];
+  onSummarize(sessionId: string): void;
 };

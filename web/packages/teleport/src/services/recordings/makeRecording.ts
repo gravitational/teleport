@@ -77,6 +77,7 @@ function makeSshOrKubeRecording({
   kubernetes_cluster = '',
   kubernetes_pod_namespace = '',
   kubernetes_pod_name = '',
+  summary = '',
 }): Recording {
   const { duration, durationText } = formatDuration(
     session_start,
@@ -110,6 +111,7 @@ function makeSshOrKubeRecording({
     description,
     recordingType: kubernetes_cluster ? 'k8s' : 'ssh',
     playable,
+    summary,
   } as Recording;
 }
 

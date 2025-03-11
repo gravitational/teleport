@@ -4109,6 +4109,7 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 //	            for ascending and descending respectively.
 //	            If no order is provided it defaults to descending.
 func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	ctx := r.Context()
 	searchSessionEvents := func(clt authclient.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 		return clt.SearchSessionEvents(r.Context(), events.SearchSessionEventsRequest{
 			From:     from,
@@ -4118,12 +4119,28 @@ func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Requ
 			StartKey: startKey,
 		})
 	}
-	return clusterEventsList(r.Context(), sctx, site, r.URL.Query(), searchSessionEvents)
+	eventsList, err := clusterEventsList(ctx, sctx, site, r.URL.Query(), searchSessionEvents)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// var ids []string
+	// for _, e := range eventsList.Events {
+	// 	ids = append(ids, e.GetString(events.SessionEventID))
+	// }
+
+	for i := range eventsList.Events {
+		if i%2 == 0 {
+			eventsList.Events[i]["summary"] = fmt.Sprintf("Dummy summary %d", i)
+		}
+	}
+
+	return eventsList, nil
 }
 
 // clusterEventsList returns a list of audit events obtained using the provided
 // searchEvents method.
-func clusterEventsList(ctx context.Context, sctx *SessionContext, site reversetunnelclient.RemoteSite, values url.Values, searchEvents func(clt authclient.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)) (interface{}, error) {
+func clusterEventsList(ctx context.Context, sctx *SessionContext, site reversetunnelclient.RemoteSite, values url.Values, searchEvents func(clt authclient.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)) (*eventsListGetResponse, error) {
 	from, err := queryTime(values, "from", time.Now().UTC().AddDate(0, -1, 0))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4161,7 +4178,7 @@ func clusterEventsList(ctx context.Context, sctx *SessionContext, site reversetu
 		return nil, trace.Wrap(err)
 	}
 
-	return eventsListGetResponse{Events: el, StartKey: lastKey}, nil
+	return &eventsListGetResponse{Events: el, StartKey: lastKey}, nil
 }
 
 // queryTime parses the query string parameter with the specified name as a

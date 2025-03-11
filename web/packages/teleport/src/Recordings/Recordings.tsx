@@ -17,9 +17,11 @@
  */
 
 import { useState } from 'react';
+import { useTheme } from 'styled-components';
 
-import { Box, Indicator } from 'design';
+import { Box, ButtonIcon, Flex, H2, Indicator } from 'design';
 import { Danger } from 'design/Alert';
+import { Cross } from 'design/Icon';
 import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 
 import { ExternalAuditStorageCta } from '@gravitational/teleport/src/components/ExternalAuditStorageCta';
@@ -52,6 +54,17 @@ export function Recordings({
   ctx,
 }: State) {
   const [errorMessage, setErrorMessage] = useState('');
+  const [summary, setSummary] = useState('');
+  const theme = useTheme();
+
+  function handleSummarize(sessionId: string) {
+    setSummary(recordings.find(s => s.sid === sessionId)?.summary ?? '');
+  }
+
+  function closeSummary() {
+    setSummary('');
+  }
+
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center">
@@ -80,12 +93,34 @@ export function Recordings({
         </Box>
       )}
       {attempt.status === 'success' && (
-        <RecordingsList
-          recordings={recordings}
-          clusterId={clusterId}
-          fetchMore={fetchMore}
-          fetchStatus={fetchStatus}
-        />
+        <Flex>
+          <Box flex="2">
+            <RecordingsList
+              recordings={recordings}
+              clusterId={clusterId}
+              fetchMore={fetchMore}
+              fetchStatus={fetchStatus}
+              onSummarize={handleSummarize}
+            />
+          </Box>
+          {summary && (
+            <Box
+              flex="1"
+              borderLeft={1}
+              borderColor={theme.colors.interactive.tonal.neutral[0]}
+              marginLeft={3}
+              paddingLeft={3}
+            >
+              <Flex gap={2} alignItems="center">
+                <ButtonIcon onClick={closeSummary}>
+                  <Cross size="medium" />
+                </ButtonIcon>
+                <H2>Session Summary</H2>
+              </Flex>
+              {summary}
+            </Box>
+          )}
+        </Flex>
       )}
     </FeatureBox>
   );

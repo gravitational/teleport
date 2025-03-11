@@ -40,4 +40,5 @@ export type Recording = {
   description: string;
   recordingType: RecordingType;
   playable: boolean;
+  summary: string;
 };
