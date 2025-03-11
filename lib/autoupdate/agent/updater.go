@@ -459,6 +459,8 @@ func (u *Updater) Remove(ctx context.Context, force bool) error {
 		if u.TeleportServiceName == serviceName && !force {
 			u.Log.ErrorContext(ctx, "Default Teleport systemd service would be removed, and --force was not passed. Refusing to remove Teleport from this system.")
 			return trace.Errorf("unable to remove Teleport completely without --force")
+		} else {
+			u.Log.WarnContext(ctx, "Default Teleport systemd service would be removed since --force was passed. Teleport will be removed from this system.")
 		}
 		return u.removeWithoutSystem(ctx, cfg)
 	}
