@@ -86,11 +86,6 @@ func warnUmask(ctx context.Context, log *slog.Logger, old int) {
 	}
 }
 
-var (
-	// ErrNotInstalled is returned when Teleport is not installed.
-	ErrNotInstalled = trace.Errorf("not installed")
-)
-
 // NewLocalUpdater returns a new Updater that auto-updates local
 // installations of the Teleport agent.
 // The AutoUpdater uses an HTTP client with sane defaults for downloads, and
@@ -283,6 +278,8 @@ var (
 	ErrNoBinaries = errors.New("no binaries available to link")
 	// ErrFilePresent is returned when a file is present.
 	ErrFilePresent = errors.New("file present")
+	// ErrNotInstalled is returned when Teleport is not installed.
+	ErrNotInstalled = trace.Errorf("not installed")
 )
 
 // Process provides an API for interacting with a running Teleport process.
