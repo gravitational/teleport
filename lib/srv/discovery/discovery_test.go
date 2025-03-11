@@ -27,6 +27,7 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -1197,12 +1198,17 @@ func TestDiscoveryKubeServices(t *testing.T) {
 
 	appProtocolHTTP := "http"
 	mockKubeServices := []*corev1.Service{
-		newMockKubeService("service1", "ns1", "", map[string]string{"test-label": "testval"}, map[string]string{types.DiscoveryPublicAddr: "custom.example.com"},
+		newMockKubeService("service1", "ns1", "",
+			map[string]string{"test-label": "testval"},
+			map[string]string{types.DiscoveryPublicAddr: "custom.example.com", types.DiscoveryPathLabel: "foo/bar"},
 			[]corev1.ServicePort{{Port: 42, Name: "http", Protocol: corev1.ProtocolTCP}}),
-		newMockKubeService("service2", "ns2", "", map[string]string{
-			"test-label":  "testval",
-			"test-label2": "testval2",
-		}, nil, []corev1.ServicePort{{Port: 42, Name: "custom", AppProtocol: &appProtocolHTTP, Protocol: corev1.ProtocolTCP}}),
+		newMockKubeService("service2", "ns2", "",
+			map[string]string{
+				"test-label":  "testval",
+				"test-label2": "testval2",
+			},
+			nil,
+			[]corev1.ServicePort{{Port: 42, Name: "custom", AppProtocol: &appProtocolHTTP, Protocol: corev1.ProtocolTCP}}),
 	}
 
 	app1 := mustConvertKubeServiceToApp(t, mainDiscoveryGroup, "http", mockKubeServices[0], mockKubeServices[0].Spec.Ports[0])
@@ -2047,6 +2053,9 @@ func mustConvertKubeServiceToApp(t *testing.T, discoveryGroup, protocol string, 
 	app, err := services.NewApplicationFromKubeService(*kubeService, discoveryGroup, protocol, port)
 	require.NoError(t, err)
 	require.Equal(t, kubeService.Annotations[types.DiscoveryPublicAddr], app.GetPublicAddr())
+	if path, ok := kubeService.Annotations[types.DiscoveryPathLabel]; ok {
+		require.True(t, strings.HasSuffix(app.GetURI(), "/"+path))
+	}
 
 	app.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	app.GetStaticLabels()[types.OriginLabel] = types.OriginDiscoveryKubernetes
