@@ -19,7 +19,7 @@ package teleport.accesslist.v1;
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/accesslist/v1/accesslist.proto";
-import "teleport/legacy/types/types.proto";
+//import "teleport/legacy/types/types.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1;accesslistv1";
 
@@ -400,7 +400,7 @@ message AccessRequestPromoteRequest {
 // to an access list.
 message AccessRequestPromoteResponse {
   // AccessRequest is the updated access request.
-  types.AccessRequestV3 access_request = 1;
+  //  types.AccessRequestV3 access_request = 1;
 }
 
 // GetSuggestedAccessListsRequest is the request for suggested access lists for

@@ -29,7 +29,6 @@ import type { IBinaryReader } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
-import { AccessRequestV3 } from "../../legacy/types/types_pb";
 import { Timestamp } from "../../../google/protobuf/timestamp_pb";
 import { Review } from "./accesslist_pb";
 import { AccessListOwner } from "./accesslist_pb";
@@ -648,15 +647,12 @@ export interface AccessRequestPromoteRequest {
  * AccessRequestPromoteResponse is the response for promoting an access request
  * to an access list.
  *
+ * AccessRequest is the updated access request.
+ *  types.AccessRequestV3 access_request = 1;
+ *
  * @generated from protobuf message teleport.accesslist.v1.AccessRequestPromoteResponse
  */
 export interface AccessRequestPromoteResponse {
-    /**
-     * AccessRequest is the updated access request.
-     *
-     * @generated from protobuf field: types.AccessRequestV3 access_request = 1;
-     */
-    accessRequest?: AccessRequestV3;
 }
 /**
  * GetSuggestedAccessListsRequest is the request for suggested access lists for
@@ -2499,9 +2495,7 @@ export const AccessRequestPromoteRequest = new AccessRequestPromoteRequest$Type(
 // @generated message type with reflection information, may provide speed optimized methods
 class AccessRequestPromoteResponse$Type extends MessageType<AccessRequestPromoteResponse> {
     constructor() {
-        super("teleport.accesslist.v1.AccessRequestPromoteResponse", [
-            { no: 1, name: "access_request", kind: "message", T: () => AccessRequestV3 }
-        ]);
+        super("teleport.accesslist.v1.AccessRequestPromoteResponse", []);
     }
     create(value?: PartialMessage<AccessRequestPromoteResponse>): AccessRequestPromoteResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
@@ -2510,28 +2504,9 @@ class AccessRequestPromoteResponse$Type extends MessageType<AccessRequestPromote
         return message;
     }
     internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessRequestPromoteResponse): AccessRequestPromoteResponse {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* types.AccessRequestV3 access_request */ 1:
-                    message.accessRequest = AccessRequestV3.internalBinaryRead(reader, reader.uint32(), options, message.accessRequest);
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
+        return target ?? this.create();
     }
     internalBinaryWrite(message: AccessRequestPromoteResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* types.AccessRequestV3 access_request = 1; */
-        if (message.accessRequest)
-            AccessRequestV3.internalBinaryWrite(message.accessRequest, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

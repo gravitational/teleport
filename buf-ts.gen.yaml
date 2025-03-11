@@ -14,6 +14,15 @@ inputs:
       - proto/teleport/lib/vnet/diag/
 
 plugins:
+  - remote: buf.build/connectrpc/swift
+    out: TeleportMenuBar/TeleportMenuBar/gen
+    opt:
+    - GenerateAsyncMethods=true
+    - GenerateCallbackMethods=true
+    - Visibility=Public
+  - remote: buf.build/apple/swift
+    out: TeleportMenuBar/TeleportMenuBar/gen
+    opt: Visibility=Public
   - local:
       - npm
       - exec
