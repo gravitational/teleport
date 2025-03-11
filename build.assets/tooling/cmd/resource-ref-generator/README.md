@@ -6,9 +6,10 @@ It uses the Teleport source as the basis for the guide.
 
 ## Usage
 
+From the root of your `gravitational/teleport` clone:
+
 ```
-$ cd build.assets/tooling/cmd/resource-ref-generator
-$ go run . -config config.yaml
+$ make gen-resource-docs
 ```
 
 ## How it works

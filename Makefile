@@ -2003,3 +2003,7 @@ gen-docs:
 	$(MAKE) -C integrations/operator crd-docs
 	$(MAKE) -C examples/chart render-chart-ref
 	$(MAKE) audit-event-reference
+
+.PHONY: gen-resource-docs
+gen-resource-docs:
+	cd build.assets/tooling/cmd/resource-ref-generator && go run . -config config.yaml
