@@ -394,6 +394,11 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	scpc.Flag("local-addr", "local address which accepted the request").StringVar(&scpFlags.LocalAddr)
 	scpc.Arg("target", "").StringsVar(&scpFlags.Target)
 
+	// Iterate over types.JoinMethods and append new methods to joinMethods
+	joinMethods := make([]string, 0, len(types.JoinMethods))
+        for _, m := range types.JoinMethods {
+		joinMethods = append(joinMethods, string(m))
+	}
 	// dump flags
 	dump.Flag("cluster-name",
 		"Unique cluster name, e.g. example.com.").StringVar(&dumpFlags.ClusterName)
@@ -411,7 +416,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("key-file", "Path to a TLS key file for the proxy.").ExistingFileVar(&dumpFlags.KeyFile)
 	dump.Flag("data-dir", "Path to a directory where Teleport keep its data.").Default(defaults.DataDir).StringVar(&dumpFlags.DataDir)
 	dump.Flag("token", "Invitation token or path to file with token value to register with an auth server.").StringVar(&dumpFlags.AuthToken)
-	dump.Flag("join-method", "Method to use to join the cluster (token, iam, ec2, kubernetes, azure, gcp, oracle, github, circleci, gitlab, tpm)").Default("token").EnumVar(&dumpFlags.JoinMethod, "token", "iam", "ec2", "kubernetes", "azure", "gcp", "oracle", "github", "circleci", "tpm")
+	dump.Flag("join-method", fmt.Sprintf("Method to use to join the cluster (%s)", strings.Join(joinMethods, ", "))).Default("token").EnumVar(&dumpFlags.JoinMethod, joinMethods...)
+ 	dump.Flag("roles", "Comma-separated list of roles to create config with.").StringVar(&dumpFlags.Roles)
 	dump.Flag("roles", "Comma-separated list of roles to create config with.").StringVar(&dumpFlags.Roles)
 	dump.Flag("auth-server", "Address of the auth server.").StringVar(&dumpFlags.AuthServer)
 	dump.Flag("proxy", "Address of the proxy.").StringVar(&dumpFlags.ProxyAddress)
@@ -437,7 +443,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dumpNodeConfigure.Flag("proxy", "Address of the proxy server.").StringVar(&dumpFlags.ProxyAddress)
 	dumpNodeConfigure.Flag("labels", "Comma-separated list of labels to add to newly created nodes ex) env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
 	dumpNodeConfigure.Flag("ca-pin", "Comma-separated list of SKPI hashes for the CA used to verify the auth server.").StringVar(&dumpFlags.CAPin)
-	dumpNodeConfigure.Flag("join-method", "Method to use to join the cluster (token, iam, ec2, kubernetes, azure, gcp, oracle, github, circleci, gitlab, tpm)").Default("token").EnumVar(&dumpFlags.JoinMethod, "token", "iam", "ec2", "kubernetes", "azure", "gcp", "oracle", "github", "circleci", "tpm")
+	dumpNodeConfigure.Flag("join-method", fmt.Sprintf("Method to use to join the cluster (%s)", strings.Join(joinMethods, ", "))).Default("token").EnumVar(&dumpFlags.JoinMethod, joinMethods...)
 	dumpNodeConfigure.Flag("node-name", "Name for the Teleport node.").StringVar(&dumpFlags.NodeName)
 	dumpNodeConfigure.Flag("silent", "Suppress user hint message.").BoolVar(&dumpFlags.Silent)
 	dumpNodeConfigure.Flag("azure-client-id", "Sets the client ID of the managed identity to join with. Only applies to the 'azure' join method.").StringVar(&dumpFlags.AzureClientID)
