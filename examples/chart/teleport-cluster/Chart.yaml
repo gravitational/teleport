@@ -1,4 +1,4 @@
-.version: &version "18.0.0-dev.braintrust.2"
+.version: &version "18.0.0-dev.multiad.1"
 
 name: teleport-cluster
 apiVersion: v2
