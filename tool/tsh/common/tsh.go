@@ -4575,7 +4575,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 }
 
 func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
-	hardwareKeyService := keys.NewHardwareKeyService(&keys.CLIPrompt{})
+	hardwareKeyService := keys.NewYubiKeyPIVService(context.TODO(), &keys.CLIPrompt{})
 
 	switch {
 	case cf.IdentityFileIn != "":

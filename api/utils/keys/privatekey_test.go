@@ -18,6 +18,7 @@ package keys
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
@@ -274,7 +275,23 @@ func TestX509Certificate(t *testing.T) {
 			tc.validateResult(t, cert)
 		})
 	}
+}
 
+// TestHardwareKeyMethods tests hardware key related methods with non-hardware keys.
+//
+// Testing these methods with actual hardware keys requires the piv go tag and should
+// be tested individually in tests like `TestGetYubiKeyPrivateKey_Interactive`.
+func TestHardwareKeyMethods(t *testing.T) {
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+
+	key, err := NewPrivateKey(priv, nil)
+	require.NoError(t, err)
+
+	require.Nil(t, key.GetAttestationStatement())
+	require.Equal(t, PrivateKeyPolicyNone, key.GetPrivateKeyPolicy())
+	require.False(t, key.IsHardware())
+	require.NoError(t, key.WarmupHardwareKey(context.Background()))
 }
 
 var (

@@ -597,8 +597,7 @@ func (p *ProfileStatus) DatabasesForCluster(clusterName string) ([]tlsca.RouteTo
 		Username:    p.Username,
 		ClusterName: clusterName,
 	}
-
-	hwks := keys.NewHardwareKeyService(&keys.CLIPrompt{})
+	hwks := keys.NewYubiKeyPIVService(context.TODO(), &keys.CLIPrompt{})
 	store := NewFSKeyStore(p.Dir)
 	keyRing, err := store.GetKeyRing(idx, hwks, WithDBCerts{})
 	if err != nil {
@@ -620,7 +619,7 @@ func (p *ProfileStatus) AppsForCluster(clusterName string) ([]tlsca.RouteToApp, 
 		ClusterName: clusterName,
 	}
 
-	hwks := keys.NewHardwareKeyService(&keys.CLIPrompt{})
+	hwks := keys.NewYubiKeyPIVService(context.TODO(), &keys.CLIPrompt{})
 	store := NewFSKeyStore(p.Dir)
 	keyRing, err := store.GetKeyRing(idx, hwks, WithAppCerts{})
 	if err != nil {

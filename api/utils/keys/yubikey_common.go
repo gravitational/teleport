@@ -15,9 +15,12 @@ package keys
 
 import (
 	"context"
+	"errors"
 
 	"github.com/gravitational/trace"
 )
+
+var errPIVUnavailable = errors.New("PIV is unavailable in current build")
 
 // HardwareKeyPrompt provides methods to interact with a YubiKey hardware key.
 type HardwareKeyPrompt interface {
@@ -55,21 +58,6 @@ type PINAndPUK struct {
 	PUK string
 	// PUKChanged is true if the user changed the default PUK.
 	PUKChanged bool
-}
-
-// GetYubiKeyPrivateKey attempt to retrieve a YubiKey private key matching the given hardware key policy
-// from the given slot. If slot is unspecified, the default slot for the given key policy will be used.
-// If the slot is empty, a new private key matching the given policy will be generated in the slot.
-//   - hardware_key: 9a
-//   - hardware_key_touch: 9c
-//   - hardware_key_pin: 9d
-//   - hardware_key_touch_pin: 9e
-func GetYubiKeyPrivateKey(ctx context.Context, policy PrivateKeyPolicy, slot PIVSlot, customPrompt HardwareKeyPrompt) (*PrivateKey, error) {
-	priv, err := getOrGenerateYubiKeyPrivateKey(ctx, policy, slot, customPrompt)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to get a YubiKey private key")
-	}
-	return priv, nil
 }
 
 // PIVSlot is the string representation of a PIV slot. e.g. "9a".

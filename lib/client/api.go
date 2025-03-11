@@ -1281,7 +1281,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		} else {
 			// TODO (Joerger): init hardware key service (and client store) earlier where it can
 			// be properly shared.
-			hardwareKeyService := keys.NewHardwareKeyService(&keys.CLIPrompt{})
+			hardwareKeyService := keys.NewYubiKeyPIVService(context.TODO(), &keys.CLIPrompt{})
 			tc.ClientStore = NewFSClientStore(c.KeysDir, hardwareKeyService)
 			if c.AddKeysToAgent == AddKeysToAgentOnly {
 				// Store client keys in memory, but still save trusted certs and profile to disk.
@@ -3997,7 +3997,9 @@ func (tc *TeleportClient) GetNewLoginKeyRing(ctx context.Context) (keyRing *KeyR
 		if tc.PIVSlot != "" {
 			log.DebugContext(ctx, "Using PIV slot specified by client or server settings", "piv_slot", tc.PIVSlot)
 		}
-		priv, err := tc.ClientStore.NewHardwarePrivateKey(ctx, tc.PIVSlot, tc.PrivateKeyPolicy)
+		priv, err := tc.ClientStore.NewHardwarePrivateKey(ctx, tc.PIVSlot, tc.PrivateKeyPolicy, keys.KeyInfo{
+			ProxyHost: tc.WebProxyHost(),
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

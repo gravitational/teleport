@@ -348,7 +348,7 @@ func TestUpdateTshdEventsServerAddress(t *testing.T) {
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                homeDir,
 		InsecureSkipVerify: true,
-		HardwareKeyService: keys.NewHardwareKeyService(nil /*prompt*/),
+		HardwareKeyService: keys.NewYubiKeyPIVService(context.TODO(), nil /*prompt*/),
 	})
 	require.NoError(t, err)
 
@@ -383,7 +383,7 @@ func TestUpdateTshdEventsServerAddress_CredsErr(t *testing.T) {
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                homeDir,
 		InsecureSkipVerify: true,
-		HardwareKeyService: keys.NewHardwareKeyService(nil /*prompt*/),
+		HardwareKeyService: keys.NewYubiKeyPIVService(context.TODO(), nil /*prompt*/),
 	})
 	require.NoError(t, err)
 
@@ -485,7 +485,7 @@ func TestRetryWithRelogin(t *testing.T) {
 			storage, err := clusters.NewStorage(clusters.Config{
 				Dir:                t.TempDir(),
 				InsecureSkipVerify: true,
-				HardwareKeyService: keys.NewHardwareKeyService(nil /*prompt*/),
+				HardwareKeyService: keys.NewYubiKeyPIVService(ctx, nil /*prompt*/),
 			})
 			require.NoError(t, err)
 
@@ -539,7 +539,7 @@ func TestConcurrentHeadlessAuthPrompts(t *testing.T) {
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                t.TempDir(),
 		InsecureSkipVerify: true,
-		HardwareKeyService: keys.NewHardwareKeyService(nil /*prompt*/),
+		HardwareKeyService: keys.NewYubiKeyPIVService(ctx, nil /*prompt*/),
 	})
 	require.NoError(t, err)
 

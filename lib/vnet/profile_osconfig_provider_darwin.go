@@ -60,7 +60,7 @@ func newProfileOSConfigProvider(tunName, ipv6Prefix, dnsAddr, homePath string, d
 		return nil, trace.Wrap(err)
 	}
 
-	hwKeyService := keys.NewHardwareKeyService(&keys.CLIPrompt{})
+	hwKeyService := keys.NewYubiKeyPIVService(context.TODO(), &keys.CLIPrompt{})
 
 	p := &profileOSConfigProvider{
 		clientStore:        client.NewFSClientStore(homePath, hwKeyService),

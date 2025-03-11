@@ -225,6 +225,38 @@ func (k *PrivateKey) SoftwarePrivateKeyPEM() ([]byte, error) {
 	return nil, trace.BadParameter("cannot get software key PEM for private key of type %T", k.Signer)
 }
 
+// GetAttestationStatement returns this key's AttestationStatement. If the key is
+// not a [HardwarePrivateKey], this method returns nil.
+func (k *PrivateKey) GetAttestationStatement() *AttestationStatement {
+	if hwpk, ok := k.Signer.(*HardwarePrivateKey); ok {
+		return hwpk.GetAttestationStatement()
+	}
+	// Just return a nil attestation statement and let this key fail any attestation checks.
+	return nil
+}
+
+// GetPrivateKeyPolicy returns this key's PrivateKeyPolicy.
+func (k *PrivateKey) GetPrivateKeyPolicy() PrivateKeyPolicy {
+	if hwpk, ok := k.Signer.(*HardwarePrivateKey); ok {
+		return hwpk.GetPrivateKeyPolicy()
+	}
+	return PrivateKeyPolicyNone
+}
+
+// IsHardware returns true if [k] is a [HardwarePrivateKey].
+func (k *PrivateKey) IsHardware() bool {
+	_, ok := k.Signer.(*HardwarePrivateKey)
+	return ok
+}
+
+// WarmupHardwareKey checks if this is a [HardwarePrivateKey] and warms it up if it is.
+func (k *PrivateKey) WarmupHardwareKey(ctx context.Context) error {
+	if hwpk, ok := k.Signer.(*HardwarePrivateKey); ok {
+		return hwpk.WarmupHardwareKey(ctx)
+	}
+	return nil
+}
+
 // LoadPrivateKey returns the PrivateKey for the given key file.
 func LoadPrivateKey(keyFile string) (*PrivateKey, error) {
 	keyPEM, err := os.ReadFile(keyFile)

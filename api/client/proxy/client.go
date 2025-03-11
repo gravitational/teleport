@@ -38,6 +38,7 @@ import (
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 // ClientConfig contains configuration needed for a Client
@@ -124,7 +125,7 @@ func (c *ClientConfig) CheckAndSetDefaults(ctx context.Context) error {
 				// before initiating the gRPC dial.
 				// This approach works because the connection is cached for a few seconds,
 				// allowing subsequent calls without requiring additional user action.
-				if priv, ok := cert.PrivateKey.(hardwareKeyWarmer); ok {
+				if priv, ok := cert.PrivateKey.(*keys.PrivateKey); ok {
 					err := priv.WarmupHardwareKey(ctx)
 					if err != nil {
 						return nil, trace.Wrap(err)
@@ -453,10 +454,4 @@ func (c *Client) Ping(ctx context.Context) error {
 	// how long it takes to get a reply.
 	_, _ = c.transport.ClusterDetails(ctx)
 	return nil
-}
-
-// hardwareKeyWarmer performs a bogus call to the hardware key,
-// to proactively prompt the user for a PIN/touch (if needed).
-type hardwareKeyWarmer interface {
-	WarmupHardwareKey(ctx context.Context) error
 }

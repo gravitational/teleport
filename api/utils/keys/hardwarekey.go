@@ -15,19 +15,20 @@
 package keys
 
 import (
+	"bytes"
 	"context"
 	"crypto"
+	"crypto/rand"
+	"crypto/sha512"
 	"crypto/x509"
 	"encoding/json"
 	"io"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
-)
 
-// TODO: replace with PIV implementation
-func NewHardwareKeyService(prompt HardwareKeyPrompt) HardwareKeyService {
-	return nil
-}
+	attestationv1 "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
+)
 
 // HardwareKeyService is an interface for interacting with hardware private keys.
 type HardwareKeyService interface {
@@ -37,7 +38,7 @@ type HardwareKeyService interface {
 	NewPrivateKey(ctx context.Context, customSlot PIVSlot, requiredPolicy PrivateKeyPolicy) (*HardwarePrivateKeyRef, error)
 	// Sign performs a cryptographic signature using the specified hardware
 	// private key and provided signature parameters.
-	Sign(ref *HardwarePrivateKeyRef, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error)
+	Sign(ctx context.Context, ref *HardwarePrivateKeyRef, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error)
 	// SetPrompt sets the hardware key prompt used by the hardware key service, if applicable.
 	// This is used by Teleport Connect which sets the prompt later than the hardware key service,
 	// due to process initialization constraints.
@@ -48,6 +49,8 @@ type HardwareKeyService interface {
 type HardwarePrivateKey struct {
 	service HardwareKeyService
 	ref     *HardwarePrivateKeyRef
+	// keyInfo contains additional key info which may be used to add context to prompts,
+	// such as the name of the Teleport user using the key.
 	keyInfo KeyInfo
 }
 
@@ -58,7 +61,8 @@ func (h *HardwarePrivateKey) Public() crypto.PublicKey {
 
 // Sign implements [crypto.Signer].
 func (h *HardwarePrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
-	return h.service.Sign(h.ref, rand, digest, opts)
+	// When context.TODO() is passed, the service should replace this with its own parent context.
+	return h.service.Sign(context.TODO(), h.ref, rand, digest, opts)
 }
 
 // GetAttestation returns the hardware private key attestation details.
@@ -69,6 +73,20 @@ func (h *HardwarePrivateKey) GetAttestationStatement() *AttestationStatement {
 // GetPrivateKeyPolicy returns the PrivateKeyPolicy satisfied by this key.
 func (h *HardwarePrivateKey) GetPrivateKeyPolicy() PrivateKeyPolicy {
 	return h.ref.PrivateKeyPolicy
+}
+
+// WarmupHardwareKey performs a bogus sign() call to prompt the user for PIN/touch (if needed).
+func (h *HardwarePrivateKey) WarmupHardwareKey(ctx context.Context) error {
+	if !h.ref.PrivateKeyPolicy.IsHardwareKeyPINVerified() && !h.ref.PrivateKeyPolicy.IsHardwareKeyTouchVerified() {
+		return nil
+	}
+
+	// ed25519 keys only support sha512 hashing, or no hashing. Currently we don't support
+	// ed25519 hardware keys outside of the fake "pivtest" service, but we may extend support in
+	// the future as newer keys are being made with ed25519 support (YubiKey 5.7.x, SoloKey).
+	hash := sha512.Sum512(make([]byte, 512))
+	_, err := h.service.Sign(ctx, h.ref, rand.Reader, hash[:], crypto.SHA512)
+	return trace.Wrap(err, "failed to perform warmup signature with hardware private key")
 }
 
 // HardwarePrivateKeyRef references a specific hardware private key.
@@ -142,4 +160,40 @@ func (r *HardwarePrivateKeyRef) UnmarshalJSON(b []byte) error {
 
 	*r = HardwarePrivateKeyRef(ref.refAlias)
 	return nil
+}
+
+// AttestationStatement is an attestation statement for a hardware private key
+// that supports json marshaling through the standard json/encoding package.
+type AttestationStatement attestationv1.AttestationStatement
+
+// ToProto converts this AttestationStatement to its protobuf form.
+func (ar *AttestationStatement) ToProto() *attestationv1.AttestationStatement {
+	return (*attestationv1.AttestationStatement)(ar)
+}
+
+// AttestationStatementFromProto converts an AttestationStatement from its protobuf form.
+func AttestationStatementFromProto(att *attestationv1.AttestationStatement) *AttestationStatement {
+	return (*AttestationStatement)(att)
+}
+
+// MarshalJSON implements custom protobuf json marshaling.
+func (ar *AttestationStatement) MarshalJSON() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	err := (&jsonpb.Marshaler{}).Marshal(buf, ar.ToProto())
+	return buf.Bytes(), trace.Wrap(err)
+}
+
+// UnmarshalJSON implements custom protobuf json unmarshaling.
+func (ar *AttestationStatement) UnmarshalJSON(buf []byte) error {
+	return jsonpb.Unmarshal(bytes.NewReader(buf), ar.ToProto())
+}
+
+// AttestationData is verified attestation data for a public key.
+type AttestationData struct {
+	// PublicKeyDER is the public key in PKIX, ASN.1 DER form.
+	PublicKeyDER []byte `json:"public_key"`
+	// PrivateKeyPolicy specifies the private key policy supported by the associated private key.
+	PrivateKeyPolicy PrivateKeyPolicy `json:"private_key_policy"`
+	// SerialNumber is the serial number of the Attested hardware key.
+	SerialNumber uint32 `json:"serial_number"`
 }

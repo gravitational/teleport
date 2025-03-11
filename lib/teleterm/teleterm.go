@@ -43,7 +43,7 @@ import (
 func Serve(ctx context.Context, cfg Config) error {
 	// TODO(gzdunek): Move tshdEventsClient out of daemonService so that we can
 	// set the prompt before creating Storage.
-	hardwareKeyService := keys.NewHardwareKeyService(nil /*prompt*/)
+	hardwareKeyService := keys.NewYubiKeyPIVService(ctx, nil /*prompt*/)
 
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)

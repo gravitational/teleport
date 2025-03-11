@@ -17,7 +17,6 @@ package keys_test
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/x509/pkix"
 	"fmt"
 	"os"
@@ -33,8 +32,7 @@ import (
 
 // TestGetYubiKeyPrivateKey_Interactive tests generation and retrieval of YubiKey private keys.
 func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
-	// This test expects a yubiKey to be connected with default PIV
-	// settings and will overwrite any PIV data on the yubiKey.
+	// This test will overwrite any PIV data on the yubiKey.
 	if os.Getenv("TELEPORT_TEST_YUBIKEY_PIV") == "" {
 		t.Skipf("Skipping TestGenerateYubiKeyPrivateKey because TELEPORT_TEST_YUBIKEY_PIV is not set")
 	}
@@ -44,12 +42,22 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 	}
 	fmt.Println("This test is interactive, tap your YubiKey when prompted.")
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	y, err := keys.FindYubiKey(0, nil)
+	s := keys.NewYubiKeyPIVService(ctx, &keys.CLIPrompt{})
+
+	y, err := keys.FindYubiKey(0)
 	require.NoError(t, err)
 
+	resetYubikey(t, y)
 	t.Cleanup(func() { resetYubikey(t, y) })
+
+	// Warmup the hardware key to prompt touch at the start of the test,
+	// rather than having this interaction later.
+	priv, err := keys.NewHardwarePrivateKey(ctx, s, "", keys.PrivateKeyPolicyHardwareKeyTouch, keys.KeyInfo{})
+	require.NoError(t, err)
+	require.Nil(t, priv.WarmupHardwareKey(ctx))
 
 	for _, policy := range []keys.PrivateKeyPolicy{
 		keys.PrivateKeyPolicyHardwareKey,
@@ -68,26 +76,25 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 						slot = "9a"
 					}
 
-					// GetYubiKeyPrivateKey should generate a new YubiKeyPrivateKey.
-					priv, err := keys.GetYubiKeyPrivateKey(ctx, policy, slot, nil)
+					// NewHardwarePrivateKey should generate a new hardware private key.
+					priv, err := keys.NewHardwarePrivateKey(ctx, s, slot, policy, keys.KeyInfo{})
 					require.NoError(t, err)
 
 					// test HardwareSigner methods
 					require.Equal(t, policy, priv.GetPrivateKeyPolicy())
 					require.NotNil(t, priv.GetAttestationStatement())
+					require.True(t, priv.IsHardware())
 
-					// Test Sign.
-					digest := []byte{100}
-					_, err = priv.Sign(rand.Reader, digest, nil)
-					require.NoError(t, err)
+					// Test bogus sign (warmup).
+					require.Nil(t, priv.WarmupHardwareKey(ctx))
 
-					// Another call to GetYubiKeyPrivateKey should retrieve the previously generated key.
-					retrievePriv, err := keys.GetYubiKeyPrivateKey(ctx, policy, slot, nil)
+					// Another call to NewHardwarePrivateKey should retrieve the previously generated key.
+					retrievePriv, err := keys.NewHardwarePrivateKey(ctx, s, slot, policy, keys.KeyInfo{})
 					require.NoError(t, err)
 					require.Equal(t, priv.Public(), retrievePriv.Public())
 
 					// parsing the key's private key PEM should produce the same key as well.
-					retrievePriv, err = keys.ParsePrivateKey(priv.PrivateKeyPEM())
+					retrievePriv, err = keys.ParsePrivateKey(priv.PrivateKeyPEM(), keys.WithHardwareKeyService(s))
 					require.NoError(t, err)
 					require.Equal(t, priv.Public(), retrievePriv.Public())
 				})
@@ -97,17 +104,18 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 }
 
 func TestOverwritePrompt(t *testing.T) {
-	// This test expects a yubiKey to be connected with default PIV
-	// settings and will overwrite any PIV data on the yubiKey.
+	// This test will overwrite any PIV data on the yubiKey.
 	if os.Getenv("TELEPORT_TEST_YUBIKEY_PIV") == "" {
 		t.Skipf("Skipping TestGenerateYubiKeyPrivateKey because TELEPORT_TEST_YUBIKEY_PIV is not set")
 	}
 
 	ctx := context.Background()
+	s := keys.NewYubiKeyPIVService(ctx, &keys.CLIPrompt{})
 
-	y, err := keys.FindYubiKey(0, nil)
+	y, err := keys.FindYubiKey(0)
 	require.NoError(t, err)
 
+	resetYubikey(t, y)
 	t.Cleanup(func() { resetYubikey(t, y) })
 
 	// Use a custom slot.
@@ -117,12 +125,12 @@ func TestOverwritePrompt(t *testing.T) {
 	testOverwritePrompt := func(t *testing.T) {
 		// Fail to overwrite slot when user denies
 		prompt.SetStdin(prompt.NewFakeReader().AddString("n"))
-		_, err := keys.GetYubiKeyPrivateKey(ctx, keys.PrivateKeyPolicyHardwareKeyTouch, "" /* slot */, nil)
+		_, err := keys.NewHardwarePrivateKey(ctx, s, "" /*slot*/, keys.PrivateKeyPolicyHardwareKeyTouch, keys.KeyInfo{})
 		require.True(t, trace.IsCompareFailed(err), "Expected compare failed error but got %v", err)
 
 		// Successfully overwrite slot when user accepts
 		prompt.SetStdin(prompt.NewFakeReader().AddString("y"))
-		_, err = keys.GetYubiKeyPrivateKey(ctx, keys.PrivateKeyPolicyHardwareKeyTouch, "" /* slot */, nil)
+		_, err = keys.NewHardwarePrivateKey(ctx, s, "" /*slot*/, keys.PrivateKeyPolicyHardwareKeyTouch, keys.KeyInfo{})
 		require.NoError(t, err)
 	}
 
@@ -140,7 +148,7 @@ func TestOverwritePrompt(t *testing.T) {
 		resetYubikey(t, y)
 
 		// Generate a key that does not require touch in the slot that Teleport expects to require touch.
-		_, err := keys.GetYubiKeyPrivateKey(ctx, keys.PrivateKeyPolicyHardwareKey, keys.PIVSlot(pivSlot.String()), nil)
+		_, err := keys.NewHardwarePrivateKey(ctx, s, keys.PIVSlot(pivSlot.String()), keys.PrivateKeyPolicyHardwareKey, keys.KeyInfo{})
 		require.NoError(t, err)
 
 		testOverwritePrompt(t)
