@@ -40,9 +40,10 @@ import (
 
 // LoadConfigFromProfile applies config from ~/.tsh/ profile if it's present
 func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Config, error) {
-	hwKeyService := keys.NewHardwareKeyService(&keys.CLIPrompt{})
-
 	ctx := context.TODO()
+
+	hwKeyService := keys.NewYubiKeyPIVService(ctx, &keys.CLIPrompt{})
+
 	proxyAddr := ""
 	if len(ccf.AuthServerAddr) != 0 {
 		proxyAddr = ccf.AuthServerAddr[0]

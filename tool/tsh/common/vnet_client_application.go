@@ -46,7 +46,7 @@ type vnetClientApplication struct {
 }
 
 func newVnetClientApplication(cf *CLIConf) (*vnetClientApplication, error) {
-	hwKeyService := keys.NewHardwareKeyService(&keys.CLIPrompt{})
+	hwKeyService := keys.NewYubiKeyPIVService(context.TODO(), &keys.CLIPrompt{})
 
 	clientStore := client.NewFSClientStore(cf.HomePath, hwKeyService)
 

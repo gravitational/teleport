@@ -4592,7 +4592,7 @@ func setEnvVariables(c *client.Config, options Options) {
 }
 
 func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
-	hardwareKeyService := keys.NewHardwareKeyService(&keys.CLIPrompt{})
+	hardwareKeyService := keys.NewYubiKeyPIVService(context.TODO(), &keys.CLIPrompt{})
 
 	switch {
 	case cf.IdentityFileIn != "":

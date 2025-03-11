@@ -63,8 +63,8 @@ func NewFSClientStore(dirPath string, hwKeyService keys.HardwareKeyService) *Sto
 	}
 }
 
-func (s *Store) NewHardwarePrivateKey(ctx context.Context, customSlot keys.PIVSlot, requiredPolicy keys.PrivateKeyPolicy) (*keys.PrivateKey, error) {
-	return keys.NewHardwarePrivateKey(ctx, s.hwKeyService, customSlot, requiredPolicy)
+func (s *Store) NewHardwarePrivateKey(ctx context.Context, customSlot keys.PIVSlot, requiredPolicy keys.PrivateKeyPolicy, keyInfo keys.KeyInfo) (*keys.PrivateKey, error) {
+	return keys.NewHardwarePrivateKey(ctx, s.hwKeyService, customSlot, requiredPolicy, keyInfo)
 }
 
 // NewMemClientStore initializes a new in-memory client store.
