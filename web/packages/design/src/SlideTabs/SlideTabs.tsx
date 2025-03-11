@@ -85,13 +85,15 @@ export function SlideTabs({
               position: tooltipPosition,
             } = {},
             status: { kind: statusKind, ariaLabel: statusAriaLabel } = {},
+            disabled: tabDisabled = false,
           } = toFullTabSpec(tabSpec, tabIndex);
+          const resolvedDisabled = disabled || tabDisabled;
           const statusIconColorActive = hideStatusIconOnActiveTab
             ? 'transparent'
             : theme.colors.text.primaryInverse;
 
           let onClick = undefined;
-          if (!disabled && !isProcessing) {
+          if (!resolvedDisabled && !isProcessing) {
             onClick = (e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
               e.preventDefault();
               onChange(tabIndex);
@@ -111,9 +113,9 @@ export function SlideTabs({
                 selected={selected}
                 className={selected ? 'selected' : undefined}
                 aria-controls={controls}
-                tabIndex={!disabled && selected ? 0 : -1}
+                tabIndex={!resolvedDisabled && selected ? 0 : -1}
                 processing={isProcessing}
-                disabled={disabled}
+                disabled={resolvedDisabled}
                 aria-selected={selected}
                 size={size}
                 aria-label={ariaLabel}
@@ -236,6 +238,7 @@ type FullTabSpec = TabContentSpec & {
     kind: StatusKind;
     ariaLabel?: string;
   };
+  disabled?: boolean;
 };
 
 /**

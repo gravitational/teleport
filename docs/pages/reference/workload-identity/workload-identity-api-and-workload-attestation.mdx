@@ -35,6 +35,18 @@ listen: unix:///opt/machine-id/workload.sock
 # attestors allows Workload Attestation to be configured for this Workload
 # API.
 attestors:
+  # docker is configuration for the Docker Workload Attestor. See the Docker
+  # section below for more information.
+  docker:
+    # enabled specifies whether the workload's identity should be attested with
+    # information about its Docker container. If unspecified, this defaults to
+    # false.
+    enabled: true
+    # addr is the address at which the Docker Engine daemon can be reached. It
+    # must be in the form `unix://path/to/socket`, as connecting via TCP is not
+    # currently supported. If unspecified, this defaults to the standard socket
+    # location for "rootful" Docker installations: `unix:///var/run/docker.sock`.
+    addr: unix:///var/run/docker.sock
   # kubernetes is configuration for the Kubernetes Workload Attestor. See
   # the Kubernetes Workload Attestor section for more information.
   kubernetes:
@@ -73,6 +85,18 @@ attestors:
       # unspecified, this defaults to false. If set, the token_path field is
       # ignored.
       anonymous: false
+  # podman is configuration for the Podman Workload Attestor. See the Podman
+  # section below for more information.
+  podman:
+    # enabled specifies whether the workload's identity should be attested with
+    # information about its Podman container and pod. If unspecified, this
+    # defaults to false.
+    enabled: true
+    # addr is the address at which the Podman API Service can be reached. It
+    # must be in the form `unix://path/to/socket`, as connecting via TCP is not
+    # supported. This field is required and there is no default value. See the
+    # Podman section below for more information.
+    addr: unix:///run/podman/podman.sock
 (!docs/pages/includes/machine-id/workload-identity-selector-config.yaml!)
 ```
 
@@ -280,6 +304,143 @@ spec:
                   # `example.teleport.sh` must be replaced with the name of
                   # your Teleport cluster.
                   audience: example.teleport.sh
+```
+
+## Docker
+
+The Docker Workload Attestor allows you to restrict the issuance of workload
+identities to specific Docker containers based on a range of criteria.
+
+It works by first determining the container for a given process and then by
+querying the Docker Engine API for details about it.
+
+### Granting Access to the Docker Engine API
+
+By default, `tbot` will attempt to connect to the Docker daemon via a Unix
+domain socket located at `/var/run/docker.sock` as this is the standard location
+for "rootful" Docker deployments.
+
+Unless `tbot` is also running as root, you'll need to add its user to the docker
+group to grant it permission to access this socket:
+
+```code
+$ sudo usermod -a -G docker $TBOT_USER
+```
+
+### Rootless Docker
+
+When running Docker in ["rootless" mode](https://docs.docker.com/engine/security/rootless/)
+the daemon's socket will be located at `$XDG_RUNTIME_DIR/docker.sock` by default,
+making it inaccessible to other non-root users.
+
+If you do not want to run `tbot` as the same user as Docker or as root, you can
+override this by creating a configuration file under `~/.config/docker` with the
+following contents:
+
+```json
+{
+  "hosts": ["unix://path/to/socket"]
+}
+```
+
+## Podman
+
+The Podman Workload Attestor allows you to restrict the issuance of workload
+identities to specific Podman containers and pods based on a range of criteria.
+
+It works by first determining the container and pod for a given process and then
+by querying the [Podman API Service](https://docs.podman.io/en/latest/markdown/podman-system-service.1.html)
+for details about them.
+
+Podman differs from Docker in that it doesn't use a long-running daemon process.
+Instead, the API service is typically started on demand using socket activation.
+
+Granting `tbot` access to the Podman API requires different steps depending on
+whether you're running "rootfully" or "rootlessly" - it is for this reason we
+do not provide a default value for the `attr` config option.
+
+### Rootful Podman
+
+If you're running Podman as root, enable the API service by running:
+
+```code
+$ sudo systemctl enable --now podman.socket
+```
+
+At this point, the service can be reached at `/run/podman/podman.sock` but **only
+by root**. If you do not want to run `tbot` as root, you can override the default
+systemd unit to make the socket owned by a group your tbot user belongs to:
+
+```code
+$ sudo groupadd podman-root
+$ sudo usermod -a -G podman-root $TBOT_USER
+$ sudo systemctl edit podman.socket
+```
+
+In the override file add:
+
+```
+[Socket]
+SocketGroup=podman-root
+```
+
+Reload the systemd daemon and restart the socket unit:
+
+```code
+$ sudo systemctl daemon-reload
+$ sudo systemctl restart podman.socket
+```
+
+### Rootless Podman
+
+If you're running Podman as a non-root user, enable and start the API service by
+running:
+
+```code
+$ sudo loginctl enable-linger $PODMAN_USER
+$ systemctl --user enable --now podman.socket
+```
+
+The service can now be reached at `$XDG_RUNTIME_DIR/podman/podman.sock`, but
+**only by your chosen podman user or root**. If you do not want to run `tbot`
+as the same user or as root, you can override the default systemd unit to move
+the socket out of `$XDG_RUNTIME_DIR` and add your tbot user to the podman user's
+group:
+
+```code
+$ sudo usermod -a -G $PODMAN_USER_GROUP $TBOT_USER
+$ systemctl --user edit podman.socket
+```
+
+In the override file add:
+
+```
+[Socket]
+ListenStream=/path/to/socket # Example: /srv/podman.$PODMAN_USER/podman.sock
+```
+
+Reload the systemd daemon and restart the socket unit:
+
+```code
+$ systemctl --user daemon-reload
+$ systemctl --user restart podman.socket
+```
+
+### Running `tbot` in a Podman Container
+
+In order for `tbot` running inside a container to attest workloads in other
+containers, it must have access to the host's PID namespace. Also, if you are
+using group permissions to grant `tbot` access to the Podman socket (see the
+above examples) you must set the `run.oci.keep_original_groups` annotation.
+
+```code
+$ podman run \
+  --pid=host \
+  --annotation run.oci.keep_original_groups=1 \
+  --volume /path/to/socket:/path/to/socket \
+  --volume /path/to/config:/path/to/config \
+  public.ecr.aws/gravitational/tbot-distroless:(=teleport.version=) \
+  start -c /path/to/config
 ```
 
 ## Envoy SDS

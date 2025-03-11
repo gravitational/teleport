@@ -1,19 +1,19 @@
 ---
-title: Analyze Entra ID policies with Teleport Policy
-description: Describes how to import and visualize Entra ID policies using Teleport Policy and Access Graph.
+title: Analyze Entra ID policies with Teleport Identity Security
+description: Describes how to import and visualize Entra ID policies using Identity Security and Access Graph.
 ---
 
-The Microsoft Entra ID integration in Teleport Identity synchronizes your Entra ID directory into your Teleport cluster,
+The Microsoft Entra ID integration in Teleport Identity Governance synchronizes your Entra ID directory into your Teleport cluster,
 and offers insights into relationships in your Entra ID directory.
-Additionally, when Entra ID is used as an SSO identity provider, Teleport Policy visualizes
+Additionally, when Entra ID is used as an SSO identity provider, Identity Security visualizes
 SSO grants across your services.
 
-<Notice type="note">
+<Admonition type="note">
 SSO grant analysis is currently only supported in situations where Entra ID acts as the identity provider,
 and AWS accounts are set up as relying parties using AWS IAM role federation.
 
 Support for additional relying parties will be added in the future.
-</Notice>
+</Admonition>
 
 ## How it works
 
@@ -29,16 +29,16 @@ Entra ID users and groups are imported into Teleport as users and Access Lists r
 Once all the necessary resources are fetched, Teleport pushes them to the
 Access Graph, ensuring that it remains updated with the latest information.
 These resources are then visualized using the graph representation detailed in the
-[Teleport Policy usage page](../policy-how-to-use.mdx).
+[Identity Security usage page](../policy-how-to-use.mdx).
 
 ## Prerequisites
 
 - A running Teleport Enterprise cluster v15.4.2/v16.0.0 or later.
-- Teleport Identity and Teleport Policy enabled for your account.
+- Teleport Identity Governance and Identity Security enabled for your account.
 - For self-hosted clusters:
   - Ensure that an up-to-date `license.pem` is used in the Auth Service configuration.
   - A running Access Graph node v1.21.3 or later.
-Check the [Teleport Policy page](../teleport-policy.mdx) for details on
+Check the [Identity Security page](../teleport-policy.mdx) for details on
 how to set up Access Graph.
   - The node running the Access Graph service must be reachable from the Teleport Auth Service.
 - Your user must have privileged administrator permissions in the Azure account
@@ -54,9 +54,9 @@ configuration and user requirements.
 
 ### Automatic setup with Teleport as an OIDC Provider for Entra ID
 
-<Notice type="tip">
+<Admonition type="tip">
 This method is recommended and is required if you are a Teleport Enterprise (Cloud) customer.
-</Notice>
+</Admonition>
 
 This method is suitable for Teleport clusters that are publicly accessible and lack Azure credentials on Auth
 Service nodes or pods.
@@ -93,7 +93,7 @@ to setup Entra ID Application.
 This guide covers the
 [**Automatic Setup with Teleport as OIDC Provider for Entra ID**](./entra-id.mdx#automatic-setup-with-teleport-as-an-oidc-provider-for-entra-id)
 and [**Automatic Setup with System Credentials**](./entra-id.mdx#automatic-setup-with-system-credentials-for-entra-id-authentication)
-setup but has a limitation of not being possible to enable the [Teleport Policy](../teleport-policy.mdx) integration.
+setup but has a limitation of not being possible to enable the [Identity Security](../teleport-policy.mdx) integration.
 
 ## Step 2/3. Configure the Entra ID integration
 
@@ -228,10 +228,10 @@ If you prefer multiple Access List owners, repeat the flag with each user, e.g.,
 You'll also need to provide the Teleport Auth Service address as `<Var name="example.teleport.sh:443" />`.
 For clusters running in multiplex mode, this address will be the same as your proxy address.
 
-If your Teleport license does not include [Teleport Policy](../teleport-policy.mdx), include the `--no-access-graph` flag.
+If your Teleport license does not include [Identity Security](../teleport-policy.mdx), include the `--no-access-graph` flag.
 
 ```code
-# Disable Access Graph integration if your license supports Teleport Policy with --no-access-graph flag.
+# Disable Access Graph integration if your license supports Identity Security with --no-access-graph flag.
 $ tctl plugins install entraid \
     --default-owner=<Var name="Access List Owner"/> \
     --default-owner=someOtherOwner@teleport.sh  \
@@ -251,10 +251,10 @@ Be sure to follow each step in the `tctl plugins install entraid` guide closely 
 
 This step configures the Azure Identity on your Auth Service machine with the required Entra ID permissions.
 
-<Notice type="warning">
+<Admonition type="warning">
 Follow this step only if you want to use system-available credentials to authenticate Teleport with Entra ID.
 If you intend to use Teleport as an OIDC provider for Entra ID, you can skip this step.
-</Notice>
+</Admonition>
 
 
 - `Application.Read.All`
@@ -512,12 +512,12 @@ For clusters running in multiplex mode, this address will be the same as your pr
 If you chose to use Teleport as the OIDC provider for Entra ID in the previous step, remove the `--use-system-credentials`
 flag from the command below.
 
-<Notice type="note">
+<Admonition type="note">
 Currently, when using manual mode, it is not possible to operate without the `--no-access-graph` flag.
-</Notice>
+</Admonition>
 
 ```code
-# enable Access Graph integration if your license supports Teleport Policy.
+# enable Access Graph integration if your license supports Identity Security.
 $ tctl plugins install entraid \
     --default-owner=<Var name="Access List Owner"/> \
     --default-owner=someOtherOwner@teleport.sh  \

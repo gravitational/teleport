@@ -112,6 +112,38 @@ func TestLookupPID(t *testing.T) {
 			parser: container.PodmanParser,
 			error:  "--cgroup-manager cgroupfs",
 		},
+		"docker-real-27.5.1-rootful-systemd": {
+			parser: container.DockerParser,
+			expected: &container.Info{
+				PodID:       "",
+				ID:          "9125fbc01fb958c33eb2fda134db64e2c01ec456181fb5def541d6485ea810ba",
+				Rootfulness: container.Rootful,
+			},
+		},
+		"docker-real-27.5.1-rootful-cgroupfs": {
+			parser: container.DockerParser,
+			expected: &container.Info{
+				PodID:       "",
+				ID:          "51509b0e049a2251892b0825bd393e1cffb9320ca96325bb372086dc97f30774",
+				Rootfulness: container.Rootful,
+			},
+		},
+		"docker-real-27.5.1-rootless-systemd": {
+			parser: container.DockerParser,
+			expected: &container.Info{
+				PodID:       "",
+				ID:          "6ed20f39d4e73785851dfefef19762dbdca0a7d797b780b28ecd857fa4b29a45",
+				Rootfulness: container.Rootless,
+			},
+		},
+		"docker-real-27.5.1-rootless-cgroupfs-systemd-enabled": {
+			parser: container.DockerParser,
+			expected: &container.Info{
+				PodID:       "",
+				ID:          "1b8df7744e53956aa2cba289fd56da1b9caf0ee4c3d2294287020ba7e21885fb",
+				Rootfulness: container.Rootless,
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
