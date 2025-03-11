@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -120,13 +121,14 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 	validator := Validator{Log: cfg.Log}
 	debugClient := debug.NewClient(filepath.Join(ns.dataDir, debugSocketFileName))
 	return &Updater{
-		Log:                cfg.Log,
-		Pool:               certPool,
-		InsecureSkipVerify: cfg.InsecureSkipVerify,
-		UpdateConfigFile:   filepath.Join(ns.Dir(), updateConfigName),
-		TeleportConfigFile: ns.configFile,
-		DefaultProxyAddr:   ns.defaultProxyAddr,
-		DefaultPathDir:     ns.defaultPathDir,
+		Log:                 cfg.Log,
+		Pool:                certPool,
+		InsecureSkipVerify:  cfg.InsecureSkipVerify,
+		UpdateConfigFile:    filepath.Join(ns.Dir(), updateConfigName),
+		TeleportConfigFile:  ns.configFile,
+		TeleportServiceName: filepath.Base(ns.serviceFile),
+		DefaultProxyAddr:    ns.defaultProxyAddr,
+		DefaultPathDir:      ns.defaultPathDir,
 		Installer: &LocalInstaller{
 			InstallDir:              filepath.Join(ns.Dir(), versionsDirName),
 			TargetServiceFile:       ns.serviceFile,
@@ -209,6 +211,8 @@ type Updater struct {
 	UpdateConfigFile string
 	// TeleportConfigFile contains the path to Teleport's configuration.
 	TeleportConfigFile string
+	// TeleportServiceName contains the full name of the systemd service for Teleport
+	TeleportServiceName string
 	// DefaultProxyAddr contains Teleport's proxy address. This may differ from the updater's.
 	DefaultProxyAddr string
 	// DefaultPathDir contains the default path that Teleport binaries should be installed into.
@@ -953,15 +957,18 @@ func (u *Updater) notices(ctx context.Context) error {
 	}
 	if !enabled && active {
 		u.Log.WarnContext(ctx, "Teleport is installed and started, but not configured to start on boot.")
-		u.Log.WarnContext(ctx, "After configuring teleport.yaml, you can enable it with: systemctl enable teleport")
+		u.Log.WarnContext(ctx, "After configuring teleport.yaml, you must enable it.",
+			"command", fmt.Sprintf("systemctl enable %s", u.TeleportServiceName))
 	}
 	if !active && enabled {
 		u.Log.WarnContext(ctx, "Teleport is installed and enabled at boot, but not running.")
-		u.Log.WarnContext(ctx, "After configuring teleport.yaml, you can start it with: systemctl start teleport")
+		u.Log.WarnContext(ctx, "After configuring teleport.yaml, you must start it.",
+			"command", fmt.Sprintf("systemctl start %s", u.TeleportServiceName))
 	}
 	if !active && !enabled {
 		u.Log.WarnContext(ctx, "Teleport is installed, but not running or enabled at boot.")
-		u.Log.WarnContext(ctx, "After configuring teleport.yaml, you can enable and start it with: systemctl enable teleport --now")
+		u.Log.WarnContext(ctx, "After configuring teleport.yaml, you must enable and start.",
+			"command", fmt.Sprintf("systemctl enable %s --now", u.TeleportServiceName))
 	}
 
 	return nil
