@@ -22,6 +22,14 @@ import "teleport/trait/v1/trait.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpb";
 
+// SSHAuthority identifies the authority that issued an SSHIdentity.
+message SSHAuthority {
+  // ClusterName is the name of the issuing cluster.
+  string cluster_name = 1;
+  // AuthorityType is the type of authority that issued the identity.
+  string authority_type = 2;
+}
+
 // SSHIdentity is the identity used for SSH connections.
 message SSHIdentity {
   // --- common identity fields ---

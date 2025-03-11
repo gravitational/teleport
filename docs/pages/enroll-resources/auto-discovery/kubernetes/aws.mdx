@@ -137,7 +137,7 @@ subjects:
 
 ### IAM mapping
 
-If you cluster includes the `aws-auth` config map, edit the `configmap/aws-auth`
+If your cluster includes the `aws-auth` config map, edit the `configmap/aws-auth`
 in the `kube-system` namespace and append the following to `mapRoles`. Replace
 `{teleport_aws_iam_role}` with the appropriate IAM role that Teleport Kubernetes
 Service will use. This step will link the Teleport IAM role into the Kubernetes
@@ -245,7 +245,7 @@ $ aws eks create-access-entry \
 $ aws eks associate-access-policy \
   --cluster-name <Var name="eks-cluster" /> \
   --region <Var name="eu-west-1" /> \
-  --principal-arn <Var name="arn:aws:iam::222222222222:role/teleport-role" />
+  --principal-arn <Var name="arn:aws:iam::222222222222:role/teleport-role" /> \
   --policy-arn "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy" \
   --access-scope type=cluster
 

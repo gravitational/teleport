@@ -20,6 +20,7 @@ import { MemoryRouter } from 'react-router';
 
 import { Route } from 'teleport/components/Router';
 import { ContextProvider } from 'teleport/index';
+import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import { ContentMinWidth } from 'teleport/Main/Main';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
@@ -37,11 +38,13 @@ function render(fetchClusterDetails: (clusterId: string) => Promise<any>) {
   return (
     <MemoryRouter initialEntries={['/clusters/test-cluster']}>
       <Route path="/clusters/:clusterId">
-        <ContentMinWidth>
-          <ContextProvider ctx={ctx}>
-            <ManageCluster />
-          </ContextProvider>
-        </ContentMinWidth>
+        <InfoGuidePanelProvider>
+          <ContentMinWidth>
+            <ContextProvider ctx={ctx}>
+              <ManageCluster />
+            </ContextProvider>
+          </ContentMinWidth>
+        </InfoGuidePanelProvider>
       </Route>
     </MemoryRouter>
   );

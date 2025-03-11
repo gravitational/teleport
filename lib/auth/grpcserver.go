@@ -663,6 +663,12 @@ func validateUserCertsRequest(actx *grpcContext, req *authpb.UserCertsRequest) e
 		return nil
 	}
 
+	if req.MFAResponse != nil {
+		if req.MFAResponse.GetTOTP() != nil {
+			return trace.BadParameter("per-session MFA is not satisfied by OTP devices")
+		}
+	}
+
 	// Single-use certs require current user.
 	if err := actx.currentUserAction(req.Username); err != nil {
 		return trace.Wrap(err)
@@ -5628,7 +5634,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 
 	decisionService, err := decisionv1.NewService(decisionv1.ServiceConfig{
-		Authorizer: cfg.Authorizer,
+		DecisionService: cfg.AuthServer.pdp,
+		Authorizer:      cfg.Authorizer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

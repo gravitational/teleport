@@ -10,12 +10,6 @@ RUN apt-get update && \
     && \
   rm -rf /var/lib/apt/lists/*
 
-# protoc-gen-gogofast
-# Keep in sync with api/proto/buf.yaml (and buf.lock)
-# eg, "v1.3.2"
-ARG GOGO_PROTO_TAG
-RUN go install "github.com/gogo/protobuf/protoc-gen-gogofast@$GOGO_PROTO_TAG"
-
 # protoc-gen-js and protoc-gen-ts
 # eg, "1.12.4"
 ARG NODE_GRPC_TOOLS_VERSION
@@ -33,7 +27,8 @@ RUN VERSION="$BUF_VERSION"; \
 # This is meant to be the only step that changes depending on the Teleport
 # branch.
 COPY go.mod go.sum /teleport-module/
-RUN cd /teleport-module; \
-  go install connectrpc.com/connect/cmd/protoc-gen-connect-go && \
-  go install google.golang.org/grpc/cmd/protoc-gen-go-grpc && \
-  go install google.golang.org/protobuf/cmd/protoc-gen-go
+RUN go -C /teleport-module install \
+    connectrpc.com/connect/cmd/protoc-gen-connect-go \
+    github.com/gogo/protobuf/protoc-gen-gogofast \
+    google.golang.org/grpc/cmd/protoc-gen-go-grpc \
+    google.golang.org/protobuf/cmd/protoc-gen-go

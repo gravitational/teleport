@@ -576,14 +576,16 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.2 // indirect
 )
 
-// Update also `ignore` in .github/dependabot.yml.
+// when changing the replace directives make sure to also apply the same changes
+// to integrations/event-handler/go.mod and integrations/terraform/go.mod, and
+// update "ignore" in .github/dependabot.yml.
 replace (
 	github.com/alecthomas/kingpin/v2 => github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33
 	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.1.1
 	github.com/crewjam/saml => github.com/gravitational/saml v0.4.15-teleport.2
 	github.com/datastax/go-cassandra-native-protocol => github.com/gravitational/go-cassandra-native-protocol v0.0.0-teleport.1
 	github.com/go-mysql-org/go-mysql => github.com/gravitational/go-mysql v1.9.1-teleport.3
-	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-teleport.1
+	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-teleport.2
 	github.com/gravitational/teleport/api => ./api
 	github.com/julienschmidt/httprouter => github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5
 	github.com/keys-pub/go-libfido2 => github.com/gravitational/go-libfido2 v1.5.3-teleport.1
@@ -592,9 +594,8 @@ replace (
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.2
 )
 
-// stats/opentelemetry is provided by grpc-go since v1.69.0, v1.68.2 and v1.67.3.
-// Before that it was its own module. Until all of our dependencies use, at
-// least, one of the grpc-go versions above we need to exclude
-// stats/opentelemetry in order to avoid "ambiguous import" errors on build.
-// TODO(codingllama): Remove once no dependencies import stats/opentelemetry.
+// this package was included in google.golang.org/grpc but because it's still
+// referenced by some dependencies we should exclude it here to avoid problems
+// when evaluating versions; "go get -u ./..." succeeding is a good sign that
+// the problem has been resolved
 exclude google.golang.org/grpc/stats/opentelemetry v0.0.0-20241028142157-ada6787961b3
