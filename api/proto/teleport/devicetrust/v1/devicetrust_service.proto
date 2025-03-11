@@ -19,7 +19,6 @@ package teleport.devicetrust.v1;
 import "google/protobuf/empty.proto";
 import "google/protobuf/field_mask.proto";
 import "google/protobuf/timestamp.proto";
-import "google/rpc/status.proto";
 import "teleport/devicetrust/v1/authenticate_challenge.proto";
 import "teleport/devicetrust/v1/device.proto";
 import "teleport/devicetrust/v1/device_collected_data.proto";
@@ -332,7 +331,7 @@ message DeviceOrStatus {
   // Status of the operation.
   // May either be absent or contain the OK code for successes, at the
   // implementation's discretion.
-  google.rpc.Status status = 1;
+  // google.rpc.Status status = 1;
 
   // ID of the created device.
   // Only present if the status is OK.

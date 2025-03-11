@@ -41,7 +41,6 @@ import { TPMAuthenticateDeviceChallengeResponse } from "./authenticate_challenge
 import { AuthenticateDeviceChallengeResponse } from "./authenticate_challenge_pb";
 import { TPMPlatformParameters } from "./tpm_pb";
 import { DeviceCollectedData } from "./device_collected_data_pb";
-import { Status } from "../../../google/rpc/status_pb";
 import { FieldMask } from "../../../google/protobuf/field_mask_pb";
 import { Timestamp } from "../../../google/protobuf/timestamp_pb";
 import { Device } from "./device_pb";
@@ -311,17 +310,14 @@ export interface BulkCreateDevicesResponse {
  * DeviceOrStatus contains either a device ID, in case of success, or a status
  * in case of failures.
  *
+ * Status of the operation.
+ * May either be absent or contain the OK code for successes, at the
+ * implementation's discretion.
+ * google.rpc.Status status = 1;
+ *
  * @generated from protobuf message teleport.devicetrust.v1.DeviceOrStatus
  */
 export interface DeviceOrStatus {
-    /**
-     * Status of the operation.
-     * May either be absent or contain the OK code for successes, at the
-     * implementation's discretion.
-     *
-     * @generated from protobuf field: google.rpc.Status status = 1;
-     */
-    status?: Status;
     /**
      * ID of the created device.
      * Only present if the status is OK.
@@ -1739,7 +1735,6 @@ export const BulkCreateDevicesResponse = new BulkCreateDevicesResponse$Type();
 class DeviceOrStatus$Type extends MessageType<DeviceOrStatus> {
     constructor() {
         super("teleport.devicetrust.v1.DeviceOrStatus", [
-            { no: 1, name: "status", kind: "message", T: () => Status },
             { no: 2, name: "id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "deleted", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
@@ -1757,9 +1752,6 @@ class DeviceOrStatus$Type extends MessageType<DeviceOrStatus> {
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* google.rpc.Status status */ 1:
-                    message.status = Status.internalBinaryRead(reader, reader.uint32(), options, message.status);
-                    break;
                 case /* string id */ 2:
                     message.id = reader.string();
                     break;
@@ -1778,9 +1770,6 @@ class DeviceOrStatus$Type extends MessageType<DeviceOrStatus> {
         return message;
     }
     internalBinaryWrite(message: DeviceOrStatus, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* google.rpc.Status status = 1; */
-        if (message.status)
-            Status.internalBinaryWrite(message.status, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
         /* string id = 2; */
         if (message.id !== "")
             writer.tag(2, WireType.LengthDelimited).string(message.id);

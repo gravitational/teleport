@@ -6,6 +6,104 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		452FB3AE2D8083B500518BDC /* theme.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3A52D8083B500518BDC /* theme.pb.swift */; };
+		452FB3AF2D8083B500518BDC /* tpm.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB35E2D8083B500518BDC /* tpm.grpc.swift */; };
+		452FB3B02D8083B500518BDC /* authenticate_challenge.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB34B2D8083B500518BDC /* authenticate_challenge.pb.swift */; };
+		452FB3B12D8083B500518BDC /* teleport.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB33F2D8083B500518BDC /* teleport.pb.swift */; };
+		452FB3B22D8083B500518BDC /* auth_settings.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3752D8083B500518BDC /* auth_settings.pb.swift */; };
+		452FB3B32D8083B500518BDC /* diag.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB38F2D8083B500518BDC /* diag.pb.swift */; };
+		452FB3B42D8083B500518BDC /* trait.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3942D8083B500518BDC /* trait.grpc.swift */; };
+		452FB3B52D8083B500518BDC /* access_request.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3712D8083B500518BDC /* access_request.pb.swift */; };
+		452FB3B62D8083B500518BDC /* tshd_events_service.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3852D8083B500518BDC /* tshd_events_service.pb.swift */; };
+		452FB3B72D8083B500518BDC /* diag.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB38E2D8083B500518BDC /* diag.grpc.swift */; };
+		452FB3B82D8083B500518BDC /* tbot.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB33D2D8083B500518BDC /* tbot.pb.swift */; };
+		452FB3B92D8083B500518BDC /* usage_events.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3862D8083B500518BDC /* usage_events.grpc.swift */; };
+		452FB3BA2D8083B500518BDC /* device_collected_data.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB34D2D8083B500518BDC /* device_collected_data.pb.swift */; };
+		452FB3BB2D8083B500518BDC /* usage_events.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3872D8083B500518BDC /* usage_events.pb.swift */; };
+		452FB3BC2D8083B500518BDC /* kube.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB37D2D8083B500518BDC /* kube.pb.swift */; };
+		452FB3BD2D8083B500518BDC /* vnet_service.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB38A2D8083B500518BDC /* vnet_service.pb.swift */; };
+		452FB3BE2D8083B500518BDC /* device_collected_data.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB34C2D8083B500518BDC /* device_collected_data.grpc.swift */; };
+		452FB3BF2D8083B500518BDC /* cluster_preferences.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB39C2D8083B500518BDC /* cluster_preferences.grpc.swift */; };
+		452FB3C02D8083B500518BDC /* device.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3582D8083B500518BDC /* device.grpc.swift */; };
+		452FB3C22D8083B500518BDC /* discover_resource_preferences.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB39F2D8083B500518BDC /* discover_resource_preferences.pb.swift */; };
+		452FB3C32D8083B500518BDC /* tpm.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB35F2D8083B500518BDC /* tpm.pb.swift */; };
+		452FB3C42D8083B500518BDC /* connect.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB33A2D8083B500518BDC /* connect.grpc.swift */; };
+		452FB3C52D8083B500518BDC /* authenticate_challenge.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB34A2D8083B500518BDC /* authenticate_challenge.grpc.swift */; };
+		452FB3C62D8083B500518BDC /* service.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3832D8083B500518BDC /* service.pb.swift */; };
+		452FB3C72D8083B500518BDC /* device.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3592D8083B500518BDC /* device.pb.swift */; };
+		452FB3C82D8083B500518BDC /* device_confirmation_token.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB34F2D8083B500518BDC /* device_confirmation_token.pb.swift */; };
+		452FB3C92D8083B500518BDC /* userpreferences.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3A92D8083B500518BDC /* userpreferences.pb.swift */; };
+		452FB3CA2D8083B500518BDC /* onboard.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3A02D8083B500518BDC /* onboard.grpc.swift */; };
+		452FB3CB2D8083B500518BDC /* resourceheader.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3692D8083B500518BDC /* resourceheader.pb.swift */; };
+		452FB3CC2D8083B500518BDC /* device_enroll_token.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3512D8083B500518BDC /* device_enroll_token.pb.swift */; };
+		452FB3CD2D8083B500518BDC /* accesslist_service.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3432D8083B500518BDC /* accesslist_service.pb.swift */; };
+		452FB3CE2D8083B500518BDC /* device_confirmation_token.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB34E2D8083B500518BDC /* device_confirmation_token.grpc.swift */; };
+		452FB3CF2D8083B500518BDC /* assist.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB39A2D8083B500518BDC /* assist.grpc.swift */; };
+		452FB3D02D8083B500518BDC /* device_source.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3542D8083B500518BDC /* device_source.grpc.swift */; };
+		452FB3D12D8083B500518BDC /* metadata.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3662D8083B500518BDC /* metadata.grpc.swift */; };
+		452FB3D22D8083B500518BDC /* trusted_device_requirement.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB36D2D8083B500518BDC /* trusted_device_requirement.pb.swift */; };
+		452FB3D32D8083B500518BDC /* gateway.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB37B2D8083B500518BDC /* gateway.pb.swift */; };
+		452FB3D42D8083B500518BDC /* kube.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB37C2D8083B500518BDC /* kube.grpc.swift */; };
+		452FB3D52D8083B500518BDC /* accesslist_service.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3422D8083B500518BDC /* accesslist_service.grpc.swift */; };
+		452FB3D62D8083B500518BDC /* server.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3812D8083B500518BDC /* server.pb.swift */; };
+		452FB3D72D8083B500518BDC /* cluster.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3772D8083B500518BDC /* cluster.pb.swift */; };
+		452FB3D82D8083B500518BDC /* userpreferences.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3A82D8083B500518BDC /* userpreferences.grpc.swift */; };
+		452FB3D92D8083B500518BDC /* usage.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3612D8083B500518BDC /* usage.pb.swift */; };
+		452FB3DA2D8083B500518BDC /* gateway.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB37A2D8083B500518BDC /* gateway.grpc.swift */; };
+		452FB3DB2D8083B500518BDC /* user_certificates.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3632D8083B500518BDC /* user_certificates.pb.swift */; };
+		452FB3DC2D8083B500518BDC /* connect.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB33B2D8083B500518BDC /* connect.pb.swift */; };
+		452FB3DD2D8083B500518BDC /* cluster.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3762D8083B500518BDC /* cluster.grpc.swift */; };
+		452FB3DE2D8083B500518BDC /* tshd_events_service.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3842D8083B500518BDC /* tshd_events_service.grpc.swift */; };
+		452FB3DF2D8083B500518BDC /* server.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3802D8083B500518BDC /* server.grpc.swift */; };
+		452FB3E02D8083B500518BDC /* os_type.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB35D2D8083B500518BDC /* os_type.pb.swift */; };
+		452FB3E12D8083B500518BDC /* os_type.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB35C2D8083B500518BDC /* os_type.grpc.swift */; };
+		452FB3E22D8083B500518BDC /* unified_resource_preferences.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3A72D8083B500518BDC /* unified_resource_preferences.pb.swift */; };
+		452FB3E32D8083B500518BDC /* device_web_token.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3572D8083B500518BDC /* device_web_token.pb.swift */; };
+		452FB3E42D8083B500518BDC /* assert.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3482D8083B500518BDC /* assert.grpc.swift */; };
+		452FB3E52D8083B500518BDC /* accesslist.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3452D8083B500518BDC /* accesslist.pb.swift */; };
+		452FB3E62D8083B500518BDC /* assist.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB39B2D8083B500518BDC /* assist.pb.swift */; };
+		452FB3E72D8083B500518BDC /* devicetrust_service.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB35B2D8083B500518BDC /* devicetrust_service.pb.swift */; };
+		452FB3E82D8083B500518BDC /* device_profile.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3532D8083B500518BDC /* device_profile.pb.swift */; };
+		452FB3E92D8083B500518BDC /* user_certificates.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3622D8083B500518BDC /* user_certificates.grpc.swift */; };
+		452FB3EA2D8083B500518BDC /* auth_settings.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3742D8083B500518BDC /* auth_settings.grpc.swift */; };
+		452FB3EB2D8083B500518BDC /* device_enroll_token.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3502D8083B500518BDC /* device_enroll_token.grpc.swift */; };
+		452FB3EC2D8083B500518BDC /* access_graph.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3992D8083B500518BDC /* access_graph.pb.swift */; };
+		452FB3ED2D8083B500518BDC /* resourceheader.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3682D8083B500518BDC /* resourceheader.grpc.swift */; };
+		452FB3EE2D8083B500518BDC /* vnet_service.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3892D8083B500518BDC /* vnet_service.grpc.swift */; };
+		452FB3EF2D8083B500518BDC /* label.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB37E2D8083B500518BDC /* label.grpc.swift */; };
+		452FB3F02D8083B500518BDC /* device_web_token.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3562D8083B500518BDC /* device_web_token.grpc.swift */; };
+		452FB3F12D8083B500518BDC /* label.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB37F2D8083B500518BDC /* label.pb.swift */; };
+		452FB3F22D8083B500518BDC /* cluster_preferences.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB39D2D8083B500518BDC /* cluster_preferences.pb.swift */; };
+		452FB3F32D8083B500518BDC /* devicetrust_service.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB35A2D8083B500518BDC /* devicetrust_service.grpc.swift */; };
+		452FB3F42D8083B500518BDC /* usage.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3602D8083B500518BDC /* usage.grpc.swift */; };
+		452FB3F52D8083B500518BDC /* trusted_device_requirement.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB36C2D8083B500518BDC /* trusted_device_requirement.grpc.swift */; };
+		452FB3F62D8083B500518BDC /* teleport.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB33E2D8083B500518BDC /* teleport.grpc.swift */; };
+		452FB3F72D8083B500518BDC /* device_profile.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3522D8083B500518BDC /* device_profile.grpc.swift */; };
+		452FB3F82D8083B500518BDC /* database.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3792D8083B500518BDC /* database.pb.swift */; };
+		452FB3F92D8083B500518BDC /* sidenav_preferences.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3A32D8083B500518BDC /* sidenav_preferences.pb.swift */; };
+		452FB3FA2D8083B500518BDC /* metadata.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3672D8083B500518BDC /* metadata.pb.swift */; };
+		452FB3FB2D8083B500518BDC /* sidenav_preferences.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3A22D8083B500518BDC /* sidenav_preferences.grpc.swift */; };
+		452FB3FC2D8083B500518BDC /* tbot.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB33C2D8083B500518BDC /* tbot.grpc.swift */; };
+		452FB3FD2D8083B500518BDC /* app.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3722D8083B500518BDC /* app.grpc.swift */; };
+		452FB3FE2D8083B500518BDC /* app.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3732D8083B500518BDC /* app.pb.swift */; };
+		452FB3FF2D8083B500518BDC /* database.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3782D8083B500518BDC /* database.grpc.swift */; };
+		452FB4002D8083B500518BDC /* service.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3822D8083B500518BDC /* service.grpc.swift */; };
+		452FB4022D8083B500518BDC /* device_source.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3552D8083B500518BDC /* device_source.pb.swift */; };
+		452FB4032D8083B500518BDC /* assert.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3492D8083B500518BDC /* assert.pb.swift */; };
+		452FB4042D8083B500518BDC /* access_request.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3702D8083B500518BDC /* access_request.grpc.swift */; };
+		452FB4052D8083B500518BDC /* access_graph.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3982D8083B500518BDC /* access_graph.grpc.swift */; };
+		452FB4062D8083B500518BDC /* accesslist.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3442D8083B500518BDC /* accesslist.grpc.swift */; };
+		452FB4072D8083B500518BDC /* discover_resource_preferences.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB39E2D8083B500518BDC /* discover_resource_preferences.grpc.swift */; };
+		452FB4082D8083B500518BDC /* unified_resource_preferences.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3A62D8083B500518BDC /* unified_resource_preferences.grpc.swift */; };
+		452FB4092D8083B500518BDC /* trait.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3952D8083B500518BDC /* trait.pb.swift */; };
+		452FB40A2D8083B500518BDC /* theme.grpc.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3A42D8083B500518BDC /* theme.grpc.swift */; };
+		452FB40B2D8083B500518BDC /* onboard.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452FB3A12D8083B500518BDC /* onboard.pb.swift */; };
+		452FB40E2D8085A800518BDC /* SwiftProtobuf in Frameworks */ = {isa = PBXBuildFile; productRef = 452FB40D2D8085A800518BDC /* SwiftProtobuf */; };
+		452FB4112D808A0700518BDC /* GRPCCore in Frameworks */ = {isa = PBXBuildFile; productRef = 452FB4102D808A0700518BDC /* GRPCCore */; };
+		452FB4142D808AE600518BDC /* GRPCProtobuf in Frameworks */ = {isa = PBXBuildFile; productRef = 452FB4132D808AE600518BDC /* GRPCProtobuf */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		B2D0C3042D803AA200C78620 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -24,6 +122,98 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		452FB33A2D8083B500518BDC /* connect.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = connect.grpc.swift; sourceTree = "<group>"; };
+		452FB33B2D8083B500518BDC /* connect.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = connect.pb.swift; sourceTree = "<group>"; };
+		452FB33C2D8083B500518BDC /* tbot.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = tbot.grpc.swift; sourceTree = "<group>"; };
+		452FB33D2D8083B500518BDC /* tbot.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = tbot.pb.swift; sourceTree = "<group>"; };
+		452FB33E2D8083B500518BDC /* teleport.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = teleport.grpc.swift; sourceTree = "<group>"; };
+		452FB33F2D8083B500518BDC /* teleport.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = teleport.pb.swift; sourceTree = "<group>"; };
+		452FB3422D8083B500518BDC /* accesslist_service.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = accesslist_service.grpc.swift; sourceTree = "<group>"; };
+		452FB3432D8083B500518BDC /* accesslist_service.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = accesslist_service.pb.swift; sourceTree = "<group>"; };
+		452FB3442D8083B500518BDC /* accesslist.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = accesslist.grpc.swift; sourceTree = "<group>"; };
+		452FB3452D8083B500518BDC /* accesslist.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = accesslist.pb.swift; sourceTree = "<group>"; };
+		452FB3482D8083B500518BDC /* assert.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = assert.grpc.swift; sourceTree = "<group>"; };
+		452FB3492D8083B500518BDC /* assert.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = assert.pb.swift; sourceTree = "<group>"; };
+		452FB34A2D8083B500518BDC /* authenticate_challenge.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = authenticate_challenge.grpc.swift; sourceTree = "<group>"; };
+		452FB34B2D8083B500518BDC /* authenticate_challenge.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = authenticate_challenge.pb.swift; sourceTree = "<group>"; };
+		452FB34C2D8083B500518BDC /* device_collected_data.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = device_collected_data.grpc.swift; sourceTree = "<group>"; };
+		452FB34D2D8083B500518BDC /* device_collected_data.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = device_collected_data.pb.swift; sourceTree = "<group>"; };
+		452FB34E2D8083B500518BDC /* device_confirmation_token.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = device_confirmation_token.grpc.swift; sourceTree = "<group>"; };
+		452FB34F2D8083B500518BDC /* device_confirmation_token.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = device_confirmation_token.pb.swift; sourceTree = "<group>"; };
+		452FB3502D8083B500518BDC /* device_enroll_token.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = device_enroll_token.grpc.swift; sourceTree = "<group>"; };
+		452FB3512D8083B500518BDC /* device_enroll_token.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = device_enroll_token.pb.swift; sourceTree = "<group>"; };
+		452FB3522D8083B500518BDC /* device_profile.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = device_profile.grpc.swift; sourceTree = "<group>"; };
+		452FB3532D8083B500518BDC /* device_profile.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = device_profile.pb.swift; sourceTree = "<group>"; };
+		452FB3542D8083B500518BDC /* device_source.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = device_source.grpc.swift; sourceTree = "<group>"; };
+		452FB3552D8083B500518BDC /* device_source.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = device_source.pb.swift; sourceTree = "<group>"; };
+		452FB3562D8083B500518BDC /* device_web_token.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = device_web_token.grpc.swift; sourceTree = "<group>"; };
+		452FB3572D8083B500518BDC /* device_web_token.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = device_web_token.pb.swift; sourceTree = "<group>"; };
+		452FB3582D8083B500518BDC /* device.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = device.grpc.swift; sourceTree = "<group>"; };
+		452FB3592D8083B500518BDC /* device.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = device.pb.swift; sourceTree = "<group>"; };
+		452FB35A2D8083B500518BDC /* devicetrust_service.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = devicetrust_service.grpc.swift; sourceTree = "<group>"; };
+		452FB35B2D8083B500518BDC /* devicetrust_service.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = devicetrust_service.pb.swift; sourceTree = "<group>"; };
+		452FB35C2D8083B500518BDC /* os_type.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = os_type.grpc.swift; sourceTree = "<group>"; };
+		452FB35D2D8083B500518BDC /* os_type.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = os_type.pb.swift; sourceTree = "<group>"; };
+		452FB35E2D8083B500518BDC /* tpm.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = tpm.grpc.swift; sourceTree = "<group>"; };
+		452FB35F2D8083B500518BDC /* tpm.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = tpm.pb.swift; sourceTree = "<group>"; };
+		452FB3602D8083B500518BDC /* usage.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = usage.grpc.swift; sourceTree = "<group>"; };
+		452FB3612D8083B500518BDC /* usage.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = usage.pb.swift; sourceTree = "<group>"; };
+		452FB3622D8083B500518BDC /* user_certificates.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = user_certificates.grpc.swift; sourceTree = "<group>"; };
+		452FB3632D8083B500518BDC /* user_certificates.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = user_certificates.pb.swift; sourceTree = "<group>"; };
+		452FB3662D8083B500518BDC /* metadata.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = metadata.grpc.swift; sourceTree = "<group>"; };
+		452FB3672D8083B500518BDC /* metadata.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = metadata.pb.swift; sourceTree = "<group>"; };
+		452FB3682D8083B500518BDC /* resourceheader.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = resourceheader.grpc.swift; sourceTree = "<group>"; };
+		452FB3692D8083B500518BDC /* resourceheader.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = resourceheader.pb.swift; sourceTree = "<group>"; };
+		452FB36C2D8083B500518BDC /* trusted_device_requirement.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = trusted_device_requirement.grpc.swift; sourceTree = "<group>"; };
+		452FB36D2D8083B500518BDC /* trusted_device_requirement.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = trusted_device_requirement.pb.swift; sourceTree = "<group>"; };
+		452FB3702D8083B500518BDC /* access_request.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = access_request.grpc.swift; sourceTree = "<group>"; };
+		452FB3712D8083B500518BDC /* access_request.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = access_request.pb.swift; sourceTree = "<group>"; };
+		452FB3722D8083B500518BDC /* app.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = app.grpc.swift; sourceTree = "<group>"; };
+		452FB3732D8083B500518BDC /* app.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = app.pb.swift; sourceTree = "<group>"; };
+		452FB3742D8083B500518BDC /* auth_settings.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = auth_settings.grpc.swift; sourceTree = "<group>"; };
+		452FB3752D8083B500518BDC /* auth_settings.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = auth_settings.pb.swift; sourceTree = "<group>"; };
+		452FB3762D8083B500518BDC /* cluster.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = cluster.grpc.swift; sourceTree = "<group>"; };
+		452FB3772D8083B500518BDC /* cluster.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = cluster.pb.swift; sourceTree = "<group>"; };
+		452FB3782D8083B500518BDC /* database.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = database.grpc.swift; sourceTree = "<group>"; };
+		452FB3792D8083B500518BDC /* database.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = database.pb.swift; sourceTree = "<group>"; };
+		452FB37A2D8083B500518BDC /* gateway.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = gateway.grpc.swift; sourceTree = "<group>"; };
+		452FB37B2D8083B500518BDC /* gateway.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = gateway.pb.swift; sourceTree = "<group>"; };
+		452FB37C2D8083B500518BDC /* kube.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = kube.grpc.swift; sourceTree = "<group>"; };
+		452FB37D2D8083B500518BDC /* kube.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = kube.pb.swift; sourceTree = "<group>"; };
+		452FB37E2D8083B500518BDC /* label.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = label.grpc.swift; sourceTree = "<group>"; };
+		452FB37F2D8083B500518BDC /* label.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = label.pb.swift; sourceTree = "<group>"; };
+		452FB3802D8083B500518BDC /* server.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = server.grpc.swift; sourceTree = "<group>"; };
+		452FB3812D8083B500518BDC /* server.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = server.pb.swift; sourceTree = "<group>"; };
+		452FB3822D8083B500518BDC /* service.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = service.grpc.swift; sourceTree = "<group>"; };
+		452FB3832D8083B500518BDC /* service.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = service.pb.swift; sourceTree = "<group>"; };
+		452FB3842D8083B500518BDC /* tshd_events_service.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = tshd_events_service.grpc.swift; sourceTree = "<group>"; };
+		452FB3852D8083B500518BDC /* tshd_events_service.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = tshd_events_service.pb.swift; sourceTree = "<group>"; };
+		452FB3862D8083B500518BDC /* usage_events.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = usage_events.grpc.swift; sourceTree = "<group>"; };
+		452FB3872D8083B500518BDC /* usage_events.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = usage_events.pb.swift; sourceTree = "<group>"; };
+		452FB3892D8083B500518BDC /* vnet_service.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = vnet_service.grpc.swift; sourceTree = "<group>"; };
+		452FB38A2D8083B500518BDC /* vnet_service.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = vnet_service.pb.swift; sourceTree = "<group>"; };
+		452FB38E2D8083B500518BDC /* diag.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = diag.grpc.swift; sourceTree = "<group>"; };
+		452FB38F2D8083B500518BDC /* diag.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = diag.pb.swift; sourceTree = "<group>"; };
+		452FB3942D8083B500518BDC /* trait.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = trait.grpc.swift; sourceTree = "<group>"; };
+		452FB3952D8083B500518BDC /* trait.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = trait.pb.swift; sourceTree = "<group>"; };
+		452FB3982D8083B500518BDC /* access_graph.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = access_graph.grpc.swift; sourceTree = "<group>"; };
+		452FB3992D8083B500518BDC /* access_graph.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = access_graph.pb.swift; sourceTree = "<group>"; };
+		452FB39A2D8083B500518BDC /* assist.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = assist.grpc.swift; sourceTree = "<group>"; };
+		452FB39B2D8083B500518BDC /* assist.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = assist.pb.swift; sourceTree = "<group>"; };
+		452FB39C2D8083B500518BDC /* cluster_preferences.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = cluster_preferences.grpc.swift; sourceTree = "<group>"; };
+		452FB39D2D8083B500518BDC /* cluster_preferences.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = cluster_preferences.pb.swift; sourceTree = "<group>"; };
+		452FB39E2D8083B500518BDC /* discover_resource_preferences.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = discover_resource_preferences.grpc.swift; sourceTree = "<group>"; };
+		452FB39F2D8083B500518BDC /* discover_resource_preferences.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = discover_resource_preferences.pb.swift; sourceTree = "<group>"; };
+		452FB3A02D8083B500518BDC /* onboard.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = onboard.grpc.swift; sourceTree = "<group>"; };
+		452FB3A12D8083B500518BDC /* onboard.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = onboard.pb.swift; sourceTree = "<group>"; };
+		452FB3A22D8083B500518BDC /* sidenav_preferences.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = sidenav_preferences.grpc.swift; sourceTree = "<group>"; };
+		452FB3A32D8083B500518BDC /* sidenav_preferences.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = sidenav_preferences.pb.swift; sourceTree = "<group>"; };
+		452FB3A42D8083B500518BDC /* theme.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = theme.grpc.swift; sourceTree = "<group>"; };
+		452FB3A52D8083B500518BDC /* theme.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = theme.pb.swift; sourceTree = "<group>"; };
+		452FB3A62D8083B500518BDC /* unified_resource_preferences.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = unified_resource_preferences.grpc.swift; sourceTree = "<group>"; };
+		452FB3A72D8083B500518BDC /* unified_resource_preferences.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = unified_resource_preferences.pb.swift; sourceTree = "<group>"; };
+		452FB3A82D8083B500518BDC /* userpreferences.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = userpreferences.grpc.swift; sourceTree = "<group>"; };
+		452FB3A92D8083B500518BDC /* userpreferences.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = userpreferences.pb.swift; sourceTree = "<group>"; };
 		B2D0C2F22D803AA100C78620 /* TeleportMenuBar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TeleportMenuBar.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B2D0C3032D803AA200C78620 /* TeleportMenuBarTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TeleportMenuBarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B2D0C30D2D803AA200C78620 /* TeleportMenuBarUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TeleportMenuBarUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -52,6 +242,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				452FB4142D808AE600518BDC /* GRPCProtobuf in Frameworks */,
+				452FB40E2D8085A800518BDC /* SwiftProtobuf in Frameworks */,
+				452FB4112D808A0700518BDC /* GRPCCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -72,9 +265,294 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		452FB3402D8083B500518BDC /* v1alpha */ = {
+			isa = PBXGroup;
+			children = (
+				452FB33A2D8083B500518BDC /* connect.grpc.swift */,
+				452FB33B2D8083B500518BDC /* connect.pb.swift */,
+				452FB33C2D8083B500518BDC /* tbot.grpc.swift */,
+				452FB33D2D8083B500518BDC /* tbot.pb.swift */,
+				452FB33E2D8083B500518BDC /* teleport.grpc.swift */,
+				452FB33F2D8083B500518BDC /* teleport.pb.swift */,
+			);
+			path = v1alpha;
+			sourceTree = "<group>";
+		};
+		452FB3412D8083B500518BDC /* prehog */ = {
+			isa = PBXGroup;
+			children = (
+				452FB3402D8083B500518BDC /* v1alpha */,
+			);
+			path = prehog;
+			sourceTree = "<group>";
+		};
+		452FB3462D8083B500518BDC /* v1 */ = {
+			isa = PBXGroup;
+			children = (
+				452FB3422D8083B500518BDC /* accesslist_service.grpc.swift */,
+				452FB3432D8083B500518BDC /* accesslist_service.pb.swift */,
+				452FB3442D8083B500518BDC /* accesslist.grpc.swift */,
+				452FB3452D8083B500518BDC /* accesslist.pb.swift */,
+			);
+			path = v1;
+			sourceTree = "<group>";
+		};
+		452FB3472D8083B500518BDC /* accesslist */ = {
+			isa = PBXGroup;
+			children = (
+				452FB3462D8083B500518BDC /* v1 */,
+			);
+			path = accesslist;
+			sourceTree = "<group>";
+		};
+		452FB3642D8083B500518BDC /* v1 */ = {
+			isa = PBXGroup;
+			children = (
+				452FB3482D8083B500518BDC /* assert.grpc.swift */,
+				452FB3492D8083B500518BDC /* assert.pb.swift */,
+				452FB34A2D8083B500518BDC /* authenticate_challenge.grpc.swift */,
+				452FB34B2D8083B500518BDC /* authenticate_challenge.pb.swift */,
+				452FB34C2D8083B500518BDC /* device_collected_data.grpc.swift */,
+				452FB34D2D8083B500518BDC /* device_collected_data.pb.swift */,
+				452FB34E2D8083B500518BDC /* device_confirmation_token.grpc.swift */,
+				452FB34F2D8083B500518BDC /* device_confirmation_token.pb.swift */,
+				452FB3502D8083B500518BDC /* device_enroll_token.grpc.swift */,
+				452FB3512D8083B500518BDC /* device_enroll_token.pb.swift */,
+				452FB3522D8083B500518BDC /* device_profile.grpc.swift */,
+				452FB3532D8083B500518BDC /* device_profile.pb.swift */,
+				452FB3542D8083B500518BDC /* device_source.grpc.swift */,
+				452FB3552D8083B500518BDC /* device_source.pb.swift */,
+				452FB3562D8083B500518BDC /* device_web_token.grpc.swift */,
+				452FB3572D8083B500518BDC /* device_web_token.pb.swift */,
+				452FB3582D8083B500518BDC /* device.grpc.swift */,
+				452FB3592D8083B500518BDC /* device.pb.swift */,
+				452FB35A2D8083B500518BDC /* devicetrust_service.grpc.swift */,
+				452FB35B2D8083B500518BDC /* devicetrust_service.pb.swift */,
+				452FB35C2D8083B500518BDC /* os_type.grpc.swift */,
+				452FB35D2D8083B500518BDC /* os_type.pb.swift */,
+				452FB35E2D8083B500518BDC /* tpm.grpc.swift */,
+				452FB35F2D8083B500518BDC /* tpm.pb.swift */,
+				452FB3602D8083B500518BDC /* usage.grpc.swift */,
+				452FB3612D8083B500518BDC /* usage.pb.swift */,
+				452FB3622D8083B500518BDC /* user_certificates.grpc.swift */,
+				452FB3632D8083B500518BDC /* user_certificates.pb.swift */,
+			);
+			path = v1;
+			sourceTree = "<group>";
+		};
+		452FB3652D8083B500518BDC /* devicetrust */ = {
+			isa = PBXGroup;
+			children = (
+				452FB3642D8083B500518BDC /* v1 */,
+			);
+			path = devicetrust;
+			sourceTree = "<group>";
+		};
+		452FB36A2D8083B500518BDC /* v1 */ = {
+			isa = PBXGroup;
+			children = (
+				452FB3662D8083B500518BDC /* metadata.grpc.swift */,
+				452FB3672D8083B500518BDC /* metadata.pb.swift */,
+				452FB3682D8083B500518BDC /* resourceheader.grpc.swift */,
+				452FB3692D8083B500518BDC /* resourceheader.pb.swift */,
+			);
+			path = v1;
+			sourceTree = "<group>";
+		};
+		452FB36B2D8083B500518BDC /* header */ = {
+			isa = PBXGroup;
+			children = (
+				452FB36A2D8083B500518BDC /* v1 */,
+			);
+			path = header;
+			sourceTree = "<group>";
+		};
+		452FB36E2D8083B500518BDC /* types */ = {
+			isa = PBXGroup;
+			children = (
+				452FB36C2D8083B500518BDC /* trusted_device_requirement.grpc.swift */,
+				452FB36D2D8083B500518BDC /* trusted_device_requirement.pb.swift */,
+			);
+			path = types;
+			sourceTree = "<group>";
+		};
+		452FB36F2D8083B500518BDC /* legacy */ = {
+			isa = PBXGroup;
+			children = (
+				452FB36E2D8083B500518BDC /* types */,
+			);
+			path = legacy;
+			sourceTree = "<group>";
+		};
+		452FB3882D8083B500518BDC /* v1 */ = {
+			isa = PBXGroup;
+			children = (
+				452FB3702D8083B500518BDC /* access_request.grpc.swift */,
+				452FB3712D8083B500518BDC /* access_request.pb.swift */,
+				452FB3722D8083B500518BDC /* app.grpc.swift */,
+				452FB3732D8083B500518BDC /* app.pb.swift */,
+				452FB3742D8083B500518BDC /* auth_settings.grpc.swift */,
+				452FB3752D8083B500518BDC /* auth_settings.pb.swift */,
+				452FB3762D8083B500518BDC /* cluster.grpc.swift */,
+				452FB3772D8083B500518BDC /* cluster.pb.swift */,
+				452FB3782D8083B500518BDC /* database.grpc.swift */,
+				452FB3792D8083B500518BDC /* database.pb.swift */,
+				452FB37A2D8083B500518BDC /* gateway.grpc.swift */,
+				452FB37B2D8083B500518BDC /* gateway.pb.swift */,
+				452FB37C2D8083B500518BDC /* kube.grpc.swift */,
+				452FB37D2D8083B500518BDC /* kube.pb.swift */,
+				452FB37E2D8083B500518BDC /* label.grpc.swift */,
+				452FB37F2D8083B500518BDC /* label.pb.swift */,
+				452FB3802D8083B500518BDC /* server.grpc.swift */,
+				452FB3812D8083B500518BDC /* server.pb.swift */,
+				452FB3822D8083B500518BDC /* service.grpc.swift */,
+				452FB3832D8083B500518BDC /* service.pb.swift */,
+				452FB3842D8083B500518BDC /* tshd_events_service.grpc.swift */,
+				452FB3852D8083B500518BDC /* tshd_events_service.pb.swift */,
+				452FB3862D8083B500518BDC /* usage_events.grpc.swift */,
+				452FB3872D8083B500518BDC /* usage_events.pb.swift */,
+			);
+			path = v1;
+			sourceTree = "<group>";
+		};
+		452FB38B2D8083B500518BDC /* v1 */ = {
+			isa = PBXGroup;
+			children = (
+				452FB3892D8083B500518BDC /* vnet_service.grpc.swift */,
+				452FB38A2D8083B500518BDC /* vnet_service.pb.swift */,
+			);
+			path = v1;
+			sourceTree = "<group>";
+		};
+		452FB38C2D8083B500518BDC /* vnet */ = {
+			isa = PBXGroup;
+			children = (
+				452FB38B2D8083B500518BDC /* v1 */,
+			);
+			path = vnet;
+			sourceTree = "<group>";
+		};
+		452FB38D2D8083B500518BDC /* teleterm */ = {
+			isa = PBXGroup;
+			children = (
+				452FB3882D8083B500518BDC /* v1 */,
+				452FB38C2D8083B500518BDC /* vnet */,
+			);
+			path = teleterm;
+			sourceTree = "<group>";
+		};
+		452FB3902D8083B500518BDC /* v1 */ = {
+			isa = PBXGroup;
+			children = (
+				452FB38E2D8083B500518BDC /* diag.grpc.swift */,
+				452FB38F2D8083B500518BDC /* diag.pb.swift */,
+			);
+			path = v1;
+			sourceTree = "<group>";
+		};
+		452FB3912D8083B500518BDC /* diag */ = {
+			isa = PBXGroup;
+			children = (
+				452FB3902D8083B500518BDC /* v1 */,
+			);
+			path = diag;
+			sourceTree = "<group>";
+		};
+		452FB3922D8083B500518BDC /* vnet */ = {
+			isa = PBXGroup;
+			children = (
+				452FB3912D8083B500518BDC /* diag */,
+			);
+			path = vnet;
+			sourceTree = "<group>";
+		};
+		452FB3932D8083B500518BDC /* lib */ = {
+			isa = PBXGroup;
+			children = (
+				452FB38D2D8083B500518BDC /* teleterm */,
+				452FB3922D8083B500518BDC /* vnet */,
+			);
+			path = lib;
+			sourceTree = "<group>";
+		};
+		452FB3962D8083B500518BDC /* v1 */ = {
+			isa = PBXGroup;
+			children = (
+				452FB3942D8083B500518BDC /* trait.grpc.swift */,
+				452FB3952D8083B500518BDC /* trait.pb.swift */,
+			);
+			path = v1;
+			sourceTree = "<group>";
+		};
+		452FB3972D8083B500518BDC /* trait */ = {
+			isa = PBXGroup;
+			children = (
+				452FB3962D8083B500518BDC /* v1 */,
+			);
+			path = trait;
+			sourceTree = "<group>";
+		};
+		452FB3AA2D8083B500518BDC /* v1 */ = {
+			isa = PBXGroup;
+			children = (
+				452FB3982D8083B500518BDC /* access_graph.grpc.swift */,
+				452FB3992D8083B500518BDC /* access_graph.pb.swift */,
+				452FB39A2D8083B500518BDC /* assist.grpc.swift */,
+				452FB39B2D8083B500518BDC /* assist.pb.swift */,
+				452FB39C2D8083B500518BDC /* cluster_preferences.grpc.swift */,
+				452FB39D2D8083B500518BDC /* cluster_preferences.pb.swift */,
+				452FB39E2D8083B500518BDC /* discover_resource_preferences.grpc.swift */,
+				452FB39F2D8083B500518BDC /* discover_resource_preferences.pb.swift */,
+				452FB3A02D8083B500518BDC /* onboard.grpc.swift */,
+				452FB3A12D8083B500518BDC /* onboard.pb.swift */,
+				452FB3A22D8083B500518BDC /* sidenav_preferences.grpc.swift */,
+				452FB3A32D8083B500518BDC /* sidenav_preferences.pb.swift */,
+				452FB3A42D8083B500518BDC /* theme.grpc.swift */,
+				452FB3A52D8083B500518BDC /* theme.pb.swift */,
+				452FB3A62D8083B500518BDC /* unified_resource_preferences.grpc.swift */,
+				452FB3A72D8083B500518BDC /* unified_resource_preferences.pb.swift */,
+				452FB3A82D8083B500518BDC /* userpreferences.grpc.swift */,
+				452FB3A92D8083B500518BDC /* userpreferences.pb.swift */,
+			);
+			path = v1;
+			sourceTree = "<group>";
+		};
+		452FB3AB2D8083B500518BDC /* userpreferences */ = {
+			isa = PBXGroup;
+			children = (
+				452FB3AA2D8083B500518BDC /* v1 */,
+			);
+			path = userpreferences;
+			sourceTree = "<group>";
+		};
+		452FB3AC2D8083B500518BDC /* teleport */ = {
+			isa = PBXGroup;
+			children = (
+				452FB3472D8083B500518BDC /* accesslist */,
+				452FB3652D8083B500518BDC /* devicetrust */,
+				452FB36B2D8083B500518BDC /* header */,
+				452FB36F2D8083B500518BDC /* legacy */,
+				452FB3932D8083B500518BDC /* lib */,
+				452FB3972D8083B500518BDC /* trait */,
+				452FB3AB2D8083B500518BDC /* userpreferences */,
+			);
+			path = teleport;
+			sourceTree = "<group>";
+		};
+		452FB3AD2D8083B500518BDC /* swift */ = {
+			isa = PBXGroup;
+			children = (
+				452FB3412D8083B500518BDC /* prehog */,
+				452FB3AC2D8083B500518BDC /* teleport */,
+			);
+			name = swift;
+			path = ../gen/proto/swift;
+			sourceTree = SOURCE_ROOT;
+		};
 		B2D0C2E92D803AA100C78620 = {
 			isa = PBXGroup;
 			children = (
+				452FB3AD2D8083B500518BDC /* swift */,
 				B2D0C2F42D803AA100C78620 /* TeleportMenuBar */,
 				B2D0C3062D803AA200C78620 /* TeleportMenuBarTests */,
 				B2D0C3102D803AA200C78620 /* TeleportMenuBarUITests */,
@@ -112,6 +590,9 @@
 			);
 			name = TeleportMenuBar;
 			packageProductDependencies = (
+				452FB40D2D8085A800518BDC /* SwiftProtobuf */,
+				452FB4102D808A0700518BDC /* GRPCCore */,
+				452FB4132D808AE600518BDC /* GRPCProtobuf */,
 			);
 			productName = TeleportMenuBar;
 			productReference = B2D0C2F22D803AA100C78620 /* TeleportMenuBar.app */;
@@ -195,6 +676,11 @@
 			);
 			mainGroup = B2D0C2E92D803AA100C78620;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				452FB40C2D8085A800518BDC /* XCRemoteSwiftPackageReference "swift-protobuf" */,
+				452FB40F2D808A0700518BDC /* XCRemoteSwiftPackageReference "grpc-swift" */,
+				452FB4122D808AE600518BDC /* XCRemoteSwiftPackageReference "grpc-swift-protobuf" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B2D0C2F32D803AA100C78620 /* Products */;
 			projectDirPath = "";
@@ -236,6 +722,98 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				452FB3AE2D8083B500518BDC /* theme.pb.swift in Sources */,
+				452FB3AF2D8083B500518BDC /* tpm.grpc.swift in Sources */,
+				452FB3B02D8083B500518BDC /* authenticate_challenge.pb.swift in Sources */,
+				452FB3B12D8083B500518BDC /* teleport.pb.swift in Sources */,
+				452FB3B22D8083B500518BDC /* auth_settings.pb.swift in Sources */,
+				452FB3B32D8083B500518BDC /* diag.pb.swift in Sources */,
+				452FB3B42D8083B500518BDC /* trait.grpc.swift in Sources */,
+				452FB3B52D8083B500518BDC /* access_request.pb.swift in Sources */,
+				452FB3B62D8083B500518BDC /* tshd_events_service.pb.swift in Sources */,
+				452FB3B72D8083B500518BDC /* diag.grpc.swift in Sources */,
+				452FB3B82D8083B500518BDC /* tbot.pb.swift in Sources */,
+				452FB3B92D8083B500518BDC /* usage_events.grpc.swift in Sources */,
+				452FB3BA2D8083B500518BDC /* device_collected_data.pb.swift in Sources */,
+				452FB3BB2D8083B500518BDC /* usage_events.pb.swift in Sources */,
+				452FB3BC2D8083B500518BDC /* kube.pb.swift in Sources */,
+				452FB3BD2D8083B500518BDC /* vnet_service.pb.swift in Sources */,
+				452FB3BE2D8083B500518BDC /* device_collected_data.grpc.swift in Sources */,
+				452FB3BF2D8083B500518BDC /* cluster_preferences.grpc.swift in Sources */,
+				452FB3C02D8083B500518BDC /* device.grpc.swift in Sources */,
+				452FB3C22D8083B500518BDC /* discover_resource_preferences.pb.swift in Sources */,
+				452FB3C32D8083B500518BDC /* tpm.pb.swift in Sources */,
+				452FB3C42D8083B500518BDC /* connect.grpc.swift in Sources */,
+				452FB3C52D8083B500518BDC /* authenticate_challenge.grpc.swift in Sources */,
+				452FB3C62D8083B500518BDC /* service.pb.swift in Sources */,
+				452FB3C72D8083B500518BDC /* device.pb.swift in Sources */,
+				452FB3C82D8083B500518BDC /* device_confirmation_token.pb.swift in Sources */,
+				452FB3C92D8083B500518BDC /* userpreferences.pb.swift in Sources */,
+				452FB3CA2D8083B500518BDC /* onboard.grpc.swift in Sources */,
+				452FB3CB2D8083B500518BDC /* resourceheader.pb.swift in Sources */,
+				452FB3CC2D8083B500518BDC /* device_enroll_token.pb.swift in Sources */,
+				452FB3CD2D8083B500518BDC /* accesslist_service.pb.swift in Sources */,
+				452FB3CE2D8083B500518BDC /* device_confirmation_token.grpc.swift in Sources */,
+				452FB3CF2D8083B500518BDC /* assist.grpc.swift in Sources */,
+				452FB3D02D8083B500518BDC /* device_source.grpc.swift in Sources */,
+				452FB3D12D8083B500518BDC /* metadata.grpc.swift in Sources */,
+				452FB3D22D8083B500518BDC /* trusted_device_requirement.pb.swift in Sources */,
+				452FB3D32D8083B500518BDC /* gateway.pb.swift in Sources */,
+				452FB3D42D8083B500518BDC /* kube.grpc.swift in Sources */,
+				452FB3D52D8083B500518BDC /* accesslist_service.grpc.swift in Sources */,
+				452FB3D62D8083B500518BDC /* server.pb.swift in Sources */,
+				452FB3D72D8083B500518BDC /* cluster.pb.swift in Sources */,
+				452FB3D82D8083B500518BDC /* userpreferences.grpc.swift in Sources */,
+				452FB3D92D8083B500518BDC /* usage.pb.swift in Sources */,
+				452FB3DA2D8083B500518BDC /* gateway.grpc.swift in Sources */,
+				452FB3DB2D8083B500518BDC /* user_certificates.pb.swift in Sources */,
+				452FB3DC2D8083B500518BDC /* connect.pb.swift in Sources */,
+				452FB3DD2D8083B500518BDC /* cluster.grpc.swift in Sources */,
+				452FB3DE2D8083B500518BDC /* tshd_events_service.grpc.swift in Sources */,
+				452FB3DF2D8083B500518BDC /* server.grpc.swift in Sources */,
+				452FB3E02D8083B500518BDC /* os_type.pb.swift in Sources */,
+				452FB3E12D8083B500518BDC /* os_type.grpc.swift in Sources */,
+				452FB3E22D8083B500518BDC /* unified_resource_preferences.pb.swift in Sources */,
+				452FB3E32D8083B500518BDC /* device_web_token.pb.swift in Sources */,
+				452FB3E42D8083B500518BDC /* assert.grpc.swift in Sources */,
+				452FB3E52D8083B500518BDC /* accesslist.pb.swift in Sources */,
+				452FB3E62D8083B500518BDC /* assist.pb.swift in Sources */,
+				452FB3E72D8083B500518BDC /* devicetrust_service.pb.swift in Sources */,
+				452FB3E82D8083B500518BDC /* device_profile.pb.swift in Sources */,
+				452FB3E92D8083B500518BDC /* user_certificates.grpc.swift in Sources */,
+				452FB3EA2D8083B500518BDC /* auth_settings.grpc.swift in Sources */,
+				452FB3EB2D8083B500518BDC /* device_enroll_token.grpc.swift in Sources */,
+				452FB3EC2D8083B500518BDC /* access_graph.pb.swift in Sources */,
+				452FB3ED2D8083B500518BDC /* resourceheader.grpc.swift in Sources */,
+				452FB3EE2D8083B500518BDC /* vnet_service.grpc.swift in Sources */,
+				452FB3EF2D8083B500518BDC /* label.grpc.swift in Sources */,
+				452FB3F02D8083B500518BDC /* device_web_token.grpc.swift in Sources */,
+				452FB3F12D8083B500518BDC /* label.pb.swift in Sources */,
+				452FB3F22D8083B500518BDC /* cluster_preferences.pb.swift in Sources */,
+				452FB3F32D8083B500518BDC /* devicetrust_service.grpc.swift in Sources */,
+				452FB3F42D8083B500518BDC /* usage.grpc.swift in Sources */,
+				452FB3F52D8083B500518BDC /* trusted_device_requirement.grpc.swift in Sources */,
+				452FB3F62D8083B500518BDC /* teleport.grpc.swift in Sources */,
+				452FB3F72D8083B500518BDC /* device_profile.grpc.swift in Sources */,
+				452FB3F82D8083B500518BDC /* database.pb.swift in Sources */,
+				452FB3F92D8083B500518BDC /* sidenav_preferences.pb.swift in Sources */,
+				452FB3FA2D8083B500518BDC /* metadata.pb.swift in Sources */,
+				452FB3FB2D8083B500518BDC /* sidenav_preferences.grpc.swift in Sources */,
+				452FB3FC2D8083B500518BDC /* tbot.grpc.swift in Sources */,
+				452FB3FD2D8083B500518BDC /* app.grpc.swift in Sources */,
+				452FB3FE2D8083B500518BDC /* app.pb.swift in Sources */,
+				452FB3FF2D8083B500518BDC /* database.grpc.swift in Sources */,
+				452FB4002D8083B500518BDC /* service.grpc.swift in Sources */,
+				452FB4022D8083B500518BDC /* device_source.pb.swift in Sources */,
+				452FB4032D8083B500518BDC /* assert.pb.swift in Sources */,
+				452FB4042D8083B500518BDC /* access_request.grpc.swift in Sources */,
+				452FB4052D8083B500518BDC /* access_graph.grpc.swift in Sources */,
+				452FB4062D8083B500518BDC /* accesslist.grpc.swift in Sources */,
+				452FB4072D8083B500518BDC /* discover_resource_preferences.grpc.swift in Sources */,
+				452FB4082D8083B500518BDC /* unified_resource_preferences.grpc.swift in Sources */,
+				452FB4092D8083B500518BDC /* trait.pb.swift in Sources */,
+				452FB40A2D8083B500518BDC /* theme.grpc.swift in Sources */,
+				452FB40B2D8083B500518BDC /* onboard.pb.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -322,13 +900,14 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MACOSX_DEPLOYMENT_TARGET = 15.2;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
 		};
@@ -379,11 +958,12 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MACOSX_DEPLOYMENT_TARGET = 15.2;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
 		};
@@ -541,6 +1121,51 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		452FB40C2D8085A800518BDC /* XCRemoteSwiftPackageReference "swift-protobuf" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-protobuf.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.29.0;
+			};
+		};
+		452FB40F2D808A0700518BDC /* XCRemoteSwiftPackageReference "grpc-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/grpc/grpc-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.1.0;
+			};
+		};
+		452FB4122D808AE600518BDC /* XCRemoteSwiftPackageReference "grpc-swift-protobuf" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/grpc/grpc-swift-protobuf";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.1.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		452FB40D2D8085A800518BDC /* SwiftProtobuf */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 452FB40C2D8085A800518BDC /* XCRemoteSwiftPackageReference "swift-protobuf" */;
+			productName = SwiftProtobuf;
+		};
+		452FB4102D808A0700518BDC /* GRPCCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 452FB40F2D808A0700518BDC /* XCRemoteSwiftPackageReference "grpc-swift" */;
+			productName = GRPCCore;
+		};
+		452FB4132D808AE600518BDC /* GRPCProtobuf */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 452FB4122D808AE600518BDC /* XCRemoteSwiftPackageReference "grpc-swift-protobuf" */;
+			productName = GRPCProtobuf;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = B2D0C2EA2D803AA100C78620 /* Project object */;
 }

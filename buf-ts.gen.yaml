@@ -9,7 +9,7 @@ inputs:
       - api/proto/teleport/trait/
       - api/proto/teleport/legacy/types/trusted_device_requirement.proto
       - api/proto/teleport/userpreferences/
-      - proto/prehog/
+      - proto/prehog/v1alpha/
       - proto/teleport/lib/teleterm/
       - proto/teleport/lib/vnet/diag/
 
@@ -30,3 +30,11 @@ plugins:
       - server_grpc1
       - ts_nocheck
     strategy: all
+  - local:
+      - protoc-gen-grpc-swift
+    out: gen/proto/swift
+    opt:
+      - Server=False
+  - local:
+      - protoc-gen-swift
+    out: gen/proto/swift
