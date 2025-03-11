@@ -697,7 +697,11 @@ func (u *Updater) Update(ctx context.Context, now bool) error {
 		u.Log.InfoContext(ctx, "Update available. Initiating update.", targetKey, target, activeKey, active)
 	}
 	if !now {
-		time.Sleep(resp.Jitter)
+		select {
+		case <-time.After(resp.Jitter):
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		}
 	}
 
 	updateErr := u.update(ctx, cfg, target, false, resp.AGPL)
