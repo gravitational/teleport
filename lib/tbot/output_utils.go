@@ -401,7 +401,8 @@ func generateIdentity(
 // less than the renewal interval, or if the server returns certs valid for a
 // shorter-than-expected period of time.
 // This assumes the identity was just renewed, for the purposes of calculating
-// TTLs.
+// TTLs, and may log false positive warnings if the time delta is large; the
+// time calculations include a 1m buffer to mitigate this.
 func warnOnEarlyExpiration(
 	ctx context.Context,
 	log *slog.Logger,
@@ -421,6 +422,10 @@ func warnOnEarlyExpiration(
 			"expires", ident.TLSIdentity.Expires,
 			"roles", ident.TLSIdentity.Groups,
 		)
+
+		// TODO(timothyb89): we can technically fetch our individual roles
+		// without explicit permission, and could determine which role in
+		// particular limited the TTL.
 
 		if effectiveTTL < lifetime.RenewalInterval {
 			l.WarnContext(ctx, "The server returned an identity shorter than "+
