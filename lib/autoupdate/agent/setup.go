@@ -233,11 +233,17 @@ func (ns *Namespace) Setup(ctx context.Context, path string) error {
 		}
 		// If the old teleport-upgrade script is detected, disable it to ensure they do not interfere.
 		// Note that the schedule is also set to nop by the Teleport agent -- this just prevents restarts.
-		enabled, err := isActiveOrEnabled(ctx, oldTimer)
-		if err != nil {
-			return trace.Wrap(err, "failed to determine if deprecated teleport-upgrade systemd timer is enabled")
+		present, err := oldTimer.IsPresent(ctx)
+		if errors.Is(err, ErrNotSupported) {
+			if err := oldTimer.Disable(ctx, true); err != nil {
+				ns.log.DebugContext(ctx, "The deprecated teleport-ent-updater package is either missing, or could not be disabled.", errorKey, err)
+			}
+			return nil
 		}
-		if enabled {
+		if err != nil {
+			return trace.Wrap(err, "failed to determine if deprecated teleport-upgrade systemd timer is present")
+		}
+		if present {
 			if err := oldTimer.Disable(ctx, true); err != nil {
 				ns.log.ErrorContext(ctx, "The deprecated teleport-ent-updater package is installed on this server, and it cannot be disabled due to an error. You must remove the teleport-ent-updater package after verifying that teleport-update is working.", errorKey, err)
 			} else {
@@ -288,6 +294,12 @@ func (ns *Namespace) Teardown(ctx context.Context) error {
 		}
 		// If the old upgrader exists, attempt to re-enable it automatically
 		present, err := oldTimer.IsPresent(ctx)
+		if errors.Is(err, ErrNotSupported) {
+			if err := oldTimer.Enable(ctx, true); err != nil {
+				ns.log.DebugContext(ctx, "The deprecated teleport-ent-updater package is either missing, or could not be enabled.", errorKey, err)
+			}
+			return nil
+		}
 		if err != nil {
 			return trace.Wrap(err, "failed to determine if deprecated teleport-upgrade systemd timer is present")
 		}
