@@ -23,7 +23,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -456,11 +455,13 @@ func (u *Updater) Remove(ctx context.Context, force bool) error {
 	// it is clear we are not going to recover the package's systemd service if it
 	// was overwritten.
 	if filepath.Clean(cfg.Spec.Path) != filepath.Clean(defaultPathDir) {
-		if u.TeleportServiceName == serviceName && !force {
-			u.Log.ErrorContext(ctx, "Default Teleport systemd service would be removed, and --force was not passed. Refusing to remove Teleport from this system.")
-			return trace.Errorf("unable to remove Teleport completely without --force")
-		} else {
-			u.Log.WarnContext(ctx, "Default Teleport systemd service would be removed since --force was passed. Teleport will be removed from this system.")
+		if u.TeleportServiceName == serviceName {
+			if !force {
+				u.Log.ErrorContext(ctx, "Default Teleport systemd service would be removed, and --force was not passed. Refusing to remove Teleport from this system.")
+				return trace.Errorf("unable to remove Teleport completely without --force")
+			} else {
+				u.Log.WarnContext(ctx, "Default Teleport systemd service will be removed since --force was passed. Teleport will be removed from this system.")
+			}
 		}
 		return u.removeWithoutSystem(ctx, cfg)
 	}
@@ -963,17 +964,17 @@ func (u *Updater) notices(ctx context.Context) error {
 	if !enabled && active {
 		u.Log.WarnContext(ctx, "Teleport is installed and started, but not configured to start on boot.")
 		u.Log.WarnContext(ctx, "After configuring teleport.yaml, you must enable it.",
-			"command", fmt.Sprintf("systemctl enable %s", u.TeleportServiceName))
+			"command", "systemctl enable "+u.TeleportServiceName)
 	}
 	if !active && enabled {
 		u.Log.WarnContext(ctx, "Teleport is installed and enabled at boot, but not running.")
 		u.Log.WarnContext(ctx, "After configuring teleport.yaml, you must start it.",
-			"command", fmt.Sprintf("systemctl start %s", u.TeleportServiceName))
+			"command", "systemctl start "+u.TeleportServiceName)
 	}
 	if !active && !enabled {
 		u.Log.WarnContext(ctx, "Teleport is installed, but not running or enabled at boot.")
 		u.Log.WarnContext(ctx, "After configuring teleport.yaml, you must enable and start.",
-			"command", fmt.Sprintf("systemctl enable %s --now", u.TeleportServiceName))
+			"command", "systemctl enable --now "+u.TeleportServiceName)
 	}
 
 	return nil
