@@ -257,3 +257,7 @@ You can only access enrolled applications and desktops through the Teleport
 Proxy Service. The Teleport Application Service and Teleport Database Service
 use reverse tunnel connections through the Teleport Proxy Service and cannot
 expose ports directly.
+
+<Admonition type="important">
+Direct auth joining is only supported for ssh and kube agents. Application, database, and other discovery-based features are not supported when joining auth directly.
+</Admonition>
