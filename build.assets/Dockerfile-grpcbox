@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM docker.io/golang:1.23.7
+FROM docker.io/golang:1.24.1
 
 # Image layers go from less likely to most likely to change.
 RUN apt-get update && \
