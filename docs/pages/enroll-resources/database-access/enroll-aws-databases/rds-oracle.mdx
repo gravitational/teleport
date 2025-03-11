@@ -174,7 +174,7 @@ domain:
     ```
   </TabItem>
   <TabItem label="Other">
-  If `adutil` is not available for your distributon, you can use `ktutil` instead. It should be available as a standard Kerberos utility.
+  If `adutil` is not available for your distribution, you can use `ktutil` instead. It should be available as a standard Kerberos utility.
   ```code
   $ ktutil
 ktutil: addent -password -p alice@EXAMPLE.COM -k 1 -e aes256-cts-hmac-sha1-96
@@ -325,7 +325,7 @@ GRANT SELECT ON SYS.V_$SESSION TO "TELEPORT@EXAMPLE.COM";
 
 Create the corresponding `TELEPORT@EXAMPLE.COM` user in AD.
 
-Enable standard auditing by modyfing the RDS Oracle parameter group `audit_trail` to contain [`db,extended`](https://aws.amazon.com/blogs/database/part-1-security-auditing-in-amazon-rds-for-oracle/#:~:text=Standard%20auditing%20with%20Amazon%20RDS%20for%20Oracle).
+Enable standard auditing by modifying the RDS Oracle parameter group `audit_trail` to contain [`db,extended`](https://aws.amazon.com/blogs/database/part-1-security-auditing-in-amazon-rds-for-oracle/#:~:text=Standard%20auditing%20with%20Amazon%20RDS%20for%20Oracle).
 
 Reboot your Oracle instance to propagate audit trail changes.
 
@@ -391,7 +391,7 @@ $ tsh db ls
 Connect to the database:
 
 ```code
-$ tsh db connect --db-user=alice --db-name MYPDB oracle
+$ tsh db connect --db-user=alice --db-name ORCL oracle
 ```
 
 To log out of the database and remove credentials:
