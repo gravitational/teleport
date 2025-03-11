@@ -1,38 +1,40 @@
 package audit
 
 import (
+	"context"
 	"crypto/tls"
 	"database/sql"
+	"database/sql/driver"
+	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 	go_ora "github.com/sijms/go-ora/v2"
+	"github.com/sijms/go-ora/v2/network"
 )
 
 const (
-	// queryAuditLogFmt allows to query dba_audit_trail audit table and get use session audit logs entries.
+	// queryAuditLog allows to query DBA_AUDIT_TRAIL audit view and get use session audit logs entries.
 	// To limit height memory consumption audit log entries will be fetched in batches using OFFSET/FETCH NEXT ROWS
 	// Oracle mechanism.
 	// https://docs.oracle.com/en/database/oracle/oracle-database/19/refrn/DBA_AUDIT_TRAIL.html
-	queryAuditLogFmt = `
+	queryAuditLog = `
 SELECT entryid, sql_text, sql_bind
-FROM dba_audit_trail
+FROM SYS.DBA_AUDIT_TRAIL
 WHERE sql_text IS NOT NULL
-  AND sessionid = '%s'
-  AND entryid > %s
-ORDER BY entryid OFFSET %d ROWS FETCH NEXT %d ROWS ONLY`
+  AND sessionid = :1
+  AND entryid > :2
+ORDER BY entryid OFFSET :3 ROWS FETCH NEXT :4 ROWS ONLY`
 
-	// queryAudSIDFmt allows to obtain audSID the unique audit session identifier that is used
+	// queryAudSID allows to obtain audSID the unique audit session identifier that is used
 	// to fetch per session audits logs. That mapping is done based on SID (SessionID) obtained from
 	// the client-server handshake.
-	queryAudSIDFmt = `
-SELECT audsid
-FROM v$session
-WHERE sid = '%s'`
+	queryAudSID = `SELECT AUDSID FROM SYS.V_$SESSION WHERE sid = :1`
 )
 
 type oracleConnector interface {
-	init(serviceName, sessionID, addr string, conf *tls.Config) (string, error)
+	init(serviceName, sessionID, addr string, conf *tls.Config, kerberosFun KerberosAuthFunc) (string, error)
 	getAudSid(sid string) (string, error)
 	fetchAuditLogs(audSID string, entryID string) ([]QueryEntry, error)
 	close() error
@@ -48,50 +50,80 @@ type QueryEntry struct {
 	EntryID string
 }
 
-func databaseConn(addr, serviceName string, tlsConfig *tls.Config) (*sql.DB, error) {
-	var driver go_ora.OracleDriver
-	dsn := fmt.Sprintf(`oracle://%s/%s?SSL=enabled&AUTH TYPE=TCPS`, addr, serviceName)
-	conn, err := driver.OpenConnector(dsn)
-	if err != nil {
-		return nil, trace.Wrap(err)
+type kerberosAuth struct {
+	kerberosFun KerberosAuthFunc
+}
+
+func (k kerberosAuth) Authenticate(server, service string) ([]byte, error) {
+	return k.kerberosFun(server, service)
+}
+
+func getOracleConnector(addr, serviceName string, tlsConfig *tls.Config, kerberosFun KerberosAuthFunc) (driver.Connector, error) {
+	authType := "TCPS"
+	if kerberosFun != nil {
+		authType = "KERBEROS"
 	}
+
+	dsn := fmt.Sprintf(`oracle://%s/%s?SSL=enabled&AUTH TYPE=%s`, addr, serviceName, authType)
+	conn := go_ora.NewConnector(dsn)
+
 	oc, ok := conn.(*go_ora.OracleConnector)
 	if !ok {
 		return nil, trace.BadParameter("expected *go_ora.OracleConnector, got %T", conn)
 	}
 	oc.WithTLSConfig(tlsConfig)
 
-	dbConn := sql.OpenDB(conn)
-
-	if err := dbConn.Ping(); err != nil {
-		return nil, trace.Wrap(err)
+	if kerberosFun != nil {
+		oc.WithKerberosAuth(kerberosAuth{kerberosFun: kerberosFun})
 	}
 
-	return dbConn, nil
+	return conn, nil
 }
 
 type oracleDB struct {
-	db     *sql.DB
-	audSID string
+	db *sql.DB
+	// username as reported by database; for reporting in error messages
+	username string
 }
 
-func (o *oracleDB) init(serviceName, sessionID, addr string, conf *tls.Config) (string, error) {
+var _ oracleConnector = (*oracleDB)(nil)
+
+func (o *oracleDB) init(serviceName, sessionID, addr string, conf *tls.Config, kerberosFun KerberosAuthFunc) (string, error) {
 	if serviceName == "" {
 		return "", trace.BadParameter("empty serviceName")
 	}
 	if sessionID == "" {
 		return "", trace.BadParameter("empty sessionID")
 	}
-	db, err := databaseConn(addr, serviceName, conf)
+
+	conn, err := getOracleConnector(addr, serviceName, conf, kerberosFun)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	o.db = db
+
+	dbConn := sql.OpenDB(conn)
+	err = dbConn.Ping()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	o.db = dbConn
+
+	// report username as seen by the database.
+	row := dbConn.QueryRow("SELECT USER FROM DUAL")
+	var user string
+	err = row.Scan(&user)
+	o.username = user
+	if err != nil {
+		slog.DebugContext(context.Background(), "failed to query database user", "err", err)
+		o.username = "<UNKNOWN>"
+	}
+
 	audSID, err := o.getAudSid(sessionID)
 	if err != nil {
-		return "", trace.NewAggregate(err, db.Close())
+		_ = dbConn.Close()
+		return "", trace.Wrap(err, "failed to get aud-sid")
 	}
-	o.audSID = audSID
+
 	return audSID, nil
 }
 
@@ -105,12 +137,21 @@ func (o *oracleDB) close() error {
 	return nil
 }
 
+// Oracle returns somewhat confusing "ORA-00942: table or view does not exist" when user is missing SELECT permissions.
+const oracleErrorCodeNoSuchTable = 942
+
 // getAudSid uses the Oracle system table and maps the Oracle sessionID obtained from the handshake to the
 // unique audit ID identified allowing to distinguish a user session and fetch audit entries for a particular
 // user session.
 func (o *oracleDB) getAudSid(sid string) (string, error) {
-	r, err := o.db.Query(fmt.Sprintf(queryAudSIDFmt, sid))
+	r, err := o.db.Query(queryAudSID, sid)
 	if err != nil {
+		var oracleErr *network.OracleError
+		if errors.As(err, &oracleErr) {
+			if oracleErr.ErrCode == oracleErrorCodeNoSuchTable {
+				return "", trace.Wrap(err, "audit user %s is missing SELECT permissions to the SYS.V_$SESSION view", o.username)
+			}
+		}
 		return "", trace.Wrap(err)
 	}
 	defer r.Close()
@@ -125,8 +166,7 @@ func (o *oracleDB) getAudSid(sid string) (string, error) {
 			return audSID, nil
 		}
 	}
-	return "", trace.NewAggregate(trace.BadParameter("failed to get auditSID"), r.Err())
-
+	return "", trace.Wrap(r.Err(), "failed to get auditSID")
 }
 
 // fetchAuditLogs fetches the query from the Oracle 'dba_audit_trail' table.
@@ -147,9 +187,14 @@ func (o *oracleDB) fetchAuditLogs(audSID string, lastEntryID string) ([]QueryEnt
 
 	var out []QueryEntry
 	for offset := 0; ; offset += rowLimit {
-		query := fmt.Sprintf(queryAuditLogFmt, audSID, lastEntryID, offset, rowLimit)
-		r, err := o.db.Query(query)
+		r, err := o.db.Query(queryAuditLog, audSID, lastEntryID, offset, rowLimit)
 		if err != nil {
+			var oracleErr *network.OracleError
+			if errors.As(err, &oracleErr) {
+				if oracleErr.ErrCode == oracleErrorCodeNoSuchTable {
+					return nil, trace.Wrap(err, "audit user %s is missing SELECT permissions to the SYS.DBA_AUDIT_TRAIL view", o.username)
+				}
+			}
 			return nil, trace.Wrap(err)
 		}
 		rowsCount := 0

@@ -89,7 +89,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 		e.startAuditPuller = func(serviceName string, sessionID string) error {
 			if err := auditPuller.Init(serviceName, sessionID); err != nil {
-				return trace.NewAggregate(err)
+				return trace.Wrap(err)
 			}
 			go func() {
 				if err := auditPuller.Run(ctx); err != nil {
@@ -108,12 +108,13 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	return trace.Wrap(err)
 }
 
-func (e *Engine) createAuditPuller(ctx context.Context, cfg types.OracleOptions) (*audit.Puller, error) {
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, e.session.GetExpiry(), e.session.Database, cfg.AuditUser)
+func (e *Engine) createAuditPuller(ctx context.Context, opts types.OracleOptions) (*audit.Puller, error) {
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, e.session.GetExpiry(), e.session.Database, opts.AuditUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	af, err := audit.NewPuller(audit.PullerConfig{
+
+	cfg := audit.PullerConfig{
 		Addr:      e.session.Database.GetURI(),
 		TLSConfig: tlsConfig,
 		OnQuery: func(entry audit.QueryEntry) {
@@ -122,7 +123,18 @@ func (e *Engine) createAuditPuller(ctx context.Context, cfg types.OracleOptions)
 				Query:      entry.Text,
 			})
 		},
-	})
+	}
+
+	if e.useKerberosAuth() {
+		cfg.KerberosAuth = func(server, service string) ([]byte, error) {
+			return e.authenticateKerberos(opts.AuditUser, protocol.KerberosAuthParams{
+				ServiceClass:   service,
+				ServerInstance: server,
+			})
+		}
+	}
+
+	af, err := audit.NewPuller(cfg)
 	return af, trace.Wrap(err)
 }
 

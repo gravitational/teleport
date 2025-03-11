@@ -63,12 +63,17 @@ type Puller struct {
 	mtx         sync.Mutex
 }
 
+// KerberosAuthFunc is a Kerberos auth callback function.
+type KerberosAuthFunc func(server, service string) ([]byte, error)
+
 // PullerConfig is a configuration of Puller.
 type PullerConfig struct {
 	// Addr is the Oracle instance address.
 	Addr string
 	// TLSConfig is the TLSConfig uses to auth via TCPS listener.
 	TLSConfig *tls.Config
+	// KerberosAuth is a Kerberos auth callback function.
+	KerberosAuth KerberosAuthFunc
 	// OnQuery is the callback function called on each audit entry record.
 	OnQuery func(QueryEntry)
 	// Logger is used for logging.
@@ -82,7 +87,7 @@ type PullerConfig struct {
 
 // Init initializes the Puller state.
 func (a *Puller) Init(serviceName string, sessionID string) error {
-	audSID, err := a.cfg.oracleDB.init(serviceName, sessionID, a.cfg.Addr, a.cfg.TLSConfig)
+	audSID, err := a.cfg.oracleDB.init(serviceName, sessionID, a.cfg.Addr, a.cfg.TLSConfig, a.cfg.KerberosAuth)
 	if err != nil {
 		close(a.done)
 		return trace.Wrap(err)

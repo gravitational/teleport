@@ -268,7 +268,7 @@ func (e *Engine) secureNetworkServicesClient(clientConn *connection.OracleConn) 
 // Depending on configuration, we either use Kerberos or TCPS (mTLS).
 func (e *Engine) secureNetworkServicesServer(ctx context.Context, serverConn *connection.OracleConn) error {
 	if e.useKerberosAuth() {
-		return trace.Wrap(performKerberosAuth(ctx, e.Log, e.authenticateKerberos, serverConn))
+		return trace.Wrap(performKerberosAuth(ctx, e.Log, e.session.DatabaseUser, e.authenticateKerberos, serverConn))
 	}
 	return trace.Wrap(e.performTCPSAuth(serverConn))
 }

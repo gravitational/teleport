@@ -18,12 +18,12 @@ func (e *Engine) useKerberosAuth() bool {
 	return e.session.Database.GetAD().Domain != ""
 }
 
-type authenticateFunc func(params protocol.KerberosAuthParams) ([]byte, error)
+type authenticateFunc func(username string, params protocol.KerberosAuthParams) ([]byte, error)
 
-func (e *Engine) authenticateKerberos(params protocol.KerberosAuthParams) ([]byte, error) {
+func (e *Engine) authenticateKerberos(username string, params protocol.KerberosAuthParams) ([]byte, error) {
 	provider := kerberos.NewClientProvider(e.AuthClient, e.DataDir)
 
-	kClient, err := provider.GetKerberosClient(e.Context, e.session.Database.GetAD(), e.session.DatabaseUser)
+	kClient, err := provider.GetKerberosClient(e.Context, e.session.Database.GetAD(), username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -58,9 +58,8 @@ func verifyExpectedKerberosServices(incomingPacket *protocol.DataPacket) error {
 }
 
 // performKerberosAuth performs the Kerberos authentication flow against Oracle server.
-func performKerberosAuth(ctx context.Context, log *slog.Logger, authenticate authenticateFunc, serverConn *connection.OracleConn) error {
+func performKerberosAuth(ctx context.Context, log *slog.Logger, username string, authenticate authenticateFunc, serverConn *connection.OracleConn) error {
 	log.DebugContext(ctx, "Performing Kerberos auth.")
-
 	// send initial packet, requesting Kerberos auth with other services disabled.
 	err := writeDataPacket(serverConn, servicesRequestKerberos)
 	if err != nil {
@@ -94,7 +93,7 @@ func performKerberosAuth(ctx context.Context, log *slog.Logger, authenticate aut
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	token, err := authenticate(*ticketParams)
+	token, err := authenticate(username, *ticketParams)
 	if err != nil {
 		return trace.Wrap(err)
 	}

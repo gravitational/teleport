@@ -155,7 +155,7 @@ func Test_performKerberosAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	go func() {
-		authenticate := func(params protocol.KerberosAuthParams) ([]byte, error) {
+		authenticate := func(username string, params protocol.KerberosAuthParams) ([]byte, error) {
 			if params.ServerInstance != "db.oraad.com" {
 				return nil, trace.BadParameter("unexpected server instance %q", params.ServerInstance)
 			}
@@ -167,7 +167,7 @@ func Test_performKerberosAuth(t *testing.T) {
 			response := "dummy ticket"
 			return []byte(response), nil
 		}
-		chErr <- performKerberosAuth(context.Background(), slog.Default(), authenticate, serverConn)
+		chErr <- performKerberosAuth(context.Background(), slog.Default(), "", authenticate, serverConn)
 	}()
 
 	for i := 0; i < 2; i++ {

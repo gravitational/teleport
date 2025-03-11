@@ -115,7 +115,7 @@ type mockOracleConnector struct {
 	fetchAuditLogsFunc func(audSID string, eid string) ([]QueryEntry, error)
 }
 
-func (m *mockOracleConnector) init(serviceName, sessionID, addr string, conf *tls.Config) (string, error) {
+func (m *mockOracleConnector) init(serviceName, sessionID, addr string, conf *tls.Config, kerberosFun KerberosAuthFunc) (string, error) {
 	return m.initFunc(serviceName, sessionID, addr, conf)
 }
 
