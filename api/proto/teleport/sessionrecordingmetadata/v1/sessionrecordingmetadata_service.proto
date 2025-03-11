@@ -1,0 +1,80 @@
+// Copyright 2024 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.sessionrecordingmetadata.v1;
+
+import "google/protobuf/empty.proto";
+import "teleport/sessionrecordingmetadata/v1/sessionrecordingmetadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionrecordingmetatada/v1;sessionrecordingmetatadav1";
+
+// SessionRecordingMetadataService is the service that provides methods to manage SessionRecordingMetadata
+service SessionRecordingMetadataService {
+  // Creates a new SessionRecordingMetadata
+  rpc CreateSessionRecordingMetadata(CreateSessionRecordingMetadataRequest) returns (SessionRecordingMetadata);
+  // Updates existing SessionRecordingMetadata
+  rpc UpdateSessionRecordingMetadata(UpdateSessionRecordingMetadataRequest) returns (SessionRecordingMetadata);
+  // Gets single SessionRecordingMetadata
+  rpc GetSessionRecordingMetadata(GetSessionRecordingMetadataRequest) returns (SessionRecordingMetadata);
+  // Deletes existing SessionRecordingMetadata
+  rpc DeleteSessionRecordingMetadata(DeleteSessionRecordingMetadataRequest) returns (google.protobuf.Empty);
+  // Returns list of SessionRecordingMetadata. Supports pagination and filtering
+  rpc ListSessionRecordingMetadata(ListSessionRecordingMetadataRequest) returns (ListSessionRecordingMetadataResponse);
+}
+
+// CreateSessionRecordingMetadataRequest is create
+message CreateSessionRecordingMetadataRequest {
+  // The desired SessionRecordingMetadata to be created.
+  SessionRecordingMetadata session_recording_metadata = 1;
+}
+
+// UpdateSessionRecordingMetadataRequest is update
+message UpdateSessionRecordingMetadataRequest {
+  // The desired SessionRecordingMetadata to be updated.
+  SessionRecordingMetadata session_recording_metadata = 1;
+}
+
+// DeleteSessionRecordingMetadataRequest is Update
+message DeleteSessionRecordingMetadataRequest {
+  // The session id SessionRecordingMetadata to be deleted.
+  string session_id = 1;
+}
+
+// GetSessionRecordingMetadataRequest is get
+message GetSessionRecordingMetadataRequest {
+  // The session id
+  string session_id = 1;
+}
+
+// ListSessionRecordingMetadataRequest is list
+message ListSessionRecordingMetadataRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+  // Optional list of session ids to retrieve
+  repeated string session_ids = 3;
+  // If we should return only SessionRecordingMetadata with summary
+  bool with_summary = 4;
+}
+
+// ListSessionRecordingMetadataResponse is response from ListSessionRecordingMetadata
+message ListSessionRecordingMetadataResponse {
+  repeated SessionRecordingMetadata session_recording_metadata = 1;
+  // Token to retrieve the next page of results, or empty if there are no more results in the list.
+  string next_page_token = 2;
+}
