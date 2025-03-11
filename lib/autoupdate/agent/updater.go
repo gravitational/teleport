@@ -114,10 +114,13 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 	}
 	validator := Validator{Log: cfg.Log}
 	debugClient := debug.NewClient(filepath.Join(ns.dataDir, debugSocketFileName))
+	ok, err := hasSystemD()
+	systemdUnavailable := err == nil && !ok
 	return &Updater{
 		Log:                cfg.Log,
 		Pool:               certPool,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		SystemDUnavailable: systemdUnavailable,
 		UpdateConfigFile:   filepath.Join(ns.Dir(), updateConfigName),
 		TeleportConfigFile: ns.configFile,
 		DefaultProxyAddr:   ns.defaultProxyAddr,
@@ -200,6 +203,8 @@ type Updater struct {
 	Pool *x509.CertPool
 	// InsecureSkipVerify skips TLS verification.
 	InsecureSkipVerify bool
+	// SystemDUnavailable is true if SystemD is not available.
+	SystemDUnavailable bool
 	// UpdateConfigFile contains the path to the agent auto-updates configuration.
 	UpdateConfigFile string
 	// TeleportConfigFile contains the path to Teleport's configuration.
@@ -887,7 +892,7 @@ func (u *Updater) Setup(ctx context.Context, path string, restart bool) error {
 		return trace.Wrap(err, "failed to setup updater")
 	}
 
-	if ok, err := hasSystemD(); err == nil && !ok {
+	if u.SystemDUnavailable {
 		u.Log.WarnContext(ctx, "Skipping all systemd setup because systemd is not running.")
 		return nil
 	}
@@ -921,7 +926,7 @@ func (u *Updater) Setup(ctx context.Context, path string, restart bool) error {
 
 // notices displays final notices after install or update.
 func (u *Updater) notices(ctx context.Context) error {
-	if ok, err := hasSystemD(); err == nil && !ok {
+	if u.SystemDUnavailable {
 		u.Log.WarnContext(ctx, "Teleport is installed, but systemd is not present to start it.")
 		u.Log.WarnContext(ctx, "After configuring teleport.yaml, your system must also be configured to start Teleport.")
 		return nil

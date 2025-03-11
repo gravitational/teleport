@@ -372,7 +372,7 @@ func (s SystemdService) Enable(ctx context.Context, now bool) error {
 	if err := s.checkSystem(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	// The --now flag is not supported in systemd versions older than 219,
+	// The --now flag is not supported in systemd versions older than 220,
 	// so perform enable + start commands instead.
 	code := s.systemctl(ctx, slog.LevelInfo, "enable", s.ServiceName)
 	if code != 0 {
@@ -393,7 +393,8 @@ func (s SystemdService) Disable(ctx context.Context, now bool) error {
 	if err := s.checkSystem(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	// The --now flag is not supported in systemd versions older than 219.
+	// The --now flag is not supported in systemd versions older than 220,
+	// so perform enable + start commands instead.
 	code := s.systemctl(ctx, slog.LevelInfo, "disable", s.ServiceName)
 	if code != 0 {
 		return trace.Errorf("unable to disable systemd service")
@@ -446,7 +447,7 @@ func (s SystemdService) IsPresent(ctx context.Context) (bool, error) {
 	if err := s.checkSystem(ctx); err != nil {
 		return false, trace.Wrap(err)
 	}
-	if hasSystemDBelow(ctx, 233) {
+	if hasSystemDBelow(ctx, 246) {
 		return false, trace.Wrap(ErrNotSupported)
 	}
 	code := s.systemctl(ctx, slog.LevelDebug, "list-unit-files", "--quiet", s.ServiceName)
