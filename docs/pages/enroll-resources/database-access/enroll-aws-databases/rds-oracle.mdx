@@ -25,7 +25,7 @@ Database Service forwards user traffic to the database.
   guide will walk you through the joining steps if you don't have one.
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/8. Prepare the Oracle RDS Instance
+## Step 1/9. Prepare the Oracle RDS Instance
 
 Before configuring Teleport, ensure your Oracle RDS instance has Kerberos authentication and TLS properly configured:
 
@@ -37,7 +37,7 @@ Before configuring Teleport, ensure your Oracle RDS instance has Kerberos authen
   Verify connectivity between your Teleport database service host and the Oracle RDS instance before proceeding.
 </Admonition>
 
-## Step 2/8. Create Oracle AD users
+## Step 2/9. Create Oracle AD users
 
 <Admonition type="note">
   You can skip this step if you already have Active Directory logins in your
@@ -48,11 +48,11 @@ Connect to your Oracle as an administrative account (e.g. `admin`) and create
 users that will use Active Directory authentication:
 
 ```sql
-CREATE USER "alice@EXAMPLE.COM" IDENTIFIED EXTERNALLY;
-GRANT CREATE SESSION TO "alice@EXAMPLE.COM";
+CREATE USER "ALICE@EXAMPLE.COM" IDENTIFIED EXTERNALLY;
+GRANT CREATE SESSION TO "ALICE@EXAMPLE.COM";
 ```
 
-## Step 3/8. Join the Linux node to Active Directory
+## Step 3/9. Join the Linux node to Active Directory
 
 <Admonition type="note">
   You can skip this step if you already have a Linux node joined to the same
@@ -127,7 +127,7 @@ example.com
   ...
 ```
 
-## Step 4/8. Create keytab file
+## Step 4/9. Create keytab file
 
 Teleport requires a keytab file to obtain Kerberos service tickets from your
 Active Directory for authentication with SQL Server. The easiest way to generate
@@ -237,7 +237,7 @@ KVNO Principal
   authentication failures.
 </Admonition>
 
-## Step 5/8. Set up the Teleport Database Service
+## Step 5/9. Set up the Teleport Database Service
 
 (!docs/pages/includes/tctl-token.mdx serviceName="Database" tokenType="db" tokenFile="/tmp/token"!)
 
@@ -299,15 +299,66 @@ Provide Active Directory parameters:
 | `--ad-keytab-file` | Path to Kerberos keytab file generated above. |
 | `--ad-domain` | Active Directory domain (Kerberos realm) that Oracle is joined. |
 
-## Step 6/8. Start the Database Service
+## Step 6/9. Start the Database Service
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
-## Step 7/8. Create a Teleport users
+## Step 7/9. Create a Teleport users
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 8/8. Connect
+## Step 8/9. (Optional) Configure Teleport to pull audit logs from Oracle Audit Trail
+
+Teleport can pull audit logs from Oracle Audit Trail.
+In order to enable this feature, you will need to configure Oracle Audit Trail and create a dedicated Teleport
+user that will be used to fetch audit events from Oracle Audit Trail.
+
+Create an internal Oracle `TELEPORT@EXAMPLE.COM` user that will fetch
+audit events from Oracle Audit Trail:
+
+```sql
+CREATE USER "TELEPORT@EXAMPLE.COM" IDENTIFIED EXTERNALLY;
+GRANT CREATE SESSION TO "TELEPORT@EXAMPLE.COM";
+GRANT SELECT ON SYS.DBA_AUDIT_TRAIL TO "TELEPORT@EXAMPLE.COM";
+GRANT SELECT ON SYS.V_$SESSION TO "TELEPORT@EXAMPLE.COM";
+```
+
+Create the corresponding `TELEPORT@EXAMPLE.COM` user in AD.
+
+Enable standard auditing by modyfing the RDS Oracle parameter group `audit_trail` to contain [`db,extended`](https://aws.amazon.com/blogs/database/part-1-security-auditing-in-amazon-rds-for-oracle/#:~:text=Standard%20auditing%20with%20Amazon%20RDS%20for%20Oracle).
+
+Reboot your Oracle instance to propagate audit trail changes.
+
+Enable Oracle auditing for the `alice` user:
+```sql
+AUDIT ALL STATEMENTS by "ALICE@EXAMPLE.COM" BY access;
+```
+
+You must enable auditing for each Teleport user that will be used to connect to Oracle.
+Additionally you can create a different audit policy for each user.
+
+Edit the Database Service configuration to specify the audit user you created earlier.
+
+```diff
+db_service:
+  enabled: "yes"
+  databases:
+  - name: "oracle"
+    protocol: "oracle"
+    uri: "oracle-instance.aabbccddeegg.eu-central-1.rds.amazonaws.com:2484"
+    ad:
+      keytab_file: "/etc/teleport/teleport.keytab"
+      domain: "EXAMPLE.COM"
+      krb5_file: "/etc/krb5.conf"
++   oracle:
++     audit_user: "teleport"
+```
+
+Teleport doesn't clean up audit trail events from Oracle Audit Trail.
+Make sure to configure an Oracle Audit Trail cleanup policy to avoid running out of disk space.
+
+
+## Step 9/9. Connect
 
 Log in to your Teleport cluster. Your Oracle database should appear in the
 list of available databases:
@@ -329,24 +380,27 @@ $ tsh db ls
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
 $ tsh db ls
-# Name      Description         Labels
-# --------- ------------------- -------
-# oracle                     env=dev
+# Name   Description Allowed Users Labels  Connect
+# ------ ----------- ------------- ------- -------
+# oracle             [*]           env=dev
 ```
 
 </TabItem>
 </Tabs>
 
-To retrieve credentials for a database and connect to it:
+Connect to the database:
 
 ```code
-$ tsh db connect --db-user="alice" oracle --db-name MYPDB
+$ tsh db connect --db-user=alice --db-name MYPDB oracle
 ```
 
 To log out of the database and remove credentials:
 
 ```code
+# Remove credentials for a particular database instance.
 $ tsh db logout oracle
+# Remove credentials for all database instances.
+$ tsh db logout
 ```
 
 ## Next steps
@@ -363,5 +417,6 @@ Ensure that `SQLNET.SSL_VERSION` parameter enables `TLS 1.2` version. TLS 1.0 is
 
 - [AWS RDS Oracle Kerberos Setup](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/oracle-kerberos-setting-up.html).
 - [AWS RDS Oracle SSL Setup](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.Oracle.Options.SSL.html).
+- [AWS RDS Oracle auditing](https://aws.amazon.com/blogs/database/part-1-security-auditing-in-amazon-rds-for-oracle/).
 - [Manually join a Linux instance](https://docs.aws.amazon.com/directoryservice/latest/admin-guide/join_linux_instance.html) in the AWS documentation.
 - [Introduction to `adutil`](https://docs.microsoft.com/en-us/sql/linux/sql-server-linux-ad-auth-adutil-introduction) in the Microsoft documentation.
