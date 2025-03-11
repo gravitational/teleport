@@ -229,7 +229,10 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 	}
 	span.AddEvent("retrieved target server")
 
-	principals := []string{host}
+	principals := []string{
+		host,
+		fmt.Sprintf("%s.%s", host, clusterName),
+	}
 
 	var (
 		isAgentlessNode bool
@@ -276,7 +279,6 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				principals = append(principals, fmt.Sprintf("%s.%s", host, clusterName))
 			}
 		}
 	} else {
