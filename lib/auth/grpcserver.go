@@ -5628,7 +5628,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 
 	decisionService, err := decisionv1.NewService(decisionv1.ServiceConfig{
-		Authorizer: cfg.Authorizer,
+		DecisionService: cfg.AuthServer.pdp,
+		Authorizer:      cfg.Authorizer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
