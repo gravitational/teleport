@@ -412,7 +412,7 @@ func warnOnEarlyExpiration(
 	// Calculate a rough TTL, assuming this was called shortly after the
 	// identity was returned. We'll add a minute buffer to compensate and avoid
 	// superfluous warning messages.
-	effectiveTTL := ident.TLSIdentity.Expires.Sub(time.Now()) + time.Minute
+	effectiveTTL := time.Until(ident.TLSIdentity.Expires) + time.Minute
 
 	if effectiveTTL < lifetime.TTL {
 		l := log.With(
@@ -428,12 +428,14 @@ func warnOnEarlyExpiration(
 		// particular limited the TTL.
 
 		if effectiveTTL < lifetime.RenewalInterval {
+			//nolint:sloglint // multiline string is actually constant
 			l.WarnContext(ctx, "The server returned an identity shorter than "+
 				"expected and below the configured renewal interval, probably "+
 				"due to a `max_session_ttl` configured on a server-side role. "+
 				"Unless corrected, the credentials will be invalid for some "+
 				"period until renewal.")
 		} else {
+			//nolint:sloglint // multiline string is actually constant
 			l.WarnContext(ctx, "The server returned an identity shorter than "+
 				"the requested TTL, probably due to a `max_session_ttl` "+
 				"configured on a server-side role. It may not remain valid as "+
