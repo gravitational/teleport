@@ -37,8 +37,10 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -483,6 +485,23 @@ func (s *Server) ActiveConnections() int32 {
 // and proxies, proxies and servers, servers and auth, etc), except for forwarding
 // SSH proxy that used when "recording on proxy" is enabled.
 func (s *Server) HandleConnection(conn net.Conn) {
+	s.handleConnection(conn, nil)
+}
+
+func (s *Server) HandleStapledConnection(conn net.Conn, permit []byte) {
+	p := new(decisionpb.SSHAccessPermit)
+	if err := proto.Unmarshal(permit, p); err != nil {
+		s.logger.ErrorContext(s.closeContext, "failed to unmarshal SSHAccessPermit", "error", err)
+		_ = conn.Close()
+		return
+	}
+
+	// TODO: use the permit
+	s.logger.ErrorContext(context.TODO(), "=== GOT STAPLED CONNECTION, PROCEEDING NORMALLY ===", "permit", p.String())
+	s.HandleConnection(conn)
+}
+
+func (s *Server) handleConnection(conn net.Conn, _ *decisionpb.SSHAccessPermit) {
 	if s.ingressReporter != nil {
 		s.ingressReporter.ConnectionAccepted(s.ingressService, conn)
 		defer s.ingressReporter.ConnectionClosed(s.ingressService, conn)
@@ -692,12 +711,6 @@ func (s *Server) HandleConnection(conn net.Conn) {
 			return
 		}
 	}
-}
-
-func (s *Server) HandleStapledConnection(conn net.Conn, permit []byte) {
-	// TODO: unmarshal and use the permit
-	s.logger.ErrorContext(context.TODO(), "=== GOT STAPLED CONNECTION, PROCEEDING NORMALLY ===", "permit", permit)
-	s.HandleConnection(conn)
 }
 
 type RequestHandler interface {
