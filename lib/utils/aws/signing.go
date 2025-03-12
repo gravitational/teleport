@@ -100,7 +100,7 @@ func SignRequest(ctx context.Context, req *http.Request, signCtx *SigningCtx) (*
 		return nil, trace.Wrap(err)
 	}
 
-	signer := NewSignerV2(signCtx.SigningName)
+	signer := NewSigner(signCtx.SigningName)
 	err = signer.SignHTTP(ctx, creds, reqCopy, GetV4PayloadHash(payload), signCtx.SigningName, signCtx.SigningRegion, time.Now())
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -216,7 +216,7 @@ func VerifyAWSSignature(req *http.Request, credProvider aws.CredentialsProvider)
 		return trace.Wrap(err)
 	}
 
-	signer := NewSignerV2(sigV4.Service)
+	signer := NewSigner(sigV4.Service)
 	err = signer.SignHTTP(ctx, creds, reqCopy, GetV4PayloadHash(payload), sigV4.Service, sigV4.Region, t)
 	if err != nil {
 		return trace.Wrap(err)
@@ -235,8 +235,8 @@ func VerifyAWSSignature(req *http.Request, credProvider aws.CredentialsProvider)
 	return nil
 }
 
-// NewSignerV2 is a temporary AWS SDK migration helper.
-func NewSignerV2(signingServiceName string) *v4.Signer {
+// NewSigner creates a new V4 signer.
+func NewSigner(signingServiceName string) *v4.Signer {
 	return v4.NewSigner(func(opts *v4.SignerOptions) {
 		// s3 and s3control requests are signed with URL unescaped (found by
 		// searching "DisableURIPathEscaping" in "aws-sdk-go/service"). Both
@@ -250,6 +250,10 @@ func NewSignerV2(signingServiceName string) *v4.Signer {
 
 // GetV4PayloadHash returns the V4 signing payload hash.
 func GetV4PayloadHash(payload []byte) string {
+	if len(payload) == 0 {
+		return EmptyPayloadHash
+	}
+
 	hash := sha256.New()
 	hash.Write(payload)
 	return hex.EncodeToString(hash.Sum(nil))

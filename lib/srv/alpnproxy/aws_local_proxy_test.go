@@ -45,10 +45,10 @@ func TestAWSAccessMiddleware(t *testing.T) {
 	require.NoError(t, m.CheckAndSetDefaults())
 
 	stsRequestByLocalProxyCred := httptest.NewRequest(http.MethodPost, "http://sts.us-east-2.amazonaws.com", nil)
-	awsutils.NewSignerV2("sts").SignHTTP(t.Context(), localCred, stsRequestByLocalProxyCred, awsutils.EmptyPayloadHash, "sts", "us-west-1", time.Now())
+	awsutils.NewSigner("sts").SignHTTP(t.Context(), localCred, stsRequestByLocalProxyCred, awsutils.EmptyPayloadHash, "sts", "us-west-1", time.Now())
 
 	requestByAssumedRole := httptest.NewRequest(http.MethodGet, "http://s3.amazonaws.com", nil)
-	awsutils.NewSignerV2("s3").SignHTTP(t.Context(), assumedRoleCred, requestByAssumedRole, awsutils.EmptyPayloadHash, "s3", "us-west-1", time.Now())
+	awsutils.NewSigner("s3").SignHTTP(t.Context(), assumedRoleCred, requestByAssumedRole, awsutils.EmptyPayloadHash, "s3", "us-west-1", time.Now())
 
 	t.Run("request no authorization", func(t *testing.T) {
 		recorder := httptest.NewRecorder()
