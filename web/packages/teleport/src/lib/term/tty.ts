@@ -80,6 +80,16 @@ class Tty extends EventEmitterMfaSender {
     this.socket.send(bytearray.buffer);
   }
 
+  terminateModeratedSession() {
+    if (!this.socket) {
+      return;
+    }
+
+    const msg = this._proto.encodeRawMessage('t');
+    const bytearray = new Uint8Array(msg);
+    this.socket.send(bytearray.buffer);
+  }
+
   sendChallengeResponse(data: MfaChallengeResponse) {
     // we want to have the backend listen on a single message type
     // for any responses. so our data will look like data.webauthn, data.sso, etc

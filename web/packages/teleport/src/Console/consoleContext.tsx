@@ -80,6 +80,16 @@ export default class ConsoleContext {
     this.storeUser.setState(user);
   }
 
+  ttyForDoc: Record<string, Tty> = {};
+
+  setTtyForDoc(doc: Document, tty: Tty) {
+    this.ttyForDoc[doc.id] = tty;
+  }
+
+  getTtyForDoc(doc: Document) {
+    return this.ttyForDoc[doc.id];
+  }
+
   getStoreUser() {
     return this.storeUser.state;
   }

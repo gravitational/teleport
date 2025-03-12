@@ -83,6 +83,8 @@ export default function useSshSession(doc: DocumentSsh) {
           ttyRef.current = tty;
           setSession(session);
           setStatus('initialized');
+
+          ctx.setTtyForDoc(doc, tty);
           span.end();
         }
       );

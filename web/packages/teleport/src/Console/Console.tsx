@@ -19,13 +19,15 @@
 import { Fragment, useEffect, useMemo } from 'react';
 import styled from 'styled-components';
 
-import { Box, Flex, H2, H3, Indicator } from 'design';
+import { Box, Button, Flex, H2, H3, Indicator } from 'design';
 import { Danger } from 'design/Alert';
+import { BroadcastSlash, Logout } from 'design/Icon';
 import { P } from 'design/Text/Text';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import AjaxPoller from 'teleport/components/AjaxPoller';
 import { ItemStatus, StatusLight } from 'teleport/Discover/Shared';
+import Tty from 'teleport/lib/term/tty';
 import { Participant } from 'teleport/services/session';
 
 import ActionBar from './ActionBar';
@@ -42,7 +44,7 @@ import useOnExitConfirmation from './useOnExitConfirmation';
 import usePageTitle from './usePageTitle';
 import useTabRouting from './useTabRouting';
 
-const POLL_INTERVAL = 5000; // every 5 sec
+const POLL_INTERVAL = 1000; // every 1 sec
 
 export default function Console() {
   const consoleCtx = useConsoleContext();
@@ -88,7 +90,7 @@ export default function Console() {
   const $docs = documents.map(doc => (
     <Fragment key={doc.id}>
       {doc.id === activeDocId && (
-        <Flex key={doc.id} height="100%">
+        <Flex height="100%">
           <MemoizedDocument
             doc={doc}
             visible={doc.id === activeDocId}
@@ -98,6 +100,7 @@ export default function Console() {
             <PartiesList
               parties={storeParties.bySid(doc.sid)}
               username={consoleCtx.getStoreUser()?.username}
+              tty={consoleCtx.getTtyForDoc(doc)}
             />
           )}
         </Flex>
@@ -173,73 +176,93 @@ function MemoizedDocument(props: { doc: stores.Document; visible: boolean }) {
 function PartiesList({
   parties,
   username,
+  tty,
 }: {
   parties: Participant[];
   username: string;
+  tty: Tty;
 }) {
   const observers = parties.filter(p => p.mode === 'observer');
   const peers = parties.filter(p => p.mode === 'peer');
   const moderators = parties.filter(p => p.mode === 'moderator');
 
+  const isModerator = !!moderators.find(m => m.user === username);
+
   return (
     <Flex
       backgroundColor="levels.surface"
-      width="200px"
+      width="220px"
       height="100%"
       css={`
         border-left: ${props => props.theme.borders[2]}
           ${props => props.theme.colors.interactive.tonal.neutral[1]};
       `}
       flexDirection={'column'}
-      gap={1}
       p={3}
+      justifyContent="space-between"
     >
-      <H2 mb={2}>Participants</H2>
-      {peers.length > 0 && (
-        <Box>
-          <H3>Peers</H3>
-          <Flex flexDirection="column">
-            {peers.map(p => (
-              <Flex key={p.user} flexDirection="row" alignItems="center">
-                <StatusLight status={ItemStatus.Success} />{' '}
-                <P>
-                  {p.user} {username === p.user ? '(me)' : ''}
-                </P>
-              </Flex>
-            ))}
-          </Flex>
-        </Box>
-      )}
-      {moderators.length > 0 && (
-        <Box>
-          <H3>Moderators</H3>
-          <Flex flexDirection="column">
-            {moderators.map(p => (
-              <Flex key={p.user} flexDirection="row" alignItems="center">
-                <StatusLight status={ItemStatus.Success} />{' '}
-                <P>
-                  {p.user} {username === p.user ? '(me)' : ''}
-                </P>
-              </Flex>
-            ))}
-          </Flex>
-        </Box>
-      )}
-      {observers.length > 0 && (
-        <Box>
-          <H3>Observers</H3>
-          <Flex flexDirection="column">
-            {observers.map(p => (
-              <Flex key={p.user} flexDirection="row" alignItems="center">
-                <StatusLight status={ItemStatus.Success} />{' '}
-                <P>
-                  {p.user} {username === p.user ? '(me)' : ''}
-                </P>
-              </Flex>
-            ))}
-          </Flex>
-        </Box>
-      )}
+      <Flex flexDirection="column" gap={1}>
+        <H2 mb={2}>Participants</H2>
+        {peers.length > 0 && (
+          <Box>
+            <H3>Peers</H3>
+            <Flex flexDirection="column">
+              {peers.map(p => (
+                <Flex key={p.user} flexDirection="row" alignItems="center">
+                  <StatusLight status={ItemStatus.Success} />{' '}
+                  <P>
+                    {p.user} {username === p.user ? '(me)' : ''}
+                  </P>
+                </Flex>
+              ))}
+            </Flex>
+          </Box>
+        )}
+        {moderators.length > 0 && (
+          <Box>
+            <H3>Moderators</H3>
+            <Flex flexDirection="column">
+              {moderators.map(p => (
+                <Flex key={p.user} flexDirection="row" alignItems="center">
+                  <StatusLight status={ItemStatus.Success} />{' '}
+                  <P>
+                    {p.user} {username === p.user ? '(me)' : ''}
+                  </P>
+                </Flex>
+              ))}
+            </Flex>
+          </Box>
+        )}
+        {observers.length > 0 && (
+          <Box>
+            <H3>Observers</H3>
+            <Flex flexDirection="column">
+              {observers.map(p => (
+                <Flex key={p.user} flexDirection="row" alignItems="center">
+                  <StatusLight status={ItemStatus.Success} />{' '}
+                  <P>
+                    {p.user} {username === p.user ? '(me)' : ''}
+                  </P>
+                </Flex>
+              ))}
+            </Flex>
+          </Box>
+        )}
+      </Flex>
+      <Flex flexDirection="column" mb={1}>
+        {isModerator && (
+          <Button
+            intent="danger"
+            mb={2}
+            onClick={() => tty.terminateModeratedSession()}
+          >
+            <BroadcastSlash size="small" mr={2} /> Terminate
+          </Button>
+        )}
+        <Button onClick={() => tty.disconnect()}>
+          <Logout size="small" mr={2} /> Disconnect
+        </Button>
+      </Flex>
     </Flex>
   );
 }

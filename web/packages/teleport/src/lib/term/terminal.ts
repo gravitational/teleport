@@ -159,6 +159,10 @@ export default class TtyTerminal implements TerminalSearcher {
     });
   }
 
+  terminateModeratedSession() {
+    this.tty.terminateModeratedSession();
+  }
+
   focus() {
     this.term.focus();
   }
