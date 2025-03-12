@@ -1,6 +1,6 @@
 ---
 title: Database Access with SQL Server on Azure
-description: How to configure Teleport database access with Azure SQL Server using Azure Active Directory authentication.
+description: How to configure Teleport database access with Azure SQL Server using Microsoft Entra authentication.
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="Azure SQL Server" dbConfigure="with Microsoft Entra ID-based authentication"!)
@@ -8,26 +8,23 @@ description: How to configure Teleport database access with Azure SQL Server usi
 ## How it works
 
 The Teleport Database Service runs on an Azure virtual machine with an attached
-Azure identity with permissions to retrieve authentication tokens from Azure
-Active Directory. When a user connects to SQL Server with Teleport, the Teleport
+Azure identity with permissions to retrieve authentication tokens from
+Microsoft Entra ID. When a user connects to SQL Server with Teleport, the Teleport
 Database service authenticates with Azure AD, then uses an authentication token
 to connect to SQL Server. The Database Service then forwards user traffic to the
 database.
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Teleport Database Access Azure SQL Server Azure Active Directory Self-Hosted](../../../../img/database-access/guides/sqlserver/sql-aad.png)
+![Access Azure SQL Server Microsoft Entra Self-Hosted](../../../../img/database-access/guides/sqlserver/sql-aad.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Teleport Database Access Azure SQL Server Azure Active Directory Cloud](../../../../img/database-access/guides/sqlserver/cloud-sql-aad.png)
+![Access Azure SQL Server Microsoft Entra Cloud](../../../../img/database-access/guides/sqlserver/cloud-sql-aad.png)
 </TabItem>
 
 </Tabs>
 
 ## Prerequisites
-
-Database access for Azure SQL Server with Azure Active Directory authentication
-is available starting from Teleport `11.0`.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
@@ -39,20 +36,20 @@ is available starting from Teleport `11.0`.
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 2/8. Enable the SQL Server Azure Active Directory integration
+## Step 2/8. Enable the Microsoft Entra authentication
 
 If you have it enabled, you can go to the next step.
 
 Go to the [Azure Portal](https://portal.azure.com/), select **Database
-servers**, and select the database you wish to enable the Azure Active Directory
-integration.
+servers**, and select the database you wish to enable the Microsoft Entra
+authentication.
 
-Select **Azure Active Directory** in the left-hand column.
+Select **Microsoft Entra ID** under "Settings" in the left-hand column.
 
 Select **Set Admin**, and choose an account that will be added as an admin
 login to SQL Server.
 
-![Azure SQL Server Azure Active Directory admin page](../../../../img/database-access/guides/sqlserver/azure-set-ad-admin.png)
+![Azure SQL Server Microsoft Entra admin page](../../../../img/database-access/guides/sqlserver/azure-set-ad-admin.png)
 
 ## Step 3/8. Configure IAM permissions for Teleport
 
@@ -282,3 +279,5 @@ To check if the VM has access, you can do the following on the VM:
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
 
+## Further reading
+- [Microsoft Entra authentication for Azure SQL](https://learn.microsoft.com/en-us/azure/azure-sql/database/authentication-aad-overview?view=azuresql)

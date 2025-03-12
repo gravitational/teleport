@@ -33,17 +33,19 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AWSOIDCService_ListEICE_FullMethodName              = "/teleport.integration.v1.AWSOIDCService/ListEICE"
-	AWSOIDCService_CreateEICE_FullMethodName            = "/teleport.integration.v1.AWSOIDCService/CreateEICE"
-	AWSOIDCService_ListDatabases_FullMethodName         = "/teleport.integration.v1.AWSOIDCService/ListDatabases"
-	AWSOIDCService_ListSecurityGroups_FullMethodName    = "/teleport.integration.v1.AWSOIDCService/ListSecurityGroups"
-	AWSOIDCService_ListSubnets_FullMethodName           = "/teleport.integration.v1.AWSOIDCService/ListSubnets"
-	AWSOIDCService_ListVPCs_FullMethodName              = "/teleport.integration.v1.AWSOIDCService/ListVPCs"
-	AWSOIDCService_DeployDatabaseService_FullMethodName = "/teleport.integration.v1.AWSOIDCService/DeployDatabaseService"
-	AWSOIDCService_DeployService_FullMethodName         = "/teleport.integration.v1.AWSOIDCService/DeployService"
-	AWSOIDCService_EnrollEKSClusters_FullMethodName     = "/teleport.integration.v1.AWSOIDCService/EnrollEKSClusters"
-	AWSOIDCService_ListEC2_FullMethodName               = "/teleport.integration.v1.AWSOIDCService/ListEC2"
-	AWSOIDCService_ListEKSClusters_FullMethodName       = "/teleport.integration.v1.AWSOIDCService/ListEKSClusters"
+	AWSOIDCService_ListEICE_FullMethodName                     = "/teleport.integration.v1.AWSOIDCService/ListEICE"
+	AWSOIDCService_CreateEICE_FullMethodName                   = "/teleport.integration.v1.AWSOIDCService/CreateEICE"
+	AWSOIDCService_ListDatabases_FullMethodName                = "/teleport.integration.v1.AWSOIDCService/ListDatabases"
+	AWSOIDCService_ListSecurityGroups_FullMethodName           = "/teleport.integration.v1.AWSOIDCService/ListSecurityGroups"
+	AWSOIDCService_ListSubnets_FullMethodName                  = "/teleport.integration.v1.AWSOIDCService/ListSubnets"
+	AWSOIDCService_ListVPCs_FullMethodName                     = "/teleport.integration.v1.AWSOIDCService/ListVPCs"
+	AWSOIDCService_DeployDatabaseService_FullMethodName        = "/teleport.integration.v1.AWSOIDCService/DeployDatabaseService"
+	AWSOIDCService_ListDeployedDatabaseServices_FullMethodName = "/teleport.integration.v1.AWSOIDCService/ListDeployedDatabaseServices"
+	AWSOIDCService_DeployService_FullMethodName                = "/teleport.integration.v1.AWSOIDCService/DeployService"
+	AWSOIDCService_EnrollEKSClusters_FullMethodName            = "/teleport.integration.v1.AWSOIDCService/EnrollEKSClusters"
+	AWSOIDCService_ListEC2_FullMethodName                      = "/teleport.integration.v1.AWSOIDCService/ListEC2"
+	AWSOIDCService_ListEKSClusters_FullMethodName              = "/teleport.integration.v1.AWSOIDCService/ListEKSClusters"
+	AWSOIDCService_Ping_FullMethodName                         = "/teleport.integration.v1.AWSOIDCService/Ping"
 )
 
 // AWSOIDCServiceClient is the client API for AWSOIDCService service.
@@ -52,11 +54,13 @@ const (
 //
 // AWSOIDCService provides access to AWS APIs using the AWS OIDC Integration.
 type AWSOIDCServiceClient interface {
+	// Deprecated: Do not use.
 	// ListEICE returns a list of EC2 Instance Connect Endpoints.
 	// An optional NextToken that can be used to fetch the next page.
 	// It uses the following API:
 	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstanceConnectEndpoints.html
 	ListEICE(ctx context.Context, in *ListEICERequest, opts ...grpc.CallOption) (*ListEICEResponse, error)
+	// Deprecated: Do not use.
 	// CreateEICE creates multiple EC2 Instance Connect Endpoint using the provided Subnets and Security Group IDs.
 	// It uses the following API:
 	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_CreateInstanceConnectEndpoint.html
@@ -80,10 +84,13 @@ type AWSOIDCServiceClient interface {
 	ListVPCs(ctx context.Context, in *ListVPCsRequest, opts ...grpc.CallOption) (*ListVPCsResponse, error)
 	// DeployDatabaseService deploys a Database Services to Amazon ECS.
 	DeployDatabaseService(ctx context.Context, in *DeployDatabaseServiceRequest, opts ...grpc.CallOption) (*DeployDatabaseServiceResponse, error)
+	// ListDeployedDatabaseServices returns the deployed Database Services in Amazon ECS.
+	ListDeployedDatabaseServices(ctx context.Context, in *ListDeployedDatabaseServicesRequest, opts ...grpc.CallOption) (*ListDeployedDatabaseServicesResponse, error)
 	// DeployService deploys an ECS Service to Amazon ECS.
 	DeployService(ctx context.Context, in *DeployServiceRequest, opts ...grpc.CallOption) (*DeployServiceResponse, error)
 	// EnrollEKSClusters enrolls EKS clusters by installing kube agent Helm chart.
 	EnrollEKSClusters(ctx context.Context, in *EnrollEKSClustersRequest, opts ...grpc.CallOption) (*EnrollEKSClustersResponse, error)
+	// Deprecated: Do not use.
 	// ListEC2 lists the EC2 instances of the AWS account per region.
 	// It uses the following API:
 	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html
@@ -93,6 +100,11 @@ type AWSOIDCServiceClient interface {
 	// https://docs.aws.amazon.com/eks/latest/APIReference/API_ListClusters.html
 	// https://docs.aws.amazon.com/eks/latest/APIReference/API_DescribeCluster.html
 	ListEKSClusters(ctx context.Context, in *ListEKSClustersRequest, opts ...grpc.CallOption) (*ListEKSClustersResponse, error)
+	// Ping does an health check for the integration.
+	// Returns the caller identity.
+	// It uses the following APIs:
+	// https://docs.aws.amazon.com/STS/latest/APIReference/API_GetCallerIdentity.html
+	Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error)
 }
 
 type aWSOIDCServiceClient struct {
@@ -103,6 +115,7 @@ func NewAWSOIDCServiceClient(cc grpc.ClientConnInterface) AWSOIDCServiceClient {
 	return &aWSOIDCServiceClient{cc}
 }
 
+// Deprecated: Do not use.
 func (c *aWSOIDCServiceClient) ListEICE(ctx context.Context, in *ListEICERequest, opts ...grpc.CallOption) (*ListEICEResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListEICEResponse)
@@ -113,6 +126,7 @@ func (c *aWSOIDCServiceClient) ListEICE(ctx context.Context, in *ListEICERequest
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *aWSOIDCServiceClient) CreateEICE(ctx context.Context, in *CreateEICERequest, opts ...grpc.CallOption) (*CreateEICEResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CreateEICEResponse)
@@ -173,6 +187,16 @@ func (c *aWSOIDCServiceClient) DeployDatabaseService(ctx context.Context, in *De
 	return out, nil
 }
 
+func (c *aWSOIDCServiceClient) ListDeployedDatabaseServices(ctx context.Context, in *ListDeployedDatabaseServicesRequest, opts ...grpc.CallOption) (*ListDeployedDatabaseServicesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListDeployedDatabaseServicesResponse)
+	err := c.cc.Invoke(ctx, AWSOIDCService_ListDeployedDatabaseServices_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *aWSOIDCServiceClient) DeployService(ctx context.Context, in *DeployServiceRequest, opts ...grpc.CallOption) (*DeployServiceResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DeployServiceResponse)
@@ -193,6 +217,7 @@ func (c *aWSOIDCServiceClient) EnrollEKSClusters(ctx context.Context, in *Enroll
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *aWSOIDCServiceClient) ListEC2(ctx context.Context, in *ListEC2Request, opts ...grpc.CallOption) (*ListEC2Response, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListEC2Response)
@@ -213,17 +238,29 @@ func (c *aWSOIDCServiceClient) ListEKSClusters(ctx context.Context, in *ListEKSC
 	return out, nil
 }
 
+func (c *aWSOIDCServiceClient) Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PingResponse)
+	err := c.cc.Invoke(ctx, AWSOIDCService_Ping_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AWSOIDCServiceServer is the server API for AWSOIDCService service.
 // All implementations must embed UnimplementedAWSOIDCServiceServer
 // for forward compatibility.
 //
 // AWSOIDCService provides access to AWS APIs using the AWS OIDC Integration.
 type AWSOIDCServiceServer interface {
+	// Deprecated: Do not use.
 	// ListEICE returns a list of EC2 Instance Connect Endpoints.
 	// An optional NextToken that can be used to fetch the next page.
 	// It uses the following API:
 	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstanceConnectEndpoints.html
 	ListEICE(context.Context, *ListEICERequest) (*ListEICEResponse, error)
+	// Deprecated: Do not use.
 	// CreateEICE creates multiple EC2 Instance Connect Endpoint using the provided Subnets and Security Group IDs.
 	// It uses the following API:
 	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_CreateInstanceConnectEndpoint.html
@@ -247,10 +284,13 @@ type AWSOIDCServiceServer interface {
 	ListVPCs(context.Context, *ListVPCsRequest) (*ListVPCsResponse, error)
 	// DeployDatabaseService deploys a Database Services to Amazon ECS.
 	DeployDatabaseService(context.Context, *DeployDatabaseServiceRequest) (*DeployDatabaseServiceResponse, error)
+	// ListDeployedDatabaseServices returns the deployed Database Services in Amazon ECS.
+	ListDeployedDatabaseServices(context.Context, *ListDeployedDatabaseServicesRequest) (*ListDeployedDatabaseServicesResponse, error)
 	// DeployService deploys an ECS Service to Amazon ECS.
 	DeployService(context.Context, *DeployServiceRequest) (*DeployServiceResponse, error)
 	// EnrollEKSClusters enrolls EKS clusters by installing kube agent Helm chart.
 	EnrollEKSClusters(context.Context, *EnrollEKSClustersRequest) (*EnrollEKSClustersResponse, error)
+	// Deprecated: Do not use.
 	// ListEC2 lists the EC2 instances of the AWS account per region.
 	// It uses the following API:
 	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html
@@ -260,6 +300,11 @@ type AWSOIDCServiceServer interface {
 	// https://docs.aws.amazon.com/eks/latest/APIReference/API_ListClusters.html
 	// https://docs.aws.amazon.com/eks/latest/APIReference/API_DescribeCluster.html
 	ListEKSClusters(context.Context, *ListEKSClustersRequest) (*ListEKSClustersResponse, error)
+	// Ping does an health check for the integration.
+	// Returns the caller identity.
+	// It uses the following APIs:
+	// https://docs.aws.amazon.com/STS/latest/APIReference/API_GetCallerIdentity.html
+	Ping(context.Context, *PingRequest) (*PingResponse, error)
 	mustEmbedUnimplementedAWSOIDCServiceServer()
 }
 
@@ -291,6 +336,9 @@ func (UnimplementedAWSOIDCServiceServer) ListVPCs(context.Context, *ListVPCsRequ
 func (UnimplementedAWSOIDCServiceServer) DeployDatabaseService(context.Context, *DeployDatabaseServiceRequest) (*DeployDatabaseServiceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeployDatabaseService not implemented")
 }
+func (UnimplementedAWSOIDCServiceServer) ListDeployedDatabaseServices(context.Context, *ListDeployedDatabaseServicesRequest) (*ListDeployedDatabaseServicesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListDeployedDatabaseServices not implemented")
+}
 func (UnimplementedAWSOIDCServiceServer) DeployService(context.Context, *DeployServiceRequest) (*DeployServiceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeployService not implemented")
 }
@@ -302,6 +350,9 @@ func (UnimplementedAWSOIDCServiceServer) ListEC2(context.Context, *ListEC2Reques
 }
 func (UnimplementedAWSOIDCServiceServer) ListEKSClusters(context.Context, *ListEKSClustersRequest) (*ListEKSClustersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListEKSClusters not implemented")
+}
+func (UnimplementedAWSOIDCServiceServer) Ping(context.Context, *PingRequest) (*PingResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Ping not implemented")
 }
 func (UnimplementedAWSOIDCServiceServer) mustEmbedUnimplementedAWSOIDCServiceServer() {}
 func (UnimplementedAWSOIDCServiceServer) testEmbeddedByValue()                        {}
@@ -450,6 +501,24 @@ func _AWSOIDCService_DeployDatabaseService_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AWSOIDCService_ListDeployedDatabaseServices_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListDeployedDatabaseServicesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AWSOIDCServiceServer).ListDeployedDatabaseServices(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AWSOIDCService_ListDeployedDatabaseServices_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AWSOIDCServiceServer).ListDeployedDatabaseServices(ctx, req.(*ListDeployedDatabaseServicesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AWSOIDCService_DeployService_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeployServiceRequest)
 	if err := dec(in); err != nil {
@@ -522,6 +591,24 @@ func _AWSOIDCService_ListEKSClusters_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AWSOIDCService_Ping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AWSOIDCServiceServer).Ping(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AWSOIDCService_Ping_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AWSOIDCServiceServer).Ping(ctx, req.(*PingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AWSOIDCService_ServiceDesc is the grpc.ServiceDesc for AWSOIDCService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -558,6 +645,10 @@ var AWSOIDCService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AWSOIDCService_DeployDatabaseService_Handler,
 		},
 		{
+			MethodName: "ListDeployedDatabaseServices",
+			Handler:    _AWSOIDCService_ListDeployedDatabaseServices_Handler,
+		},
+		{
 			MethodName: "DeployService",
 			Handler:    _AWSOIDCService_DeployService_Handler,
 		},
@@ -572,6 +663,10 @@ var AWSOIDCService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListEKSClusters",
 			Handler:    _AWSOIDCService_ListEKSClusters_Handler,
+		},
+		{
+			MethodName: "Ping",
+			Handler:    _AWSOIDCService_Ping_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

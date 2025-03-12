@@ -16,21 +16,38 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ComponentPropsWithRef, ComponentType } from 'react';
+
+import { ButtonBorder } from 'design/Button';
+
 export type LoginItem = {
   url: string;
   login: string;
 };
 
+// MenuInputType determines how the input present in the MenuLogin
+// will function. Default is Input, which allows freeform input and
+// will call the `onSelect` function with whatever value is entered.
+// FILTER will only filter the options present in the list and will
+// pass the 0th item in the filtered list to `onSelect` instead.
+export enum MenuInputType {
+  INPUT,
+  FILTER,
+}
+
 export type MenuLoginProps = {
   getLoginItems: () => LoginItem[] | Promise<LoginItem[]>;
   onSelect: (e: React.SyntheticEvent, login: string) => void;
   anchorOrigin?: any;
+  inputType?: MenuInputType;
   alignButtonWidthToMenu?: boolean;
   transformOrigin?: any;
   textTransform?: string;
   placeholder?: string;
   required?: boolean;
   width?: string;
+  ButtonComponent?: ComponentType<ComponentPropsWithRef<typeof ButtonBorder>>;
+  buttonText?: string;
 };
 
 export type MenuLoginHandle = {

@@ -16,12 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { Dispatch, SetStateAction } from 'react';
-import { ButtonBorder, Box, Flex, Text, ButtonIcon } from 'design';
+import { Dispatch, SetStateAction } from 'react';
+
+import { Box, ButtonBorder, ButtonIcon, Flex, Text } from 'design';
 import { Add, Trash } from 'design/Icon';
 import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
-import { requiredField, requiredAll } from 'shared/components/Validation/rules';
+import { requiredAll, requiredField } from 'shared/components/Validation/rules';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
 /**
@@ -41,6 +42,7 @@ const traitsPreset = [
   'kubernetes_users',
   'logins',
   'windows_logins',
+  'github_orgs',
 ];
 
 /**
@@ -141,10 +143,6 @@ export function TraitsEditor({
                       background: ${props => props.theme.colors.levels.surface};
                     `}
                     placeholder="Type a trait value and press enter"
-                    defaultValue={traitValues.map(r => ({
-                      value: r,
-                      label: r,
-                    }))}
                     label="Value"
                     isMulti
                     isSearchable
@@ -190,7 +188,6 @@ export function TraitsEditor({
       <Box mt={5}>
         <ButtonBorder
           onClick={addNewTraitPair}
-          label={addLabelText}
           css={`
             padding-left: 12px;
             &:disabled {

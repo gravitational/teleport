@@ -17,12 +17,14 @@
  */
 
 import React from 'react';
-import { Box, Flex, ButtonIcon, Text } from 'design';
+
+import { Box, ButtonIcon, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
+import { inputGeometry } from 'design/Input/Input';
+import { ButtonTextWithAddIcon } from 'shared/components/ButtonTextWithAddIcon';
 import FieldInput from 'shared/components/FieldInput';
 import { useValidation, Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
-import { ButtonTextWithAddIcon } from 'shared/components/ButtonTextWithAddIcon';
 
 import { ResourceLabel } from 'teleport/services/agents';
 
@@ -99,10 +101,11 @@ export function LabelsCreater({
     }
     return {
       valid: !notValid,
-      message: '', // err msg doesn't matter as it isn't diaplsyed.
+      message: 'required',
     };
   };
 
+  const inputSize = 'medium';
   return (
     <>
       {labels.length > 0 && (
@@ -125,9 +128,9 @@ export function LabelsCreater({
         {labels.map((label, index) => {
           return (
             <Box mb={2} key={index}>
-              <Flex alignItems="center">
+              <Flex alignItems="start">
                 <FieldInput
-                  Input
+                  size={inputSize}
                   rule={requiredUniqueKey}
                   autoFocus={autoFocus}
                   value={label.name}
@@ -140,6 +143,7 @@ export function LabelsCreater({
                   markAsError={label.isDupKey}
                 />
                 <FieldInput
+                  size={inputSize}
                   rule={requiredField('required')}
                   value={label.value}
                   placeholder="label value"
@@ -150,20 +154,29 @@ export function LabelsCreater({
                   readonly={disableBtns || label.isFixed}
                 />
                 {!label.isFixed && (
-                  <ButtonIcon
-                    size={1}
-                    title="Remove Label"
-                    onClick={() => removeLabel(index)}
-                    css={`
-                      &:disabled {
-                        opacity: 0.65;
-                        pointer-events: none;
-                      }
-                    `}
-                    disabled={disableBtns}
+                  // Force the trash button container to be the same height as
+                  // an input. We can't just set `alignItems="center"` on the
+                  // parent flex container above, because the field can expand
+                  // when showing a validation error.
+                  <Flex
+                    alignItems="center"
+                    height={inputGeometry[inputSize].height}
                   >
-                    <Icons.Trash size="medium" />
-                  </ButtonIcon>
+                    <ButtonIcon
+                      size={1}
+                      title="Remove Label"
+                      onClick={() => removeLabel(index)}
+                      css={`
+                        &:disabled {
+                          opacity: 0.65;
+                          pointer-events: none;
+                        }
+                      `}
+                      disabled={disableBtns}
+                    >
+                      <Icons.Trash size="medium" />
+                    </ButtonIcon>
+                  </Flex>
                 )}
               </Flex>
               {label.isDupKey && (
@@ -176,10 +189,9 @@ export function LabelsCreater({
         })}
       </Box>
       <ButtonTextWithAddIcon
-        label="Add New Label"
+        label={labels.length === 0 ? 'Add a Label' : 'Add Another Label'}
         onClick={addLabel}
         disabled={disableBtns}
-        iconSize="small"
       />
     </>
   );

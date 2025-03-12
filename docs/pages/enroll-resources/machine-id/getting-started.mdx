@@ -15,7 +15,7 @@ Here's an overview of what you will do:
 
 This guide covers configuring Machine ID for development and learning purposes.
 For a production-ready configuration of Machine ID, visit the [Deploying Machine
-ID](./deployment.mdx) guides.
+ID](deployment/deployment.mdx) guides.
 
 ## Prerequisites
 
@@ -31,34 +31,37 @@ In this step, you will be downloading and installing Teleport binaries onto the
 machine you wish to assign an identity to.
 
 Each Teleport package hosted on our downloads page ships with several useful
-binaries, including `teleport`, `tctl`, `tsh`, and `tbot`:
+binaries, including `teleport`, `tctl`, `tsh`,`tbot`, and `fdpass-teleport`:
 
 - `teleport` is the daemon used to initialize a Teleport cluster; this binary is not used in this guide
 - `tctl` is the administrative tool you will use to create the bot user (step 1/4)
 - `tsh` is the client tool you will use to log in to the Teleport Cluster (steps 2/4 and 4/4)
 - `tbot` is the Machine ID tool you will use to associate a bot user with a machine (step 3/4)
+- `fdpass-teleport` is used to integrate Machine ID with OpenSSH to enable higher performance and reduced resource consumption when establishing SSH connections; this binary is not used in this guide
 
 Download the appropriate Teleport package for your platform: 
 
 (!docs/pages/includes/install-linux.mdx!)
 
-## Step 2/4. Create a bot user
+## Step 2/4. Create a Bot
+
+In Teleport, a **Bot** represents an identity for a machine. This is similar to
+how a user represents the identity of a human. Like users, bots are assigned
+roles to manage their access to resources. However, unlike users, bots do not
+authenticate using a username and password or SSO. Instead, they initially
+authenticate in a process called joining.
+
+Teleport supports a number of secure join methods specific to the platform the
+bot is running on, but for the purposes of this guide, we will use the simpler
+`token` join method. You can follow a deployment guide later to learn about the
+secure join methods available for your platform.
 
 Before you create a bot user, you need to determine which role(s) you want to
 assign to it. You can use the `tctl` command below to examine what roles exist
 on your system.
 
-<Tabs>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 On your client machine, log in to Teleport using `tsh`, then use `tctl` to examine
 what roles exist on your system.
-</TabItem>
-<TabItem scope={["oss","enterprise"]} label="Self-Hosted">
-Connect to the Teleport Auth Server and use `tctl` to examine what roles exist on
-your system.
-</TabItem>
-
-</Tabs>
 
 ```code
 $ tctl get roles --format=text
@@ -79,58 +82,18 @@ editor                                                            user:list,crea
 
 The `internal.logins` trait is replaced with values from the Teleport local user
 database. For full details on how traits work in Teleport roles, see the
-[Teleport Access Controls
-Reference](../../access-controls/reference.mdx).
-
-Machine ID can join with a token or the [IAM Method](../agents/join-services-to-your-cluster/aws-iam.mdx) on AWS.
+[Access Controls
+Reference](../../reference/access-controls/roles.mdx).
 
 Assuming that you are using the default `access` role, ensure that you use the 
 `--logins` flag when adding your bot to specify the SSH logins that you wish to 
 allow the bot to access on hosts. For our example, we will be using `root`.
 
-<Tabs>
-  <TabItem label="Token-based Joining">
-  ```code
-  $ tctl bots add robot --roles=access --logins=root
-  ```
-  </TabItem>
-  <TabItem label="IAM Method">
-  First, create an IAM method token that specifies the AWS account from which
-  the bot can join. Create the below file as `iam-token.yaml` then run `tctl
-  create -f iam-token.yaml`.
+Use `tctl bots add` to create our bot:
 
-  ```
-  kind: token
-  version: v2
-  metadata:
-    # The token name is not a secret because instances must prove that they are
-    # running in your AWS account to use this token.
-    name: iam-token
-  spec:
-    # Only allow bots to join using this token.
-    roles: [Bot]
-
-    # Set the join method to be IAM.
-    join_method: iam
-
-    # Define the name of the bot that will be allowed to use this token.
-    bot_name: robot
-
-    allow:
-    # Restrict the AWS account and (optionally) ARN that can use this token.
-    # This information can be obtained from running the
-    # "aws sts get-caller-identity" command from the CLI.
-    - aws_account: "111111111111"
-      aws_arn: "arn:aws:sts::111111111111:assumed-role/teleport-bot-role/i-*"
-  ```
-
-  Next, create the bot user.
-
-  ```
-  $ tctl bots add robot --token=iam-token --roles=access --logins=root
-  ```
-  </TabItem>
-</Tabs>
+```code
+$ tctl bots add robot --roles=access --logins=root
+```
 
 ## Step 3/4. Start Machine ID
 
@@ -143,34 +106,15 @@ In a production environment you will want to run Machine ID in the background
 using a service manager like systemd. However, in this guide you will run it in
 the foreground to better understand how it works.
 
-<Tabs>
-  <TabItem label="Token-based Joining">
-
-  ```code
-  $ export TELEPORT_ANONYMOUS_TELEMETRY=1
-  $ sudo tbot start \
-     --data-dir=/var/lib/teleport/bot \
-     --destination-dir=/opt/machine-id \
-     --token=(=presets.tokens.first=) \
-     --join-method=token \
-     --proxy-server=example.teleport.sh:443
-  ```
-
-  </TabItem>
-  <TabItem label="IAM Method">
-
-  ```code
-  $ export TELEPORT_ANONYMOUS_TELEMETRY=1
-  $ sudo tbot start \
-     --data-dir=/var/lib/teleport/bot \
-     --destination-dir=/opt/machine-id \
-     --token=iam-token \
-     --join-method=iam \
-     --proxy-server=example.teleport.sh:443
-  ```
-
-  </TabItem>
-</Tabs>
+```code
+$ export TELEPORT_ANONYMOUS_TELEMETRY=1
+$ sudo tbot start \
+ --data-dir=/var/lib/teleport/bot \
+ --destination-dir=/opt/machine-id \
+ --token=(=presets.tokens.first=) \
+ --join-method=token \
+ --proxy-server=example.teleport.sh:443
+```
 
 `TELEPORT_ANONYMOUS_TELEMETRY` enables the submission of anonymous usage
 telemetry. This helps us shape the future development of `tbot`. You can disable
@@ -178,29 +122,10 @@ this by omitting this.
 
 Replace the following fields with values from your own cluster.
 
-<Tabs>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-
 - `token` is the token output by the `tctl bots add` command or the name of your IAM method token.
 - `destination-dir` is where Machine ID writes user certificates that can be used by applications and tools.
 - `data-dir` is where Machine ID writes its private data, including its own short-lived renewable certificates. These should not be used by applications and tools.
-- `auth-server` is the address of your Teleport Cloud Proxy Server, for example `example.teleport.sh:443`.
-
-</TabItem>
-<TabItem scope={["oss","enterprise"]} label="Self-Hosted">
-
-- `token` is the token output by the `tctl bots add` command or the name of your IAM method token.
-- `ca-pin` is the CA Pin for your Teleport cluster, and is output by the `tctl bots add` command.
-- `destination-dir` is where Machine ID writes user certificates that can be used by applications and tools.
-- `data-dir` is where Machine ID writes its private data, including its own short-lived renewable certificates. These should not be used by applications and tools.
-- `auth-server` is typically the address of your Teleport Proxy Server
-   (`teleport.example.com:443`), but can also be the address of the
-   Auth Server is direct connectivity is available.
-  `teleport.example.com:443`.
-
-</TabItem>
-
-</Tabs>
+- `proxy-server` is the address of your Teleport Proxy service, for example `example.teleport.sh:443`.
 
 Now that Machine ID has successfully started, let's investigate the
 `/opt/machine-id` directory to see what was written to disk.
@@ -256,19 +181,9 @@ $ ssh -F /opt/machine-id/ssh_config root@node-name.example.com
 In addition to the `ssh` client you can use `tsh`. Replace the `--proxy` parameter
 with your proxy address. 
 
-<Tabs>
-<TabItem scope={["oss","enterprise"]} label="Self-Hosted">
-```code
-$ tsh ssh --proxy=teleport.example.com -i /opt/machine-id/identity root@node-name
-```
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ```code
 $ tsh ssh --proxy=mytenant.teleport.sh -i /opt/machine-id/identity root@node-name
 ```
-</TabItem>
-
-</Tabs>
 
 <Admonition type="note" title="Roles must have logins defined">
   The below error can occur when the bot does not have permission to log in to
@@ -294,17 +209,17 @@ $ tsh ssh --proxy=mytenant.teleport.sh -i /opt/machine-id/identity root@node-nam
 
 Now you can replace any invocations of `ssh` with the above command to provide
 your applications and tools a machine identity that can be rotated, audited,
-and controlled with all the familiar Teleport access controls.
+and controlled with access controls.
 
 ## Next Steps
 
-- Read the [architecture overview](./architecture.mdx) to learn about how
+- Read the [architecture overview](../../reference/architecture/machine-id-architecture.mdx) to learn about how
   Machine ID works in more detail.
-- Check out the [deployment guides](./deployment.mdx) to learn about
+- Check out the [deployment guides](deployment/deployment.mdx) to learn about
   configuring `tbot` in a production-ready way for your platform.
-- Check out the [access guides](./access-guides.mdx) to learn about configuring
+- Check out the [access guides](access-guides/access-guides.mdx) to learn about configuring
   `tbot` for different use cases than SSH.
-- Read the [configuration reference](./reference/configuration.mdx) to explore
+- Read the [configuration reference](../../reference/machine-id/configuration.mdx) to explore
   all the available configuration options.
-- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](./reference/telemetry.mdx)
+- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../reference/machine-id/telemetry.mdx)
 

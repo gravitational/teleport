@@ -1,4 +1,4 @@
-Start the Teleport Teleport Event Handler by following the instructions below.
+Start the Teleport Event Handler by following the instructions below.
 
 <Tabs>
 <TabItem label="Linux server">
@@ -72,8 +72,22 @@ Run the following command on your workstation:
 ```code
 $ helm install teleport-plugin-event-handler teleport/teleport-plugin-event-handler \
   --values teleport-plugin-event-handler-values.yaml \
-  --version (=teleport.plugin.version=)
+  --version (=teleport.version=)
 ```
+
+</TabItem>
+<TabItem label="Local Docker container">
+
+Navigate to the directory where you ran the `configure` command earlier and
+execute the following command:
+
+```code
+$ docker run --network host -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.version=) start --config=teleport-event-handler.toml
+```
+
+This command joins the Event Handler container to the preset `host` network,
+which uses the Docker host networking mode and removes network isolation, so the
+Event Handler can communicate with the Fluentd container on localhost.
 
 </TabItem>
 </Tabs>

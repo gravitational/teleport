@@ -16,18 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect } from 'react';
-
+import { useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { Route } from 'teleport/components/Router';
-
 import cfg from 'teleport/config';
 
+import { LoginComponent as Login } from './Login';
+import { LoginFailedComponent as LoginFailed } from './LoginFailed';
 import { LoginSuccess } from './LoginSuccess';
 import { LoginTerminalRedirect } from './LoginTerminalRedirect';
-import { LoginFailedComponent as LoginFailed } from './LoginFailed';
-import { LoginComponent as Login } from './Login';
 import { State } from './useLogin';
 
 const defaultEdition = cfg.edition;

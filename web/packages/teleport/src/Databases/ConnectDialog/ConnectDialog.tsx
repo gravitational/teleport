@@ -16,19 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Text, Box, ButtonSecondary, Link } from 'design';
+import {
+  Box,
+  ButtonPrimary,
+  ButtonSecondary,
+  Flex,
+  H3,
+  Link,
+  Text,
+} from 'design';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
+import { NewTab as NewTabIcon } from 'design/Icon';
+import { ResourceIcon } from 'design/ResourceIcon';
+import { getDatabaseIconName } from 'shared/components/UnifiedResources/shared/viewItemsFactory';
 import { DbProtocol } from 'shared/services/databases';
 
-import { AuthType } from 'teleport/services/user';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
-import { generateTshLoginCommand } from 'teleport/lib/util';
+import cfg from 'teleport/config';
+import { generateTshLoginCommand, openNewTab } from 'teleport/lib/util';
+import { AuthType } from 'teleport/services/user';
 
 export default function ConnectDialog({
   username,
@@ -38,6 +49,7 @@ export default function ConnectDialog({
   authType,
   accessRequestId,
   dbProtocol,
+  supportsInteractive,
 }: Props) {
   // For dynamodb and clickhouse-http protocols, the command is `tsh proxy db --tunnel` instead of `tsh db connect`.
   let connectCommand =
@@ -72,6 +84,12 @@ export default function ConnectDialog({
       dbNameFlag = ' [--db-name=<name>]';
   }
 
+  const onConnect = () => {
+    const url = cfg.getDbConnectRoute({ clusterId, serviceName: dbName });
+    openNewTab(url);
+    onClose();
+  };
+
   return (
     <Dialog
       dialogCss={() => ({
@@ -83,10 +101,39 @@ export default function ConnectDialog({
       open={true}
     >
       <DialogHeader mb={4}>
-        <DialogTitle>Connect To Database</DialogTitle>
+        <DialogTitle>
+          <Flex gap={2}>
+            Connect to:
+            <Flex gap={1}>
+              <ResourceIcon
+                name={getDatabaseIconName(dbProtocol)}
+                width="24px"
+                height="24px"
+              />
+              {dbName}
+            </Flex>
+          </Flex>
+        </DialogTitle>
       </DialogHeader>
+
       <DialogContent minHeight="240px" flex="0 0 auto">
+        {supportsInteractive && (
+          <Box borderBottom={1} mb={4} pb={4}>
+            <Text mb={3} bold>
+              Open Teleport-authenticated session in the browser:
+            </Text>
+            <ButtonPrimary size="large" gap={2} onClick={onConnect}>
+              Connect in the browser
+              <NewTabIcon />
+            </ButtonPrimary>
+          </Box>
+        )}
         <Box mb={4}>
+          {supportsInteractive && (
+            <H3 mt={1} mb={2}>
+              Or connect in the CLI using tsh:
+            </H3>
+          )}
           <Text bold as="span">
             Step 1
           </Text>
@@ -124,7 +171,7 @@ export default function ConnectDialog({
           {`* Note: To connect with a GUI database client, see our `}
           <Link
             href={
-              'https://goteleport.com/docs/database-access/guides/gui-clients/'
+              'https://goteleport.com/docs/connect-your-client/gui-clients/'
             }
             target="_blank"
           >
@@ -148,4 +195,5 @@ export type Props = {
   clusterId: string;
   authType: AuthType;
   accessRequestId?: string;
+  supportsInteractive?: boolean;
 };

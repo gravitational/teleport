@@ -16,33 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { Link as InternalLink } from 'react-router-dom';
+
+import { Mark } from 'design';
 import { OutlineInfo } from 'design/Alert/Alert';
-import { Box, Mark } from 'design';
 
 import cfg from 'teleport/config';
 
-import { InfoIcon } from '../Shared/InfoIcon';
-
 export const SingleEc2InstanceInstallation = () => (
   <OutlineInfo mt={3} linkColor="buttons.link.default">
-    <Box>
-      <InfoIcon />
-    </Box>
-    <Box>
-      Auto discovery will enroll all EC2 instances found in a region. If you
-      want to enroll a <Mark>single</Mark> EC2 instance instead, consider
-      following the{' '}
-      <InternalLink
-        to={{
-          pathname: cfg.routes.discover,
-          state: { searchKeywords: 'linux' },
-        }}
-      >
-        Teleport service installation
-      </InternalLink>{' '}
-      flow.
-    </Box>
+    Auto discovery will enroll all EC2 instances found in a region. If you want
+    to enroll a <Mark>single</Mark> EC2 instance instead, consider following the{' '}
+    <InternalLink
+      to={{
+        pathname: cfg.routes.discover,
+        state: { searchKeywords: 'linux' },
+      }}
+    >
+      Teleport service installation
+    </InternalLink>{' '}
+    flow.
   </OutlineInfo>
 );

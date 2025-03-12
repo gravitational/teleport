@@ -44,14 +44,16 @@ type VnetConfigService struct {
 }
 
 // NewVnetConfigService returns a new VnetConfig storage service.
-func NewVnetConfigService(backend backend.Backend) (*VnetConfigService, error) {
+func NewVnetConfigService(b backend.Backend) (*VnetConfigService, error) {
 	svc, err := generic.NewServiceWrapper(
-		backend,
-		types.KindVnetConfig,
-		vnetConfigPrefix,
-		services.MarshalProtoResource[*vnet.VnetConfig],
-		services.UnmarshalProtoResource[*vnet.VnetConfig],
-	)
+		generic.ServiceConfig[*vnet.VnetConfig]{
+			Backend:       b,
+			ResourceKind:  types.KindVnetConfig,
+			BackendPrefix: backend.NewKey(vnetConfigPrefix),
+			MarshalFunc:   services.MarshalProtoResource[*vnet.VnetConfig],
+			UnmarshalFunc: services.UnmarshalProtoResource[*vnet.VnetConfig],
+			ValidateFunc:  validateVnetConfig,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -70,27 +72,18 @@ func (s *VnetConfigService) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig
 
 // CreateVnetConfig does basic validation and creates a VnetConfig resource.
 func (s *VnetConfigService) CreateVnetConfig(ctx context.Context, vnetConfig *vnet.VnetConfig) (*vnet.VnetConfig, error) {
-	if err := validateVnetConfig(vnetConfig); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	vnetConfig, err := s.svc.CreateResource(ctx, vnetConfig)
 	return vnetConfig, trace.Wrap(err)
 }
 
 // UpdateVnetConfig does basic validation and updates a VnetConfig resource.
 func (s *VnetConfigService) UpdateVnetConfig(ctx context.Context, vnetConfig *vnet.VnetConfig) (*vnet.VnetConfig, error) {
-	if err := validateVnetConfig(vnetConfig); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	vnetConfig, err := s.svc.ConditionalUpdateResource(ctx, vnetConfig)
 	return vnetConfig, trace.Wrap(err)
 }
 
 // UpsertVnetConfig does basic validation and upserts a VnetConfig resource.
 func (s *VnetConfigService) UpsertVnetConfig(ctx context.Context, vnetConfig *vnet.VnetConfig) (*vnet.VnetConfig, error) {
-	if err := validateVnetConfig(vnetConfig); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	vnetConfig, err := s.svc.UpsertResource(ctx, vnetConfig)
 	return vnetConfig, trace.Wrap(err)
 }

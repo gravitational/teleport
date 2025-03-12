@@ -1,0 +1,244 @@
+# image(string) -- sets the container image used for tbot pods created by this
+# chart.
+#
+# You can override this to use your own tbot image rather than a
+# Teleport-published image.
+image: public.ecr.aws/gravitational/tbot-distroless
+# clusterName(string) -- should be the name of the Teleport cluster that your
+# Bot will join. You can retrieve it by running `tctl status`.
+#
+# For example: `clusterName: "test.teleport.sh"`
+clusterName: ""
+
+nameOverride: ""
+fullnameOverride: ""
+
+# teleportProxyAddress(string) -- is the teleport Proxy Service address the bot will connect to.
+# This must contain the port number, usually 443 or 3080 for Proxy Service.
+# Connecting to the Proxy Service is the most common and recommended way to connect to Teleport.
+# This is mandatory to connect to Teleport Enterprise (Cloud)
+#
+# This setting is mutually exclusive with teleportProxyAddress and is ignored if `customConfig` is set.
+#
+# For example:
+# ```yaml
+# teleportProxyAddress: "test.teleport.sh:443"
+# ```
+teleportProxyAddress: ""
+# teleportAuthAddress(string) -- is the teleport Auth Service address the bot will connect to.
+# This must contain the port number, usually 3025 for Auth Service. Direct Auth Service connection
+# should be used when you are deploying the bot in the same Kubernetes cluster than your `teleport-cluster`
+# Helm release and have direct access to the Auth Service.
+# Else, you should prefer connecting via the Proxy Service.
+#
+# This setting is mutually exclusive with teleportProxyAddress and is ignored if `customConfig` is set.
+#
+# For example:
+# ```yaml
+# teleportAuthAddress: "teleport-auth.teleport-namespace.svc.cluster.local:3025"
+# ```
+teleportAuthAddress: ""
+
+# defaultOutput -- controls the default output configured for the tbot agent.
+# Ignored if `customConfig` is set.
+defaultOutput:
+  # defaultOutput.enabled(bool) -- controls whether the default output is enabled.
+  enabled: true
+
+# persistence -- controls how the tbot agent stores its data.
+#
+# Options:
+# - "secret": uses a Kubernetes Secret.
+# - "disabled": does not persist data. May impact ability to track bot
+#    deployment across its lifetime.
+persistence: "secret"
+
+# tbotConfig(object) -- contains YAML teleport configuration to pass to the
+# tbot pods. The configuration will be merged with the chart-generated
+# configuration and will take precedence in case of conflict. Try to prefer to
+# use the more specific configuration values throughout this chart.
+tbotConfig: {}
+
+# outputs(list) -- contains additional outputs to configure for the tbot agent.
+# These should be in the same format as the `outputs` field in the tbot.yaml.
+# Ignored if `customConfig` is set.
+outputs: []
+
+# services(list) -- contains additional services to configure for the tbot agent.
+# These should be in the same format as the `services` field in the tbot.yaml.
+# Ignored if `customConfig` is set.
+services: []
+
+# joinMethod(string) -- describes how tbot joins the Teleport cluster.
+# See [the join method reference](../../reference/join-methods.mdx) for a list fo supported values and detailed explanations.
+# Ignored if `customConfig` is set.
+joinMethod: "kubernetes"
+
+# token(string) -- is the name of the token used by tbot to join the Teleport cluster.
+# This value is not sensitive unless the `joinMethod` is set to `"token"`.
+# Ignored if `customConfig` is set.
+token: ""
+
+# teleportVersionOverride(string) -- controls the tbot image version deployed by
+# the chart.
+#
+# Normally, the version of tbot matches the version of the chart. If you install
+# chart version 15.0.0, you'll use tbot version 15.0.0. Upgrading tbot is done
+# by upgrading the chart.
+#
+# <Admonition type="warning">
+# `teleportVersionOverride` is intended for development and MUST NOT be
+# used to control the Teleport version in a typical deployment. This
+# chart is designed to run a specific Teleport version. You will face
+# compatibility issues trying to run a different Teleport version with it.
+#
+# If you want to run Teleport version `X.Y.Z`, you should use
+# `helm install --version X.Y.Z` instead.
+#
+# </Admonition>
+teleportVersionOverride: ""
+
+# anonymousTelemetry(bool) -- controls whether anonymous telemetry is enabled.
+anonymousTelemetry: false
+# debug(bool) -- controls whether the tbot agent runs in debug mode.
+debug: false
+
+# serviceAccount -- controls the Kubernetes ServiceAccounts deployed and used by
+# the chart.
+serviceAccount:
+  # serviceAccount.create(bool) -- controls whether Helm Chart creates the
+  # Kubernetes `ServiceAccount` resources for the agent.
+  # When off, you are responsible for creating the appropriate ServiceAccount
+  # resources.
+  create: true
+  # serviceAccount.name(string) -- sets the name of the `ServiceAccount` resource
+  # used by the chart. By default, the `ServiceAccount` has the name of the
+  # Helm release.
+  name: ""
+
+# rbac -- controls the Kubernetes Role and RoleBinding creation
+# used by the serviceAccount
+rbac:
+  # rbac.create(bool) -- controls whether Helm Chart creates the
+  # Kubernetes `Role` & `RoleBindings` resources for the Kubernetes SA.
+  # When off, you are responsible for creating the appropriate resources.
+  create: true
+
+# imagePullPolicy(string) -- sets the pull policy for any pods created by the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/containers/images/#updating-images)
+# for more details.
+imagePullPolicy: IfNotPresent
+
+# extraLabels -- contains additional Kubernetes labels to apply on the resources
+# created by the chart.
+# See [the Kubernetes label documentation
+# ](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
+# for more information.
+extraLabels:
+  # extraLabels.role(object) -- are labels to set on the Role.
+  role: {}
+  # extraLabels.roleBinding(object) -- are labels to set on the RoleBinding.
+  roleBinding: {}
+  # extraLabels.config(object) -- are labels to set on the ConfigMap.
+  config: {}
+  # extraLabels.deployment(object) -- are labels to set on the Deployment or StatefulSet.
+  deployment: {}
+  # extraLabels.pod(object) -- are labels to set on the Pods created by the
+  # Deployment or StatefulSet.
+  pod: {}
+  # extraLabels.serviceAccount(object) -- are labels to set on the ServiceAccount.
+  serviceAccount: {}
+
+# annotations -- contains annotations to apply to the different Kubernetes
+# objects created by the chart. See [the Kubernetes annotation
+# documentation](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+# for more details.
+annotations:
+  # annotations.role(object) -- are annotations to set on the Role.
+  role: {}
+  # annotations.roleBinding(object) -- are annotations to set on the RoleBinding.
+  roleBinding: {}
+  # annotations.config(object) -- contains the Kubernetes annotations
+  # put on the `ConfigMap` resource created by the chart.
+  config: {}
+  # annotations.deployment(object) -- contains the Kubernetes annotations
+  # put on the `Deployment` or `StatefulSet` resource created by the chart.
+  deployment: {}
+  # annotations.pod(object) -- contains the Kubernetes annotations
+  # put on the `Pod` resources created by the chart.
+  pod: {}
+  # annotations.serviceAccount(object) -- contains the Kubernetes annotations
+  # put on the `ServiceAccount` resource created by the chart.
+  serviceAccount: {}
+
+# resources(object) -- sets the resource requests/limits for any pods created by the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
+# for more details.
+resources: {}
+
+# affinity(object) -- sets the affinities for any pods created by the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity)
+# for more details.
+affinity: {}
+
+# tolerations(list) -- sets the tolerations for any pods created by the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/)
+# for more details.
+tolerations: []
+
+# nodeSelector(object) -- sets the node selector for any pods created by the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector)
+# for more details.
+nodeSelector: {}
+
+# imagePullSecrets(list) -- sets the image pull secrets for any pods created by the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/containers/images/#referring-to-an-imagepullsecrets-on-a-pod)
+# for more details.
+imagePullSecrets: []
+
+# extraVolumes(list) -- contains extra volumes to mount into the Teleport pods.
+# See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+# for more details.
+#
+# For example:
+# ```yaml
+# extraVolumes:
+# - name: myvolume
+#   secret:
+#     secretName: testSecret
+# ```
+extraVolumes: []
+
+# extraVolumeMounts(list) -- contains extra volumes mounts for the main Teleport container.
+# See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+# for more details.
+#
+# For example:
+# ```yaml
+# extraVolumesMounts:
+# - name: myvolume
+#   mountPath: /path/on/host
+# ```
+extraVolumeMounts: []
+
+# extraArgs(list) -- contains extra arguments to pass to `tbot start` for
+# the main tbot pod
+extraArgs: []
+
+# extraEnv(list) -- contains extra environment variables to set in the main
+# tbot pod.
+#
+# For example:
+# ```yaml
+# extraEnv:
+#   - name: HTTPS_PROXY
+#     value: "http://username:password@my.proxy.host:3128"
+# ```
+extraEnv: []
+
+# securityContext(object) -- sets the container security context for any pods created by the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container)
+# for more details.
+#
+# By default, this is unset.
+securityContext: null

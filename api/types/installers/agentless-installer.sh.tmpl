@@ -123,8 +123,9 @@ install_teleport() {
       echo "deb https://apt.releases.teleport.dev/ubuntu ${VERSION_CODENAME?} {{ .RepoChannel }}" | sudo tee /etc/apt/sources.list.d/teleport.list
       rm /tmp/teleport-pubkey.asc
     else
-      curl https://apt.releases.teleport.dev/gpg | sudo tee /usr/share/keyrings/teleport-archive-keyring.asc
-      echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} {{ .RepoChannel }}" | sudo tee /etc/apt/sources.list.d/teleport.list >/dev/null
+      sudo mkdir -p /etc/apt/keyrings
+      curl https://apt.releases.teleport.dev/gpg | sudo tee /etc/apt/keyrings/teleport-archive-keyring.asc
+      echo "deb [signed-by=/etc/apt/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} {{ .RepoChannel }}" | sudo tee /etc/apt/sources.list.d/teleport.list >/dev/null
     fi
     sudo apt-get update
 

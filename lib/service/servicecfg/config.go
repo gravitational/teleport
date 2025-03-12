@@ -21,9 +21,9 @@ package servicecfg
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,7 +33,7 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -50,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Config contains the configuration for all services that Teleport can run.
@@ -58,8 +58,7 @@ import (
 type Config struct {
 	// Teleport configuration version.
 	Version string
-	// DataDir is the directory where teleport stores its permanent state
-	// (in case of auth server backed by BoltDB) or local state, e.g. keys
+	// DataDir is the directory where teleport stores its local state, e.g. keys
 	DataDir string
 
 	// Hostname is a node host name
@@ -133,9 +132,6 @@ type Config struct {
 	// a teleport cluster). It's automatically generated on 1st start
 	HostUUID string
 
-	// Console writer to speak to a user
-	Console io.Writer
-
 	// ReverseTunnels is a list of reverse tunnels to create on the
 	// first cluster start
 	ReverseTunnels []types.ReverseTunnel
@@ -167,7 +163,10 @@ type Config struct {
 	// UsageReporter is a service that reports usage events.
 	UsageReporter usagereporter.UsageReporter
 	// ClusterConfiguration is a service that provides cluster configuration
-	ClusterConfiguration services.ClusterConfiguration
+	ClusterConfiguration services.ClusterConfigurationInternal
+
+	// AutoUpdateService is a service that provides auto update configuration and version.
+	AutoUpdateService services.AutoUpdateService
 
 	// CipherSuites is a list of TLS ciphersuites that Teleport supports. If
 	// omitted, a Teleport selected list of defaults will be used.
@@ -219,10 +218,6 @@ type Config struct {
 	// Kube is a Kubernetes API gateway using Teleport client identities.
 	Kube KubeConfig
 
-	// Log optionally specifies the logger.
-	// Deprecated: use Logger instead.
-	Log utils.Logger
-
 	// Logger outputs messages using slog. The underlying handler respects
 	// the user supplied logging config.
 	Logger *slog.Logger
@@ -261,6 +256,16 @@ type Config struct {
 
 	// AccessGraph represents AccessGraph server config
 	AccessGraph AccessGraphConfig
+
+	// DatabaseREPLRegistry is used to retrieve datatabase REPL given the
+	// protocol.
+	DatabaseREPLRegistry dbrepl.REPLRegistry
+
+	// MetricsRegistry is the prometheus metrics registry used by the Teleport process to register its metrics.
+	// As of today, not every Teleport metric is registered against this registry. Some Teleport services
+	// and Teleport dependencies are using the global registry.
+	// Both the MetricsRegistry and the default global registry are gathered by Teleport's metric service.
+	MetricsRegistry *prometheus.Registry
 
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
@@ -305,6 +310,10 @@ type ConfigTesting struct {
 	// require PROXY header if 'proxyProtocolMode: true' even from self connections. Used in tests as all connections are self
 	// connections there.
 	KubeMultiplexerIgnoreSelfConnections bool
+
+	// HTTPTransport is an optional HTTP round tripper to used in tests
+	// to mock HTTP requests to the third party services like Okta integration
+	HTTPTransport http.RoundTripper
 }
 
 // AccessGraphConfig represents TAG server config
@@ -506,10 +515,6 @@ func ApplyDefaults(cfg *Config) {
 
 	cfg.Version = defaults.TeleportConfigVersionV1
 
-	if cfg.Log == nil {
-		cfg.Log = utils.NewLogger()
-	}
-
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
@@ -538,7 +543,6 @@ func ApplyDefaults(cfg *Config) {
 	// Global defaults.
 	cfg.Hostname = hostname
 	cfg.DataDir = defaults.DataDir
-	cfg.Console = os.Stdout
 	cfg.CipherSuites = utils.DefaultCipherSuites()
 	cfg.Ciphers = sc.Ciphers
 	cfg.KEXAlgorithms = kex
@@ -548,12 +552,13 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.Enabled = true
 	cfg.Auth.ListenAddr = *defaults.AuthListenAddr()
 	cfg.Auth.StorageConfig.Type = lite.GetName()
-	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
+	cfg.Auth.StorageConfig.Params = make(backend.Params)
 	cfg.Auth.StaticTokens = types.DefaultStaticTokens()
 	cfg.Auth.AuditConfig = types.DefaultClusterAuditConfig()
 	cfg.Auth.NetworkingConfig = types.DefaultClusterNetworkingConfig()
 	cfg.Auth.SessionRecordingConfig = types.DefaultSessionRecordingConfig()
 	cfg.Auth.Preference = types.DefaultAuthPreference()
+	cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, defaults.LicenseFile)
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
 
 	cfg.Proxy.WebAddr = *defaults.ProxyWebListenAddr()
@@ -594,6 +599,9 @@ func ApplyDefaults(cfg *Config) {
 	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
 	cfg.Testing.ConnectFailureC = make(chan time.Duration, 1)
 	cfg.CircuitBreakerConfig = breaker.DefaultBreakerConfig(cfg.Clock)
+
+	// Debug service defaults.
+	cfg.DebugService.Enabled = true
 }
 
 // FileDescriptor is a file descriptor associated
@@ -647,6 +655,15 @@ func ValidateConfig(cfg *Config) error {
 		return trace.BadParameter("config: please supply data directory")
 	}
 
+	if cfg.Auth.Enabled {
+		if cfg.Auth.StorageConfig.Params.GetString(defaults.BackendPath) == "" {
+			if cfg.Auth.StorageConfig.Params == nil {
+				cfg.Auth.StorageConfig.Params = make(backend.Params)
+			}
+			cfg.Auth.StorageConfig.Params[defaults.BackendPath] = filepath.Join(cfg.DataDir, defaults.BackendDir)
+		}
+	}
+
 	for i := range cfg.Auth.Authorities {
 		if err := services.ValidateCertAuthority(cfg.Auth.Authorities[i]); err != nil {
 			return trace.Wrap(err)
@@ -667,14 +684,6 @@ func ValidateConfig(cfg *Config) error {
 func applyDefaults(cfg *Config) {
 	if cfg.Version == "" {
 		cfg.Version = defaults.TeleportConfigVersionV1
-	}
-
-	if cfg.Console == nil {
-		cfg.Console = io.Discard
-	}
-
-	if cfg.Log == nil {
-		cfg.Log = logrus.StandardLogger()
 	}
 
 	if cfg.Logger == nil {
@@ -774,7 +783,6 @@ func verifyEnabledService(cfg *Config) error {
 // If called after `config.ApplyFileConfig` or `config.Configure` it will also
 // change the global loggers.
 func (c *Config) SetLogLevel(level slog.Level) {
-	c.Log.SetLevel(logutils.SlogLevelToLogrusLevel(level))
 	c.LoggerLevel.Set(level)
 }
 

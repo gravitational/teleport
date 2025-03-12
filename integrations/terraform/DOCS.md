@@ -4,7 +4,7 @@
 ### What documentation is available
 
 We maintain:
-- [The Terraform Provider reference](https://goteleport.com/docs/reference/terraform) describing every resource and supported field.
+- [The Terraform Provider reference](https://goteleport.com/docs/reference/terraform-provider/) describing every resource and supported field.
 - [The installation guide](https://goteleport.com/docs/management/dynamic-resources/terraform-provider/)
 - A getting started guide describing [how to configure users and roles with Terraform](https://goteleport.com/docs/management/dynamic-resources/user-and-role/)
 

@@ -20,7 +20,7 @@ package client
 
 import (
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/uuid"
@@ -55,7 +55,7 @@ func TestLoadAllConfigs(t *testing.T) {
 	t.Parallel()
 
 	writeConf := func(fn string, config TSHConfig) {
-		dir, _ := path.Split(fn)
+		dir, _ := filepath.Split(fn)
 		err := os.MkdirAll(dir, 0777)
 		require.NoError(t, err)
 		out, err := yaml.Marshal(config)
@@ -66,7 +66,7 @@ func TestLoadAllConfigs(t *testing.T) {
 
 	tmp := t.TempDir()
 
-	globalPath := path.Join(tmp, "etc", "tsh_global.yaml")
+	globalPath := filepath.Join(tmp, "etc", "tsh_global.yaml")
 	globalConf := TSHConfig{
 		ExtraHeaders: []ExtraProxyHeaders{{
 			Proxy:   "global",
@@ -74,8 +74,8 @@ func TestLoadAllConfigs(t *testing.T) {
 		}},
 	}
 
-	homeDir := path.Join(tmp, "home", "myuser", ".tsh")
-	userPath := path.Join(homeDir, "config", "config.yaml")
+	homeDir := filepath.Join(tmp, "home", "myuser", ".tsh")
+	userPath := filepath.Join(homeDir, "config", "config.yaml")
 	userConf := TSHConfig{
 		ExtraHeaders: []ExtraProxyHeaders{{
 			Proxy:   "user",

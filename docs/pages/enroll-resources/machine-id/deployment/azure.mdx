@@ -12,10 +12,10 @@ On the Azure platform, virtual machines can be assigned a managed identity. The
 Azure platform will then make available to the virtual machine an attested
 data document and JWT that allows the virtual machine to act as this identity.
 This identity can be validated by a third party by attempting to use this token
-to fetch it's own identity from the Azure identity service.
+to fetch its own identity from the Azure identity service.
 
 The `azure` join method instructs the bot to use this attested data document and
-JWT to prove its identity to the Teleport Auth Server. This allows joining to
+JWT to prove its identity to the Teleport Auth Service. This allows joining to
 occur without the use of a long-lived secret.
 
 ## Prerequisites
@@ -110,7 +110,7 @@ outputs: []
 Replace:
 
 - `example.teleport.sh:443` with the address of your Teleport Proxy or
-  Auth Server. Prefer using the address of a Teleport Proxy.
+  Auth Service. Prefer using the address of a Teleport Proxy.
 - `22222222-2222-2222-2222-222222222222` with the ID of the Azure managed
   identity that has been assigned to the VM.
 - `example-bot` with the name of the token you created in the second step.
@@ -123,8 +123,8 @@ Replace:
 
 ## Next steps
 
-- Follow the [access guides](../access-guides.mdx) to finish configuring `tbot` for
+- Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
   your environment.
-- Read the [configuration reference](../reference/configuration.mdx) to explore
+- Read the [configuration reference](../../../reference/machine-id/configuration.mdx) to explore
   all the available configuration options.
-- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../reference/telemetry.mdx)
+- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../../reference/machine-id/telemetry.mdx)

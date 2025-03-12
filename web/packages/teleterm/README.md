@@ -135,6 +135,14 @@ When running `pnpm package-term`, you need to provide these environment variable
 
 The details behind those vars are described below.
 
+### Windows
+
+Packaging Connect on Windows requires wintun.dll, which VNet uses to create a
+virtual network interface.
+A zip file containing the DLL can be downloaded from https://www.wintun.net/builds/wintun-0.14.1.zip
+Extract the zip file and then pass the path to wintun.dll to `pnpm package-term`
+with the `CONNECT_WINTUN_DLL_PATH` environment variable.
+
 #### tsh.app
 
 Unlike other platforms, macOS needs the whole tsh.app to be bundled with Connect, not just the tsh
@@ -248,4 +256,76 @@ resource availability as possible.
 
 ### PTY communication overview (Renderer Process <=> Shared Process)
 
-![PTY communication](docs/ptyCommunication.png)
+```mermaid
+sequenceDiagram
+    autonumber
+    participant DT as Document Terminal
+    participant PS as PTY Service
+    participant PHS as PTY Host Service
+    participant PP as PTY Process
+
+    DT->>PS: wants new PTY
+    Note over PS,PHS: gRPC communication
+    PS->>PHS: createPtyProcess(options)
+    PHS->>PP: new PtyProcess()
+    PHS-->>PS: ptyId of the process is returned
+    PS->>PHS: establishExchangeEvents(ptyId) channel
+    Note right of DT: client has been created,<br/> so PTY Service can attach <br/> event handlers to the channel <br/>(onData/onOpen/onExit)
+    PS-->>DT: pty process object
+    DT->>PS: start()
+    PS->>PHS: exchangeEvents.start()
+    Note left of PP: exchangeEvents attaches event handlers<br/>to the PTY Process (onData/onOpen/onExit)
+    PHS->>PP: start()
+    PP-->>PHS: onOpen()
+    PHS-->>PS: exchangeEvents.onOpen()
+    PS-->>DT: onOpen()
+    DT->>PS: dispose()
+    PS->>PHS: end exchangeEvents channel
+    PHS->>PP: dispose process and remove it
+
+```
+
+### Overview of a deep link launch process
+
+The diagram below illustrates the process of launching a deep link,
+depending on the state of the workspaces.
+It assumes that the app is not running and that the deep link targets a workspace
+different from the persisted one.
+
+<details>
+<summary>Diagram</summary>
+
+```mermaid
+flowchart TD
+Start([Start]) --> IsPreviousWorkspaceConnected{Is the previously active workspace connected?}
+IsPreviousWorkspaceConnected --> |Valid certificate| PreviousWorkspaceReopenDocuments{Has documents to reopen from the previous workspace?}
+IsPreviousWorkspaceConnected --> |Expired certificate| CancelPreviousWorkspaceLogin[Cancel the login dialog]
+IsPreviousWorkspaceConnected --> |No persisted workspace| SwitchWorkspace
+
+    PreviousWorkspaceReopenDocuments --> |Yes| CancelPreviousWorkspaceDocumentsReopen[Cancel the reopen dialog without discarding documents]
+    PreviousWorkspaceReopenDocuments --> |No| SwitchWorkspace[Switch to a deep link workspace]
+
+    CancelPreviousWorkspaceDocumentsReopen --> SwitchWorkspace
+    CancelPreviousWorkspaceLogin --> SwitchWorkspace
+
+    SwitchWorkspace --> IsDeepLinkWorkspaceConnected{Is the deep link workspace connected?}
+    IsDeepLinkWorkspaceConnected --> |Valid certificate| DeepLinkWorkspaceReopenDocuments{Has documents to reopen from the deep link workspace?}
+    IsDeepLinkWorkspaceConnected --> |Not added| AddDeepLinkCluster[Add new cluster]
+    IsDeepLinkWorkspaceConnected --> |Expired certificate| LogInToDeepLinkWorkspace[Log in to workspace]
+
+    AddDeepLinkCluster --> AddDeepLinkClusterSuccess{Was the cluster added successfully?}
+    AddDeepLinkClusterSuccess --> |Yes| LogInToDeepLinkWorkspace
+    AddDeepLinkClusterSuccess --> |No| ReturnToPreviousWorkspace[Return to the previously active workspace and try to reopen its documents again]
+
+    LogInToDeepLinkWorkspace --> IsLoginToDeepLinkWorkspaceSuccess{Was login successful?}
+    IsLoginToDeepLinkWorkspaceSuccess --> |Yes| DeepLinkWorkspaceReopenDocuments
+    IsLoginToDeepLinkWorkspaceSuccess --> |No| ReturnToPreviousWorkspace
+
+    DeepLinkWorkspaceReopenDocuments --> |Yes| ReopenDeepLinkWorkspaceDocuments[Reopen documents]
+    DeepLinkWorkspaceReopenDocuments --> |No| End
+
+    ReopenDeepLinkWorkspaceDocuments --> End
+    ReturnToPreviousWorkspace --> End
+```
+
+</details>

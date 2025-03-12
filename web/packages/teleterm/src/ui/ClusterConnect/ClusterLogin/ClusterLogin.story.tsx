@@ -15,66 +15,40 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+import { Meta } from '@storybook/react';
 
-import React, { PropsWithChildren } from 'react';
+import { makeErrorAttempt, makeProcessingAttempt } from 'shared/hooks/useAsync';
 
-import { Box } from 'design';
-import { Attempt, makeErrorAttempt } from 'shared/hooks/useAsync';
-
-import * as types from 'teleterm/ui/services/clusters/types';
+import { ClusterLoginPresentation } from './ClusterLogin';
 import {
-  appUri,
-  makeDatabaseGateway,
-  makeKubeGateway,
-} from 'teleterm/services/tshd/testHelpers';
+  compatibilityArgType,
+  makeProps,
+  StoryProps,
+  TestContainer,
+} from './storyHelpers';
 
-import {
-  ClusterLoginPresentation,
-  ClusterLoginPresentationProps,
-} from './ClusterLogin';
-
-export default {
+const meta: Meta<StoryProps> = {
   title: 'Teleterm/ModalsHost/ClusterLogin',
+  argTypes: compatibilityArgType,
+  args: {
+    compatibility: 'compatible',
+  },
+};
+export default meta;
+
+export const LocalOnly = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
+  props.initAttempt.data.allowPasswordless = false;
+
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
 };
 
-function makeProps(): ClusterLoginPresentationProps {
-  return {
-    shouldPromptSsoStatus: false,
-    title: 'localhost',
-    loginAttempt: {
-      status: '',
-      statusText: '',
-    } as Attempt<void>,
-    initAttempt: {
-      status: 'success',
-      statusText: '',
-      data: {
-        preferredMfa: 'webauthn',
-        localAuthEnabled: true,
-        authProviders: [],
-        type: '',
-        secondFactor: 'optional',
-        hasMessageOfTheDay: false,
-        allowPasswordless: true,
-        localConnectorName: '',
-        authType: 'local',
-      } as types.AuthSettings,
-    } as const,
-
-    loggedInUserName: null,
-    onCloseDialog: () => null,
-    onAbort: () => null,
-    onLoginWithLocal: () => Promise.resolve<[void, Error]>([null, null]),
-    onLoginWithPasswordless: () => Promise.resolve<[void, Error]>([null, null]),
-    onLoginWithSso: () => null,
-    clearLoginAttempt: () => null,
-    webauthnLogin: null,
-    reason: undefined,
-  };
-}
-
-export const Err = () => {
-  const props = makeProps();
+export const InitErr = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.initAttempt = makeErrorAttempt(new Error('some error message'));
 
   return (
@@ -84,8 +58,8 @@ export const Err = () => {
   );
 };
 
-export const Processing = () => {
-  const props = makeProps();
+export const InitProcessing = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.initAttempt.status = 'processing';
 
   return (
@@ -95,8 +69,8 @@ export const Processing = () => {
   );
 };
 
-export const LocalDisabled = () => {
-  const props = makeProps();
+export const LocalDisabled = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.initAttempt.data.localAuthEnabled = false;
 
   return (
@@ -106,10 +80,14 @@ export const LocalDisabled = () => {
   );
 };
 
-export const LocalOnly = () => {
-  const props = makeProps();
-  props.initAttempt.data.secondFactor = 'off';
+// The password field is empty in this story as there's no way to change the value of a controlled
+// input without touching the internals of React.
+// https://stackoverflow.com/questions/23892547/what-is-the-best-way-to-trigger-change-or-input-event-in-react-js
+export const LocalProcessing = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.initAttempt.data.allowPasswordless = false;
+  props.loginAttempt = makeProcessingAttempt();
+  props.loggedInUserName = 'alice';
 
   return (
     <TestContainer>
@@ -118,66 +96,11 @@ export const LocalOnly = () => {
   );
 };
 
-export const LocalOnlyWithReasonGatewayCertExpiredWithDbGateway = () => {
-  const props = makeProps();
-  props.initAttempt.data.secondFactor = 'off';
+export const LocalError = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.initAttempt.data.allowPasswordless = false;
-  props.reason = {
-    kind: 'reason.gateway-cert-expired',
-    targetUri: dbGateway.targetUri,
-    gateway: dbGateway,
-  };
-
-  return (
-    <TestContainer>
-      <ClusterLoginPresentation {...props} />
-    </TestContainer>
-  );
-};
-
-export const LocalOnlyWithReasonGatewayCertExpiredWithKubeGateway = () => {
-  const props = makeProps();
-  props.initAttempt.data.secondFactor = 'off';
-  props.initAttempt.data.allowPasswordless = false;
-  props.reason = {
-    kind: 'reason.gateway-cert-expired',
-    targetUri: kubeGateway.targetUri,
-    gateway: kubeGateway,
-  };
-
-  return (
-    <TestContainer>
-      <ClusterLoginPresentation {...props} />
-    </TestContainer>
-  );
-};
-
-export const LocalOnlyWithReasonGatewayCertExpiredWithoutGateway = () => {
-  const props = makeProps();
-  props.initAttempt.data.secondFactor = 'off';
-  props.initAttempt.data.allowPasswordless = false;
-  props.reason = {
-    kind: 'reason.gateway-cert-expired',
-    targetUri: dbGateway.targetUri,
-    gateway: undefined,
-  };
-
-  return (
-    <TestContainer>
-      <ClusterLoginPresentation {...props} />
-    </TestContainer>
-  );
-};
-
-export const LocalOnlyWithReasonVnetCertExpired = () => {
-  const props = makeProps();
-  props.initAttempt.data.secondFactor = 'off';
-  props.initAttempt.data.allowPasswordless = false;
-  props.reason = {
-    kind: 'reason.vnet-cert-expired',
-    targetUri: appUri,
-    publicAddr: 'tcp-app.teleport.example.com',
-  };
+  props.loginAttempt = makeErrorAttempt(new Error('invalid credentials'));
+  props.loggedInUserName = 'alice';
 
   return (
     <TestContainer>
@@ -191,8 +114,8 @@ const authProviders = [
   { type: 'saml', name: 'microsoft', displayName: 'Microsoft' },
 ];
 
-export const SsoOnly = () => {
-  const props = makeProps();
+export const SsoOnly = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.initAttempt.data.localAuthEnabled = false;
   props.initAttempt.data.authType = 'github';
   props.initAttempt.data.authProviders = authProviders;
@@ -204,167 +127,8 @@ export const SsoOnly = () => {
   );
 };
 
-export const LocalWithPasswordless = () => {
-  return (
-    <TestContainer>
-      <ClusterLoginPresentation {...makeProps()} />
-    </TestContainer>
-  );
-};
-
-export const LocalLoggedInUserWithPasswordless = () => {
-  const props = makeProps();
-  props.loggedInUserName = 'llama';
-
-  return (
-    <TestContainer>
-      <ClusterLoginPresentation {...props} />
-    </TestContainer>
-  );
-};
-
-export const LocalWithSso = () => {
-  const props = makeProps();
-  props.initAttempt.data.authProviders = authProviders;
-
-  return (
-    <TestContainer>
-      <ClusterLoginPresentation {...props} />
-    </TestContainer>
-  );
-};
-
-export const PasswordlessWithLocal = () => {
-  const props = makeProps();
-  props.initAttempt.data.localConnectorName = 'passwordless';
-
-  return (
-    <TestContainer>
-      <ClusterLoginPresentation {...props} />
-    </TestContainer>
-  );
-};
-
-export const PasswordlessWithLocalLoggedInUser = () => {
-  const props = makeProps();
-  props.initAttempt.data.localConnectorName = 'passwordless';
-  props.loggedInUserName = 'llama';
-
-  return (
-    <TestContainer>
-      <ClusterLoginPresentation {...props} />
-    </TestContainer>
-  );
-};
-
-export const SsoWithLocalAndPasswordless = () => {
-  const props = makeProps();
-  props.initAttempt.data.authType = 'github';
-  props.initAttempt.data.authProviders = authProviders;
-
-  return (
-    <TestContainer>
-      <ClusterLoginPresentation {...props} />
-    </TestContainer>
-  );
-};
-
-export const SsoWithNoProvidersConfigured = () => {
-  const props = makeProps();
-  props.initAttempt.data.authType = 'github';
-
-  return (
-    <TestContainer>
-      <ClusterLoginPresentation {...props} />
-    </TestContainer>
-  );
-};
-
-export const HardwareTapPrompt = () => {
-  const props = makeProps();
-  props.loginAttempt.status = 'processing';
-  props.webauthnLogin = {
-    prompt: 'tap',
-  };
-  return (
-    <TestContainer>
-      <ClusterLoginPresentation {...props} />
-    </TestContainer>
-  );
-};
-
-export const HardwarePinPrompt = () => {
-  const props = makeProps();
-  props.loginAttempt.status = 'processing';
-  props.webauthnLogin = {
-    prompt: 'pin',
-  };
-  return (
-    <TestContainer>
-      <ClusterLoginPresentation {...props} />
-    </TestContainer>
-  );
-};
-
-export const HardwareRetapPrompt = () => {
-  const props = makeProps();
-  props.loginAttempt.status = 'processing';
-  props.webauthnLogin = {
-    prompt: 'retap',
-  };
-  return (
-    <TestContainer>
-      <ClusterLoginPresentation {...props} />
-    </TestContainer>
-  );
-};
-
-export const HardwareCredentialPrompt = () => {
-  const props = makeProps();
-  props.loginAttempt.status = 'processing';
-  props.webauthnLogin = {
-    prompt: 'credential',
-    loginUsernames: [
-      'apple',
-      'banana',
-      'blueberry',
-      'carrot',
-      'durian',
-      'pumpkin',
-      'strawberry',
-    ],
-  };
-  return (
-    <TestContainer>
-      <ClusterLoginPresentation {...props} />
-    </TestContainer>
-  );
-};
-
-export const HardwareCredentialPromptProcessing = () => {
-  const props = makeProps();
-  props.loginAttempt.status = 'processing';
-  props.webauthnLogin = {
-    prompt: 'credential',
-    loginUsernames: [
-      'apple',
-      'banana',
-      'blueberry',
-      'carrot',
-      'durian',
-      'pumpkin',
-      'strawberry',
-    ],
-  };
-  props.webauthnLogin.processing = true;
-  return (
-    <TestContainer>
-      <ClusterLoginPresentation {...props} />
-    </TestContainer>
-  );
-};
-export const SsoPrompt = () => {
-  const props = makeProps();
+export const SsoPrompt = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.loginAttempt.status = 'processing';
   props.shouldPromptSsoStatus = true;
   return (
@@ -374,37 +138,177 @@ export const SsoPrompt = () => {
   );
 };
 
-const TestContainer: React.FC<PropsWithChildren> = ({ children }) => (
-  <>
-    <span>Bordered box is not part of the component</span>
-    <Box
-      css={`
-        width: 450px;
-        border: 1px solid ${props => props.theme.colors.levels.elevated};
-        background: ${props => props.theme.colors.levels.surface};
-      `}
-    >
-      {children}
-    </Box>
-  </>
-);
+export const SsoError = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
+  props.initAttempt.data.localAuthEnabled = false;
+  props.initAttempt.data.authType = 'github';
+  props.initAttempt.data.authProviders = authProviders;
+  props.loginAttempt = makeErrorAttempt(
+    new Error("Failed to log in. Please check Teleport's log for more details.")
+  );
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
 
-const dbGateway = makeDatabaseGateway({
-  uri: '/gateways/gateway1',
-  targetName: 'postgres',
-  targetUri: '/clusters/teleport-local/dbs/postgres',
-  targetUser: 'alice',
-  targetSubresourceName: '',
-  localAddress: 'localhost',
-  localPort: '59116',
-  protocol: 'postgres',
-});
+export const LocalWithPasswordless = (storyProps: StoryProps) => {
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...makeProps(storyProps)} />
+    </TestContainer>
+  );
+};
 
-const kubeGateway = makeKubeGateway({
-  uri: '/gateways/gateway2',
-  targetName: 'minikube',
-  targetUri: '/clusters/teleport-local/kubes/minikube',
-  targetSubresourceName: '',
-  localAddress: 'localhost',
-  localPort: '59117',
-});
+export const LocalLoggedInUserWithPasswordless = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
+  props.loggedInUserName = 'llama';
+
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
+
+export const LocalWithSso = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
+  props.initAttempt.data.authProviders = authProviders;
+
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
+
+export const PasswordlessWithLocal = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
+  props.initAttempt.data.localConnectorName = 'passwordless';
+
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
+
+export const PasswordlessWithLocalLoggedInUser = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
+  props.initAttempt.data.localConnectorName = 'passwordless';
+  props.loggedInUserName = 'llama';
+
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
+
+export const SsoWithLocalAndPasswordless = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
+  props.initAttempt.data.authType = 'github';
+  props.initAttempt.data.authProviders = authProviders;
+
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
+
+export const SsoWithNoProvidersConfigured = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
+  props.initAttempt.data.authType = 'github';
+
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
+
+export const HardwareTapPrompt = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
+  props.loginAttempt.status = 'processing';
+  props.passwordlessLoginState = {
+    prompt: 'tap',
+  };
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
+
+export const HardwarePinPrompt = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
+  props.loginAttempt.status = 'processing';
+  props.passwordlessLoginState = {
+    prompt: 'pin',
+  };
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
+
+export const HardwareRetapPrompt = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
+  props.loginAttempt.status = 'processing';
+  props.passwordlessLoginState = {
+    prompt: 'retap',
+  };
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
+
+export const HardwareCredentialPrompt = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
+  props.loginAttempt.status = 'processing';
+  props.passwordlessLoginState = {
+    prompt: 'credential',
+    loginUsernames: [
+      'apple',
+      'banana',
+      'blueberry',
+      'carrot',
+      'durian',
+      'pumpkin',
+      'strawberry',
+    ],
+  };
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
+
+export const HardwareCredentialPromptProcessing = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
+  props.loginAttempt.status = 'processing';
+  props.passwordlessLoginState = {
+    prompt: 'credential',
+    loginUsernames: [
+      'apple',
+      'banana',
+      'blueberry',
+      'carrot',
+      'durian',
+      'pumpkin',
+      'strawberry',
+    ],
+  };
+  props.passwordlessLoginState.processing = true;
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};

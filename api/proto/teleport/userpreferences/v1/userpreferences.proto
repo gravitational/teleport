@@ -19,7 +19,9 @@ package teleport.userpreferences.v1;
 import "google/protobuf/empty.proto";
 import "teleport/userpreferences/v1/access_graph.proto";
 import "teleport/userpreferences/v1/cluster_preferences.proto";
+import "teleport/userpreferences/v1/discover_resource_preferences.proto";
 import "teleport/userpreferences/v1/onboard.proto";
+import "teleport/userpreferences/v1/sidenav_preferences.proto";
 import "teleport/userpreferences/v1/theme.proto";
 import "teleport/userpreferences/v1/unified_resource_preferences.proto";
 
@@ -40,6 +42,10 @@ message UserPreferences {
   UnifiedResourcePreferences unified_resource_preferences = 5;
   // access_graph is the preferences for Access Graph.
   AccessGraphUserPreferences access_graph = 6;
+  // side_nav_drawer_mode is the sidenav drawer behavior preference in the frontend.
+  SideNavDrawerMode side_nav_drawer_mode = 7;
+  // discover_resource_preferences are user preferences saved for the discover resource web UI.
+  DiscoverResourcePreferences discover_resource_preferences = 8;
 }
 
 // GetUserPreferencesRequest is a request to get the user preferences.

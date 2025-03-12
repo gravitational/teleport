@@ -100,11 +100,17 @@ func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
 		ProxyHost: cluster.GetProxyHost(),
 		Connected: cluster.Connected(),
 		LoggedInUser: &api.LoggedInUser{
-			Name:           loggedInUser.Name,
-			SshLogins:      loggedInUser.SSHLogins,
-			Roles:          loggedInUser.Roles,
-			ActiveRequests: loggedInUser.ActiveRequests,
+			Name:            loggedInUser.Name,
+			SshLogins:       loggedInUser.SSHLogins,
+			Roles:           loggedInUser.Roles,
+			ActiveRequests:  loggedInUser.ActiveRequests,
+			IsDeviceTrusted: cluster.HasDeviceTrustExtensions(),
 		},
+		SsoHost: cluster.SSOHost,
+	}
+
+	if cluster.GetProfileStatusError() != nil {
+		apiCluster.ProfileStatusError = cluster.GetProfileStatusError().Error()
 	}
 
 	return apiCluster
@@ -126,6 +132,7 @@ func newAPIRootClusterWithDetails(cluster *clusters.ClusterWithDetails) (*api.Cl
 		return nil, trace.Wrap(err)
 	}
 	apiCluster.LoggedInUser.UserType = userType
+	apiCluster.LoggedInUser.TrustedDeviceRequirement = cluster.TrustedDeviceRequirement
 	apiCluster.ProxyVersion = cluster.ProxyVersion
 
 	switch cluster.ShowResources {

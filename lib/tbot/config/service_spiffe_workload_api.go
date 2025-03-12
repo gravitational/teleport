@@ -20,11 +20,12 @@ package config
 
 import (
 	"log/slog"
+	"time"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
-	"github.com/gravitational/teleport/lib/tbot/spiffe/workloadattest"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 )
 
 const SPIFFEWorkloadAPIServiceType = "spiffe-workload-api"
@@ -121,6 +122,14 @@ type SPIFFEWorkloadAPIService struct {
 	SVIDs []SVIDRequestWithRules `yaml:"svids"`
 	// Attestors is the configuration for the workload attestation process.
 	Attestors workloadattest.Config `yaml:"attestors"`
+	// JWTSVIDTTL specifies how long that JWT SVIDs issued by this SPIFFE
+	// Workload API server are valid for. If unspecified, this falls back to
+	// the globally configured default.
+	JWTSVIDTTL time.Duration `yaml:"jwt_svid_ttl,omitempty"`
+
+	// CredentialLifetime contains configuration for how long X.509 SVIDs will
+	// last and the frequency at which they'll be renewed.
+	CredentialLifetime CredentialLifetime `yaml:",inline"`
 }
 
 func (s *SPIFFEWorkloadAPIService) Type() string {
@@ -157,4 +166,8 @@ func (s *SPIFFEWorkloadAPIService) CheckAndSetDefaults() error {
 		return trace.Wrap(err, "validating attestor")
 	}
 	return nil
+}
+
+func (o *SPIFFEWorkloadAPIService) GetCredentialLifetime() CredentialLifetime {
+	return o.CredentialLifetime
 }

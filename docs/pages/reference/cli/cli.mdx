@@ -1,0 +1,80 @@
+---
+title: Command-Line Tools
+h1: CLI References
+description: Detailed guide and reference documentation for Teleport's command line interface (CLI) tools.
+---
+
+Teleport is made up of five CLI tools.
+
+- [teleport](teleport.mdx): Supports the Teleport Infrastructure Identity Platform by starting and configuring various Teleport services.
+- [tsh](tsh.mdx): Allows end users to authenticate to Teleport and access resources in a cluster.
+- [tctl](tctl.mdx): Used to configure the Teleport Auth Service.
+- [tbot](tbot.mdx): Supports Machine ID, which provides short lived credentials to service accounts (e.g, a CI/CD server).
+- [fdpass-teleport](fdpass-teleport.mdx): Supports integrating Machine ID with OpenSSH for higher performance SSH connections.
+
+(!docs/pages/includes/permission-warning.mdx!)
+
+<Details title="Improve the CLI experience: enable shell completion">
+
+  Teleport's CLI tools can provide completion hints for bash and zsh.
+  For example, typing `tsh` and pressing `Tab` will show all available
+  subcommands, typing `tsh --` and pressing `Tab` will show all available flags.
+
+  To enable completion, add an additional statement to your shell configuration file.
+
+  Example (`.bashrc`):
+
+  ```sh
+  eval "$(tsh --completion-script-bash)"
+  ```
+
+  Example (`.zshrc`):
+
+  ```sh
+  # enable completion feature
+  autoload -Uz compinit
+  compinit
+
+  eval "$(tsh --completion-script-zsh)"
+  ```
+
+  Reload your shell to see the changes.
+
+  You can repeat the same process for `tctl`, `teleport`, and `tbot`.
+
+</Details>
+
+(!docs/pages/includes/backup-warning.mdx!)
+
+## Resource filtering
+
+Both `tsh` and `tctl` allow you to filter servers, applications, databases,
+desktops, and Kubernetes clusters using the `--search` and `--query` flags.
+
+The `--search` flag performs a simple fuzzy search on resource fields. For example, `--search=mac` searches for resources containing `mac`.
+
+The `--query` flag allows you to perform more sophisticated searches using a [predicate language](../predicate-language.mdx).
+
+In both cases, you can further refine the results by appending a list of comma-separated labels to the command. For example:
+
+```code
+$ tsh ls --search=foo,bar labelKey1=labelValue1,labelKey2=labelValue2
+```
+
+### Filter Examples
+
+```code
+# List all nodes
+$ tsh ls
+
+# List nodes using label argument
+$ tsh ls env=staging,os=mac
+
+# List nodes using search keywords
+$ tsh ls --search=staging,mac
+
+# List nodes using predicate language. This query searches for nodes with labels
+# with key `env` equal to `staging` and key `os` equal to `mac`.
+$ tsh ls --query='labels["env"] == "staging" && equals(labels["os"], "mac")'
+```
+

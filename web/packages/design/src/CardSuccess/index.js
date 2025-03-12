@@ -17,5 +17,6 @@
  */
 
 import CardSuccess, { CardSuccessLogin } from './CardSuccess';
+
 export default CardSuccess;
 export { CardSuccessLogin };

@@ -1,0 +1,124 @@
+// Copyright 2025 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.workloadidentity.v1;
+
+import "google/protobuf/empty.proto";
+import "teleport/workloadidentity/v1/revocation_resource.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1";
+
+// WorkloadIdentityRevocationService provides methods to manage the
+// revocation of issued workload identity credentials.
+//
+// The revocation of X509 credentials produces a RFC 5280 Certificate Revocation
+// List (CRL), which is signed by the SPIFFE CA and can be streamed by clients
+// using the StreamSignedCRL method.
+service WorkloadIdentityRevocationService {
+  // CreateWorkloadIdentityX509Revocation creates a new revocation for an X509
+  // workload identity credential. It will refuse to revoke a credential which
+  // has already been revoked.
+  rpc CreateWorkloadIdentityX509Revocation(CreateWorkloadIdentityX509RevocationRequest) returns (WorkloadIdentityX509Revocation);
+  // UpsertWorkloadIdentityX509Revocation creates or updates an X509 workload
+  // identity revocation.
+  // You should prefer to call Create or Update.
+  rpc UpsertWorkloadIdentityX509Revocation(UpsertWorkloadIdentityX509RevocationRequest) returns (WorkloadIdentityX509Revocation);
+  // UpdateWorkloadIdentityX509Revocation updates an existing X509 workload
+  // identity revocation, it will refuse to update a workload identity
+  // revocation if one does not already exist with the same name.
+  //
+  // ConditionalUpdate semantics are applied, e.g, the update will only succeed
+  // if the revision of the provided WorkloadIdentityX509Revocation matches the
+  // revision of the existing WorkloadIdentity.
+  rpc UpdateWorkloadIdentityX509Revocation(UpdateWorkloadIdentityX509RevocationRequest) returns (WorkloadIdentityX509Revocation);
+  // GetWorkloadIdentityX509Revocation retrieves a X509 workload identity
+  // revocation by name.
+  rpc GetWorkloadIdentityX509Revocation(GetWorkloadIdentityX509RevocationRequest) returns (WorkloadIdentityX509Revocation);
+  // DeleteWorkloadIdentityX509Revocation deletes a X509 workload identity
+  // revocation by name.
+  rpc DeleteWorkloadIdentityX509Revocation(DeleteWorkloadIdentityX509RevocationRequest) returns (google.protobuf.Empty);
+  // ListWorkloadIdentityX509Revocations returns a list of X509 workload
+  // identity revocations, pagination semantics are applied.
+  rpc ListWorkloadIdentityX509Revocations(ListWorkloadIdentityX509RevocationsRequest) returns (ListWorkloadIdentityX509RevocationsResponse);
+  // StreamSignedCRL returns the current signed Certificate Revocation List
+  // (CRL) for the cluster to the client. If any new revocations are added or
+  // any existing revocations are updated, for as long as the client is
+  // connected, the server will send them the full updated signed CRL.
+  rpc StreamSignedCRL(StreamSignedCRLRequest) returns (stream StreamSignedCRLResponse);
+}
+
+// The request for CreateWorkloadIdentityX509Revocation.
+message CreateWorkloadIdentityX509RevocationRequest {
+  // The X509 workload identity revocation to create.
+  WorkloadIdentityX509Revocation workload_identity_x509_revocation = 1;
+}
+
+// The request for UpdateWorkloadIdentityX509Revocation.
+message UpdateWorkloadIdentityX509RevocationRequest {
+  // The X509 workload identity revocation to update.
+  WorkloadIdentityX509Revocation workload_identity_x509_revocation = 1;
+}
+
+// The request for UpsertWorkloadIdentityX509Revocation.
+message UpsertWorkloadIdentityX509RevocationRequest {
+  // The X509 workload identity revocation to upsert.
+  WorkloadIdentityX509Revocation workload_identity_x509_revocation = 1;
+}
+
+// The request for GetWorkloadIdentityX509Revocation.
+message GetWorkloadIdentityX509RevocationRequest {
+  // The name of the X509 workload identity revocation to retrieve.
+  string name = 1;
+}
+
+// The request for DeleteWorkloadIdentityX509Revocation.
+message DeleteWorkloadIdentityX509RevocationRequest {
+  // The name of the workload identity to delete.
+  string name = 1;
+}
+
+// The request for ListWorkloadIdentityX509Revocations.
+message ListWorkloadIdentityX509RevocationsRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The page_token value returned from a previous ListWorkloadIdentities request, if any.
+  string page_token = 2;
+}
+
+// The response for ListWorkloadIdentityX509Revocations.
+message ListWorkloadIdentityX509RevocationsResponse {
+  // The page of workload identities that matched the request.
+  repeated WorkloadIdentityX509Revocation workload_identity_x509_revocations = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+// The request for StreamSignedCRL.
+message StreamSignedCRLRequest {}
+
+// The response for StreamSignedCRL.
+message StreamSignedCRLResponse {
+  // The signed Certificate Revocation List (CRL).
+  //
+  // The syntax of the CRL is defined at https://www.rfc-editor.org/rfc/rfc5280.html#section-5
+  // This field is encoded in DER ASN.1 without any PEM wrapping.
+  //
+  // When a new signed CRL is available, the full new CRL will be sent to the
+  // client again using this field.
+  bytes crl = 1;
+}

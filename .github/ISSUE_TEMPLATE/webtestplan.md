@@ -28,7 +28,7 @@ There should be a cluster dropdown for:
 - [ ] web terminal console view (can get to it by ssh into a node, or route to: `/web/cluster/<cluster-name>/console/nodes`)
 - [ ] Can edit and delete a trusted cluster
 
-### Top Bar Nav
+### Navigation
 
 - [ ] Contains `Resources` (unified resources), `Access Management`, `Access Requests`, `Active Sessions`, `Notification Bell` and `user settings menu`
 
@@ -36,7 +36,6 @@ There should be a cluster dropdown for:
 
 - Verify that clicking on the username, user menu dropdown renders:
   - [ ] Account Settings (actions should require re-authn with a mfa device)
-    - [ ] Verify adding very first device or passkey works without requiring re-authentication
     - [ ] Can CRUD passkeys (passwordless)
       - [ ] Can login with added passkey
     - [ ] Can change passwords
@@ -44,7 +43,6 @@ There should be a cluster dropdown for:
       - [ ] Verify that account is locked after several unsuccessful change password attempts
     - [ ] Can CRUD MFA devices (test both otp + hardware key)
       - [ ] Can login with added device
-    - [ ] Verify `second_factor` set to `off` disables adding devices
     - Recovery codes
       - [ ] Cloud only: can read and generate new recovery codes
   - [ ] Help & Support
@@ -125,10 +123,9 @@ All actions should require re-authn with a webauthn device.
 For each, test the invite, reset, and login flows
 
 - [ ] Verify that input fields validates
-- [ ] Verify with `second_factor` type to `off`
-- [ ] Verify with `second_factor` type to `otp`, requires otp
-- [ ] Verify with `second_factor` type to `webauthn`, requires hardware key
-- [ ] Verify with `second_factor` type to `on`, requires a MFA device
+- [ ] Verify with `second_factors` set to `["otp"]`, requires otp
+- [ ] Verify with `second_factors` set to `["webauthn"]`, requires hardware key
+- [ ] Verify with `second_factors` set to `["webauthn", "otp"]`, requires a MFA device
 - [ ] Verify that error message is shown if an invite/reset is expired/invalid
 - [ ] Verify that account is locked after several unsuccessful login attempts
 
@@ -175,11 +172,14 @@ All actions should require re-authn with a webauthn device.
 
 Use Discover Wizard to enroll new resources and access them:
 
-- [ ] SSH Server (teleport service, singular EC2, SSM agent)
+- [ ] SSH Server using Teleport Service
 - [ ] Self-Hosted PostgreSQL and Mongo
-- [ ] AWS RDS (singular RDS, auto discover with ECS)
 - [ ] Kubernetes
-- [ ] AWS EKS cluster
+- [ ] Using an AWS OIDC Integration
+  - [ ] EC2 Auto Enrollment (SSM)
+  - [ ] RDS flow: single database
+  - [ ] RDS flow: Auto Enrollment (by VPC)
+  - [ ] EKS Clusters
 - [ ] Non-guided cards link out to correct docs
 
 #### Access Lists
@@ -229,15 +229,16 @@ spec:
 
 - [ ] Existing locks listing page.
   - [ ] It lists all of the existing locks in the system.
-  - [ ] Locks without a `Locked By` and `Start Date` are still shown with those fields empty.
+  - [ ] Locks without a `Message` are shown with this field as empty.
+  - [ ] Locks without an `Expiration` field are shown with this field as "Never".
   - [ ] Clicking the trash can deletes the lock with a spinner.
-  - [ ] Table columns are sortable.
+  - [ ] Table columns are sortable, except for the `Locked Items` column.
   - [ ] Table search field filters the results.
 - [ ] Adding a new lock. (+ Add New Lock).
   - [ ] Target switcher shows the locks for the various target types (User, Role, Login, Node, MFA Device, Windows Desktop, Access Request).
   - [ ] Target switcher has "Access Request" in E build but not in OSS.
   - [ ] You can add lock targets from multiple target types.
-  - [ ] Adding a target disables that "add button".
+  - [ ] Adding a target turnst the `Add Target` button into a `Remove` button.
   - [ ] You cannot proceed if you haven't selected targets to lock.
   - [ ] You can clear the selected targets prior to creating locks.
   - [ ] Proceeding to lock opens an animated slide panel from the right.
@@ -258,6 +259,99 @@ spec:
 - [ ] Verify that it displays a list of clusters (root + leafs)
 - [ ] Verify that root is marked with a `root` pill
 - [ ] Verify that cluster dropdown menu items goes to the correct route
+
+## Application Access
+
+### Required Applications
+
+Create two apps running locally, a frontend app and a backend app. The frontend app should
+make an API request to the backend app at its teleport public_addr
+
+<details>
+	<summary>You can use this example app if you don't have a frontend/backend setup</summary>
+  
+  ```go
+  package main
+
+  import (
+    "encoding/json"
+    "fmt"
+    "log"
+    "net/http"
+  )
+
+  // change to your cluster addr
+  const clusterName = "avatus.sh"
+
+  func main() {
+    // handler for the html page. this is the "client".
+    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+      html := fmt.Sprintf(html, clusterName)
+      w.Header().Set("Content-Type", "text/html")
+      w.Write([]byte(html))
+    })
+
+    // Handler for the API endpoint
+    http.HandleFunc("/api/data", func(w http.ResponseWriter, r *http.Request) {
+      w.Header().Set("Access-Control-Allow-Origin", fmt.Sprintf("https://client.%s", clusterName))
+      w.Header().Set("Access-Control-Allow-Credentials", "true")
+      data := map[string]string{"hello": "world"}
+      w.Header().Set("Content-Type", "application/json")
+      json.NewEncoder(w).Encode(data)
+    })
+
+    log.Println("Server starting on http://localhost:8080")
+    log.Fatal(http.ListenAndServe(":8080", nil))
+  }
+
+  const html = `
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>API Data Fetcher</title>
+  </head>
+  <body>
+      <div id="result"></div>
+      <div id="cors-result"></div>
+      <script>
+          fetch('https://api.%s/api/data', { credentials: 'include' })
+              .then(response => response.json())
+              .then(data => {
+                  document.getElementById('result').textContent = JSON.stringify(data);
+              })
+              .catch(error => console.error('Error:', error));
+      </script>
+  </body>
+  </html>
+  `
+```
+</details>
+
+Update your app service to serve the apps like this (update your public addr to what makes sense for your cluster)
+```
+app_service:
+  enabled: "yes"
+  debug_app: true
+  apps:
+    - name: client
+      uri: http://localhost:8080
+      public_addr: client.avatus.sh
+      required_apps:
+      - api
+    - name: api
+      uri: http://localhost:8080
+      public_addr: api.avatus.sh
+      cors:
+        allowed_origins:
+          - https://client.avatus.sh
+```
+
+Launch your cluster and make sure you are logged out of your api by going to `https://api.avatus.sh/teleport-logout`
+
+- [ ] Launch the client app and you should see `{"hello":"world"}` response
+- [ ] You should see no CORS issues in the console
 
 ## Access Requests
 
@@ -478,9 +572,47 @@ With the previous role you created from `Strategy Reason`, change `request_acces
 
 - [ ] Verify after login, dashboard is rendered as normal
 
+## Access Lists
+
+Not available for OSS
+
+- Creating new Access List:
+  - [ ] Verify that traits/roles are not be required in order to create
+  - [ ] Verify that one can be created with members and owners
+  - [ ] Verify the web cache is updated (new list should appear under "Access Lists" page without reloading)
+- Deleting existing Access List:
+  - [ ] Verify the web cache is updated (deleted list should disappear from "Access Lists" page without reloading)
+  - [ ] Verify that an Access List used as a member or owner in other lists cannot be deleted (should show a warning)
+- Reviewing Access List:
+  - [ ] Verify that after reviewing, the web cache is updated (list cards should show any member/role changes)
+- Updating (renaming, removing members, adding members):
+  - [ ] Verify the web cache is updated (changes to name/members appear under "Access Lists" page without reloading)
+- [ ] Verify Access List search is preserved between sub-route navigation (clicking into specific List and navigating back)
+- Can manage members/owners for an existing Access List:
+  - [ ] Verify that existing Users:
+    - [ ] Can be enrolled as members and owners
+    - [ ] Enrolled as members or owners can be removed
+  - [ ] Verify that existing Access Lists:
+    - [ ] Can be enrolled as members and owners
+    - [ ] Enrolled as members or owners can be removed
+  - [ ] Verify that an Access List cannot be added as a member or owner:
+    - [ ] If it is already a member or owner
+    - [ ] If it would result in a circular reference (ACL A -> ACL B -> ACL A)
+    - [ ] If the depth of the inheritance would exceed 10 levels
+    - [ ] If it includes yourself (and you lack RBAC)
+  - [ ] Verify that non-existing Members and Owners can be enrolled in an existing List (e.g., SSO users)
+- Inherited grants are properly calculated and displayed:
+  - [ ] Verify that members of a nested Access List:
+    - [ ] Added as a member to another Access List inherit its Member grants
+    - [ ] Added as an owner to another Access List inherit its Owner grants
+    - [ ] That do not meet Membership Requirements in a Nested List do not inherit any Grants from Parent Lists
+    - [ ] That do not meet the Parent List's Membership/Ownership Requirements do not inherit its Member/Owner Grants
+  - [ ] Verify that owners of Access Lists added as Members/Owners to other Access Lists do *not* inherit any Grants
+  - [ ] Verify that inherited grants are updated on reload or navigating away from / back to Access List View/Edit route
+  - [ ] Verify that 'View More' exists and can be clicked under the 'Inherited Member Grants' section if inherited grants overflows the container
+
 ## Web Terminal (aka console)
 
-- [ ] Verify that top nav has a user menu (Main and Logout)
 - [ ] Verify that switching between tabs works with `ctrl+[1...9]` (alt on linux/windows)
 - Update your user role to `require_session_mfa` and:
   - [ ] Verify connecting to a ssh node prompts you to tap your registered WebAuthn key
@@ -550,7 +682,6 @@ $ kubectl -n <namespace> edit tenant
 - [ ] Verify receiving email for link to start recovery
 - [ ] Verify receiving email for successfully recovering
 - [ ] Verify email link is invalid after successful recovery
-- [ ] Verify receiving email for locked account when max attempts reached
 
 ## RBAC
 
@@ -573,39 +704,56 @@ spec:
 version: v3
 ```
 
-- [ ] Verify that a user has access only to: "Servers", "Applications", "Databases", "Kubernetes", "Active Sessions", "Access Requests" and "Manage Clusters"
-- [ ] Verify there is no `Add Server, Application, Databases, Kubernetes` button in each respective view
-- [ ] Verify only `Servers`, `Apps`, `Databases`, and `Kubernetes` are listed under `options` button in `Manage Clusters`
+- [ ] Verify that the user has no `Access` top-level navigation item.
+- [ ] Verify that the `Audit` top-level navigation item only contains `Active Sessions`.
+- [ ] Verify that on Enterprise, the user has no `Policy` top-level navigation item, while the admin does.
+- [ ] Verify that on Enterprise, the `Identity` top-level navigation item only contains `Access Requests` and `Access Lists`.
+- [ ] Verify that on Enterprise, the `Add New` top-level navigation item only contains `Resource` and `Access List`.
+- [ ] Verify that on OSS, the user has no `Identity` top-level navigation item.
+- [ ] Verify that on OSS, the `Add New` top-level navigation item only contains `Resource`.
+- [ ] Verify the `Enroll New Resource` button is disabled on the Resources screen.
 
 Note: User has read/create access_request access to their own requests, despite resource settings
 
 Add the following under `spec.allow.rules` to enable read access to the audit log:
 
 ```
-  - resources:
+    - resources:
       - event
       verbs:
       - list
 ```
 
-- [ ] Verify that the `Audit Log` and `Session Recordings` is accessible
-- [ ] Verify that playing a recorded session is denied
+- [ ] Verify that the `Audit Log` is accessible
 
-Add the following to enable read access to recorded sessions
+Add the following to enable list access to session recordings:
 
 ```
-  - resources:
+    - resources:
       - session
       verbs:
+      - list
+```
+
+- [ ] Verify that `Session Recordings` is accessible
+- [ ] Verify that playing a recorded session is denied
+
+Change the session permissions to enable read access to recorded sessions:
+
+```
+    - resources:
+      - session
+      verbs:
+      - list
       - read
 ```
 
-- [ ] Verify that a user can re-play a session (session.end)
+- [ ] Verify that a user can re-play a session
 
-Add the following to enable read access to the roles
+Add the following to enable read access to the roles:
 
 ```
-- resources:
+    - resources:
       - role
       verbs:
       - list
@@ -618,7 +766,7 @@ Add the following to enable read access to the roles
 Add the following to enable read access to the auth connectors
 
 ```
-- resources:
+    - resources:
       - auth_connector
       verbs:
       - list
@@ -631,7 +779,7 @@ Add the following to enable read access to the auth connectors
 Add the following to enable read access to users
 
 ```
-  - resources:
+    - resources:
       - user
       verbs:
       - list
@@ -644,14 +792,14 @@ Add the following to enable read access to users
 Add the following to enable read access to trusted clusters
 
 ```
-  - resources:
+    - resources:
       - trusted_cluster
       verbs:
       - list
       - read
 ```
 
-- [ ] Verify that a user can access the "Trust" screen
+- [ ] Verify that a user can access the "Trusted Root Clusters" screen
 - [ ] Verify that a user cannot create/delete/update a trusted cluster.
 
 ## Teleport Connect
@@ -659,29 +807,24 @@ Add the following to enable read access to trusted clusters
 - Auth methods
   - Verify that the app supports clusters using different auth settings
     (`auth_service.authentication` in the cluster config):
-    - [ ] `type: local`, `second_factor: "off"`
-    - [ ] `type: local`, `second_factor: "otp"`
+    - [ ] `type: local`, `second_factors: ["otp"]`
       - [ ] Test per-session MFA items listed later in the test plan.
-    - [ ] `type: local`, `second_factor: "webauthn"`,
+    - [ ] `type: local`, `second_factors: ["webauthn"]`,
       - [ ] Test per-session MFA items listed later in the test plan.
-    - [ ] `type: local`, `second_factor: "webauthn"`, log in passwordlessly with hardware key
-    - [ ] `type: local`, `second_factor: "webauthn"`, log in passwordlessly with touch ID
-    - [ ] `type: local`, `second_factor: "optional"`, log in without MFA
-    - [ ] `type: local`, `second_factor: "optional"`, log in with OTP
-    - [ ] `type: local`, `second_factor: "optional"`, log in with hardware key
-    - [ ] `type: local`, `second_factor: "on"`, log in with OTP
+    - [ ] `type: local`, `second_factors: ["webauthn"]`, log in passwordlessly with hardware key
+    - [ ] `type: local`, `second_factors: ["webauthn"]`, log in passwordlessly with touch ID
+    - [ ] `type: local`, `second_factors: ["webauthn", "otp"]`, log in with OTP
       - [ ] Test per-session MFA items listed later in the test plan.
-    - [ ] `type: local`, `second_factor: "on"`, log in with hardware key
-    - [ ] `type: local`, `second_factor: "on"`, log in with passwordless auth
+    - [ ] `type: local`, `second_factors: ["webauthn", "otp"]`, log in with hardware key
+    - [ ] `type: local`, `second_factors: ["webauthn", "otp"]`, log in with passwordless auth
     - [ ] Verify that the passwordless credential picker works.
       - To make the picker show up, you need to add the same MFA device with passwordless
         capabilities to multiple users.
     - [Authentication connectors](https://goteleport.com/docs/setup/reference/authentication/#authentication-connectors):
       - For those you might want to use clusters that are deployed on the web, specified in
         parens. Or set up the connectors on a local enterprise cluster following [the guide from
-        our wiki](https://gravitational.slab.com/posts/quick-git-hub-saml-oidc-setup-6dfp292a).
+        our wiki](https://www.notion.so/goteleport/Quick-SSO-setup-fb1a64504115414ca50a965390105bee).
       - [ ] GitHub (asteroid)
-        - [ ] local login on a GitHub-enabled cluster
       - [ ] SAML (platform cluster)
       - [ ] OIDC (e-demo)
   - Verify that all items from this section work on:
@@ -762,12 +905,11 @@ Add the following to enable read access to trusted clusters
   - [ ] Check that those connections are removed after you log out of the root cluster that they
         belong to.
   - [ ] Verify that reopening a db connection from the connections picker remembers last used port.
-- Cluster resources (servers, databases, k8s, apps)
+- Cluster resources
   - [ ] Verify that the app shows the same resources as the Web UI.
   - [ ] Verify that search is working for the resources list.
   - [ ] Verify that pagination is working for the resources list.
-  - [ ] Verify that pagination works in tandem with search, that is verify that search results are
-        paginated too.
+  - [ ] Verify that search results are paginated too.
   - [ ] Verify that you can connect to these resources.
     - Verify that this works on:
       - [ ] macOS
@@ -970,6 +1112,19 @@ Add the following to enable read access to trusted clusters
     - [ ] Re-execute `kubectl exec --stdin --tty shell-demo -- /bin/bash` mentioned above to
           verify that Kube access is working with MFA.
   - [ ] Verify that Connect prompts for MFA during Connect My Computer setup.
+- Hardware key support
+  - You will need a YubiKey 4.3+ and Teleport Enterprise. 
+    The easiest way to test it is to enable [cluster-wide hardware keys enforcement](https://goteleport.com/docs/admin-guides/access-controls/guides/hardware-key-support/#step-12-enforce-hardware-key-support)
+    (set `require_session_mfa: hardware_key_touch_and_pin` to get both touch and PIN prompts).
+  - [ ] Log in. Verify that you were asked for both PIN and touch.
+  - [ ] Connect to a database. Verify you were prompted for touch (a PIN prompt can appear too).
+  - [ ] Change the PIN (leave the PIV PIN field empty during login to access this flow).
+  - [ ] Close the app, disconnect the YubiKey, then reopen the app. Verify the app shows an error about the missing key.
+  - Verify that all items from this section work on:
+    - [ ] macOS
+    - [ ] Windows
+    - [ ] Linux
+
 - Connect My Computer
   - [ ] Verify the happy path from clean slate (no existing role) setup: set up the node and then
         connect to it.
@@ -1001,25 +1156,18 @@ Add the following to enable read access to trusted clusters
   - [ ] Verify that Connect asks for relogin when attempting to connect to an app after cert expires.
     - Be mindful that you need to connect to the app at least once before the cert expires for
       Connect to properly recognize it as a TCP app.
-  - Start the app with debug logs on and tail `tshd.log`. Verify that the UI works correctly in the
-    following scenarios:
-    - All buth the first point assume that you successfully go through the osascript prompt.
-    - Close the osascript prompt.
-      - [ ] The VNet panel shows info about the password prompt being closed.
-    - Start VNet, then stop it.
-      - [ ] The VNet panel doesn't show any errors related to VNet being stopped.
-    - Start VNet, then remove the socket file used for communication with the admin process. It's reported in
-      `tshd.log` as `Created unix socket for admin subcommand socket:<path>`.
-      - [ ] The VNet panel shows an unexpected shutdown of VNet and an in-app notification is shown.
-      - [ ] The admin process cleans up files in `/etc/resolver`.
-    - Start VNet. While its running, kill the admin process.
-      - The easiest way to find the PID of the admin process is to open Activity Monitor, View →
-        All Processes, Hierarchically, search for `tsh` and find tsh running under kernel_task →
-        authtrampoline → bash → tsh. Then just `sudo kill -s KILL <tsh pid>`.
-      - [ ] The VNet panel shows an unexpected shutdown of VNet and an in-app notification is shown.
-      - [ ] The admin process _leaves_ files in `/etc/resolver`. However, it's possible to start
-        VNet again, connect to a TCP app, then shut VNet down and it results in the files being
-        cleaned up.
+  - Start VNet, then stop it.
+    - [ ] Verify that the VNet panel doesn't show any errors related to VNet being stopped.
+  - Start VNet. While its running, kill the admin process.
+    - The easiest way to find the PID of the admin process is to open Activity Monitor, View →
+      All Processes, Hierarchically, search for `tsh` and find tsh running under kernel_task →
+      launchd → tsh, owned by root. Then just `sudo kill -s KILL <tsh pid>`.
+    - [ ] Verify that the admin process _leaves_ files in `/etc/resolver`. However, it's possible to
+      start VNet again, connect to a TCP app, then shut VNet down and it results in the files being
+      cleaned up.
+  - [ ] Start VNet in a clean macOS VM. Verify that on the first VNet start, macOS shows the prompt
+    for enabling the background item for tsh.app. Accept it and verify that you can connect to a TCP
+    app through VNet.
 - Misc
   - [ ] Verify that logs are collected for all processes (main, renderer, shared, tshd) under
         `~/Library/Application\ Support/Teleport\ Connect/logs`.

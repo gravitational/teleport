@@ -18,6 +18,7 @@ package web
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/base32"
 	"encoding/json"
@@ -34,7 +35,6 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/httplib/csrf"
 )
 
 // newOTPSharedSecret returns an OTP shared secret, encoded as a base32 string.
@@ -54,9 +54,8 @@ type loginWebOTPParams struct {
 	// If empty then no OTP is sent in the request.
 	otpSecret string
 
-	userAgent string // Optional.
-
-	cookieCSRF, headerCSRF *string // Explicit CSRF tokens. Optional.
+	userAgent           string // Optional.
+	overrideContentType string // Optional.
 }
 
 // DrainedHTTPResponse mimics an http.Response, but without a body.
@@ -124,23 +123,10 @@ func rawLoginWebOTP(ctx context.Context, params loginWebOTPParams) (resp *Draine
 	}
 
 	// Set assorted headers.
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", cmp.Or(params.overrideContentType, "application/json"))
 	if params.userAgent != "" {
 		req.Header.Set("User-Agent", params.userAgent)
 	}
-
-	// Set CSRF cookie and header.
-	const defaultCSRFToken = "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
-	cookieCSRF := defaultCSRFToken
-	if params.cookieCSRF != nil {
-		cookieCSRF = *params.cookieCSRF
-	}
-	addCSRFCookieToReq(req, cookieCSRF)
-	headerCSRF := defaultCSRFToken
-	if params.headerCSRF != nil {
-		headerCSRF = *params.headerCSRF
-	}
-	req.Header.Set(csrf.HeaderName, headerCSRF)
 
 	httpResp, err := webClient.HTTPClient().Do(req)
 	if err != nil {

@@ -79,7 +79,7 @@ func supervisorRunner(parentCtx context.Context, cfg supervisorRunnerConfig) err
 		}
 	}
 
-	jitterFunc := retryutils.NewHalfJitter()
+	jitterFunc := retryutils.HalfJitter
 	t := cfg.clock.NewTimer(jitterFunc(cfg.tickerInterval))
 	for {
 		switch enabled, err := cfg.checkIfMonitorEnabled(parentCtx); {

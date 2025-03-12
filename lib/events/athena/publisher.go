@@ -36,8 +36,10 @@ import (
 	snstypes "github.com/aws/aws-sdk-go-v2/service/sns/types"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/otel"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -183,18 +185,21 @@ func newPublisherFromAthenaConfig(cfg Config) *publisher {
 		messagePublisher = SQSPublisherFunc(cfg.QueueURL, sqs.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *sqs.Options) {
 			o.Retryer = r
 			o.HTTPClient = hc
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
 		}))
 	} else {
 		messagePublisher = SNSPublisherFunc(cfg.TopicARN, sns.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *sns.Options) {
 			o.Retryer = r
 			o.HTTPClient = hc
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
 		}))
 	}
 
 	return NewPublisher(PublisherConfig{
 		MessagePublisher: messagePublisher,
-		// TODO(tobiaszheller): consider reworking lib/observability to work also on s3 sdk-v2.
-		Uploader:      s3manager.NewUploader(s3.NewFromConfig(*cfg.PublisherConsumerAWSConfig)),
+		Uploader: s3manager.NewUploader(s3.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *s3.Options) {
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		})),
 		PayloadBucket: cfg.largeEventsBucket,
 		PayloadPrefix: cfg.largeEventsPrefix,
 	})
@@ -225,14 +230,12 @@ func (p *publisher) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent)
 	// event may need to be trimmed again on the querier side, but this is an
 	// attempt to preserve as much of the event as possible in case we add the
 	// ability to query very large events in the future.
-	if t, ok := in.(trimmableEvent); ok {
-		prevSize := in.Size()
-		// Trim to 3/4 the max size because base64 has 33% overhead.
-		// The TrimToMaxSize implementations have a 10% buffer already.
-		in = t.TrimToMaxSize(maxS3BasedSize - maxS3BasedSize/4)
-		if in.Size() != prevSize {
-			events.MetricStoredTrimmedEvents.Inc()
-		}
+	prevSize := in.Size()
+	// Trim to 3/4 the max size because base64 has 33% overhead.
+	// The TrimToMaxSize implementations have a 10% buffer already.
+	in = in.TrimToMaxSize(maxS3BasedSize - maxS3BasedSize/4)
+	if in.Size() != prevSize {
+		events.MetricStoredTrimmedEvents.Inc()
 	}
 
 	oneOf, err := apievents.ToOneOf(in)

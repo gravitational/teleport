@@ -20,6 +20,7 @@ package config
 
 import (
 	"testing"
+	"time"
 )
 
 func TestSPIFFESVIDOutput_YAML(t *testing.T) {
@@ -38,6 +39,21 @@ func TestSPIFFESVIDOutput_YAML(t *testing.T) {
 						DNS: []string{"example.com"},
 						IP:  []string{"10.0.0.1", "10.42.0.1"},
 					},
+				},
+				IncludeFederatedTrustBundles: true,
+				JWTs: []JWTSVID{
+					{
+						Audience: "example.com",
+						FileName: "foo",
+					},
+					{
+						Audience: "2.example.com",
+						FileName: "bar",
+					},
+				},
+				CredentialLifetime: CredentialLifetime{
+					TTL:             1 * time.Minute,
+					RenewalInterval: 30 * time.Second,
 				},
 			},
 		},
@@ -69,8 +85,58 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 							IP:  []string{"10.0.0.1"},
 						},
 					},
+					JWTs: []JWTSVID{
+						{
+							FileName: "foo",
+							Audience: "example.com",
+						},
+					},
 				}
 			},
+		},
+		{
+			name: "missing jwt name",
+			in: func() *SPIFFESVIDOutput {
+				return &SPIFFESVIDOutput{
+					Destination: memoryDestForTest(),
+					SVID: SVIDRequest{
+						Path: "/foo",
+						Hint: "hint",
+						SANS: SVIDRequestSANs{
+							DNS: []string{"example.com"},
+							IP:  []string{"10.0.0.1"},
+						},
+					},
+					JWTs: []JWTSVID{
+						{
+							Audience: "example.com",
+						},
+					},
+				}
+			},
+			wantErr: "name: should not be empty",
+		},
+		{
+			name: "missing jwt audience",
+			in: func() *SPIFFESVIDOutput {
+				return &SPIFFESVIDOutput{
+					Destination: memoryDestForTest(),
+					SVID: SVIDRequest{
+						Path: "/foo",
+						Hint: "hint",
+						SANS: SVIDRequestSANs{
+							DNS: []string{"example.com"},
+							IP:  []string{"10.0.0.1"},
+						},
+					},
+					JWTs: []JWTSVID{
+						{
+							FileName: "foo",
+						},
+					},
+				}
+			},
+			wantErr: "audience: should not be empty",
 		},
 		{
 			name: "missing destination",

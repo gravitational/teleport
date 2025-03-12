@@ -17,6 +17,7 @@ limitations under the License.
 package email
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 
@@ -26,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 )
@@ -64,6 +66,15 @@ type Config struct {
 	Delivery         DeliveryConfig          `toml:"delivery"`
 	RoleToRecipients common.RawRecipientsMap `toml:"role_to_recipients"`
 	Log              logger.Config           `toml:"log"`
+
+	// Teleport is a handle to the client to use when communicating with
+	// the Teleport auth server. The Email app will create a gRPC-based
+	// client on startup if this is not set.
+	Client teleport.Client
+
+	// StatusSink receives any status updates from the plugin for
+	// further processing. Status updates will be ignored if not set.
+	StatusSink common.StatusSink
 }
 
 // LoadConfig reads the config file, initializes a new Config struct object, and returns it.
@@ -221,4 +232,13 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// GetTeleportClient returns the configured Teleport client.
+func (c *Config) GetTeleportClient(ctx context.Context) (teleport.Client, error) {
+	if c.Client != nil {
+		return c.Client, nil
+	}
+	client, err := common.GetTeleportClient(ctx, c.Teleport)
+	return client, trace.Wrap(err)
 }

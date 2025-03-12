@@ -1,0 +1,386 @@
+---
+title: Deploy Teleport on Kubernetes
+description: This guide shows you how to deploy Teleport on a Kubernetes cluster using Helm.
+---
+
+Teleport can provide secure, unified access to your Kubernetes clusters. This
+guide will show you how to deploy Teleport on a Kubernetes cluster using Helm.
+
+While completing this guide, you will deploy one Teleport pod each for the Auth
+Service and Proxy Service in your Kubernetes cluster, and a load balancer that
+forwards outside traffic to your Teleport cluster. Users can then access your
+Kubernetes cluster via the Teleport cluster running within it.
+
+If you are already running the Teleport Auth Service and Proxy Service on
+another platform, you can use your existing Teleport deployment to access your
+Kubernetes cluster. [Follow our
+guide](../../../enroll-resources/kubernetes-access/getting-started.mdx) to connect your Kubernetes
+cluster to Teleport.
+
+(!docs/pages/includes/cloud/call-to-action.mdx!)
+
+## Prerequisites
+
+- A registered domain name. This is required for Teleport to set up TLS via
+  Let's Encrypt and for Teleport clients to verify the Proxy Service host.
+
+- A Kubernetes cluster hosted by a cloud provider, which is required for the
+  load balancer we deploy in this guide. We recommend following this guide on a
+  non-production cluster to start.
+
+- A persistent volume that the Auth Service can use for storing cluster state.
+  Make sure your Kubernetes cluster has one available:
+
+  ```code
+  $ kubectl get pv
+  ```
+
+  If there are no persistent volumes available, you will need to either provide
+  one or enable [dynamic volume
+  provisioning](https://kubernetes.io/docs/concepts/storage/dynamic-provisioning/#enabling-dynamic-provisioning)
+  for your cluster. For example, in Amazon Elastic Kubernetes Service, you can
+  configure the [Elastic Block Store Container Storage Interface driver
+  add-on](https://docs.aws.amazon.com/eks/latest/userguide/managing-ebs-csi.html).
+
+  To tell whether you have dynamic volume provisioning enabled, check for the
+  presence of a default `StorageClass`:
+
+  ```code
+  $ kubectl get storageclasses
+  ```
+
+  <Details title="Launching a fresh EKS cluster with eksctl?" open="false">
+
+  If you are using `eksctl` to launch a fresh Amazon Elastic Kubernetes Service
+  cluster in order to follow this guide, the following example configuration
+  sets up the EBS CSI driver add-on.
+
+  <Admonition type="danger">
+
+  The example configuration below assumes that you are familiar with how `eksctl`
+  works, are not using your EKS cluster in production, and understand that you
+  are proceeding at your own risk.
+
+  </Admonition>
+
+  Update the cluster name, version, node group size, and region as required:
+
+  ```yaml
+  apiVersion: eksctl.io/v1alpha5
+  kind: ClusterConfig
+  metadata:
+    name: my-cluster
+    region: us-east-1
+    version: "1.32"
+
+  iam:
+    withOIDC: true
+
+  addons:
+  - name: aws-ebs-csi-driver
+    version: v1.39.0-eksbuild.1
+    attachPolicyARNs:
+    - arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
+
+  managedNodeGroups:
+    - name: managed-ng-2
+      instanceType: t3.medium
+      minSize: 2
+      maxSize: 3
+  ```
+
+  </Details>
+
+- The `tsh` client tool v(=teleport.version=)+ installed on your workstation.
+  You can download this from our [installation page](../../../installation.mdx).
+
+(!docs/pages/includes/kubernetes-access/helm-k8s.mdx!)
+
+<Admonition type="warning">
+
+It is worth noting that this guide shows you how to set up Kubernetes access
+with the broadest set of permissions. This is suitable for a personal demo
+cluster, but if you would like to set up Kubernetes RBAC for production usage,
+we recommend getting familiar with the [Teleport Kubernetes RBAC
+guide](../../../enroll-resources/kubernetes-access/controls.mdx) before you begin.
+
+</Admonition>
+
+## Step 1/2. Install Teleport
+
+To deploy a Teleport cluster on Kubernetes, you need to:
+
+1. Install the `teleport-cluster` Helm chart, which deploys the Teleport Auth
+   Service and Proxy Service on your Kubernetes cluster.
+1. Once your cluster is running, create DNS records that clients can use to
+   access your cluster.
+
+### Install the `teleport-cluster` Helm chart
+
+To deploy the Teleport Auth Service and Proxy Service on your Kubernetes
+cluster, follow the instructions below to install the `teleport-cluster` Helm
+chart.
+
+1. (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
+
+1. Create a namespace for Teleport and configure its Pod Security Admission,
+   which enforces security standards on pods in the namespace:
+
+   ```code
+   $ kubectl create namespace teleport-cluster
+   namespace/teleport-cluster created
+   
+   $ kubectl label namespace teleport-cluster 'pod-security.kubernetes.io/enforce=baseline'
+   namespace/teleport-cluster labeled
+   ```
+
+1. Set the `kubectl` context to the namespace to save some typing:
+
+   ```code
+   $ kubectl config set-context --current --namespace=teleport-cluster
+   ```
+
+1. Assign <Var name="clusterName" /> to a subdomain of your domain name, e.g.,
+   `teleport.example.com`. 
+
+1. Assign <Var name="email" /> to an email address that you will use to receive
+   notifications from Let's Encrypt, which provides TLS credentials for the
+   Teleport Proxy Service's HTTPS endpoint.
+
+1. Create a Helm values file:
+
+   <Tabs>
+     <TabItem label="Open Source" scope="oss">
+   
+       Write a values file (`teleport-cluster-values.yaml`) which will configure a single node Teleport cluster and
+       provision a cert using ACME.
+   
+       ```code
+       $ cat << EOF > teleport-cluster-values.yaml
+       clusterName: <Var name="clusterName" />
+       proxyListenerMode: multiplex
+       acme: true
+       acmeEmail: <Var name="email" />
+       EOF
+       ```
+   
+     </TabItem>
+     <TabItem label="Enterprise" scope={["enterprise"]}>
+   
+       (!docs/pages/includes/enterprise/obtainlicense.mdx!)
+   
+       Ensure that your license is saved to your terminal's working directory at
+       the path `license.pem`.
+   
+       Using your license file, create a secret called "license" in the
+       `teleport-cluster` namespace:
+   
+       ```code
+       $ kubectl create secret generic license --from-file=license.pem
+       secret/license created
+       ```
+   
+       Write a values file (`teleport-cluster-values.yaml`) which will configure a single node Teleport cluster and
+       provision a cert using ACME.
+   
+       ```code
+       $ cat << EOF > teleport-cluster-values.yaml
+       clusterName: <Var name="clusterName" />
+       proxyListenerMode: multiplex
+       acme: true
+       acmeEmail: <Var name="email" />
+       enterprise: true
+       EOF
+       ```
+   
+     </TabItem>
+   </Tabs>
+
+1. Install the `teleport-cluster` Helm chart using the values file you created:
+
+   ```code
+   $ helm install teleport-cluster teleport/teleport-cluster \
+     --version (=teleport.version=) \
+     --values teleport-cluster-values.yaml
+   ```
+
+1. After installing the `teleport-cluster` chart, wait a minute or so and ensure
+   that both the Auth Service and Proxy Service pods are running:
+
+   ```code
+   $ kubectl get pods
+   NAME                                      READY   STATUS    RESTARTS   AGE
+   teleport-cluster-auth-000000000-00000     1/1     Running   0          114s
+   teleport-cluster-proxy-0000000000-00000   1/1     Running   0          114s
+   ```
+
+### Set up DNS records
+
+In this section, you will enable users and services to connect to your cluster
+by creating DNS records that point to the address of your Proxy Service.
+
+The `teleport-cluster` Helm chart exposes the Proxy Service to traffic from the
+internet using a Kubernetes service that sets up an external load balancer with
+your cloud provider.
+
+Obtain the address of your load balancer by following the instructions below.
+
+1. Get information about the Proxy Service load balancer:
+
+   ```code
+   $ kubectl get services/teleport-cluster
+   NAME              TYPE           CLUSTER-IP   EXTERNAL-IP      PORT(S)                        AGE
+   teleport-cluster  LoadBalancer   10.4.4.73    192.0.2.0        443:31204/TCP                  89s
+   ```
+   
+   The `teleport-cluster` service directs traffic to the Teleport Proxy Service.
+   Notice the `EXTERNAL-IP` field, which shows you the IP address or domain name of
+   the cloud-hosted load balancer. For example, on AWS, you may see a domain name
+   resembling the following:
+   
+   ```text
+   00000000000000000000000000000000-0000000000.us-east-2.elb.amazonaws.com
+   ```
+
+1. Set up two DNS records: `teleport.example.com` for all traffic and
+   `*.teleport.example.com` for any web applications you will register with
+   Teleport. We are assuming that your domain name is `example.com` and
+   `teleport` is the subdomain you have assigned to your Teleport cluster.
+
+   Depending on whether the `EXTERNAL-IP` column above points to an IP address or a
+   domain name, the records will have the following details:
+   
+   <Tabs>
+   <TabItem label="IP Address">
+   
+   |Record Type|Domain Name|Value|
+   |---|---|---|
+   |A|`teleport.example.com`|The IP address of your load balancer|
+   |A|`*.teleport.example.com`|The IP address of your load balancer|
+   
+   </TabItem>
+   <TabItem label="Domain Name">
+   
+   |Record Type|Domain Name|Value|
+   |---|---|---|
+   |CNAME|`teleport.example.com`|The domain name of your load balancer|
+   |CNAME|`*.teleport.example.com`|The domain name of your load balancer|
+   
+   </TabItem>
+   </Tabs>
+
+1. Once you create the records, use the following command to confirm that your
+   Teleport cluster is running:
+
+   ```code
+   $ curl https://<Var name="clusterName" />/webapi/ping
+   {"auth":{"type":"local","second_factor":"on","preferred_local_mfa":"webauthn","allow_passwordless":true,"allow_headless":true,"local":{"name":""},"webauthn":{"rp_id":"teleport.example.com"},"private_key_policy":"none","device_trust":{},"has_motd":false},"proxy":{"kube":{"enabled":true,"listen_addr":"0.0.0.0:3026"},"ssh":{"listen_addr":"[::]:3023","tunnel_listen_addr":"0.0.0.0:3024","web_listen_addr":"0.0.0.0:3080","public_addr":"teleport.example.com:443"},"db":{"mysql_listen_addr":"0.0.0.0:3036"},"tls_routing_enabled":false},"server_version":"(=teleport.version=)","min_client_version":"12.0.0","cluster_name":"teleport.example.com","automatic_upgrades":false}
+   ```
+
+## Step 2/2. Create a local user
+
+While we encourage Teleport users to authenticate via their single sign-on
+provider, local users are a reliable fallback for cases when the SSO provider is
+down. 
+
+In this section, we will  create a local user who has access to Kubernetes group
+`system:masters` via the Teleport role `member`. This user also has the built-in
+`access` and `editor` roles for administrative privileges.
+
+1. Paste the following role specification into a file called `member.yaml`:
+
+   (!docs/pages/includes/kubernetes-access/member-role.mdx!)
+
+1. Create the role:
+
+   ```code
+   $ kubectl exec -i deployment/teleport-cluster-auth -- tctl create -f < member.yaml
+   role 'member' has been created
+   ```
+
+1. Create the user and generate an invite link, replacing <Var name="myuser" />
+   with the name of the local Teleport user you want to create:
+
+   ```code
+   $ kubectl exec -ti deployment/teleport-cluster-auth -- tctl users add <Var name="myuser" /> --roles=member,access,editor
+   User "myuser" has been created but requires a password. Share this URL with the user to
+   complete user setup, link is valid for 1h:
+   
+   https://tele.example.com:443/web/invite/(=presets.tokens.first=)
+   
+   NOTE: Make sure tele.example.com:443 points at a Teleport proxy which users can access.
+   ```
+
+1. Visit the invite link and follow the instructions in the Web UI to activate
+   your user.
+
+1. Try `tsh login` with your local user:
+
+   ```code
+   $ tsh login --proxy=<Var name="clusterName" />:443 --user=<Var name="myuser" />
+   ```
+
+1. Once you're connected to the Teleport cluster, list the available Kubernetes
+   clusters for your user:
+
+   ```code
+   $ tsh kube ls
+   Kube Cluster Name Selected
+   ----------------- --------
+   tele.example.com
+   ```
+
+1. Log in to the Kubernetes cluster. The `tsh` client tool updates your local
+kubeconfig to point to your Teleport cluster, so we will assign `KUBECONFIG` to
+a temporary value during the installation process. This way, if something goes
+wrong, you can easily revert to your original kubeconfig:
+
+   ```code
+   $ KUBECONFIG=$HOME/teleport-kubeconfig.yaml tsh kube login <Var name="clusterName" />
+   
+   $ KUBECONFIG=$HOME/teleport-kubeconfig.yaml kubectl get -n teleport-cluster pods
+   NAME                                      READY   STATUS    RESTARTS   AGE
+   teleport-cluster-auth-000000000-00000     1/1     Running   0          26m
+   teleport-cluster-proxy-0000000000-00000   1/1     Running   0          26m
+   ```
+
+## Troubleshooting
+
+If you are experiencing errors connecting to the Teleport cluster, check the
+status of the Auth Service and Proxy Service pods. A successful state should
+show both pods running as below:
+
+```code
+$ kubectl get pods -n teleport-cluster
+NAME                                      READY   STATUS    RESTARTS   AGE
+teleport-cluster-auth-5f8587bfd4-p5zv6    1/1     Running   0          48s
+teleport-cluster-proxy-767747dd94-vkxz6   1/1     Running   0          48s
+```
+If a pod's status is `Pending`, use the `kubectl logs` and `kubectl describe`
+commands for that pod to check the status. The Auth Service pod relies on being
+able to allocate a Persistent Volume Claim, and may enter a `Pending` state if
+no Persistent Volume is available.
+
+The output of `kubectl get events --sort-by='.metadata.creationTimestamp' -A` can
+also be useful, showing the most recent events taking place inside the Kubernetes
+cluster.
+
+## Next steps
+
+- **Set up Single Sign-On:** In this guide, we showed you how to create a local
+  user, which is appropriate for demo environments. For a production deployment,
+  you should set up Single Sign-On with your provider of choice. See our [Single
+  Sign-On guides](../../access-controls/sso/sso.mdx) for how to do this.
+- **Configure your Teleport deployment:** To see all of the options you can set
+  in the values file for the `teleport-cluster` Helm chart, consult our
+  [reference guide](../../../reference/helm-reference/teleport-cluster.mdx).
+- **Register resources:** You can register all of the Kubernetes clusters in
+  your infrastructure with Teleport. To start, read our [Auto-Discovery
+  guides](../../../enroll-resources/auto-discovery/kubernetes/kubernetes.mdx) to see how to automatically
+  register every cluster in your cloud. You can also register servers,
+  databases, applications, and Windows desktops.
+- **Fine-tune your Kubernetes RBAC:** While the user you created in this guide
+  can access the `system:masters` role, you can set up Teleport's RBAC to enable
+  fine-grained controls for accessing Kubernetes resources. See our [Kubernetes
+  Access Controls Guide](../../../enroll-resources/kubernetes-access/controls.mdx) for more
+  information.

@@ -17,7 +17,7 @@ BINARY = $(BUILDDIR)/teleport-event-handler
 
 GITREF ?= $(shell git describe --dirty --long --tags --match '$(VERSION)')
 ADDFLAGS ?=
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags "-w -s -X main.Gitref=$(GITREF) -X main.Version=$(VERSION)"
+BUILDFLAGS ?= $(ADDFLAGS) -trimpath -ldflags "-w -s -X main.Gitref=$(GITREF) -X main.Version=$(VERSION)"
 CGOFLAG ?= CGO_ENABLED=0
 
 PASS ?= 1234
@@ -44,10 +44,21 @@ RELEASE_MESSAGE = "Building with GOOS=$(OS) GOARCH=$(ARCH)."
 
 .PHONY: build
 build:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -o $(BUILDDIR)/teleport-event-handler $(BUILDFLAGS)
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "kustomize_disable_go_plugin_support" -o $(BUILDDIR)/teleport-event-handler $(BUILDFLAGS)
+
+# darwin-signed-build is a wrapper around the build target that ensures it is codesigned
+include ../../darwin-signing.mk
+.PHONY: darwin-signed-build
+darwin-signed-build: BINARIES=$(BINARY)
+darwin-signed-build: build
+	$(NOTARIZE_BINARIES)
 
 .PHONY: release
+ifeq ($(OS),darwin)
+release: darwin-signed-build
+else
 release: build
+endif
 	@echo "---> $(RELEASE_MESSAGE)"
 	mkdir $(RELEASE_NAME)
 	cp -rf $(BINARY) \
@@ -58,7 +69,7 @@ release: build
 	tar -czf $(RELEASE).tar.gz $(RELEASE_NAME)
 	rm -rf $(RELEASE_NAME)/
 	@echo "---> Created $(RELEASE).tar.gz."
-  
+
 
 .PHONY: clean
 clean:
@@ -96,7 +107,7 @@ configure: build
 
 .PHONY: fluentd
 fluentd:
-	docker run -p 8888:8888 -v $(LOCALDIR)tmp:/keys -v $(LOCALDIR)tmp/fluent.conf:/fluentd/etc/fluent.conf fluent/fluentd:edge 
+	docker run -p 8888:8888 -v $(LOCALDIR)tmp:/keys -v $(LOCALDIR)tmp/fluent.conf:/fluentd/etc/fluent.conf fluent/fluentd:edge
 
 .PHONY: example
 example: build

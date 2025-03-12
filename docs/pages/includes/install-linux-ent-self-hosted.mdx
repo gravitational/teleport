@@ -1,16 +1,31 @@
 {{ to-install="teleport-ent" }}
+The easiest installation method, for Teleport versions 17.3 and above, is the
+cluster install script. It will use the best version, edition, and installation
+mode for your cluster.
+
+1. Assign <Var name="teleport.example.com:443"/> to your Teleport cluster hostname.
+   This should contain you cluster hostname and port, but not the scheme (https://).
+
+1. Run your cluster's install script:
+
+   ```code
+   $ curl "https://<Var name="example.teleport.sh:443"/>/scripts/install.sh" | sudo bash
+   ```
+
+The other installation methods are:
 <Tabs>
 <TabItem label="Debian 9+/Ubuntu 16.04+ (apt)">
 
 ```code
+$ sudo mkdir -p /etc/apt/keyrings
 # Download Teleport's PGP public key
 $ sudo curl https://apt.releases.teleport.dev/gpg \
--o /usr/share/keyrings/teleport-archive-keyring.asc
+-o /etc/apt/keyrings/teleport-archive-keyring.asc
 # Source variables about OS version
 $ source /etc/os-release
 # Add the Teleport APT repository for v(=teleport.major_version=). You'll need to update this
 # file for each major release of Teleport.
-$ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
+$ echo "deb [signed-by=/etc/apt/keyrings/teleport-archive-keyring.asc] \
 https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/v(=teleport.major_version=)" \
 | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
 

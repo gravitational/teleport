@@ -19,26 +19,27 @@
 package tbot
 
 import (
-	"bytes"
+	"cmp"
 	"context"
-	"crypto/rsa"
+	"crypto"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
 	"log/slog"
+	"math"
 	"time"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
 const (
@@ -48,15 +49,19 @@ const (
 	pemCertificate = "CERTIFICATE"
 )
 
-// SPIFFESVIDOutputService
+// SPIFFESVIDOutputService is a service that generates and writes X509 SPIFFE
+// SVIDs to a destination. It produces an output compatible with the
+// `spiffe-helper` tool.
 type SPIFFESVIDOutputService struct {
-	botAuthClient     *authclient.Client
-	botCfg            *config.BotConfig
-	cfg               *config.SPIFFESVIDOutput
-	getBotIdentity    getBotIdentityFn
-	log               *slog.Logger
-	reloadBroadcaster *channelBroadcaster
-	resolver          reversetunnelclient.Resolver
+	botAuthClient  *authclient.Client
+	botCfg         *config.BotConfig
+	cfg            *config.SPIFFESVIDOutput
+	getBotIdentity getBotIdentityFn
+	log            *slog.Logger
+	resolver       reversetunnelclient.Resolver
+	// trustBundleCache is the cache of trust bundles. It only needs to be
+	// provided when running in daemon mode.
+	trustBundleCache *workloadidentity.TrustBundleCache
 }
 
 func (s *SPIFFESVIDOutputService) String() string {
@@ -64,31 +69,172 @@ func (s *SPIFFESVIDOutputService) String() string {
 }
 
 func (s *SPIFFESVIDOutputService) OneShot(ctx context.Context) error {
-	return s.generate(ctx)
+	res, privateKey, jwtSVIDs, err := s.requestSVID(ctx)
+	if err != nil {
+		return trace.Wrap(err, "requesting SVID")
+	}
+	bundleSet, err := workloadidentity.FetchInitialBundleSet(
+		ctx,
+		s.log,
+		s.botAuthClient.SPIFFEFederationServiceClient(),
+		s.botAuthClient.TrustClient(),
+		s.cfg.IncludeFederatedTrustBundles,
+		s.getBotIdentity().ClusterName,
+	)
+	if err != nil {
+		return trace.Wrap(err, "fetching trust bundle set")
+
+	}
+	return s.render(ctx, bundleSet, res, privateKey, jwtSVIDs)
 }
 
 func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
-	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
-	defer unsubscribe()
+	bundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
+	if err != nil {
+		return trace.Wrap(err, "getting trust bundle set")
+	}
 
-	err := runOnInterval(ctx, runOnIntervalConfig{
-		name:       "output-renewal",
-		f:          s.generate,
-		interval:   s.botCfg.RenewalInterval,
-		retryLimit: renewalRetryLimit,
-		log:        s.log,
-		reloadCh:   reloadCh,
-	})
-	return trace.Wrap(err)
+	jitter := retryutils.DefaultJitter
+	var res *machineidv1pb.SignX509SVIDsResponse
+	var privateKey crypto.Signer
+	var jwtSVIDs map[string]string
+	var failures int
+	firstRun := make(chan struct{}, 1)
+	firstRun <- struct{}{}
+	for {
+		var retryAfter <-chan time.Time
+		if failures > 0 {
+			backoffTime := time.Second * time.Duration(math.Pow(2, float64(failures-1)))
+			if backoffTime > time.Minute {
+				backoffTime = time.Minute
+			}
+			backoffTime = jitter(backoffTime)
+			s.log.WarnContext(
+				ctx,
+				"Last attempt to generate output failed, will retry",
+				"retry_after", backoffTime,
+				"failures", failures,
+			)
+			retryAfter = time.After(time.Duration(failures) * time.Second)
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-retryAfter:
+			s.log.InfoContext(ctx, "Retrying")
+		case <-bundleSet.Stale():
+			newBundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
+			if err != nil {
+				return trace.Wrap(err, "getting trust bundle set")
+			}
+			s.log.InfoContext(ctx, "Trust bundle set has been updated")
+			if !newBundleSet.Local.Equal(bundleSet.Local) {
+				// If the local trust domain CA has changed, we need to reissue
+				// the SVID.
+				res = nil
+				privateKey = nil
+			}
+			bundleSet = newBundleSet
+		case <-time.After(cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval):
+			s.log.InfoContext(ctx, "Renewal interval reached, renewing SVIDs")
+			res = nil
+			privateKey = nil
+		case <-firstRun:
+		}
+
+		if res == nil || privateKey == nil {
+			var err error
+			res, privateKey, jwtSVIDs, err = s.requestSVID(ctx)
+			if err != nil {
+				s.log.ErrorContext(ctx, "Failed to request SVID", "error", err)
+				failures++
+				continue
+			}
+		}
+		if err := s.render(ctx, bundleSet, res, privateKey, jwtSVIDs); err != nil {
+			s.log.ErrorContext(ctx, "Failed to render output", "error", err)
+			failures++
+			continue
+		}
+		failures = 0
+	}
 }
 
-func (s *SPIFFESVIDOutputService) generate(ctx context.Context) error {
+func (s *SPIFFESVIDOutputService) requestSVID(
+	ctx context.Context,
+) (
+	*machineidv1pb.SignX509SVIDsResponse,
+	crypto.Signer,
+	map[string]string,
+	error,
+) {
 	ctx, span := tracer.Start(
 		ctx,
-		"SPIFFESVIDOutputService/generate",
+		"SPIFFESVIDOutputService/requestSVID",
 	)
 	defer span.End()
-	s.log.InfoContext(ctx, "Generating output")
+
+	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err, "fetching roles")
+	}
+
+	id, err := generateIdentity(
+		ctx,
+		s.botAuthClient,
+		s.getBotIdentity(),
+		roles,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		nil,
+	)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err, "generating identity")
+	}
+	// create a client that uses the impersonated identity, so that when we
+	// fetch information, we can ensure access rights are enforced.
+	facade := identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
+	impersonatedClient, err := clientForFacade(ctx, s.log, s.botCfg, facade, s.resolver)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+	defer impersonatedClient.Close()
+
+	res, privateKey, err := generateSVID(
+		ctx,
+		impersonatedClient,
+		[]config.SVIDRequest{s.cfg.SVID},
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+	)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err, "generating X509 SVID")
+	}
+
+	jwtSvids, err := generateJWTSVIDs(
+		ctx,
+		impersonatedClient,
+		s.cfg.SVID,
+		s.cfg.JWTs,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err, "generating JWT SVIDs")
+	}
+
+	return res, privateKey, jwtSvids, nil
+}
+
+func (s *SPIFFESVIDOutputService) render(
+	ctx context.Context,
+	bundleSet *workloadidentity.BundleSet,
+	res *machineidv1pb.SignX509SVIDsResponse,
+	privateKey crypto.Signer,
+	jwtSVIDs map[string]string,
+) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"SPIFFESVIDOutputService/render",
+	)
+	defer span.End()
+	s.log.InfoContext(ctx, "Rendering output")
 
 	// Check the ACLs. We can't fix them, but we can warn if they're
 	// misconfigured. We'll need to precompute a list of keys to check.
@@ -102,41 +248,6 @@ func (s *SPIFFESVIDOutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err, "verifying destination")
 	}
 
-	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
-	if err != nil {
-		return trace.Wrap(err, "fetching roles")
-	}
-
-	id, err := generateIdentity(
-		ctx,
-		s.botAuthClient,
-		s.getBotIdentity(),
-		roles,
-		s.botCfg.CertificateTTL,
-		nil,
-	)
-	if err != nil {
-		return trace.Wrap(err, "generating identity")
-	}
-	// create a client that uses the impersonated identity, so that when we
-	// fetch information, we can ensure access rights are enforced.
-	facade := identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
-	impersonatedClient, err := clientForFacade(ctx, s.log, s.botCfg, facade, s.resolver)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer impersonatedClient.Close()
-
-	res, privateKey, err := generateSVID(
-		ctx,
-		impersonatedClient,
-		[]config.SVIDRequest{s.cfg.SVID},
-		s.botCfg.CertificateTTL,
-	)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	privBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
 	if err != nil {
 		return trace.Wrap(err)
@@ -146,11 +257,6 @@ func (s *SPIFFESVIDOutputService) generate(ctx context.Context) error {
 		Type:  pemPrivateKey,
 		Bytes: privBytes,
 	})
-
-	spiffeCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.SPIFFECA, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	if len(res.Svids) != 1 {
 		return trace.BadParameter("expected 1 SVID, got %d", len(res.Svids))
@@ -169,22 +275,84 @@ func (s *SPIFFESVIDOutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err, "writing svid certificate")
 	}
 
-	trustBundleBytes := &bytes.Buffer{}
-	for _, ca := range spiffeCAs {
-		for _, cert := range services.GetTLSCerts(ca) {
-			// Values are already PEM encoded, so we just append to the buffer
-			if _, err := trustBundleBytes.Write(cert); err != nil {
-				return trace.Wrap(err, "writing trust bundle to buffer")
+	trustBundleBytes, err := bundleSet.Local.X509Bundle().Marshal()
+	if err != nil {
+		return trace.Wrap(err, "marshaling local trust bundle")
+	}
+
+	if s.cfg.IncludeFederatedTrustBundles {
+		for _, federatedBundle := range bundleSet.Federated {
+			federatedBundleBytes, err := federatedBundle.X509Bundle().Marshal()
+			if err != nil {
+				return trace.Wrap(err, "marshaling federated trust bundle (%s)", federatedBundle.TrustDomain().Name())
 			}
+			trustBundleBytes = append(trustBundleBytes, federatedBundleBytes...)
 		}
 	}
+
 	if err := s.cfg.Destination.Write(
-		ctx, config.SVIDTrustBundlePEMPath, trustBundleBytes.Bytes(),
+		ctx, config.SVIDTrustBundlePEMPath, trustBundleBytes,
 	); err != nil {
 		return trace.Wrap(err, "writing svid trust bundle")
 	}
 
+	for fileName, jwt := range jwtSVIDs {
+		if err := s.cfg.Destination.Write(ctx, fileName, []byte(jwt)); err != nil {
+			return trace.Wrap(err, "writing JWT SVID")
+		}
+	}
+
 	return nil
+}
+
+func generateJWTSVIDs(
+	ctx context.Context,
+	clt *authclient.Client,
+	svid config.SVIDRequest,
+	reqs []config.JWTSVID,
+	ttl time.Duration,
+) (map[string]string, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		"generateJWTSVIDs",
+	)
+	defer span.End()
+
+	requestedAudiences := map[string]bool{}
+	for _, jwt := range reqs {
+		requestedAudiences[jwt.Audience] = true
+	}
+
+	jwtReqs := make([]*machineidv1pb.JWTSVIDRequest, 0, len(requestedAudiences))
+	for audience := range requestedAudiences {
+		jwtReqs = append(jwtReqs, &machineidv1pb.JWTSVIDRequest{
+			Audiences:    []string{audience},
+			Ttl:          durationpb.New(ttl),
+			SpiffeIdPath: svid.Path,
+		})
+	}
+
+	if len(jwtReqs) == 0 {
+		return nil, nil
+	}
+
+	jwtRes, err := clt.WorkloadIdentityServiceClient().SignJWTSVIDs(ctx, &machineidv1pb.SignJWTSVIDsRequest{
+		Svids: jwtReqs,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "requesting JWT SVIDs")
+	}
+
+	jwtFiles := map[string]string{}
+	for _, req := range reqs {
+		for _, jwtSVID := range jwtRes.Svids {
+			if len(jwtSVID.Audiences) == 1 && jwtSVID.Audiences[0] == req.Audience {
+				jwtFiles[req.FileName] = jwtSVID.Jwt
+				break
+			}
+		}
+	}
+	return jwtFiles, nil
 }
 
 // generateSVID generates the pre-requisites and makes a SVID generation RPC
@@ -194,13 +362,15 @@ func generateSVID(
 	clt *authclient.Client,
 	reqs []config.SVIDRequest,
 	ttl time.Duration,
-) (*machineidv1pb.SignX509SVIDsResponse, *rsa.PrivateKey, error) {
+) (*machineidv1pb.SignX509SVIDsResponse, crypto.Signer, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		"generateSVID",
 	)
 	defer span.End()
-	privateKey, err := native.GenerateRSAPrivateKey()
+	privateKey, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromAuthPreference(clt),
+		cryptosuites.BotSVID)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

@@ -16,24 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { ButtonPrimary, ButtonSecondary, Alert, Box } from 'design';
+import { Alert, Box, ButtonPrimary, ButtonSecondary } from 'design';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
-import Validation from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
 import { FieldSelectAsync } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
+import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
 import UserTokenLink from './../UserTokenLink';
-import useDialog, { Props } from './useDialog';
-
 import { TraitsEditor } from './TraitsEditor';
+import useDialog, { Props } from './useDialog';
 
 export default function Container(props: Props) {
   const dialog = useDialog(props);
@@ -108,7 +106,6 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
                 placeholder="Click to select roles"
                 isSearchable
                 isMulti
-                isSimpleValue
                 isClearable={false}
                 value={selectedRoles}
                 onChange={values => onChangeRoles(values as Option[])}

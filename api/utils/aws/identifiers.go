@@ -67,10 +67,20 @@ func IsValidIAMPolicyName(policyName string) error {
 	return nil
 }
 
+const (
+	// AWSGlobalRegion is a sentinel value used by AWS to be able to use global endpoints, instead of region specific ones.
+	// Useful for STS API Calls.
+	// https://docs.aws.amazon.com/sdkref/latest/guide/feature-region.html
+	AWSGlobalRegion = "aws-global"
+)
+
 // IsValidRegion ensures the region looks to be valid.
 // It does not do a full validation, because AWS doesn't provide documentation for that.
 // However, they usually only have the following chars: [a-z0-9\-]
 func IsValidRegion(region string) error {
+	if region == AWSGlobalRegion {
+		return nil
+	}
 	if matchRegion.MatchString(region) {
 		return nil
 	}

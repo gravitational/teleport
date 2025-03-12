@@ -23,11 +23,13 @@ package asciitable
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"slices"
 	"strings"
 	"text/tabwriter"
 
+	"github.com/gravitational/trace"
 	"golang.org/x/term"
 )
 
@@ -158,10 +160,26 @@ func (t *Table) truncateCell(colIndex int, cell string) (string, bool) {
 }
 
 // AsBuffer returns a *bytes.Buffer with the printed output of the table.
+//
+// TODO(nklaassen): delete this, all calls either immediately copy the buffer to
+// another writer or just call .String() once.
 func (t *Table) AsBuffer() *bytes.Buffer {
 	var buffer bytes.Buffer
+	// Writes to bytes.Buffer never return an error.
+	_ = t.WriteTo(&buffer)
+	return &buffer
+}
 
-	writer := tabwriter.NewWriter(&buffer, 5, 0, 1, ' ', 0)
+func (t *Table) String() string {
+	var sb strings.Builder
+	// Writes to strings.Builder never return an error.
+	_ = t.WriteTo(&sb)
+	return sb.String()
+}
+
+// WriteTo writes the full table to [w] or else returns an error.
+func (t *Table) WriteTo(w io.Writer) error {
+	writer := tabwriter.NewWriter(w, 5, 0, 1, ' ', 0)
 	template := strings.Repeat("%v\t", len(t.columns))
 
 	// Header and separator.
@@ -173,8 +191,12 @@ func (t *Table) AsBuffer() *bytes.Buffer {
 			colh = append(colh, col.Title)
 			cols = append(cols, strings.Repeat("-", col.width))
 		}
-		fmt.Fprintf(writer, template+"\n", colh...)
-		fmt.Fprintf(writer, template+"\n", cols...)
+		if _, err := fmt.Fprintf(writer, template+"\n", colh...); err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := fmt.Fprintf(writer, template+"\n", cols...); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// Body.
@@ -188,17 +210,23 @@ func (t *Table) AsBuffer() *bytes.Buffer {
 			}
 			rowi = append(rowi, cell)
 		}
-		fmt.Fprintf(writer, template+"\n", rowi...)
+		if _, err := fmt.Fprintf(writer, template+"\n", rowi...); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// Footnotes.
 	for label := range footnoteLabels {
-		fmt.Fprintln(writer)
-		fmt.Fprintln(writer, label, t.footnotes[label])
+		if _, err := fmt.Fprintln(writer); err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := fmt.Fprintln(writer, label, t.footnotes[label]); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	writer.Flush()
-	return &buffer
+	return nil
 }
 
 // IsHeadless returns true if none of the table title cells contains any text.

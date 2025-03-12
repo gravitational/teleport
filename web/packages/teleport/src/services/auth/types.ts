@@ -18,6 +18,7 @@
 
 import { EventMeta } from 'teleport/services/userEvent';
 
+import { DeviceUsage, MfaChallengeResponse } from '../mfa';
 import { IsMfaRequiredRequest, MfaChallengeScope } from './auth';
 
 export type Base64urlString = string;
@@ -25,20 +26,6 @@ export type Base64urlString = string;
 export type UserCredentials = {
   username: string;
   password: string;
-};
-
-export type AuthnChallengeRequest = {
-  tokenId?: string;
-  userCred: UserCredentials;
-};
-
-export type MfaAuthenticateChallenge = {
-  webauthnPublicKey: PublicKeyCredentialRequestOptions;
-};
-
-export type MfaRegistrationChallenge = {
-  qrCode: Base64urlString;
-  webauthnPublicKey: PublicKeyCredentialCreationOptions;
 };
 
 export type RecoveryCodes = {
@@ -85,14 +72,10 @@ export type CreateAuthenticateChallengeRequest = {
 export type ChangePasswordReq = {
   oldPassword: string;
   newPassword: string;
-  secondFactorToken: string;
-  credential?: Credential;
+  mfaResponse?: MfaChallengeResponse;
 };
 
 export type CreateNewHardwareDeviceRequest = {
   tokenId: string;
   deviceUsage?: DeviceUsage;
 };
-
-/** The intended usage of the device (as an MFA method or a passkey). */
-export type DeviceUsage = 'passwordless' | 'mfa';

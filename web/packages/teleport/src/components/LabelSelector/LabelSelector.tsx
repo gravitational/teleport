@@ -16,12 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 
-import { Box, Flex, Pill, Popover, Link, Text } from 'design';
+import { Box, Flex, Link, Pill, Popover, Text } from 'design';
 import { Info, Warning } from 'design/Icon';
-
 import { useClickOutside } from 'shared/hooks/useClickOutside';
 import { useEscape } from 'shared/hooks/useEscape';
 
@@ -87,7 +86,6 @@ function LabelSelector({ onChange }: LabelSelectorProps) {
               />
             </div>
             <Popover
-              id="simple-popper"
               open={showTooltip}
               anchorOrigin={{
                 vertical: 'bottom',
@@ -109,14 +107,14 @@ function LabelSelector({ onChange }: LabelSelectorProps) {
                 “env: prod”. For more information, check out our documentation
                 on{' '}
                 <Link
-                  href="https://goteleport.com/docs/setup/admin/trustedclusters/"
+                  href="https://goteleport.com/docs/admin-guides/management/admin/trustedclusters/"
                   target="_blank"
                 >
                   RBAC
                 </Link>{' '}
                 and{' '}
                 <Link
-                  href="https://goteleport.com/docs/setup/admin/labels/"
+                  href="https://goteleport.com/docs/admin-guides/management/admin/labels/"
                   target="_blank"
                   rel="noreferrer"
                 >
@@ -128,7 +126,7 @@ function LabelSelector({ onChange }: LabelSelectorProps) {
           </Flex>
           <Text>
             <Link
-              href="https://goteleport.com/docs/setup/admin/labels/"
+              href="https://goteleport.com/docs/admin-guides/management/admin/labels/"
               target="_blank"
             >
               View Documentation

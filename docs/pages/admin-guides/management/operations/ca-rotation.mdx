@@ -1,0 +1,542 @@
+---
+title: Certificate Authority Rotation
+description: Describes how to rotate Teleport's certificate authorities.
+tocDepth: 3
+---
+
+Components of a Teleport cluster authenticate to one another using either X.509
+or SSH certificates. To issue certificates, Teleport maintains several
+certificate authorities. You can rotate Teleport CAs to prevent malicious actors
+from impersonating part of your Teleport cluster. This guide explains the CAs
+that Teleport maintains and how to rotate them.
+
+We recommend becoming familiar with the entire guide before following the steps,
+as you should be ready to roll back the CA rotation if it does not proceed as
+expected.
+
+## How it works
+
+Teleport maintains its CAs independently of one another, and rotating one CA
+does not affect the rotation status of the others. The rotation process is
+designed to take place in **phases**, which give operators time to update their
+infrastructure and roll back a CA rotation if necessary.
+
+Teleport CA rotation takes place in five phases for each CA. The phases have the
+following order:
+
+1. `standby`: No rotation in progress. No operations have begun.
+1. `init`: A new certificate authority is issued, but not used.
+1. `update_clients`: The Teleport Auth Service uses the new CA to sign
+   certificates but continues to trust certificates signed by the original CA.
+1. `update_servers`: Teleport cluster components (Agents, Auth Service, and
+   Proxy Service instances) reload and start serving TLS and SSH certificates
+   signed by the new certificate authority, but still accept certificates issued
+   by the original certificate authority. This only applies to the Teleport
+   [`host` CA](#host).
+1. `standby`: No rotation in progress. All operations have completed.
+
+Before the final `standby` phase, you can also put the rotation in the
+`rollback` phase, aborting the rotation and returning to the original
+certificate authority.
+
+CA rotations can be **manual** or **semi-automatic**. In manual mode, admins
+must instruct the Teleport Auth Service to advance from one phase to the next.
+Between phases, admins can prepare their infrastructure to adjust to each
+change. In semi-automatic mode, the Teleport Auth Service cycles through each
+phase automatically, with a grace period between each phase.
+
+In 17.0.5+ `tctl auth rotate` (with no arguments) starts an interactive
+terminal UI for CA rotations.
+The interactive UI displays a live cluster status, allows you to choose a CA to
+rotate and guides you through each phase, automatically performs certain checks
+to make sure the cluster is ready for the next phase, and lists any manual steps
+that need to be completed.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+
+## Step 1/4. Choose a CA to rotate
+
+When rotating a CA, you need to check that any infrastructure that relies on the
+CA has not lost connectivity. You may also need to export the new CA to your
+infrastructure. Choose one of the CAs below to determine how to keep it up to
+date during the migration.
+
+We recommend rotating a single CA at a time in order to reduce complexity. The
+exceptions are the `db` and `db_client` CAs, which must be rotated together.
+
+|CA type|Certificate subjects|
+|---|---|
+|[`host`](#host)|Teleport Agents. Auth Service and Proxy Service instances.|
+|[`user`](#user)|Teleport users.|
+|[`db`](#db-and-db_client)|Self-hosted databases protected by Teleport (users must distribute certificates to databases).|
+|[`db_client`](#db-and-db_client)|The Teleport Database Service.|
+|[`openssh`](#openssh)|OpenSSH servers enrolled in your Teleport cluster.|
+|[`jwt`](#jwt)|Teleport users accessing web applications.|
+|[`saml_idp`](#saml_idp)|The Teleport SAML IdP.|
+|[`spiffe`](#spiffe)|Workload Identity (SPIFFE) clients.|
+|[`oidc_idp`](#oidc_idp)|The Teleport OIDC IdP integration.|
+
+### `host`
+
+The `host` CA issues certificates to Teleport Agents as well as Auth Service and
+Proxy Service instances so Teleport clients and the Teleport Auth Service can
+verify them.
+The `host` CA also issues SSH host certificates to any enrolled agentless OpenSSH servers.
+
+Teleport Agents and Proxy Service instances use **heartbeats** to periodically
+report their status to the Teleport Auth Service and update their internal data
+to reflect data held by the Auth Service. This internal data includes the status
+of the `host` CA rotation if one is in progress.
+
+To check the rotation status of an agent or Proxy Service instance, run a
+variation of the following command, assigning <Var name="resource" /> to the
+name of an agent or Proxy Service instance:
+
+```code
+$ tctl get <Var name="resource" /> --format=json | jq '.[] | {hostname: .spec.hostname, rotation: .spec.rotation.state, phase: .spec.rotation.phase}'
+{
+  "hostname": "terminal",
+  "rotation": "in_progress",
+  "phase": "init"
+}
+```
+
+In this example, the Teleport instance named `terminal` has updated its status
+to phase `init`. This means it has downloaded a new CA public key and is ready
+for state transitions.
+
+You can use the `tctl get` command with the following resources to determine
+the rotation state of the `host` CA on each agent kind:
+
+| Role                    | `tctl get` value          |
+|-------------------------|---------------------------|
+| Application Service     | `app_server`              |
+| Auth Service            | `auth_server`             |
+| Database Service        | `db_server`               |
+| Kubernetes Service      | `kube_server`             |
+| Proxy Service           | `proxies`                 |
+| SSH Service             | `nodes`                   |
+| Windows Desktop Service | `windows_desktop_service` |
+
+During each phase of the `host` CA rotation, make sure all Agents and Proxy
+Service instances have completed the transition to target phase before
+proceeding to the next phase. We will explain the phases in [Step
+2](#step-24-start-a-manual-rotation).
+
+If you are joining Teleport processes to a cluster via the Teleport Auth
+Service, each Teleport process will need a CA pin to trust the Auth Service.
+The CA pin will change after each `host` CA rotation. Make sure you use the
+*new* CA pin when adding Teleport services after `host` CA rotation.
+
+### `user`
+
+The `user` CA issues a certificate when a user authenticates to Teleport. It
+also signs client certificates for users connecting to Windows desktops and
+Teleport SSH servers. Teleport-protected servers and Windows desktops use these
+certificates.
+
+Once you have completed the rotation and reached the final `standby` phase,
+users who have signed into Teleport must reauthenticate to receive a user
+certificate from the new CA, otherwise Teleport client commands fail.
+
+If you have registered Windows desktops with Teleport, [follow the
+guide](../../../enroll-resources/desktop-access/active-directory.mdx) to export
+the Teleport user CA so the Windows Desktop Service can authenticate to RDP
+hosts. Verify that you can connect to registered desktops throughout the
+rotation.
+
+### `db` and `db_client`
+
+The `db` and `db_client` CAs issue certificates that the Teleport Database
+Service uses to communicate with self-hosted databases.
+
+The Teleport Database Service presents a certificate signed by the `db_client`
+CA when communicating with a self-hosted database, which an admin configures to
+trust certificates issued by the CA.
+
+Admins can configure self-hosted databases to present a certificate signed by
+the `db` CA, which the Database Service uses to verify that a database server is
+a genuine Teleport-protected resource. Alternatively, self-hosted databases can
+present a certificate signed by a custom CA, and admins can configure the
+Teleport Database Service to trust the CA.
+
+#### Beginning the rotation
+
+The Teleport Database Service starts using client certificates issued by the new
+CA to connect to databases at the `update_clients` phase. To avoid losing access
+to your self-hosted databases in the `update_clients` phase, you should
+reconfigure your databases in the `init` phase, then verify that you can still
+access your databases after transitioning to the `update_clients` phase.
+
+Consult the appropriate
+[documentation](../../../enroll-resources/database-access/database-access.mdx)
+for configuring your databases before proceeding to the `update_clients`
+rotation phase.
+
+At the `init` phase, the `tctl auth sign` command differs between the `db` and
+`db_client` CAs. If you rotate the `db_client` CA, the command outputs both the
+original and new certificate authorities in its trusted CA output. If you rotate
+the `db` CA, the command only issues the new database server certificates.
+
+You do not need to reconfigure databases in the `init` phase if you are rotating
+only the `db` CA, although there is no harm in doing so. If you do not
+reconfigure databases at this point, you must plan to do so at some point within
+the rotation, otherwise you will lose access to these databases after
+transitioning to the final `standby` phase.
+
+#### Rolling back the rotation
+
+The most common reason you would want to roll back is if you cannot reconfigure
+your databases. If you have connectivity issues after reconfiguring a database,
+it's likely that you misconfigured the database.
+
+If you reconfigured any of your databases during the rotation, you will need
+to reconfigure them again before transitioning to `standby` from the
+`rollback` phase.
+
+### `openssh`
+
+The `openssh` CA issues certificates for [OpenSSH servers registered with
+Teleport](../../../enroll-resources/server-access/openssh/openssh.mdx). Clients verify these certificates
+when connecting to Teleport-protected OpenSSH servers.
+
+If you used the [manual
+method](../../../enroll-resources/server-access/openssh/openssh-manual-install.mdx) to enroll any
+OpenSSH servers, you must follow the instructions to export the `openssh` CA and
+provide it to your OpenSSH servers before you transition the rotation to the
+final `standby` phase. Otherwise, Teleport users will lose access to any OpenSSH
+servers you enrolled in your cluster using the manual method.
+
+### `jwt`
+
+The Teleport Auth Service uses the `jwt` CA to sign JSON web tokens. The
+Teleport Application Service includes JSON web tokens in HTTP messages that it
+forwards to Teleport-protected applications, which use the `jwt` CA to verify
+the tokens.
+
+If you have enrolled web applications with Teleport, and those applications
+authenticate traffic from the Teleport Application Service by verifying JSON web
+tokens against the Teleport certificate authority, you need to ensure that these
+applications continue to trust the rotated CA.
+
+Teleport-protected JWT applications use one of two methods to retrieve the
+public key of the Teleport `jwt` CA. Depending on the method, you may need to
+take action after the `init` phase and before the rotation reaches the final
+`standby` phase:
+
+- **The application queries the `/.well-known/jwks.json` endpoint of the
+  Teleport Proxy Service.** In this case, no action is required as long as the
+  application can continue to access the endpoint. If the application caches
+  `jwks.json`, invalidate the cache.
+- **The application accesses the `jwks.json` file on the local filesystem**.
+  Obtain a new `jwks.json` file by querying the `/.well-known/jwks.json`
+  endpoint and re-uploading the file.
+
+For an example of exporting the `jwt` CA so a web application can trust
+Teleport-issued JWTs, see the guide to [using JWT authentication with
+Elasticsearch](../../../enroll-resources/application-access/jwt/elasticsearch.mdx).
+
+### `saml_idp`
+
+The `saml_idp` CA signs SAML messages sent by the Teleport IdP so services that
+rely on the Teleport IdP can verify them.
+
+If you are rotating this CA, then before entering the final `standby` phase, you
+must configure any service providers that rely on the Teleport SAML IdP to trust
+the Teleport `saml_idp` CA. Follow the instructions in the [SAML IdP
+documentation](../../access-controls/idps/saml-guide.mdx) to export an XML
+metadata file and make it available to your service provider.
+
+### `spiffe`
+
+The `spiffe` CA signs X509 and JWT SVIDs for Workload Identity clients, often so
+other clients can mutually verify their identity with mTLS.
+
+When rotating this CA, before entering the final `standby` phase, ensure all
+clients that validate Teleport-issued SVIDs have been updated to trust the new
+CA:
+
+- Teleport Workload Identity clients should receive the updated CA certificates
+  automatically via the `tbot` client, and future SVIDs will be issued using the
+  new CA.
+
+  If using `tbot`'s `workload-identity-api` service, additional steps may be
+  needed for client applications to fetch new SVIDs. If generating credentials
+  with one of the `spiffe-svid` outputs, new SVIDs should be issued
+  automatically.
+
+- If using [SPIFFE federation](../../../enroll-resources/workload-identity/federation.mdx#federation-to-teleport-workload-identity),
+  other SPIFFE trust domains should periodically refresh Teleport's certificate
+  bundle. This interval is usually 5 minute, but you can examine the bundle
+  yourself to verify:
+
+  ```code
+  $ curl https://example.teleport.sh/webapi/spiffe/bundle.json | jq '.spiffe_refresh_hint'
+  ```
+
+### `oidc_idp`
+
+The `oidc_idp` CA signs messages sent by the Teleport OIDC IdP integration.
+Relying parties (e.g., AWS) verify these messages to authenticate your Teleport
+account for features like External Audit Storage, Auto-Discovery, and AWS Sync
+for Access Graph.
+
+The Teleport Proxy Service serves the JSON Web Key Sets for the OIDC IdP
+integration from the `/.well-known/jwks-oidc` path of the Web API.
+
+The `/.well-known/jwks-oidc` path of the Teleport Proxy Service Web API is
+always enabled. The Teleport Proxy Service updates the endpoint automatically.
+
+You can retrieve the full URL of the integration's JSON Web Key Sets by querying
+the `/.well-known/openid-configuration` path of the Web UI and reading the
+`jwks_uri` field:
+
+```code
+$ curl https://example.teleport.sh/.well-known/open-id-configuration | jq '.jwks_uri'
+"https://example.teleport.sh/.well-known-jwks-oidc"
+```
+
+## Step 2/4. Start a manual rotation
+
+Once you have chosen a CA to rotate and have planned to check or update the
+infrastructure that relies on that CA, you are ready to begin a manual rotation.
+
+<Admonition type="tip">
+In 17.0.5+ `tctl auth rotate` (with no arguments) starts an interactive
+terminal UI for CA rotations.
+The interactive UI displays a live cluster status, allows you to choose a CA to
+rotate and guides you through each phase, automatically performs certain checks
+to make sure the cluster is ready for the next phase, and lists manual steps
+that need to be completed.
+We recommend using the interactive rotation whenever possible, but you can read
+on to learn how to manually initiate each rotation phase.
+</Admonition>
+
+### `init` phase
+
+In the `init` phase, the Teleport Auth Service issues a new certificate
+authority of the chosen type, but does not use it to sign certificates.
+
+1. Initiate the manual rotation of host certificate authorities:
+
+   ```code
+   $ tctl auth rotate --manual --type=<Var name="type" description="Certificate authority to rotate"/> --phase=init
+   Updated rotation phase to "init". To check status use 'tctl status'
+   ```
+
+1. Use `tctl` to confirm that there is an active rotation in progress. This
+   command prints the rotation status of all CAs that the Teleport Auth Service
+   maintains in your cluster:
+
+   ```code
+   $ tctl status
+   Cluster       teleport.example.com
+   Version       (=teleport.version=)
+   host CA       initialized (mode: manual, started: Sep 20 01:44:36 UTC, ending: Sep 21 2023 07:44:36 UTC)
+   user CA       never updated
+   db CA         never updated
+   db_client CA  never updated
+   openssh CA    never updated
+   jwt CA        never updated
+   saml_idp CA   never updated
+   oidc_idp CA   never updated
+   CA pin        sha256:0000000000000000000000000000000000000000000000000000000000000000
+   ```
+
+1. Perform checks and updates on your infrastructure, depending on
+   the CA type.
+
+### `update_clients`
+
+Execute the transition from `init` to `update_clients`. In this phase, The
+Teleport Auth Service uses the new CA to sign certificates but continues to
+trust certificates signed by the original CA.
+
+1. Transition to the `update_clients` phase:
+
+   ```code
+   $ tctl auth rotate --manual --type=<Var name="type" description="Certificate authority to rotate"/> --phase=update_clients
+   # Updated rotation phase to "update_clients". To check status use 'tctl status'
+   $ tctl status
+   Cluster       teleport.example.com
+   Version       (=teleport.version=)
+   host CA       rotating clients (mode: manual, started: Sep 20 2023 01:44:36 UTC, ending: Sep 21 2023 07:44:36 UTC)
+   user CA       never updated
+   db CA         never updated
+   db_client CA  never updated
+   openssh CA    never updated
+   jwt CA        never updated
+   saml_idp CA   never updated
+   oidc_idp CA   never updated
+   CA pin        sha256:0000000000000000000000000000000000000000000000000000000000000000
+   ```
+
+1. Check or update infrastructure that depends on your CA before proceeding to
+   the next step.
+
+1. If you lose connectivity to your resources, see if you need to reconfigure
+   them to accept the new CA. If that does not restore access or you are unable
+   to reconfigure a database, then [roll back](#step-44-optional-roll-back-the-rotation) to the original
+   certificate authority.
+
+### `update_servers`
+
+Initiate the `update_servers` phase. In this phase, Teleport cluster components
+(Agents, Auth Service, and Proxy Service instances) reload and start serving TLS
+and SSH certificates signed by the new certificate authority, but still accept
+certificates issued by the original certificate authority. This phase only
+affects the `host` CA.
+
+1. Execute the transition:
+
+   ```code
+   $ tctl auth rotate --manual --type=<Var name="type" description="Certificate authority to rotate"/> --phase=update_servers
+   # Updated rotation phase to "update_servers". To check status use 'tctl status'
+
+   $ tctl status
+   Cluster       teleport.example.com
+   Version       (=teleport.version=)
+   host CA       rotating servers (mode: manual, started: Sep 20 2023 01:44:36 UTC, ending: Sep 21 2023 07:44:36 UTC)
+   user CA       never updated
+   db CA         never updated
+   db_client CA  never updated
+   openssh CA    never updated
+   jwt CA        never updated
+   saml_idp CA   never updated
+   oidc_idp CA   never updated
+   CA pin        sha256:0000000000000000000000000000000000000000000000000000000000000000
+   ```
+
+1. Configure and check resources depending on the CA you are rotating. This is
+   your final chance to update Teleport-protected resources before transitioning
+   to the `standby` phase.
+
+1. If you have lost connectivity to Teleport-protected resources, [roll
+   back](#step-44-optional-roll-back-the-rotation) to the original certificate authority before entering the
+   final `standby` phase, when rolling back is no longer possible.
+
+### Final `standby`
+
+Before wrapping up, verify that you have not lost access to Teleport-protected
+resources that rely on the CA that you rotated.
+
+1. Execute the transition:
+
+   ```code
+   $ tctl auth rotate --manual --type=<Var name="type" description="Certificate authority to rotate"/> --phase=standby
+   ```
+
+1. Verify that the rotation has completed with `tctl`:
+
+   ```code
+   $ tctl status
+   Cluster       teleport.example.com
+   Version       (=teleport.version=)
+   host CA       rotated Sep 20 2023 02:11:25 UTC
+   user CA       never updated
+   db CA         never updated
+   db_client CA  never updated
+   openssh CA    never updated
+   jwt CA        never updated
+   saml_idp CA   never updated
+   oidc_idp CA   never updated
+   CA pin        sha256:0000000000000000000000000000000000000000000000000000000000000000
+   ```
+
+1. Follow the instructions for your CA to ensure that you can connect to
+   Teleport-protected resources that rely on the CA that you rotated. This is
+   the last stage where you have the opportunity to roll back. If you have lost
+   connectivity to Teleport-protected resources, [roll back](#step-44-optional-roll-back-the-rotation) to the
+   original certificate authority.
+
+## Step 3/4. [Optional] Run a semi-automatic rotation
+
+You can instruct Teleport to manage the CA rotation semi-automatically.
+Semi-automatic rotation transitions between the phases of a rotation for you,
+and there is no need to run a `tctl auth rotate` command each phase. After a
+**grace period** elapses, the Teleport Auth Service updates the phase of the CA
+rotation to the next step.
+
+### Determine whether to use a semi-automatic rotation
+
+Aside from automatic phase updates, a semi-automatic rotation is identical to a
+manual one. It is up to the operator to update any infrastructure to accommodate
+the current phase before the grace period elapses.
+
+Teleport does not check the status of any infrastructure that relies on the CA,
+meaning that you can lose connectivity if things go wrong. As a result, you
+**should not** carry out a semi-automatic rotation if you need to export a CA to
+your infrastructure.
+
+Complete a rotation in manual mode first to understand all the edge-cases and
+hazards before attempting a semi-automatic rotation.
+
+### Initiate a semi-automatic rotation
+
+If you want to run a semi-automatic rotation, initiate it with `tctl` and
+monitor the status of the rotation.
+
+You can trigger semi-automatic rotation with the following command:
+
+```code
+$ tctl auth rotate --type=<Var name="type" />
+```
+
+The command triggers a rotation process for hosts with a default grace period of
+48 hours.
+
+<Details title="Configuring the grace period">
+
+You can customize grace period and CA type with additional flags:
+
+```code
+# Rotate only user certificates with a grace period of 200 hours:
+$ tctl auth rotate --type=user --grace-period=200h
+
+# Rotate only host certificates with a grace period of 8 hours:
+$ tctl auth rotate --type=host --grace-period=8h
+```
+
+Be careful when choosing a grace period when rotating the `host` CA.
+
+The grace period needs to be long enough for all Agents and Proxy Service
+instances in a cluster to request a new certificate. If some hosts go offline
+during the rotation and come back only after the grace period has ended, they
+will be forced to leave the cluster.
+
+</Details>
+
+During semi-automatic rotations, Teleport attempts to divide the grace period so
+that it spends an equal amount of time in each phase before transitioning to the
+next phase. This means that using a shorter grace period will result in faster
+state transitions.
+
+## Step 4/4. [Optional] Roll back the rotation
+
+You must perform a rollback before the rotation enters `standby` state.
+
+1. Enter the rollback phase with a manual phase transition:
+
+   ```code
+   $ tctl auth rotate --phase=rollback --type=<Var name="type" description="Certificate authority to rotate"/> --manual
+   # Updated rotation phase to "rollback". To check status use 'tctl status'
+   ```
+
+1. Ensure that you can connect to Teleport resources that depend on the CA you
+   were rotating.
+
+1. Finish rolling back the CA rotation:
+
+   ```code
+   $ tctl auth rotate --phase=standby --type=<Var name="type" description="Certificate authority to rotate"/> --manual
+   # Updated rotation phase to "standby". To check status use 'tctl status'
+   ```
+
+## Further reading
+
+How [Teleport certificate authorities](../../../reference/architecture/authentication.mdx)
+work.

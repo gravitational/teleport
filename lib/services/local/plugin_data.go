@@ -19,7 +19,6 @@
 package local
 
 import (
-	"bytes"
 	"context"
 	"time"
 
@@ -96,7 +95,7 @@ func (p *PluginDataService) getPluginData(ctx context.Context, filter types.Plug
 	}
 	var matches []types.PluginData
 	for _, item := range result.Items {
-		if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
+		if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
 			// Item represents a different resource type in the
 			// same namespace.
 			continue
@@ -199,7 +198,7 @@ func (p *PluginDataService) updatePluginData(ctx context.Context, params types.P
 				return trace.Wrap(err)
 			}
 		} else {
-			if _, err := p.CompareAndSwap(ctx, *item, newItem); err != nil {
+			if _, err := p.ConditionalUpdate(ctx, newItem); err != nil {
 				if trace.IsCompareFailed(err) {
 					select {
 					case <-retry.After():
@@ -248,8 +247,8 @@ func itemToPluginData(item backend.Item) (types.PluginData, error) {
 	return data, nil
 }
 
-func pluginDataKey(kind string, name string) []byte {
-	return backend.Key(pluginDataPrefix, kind, name, paramsPrefix)
+func pluginDataKey(kind string, name string) backend.Key {
+	return backend.NewKey(pluginDataPrefix, kind, name, paramsPrefix)
 }
 
 const (

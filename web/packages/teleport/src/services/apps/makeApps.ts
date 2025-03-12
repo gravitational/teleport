@@ -20,7 +20,7 @@ import { AwsRole } from 'shared/services/apps';
 
 import cfg from 'teleport/config';
 
-import { App } from './types';
+import { App, AppSubKind, PermissionSet } from './types';
 
 export default function makeApp(json: any): App {
   json = json || {};
@@ -37,6 +37,7 @@ export default function makeApp(json: any): App {
     requiresRequest,
     integration = '',
     samlAppPreset,
+    subKind,
   } = json;
 
   const canCreateUrl = fqdn && clusterId && publicAddr;
@@ -47,6 +48,7 @@ export default function makeApp(json: any): App {
   const labels = json.labels || [];
   const awsRoles: AwsRole[] = json.awsRoles || [];
   const userGroups = json.userGroups || [];
+  const permissionSets: PermissionSet[] = json.permissionSets || [];
 
   const isTcp = uri && uri.startsWith('tcp://');
   const isCloud = uri && uri.startsWith('cloud://');
@@ -57,11 +59,13 @@ export default function makeApp(json: any): App {
       addrWithProtocol = `cloud://${publicAddr}`;
     } else if (isTcp) {
       addrWithProtocol = `tcp://${publicAddr}`;
+    } else if (subKind === AppSubKind.AwsIcAccount) {
+      /** publicAddr for Identity Center account app is a URL with scheme. */
+      addrWithProtocol = publicAddr;
     } else {
       addrWithProtocol = `https://${publicAddr}`;
     }
   }
-
   let samlAppSsoUrl = '';
   if (samlApp) {
     samlAppSsoUrl = `${cfg.baseUrl}/enterprise/saml-idp/login/${name}`;
@@ -69,6 +73,7 @@ export default function makeApp(json: any): App {
 
   return {
     kind: 'app',
+    subKind,
     id,
     name,
     description,
@@ -89,5 +94,6 @@ export default function makeApp(json: any): App {
     samlAppSsoUrl,
     requiresRequest,
     integration,
+    permissionSets,
   };
 }

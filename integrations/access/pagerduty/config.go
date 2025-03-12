@@ -24,6 +24,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/pelletier/go-toml"
 
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
@@ -47,6 +49,10 @@ type Config struct {
 	// TeleportUser is the name of the Teleport user that will act
 	// as the access request approver
 	TeleportUser string
+
+	// OnAccessMonitoringRuleCacheUpdateCallback is used for checking when
+	// the Rule cache is updated in tests
+	OnAccessMonitoringRuleCacheUpdateCallback func(Operation types.OpType, name string, rule *accessmonitoringrulesv1.AccessMonitoringRule) error
 }
 
 type PagerdutyConfig struct {

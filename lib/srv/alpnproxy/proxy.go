@@ -25,6 +25,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"strings"
 	"sync"
@@ -32,7 +33,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -55,7 +55,7 @@ type ProxyConfig struct {
 	// Router contains definition of protocol routing and handlers description.
 	Router *Router
 	// Log is used for logging.
-	Log logrus.FieldLogger
+	Log *slog.Logger
 	// Clock is a clock to override in tests, set to real time clock
 	// by default
 	Clock clockwork.Clock
@@ -190,15 +190,21 @@ type HandlerDecs struct {
 	// terminating the TLS connection.
 	HandlerWithConnInfo HandlerFuncWithInfo
 	// ForwardTLS tells is ALPN proxy service should terminate TLS traffic or delegate the
-	// TLS termination to the protocol handler (Used in Kube handler case)
+	// TLS termination to the protocol handler (Used in Kube handler case).
+	//
+	// It is the upstream servers responsibility to provide the appropriate [tls.Config.NextProtos]
+	// to confirm the negotiated protocol.
 	ForwardTLS bool
 	// MatchFunc is a routing route match function based on ALPN SNI TLS values.
 	// If is evaluated to true the current HandleDesc will be used
 	// for connection handling.
 	MatchFunc MatchFunc
 	// TLSConfig is TLS configuration that allows switching TLS settings for the handle.
-	// By default, the ProxyConfig.WebTLSConfig configuration is used to TLS terminate incoming connection
-	// but if HandleDesc.TLSConfig is present it will take precedence over ProxyConfig TLS configuration.
+	// By default, the ProxyConfig.WebTLSConfig configuration is used to TLS terminate incoming connections,
+	// but if [HandlerDecs.TLSConfig] is present, it will take precedence over [ProxyConfig.WebTLSConfig].
+	//
+	// It is the responsibility of the creator of the [tls.Config] to provide the appropriate [tls.Config.NextProtos]
+	// to confirm the negotiated protocol.
 	TLSConfig *tls.Config
 }
 
@@ -235,7 +241,7 @@ type HandlerFunc func(ctx context.Context, conn net.Conn) error
 type Proxy struct {
 	cfg                ProxyConfig
 	supportedProtocols []common.Protocol
-	log                logrus.FieldLogger
+	log                *slog.Logger
 
 	// mu guards cancel
 	mu     sync.Mutex
@@ -251,7 +257,7 @@ func (c *ProxyConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("listener missing")
 	}
 	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, "alpn:proxy")
+		c.Log = slog.With(teleport.ComponentKey, "alpn:proxy")
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -328,16 +334,16 @@ func (p *Proxy) Serve(ctx context.Context) error {
 			// https://github.com/gravitational/teleport/blob/master/lib/sshutils/server.go#L397
 			if err := p.handleConn(ctx, clientConn, nil); err != nil {
 				if cerr := clientConn.Close(); cerr != nil && !utils.IsOKNetworkError(cerr) {
-					p.log.WithError(cerr).Warnf("Failed to close client connection.")
+					p.log.WarnContext(ctx, "Failed to close client connection", "error", cerr)
 				}
 				switch {
 				case trace.IsBadParameter(err):
-					p.log.Warnf("Failed to handle client connection: %v", err)
+					p.log.WarnContext(ctx, "Failed to handle client connection", "error", err)
 				case utils.IsOKNetworkError(err):
 				case isConnRemoteError(err):
-					p.log.WithField("remote_addr", clientConn.RemoteAddr()).Debugf("Connection rejected by client: %v", err)
+					p.log.DebugContext(ctx, "Connection rejected by client", "error", err, "remote_addr", clientConn.RemoteAddr())
 				default:
-					p.log.WithError(err).Warnf("Failed to handle client connection.")
+					p.log.WarnContext(ctx, "Failed to handle client connection", "error", err)
 				}
 			}
 		}()
@@ -401,7 +407,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 	// We try to do quick early IP pinning check, if possible, and stop it on the proxy, without going further.
 	// It's based only on client cert. Client can still fail full IP pinning check later if their role now requires
 	// IP pinning but cert isn't pinned.
-	if err := p.checkCertIPPinning(tlsConn); err != nil {
+	if err := p.checkCertIPPinning(ctx, tlsConn); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -413,7 +419,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 
 	isDatabaseConnection, err := dbutils.IsDatabaseConnection(tlsConn.ConnectionState())
 	if err != nil {
-		p.log.WithError(err).Debug("Failed to check if connection is database connection.")
+		p.log.DebugContext(ctx, "Failed to check if connection is database connection", "error", err)
 	}
 	if isDatabaseConnection {
 		return trace.Wrap(p.handleDatabaseConnection(ctx, handlerConn, connInfo))
@@ -421,7 +427,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 	return trace.Wrap(handlerDesc.handle(ctx, handlerConn, connInfo))
 }
 
-func (p *Proxy) checkCertIPPinning(tlsConn *tls.Conn) error {
+func (p *Proxy) checkCertIPPinning(ctx context.Context, tlsConn *tls.Conn) error {
 	state := tlsConn.ConnectionState()
 
 	if len(state.PeerCertificates) == 0 {
@@ -440,10 +446,10 @@ func (p *Proxy) checkCertIPPinning(tlsConn *tls.Conn) error {
 
 	if identity.PinnedIP != "" && (clientIP != identity.PinnedIP || port == "0") {
 		if port == "0" {
-			p.log.WithFields(logrus.Fields{
-				"client_ip": clientIP,
-				"pinned_ip": identity.PinnedIP,
-			}).Debug(authz.ErrIPPinningMismatch.Error())
+			p.log.DebugContext(ctx, "pinned IP doesn't match observed client IP",
+				"client_ip", clientIP,
+				"pinned_ip", identity.PinnedIP,
+			)
 		}
 		return trace.Wrap(authz.ErrIPPinningMismatch)
 	}
@@ -468,7 +474,7 @@ func (p *Proxy) handlePingConnection(ctx context.Context, conn *tls.Conn) utils.
 				err := pingConn.WritePing()
 				if err != nil {
 					if !utils.IsOKNetworkError(err) {
-						p.log.WithError(err).Warn("Failed to write ping message")
+						p.log.WarnContext(ctx, "Failed to write ping message", "error", err)
 					}
 
 					return
@@ -541,7 +547,7 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 	tlsConn := tls.Server(conn, p.cfg.IdentityTLSConfig)
 	if err := tlsConn.SetReadDeadline(p.cfg.Clock.Now().Add(p.cfg.ReadDeadline)); err != nil {
 		if err := tlsConn.Close(); err != nil {
-			p.log.WithError(err).Error("Failed to close TLS connection.")
+			p.log.ErrorContext(ctx, "Failed to close TLS connection", "error", err)
 		}
 		return trace.Wrap(err)
 	}
@@ -550,14 +556,14 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 	}
 	if err := tlsConn.SetReadDeadline(time.Time{}); err != nil {
 		if err := tlsConn.Close(); err != nil {
-			p.log.WithError(err).Error("Failed to close TLS connection.")
+			p.log.ErrorContext(ctx, "Failed to close TLS connection", "error", err)
 		}
 		return trace.Wrap(err)
 	}
 
 	isDatabaseConnection, err := dbutils.IsDatabaseConnection(tlsConn.ConnectionState())
 	if err != nil {
-		p.log.WithError(err).Debug("Failed to check if connection is database connection.")
+		p.log.DebugContext(ctx, "Failed to check if connection is database connection", "error", err)
 	}
 	if !isDatabaseConnection {
 		return trace.BadParameter("not database connection")

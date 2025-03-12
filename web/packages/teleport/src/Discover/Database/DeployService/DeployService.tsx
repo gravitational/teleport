@@ -16,12 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 import { ServiceDeployMethod } from '../common';
-
-import { ManualDeploy } from './ManualDeploy';
 import { AutoDeploy } from './AutoDeploy';
+import { ManualDeploy } from './ManualDeploy';
 
 export function DeployService() {
   const [deployMethod, setDeployMethod] = useState<ServiceDeployMethod>('auto');

@@ -17,14 +17,12 @@ control.
 
 ## Prerequisites
 
-Machine ID for GitLab is available starting from Teleport `v12.2`.
-
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
 - A GitLab project to connect to Teleport. This can either be on GitLab's
 cloud-hosted offering (gitlab.com) or on a self-hosted GitLab instance. **When
-using a self-hosted GitLab instance, your Teleport Auth Server must be able to
+using a self-hosted GitLab instance, your Teleport Auth Service must be able to
 connect to your GitLab instance and your GitLab instance must be configured with
 a valid TLS certificate.**
 
@@ -76,7 +74,7 @@ spec:
 
 You can find a full list of the token configuration options for GitLab joining
 on the
-[GitLab CI reference page.](../reference/gitlab.mdx#gitlab-join-token)
+[GitLab CI reference page.](../../../reference/machine-id/gitlab.mdx)
 
 Apply this to your Teleport cluster using `tctl`:
 
@@ -111,7 +109,7 @@ outputs: []
 Replace:
 
 - `example.teleport.sh:443` with the address of your Teleport Proxy or
-  Auth Server. Prefer using the address of a Teleport Proxy.
+  Auth Service. Prefer using the address of a Teleport Proxy.
 - `example-bot` with the name of the token you created in the second step
 
 Now, the GitLab CI pipeline can be defined. Before the pipeline can use `tbot`,
@@ -139,7 +137,7 @@ deploy-job:
       # Teleport cluster. This is not necessarily the address of your Teleport
       # cluster and will not include a port or scheme (http/https)
       #
-      # This helps the Teleport Auth Server know that the token is intended for
+      # This helps the Teleport Auth Service know that the token is intended for
       # it, and not a different service or Teleport cluster.
       aud: teleport.example.com
   script:
@@ -170,11 +168,11 @@ failure.
 ## Further steps
 
 - For more information about GitLab joining, read the
-  [GitLab CI reference page.](../reference/gitlab.mdx#gitlab-join-token)
+  [GitLab CI reference page.](../../../reference/machine-id/gitlab.mdx)
 - For more information about GitLab itself, read
   [their documentation](https://docs.gitlab.com/ee/ci/).
-- Follow the [access guides](../access-guides.mdx) to finish configuring `tbot` for
+- Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
   your environment.
-- Read the [configuration reference](../reference/configuration.mdx) to explore
+- Read the [configuration reference](../../../reference/machine-id/configuration.mdx) to explore
   all the available configuration options.
-- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../reference/telemetry.mdx)
+- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../../reference/machine-id/telemetry.mdx)

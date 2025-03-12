@@ -16,26 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { subDays, subHours, subMinutes, subSeconds } from 'date-fns';
+import { delay, http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
-import { subSeconds, subMinutes, subHours, subDays } from 'date-fns';
-import { http, HttpResponse, delay } from 'msw';
 import { withoutQuery } from 'web/packages/build/storybook';
 
 import { Flex, H2 } from 'design';
 
+import cfg from 'teleport/config';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
   NotificationSubKind,
   UpsertNotificationStateRequest,
 } from 'teleport/services/notifications';
-import { createTeleportContext } from 'teleport/mocks/contexts';
-import cfg from 'teleport/config';
 
 import { ContextProvider } from '..';
-
+import { notifications as mockNotifications } from './fixtures';
 import { Notification } from './Notification';
 import { Notifications as NotificationsListComponent } from './Notifications';
-import { notifications as mockNotifications } from './fixtures';
 
 const notificationsPathWithoutQuery = withoutQuery(cfg.api.notificationsPath);
 
@@ -220,7 +218,7 @@ const ListComponent = () => {
           css={`
             width: 100%;
             justify-content: center;
-            height: ${p => p.theme.topBarHeight[2]}px;
+            height: ${p => p.theme.topBarHeight[1]}px;
           `}
         >
           <NotificationsListComponent />

@@ -16,19 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import {
-  Text,
   Box,
-  ButtonSecondary,
-  Link,
-  Indicator,
   ButtonLink,
+  ButtonSecondary,
+  Indicator,
+  Link,
+  Text,
 } from 'design';
 import { DialogContent, DialogFooter } from 'design/Dialog';
 
-import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import DownloadLinks from 'teleport/components/DownloadLinks';
+import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import cfg from 'teleport/config';
 
 import { State } from './useAddApp';
@@ -69,9 +68,10 @@ export function Manually({
           - Download Teleport package to your computer
           <DownloadLinks isEnterprise={isEnterprise} version={version} />
         </Box>
-        {attempt.status === 'failed' ? (
+        {attempt.status === 'failed' && (
           <StepsWithoutToken host={host} tshLoginCmd={tshLoginCmd} />
-        ) : (
+        )}
+        {attempt.status === 'success' && (
           <StepsWithToken createToken={createToken} host={host} token={token} />
         )}
       </DialogContent>
@@ -132,7 +132,9 @@ const StepsWithoutToken = ({ tshLoginCmd, host }: StepsWithoutTokenProps) => (
       {`* Note: For a self-hosted Teleport version, you may need to update DNS and obtain a TLS certificate for this application.
             Learn more about application access `}
       <Link
-        href={'https://goteleport.com/docs/application-access/introduction/'}
+        href={
+          'https://goteleport.com/docs/enroll-resources/application-access/introduction/'
+        }
         target="_blank"
       >
         here

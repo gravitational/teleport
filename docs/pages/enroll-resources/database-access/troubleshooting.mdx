@@ -22,7 +22,7 @@ due to expired certificates.
 The command used to generate a new certificate is `tctl auth sign`. For example,
 to create a certificate for PostgreSQL, the command looks like this:
 
-```bash
+```code
 # Export Teleport's certificate authority and a generate certificate/key pair
 # for host db.example.com with a 3-month validity period.
 
@@ -102,8 +102,7 @@ spec:
 
 The `internal.db_users` and `internal.db_names` traits are
 replaced with values from the Teleport local user database. For full details on
-how traits work in Teleport roles, see the [Teleport Access
-Controls Reference](../../access-controls/reference.mdx).
+how traits work in Teleport roles, see the [Access Controls Reference](../../reference/access-controls/roles.mdx).
 
 Now suppose we want to grant Alice more permissive access.
 To keep this example simple, let's just assign Alice a different role.
@@ -116,12 +115,15 @@ We can update a user's roles from the command-line by using either `tctl users u
   ```
   </TabItem>
   <TabItem label="tctl create">
-    First save Alice's user resource to a local file:
-    ```sh
-    $ tctl get users/alice@example.com > alice.yaml
+
+    Open Alice's user resource in your text editor:
+
+    ```code
+    $ tctl edit users/alice@example.com
     ```
 
-    Then modify `alice.yaml` to assign the `access` role:
+    Then modify the resource to assign the `access` role:
+
     ```yaml
     kind: user
     metadata:
@@ -133,11 +135,8 @@ We can update a user's roles from the command-line by using either `tctl users u
         db_names: ["*"]
     ```
 
-    Finally, use `tctl create --force` to update the user
-    (`--force` is required to overwrite an already existing resource).
-    ```sh
-    $ tctl create --force alice.yaml
-    ```
+    Save and close the file to apply your changes.
+
   </TabItem>
 </Tabs>
 
@@ -152,7 +151,7 @@ access see the [RBAC](../database-access/rbac.mdx) documentation.
 When TLS Routing is disable by default, the Teleport Proxy Service returns `8.0.0-Teleport` as the MySQL server version. In some cases, like connecting with a GUI Client, this can result in obtaining an `Unknown system variable 'query_cache_size'` error that indicates that MySQL capabilities were not properly negotiated between the MySQL client and server.
 
 One way to solve this issue is to [use the TLS Routing
-feature](../../management/operations/tls-routing.mdx), where the Teleport Proxy
+feature](../../admin-guides/management/operations/tls-routing.mdx), where the Teleport Proxy
 Service propagates the correct MySQL server version via TLS Routing extensions.
 
 If migration to TLS Routing is not possible, another way to bypass this error is

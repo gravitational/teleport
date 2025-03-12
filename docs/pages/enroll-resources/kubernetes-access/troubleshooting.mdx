@@ -44,13 +44,13 @@ If the agent is running outside of Kubernetes, the state directory is located
 at `/var/lib/teleport/proc` by default. You can delete the state directory with
 the following command:
 
-```bash
+```code
 sudo rm -rf /var/lib/teleport/proc
 ```
 
 And then restart the agent:
 
-```bash
+```code
 sudo systemctl restart teleport
 ```
 
@@ -60,7 +60,7 @@ Starting in Teleport 11, the `teleport-kube-agent` pod's state is stored in a
 Kubernetes Secret - name:`{pod-name}-state` - existing in the installation namespace.
 To delete the state, follow the steps below:
 
-```bash
+```code
 # Get the secrets for the teleport-kube-agent pods
 $ kubectl get secret -o name -n teleport-agent | grep "state"
 teleport-agent-0-state
@@ -93,10 +93,10 @@ Or the following:
 GKE Autopilot denies requests that impersonate "system:masters" group
 ```
 
-<Notice type="note">
+<Admonition type="note">
 This issue only affects GKE Autopilot clusters. If you're using a standard GKE
 cluster, this issue doesn't apply to you.
-</Notice>
+</Admonition>
 
 ### Explanation
 
@@ -186,7 +186,7 @@ $ helm install teleport-agent teleport/teleport-kube-agent \
   --version (=teleport.version=)
 ```
 
-Make sure that the Teleport agent pod is running. You should see one Teleport
+Make sure that the Teleport Agent pod is running. You should see one Teleport
 agent pod pod with a single ready container:
 
 ```code

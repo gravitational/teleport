@@ -23,7 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"time"
@@ -59,56 +59,51 @@ type dialContextFunc func(context.Context, string, string) (net.Conn, error)
 // The transport is cached in the forwarder so that it can be reused for future
 // requests. If the transport is not cached, a new one is created and cached.
 func (f *Forwarder) transportForRequestWithImpersonation(sess *clusterSession) (http.RoundTripper, *tls.Config, error) {
-	// transportCacheTTL is the TTL for the transport cache.
-	const transportCacheTTL = 5 * time.Hour
+	// If the session has a kube API credentials, it means that the next hop is
+	// a Kubernetes API server. In this case, we can use the provided credentials
+	// to dial the next hop directly and never cache the transport.
+	if sess.kubeAPICreds != nil {
+		// If agent is running in agent mode, get the transport from the configured cluster
+		// credentials.
+		return sess.kubeAPICreds.getTransport(), sess.kubeAPICreds.getTLSConfig(), nil
+	}
+
 	// If the cluster is remote, the key is the teleport cluster name.
 	// If the cluster is local, the key is the teleport cluster name and the kubernetes
 	// cluster name: <teleport-cluster-name>/<kubernetes-cluster-name>.
 	key := transportCacheKey(sess)
 
-	// Check if the transport is cached.
-	f.cachedTransportMu.Lock()
-	cachedI, ok := f.cachedTransport.Get(key)
-	f.cachedTransportMu.Unlock()
-	if ok {
-		if cached, ok := cachedI.(cachedTransportEntry); ok {
-			return cached.transport, cached.tlsConfig.Clone(), nil
+	t, err := utils.FnCacheGet(f.ctx, f.cachedTransport, key, func(ctx context.Context) (*cachedTransportEntry, error) {
+		var (
+			httpTransport http.RoundTripper
+			tlsConfig     *tls.Config
+			err           error
+		)
+		if sess.teleportCluster.isRemote {
+			// If the cluster is remote, create a new transport for the remote cluster.
+			httpTransport, tlsConfig, err = f.newRemoteClusterTransport(sess.teleportCluster.name)
+		} else if f.cfg.ReverseTunnelSrv != nil {
+			// If agent is running in proxy mode, create a new transport for the local cluster.
+			httpTransport, tlsConfig, err = f.newLocalClusterTransport(sess.kubeClusterName)
+		} else {
+			return nil, trace.BadParameter("no reverse tunnel server or credentials provided")
 		}
-	}
 
-	var (
-		httpTransport http.RoundTripper
-		err           error
-		tlsConfig     *tls.Config
-	)
-	if sess.teleportCluster.isRemote {
-		// If the cluster is remote, create a new transport for the remote cluster.
-		httpTransport, tlsConfig, err = f.newRemoteClusterTransport(sess.teleportCluster.name)
-	} else if sess.kubeAPICreds != nil {
-		// If agent is running in agent mode, get the transport from the configured cluster
-		// credentials.
-		return sess.kubeAPICreds.getTransport(), sess.kubeAPICreds.getTLSConfig(), nil
-	} else if f.cfg.ReverseTunnelSrv != nil {
-		// If agent is running in proxy mode, create a new transport for the local cluster.
-		httpTransport, tlsConfig, err = f.newLocalClusterTransport(sess.kubeClusterName)
-	} else {
-		return nil, nil, trace.BadParameter("no reverse tunnel server or credentials provided")
-	}
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &cachedTransportEntry{
+			transport: httpTransport,
+			tlsConfig: tlsConfig,
+		}, nil
+	})
+
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	// Cache the transport.
-	f.cachedTransportMu.Lock()
-	f.cachedTransport.Set(key,
-		cachedTransportEntry{
-			transport: httpTransport,
-			tlsConfig: tlsConfig,
-		},
-		transportCacheTTL)
-	f.cachedTransportMu.Unlock()
-
-	return httpTransport, tlsConfig.Clone(), nil
+	return t.transport, t.tlsConfig.Clone(), nil
 }
 
 // transportCacheKey returns a key used to cache transports.
@@ -326,12 +321,9 @@ func (f *Forwarder) localClusterDialer(kubeClusterName string, opts ...contextDi
 		}
 		// Shuffle the list of servers to avoid always connecting to the same
 		// server.
-		rand.Shuffle(
-			len(kubeServers),
-			func(i, j int) {
-				kubeServers[i], kubeServers[j] = kubeServers[j], kubeServers[i]
-			},
-		)
+		rand.Shuffle(len(kubeServers), func(i, j int) {
+			kubeServers[i], kubeServers[j] = kubeServers[j], kubeServers[i]
+		})
 
 		var errs []error
 		// Validate that the requested kube cluster is registered.
@@ -357,6 +349,7 @@ func (f *Forwarder) localClusterDialer(kubeClusterName string, opts ...contextDi
 				ProxyIDs: s.GetProxyIDs(),
 			})
 			if err == nil {
+				opt.collect(s.GetHostID())
 				return conn, nil
 			}
 			errs = append(errs, trace.Wrap(err))
@@ -433,13 +426,21 @@ func (f *Forwarder) getContextDialerFunc(s *clusterSession, opts ...contextDiale
 // contextDialerOptions is a set of options that can be used to filter
 // the hosts that the dialer connects to.
 type contextDialerOptions struct {
-	hostID string
+	hostIDFilter  string
+	collectHostID *string
 }
 
 // matches returns true if the host matches the hostID of the dialer options or
 // if the dialer hostID is empty.
 func (c *contextDialerOptions) matches(hostID string) bool {
-	return c.hostID == "" || c.hostID == hostID
+	return c.hostIDFilter == "" || c.hostIDFilter == hostID
+}
+
+// collect sets the hostID that the dialer connected to if collectHostID is not nil.
+func (c *contextDialerOptions) collect(hostID string) {
+	if c.collectHostID != nil {
+		*c.collectHostID = hostID
+	}
 }
 
 // contextDialerOption is a functional option for the contextDialerOptions.
@@ -452,6 +453,14 @@ type contextDialerOption func(*contextDialerOptions)
 // error.
 func withTargetHostID(hostID string) contextDialerOption {
 	return func(o *contextDialerOptions) {
-		o.hostID = hostID
+		o.hostIDFilter = hostID
+	}
+}
+
+// withHostIDCollection is a functional option that sets the hostID of the dialer
+// to the provided pointer.
+func withHostIDCollection(hostID *string) contextDialerOption {
+	return func(o *contextDialerOptions) {
+		o.collectHostID = hostID
 	}
 }

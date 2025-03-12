@@ -80,7 +80,7 @@ func TestGenerateAWSOIDCToken(t *testing.T) {
 			}},
 		}, localClient)
 
-		_, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{})
+		_, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{Integration: integrationNameWithoutIssuer})
 		require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %T", err)
 	})
 
@@ -95,7 +95,7 @@ func TestGenerateAWSOIDCToken(t *testing.T) {
 				},
 			})
 
-			_, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{})
+			_, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{Integration: integrationNameWithoutIssuer})
 			require.NoError(t, err)
 		}
 	})
@@ -124,22 +124,6 @@ func TestGenerateAWSOIDCToken(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	t.Run("without integration (old clients)", func(t *testing.T) {
-		resp, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{})
-		require.NoError(t, err)
-
-		_, err = key.VerifyAWSOIDC(jwt.AWSOIDCVerifyParams{
-			RawToken: resp.GetToken(),
-			Issuer:   publicURL,
-		})
-		require.NoError(t, err)
-		// Fails if the issuer is different
-		_, err = key.VerifyAWSOIDC(jwt.AWSOIDCVerifyParams{
-			RawToken: resp.GetToken(),
-			Issuer:   publicURL + "3",
-		})
-		require.Error(t, err)
-	})
 	t.Run("with integration in rpc call but no issuer defined", func(t *testing.T) {
 		resp, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{
 			Integration: integrationNameWithoutIssuer,
@@ -257,18 +241,6 @@ func TestRBAC(t *testing.T) {
 
 		for _, tt := range []endpointSubtest{
 			{
-				name: "ListEICE",
-				fn: func() error {
-					_, err := awsoidService.ListEICE(userCtx, &integrationv1.ListEICERequest{
-						Integration: integrationName,
-						Region:      "my-region",
-						VpcIds:      []string{"vpc-123"},
-						NextToken:   "",
-					})
-					return err
-				},
-			},
-			{
 				name: "ListDatabases",
 				fn: func() error {
 					_, err := awsoidService.ListDatabases(userCtx, &integrationv1.ListDatabasesRequest{
@@ -321,6 +293,25 @@ func TestRBAC(t *testing.T) {
 					_, err := awsoidService.ListVPCs(userCtx, &integrationv1.ListVPCsRequest{
 						Integration: integrationName,
 						Region:      "my-region",
+					})
+					return err
+				},
+			},
+			{
+				name: "Ping",
+				fn: func() error {
+					_, err := awsoidService.Ping(userCtx, &integrationv1.PingRequest{
+						Integration: integrationName,
+					})
+					return err
+				},
+			},
+			{
+				name: "Ping with arn",
+				fn: func() error {
+					_, err := awsoidService.Ping(userCtx, &integrationv1.PingRequest{
+						Integration: integrationName,
+						RoleArn:     "some-arn",
 					})
 					return err
 				},
@@ -345,18 +336,6 @@ func TestRBAC(t *testing.T) {
 
 		for _, tt := range []endpointSubtest{
 			{
-				name: "ListEICE",
-				fn: func() error {
-					_, err := awsoidService.ListEICE(userCtx, &integrationv1.ListEICERequest{
-						Integration: integrationName,
-						Region:      "my-region",
-						VpcIds:      []string{"vpc-123"},
-						NextToken:   "",
-					})
-					return err
-				},
-			},
-			{
 				name: "ListDatabases",
 				fn: func() error {
 					_, err := awsoidService.ListDatabases(userCtx, &integrationv1.ListDatabasesRequest{
@@ -413,6 +392,23 @@ func TestRBAC(t *testing.T) {
 					return err
 				},
 			},
+			{
+				name: "Ping",
+				fn: func() error {
+					_, err := awsoidService.Ping(userCtx, &integrationv1.PingRequest{})
+					return err
+				},
+			},
+			{
+				name: "ListDeployedDatabaseServices",
+				fn: func() error {
+					_, err := awsoidService.ListDeployedDatabaseServices(userCtx, &integrationv1.ListDeployedDatabaseServicesRequest{
+						Integration: integrationName,
+						Region:      "my-region",
+					})
+					return err
+				},
+			},
 		} {
 			t.Run(tt.name, func(t *testing.T) {
 				err := tt.fn()
@@ -420,4 +416,40 @@ func TestRBAC(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestConvertEKSCluster(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		input    awsoidc.EKSCluster
+		expected *integrationv1.EKSCluster
+	}{
+		{
+			name: "valid",
+			input: awsoidc.EKSCluster{
+				Name:                 "my-cluster",
+				Region:               "us-east-1",
+				Arn:                  "my-arn",
+				Labels:               map[string]string{},
+				JoinLabels:           map[string]string{},
+				Status:               "ACTIVE",
+				AuthenticationMode:   "API",
+				EndpointPublicAccess: true,
+			},
+			expected: &integrationv1.EKSCluster{
+				Name:                 "my-cluster",
+				Region:               "us-east-1",
+				Arn:                  "my-arn",
+				Labels:               map[string]string{},
+				JoinLabels:           map[string]string{},
+				Status:               "ACTIVE",
+				AuthenticationMode:   "API",
+				EndpointPublicAccess: true,
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, convertEKSCluster(tt.input))
+		})
+	}
 }

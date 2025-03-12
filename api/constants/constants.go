@@ -72,7 +72,7 @@ const (
 	Github = "github"
 
 	// HumanDateFormatSeconds is a human readable date formatting with seconds
-	HumanDateFormatSeconds = "Jan _2 2006 15:04:05 UTC"
+	HumanDateFormatSeconds = "Jan 2 2006 15:04:05 UTC"
 
 	// MaxLeases serves as an identifying error string indicating that the
 	// semaphore system is rejecting an acquisition attempt due to max
@@ -395,6 +395,9 @@ const (
 	// allowed GCP service accounts.
 	TraitGCPServiceAccounts = "gcp_service_accounts"
 
+	// TraitJWT is the name of the trait containing JWT header for app access.
+	TraitJWT = "jwt"
+
 	// TraitHostUserUID is the name of the variable used to specify
 	// the UID to create host user account with.
 	TraitHostUserUID = "host_user_uid"
@@ -402,6 +405,10 @@ const (
 	// TraitHostUserGID is the name of the variable used to specify
 	// the GID to create host user account with.
 	TraitHostUserGID = "host_user_gid"
+
+	// TraitGitHubOrgs is the name of the variable to specify the GitHub
+	// organizations for GitHub integration.
+	TraitGitHubOrgs = "github_orgs"
 )
 
 const (
@@ -504,4 +511,8 @@ const (
 	EnvVarTerraformJoinMethod = "TF_TELEPORT_JOIN_METHOD"
 	// EnvVarTerraformJoinToken is the environment variable configuring the Terraform provider native MachineID join token.
 	EnvVarTerraformJoinToken = "TF_TELEPORT_JOIN_TOKEN"
+	// EnvVarTerraformCloudJoinAudienceTag is the environment variable configuring the Terraform provider's native Machine ID
+	// joining. The audience tag specifies the optional suffix for the TF_WORKLOAD_IDENTITY_AUDIENCE variable when
+	// specifically using the `terraform` join method.
+	EnvVarTerraformCloudJoinAudienceTag = "TF_TELEPORT_JOIN_AUDIENCE_TAG"
 )

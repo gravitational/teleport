@@ -21,6 +21,8 @@ package client_test
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/ed25519"
 	"encoding/base32"
 	"encoding/pem"
 	"errors"
@@ -34,7 +36,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -52,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
+	dtauthntypes "github.com/gravitational/teleport/lib/devicetrust/authn/types"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -61,104 +63,81 @@ import (
 func TestTeleportClient_Login_local(t *testing.T) {
 	t.Parallel()
 
-	silenceLogger(t)
-
-	clock := clockwork.NewFakeClockAt(time.Now())
-	sa := newStandaloneTeleport(t, clock)
-	username := sa.Username
-	password := sa.Password
-	webID := sa.WebAuthnID
-	device := sa.Device
-	otpKey := sa.OTPKey
-
-	// Prepare client config, it won't change throughout the test.
-	cfg := client.MakeDefaultConfig()
-	cfg.Stdout = io.Discard
-	cfg.Stderr = io.Discard
-	cfg.Stdin = &bytes.Buffer{}
-	cfg.Username = username
-	cfg.HostLogin = username
-	cfg.AddKeysToAgent = client.AddKeysToAgentNo
-	// Replace "127.0.0.1" with "localhost". The proxy address becomes the origin
-	// for Webauthn requests, and Webauthn doesn't take IP addresses.
-	cfg.WebProxyAddr = strings.Replace(sa.ProxyWebAddr, "127.0.0.1", "localhost", 1 /* n */)
-	cfg.KeysDir = t.TempDir()
-	cfg.InsecureSkipVerify = true
-
-	// Reset functions after tests.
-	oldStdin := prompt.Stdin()
-	oldHasCredentials := *client.HasTouchIDCredentials
-
-	t.Cleanup(func() {
-		prompt.SetStdin(oldStdin)
-		*client.HasTouchIDCredentials = oldHasCredentials
-	})
+	type webauthnFunc func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
 
 	waitForCancelFn := func(ctx context.Context) (string, error) {
 		<-ctx.Done() // wait for timeout
 		return "", ctx.Err()
 	}
-	noopWebauthnFn := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
-		<-ctx.Done() // wait for timeout
-		return nil, ctx.Err()
+	noopWebauthnFn := func(_ *mocku2f.Key, _ []byte) webauthnFunc {
+		return func(ctx context.Context, _ string, _ *wantypes.CredentialAssertion, _ wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+			<-ctx.Done() // wait for timeout
+			return nil, ctx.Err()
+		}
 	}
 
-	solveOTP := func(ctx context.Context) (string, error) {
-		return totp.GenerateCode(otpKey, clock.Now())
-	}
-	solveWebauthn := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
-		car, err := device.SignAssertion(origin, assertion)
-		if err != nil {
-			return nil, err
+	solveOTP := func(otpKey string, clock clockwork.Clock) func(ctx context.Context) (string, error) {
+		return func(ctx context.Context) (string, error) {
+			return totp.GenerateCode(otpKey, clock.Now())
 		}
-		return &proto.MFAAuthenticateResponse{
-			Response: &proto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: wantypes.CredentialAssertionResponseToProto(car),
-			},
-		}, nil
 	}
-	solvePwdless := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
-		resp, err := solveWebauthn(ctx, origin, assertion, prompt)
-		if err == nil {
-			resp.GetWebauthn().Response.UserHandle = webID
+	solveWebauthn := func(device *mocku2f.Key, _ []byte) webauthnFunc {
+		return func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+			ackTouch, err := prompt.PromptTouch()
+			if err != nil {
+				return nil, err
+			}
+
+			car, err := device.SignAssertion(origin, assertion)
+			if err != nil {
+				return nil, err
+			}
+			ackTouch()
+			return &proto.MFAAuthenticateResponse{
+				Response: &proto.MFAAuthenticateResponse_Webauthn{
+					Webauthn: wantypes.CredentialAssertionResponseToProto(car),
+				},
+			}, nil
 		}
-		return resp, err
+	}
+	solvePwdless := func(device *mocku2f.Key, webID []byte) webauthnFunc {
+		return func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+			resp, err := solveWebauthn(device, webID)(ctx, origin, assertion, prompt)
+			if err == nil {
+				resp.GetWebauthn().Response.UserHandle = webID
+			}
+			return resp, err
+		}
 	}
 
 	const pin = "pin123"
 	userPINFn := func(ctx context.Context) (string, error) {
 		return pin, nil
 	}
-	solvePIN := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
-		// Ask and verify the PIN. Usually the authenticator would verify the PIN,
-		// but we are faking it here.
-		got, err := prompt.PromptPIN()
-		switch {
-		case err != nil:
-			return nil, err
-		case got != pin:
-			return nil, errors.New("invalid PIN")
-		}
+	solvePIN := func(device *mocku2f.Key, webID []byte) webauthnFunc {
+		return func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+			// Ask and verify the PIN. Usually the authenticator would verify the PIN,
+			// but we are faking it here.
+			got, err := prompt.PromptPIN()
+			switch {
+			case err != nil:
+				return nil, err
+			case got != pin:
+				return nil, errors.New("invalid PIN")
+			}
 
-		// Realistically, this would happen too.
-		ackTouch, err := prompt.PromptTouch()
-		if err != nil {
-			return nil, err
+			resp, err := solveWebauthn(device, webID)(ctx, origin, assertion, prompt)
+			if err != nil {
+				return nil, err
+			}
+			return resp, nil
 		}
-
-		resp, err := solveWebauthn(ctx, origin, assertion, prompt)
-		if err != nil {
-			return nil, err
-		}
-		return resp, ackTouch()
 	}
 
-	ctx := context.Background()
 	tests := []struct {
 		name                    string
-		secondFactor            constants.SecondFactorType
-		inputReader             *prompt.FakeReader
-		solveWebauthn           func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
+		makeInputReader         func(pass, otpKey string, clock clockwork.Clock) *prompt.FakeReader
+		makeSolveWebauthn       func(device *mocku2f.Key, webID []byte) webauthnFunc
 		authConnector           string
 		allowStdinHijack        bool
 		preferOTP               bool
@@ -166,91 +145,115 @@ func TestTeleportClient_Login_local(t *testing.T) {
 		authenticatorAttachment wancli.AuthenticatorAttachment
 	}{
 		{
-			name:             "OTP device login with hijack",
-			secondFactor:     constants.SecondFactorOptional,
-			inputReader:      prompt.NewFakeReader().AddString(password).AddReply(solveOTP),
-			solveWebauthn:    noopWebauthnFn,
-			allowStdinHijack: true,
+			name: "OTP device login with hijack",
+			makeInputReader: func(pass, otpKey string, clock clockwork.Clock) *prompt.FakeReader {
+				return prompt.NewFakeReader().
+					AddString(pass).
+					AddReply(solveOTP(otpKey, clock))
+			},
+			makeSolveWebauthn: noopWebauthnFn,
+			allowStdinHijack:  true,
 		},
 		{
-			name:             "Webauthn device login with hijack",
-			secondFactor:     constants.SecondFactorOptional,
-			inputReader:      prompt.NewFakeReader().AddString(password).AddReply(waitForCancelFn),
-			solveWebauthn:    solveWebauthn,
-			allowStdinHijack: true,
+			name: "Webauthn device login with hijack",
+			makeInputReader: func(pass, _ string, _ clockwork.Clock) *prompt.FakeReader {
+				return prompt.NewFakeReader().
+					AddString(pass).
+					AddReply(waitForCancelFn)
+			},
+			makeSolveWebauthn: solveWebauthn,
+			allowStdinHijack:  true,
 		},
 		{
-			name:             "Webauthn device with PIN and hijack", // a bit hypothetical, but _could_ happen.
-			secondFactor:     constants.SecondFactorOptional,
-			inputReader:      prompt.NewFakeReader().AddString(password).AddReply(waitForCancelFn).AddReply(userPINFn),
-			solveWebauthn:    solvePIN,
-			allowStdinHijack: true,
+			name: "Webauthn device with PIN and hijack", // a bit hypothetical, but _could_ happen.
+			makeInputReader: func(pass, _ string, _ clockwork.Clock) *prompt.FakeReader {
+				return prompt.NewFakeReader().
+					AddString(pass).
+					AddReply(waitForCancelFn).
+					AddReply(userPINFn)
+			},
+
+			makeSolveWebauthn: solvePIN,
+			allowStdinHijack:  true,
 		},
 		{
-			name:         "OTP preferred",
-			secondFactor: constants.SecondFactorOptional,
-			inputReader:  prompt.NewFakeReader().AddString(password).AddReply(solveOTP),
-			solveWebauthn: func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
-				panic("this should not be called")
+			name: "OTP preferred",
+			makeInputReader: func(pass, otpKey string, clock clockwork.Clock) *prompt.FakeReader {
+				return prompt.NewFakeReader().
+					AddString(pass).
+					AddReply(solveOTP(otpKey, clock))
+			},
+			makeSolveWebauthn: func(_ *mocku2f.Key, _ []byte) webauthnFunc {
+				return func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+					panic("this should not be called")
+				}
 			},
 			preferOTP: true,
 		},
 		{
-			name:         "Webauthn device login",
-			secondFactor: constants.SecondFactorOptional,
-			inputReader: prompt.NewFakeReader().
-				AddString(password).
-				AddReply(func(ctx context.Context) (string, error) {
-					panic("this should not be called")
-				}),
-			solveWebauthn: solveWebauthn,
+			name: "Webauthn device login",
+			makeInputReader: func(pass, _ string, _ clockwork.Clock) *prompt.FakeReader {
+				return prompt.NewFakeReader().
+					AddString(pass).
+					AddReply(func(ctx context.Context) (string, error) {
+						panic("this should not be called")
+					})
+			},
+			makeSolveWebauthn: solveWebauthn,
 		},
 		{
-			name:          "passwordless login",
-			secondFactor:  constants.SecondFactorOptional,
-			inputReader:   prompt.NewFakeReader(), // no inputs
-			solveWebauthn: solvePwdless,
-			authConnector: constants.PasswordlessConnector,
+			name: "passwordless login",
+			makeInputReader: func(_, _ string, _ clockwork.Clock) *prompt.FakeReader {
+				return prompt.NewFakeReader() // no inputs
+			},
+			makeSolveWebauthn: solvePwdless,
+			authConnector:     constants.PasswordlessConnector,
 		},
 		{
-			name:                  "default to passwordless if registered",
-			secondFactor:          constants.SecondFactorOptional,
-			inputReader:           prompt.NewFakeReader(), // no inputs
-			solveWebauthn:         solvePwdless,
+			name: "default to passwordless if registered",
+			makeInputReader: func(_, _ string, _ clockwork.Clock) *prompt.FakeReader {
+				return prompt.NewFakeReader() // no inputs
+			},
+			makeSolveWebauthn:     solvePwdless,
 			hasTouchIDCredentials: true,
 		},
 		{
-			name:         "cross-platform attachment doesn't default to passwordless",
-			secondFactor: constants.SecondFactorOptional,
-			inputReader: prompt.NewFakeReader().
-				AddString(password).
-				AddReply(func(ctx context.Context) (string, error) {
-					panic("this should not be called")
-				}),
-			solveWebauthn:           solveWebauthn,
+			name: "cross-platform attachment doesn't default to passwordless",
+			makeInputReader: func(pass, _ string, _ clockwork.Clock) *prompt.FakeReader {
+				return prompt.NewFakeReader().
+					AddString(pass).
+					AddReply(func(ctx context.Context) (string, error) {
+						panic("this should not be called")
+					})
+			},
+			makeSolveWebauthn:       solveWebauthn,
 			hasTouchIDCredentials:   true,
 			authenticatorAttachment: wancli.AttachmentCrossPlatform,
 		},
 		{
-			name:         "local connector doesn't default to passwordless",
-			secondFactor: constants.SecondFactorOptional,
-			inputReader: prompt.NewFakeReader().
-				AddString(password).
-				AddReply(func(ctx context.Context) (string, error) {
-					panic("this should not be called")
-				}),
-			solveWebauthn:         solveWebauthn,
+			name: "local connector doesn't default to passwordless",
+			makeInputReader: func(pass, _ string, _ clockwork.Clock) *prompt.FakeReader {
+				return prompt.NewFakeReader().
+					AddString(pass).
+					AddReply(func(ctx context.Context) (string, error) {
+						panic("this should not be called")
+					})
+			},
+			makeSolveWebauthn:     solveWebauthn,
 			authConnector:         constants.LocalConnector,
 			hasTouchIDCredentials: true,
 		},
 		{
-			name:         "OTP preferred doesn't default to passwordless",
-			secondFactor: constants.SecondFactorOptional,
-			inputReader: prompt.NewFakeReader().
-				AddString(password).
-				AddReply(solveOTP),
-			solveWebauthn: func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
-				panic("this should not be called")
+			name: "OTP preferred doesn't default to passwordless",
+			makeInputReader: func(pass, otpKey string, clock clockwork.Clock) *prompt.FakeReader {
+				return prompt.NewFakeReader().
+					AddString(pass).
+					AddReply(solveOTP(otpKey, clock))
+			},
+			makeSolveWebauthn: func(_ *mocku2f.Key, _ []byte) webauthnFunc {
+				return func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+					panic("this should not be called")
+				}
 			},
 			preferOTP:             true,
 			hasTouchIDCredentials: true,
@@ -258,37 +261,58 @@ func TestTeleportClient_Login_local(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-			defer cancel()
+			t.Parallel()
 
-			prompt.SetStdin(test.inputReader)
-			*client.HasTouchIDCredentials = func(rpid, user string) bool {
-				return test.hasTouchIDCredentials
-			}
-			authServer := sa.Auth.GetAuthServer()
-			pref, err := authServer.GetAuthPreference(ctx)
-			require.NoError(t, err)
-			if pref.GetSecondFactor() != test.secondFactor {
-				pref.SetSecondFactor(test.secondFactor)
-				_, err = authServer.UpsertAuthPreference(ctx, pref)
-				require.NoError(t, err)
-			}
+			// Start Teleport.
+			clock := clockwork.NewFakeClockAt(time.Now())
+			sa := newStandaloneTeleport(t, clock)
+			username := sa.Username
+			password := sa.Password
+			webID := sa.WebAuthnID
+			device := sa.Device
+			otpKey := sa.OTPKey
 
+			// Prepare client config.
+			cfg := client.MakeDefaultConfig()
+			cfg.Stdout = io.Discard
+			cfg.Stderr = io.Discard
+			cfg.Stdin = &bytes.Buffer{}
+			cfg.Username = username
+			cfg.HostLogin = username
+			cfg.AddKeysToAgent = client.AddKeysToAgentNo
+			// Replace "127.0.0.1" with "localhost". The proxy address becomes the origin
+			// for Webauthn requests, and Webauthn doesn't take IP addresses.
+			cfg.WebProxyAddr = strings.Replace(sa.ProxyWebAddr, "127.0.0.1", "localhost", 1 /* n */)
+			cfg.KeysDir = t.TempDir()
+			cfg.InsecureSkipVerify = true
+
+			// Prepare the client proper.
 			tc, err := client.NewClient(cfg)
 			require.NoError(t, err)
 			tc.AllowStdinHijack = test.allowStdinHijack
 			tc.AuthConnector = test.authConnector
 			tc.PreferOTP = test.preferOTP
 			tc.AuthenticatorAttachment = test.authenticatorAttachment
+			inputReader := test.makeInputReader(password, otpKey, clock)
+			tc.StdinFunc = func() prompt.StdinReader { return inputReader }
 
+			solveWebauthn := test.makeSolveWebauthn(device, webID)
 			tc.WebauthnLogin = func(
 				ctx context.Context,
 				origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts,
 			) (*proto.MFAAuthenticateResponse, string, error) {
-				resp, err := test.solveWebauthn(ctx, origin, assertion, prompt)
+				resp, err := solveWebauthn(ctx, origin, assertion, prompt)
 				return resp, "", err
 			}
 
+			tc.HasTouchIDCredentialsFunc = func(_, _ string) bool {
+				return test.hasTouchIDCredentials
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			// Test.
 			clock.Advance(30 * time.Second)
 			_, err = tc.Login(ctx)
 			require.NoError(t, err)
@@ -297,8 +321,6 @@ func TestTeleportClient_Login_local(t *testing.T) {
 }
 
 func TestTeleportClient_DeviceLogin(t *testing.T) {
-	silenceLogger(t)
-
 	clock := clockwork.NewFakeClockAt(time.Now())
 	sa := newStandaloneTeleport(t, clock)
 	username := sa.Username
@@ -307,11 +329,12 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 	// Disable MFA. It makes testing easier.
 	ctx := context.Background()
 	authServer := sa.Auth.GetAuthServer()
-	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOff,
-	})
-	require.NoError(t, err, "NewAuthPreference failed")
+	authPref, err := authServer.GetAuthPreference(ctx)
+	require.NoError(t, err, "GetAuthPreference failed")
+	authPref.SetType(constants.Local)
+	authPref.SetSecondFactor(constants.SecondFactorOff)
+	authPref.SetAllowPasswordless(false)
+	authPref.SetAllowHeadless(false)
 	_, err = authServer.UpsertAuthPreference(ctx, authPref)
 	require.NoError(t, err, "UpsertAuthPreference failed")
 
@@ -336,10 +359,14 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 	prompt.SetStdin(prompt.NewFakeReader().AddString(password))
 
 	// Login the current user and fetch a valid pair of certificates.
-	key, err := teleportClient.Login(ctx)
+	keyRing, err := teleportClient.Login(ctx)
 	require.NoError(t, err, "Login failed")
 
-	proxyClient, rootAuthClient, err := teleportClient.ConnectToRootCluster(ctx, key)
+	// Sanity check we're generating EC keys.
+	assert.IsType(t, ed25519.PrivateKey{}, keyRing.SSHPrivateKey.Signer)
+	assert.IsType(t, &ecdsa.PrivateKey{}, keyRing.TLSPrivateKey.Signer)
+
+	proxyClient, rootAuthClient, err := teleportClient.ConnectToRootCluster(ctx, keyRing)
 	require.NoError(t, err, "Connecting to the root cluster failed")
 	t.Cleanup(func() {
 		require.NoError(t, rootAuthClient.Close())
@@ -348,11 +375,11 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 
 	// Prepare "device aware" certificates from key.
 	// In a real scenario these would be augmented certs.
-	block, _ := pem.Decode(key.TLSCert)
+	block, _ := pem.Decode(keyRing.TLSCert)
 	require.NotNil(t, block, "Decode failed")
 	validCerts := &devicepb.UserCertificates{
 		X509Der:          block.Bytes,
-		SshAuthorizedKey: key.Cert,
+		SshAuthorizedKey: keyRing.Cert,
 	}
 
 	t.Run("device login", func(t *testing.T) {
@@ -362,15 +389,15 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		// validatingRunCeremony checks the parameters passed to dtAuthnRunCeremony
 		// and returns validCerts on success.
 		var runCeremonyCalls int
-		validatingRunCeremony := func(_ context.Context, devicesClient devicepb.DeviceTrustServiceClient, certs *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
+		validatingRunCeremony := func(_ context.Context, params *dtauthntypes.CeremonyRunParams) (*devicepb.UserCertificates, error) {
 			runCeremonyCalls++
 			switch {
-			case devicesClient == nil:
-				return nil, errors.New("want non-nil devicesClient")
-			case certs == nil:
-				return nil, errors.New("want non-nil certs")
-			case len(certs.SshAuthorizedKey) == 0:
-				return nil, errors.New("want non-empty certs.SshAuthorizedKey")
+			case params.DevicesClient == nil:
+				return nil, errors.New("want non-nil DevicesClient")
+			case params.Certs == nil:
+				return nil, errors.New("want non-nil Certs")
+			case params.SSHSigner == nil:
+				return nil, errors.New("want non-nil SSHSigner")
 			}
 			return validCerts, nil
 		}
@@ -386,18 +413,20 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		require.NoError(t, authenticatedAction(), "Authenticated action failed *before* AttemptDeviceLogin")
 
 		// Test! Exercise DeviceLogin.
-		got, err := teleportClient.DeviceLogin(ctx,
-			rootAuthClient,
-			&devicepb.UserCertificates{
-				SshAuthorizedKey: key.Cert,
-			})
+		got, err := teleportClient.DeviceLogin(ctx, &dtauthntypes.CeremonyRunParams{
+			DevicesClient: rootAuthClient.DevicesClient(),
+			Certs: &devicepb.UserCertificates{
+				SshAuthorizedKey: keyRing.Cert,
+			},
+			SSHSigner: keyRing.SSHPrivateKey,
+		})
 		require.NoError(t, err, "DeviceLogin failed")
 		require.Equal(t, validCerts, got, "DeviceLogin mismatch")
 		assert.Equal(t, 1, runCeremonyCalls, `DeviceLogin didn't call dtAuthnRunCeremony()`)
 
 		// Test! Exercise AttemptDeviceLogin.
 		require.NoError(t,
-			teleportClient.AttemptDeviceLogin(ctx, key, rootAuthClient),
+			teleportClient.AttemptDeviceLogin(ctx, keyRing, rootAuthClient),
 			"AttemptDeviceLogin failed")
 		assert.Equal(t, 2, runCeremonyCalls, `AttemptDeviceLogin didn't call dtAuthnRunCeremony()`)
 
@@ -408,7 +437,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 	t.Run("attempt login respects ping", func(t *testing.T) {
 		runCeremonyCalled := false
 		teleportClient.SetDTAttemptLoginIgnorePing(false)
-		teleportClient.SetDTAuthnRunCeremony(func(_ context.Context, _ devicepb.DeviceTrustServiceClient, _ *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
+		teleportClient.SetDTAuthnRunCeremony(func(_ context.Context, _ *dtauthntypes.CeremonyRunParams) (*devicepb.UserCertificates, error) {
 			runCeremonyCalled = true
 			return nil, errors.New("dtAuthnRunCeremony called unexpectedly")
 		})
@@ -421,7 +450,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		// Test!
 		// AttemptDeviceLogin should obey Ping and not attempt the ceremony.
 		require.NoError(t,
-			teleportClient.AttemptDeviceLogin(ctx, key, rootAuthClient),
+			teleportClient.AttemptDeviceLogin(ctx, keyRing, rootAuthClient),
 			"AttemptDeviceLogin failed")
 		assert.False(t, runCeremonyCalled, "AttemptDeviceLogin called DeviceLogin/dtAuthnRunCeremony, despite the Ping response")
 	})
@@ -435,7 +464,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		var enrolled bool
 		var runCeremonyCalls, autoEnrollCalls int
 		teleportClient.SetDTAutoEnrollIgnorePing(true)
-		teleportClient.SetDTAuthnRunCeremony(func(_ context.Context, _ devicepb.DeviceTrustServiceClient, _ *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
+		teleportClient.SetDTAuthnRunCeremony(func(_ context.Context, _ *dtauthntypes.CeremonyRunParams) (*devicepb.UserCertificates, error) {
 			runCeremonyCalls++
 			if !enrolled {
 				return nil, errors.New("device not enrolled")
@@ -459,12 +488,13 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		defer rootAuthClient.Close()
 
 		// Test!
-		got, err := teleportClient.DeviceLogin(
-			ctx,
-			rootAuthClient,
-			&devicepb.UserCertificates{
-				SshAuthorizedKey: key.Cert,
-			})
+		got, err := teleportClient.DeviceLogin(ctx, &dtauthntypes.CeremonyRunParams{
+			DevicesClient: rootAuthClient.DevicesClient(),
+			Certs: &devicepb.UserCertificates{
+				SshAuthorizedKey: keyRing.Cert,
+			},
+			SSHSigner: keyRing.SSHPrivateKey,
+		})
 		require.NoError(t, err, "DeviceLogin failed")
 		assert.Equal(t, got, validCerts, "DeviceLogin mismatch")
 		assert.Equal(t, 2, runCeremonyCalls, "RunCeremony called an unexpected number of times")
@@ -486,12 +516,6 @@ type standaloneBundle struct {
 func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundle {
 	randomAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 
-	// Silent logger and console.
-	logger := utils.NewLoggerForTests()
-	logger.SetLevel(log.PanicLevel)
-	logger.SetOutput(io.Discard)
-	console := io.Discard
-
 	staticToken := uuid.New().String()
 
 	// Prepare role and user.
@@ -507,13 +531,23 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	require.NoError(t, err)
 	user.AddRole(role.GetName())
 
+	// Use os.MkdirTemp() instead of t.TempDir() for the DataDir.
+	// The shorter temp paths avoid problems with long unix socket paths composed
+	// using the DataDir.
+	// See https://github.com/golang/go/issues/62614.
+	makeDataDir := func() string {
+		tempDir, err := os.MkdirTemp("", "teleport-test-")
+		require.NoError(t, err, "os.MkdirTemp failed")
+		t.Cleanup(func() { os.RemoveAll(tempDir) })
+		return tempDir
+	}
+
 	// AuthServer setup.
 	cfg := servicecfg.MakeDefaultConfig()
-	cfg.DataDir = t.TempDir()
+	cfg.DataDir = makeDataDir()
 	cfg.Hostname = "localhost"
 	cfg.Clock = clock
-	cfg.Console = console
-	cfg.Log = logger
+	cfg.Logger = utils.NewSlogLoggerForTests()
 	cfg.SetAuthServerAddress(randomAddr) // must be present
 	cfg.Auth.Preference, err = types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
@@ -521,6 +555,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
+		SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
 	})
 	require.NoError(t, err)
 	cfg.Auth.BootstrapResources = []types.Resource{role, user}
@@ -591,12 +626,11 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 
 	// Proxy setup.
 	cfg = servicecfg.MakeDefaultConfig()
-	cfg.DataDir = t.TempDir()
+	cfg.DataDir = makeDataDir()
 	cfg.Hostname = "localhost"
 	cfg.SetToken(staticToken)
 	cfg.Clock = clock
-	cfg.Console = console
-	cfg.Log = logger
+	cfg.Logger = utils.NewSlogLoggerForTests()
 	cfg.SetAuthServerAddress(*authAddr)
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = true
@@ -634,17 +668,6 @@ func startAndWait(t *testing.T, cfg *servicecfg.Config, eventName string) *servi
 	require.NoError(t, err, "timed out waiting for teleport")
 
 	return instance
-}
-
-// silenceLogger silences logger during testing.
-func silenceLogger(t *testing.T) {
-	lvl := log.GetLevel()
-	t.Cleanup(func() {
-		log.SetOutput(os.Stderr)
-		log.SetLevel(lvl)
-	})
-	log.SetOutput(io.Discard)
-	log.SetLevel(log.PanicLevel)
 }
 
 func TestRetryWithRelogin(t *testing.T) {

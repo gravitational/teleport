@@ -21,10 +21,9 @@ package teleport
 import (
 	"strings"
 	"time"
-)
 
-// WebAPIVersion is a current webapi version
-const WebAPIVersion = "v1"
+	"github.com/gravitational/trace"
+)
 
 const (
 	// SSHAuthSock is the environment variable pointing to the
@@ -142,6 +141,10 @@ const (
 	// ComponentDiagnostic is a diagnostic service
 	ComponentDiagnostic = "diag"
 
+	// ComponentDiagnosticHealth is the health monitor used by the diagnostic
+	// and debug services.
+	ComponentDiagnosticHealth = "diag:health"
+
 	// ComponentDebug is the debug service, which exposes debugging
 	// configuration over a Unix socket.
 	ComponentDebug = "debug"
@@ -198,6 +201,9 @@ const (
 
 	// ComponentSession is an active session.
 	ComponentSession = "session"
+
+	// ComponentHostUsers represents host user management.
+	ComponentHostUsers = "hostusers"
 
 	// ComponentDynamoDB represents dynamodb clients
 	ComponentDynamoDB = "dynamodb"
@@ -279,6 +285,18 @@ const (
 
 	// ComponentProxySecureGRPC represents a secure gRPC server running on Proxy (used for Kube).
 	ComponentProxySecureGRPC = "proxy:secure-grpc"
+
+	// ComponentUpdater represents the teleport-update binary.
+	ComponentUpdater = "updater"
+
+	// ComponentRolloutController represents the autoupdate_agent_rollout controller.
+	ComponentRolloutController = "rollout-controller"
+
+	// ComponentGit represents git proxy related services.
+	ComponentGit = "git"
+
+	// ComponentForwardingGit represents the SSH proxy that forwards Git commands.
+	ComponentForwardingGit = "git:forward"
 
 	// VerboseLogsEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
@@ -373,6 +391,9 @@ const (
 	// SSEKMSKey is an optional switch to use an KMS CMK key for S3 SSE.
 	SSEKMSKey = "sse_kms_key"
 
+	// S3UseVirtualStyleAddressing is an optional switch to use use a virtual-hosted–style URI.
+	S3UseVirtualStyleAddressing = "use_s3_virtual_style_addressing"
+
 	// SchemeFile configures local disk-based file storage for audit events
 	SchemeFile = "file"
 
@@ -399,12 +420,6 @@ const (
 	// Syslog is a mode for syslog logging
 	Syslog = "syslog"
 
-	// HumanDateFormat is a human readable date formatting
-	HumanDateFormat = "Jan _2 15:04 UTC"
-
-	// HumanDateFormatMilli is a human readable date formatting with milliseconds
-	HumanDateFormatMilli = "Jan _2 15:04:05.000 UTC"
-
 	// DebugLevel is a debug logging level name
 	DebugLevel = "debug"
 
@@ -412,7 +427,7 @@ const (
 	MinimumEtcdVersion = "3.3.0"
 
 	// EnvVarAllowNoSecondFactor is used to allow disabling second factor auth
-	// todo(lxea): DELETE IN 17
+	// todo(tross): DELETE WHEN ABLE TO
 	EnvVarAllowNoSecondFactor = "TELEPORT_ALLOW_NO_SECOND_FACTOR"
 )
 
@@ -512,6 +527,12 @@ const (
 	// from which this certificate is accepted for authentication.
 	// See: https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.certkeys?annotate=HEAD.
 	CertCriticalOptionSourceAddress = "source-address"
+	// CertExtensionGitHubUserID indicates the GitHub user ID identified by the
+	// GitHub connector.
+	CertExtensionGitHubUserID = "github-id@goteleport.com"
+	// CertExtensionGitHubUsername indicates the GitHub username identified by
+	// the GitHub connector.
+	CertExtensionGitHubUsername = "github-login@goteleport.com"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag
@@ -537,9 +558,16 @@ const (
 	// RemoteCommandFailure is returned when a command has failed to execute and
 	// we don't have another status code for it.
 	RemoteCommandFailure = 255
-	// HomeDirNotFound is returned when a the "teleport checkhomedir" command cannot
+	// HomeDirNotFound is returned when the "teleport checkhomedir" command cannot
 	// find the user's home directory.
 	HomeDirNotFound = 254
+	// HomeDirNotAccessible is returned when the "teleport checkhomedir" command has
+	// found the user's home directory, but the user does NOT have permissions to
+	// access it.
+	HomeDirNotAccessible = 253
+	// UnexpectedCredentials is returned when a command is no longer running with the expected
+	// credentials.
+	UnexpectedCredentials = 252
 )
 
 // MaxEnvironmentFileLines is the maximum number of lines in a environment file.
@@ -580,9 +608,6 @@ const (
 	// TraitTeams is the name of the role variable use to store team
 	// membership information
 	TraitTeams = "github_teams"
-
-	// TraitJWT is the name of the trait containing JWT header for app access.
-	TraitJWT = "jwt"
 
 	// TraitInternalLoginsVariable is the variable used to store allowed
 	// logins for local accounts.
@@ -627,6 +652,10 @@ const (
 	// TraitInternalJWTVariable is the variable used to store JWT token for
 	// app sessions.
 	TraitInternalJWTVariable = "{{internal.jwt}}"
+
+	// TraitInternalGitHubOrgs is the variable used to store allowed GitHub
+	// organizations for GitHub integrations.
+	TraitInternalGitHubOrgs = "{{internal.github_orgs}}"
 )
 
 // SCP is Secure Copy.
@@ -697,6 +726,17 @@ const (
 	// access to Okta resources. This will be used by the Okta requester role to
 	// search for Okta resources.
 	SystemOktaAccessRoleName = "okta-access"
+
+	// SystemIdentityCenterAccessRoleName specifies the name of a system role
+	// that grants a user access to AWS Identity Center resources via
+	// Access Requests.
+	SystemIdentityCenterAccessRoleName = "aws-ic-access"
+
+	// PresetWildcardWorkloadIdentityIssuerRoleName is a name of a preset role
+	// that includes the permissions necessary to issue workload identity
+	// credentials using any workload_identity resource. This exists to simplify
+	// Day 0 UX experience with workload identity.
+	PresetWildcardWorkloadIdentityIssuerRoleName = "wildcard-workload-identity-issuer"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
@@ -811,9 +851,15 @@ const (
 	UsageWindowsDesktopOnly = "usage:windows_desktop"
 )
 
+// ErrNodeIsAmbiguous serves as an identifying error string indicating that
+// the proxy subsystem found multiple nodes matching the specified hostname.
+var ErrNodeIsAmbiguous = &trace.NotFoundError{Message: "ambiguous host could match multiple nodes"}
+
 const (
 	// NodeIsAmbiguous serves as an identifying error string indicating that
 	// the proxy subsystem found multiple nodes matching the specified hostname.
+	// TODO(tross) DELETE IN v20.0.0
+	// Deprecated: Prefer using ErrNodeIsAmbiguous
 	NodeIsAmbiguous = "err-node-is-ambiguous"
 
 	// MaxLeases serves as an identifying error string indicating that the
@@ -842,13 +888,10 @@ const (
 	// command execution (exec and shells).
 	ExecSubCommand = "exec"
 
-	// LocalForwardSubCommand is the sub-command Teleport uses to re-exec itself
-	// for local port forwarding.
-	LocalForwardSubCommand = "forwardv2"
-
-	// RemoteForwardSubCommand is the sub-command Teleport uses to re-exec itself
-	// for remote port forwarding.
-	RemoteForwardSubCommand = "remoteforward"
+	// NetworkingSubCommand is the sub-command Teleport uses to re-exec itself
+	// for networking operations. e.g. local/remote port forwarding, agent forwarding,
+	// or x11 forwarding.
+	NetworkingSubCommand = "networking"
 
 	// CheckHomeDirSubCommand is the sub-command Teleport uses to re-exec itself
 	// to check if the user's home directory exists.
@@ -949,4 +992,11 @@ const (
 	// DebugServiceSocketName represents the Unix domain socket name of the
 	// debug service.
 	DebugServiceSocketName = "debug.sock"
+)
+
+const (
+	// OktaAccessRoleContext is the context used to name Okta Access role created by Okta access list sync
+	OktaAccessRoleContext = "access-okta-acl-role"
+	// OktaReviewerRoleContext  is the context used to name Okta Reviewer role created by Okta Access List sync
+	OktaReviewerRoleContext = "reviewer-okta-acl-role"
 )

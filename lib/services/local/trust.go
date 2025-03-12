@@ -20,7 +20,6 @@ package local
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"slices"
@@ -67,38 +66,21 @@ func (s *CA) CreateCertAuthority(ctx context.Context, ca types.CertAuthority) er
 
 // CreateCertAuthorities creates multiple cert authorities atomically.
 func (s *CA) CreateCertAuthorities(ctx context.Context, cas ...types.CertAuthority) (revision string, err error) {
-	var condacts []backend.ConditionalAction
-	var clusterNames []string
-	for _, ca := range cas {
-		if !slices.Contains(clusterNames, ca.GetName()) {
-			clusterNames = append(clusterNames, ca.GetName())
-		}
-		if err := services.ValidateCertAuthority(ca); err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		item, err := caToItem(nil, ca)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		condacts = append(condacts, []backend.ConditionalAction{
-			{
-				Key:       activeCAKey(ca.GetID()),
-				Condition: backend.NotExists(),
-				Action:    backend.Put(item),
-			},
-			{
-				Key:       inactiveCAKey(ca.GetID()),
-				Condition: backend.Whatever(),
-				Action:    backend.Delete(),
-			},
-		}...)
+	condacts, err := createCertAuthoritiesCondActs(cas, true /* active */)
+	if err != nil {
+		return "", trace.Wrap(err)
 	}
 
 	rev, err := s.AtomicWrite(ctx, condacts)
 	if err != nil {
 		if errors.Is(err, backend.ErrConditionFailed) {
+			var clusterNames []string
+			for _, ca := range cas {
+				if slices.Contains(clusterNames, ca.GetClusterName()) {
+					continue
+				}
+				clusterNames = append(clusterNames, ca.GetClusterName())
+			}
 			return "", trace.AlreadyExists("one or more CAs from cluster(s) %q already exist", strings.Join(clusterNames, ","))
 		}
 		return "", trace.Wrap(err)
@@ -107,17 +89,147 @@ func (s *CA) CreateCertAuthorities(ctx context.Context, cas ...types.CertAuthori
 	return rev, nil
 }
 
+// createCertAuthoritiesCondActs sets up conditional actions for creating a set of CAs.
+func createCertAuthoritiesCondActs(cas []types.CertAuthority, active bool) ([]backend.ConditionalAction, error) {
+	condacts := make([]backend.ConditionalAction, 0, len(cas)*2)
+	for _, ca := range cas {
+		if err := services.ValidateCertAuthority(ca); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		item, err := caToItem(backend.Key{}, ca)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if active {
+			// for an enabled tc, we perform a conditional create for the active CA key
+			// and an unconditional delete for the inactive CA key since the active range
+			// is given priority over the inactive range.
+			condacts = append(condacts, []backend.ConditionalAction{
+				{
+					Key:       activeCAKey(ca.GetID()),
+					Condition: backend.NotExists(),
+					Action:    backend.Put(item),
+				},
+				{
+					Key:       inactiveCAKey(ca.GetID()),
+					Condition: backend.Whatever(),
+					Action:    backend.Delete(),
+				},
+			}...)
+		} else {
+			// for a disabled tc, we perform a conditional create for the inactive CA key
+			// and assert the non-existence of the active CA key.
+			condacts = append(condacts, []backend.ConditionalAction{
+				{
+					Key:       inactiveCAKey(ca.GetID()),
+					Condition: backend.NotExists(),
+					Action:    backend.Put(item),
+				},
+				{
+					Key:       activeCAKey(ca.GetID()),
+					Condition: backend.NotExists(),
+					Action:    backend.Nop(),
+				},
+			}...)
+		}
+	}
+
+	return condacts, nil
+}
+
+func updateCertAuthoritiesCondActs(cas []types.CertAuthority, active bool, currentlyActive bool) ([]backend.ConditionalAction, error) {
+	condacts := make([]backend.ConditionalAction, 0, len(cas)*2)
+	for _, ca := range cas {
+		if err := services.ValidateCertAuthority(ca); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		item, err := caToItem(backend.Key{}, ca)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if active {
+			if currentlyActive {
+				// we are updating an active CA without changing its active status. we want to perform
+				// a conditional update on the acitve CA key and an unconditonal delete on the inactive
+				// CA key in order to correctly model active range priority.
+				condacts = append(condacts, []backend.ConditionalAction{
+					{
+						Key:       activeCAKey(ca.GetID()),
+						Condition: backend.Revision(item.Revision),
+						Action:    backend.Put(item),
+					},
+					{
+						Key:       inactiveCAKey(ca.GetID()),
+						Condition: backend.Whatever(),
+						Action:    backend.Delete(),
+					},
+				}...)
+			} else {
+				// we are updating a currently inactive CA to the active state. we want to perform
+				// a create on the active CA key and a revision-conditional delete on the inactive CA key
+				// to affect a "move-and-update" that respects the active range priority.
+				condacts = append(condacts, []backend.ConditionalAction{
+					{
+						Key:       activeCAKey(ca.GetID()),
+						Condition: backend.NotExists(),
+						Action:    backend.Put(item),
+					},
+					{
+						Key:       inactiveCAKey(ca.GetID()),
+						Condition: backend.Revision(item.Revision),
+						Action:    backend.Delete(),
+					},
+				}...)
+			}
+		} else {
+			if currentlyActive {
+				// we are updating an active CA to the inactive state. we want to perform a conditional
+				// delete on the active CA key and an unconditional put on the inactive CA key to
+				// affect a "move-and-update" that respects the active range priority.
+				condacts = append(condacts, []backend.ConditionalAction{
+					{
+						Key:       activeCAKey(ca.GetID()),
+						Condition: backend.Revision(item.Revision),
+						Action:    backend.Delete(),
+					},
+					{
+						Key:       inactiveCAKey(ca.GetID()),
+						Condition: backend.Whatever(),
+						Action:    backend.Put(item),
+					},
+				}...)
+
+			} else {
+				// we are updating an inactive CA without changing its active status. we want to perform
+				// a conditional update on the inactive CA key and assert the non-existence of the active
+				// CA key.
+				condacts = append(condacts, []backend.ConditionalAction{
+					{
+						Key:       inactiveCAKey(ca.GetID()),
+						Condition: backend.Revision(item.Revision),
+						Action:    backend.Put(item),
+					},
+					{
+						Key:       activeCAKey(ca.GetID()),
+						Condition: backend.NotExists(),
+						Action:    backend.Nop(),
+					},
+				}...)
+			}
+		}
+	}
+
+	return condacts, nil
+}
+
 // UpsertCertAuthority updates or inserts a new certificate authority
 func (s *CA) UpsertCertAuthority(ctx context.Context, ca types.CertAuthority) error {
 	if err := services.ValidateCertAuthority(ca); err != nil {
 		return trace.Wrap(err)
-	}
-
-	// try to skip writes that would have no effect
-	if existing, err := s.GetCertAuthority(ctx, ca.GetID(), true); err == nil {
-		if services.CertAuthoritiesEquivalent(existing, ca) {
-			return nil
-		}
 	}
 
 	item, err := caToItem(activeCAKey(ca.GetID()), ca)
@@ -161,7 +273,7 @@ func (s *CA) CompareAndSwapCertAuthority(new, expected types.CertAuthority) erro
 		return trace.Wrap(err)
 	}
 
-	key := backend.Key(authoritiesPrefix, string(new.GetType()), new.GetName())
+	key := backend.NewKey(authoritiesPrefix, string(new.GetType()), new.GetName())
 
 	actualItem, err := s.Get(context.TODO(), key)
 	if err != nil {
@@ -198,12 +310,17 @@ func (s *CA) DeleteCertAuthority(ctx context.Context, id types.CertAuthID) error
 
 // DeleteCertAuthorities deletes multiple cert authorities atomically.
 func (s *CA) DeleteCertAuthorities(ctx context.Context, ids ...types.CertAuthID) error {
+	_, err := s.AtomicWrite(ctx, s.deleteCertAuthoritiesCondActs(ids))
+	return trace.Wrap(err)
+}
+
+func (s *CA) deleteCertAuthoritiesCondActs(ids []types.CertAuthID) []backend.ConditionalAction {
 	var condacts []backend.ConditionalAction
 	for _, id := range ids {
 		if err := id.Check(); err != nil {
-			return trace.Wrap(err)
+			continue
 		}
-		for _, key := range [][]byte{activeCAKey(id), inactiveCAKey(id)} {
+		for _, key := range []backend.Key{activeCAKey(id), inactiveCAKey(id)} {
 			condacts = append(condacts, backend.ConditionalAction{
 				Key:       key,
 				Condition: backend.Whatever(),
@@ -211,9 +328,7 @@ func (s *CA) DeleteCertAuthorities(ctx context.Context, ids ...types.CertAuthID)
 			})
 		}
 	}
-
-	_, err := s.AtomicWrite(ctx, condacts)
-	return trace.Wrap(err)
+	return condacts
 }
 
 // ActivateCertAuthority moves a CertAuthority from the deactivated list to
@@ -325,10 +440,26 @@ func (s *CA) DeactivateCertAuthorities(ctx context.Context, ids ...types.CertAut
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
 func (s *CA) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
+	return s.getCertAuthority(ctx, id, loadSigningKeys, true /* active */)
+}
+
+// GetInactiveCertAuthority returns inactive certificate authority by given id. Parameter loadSigningKeys
+// controls if signing keys are loaded.
+func (s *CA) GetInactiveCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
+	return s.getCertAuthority(ctx, id, loadSigningKeys, false /* inactive */)
+}
+
+func (s *CA) getCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool, active bool) (types.CertAuthority, error) {
 	if err := id.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	item, err := s.Get(ctx, activeCAKey(id))
+
+	key := activeCAKey(id)
+	if !active {
+		key = inactiveCAKey(id)
+	}
+
+	item, err := s.Get(ctx, key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -425,25 +556,135 @@ func (s *CA) UpdateUserCARoleMap(ctx context.Context, name string, roleMap types
 	return nil
 }
 
+// CreateTrustedCluster atomically creates a new trusted cluster along with associated resources.
+func (s *CA) CreateTrustedCluster(ctx context.Context, tc types.TrustedCluster, cas []types.CertAuthority) (revision string, err error) {
+	if err := services.ValidateTrustedCluster(tc); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	item, err := trustedClusterToItem(tc)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	condacts := []backend.ConditionalAction{
+		{
+			Key:       item.Key,
+			Condition: backend.NotExists(),
+			Action:    backend.Put(item),
+		},
+		// also assert that no remote cluster exists by this name, as
+		// we currently do not allow for a trusted cluster and remote
+		// cluster to share a name (CAs end up stored at the same location).
+		{
+			Key:       remoteClusterKey(tc.GetName()),
+			Condition: backend.NotExists(),
+			Action:    backend.Nop(),
+		},
+	}
+
+	// perform some initial trusted-cluster related validation. common ca validation is handled later
+	// on by the createCertAuthoritiesCondActs helper.
+	for _, ca := range cas {
+		if tc.GetName() != ca.GetClusterName() {
+			return "", trace.BadParameter("trusted cluster name %q does not match CA cluster name %q", tc.GetName(), ca.GetClusterName())
+		}
+	}
+
+	ccas, err := createCertAuthoritiesCondActs(cas, tc.GetEnabled())
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	condacts = append(condacts, ccas...)
+
+	rev, err := s.AtomicWrite(ctx, condacts)
+	if err != nil {
+		if errors.Is(err, backend.ErrConditionFailed) {
+			if _, err := s.GetRemoteCluster(ctx, tc.GetName()); err == nil {
+				return "", trace.BadParameter("cannot create trusted cluster with same name as remote cluster %q, bidirectional trust is not supported", tc.GetName())
+			}
+
+			return "", trace.AlreadyExists("trusted cluster %q and/or one or more of its cert authorities already exists", tc.GetName())
+		}
+		return "", trace.Wrap(err)
+	}
+
+	return rev, nil
+}
+
+// UpdateTrustedCluster atomically updates a trusted cluster along with associated resources.
+func (s *CA) UpdateTrustedCluster(ctx context.Context, tc types.TrustedCluster, cas []types.CertAuthority) (revision string, err error) {
+	if err := services.ValidateTrustedCluster(tc); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// fetch the current state. we'll need this later on to correctly construct our CA condacts, and
+	// it doesn't hurt to reject mismatched revisions early.
+	extant, err := s.GetTrustedCluster(ctx, tc.GetName())
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if tc.GetRevision() != extant.GetRevision() {
+		return "", trace.CompareFailed("trusted cluster %q has been modified, please retry", tc.GetName())
+	}
+
+	item, err := trustedClusterToItem(tc)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	condacts := []backend.ConditionalAction{
+		{
+			Key:       item.Key,
+			Condition: backend.Revision(item.Revision),
+			Action:    backend.Put(item),
+		},
+	}
+
+	// perform some initial trusted-cluster related validation. common ca validation is handled later
+	// on by the createCertAuthoritiesCondActs helper.
+	for _, ca := range cas {
+		if tc.GetName() != ca.GetClusterName() {
+			return "", trace.BadParameter("trusted cluster name %q does not match CA cluster name %q", tc.GetName(), ca.GetClusterName())
+		}
+	}
+
+	ccas, err := updateCertAuthoritiesCondActs(cas, tc.GetEnabled(), extant.GetEnabled())
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	condacts = append(condacts, ccas...)
+
+	rev, err := s.AtomicWrite(ctx, condacts)
+	if err != nil {
+		if errors.Is(err, backend.ErrConditionFailed) {
+			return "", trace.CompareFailed("trusted cluster %q and/or one or more of its cert authorities have been modified, please retry", tc.GetName())
+		}
+		return "", trace.Wrap(err)
+	}
+
+	return rev, nil
+}
+
 // UpsertTrustedCluster creates or updates a TrustedCluster in the backend.
 func (s *CA) UpsertTrustedCluster(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
 	if err := services.ValidateTrustedCluster(trustedCluster); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	rev := trustedCluster.GetRevision()
-	value, err := services.MarshalTrustedCluster(trustedCluster)
+
+	item, err := trustedClusterToItem(trustedCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	_, err = s.Put(ctx, backend.Item{
-		Key:      backend.Key(trustedClustersPrefix, trustedCluster.GetName()),
-		Value:    value,
-		Expires:  trustedCluster.Expiry(),
-		Revision: rev,
-	})
+
+	_, err = s.Put(ctx, item)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return trustedCluster, nil
 }
 
@@ -452,7 +693,7 @@ func (s *CA) GetTrustedCluster(ctx context.Context, name string) (types.TrustedC
 	if name == "" {
 		return nil, trace.BadParameter("missing trusted cluster name")
 	}
-	item, err := s.Get(ctx, backend.Key(trustedClustersPrefix, name))
+	item, err := s.Get(ctx, backend.NewKey(trustedClustersPrefix, name))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -482,16 +723,44 @@ func (s *CA) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, er
 
 // DeleteTrustedCluster removes a TrustedCluster from the backend by name.
 func (s *CA) DeleteTrustedCluster(ctx context.Context, name string) error {
+	return s.DeleteTrustedClusterInternal(ctx, name, nil /* no cert authorities */)
+}
+
+// DeleteTrustedClusterInternal removes a trusted cluster and associated resources atomically.
+func (s *CA) DeleteTrustedClusterInternal(ctx context.Context, name string, caIDs []types.CertAuthID) error {
 	if name == "" {
 		return trace.BadParameter("missing trusted cluster name")
 	}
-	err := s.Delete(ctx, backend.Key(trustedClustersPrefix, name))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return trace.NotFound("trusted cluster %q is not found", name)
+
+	for _, id := range caIDs {
+		if err := id.Check(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if id.DomainName != name {
+			return trace.BadParameter("ca %q does not belong to trusted cluster %q", id.DomainName, name)
 		}
 	}
-	return trace.Wrap(err)
+
+	condacts := []backend.ConditionalAction{
+		{
+			Key:       backend.NewKey(trustedClustersPrefix, name),
+			Condition: backend.Exists(),
+			Action:    backend.Delete(),
+		},
+	}
+
+	condacts = append(condacts, s.deleteCertAuthoritiesCondActs(caIDs)...)
+
+	if _, err := s.AtomicWrite(ctx, condacts); err != nil {
+		if errors.Is(err, backend.ErrConditionFailed) {
+			return trace.NotFound("trusted cluster %q is not found", name)
+		}
+
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // UpsertTunnelConnection updates or creates tunnel connection
@@ -506,7 +775,7 @@ func (s *CA) UpsertTunnelConnection(conn types.TunnelConnection) error {
 		return trace.Wrap(err)
 	}
 	_, err = s.Put(context.TODO(), backend.Item{
-		Key:      backend.Key(tunnelConnectionsPrefix, conn.GetClusterName(), conn.GetName()),
+		Key:      backend.NewKey(tunnelConnectionsPrefix, conn.GetClusterName(), conn.GetName()),
 		Value:    value,
 		Expires:  conn.Expiry(),
 		Revision: rev,
@@ -519,7 +788,7 @@ func (s *CA) UpsertTunnelConnection(conn types.TunnelConnection) error {
 
 // GetTunnelConnection returns connection by cluster name and connection name
 func (s *CA) GetTunnelConnection(clusterName, connectionName string, opts ...services.MarshalOption) (types.TunnelConnection, error) {
-	item, err := s.Get(context.TODO(), backend.Key(tunnelConnectionsPrefix, clusterName, connectionName))
+	item, err := s.Get(context.TODO(), backend.NewKey(tunnelConnectionsPrefix, clusterName, connectionName))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("trusted cluster connection %q is not found", connectionName)
@@ -588,7 +857,7 @@ func (s *CA) DeleteTunnelConnection(clusterName, connectionName string) error {
 	if connectionName == "" {
 		return trace.BadParameter("missing connection name")
 	}
-	return s.Delete(context.TODO(), backend.Key(tunnelConnectionsPrefix, clusterName, connectionName))
+	return s.Delete(context.TODO(), backend.NewKey(tunnelConnectionsPrefix, clusterName, connectionName))
 }
 
 // DeleteTunnelConnections deletes all tunnel connections for cluster
@@ -608,25 +877,71 @@ func (s *CA) DeleteAllTunnelConnections() error {
 	return trace.Wrap(err)
 }
 
-// CreateRemoteCluster creates remote cluster
-func (s *CA) CreateRemoteCluster(
-	ctx context.Context, rc types.RemoteCluster,
-) (types.RemoteCluster, error) {
-	value, err := json.Marshal(rc)
+// CreateRemoteCluster creates a remote cluster
+func (s *CA) CreateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error) {
+	rev, err := s.CreateRemoteClusterInternal(ctx, rc, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	item := backend.Item{
-		Key:     backend.Key(remoteClustersPrefix, rc.GetName()),
-		Value:   value,
-		Expires: rc.Expiry(),
-	}
-	lease, err := s.Create(ctx, item)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	rc.SetRevision(lease.Revision)
+
+	rc.SetRevision(rev)
 	return rc, nil
+}
+
+// CreateRemoteCluster atomically creates a new remote cluster along with associated resources.
+func (s *CA) CreateRemoteClusterInternal(ctx context.Context, rc types.RemoteCluster, cas []types.CertAuthority) (revision string, err error) {
+	if err := services.CheckAndSetDefaults(rc); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	item, err := remoteClusterToItem(rc)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	condacts := []backend.ConditionalAction{
+		{
+			Key:       item.Key,
+			Condition: backend.NotExists(),
+			Action:    backend.Put(item),
+		},
+		// also assert that no trusted cluster exists by this name, as
+		// we currently do not allow for a trusted cluster and remote
+		// cluster to share a name (CAs end up stored at the same location).
+		{
+			Key:       trustedClusterKey(rc.GetName()),
+			Condition: backend.NotExists(),
+			Action:    backend.Nop(),
+		},
+	}
+
+	// perform some initial remote-cluster related validation. common ca validation is handled later
+	// on by the createCertAuthoritiesCondActs helper.
+	for _, ca := range cas {
+		if rc.GetName() != ca.GetClusterName() {
+			return "", trace.BadParameter("remote cluster name %q does not match CA cluster name %q", rc.GetName(), ca.GetClusterName())
+		}
+	}
+
+	ccas, err := createCertAuthoritiesCondActs(cas, true /* remote cluster cas always considered active */)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	condacts = append(condacts, ccas...)
+
+	rev, err := s.AtomicWrite(ctx, condacts)
+	if err != nil {
+		if errors.Is(err, backend.ErrConditionFailed) {
+			if _, err := s.GetTrustedCluster(ctx, rc.GetName()); err == nil {
+				return "", trace.BadParameter("cannot create remote cluster with same name as trusted cluster %q, bidirectional trust is not supported", rc.GetName())
+			}
+			return "", trace.AlreadyExists("remote cluster %q and/or one or more of its cert authorities already exists", rc.GetName())
+		}
+		return "", trace.Wrap(err)
+	}
+
+	return rev, nil
 }
 
 // UpdateRemoteCluster updates selected remote cluster fields: expiry and labels
@@ -652,17 +967,12 @@ func (s *CA) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (t
 		existing.SetConnectionStatus(rc.GetConnectionStatus())
 		existing.SetMetadata(rc.GetMetadata())
 
-		updateValue, err := services.MarshalRemoteCluster(existing)
+		item, err := remoteClusterToItem(existing)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		lease, err := s.ConditionalUpdate(ctx, backend.Item{
-			Key:      backend.Key(remoteClustersPrefix, existing.GetName()),
-			Value:    updateValue,
-			Expires:  existing.Expiry(),
-			Revision: existing.GetRevision(),
-		})
+		lease, err := s.ConditionalUpdate(ctx, item)
 		if err != nil {
 			if trace.IsCompareFailed(err) {
 				// Retry!
@@ -707,17 +1017,12 @@ func (s *CA) PatchRemoteCluster(
 			return nil, trace.BadParameter("metadata.revision: cannot be patched")
 		}
 
-		updatedValue, err := services.MarshalRemoteCluster(updated)
+		item, err := remoteClusterToItem(updated)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		lease, err := s.ConditionalUpdate(ctx, backend.Item{
-			Key:      backend.Key(remoteClustersPrefix, name),
-			Value:    updatedValue,
-			Expires:  updated.Expiry(),
-			Revision: updated.GetRevision(),
-		})
+		lease, err := s.ConditionalUpdate(ctx, item)
 		if err != nil {
 			if trace.IsCompareFailed(err) {
 				// Retry!
@@ -759,7 +1064,7 @@ func (s *CA) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, erro
 func (s *CA) ListRemoteClusters(
 	ctx context.Context, pageSize int, pageToken string,
 ) ([]types.RemoteCluster, string, error) {
-	rangeStart := backend.Key(remoteClustersPrefix, pageToken)
+	rangeStart := backend.NewKey(remoteClustersPrefix, pageToken)
 	rangeEnd := backend.RangeEnd(backend.ExactKey(remoteClustersPrefix))
 
 	// Adjust page size, so it can't be too large.
@@ -804,7 +1109,7 @@ func (s *CA) GetRemoteCluster(
 	if clusterName == "" {
 		return nil, trace.BadParameter("missing parameter cluster name")
 	}
-	item, err := s.Get(ctx, backend.Key(remoteClustersPrefix, clusterName))
+	item, err := s.Get(ctx, backend.NewKey(remoteClustersPrefix, clusterName))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("remote cluster %q is not found", clusterName)
@@ -822,13 +1127,44 @@ func (s *CA) GetRemoteCluster(
 }
 
 // DeleteRemoteCluster deletes remote cluster by name
-func (s *CA) DeleteRemoteCluster(
-	ctx context.Context, clusterName string,
-) error {
-	if clusterName == "" {
+func (s *CA) DeleteRemoteCluster(ctx context.Context, clusterName string) error {
+	return s.DeleteRemoteClusterInternal(ctx, clusterName, nil /* no cert authorities */)
+}
+
+// DeleteRemoteClusterInternal atomically deletes a remote cluster along with associated resources.
+func (s *CA) DeleteRemoteClusterInternal(ctx context.Context, name string, ids []types.CertAuthID) error {
+	if name == "" {
 		return trace.BadParameter("missing parameter cluster name")
 	}
-	return s.Delete(ctx, backend.Key(remoteClustersPrefix, clusterName))
+
+	for _, id := range ids {
+		if err := id.Check(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if id.DomainName != name {
+			return trace.BadParameter("ca %q does not belong to remote cluster %q", id.DomainName, name)
+		}
+	}
+
+	condacts := []backend.ConditionalAction{
+		{
+			Key:       remoteClusterKey(name),
+			Condition: backend.Exists(),
+			Action:    backend.Delete(),
+		},
+	}
+
+	condacts = append(condacts, s.deleteCertAuthoritiesCondActs(ids)...)
+
+	if _, err := s.AtomicWrite(ctx, condacts); err != nil {
+		if errors.Is(err, backend.ErrConditionFailed) {
+			return trace.NotFound("remote cluster %q is not found", name)
+		}
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // DeleteAllRemoteClusters deletes all remote clusters
@@ -839,7 +1175,7 @@ func (s *CA) DeleteAllRemoteClusters(ctx context.Context) error {
 }
 
 // catToItem builds a backend.Item corresponding to the supplied CA.
-func caToItem(key []byte, ca types.CertAuthority) (backend.Item, error) {
+func caToItem(key backend.Key, ca types.CertAuthority) (backend.Item, error) {
 	value, err := services.MarshalCertAuthority(ca)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)
@@ -853,14 +1189,50 @@ func caToItem(key []byte, ca types.CertAuthority) (backend.Item, error) {
 	}, nil
 }
 
+func trustedClusterToItem(tc types.TrustedCluster) (backend.Item, error) {
+	value, err := services.MarshalTrustedCluster(tc)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+
+	return backend.Item{
+		Key:      trustedClusterKey(tc.GetName()),
+		Value:    value,
+		Expires:  tc.Expiry(),
+		Revision: tc.GetRevision(),
+	}, nil
+}
+
+func trustedClusterKey(name string) backend.Key {
+	return backend.NewKey(trustedClustersPrefix, name)
+}
+
+func remoteClusterToItem(rc types.RemoteCluster) (backend.Item, error) {
+	value, err := services.MarshalRemoteCluster(rc)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+
+	return backend.Item{
+		Key:      remoteClusterKey(rc.GetName()),
+		Value:    value,
+		Expires:  rc.Expiry(),
+		Revision: rc.GetRevision(),
+	}, nil
+}
+
+func remoteClusterKey(name string) backend.Key {
+	return backend.NewKey(remoteClustersPrefix, name)
+}
+
 // activeCAKey builds the active key variant for the supplied ca id.
-func activeCAKey(id types.CertAuthID) []byte {
-	return backend.Key(authoritiesPrefix, string(id.Type), id.DomainName)
+func activeCAKey(id types.CertAuthID) backend.Key {
+	return backend.NewKey(authoritiesPrefix, string(id.Type), id.DomainName)
 }
 
 // inactiveCAKey builds the inactive key variant for the supplied ca id.
-func inactiveCAKey(id types.CertAuthID) []byte {
-	return backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName)
+func inactiveCAKey(id types.CertAuthID) backend.Key {
+	return backend.NewKey(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName)
 }
 
 const (

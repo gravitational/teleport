@@ -17,17 +17,18 @@
  */
 
 import * as grpc from '@grpc/grpc-js';
+
 import * as api from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 import * as apiService from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb.grpc-server';
 
-import * as uri from 'teleterm/ui/uri';
 import Logger from 'teleterm/logger';
+import { filterSensitiveProperties } from 'teleterm/services/tshd/interceptors';
 import {
   ExtractRequestType,
   ExtractResponseType,
   TshdEventContextBridgeService,
 } from 'teleterm/types';
-import { filterSensitiveProperties } from 'teleterm/services/tshd/interceptors';
+import * as uri from 'teleterm/ui/uri';
 
 export interface ReloginRequest extends api.ReloginRequest {
   rootClusterUri: uri.RootClusterUri;
@@ -84,8 +85,6 @@ async function createServer(
           reject(error);
           return logger.error(error.message);
         }
-
-        server.start();
 
         const resolvedAddress = requestedAddress.startsWith('tcp:')
           ? `localhost:${port}`
@@ -205,6 +204,18 @@ function createService(logger: Logger): {
 
   const service: apiService.ITshdEventsService = {
     relogin: (call, callback) => processEvent('relogin', call, callback),
+
+    promptHardwareKeyPIN: (call, callback) =>
+      processEvent('promptHardwareKeyPIN', call, callback),
+
+    promptHardwareKeyTouch: (call, callback) =>
+      processEvent('promptHardwareKeyTouch', call, callback),
+
+    promptHardwareKeyPINChange: (call, callback) =>
+      processEvent('promptHardwareKeyPINChange', call, callback),
+
+    confirmHardwareKeySlotOverwrite: (call, callback) =>
+      processEvent('confirmHardwareKeySlotOverwrite', call, callback),
 
     sendNotification: (call, callback) =>
       processEvent('sendNotification', call, callback),

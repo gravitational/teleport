@@ -21,13 +21,14 @@ package tbot
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"crypto/rand"
+	"crypto/rsa"
 	"fmt"
 	"log/slog"
 	"net"
 	"os"
 	"os/user"
-	"path"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -35,7 +36,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgconn"
-	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -46,10 +46,11 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -67,7 +68,7 @@ import (
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
-	native.PrecomputeTestKeys(m)
+	cryptosuites.PrecomputeRSATestKeys(m)
 	os.Exit(m.Run())
 }
 
@@ -306,6 +307,10 @@ func TestBot(t *testing.T) {
 		Destination: &config.DestinationMemory{},
 		Roles:       []string{mainRole},
 	}
+	identityOutputWithReissue := &config.IdentityOutput{
+		Destination:  &config.DestinationMemory{},
+		AllowReissue: true,
+	}
 	appOutput := &config.ApplicationOutput{
 		Destination: &config.DestinationMemory{},
 		AppName:     appName,
@@ -350,6 +355,7 @@ func TestBot(t *testing.T) {
 			sshHostOutput,
 			kubeOutput,
 			kubeDiscoveredNameOutput,
+			identityOutputWithReissue,
 		},
 		defaultBotConfigOpts{
 			useAuthServer: true,
@@ -371,21 +377,37 @@ func TestBot(t *testing.T) {
 		require.False(t, tlsIdent.DisallowReissue)
 		require.Equal(t, uint64(1), tlsIdent.Generation)
 		require.ElementsMatch(t, []string{botResource.Status.RoleName}, tlsIdent.Groups)
+		// testenv cluster uses balanced-v1 suite, sanity check we generated an
+		// ECDSA key.
+		require.IsType(t, &ecdsa.PublicKey{}, botIdent.PrivateKey.Public())
 	})
 
 	t.Run("output: identity", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, identityOutput.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botResource.Status.UserName)
+		requireValidOutputTLSIdent(
+			t, tlsIdent, defaultRoles, botResource.Status.UserName, false,
+		)
 	})
 
 	t.Run("output: identity with role specified", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, identityOutputWithRoles.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, []string{mainRole}, botResource.Status.UserName)
+		requireValidOutputTLSIdent(
+			t, tlsIdent, []string{mainRole}, botResource.Status.UserName, false,
+		)
+	})
+
+	t.Run("output: identity with allow reissue", func(t *testing.T) {
+		tlsIdent := tlsIdentFromDest(ctx, t, identityOutputWithReissue.GetDestination())
+		requireValidOutputTLSIdent(
+			t, tlsIdent, defaultRoles, botResource.Status.UserName, true,
+		)
 	})
 
 	t.Run("output: kubernetes", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, kubeOutput.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botResource.Status.UserName)
+		requireValidOutputTLSIdent(
+			t, tlsIdent, defaultRoles, botResource.Status.UserName, false,
+		)
 		require.Equal(t, kubeClusterName, tlsIdent.KubernetesCluster)
 		require.Equal(t, kubeGroups, tlsIdent.KubernetesGroups)
 		require.Equal(t, kubeUsers, tlsIdent.KubernetesUsers)
@@ -393,7 +415,9 @@ func TestBot(t *testing.T) {
 
 	t.Run("output: kubernetes discovered name", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, kubeDiscoveredNameOutput.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botResource.Status.UserName)
+		requireValidOutputTLSIdent(
+			t, tlsIdent, defaultRoles, botResource.Status.UserName, false,
+		)
 		require.Equal(t, kubeClusterName, tlsIdent.KubernetesCluster)
 		require.Equal(t, kubeGroups, tlsIdent.KubernetesGroups)
 		require.Equal(t, kubeUsers, tlsIdent.KubernetesUsers)
@@ -401,7 +425,9 @@ func TestBot(t *testing.T) {
 
 	t.Run("output: application", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, appOutput.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botResource.Status.UserName)
+		requireValidOutputTLSIdent(
+			t, tlsIdent, defaultRoles, botResource.Status.UserName, false,
+		)
 		route := tlsIdent.RouteToApp
 		require.Equal(t, appName, route.Name)
 		require.Equal(t, "test-app.example.com", route.PublicAddr)
@@ -410,17 +436,27 @@ func TestBot(t *testing.T) {
 
 	t.Run("output: database", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, dbOutput.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botResource.Status.UserName)
+		requireValidOutputTLSIdent(
+			t, tlsIdent, defaultRoles, botResource.Status.UserName, false,
+		)
 		route := tlsIdent.RouteToDatabase
 		require.Equal(t, databaseServiceName, route.ServiceName)
 		require.Equal(t, databaseName, route.Database)
 		require.Equal(t, databaseUsername, route.Username)
 		require.Equal(t, "mysql", route.Protocol)
+		// Sanity check we generated an RSA key.
+		keyBytes, err := dbOutput.GetDestination().Read(ctx, identity.PrivateKeyKey)
+		require.NoError(t, err)
+		key, err := keys.ParsePrivateKey(keyBytes)
+		require.NoError(t, err)
+		require.IsType(t, &rsa.PublicKey{}, key.Public())
 	})
 
 	t.Run("output: database discovered name", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, dbDiscoveredNameOutput.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botResource.Status.UserName)
+		requireValidOutputTLSIdent(
+			t, tlsIdent, defaultRoles, botResource.Status.UserName, false,
+		)
 		route := tlsIdent.RouteToDatabase
 		require.Equal(t, databaseServiceName, route.ServiceName)
 		require.Equal(t, databaseName, route.Database)
@@ -436,6 +472,9 @@ func TestBot(t *testing.T) {
 		require.NoError(t, err)
 		hostKey, err := ssh.ParsePrivateKey(hostKeyBytes)
 		require.NoError(t, err)
+		// testenv cluster uses balanced-v1 suite, sanity check we generated an
+		// Ed25519 key.
+		require.Equal(t, ssh.KeyAlgoED25519, hostKey.PublicKey().Type())
 		testData := []byte("test-data")
 		signedTestData, err := hostKey.Sign(rand.Reader, testData)
 		require.NoError(t, err)
@@ -482,8 +521,8 @@ func TestBot(t *testing.T) {
 // requireValidOutputTLSIdent runs general validation against the TLS identity
 // created by a normal output. This ensures several key parts of the identity
 // have sane values.
-func requireValidOutputTLSIdent(t *testing.T, ident *tlsca.Identity, wantRoles []string, botUsername string) {
-	require.True(t, ident.DisallowReissue)
+func requireValidOutputTLSIdent(t *testing.T, ident *tlsca.Identity, wantRoles []string, botUsername string, allowReissue bool) {
+	require.Equal(t, !allowReissue, ident.DisallowReissue)
 	require.False(t, ident.Renewable)
 	require.Equal(t, botUsername, ident.Impersonator)
 	require.Equal(t, botUsername, ident.Username)
@@ -720,132 +759,6 @@ func newMockDiscoveredKubeCluster(t *testing.T, name, discoveredName string) *ty
 	return kubeCluster
 }
 
-// TestBotSPIFFEWorkloadAPI is an end-to-end test of Workload ID's ability to
-// issue a SPIFFE SVID to a workload connecting via the SPIFFE Workload API.
-func TestBotSPIFFEWorkloadAPI(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
-
-	// Make a new auth server.
-	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
-
-	// Create a role that allows the bot to issue a SPIFFE SVID.
-	role, err := types.NewRole("spiffe-issuer", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			SPIFFE: []*types.SPIFFERoleCondition{
-				{
-					Path: "/*",
-					DNSSANs: []string{
-						"*",
-					},
-					IPSANs: []string{
-						"0.0.0.0/0",
-					},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-	role, err = rootClient.UpsertRole(ctx, role)
-	require.NoError(t, err)
-
-	pid := os.Getpid()
-
-	tempDir := t.TempDir()
-	socketPath := "unix://" + path.Join(tempDir, "spiffe.sock")
-	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
-	botConfig := defaultBotConfig(
-		t, process, onboarding, config.ServiceConfigs{
-			&config.SPIFFEWorkloadAPIService{
-				Listen: socketPath,
-				SVIDs: []config.SVIDRequestWithRules{
-					// Intentionally unmatching PID to ensure this SVID
-					// is not issued.
-					{
-						SVIDRequest: config.SVIDRequest{
-							Path: "/bar",
-						},
-						Rules: []config.SVIDRequestRule{
-							{
-								Unix: config.SVIDRequestRuleUnix{
-									PID: ptr(0),
-								},
-							},
-						},
-					},
-					// SVID with rule that matches on PID.
-					{
-						SVIDRequest: config.SVIDRequest{
-							Path: "/foo",
-							Hint: "hint",
-							SANS: config.SVIDRequestSANs{
-								DNS: []string{"example.com"},
-								IP:  []string{"10.0.0.1"},
-							},
-						},
-						Rules: []config.SVIDRequestRule{
-							{
-								Unix: config.SVIDRequestRuleUnix{
-									PID: &pid,
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		defaultBotConfigOpts{
-			useAuthServer: true,
-			insecure:      true,
-		},
-	)
-	botConfig.Oneshot = false
-	b := New(botConfig, log)
-
-	// Spin up goroutine for bot to run in
-	botCtx, cancelBot := context.WithCancel(ctx)
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		err := b.Run(botCtx)
-		assert.NoError(t, err, "bot should not exit with error")
-		cancelBot()
-	}()
-	t.Cleanup(func() {
-		// Shut down bot and make sure it exits.
-		cancelBot()
-		wg.Wait()
-	})
-
-	// This has a little flexibility internally in terms of waiting for the
-	// socket to come up, so we don't need a manual sleep/retry here.
-	source, err := workloadapi.NewX509Source(
-		ctx,
-		workloadapi.WithClientOptions(workloadapi.WithAddr(socketPath)),
-	)
-	require.NoError(t, err)
-	defer source.Close()
-
-	svid, err := source.GetX509SVID()
-	require.NoError(t, err)
-
-	// SVID has successfully been issued. We can now assert that it's correct.
-	require.Equal(t, "spiffe://root/foo", svid.ID.String())
-	cert := svid.Certificates[0]
-	require.Equal(t, "spiffe://root/foo", cert.URIs[0].String())
-	require.True(t, net.IPv4(10, 0, 0, 1).Equal(cert.IPAddresses[0]))
-	require.Equal(t, []string{"example.com"}, cert.DNSNames)
-	require.WithinRange(
-		t,
-		cert.NotAfter,
-		cert.NotBefore.Add(time.Hour-time.Minute),
-		cert.NotBefore.Add(time.Hour+time.Minute),
-	)
-}
-
 func TestBotDatabaseTunnel(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -956,8 +869,8 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	currentUser, err := user.Current()
 	require.NoError(t, err)
 
-	// 104 length limit on UDS on MacOS forces us to use a custom tmpdir.
-	tmpDir := path.Join(os.TempDir(), t.Name())
+	// 104 length limit on UDS on macOS forces us to use a custom tmpdir.
+	tmpDir := filepath.Join(os.TempDir(), t.Name())
 	require.NoError(t, os.RemoveAll(tmpDir))
 	require.NoError(t, os.Mkdir(tmpDir, 0777))
 	t.Cleanup(func() {

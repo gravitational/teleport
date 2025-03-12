@@ -16,6 +16,8 @@ Discovery for GKE.
 
 (!docs/pages/includes/discovery/step-description.mdx serviceName="Kubernetes" resourceDesc="cluster" resourceKind="kube_cluster" !)
 
+(!docs/pages/includes/discovery/same-host-tip.mdx serviceName="Kubernetes" resourceDesc="cluster" !)
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -205,13 +207,13 @@ $ gcloud compute instances set-service-account ${VM2_NAME?} \
 
 </Details>
 
-<Notice type="warning">
+<Admonition type="warning">
 
 You must use the `scopes` flag in the `gcloud compute instances
 set-service-account` command. Otherwise, your Google Cloud VM will fail to
 obtain the required authorization to access the GKE API.
 
-</Notice>
+</Admonition>
 
 Once you have attached the service account, restart your VM:
 
@@ -394,6 +396,7 @@ ssh_service:
   enabled: off
 discovery_service:
   enabled: "yes"
+  discovery_group: "gke-myproject"
   gcp:
     - types: ["gke"]
       locations: ["*"]
@@ -431,6 +434,7 @@ clusters in project `myproj-prod` running in `us-east2`, but *not* clusters in
 ```yaml
 discovery_service:
   enabled: "yes"
+  discovery_group: "gke-myproject"
   gcp:
     - types: ["gke"]
       locations: ["us-east1"]
@@ -452,8 +456,18 @@ value, `gke`.
 #### `discovery_service.gcp[0].project_ids`
 
 In your matcher, replace `myproject` with the ID of your Google Cloud project.
-The `project_ids` field must include at least one value, and it must not be the
-wildcard character (`*`).
+
+Ensure that the `project_ids` field follows these rules:
+- It must include at least one value.
+- It must not combine the wildcard character (`*`) with other values.
+
+##### Examples of valid configurations
+- `["p1", "p2"]`
+- `["*"]`
+- `["p1"]`
+
+##### Example of an invalid configuration
+- `["p1", "*"]`
 
 #### `discovery_service.gcp[0].locations`
 

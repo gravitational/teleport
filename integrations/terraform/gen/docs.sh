@@ -21,20 +21,13 @@ if [ -z "$VERSION" ]; then
   error "Version parameter is required"
 fi
 
-# Generator is installed by the "docs" Makefile target dependencies
-GENERATOR="$PWD/bin/tfplugindocs"
-if ! command -v "$GENERATOR" &> /dev/null
-then
-    error "can't find the generator: $GENERATOR"
-fi
-
 TFDIR="$(pwd)"
 DOCSDIR="$(pwd)/../../docs/pages/reference/terraform-provider"
 TMPDIR="$(mktemp -d)"
 
 info "Generating provider's schema"
 
-cd "$TMPDIR"
+pushd "$TMPDIR"
 cat > main.tf << EOF
 terraform {
   required_providers {
@@ -51,7 +44,8 @@ terraform providers schema -json > schema.json
 
 info "Rendering markdown files"
 
-$GENERATOR generate \
+popd
+go tool github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs generate \
   --providers-schema "$TMPDIR/schema.json" \
   --provider-name "terraform.releases.teleport.dev/gravitational/teleport" \
   --rendered-provider-name "teleport" \
@@ -67,15 +61,15 @@ info "Converting .md files to .mdx"
 cd "$TMPDIR/docs"
 find . -iname '*.md' -type f -exec sh -c 'i="$1"; mv "$i" "${i%.md}.mdx"' shell {} \;
 # renaming the resources and data-sources indexes because the names were reserved by the generator
-mv "$TMPDIR/docs/resources-index.mdx" "$TMPDIR/docs/resources.mdx"
-mv "$TMPDIR/docs/data-sources-index.mdx" "$TMPDIR/docs/data-sources.mdx"
+mv "$TMPDIR/docs/resources-index.mdx" "$TMPDIR/docs/resources/resources.mdx"
+mv "$TMPDIR/docs/data-sources-index.mdx" "$TMPDIR/docs/data-sources/data-sources.mdx"
 
 info "Copying generated documentation into the teleport docs directory"
 
 # Removing the apex terraform.mdx
-rm -rf "$DOCSDIR" "$DOCSDIR.mdx"
+rm -rf "$DOCSDIR" "$DOCSDIR/terraform-provider.mdx"
 cp -r "$TMPDIR/docs" "$DOCSDIR"
 # unpacking the index to the apex terraform.mdx
-mv "$DOCSDIR/index.mdx" "$DOCSDIR.mdx"
+mv "$DOCSDIR/index.mdx" "$DOCSDIR/terraform-provider.mdx"
 
 info "TF documentation successfully generated"

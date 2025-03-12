@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { throttle } from 'shared/utils/highbar';
 import { base64ToArrayBuffer } from 'shared/utils/base64';
+import { throttle } from 'shared/utils/highbar';
 
 import { StatusEnum } from 'teleport/lib/player';
 
@@ -112,6 +112,11 @@ export class PlayerClient extends Client {
     }
 
     this.lastUpdateTime = Date.now();
+    this.send(JSON.stringify({ action: Action.TOGGLE_PLAY_PAUSE }));
+
+    if (this.paused) {
+      return;
+    }
 
     if (this.isSeekingForward()) {
       const next = Math.max(this.skipTimeUpdatesUntil, this.lastTimestamp);
@@ -119,8 +124,6 @@ export class PlayerClient extends Client {
     } else {
       this.scheduleNextUpdate(this.lastTimestamp);
     }
-
-    this.send(JSON.stringify({ action: Action.TOGGLE_PLAY_PAUSE }));
   }
 
   // setPlaySpeed sets the playback speed of the recording.

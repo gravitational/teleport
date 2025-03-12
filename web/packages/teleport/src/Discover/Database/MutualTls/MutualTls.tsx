@@ -16,25 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import { Text, Box, Flex, Link, Mark } from 'design';
+import { useState } from 'react';
+
+import { Box, Flex, Link, Mark, Text } from 'design';
 import { Danger } from 'design/Alert';
 import { Info } from 'design/Icon';
-import TextEditor from 'shared/components/TextEditor';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
+import TextEditor from 'shared/components/TextEditor';
 import Validation from 'shared/components/Validation';
 
-import useTeleport from 'teleport/useTeleport';
-import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { Tabs } from 'teleport/components/Tabs';
+import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+import useTeleport from 'teleport/useTeleport';
 
-import { HeaderSubtitle, ActionButtons, Header, StyledBox } from '../../Shared';
-import { dbCU } from '../../yamlTemplates';
 import { DatabaseEngine } from '../../SelectResource';
-
-import { useMutualTls, State } from './useMutualTls';
-
+import { ActionButtons, Header, HeaderSubtitle, StyledBox } from '../../Shared';
 import type { AgentStepProps } from '../../types';
+import { dbCU } from '../../yamlTemplates';
+import { State, useMutualTls } from './useMutualTls';
 
 export function MutualTls(props: AgentStepProps) {
   const ctx = useTeleport();
@@ -112,7 +111,6 @@ export function MutualTlsView({
                 resizable={true}
                 autoFocus
                 textAreaCss={`
-                font-size: 14px;
                 height: 100px;
                 width: 800px;
                 `}
@@ -156,6 +154,7 @@ function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
             },
           ]}
         />
+        <RestartDatabaseText link="https://goteleport.com/docs/enroll-resources/database-access/enroll-self-hosted-databases/postgres-self-hosted/#step-25-create-a-certificatekey-pair" />
       </Box>
     );
   }
@@ -244,6 +243,7 @@ function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
                       },
                     ]}
                   />
+                  <RestartDatabaseText link="https://goteleport.com/docs/enroll-resources/database-access/enroll-self-hosted-databases/mysql-self-hosted/#step-24-create-a-certificatekey-pair" />
                   <Text mt={2}>
                     See{' '}
                     <Link
@@ -274,6 +274,7 @@ function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
                       },
                     ]}
                   />
+                  <RestartDatabaseText link="https://goteleport.com/docs/enroll-resources/database-access/enroll-self-hosted-databases/mysql-self-hosted/#step-24-create-a-certificatekey-pair" />
                   <Text mt={2}>
                     See{' '}
                     <Link
@@ -293,3 +294,14 @@ function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
     );
   }
 }
+
+const RestartDatabaseText = ({ link }: { link: string }) => (
+  <Text mt={1}>
+    Restart the database server to apply the configuration. The certificate is
+    valid for 90 days so this will require installing an{' '}
+    <Link href={link} target="_blank">
+      updated certificate
+    </Link>{' '}
+    and restarting the database server before that to continue access.
+  </Text>
+);

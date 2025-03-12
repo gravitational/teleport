@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -32,6 +33,7 @@ import (
 	eksTypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/smithy-go/middleware"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -81,7 +83,6 @@ func TestEnrollEKSClusters(t *testing.T) {
 
 	ctx := context.Background()
 	proxyAddr := "https://example.com"
-	credsProvider := &mockCredentialsProvider{}
 	awsAccountID := "880713328506"
 	awsUserID := "AIDAJQABLZS4A3QDU576Q"
 	clustersBaseArn := "arn:aws:eks:us-east-1:880713328506:cluster/EKS"
@@ -90,22 +91,34 @@ func TestEnrollEKSClusters(t *testing.T) {
 
 	testEKSClusters := []eksTypes.Cluster{
 		{
-			Name:                 aws.String("EKS1"),
+			Name: aws.String("EKS1"),
+			ResourcesVpcConfig: &eksTypes.VpcConfigResponse{
+				EndpointPublicAccess: true,
+			},
 			Arn:                  aws.String(clustersBaseArn + "1"),
 			Tags:                 map[string]string{"label1": "value1"},
 			CertificateAuthority: &eksTypes.Certificate{Data: aws.String(testCAData)},
 			Status:               eksTypes.ClusterStatusActive,
+			AccessConfig: &eksTypes.AccessConfigResponse{
+				AuthenticationMode: eksTypes.AuthenticationModeApiAndConfigMap,
+			},
 		},
 		{
-			Name:                 aws.String("EKS2"),
+			Name: aws.String("EKS2"),
+			ResourcesVpcConfig: &eksTypes.VpcConfigResponse{
+				EndpointPublicAccess: true,
+			},
 			Arn:                  aws.String(clustersBaseArn + "2"),
 			Tags:                 map[string]string{"label2": "value2"},
 			CertificateAuthority: &eksTypes.Certificate{Data: aws.String(testCAData)},
 			Status:               eksTypes.ClusterStatusActive,
+			AccessConfig: &eksTypes.AccessConfigResponse{
+				AuthenticationMode: eksTypes.AuthenticationModeApiAndConfigMap,
+			},
 		},
 	}
 
-	baseClient := func(t *testing.T, clusters []eksTypes.Cluster) EnrollEKSCLusterClient {
+	baseClient := func(t *testing.T, clusters []eksTypes.Cluster) EnrollEKSClusterClient {
 		clt := &mockEnrollEKSClusterClient{}
 		clt.describeCluster = func(ctx context.Context, params *eks.DescribeClusterInput, optFns ...func(*eks.Options)) (*eks.DescribeClusterOutput, error) {
 			for _, cluster := range clusters {
@@ -131,16 +144,18 @@ func TestEnrollEKSClusters(t *testing.T) {
 		return clt
 	}
 	baseRequest := EnrollEKSClustersRequest{
-		Region:             "us-east-1",
-		AgentVersion:       "1.2.3",
-		EnableAppDiscovery: true,
+		Region:              "us-east-1",
+		AgentVersion:        "1.2.3",
+		EnableAppDiscovery:  true,
+		IntegrationName:     "my-integration",
+		TeleportClusterName: "my-teleport-cluster",
 	}
 
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
 
 	testCases := []struct {
 		name                string
-		enrollClient        func(*testing.T, []eksTypes.Cluster) EnrollEKSCLusterClient
+		enrollClient        func(*testing.T, []eksTypes.Cluster) EnrollEKSClusterClient
 		eksClusters         []eksTypes.Cluster
 		request             EnrollEKSClustersRequest
 		requestClusterNames []string
@@ -155,7 +170,8 @@ func TestEnrollEKSClusters(t *testing.T) {
 			responseCheck: func(t *testing.T, response *EnrollEKSClusterResponse) {
 				require.Len(t, response.Results, 1)
 				require.Equal(t, "EKS1", response.Results[0].ClusterName)
-				require.Empty(t, response.Results[0].Error)
+				require.NoError(t, response.Results[0].Error)
+				require.Empty(t, response.Results[0].IssueType)
 				require.NotEmpty(t, response.Results[0].ResourceId)
 			},
 		},
@@ -171,10 +187,12 @@ func TestEnrollEKSClusters(t *testing.T) {
 					return strings.Compare(a.ClusterName, b.ClusterName)
 				})
 				require.Equal(t, "EKS1", response.Results[0].ClusterName)
-				require.Empty(t, response.Results[0].Error)
+				require.NoError(t, response.Results[0].Error)
+				require.Empty(t, response.Results[0].IssueType)
 				require.NotEmpty(t, response.Results[0].ResourceId)
 				require.Equal(t, "EKS2", response.Results[1].ClusterName)
-				require.Empty(t, response.Results[1].Error)
+				require.NoError(t, response.Results[1].Error)
+				require.Empty(t, response.Results[1].IssueType)
 				require.NotEmpty(t, response.Results[1].ResourceId)
 			},
 		},
@@ -227,11 +245,99 @@ func TestEnrollEKSClusters(t *testing.T) {
 				require.Len(t, response.Results, 1)
 				require.ErrorContains(t, response.Results[0].Error,
 					`can't enroll EKS cluster "EKS1" - expected "ACTIVE" state, got "PENDING".`)
+				require.Equal(t, "eks-status-not-active", response.Results[0].IssueType)
+			},
+		},
+		{
+			name:         "cluster with CONFIG_MAP authentication mode is not enrolled",
+			enrollClient: baseClient,
+			eksClusters: []eksTypes.Cluster{
+				{
+					Name:                 aws.String("EKS1"),
+					Arn:                  aws.String(clustersBaseArn + "1"),
+					Tags:                 map[string]string{"label1": "value1"},
+					CertificateAuthority: &eksTypes.Certificate{Data: aws.String(testCAData)},
+					Status:               eksTypes.ClusterStatusActive,
+					AccessConfig: &eksTypes.AccessConfigResponse{
+						AuthenticationMode: eksTypes.AuthenticationModeConfigMap,
+					},
+				},
+			},
+			request:             baseRequest,
+			requestClusterNames: []string{"EKS1"},
+			responseCheck: func(t *testing.T, response *EnrollEKSClusterResponse) {
+				require.Len(t, response.Results, 1)
+				require.ErrorContains(t, response.Results[0].Error,
+					`can't enroll "EKS1" because its access config's authentication mode is "CONFIG_MAP", only [API API_AND_CONFIG_MAP] are supported`)
+				require.Equal(t, "eks-authentication-mode-unsupported", response.Results[0].IssueType)
+			},
+		},
+		{
+			name:         "private cluster in cloud is not enrolled",
+			enrollClient: baseClient,
+			eksClusters: []eksTypes.Cluster{
+				{
+					Name: aws.String("EKS3"),
+					ResourcesVpcConfig: &eksTypes.VpcConfigResponse{
+						EndpointPublicAccess: false,
+					},
+					Arn:                  aws.String(clustersBaseArn + "3"),
+					Tags:                 map[string]string{"label3": "value3"},
+					CertificateAuthority: &eksTypes.Certificate{Data: aws.String(testCAData)},
+					Status:               eksTypes.ClusterStatusActive,
+					AccessConfig: &eksTypes.AccessConfigResponse{
+						AuthenticationMode: eksTypes.AuthenticationModeApiAndConfigMap,
+					},
+				},
+			},
+			request: EnrollEKSClustersRequest{
+				Region:              "us-east-1",
+				AgentVersion:        "1.2.3",
+				IsCloud:             true,
+				IntegrationName:     "my-integration",
+				TeleportClusterName: "my-teleport-cluster",
+			},
+			requestClusterNames: []string{"EKS3"},
+			responseCheck: func(t *testing.T, response *EnrollEKSClusterResponse) {
+				require.Len(t, response.Results, 1)
+				require.ErrorContains(t, response.Results[0].Error,
+					`can't enroll "EKS3" because it is not accessible from Teleport Cloud, please enable endpoint public access in your EKS cluster and try again.`)
+				require.Equal(t, "eks-missing-endpoint-public-access", response.Results[0].IssueType)
+			},
+		},
+		{
+			name:         "private cluster not in cloud is enrolled",
+			enrollClient: baseClient,
+			eksClusters: []eksTypes.Cluster{
+				{
+					Name: aws.String("EKS3"),
+					ResourcesVpcConfig: &eksTypes.VpcConfigResponse{
+						EndpointPublicAccess: false,
+					},
+					Arn:                  aws.String(clustersBaseArn + "3"),
+					Tags:                 map[string]string{"label3": "value3"},
+					CertificateAuthority: &eksTypes.Certificate{Data: aws.String(testCAData)},
+					Status:               eksTypes.ClusterStatusActive,
+					AccessConfig: &eksTypes.AccessConfigResponse{
+						AuthenticationMode: eksTypes.AuthenticationModeApiAndConfigMap,
+					},
+				},
+			},
+			request: EnrollEKSClustersRequest{
+				Region:              "us-east-1",
+				AgentVersion:        "1.2.3",
+				IntegrationName:     "my-integration",
+				TeleportClusterName: "my-teleport-cluster",
+			},
+			requestClusterNames: []string{"EKS3"},
+			responseCheck: func(t *testing.T, response *EnrollEKSClusterResponse) {
+				require.Len(t, response.Results, 1)
+				require.NoError(t, response.Results[0].Error)
 			},
 		},
 		{
 			name: "cluster with already present agent is not enrolled",
-			enrollClient: func(t *testing.T, clusters []eksTypes.Cluster) EnrollEKSCLusterClient {
+			enrollClient: func(t *testing.T, clusters []eksTypes.Cluster) EnrollEKSClusterClient {
 				clt := baseClient(t, clusters)
 				mockClt, ok := clt.(*mockEnrollEKSClusterClient)
 				require.True(t, ok)
@@ -247,11 +353,12 @@ func TestEnrollEKSClusters(t *testing.T) {
 				require.Len(t, response.Results, 1)
 				require.ErrorContains(t, response.Results[0].Error,
 					`teleport-kube-agent is already installed on the cluster "EKS1"`)
+				require.Equal(t, "eks-agent-not-connecting", response.Results[0].IssueType)
 			},
 		},
 		{
 			name: "if access entry is already present we don't create another one and don't delete it",
-			enrollClient: func(t *testing.T, clusters []eksTypes.Cluster) EnrollEKSCLusterClient {
+			enrollClient: func(t *testing.T, clusters []eksTypes.Cluster) EnrollEKSClusterClient {
 				clt := baseClient(t, clusters)
 				mockClt, ok := clt.(*mockEnrollEKSClusterClient)
 				require.True(t, ok)
@@ -288,7 +395,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 			}
 
 			response, err := EnrollEKSClusters(
-				ctx, utils.NewSlogLoggerForTests().With("test", t.Name()), clock, proxyAddr, credsProvider, tc.enrollClient(t, tc.eksClusters), req)
+				ctx, utils.NewSlogLoggerForTests().With("test", t.Name()), clock, proxyAddr, tc.enrollClient(t, tc.eksClusters), req)
 			require.NoError(t, err)
 
 			tc.responseCheck(t, response)
@@ -302,8 +409,10 @@ func TestEnrollEKSClusters(t *testing.T) {
 		mockClt, ok := client.(*mockEnrollEKSClusterClient)
 		require.True(t, ok)
 		createCalled, deleteCalled := false, false
+		createTags := make(map[string]string)
 		mockClt.createAccessEntry = func(ctx context.Context, input *eks.CreateAccessEntryInput, f ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error) {
 			createCalled = true
+			createTags = maps.Clone(input.Tags)
 			return nil, nil
 		}
 		mockClt.deleteAccessEntry = func(ctx context.Context, input *eks.DeleteAccessEntryInput, f ...func(*eks.Options)) (*eks.DeleteAccessEntryOutput, error) {
@@ -312,24 +421,27 @@ func TestEnrollEKSClusters(t *testing.T) {
 		}
 
 		response, err := EnrollEKSClusters(
-			ctx, utils.NewSlogLoggerForTests().With("test", t.Name()), clock, proxyAddr, credsProvider, mockClt, req)
+			ctx, utils.NewSlogLoggerForTests().With("test", t.Name()), clock, proxyAddr, mockClt, req)
 		require.NoError(t, err)
 		require.Len(t, response.Results, 1)
 		require.Equal(t, "EKS1", response.Results[0].ClusterName)
 		require.True(t, createCalled)
+		require.Equal(t, map[string]string{
+			"teleport.dev/cluster":     "my-teleport-cluster",
+			"teleport.dev/integration": "my-integration",
+			"teleport.dev/origin":      "integration_awsoidc",
+		}, createTags)
 		require.True(t, deleteCalled)
 	})
 }
 
 func TestGetKubeClientGetter(t *testing.T) {
-	credsProvider := &mockCredentialsProvider{}
 	testCAData := "VGVzdENBREFUQQ=="
 
 	testCases := []struct {
 		endpoint      string
 		region        string
 		caData        string
-		timestamp     time.Time
 		expectedToken string
 		errorCheck    require.ErrorAssertionFunc
 	}{
@@ -337,35 +449,30 @@ func TestGetKubeClientGetter(t *testing.T) {
 			endpoint:      "https://test.example.com",
 			region:        "us-east-1",
 			caData:        testCAData,
-			timestamp:     time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
-			expectedToken: "k8s-aws-v1.aHR0cHM6Ly9zdHMuYW1hem9uYXdzLmNvbS8_QWN0aW9uPUdldENhbGxlcklkZW50aXR5JlZlcnNpb249MjAxMS0wNi0xNSZYLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPSUyRjIwMjMwMTAxJTJGdXMtZWFzdC0xJTJGc3RzJTJGYXdzNF9yZXF1ZXN0JlgtQW16LURhdGU9MjAyMzAxMDFUMDAwMDAwWiZYLUFtei1FeHBpcmVzPTYwJlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCUzQngtazhzLWF3cy1pZCZYLUFtei1TaWduYXR1cmU9N2RiNWZlMWNjNDBhNzc4MTQ2MWJkMzkzMmE2NzBhNmVhNDFhNDNlZjEwZWQxZjMzNDE3NjI1ZDhkMTQ1Njg4NQ",
+			expectedToken: "k8s-aws-v1.cHJlc2lnbmVkVVJM",
 		},
 		{
 			endpoint:      "https://test2.example.com",
 			region:        "us-east-1",
 			caData:        testCAData,
-			timestamp:     time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
-			expectedToken: "k8s-aws-v1.aHR0cHM6Ly9zdHMuYW1hem9uYXdzLmNvbS8_QWN0aW9uPUdldENhbGxlcklkZW50aXR5JlZlcnNpb249MjAxMS0wNi0xNSZYLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPSUyRjIwMjMwMTAxJTJGdXMtZWFzdC0xJTJGc3RzJTJGYXdzNF9yZXF1ZXN0JlgtQW16LURhdGU9MjAyMzAxMDFUMDAwMDAwWiZYLUFtei1FeHBpcmVzPTYwJlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCUzQngtazhzLWF3cy1pZCZYLUFtei1TaWduYXR1cmU9N2RiNWZlMWNjNDBhNzc4MTQ2MWJkMzkzMmE2NzBhNmVhNDFhNDNlZjEwZWQxZjMzNDE3NjI1ZDhkMTQ1Njg4NQ",
+			expectedToken: "k8s-aws-v1.cHJlc2lnbmVkVVJM",
 		},
 		{
 			endpoint:      "https://test.example.com",
 			region:        "us-east-2",
 			caData:        testCAData,
-			timestamp:     time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
-			expectedToken: "k8s-aws-v1.aHR0cHM6Ly9zdHMuYW1hem9uYXdzLmNvbS8_QWN0aW9uPUdldENhbGxlcklkZW50aXR5JlZlcnNpb249MjAxMS0wNi0xNSZYLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPSUyRjIwMjMwMTAxJTJGdXMtZWFzdC0yJTJGc3RzJTJGYXdzNF9yZXF1ZXN0JlgtQW16LURhdGU9MjAyMzAxMDFUMDAwMDAwWiZYLUFtei1FeHBpcmVzPTYwJlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCUzQngtazhzLWF3cy1pZCZYLUFtei1TaWduYXR1cmU9ZmE2MGNiYjRlMGNkYTNhMDU5ZmRlNWMwNjgzMGZlYTc4NTVkNTcwMTg4MWE4MzMzNmIwYjg0MjliYWIyMGYwNQ",
+			expectedToken: "k8s-aws-v1.cHJlc2lnbmVkVVJM",
 		},
 		{
 			endpoint:      "https://test.example.com",
 			region:        "us-east-1",
 			caData:        testCAData,
-			timestamp:     time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
-			expectedToken: "k8s-aws-v1.aHR0cHM6Ly9zdHMuYW1hem9uYXdzLmNvbS8_QWN0aW9uPUdldENhbGxlcklkZW50aXR5JlZlcnNpb249MjAxMS0wNi0xNSZYLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPSUyRjIwMjIwMTAxJTJGdXMtZWFzdC0xJTJGc3RzJTJGYXdzNF9yZXF1ZXN0JlgtQW16LURhdGU9MjAyMjAxMDFUMDAwMDAwWiZYLUFtei1FeHBpcmVzPTYwJlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCUzQngtazhzLWF3cy1pZCZYLUFtei1TaWduYXR1cmU9YmE3ZTA5ZTcyZTUzNDIzNjRiNDZlZmQzOTViNmU1MjU5YWU1YmFjMTY1YmViYWVmNDMyZDA5MmVmZWI0ZDBkOA",
+			expectedToken: "k8s-aws-v1.cHJlc2lnbmVkVVJM",
 		},
 		{
 			endpoint:      "https://test.example.com",
 			region:        "us-east-1",
 			caData:        "badCA",
-			timestamp:     time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
 			expectedToken: "",
 			errorCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "illegal base64 data")
@@ -375,7 +482,7 @@ func TestGetKubeClientGetter(t *testing.T) {
 
 	for c, tc := range testCases {
 		t.Run(fmt.Sprintf("test#%d", c), func(t *testing.T) {
-			config, err := getKubeClientGetter(context.Background(), tc.timestamp, credsProvider, "EKS1", tc.region, tc.caData, tc.endpoint)
+			config, err := getKubeClientGetter("presignedURL", tc.caData, tc.endpoint)
 
 			if tc.errorCheck == nil {
 				cfg, err := config.ToRESTConfig()
@@ -438,26 +545,17 @@ func TestGetAccessEntryPrincipalArn(t *testing.T) {
 	}
 }
 
-// mockCredentialsProvider mocks AWS credentials.Provider interface.
-type mockCredentialsProvider struct {
-	retrieveValue aws.Credentials
-	retrieveError error
-}
-
-func (m *mockCredentialsProvider) Retrieve(ctx context.Context) (aws.Credentials, error) {
-	return m.retrieveValue, m.retrieveError
-}
-
 type mockEnrollEKSClusterClient struct {
-	createAccessEntry          func(context.Context, *eks.CreateAccessEntryInput, ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error)
-	associateAccessPolicy      func(context.Context, *eks.AssociateAccessPolicyInput, ...func(*eks.Options)) (*eks.AssociateAccessPolicyOutput, error)
-	listAccessEntries          func(context.Context, *eks.ListAccessEntriesInput, ...func(*eks.Options)) (*eks.ListAccessEntriesOutput, error)
-	deleteAccessEntry          func(context.Context, *eks.DeleteAccessEntryInput, ...func(*eks.Options)) (*eks.DeleteAccessEntryOutput, error)
-	describeCluster            func(context.Context, *eks.DescribeClusterInput, ...func(*eks.Options)) (*eks.DescribeClusterOutput, error)
-	getCallerIdentity          func(context.Context, *sts.GetCallerIdentityInput, ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
-	checkAgentAlreadyInstalled func(context.Context, genericclioptions.RESTClientGetter, *slog.Logger) (bool, error)
-	installKubeAgent           func(context.Context, *eksTypes.Cluster, string, string, string, genericclioptions.RESTClientGetter, *slog.Logger, EnrollEKSClustersRequest) error
-	createToken                func(ctx context.Context, token types.ProvisionToken) error
+	createAccessEntry           func(context.Context, *eks.CreateAccessEntryInput, ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error)
+	associateAccessPolicy       func(context.Context, *eks.AssociateAccessPolicyInput, ...func(*eks.Options)) (*eks.AssociateAccessPolicyOutput, error)
+	listAccessEntries           func(context.Context, *eks.ListAccessEntriesInput, ...func(*eks.Options)) (*eks.ListAccessEntriesOutput, error)
+	deleteAccessEntry           func(context.Context, *eks.DeleteAccessEntryInput, ...func(*eks.Options)) (*eks.DeleteAccessEntryOutput, error)
+	describeCluster             func(context.Context, *eks.DescribeClusterInput, ...func(*eks.Options)) (*eks.DescribeClusterOutput, error)
+	getCallerIdentity           func(context.Context, *sts.GetCallerIdentityInput, ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
+	checkAgentAlreadyInstalled  func(context.Context, genericclioptions.RESTClientGetter, *slog.Logger) (bool, error)
+	installKubeAgent            func(context.Context, *eksTypes.Cluster, string, string, string, genericclioptions.RESTClientGetter, *slog.Logger, EnrollEKSClustersRequest) error
+	createToken                 func(ctx context.Context, token types.ProvisionToken) error
+	presignGetCallerIdentityURL func(ctx context.Context, clusterName string) (string, error)
 }
 
 func (m *mockEnrollEKSClusterClient) CreateAccessEntry(ctx context.Context, params *eks.CreateAccessEntryInput, optFns ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error) {
@@ -523,4 +621,37 @@ func (m *mockEnrollEKSClusterClient) CreateToken(ctx context.Context, token type
 	return nil
 }
 
-var _ EnrollEKSCLusterClient = &mockEnrollEKSClusterClient{}
+func (m *mockEnrollEKSClusterClient) PresignGetCallerIdentityURL(ctx context.Context, clusterName string) (string, error) {
+	if m.presignGetCallerIdentityURL != nil {
+		return m.presignGetCallerIdentityURL(ctx, clusterName)
+	}
+	return "", nil
+}
+
+var _ EnrollEKSClusterClient = &mockEnrollEKSClusterClient{}
+
+func TestKubeAgentLabels(t *testing.T) {
+	kubeClusterLabels := map[string]string{
+		"priority": "yes",
+		"region":   "us-east-1",
+	}
+	resourceID := uuid.NewString()
+	extraLabels := map[string]string{
+		"priority": "no",
+		"custom":   "yes",
+	}
+
+	got := kubeAgentLabels(
+		&types.KubernetesClusterV3{Metadata: types.Metadata{Labels: kubeClusterLabels}},
+		resourceID,
+		extraLabels,
+	)
+
+	expectedLabels := map[string]string{
+		"priority":                      "yes",
+		"region":                        "us-east-1",
+		"custom":                        "yes",
+		"teleport.internal/resource-id": resourceID,
+	}
+	require.Equal(t, expectedLabels, got)
+}

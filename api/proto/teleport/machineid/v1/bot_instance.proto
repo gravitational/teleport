@@ -20,6 +20,7 @@ import "google/protobuf/duration.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/metadata.proto";
+import "teleport/workloadidentity/v1/join_attrs.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1";
 
@@ -89,12 +90,16 @@ message BotInstanceStatusAuthentication {
   // Server.
   google.protobuf.Timestamp authenticated_at = 1;
   // The join method used for this join or renewal.
+  // Deprecated: prefer using join_attrs.meta.join_method
   string join_method = 2;
   // The join token used for this join or renewal. This is only populated for
   // delegated join methods as the value for `token` join methods is sensitive.
+  // Deprecated: prefer using join_attrs.meta.join_token_name
   string join_token = 3;
   // The metadata sourced from the join method.
+  // Deprecated: prefer using join_attrs.
   google.protobuf.Struct metadata = 4;
+
   // On each renewal, this generation is incremented. For delegated join
   // methods, this counter is not checked during renewal. For the `token` join
   // method, this counter is checked during renewal and the Bot is locked out if
@@ -108,6 +113,11 @@ message BotInstanceStatusAuthentication {
 
   reserved 7;
   reserved "fingerprint";
+
+  // The attributes generated during the join process. Typically, this is
+  // information from the join attestation process itself. This field will
+  // eventually replace the `metadata` field, which is structureless.
+  teleport.workloadidentity.v1.JoinAttrs join_attrs = 8;
 }
 
 // BotInstanceStatus holds the status of a BotInstance.

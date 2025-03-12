@@ -16,16 +16,18 @@ package msteams
 
 import (
 	"context"
+	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/accessmonitoring"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
-	"github.com/gravitational/teleport/integrations/lib/logger"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 	"github.com/gravitational/teleport/integrations/lib/stringset"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
@@ -40,25 +42,30 @@ const (
 	// initTimeout is used to bound execution time of health check and teleport version check.
 	initTimeout = time.Second * 10
 	// handlerTimeout is used to bound the execution time of watcher event handler.
-	handlerTimeout = time.Second * 5
+	handlerTimeout = time.Second * 15
 )
 
 // App contains global application state.
 type App struct {
 	conf Config
 
-	apiClient  teleport.Client
-	bot        *Bot
-	mainJob    lib.ServiceJob
-	watcherJob lib.ServiceJob
-	pd         *pd.CompareAndSwap[PluginData]
+	apiClient             teleport.Client
+	bot                   *Bot
+	mainJob               lib.ServiceJob
+	watcherJob            lib.ServiceJob
+	pd                    *pd.CompareAndSwap[PluginData]
+	log                   *slog.Logger
+	accessMonitoringRules *accessmonitoring.RuleHandler
 
 	*lib.Process
 }
 
 // NewApp initializes a new teleport-msteams app and returns it.
 func NewApp(conf Config) (*App, error) {
-	app := &App{conf: conf}
+	app := &App{
+		conf: conf,
+		log:  slog.With("plugin", pluginName),
+	}
 
 	app.mainJob = lib.NewServiceJob(app.run)
 
@@ -67,8 +74,7 @@ func NewApp(conf Config) (*App, error) {
 
 // Run starts the main job process
 func (a *App) Run(ctx context.Context) error {
-	log := logger.Get(ctx)
-	log.Info("Starting Teleport MS Teams Plugin")
+	a.log.InfoContext(ctx, "Starting Teleport MS Teams Plugin")
 
 	err := a.init(ctx)
 	if err != nil {
@@ -76,13 +82,11 @@ func (a *App) Run(ctx context.Context) error {
 	}
 
 	a.Process = lib.NewProcess(ctx)
-	a.watcherJob, err = a.newWatcherJob()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	a.SpawnCriticalJob(a.mainJob)
-	a.SpawnCriticalJob(a.watcherJob)
 
 	select {
 	case <-ctx.Done():
@@ -107,10 +111,14 @@ func (a *App) init(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, initTimeout)
 	defer cancel()
 
-	var err error
-	a.apiClient, err = common.GetTeleportClient(ctx, a.conf.Teleport)
-	if err != nil {
-		return trace.Wrap(err)
+	if a.conf.Client != nil {
+		a.apiClient = a.conf.Client
+	} else {
+		var err error
+		a.apiClient, err = common.GetTeleportClient(ctx, a.conf.Teleport)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	a.pd = pd.NewCAS(
@@ -131,18 +139,21 @@ func (a *App) init(ctx context.Context) error {
 		webProxyAddr = pong.ProxyPublicAddr
 	}
 
-	a.bot, err = NewBot(a.conf.MSAPI, pong.ClusterName, webProxyAddr)
+	a.bot, err = NewBot(&a.conf, pong.ClusterName, webProxyAddr, a.log)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	a.accessMonitoringRules = accessmonitoring.NewRuleHandler(accessmonitoring.RuleHandlerConfig{
+		Client:     a.apiClient,
+		PluginName: pluginName,
+	})
 
 	return a.initBot(ctx)
 }
 
 // initBot initializes bot
 func (a *App) initBot(ctx context.Context) error {
-	log := logger.Get(ctx)
-
 	teamsApp, err := a.bot.GetTeamsApp(ctx)
 	if trace.IsNotFound(err) {
 		return trace.Wrap(err, "MS Teams app not found in org app store.")
@@ -151,59 +162,91 @@ func (a *App) initBot(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	log.WithField("name", teamsApp.DisplayName).
-		WithField("id", teamsApp.ID).
-		Info("MS Teams app found in org app store")
+	a.log.InfoContext(ctx, "MS Teams app found in org app store",
+		"name", teamsApp.DisplayName,
+		"id", teamsApp.ID)
+
+	if err := a.bot.CheckHealth(ctx); err != nil {
+
+		a.log.WarnContext(ctx, "MS Teams healthcheck failed",
+			"name", teamsApp.DisplayName,
+			"id", teamsApp.ID)
+	}
 
 	if !a.conf.Preload {
 		return nil
 	}
 
-	log.Info("Preloading recipient data...")
+	a.log.InfoContext(ctx, "Preloading recipient data...")
 
 	for _, recipient := range a.conf.Recipients.GetAllRawRecipients() {
 		recipientData, err := a.bot.FetchRecipient(ctx, recipient)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		log.WithField("recipient", recipient).
-			WithField("chat_id", recipientData.Chat.ID).
-			WithField("kind", recipientData.Kind).
-			Info("Recipient found, chat found")
+		a.log.InfoContext(ctx, "Recipient and chat found",
+			slog.Group("recipient",
+				"raw", recipient,
+				"recipient_chat_id", recipientData.Chat.ID,
+				"recipient_kind", recipientData.Kind,
+			),
+		)
 	}
 
-	log.Info("Recipient data preloaded and cached.")
+	a.log.InfoContext(ctx, "Recipient data preloaded and cached")
 
 	return nil
 }
 
-// newWatcherJob creates WatcherJob
-func (a *App) newWatcherJob() (lib.ServiceJob, error) {
-	return watcherjob.NewJob(
+// run starts the main process
+func (a *App) run(ctx context.Context) error {
+	watchKinds := []types.WatchKind{
+		{Kind: types.KindAccessRequest},
+		{Kind: types.KindAccessMonitoringRule},
+	}
+	acceptedWatchKinds := make([]string, 0, len(watchKinds))
+	watcherJob, err := watcherjob.NewJobWithConfirmedWatchKinds(
 		a.apiClient,
 		watcherjob.Config{
-			Watch: types.Watch{
-				Kinds: []types.WatchKind{{Kind: types.KindAccessRequest}},
-			},
+			Watch:            types.Watch{Kinds: watchKinds, AllowPartialSuccess: true},
 			EventFuncTimeout: handlerTimeout,
 		},
 		a.onWatcherEvent,
+		func(ws types.WatchStatus) {
+			for _, watchKind := range ws.GetKinds() {
+				acceptedWatchKinds = append(acceptedWatchKinds, watchKind.Kind)
+			}
+		},
 	)
-}
-
-// run starts the main process
-func (a *App) run(ctx context.Context) error {
-	log := logger.Get(ctx)
-
-	ok, err := a.watcherJob.WaitReady(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	process := lib.MustGetProcess(ctx)
+	process.SpawnCriticalJob(watcherJob)
+
+	ok, err := watcherJob.WaitReady(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(acceptedWatchKinds) == 0 {
+		return trace.BadParameter("failed to initialize watcher for all the required resources: %+v",
+			watchKinds)
+	}
+	// Check if KindAccessMonitoringRule resources are being watched,
+	// the role the plugin is running as may not have access.
+	if slices.Contains(acceptedWatchKinds, types.KindAccessMonitoringRule) {
+		if err := a.accessMonitoringRules.InitAccessMonitoringRulesCache(ctx); err != nil {
+			return trace.Wrap(err, "initializing Access Monitoring Rule cache")
+		}
+	}
+
+	a.watcherJob = watcherJob
+	a.watcherJob.SetReady(ok)
 	if ok {
-		log.Info("Plugin is ready")
+		a.log.InfoContext(ctx, "Plugin is ready")
 	} else {
-		log.Error("Plugin is not ready")
+		a.log.ErrorContext(ctx, "Plugin is not ready")
 	}
 
 	a.mainJob.SetReady(ok)
@@ -215,8 +258,7 @@ func (a *App) run(ctx context.Context) error {
 
 // checkTeleportVersion loads Teleport version and checks that it meets the minimal required
 func (a *App) checkTeleportVersion(ctx context.Context) (proto.PingResponse, error) {
-	log := logger.Get(ctx)
-	log.Debug("Checking Teleport server version")
+	a.log.DebugContext(ctx, "Checking Teleport server version")
 
 	pong, err := a.apiClient.Ping(ctx)
 	if err != nil {
@@ -224,11 +266,11 @@ func (a *App) checkTeleportVersion(ctx context.Context) (proto.PingResponse, err
 			return pong, trace.Wrap(err, "server version must be at least %s", minServerVersion)
 		}
 
-		log.Error("Unable to get Teleport server version")
+		a.log.ErrorContext(ctx, "Unable to get Teleport server version")
 		return pong, trace.Wrap(err)
 	}
 
-	err = utils.CheckVersion(pong.ServerVersion, minServerVersion)
+	err = utils.CheckMinVersion(pong.ServerVersion, minServerVersion)
 
 	return pong, trace.Wrap(err)
 }
@@ -236,54 +278,54 @@ func (a *App) checkTeleportVersion(ctx context.Context) (proto.PingResponse, err
 // onWatcherEvent called when an access request event is received
 func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 	kind := event.Resource.GetKind()
+	if kind == types.KindAccessMonitoringRule {
+		return trace.Wrap(a.accessMonitoringRules.HandleAccessMonitoringRule(ctx, event))
+	}
+
 	if kind != types.KindAccessRequest {
 		return trace.Errorf("unexpected kind %s", kind)
 	}
 
 	op := event.Type
 	reqID := event.Resource.GetName()
-	ctx, _ = logger.WithField(ctx, "request_id", reqID)
+	log := a.log.With("request_id", reqID, "request_op", op.String())
 
 	switch op {
 	case types.OpPut:
-		ctx, _ = logger.WithField(ctx, "request_op", "put")
 		req, ok := event.Resource.(types.AccessRequest)
 		if !ok {
 			return trace.Errorf("unexpected resource type %T", event.Resource)
 		}
-		ctx, log := logger.WithField(ctx, "request_state", req.GetState().String())
-
+		log = log.With("request_state", req.GetState().String())
 		var err error
 
 		switch {
 		case req.GetState().IsPending():
-			log.Debug("Pending request received")
+			log.DebugContext(ctx, "Pending request received")
 			err = a.onPendingRequest(ctx, req)
 		case req.GetState().IsApproved():
-			log.Debug("Approval request received")
+			log.DebugContext(ctx, "Approval request received")
 			err = a.onResolvedRequest(ctx, req)
 		case req.GetState().IsDenied():
-			log.Debug("Denial request received")
+			log.DebugContext(ctx, "Denial request received")
 			err = a.onResolvedRequest(ctx, req)
 		default:
-			log.WithField("event", event).Warn("Unknown request state")
+			log.WarnContext(ctx, "Unknown request state", "event", event)
 			return nil
 		}
 
 		if err != nil {
-			log.WithError(err).Errorf("Failed to process request")
+			log.ErrorContext(ctx, "Failed to process request", "error", err)
 			return trace.Wrap(err)
 		}
 
 		return nil
 
 	case types.OpDelete:
-		ctx, log := logger.WithField(ctx, "request_op", "delete")
-
-		log.Debug("Expiration request received")
+		log.DebugContext(ctx, "Expiration request received")
 
 		if err := a.onDeletedRequest(ctx, reqID); err != nil {
-			log.WithError(err).Errorf("Failed to process deleted request")
+			log.ErrorContext(ctx, "Failed to process delete request", "error", err)
 			return trace.Wrap(err)
 		}
 		return nil
@@ -294,14 +336,15 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 
 // onPendingRequest is called when there's a new request or a review
 func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) error {
-	log := logger.Get(ctx)
-
 	id := req.GetName()
 	data := pd.AccessRequestData{
 		User:          req.GetUser(),
 		Roles:         req.GetRoles(),
 		RequestReason: req.GetRequestReason(),
 	}
+
+	log := a.log.With("request_id", id)
+	log.DebugContext(ctx, "Claiming access request", "user", req.GetUser(), "roles", req.GetRoles(), "reason", req.GetRequestReason())
 
 	// Let's try to create PluginData. This equals to locking AccessRequest to this
 	// instance of a plugin.
@@ -312,25 +355,30 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		log.DebugContext(ctx, "Access request claimed")
 
 		recipients := a.getMessageRecipients(ctx, req)
 
 		if len(recipients) == 0 {
-			log.Warning("No recipients to notify")
+			log.WarnContext(ctx, "No recipients to notify")
 		} else {
 			err = a.postMessages(ctx, recipients, id, data)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 		}
+	} else {
+		log.DebugContext(ctx, "Access request already claimed, skipping initial message posting")
 	}
 
 	// Update the received reviews
 	reviews := req.GetReviews()
 	if len(reviews) == 0 {
+		log.DebugContext(ctx, "No access request reviews to process")
 		return nil
 	}
 
+	log.DebugContext(ctx, "Processing access request reviews", "review_count", len(reviews))
 	err = a.postReviews(ctx, id, reviews)
 	if err != nil {
 		return trace.Wrap(err)
@@ -343,15 +391,18 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 func (a *App) onResolvedRequest(ctx context.Context, req types.AccessRequest) error {
 	var tag pd.ResolutionTag
 	state := req.GetState()
+
+	log := a.log.With("request_id", req.GetName(), "request_state", state.String())
 	switch state {
 	case types.RequestState_APPROVED:
 		tag = pd.ResolvedApproved
 	case types.RequestState_DENIED:
 		tag = pd.ResolvedDenied
 	default:
-		logger.Get(ctx).Warningf("Unknown state %v (%s)", state, state.String())
+		log.WarnContext(ctx, "Unknown request state")
 		return trace.Errorf("Unknown state")
 	}
+	log.DebugContext(ctx, "Updating messages to mark the request resolved")
 	err := a.updateMessages(ctx, req.GetName(), tag, req.GetResolveReason(), req.GetReviews())
 	if err != nil {
 		return trace.Wrap(err)
@@ -361,6 +412,7 @@ func (a *App) onResolvedRequest(ctx context.Context, req types.AccessRequest) er
 
 // onDeleteRequest gets called when a request is deleted
 func (a *App) onDeletedRequest(ctx context.Context, reqID string) error {
+	a.log.DebugContext(ctx, "Updating messages to mark the request deleted/expired", "request_id", reqID, "request_state", pd.ResolvedExpired)
 	return a.updateMessages(ctx, reqID, pd.ResolvedExpired, "", nil)
 }
 
@@ -369,19 +421,17 @@ func (a *App) postMessages(ctx context.Context, recipients []string, id string, 
 	teamsData, err := a.bot.PostMessages(ctx, recipients, id, data)
 	if err != nil {
 		if len(teamsData) == 0 {
-			// TODO: add better logging here
+			a.log.ErrorContext(ctx, "Failed to post all messages to MS Teams")
 			return trace.Wrap(err)
 		}
-
-		logger.Get(ctx).WithError(err).Error("Failed to post one or more messages to MS Teams")
+		a.log.ErrorContext(ctx, "Failed to post one or more messages to MS Teams, continuing")
 	}
 
 	for _, data := range teamsData {
-		logger.Get(ctx).WithFields(logger.Fields{
-			"id":        data.ID,
-			"timestamp": data.Timestamp,
-			"recipient": data.RecipientID,
-		}).Info("Successfully posted to MS Teams")
+		a.log.InfoContext(ctx, "Successfully posted to MS Teams",
+			"id", data.ID,
+			"timestamp", data.Timestamp,
+			"recipient", data.RecipientID)
 	}
 
 	// Let's update sent messages data
@@ -395,6 +445,7 @@ func (a *App) postMessages(ctx context.Context, recipients []string, id string, 
 
 // postReviews updates a message with reviews
 func (a *App) postReviews(ctx context.Context, id string, reviews []types.AccessReview) error {
+	a.log.DebugContext(ctx, "Looking for reviews that need to be posted", "review_count", len(reviews))
 	pluginData, err := a.pd.Update(ctx, id, func(existing PluginData) (PluginData, error) {
 		teamsData := existing.TeamsData
 		if len(teamsData) == 0 {
@@ -428,8 +479,6 @@ func (a *App) postReviews(ctx context.Context, id string, reviews []types.Access
 
 // updateMessages updates the messages status and adds the resolve reason.
 func (a *App) updateMessages(ctx context.Context, reqID string, tag pd.ResolutionTag, reason string, reviews []types.AccessReview) error {
-	log := logger.Get(ctx)
-
 	pluginData, err := a.pd.Update(ctx, reqID, func(existing PluginData) (PluginData, error) {
 		// No teamsData found in the plugin data. This might be because of a race condition
 		// (messages not sent yet) or because sending failed (msapi error or no recipient)
@@ -458,35 +507,38 @@ func (a *App) updateMessages(ctx context.Context, reqID string, tag pd.Resolutio
 		return trace.Wrap(err)
 	}
 
-	log.Infof("Successfully marked request as %s in all messages", tag)
+	a.log.InfoContext(ctx, "Successfully updated all messages with the resolution", "resolution_tag", tag)
 
 	return nil
 }
 
 // getMessageRecipients returns a recipients list for the access request
 func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest) []string {
-	log := logger.Get(ctx)
-
 	// We receive a set from GetRawRecipientsFor but we still might end up with duplicate channel names.
 	// This can happen if this set contains the channel `C` and the email for channel `C`.
 	recipientSet := stringset.New()
+	a.log.DebugContext(ctx, "Getting suggested reviewer recipients")
+	accessRuleRecipients := a.accessMonitoringRules.RawRecipientsFromAccessMonitoringRules(ctx, req)
+	if len(accessRuleRecipients) != 0 {
+		return accessRuleRecipients
+	}
 
 	var validEmailsSuggReviewers []string
 	for _, reviewer := range req.GetSuggestedReviewers() {
 		if !lib.IsEmail(reviewer) {
-			log.Warningf("Failed to notify a suggested reviewer: %q does not look like a valid email", reviewer)
+			a.log.WarnContext(ctx, "Failed to notify a suggested reviewer, does not look like a valid email", "reviewer", reviewer)
 			continue
 		}
 
 		validEmailsSuggReviewers = append(validEmailsSuggReviewers, reviewer)
 	}
 
+	a.log.DebugContext(ctx, "Getting recipients for role", "role", req.GetRoles())
 	recipients := a.conf.Recipients.GetRawRecipientsFor(req.GetRoles(), validEmailsSuggReviewers)
 	for _, recipient := range recipients {
 		if recipient != "" {
 			recipientSet.Add(recipient)
 		}
 	}
-
 	return recipientSet.ToSlice()
 }

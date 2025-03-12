@@ -17,6 +17,7 @@
  */
 
 import { createGlobalStyle } from 'styled-components';
+
 import './../assets/ubuntu/style.css';
 
 const GlobalStyle = createGlobalStyle`
@@ -40,7 +41,7 @@ const GlobalStyle = createGlobalStyle`
   input {
     accent-color: ${props => props.theme.colors.brand};
 
-    ::placeholder {
+    &::placeholder {
       color: ${props => props.theme.colors.text.muted};
     }
   }

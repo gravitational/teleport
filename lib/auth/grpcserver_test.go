@@ -37,7 +37,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
@@ -48,18 +47,23 @@ import (
 	otlpresourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
 	otlptracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -83,13 +87,17 @@ import (
 func TestMFADeviceManagement(t *testing.T) {
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
-	clock := testServer.Clock().(clockwork.FakeClock)
+	clock := testServer.Clock().(*clockwork.FakeClock)
 	ctx := context.Background()
 
 	// Enable MFA support.
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOptional,
+		Type: constants.Local,
+		SecondFactors: []types.SecondFactorType{
+			types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+			types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+			types.SecondFactorType_SECOND_FACTOR_TYPE_SSO,
+		},
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
@@ -291,12 +299,25 @@ func TestMFADeviceManagement(t *testing.T) {
 		})
 	}
 
-	// Register a 2nd passwordless device, so we can test removal of the
-	// 2nd-to-last resident credential.
-	// This is already tested above so we just use RegisterTestDevice here.
-	const pwdless2DevName = "pwdless2"
-	_, err = RegisterTestDevice(ctx, userClient, pwdless2DevName, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, devs.WebDev, WithPasswordless())
+	// Register an extra device to test allow deletion of other devices and test that
+	// the last device cannot be deleted.
+	const lastDeviceName = "lastDevice"
+	lastDevice, err := RegisterTestDevice(ctx, userClient, lastDeviceName, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, devs.WebDev)
 	require.NoError(t, err, "RegisterTestDevice failed")
+
+	// Also add a password so we can testing add last non-passkey MFA device. Testing the
+	// deletion of the last passkey is handled in TestDeletingLastPasswordlessDevice below.
+	err = authServer.UpsertPassword(user.GetName(), []byte("living on the edge"))
+	require.NoError(t, err, "UpsertPassword")
+
+	// Since this device won't be deleted, we can use it to solve webauthn
+	// challenges throughout the tests below.
+	lastDeviceWebAuthnHandler := func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+		require.NotNil(t, challenge.WebauthnChallenge, "nil Webauthn challenge")
+		mfaResp, err := lastDevice.SolveAuthn(challenge)
+		require.NoError(t, err, "SolveAuthn")
+		return mfaResp
+	}
 
 	// Check that all new devices are registered.
 	resp, err = userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
@@ -308,7 +329,7 @@ func TestMFADeviceManagement(t *testing.T) {
 		deviceIDs[dev.GetName()] = dev.Id
 	}
 	sort.Strings(deviceNames)
-	require.Equal(t, []string{pwdlessDevName, pwdless2DevName, devs.TOTPName, devs.WebName, webDev2Name}, deviceNames)
+	require.Equal(t, []string{lastDeviceName, pwdlessDevName, devs.TOTPName, devs.WebName, webDev2Name}, deviceNames)
 
 	// Delete several of the MFA devices.
 	deleteTests := []struct {
@@ -319,7 +340,7 @@ func TestMFADeviceManagement(t *testing.T) {
 			desc: "fail to delete an unknown device",
 			opts: mfaDeleteTestOpts{
 				deviceName:  "unknown-dev",
-				authHandler: devs.totpAuthHandler,
+				authHandler: lastDeviceWebAuthnHandler,
 				checkErr:    require.Error,
 			},
 		},
@@ -371,55 +392,46 @@ func TestMFADeviceManagement(t *testing.T) {
 			desc: "delete TOTP device by name",
 			opts: mfaDeleteTestOpts{
 				deviceName:  devs.TOTPName,
-				authHandler: devs.totpAuthHandler,
+				authHandler: lastDeviceWebAuthnHandler,
 				checkErr:    require.NoError,
-			},
-		},
-		{
-			desc: "delete pwdless device by name",
-			opts: mfaDeleteTestOpts{
-				deviceName:  pwdlessDevName,
-				authHandler: devs.webAuthHandler,
-				checkErr:    require.NoError,
-			},
-		},
-		{
-			desc: "delete last passwordless device fails",
-			opts: mfaDeleteTestOpts{
-				deviceName:  pwdless2DevName,
-				authHandler: devs.webAuthHandler,
-				checkErr: func(t require.TestingT, err error, _ ...interface{}) {
-					require.ErrorContains(t,
-						err,
-						"last passwordless credential",
-						"Unexpected error deleting last passwordless device",
-					)
-				},
 			},
 		},
 		{
 			desc: "delete webauthn device by name",
 			opts: mfaDeleteTestOpts{
 				deviceName:  devs.WebName,
-				authHandler: devs.webAuthHandler,
+				authHandler: lastDeviceWebAuthnHandler,
+				checkErr:    require.NoError,
+			},
+		},
+		{
+			desc: "delete passwordless device by name",
+			opts: mfaDeleteTestOpts{
+				deviceName:  pwdlessDevName,
+				authHandler: lastDeviceWebAuthnHandler,
 				checkErr:    require.NoError,
 			},
 		},
 		{
 			desc: "delete webauthn device by ID",
 			opts: mfaDeleteTestOpts{
-				deviceName: deviceIDs[webDev2Name],
-				authHandler: func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-					resp, err := webKey2.SignAssertion(
-						webOrigin, wantypes.CredentialAssertionFromProto(challenge.WebauthnChallenge))
-					require.NoError(t, err)
-					return &proto.MFAAuthenticateResponse{
-						Response: &proto.MFAAuthenticateResponse_Webauthn{
-							Webauthn: wantypes.CredentialAssertionResponseToProto(resp),
-						},
-					}
+				deviceName:  deviceIDs[webDev2Name],
+				authHandler: lastDeviceWebAuthnHandler,
+				checkErr:    require.NoError,
+			},
+		},
+		{
+			desc: "fail to delete last device",
+			opts: mfaDeleteTestOpts{
+				deviceName:  lastDeviceName,
+				authHandler: lastDeviceWebAuthnHandler,
+				checkErr: func(t require.TestingT, err error, _ ...any) {
+					require.ErrorContains(t,
+						err,
+						"cannot delete the last MFA device for this user",
+						"Unexpected error deleting last MFA device",
+					)
 				},
-				checkErr: require.NoError,
 			},
 		},
 	}
@@ -429,16 +441,133 @@ func TestMFADeviceManagement(t *testing.T) {
 		})
 	}
 
-	// Check no remaining devices, apart from the additional passwordless device that we can't delete.
+	// Check no remaining devices, apart from the additional device that we can't delete.
 	resp, err = userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
 	require.NoError(t, err)
-	require.Equal(t, "pwdless2", resp.Devices[0].GetName())
+	require.Equal(t, lastDeviceName, resp.Devices[0].GetName())
+}
+
+func TestMFADeviceManagement_SSO(t *testing.T) {
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+	ctx := context.Background()
+
+	// Enable MFA support.
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type: constants.Local,
+		SecondFactors: []types.SecondFactorType{
+			types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+			types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+			types.SecondFactorType_SECOND_FACTOR_TYPE_SSO,
+		},
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
+		},
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertAuthPreference(ctx, authPref)
+	require.NoError(t, err)
+
+	// Create a fake user.
+	user, _, err := CreateUserAndRole(authServer, "mfa-user", []string{"role"}, nil)
+	require.NoError(t, err)
+	userClient, err := testServer.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	// Create an auth connector.
+	samlConnector, err := types.NewSAMLConnector("saml", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "http://localhost:65535/acs", // not called
+		Issuer:                   "test",
+		SSO:                      "https://localhost:65535/sso", // not called
+		AttributesToRoles: []types.AttributeMapping{
+			// not used. can be any name, value but role must exist
+			{Name: "groups", Value: "admin", Roles: user.GetRoles()},
+		},
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertSAMLConnector(ctx, samlConnector)
+	require.NoError(t, err)
+
+	// Convert the user to an SSO user for this auth connector.
+	userCreatedAt := authServer.clock.Now()
+	user.SetCreatedBy(types.CreatedBy{
+		Time: userCreatedAt,
+		Connector: &types.ConnectorRef{
+			ID:   samlConnector.GetKind(),
+			Type: samlConnector.GetName(),
+		},
+	})
+	_, err = authServer.UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	// No MFA devices should exist for the user.
+	resp, err := userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
+	require.NoError(t, err)
+	require.Empty(t, resp.Devices)
+
+	// prepare a passwordless device.
+	passkeyName := "passkey"
+	passkey, err := RegisterTestDevice(ctx, userClient, passkeyName, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil, WithPasswordless())
+	require.NoError(t, err, "RegisterTestDevice")
+
+	passkeyWebAuthnHandler := func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+		require.NotNil(t, challenge.WebauthnChallenge, "nil Webauthn challenge")
+		mfaResp, err := passkey.SolveAuthn(challenge)
+		require.NoError(t, err, "SolveAuthn")
+		return mfaResp
+	}
+
+	resp, err = userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
+	require.NoError(t, err)
+	require.Len(t, resp.Devices, 1)
+	webauthnDevice := resp.Devices[0]
+
+	// Update the auth connector to enable SSO MFA.
+	samlConnector.SetMFASettings(&types.SAMLConnectorMFASettings{
+		Enabled: true,
+		Issuer:  "test",
+		Sso:     "https://localhost:65535/sso", // not called
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertSAMLConnector(ctx, samlConnector)
+	require.NoError(t, err)
+
+	// Ephemeral sso device should show up in the list now. It can't be deleted.
+	resp, err = userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
+	assert.NoError(t, err)
+	assert.Len(t, resp.Devices, 2)
+
+	expectSSODev, err := types.NewMFADevice(samlConnector.GetDisplay(), samlConnector.GetName(), userCreatedAt, &types.MFADevice_Sso{
+		Sso: &types.SSOMFADevice{
+			ConnectorId:   samlConnector.GetName(),
+			ConnectorType: samlConnector.GetKind(),
+			DisplayName:   samlConnector.GetDisplay(),
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []*types.MFADevice{webauthnDevice, expectSSODev}, resp.Devices)
+
+	testDeleteMFADevice(ctx, t, userClient, mfaDeleteTestOpts{
+		deviceName:  "saml",
+		authHandler: passkeyWebAuthnHandler,
+		checkErr: func(t require.TestingT, err error, _ ...interface{}) {
+			assert.ErrorAs(t, err, new(*trace.BadParameterError))
+			assert.ErrorContains(t, err, "cannot delete ephemeral SSO MFA device")
+		}},
+	)
+
+	// Last non-SSO, passwordless device can be deleted now.
+	testDeleteMFADevice(ctx, t, userClient, mfaDeleteTestOpts{
+		deviceName:  passkeyName,
+		authHandler: passkeyWebAuthnHandler,
+		checkErr:    require.NoError,
+	})
 }
 
 func TestDeletingLastPasswordlessDevice(t *testing.T) {
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
-	clock := testServer.Clock().(clockwork.FakeClock)
+	clock := testServer.Clock().(*clockwork.FakeClock)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -447,31 +576,26 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 		checkErr require.ErrorAssertionFunc
 	}{
 		{
-			name:  "fails",
+			name:  "NOK no other MFA device",
 			setup: func(*testing.T, string, *authclient.Client, *TestDevice) {},
 			checkErr: func(t require.TestingT, err error, _ ...any) {
 				require.ErrorContains(t,
 					err,
-					"last passwordless credential",
+					"cannot delete the last MFA device for this user",
 					"Unexpected error deleting last passwordless device",
 				)
 			},
 		},
 		{
-			name: "succeeds when passwordless is off",
-			setup: func(t *testing.T, _ string, _ *authclient.Client, _ *TestDevice) {
-				authPref, err := authServer.GetAuthPreference(ctx)
-				require.NoError(t, err, "GetAuthPreference")
-
-				// Turn off passwordless authentication.
-				authPref.SetAllowPasswordless(false)
-				_, err = authServer.UpsertAuthPreference(ctx, authPref)
-				require.NoError(t, err, "UpsertAuthPreference")
+			name: "OK extra passwordless device",
+			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
+				_, err := RegisterTestDevice(ctx, userClient, "another-passkey", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, pwdlessDev, WithPasswordless())
+				require.NoError(t, err, "RegisterTestDevice failed")
 			},
 			checkErr: require.NoError,
 		},
 		{
-			name: "succeeds when there is a password and other WebAuthn MFAs",
+			name: "OK password set with other WebAuthn device",
 			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
 				err := authServer.UpsertPassword(username, []byte("living on the edge"))
 				require.NoError(t, err, "UpsertPassword")
@@ -482,7 +606,7 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 			checkErr: require.NoError,
 		},
 		{
-			name: "succeeds when there is a password and TOTP MFA",
+			name: "OK password set with other TOTP device",
 			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
 				err := authServer.UpsertPassword(username, []byte("living on the edge"))
 				require.NoError(t, err, "UpsertPassword")
@@ -493,21 +617,72 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 			checkErr: require.NoError,
 		},
 		{
-			name: "fails even if there is password, but no other MFAs",
+			name: "OK SSO user with other device",
+			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
+				user, err := authServer.GetUser(ctx, username, false)
+				require.NoError(t, err, "GetUser")
+				user.SetCreatedBy(types.CreatedBy{
+					Connector: &types.ConnectorRef{},
+				})
+				_, err = authServer.UpsertUser(ctx, user)
+				require.NoError(t, err, "UpsertUser")
+				_, err = RegisterTestDevice(
+					ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, pwdlessDev)
+				require.NoError(t, err, "RegisterTestDevice")
+			},
+			checkErr: require.NoError,
+		},
+		{
+			name: "NOK password set but no other MFAs",
 			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
 				err := authServer.UpsertPassword(username, []byte("living on the edge"))
 				require.NoError(t, err, "UpsertPassword")
 			},
-			checkErr: require.Error,
+			checkErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t,
+					err,
+					"cannot delete the last MFA device for this user",
+					"Unexpected error deleting last passwordless device",
+				)
+			},
 		},
 		{
-			name: "fails even if there is another MFA, but no password",
+			name: "NOK other MFAs, but no password set",
 			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
 				_, err := RegisterTestDevice(
 					ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_TOTP, pwdlessDev, WithTestDeviceClock(clock))
 				require.NoError(t, err, "RegisterTestDevice")
 			},
-			checkErr: require.Error,
+			checkErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t,
+					err,
+					"cannot delete last passwordless credential for user",
+					"Unexpected error deleting last passwordless device",
+				)
+			},
+		},
+		{
+			name: "NOK other MFAs, but no password set, passwordless is off",
+			setup: func(t *testing.T, _ string, userClient *authclient.Client, pwdlessDev *TestDevice) {
+				// Register a non-passwordless device without adding a password.
+				_, err := RegisterTestDevice(ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_TOTP, pwdlessDev, WithTestDeviceClock(clock))
+				require.NoError(t, err, "RegisterTestDevice")
+
+				authPref, err := authServer.GetAuthPreference(ctx)
+				require.NoError(t, err, "GetAuthPreference")
+
+				// Turn off passwordless authentication.
+				authPref.SetAllowPasswordless(false)
+				_, err = authServer.UpsertAuthPreference(ctx, authPref)
+				require.NoError(t, err, "UpsertAuthPreference")
+			},
+			checkErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t,
+					err,
+					"cannot delete last passwordless credential for user",
+					"Unexpected error deleting last passwordless device",
+				)
+			},
 		},
 	}
 
@@ -515,8 +690,11 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			// Enable MFA support.
 			authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorOptional,
+				Type: constants.Local,
+				SecondFactors: []types.SecondFactorType{
+					types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+					types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+				},
 				Webauthn: &types.Webauthn{
 					RPID: "localhost",
 				},
@@ -577,7 +755,7 @@ type mfaDevices struct {
 func (d *mfaDevices) totpAuthHandler(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 	require.NotNil(t, challenge.TOTP, "nil TOTP challenge")
 
-	if c, ok := d.clock.(clockwork.FakeClock); ok {
+	if c, ok := d.clock.(*clockwork.FakeClock); ok {
 		c.Advance(30 * time.Second)
 	}
 
@@ -928,7 +1106,10 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 	const rpID = "localhost"
 	const origin = "https://" + rpID + ":3080" // matches RPID.
 	updateAuthPref(t, func(authPref types.AuthPreference) {
-		authPref.SetSecondFactor(constants.SecondFactorOptional)
+		authPref.SetSecondFactors(
+			types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+			types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+		)
 		authPref.SetWebauthn(&types.Webauthn{
 			RPID: "localhost",
 		})
@@ -1137,7 +1318,10 @@ func TestRegisterFirstDevice_deviceAuthz(t *testing.T) {
 
 	// Enable webauthn
 	updateAuthPref(t, func(authPref types.AuthPreference) {
-		authPref.SetSecondFactor(constants.SecondFactorOptional)
+		authPref.SetSecondFactors(
+			types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+			types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+		)
 		authPref.SetWebauthn(&types.Webauthn{
 			RPID: "localhost",
 		})
@@ -1333,6 +1517,10 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 
 	// Register MFA devices for the fake user.
 	registered := addOneOfEachMFADevice(t, cl, clock, webOrigin)
+	// Adding MFA devices advances fake clock by 1 minute, here we return it back.
+	fakeClock, ok := clock.(*clockwork.FakeClock)
+	require.True(t, ok)
+	fakeClock.Advance(-60 * time.Second)
 
 	// Fetch MFA device IDs.
 	devs, err := srv.Auth().Services.GetMFADevices(ctx, user.GetName(), false)
@@ -1530,6 +1718,47 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
 					require.Equal(t, "app-a", identity.RouteToApp.Name)
+					// session ID should be set to a random ID, corresponding to an app session.
+					require.NotZero(t, identity.RouteToApp.SessionID)
+				},
+			},
+		},
+		{
+			desc: "TCP app with target port",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:   proto.UserCertsRequest_App,
+					RouteToApp: proto.RouteToApp{
+						Name:       "app-a",
+						TargetPort: 1337,
+					},
+				},
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
+				},
+				authnHandler: registered.webAuthHandler,
+				verifyErr:    require.NoError,
+				verifyCert: func(t *testing.T, c *proto.Certs) {
+					crt := c.TLS
+					require.NotEmpty(t, crt)
+
+					cert, err := tlsca.ParseCertificatePEM(crt)
+					require.NoError(t, err)
+					require.Equal(t, cert.NotAfter, clock.Now().Add(teleport.UserSingleUseCertTTL))
+
+					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+					require.NoError(t, err)
+					require.Equal(t, webDevID, identity.MFAVerified)
+					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
+					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
+					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
+					require.Equal(t, "app-a", identity.RouteToApp.Name)
+					require.Equal(t, 1337, identity.RouteToApp.TargetPort)
 					// session ID should be set to a random ID, corresponding to an app session.
 					require.NotZero(t, identity.RouteToApp.SessionID)
 				},
@@ -1992,6 +2221,120 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, userCertExpires.Format(time.RFC3339), cert.Extensions[teleport.CertExtensionPreviousIdentityExpires])
 					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionLoginIP]).IsLoopback())
 					require.Equal(t, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()), cert.ValidBefore)
+				},
+			},
+		},
+		{
+			desc: "fail - ssh using totp",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					SSHPublicKey: sshPub,
+					Username:     user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires:  clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:    proto.UserCertsRequest_SSH,
+					NodeName: "node-a",
+					SSHLogin: "role",
+				},
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
+				},
+				authnHandler: registered.totpAuthHandler,
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
+				},
+			},
+		},
+		{
+			desc: "fail - k8s using totp",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires:           clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:             proto.UserCertsRequest_Kubernetes,
+					KubernetesCluster: "kube-b",
+				},
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
+				},
+				authnHandler: registered.totpAuthHandler,
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
+				},
+			},
+		},
+		{
+			desc: "fail - db using totp",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:   proto.UserCertsRequest_Database,
+					RouteToDatabase: proto.RouteToDatabase{
+						ServiceName: "db-a",
+						Database:    "db-a",
+					},
+				},
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
+				},
+				authnHandler: registered.totpAuthHandler,
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
+				},
+			},
+		},
+		{
+			desc: "fail - app using totp",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:   proto.UserCertsRequest_App,
+					RouteToApp: proto.RouteToApp{
+						Name: "app-a",
+					},
+				},
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
+				},
+				authnHandler: registered.totpAuthHandler,
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
+				},
+			},
+		},
+		{
+			desc: "fail - desktops using totp",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:   proto.UserCertsRequest_WindowsDesktop,
+					RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
+						WindowsDesktop: "desktop",
+						Login:          "role",
+					},
+				},
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
+				},
+				authnHandler: registered.totpAuthHandler,
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
 				},
 			},
 		},
@@ -2567,7 +2910,7 @@ func TestGenerateDatabaseCerts(t *testing.T) {
 	require.NoError(t, err)
 
 	// Generate CSR once for speed sake.
-	priv, err := testauthority.New().GeneratePrivateKey()
+	priv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
 	require.NoError(t, err)
 	csr, err := tlsca.GenerateCertificateRequestPEM(pkix.Name{CommonName: "test"}, priv)
 	require.NoError(t, err)
@@ -2762,6 +3105,69 @@ func TestGetSSHTargets(t *testing.T) {
 	require.ElementsMatch(t, []string{rsp.Servers[0].GetHostname(), rsp.Servers[1].GetHostname()}, []string{"foo", "Foo"})
 }
 
+func TestResolveSSHTarget(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	clt, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	upper, err := types.NewServerWithLabels(uuid.New().String(), types.KindNode, types.ServerSpecV2{
+		Hostname:  "Foo",
+		UseTunnel: true,
+	}, nil)
+	require.NoError(t, err)
+	upper.SetExpiry(time.Now().Add(time.Hour))
+
+	lower, err := types.NewServerWithLabels(uuid.New().String(), types.KindNode, types.ServerSpecV2{
+		Hostname:  "foo",
+		UseTunnel: true,
+	}, nil)
+	require.NoError(t, err)
+
+	other, err := types.NewServerWithLabels(uuid.New().String(), types.KindNode, types.ServerSpecV2{
+		Hostname:  "bar",
+		UseTunnel: true,
+	}, nil)
+	require.NoError(t, err)
+
+	for _, node := range []types.Server{upper, lower, other} {
+		_, err = clt.UpsertNode(ctx, node)
+		require.NoError(t, err)
+	}
+
+	rsp, err := clt.ResolveSSHTarget(ctx, &proto.ResolveSSHTargetRequest{
+		Host: "foo",
+		Port: "0",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "foo", rsp.Server.GetHostname())
+
+	cnc := types.DefaultClusterNetworkingConfig()
+	cnc.SetCaseInsensitiveRouting(true)
+	_, err = clt.UpsertClusterNetworkingConfig(ctx, cnc)
+	require.NoError(t, err)
+
+	rsp, err = clt.ResolveSSHTarget(ctx, &proto.ResolveSSHTargetRequest{
+		Host: "foo",
+		Port: "0",
+	})
+	require.Error(t, err)
+	require.Nil(t, rsp)
+
+	cnc.SetRoutingStrategy(types.RoutingStrategy_MOST_RECENT)
+	_, err = clt.UpsertClusterNetworkingConfig(ctx, cnc)
+	require.NoError(t, err)
+
+	rsp, err = clt.ResolveSSHTarget(ctx, &proto.ResolveSSHTargetRequest{
+		Host: "foo",
+		Port: "0",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "Foo", rsp.Server.GetHostname())
+}
+
 func TestNodesCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -2771,9 +3177,9 @@ func TestNodesCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// node1 and node2 will be added to default namespace
-	node1, err := types.NewServerWithLabels("node1", types.KindNode, types.ServerSpecV2{}, nil)
+	node1, err := types.NewServerWithLabels("node1", types.KindNode, types.ServerSpecV2{Hostname: "node1"}, nil)
 	require.NoError(t, err)
-	node2, err := types.NewServerWithLabels("node2", types.KindNode, types.ServerSpecV2{}, nil)
+	node2, err := types.NewServerWithLabels("node2", types.KindNode, types.ServerSpecV2{Hostname: "node2"}, nil)
 	require.NoError(t, err)
 
 	t.Run("CreateNode", func(t *testing.T) {
@@ -4322,12 +4728,21 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 	tests := []struct {
 		name               string
 		inputInstallers    map[string]string
+		hasAgentRollout    bool
 		expectedInstallers map[string]string
 	}{
 		{
 			name: "default installers only",
 			expectedInstallers: map[string]string{
-				types.DefaultInstallerScriptName:        installer.DefaultInstaller.GetScript(),
+				types.DefaultInstallerScriptName:        installer.LegacyDefaultInstaller.GetScript(),
+				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
+			},
+		},
+		{
+			name:            "new default installers",
+			hasAgentRollout: true,
+			expectedInstallers: map[string]string{
+				types.DefaultInstallerScriptName:        installer.NewDefaultInstaller.GetScript(),
 				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
 			},
 		},
@@ -4338,7 +4753,7 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 			},
 			expectedInstallers: map[string]string{
 				"my-custom-installer":                   "echo test",
-				types.DefaultInstallerScriptName:        installer.DefaultInstaller.GetScript(),
+				types.DefaultInstallerScriptName:        installer.LegacyDefaultInstaller.GetScript(),
 				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
 			},
 		},
@@ -4360,6 +4775,25 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 				require.NoError(t, err)
 			})
 
+			if tc.hasAgentRollout {
+				rollout, err := autoupdate.NewAutoUpdateAgentRollout(
+					&autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+						StartVersion:              "1.2.3",
+						TargetVersion:             "1.2.4",
+						Schedule:                  autoupdate.AgentsScheduleImmediate,
+						AutoupdateMode:            autoupdate.AgentsUpdateModeEnabled,
+						Strategy:                  autoupdate.AgentsStrategyTimeBased,
+						MaintenanceWindowDuration: durationpb.New(1 * time.Hour),
+					})
+				require.NoError(t, err)
+				_, err = grpc.AuthServer.CreateAutoUpdateAgentRollout(ctx, rollout)
+				require.NoError(t, err)
+
+				t.Cleanup(func() {
+					assert.NoError(t, grpc.AuthServer.DeleteAutoUpdateAgentRollout(ctx))
+				})
+			}
+
 			for name, script := range tc.inputInstallers {
 				installer, err := types.NewInstallerV1(name, script)
 				require.NoError(t, err)
@@ -4375,6 +4809,255 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 			}
 
 			require.Equal(t, tc.expectedInstallers, outputInstallers)
+		})
+	}
+}
+
+func TestRoleVersions(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+
+	newRole := func(name string, version string, spec types.RoleSpecV6) types.Role {
+		role, err := types.NewRoleWithVersion(name, version, spec)
+		meta := role.GetMetadata()
+		role.SetMetadata(meta)
+		require.NoError(t, err)
+		return role
+	}
+
+	enabledRole := newRole("test_role_enabled", types.V7, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindRole, services.RW()),
+			},
+		},
+		Options: types.RoleOptions{
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Remote: &types.SSHRemotePortForwarding{
+					Enabled: types.NewBoolOption(true),
+				},
+				Local: &types.SSHLocalPortForwarding{
+					Enabled: types.NewBoolOption(true),
+				},
+			},
+		},
+	})
+
+	disabledRole := newRole("test_role_disabled", types.V7, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindRole, services.RW()),
+			},
+		},
+		Options: types.RoleOptions{
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Remote: &types.SSHRemotePortForwarding{
+					Enabled: types.NewBoolOption(false),
+				},
+				Local: &types.SSHLocalPortForwarding{
+					Enabled: types.NewBoolOption(false),
+				},
+			},
+		},
+	})
+
+	undefinedRole := newRole("test_role_implicit", types.V7, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindRole, services.RW()),
+			},
+		},
+	})
+
+	user, err := CreateUser(context.Background(), srv.Auth(), "user", enabledRole, disabledRole, undefinedRole)
+	require.NoError(t, err)
+
+	client, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		desc             string
+		clientVersions   []string
+		expectError      bool
+		inputRole        types.Role
+		expectedRole     types.Role
+		expectDowngraded bool
+	}{
+		{
+			desc: "up to date - enabled",
+			clientVersions: []string{
+				"17.1.0", "17.1.0-dev", "18.0.0-dev", "19.0.0", "",
+			},
+			inputRole:    enabledRole,
+			expectedRole: enabledRole,
+		},
+		{
+			desc: "up to date - disabled",
+			clientVersions: []string{
+				"17.1.0", "17.1.0-dev", "18.0.0-dev", "19.0.0", "",
+			},
+			inputRole:    disabledRole,
+			expectedRole: disabledRole,
+		},
+		{
+			desc: "up to date - undefined",
+			clientVersions: []string{
+				"17.1.0", "17.1.0-dev", "18.0.0-dev", "19.0.0", "",
+			},
+			inputRole:    undefinedRole,
+			expectedRole: undefinedRole,
+		},
+		{
+			desc: "downgrade SSH access control granularity - enabled",
+			clientVersions: []string{
+				"17.0.0",
+			},
+			inputRole: enabledRole,
+			expectedRole: newRole(enabledRole.GetName(), types.V7, types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Rules: []types.Rule{
+						types.NewRule(types.KindRole, services.RW()),
+					},
+				},
+				Options: types.RoleOptions{
+					PortForwarding:    types.NewBoolOption(true),
+					SSHPortForwarding: enabledRole.GetOptions().SSHPortForwarding,
+				},
+			}),
+			expectDowngraded: true,
+		},
+		{
+			desc: "downgrade SSH access control granularity - disabled",
+			clientVersions: []string{
+				"17.0.0",
+			},
+			inputRole: disabledRole,
+			expectedRole: newRole(disabledRole.GetName(), types.V7, types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Rules: []types.Rule{
+						types.NewRule(types.KindRole, services.RW()),
+					},
+				},
+				Options: types.RoleOptions{
+					PortForwarding:    types.NewBoolOption(false),
+					SSHPortForwarding: disabledRole.GetOptions().SSHPortForwarding,
+				},
+			}),
+			expectDowngraded: true,
+		},
+		{
+			desc: "downgrade SSH access control granularity - undefined",
+			clientVersions: []string{
+				"17.0.0",
+			},
+			inputRole:        undefinedRole,
+			expectedRole:     undefinedRole,
+			expectDowngraded: false,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			for _, clientVersion := range tc.clientVersions {
+				t.Run(clientVersion, func(t *testing.T) {
+					// setup client metadata
+					ctx := context.Background()
+					if clientVersion == "" {
+						ctx = context.WithValue(ctx, metadata.DisableInterceptors{}, struct{}{})
+					} else {
+						ctx = metadata.AddMetadataToContext(ctx, map[string]string{
+							metadata.VersionKey: clientVersion,
+						})
+					}
+
+					checkRole := func(gotRole types.Role) {
+						t.Helper()
+						if tc.expectError {
+							return
+						}
+						require.Empty(t, cmp.Diff(tc.expectedRole, gotRole,
+							cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Labels")))
+						// The downgraded label value won't match exactly because it
+						// includes the client version, so just check it's not empty
+						// and ignore it in the role diff.
+						if tc.expectDowngraded {
+							require.NotEmpty(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel])
+						}
+					}
+					checkErr := func(err error) {
+						t.Helper()
+						if tc.expectError {
+							require.Error(t, err)
+						} else {
+							require.NoError(t, err)
+						}
+					}
+
+					// Test GetRole
+					gotRole, err := client.GetRole(ctx, tc.inputRole.GetName())
+					checkErr(err)
+					checkRole(gotRole)
+
+					// Test GetRoles
+					gotRoles, err := client.GetRoles(ctx)
+					checkErr(err)
+					if !tc.expectError {
+						foundTestRole := false
+						for _, gotRole := range gotRoles {
+							if gotRole.GetName() != tc.inputRole.GetName() {
+								continue
+							}
+							checkRole(gotRole)
+							foundTestRole = true
+							break
+						}
+						require.True(t, foundTestRole, "GetRoles result does not include expected role")
+					}
+
+					ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+					defer cancel()
+
+					// Test WatchEvents
+					watcher, err := client.NewWatcher(ctx, types.Watch{Name: "roles", Kinds: []types.WatchKind{{Kind: types.KindRole}}})
+					require.NoError(t, err)
+					defer watcher.Close()
+
+					// Swallow the init event
+					e := <-watcher.Events()
+					require.Equal(t, types.OpInit, e.Type)
+
+					// Re-upsert the role so that the watcher sees it, do this
+					// on the auth server directly to avoid the
+					// TeleportDowngradedLabel check in ServerWithRoles
+					tc.inputRole, err = srv.Auth().UpsertRole(ctx, tc.inputRole)
+					require.NoError(t, err)
+
+					gotRole, err = func() (types.Role, error) {
+						for {
+							select {
+							case <-watcher.Done():
+								return nil, watcher.Error()
+							case e := <-watcher.Events():
+								if gotRole, ok := e.Resource.(types.Role); ok && gotRole.GetName() == tc.inputRole.GetName() {
+									return gotRole, nil
+								}
+							}
+						}
+					}()
+					checkErr(err)
+					checkRole(gotRole)
+
+					if !tc.expectError {
+						// Try to re-upsert the role we got. If it was
+						// downgraded, it should be rejected due to the
+						// TeleportDowngradedLabel
+						_, err = client.UpsertRole(ctx, gotRole)
+						if tc.expectDowngraded {
+							require.Error(t, err)
+						} else {
+							require.NoError(t, err)
+						}
+					}
+				})
+			}
 		})
 	}
 }

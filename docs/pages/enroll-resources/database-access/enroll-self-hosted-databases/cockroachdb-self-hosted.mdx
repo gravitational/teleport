@@ -11,10 +11,10 @@ description: How to configure Teleport database access with self-hosted Cockroac
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Teleport Database Access CockroachDB Self-Hosted](../../../../img/database-access/guides/cockroachdb_selfhosted.png)
+![Enrolling a CockroachDB instance with a self-hosted Teleport cluster](../../../../img/database-access/guides/cockroachdb_selfhosted.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Teleport Database Access CockroachDB Cloud](../../../../img/database-access/guides/cockroachdb_cloud.png)
+![Enrolling a CockroachDB instance with a cloud-hosted Teleport cluster](../../../../img/database-access/guides/cockroachdb_cloud.png)
 </TabItem>
 
 </Tabs>
@@ -265,7 +265,7 @@ connecting to your CockroachDB database if your `psql` uses SQL_ASCII encoding.
 
 CockroachDB supports only UTF8 client encoding. To enforce the encoding, set
 the following environment variable in the shell running `tsh db connect`:
-```bash
+```code
 export PGCLIENTENCODING='utf-8'
 ```
 

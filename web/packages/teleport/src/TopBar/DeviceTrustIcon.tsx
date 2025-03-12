@@ -16,37 +16,56 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ReactNode } from 'react';
 import styled from 'styled-components';
+
 import { Flex } from 'design';
-import { ShieldCheck } from 'design/Icon';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { ShieldCheck, ShieldWarning } from 'design/Icon';
+import { IconProps } from 'design/Icon/Icon';
 
-import session from 'teleport/services/websession';
+import { DeviceTrustStatusKind } from './DeviceTrustStatus';
 
-export const DeviceTrustIcon = ({ iconSize = 24 }: { iconSize?: number }) => {
-  const deviceTrusted = session.getIsDeviceTrusted();
+export const DeviceTrustIcon = ({ kind }: { kind: DeviceTrustStatusKind }) => {
+  const iconSize = 18;
 
-  if (!deviceTrusted) {
-    return null;
+  if (kind === 'authorized') {
+    return (
+      <ShieldIcon
+        Icon={ShieldCheck}
+        iconSize={iconSize}
+        color="success.active"
+        data-testid="device-trusted-icon"
+      />
+    );
   }
 
   return (
-    <Wrapper>
-      <HoverTooltip
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'center' }}
-        tipContent={'This session is authorized with Device Trust'}
-        css={`
-          height: 100%;
-        `}
-      >
-        <ShieldCheck color="success.main" size={iconSize} />
-      </HoverTooltip>
+    <ShieldIcon
+      Icon={ShieldWarning}
+      iconSize={iconSize}
+      color="warning.active"
+      data-testid="device-trust-required-icon"
+    />
+  );
+};
+
+const ShieldIcon = ({
+  Icon,
+  iconSize,
+  color,
+  ...props
+}: {
+  Icon: (props: IconProps) => ReactNode;
+  iconSize: number;
+  color: string;
+}) => {
+  return (
+    <Wrapper {...props}>
+      <Icon color={color} size={iconSize} />
     </Wrapper>
   );
 };
 
 const Wrapper = styled(Flex)`
   height: 100%;
-  padding-left: 8px;
 `;

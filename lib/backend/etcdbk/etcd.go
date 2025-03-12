@@ -20,14 +20,14 @@
 package etcdbk
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"errors"
+	"iter"
+	"log/slog"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -48,6 +47,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -150,8 +150,8 @@ var (
 )
 
 type EtcdBackend struct {
-	nodes []string
-	*log.Entry
+	nodes       []string
+	logger      *slog.Logger
 	cfg         *Config
 	clients     *utils.RoundRobin[*clientv3.Client]
 	cancelC     chan bool
@@ -267,11 +267,11 @@ func New(ctx context.Context, params backend.Params, opts ...Option) (*EtcdBacke
 	closeCtx, cancel := context.WithCancel(ctx)
 
 	leaseCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:             utils.SeventhJitter(time.Minute * 2),
+		TTL:             retryutils.SeventhJitter(time.Minute * 2),
 		Context:         closeCtx,
 		Clock:           options.clock,
 		ReloadOnErr:     true,
-		CleanupInterval: utils.SeventhJitter(time.Minute * 2),
+		CleanupInterval: retryutils.SeventhJitter(time.Minute * 2),
 	})
 	if err != nil {
 		cancel()
@@ -279,7 +279,7 @@ func New(ctx context.Context, params backend.Params, opts ...Option) (*EtcdBacke
 	}
 
 	b := &EtcdBackend{
-		Entry:       log.WithFields(log.Fields{teleport.ComponentKey: GetName()}),
+		logger:      slog.With(teleport.ComponentKey, GetName()),
 		cfg:         cfg,
 		nodes:       cfg.Nodes,
 		cancelC:     make(chan bool, 1),
@@ -289,7 +289,7 @@ func New(ctx context.Context, params backend.Params, opts ...Option) (*EtcdBacke
 		ctx:         closeCtx,
 		watchDone:   make(chan struct{}),
 		buf:         buf,
-		leaseBucket: utils.SeventhJitter(options.leaseBucket),
+		leaseBucket: retryutils.SeventhJitter(options.leaseBucket),
 		leaseCache:  leaseCache,
 	}
 
@@ -434,7 +434,7 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 	if b.clients != nil {
 		b.clients.ForEach(func(clt *clientv3.Client) {
 			if err := clt.Close(); err != nil {
-				b.Entry.WithError(err).Warning("Failed closing existing etcd client on reconnect.")
+				b.logger.WarnContext(ctx, "Failed closing existing etcd client on reconnect.", "error", err)
 			}
 		})
 
@@ -510,16 +510,16 @@ WatchEvents:
 	for b.ctx.Err() == nil {
 		err = b.watchEvents(b.ctx)
 
-		b.Debugf("Watch exited: %v", err)
+		b.logger.DebugContext(b.ctx, "Watch exited", "error", err)
 
 		// pause briefly to prevent excessive watcher creation attempts
 		select {
-		case <-time.After(utils.HalfJitter(time.Millisecond * 1500)):
+		case <-time.After(retryutils.HalfJitter(time.Millisecond * 1500)):
 		case <-b.ctx.Done():
 			break WatchEvents
 		}
 	}
-	b.Debugf("Watch stopped: %v.", trace.NewAggregate(err, b.ctx.Err()))
+	b.logger.DebugContext(b.ctx, "Watch stopped", "error", trace.NewAggregate(err, b.ctx.Err()))
 }
 
 // eventResult is used to ferry the result of event processing
@@ -537,7 +537,6 @@ type eventResult struct {
 // effective, this strategy still suffers from a "head of line blocking"-esque issue since event order
 // must be preserved.
 func (b *EtcdBackend) watchEvents(ctx context.Context) error {
-
 	// etcd watch client relies on context cancellation for cleanup,
 	// so create a new subscope for this function.
 	ctx, cancel := context.WithCancel(ctx)
@@ -593,7 +592,7 @@ func (b *EtcdBackend) watchEvents(ctx context.Context) error {
 			select {
 			case r := <-q.Pop():
 				if r.err != nil {
-					b.WithError(r.err).Errorf("Failed to unmarshal event: %v.", r.original)
+					b.logger.ErrorContext(ctx, "Failed to unmarshal event", "event", r.original, "error", r.err)
 					continue EmitEvents
 				}
 				b.buf.Emit(r.event)
@@ -628,7 +627,7 @@ func (b *EtcdBackend) watchEvents(ctx context.Context) error {
 
 				// limit backlog warnings to once per minute to prevent log spam.
 				if now := time.Now(); now.After(lastBacklogWarning.Add(time.Minute)) {
-					b.Warnf("Etcd event processing backlog; may result in excess memory usage and stale cluster state.")
+					b.logger.WarnContext(ctx, "Etcd event processing backlog; may result in excess memory usage and stale cluster state.")
 					lastBacklogWarning = now
 				}
 
@@ -650,39 +649,104 @@ func (b *EtcdBackend) NewWatcher(ctx context.Context, watch backend.Watch) (back
 	return b.buf.NewWatcher(ctx, watch)
 }
 
+func (b *EtcdBackend) Items(ctx context.Context, params backend.IterateParams) iter.Seq2[backend.Item, error] {
+	if params.StartKey.IsZero() {
+		err := trace.BadParameter("missing parameter startKey")
+		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
+	}
+	if params.EndKey.IsZero() {
+		err := trace.BadParameter("missing parameter endKey")
+		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
+	}
+
+	sort := clientv3.SortAscend
+	if params.Descending {
+		sort = clientv3.SortDescend
+	}
+
+	const defaultPageSize = 1000
+	return func(yield func(backend.Item, error) bool) {
+		inclusiveStartKey := b.prependPrefix(params.StartKey)
+		// etcd's range query includes the start point and excludes the end point,
+		// but Backend.GetRange is supposed to be inclusive at both ends, so we
+		// query until the very next key in lexicographic order (i.e., the same key
+		// followed by a 0 byte)
+		endKey := b.prependPrefix(params.EndKey) + "\x00"
+		count := 0
+
+		pageSize := defaultPageSize
+		for {
+			if params.Limit > backend.NoLimit {
+				pageSize = min(params.Limit-count, defaultPageSize)
+			}
+
+			start := b.clock.Now()
+			re, err := b.clients.Next().Get(ctx, inclusiveStartKey,
+				clientv3.WithRange(endKey),
+				clientv3.WithSort(clientv3.SortByKey, sort),
+				clientv3.WithLimit(int64(pageSize)),
+			)
+			batchReadLatencies.Observe(time.Since(start).Seconds())
+			batchReadRequests.Inc()
+			if err := convertErr(err); err != nil {
+				yield(backend.Item{}, trace.Wrap(err))
+				return
+			}
+
+			if len(re.Kvs) == 0 {
+				return
+			}
+
+			for _, kv := range re.Kvs {
+				value, err := unmarshal(kv.Value)
+				if err != nil {
+					yield(backend.Item{}, trace.Wrap(err))
+					return
+				}
+
+				if !yield(backend.Item{
+					Key:      b.trimPrefix(kv.Key),
+					Value:    value,
+					Revision: toBackendRevision(kv.ModRevision),
+				}, nil) {
+					return
+				}
+
+				count++
+				if params.Limit != backend.NoLimit && count >= params.Limit {
+					return
+				}
+			}
+
+			if params.Descending {
+				endKey = string(re.Kvs[len(re.Kvs)-1].Key)
+			} else {
+				inclusiveStartKey = string(re.Kvs[len(re.Kvs)-1].Key) + "\x00"
+			}
+		}
+	}
+}
+
 // GetRange returns query range
-func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey []byte, limit int) (*backend.GetResult, error) {
-	if len(startKey) == 0 {
+func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
+	if startKey.IsZero() {
 		return nil, trace.BadParameter("missing parameter startKey")
 	}
-	if len(endKey) == 0 {
+	if endKey.IsZero() {
 		return nil, trace.BadParameter("missing parameter endKey")
 	}
-	opts := []clientv3.OpOption{clientv3.WithRange(b.prependPrefix(endKey))}
-	if limit > 0 {
-		opts = append(opts, clientv3.WithLimit(int64(limit)))
-	}
-	start := b.clock.Now()
-	re, err := b.clients.Next().Get(ctx, b.prependPrefix(startKey), opts...)
-	batchReadLatencies.Observe(time.Since(start).Seconds())
-	batchReadRequests.Inc()
-	if err := convertErr(err); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	items := make([]backend.Item, 0, len(re.Kvs))
-	for _, kv := range re.Kvs {
-		value, err := unmarshal(kv.Value)
+
+	var result backend.GetResult
+	for item, err := range b.Items(ctx, backend.IterateParams{StartKey: startKey, EndKey: endKey, Limit: limit}) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		items = append(items, backend.Item{
-			Key:      b.trimPrefix(kv.Key),
-			Value:    value,
-			Revision: toBackendRevision(kv.ModRevision),
-		})
+		result.Items = append(result.Items, item)
+		if limit != backend.NoLimit && len(result.Items) > limit {
+			return nil, trace.BadParameter("item iterator produced more items than requested (this is a bug). limit=%d, received=%d", limit, len(result.Items))
+		}
 	}
-	sort.Sort(backend.Items(items))
-	return &backend.GetResult{Items: items}, nil
+	return &result, nil
 }
 
 func toBackendRevision(rev int64) string {
@@ -719,7 +783,7 @@ func (b *EtcdBackend) Create(ctx context.Context, item backend.Item) (*backend.L
 		return nil, trace.Wrap(convertErr(err))
 	}
 	if !re.Succeeded {
-		return nil, trace.AlreadyExists("%q already exists", string(item.Key))
+		return nil, trace.AlreadyExists("%v already exists", item.Key)
 	}
 
 	lease.Revision = toBackendRevision(re.Header.Revision)
@@ -747,7 +811,7 @@ func (b *EtcdBackend) Update(ctx context.Context, item backend.Item) (*backend.L
 		return nil, trace.Wrap(convertErr(err))
 	}
 	if !re.Succeeded {
-		return nil, trace.NotFound("%q is not found", string(item.Key))
+		return nil, trace.NotFound("%q is not found", item.Key.String())
 	}
 
 	lease.Revision = toBackendRevision(re.Header.Revision)
@@ -791,13 +855,13 @@ func (b *EtcdBackend) ConditionalUpdate(ctx context.Context, item backend.Item) 
 // CompareAndSwap compares item with existing item
 // and replaces is with replaceWith item
 func (b *EtcdBackend) CompareAndSwap(ctx context.Context, expected backend.Item, replaceWith backend.Item) (*backend.Lease, error) {
-	if len(expected.Key) == 0 {
+	if expected.Key.IsZero() {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
-	if len(replaceWith.Key) == 0 {
+	if replaceWith.Key.IsZero() {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
-	if !bytes.Equal(expected.Key, replaceWith.Key) {
+	if expected.Key.Compare(replaceWith.Key) != 0 {
 		return nil, trace.BadParameter("expected and replaceWith keys should match")
 	}
 	var opts []clientv3.OpOption
@@ -820,12 +884,12 @@ func (b *EtcdBackend) CompareAndSwap(ctx context.Context, expected backend.Item,
 	if err != nil {
 		err = convertErr(err)
 		if trace.IsNotFound(err) {
-			return nil, trace.CompareFailed(err.Error())
+			return nil, trace.CompareFailed("%s", err)
 		}
 		return nil, trace.Wrap(err)
 	}
 	if !re.Succeeded {
-		return nil, trace.CompareFailed("key %q did not match expected value", string(expected.Key))
+		return nil, trace.CompareFailed("key %q did not match expected value", expected.Key.String())
 	}
 
 	lease.Revision = toBackendRevision(re.Header.Revision)
@@ -871,20 +935,20 @@ func (b *EtcdBackend) KeepAlive(ctx context.Context, lease backend.Lease, expire
 	_, err := b.clients.Next().Put(ctx, b.prependPrefix(lease.Key), "", opts...)
 	err = convertErr(err)
 	if trace.IsNotFound(err) {
-		return trace.NotFound("item %q is not found", string(lease.Key))
+		return trace.NotFound("item %q is not found", lease.Key.String())
 	}
 
 	return err
 }
 
 // Get returns a single item or not found error
-func (b *EtcdBackend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
+func (b *EtcdBackend) Get(ctx context.Context, key backend.Key) (*backend.Item, error) {
 	re, err := b.clients.Next().Get(ctx, b.prependPrefix(key))
 	if err != nil {
 		return nil, convertErr(err)
 	}
 	if len(re.Kvs) == 0 {
-		return nil, trace.NotFound("item %q is not found", string(key))
+		return nil, trace.NotFound("item %q is not found", key.String())
 	}
 	kv := re.Kvs[0]
 	value, err := unmarshal(kv.Value)
@@ -899,7 +963,7 @@ func (b *EtcdBackend) Get(ctx context.Context, key []byte) (*backend.Item, error
 }
 
 // Delete deletes item by key
-func (b *EtcdBackend) Delete(ctx context.Context, key []byte) error {
+func (b *EtcdBackend) Delete(ctx context.Context, key backend.Key) error {
 	start := b.clock.Now()
 	re, err := b.clients.Next().Delete(ctx, b.prependPrefix(key))
 	writeLatencies.Observe(time.Since(start).Seconds())
@@ -908,14 +972,14 @@ func (b *EtcdBackend) Delete(ctx context.Context, key []byte) error {
 		return trace.Wrap(convertErr(err))
 	}
 	if re.Deleted == 0 {
-		return trace.NotFound("%q is not found", key)
+		return trace.NotFound("%q is not found", key.String())
 	}
 
 	return nil
 }
 
 // ConditionalDelete deletes the item if it hasn't been modified.
-func (b *EtcdBackend) ConditionalDelete(ctx context.Context, prefix []byte, rev string) error {
+func (b *EtcdBackend) ConditionalDelete(ctx context.Context, prefix backend.Key, rev string) error {
 	r, err := fromBackendRevision(rev)
 	if err != nil {
 		return trace.Wrap(backend.ErrIncorrectRevision)
@@ -940,11 +1004,11 @@ func (b *EtcdBackend) ConditionalDelete(ctx context.Context, prefix []byte, rev 
 }
 
 // DeleteRange deletes range of items with keys between startKey and endKey
-func (b *EtcdBackend) DeleteRange(ctx context.Context, startKey, endKey []byte) error {
-	if len(startKey) == 0 {
+func (b *EtcdBackend) DeleteRange(ctx context.Context, startKey, endKey backend.Key) error {
+	if startKey.IsZero() {
 		return trace.BadParameter("missing parameter startKey")
 	}
-	if len(endKey) == 0 {
+	if endKey.IsZero() {
 		return trace.BadParameter("missing parameter endKey")
 	}
 	start := b.clock.Now()
@@ -1070,14 +1134,14 @@ func convertErr(err error) error {
 	case errors.Is(err, context.DeadlineExceeded):
 		return trace.ConnectionProblem(err, "operation has timed out")
 	case errors.Is(err, rpctypes.ErrEmptyKey):
-		return trace.BadParameter(err.Error())
+		return trace.BadParameter("%s", err)
 	case errors.Is(err, rpctypes.ErrKeyNotFound):
-		return trace.NotFound(err.Error())
+		return trace.NotFound("%s", err)
 	}
 
 	ev, ok := status.FromError(err)
 	if !ok {
-		return trace.ConnectionProblem(err, err.Error())
+		return trace.ConnectionProblem(err, "%s", err.Error())
 	}
 
 	switch ev.Code() {
@@ -1086,15 +1150,15 @@ func convertErr(err error) error {
 	case codes.DeadlineExceeded:
 		return trace.ConnectionProblem(err, "operation has timed out")
 	case codes.NotFound:
-		return trace.NotFound(err.Error())
+		return trace.NotFound("%s", err)
 	case codes.AlreadyExists:
-		return trace.AlreadyExists(err.Error())
+		return trace.AlreadyExists("%s", err)
 	case codes.FailedPrecondition:
-		return trace.CompareFailed(err.Error())
+		return trace.CompareFailed("%s", err)
 	case codes.ResourceExhausted:
-		return trace.LimitExceeded(err.Error())
+		return trace.LimitExceeded("%s", err)
 	default:
-		return trace.BadParameter(err.Error())
+		return trace.BadParameter("%s", err)
 	}
 }
 
@@ -1107,10 +1171,10 @@ func fromType(eventType mvccpb.Event_EventType) types.OpType {
 	}
 }
 
-func (b *EtcdBackend) trimPrefix(in []byte) []byte {
-	return bytes.TrimPrefix(in, []byte(b.cfg.Key))
+func (b *EtcdBackend) trimPrefix(in []byte) backend.Key {
+	return backend.KeyFromString(string(in)).TrimPrefix(backend.KeyFromString(b.cfg.Key))
 }
 
-func (b *EtcdBackend) prependPrefix(in []byte) string {
-	return b.cfg.Key + string(in)
+func (b *EtcdBackend) prependPrefix(in backend.Key) string {
+	return b.cfg.Key + in.String()
 }

@@ -1,5 +1,6 @@
 ---
-title: Join Methods and Token Reference
+title: Join Methods and Tokens
+h1: Join Methods and Token Reference
 description: Describes the different ways to configure a Teleport to join a cluster.
 keywords: [join, joining, token]
 tocDepth: 3
@@ -87,7 +88,7 @@ for an instance to join the cluster.
 
 Secret-based join methods are universal: Teleport service can use a secret-based
 join method regardless of the platform/cloud provider it runs on. The joining instance
-sends the secret and the Auth Service validates that it matches the one it 
+sends the secret and the Auth Service validates that it matches the one it
 knows. Those joining methods are inherently prone to secret exfiltration and
 the delegated join methods should be preferred when available. If you have
 to use a secret-based join method, it is recommended to use short-lived tokens
@@ -122,6 +123,7 @@ Delegated join methods are:
 - [`gitlab`](#gitlab-gitlab)
 - [`kubernetes`](#kubernetes-kubernetes)
 - [`tpm`](#trusted-platform-module-tpm)
+- [`terraform_cloud`](#terraform-cloud-terraform_cloud)
 
 ### Renewable vs non-renewable
 
@@ -138,7 +140,7 @@ Renewable join-methods are:
 - [static `token`](#static-tokens)
 - [`ec2`](#aws-ec2-identity-document-ec2)
 
-Nodes with non-renewable certificates must join again in order to get a new 
+Nodes with non-renewable certificates must join again in order to get a new
 certificate before expiry. The instance will have to prove again that it is legitimate.
 The non-renewable join methods guarantee that an attacker stealing the instance
 certificates will not be able to maintain access to the Teleport cluster.
@@ -172,7 +174,7 @@ spec:
   # - edit the token to update the roles (e.g. add "App")
   # - un-register the Teleport instance
   # - modify its configuration to enable the new service (here "app_service.enabled")
-  # - have the instance join again 
+  # - have the instance join again
   #
   # You should use the minimal set of system roles required.
   # Common roles are:
@@ -184,7 +186,7 @@ spec:
   # - "WindowsDesktop" for Windows Desktop Service
   # - "Discovery" for Discovery Service
   # - "Bot" for MachineID (when set, "spec.bot_name" must be set in the token)
-  roles: 
+  roles:
     - Node
     - App
   join_method: gcp
@@ -242,7 +244,7 @@ They are time-bound and are typically created just before joining an instance to
 the Teleport cluster.
 
 They can be created by the CLI (a strong random value is picked when not specified, default TTL is 30 minutes):
-```shell
+```code
 $ tctl tokens add --type discovery,app --ttl 15m
 ```
 
@@ -263,8 +265,6 @@ The IAM join method is available to any Teleport process running anywhere with a
 such as an EC2 instance with an attached IAM role. No specific permissions or IAM policy is required: an
 IAM role with no attached policies is sufficient. No IAM credentials are required on the Teleport Auth Service.
 
-Support for joining a cluster with the Proxy Service behind a layer 7 load balancer or reverse proxy is available in Teleport 13.0+.
-
 This is the recommended method to join workload running on AWS.
 
 (!docs/pages/includes/provision-token/iam-spec.mdx!)
@@ -284,13 +284,13 @@ IAM credentials with `ec2:DescribeInstances` permissions are required on your
 Teleport Auth Service. No IAM credentials are required on the Teleport processes
 joining the cluster.
 
-<Notice type="warning">
+<Admonition type="warning">
 
 The EC2 join method is not available in Teleport Enterprise Cloud and Teleport
 Team. Teleport Enterprise Cloud and Team customers can use the [IAM join
 method](#aws-iam-role-iam) or [ephemeral secret tokens](#ephemeral-tokens).
 
-</Notice>
+</Admonition>
 
 (!docs/pages/includes/provision-token/ec2-spec.mdx!)
 
@@ -300,10 +300,9 @@ method](#aws-iam-role-iam) or [ephemeral secret tokens](#ephemeral-tokens).
 
 ### Azure managed identity: `azure`
 
-The Azure join method is available in Teleport 12.1+. It is available to any
-Teleport process running in an Azure Virtual Machine. Support for joining a
-cluster with the Proxy Service behind a layer 7 load balancer or reverse proxy
-is available in Teleport 13.0+.
+The Azure join method is available to any Teleport process running in an
+Azure Virtual Machine. Support for joining a cluster with the Proxy Service
+behind a layer 7 load balancer or reverse proxy is available in Teleport 13.0+.
 
 (!docs/pages/includes/provision-token/azure-spec.mdx!)
 
@@ -384,9 +383,6 @@ clusters in Kubernetes.
 This method should be preferred when available as tokens are revoked as soon as
 the pod enters the `Terminated` state.
 
-The Kubernetes in-cluster join method is available in self-hosted versions of
-Teleport 12+.
-
 (!docs/pages/includes/provision-token/kubernetes-in-cluster-spec.mdx!)
 
 <Admonition type="note" title="See Also">
@@ -408,7 +404,7 @@ The Kubernetes JWKS join method is available in Teleport 14+.
 
 <Admonition type="warning">
 After rotating the Kubernetes CA, you must update the Kubernetes JWKS tokens
-to contain the new Kubernetes singing keys (update the
+to contain the new Kubernetes signing keys (update the
 `spec.kubernetes.static_jwks.jwks` field).
 </Admonition>
 
@@ -424,4 +420,58 @@ to contain the new Kubernetes singing keys (update the
 
 <Admonition type="note" title="See Also">
 - [Deploying Machine ID on Linux: TPM](../enroll-resources/machine-id/deployment/linux-tpm.mdx)
+</Admonition>
+
+### Terraform Cloud: `terraform_cloud`
+
+This join method is used to authenticate using Terraform Cloud Workload
+Identity. It is typically used by the Teleport Terraform provider on either
+HCP Terraform or self-hosted Terraform Enterprise. It can not be used to join
+Terraform runs on other platforms and dedicated join methods should be used
+instead.
+
+<Admonition type="warning" title="Enterprise">
+Support for self-hosted Terraform Enterprise requires Teleport Enterprise.
+</Admonition>
+
+(!docs/pages/includes/provision-token/terraform-spec.mdx!)
+
+<Admonition type="note" title="See Also">
+- [Run the Teleport Terraform Provider on Terraform Cloud](../admin-guides/infrastructure-as-code/terraform-provider/terraform-cloud.mdx)
+</Admonition>
+
+### Spacelift: `spacelift`
+
+This join method is used to authenticate using Spacelift. It is typically used
+by the Teleport Terraform provider on Spacelift (including self-hosted
+deployments).
+
+(!docs/pages/includes/provision-token/spacelift-spec.mdx!)
+
+<Admonition type="note" title="See Also">
+    - [Run the Teleport Terraform Provider on Spacelift](../admin-guides/infrastructure-as-code/terraform-provider/spacelift.mdx)
+</Admonition>
+
+### Bitbucket Pipelines: `bitbucket`
+
+This join method is used to authenticate using Bitbucket's support for OpenID
+Connect, and is typically used to allow either Machine ID's `tbot` or the
+Teleport Terraform provider to authenticate to Teleport without use of shared
+secrets.
+
+(!docs/pages/includes/provision-token/bitbucket-spec.mdx!)
+
+<Admonition type="note" title="See Also">
+- [Deploying Machine ID on Bitbucket Pipelines](../enroll-resources/machine-id/deployment/bitbucket.mdx)
+</Admonition>
+
+### Oracle Cloud: `oracle`
+
+The Oracle join method is available to any Teleport process running on an Oracle
+Cloud Compute instance.
+
+(!docs/pages/includes/provision-token/oracle-spec.mdx!)
+
+<Admonition type="note" title="See Also">
+- How to [Join Services with Oracle Cloud](../enroll-resources/agents/join-services-to-your-cluster/oracle.mdx).
 </Admonition>

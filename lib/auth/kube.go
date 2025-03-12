@@ -34,6 +34,8 @@ import (
 
 // ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 // signed certificate if successful.
+// DEPRECATED
+// TODO(tigrato): DELETE IN 18.0
 func (a *Server) ProcessKubeCSR(req authclient.KubeCSR) (*authclient.KubeCSRResponse, error) {
 	ctx := context.TODO()
 	if err := enforceLicense(types.KindKubernetesCluster); err != nil {
@@ -50,7 +52,7 @@ func (a *Server) ProcessKubeCSR(req authclient.KubeCSR) (*authclient.KubeCSRResp
 
 	// Certificate for remote cluster is a user certificate
 	// with special provisions.
-	log.Debugf("Generating certificate to access remote Kubernetes clusters.")
+	a.logger.DebugContext(ctx, "Generating certificate to access remote Kubernetes clusters")
 
 	hostCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,

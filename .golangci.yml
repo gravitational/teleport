@@ -9,55 +9,73 @@ issues:
   exclude-dirs-use-default: false
   exclude-rules:
     - linters:
-      - gosimple
-      text: "S1002: should omit comparison to bool constant"
+        - gosimple
+      text: 'S1002: should omit comparison to bool constant'
     - linters:
-      - revive
-      text: "exported: exported const"
+        - revive
+      text: 'exported: exported const'
     # TODO(hugoShaka): Remove once https://github.com/dominikh/go-tools/issues/1294 is fixed
     - linters:
-      - unused
+        - unused
       path: 'integrations/operator/controllers/resources/(.+)_controller_test\.go'
     # TODO(codingllama): Remove once we move to grpc.NewClient.
     - linters: [staticcheck]
-      text: "grpc.Dial is deprecated"
+      text: 'grpc.Dial is deprecated'
     - linters: [staticcheck]
-      text: "grpc.DialContext is deprecated"
+      text: 'grpc.DialContext is deprecated'
     # Deprecated gRPC dial options. Related to grpc.NewClient.
     - path: (client/client.go|client/proxy/client_test.go) # api/
       linters: [staticcheck]
       # grpc.FailOnNonTempDialError
       # grpc.WithReturnConnectionError
-      text: "this DialOption is not supported by NewClient"
+      text: 'this DialOption is not supported by NewClient'
     - path: lib/kube/grpc/grpc_test.go
       linters: [staticcheck]
-      text: "grpc.WithBlock is deprecated"
+      text: 'grpc.WithBlock is deprecated'
     - path: lib/observability/tracing/client.go
       linters: [staticcheck]
-      text: "grpc.WithBlock is deprecated"
+      text: 'grpc.WithBlock is deprecated'
     - path: integrations/lib/config.go
       linters: [staticcheck]
-      text: "grpc.WithReturnConnectionError is deprecated"
+      text: 'grpc.WithReturnConnectionError is deprecated'
     - path: lib/service/service_test.go
       linters: [staticcheck]
       # grpc.WithReturnConnectionError
       # grpc.FailOnNonTempDialError
-      text: "this DialOption is not supported by NewClient"
+      text: 'this DialOption is not supported by NewClient'
     - path: integration/client_test.go
       linters: [staticcheck]
-      text: "grpc.WithReturnConnectionError is deprecated"
+      text: 'grpc.WithReturnConnectionError is deprecated'
     - path: integration/integration_test.go
       linters: [staticcheck]
-      text: "grpc.WithBlock is deprecated"
+      text: 'grpc.WithBlock is deprecated'
     - path: lib/multiplexer/multiplexer_test.go
       linters: [staticcheck]
-      text: "grpc.WithBlock is deprecated"
+      text: 'grpc.WithBlock is deprecated'
     - path: provider/provider.go # integrations/terraform
       linters: [staticcheck]
-      text: "grpc.WithReturnConnectionError is deprecated"
+      text: 'grpc.WithReturnConnectionError is deprecated'
+    # BlockUntilContext should indeed be favored, this exception exists because
+    # at this time there are too many offenders.
+    - linters: [staticcheck]
+      text: 'BlockUntil is deprecated: New code should prefer BlockUntilContext'
+    # lib/utils/aws/ subpackages are allowed to use AWS SDK constructors.
+    - path: lib/utils/aws/iamutils/iam.go
+      linters: [forbidigo]
+      text: 'iam.NewFromConfig'
+    - path: lib/utils/aws/stsutils/sts.go
+      linters: [forbidigo]
+      text: 'sts.NewFromConfig'
+    - path: lib/utils/aws/stsutils/sts_v1.go
+      linters: [forbidigo]
+      text: 'sts.New'
+    - path: lib/utils/aws/stsutils/stscreds_v1.go
+      linters: [forbidigo]
+      text: 'stscreds.NewCredentials'
   exclude-use-default: true
   max-same-issues: 0
   max-issues-per-linter: 0
+  uniq-by-line: false
 
 linters:
   disable-all: true
@@ -78,6 +96,7 @@ linters:
     - testifylint
     - unconvert
     - unused
+    - forbidigo
 
 linters-settings:
   depguard:
@@ -86,16 +105,14 @@ linters-settings:
         deny:
           - pkg: io/ioutil
             desc: 'use "io" or "os" packages instead'
+          - pkg: math/rand$
+            desc: 'use "math/rand/v2" or "crypto/rand" instead'
           - pkg: github.com/golang/protobuf
             desc: 'use "google.golang.org/protobuf"'
           - pkg: github.com/hashicorp/go-uuid
             desc: 'use "github.com/google/uuid" instead'
           - pkg: github.com/pborman/uuid
             desc: 'use "github.com/google/uuid" instead'
-          - pkg: github.com/siddontang/go-log/log
-            desc: 'use "github.com/sirupsen/logrus" instead'
-          - pkg: github.com/siddontang/go/log
-            desc: 'use "github.com/sirupsen/logrus" instead'
           - pkg: github.com/tj/assert
             desc: 'use "github.com/stretchr/testify/assert" instead'
           - pkg: go.uber.org/atomic
@@ -108,21 +125,149 @@ linters-settings:
             desc: 'use "golang.org/x/mod/semver" or "coreos/go-semver/semver" instead'
           - pkg: github.com/microsoftgraph/msgraph-sdk-go
             desc: 'use "github.com/gravitational/teleport/lib/msgraph" instead'
-      # Prevent logrus from being imported by api. Once everything in teleport has been converted
-      # to use log/slog this should be moved into the main block above.
-      logrus:
-        files:
-          - '**/api/**'
+          - pkg: github.com/cloudflare/cfssl
+            desc: 'use "crypto" or "x/crypto" instead'
+      # Prevent importing any additional logging libraries.
+      logging:
         deny:
           - pkg: github.com/sirupsen/logrus
             desc: 'use "log/slog" instead'
+          - pkg: github.com/siddontang/go-log/log
+            desc: 'use "log/slog" instead'
+          - pkg: github.com/siddontang/go/log
+            desc: 'use "log/slog" instead'
+          - pkg: github.com/mailgun/log
+            desc: 'use "log/slog" instead'
+          - pkg: github.com/saferwall/pe/log
+            desc: 'use "log/slog" instead'
+          - pkg: golang.org/x/exp/slog
+            desc: 'use "log/slog" instead'
+      # Prevent importing testify in production code.
+      testify:
+        files:
+          # Tests can import testify
+          - '!$test'
+          # Exceptions
+          # Remove these once they are complaint.
+          - '!**/api/testhelpers/**'
+          - '!**/e/lib/auth/ssotestlib.go'
+          - '!**/e/lib/aws/identitycenter/test/**'
+          - '!**/e/lib/idp/saml/testenv/**'
+          - '!**/e/lib/operatortest/**'
+          - '!**/e/tests/**'
+          - '!**/lib/automaticupgrades/basichttp/servermock.go'
+          - '!**/lib/auth/helpers.go'
+          - '!**/lib/auth/keystore/testhelpers.go'
+          - '!**/lib/auth/test/**'
+          - '!**/lib/backend/test/**'
+          - '!**/lib/events/athena/test.go'
+          - '!**/lib/events/test/**'
+          - '!**/lib/kube/proxy/utils_testing.go'
+          - '!**/lib/services/suite/**'
+          - '!**/lib/srv/mock.go'
+          - '!**/lib/srv/db/redis/test.go'
+          - '!**/lib/tbot/workloadidentity/workloadattest/podman/test_server.go'
+          - '!**/lib/teleterm/gatewaytest/**'
+          - '!**/lib/utils/testhelpers.go'
+          - '!**/lib/utils/testutils/**'
+          - '!**/integration/appaccess/fixtures.go'
+          - '!**/integration/appaccess/jwt.go'
+          - '!**/integration/appaccess/pack.go'
+          - '!**/integration/db/fixture.go'
+          - '!**/integration/hsm/helpers.go'
+          - '!**/integration/helpers/**'
+          - '!**/integration/proxy/proxy_helpers.go'
+          - '!**/integrations/access/email/testlib/**'
+          - '!**/integrations/access/datadog/testlib/**'
+          - '!**/integrations/access/discord/testlib/**'
+          - '!**/integrations/access/jira/testlib/**'
+          - '!**/integrations/access/mattermost/testlib/**'
+          - '!**/integrations/access/msteams/testlib/**'
+          - '!**/integrations/access/opsgenie/testlib/**'
+          - '!**/integrations/access/pagerduty/testlib/**'
+          - '!**/integrations/access/servicenow/testlib/**'
+          - '!**/integrations/access/slack/testlib/**'
+          - '!**/integrations/lib/testing/integration/accessrequestsuite.go'
+          - '!**/integrations/lib/testing/integration/app.go'
+          - '!**/integrations/lib/testing/integration/authhelper.go'
+          - '!**/integrations/lib/testing/integration/suite.go'
+          - '!**/integrations/operator/controllers/resources/testlib/**'
+          - '!**/tool/teleport/testenv/**'
+        deny:
+          - pkg: github.com/stretchr/testify
+            desc: 'testify should not be imported outside of test code'
+      # Prevent importing integration test helpers in production code.
+      integration:
+        files:
+          # Tests can do anything
+          - '!$test'
+          - '!**/integration/**'
+          - '!**/e/tests/**'
+          - '!**/integrations/operator/controllers/resources/testlib/**'
+        deny:
+          - pkg: github.com/gravitational/teleport/integration
+            desc: 'integration test should not be imported outside of intergation tests'
+        allow:
+          # integrations is explicitly allowed becuase the deny rule above
+          # will match both integration and integrations, however only
+          # integration should be denied.
+          - github.com/gravitational/teleport/integrations
+        list-mode: lax
+      # Prevent importing testing in production code.
+      testing:
+        files:
+          # Tests can do anything
+          - '!$test'
+          # Exceptions
+          # Remove these once they are complaint.
+          - '!**/api/testhelpers/**'
+          - '!**/e/lib/auth/ssotestlib.go'
+          - '!**/e/lib/aws/identitycenter/test/**'
+          - '!**/e/lib/devicetrust/testenv/**'
+          - '!**/e/lib/devicetrust/storage/storage.go'
+          - '!**/e/lib/idp/saml/testenv/**'
+          - '!**/e/lib/jamf/testenv/**'
+          - '!**/e/lib/okta/api/oktaapitest/**'
+          - '!**/e/lib/operatortest/**'
+          - '!**/e/tests/**'
+          - '!**/integration/**'
+          - '!**/integrations/access/email/testlib/**'
+          - '!**/integrations/access/msteams/testlib/**'
+          - '!**/integrations/access/slack/testlib/**'
+          - '!**/integrations/operator/controllers/resources/testlib/**'
+          - '!**/lib/auth/helpers.go'
+          - '!**/lib/auth/keystore/testhelpers.go'
+          - '!**/lib/auth/test/**'
+          - '!**/lib/automaticupgrades/basichttp/servermock.go'
+          - '!**/lib/backend/test/**'
+          - '!**/lib/cryptosuites/precompute.go'
+          - '!**/lib/cryptosuites/internal/rsa/rsa.go'
+          - '!**/lib/events/test/**'
+          - '!**/lib/events/athena/test.go'
+          - '!**/lib/fixtures/**'
+          - '!**/lib/kube/proxy/utils_testing.go'
+          - '!**/lib/modules/test.go'
+          - '!**/lib/service/service.go'
+          - '!**/lib/services/local/users.go'
+          - '!**/lib/services/suite/**'
+          - '!**/lib/srv/mock.go'
+          - '!**/lib/srv/db/redis/test.go'
+          - '!**/lib/tbot/workloadidentity/workloadattest/podman/test_server.go'
+          - '!**/lib/teleterm/gatewaytest/**'
+          - '!**/lib/utils/cli.go'
+          - '!**/lib/utils/testhelpers.go'
+          - '!**/lib/utils/testutils/**'
+          - '!**/tool/teleport/testenv/**'
+        deny:
+          - pkg: testing
+            desc: 'testing should not be imported outside of tests'
       # Prevent importing internal packages in client tools or packages containing
       # common interfaces consumed by them that are known to bloat binaries or break builds
       # because they only support a single platform.
       client-tools:
         files:
           # Tests can do anything
-          - "!$test"
+          - '!$test'
           - '**/tool/tbot/**'
           - '**/lib/tbot/**'
           - '**/tool/tctl/**'
@@ -145,6 +290,73 @@ linters-settings:
           - pkg: github.com/gravitational/teleport/lib/web$
             desc: 'lib/web should not be imported to prevent increasing binary size'
         list-mode: lax
+      # Prevent importing dependencies that require CGO into tools that are
+      # meant to be built with CGO_ENABLED=0
+      cgo:
+        files:
+          # Tests can do anything
+          - '!$test'
+          - '**/tool/tbot/**'
+          - '**/lib/client/**'
+          - '!**/lib/integrations/**'
+          - '**/integrations/**'
+        deny:
+          - pkg: github.com/gravitational/teleport/lib/bpf
+            desc: '"lib/bpf" requires CGO'
+          - pkg: github.com/gravitational/teleport/lib/backend/lite
+            desc: '"lib/backend/lite" requires CGO'
+          - pkg: github.com/gravitational/teleport/lib/cgroup
+            desc: '"lib/cgroup" requires CGO'
+          - pkg: github.com/gravitational/teleport/lib/config
+            desc: '"lib/config" requires CGO via "lib/pam" and "lib/backend/lite"'
+          - pkg: github.com/gravitational/teleport/lib/desktop/rdp/rdpclient
+            desc: '"lib/desktop/rdp/rdpclient" requires CGO'
+          - pkg: github.com/gravitational/teleport/lib/devicetrust/authn$
+            desc: '"lib/devicetrust/authn" requires CGO on darwin'
+          - pkg: github.com/gravitational/teleport/lib/devicetrust/enroll
+            desc: '"lib/devicetrust/enroll" requires CGO on darwin'
+          - pkg: github.com/gravitational/teleport/lib/devicetrust/native
+            desc: '"lib/devicetrust/native" requires CGO on darwin'
+          - pkg: github.com/gravitational/teleport/lib/inventory/metadata
+            desc: '"lib/inventory/metadata" requires CGO'
+          - pkg: github.com/gravitational/teleport/lib/pam
+            desc: '"lib/pam" requires CGO'
+          - pkg: github.com/gravitational/teleport/lib/srv/uacc
+            desc: '"lib/srv/uacc" requires CGO'
+          - pkg: github.com/gravitational/teleport/lib/system/signal
+            desc: '"lib/system/signal" requires CGO'
+          - pkg: github.com/gravitational/teleport/lib/vnet/daemon
+            desc: '"vnet/daemon" requires CGO'
+      # Prevent importing go-cmp into production code. From the go-cmp docs:
+      # > It is intended to only be used in tests, as performance is not a goal
+      # > and it may panic if it cannot compare the values. Its propensity towards
+      # > panicking means that its unsuitable for production environments where a
+      # > spurious panic may be fatal.
+      go-cmp:
+        files:
+          # Tests can do anything
+          - '!$test'
+          # Various test helpers defined outside _test.go files are allowed
+          - '!**/integration/helpers/**'
+          - '!**/integrations/operator/controllers/resources/testlib/**'
+          - '!**/lib/auth/test/**'
+          - '!**/lib/services/suite/**'
+          # Non-compliant legacy code. These should be converted to compare by another mechanism
+          # and be removed from this list in the future. Use caution before adding any additional
+          # exclusions to this list.
+          - '!**/e/lib/accesslist/equal.go'
+          - '!**/e/lib/auth/saml.go'
+          - '!**lib/services/authority.go'
+          - '!**lib/services/compare.go'
+          - '!**/lib/services/local/access_list.go'
+          - '!**/lib/services/local/users.go'
+          - '!**/lib/services/server.go'
+          - '!**/lib/services/user.go'
+        deny:
+          - pkg: github.com/google/go-cmp/cmp
+            desc: '"github.com/google/go-cmp/cmp" should only be used in tests'
+          - pkg: github.com/google/go-cmp/cmp/cmpopts
+            desc: '"github.com/google/go-cmp/cmp/cmpopts" should only be used in tests'
   errorlint:
     comparison: true
     asserts: true
@@ -165,8 +377,8 @@ linters-settings:
     require-specific: true
   revive:
     rules:
-    - name: unused-parameter
-      disabled: true
+      - name: unused-parameter
+        disabled: true
   sloglint:
     context: all
     key-naming-case: snake
@@ -189,11 +401,21 @@ linters-settings:
       - len
       - suite-extra-assert-call
       - suite-thelper
-
-output:
-  uniq-by-line: false
+  forbidigo:
+    forbid:
+      - p: '^rsa\.GenerateKey$'
+        msg: 'generating RSA keys is slow, use lib/cryptosuites to generate an appropriate key type'
+      # AWS SDK wrapped constructors.
+      - p: '^iam\.NewFromConfig$'
+        msg: 'Use iamutils.NewFromConfig'
+      - p: '^sts\.NewFromConfig$'
+        msg: 'Use stsutils.NewFromConfig'
+      - p: '^sts\.New$'
+        msg: 'Use stsutils.NewV1'
+      - p: '^stscreds\.NewCredentials$'
+        msg: 'Use stsutils.NewCredentials'
 
 run:
-  go: '1.22'
+  go: '1.24'
   build-tags: []
   timeout: 15m

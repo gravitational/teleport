@@ -27,7 +27,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -38,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 )
 
 type mockLockEnforcer struct {
@@ -131,11 +131,11 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 	}
 
 	minimalIdentity := IdentityContext{
+		UnmappedIdentity: &sshca.Identity{
+			Username: "alpaca",
+		},
 		TeleportUser: "alpaca",
 		Login:        "alpaca",
-		Certificate: &ssh.Certificate{
-			KeyId: "alpaca",
-		},
 		AccessChecker: &mockAccessChecker{
 			keyPolicy: keys.PrivateKeyPolicyNone,
 		},
@@ -150,18 +150,17 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 		return cfg
 	}
 	identityWithDeviceExtensions := func() IdentityContext {
+		ident := *minimalIdentity.UnmappedIdentity
 		idCtx := minimalIdentity
-		idCtx.Certificate = &ssh.Certificate{
-			KeyId: "alpaca",
-			Permissions: ssh.Permissions{
-				Extensions: map[string]string{
-					teleport.CertExtensionDeviceID:           "deviceid1",
-					teleport.CertExtensionDeviceAssetTag:     "assettag1",
-					teleport.CertExtensionDeviceCredentialID: "credentialid1",
-				},
-			},
-		}
+		idCtx.UnmappedIdentity = &ident
+		idCtx.UnmappedIdentity.DeviceID = "deviceid1"
+		idCtx.UnmappedIdentity.DeviceAssetTag = "assettag1"
+		idCtx.UnmappedIdentity.DeviceCredentialID = "credentialid1"
 		return idCtx
+	}
+	assertTrustedDeviceRequired := func(t *testing.T, _ context.Context, err error, _ *eventstest.MockRecorderEmitter) {
+		assert.ErrorContains(t, err, "device", "AcquireSessionContext returned an unexpected error")
+		assert.True(t, trace.IsAccessDenied(err), "AcquireSessionContext returned an error other than trace.AccessDeniedError: %T", err)
 	}
 
 	cases := []struct {
@@ -190,15 +189,12 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 				ServerID:     "1234",
 			},
 			identity: IdentityContext{
+				UnmappedIdentity: &sshca.Identity{
+					Username:         "alpaca",
+					PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+				},
 				TeleportUser: "alpaca",
 				Login:        "alpaca",
-				Certificate: &ssh.Certificate{
-					Permissions: ssh.Permissions{
-						Extensions: map[string]string{
-							teleport.CertExtensionPrivateKeyPolicy: string(keys.PrivateKeyPolicyNone),
-						},
-					},
-				},
 				AccessChecker: mockAccessChecker{
 					keyPolicy:      keys.PrivateKeyPolicyNone,
 					maxConnections: 1,
@@ -241,15 +237,12 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 				ServerID:     "1234",
 			},
 			identity: IdentityContext{
+				UnmappedIdentity: &sshca.Identity{
+					Username:         "alpaca",
+					PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+				},
 				TeleportUser: "alpaca",
 				Login:        "alpaca",
-				Certificate: &ssh.Certificate{
-					Permissions: ssh.Permissions{
-						Extensions: map[string]string{
-							teleport.CertExtensionPrivateKeyPolicy: string(keys.PrivateKeyPolicyNone),
-						},
-					},
-				},
 				AccessChecker: mockAccessChecker{
 					keyPolicy:      keys.PrivateKeyPolicyNone,
 					maxConnections: 1,
@@ -282,15 +275,12 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 				ServerID:  "1234",
 			},
 			identity: IdentityContext{
+				UnmappedIdentity: &sshca.Identity{
+					Username:         "alpaca",
+					PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+				},
 				TeleportUser: "alpaca",
 				Login:        "alpaca",
-				Certificate: &ssh.Certificate{
-					Permissions: ssh.Permissions{
-						Extensions: map[string]string{
-							teleport.CertExtensionPrivateKeyPolicy: string(keys.PrivateKeyPolicyNone),
-						},
-					},
-				},
 				AccessChecker: mockAccessChecker{
 					keyPolicy:      keys.PrivateKeyPolicyNone,
 					maxConnections: 1,
@@ -328,15 +318,12 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 				ServerID:     "1234",
 			},
 			identity: IdentityContext{
+				UnmappedIdentity: &sshca.Identity{
+					Username:         "alpaca",
+					PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+				},
 				TeleportUser: "alpaca",
 				Login:        "alpaca",
-				Certificate: &ssh.Certificate{
-					Permissions: ssh.Permissions{
-						Extensions: map[string]string{
-							teleport.CertExtensionPrivateKeyPolicy: string(keys.PrivateKeyPolicyNone),
-						},
-					},
-				},
 				AccessChecker: mockAccessChecker{
 					keyPolicy:      keys.PrivateKeyPolicyHardwareKey,
 					maxConnections: 1,
@@ -375,15 +362,12 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 				ServerID:     "1234",
 			},
 			identity: IdentityContext{
+				UnmappedIdentity: &sshca.Identity{
+					Username:         "alpaca",
+					PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+				},
 				TeleportUser: "alpaca",
 				Login:        "alpaca",
-				Certificate: &ssh.Certificate{
-					Permissions: ssh.Permissions{
-						Extensions: map[string]string{
-							teleport.CertExtensionPrivateKeyPolicy: string(keys.PrivateKeyPolicyNone),
-						},
-					},
-				},
 				AccessChecker: mockAccessChecker{
 					keyPolicy:      keys.PrivateKeyPolicyNone,
 					maxConnections: 1,
@@ -430,15 +414,12 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 				ServerID:     "1234",
 			},
 			identity: IdentityContext{
+				UnmappedIdentity: &sshca.Identity{
+					Username:         "alpaca",
+					PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+				},
 				TeleportUser: "alpaca",
 				Login:        "alpaca",
-				Certificate: &ssh.Certificate{
-					Permissions: ssh.Permissions{
-						Extensions: map[string]string{
-							teleport.CertExtensionPrivateKeyPolicy: string(keys.PrivateKeyPolicyNone),
-						},
-					},
-				},
 				AccessChecker: mockAccessChecker{
 					keyPolicy:      keys.PrivateKeyPolicyNone,
 					maxConnections: 0,
@@ -451,22 +432,17 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 			},
 		},
 		{
-			name:     "device extensions not enforced for OSS",
-			cfg:      cfgWithDeviceMode(constants.DeviceTrustModeRequired),
-			identity: minimalIdentity,
-			assertion: func(t *testing.T, _ context.Context, err error, _ *eventstest.MockRecorderEmitter) {
-				assert.NoError(t, err, "AcquireSessionContext returned an unexpected error")
-			},
+			name:      "device extensions enforced for OSS",
+			cfg:       cfgWithDeviceMode(constants.DeviceTrustModeRequired),
+			identity:  minimalIdentity,
+			assertion: assertTrustedDeviceRequired,
 		},
 		{
 			name:      "device extensions enforced for Enterprise",
 			buildType: modules.BuildEnterprise,
 			cfg:       cfgWithDeviceMode(constants.DeviceTrustModeRequired),
 			identity:  minimalIdentity,
-			assertion: func(t *testing.T, _ context.Context, err error, _ *eventstest.MockRecorderEmitter) {
-				assert.ErrorContains(t, err, "device", "AcquireSessionContext returned an unexpected error")
-				assert.True(t, trace.IsAccessDenied(err), "AcquireSessionContext returned an error other than trace.AccessDeniedError: %T", err)
-			},
+			assertion: assertTrustedDeviceRequired,
 		},
 		{
 			name:      "device extensions valid for Enterprise",

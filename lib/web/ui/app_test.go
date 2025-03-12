@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/ui"
 )
 
 func TestMakeAppsLabelFilter(t *testing.T) {
@@ -49,7 +50,7 @@ func TestMakeAppsLabelFilter(t *testing.T) {
 			expected: []App{
 				{
 					Name: "App1",
-					Labels: []Label{
+					Labels: []ui.Label{
 						{
 							Name:  "first",
 							Value: "value1",
@@ -101,7 +102,7 @@ func TestMakeApps(t *testing.T) {
 					URI:        "1.com",
 					PublicAddr: "1.com",
 					FQDN:       "1.com",
-					Labels:     []Label{{Name: "label1", Value: "value1"}},
+					Labels:     []ui.Label{{Name: "label1", Value: "value1"}},
 					UserGroups: []UserGroupAndDescription{},
 				},
 				{
@@ -111,7 +112,7 @@ func TestMakeApps(t *testing.T) {
 					URI:         "2.com",
 					PublicAddr:  "2.com",
 					FQDN:        "2.com",
-					Labels: []Label{
+					Labels: []ui.Label{
 						{Name: "label2", Value: "value2"},
 						{Name: types.OriginLabel, Value: types.OriginOkta},
 					},
@@ -148,7 +149,7 @@ func TestMakeApps(t *testing.T) {
 					URI:        "1.com",
 					PublicAddr: "1.com",
 					FQDN:       "1.com",
-					Labels:     []Label{{Name: "label1", Value: "value1"}},
+					Labels:     []ui.Label{{Name: "label1", Value: "value1"}},
 					UserGroups: []UserGroupAndDescription{
 						{Name: "group1", Description: "group1 desc"},
 						{Name: "group2", Description: "group2 desc"},
@@ -161,7 +162,7 @@ func TestMakeApps(t *testing.T) {
 					URI:         "2.com",
 					PublicAddr:  "2.com",
 					FQDN:        "2.com",
-					Labels: []Label{
+					Labels: []ui.Label{
 						{Name: "label2", Value: "value2"},
 						{Name: types.OriginLabel, Value: types.OriginOkta},
 					},
@@ -188,7 +189,7 @@ func TestMakeApps(t *testing.T) {
 					Name:        "grafana_saml",
 					Description: "SAML Application",
 					PublicAddr:  "",
-					Labels:      []Label{},
+					Labels:      []ui.Label{},
 					SAMLApp:     true,
 				},
 			},
@@ -247,7 +248,7 @@ func TestMakeAppTypeFromSAMLApp(t *testing.T) {
 				Name:          "test_app",
 				Description:   "SAML Application",
 				PublicAddr:    "",
-				Labels:        []Label{},
+				Labels:        []ui.Label{},
 				SAMLApp:       true,
 				SAMLAppPreset: "unspecified",
 			},
@@ -269,7 +270,7 @@ func TestMakeAppTypeFromSAMLApp(t *testing.T) {
 				Name:          "test_app",
 				Description:   "SAML Application",
 				PublicAddr:    "",
-				Labels:        []Label{},
+				Labels:        []ui.Label{},
 				SAMLApp:       true,
 				SAMLAppPreset: "test_preset",
 			},

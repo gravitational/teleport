@@ -16,51 +16,7 @@ joining method to eliminate the need for long-lived secrets.
 
 ## Step 1/5. Configure CircleCI
 
-In order to configure the rules for which CircleCI workflows will be allowed to
-connect to your Teleport cluster, you must determine the ID of your CircleCI
-organization and create a CircleCI context.
-
-### Find your organization ID
-
-Open CircleCI and navigate to "Organization settings" from the navbar.
-You should be presented with an interface titled "Overview" with a section
-called "Organization ID". Note this value down and substitute `$ORGANIZATION_ID`
-in configuration examples with this.
-
-### Create a context
-
-CircleCI has an organization-level concept called
-**contexts**, which allow you to configure a series of secrets that should be
-exposed to a workflow job. You can configure CircleCI to control which actors
-are allowed to trigger jobs associated with a context.
-
-The contexts that a workflow job has been assigned are also encoded in the
-identity token that CircleCI creates for the job. This makes them an ideal way
-for Teleport to determine which CircleCI jobs should be granted access to the
-Teleport cluster.
-
-In this example, you will create a CircleCI context named `teleport-access`.
-You will then grant this context access to your Teleport cluster.
-
-To create the CircleCI context, open up "Organization settings" in CircleCI
-and navigate to "Contexts". Click "Create Context" and provide `teleport-access`
-as the name of the context you wish to create. You may substitute this value
-for a string that makes more sense to your organization, but ensure in future
-steps of this guide that you replace `teleport-access` with your value.
-
-Select the context you have just created. You will now be on a page that allows
-you to configure the context. To determine the ID of the context
-to use when configuring Teleport, locate the URL of the
-context settings page, which should have a format similar to the following:
-
-```text
-https://app.circleci.com/settings/organization/github/gravitational/contexts/00000000-0000-0000-0000-000000000000
-```
-
-In this case, the context ID is: `00000000-0000-0000-0000-000000000000`.
-
-Note this value down and substitute `$CONTEXT_ID` in configuration examples
-with this
+(!docs/pages/includes/machine-id/recover-circle-ci-claims.mdx!)
 
 ## Step 2/5. Create the Machine ID bot
 
@@ -70,10 +26,10 @@ with this
 
 In order to allow your CircleCI workflow to authenticate with your Teleport
 cluster, you'll first need to create a join token. These tokens set out criteria
-by which the Auth Server decides whether or not to allow a bot or node to join.
+by which the Auth Service decides whether or not to allow a bot or node to join.
 
 Create a file named `bot-token.yaml`, ensuring that you replace
-`$ORGANIZATION_ID` and `$CONTEXT_ID` with the values from Step 1.
+<Var name="organization-id" /> and <Var name="context-id" /> with the values from Step 1.
 
 ```yaml
 kind: token
@@ -85,11 +41,11 @@ spec:
   join_method: circleci
   bot_name: example
   circleci:
-    organization_id: $ORGANIZATION_ID
-    # allow specifies the rules by which the Auth Server determines if `tbot`
+    organization_id: <Var name="organization-id" />
+    # allow specifies the rules by which the Auth Service determines if `tbot`
     # should be allowed to join.
     allow:
-    - context_id: $CONTEXT_ID
+    - context_id: <Var name="context-id" />
 ```
 
 Let's go over the token resource's fields in more detail:
@@ -141,7 +97,7 @@ outputs: []
 Replace:
 
 - `example.teleport.sh:443` with the address of your Teleport Proxy or
-  Auth Server. Prefer using the address of a Teleport Proxy.
+  Auth Service. Prefer using the address of a Teleport Proxy.
 - `example-bot` with the name of the token you created in the second step
 
 Now, the CircleCI pipeline can be defined. Before the pipeline can use `tbot`,
@@ -207,10 +163,10 @@ resources in your Teleport cluster that your CI/CD needs to interact with.
 
 ## Further steps
 
-- Follow the [access guides](../access-guides.mdx) to finish configuring `tbot` for
+- Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
   your environment.
-- Read the [configuration reference](../reference/configuration.mdx) to explore
+- Read the [configuration reference](../../../reference/machine-id/configuration.mdx) to explore
   all the available configuration options.
 - For more information about CircleCI itself, read
   [their documentation](https://circleci.com/docs/).
-- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../reference/telemetry.mdx)
+- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../../reference/machine-id/telemetry.mdx)

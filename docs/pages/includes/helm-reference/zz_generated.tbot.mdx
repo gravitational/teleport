@@ -1,0 +1,464 @@
+
+{/* Generated file. Do not edit.*/}
+{/* Generate this file by navigating to examples/chart and running  make render-chart-ref*/}
+## `image`
+
+| Type | Default |
+|------|---------|
+| `string` | `"public.ecr.aws/gravitational/tbot-distroless"` |
+
+`image` sets the container image used for tbot pods created by this
+chart.
+
+You can override this to use your own tbot image rather than a
+Teleport-published image.
+
+## `clusterName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`clusterName` should be the name of the Teleport cluster that your
+Bot will join. You can retrieve it by running `tctl status`.
+
+For example: `clusterName: "test.teleport.sh"`
+
+## `teleportProxyAddress`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`teleportProxyAddress` is the teleport Proxy Service address the bot will connect to.
+This must contain the port number, usually 443 or 3080 for Proxy Service.
+Connecting to the Proxy Service is the most common and recommended way to connect to Teleport.
+This is mandatory to connect to Teleport Enterprise (Cloud)
+
+This setting is mutually exclusive with teleportProxyAddress and is ignored if `customConfig` is set.
+
+For example:
+```yaml
+teleportProxyAddress: "test.teleport.sh:443"
+```
+
+## `teleportAuthAddress`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`teleportAuthAddress` is the teleport Auth Service address the bot will connect to.
+This must contain the port number, usually 3025 for Auth Service. Direct Auth Service connection
+should be used when you are deploying the bot in the same Kubernetes cluster than your `teleport-cluster`
+Helm release and have direct access to the Auth Service.
+Else, you should prefer connecting via the Proxy Service.
+
+This setting is mutually exclusive with teleportProxyAddress and is ignored if `customConfig` is set.
+
+For example:
+```yaml
+teleportAuthAddress: "teleport-auth.teleport-namespace.svc.cluster.local:3025"
+```
+
+## `defaultOutput`
+
+`defaultOutput` controls the default output configured for the tbot agent.
+Ignored if `customConfig` is set.
+
+### `defaultOutput.enabled`
+
+| Type | Default |
+|------|---------|
+| `bool` | `true` |
+
+`defaultOutput.enabled` controls whether the default output is enabled.
+
+## `persistence`
+
+`persistence` controls how the tbot agent stores its data.
+
+Options:
+- "secret": uses a Kubernetes Secret.
+- "disabled": does not persist data. May impact ability to track bot
+   deployment across its lifetime.
+
+## `tbotConfig`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`tbotConfig` contains YAML teleport configuration to pass to the
+tbot pods. The configuration will be merged with the chart-generated
+configuration and will take precedence in case of conflict. Try to prefer to
+use the more specific configuration values throughout this chart.
+
+## `outputs`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`outputs` contains additional outputs to configure for the tbot agent.
+These should be in the same format as the `outputs` field in the tbot.yaml.
+Ignored if `customConfig` is set.
+
+## `services`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`services` contains additional services to configure for the tbot agent.
+These should be in the same format as the `services` field in the tbot.yaml.
+Ignored if `customConfig` is set.
+
+## `joinMethod`
+
+| Type | Default |
+|------|---------|
+| `string` | `"kubernetes"` |
+
+`joinMethod` describes how tbot joins the Teleport cluster.
+See [the join method reference](../../reference/join-methods.mdx) for a list fo supported values and detailed explanations.
+Ignored if `customConfig` is set.
+
+## `token`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`token` is the name of the token used by tbot to join the Teleport cluster.
+This value is not sensitive unless the `joinMethod` is set to `"token"`.
+Ignored if `customConfig` is set.
+
+## `teleportVersionOverride`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`teleportVersionOverride` controls the tbot image version deployed by
+the chart.
+
+Normally, the version of tbot matches the version of the chart. If you install
+chart version 15.0.0, you'll use tbot version 15.0.0. Upgrading tbot is done
+by upgrading the chart.
+
+<Admonition type="warning">
+`teleportVersionOverride` is intended for development and MUST NOT be
+used to control the Teleport version in a typical deployment. This
+chart is designed to run a specific Teleport version. You will face
+compatibility issues trying to run a different Teleport version with it.
+
+If you want to run Teleport version `X.Y.Z`, you should use
+`helm install --version X.Y.Z` instead.
+
+</Admonition>
+
+## `anonymousTelemetry`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`anonymousTelemetry` controls whether anonymous telemetry is enabled.
+
+## `debug`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`debug` controls whether the tbot agent runs in debug mode.
+
+## `serviceAccount`
+
+`serviceAccount` controls the Kubernetes ServiceAccounts deployed and used by
+the chart.
+
+### `serviceAccount.create`
+
+| Type | Default |
+|------|---------|
+| `bool` | `true` |
+
+`serviceAccount.create` controls whether Helm Chart creates the
+Kubernetes `ServiceAccount` resources for the agent.
+When off, you are responsible for creating the appropriate ServiceAccount
+resources.
+
+### `serviceAccount.name`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`serviceAccount.name` sets the name of the `ServiceAccount` resource
+used by the chart. By default, the `ServiceAccount` has the name of the
+Helm release.
+
+## `rbac`
+
+`rbac` controls the Kubernetes Role and RoleBinding creation
+used by the serviceAccount
+
+### `rbac.create`
+
+| Type | Default |
+|------|---------|
+| `bool` | `true` |
+
+`rbac.create` controls whether Helm Chart creates the
+Kubernetes `Role` & `RoleBindings` resources for the Kubernetes SA.
+When off, you are responsible for creating the appropriate resources.
+
+## `imagePullPolicy`
+
+| Type | Default |
+|------|---------|
+| `string` | `"IfNotPresent"` |
+
+`imagePullPolicy` sets the pull policy for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/containers/images/#updating-images)
+for more details.
+
+## `extraLabels`
+
+`extraLabels` contains additional Kubernetes labels to apply on the resources
+created by the chart.
+See [the Kubernetes label documentation
+](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
+for more information.
+
+### `extraLabels.role`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`extraLabels.role` are labels to set on the Role.
+
+### `extraLabels.roleBinding`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`extraLabels.roleBinding` are labels to set on the RoleBinding.
+
+### `extraLabels.config`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`extraLabels.config` are labels to set on the ConfigMap.
+
+### `extraLabels.deployment`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`extraLabels.deployment` are labels to set on the Deployment or StatefulSet.
+
+### `extraLabels.pod`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`extraLabels.pod` are labels to set on the Pods created by the
+Deployment or StatefulSet.
+
+### `extraLabels.serviceAccount`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`extraLabels.serviceAccount` are labels to set on the ServiceAccount.
+
+## `annotations`
+
+`annotations` contains annotations to apply to the different Kubernetes
+objects created by the chart. See [the Kubernetes annotation
+documentation](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+for more details.
+
+### `annotations.role`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.role` are annotations to set on the Role.
+
+### `annotations.roleBinding`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.roleBinding` are annotations to set on the RoleBinding.
+
+### `annotations.config`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.config` contains the Kubernetes annotations
+put on the `ConfigMap` resource created by the chart.
+
+### `annotations.deployment`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.deployment` contains the Kubernetes annotations
+put on the `Deployment` or `StatefulSet` resource created by the chart.
+
+### `annotations.pod`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.pod` contains the Kubernetes annotations
+put on the `Pod` resources created by the chart.
+
+### `annotations.serviceAccount`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.serviceAccount` contains the Kubernetes annotations
+put on the `ServiceAccount` resource created by the chart.
+
+## `resources`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`resources` sets the resource requests/limits for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
+for more details.
+
+## `affinity`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`affinity` sets the affinities for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity)
+for more details.
+
+## `tolerations`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`tolerations` sets the tolerations for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/)
+for more details.
+
+## `nodeSelector`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`nodeSelector` sets the node selector for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector)
+for more details.
+
+## `imagePullSecrets`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`imagePullSecrets` sets the image pull secrets for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/containers/images/#referring-to-an-imagepullsecrets-on-a-pod)
+for more details.
+
+## `extraVolumes`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`extraVolumes` contains extra volumes to mount into the Teleport pods.
+See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+for more details.
+
+For example:
+```yaml
+extraVolumes:
+- name: myvolume
+  secret:
+    secretName: testSecret
+```
+
+## `extraVolumeMounts`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`extraVolumeMounts` contains extra volumes mounts for the main Teleport container.
+See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+for more details.
+
+For example:
+```yaml
+extraVolumesMounts:
+- name: myvolume
+  mountPath: /path/on/host
+```
+
+## `extraArgs`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`extraArgs` contains extra arguments to pass to `tbot start` for
+the main tbot pod
+
+## `extraEnv`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`extraEnv` contains extra environment variables to set in the main
+tbot pod.
+
+For example:
+```yaml
+extraEnv:
+  - name: HTTPS_PROXY
+    value: "http://username:password@my.proxy.host:3128"
+```
+
+## `securityContext`
+
+| Type | Default |
+|------|---------|
+| `object` | `null` |
+
+`securityContext` sets the container security context for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container)
+for more details.
+
+By default, this is unset.

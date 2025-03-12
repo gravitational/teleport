@@ -17,25 +17,25 @@
  */
 
 import { useState } from 'react';
+import styled from 'styled-components';
 
 import {
-  Flex,
-  Text,
+  Alert,
   Box,
   ButtonIcon,
-  ButtonText,
   ButtonPrimary,
   ButtonSecondary,
-  Alert,
+  ButtonText,
+  Flex,
+  Text,
 } from 'design';
-import styled from 'styled-components';
-import { HoverTooltip } from 'shared/components/ToolTip';
 import { Cross } from 'design/Icon';
-import Validation from 'shared/components/Validation';
+import { HoverTooltip } from 'design/Tooltip';
 import FieldInput from 'shared/components/FieldInput';
-import { requiredField } from 'shared/components/Validation/rules';
 import { FieldSelect } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
+import Validation from 'shared/components/Validation';
+import { requiredField } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
 
 import { useTeleport } from 'teleport';
@@ -47,7 +47,11 @@ import {
   JoinToken,
 } from 'teleport/services/joinToken';
 
-import { JoinTokenGCPForm, JoinTokenIAMForm } from './JoinTokenForms';
+import {
+  JoinTokenGCPForm,
+  JoinTokenIAMForm,
+  JoinTokenOracleForm,
+} from './JoinTokenForms';
 
 const maxWidth = '550px';
 
@@ -61,18 +65,25 @@ const joinRoleOptions: OptionJoinRole[] = [
   'Discovery',
 ].map(role => ({ value: role as JoinRole, label: role as JoinRole }));
 
-const availableJoinMethods: OptionJoinMethod[] = ['iam', 'gcp'].map(method => ({
-  value: method as JoinMethod,
-  label: method as JoinMethod,
-}));
+const availableJoinMethods: OptionJoinMethod[] = ['iam', 'gcp', 'oracle'].map(
+  method => ({
+    value: method as JoinMethod,
+    label: method as JoinMethod,
+  })
+);
 
-export type OptionGCP = Option<string, string>;
+export type AllowOption = Option<string, string>;
 type OptionJoinMethod = Option<JoinMethod, JoinMethod>;
 type OptionJoinRole = Option<JoinRole, JoinRole>;
 type NewJoinTokenGCPState = {
-  project_ids: OptionGCP[];
-  service_accounts: OptionGCP[];
-  locations: OptionGCP[];
+  project_ids: AllowOption[];
+  service_accounts: AllowOption[];
+  locations: AllowOption[];
+};
+type NewJoinTokenOracleState = {
+  tenancy: string;
+  parent_compartments: AllowOption[];
+  regions: AllowOption[];
 };
 
 export type NewJoinTokenState = {
@@ -83,6 +94,7 @@ export type NewJoinTokenState = {
   roles: OptionJoinRole[];
   iam: AWSRules[];
   gcp: NewJoinTokenGCPState[];
+  oracle: NewJoinTokenOracleState[];
 };
 
 export const defaultNewTokenState: NewJoinTokenState = {
@@ -92,6 +104,7 @@ export const defaultNewTokenState: NewJoinTokenState = {
   roles: [],
   iam: [{ aws_account: '', aws_arn: '' }],
   gcp: [{ project_ids: [], service_accounts: [], locations: [] }],
+  oracle: [{ tenancy: '', parent_compartments: [], regions: [] }],
 };
 
 function makeDefaultEditState(token: JoinToken): NewJoinTokenState {
@@ -108,6 +121,14 @@ function makeDefaultEditState(token: JoinToken): NewJoinTokenState {
       project_ids: r.project_ids?.map(i => ({ value: i, label: i })),
       service_accounts: r.service_accounts?.map(i => ({ value: i, label: i })),
       locations: r.locations?.map(i => ({ value: i, label: i })),
+    })),
+    oracle: token.oracle?.allow.map(r => ({
+      tenancy: r.tenancy,
+      parent_compartments: r.parent_compartments?.map(i => ({
+        value: i,
+        label: i,
+      })),
+      regions: r.regions?.map(i => ({ value: i, label: i })),
     })),
   };
 }
@@ -171,6 +192,19 @@ export const UpsertJoinTokenDialog = ({
         })),
       };
       request.gcp = gcp;
+    }
+
+    if (newTokenState.method.value === 'oracle') {
+      const oracle = {
+        allow: newTokenState.oracle.map(rule => ({
+          tenancy: rule.tenancy,
+          parent_compartments: rule.parent_compartments?.map(
+            compartment => compartment.value
+          ),
+          regions: rule.regions?.map(region => region.value),
+        })),
+      };
+      request.oracle = oracle;
     }
 
     runCreateTokenAttempt(request);
@@ -248,9 +282,8 @@ export const UpsertJoinTokenDialog = ({
               {!editToken && ( // We only want to change the method when creating a new token
                 <FieldSelect
                   label="Method"
-                  rule={requiredField('Select a join method')}
+                  rule={requiredField<Option>('Select a join method')}
                   isSearchable
-                  isSimpleValue
                   isClearable={false}
                   value={newTokenState.method}
                   onChange={setTokenMethod}
@@ -265,11 +298,7 @@ export const UpsertJoinTokenDialog = ({
                     editToken ? 'Editing token names is not supported.' : ''
                   }
                   rule={requiredField('Token name is required')}
-                  placeholder={
-                    newTokenState.method.value === 'iam'
-                      ? 'iam-token-name'
-                      : 'gcp-token-name'
-                  }
+                  placeholder={`${newTokenState.method.value}-token-name`}
                   autoFocus
                   value={newTokenState.name}
                   onChange={e => setTokenField('name', e.target.value)}
@@ -278,12 +307,11 @@ export const UpsertJoinTokenDialog = ({
               )}
               <FieldSelect
                 label="Join Roles"
-                data-testid="role_select"
+                inputId="role_select"
                 rule={requiredField('At least one role is required')}
                 placeholder="Click to select roles"
                 isSearchable
                 isMulti
-                isSimpleValue
                 mb={5}
                 isClearable={false}
                 value={newTokenState.roles}
@@ -308,6 +336,12 @@ export const UpsertJoinTokenDialog = ({
               )}
               {newTokenState.method.value === 'gcp' && (
                 <JoinTokenGCPForm
+                  tokenState={newTokenState}
+                  onUpdateState={newState => setNewTokenState(newState)}
+                />
+              )}
+              {newTokenState.method.value === 'oracle' && (
+                <JoinTokenOracleForm
                   tokenState={newTokenState}
                   onUpdateState={newState => setNewTokenState(newState)}
                 />
@@ -355,8 +389,7 @@ export const UpsertJoinTokenDialog = ({
 };
 
 export const RuleBox = styled(Box)`
-  border-color: ${props =>
-    props.theme.colors.interactive.tonal.neutral[0].background};
+  border-color: ${props => props.theme.colors.interactive.tonal.neutral[0]};
   border-width: 2px;
   border-style: solid;
   border-radius: ${props => props.theme.radii[2]}px;

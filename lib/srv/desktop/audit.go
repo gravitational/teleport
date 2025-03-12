@@ -41,6 +41,7 @@ type desktopSessionAuditor struct {
 	identity    *tlsca.Identity
 	windowsUser string
 	desktop     types.WindowsDesktop
+	enableNLA   bool
 
 	startTime          time.Time
 	clusterName        string
@@ -78,6 +79,7 @@ func (s *WindowsService) newSessionAuditor(
 		identity:    identity,
 		windowsUser: windowsUser,
 		desktop:     desktop,
+		enableNLA:   s.enableNLA,
 
 		startTime:          s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 		clusterName:        s.clusterName,
@@ -108,6 +110,7 @@ func (d *desktopSessionAuditor) makeSessionStart(err error) *events.WindowsDeskt
 		Domain:                d.desktop.GetDomain(),
 		WindowsUser:           d.windowsUser,
 		DesktopLabels:         d.desktop.GetAllLabels(),
+		NLA:                   d.enableNLA && !d.desktop.NonAD(),
 	}
 
 	if err != nil {

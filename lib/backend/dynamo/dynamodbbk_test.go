@@ -21,6 +21,7 @@ package dynamo
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"testing"
 	"time"
@@ -35,13 +36,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 func TestMain(m *testing.M) {
@@ -73,7 +75,7 @@ func TestDynamoDB(t *testing.T) {
 		"poll_stream_period": 300 * time.Millisecond,
 	}
 
-	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
+	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clocki.FakeClock, error) {
 		testCfg, err := test.ApplyOptions(options)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -218,7 +220,7 @@ func TestCreateTable(t *testing.T) {
 				expectedProvisionedthroughput: tc.expectedProvisionedThroughput,
 			}
 			b := &Backend{
-				Entry: log.NewEntry(log.New()),
+				logger: slog.With(teleport.ComponentKey, BackendName),
 				Config: Config{
 					BillingMode:        tc.billingMode,
 					ReadCapacityUnits:  int64(tc.readCapacityUnits),
@@ -403,3 +405,21 @@ const (
 	readScalingPolicySuffix  = "read-target-tracking-scaling-policy"
 	writeScalingPolicySuffix = "write-target-tracking-scaling-policy"
 )
+
+func TestKeyPrefix(t *testing.T) {
+	t.Run("leading separator in key", func(t *testing.T) {
+		prefixed := prependPrefix(backend.NewKey("test", "llama"))
+		assert.Equal(t, "teleport/test/llama", prefixed)
+
+		key := trimPrefix(prefixed)
+		assert.Equal(t, "/test/llama", key.String())
+	})
+
+	t.Run("no leading separator in key", func(t *testing.T) {
+		prefixed := prependPrefix(backend.KeyFromString(".locks/test/llama"))
+		assert.Equal(t, "teleport.locks/test/llama", prefixed)
+
+		key := trimPrefix(prefixed)
+		assert.Equal(t, ".locks/test/llama", key.String())
+	})
+}

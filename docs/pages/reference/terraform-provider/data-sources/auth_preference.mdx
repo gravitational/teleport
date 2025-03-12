@@ -1,5 +1,6 @@
 ---
 title: Reference for the teleport_auth_preference Terraform data-source
+sidebar_label: auth_preference
 description: This page describes the supported values of the teleport_auth_preference data-source of the Teleport Terraform provider.
 ---
 
@@ -27,22 +28,23 @@ description: This page describes the supported values of the teleport_auth_prefe
 
 Optional:
 
-- `allow_headless` (Boolean)
-- `allow_local_auth` (Boolean)
-- `allow_passwordless` (Boolean)
+- `allow_headless` (Boolean) AllowHeadless enables/disables headless support. Headless authentication requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise.
+- `allow_local_auth` (Boolean) AllowLocalAuth is true if local authentication is enabled.
+- `allow_passwordless` (Boolean) AllowPasswordless enables/disables passwordless support. Passwordless requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise.
 - `connector_name` (String) ConnectorName is the name of the OIDC or SAML connector. If this value is not set the first connector in the backend will be used.
 - `default_session_ttl` (String) DefaultSessionTTL is the TTL to use for user certs when an explicit TTL is not requested.
 - `device_trust` (Attributes) DeviceTrust holds settings related to trusted device verification. Requires Teleport Enterprise. (see [below for nested schema](#nested-schema-for-specdevice_trust))
-- `disconnect_expired_cert` (Boolean)
+- `disconnect_expired_cert` (Boolean) DisconnectExpiredCert provides disconnect expired certificate setting - if true, connections with expired client certificates will get disconnected
 - `hardware_key` (Attributes) HardwareKey are the settings for hardware key support. (see [below for nested schema](#nested-schema-for-spechardware_key))
 - `idp` (Attributes) IDP is a set of options related to accessing IdPs within Teleport. Requires Teleport Enterprise. (see [below for nested schema](#nested-schema-for-specidp))
 - `locking_mode` (String) LockingMode is the cluster-wide locking mode default.
 - `message_of_the_day` (String)
 - `okta` (Attributes) Okta is a set of options related to the Okta service in Teleport. Requires Teleport Enterprise. (see [below for nested schema](#nested-schema-for-specokta))
-- `piv_slot` (String) TODO(Joerger): DELETE IN 17.0.0 Deprecated, replaced by HardwareKey settings.
 - `require_session_mfa` (Number) RequireMFAType is the type of MFA requirement enforced for this cluster. 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH", 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN".
-- `second_factor` (String) SecondFactor is the type of second factor.
-- `signature_algorithm_suite` (Number) SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster. The current default value is "legacy". This field is not yet fully supported.
+- `second_factor` (String) SecondFactor is the type of mult-factor. Deprecated: Prefer using SecondFactors instead.
+- `second_factors` (List of Number) SecondFactors is a list of supported multi-factor types. 1 is "otp", 2 is "webauthn", 3 is "sso", If unspecified, the current default value is [1], or ["otp"].
+- `signature_algorithm_suite` (Number) SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster. If unspecified, the current default value is "legacy". 1 is "legacy", 2 is "balanced-v1", 3 is "fips-v1", 4 is "hsm-v1".
+- `stable_unix_user_config` (Attributes) StableUnixUserConfig contains the cluster-wide configuration for stable UNIX users. (see [below for nested schema](#nested-schema-for-specstable_unix_user_config))
 - `type` (String) Type is the type of authentication.
 - `u2f` (Attributes) U2F are the settings for the U2F device. (see [below for nested schema](#nested-schema-for-specu2f))
 - `webauthn` (Attributes) Webauthn are the settings for server-side Web Authentication support. (see [below for nested schema](#nested-schema-for-specwebauthn))
@@ -82,7 +84,7 @@ Optional:
 
 Optional:
 
-- `enabled` (Boolean)
+- `enabled` (Boolean) Enabled is set to true if this option allows access to the Teleport SAML IdP.
 
 
 
@@ -93,13 +95,22 @@ Optional:
 - `sync_period` (String) SyncPeriod is the duration between synchronization calls in nanoseconds.
 
 
+### Nested Schema for `spec.stable_unix_user_config`
+
+Optional:
+
+- `enabled` (Boolean) Enabled signifies that (UNIX) Teleport SSH hosts should obtain a UID from the control plane if they're about to provision a host user with no other configured UID.
+- `first_uid` (Number) FirstUid is the start of the range of UIDs for autoprovisioned host users. The range is inclusive on both ends, so the specified UID can be assigned.
+- `last_uid` (Number) LastUid is the end of the range of UIDs for autoprovisioned host users. The range is inclusive on both ends, so the specified UID can be assigned.
+
+
 ### Nested Schema for `spec.u2f`
 
 Optional:
 
-- `app_id` (String) AppID returns the application ID for universal second factor.
+- `app_id` (String) AppID returns the application ID for universal mult-factor.
 - `device_attestation_cas` (List of String) DeviceAttestationCAs contains the trusted attestation CAs for U2F devices.
-- `facets` (List of String) Facets returns the facets for universal second factor. Deprecated: Kept for backwards compatibility reasons, but Facets have no effect since Teleport v10, when Webauthn replaced the U2F implementation.
+- `facets` (List of String) Facets returns the facets for universal mult-factor. Deprecated: Kept for backwards compatibility reasons, but Facets have no effect since Teleport v10, when Webauthn replaced the U2F implementation.
 
 
 ### Nested Schema for `spec.webauthn`
@@ -108,7 +119,7 @@ Optional:
 
 - `attestation_allowed_cas` (List of String) Allow list of device attestation CAs in PEM format. If present, only devices whose attestation certificates match the certificates specified here may be registered (existing registrations are unchanged). If supplied in conjunction with AttestationDeniedCAs, then both conditions need to be true for registration to be allowed (the device MUST match an allowed CA and MUST NOT match a denied CA). By default all devices are allowed.
 - `attestation_denied_cas` (List of String) Deny list of device attestation CAs in PEM format. If present, only devices whose attestation certificates don't match the certificates specified here may be registered (existing registrations are unchanged). If supplied in conjunction with AttestationAllowedCAs, then both conditions need to be true for registration to be allowed (the device MUST match an allowed CA and MUST NOT match a denied CA). By default no devices are denied.
-- `rp_id` (String) RPID is the ID of the Relying Party. It should be set to the domain name of the Teleport installation.  IMPORTANT: RPID must never change in the lifetime of the cluster, because it's recorded in the registration data on the WebAuthn device. If the RPID changes, all existing WebAuthn key registrations will become invalid and all users who use WebAuthn as the second factor will need to re-register.
+- `rp_id` (String) RPID is the ID of the Relying Party. It should be set to the domain name of the Teleport installation.  IMPORTANT: RPID must never change in the lifetime of the cluster, because it's recorded in the registration data on the WebAuthn device. If the RPID changes, all existing WebAuthn key registrations will become invalid and all users who use WebAuthn as the multi-factor will need to re-register.
 
 
 

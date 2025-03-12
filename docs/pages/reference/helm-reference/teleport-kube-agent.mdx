@@ -3,7 +3,7 @@ title: teleport-kube-agent Chart Reference
 description: Values that can be set using the teleport-kube-agent Helm chart
 ---
 
-The `teleport-kube-agent` Helm chart is used to configure a Teleport agent that
+The `teleport-kube-agent` Helm chart is used to configure a Teleport Agent that
 runs in a remote Kubernetes cluster to provide access to resources in your
 infrastructure.
 
@@ -23,10 +23,10 @@ The `teleport-kube-agent` chart can run any or all of three Teleport services:
 | Teleport service                                                          | Name for `roles` and `tctl tokens add` | Purpose                                                                                      |
 |---------------------------------------------------------------------------|----------------------------------------|----------------------------------------------------------------------------------------------|
 | [`kubernetes_service`](../../enroll-resources/kubernetes-access/introduction.mdx)          | `kube`                                 | Uses Teleport to handle authentication<br/> with and proxy access to a Kubernetes cluster    |
-| [`application_service`](../../enroll-resources/application-access/guides.mdx)              | `app`                                  | Uses Teleport to handle authentication<br/> with and proxy access to web-based applications  |
-| [`database_service`](../../enroll-resources/database-access/guides.mdx)                    | `db`                                   | Uses Teleport to handle authentication<br/> with and proxy access to databases               |
+| [`application_service`](../../enroll-resources/application-access/guides/guides.mdx)              | `app`                                  | Uses Teleport to handle authentication<br/> with and proxy access to web-based applications  |
+| [`database_service`](../../enroll-resources/database-access/guides/guides.mdx)                    | `db`                                   | Uses Teleport to handle authentication<br/> with and proxy access to databases               |
 | [`discovery_service`](../../enroll-resources/auto-discovery/auto-discovery.mdx)              | `discovery`                            | Uses Teleport to discover new resources<br/> and dynamically add them to the cluster         |
-| [`jamf_service`](../../access-controls/device-trust/jamf-integration.mdx) | `jamf`                                 | Uses Teleport to integrate with Jamf Pro<br/> and sync devices with Device Trust inventory   |
+| [`jamf_service`](../../admin-guides/access-controls/device-trust/jamf-integration.mdx) | `jamf`                                 | Uses Teleport to integrate with Jamf Pro<br/> and sync devices with Device Trust inventory   |
 
 ### Legacy releases
 
@@ -71,4 +71,4 @@ The `teleport-kube-agent` chart deploys the following Kubernetes resources:
 | `Role`                | The release name, suffixed by `-psp`                                     | Enforces security requirements for pods deployed by `teleport-kube-agent`.                                                                                                                                                                                                                              | `podSecurityPolicy.enabled` is `true` and the Kubernetes cluster version is < 1.23.                               |
 | `RoleBinding`         | The release name, suffixed by `-psp`                                     | Enforces security requirements for pods deployed by `teleport-kube-agent`.                                                                                                                                                                                                                              | `podSecurityPolicy.enabled` is `true` and the Kubernetes cluster version is < 1.23.                               |
 
-(!docs/pages/reference/helm-reference/includes/zz_generated.teleport-kube-agent.mdx!)
+(!docs/pages/includes/helm-reference/zz_generated.teleport-kube-agent.mdx!)

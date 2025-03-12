@@ -69,16 +69,16 @@ outputs: []
 
 Replace:
 - `example.teleport.sh:443` with the address of your Teleport Proxy or
-  Auth Server. Prefer using the address of a Teleport Proxy.
+  Auth Service. Prefer using the address of a Teleport Proxy.
 - `(=presets.tokens.first=)` with the token that was returned by `tctl bots add`
   in the previous step.
 
-<Notice type="note">
+<Admonition type="note">
 The first time that `tbot` runs, this token will be exchanged for a certificate
 that the bot uses for authentication. At this point, the token is invalidated.
 This means you may remove the token from the configuration file after the first
 run has completed, but there is no tangible security benefit to doing so.
-</Notice>
+</Admonition>
 
 ### Prepare the storage directory
 
@@ -110,8 +110,8 @@ $ sudo chown teleport:teleport /var/lib/teleport/bot
 
 ## Next steps
 
-- Follow the [access guides](../access-guides.mdx) to finish configuring `tbot` for
+- Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
   your environment.
-- Read the [configuration reference](../reference/configuration.mdx) to explore
+- Read the [configuration reference](../../../reference/machine-id/configuration.mdx) to explore
   all the available configuration options.
-- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../reference/telemetry.mdx)
+- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../../reference/machine-id/telemetry.mdx)

@@ -45,9 +45,9 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		{"TeleportUser", NewUserReconciler},
 		{"TeleportGithubConnector", NewGithubConnectorReconciler},
 		{"TeleportProvisionToken", NewProvisionTokenReconciler},
-		{"TeleportOktaImportRule", NewOktaImportRuleReconciler},
 		{"TeleportOpenSSHServerV2", NewOpenSSHServerV2Reconciler},
 		{"TeleportOpenSSHEICEServerV2", NewOpenSSHEICEServerV2Reconciler},
+		{"TeleportTrustedClusterV2", NewTrustedClusterV2Reconciler},
 	}
 
 	oidc := modules.GetProtoEntitlement(features, entitlements.OIDC)
@@ -72,11 +72,12 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		log.Info("Login Rules are only available in Teleport Enterprise edition. TeleportLoginRule resources won't be reconciled")
 	}
 
-	// AccessLists are enterprise-only but there is no specific feature-flag for them.
+	// AccessLists, OktaImports are enterprise-only but there is no specific feature-flag for them.
 	if features.GetAdvancedAccessWorkflows() {
 		reconcilers = append(reconcilers, reconcilerFactory{"TeleportAccessList", NewAccessListReconciler})
+		reconcilers = append(reconcilers, reconcilerFactory{"TeleportOktaImportRule", NewOktaImportRuleReconciler})
 	} else {
-		log.Info("The cluster license does not contain advanced workflows. TeleportAccessList resources won't be reconciled")
+		log.Info("The cluster license does not contain advanced workflows. TeleportAccessList, TeleportOktaImportRule resources won't be reconciled")
 	}
 
 	kubeClient := mgr.GetClient()

@@ -16,16 +16,18 @@
     "rustup@latest",
     "wasm-pack@latest",
     "wasm-bindgen-cli@latest",
+    "pkg-config@latest",
 
-    "buf@1.26.1",
-    "go@1.21.4",
+    "buf@1.47.0",
+    "go@1.23.3",
     "gci@0.11.2",
-    "golangci-lint@1.55.2",
+    "golangci-lint@1.62.0",
     "libfido2@1.13.0",
     "llvmPackages_14.clangUseLLVM@14.0.6",
     "nodejs@20.11.1",
     "protobuf3_20@3.20.3",
-    "yarn@1.22.19",
+    "pnpm@9.7.0",
+    "gnumake@4.3",
 
     "path:build.assets/flake#conditional",
     "path:build.assets/flake#grpc-tools",
@@ -40,8 +42,5 @@
       "export PATH=\"$HOME/.cargo/bin:$PATH\"",
       "type unset 2>/dev/null && unset GOROOT"
     ]
-  },
-  "nixpkgs": {
-    "commit": "b3f5bcf0be3e15226b0e9d698aa734ee098aa08f"
   }
 }

@@ -19,7 +19,9 @@
 package utils
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/url"
 	"strconv"
@@ -27,7 +29,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	apiutils "github.com/gravitational/teleport/api/utils"
 )
@@ -290,7 +291,7 @@ func GuessHostIP() (ip net.IP, err error) {
 	for _, iface := range ifaces {
 		ifadrs, err := iface.Addrs()
 		if err != nil {
-			log.Warn(err)
+			slog.WarnContext(context.Background(), "Unable to get addresses for interface", "interface", iface.Name, "error", err)
 		} else {
 			adrs = append(adrs, ifadrs...)
 		}

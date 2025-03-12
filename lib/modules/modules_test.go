@@ -106,6 +106,7 @@ func TestFeatures_ToProto(t *testing.T) {
 		Questionnaire:              true,
 		RecoveryCodes:              true,
 		AccessMonitoringConfigured: false,
+		CloudAnonymizationKey:      []byte("001"),
 		Entitlements: map[string]*proto.EntitlementInfo{
 			string(entitlements.AccessLists):            {Enabled: true, Limit: 111},
 			string(entitlements.AccessMonitoring):       {Enabled: true, Limit: 2113},
@@ -130,6 +131,7 @@ func TestFeatures_ToProto(t *testing.T) {
 			string(entitlements.SessionLocks):           {Enabled: true},
 			string(entitlements.UpsellAlert):            {Enabled: true},
 			string(entitlements.UsageReporting):         {Enabled: true},
+			string(entitlements.LicenseAutoUpdate):      {Enabled: true},
 		},
 		//	 Legacy Fields; remove in v18
 		Kubernetes:             true,
@@ -179,6 +181,7 @@ func TestFeatures_ToProto(t *testing.T) {
 		Questionnaire:              true,
 		RecoveryCodes:              true,
 		AccessMonitoringConfigured: false,
+		CloudAnonymizationKey:      []byte("001"),
 		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 			entitlements.AccessLists:            {Enabled: true, Limit: 111},
 			entitlements.AccessMonitoring:       {Enabled: true, Limit: 2113},
@@ -203,6 +206,7 @@ func TestFeatures_ToProto(t *testing.T) {
 			entitlements.SessionLocks:           {Enabled: true, Limit: 0},
 			entitlements.UpsellAlert:            {Enabled: true, Limit: 0},
 			entitlements.UsageReporting:         {Enabled: true, Limit: 0},
+			entitlements.LicenseAutoUpdate:      {Enabled: true, Limit: 0},
 		},
 	}
 

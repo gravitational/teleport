@@ -25,14 +25,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
 type FakeFluentd struct {
@@ -73,12 +71,12 @@ func (f *FakeFluentd) writeCerts() error {
 		return trace.Wrap(err)
 	}
 
-	f.caCertPath = path.Join(f.keyTmpDir, "ca.crt")
-	f.caKeyPath = path.Join(f.keyTmpDir, "ca.key")
-	f.serverCertPath = path.Join(f.keyTmpDir, "server.crt")
-	f.serverKeyPath = path.Join(f.keyTmpDir, "server.key")
-	f.clientCertPath = path.Join(f.keyTmpDir, "client.crt")
-	f.clientKeyPath = path.Join(f.keyTmpDir, "client.key")
+	f.caCertPath = filepath.Join(f.keyTmpDir, "ca.crt")
+	f.caKeyPath = filepath.Join(f.keyTmpDir, "ca.key")
+	f.serverCertPath = filepath.Join(f.keyTmpDir, "server.crt")
+	f.serverKeyPath = filepath.Join(f.keyTmpDir, "server.key")
+	f.clientCertPath = filepath.Join(f.keyTmpDir, "client.crt")
+	f.clientKeyPath = filepath.Join(f.keyTmpDir, "client.key")
 
 	err = g.CACert.WriteFile(f.caCertPath, f.caKeyPath, "")
 	if err != nil {
@@ -123,9 +121,10 @@ func (f *FakeFluentd) createServer() error {
 // GetClientConfig returns FlientdConfig to connect to this fake fluentd server instance
 func (f *FakeFluentd) GetClientConfig() FluentdConfig {
 	return FluentdConfig{
-		FluentdCA:   f.caCertPath,
-		FluentdCert: f.clientCertPath,
-		FluentdKey:  f.clientKeyPath,
+		FluentdCA:             f.caCertPath,
+		FluentdCert:           f.clientCertPath,
+		FluentdKey:            f.clientKeyPath,
+		FluentdMaxConnections: 3,
 	}
 }
 
@@ -149,7 +148,6 @@ func (f *FakeFluentd) GetURL() string {
 func (f *FakeFluentd) Respond(w http.ResponseWriter, r *http.Request) {
 	req, err := io.ReadAll(r.Body)
 	if err != nil {
-		logger.Standard().WithError(err).Error("FakeFluentd Respond() failed to read body")
 		fmt.Fprintln(w, "NOK")
 		return
 	}

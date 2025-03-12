@@ -31,6 +31,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport/api/defaults"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -40,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -110,10 +110,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Kubernetes extensions
 	srv.POST("/:version/kube/csr", srv.WithAuth(srv.processKubeCSR))
 
-	// Operations on users
-	// TODO(tross): DELETE IN 17.0.0
-	srv.POST("/:version/users", srv.WithAuth(srv.upsertUser))
-
 	// Passwords and sessions
 	srv.POST("/:version/users/:user/web/sessions", srv.WithAuth(srv.createWebSession))
 	srv.POST("/:version/users/:user/web/authenticate", srv.WithAuth(srv.authenticateWebUser))
@@ -136,13 +132,8 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/tunnelconnections/:cluster", srv.WithAuth(srv.deleteTunnelConnections))
 	srv.DELETE("/:version/tunnelconnections", srv.WithAuth(srv.deleteAllTunnelConnections))
 
-	// Remote clusters
-	// TODO(noah): DELETE IN 17.0.0 - all these methods are now gRPC.
-	srv.GET("/:version/remoteclusters/:cluster", srv.WithAuth(srv.getRemoteCluster))
-	srv.GET("/:version/remoteclusters", srv.WithAuth(srv.getRemoteClusters))
-	srv.DELETE("/:version/remoteclusters/:cluster", srv.WithAuth(srv.deleteRemoteCluster))
-
 	// Reverse tunnels
+	// TODO(noah): DELETE IN 18.0.0 - all these methods are now gRPC.
 	srv.POST("/:version/reversetunnels", srv.WithAuth(srv.upsertReverseTunnel))
 	srv.GET("/:version/reversetunnels", srv.WithAuth(srv.getReverseTunnels))
 	srv.DELETE("/:version/reversetunnels/:domain", srv.WithAuth(srv.deleteReverseTunnel))
@@ -151,18 +142,15 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/trustedclusters/validate", srv.WithAuth(srv.validateTrustedCluster))
 
 	// Tokens
+	// TODO(strideynet): REMOVE IN 18.0.0 - this method is now gRPC
 	srv.POST("/:version/tokens/register", srv.WithAuth(srv.registerUsingToken))
 
-	// Active sessions
-	// TODO(zmb3): remove these endpoints when Assist no longer needs them
-	srv.GET("/:version/namespaces/:namespace/sessions/:id/stream", srv.WithAuth(srv.getSessionChunk))
-	srv.GET("/:version/namespaces/:namespace/sessions/:id/events", srv.WithAuth(srv.getSessionEvents))
-
-	// Namespaces
-	srv.POST("/:version/namespaces", srv.WithAuth(srv.upsertNamespace))
+	// these endpoints are still in use by v17 agents since they cache
+	// KindNamespace
+	//
+	// TODO(espadolini): REMOVE IN v19
 	srv.GET("/:version/namespaces", srv.WithAuth(srv.getNamespaces))
 	srv.GET("/:version/namespaces/:namespace", srv.WithAuth(srv.getNamespace))
-	srv.DELETE("/:version/namespaces/:namespace", srv.WithAuth(srv.deleteNamespace))
 
 	// cluster configuration
 	srv.GET("/:version/configuration/name", srv.WithAuth(srv.getClusterName))
@@ -356,6 +344,7 @@ type upsertReverseTunnelRawReq struct {
 }
 
 // upsertReverseTunnel is called by admin to create a reverse tunnel to remote proxy
+// TODO(noah): DELETE IN 18.0.0 - all these methods are now gRPC.
 func (s *APIServer) upsertReverseTunnel(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req upsertReverseTunnelRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -371,13 +360,14 @@ func (s *APIServer) upsertReverseTunnel(auth *ServerWithRoles, w http.ResponseWr
 	if req.TTL != 0 {
 		tun.SetExpiry(s.Now().UTC().Add(req.TTL))
 	}
-	if err := auth.UpsertReverseTunnel(tun); err != nil {
+	if err := auth.UpsertReverseTunnel(r.Context(), tun); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
 }
 
 // getReverseTunnels returns a list of reverse tunnels
+// TODO(noah): DELETE IN 18.0.0 - all these methods are now gRPC.
 func (s *APIServer) getReverseTunnels(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	reverseTunnels, err := auth.GetReverseTunnels(r.Context())
 	if err != nil {
@@ -395,9 +385,10 @@ func (s *APIServer) getReverseTunnels(auth *ServerWithRoles, w http.ResponseWrit
 }
 
 // deleteReverseTunnel deletes reverse tunnel
+// TODO(noah): DELETE IN 18.0.0 - all these methods are now gRPC.
 func (s *APIServer) deleteReverseTunnel(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	domainName := p.ByName("domain")
-	err := auth.DeleteReverseTunnel(domainName)
+	err := auth.DeleteReverseTunnel(r.Context(), domainName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -493,30 +484,6 @@ func (s *APIServer) authenticateSSHUser(auth *ServerWithRoles, w http.ResponseWr
 	return auth.AuthenticateSSHUser(r.Context(), req)
 }
 
-type upsertUserRawReq struct {
-	User json.RawMessage `json:"user"`
-}
-
-func (s *APIServer) upsertUser(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *upsertUserRawReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	user, err := services.UnmarshalUser(req.User)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := services.ValidateUserRoles(r.Context(), user, auth); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	_, err = auth.UpsertUser(r.Context(), user)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message(fmt.Sprintf("'%v' user upserted", user.GetName())), nil
-}
-
 func rawMessage(data []byte, err error) (interface{}, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -525,6 +492,7 @@ func rawMessage(data []byte, err error) (interface{}, error) {
 	return &m, nil
 }
 
+// TODO(strideynet): REMOVE IN v18.0.0
 func (s *APIServer) registerUsingToken(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
 	var req types.RegisterUsingTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -703,113 +671,34 @@ func (s *APIServer) searchSessionEvents(auth *ServerWithRoles, w http.ResponseWr
 	return eventsList, nil
 }
 
-// HTTP GET /:version/sessions/:id/stream?offset=x&bytes=y
-// Query parameters:
-//
-//	"offset"   : bytes from the beginning
-//	"bytes"    : number of bytes to read (it won't return more than 512Kb)
-func (s *APIServer) getSessionChunk(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	sid, err := session.ParseID(p.ByName("id"))
-	if err != nil {
-		return nil, trace.BadParameter("missing parameter id")
-	}
-	namespace := p.ByName("namespace")
-	if !types.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-
-	// "offset bytes" query param
-	offsetBytes, err := strconv.Atoi(r.URL.Query().Get("offset"))
-	if err != nil || offsetBytes < 0 {
-		offsetBytes = 0
-	}
-	// "max bytes" query param
-	max, err := strconv.Atoi(r.URL.Query().Get("bytes"))
-	if err != nil || offsetBytes < 0 {
-		offsetBytes = 0
-	}
-	log.Debugf("apiserver.GetSessionChunk(%v, %v, offset=%d)", namespace, *sid, offsetBytes)
-	w.Header().Set("Content-Type", "text/plain")
-
-	buffer, err := auth.GetSessionChunk(namespace, *sid, offsetBytes, max)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if _, err = w.Write(buffer); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	w.Header().Set("Content-Type", "application/octet-stream")
-	return nil, nil
+func (*APIServer) getNamespaces(*ServerWithRoles, http.ResponseWriter, *http.Request, httprouter.Params, string) (any, error) {
+	return []types.Namespace{{
+		Kind:    types.KindNamespace,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:      defaults.Namespace,
+			Namespace: defaults.Namespace,
+		},
+	}}, nil
 }
 
-// HTTP GET /:version/sessions/:id/events?maxage=n
-// Query:
-//
-//	'after' : cursor value to return events newer than N. Defaults to 0, (return all)
-func (s *APIServer) getSessionEvents(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	sid, err := session.ParseID(p.ByName("id"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	namespace := p.ByName("namespace")
-	if !types.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-	afterN, err := strconv.Atoi(r.URL.Query().Get("after"))
-	if err != nil {
-		afterN = 0
-	}
-
-	return auth.GetSessionEvents(namespace, *sid, afterN)
-}
-
-type upsertNamespaceReq struct {
-	Namespace types.Namespace `json:"namespace"`
-}
-
-func (s *APIServer) upsertNamespace(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *upsertNamespaceReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := auth.UpsertNamespace(req.Namespace); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-func (s *APIServer) getNamespaces(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	namespaces, err := auth.GetNamespaces()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return namespaces, nil
-}
-
-func (s *APIServer) getNamespace(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (*APIServer) getNamespace(_ *ServerWithRoles, _ http.ResponseWriter, _ *http.Request, p httprouter.Params, _ string) (any, error) {
 	name := p.ByName("namespace")
 	if !types.IsValidNamespace(name) {
 		return nil, trace.BadParameter("invalid namespace %q", name)
 	}
-
-	namespace, err := auth.GetNamespace(name)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return namespace, nil
-}
-
-func (s *APIServer) deleteNamespace(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	name := p.ByName("namespace")
-	if !types.IsValidNamespace(name) {
-		return nil, trace.BadParameter("invalid namespace %q", name)
+	if name != defaults.Namespace {
+		return nil, trace.NotFound("namespace %q is not found", name)
 	}
 
-	err := auth.DeleteNamespace(name)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
+	return &types.Namespace{
+		Kind:    types.KindNamespace,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:      defaults.Namespace,
+			Namespace: defaults.Namespace,
+		},
+	}, nil
 }
 
 func (s *APIServer) getClusterName(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -921,41 +810,6 @@ func (s *APIServer) deleteTunnelConnections(auth *ServerWithRoles, w http.Respon
 // deleteAllTunnelConnections deletes all tunnel connections
 func (s *APIServer) deleteAllTunnelConnections(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	err := auth.DeleteAllTunnelConnections()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-// getRemoteClusters returns a list of remote clusters
-func (s *APIServer) getRemoteClusters(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	clusters, err := auth.GetRemoteClusters(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	items := make([]json.RawMessage, len(clusters))
-	for i, cluster := range clusters {
-		data, err := services.MarshalRemoteCluster(cluster, services.WithVersion(version), services.PreserveRevision())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		items[i] = data
-	}
-	return items, nil
-}
-
-// getRemoteCluster returns a remote cluster by name
-func (s *APIServer) getRemoteCluster(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	cluster, err := auth.GetRemoteCluster(r.Context(), p.ByName("cluster"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return rawMessage(services.MarshalRemoteCluster(cluster, services.WithVersion(version), services.PreserveRevision()))
-}
-
-// deleteRemoteCluster deletes remote cluster by name
-func (s *APIServer) deleteRemoteCluster(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	err := auth.DeleteRemoteCluster(r.Context(), p.ByName("cluster"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

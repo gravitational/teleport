@@ -50,6 +50,7 @@ func DefaultUserPreferences() *userpreferencesv1.UserPreferences {
 		ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
 			PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{},
 		},
+		SideNavDrawerMode: userpreferencesv1.SideNavDrawerMode_SIDE_NAV_DRAWER_MODE_COLLAPSED,
 	}
 }
 
@@ -117,8 +118,8 @@ func (u *UserPreferencesService) getUserPreferences(ctx context.Context, usernam
 }
 
 // backendKey returns the backend key for the user preferences for the given username.
-func backendKey(username string) []byte {
-	return backend.Key(userPreferencesPrefix, username)
+func backendKey(username string) backend.Key {
+	return backend.NewKey(userPreferencesPrefix, username)
 }
 
 // validatePreferences validates the given preferences.
@@ -132,7 +133,7 @@ func validatePreferences(preferences *userpreferencesv1.UserPreferences) error {
 
 // createBackendItem creates a backend.Item for the given username and user preferences.
 func createBackendItem(username string, preferences *userpreferencesv1.UserPreferences) (backend.Item, error) {
-	settingsKey := backend.Key(userPreferencesPrefix, username)
+	settingsKey := backend.NewKey(userPreferencesPrefix, username)
 
 	payload, err := json.Marshal(preferences)
 	if err != nil {

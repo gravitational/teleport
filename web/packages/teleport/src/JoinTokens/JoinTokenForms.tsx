@@ -16,14 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Flex, Text, ButtonIcon, ButtonText } from 'design';
+import { ButtonIcon, ButtonText, Flex, Text } from 'design';
 import { Plus, Trash } from 'design/Icon';
-import { requiredField } from 'shared/components/Validation/rules';
 import FieldInput from 'shared/components/FieldInput';
 import { FieldSelectCreatable } from 'shared/components/FieldSelect';
+import { requiredField } from 'shared/components/Validation/rules';
 
-import { NewJoinTokenState, OptionGCP, RuleBox } from './UpsertJoinTokenDialog';
+import {
+  AllowOption,
+  NewJoinTokenState,
+  RuleBox,
+} from './UpsertJoinTokenDialog';
 
 export const JoinTokenIAMForm = ({
   tokenState,
@@ -111,7 +114,7 @@ export const JoinTokenIAMForm = ({
           />
         </RuleBox>
       ))}
-      <ButtonText onClick={addNewRule}>
+      <ButtonText onClick={addNewRule} compact>
         <Plus size={16} mr={2} />
         Add another AWS Rule
       </ButtonText>
@@ -150,7 +153,7 @@ export const JoinTokenGCPForm = ({
   function updateRuleField(
     index: number,
     fieldName: string,
-    opts: OptionGCP[]
+    opts: AllowOption[]
   ) {
     const newState = {
       ...tokenState,
@@ -190,7 +193,7 @@ export const JoinTokenGCPForm = ({
             isClearable
             isSearchable
             onChange={opts =>
-              updateRuleField(index, 'project_ids', opts as OptionGCP[])
+              updateRuleField(index, 'project_ids', opts as AllowOption[])
             }
             value={rule.project_ids}
             label="Add Project ID(s)"
@@ -202,11 +205,11 @@ export const JoinTokenGCPForm = ({
             isClearable
             isSearchable
             onChange={opts =>
-              updateRuleField(index, 'locations', opts as OptionGCP[])
+              updateRuleField(index, 'locations', opts as AllowOption[])
             }
             value={rule.locations}
             label="Add Locations"
-            labelTip="Allows regions and/or zones."
+            helperText="Allows regions and/or zones."
           />
           <FieldSelectCreatable
             placeholder="PROJECT_compute@developer.gserviceaccount.com"
@@ -214,16 +217,123 @@ export const JoinTokenGCPForm = ({
             isClearable
             isSearchable
             onChange={opts =>
-              updateRuleField(index, 'service_accounts', opts as OptionGCP[])
+              updateRuleField(index, 'service_accounts', opts as AllowOption[])
             }
             value={rule.service_accounts}
             label="Add Service Account Emails"
           />
         </RuleBox>
       ))}
-      <ButtonText onClick={addNewRule}>
+      <ButtonText onClick={addNewRule} compact>
         <Plus size={16} mr={2} />
         Add another GCP Rule
+      </ButtonText>
+    </>
+  );
+};
+
+export const JoinTokenOracleForm = ({
+  tokenState,
+  onUpdateState,
+}: {
+  tokenState: NewJoinTokenState;
+  onUpdateState: (newToken: NewJoinTokenState) => void;
+}) => {
+  const rules = tokenState.oracle;
+  function removeRule(index: number) {
+    const newRules = rules.filter((_, i) => index !== i);
+    const newState = {
+      ...tokenState,
+      oracle: newRules,
+    };
+    onUpdateState(newState);
+  }
+
+  function addNewRule() {
+    const newState = {
+      ...tokenState,
+      oracle: [
+        ...tokenState.oracle,
+        { tenancy: '', parent_compartments: [], regions: [] },
+      ],
+    };
+    onUpdateState(newState);
+  }
+
+  function updateRuleField(
+    index: number,
+    fieldName: string,
+    opts: AllowOption[] | string
+  ) {
+    const newState = {
+      ...tokenState,
+      oracle: tokenState.oracle.map((rule, i) => {
+        if (i === index) {
+          return { ...rule, [fieldName]: opts };
+        }
+        return rule;
+      }),
+    };
+    onUpdateState(newState);
+  }
+
+  return (
+    <>
+      {rules.map((rule, index) => (
+        <RuleBox key={index}>
+          <Flex alignItems="center" justifyContent="space-between">
+            <Text fontWeight={700} mb={2}>
+              Oracle Rule
+            </Text>
+
+            {rules.length > 1 && ( // at least one rule is required, so lets not allow the user to remove it
+              <ButtonIcon
+                data-testid="delete_rule"
+                onClick={() => removeRule(index)}
+              >
+                <Trash size={16} color="text.muted" />
+              </ButtonIcon>
+            )}
+          </Flex>
+          <FieldInput
+            label="Tenancy"
+            rule={requiredField('tenancy OCID is required')}
+            placeholder="ocid1.tenancy.oc1..<unique ID>"
+            value={rule.tenancy}
+            onChange={e => updateRuleField(index, 'tenancy', e.target.value)}
+          />
+          <FieldSelectCreatable
+            placeholder="ocid1.compartment.oc1..<unique ID>"
+            isMulti
+            isClearable
+            isSearchable
+            onChange={opts =>
+              updateRuleField(
+                index,
+                'parent_compartments',
+                opts as AllowOption[]
+              )
+            }
+            value={rule.parent_compartments}
+            label="Add Compartments"
+            helperText="Direct parent compartments only, no nested compartments."
+          />
+          <FieldSelectCreatable
+            placeholder="us-ashburn-1, phx"
+            isMulti
+            isClearable
+            isSearchable
+            onChange={opts =>
+              updateRuleField(index, 'regions', opts as AllowOption[])
+            }
+            value={rule.regions}
+            label="Add Regions"
+          />
+        </RuleBox>
+      ))}
+      <ButtonText onClick={addNewRule} compact>
+        <Plus size={16} mr={2} />
+        Add another Oracle Rule
       </ButtonText>
     </>
   );

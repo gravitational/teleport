@@ -108,6 +108,10 @@ func (m *mockPluginConfig) GetPluginType() types.PluginType {
 	return types.PluginTypeSlack
 }
 
+func (m *mockPluginConfig) GetTeleportUser() string {
+	return ""
+}
+
 func TestAccessListReminders_Single(t *testing.T) {
 	t.Parallel()
 
@@ -353,7 +357,7 @@ func TestAccessListReminders_BadClient(t *testing.T) {
 func advanceAndLookForRecipients(t *testing.T,
 	bot *mockMessagingBot,
 	alSvc services.AccessLists,
-	clock clockwork.FakeClock,
+	clock *clockwork.FakeClock,
 	advance time.Duration,
 	accessLists []*accesslist.AccessList,
 	recipients ...string) {

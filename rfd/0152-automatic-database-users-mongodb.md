@@ -150,7 +150,7 @@ For example, in the above sample role, even though the user is assigned role
 `readAnyDatabase@admin`, Teleport will block access to databases not in the
 `db_names`.
 
-Of course, the user has the option to use `*` for `db_names` to soly rely on
+Of course, the user has the option to use `*` for `db_names` to solely rely on
 MongoDB's role management to restrict access.
 
 ### User accounts

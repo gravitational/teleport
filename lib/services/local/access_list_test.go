@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/entitlements"
@@ -406,7 +407,7 @@ func TestAccessListDedupeOwnersBackwardsCompat(t *testing.T) {
 	accessListDuplicateOwners.Spec.Owners = append(accessListDuplicateOwners.Spec.Owners, accessListDuplicateOwners.Spec.Owners[0])
 	require.Len(t, accessListDuplicateOwners.Spec.Owners, 3)
 
-	item, err := service.service.MakeBackendItem(accessListDuplicateOwners, accessListDuplicateOwners.GetName())
+	item, err := service.service.MakeBackendItem(accessListDuplicateOwners)
 	require.NoError(t, err)
 	_, err = mem.Put(ctx, item)
 	require.NoError(t, err)
@@ -489,7 +490,6 @@ func TestAccessListUpsertWithMembers(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, members)
 	})
-
 }
 
 func TestAccessListMembersCRUD(t *testing.T) {
@@ -660,6 +660,51 @@ func TestAccessListMembersCRUD(t *testing.T) {
 
 	_, _, err = service.ListAccessListMembers(ctx, accessList2.GetName(), 0, "")
 	require.ErrorIs(t, err, trace.NotFound("access_list %q doesn't exist", accessList2.GetName()))
+}
+
+func TestUpsertAndUpdateAccessListWithMembers_PreservesIdentityCenterLablesForExistingMembers(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+	accessList1 := newAccessList(t, "accessList1", clock)
+	_, err = service.UpsertAccessList(ctx, accessList1)
+	require.NoError(t, err)
+	accessList1Member1 := newAccessListMember(t, accessList1.GetName(), "aws-ic-user")
+	accessList1Member1.SetOrigin(common.OriginAWSIdentityCenter)
+	accessList1Member1.Metadata.Labels["foo"] = "bar"
+
+	_, err = service.UpsertAccessListMember(ctx, accessList1Member1)
+	require.NoError(t, err)
+
+	member, err := service.GetAccessListMember(ctx, accessList1.GetName(), accessList1Member1.GetName())
+	require.NoError(t, err)
+	require.Empty(
+		t,
+		cmp.Diff(
+			accessList1Member1,
+			member,
+			cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+			cmpopts.IgnoreFields(accesslist.AccessListMemberSpec{}, "Joined"),
+		))
+
+	dupeMemberButWithoutOriginLabel := newAccessListMember(t, accessList1.GetName(), "aws-ic-user")
+	_, updatedMembers, err := service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{dupeMemberButWithoutOriginLabel})
+	require.NoError(t, err)
+	require.Equal(t, "bar", updatedMembers[0].GetMetadata().Labels["foo"])
+
+	updatedMember, err := service.UpdateAccessListMember(ctx, dupeMemberButWithoutOriginLabel)
+	require.NoError(t, err)
+	require.Equal(t, "bar", updatedMember.GetMetadata().Labels["foo"])
+
+	upsertedMember, err := service.UpdateAccessListMember(ctx, dupeMemberButWithoutOriginLabel)
+	require.NoError(t, err)
+	require.Equal(t, "bar", upsertedMember.GetMetadata().Labels["foo"])
 }
 
 func TestAccessListReviewCRUD(t *testing.T) {
@@ -842,7 +887,7 @@ func TestAccessListReviewCRUD(t *testing.T) {
 
 	// Verify that access lists reviews are gone.
 	_, _, err = service.ListAccessListReviews(ctx, accessList1.GetName(), 0, "")
-	require.Empty(t, err)
+	require.NoError(t, err)
 }
 
 func TestAccessListRequiresEqual(t *testing.T) {

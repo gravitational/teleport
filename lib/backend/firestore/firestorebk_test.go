@@ -20,8 +20,10 @@ package firestore
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"reflect"
@@ -36,7 +38,7 @@ import (
 	"cloud.google.com/go/firestore/apiv1/firestorepb"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/option"
 	"google.golang.org/genproto/googleapis/rpc/code"
@@ -51,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 func TestMain(m *testing.M) {
@@ -124,7 +127,7 @@ func TestFirestoreDB(t *testing.T) {
 	ensureTestsEnabled(t)
 	ensureEmulatorRunning(t, cfg)
 
-	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
+	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clocki.FakeClock, error) {
 		testCfg, err := test.ApplyOptions(options)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -176,7 +179,7 @@ func TestReadLegacyRecord(t *testing.T) {
 	uut := newBackend(t, cfg)
 
 	item := backend.Item{
-		Key:     []byte("legacy-record"),
+		Key:     backend.NewKey("legacy-record"),
 		Value:   []byte("foo"),
 		Expires: uut.clock.Now().Add(time.Minute).Round(time.Second).UTC(),
 	}
@@ -185,7 +188,7 @@ func TestReadLegacyRecord(t *testing.T) {
 	// version of this backend.
 	ctx := context.Background()
 	rl := legacyRecord{
-		Key:       string(item.Key),
+		Key:       item.Key.String(),
 		Value:     string(item.Value),
 		Expires:   item.Expires.UTC().Unix(),
 		Timestamp: uut.clock.Now().UTC().Unix(),
@@ -209,6 +212,101 @@ func TestReadLegacyRecord(t *testing.T) {
 	require.Equal(t, item.Key, got.Key)
 	require.Equal(t, item.Value, got.Value)
 	require.Equal(t, item.Expires, got.Expires)
+}
+
+func TestReadBrokenRecord(t *testing.T) {
+	cfg := firestoreParams()
+	ensureTestsEnabled(t)
+	ensureEmulatorRunning(t, cfg)
+
+	uut := newBackend(t, cfg)
+
+	ctx := context.Background()
+
+	prefix := test.MakePrefix()
+
+	// Create a valid record with the correct key type.
+	item := backend.Item{
+		Key:   prefix("valid-record"),
+		Value: []byte("llamas"),
+	}
+	_, err := uut.Put(ctx, item)
+	require.NoError(t, err)
+
+	// Create a legacy record with a string key type.
+	lr := legacyRecord{
+		Key:   prefix("legacy-record").String(),
+		Value: "sheep",
+	}
+	_, err = uut.svc.Collection(uut.CollectionName).Doc(uut.keyToDocumentID(backend.KeyFromString(lr.Key))).Set(ctx, lr)
+	require.NoError(t, err)
+
+	// Create a broken record with a backend.Key key type.
+	brokenItem := backend.Item{
+		Key:     prefix("broken-record"),
+		Value:   []byte("foo"),
+		Expires: uut.clock.Now().Add(time.Minute).Round(time.Second).UTC(),
+	}
+
+	// Write using broken record format, emulating data written by an older
+	// version of this backend.
+	br := brokenRecord{
+		Key:       brokenKey(brokenItem.Key.String()),
+		Value:     brokenItem.Value,
+		Expires:   brokenItem.Expires.UTC().Unix(),
+		Timestamp: uut.clock.Now().UTC().Unix(),
+	}
+	_, err = uut.svc.Collection(uut.CollectionName).Doc(uut.keyToDocumentID(brokenItem.Key)).Set(ctx, br)
+	require.NoError(t, err)
+
+	// Read the data back and make sure it matches the original item.
+	got, err := uut.Get(ctx, brokenItem.Key)
+	require.NoError(t, err)
+	require.Equal(t, brokenItem.Key, got.Key)
+	require.Equal(t, brokenItem.Value, got.Value)
+	require.Equal(t, brokenItem.Expires, got.Expires)
+
+	// Read the data back using a range query too.
+	gotRange, err := uut.GetRange(ctx, brokenItem.Key, brokenItem.Key, 1)
+	require.NoError(t, err)
+	require.Len(t, gotRange.Items, 1)
+
+	got = &gotRange.Items[0]
+	require.Equal(t, brokenItem.Key, got.Key)
+	require.Equal(t, brokenItem.Value, got.Value)
+	require.Equal(t, brokenItem.Expires, got.Expires)
+
+	// Retrieve the entire key range to validate that there are no duplicate records
+	results, err := uut.GetRange(ctx, prefix(""), backend.RangeEnd(prefix("")), 5)
+	require.NoError(t, err)
+
+	require.Len(t, results.Items, 3)
+
+	for _, result := range results.Items {
+		switch r := result.Key.String(); r {
+		case item.Key.String():
+			assert.Equal(t, item.Value, result.Value)
+		case string(br.Key):
+			assert.Equal(t, br.Value, result.Value)
+		case lr.Key:
+			assert.Equal(t, lr.Value, string(result.Value))
+		default:
+			t.Errorf("GetRange returned unexpected item key %s", r)
+		}
+	}
+
+	// Update the value and ensure that it's set to the correct key value
+	item.Value = []byte("llama")
+	_, err = uut.Update(ctx, item)
+	require.NoError(t, err)
+
+	doc, err := uut.svc.Collection(uut.CollectionName).Doc(uut.keyToDocumentID(item.Key)).Get(ctx)
+	require.NoError(t, err)
+
+	var r record
+	require.NoError(t, doc.DataTo(&r))
+	require.Equal(t, []byte(item.Key.String()), r.Key)
+	require.Equal(t, item.Value, r.Value)
 }
 
 type mockFirestoreServer struct {
@@ -325,7 +423,7 @@ func TestDeleteDocuments(t *testing.T) {
 
 			b := &Backend{
 				svc:           client,
-				Entry:         utils.NewLoggerForTests().WithFields(logrus.Fields{teleport.ComponentKey: BackendName}),
+				logger:        slog.With(teleport.ComponentKey, BackendName),
 				clock:         clockwork.NewFakeClock(),
 				clientContext: ctx,
 				clientCancel:  cancel,
@@ -357,4 +455,60 @@ func TestDeleteDocuments(t *testing.T) {
 		})
 	}
 
+}
+
+// TestFirestoreMigration tests the migration of incorrect key types in Firestore.
+// TODO(tigrato|rosstimothy): DELETE In 19.0.0: Remove this migration in 19.0.0.
+func TestFirestoreMigration(t *testing.T) {
+	cfg := firestoreParams()
+	ensureTestsEnabled(t)
+	ensureEmulatorRunning(t, cfg)
+
+	clock := clockwork.NewRealClock()
+
+	uut, err := New(context.Background(), cfg, Options{Clock: clock})
+	require.NoError(t, err)
+
+	type byteAlias []byte
+	type badRecord struct {
+		Key        byteAlias `firestore:"key,omitempty"`
+		Timestamp  int64     `firestore:"timestamp,omitempty"`
+		Expires    int64     `firestore:"expires,omitempty"`
+		Value      []byte    `firestore:"value,omitempty"`
+		RevisionV2 string    `firestore:"revision,omitempty"`
+		RevisionV1 string    `firestore:"-"`
+	}
+
+	for i := 0; i < 301; i++ {
+		key := []byte(fmt.Sprintf("test-%d", i))
+		_, err = uut.svc.Collection(uut.CollectionName).
+			Doc(base64.URLEncoding.EncodeToString(key)).
+			Set(context.Background(), &badRecord{
+				Key:        key,
+				Timestamp:  clock.Now().UTC().Unix(),
+				Expires:    clock.Now().Add(time.Minute).UTC().Unix(),
+				Value:      key,
+				RevisionV2: "v2",
+			})
+		require.NoError(t, err)
+	}
+
+	// Migrate the collection
+	uut.migrateIncorrectKeyTypes()
+
+	// Ensure that all incorrect key types have been migrated
+	docs, err := uut.svc.Collection(uut.CollectionName).
+		Where(keyDocProperty, ">", byteAlias("/")).
+		Limit(100).
+		Documents(context.Background()).GetAll()
+	require.NoError(t, err)
+
+	require.Empty(t, docs, "expected all incorrect key types to be migrated")
+
+	// Ensure that all incorrect key types have been migrated to the correct key type []byte
+	docs, err = uut.svc.Collection(uut.CollectionName).
+		Where(keyDocProperty, ">", []byte("/")).
+		Documents(context.Background()).GetAll()
+	require.NoError(t, err)
+	require.Len(t, docs, 301)
 }

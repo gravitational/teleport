@@ -16,20 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api from 'teleport/services/api';
 import cfg from 'teleport/config';
+import api from 'teleport/services/api';
 import session from 'teleport/services/websession';
 
-import { WebauthnAssertionResponse } from '../auth';
-
-import makeUserContext from './makeUserContext';
+import { MfaChallengeResponse } from '../mfa';
 import { makeResetToken } from './makeResetToken';
 import makeUser, { makeUsers } from './makeUser';
+import makeUserContext from './makeUserContext';
 import {
+  ExcludeUserField,
+  ResetPasswordType,
   User,
   UserContext,
-  ResetPasswordType,
-  ExcludeUserField,
 } from './types';
 
 const cache = {
@@ -86,14 +85,14 @@ const service = {
   createUser(
     user: User,
     excludeUserField: ExcludeUserField,
-    webauthnResponse?: WebauthnAssertionResponse
+    mfaResponse?: MfaChallengeResponse
   ) {
     return api
       .post(
         cfg.getUsersUrl(),
         withExcludedField(user, excludeUserField),
         null,
-        webauthnResponse
+        mfaResponse
       )
       .then(makeUser);
   },
@@ -101,15 +100,10 @@ const service = {
   createResetPasswordToken(
     name: string,
     type: ResetPasswordType,
-    webauthnResponse?: WebauthnAssertionResponse
+    mfaResponse?: MfaChallengeResponse
   ) {
     return api
-      .post(
-        cfg.api.resetPasswordTokenPath,
-        { name, type },
-        null,
-        webauthnResponse
-      )
+      .post(cfg.api.resetPasswordTokenPath, { name, type }, null, mfaResponse)
       .then(makeResetToken);
   },
 
@@ -121,10 +115,27 @@ const service = {
     await session.renewSession({ reloadUser: true }, signal);
   },
 
-  checkUserHasAccessToRegisteredResource(): Promise<boolean> {
-    return api
-      .get(cfg.getCheckAccessToRegisteredResourceUrl())
-      .then(res => Boolean(res.hasResource));
+  async checkUserHasAccessToAnyRegisteredResource() {
+    const clusterId = cfg.proxyCluster;
+
+    const res = await api
+      .get(
+        cfg.getUnifiedResourcesUrl(clusterId, {
+          limit: 1,
+          sort: {
+            fieldName: 'name',
+            dir: 'ASC',
+          },
+          includedResourceMode: 'all',
+        })
+      )
+      .catch(err => {
+        // eslint-disable-next-line no-console
+        console.error('Error checking access to registered resources', err);
+        return { items: [] };
+      });
+
+    return !!res?.items?.some?.(Boolean);
   },
 
   fetchConnectMyComputerLogins(signal?: AbortSignal): Promise<Array<string>> {

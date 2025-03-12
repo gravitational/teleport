@@ -16,40 +16,36 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useStore } from 'shared/libs/stores';
-import {
-  DbProtocol,
-  DbType,
-  formatDatabaseInfo,
-} from 'shared/services/databases';
-import { pipe } from 'shared/utils/pipe';
-
-import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
-import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
+import { AccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 import {
   Cluster,
   ShowResources,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
-import { Kube } from 'gen-proto-ts/teleport/lib/teleterm/v1/kube_pb';
-import { Server } from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
-import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
+import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 import {
   CreateAccessRequestRequest,
-  ReviewAccessRequestRequest,
-  PromoteAccessRequestRequest,
-  PasswordlessPrompt,
   CreateGatewayRequest,
+  PasswordlessPrompt,
+  PromoteAccessRequestRequest,
+  ReviewAccessRequestRequest,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
+import { useStore } from 'shared/libs/stores';
+import { isAbortError } from 'shared/utils/abortError';
+import { pipe } from 'shared/utils/pipe';
 
-import * as uri from 'teleterm/ui/uri';
-import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
+import {
+  CloneableAbortSignal,
+  cloneAbortSignal,
+  TshdClient,
+} from 'teleterm/services/tshd';
+import { getGatewayTargetUriKind } from 'teleterm/services/tshd/gateway';
+import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { UsageService } from 'teleterm/ui/services/usage';
+import * as uri from 'teleterm/ui/uri';
 
 import { ImmutableStore } from '../immutableStore';
-
 import type * as types from './types';
-import type { TshdClient, CloneableAbortSignal } from 'teleterm/services/tshd';
 
 const { routing } = uri;
 
@@ -134,7 +130,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     // We explicitly use the `andCatchErrors` variant here. If loginLocal succeeds but syncing the
     // cluster fails, we don't want to stop the user on the failed modal – we want to open the
     // workspace and show an error state within the workspace.
-    await this.syncRootClusterAndCatchErrors(params.clusterUri);
+    await this.syncAndWatchRootClusterWithErrorHandling(params.clusterUri);
     this.usageService.captureUserLogin(params.clusterUri, 'local');
   }
 
@@ -155,7 +151,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       },
       { abort: abortSignal }
     );
-    await this.syncRootClusterAndCatchErrors(params.clusterUri);
+    await this.syncAndWatchRootClusterWithErrorHandling(params.clusterUri);
     this.usageService.captureUserLogin(params.clusterUri, params.providerType);
   }
 
@@ -273,15 +269,17 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       });
     });
 
-    await this.syncRootClusterAndCatchErrors(params.clusterUri);
+    await this.syncAndWatchRootClusterWithErrorHandling(params.clusterUri);
     this.usageService.captureUserLogin(params.clusterUri, 'passwordless');
   }
 
   /**
-   * syncRootClusterAndCatchErrors is useful when the call site doesn't have a UI for handling
-   * errors and instead wants to depend on the notifications service.
+   * Synchronizes the cluster state and starts a headless watcher for it.
+   * It shows errors as notifications.
    */
-  async syncRootClusterAndCatchErrors(clusterUri: uri.RootClusterUri) {
+  async syncAndWatchRootClusterWithErrorHandling(
+    clusterUri: uri.RootClusterUri
+  ) {
     try {
       await this.syncRootCluster(clusterUri);
     } catch (e) {
@@ -290,9 +288,40 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
         cluster?.name ||
         routing.parseClusterUri(clusterUri).params.rootClusterId;
 
-      this.notificationsService.notifyError({
+      const notificationId = this.notificationsService.notifyError({
         title: `Could not synchronize cluster ${clusterName}`,
         description: e.message,
+        action: {
+          content: 'Retry',
+          onClick: () => {
+            this.notificationsService.removeNotification(notificationId);
+            this.syncAndWatchRootClusterWithErrorHandling(clusterUri);
+          },
+        },
+      });
+      // only start the watcher if the cluster was synchronized successfully.
+      return;
+    }
+
+    try {
+      await this.client.startHeadlessWatcher({ rootClusterUri: clusterUri });
+    } catch (e) {
+      const cluster = this.findCluster(clusterUri);
+      const clusterName =
+        cluster?.name ||
+        routing.parseClusterUri(clusterUri).params.rootClusterId;
+
+      const notificationId = this.notificationsService.notifyError({
+        title: `Could not start headless requests watcher for ${clusterName}`,
+        description: e.message,
+        action: {
+          content: 'Retry',
+          onClick: () => {
+            this.notificationsService.removeNotification(notificationId);
+            // retry the entire call
+            this.syncAndWatchRootClusterWithErrorHandling(clusterUri);
+          },
+        },
       });
     }
   }
@@ -308,16 +337,30 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     ]);
   }
 
-  async syncRootClustersAndCatchErrors() {
+  async syncRootClustersAndCatchErrors(abortSignal?: AbortSignal) {
     let clusters: Cluster[];
 
     try {
-      const { response } = await this.client.listRootClusters({});
+      const { response } = await this.client.listRootClusters(
+        {},
+        { abortSignal: abortSignal && cloneAbortSignal(abortSignal) }
+      );
       clusters = response.clusters;
     } catch (error) {
-      this.notificationsService.notifyError({
+      if (isAbortError(error)) {
+        this.logger.info('Listing root clusters aborted');
+        return;
+      }
+      const notificationId = this.notificationsService.notifyError({
         title: 'Could not fetch root clusters',
         description: error.message,
+        action: {
+          content: 'Retry',
+          onClick: () => {
+            this.notificationsService.removeNotification(notificationId);
+            this.syncRootClustersAndCatchErrors();
+          },
+        },
       });
       return;
     }
@@ -328,9 +371,10 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       );
     });
 
+    // Sync root clusters and resume headless watchers for any active login sessions.
     clusters
       .filter(c => c.connected)
-      .forEach(c => this.syncRootClusterAndCatchErrors(c.uri));
+      .forEach(c => this.syncAndWatchRootClusterWithErrorHandling(c.uri));
   }
 
   async syncGatewaysAndCatchErrors() {
@@ -340,9 +384,16 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
         draft.gateways = new Map(response.gateways.map(g => [g.uri, g]));
       });
     } catch (error) {
-      this.notificationsService.notifyError({
+      const notificationId = this.notificationsService.notifyError({
         title: 'Could not synchronize database connections',
         description: error.message,
+        action: {
+          content: 'Retry',
+          onClick: () => {
+            this.notificationsService.removeNotification(notificationId);
+            this.syncGatewaysAndCatchErrors();
+          },
+        },
       });
     }
   }
@@ -364,9 +415,11 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return response.clusters;
   }
 
-  getAssumedRequests(rootClusterUri: uri.RootClusterUri) {
-    const cluster = this.state.clusters.get(rootClusterUri);
-    return cluster?.loggedInUser?.assumedRequests || {};
+  /** @deprecated Use getAssumedRequests function instead of the method on ClustersService. */
+  getAssumedRequests(
+    rootClusterUri: uri.RootClusterUri
+  ): Record<string, AccessRequest> {
+    return getAssumedRequests(this.state, rootClusterUri);
   }
 
   /** Assumes roles for the given requests. */
@@ -459,11 +512,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     }
   }
 
-  async getAuthSettings(clusterUri: uri.RootClusterUri) {
-    const { response } = await this.client.getAuthSettings({ clusterUri });
-    return response as types.AuthSettings;
-  }
-
   async createGateway(params: CreateGatewayRequest) {
     const { response: gateway } = await this.client.createGateway(params);
     this.setState(draft => {
@@ -485,9 +533,16 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
         : gatewayUri;
       const title = `Could not close the database connection ${gatewayDescription}`;
 
-      this.notificationsService.notifyError({
+      const notificationId = this.notificationsService.notifyError({
         title,
         description: error.message,
+        action: {
+          content: 'Retry',
+          onClick: () => {
+            this.notificationsService.removeNotification(notificationId);
+            this.removeGateway(gatewayUri);
+          },
+        },
       });
       throw error;
     }
@@ -497,7 +552,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   // since we will no longer have to support old kube connections.
   // See call in `trackedConnectionOperationsFactory.ts` for more details.
   async removeKubeGateway(kubeUri: uri.KubeUri) {
-    const gateway = this.findGatewayByConnectionParams(kubeUri, '');
+    const gateway = this.findGatewayByConnectionParams({ targetUri: kubeUri });
     if (gateway) {
       await this.removeGateway(gateway.uri);
     }
@@ -549,23 +604,44 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return this.state.gateways.get(gatewayUri);
   }
 
-  findGatewayByConnectionParams(
-    targetUri: uri.GatewayTargetUri,
-    targetUser: string
-  ) {
-    let found: Gateway;
+  findGatewayByConnectionParams({
+    targetUri,
+    targetUser,
+    targetSubresourceName,
+  }: {
+    targetUri: uri.GatewayTargetUri;
+    targetUser?: string;
+    targetSubresourceName?: string;
+  }): Gateway | undefined {
+    const targetKind = getGatewayTargetUriKind(targetUri);
 
-    for (const [, gateway] of this.state.gateways) {
-      if (
-        gateway.targetUri === targetUri &&
-        gateway.targetUser === targetUser
-      ) {
-        found = gateway;
-        break;
+    for (const gateway of this.state.gateways.values()) {
+      if (gateway.targetUri !== targetUri) {
+        continue;
+      }
+
+      switch (targetKind) {
+        case 'db': {
+          if (gateway.targetUser === targetUser) {
+            return gateway;
+          }
+          break;
+        }
+        case 'kube': {
+          // Kube gateways match only on targetUri.
+          return gateway;
+        }
+        case 'app': {
+          if (gateway.targetSubresourceName === targetSubresourceName) {
+            return gateway;
+          }
+          break;
+        }
+        default: {
+          targetKind satisfies never;
+        }
       }
     }
-
-    return found;
   }
 
   /**
@@ -679,11 +755,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
         )
       )
     ).reduce((requestsMap, request) => {
-      requestsMap[request.id] = {
-        id: request.id,
-        expires: Timestamp.toDate(request.expires),
-        roles: request.roles,
-      };
+      requestsMap[request.id] = request;
       return requestsMap;
     }, {});
   }
@@ -704,37 +776,14 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   }
 }
 
-export function makeServer(source: Server) {
-  return {
-    uri: source.uri,
-    id: source.name,
-    clusterId: source.name,
-    hostname: source.hostname,
-    labels: source.labels,
-    addr: source.addr,
-    tunnel: source.tunnel,
-    sshLogins: [],
-  };
-}
+// A workaround to always return the same object so useEffect that relies on it
+// doesn't go into an endless loop.
+const EMPTY_ASSUMED_REQUESTS = {};
 
-export function makeDatabase(source: Database) {
-  return {
-    uri: source.uri,
-    name: source.name,
-    description: source.desc,
-    type: formatDatabaseInfo(
-      source.type as DbType,
-      source.protocol as DbProtocol
-    ).title,
-    protocol: source.protocol,
-    labels: source.labels,
-  };
-}
-
-export function makeKube(source: Kube) {
-  return {
-    uri: source.uri,
-    name: source.name,
-    labels: source.labels,
-  };
+export function getAssumedRequests(
+  state: types.ClustersServiceState,
+  rootClusterUri: uri.RootClusterUri
+): Record<string, AccessRequest> {
+  const cluster = state.clusters.get(rootClusterUri);
+  return cluster?.loggedInUser?.assumedRequests || EMPTY_ASSUMED_REQUESTS;
 }

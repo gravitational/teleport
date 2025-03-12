@@ -43,7 +43,7 @@ func TestMain(m *testing.M) {
 func TestStartStop(t *testing.T) {
 	t.Parallel()
 
-	_, signer, err := cert.CreateCertificate("foo", ssh.HostCert)
+	_, signer, err := cert.CreateTestEd25519Certificate("foo", ssh.HostCert)
 	require.NoError(t, err)
 
 	called := false
@@ -95,7 +95,7 @@ func TestStartStop(t *testing.T) {
 func TestShutdown(t *testing.T) {
 	t.Parallel()
 
-	_, signer, err := cert.CreateCertificate("foo", ssh.HostCert)
+	_, signer, err := cert.CreateTestEd25519Certificate("foo", ssh.HostCert)
 	require.NoError(t, err)
 
 	closeContext, cancel := context.WithCancel(context.TODO())
@@ -151,7 +151,7 @@ func TestShutdown(t *testing.T) {
 func TestConfigureCiphers(t *testing.T) {
 	t.Parallel()
 
-	_, signer, err := cert.CreateCertificate("foo", ssh.HostCert)
+	_, signer, err := cert.CreateTestEd25519Certificate("foo", ssh.HostCert)
 	require.NoError(t, err)
 
 	fn := NewChanHandlerFunc(func(_ context.Context, _ *ConnectionContext, nch ssh.NewChannel) {
@@ -200,13 +200,13 @@ func TestConfigureCiphers(t *testing.T) {
 func TestHostSignerFIPS(t *testing.T) {
 	t.Parallel()
 
-	_, signer, err := cert.CreateCertificate("foo", ssh.HostCert)
+	_, signer, err := cert.CreateTestRSACertificate("foo", ssh.HostCert)
 	require.NoError(t, err)
 
-	_, ellipticSigner, err := cert.CreateEllipticCertificate("foo", ssh.HostCert)
+	_, ellipticSigner, err := cert.CreateTestECDSACertificate("foo", ssh.HostCert)
 	require.NoError(t, err)
 
-	_, ed25519Signer, err := cert.CreateEd25519Certificate("foo", ssh.HostCert)
+	_, ed25519Signer, err := cert.CreateTestEd25519Certificate("foo", ssh.HostCert)
 	require.NoError(t, err)
 
 	fn := NewChanHandlerFunc(func(_ context.Context, _ *ConnectionContext, nch ssh.NewChannel) {
@@ -286,10 +286,10 @@ func pass(need string) PasswordFunc {
 func TestDynamicHostSigners(t *testing.T) {
 	t.Parallel()
 
-	certFoo, signerFoo, err := cert.CreateCertificate("foo", ssh.HostCert)
+	certFoo, signerFoo, err := cert.CreateTestEd25519Certificate("foo", ssh.HostCert)
 	require.NoError(t, err)
 
-	certBar, signerBar, err := cert.CreateCertificate("bar", ssh.HostCert)
+	certBar, signerBar, err := cert.CreateTestEd25519Certificate("bar", ssh.HostCert)
 	require.NoError(t, err)
 
 	var activeSigner atomic.Pointer[ssh.Signer]

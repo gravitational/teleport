@@ -19,85 +19,40 @@
 package cert
 
 import (
-	"crypto"
-	"crypto/ecdsa"
-	"crypto/ed25519"
-	"crypto/elliptic"
 	"crypto/rand"
 	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
-// CreateCertificate creates a valid 2048-bit RSA certificate.
-func CreateCertificate(principal string, certType uint32) (*ssh.Certificate, ssh.Signer, error) {
-	// Create RSA key for CA and certificate to be signed by CA.
-	caKey, err := native.GenerateRSAPrivateKey()
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	key, err := native.GenerateRSAPrivateKey()
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	cert, certSigner, err := createCertificate(principal, certType, caKey, key)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	return cert, certSigner, nil
+// CreateTestRSACertificate creates a valid 2048-bit RSA certificate.
+func CreateTestRSACertificate(principal string, certType uint32) (*ssh.Certificate, ssh.Signer, error) {
+	return createCertificate(principal, certType, cryptosuites.RSA2048)
 }
 
-// CreateEllipticCertificate creates a valid ECDSA P-256 certificate.
-func CreateEllipticCertificate(principal string, certType uint32) (*ssh.Certificate, ssh.Signer, error) {
-	// Create ECDSA key for CA and certificate to be signed by CA.
-	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	cert, certSigner, err := createCertificate(principal, certType, caKey, key)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	return cert, certSigner, nil
+// CreateTestECDSACertificate creates a valid ECDSA P-256 certificate.
+func CreateTestECDSACertificate(principal string, certType uint32) (*ssh.Certificate, ssh.Signer, error) {
+	return createCertificate(principal, certType, cryptosuites.ECDSAP256)
 }
 
-// CreateEd25519Certificate creates an Ed25519 certificate which should be
+// CreateTestEd25519Certificate creates an Ed25519 certificate which should be
 // rejected in FIPS mode.
-func CreateEd25519Certificate(principal string, certType uint32) (*ssh.Certificate, ssh.Signer, error) {
-	// Create Ed25519 key for CA and certificate to be signed by CA.
-	_, caKey, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	_, key, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	cert, certSigner, err := createCertificate(principal, certType, caKey, key)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	return cert, certSigner, nil
+func CreateTestEd25519Certificate(principal string, certType uint32) (*ssh.Certificate, ssh.Signer, error) {
+	return createCertificate(principal, certType, cryptosuites.Ed25519)
 }
 
 // createCertificate creates a SSH certificate for the given key signed by the
 // given CA key. This function exists here to allow easy key generation for
 // some of the more core packages like "sshutils".
-func createCertificate(principal string, certType uint32, caKey crypto.Signer, key crypto.Signer) (*ssh.Certificate, ssh.Signer, error) {
+func createCertificate(principal string, certType uint32, algo cryptosuites.Algorithm) (*ssh.Certificate, ssh.Signer, error) {
 	// Create CA.
+	caKey, err := cryptosuites.GenerateKeyWithAlgorithm(algo)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 	caPublicKey, err := ssh.NewPublicKey(caKey.Public())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -108,6 +63,10 @@ func createCertificate(principal string, certType uint32, caKey crypto.Signer, k
 	}
 
 	// Create key.
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(algo)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 	publicKey, err := ssh.NewPublicKey(key.Public())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

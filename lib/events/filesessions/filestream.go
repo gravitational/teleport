@@ -118,7 +118,7 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 	size, err := io.Copy(file, partBody)
 	if err = trace.NewAggregate(err, file.Truncate(size), file.Close()); err != nil {
 		if rmErr := os.Remove(reservationPath); rmErr != nil {
-			h.WithError(rmErr).Warningf("Failed to remove file %q.", reservationPath)
+			h.logger.WarnContext(ctx, "Failed to remove part file", "file", reservationPath, "error", rmErr)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -170,7 +170,7 @@ Loop:
 			select {
 			case <-ctx.Done():
 				if err := f.Close(); err != nil {
-					h.WithError(err).Errorf("Failed to close file %q.", uploadPath)
+					h.logger.ErrorContext(ctx, "Failed to close upload file", "file", uploadPath, "error", err)
 				}
 
 				return nil
@@ -180,7 +180,7 @@ Loop:
 			}
 		default:
 			if err := f.Close(); err != nil {
-				h.WithError(err).Errorf("Failed to close file %q.", uploadPath)
+				h.logger.ErrorContext(ctx, "Failed to close upload file", "file", uploadPath)
 			}
 
 			return trace.Wrap(err, "handler could not acquire file lock for %q", uploadPath)
@@ -189,7 +189,7 @@ Loop:
 
 	if unlock == nil {
 		if err := f.Close(); err != nil {
-			h.WithError(err).Errorf("Failed to close file %q.", uploadPath)
+			h.logger.ErrorContext(ctx, "Failed to close upload file", "file", uploadPath, "error", err)
 		}
 
 		return trace.Wrap(err, "handler could not acquire file lock for %q", uploadPath)
@@ -197,10 +197,10 @@ Loop:
 
 	defer func() {
 		if err := unlock(); err != nil {
-			h.WithError(err).Errorf("Failed to unlock filesystem lock.")
+			h.logger.ErrorContext(ctx, "Failed to unlock filesystem lock.", "error", err)
 		}
 		if err := f.Close(); err != nil {
-			h.WithError(err).Errorf("Failed to close file %q.", uploadPath)
+			h.logger.ErrorContext(ctx, "Failed to close upload file", "file", uploadPath, "error", err)
 		}
 	}()
 
@@ -211,7 +211,7 @@ Loop:
 		}
 		defer func() {
 			if err := file.Close(); err != nil {
-				h.WithError(err).Errorf("failed to close file %q", path)
+				h.logger.ErrorContext(ctx, "failed to close file", "file", path, "error", err)
 			}
 		}()
 
@@ -233,7 +233,7 @@ Loop:
 
 	err = os.RemoveAll(h.uploadRootPath(upload))
 	if err != nil {
-		h.WithError(err).Errorf("Failed to remove upload %q.", upload.ID)
+		h.logger.ErrorContext(ctx, "Failed to remove upload", "upload_id", upload.ID)
 	}
 	return nil
 }
@@ -257,7 +257,8 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 		}
 		part, err := partFromFileName(path)
 		if err != nil {
-			h.WithError(err).Debugf("Skipping file %v.", path)
+			h.logger.DebugContext(ctx, "Skipping upload file", "file", path, "error", err)
+
 			return nil
 		}
 		parts = append(parts, events.StreamPart{
@@ -297,7 +298,7 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 		}
 		uploadID := dir.Name()
 		if err := checkUploadID(uploadID); err != nil {
-			h.WithError(err).Warningf("Skipping upload %v with bad format.", uploadID)
+			h.logger.WarnContext(ctx, "Skipping upload with bad format", "upload_id", uploadID, "error", err)
 			continue
 		}
 		files, err := os.ReadDir(filepath.Join(h.uploadsPath(), dir.Name()))
@@ -310,17 +311,17 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 		}
 		// expect just one subdirectory - session ID
 		if len(files) != 1 {
-			h.Warningf("Skipping upload %v, missing subdirectory.", uploadID)
+			h.logger.WarnContext(ctx, "Skipping upload, missing subdirectory.", "upload_id", uploadID)
 			continue
 		}
 		if !files[0].IsDir() {
-			h.Warningf("Skipping upload %v, not a directory.", uploadID)
+			h.logger.WarnContext(ctx, "Skipping upload, not a directory.", "upload_id", uploadID)
 			continue
 		}
 
 		info, err := dir.Info()
 		if err != nil {
-			h.WithError(err).Warningf("Skipping upload %v: cannot read file info", uploadID)
+			h.logger.WarnContext(ctx, "Skipping upload: cannot read file info", "upload_id", uploadID, "error", err)
 			continue
 		}
 
@@ -359,7 +360,7 @@ func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpl
 	_, err = file.Write(buf)
 	if err = trace.NewAggregate(err, file.Close()); err != nil {
 		if rmErr := os.Remove(partPath); rmErr != nil {
-			h.WithError(rmErr).Warningf("Failed to remove file %q.", partPath)
+			h.logger.WarnContext(ctx, "Failed to remove part file.", "file", partPath, "error", rmErr)
 		}
 
 		return trace.ConvertSystemError(err)

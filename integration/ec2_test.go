@@ -21,18 +21,16 @@ package integration
 import (
 	"context"
 	"fmt"
-	"io"
+	"log/slog"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -46,23 +44,20 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	cloudimds "github.com/gravitational/teleport/lib/cloud/imds"
+	cloudaws "github.com/gravitational/teleport/lib/cloud/imds/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-func newSilentLogger() utils.Logger {
-	logger := utils.NewLoggerForTests()
-	logger.SetLevel(logrus.PanicLevel)
-	logger.SetOutput(io.Discard)
-	return logger
-}
-
-func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinMethod types.JoinMethod) *servicecfg.Config {
+func newNodeConfig(t *testing.T, tokenName string, joinMethod types.JoinMethod) *servicecfg.Config {
 	config := servicecfg.MakeDefaultConfig()
+	config.Version = defaults.TeleportConfigVersionV3
 	config.SetToken(tokenName)
 	config.JoinMethod = joinMethod
 	config.SSH.Enabled = true
@@ -70,8 +65,7 @@ func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinM
 	config.Auth.Enabled = false
 	config.Proxy.Enabled = false
 	config.DataDir = t.TempDir()
-	config.SetAuthServerAddress(authAddr)
-	config.Log = newSilentLogger()
+	config.Logger = slog.New(logutils.DiscardHandler{})
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	config.InstanceMetadataClient = cloudimds.NewDisabledIMDSClient()
 	return config
@@ -79,7 +73,7 @@ func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinM
 
 func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinMethod types.JoinMethod) *servicecfg.Config {
 	config := servicecfg.MakeDefaultConfig()
-	config.Version = defaults.TeleportConfigVersionV2
+	config.Version = defaults.TeleportConfigVersionV3
 	config.SetToken(tokenName)
 	config.JoinMethod = joinMethod
 	config.SSH.Enabled = false
@@ -92,7 +86,7 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, join
 
 	config.DataDir = t.TempDir()
 	config.SetAuthServerAddress(authAddr)
-	config.Log = newSilentLogger()
+	config.Logger = slog.New(logutils.DiscardHandler{})
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	config.InstanceMetadataClient = cloudimds.NewDisabledIMDSClient()
 	return config
@@ -109,6 +103,7 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *servicecfg.Config {
 	}
 
 	config := servicecfg.MakeDefaultConfig()
+	config.Version = defaults.TeleportConfigVersionV3
 	config.DataDir = t.TempDir()
 	config.Auth.ListenAddr.Addr = helpers.NewListener(t, service.ListenerAuth, &config.FileDescriptors)
 	config.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
@@ -125,7 +120,7 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *servicecfg.Config {
 	config.Proxy.Enabled = false
 	config.SSH.Enabled = false
 	config.Clock = clock
-	config.Log = newSilentLogger()
+	config.Logger = slog.New(logutils.DiscardHandler{})
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	config.InstanceMetadataClient = cloudimds.NewDisabledIMDSClient()
 	return config
@@ -140,13 +135,17 @@ func getIID(ctx context.Context, t *testing.T) imds.InstanceIdentityDocument {
 	return output.InstanceIdentityDocument
 }
 
-func getCallerIdentity(t *testing.T) *sts.GetCallerIdentityOutput {
-	sess, err := session.NewSessionWithOptions(session.Options{
-		SharedConfigState: session.SharedConfigEnable,
-	})
+func getCallerIdentity(ctx context.Context, t *testing.T) *sts.GetCallerIdentityOutput {
+	cfg, err := config.LoadDefaultConfig(ctx)
 	require.NoError(t, err)
-	stsService := sts.New(sess)
-	output, err := stsService.GetCallerIdentity(nil /*input*/)
+	if cfg.Region == "" {
+		imdsClient, err := cloudaws.NewInstanceMetadataClient(ctx)
+		require.NoError(t, err)
+		cfg.Region, err = imdsClient.GetRegion(ctx)
+		require.NoError(t, err, "trying to get local region from IMDSv2")
+	}
+	stsClient := stsutils.NewFromConfig(cfg)
+	output, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 	require.NoError(t, err)
 	return output
 }
@@ -201,7 +200,8 @@ func TestEC2NodeJoin(t *testing.T) {
 	require.Empty(t, nodes)
 
 	// create and start the node
-	nodeConfig := newNodeConfig(t, authConfig.Auth.ListenAddr, tokenName, types.JoinMethodEC2)
+	nodeConfig := newNodeConfig(t, tokenName, types.JoinMethodEC2)
+	nodeConfig.SetAuthServerAddress(authConfig.Auth.ListenAddr)
 	nodeSvc, err := service.NewTeleport(nodeConfig)
 	require.NoError(t, err)
 	require.NoError(t, nodeSvc.Start())
@@ -214,7 +214,7 @@ func TestEC2NodeJoin(t *testing.T) {
 	require.Eventually(t, func() bool {
 		nodes, _ := authServer.GetNodes(ctx, apidefaults.Namespace)
 		return len(nodes) > 0
-	}, time.Minute, time.Second, "waiting for node to join cluster")
+	}, 10*time.Second, 50*time.Millisecond, "waiting for node to join cluster")
 }
 
 // TestIAMNodeJoin is an integration test which asserts that the IAM method for
@@ -225,6 +225,7 @@ func TestIAMNodeJoin(t *testing.T) {
 	if os.Getenv("TELEPORT_TEST_EC2") == "" {
 		t.Skipf("Skipping TestIAMNodeJoin because TELEPORT_TEST_EC2 is not set")
 	}
+	ctx := context.Background()
 
 	// create and start the auth server
 	authConfig := newAuthConfig(t, nil /*clock*/)
@@ -236,7 +237,7 @@ func TestIAMNodeJoin(t *testing.T) {
 	authServer := authSvc.GetAuthServer()
 
 	// fetch the caller identity to find the AWS account and create the token
-	id := getCallerIdentity(t)
+	id := getCallerIdentity(ctx, t)
 
 	tokenName := "test_token"
 	token, err := types.NewProvisionTokenFromSpec(
@@ -253,7 +254,7 @@ func TestIAMNodeJoin(t *testing.T) {
 		})
 	require.NoError(t, err)
 
-	err = authServer.UpsertToken(context.Background(), token)
+	err = authServer.UpsertToken(ctx, token)
 	require.NoError(t, err)
 
 	// sanity check there are no proxies to start with
@@ -274,20 +275,21 @@ func TestIAMNodeJoin(t *testing.T) {
 		proxies, err := authServer.GetProxies()
 		assert.NoError(t, err)
 		assert.NotEmpty(t, proxies)
-	}, time.Minute, time.Second, "waiting for proxy to join cluster")
+	}, 10*time.Second, 50*time.Millisecond, "waiting for proxy to join cluster")
 	// InsecureDevMode needed for node to trust proxy
 	wasInsecureDevMode := lib.IsInsecureDevMode()
 	t.Cleanup(func() { lib.SetInsecureDevMode(wasInsecureDevMode) })
 	lib.SetInsecureDevMode(true)
 
 	// sanity check there are no nodes to start with
-	nodes, err := authServer.GetNodes(context.Background(), apidefaults.Namespace)
+	nodes, err := authServer.GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Empty(t, nodes)
 
-	// create and start a node, with use the IAM method to join in IoT mode by
+	// create and start a node, will use the IAM method to join in IoT mode by
 	// connecting to the proxy
-	nodeConfig := newNodeConfig(t, proxyConfig.Proxy.WebAddr, tokenName, types.JoinMethodIAM)
+	nodeConfig := newNodeConfig(t, tokenName, types.JoinMethodIAM)
+	nodeConfig.ProxyServer = proxyConfig.Proxy.WebAddr
 	nodeSvc, err := service.NewTeleport(nodeConfig)
 	require.NoError(t, err)
 	require.NoError(t, nodeSvc.Start())
@@ -295,10 +297,10 @@ func TestIAMNodeJoin(t *testing.T) {
 
 	// the node should eventually join the cluster and heartbeat
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		nodes, err := authServer.GetNodes(context.Background(), apidefaults.Namespace)
+		nodes, err := authServer.GetNodes(ctx, apidefaults.Namespace)
 		assert.NoError(t, err)
 		assert.NotEmpty(t, nodes)
-	}, time.Minute, time.Second, "waiting for node to join cluster")
+	}, 10*time.Second, 50*time.Millisecond, "waiting for node to join cluster")
 }
 
 type mockIMDSClient struct {
@@ -340,7 +342,7 @@ func TestEC2Labels(t *testing.T) {
 		},
 	}
 	tconf := servicecfg.MakeDefaultConfig()
-	tconf.Log = newSilentLogger()
+	tconf.Logger = slog.New(logutils.DiscardHandler{})
 	tconf.DataDir = t.TempDir()
 	tconf.Auth.Enabled = true
 	tconf.Proxy.Enabled = true
@@ -465,7 +467,7 @@ func TestEC2Hostname(t *testing.T) {
 		},
 	}
 	tconf := servicecfg.MakeDefaultConfig()
-	tconf.Log = newSilentLogger()
+	tconf.Logger = slog.New(logutils.DiscardHandler{})
 	tconf.DataDir = t.TempDir()
 	tconf.Auth.Enabled = true
 	tconf.Proxy.Enabled = true

@@ -8,7 +8,7 @@ videoBanner: 8uO5H-iYw5A
 This guide explains Enhanced Session Recording for SSH with BPF and how to set
 it up in your Teleport cluster.
 
-Teleport's default [SSH and Kubernetes session recording](../../../architecture/session-recording.mdx)
+Teleport's default [SSH and Kubernetes session recording](../../../reference/architecture/session-recording.mdx)
 feature captures what is echoed to a terminal.
 
 This has inherent advantages. For example, because no input is captured, Teleport
@@ -71,12 +71,12 @@ library preloading, and environment variables may not be captured in session rec
   See below for more details on the required versions for your Linux kernel and
   distribution.
 
-<Notice type="tip">
+<Admonition type="tip">
 
   Our Standard Session Recording works with older Linux kernels. View [Teleport
-  Session Recording](../../../architecture/session-recording.mdx) for more details.
+  Session Recording](../../../reference/architecture/session-recording.mdx) for more details.
 
-</Notice>
+</Admonition>
 
 ### Linux distributions and supported kernels
 
@@ -86,9 +86,9 @@ Teleport supports enhanced session recording with BPF on `amd64` and `arm64` arc
 |:------------------------|:---------------|:---------------|
 | Ubuntu "Groovy Gorilla" | 20.10          | 5.8+           |
 | Fedora                  | 33             | 5.8+           |
-| Archlinux               | 2020.09.01     | 5.8.5+         |
+| Arch Linux              | 2020.09.01     | 5.8.5+         |
 | Flatcar                 | 2765.2.2       | 5.10.25+       |
-| Amazon Linux            | 2              | 5.10+          |
+| Amazon Linux            | 2 and 2023     | 5.10+          |
 
 - (!docs/pages/includes/tctl.mdx!)
 
@@ -398,6 +398,6 @@ ends will also include the `"enhanced_recording": true` field, similar to the fo
 ## Next steps
 
 - Read more about
-  [session recording](../../../architecture/session-recording.mdx).
+  [session recording](../../../reference/architecture/session-recording.mdx).
 - See all configuration options for Enhanced Session Recording in our
   [Configuration Reference](../../../reference/config.mdx).

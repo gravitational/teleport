@@ -51,10 +51,11 @@ type pkcs11KeyStore struct {
 
 func newPKCS11KeyStore(config *servicecfg.PKCS11Config, opts *Options) (*pkcs11KeyStore, error) {
 	cryptoConfig := &crypto11.Config{
-		Path:       config.Path,
-		TokenLabel: config.TokenLabel,
-		SlotNumber: config.SlotNumber,
-		Pin:        config.PIN,
+		Path:        config.Path,
+		TokenLabel:  config.TokenLabel,
+		SlotNumber:  config.SlotNumber,
+		Pin:         config.PIN,
+		MaxSessions: config.MaxSessions,
 	}
 
 	ctx, err := crypto11.Configure(cryptoConfig)
@@ -77,13 +78,17 @@ func newPKCS11KeyStore(config *servicecfg.PKCS11Config, opts *Options) (*pkcs11K
 	}, nil
 }
 
+func (p *pkcs11KeyStore) name() string {
+	return storePKCS11
+}
+
 // keyTypeDescription returns a human-readable description of the types of keys
 // this backend uses.
 func (p *pkcs11KeyStore) keyTypeDescription() string {
 	return fmt.Sprintf("PKCS#11 HSM keys created by %s", p.hostUUID)
 }
 
-func (p *pkcs11KeyStore) findUnusedID() (keyID, error) {
+func (p *pkcs11KeyStore) findUnusedID(ctx context.Context) (keyID, error) {
 	if !p.isYubiHSM {
 		id, err := uuid.NewRandom()
 		if err != nil {
@@ -119,15 +124,19 @@ func (p *pkcs11KeyStore) findUnusedID() (keyID, error) {
 
 // generateKey creates a new private key and returns its identifier and a crypto.Signer. The returned
 // identifier can be passed to getSigner later to get an equivalent crypto.Signer.
-func (p *pkcs11KeyStore) generateKey(ctx context.Context, alg cryptosuites.Algorithm, _ ...rsaKeyOption) ([]byte, crypto.Signer, error) {
-	// the key identifiers are not created in a thread safe
+func (p *pkcs11KeyStore) generateKey(ctx context.Context, alg cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
+	// The key identifiers are not created in a thread safe
 	// manner so all calls are serialized to prevent races.
-	p.semaphore <- struct{}{}
+	select {
+	case p.semaphore <- struct{}{}:
+	case <-ctx.Done():
+		return nil, nil, trace.Wrap(ctx.Err())
+	}
 	defer func() {
 		<-p.semaphore
 	}()
 
-	id, err := p.findUnusedID()
+	id, err := p.findUnusedID(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

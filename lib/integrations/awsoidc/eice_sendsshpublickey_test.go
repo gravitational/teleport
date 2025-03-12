@@ -27,6 +27,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 func TestSendSSHPublicKeyRequest(t *testing.T) {
@@ -91,15 +93,19 @@ func TestSendSSHPublicKeyToEC2(t *testing.T) {
 
 	m := &mockSendSSHPublicKeyClient{}
 
-	sshSigner, err := SendSSHPublicKeyToEC2(ctx, m, SendSSHPublicKeyToEC2Request{
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	require.NoError(t, err)
+	sshSigner, err := ssh.NewSignerFromSigner(key)
+	require.NoError(t, err)
+
+	err = SendSSHPublicKeyToEC2(ctx, m, SendSSHPublicKeyToEC2Request{
 		InstanceID:      "id-123",
 		EC2SSHLoginUser: "root",
+		PublicKey:       sshSigner.PublicKey(),
 	})
 	require.NoError(t, err)
-	require.NotNil(t, sshSigner)
 
 	sshPublicKeyFromSigner := string(ssh.MarshalAuthorizedKey(sshSigner.PublicKey()))
-
 	require.Equal(t, sshPublicKeyFromSigner, m.sshKeySent)
 	require.Equal(t, "root", m.sshForUserSent)
 }

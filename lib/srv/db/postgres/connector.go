@@ -34,9 +34,9 @@ import (
 )
 
 type connector struct {
-	auth         common.Auth
-	cloudClients libcloud.Clients
-	log          *slog.Logger
+	auth       common.Auth
+	gcpClients libcloud.GCPClients
+	log        *slog.Logger
 
 	certExpiry    time.Time
 	database      types.Database
@@ -91,7 +91,7 @@ func (c *connector) getConnectConfig(ctx context.Context) (*pgconn.Config, error
 			return nil, trace.Wrap(err)
 		}
 		// Get the client once for subsequent calls (it acquires a read lock).
-		gcpClient, err := c.cloudClients.GetGCPSQLAdminClient(ctx)
+		gcpClient, err := c.gcpClients.GetGCPSQLAdminClient(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -104,7 +104,13 @@ func (c *connector) getConnectConfig(ctx context.Context) (*pgconn.Config, error
 		// Create ephemeral certificate and append to TLS config when
 		// the instance requires SSL.
 		if requireSSL {
-			err = cloud.AppendGCPClientCert(ctx, c.certExpiry, c.database, gcpClient, config.TLSConfig)
+			err = cloud.AppendGCPClientCert(ctx, &cloud.AppendGCPClientCertRequest{
+				GCPClient:   gcpClient,
+				GenerateKey: c.auth.GenerateDatabaseClientKey,
+				Expiry:      c.certExpiry,
+				Database:    c.database,
+				TLSConfig:   config.TLSConfig,
+			})
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

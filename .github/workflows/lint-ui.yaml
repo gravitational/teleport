@@ -40,7 +40,9 @@ jobs:
           node --version
 
       - name: Install JS dependencies
-        run: pnpm install --frozen-lockfile
+        run: |
+          npm install -g corepack@0.31.0
+          pnpm install --frozen-lockfile
 
       - name: Build WASM
         run: pnpm build-wasm
@@ -53,3 +55,6 @@ jobs:
 
       - name: Run Storybook smoke test
         run: pnpm storybook-smoke-test
+
+      - name: Lint licenses
+        run: make lint-license

@@ -20,8 +20,7 @@ with a virtual IP address over which the connection will be proxied to the app. 
 case, the query is forwarded to the default DNS name server used by the OS.
 
 If you want VNet to forward connections to an app that has a custom `public_addr` set, you need
-to first update the VNet config in the Auth Service to include a matching DNS zone and authorize the
-zone through a DNS TXT record.
+to first update the VNet config in the Auth Service to include a matching DNS zone.
 
 ## Prerequisites
 
@@ -31,11 +30,13 @@ zone through a DNS TXT record.
 - A TCP application connected to the cluster.
 - A domain name under your control.
 
+{/* vale messaging.protocol-products = NO */}
 In this guide, we'll use the example app from [TCP Application Access guide](tcp.mdx) and make it
 available through VNet at <Var name="public_addr" initial="tcp-app.company.test"/> with
 <Var name="suffix" initial="company.test" /> as the custom DNS zone.
+{/* vale messaging.protocol-products = YES */}
 
-## Step 1/4. Configure custom DNS zone
+## Step 1/3. Configure custom DNS zone
 
 Create a file called `vnet-config.yaml` which specifies the custom DNS zone. In our case the
 `public_addr` of the app is going to be `tcp-app.company.test`, so we're going to set
@@ -60,38 +61,11 @@ vnet_config has been created
 
 <Admonition type="note" title="Relationship between suffix and public_addr">
 `suffix` doesn't have to point to a domain that's exactly one level above the `public_addr` of an
-app. Any level of nesting works. E.g., you can have an app under `tcp-app.foo.bar.qux.test` and the
-suffix can be set to `bar.qux.test`.
+app. Any level of nesting works. For example, you can have an app under `tcp-app.foo.bar.qux.test`
+and the suffix can be set to `bar.qux.test`.
 </Admonition>
 
-## Step 2/4. Set DNS TXT record
-
-Establish the name of your cluster:
-
-```code
-$ tctl status | awk '/Cluster/ {print $2}'
-teleport.example.com
-```
-
-Set a DNS TXT record `teleport-cluster=<cluster name>` on the domain provided as `suffix` in the
-VNet config. This is required by VNet to prevent a rogue cluster admin from hijacking DNS resolution
-of arbitrary domains for unsuspecting users.
-
-Wait a couple of minutes and verify that the DNS record changes have been propagated.
-
-```code
-$ host -t TXT <Var name="suffix" />
-company.test descriptive text "teleport-cluster=teleport.example.com"
-```
-
-<Admonition type="note" title="DNS TXT and CNAME records">
-If the domain you chose for the suffix has the CNAME record set, you won't be able to add a TXT
-record. A CNAME record must be the only record for the given name. In that scenario, you can set the
-suffix to a domain one level above if possible (e.g., `company.test` instead of
-`internal.company.test`) or switch from CNAME to A records.
-</Admonition>
-
-## Step 3/4. Set `public_addr` of the app
+## Step 2/3. Set `public_addr` of the app
 
 Set `public_addr` field of the application in the Application Service configuration file
 `/etc/teleport.yaml` and restart the `teleport` daemon.
@@ -107,7 +81,7 @@ app_service:
     public_addr: "<Var name="public_addr" />"
 ```
 
-## Step 4/4. Connect
+## Step 3/3. Connect
 
 Once you [start VNet](../../../connect-your-client/vnet.mdx), you should be able to connect to the
 application over the custom `public_addr` using the application client you would normally use to
@@ -161,15 +135,12 @@ an address for the TUN device from a range offered by one of those clusters.
 
 ### Configuring leaf cluster apps
 
-To make a [leaf cluster](../../../management/admin/trustedclusters.mdx) app accessible over a custom
+To make a [leaf cluster](../../../admin-guides/management/admin/trustedclusters.mdx) app accessible over a custom
 `public_addr`, you need to follow the same steps while being logged in directly to the leaf cluster.
 
 ```code
-$ tsh login --proxy=<Var name="leaf.example.com" /> --user=<Var name="email@example.com" />
+$ tsh login --proxy=leaf.example.com --user=email@example.com
 ```
-
-The DNS TXT record of the domain provided as `suffix` needs to contain the name of the leaf cluster.
-A single domain can have multiple TXT records if you want to use it in multiple clusters.
 
 ### Accessing web apps through VNet
 
@@ -183,11 +154,11 @@ app is [a TCP app](tcp.mdx), so they can be made available over VNet as well. Yo
   application will not be accessible in browsers over plain HTTP, even with VNet running. It's
   possible to work around this by setting a custom `public_addr` as explained above in this guide.
 - If the application needs to be accessible over HTTPS, it must handle TLS connections and return [a valid
-  cert](connecting-apps.mdx#tls-requirements) for the domain it is served on.
+  cert](connecting-apps.mdx#step-23-optional-configure-tls-and-dns-for-your-web-applications) for the domain it is served on.
 - [JWT Token](../jwt/introduction.mdx), [redirect](connecting-apps.mdx#rewrite-redirect) and
   [header rewrites](connecting-apps.mdx#headers-passthrough) are not available for TCP apps.
 - Teleport records the start and the end of a session for TCP apps in the audit log, but [session
-  chunks](../../../architecture/session-recording.mdx#app-sessions) are not captured.
+  chunks](../../../reference/architecture/session-recording.mdx) are not captured.
 
 When accessing an HTTP API through VNet, the same caveats apply as above, with one main exception.
 Since API clients don't need to respect HSTS, the API itself does not need to be served over HTTPS.
@@ -198,4 +169,6 @@ used depends solely on the app itself and its clients.
 
 ### Further reading
 
+- Read our VNet usage [guide](../../../connect-your-client/vnet.mdx) for end-users
+  accessing your applications with VNet.
 - Read [RFD 163](https://github.com/gravitational/teleport/blob/master/rfd/0163-vnet.md) to learn how VNet works on a technical level.

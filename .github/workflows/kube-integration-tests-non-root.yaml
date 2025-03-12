@@ -9,6 +9,7 @@ on:
 env:
   TEST_KUBE: true
   KUBECONFIG: /home/.kube/config
+  ALPINE_VERSION: 3.20.3
 
 jobs:
   changes:
@@ -68,7 +69,7 @@ jobs:
         continue-on-error: true
 
       - name: Create KinD cluster
-        uses: helm/kind-action@99576bfa6ddf9a8e612d83b513da5a75875caced # v1.9.0
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
         with:
           cluster_name: kind
           config: fixtures/kind/config.yaml
@@ -88,6 +89,38 @@ jobs:
           kubectl apply -f  fixtures/ci-teleport-rbac/ci-teleport.yaml
           cp -r $HOME/.kube /home/
           chown -R ci:ci /home/.kube
+
+      - name: Build Alpine image with webserver
+        run: |
+
+          export SHORT_VERSION=${ALPINE_VERSION%.*}
+
+          # download the alpine image
+          # store the files in the fixtures/alpine directory
+          # to avoid passing all the repository files to the docker build context.
+          cd ./fixtures/alpine
+
+          # download alpine minirootfs and signature
+          curl -fSsLO https://dl-cdn.alpinelinux.org/alpine/v$SHORT_VERSION/releases/x86_64/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz
+          curl -fSsLO https://dl-cdn.alpinelinux.org/alpine/v$SHORT_VERSION/releases/x86_64/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz.asc
+          curl -fSsLO https://dl-cdn.alpinelinux.org/alpine/v$SHORT_VERSION/releases/x86_64/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz.sha256
+
+          # verify the checksum
+          sha256sum -c alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz.sha256
+
+          # verify the signature
+          gpg --import  ./alpine-ncopa.at.alpinelinux.org.asc
+          gpg --verify ./alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz.asc ./alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz
+
+          # build the webserver
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ./webserver ./webserver.go
+
+          docker build -t alpine-webserver:v1 --build-arg=ALPINE_VERSION=$ALPINE_VERSION -f ./Dockerfile .
+
+          # load the image into the kind cluster
+          kind load docker-image alpine-webserver:v1
+
+          cd - 
 
       - name: Run tests
         timeout-minutes: 40

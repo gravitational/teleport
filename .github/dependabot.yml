@@ -21,8 +21,6 @@ updates:
       - dependency-name: github.com/microsoft/go-mssqldb
       - dependency-name: github.com/redis/go-redis/v9
       - dependency-name: github.com/vulcand/predicate
-      # Ignore until kube libs are upgraded. See https://github.com/kubernetes-sigs/controller-runtime/issues/2788.
-      - dependency-name: k8s.io/*
     open-pull-requests-limit: 20
     groups:
       go:
@@ -237,17 +235,22 @@ updates:
       - "ui"
       - "no-changelog"
     groups:
+      electron:
+        patterns:
+        - "electron*"
       ui:
         update-types:
           - "minor"
           - "patch"
+        exclude-patterns:
+          - "electron*"
     open-pull-requests-limit: 20
     reviewers:
       - avatus
       - kimlisa
       - rudream
       - bl-nero
-      - gzdnunek
+      - gzdunek
       - ravicious
       - ryanclark
   - package-ecosystem: github-actions

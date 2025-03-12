@@ -1,0 +1,191 @@
+---
+title: Database CA Migrations
+description: How to complete Teleport Database CA migrations.
+---
+
+In Teleport, self-hosted databases must be configured with certificates to
+enable mTLS authentication via the Teleport Database Service.
+
+Teleport (= db_ca.released_version =) introduced the `db` certificate
+authority (CA) to decouple CA rotation for self-hosted databases from the rest of
+the Teleport cluster.
+
+Teleport (= db_client_ca.released_version.v15 =) introduced the `db_client` CA
+to split the responsibilities of the Teleport `db` CA, which was acting as both
+host and client CA for Teleport self-hosted database access.  The `db_client` CA
+was also added as a patch in Teleport (= db_client_ca.released_version.v14 =).
+
+The `db` and `db_client` CAs were both introduced as an automatic migration
+that occurs after upgrading Teleport.
+
+Teleport's host/client database CA split is intended to limit the potential for
+lateral movement to other resources in the event that a database instance's
+private key is compromised.
+
+This guide will provide information about why these CAs were added to Teleport
+and how to complete any pending migrations for your Teleport cluster.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+- A Teleport cluster that was upgraded from a version that predates either the
+  `db` or `db_client` CA.
+  If your Teleport cluster was created in Teleport
+  (= db_client_ca.released_version.v15 =) or later, then this guide does
+  not apply to your cluster, because your `db` and `db_client` CAs were not
+  migrated.
+
+## Teleport `db` CA migration
+
+Your Teleport cluster's `db` CA can be used to issue certificates to self-hosted
+databases.
+This is convenient, because the Teleport Database Service trusts certificates
+issued by the `db` CA by default, so there is no additional TLS configuration
+in Teleport required.
+
+Alternatively, you can issue certificates to your self-hosted databases using
+an external CA - you just need to configure the Teleport Database Service to
+trust that CA when connecting to your database(s).
+
+<Details title="How to make Teleport trust an external database CA?">
+For a static database defined in your Teleport Database Service `teleport.yaml`
+configuration file, set `tls.ca_cert_file` to a file containing your CA's root
+certificate.
+
+For a dynamic database, put your CA's root certificate in `spec.tls.ca_cert`. 
+
+For examples and more information, consult the
+[configuration
+reference](../../../reference/agent-services/database-access-reference/configuration.mdx)
+for protecting databases with Teleport.
+</Details>
+
+Prior to Teleport (= db_ca.released_version =), the Teleport `host` CA was used
+to issue certificates to self-hosted databases (via `tctl auth sign`).
+The `db` CA was introduced to decouple self-hosted database CA rotation
+from the rest of your Teleport cluster.
+The idea is that you should be able to rotate the CA used for self-hosted
+databases without affecting other resources connected to your cluster.
+Likewise, when you rotate your cluster's `host` CA, you should not have to worry
+about affecting self-hosted databases.
+
+To avoid breaking database access after upgrading to Teleport
+(= db_ca.released_version =), Teleport clusters are automatically migrated to
+create the `db` CA as a copy of the `host` CA.
+
+If your cluster was upgraded to Teleport (= db_ca.released_version =) and you
+use Teleport to issue certificates to your self-hosted databases, then you
+should ensure that you have completed the `db` CA migration.
+Otherwise, if you later rotate just one CA for any reason, a copy of the old CA
+will still exist.
+While this does not necessarily lead to a vulnerability in your cluster, it is
+bad security practice to keep an old CA around after rotating it.
+
+To complete the `db` CA migration:
+- we recommend rotating your `host` CA
+- we **strongly recommend** rotating your `db` CA
+
+## Teleport `db_client` CA migration
+
+The Teleport Database Service needs to authenticate itself to self-hosted
+database(s) using a client certificate, which requires that you configure your
+database(s) to trust Teleport's `db_client` CA.
+Prior to the introduction of the `db_client` CA, self-hosted databases had to be
+configured to trust the Teleport `db` CA for client authentication.
+
+With the old approach - trusting the `db` CA for client connections - if a
+database's private key is compromised, and a `db` certificate was issued for
+that key, then it could be used to gain access to other databases.
+
+Not all self-hosted databases are vulnerable to lateral movement after a private
+key  compromise.
+For example, MySQL and PostgreSQL both verify that a client's certificate
+subject matches the client's database user.
+Other databases only verify that a client's certificate is trusted, but do not
+match the certificate subject to the database username.
+For example, Cassandra, ScyllaDB, and Redis do not verify the client cert
+subject.
+All of these databases can be configured to require password authentication
+after a successful mTLS handshake.
+However, for defense in depth, these databases should only mTLS handshake with
+a client that presents a `db_client` CA-issued certificate.
+
+If your Teleport cluster was upgraded to Teleport
+\>=(= db_client_ca.released_version.v14 =) or
+\>=(= db_client_ca.released_version.v15 =),
+then you should ensure that you have completed the `db_client` migration.
+To complete the `db_client` CA migration:
+- we recommend rotating your `db` CA
+- we **strongly recommend** rotating your `db_client` CA.
+- we **strongly recommend** reconfiguring your databases' certificates after
+  you complete the `db_client` CA rotation.
+
+<Admonition type="note" title="reconfiguring certs after db_client CA rotation">
+  If you use `tctl auth sign` to reconfigure a database's certificates during
+  a `db_client` CA rotation, then the trusted certificate output will include
+  both the old and the new CA certificates.
+  To complete the migration, you should reconfigure those databases again after
+  the rotation - that way they will only trust the new CA.
+ 
+  If you don't want to reconfigure each database both during and after the
+  `db_client` CA rotation, and you do not mind temporarily losing connectivity
+  to your databases via Teleport, then you can just complete the `db_client` CA
+  rotation and reconfigure your databases afterward.
+</Admonition>
+
+## 1/2. Check for Teleport CA migrations
+
+If you upgraded an existing cluster to Teleport
+\>=(= db_ca.released_version =)
+and you have not rotated *both* your `host` and `db` CAs at least once since
+upgrading, then you should complete the `db` CA migration.
+
+If you upgraded an existing cluster to Teleport
+\>=(= db_client_ca.released_version.v14 =) or
+\>=(= db_client_ca.released_version.v15 =)
+and you have not rotated *both* your
+`db` and `db_client` CAs at least once since upgrading, then you should complete
+the `db_client` CA migration.
+
+If you are unsure whether you need to complete the migration for either the `db`
+or `db_client` CAs, you can check for duplicated CAs.
+Use these commands to print the X.509 certificate serial number for your `host`,
+`db`, and `db_client` CAs (in that order):
+
+```code
+$ tctl auth export --type=tls-host | openssl x509 -noout -serial
+$ tctl auth export --type=db | openssl x509 -noout -serial
+$ tctl auth export --type=db-client | openssl x509 -noout -serial
+```
+
+If the `db` CA serial number matches the `host` CA serial number, then you 
+need to complete the `db` CA migration.
+
+If the `db_client` CA serial number matches the `db` CA serial number, then you
+need to complete the `db_client` CA migration.
+
+## 2/2. Rotate CAs
+
+If you need to complete both the `db` and `db_client` migrations, then a single
+rotation of each of the `host`, `db`, and `db_client` CAs is enough: you do not
+need to rotate the `db` CA twice.
+
+If you need to rotate the `host` CA, we recommend completing that rotation
+before starting either of the `db` or `db_client` CA rotations: do not rotate
+other CAs in parallel with a `host` CA rotation.
+
+Database CA rotations are a little different, because they involve configuring
+external resources (self-hosted databases) with new certificates during the
+rotation.
+You can (and should) rotate the `db` and `db_client` CAs at the same time to
+avoid repeating the database certificate reconfiguration steps.
+
+For information about CA rotation, refer to the 
+[CA Rotation Guide](./ca-rotation.mdx).
+
+## Further reading
+
+- How the [Teleport Certificate Authority](../../../reference/architecture/authentication.mdx) works.
+- How [Teleport Agents](../../../reference/architecture/agents.mdx) work.

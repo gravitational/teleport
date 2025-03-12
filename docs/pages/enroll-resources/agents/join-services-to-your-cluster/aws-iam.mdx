@@ -11,7 +11,7 @@ There are two other AWS join methods available depending on your use
 case:
 
 1. The **EC2 join method**, which is only available for self-hosted Teleport
-   deployments (see [documentation](aws-ec2.mdx). A Teleport process running on
+   deployments (see [documentation](aws-ec2.mdx)). A Teleport process running on
    an EC2 instance requests a signed EC2 instance identity document and presents
    it to the Teleport Auth Service, which queries the EC2 API to verify that the
    instance is genuine. This method requires a self-hosted Teleport cluster and
@@ -48,7 +48,7 @@ balancer or reverse proxy is available in Teleport 13.0+.
 
 (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/4. Set up AWS IAM credentials
+## Step 1/5. Set up AWS IAM credentials
 
 Every Teleport process using the IAM method to join your Teleport cluster needs
 AWS IAM credentials in order to call the `sts:GetCallerIdentity` API. No
@@ -62,7 +62,7 @@ attached IAM policies at all. If your instance does not otherwise need AWS
 credentials, it is preferred to create and attach an empty role with no attached
 policies.
 
-## Step 2/4. Create the AWS joining token
+## Step 2/5. Create the AWS joining token
 
 Create the following `token.yaml` with an `allow` rule specifying your AWS
 account and the ARN that the Teleport process's identity must match.
@@ -82,7 +82,13 @@ Run the following command to create the token:
 $ tctl create -f token.yaml
 ```
 
-## Step 3/4. Configure your services
+## Step 3/5 Install Teleport
+
+Install Teleport on your AWS EC2 instance.
+
+(!docs/pages/includes/install-linux.mdx!)
+
+## Step 4/5. Configure your services
 
 The IAM join method can be used for Teleport processes running the SSH, Proxy,
 Kubernetes, Application, or Database Service.
@@ -111,7 +117,7 @@ In the `teleport.proxy_server` field, replace the value with the host and web
 port of your Teleport Proxy Service or Teleport Enterprise Cloud tenant, e.g.,
 `mytenant.teleport.sh:443`.
 
-## Step 4/4. Launch your Teleport process
+## Step 5/5. Launch your Teleport process
 
 (!docs/pages/includes/aws-credentials.mdx!)
 

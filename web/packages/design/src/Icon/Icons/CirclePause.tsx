@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,13 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function CirclePause({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const CirclePause = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-circlepause"
       {...otherProps}
+      ref={ref}
     >
       <path d="M9.75 8.25C10.1642 8.25 10.5 8.58579 10.5 9V15C10.5 15.4142 10.1642 15.75 9.75 15.75C9.33579 15.75 9 15.4142 9 15V9C9 8.58579 9.33579 8.25 9.75 8.25Z" />
       <path d="M15 9C15 8.58579 14.6642 8.25 14.25 8.25C13.8358 8.25 13.5 8.58579 13.5 9V15C13.5 15.4142 13.8358 15.75 14.25 15.75C14.6642 15.75 15 15.4142 15 15V9Z" />
@@ -66,5 +67,5 @@ export function CirclePause({ size = 24, color, ...otherProps }: IconProps) {
         d="M2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75Z"
       />
     </Icon>
-  );
-}
+  )
+);

@@ -99,6 +99,7 @@ func NewJiraClient(conf JiraConfig, clusterName, teleportProxyAddr string, statu
 		Transport: &http.Transport{
 			MaxConnsPerHost:     jiraMaxConns,
 			MaxIdleConnsPerHost: jiraMaxConns,
+			Proxy:               http.ProxyFromEnvironment,
 		}}).
 		SetBaseURL(conf.URL).
 		SetBasicAuth(conf.Username, conf.APIToken).
@@ -124,7 +125,7 @@ func NewJiraClient(conf JiraConfig, clusterName, teleportProxyAddr string, statu
 					defer cancel()
 
 					if err := statusSink.Emit(ctx, status); err != nil {
-						log.WithError(err).Errorf("Error while emitting Jira plugin status: %v", err)
+						log.ErrorContext(ctx, "Error while emitting Jira plugin status", "error", err)
 					}
 				}
 
@@ -198,7 +199,7 @@ func (j *Jira) HealthCheck(ctx context.Context) error {
 		}
 	}
 
-	log.Debug("Checking out Jira project...")
+	log.DebugContext(ctx, "Checking out Jira project")
 	var project Project
 	_, err = j.client.NewRequest().
 		SetContext(ctx).
@@ -208,9 +209,12 @@ func (j *Jira) HealthCheck(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	log.Debugf("Found project %q named %q", project.Key, project.Name)
+	log.DebugContext(ctx, "Found Jira project",
+		"project", project.Key,
+		"project_name", project.Name,
+	)
 
-	log.Debug("Checking out Jira project permissions...")
+	log.DebugContext(ctx, "Checking out Jira project permissions")
 	queryOptions, err := query.Values(GetMyPermissionsQueryOptions{
 		ProjectKey:  j.project,
 		Permissions: jiraRequiredPermissions,
@@ -432,7 +436,7 @@ func (j *Jira) ResolveIssue(ctx context.Context, issueID string, resolution Reso
 	if err2 := trace.Wrap(j.TransitionIssue(ctx, issue.ID, transition.ID)); err2 != nil {
 		return trace.NewAggregate(err1, err2)
 	}
-	logger.Get(ctx).Debugf("Successfully moved the issue to the status %q", toStatus)
+	logger.Get(ctx).DebugContext(ctx, "Successfully moved the issue to the target status", "target_status", toStatus)
 
 	return trace.Wrap(err1)
 }
@@ -456,7 +460,7 @@ func (j *Jira) AddResolutionComment(ctx context.Context, id string, resolution R
 		SetBody(CommentInput{Body: builder.String()}).
 		Post("rest/api/2/issue/{issueID}/comment")
 	if err == nil {
-		logger.Get(ctx).Debug("Successfully added a resolution comment to the issue")
+		logger.Get(ctx).DebugContext(ctx, "Successfully added a resolution comment to the issue")
 	}
 	return trace.Wrap(err)
 }

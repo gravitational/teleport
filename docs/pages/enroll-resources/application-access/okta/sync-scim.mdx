@@ -26,14 +26,14 @@ Teleport.
 
 ### Importing users
 
-During synchronization, the Okta integration will create Teleport user accounts 
+During synchronization, the Okta integration will create Teleport user accounts
 for all eligible Okta users, and clean up the Teleport accounts of any Okta users
 that have been deactivated. The list of "eligible Okta users" depends on the
-integration configuration. 
+integration configuration.
 
 If the Okta integration is configured to use a specific Okta application, then
-the Okta integration will consider any Okta user assigned to that Okta 
-application - either directly, or via group membership - as an "eligible user". 
+the Okta integration will consider any Okta user assigned to that Okta
+application - either directly, or via group membership - as an "eligible user".
 
 If no Okta application is to use is supplied, all enabled Okta organization
 users are considered "eligible".
@@ -44,7 +44,7 @@ a specific Okta application.
 
 The integration [enrolment process](./hosted-guide.mdx) creates an Okta SAML
 Application to use as the identity provider for a new
-[SAML Authentication Connector](../../../access-controls/sso/okta.mdx). The enrolment
+[SAML Authentication Connector](../../../admin-guides/access-controls/sso/okta.mdx). The enrolment
 process automatically configures the Okta integration to use this same
 application, giving the Okta administrator a single point of integration to
 administer and secure.
@@ -54,7 +54,7 @@ administer and secure.
 
 The Teleport users created by the synchronization process or SCIM provisioning
 all inherit their username from the upstream Okta organization, and are given a
-default role of `okta-requester`. 
+default role of `okta-requester`.
 
 This Role allows the user to log into Teleport, but grants no default access to
 Teleport resources. The Teleport admin can use Access Requests and Access Lists
@@ -93,13 +93,13 @@ resources.
 
 ### Deleting Users
 
-In the case where
- 1. the synchronization process detects that an Okta user has been deactivated
-    or suspended, or 
- 1. the Okta organization explicitly disables the account via SCIM, 
- 
+Given a case where
+ 1. the synchronization process detects that an Okta user has been deactivated,
+    deleted or removed from the Okta App, or
+ 1. the Okta organization explicitly disables the account via SCIM,
+
 The Okta integration will immediately delete the corresponding Teleport
-account and create a temporary Teleport user lock. The user lock will 
+account and create a temporary Teleport user lock. The user lock will
  - terminate any active Teleport sessions, and
  - prevent the disabled user from accessing any Teleport resources with
    credentials issued before their Teleport account was deleted.
@@ -146,6 +146,53 @@ The synchronizer will create the following resources for each matched group or a
 
 It should be noted that the Access List sync waits until the Okta groups and Okta applications
 has finished syncing as Teleport resources, so it may not start synchronizing immediately on startup.
+
+### Handling nested Access Lists
+
+#### Synchronization from Teleport to Okta
+
+Teleport supports nested Access Lists, where an Access List can include other Access Lists as members,
+creating a hierarchical structure. However, Okta does not support nested groups.
+To accommodate this limitation, the synchronizer flattens nested Access Lists when synchronizing from Teleport to Okta.
+
+Members in Access Lists, from all levels of nesting, are aggregated into a single, flat list of members when
+synchronized to Okta. This ensures that all users who should have access according to the Teleport hierarchy
+are included in the corresponding Okta group or application.
+
+**Example**:
+  - **Teleport Structure**:
+    - **Access List A**:
+      - Members: User1
+      - Nested Members: Access List B
+    - **Access List B**:
+      - Members: User2, User3
+  - **Okta Representation**:
+    - Group/Application for Access List A:
+      - Members: User1, User2, User3
+
+By flattening the Teleport hierarchy, all users receive the permissions associated with the root-level Access List in Okta.
+
+#### Synchronization from Okta to Teleport
+
+When synchronizing from Okta to Teleport, the synchronizer handles the flattened structure from Okta
+by attempting to map it back to the Teleport hierarchy:
+
+- **Comparing with Teleport Hierarchy**: The flattened list of members from Okta is compared against the existing
+Access List hierarchy in Teleport.
+- **Adding New Members**:
+  - **New Users**: If there are new users added in Okta that are not present in the Teleport Identity Governance Access List hierarchy,
+  these users are added as members at the root-level Access List in Teleport.
+  - **Maintaining Hierarchy**: This approach maintains the hierarchical structure within Teleport while ensuring
+  that access changes made in Okta are reflected appropriately.
+- **Example**:
+  - **Okta Group/Application for Access List A**:
+    - Members: User1, User2, User3, User4 (User4 is a new member added in Okta)
+  - **Teleport Update**:
+    - **Access List A**:
+      - Members: User1, User4
+      - Nested Members: Access List B
+    - **Access List B**:
+      - Members: User2, User3
 
 #### Deletion of Access Lists
 

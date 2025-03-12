@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/x509/pkix"
 	"fmt"
+	"log/slog"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -33,7 +34,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 	protobuf "google.golang.org/protobuf/proto"
@@ -70,9 +70,12 @@ func NewTestCA(caType types.CertAuthType, clusterName string, privateKeys ...[]b
 // a test certificate authority
 type TestCAConfig struct {
 	Type        types.CertAuthType
-	ClusterName string
 	PrivateKeys [][]byte
 	Clock       clockwork.Clock
+	ClusterName string
+	// the below string fields default to ClusterName if left empty
+	ResourceName        string
+	SubjectOrganization string
 }
 
 // NewTestCAWithConfig generates a new certificate authority with the specified
@@ -83,20 +86,27 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 	var keyPEM []byte
 	var key *keys.PrivateKey
 
-	if config.Type == types.DatabaseClientCA {
-		// Always use pre-generated RSA key for the db_client CA.
-		keyPEM = fixtures.PEMBytes["rsa-db-client"]
+	if config.ResourceName == "" {
+		config.ResourceName = config.ClusterName
 	}
-	if config.Type == types.SAMLIDPCA {
-		// The SAML IdP uses xmldsig RSA SHA256 signature method
-		// http://www.w3.org/2001/04/xmldsig-more#rsa-sha256
-		// to sign the SAML assertion, so the key must be an RSA key.
+	if config.SubjectOrganization == "" {
+		config.SubjectOrganization = config.ClusterName
+	}
+
+	switch config.Type {
+	case types.DatabaseCA, types.SAMLIDPCA, types.OIDCIdPCA:
+		// These CAs only support RSA.
 		keyPEM = fixtures.PEMBytes["rsa"]
+	case types.DatabaseClientCA:
+		// The db client CA also only supports RSA, but some tests rely on it
+		// being different than the DB CA.
+		keyPEM = fixtures.PEMBytes["rsa-db-client"]
 	}
 	if len(config.PrivateKeys) > 0 {
 		// Allow test to override the private key.
 		keyPEM = config.PrivateKeys[0]
 	}
+
 	if keyPEM != nil {
 		var err error
 		key, err = keys.ParsePrivateKey(keyPEM)
@@ -104,9 +114,10 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 			panic(err)
 		}
 	} else {
-		// If config.PrivateKeys was not set and this is not the db_client CA,
-		// generate an ECDSA key. Signatures are ~10x faster than RSA and
-		// generating a new key is actually faster than parsing a PEM fixture.
+		// If config.PrivateKeys was not set and this CA does not exclusively
+		// support RSA, generate an ECDSA key. Signatures are ~10x faster than
+		// RSA and generating a new key is actually faster than parsing a PEM
+		// fixture.
 		signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 		if err != nil {
 			panic(err)
@@ -126,7 +137,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 		SubKind: string(config.Type),
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name:      config.ClusterName,
+			Name:      config.ResourceName,
 			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.CertAuthoritySpecV2{
@@ -151,7 +162,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 			Signer: key.Signer,
 			Entity: pkix.Name{
 				CommonName:   config.ClusterName,
-				Organization: []string{config.ClusterName},
+				Organization: []string{config.SubjectOrganization},
 			},
 			TTL:   defaults.CATTL,
 			Clock: config.Clock,
@@ -167,7 +178,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 
 	// Add JWT keys if necessary.
 	switch config.Type {
-	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA:
+	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA:
 		pubKeyPEM, err := keys.MarshalPublicKey(key.Public())
 		if err != nil {
 			panic(err)
@@ -201,7 +212,7 @@ type ServicesTestSuite struct {
 	UsersS        services.UsersService
 	RestrictionsS services.Restrictions
 	ChangesC      chan interface{}
-	Clock         clockwork.FakeClock
+	Clock         *clockwork.FakeClock
 }
 
 func (s *ServicesTestSuite) Users() services.UsersService {
@@ -487,6 +498,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Empty(t, out)
 
 	srv := NewServer(types.KindNode, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
+	srv.Spec.Hostname = "llama"
 	_, err = s.PresenceS.UpsertNode(ctx, srv)
 	require.NoError(t, err)
 
@@ -512,6 +524,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Empty(t, out)
 
 	proxy := NewServer(types.KindProxy, "proxy1", "127.0.0.1:2023", apidefaults.Namespace)
+	proxy.Spec.Hostname = "proxy.llama"
 	require.NoError(t, s.PresenceS.UpsertProxy(ctx, proxy))
 
 	out, err = s.PresenceS.GetProxies()
@@ -532,6 +545,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Empty(t, out)
 
 	auth := NewServer(types.KindAuthServer, "auth1", "127.0.0.1:2025", apidefaults.Namespace)
+	auth.Spec.Hostname = "auth.llama"
 	require.NoError(t, s.PresenceS.UpsertAuthServer(ctx, auth))
 
 	out, err = s.PresenceS.GetAuthServers()
@@ -599,32 +613,34 @@ func newReverseTunnel(clusterName string, dialAddrs []string) *types.ReverseTunn
 }
 
 func (s *ServicesTestSuite) ReverseTunnelsCRUD(t *testing.T) {
-	out, err := s.PresenceS.GetReverseTunnels(context.Background())
+	ctx := context.Background()
+
+	out, err := s.PresenceS.GetReverseTunnels(ctx)
 	require.NoError(t, err)
 	require.Empty(t, out)
 
 	tunnel := newReverseTunnel("example.com", []string{"example.com:2023"})
-	require.NoError(t, s.PresenceS.UpsertReverseTunnel(tunnel))
+	require.NoError(t, s.PresenceS.UpsertReverseTunnel(ctx, tunnel))
 
-	out, err = s.PresenceS.GetReverseTunnels(context.Background())
+	out, err = s.PresenceS.GetReverseTunnels(ctx)
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out, []types.ReverseTunnel{tunnel}, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = s.PresenceS.DeleteReverseTunnel(tunnel.Spec.ClusterName)
+	err = s.PresenceS.DeleteReverseTunnel(ctx, tunnel.Spec.ClusterName)
 	require.NoError(t, err)
 
-	out, err = s.PresenceS.GetReverseTunnels(context.Background())
+	out, err = s.PresenceS.GetReverseTunnels(ctx)
 	require.NoError(t, err)
 	require.Empty(t, out)
 
-	err = s.PresenceS.UpsertReverseTunnel(newReverseTunnel("", []string{"127.0.0.1:1234"}))
+	err = s.PresenceS.UpsertReverseTunnel(ctx, newReverseTunnel("", []string{"127.0.0.1:1234"}))
 	require.True(t, trace.IsBadParameter(err))
 
-	err = s.PresenceS.UpsertReverseTunnel(newReverseTunnel("example.com", []string{""}))
+	err = s.PresenceS.UpsertReverseTunnel(ctx, newReverseTunnel("example.com", []string{""}))
 	require.True(t, trace.IsBadParameter(err))
 
-	err = s.PresenceS.UpsertReverseTunnel(newReverseTunnel("example.com", []string{}))
+	err = s.PresenceS.UpsertReverseTunnel(ctx, newReverseTunnel("example.com", []string{}))
 	require.True(t, trace.IsBadParameter(err))
 }
 
@@ -824,32 +840,6 @@ func (s *ServicesTestSuite) RolesCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = s.Access.GetRole(ctx, role.Metadata.Name)
-	require.True(t, trace.IsNotFound(err))
-}
-
-func (s *ServicesTestSuite) NamespacesCRUD(t *testing.T) {
-	out, err := s.PresenceS.GetNamespaces()
-	require.NoError(t, err)
-	require.Empty(t, out)
-
-	ns := types.Namespace{
-		Kind:    types.KindNamespace,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Name:      apidefaults.Namespace,
-			Namespace: apidefaults.Namespace,
-		},
-	}
-	err = s.PresenceS.UpsertNamespace(ns)
-	require.NoError(t, err)
-	nsout, err := s.PresenceS.GetNamespace(ns.Metadata.Name)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(nsout, &ns))
-
-	err = s.PresenceS.DeleteNamespace(ns.Metadata.Name)
-	require.NoError(t, err)
-
-	_, err = s.PresenceS.GetNamespace(ns.Metadata.Name)
 	require.True(t, trace.IsNotFound(err))
 }
 
@@ -1709,32 +1699,6 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			},
 		},
 		{
-			name: "Namespace",
-			kind: types.WatchKind{
-				Kind: types.KindNamespace,
-			},
-			crud: func(context.Context) types.Resource {
-				ns := types.Namespace{
-					Kind:    types.KindNamespace,
-					Version: types.V2,
-					Metadata: types.Metadata{
-						Name:      "testnamespace",
-						Namespace: apidefaults.Namespace,
-					},
-				}
-				err := s.PresenceS.UpsertNamespace(ns)
-				require.NoError(t, err)
-
-				out, err := s.PresenceS.GetNamespace(ns.Metadata.Name)
-				require.NoError(t, err)
-
-				err = s.PresenceS.DeleteNamespace(ns.Metadata.Name)
-				require.NoError(t, err)
-
-				return out
-			},
-		},
-		{
 			name: "Static tokens",
 			kind: types.WatchKind{
 				Kind: types.KindStaticTokens,
@@ -1882,12 +1846,12 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			},
 			crud: func(context.Context) types.Resource {
 				tunnel := newReverseTunnel("example.com", []string{"example.com:2023"})
-				require.NoError(t, s.PresenceS.UpsertReverseTunnel(tunnel))
+				require.NoError(t, s.PresenceS.UpsertReverseTunnel(ctx, tunnel))
 
 				out, err := s.PresenceS.GetReverseTunnels(context.Background())
 				require.NoError(t, err)
 
-				err = s.PresenceS.DeleteReverseTunnel(tunnel.Spec.ClusterName)
+				err = s.PresenceS.DeleteReverseTunnel(ctx, tunnel.Spec.ClusterName)
 				require.NoError(t, err)
 
 				return out[0]
@@ -1920,38 +1884,6 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 		Kinds:               append(eventsTestKinds(testCases), types.WatchKind{Kind: "unknown"}),
 		AllowPartialSuccess: true,
 	})
-
-	// Namespace with a name
-	testCases = []eventTest{
-		{
-			name: "Namespace with a name",
-			kind: types.WatchKind{
-				Kind: types.KindNamespace,
-				Name: "shmest",
-			},
-			crud: func(context.Context) types.Resource {
-				ns := types.Namespace{
-					Kind:    types.KindNamespace,
-					Version: types.V2,
-					Metadata: types.Metadata{
-						Name:      "shmest",
-						Namespace: apidefaults.Namespace,
-					},
-				}
-				err := s.PresenceS.UpsertNamespace(ns)
-				require.NoError(t, err)
-
-				out, err := s.PresenceS.GetNamespace(ns.Metadata.Name)
-				require.NoError(t, err)
-
-				err = s.PresenceS.DeleteNamespace(ns.Metadata.Name)
-				require.NoError(t, err)
-
-				return out
-			},
-		},
-	}
-	s.runEventsTests(t, testCases, types.Watch{Kinds: eventsTestKinds(testCases)})
 
 	// tests that a watch fails given an unknown kind when the partial success mode is not enabled
 	s.runUnknownEventsTest(t, types.Watch{Kinds: []types.WatchKind{
@@ -2134,7 +2066,7 @@ skiploop:
 	for {
 		select {
 		case event := <-w.Events():
-			log.Debugf("Skipping pre-test event: %v", event)
+			slog.DebugContext(ctx, "Skipping pre-test event", "event", event)
 			continue skiploop
 		default:
 			break skiploop
@@ -2209,11 +2141,11 @@ waitLoop:
 			t.Fatalf("Watcher exited with error %v", w.Error())
 		case event := <-w.Events():
 			if event.Type != types.OpPut {
-				log.Debugf("Skipping event %+v", event)
+				slog.DebugContext(context.Background(), "Skipping event", "event", event)
 				continue
 			}
 			if resource.GetName() != event.Resource.GetName() || resource.GetKind() != event.Resource.GetKind() || resource.GetSubKind() != event.Resource.GetSubKind() {
-				log.Debugf("Skipping event %v resource %v, expecting %v", event.Type, event.Resource.GetMetadata(), event.Resource.GetMetadata())
+				slog.DebugContext(context.Background(), "Skipping event", "event", event)
 				continue waitLoop
 			}
 			require.Empty(t, cmp.Diff(resource, event.Resource))
@@ -2234,7 +2166,10 @@ waitLoop:
 			t.Fatalf("Watcher exited with error %v", w.Error())
 		case event := <-w.Events():
 			if event.Type != types.OpDelete {
-				log.Debugf("Skipping stale event %v %v", event.Type, event.Resource.GetName())
+				slog.DebugContext(context.Background(), "Skipping stale event",
+					"event_type", event.Type,
+					"resource_name", event.Resource.GetName(),
+				)
 				continue
 			}
 

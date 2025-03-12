@@ -12,10 +12,10 @@ videoBanner: UFhT52d5bYg
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Teleport Database Access Redshift Self-Hosted](../../../../img/database-access/guides/redshift_selfhosted.png)
+![Enroll Redshift with a self-hosted Teleport cluster](../../../../img/database-access/guides/redshift_selfhosted.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Teleport Database Access Redshift Cloud](../../../../img/database-access/guides/redshift_cloud.png)
+![Enroll Redshift with a cloud-hosted Teleport cluster](../../../../img/database-access/guides/redshift_cloud.png)
 </TabItem>
 
 </Tabs>
@@ -55,7 +55,7 @@ Assign `CLUSTER_URI` to the domain name and port of the cluster:
 $ sudo teleport db configure create \
    -o file \
    --name="redshift-postgres" \
-   --proxy=teleport.example.com:3080 \
+   --proxy=teleport.example.com:443 \
    --protocol=postgres \
    --token=/tmp/token \
    --uri=${CLUSTER_URI?}
@@ -125,18 +125,19 @@ Or in JSON format:
 Replace `123456789012` and `my-redshift` with your AWS account ID and your
 Redshift database's cluster ID. 
 
-## Step 4/6. Create an IAM policy for the Database Service
+## Step 4/6. Configure IAM permissions for the Database Service
 
-Teleport needs AWS IAM permissions to be able to:
-- Manage IAM user or IAM role policies, for IAM authentication as database users.
-- Assume IAM roles, for IAM authentication as IAM roles.
+(!docs/pages/includes/database-access/create-iam-role-step-description.mdx accessFor="Redshift databases" !)
 
-Before you can generate IAM permissions, you must provide the Teleport Database
-Service access to AWS credentials.
+### Create an IAM role for Teleport
 
 (!docs/pages/includes/aws-credentials.mdx service="the Database Service"!)
 
-(!docs/pages/includes/database-access/aws-bootstrap.mdx!)
+### Grant permissions
+
+Attach the following AWS IAM permissions to the Database Service IAM role:
+
+(!docs/pages/includes/database-access/reference/aws-iam/redshift/access-policy.mdx dbUserRole="example-iam-role" !)
 
 ## Step 5/6. Start the Database Service
 
@@ -199,10 +200,12 @@ $ tsh db connect --db-user=alice --db-name=dev my-redshift
 <TabItem label="Authenticate as IAM roles">
 
 ```code
-$ tsh db connect --db-user=role/my-iam-role --db-name=dev my-redshift
+$ tsh db connect --db-user=role/example-iam-role --db-name=dev my-redshift
 ```
 </TabItem>
 </Tabs>
+
+(!docs/pages/includes/database-access/pg-access-webui.mdx!)
 
 To log out of the database and remove credentials:
 
@@ -226,5 +229,5 @@ $ tsh db logout my-redshift
   credentials](https://docs.aws.amazon.com/redshift/latest/mgmt/generating-user-credentials.html) for Amazon Redshift.
 - Learn how to [restrict access](../rbac.mdx) to certain users and databases.
 - View the [High Availability (HA)](../guides/ha.mdx) guide.
-- Take a look at the YAML configuration [reference](../reference/configuration.mdx).
+- Take a look at the YAML configuration [reference](../../../reference/agent-services/database-access-reference/configuration.mdx).
 

@@ -36,6 +36,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -55,8 +56,9 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
@@ -68,18 +70,17 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/aws"
 )
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
-	native.PrecomputeTestKeys(m)
+	cryptosuites.PrecomputeRSATestKeys(m)
 	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
 }
 
 type Suite struct {
-	clock        clockwork.FakeClock
+	clock        *clockwork.FakeClock
 	dataDir      string
 	authServer   *auth.TestAuthServer
 	tlsServer    *auth.TestTLSServer
@@ -353,19 +354,23 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	}
 
 	connectionsHandler, err := NewConnectionsHandler(s.closeContext, &ConnectionsHandlerConfig{
-		Clock:              s.clock,
-		DataDir:            s.dataDir,
-		Emitter:            s.authClient,
-		Authorizer:         authorizer,
-		HostID:             s.hostUUID,
-		AuthClient:         s.authClient,
-		AccessPoint:        s.authClient,
-		Cloud:              &testCloud{},
-		TLSConfig:          tlsConfig,
-		ConnectionMonitor:  fakeConnMonitor{},
-		CipherSuites:       utils.DefaultCipherSuites(),
-		ServiceComponent:   teleport.ComponentApp,
-		AWSSessionProvider: aws.SessionProviderUsingAmbientCredentials(),
+		Clock:             s.clock,
+		DataDir:           s.dataDir,
+		Emitter:           s.authClient,
+		Authorizer:        authorizer,
+		HostID:            s.hostUUID,
+		AuthClient:        s.authClient,
+		AccessPoint:       s.authClient,
+		Cloud:             &testCloud{},
+		TLSConfig:         tlsConfig,
+		ConnectionMonitor: fakeConnMonitor{},
+		CipherSuites:      utils.DefaultCipherSuites(),
+		ServiceComponent:  teleport.ComponentApp,
+		AWSConfigOptions: []awsconfig.OptionsFn{
+			awsconfig.WithSTSClientProvider(func(_ aws.Config) awsconfig.STSClient {
+				return &mocks.STSClient{}
+			}),
+		},
 	})
 	require.NoError(t, err)
 
@@ -400,8 +405,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	for _, app := range apps {
 		select {
 		case sender := <-inventoryHandle.Sender():
+			appServer, err := s.appServer.getServerInfo(app)
+			require.NoError(t, err)
 			require.NoError(t, sender.Send(s.closeContext, proto.InventoryHeartbeat{
-				AppServer: s.appServer.getServerInfo(app),
+				AppServer: appServer,
 			}))
 		case <-time.After(20 * time.Second):
 			t.Fatal("timed out waiting for inventory handle sender")

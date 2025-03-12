@@ -54,11 +54,17 @@ func (s *PresenceService) GetInstances(ctx context.Context, req types.InstanceFi
 	return stream.FilterMap(items, func(item backend.Item) (types.Instance, bool) {
 		instance, err := generic.FastUnmarshal[*types.InstanceV1](item)
 		if err != nil {
-			s.log.Warnf("Skipping instance at %s, failed to unmarshal: %v", item.Key, err)
+			s.logger.WarnContext(ctx, "Skipping instance failed to unmarshal",
+				"key", item.Key,
+				"error", err,
+			)
 			return nil, false
 		}
 		if err := instance.CheckAndSetDefaults(); err != nil {
-			s.log.Warnf("Skipping instance at %s: %v", item.Key, err)
+			s.logger.WarnContext(ctx, "Skipping invalid instance",
+				"key", item.Key,
+				"error", err,
+			)
 			return nil, false
 		}
 		if !req.Match(instance) {
@@ -70,7 +76,7 @@ func (s *PresenceService) GetInstances(ctx context.Context, req types.InstanceFi
 
 // getInstance gets an instance resource by server ID.
 func (s *PresenceService) getInstance(ctx context.Context, serverID string) (types.Instance, error) {
-	item, err := s.Get(ctx, backend.Key(instancePrefix, serverID))
+	item, err := s.Get(ctx, backend.NewKey(instancePrefix, serverID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -105,7 +111,7 @@ func (s *PresenceService) UpsertInstance(ctx context.Context, instance types.Ins
 		return trace.BadParameter("unexpected type %T, expected %T", instance, v1)
 	}
 
-	item, err := generic.FastMarshal(backend.Key(instancePrefix, instance.GetName()), v1)
+	item, err := generic.FastMarshal(backend.NewKey(instancePrefix, instance.GetName()), v1)
 	if err != nil {
 		return trace.Errorf("failed to marshal Instance: %v", err)
 	}

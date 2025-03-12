@@ -11,10 +11,10 @@ description: How to configure Teleport database access with Oracle.
 
 <Tabs>
 <TabItem scope={["enterprise"]} label="Teleport Enterprise">
-![Teleport Database Access Self-hosted Oracle](../../../../img/database-access/guides/oracle_selfhosted.png)
+![Enroll Oracle with a Self-Hosted Teleport Cluster](../../../../img/database-access/guides/oracle_selfhosted.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Teleport Database Access Oracle Cloud](../../../../img/database-access/guides/oracle_selfhosted_cloud.png)
+![Enroll Oracle with a Cloud-Hosted Teleport Cluster](../../../../img/database-access/guides/oracle_selfhosted_cloud.png)
 </TabItem>
 
 </Tabs>
@@ -34,7 +34,7 @@ description: How to configure Teleport database access with Oracle.
 
 <Admonition type="tip">
 
-To modify an existing user to provide access to the Database Service, see [Database Access Access Controls](../../database-access/rbac.mdx)
+To modify an existing user to provide access to the Database Service, see [Database Access Controls](../../database-access/rbac.mdx)
 
 </Admonition>
 
@@ -85,12 +85,10 @@ If your Oracle database presents TLS credentials signed by an existing
 certificate authority, take the following steps instead:
 
 1. Export a Teleport CA certificate for Oracle to authenticate traffic from the
-   Teleport Database Service. Replace <Var name="example.teleport.sh:443" />
-   with the host and web port of the Teleport Proxy Service in your cluster. Run
-   the following command on your workstation:
+   Teleport Database Service. Run the following command on your workstation:
 
    ```code
-   $ tctl auth export --type=db-client --auth-server=<Var name="example.teleport.sh:443" /> > server.ca-client.crt
+   $ tctl auth export --type=db-client --auth-server=<Var name="example.teleport.sh" />:443 > server.ca-client.crt
    ```
 
 1. Move `server.ca-client.crt` to a directory in your Oracle server you will use
@@ -190,7 +188,7 @@ GRANT SELECT ON V_$SESSION TO teleport;
 ```
 
 Enable the table in Oracle Audit Trail:
-```
+```sql
 ALTER system SET audit_trail=db,extended scope=spfile;
 ```
 
@@ -204,10 +202,9 @@ AUDIT ALL STATEMENTS by alice BY access;
 You must enable auditing for each Teleport user that will be used to connect to Oracle.
 Additionally you can create a different audit policy for each user.
 
-Configure the Teleport Database Service to pull audit logs from Oracle Audit Trail:
+Edit the Database Service configuration you created earlier pull audit logs from
+Oracle Audit Trail:
 
-<Tabs>
-<TabItem label="Static config">
 ```yaml
 db_service:
   enabled: "yes"
@@ -218,22 +215,6 @@ db_service:
     oracle:
       audit_user: "teleport"
 ```
-</TabItem>
-<TabItem label="Dynamic resource">
-```yaml
-kind: db
-version: v3
-metadata:
-  name: oracle
-spec:
-  protocol: "oracle"
-  uri: "oracle.example.com:2484"
-  oracle:
-    audit_user: "teleport"
-```
-</TabItem>
-</Tabs>
-
 
 Teleport doesn't clean up audit trail events from Oracle Audit Trail.
 Make sure to configure an Oracle Audit Trail cleanup policy to avoid running out of disk space.
@@ -244,7 +225,7 @@ Once the Database Service has joined the cluster, log in to see the available
 databases:
 
 ```code
-$ tsh login --proxy=<Var name="mytenant.teleport.sh" /> --user=alice
+$ tsh login --proxy=<Var name="example.teleport.sh" /> --user=alice
 $ tsh db ls
 # Name   Description    Allowed Users Labels  Connect
 # ------ -------------- ------------- ------- -------

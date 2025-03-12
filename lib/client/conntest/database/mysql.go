@@ -22,13 +22,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"strings"
 
 	"github.com/go-mysql-org/go-mysql/client"
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -72,8 +72,8 @@ func (p *MySQLPinger) Ping(ctx context.Context, params PingParams) error {
 	}
 
 	defer func() {
-		if err := conn.Close(); err != nil {
-			logrus.WithError(err).Info("Failed to close connection in MySQLPinger.Ping")
+		if err := conn.Quit(); err != nil {
+			slog.InfoContext(context.Background(), "Failed to close connection in MySQLPinger.Ping", "error", err)
 		}
 	}()
 

@@ -21,6 +21,7 @@ package auth
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"log/slog"
 	"math"
@@ -30,8 +31,9 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/genmap"
 )
 
@@ -75,11 +77,65 @@ func (cfg *ClientTLSConfigGeneratorConfig) CheckAndSetDefaults() error {
 type ClientTLSConfigGenerator struct {
 	// cfg holds the config parameters for this generator.
 	cfg ClientTLSConfigGeneratorConfig
-	// clientTLSConfigs is a specialized cache that stores tls configs
-	// by cluster name.
-	clientTLSConfigs *genmap.GenMap[string, *tls.Config]
+	// clientTLSPools is a specialized cache that stores client CA
+	// certificate pools by cluster name.
+	clientTLSPools *genmap.GenMap[string, *HostAndUserCAPoolInfo]
 	// cancel terminates the above close context.
 	cancel context.CancelFunc
+}
+
+// HostAndUserCAPoolInfo bundles a CA pool with a map of CA raw subjects
+// to the registered types of that CA. [x509.CertPool] doesn't make it
+// easy to view info on its certs so this info is stored alongside it.
+type HostAndUserCAPoolInfo struct {
+	Pool    *x509.CertPool
+	CATypes authclient.HostAndUserCAInfo
+}
+
+// verifyPeerCert returns a function that checks that the client peer
+// certificate's cluster name matches the cluster name of the CA
+// that issued it.
+func (p *HostAndUserCAPoolInfo) verifyPeerCert() func([][]byte, [][]*x509.Certificate) error {
+	return func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+		if len(verifiedChains) == 0 || len(verifiedChains[0]) == 0 {
+			return nil
+		}
+
+		peerCert := verifiedChains[0][0]
+		identity, err := tlsca.FromSubject(peerCert.Subject, peerCert.NotAfter)
+		if err != nil {
+			slog.WarnContext(context.TODO(), "Failed to parse identity from client certificate subject", "error", err)
+			return trace.Wrap(err)
+		}
+		certClusterName := identity.TeleportCluster
+		issuerClusterName, err := tlsca.ClusterName(peerCert.Issuer)
+		if err != nil {
+			slog.WarnContext(context.TODO(), "Failed to parse issuer cluster name from client certificate issuer", "error", err)
+			return trace.AccessDenied(invalidCertErrMsg)
+		}
+		if certClusterName != issuerClusterName {
+			slog.WarnContext(context.TODO(), "Client peer certificate was issued by a CA from a different cluster than what the certificate claims to be from", "peer_cert_cluster_name", certClusterName, "issuer_cluster_name", issuerClusterName)
+			return trace.AccessDenied(invalidCertErrMsg)
+		}
+
+		ca, ok := p.CATypes[string(peerCert.RawIssuer)]
+		if !ok {
+			slog.WarnContext(context.TODO(), "Could not find issuer CA of client certificate")
+			return trace.AccessDenied(invalidCertErrMsg)
+		}
+
+		// Ensure the CA that issued this client cert is of the appropriate type
+		systemRole := findPrimarySystemRole(identity.Groups)
+		if systemRole != nil && !ca.IsHostCA {
+			slog.WarnContext(context.TODO(), "Client peer certificate has a builtin role but was not issued by a host CA", "role", systemRole.String())
+			return trace.AccessDenied(invalidCertErrMsg)
+		} else if systemRole == nil && !ca.IsUserCA {
+			slog.WarnContext(context.TODO(), "Client peer certificate has a local role but was not issued by a user CA")
+			return trace.AccessDenied(invalidCertErrMsg)
+		}
+
+		return nil
+	}
 }
 
 // NewClientTLSConfigGenerator sets up a new generator based on the supplied parameters.
@@ -87,6 +143,14 @@ func NewClientTLSConfigGenerator(cfg ClientTLSConfigGeneratorConfig) (*ClientTLS
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// we're going to start the generator, which means that we are potentially
+	// going to read from cfg.TLS at any point after returning, which means that
+	// either the caller must always give us a cloned [tls.Config], or we just
+	// make one here
+	cfg.TLS = cfg.TLS.Clone()
+	// TODO(espadolini): rework the generator so it only deals with
+	// [*x509.CertPool] instead, with an optional
+	// [tls.Config.GetConfigForClient] wrapper factory
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -96,10 +160,9 @@ func NewClientTLSConfigGenerator(cfg ClientTLSConfigGeneratorConfig) (*ClientTLS
 	}
 
 	var err error
-	c.clientTLSConfigs, err = genmap.New(genmap.Config[string, *tls.Config]{
+	c.clientTLSPools, err = genmap.New(genmap.Config[string, *HostAndUserCAPoolInfo]{
 		Generator: c.generator,
 	})
-
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -109,6 +172,8 @@ func NewClientTLSConfigGenerator(cfg ClientTLSConfigGeneratorConfig) (*ClientTLS
 
 	return c, nil
 }
+
+const invalidCertErrMsg = "access denied: invalid client certificate"
 
 // GetConfigForClient is intended to be slotted into the GetConfigForClient field of tls.Config.
 func (c *ClientTLSConfigGenerator) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, error) {
@@ -127,7 +192,15 @@ func (c *ClientTLSConfigGenerator) GetConfigForClient(info *tls.ClientHelloInfo)
 		}
 	}
 
-	cfg, err := c.clientTLSConfigs.Get(context.Background(), clusterName)
+	poolInfo, err := c.clientTLSPools.Get(context.Background(), clusterName)
+	cfg := c.cfg.TLS.Clone()
+	if poolInfo != nil {
+		cfg.ClientCAs = poolInfo.Pool
+		// Verify that the peer cert matches the cluster name of the
+		// issuer CA and that the CA type matches the cert Teleport role
+		cfg.VerifyPeerCertificate = poolInfo.verifyPeerCert()
+	}
+
 	return cfg, trace.Wrap(err)
 }
 
@@ -135,19 +208,19 @@ var errNonLocalCluster = errors.New("non-local cluster specified in client hello
 
 // generator is the underlying lookup function used to resolve the tls config that should be used for a
 // given cluster. this method is used by the underlying genmap to load/refresh values as-needed.
-func (c *ClientTLSConfigGenerator) generator(ctx context.Context, clusterName string) (*tls.Config, error) {
+func (c *ClientTLSConfigGenerator) generator(ctx context.Context, clusterName string) (*HostAndUserCAPoolInfo, error) {
 	if !c.cfg.PermitRemoteClusters && clusterName != c.cfg.ClusterName {
 		if clusterName != "" {
 			slog.WarnContext(ctx, "refusing to set up client cert pool for non-local cluster", "cluster_name", clusterName)
 			return nil, trace.Wrap(errNonLocalCluster)
 		}
-		// unsepcified cluster name should be treated as a request for local cluster CAs
+		// unspecified cluster name should be treated as a request for local cluster CAs
 		clusterName = c.cfg.ClusterName
 	}
 
 	// update client certificate pool based on currently trusted TLS
 	// certificate authorities.
-	pool, totalSubjectsLen, err := authclient.DefaultClientCertPool(ctx, c.cfg.AccessPoint, clusterName)
+	pool, caMap, totalSubjectsLen, err := authclient.DefaultClientCertPool(ctx, c.cfg.AccessPoint, clusterName)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to retrieve client cert pool for target cluster", "cluster_name", clusterName, "error", err)
 		// this falls back to the default config
@@ -168,7 +241,7 @@ func (c *ClientTLSConfigGenerator) generator(ctx context.Context, clusterName st
 	// client will be rejected.
 	if totalSubjectsLen >= int64(math.MaxUint16) {
 		slog.WarnContext(ctx, "cluster subject name set too large for TLS handshake, falling back to using local cluster CAs only")
-		pool, _, err = authclient.DefaultClientCertPool(ctx, c.cfg.AccessPoint, c.cfg.ClusterName)
+		pool, caMap, _, err = authclient.DefaultClientCertPool(ctx, c.cfg.AccessPoint, c.cfg.ClusterName)
 		if err != nil {
 			slog.ErrorContext(ctx, "failed to retrieve client cert pool for current cluster", "cluster_name", c.cfg.ClusterName, "error", err)
 			// this falls back to the default config
@@ -176,9 +249,10 @@ func (c *ClientTLSConfigGenerator) generator(ctx context.Context, clusterName st
 		}
 	}
 
-	tlsCopy := c.cfg.TLS.Clone()
-	tlsCopy.ClientCAs = pool
-	return tlsCopy, nil
+	return &HostAndUserCAPoolInfo{
+		Pool:    pool,
+		CATypes: caMap,
+	}, nil
 }
 
 // refreshClientTLSConfigs is the top-level loop for client TLS config regen. note that it
@@ -197,17 +271,17 @@ func (c *ClientTLSConfigGenerator) refreshClientTLSConfigs(ctx context.Context) 
 		}
 
 		select {
-		case <-time.After(utils.FullJitter(time.Second * 3)):
+		case <-time.After(retryutils.FullJitter(time.Second * 3)):
 		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-// watchForCAChanges sets up a cert authority watcher and triggers regeneration of client
-// tls configs for a given cluster whenever a CA associated with that cluster is modified.
-// note that this function errs on the side of regenerating more often than might be
-// strictly necessary.
+// watchForCAChanges sets up a cert authority watcher to ensure that we don't serve outdated
+// tls configs. for the local cluster it aggressively triggers regeneration. for other clusters
+// it invalidates extant state, allowing lazy generation on first need. this function errs on the
+// side of caution and triggers regen/invalidation more often than might be strictly necessary.
 func (c *ClientTLSConfigGenerator) watchForCAChanges(ctx context.Context) error {
 	watcher, err := c.cfg.AccessPoint.NewWatcher(ctx, types.Watch{
 		Name: "client-tls-config-generator",
@@ -233,7 +307,7 @@ func (c *ClientTLSConfigGenerator) watchForCAChanges(ctx context.Context) error 
 		return nil
 	}
 
-	c.clientTLSConfigs.RegenAll()
+	c.clientTLSPools.RegenAll()
 
 	for {
 		select {
@@ -241,14 +315,20 @@ func (c *ClientTLSConfigGenerator) watchForCAChanges(ctx context.Context) error 
 			return trace.Errorf("ca watcher exited with: %v", watcher.Error())
 		case event := <-watcher.Events():
 			if event.Type == types.OpDelete {
-				c.clientTLSConfigs.Terminate(event.Resource.GetName())
+				c.clientTLSPools.Terminate(event.Resource.GetName())
 			} else {
 				if !c.cfg.PermitRemoteClusters && event.Resource.GetName() != c.cfg.ClusterName {
 					// ignore non-local cluster CA events when we aren't configured to support them
 					continue
 				}
-				// trigger regen of client tls configs for the associated cluster.
-				c.clientTLSConfigs.Generate(event.Resource.GetName())
+
+				if event.Resource.GetName() == c.cfg.ClusterName {
+					// actively regenerate on modifications associated with the local cluster
+					c.clientTLSPools.Generate(event.Resource.GetName())
+				} else {
+					// clear extant state on modifications associated with non-local clusters
+					c.clientTLSPools.Terminate(event.Resource.GetName())
+				}
 			}
 		case <-ctx.Done():
 			return nil
@@ -258,7 +338,7 @@ func (c *ClientTLSConfigGenerator) watchForCAChanges(ctx context.Context) error 
 
 // Close terminates background ca load/refresh operations.
 func (c *ClientTLSConfigGenerator) Close() error {
-	c.clientTLSConfigs.Close()
+	c.clientTLSPools.Close()
 	c.cancel()
 	return nil
 }

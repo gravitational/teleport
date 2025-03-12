@@ -27,10 +27,10 @@ include audit logs for database query activity.
 
 <Tabs>
 <TabItem label="Self-Hosted">
-![Teleport Database Access Self-hosted ClickHouse](../../../../img/database-access/guides/clickhouse_selfhosted_selfhosted.png)
+![Enroll ClickHouse with a self-hosted Teleport cluster](../../../../img/database-access/guides/clickhouse_selfhosted_selfhosted.png)
 </TabItem>
 <TabItem label="Teleport Cloud">
-![Teleport Database Access ClickHouse Cloud](../../../../img/database-access/guides/clickhouse_selfhosted_cloud.png)
+![Enroll ClickHouse with a cloud-hosted Teleport cluster](../../../../img/database-access/guides/clickhouse_selfhosted_cloud.png)
 </TabItem>
 </Tabs>
 
@@ -81,6 +81,7 @@ Use the generated secrets to enable mutual TLS in your `clickhouse-server/config
 </openSSL>
 ```
 
+Restart the ClickHouse Server to enable this configuration.
 Additionally, your ClickHouse database user accounts must be configured to require a valid client certificate:
 
 ```sql
@@ -173,7 +174,7 @@ Kubernetes Clusters.
 {/* Inlining docs/pages/includes/database-access/self-hosted-db-helm-install.mdx
 so we can use the Var component for the protocol*/}
 
-Install a Teleport agent into your Kubernetes Cluster with the Teleport Database
+Install a Teleport Agent into your Kubernetes Cluster with the Teleport Database
 Service configuration. 
 
 Create a file called `values.yaml` with the following content. Update <Var
@@ -210,14 +211,14 @@ To configure the Teleport Database Service to trust a custom CA:
 
   ```diff
     roles: db
-    proxyAddr: <Var name="teleport.example.com:443" />
+    proxyAddr: teleport.example.com:443
     # Set to false if using Teleport Community Edition
     enterprise: true
-    authToken: <Var name="JOIN_TOKEN" />
+    authToken: JOIN_TOKEN
     databases:
       - name: example-clickhouse
         uri: clickhouse.example.com:8443
-        protocol: <Var name="protocol" />
+        protocol: <protocol>
   +     tls:
   +       ca_cert_file: "/etc/teleport-tls-db/db-ca/ca.pem"
         static_labels:
@@ -242,7 +243,7 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
   -f values.yaml
 ```
 
-Make sure that the Teleport agent pod is running. You should see one
+Make sure that the Teleport Agent pod is running. You should see one
 `teleport-kube-agent` pod with a single ready container:
 
 ```code

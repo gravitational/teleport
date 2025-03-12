@@ -16,10 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import makeUserContext from 'teleport/services/user/makeUserContext';
 import { Context as TeleportContext } from 'teleport';
 import { makeAcl } from 'teleport/services/user/makeAcl';
-
+import makeUserContext from 'teleport/services/user/makeUserContext';
 import type { Access, Acl } from 'teleport/services/user/types';
 
 export const noAccess: Access = {
@@ -59,6 +58,8 @@ export const allAccessAcl: Acl = {
   clipboardSharingEnabled: true,
   desktopSessionRecordingEnabled: true,
   directorySharingEnabled: true,
+  reviewRequests: true,
+  fileTransferAccess: true,
   license: fullAccess,
   download: fullAccess,
   plugins: fullAccess,
@@ -73,6 +74,9 @@ export const allAccessAcl: Acl = {
   accessGraph: fullAccess,
   bots: fullAccess,
   accessMonitoringRule: fullAccess,
+  discoverConfigs: fullAccess,
+  contacts: fullAccess,
+  gitServers: fullAccess,
 };
 
 export function getAcl(cfg?: { noAccess: boolean }) {

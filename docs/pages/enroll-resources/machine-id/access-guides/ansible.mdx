@@ -26,7 +26,7 @@ You will need the following tools to use Teleport with Ansible.
 
 - `tbot` must already be installed and configured on the machine that will
   run Ansible. For more information, see the
-  [deployment guides](../deployment.mdx).
+  [deployment guides](../deployment/deployment.mdx).
 
 - If you followed the above guide, note the `--destination-dir=/opt/machine-id`
   flag, which defines the directory where SSH certificates and OpenSSH configuration
@@ -74,11 +74,13 @@ least privilege and reduces damage that exfiltrated credentials can do.
 
 Use `tctl create -f ./role.yaml` to create the role.
 
+(!docs/pages/includes/create-role-using-web.mdx!)
+
 Now, use `tctl bots update` to add the role to the Bot. Replace `example`
 with the name of the Bot you created in the deployment guide and `example-role`
 with the name of the role you just created:
 
-```bash
+```code
 $ tctl bots update example --add-roles example-role
 ```
 
@@ -202,7 +204,7 @@ $ ansible-playbook playbook.yaml
 
 You are all set. You have provided your machine with short-lived certificates
 tied to a machine identity that can be rotated, audited, and controlled with
-all the familiar Teleport access controls.
+all the familiar access controls.
 
 ## Troubleshooting
 
@@ -230,7 +232,35 @@ If `ssh` works, try running the playbook with verbose mode on:
 $ ansible-playbook -vvv playbook.yaml
 ```
 
+If your hostnames contain uppercase characters (like `MYHOSTNAME`), please note that Teleport's internal hostname matching
+is case sensitive by default, which can also lead to seeing this error.
+
+If this is the case, you can work around this by enabling case-insensitive routing at the cluster level.
+
+<Tabs>
+<TabItem label="Self-hosted Teleport">
+
+Edit your `/etc/teleport.yaml` config file on all servers running the Teleport `auth_service`, then restart Teleport on each.
+
+```yaml
+auth_service:
+  case_insensitive_routing: true
+```
+
+</TabItem>
+<TabItem label="Managed Teleport Enterprise/Cloud">
+
+Run `tctl edit cluster_networking_config` to add the following specification, then save and exit.
+
+```yaml
+spec:
+  case_insensitive_routing: true
+```
+
+</TabItem>
+</Tabs>
+
 ## Next steps
 
-- Read the [configuration reference](../reference/configuration.mdx) to explore
+- Read the [configuration reference](../../../reference/machine-id/configuration.mdx) to explore
   all the available configuration options.

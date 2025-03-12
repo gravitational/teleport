@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -58,6 +57,7 @@ func (p *PluginsCommand) initInstallOkta(parent *kingpin.CmdClause) {
 		BoolVar(&p.install.okta.scimEnabled)
 	p.install.okta.cmd.
 		Flag("scim-token", "Okta SCIM auth token for the plugin to use").
+		Hidden().
 		StringVar(&p.install.okta.scimToken)
 	p.install.okta.cmd.
 		Flag("users-sync", "Enable user synchronization").
@@ -153,12 +153,9 @@ func (s *oktaArgs) validateAndCheckDefaults(ctx context.Context, args *installPl
 		}
 	}
 	if s.scimToken != "" && s.appID == "" && s.userSync {
-		msg := []string{
-			"SCIM support requires App ID, which was not supplied and couldn't be deduced from the SAML connector",
-			"Specify the App ID explicitly with --app-id",
-			"SCIM support requires app-id to be set",
-		}
-		return trace.BadParameter(strings.Join(msg, "\n"))
+		return trace.BadParameter("SCIM support requires App ID, which was not supplied and couldn't be deduced from the SAML connector\n" +
+			"Specify the App ID explicitly with --app-id\n" +
+			"SCIM support requires app-id to be set\n")
 	}
 	return nil
 }

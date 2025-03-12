@@ -46,25 +46,27 @@ type AccessGraphSecretsService struct {
 // This service in Teleport is used to keep track of secrets found in Teleport
 // Nodes and on enrolled devices. Currently, it only stores secrets related with
 // SSH Keys. Future implementations might extend them.
-func NewAccessGraphSecretsService(backend backend.Backend) (*AccessGraphSecretsService, error) {
+func NewAccessGraphSecretsService(b backend.Backend) (*AccessGraphSecretsService, error) {
 	authorizedKeysSvc, err := generic.NewServiceWrapper(
-		backend,
-		types.KindAccessGraphSecretAuthorizedKey,
-		authorizedKeysPrefix,
-		services.MarshalAccessGraphAuthorizedKey,
-		services.UnmarshalAccessGraphAuthorizedKey,
-	)
+		generic.ServiceConfig[*accessgraphsecretspb.AuthorizedKey]{
+			Backend:       b,
+			ResourceKind:  types.KindAccessGraphSecretAuthorizedKey,
+			BackendPrefix: backend.NewKey(authorizedKeysPrefix),
+			MarshalFunc:   services.MarshalAccessGraphAuthorizedKey,
+			UnmarshalFunc: services.UnmarshalAccessGraphAuthorizedKey,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	privateKeysSvc, err := generic.NewServiceWrapper(
-		backend,
-		types.KindAccessGraphSecretPrivateKey,
-		privateKeysPrefix,
-		services.MarshalAccessGraphPrivateKey,
-		services.UnmarshalAccessGraphPrivateKey,
-	)
+		generic.ServiceConfig[*accessgraphsecretspb.PrivateKey]{
+			Backend:       b,
+			ResourceKind:  types.KindAccessGraphSecretPrivateKey,
+			BackendPrefix: backend.NewKey(privateKeysPrefix),
+			MarshalFunc:   services.MarshalAccessGraphPrivateKey,
+			UnmarshalFunc: services.UnmarshalAccessGraphPrivateKey,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -23,6 +23,7 @@ import (
 	"log/slog"
 	"net"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -220,60 +221,80 @@ func resolveTargetHost(ctx context.Context, cfg client.Config, search, query str
 // resolveTargetHostWithClient resolves the target host using the provided
 // client and search and query parameters.
 func resolveTargetHostWithClient(
-	ctx context.Context, clt client.ListUnifiedResourcesClient, search, query string,
+	ctx context.Context, clt *client.Client, search, query string,
 ) (types.Server, error) {
-	resources, _, err := client.GetUnifiedResourcePage(ctx, clt, &proto.ListUnifiedResourcesRequest{
-		// We only want a single node, but, we set limit=2 so we can throw a
-		// helpful error when multiple match. In the happy path, where a single
-		// node matches, this does not degrade performance because even if
-		// limit=1 the UnifiedResource cache will still iterate to the end to
-		// determine if there is a NextKey to return.
-		Limit:               2,
-		Kinds:               []string{types.KindNode},
+	resp, err := clt.ResolveSSHTarget(ctx, &proto.ResolveSSHTargetRequest{
 		SearchKeywords:      libclient.ParseSearchKeywords(search, ','),
 		PredicateExpression: query,
-		SortBy:              types.SortBy{Field: types.ResourceKind},
 	})
-	if err != nil {
+	switch {
+	//TODO(tross): DELETE IN v20.0.0
+	case trace.IsNotImplemented(err):
+		resources, err := client.GetAllUnifiedResources(ctx, clt, &proto.ListUnifiedResourcesRequest{
+			Kinds:               []string{types.KindNode},
+			SearchKeywords:      libclient.ParseSearchKeywords(search, ','),
+			PredicateExpression: query,
+			SortBy:              types.SortBy{Field: types.ResourceMetadataName},
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		switch len(resources) {
+		case 0:
+			return nil, trace.NotFound("no matching SSH hosts found for search terms or query expression")
+		case 1:
+			node, ok := resources[0].ResourceWithLabels.(*types.ServerV2)
+			if !ok {
+				return nil, trace.BadParameter("expected node resource, got %T", resources[0].ResourceWithLabels)
+			}
+			return node, nil
+		default:
+			// If routing does not allow choosing the most recent host, then abort with
+			// an ambiguous host error.
+			cnc, err := clt.GetClusterNetworkingConfig(ctx)
+			if err != nil || cnc.GetRoutingStrategy() != types.RoutingStrategy_MOST_RECENT {
+				return nil, trace.BadParameter("found multiple matching SSH hosts %v", resources[:2])
+			}
+
+			// Get the most recent version of the resource.
+			enrichedResource := slices.MaxFunc(resources, func(a, b *types.EnrichedResource) int {
+				return a.Expiry().Compare(b.Expiry())
+			})
+			server, ok := enrichedResource.ResourceWithLabels.(types.Server)
+			if !ok {
+				return nil, trace.BadParameter("received unexpected resource type %T", resources[0].ResourceWithLabels)
+			}
+
+			return server, nil
+		}
+	case err == nil:
+		return resp.GetServer(), nil
+	default:
 		return nil, trace.Wrap(err)
 	}
-	if len(resources) == 0 {
-		return nil, trace.NotFound("no matching SSH hosts found for search terms or query expression")
-	}
-	if len(resources) > 1 {
-		names := make([]string, len(resources))
-		for i, res := range resources {
-			names[i] = res.GetName()
-		}
-		return nil, trace.BadParameter("found multiple matching SSH hosts %v", names)
-	}
-	node := resources[0].ResourceWithLabels.(*types.ServerV2)
-	if node == nil {
-		return nil, trace.BadParameter("expected node resource, got %T", resources[0].ResourceWithLabels)
-	}
-	return node, nil
 }
 
 func parseIdentity(destPath, proxy, cluster string, insecure, fips bool) (*identity.Facade, agent.ExtendedAgent, error) {
 	identityPath := filepath.Join(destPath, config.IdentityFilePath)
-	key, err := identityfile.KeyFromIdentityFile(identityPath, proxy, cluster)
+	keyRing, err := identityfile.KeyRingFromIdentityFile(identityPath, proxy, cluster)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
 	i, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
-		PrivateKeyBytes: key.PrivateKey.PrivateKeyPEM(),
-		PublicKeyBytes:  key.PrivateKey.MarshalSSHPublicKey(),
+		PrivateKeyBytes: keyRing.SSHPrivateKey.PrivateKeyPEM(),
+		PublicKeyBytes:  keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
 	}, &proto.Certs{
-		SSH:        key.Cert,
-		TLS:        key.TLSCert,
-		TLSCACerts: key.TLSCAs(),
+		SSH:        keyRing.Cert,
+		TLS:        keyRing.TLSCert,
+		TLSCACerts: keyRing.TLSCAs(),
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	agentKey, err := key.AsAgentKey()
+	agentKey, err := keyRing.AsAgentKey()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

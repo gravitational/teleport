@@ -1,8 +1,7 @@
 # Teleport trusted cluster
-#
-# https://goteleport.com/docs/setup/admin/trustedclusters/
 
 resource "teleport_trusted_cluster" "cluster" {
+  version = "v2"
   metadata = {
     name = "primary"
     labels = {

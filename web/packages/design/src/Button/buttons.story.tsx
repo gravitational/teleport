@@ -16,29 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
+import { Fragment } from 'react';
 import styled from 'styled-components';
 
 import { Input, MenuItem } from 'design';
 
-import ButtonLink from '../ButtonLink';
-import ButtonIcon from '../ButtonIcon';
-import * as icons from '../Icon';
-import Flex from '../Flex';
-
-import { ButtonWithMenu } from '../ButtonWithMenu';
-
 import {
   Button,
-  ButtonPrimary,
-  ButtonSecondary,
-  ButtonWarning,
   ButtonBorder,
-  ButtonText,
-  ButtonProps,
   ButtonFill,
+  ButtonPrimary,
+  ButtonProps,
+  ButtonSecondary,
+  ButtonText,
+  ButtonWarning,
 } from '.';
+import ButtonIcon from '../ButtonIcon';
+import ButtonLink from '../ButtonLink';
+import { ButtonWithMenu } from '../ButtonWithMenu';
+import Flex from '../Flex';
+import * as icons from '../Icon';
 
 export default {
   title: 'Design/Button',
@@ -66,7 +63,7 @@ export const Buttons = () => {
         </thead>
         <tbody>
           {fills.map(fill => (
-            <React.Fragment key={fill}>
+            <Fragment key={fill}>
               <tr>
                 <th rowSpan={4}>{fill}</th>
                 <th>neutral</th>
@@ -84,7 +81,7 @@ export const Buttons = () => {
                 <th>success</th>
                 <ButtonTableCells fill={fill} intent="success" />
               </tr>
-            </React.Fragment>
+            </Fragment>
           ))}
         </tbody>
       </Table>{' '}
@@ -137,6 +134,20 @@ export const Buttons = () => {
           {menuItemsForButtonWithMenu}
         </ButtonWithMenu>
         <ButtonWithMenu
+          text="Small"
+          size="small"
+          onClick={() => alert('Small button with menu')}
+        >
+          {menuItemsForButtonWithMenu}
+        </ButtonWithMenu>
+        <ButtonWithMenu
+          text="Medium"
+          size="medium"
+          onClick={() => alert('Medium button with menu')}
+        >
+          {menuItemsForButtonWithMenu}
+        </ButtonWithMenu>
+        <ButtonWithMenu
           text="Large"
           size="large"
           onClick={() => alert('Large button with menu')}
@@ -144,9 +155,9 @@ export const Buttons = () => {
           {menuItemsForButtonWithMenu}
         </ButtonWithMenu>
         <ButtonWithMenu
-          text="Small"
-          size="small"
-          onClick={() => alert('Small button with menu')}
+          text="Extra large"
+          size="extra-large"
+          onClick={() => alert('Extra large button with menu')}
         >
           {menuItemsForButtonWithMenu}
         </ButtonWithMenu>
@@ -193,6 +204,7 @@ export const Buttons = () => {
 
 const Table = styled.table`
   border-collapse: collapse;
+
   th,
   td {
     border: ${p => p.theme.borders[1]};

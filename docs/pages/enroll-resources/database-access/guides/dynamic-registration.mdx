@@ -36,6 +36,27 @@ resources:
     "engine": "mysql"
 ```
 
+To see the currently running Database Services, run `tctl get db_services`:
+
+```yaml
+kind: db_service
+metadata:
+  expires: "2024-08-27T11:38:10.207175Z"
+  name: 2b5207e3-a258-423e-a41d-e50ea2f0dfdc
+spec:
+  hostname: my-host
+  resources:
+  - labels:
+      env: prod
+      engine: postgres
+  - labels:
+      env: test
+      engine: mysql
+version: v1
+```
+
+The `name` within a `db_service` matches to the host ID of the agent running the Teleport Database Service.
+
 Next define a database resource:
 
 ```yaml
@@ -76,7 +97,7 @@ spec:
 version: v5
 ```
 
-See the full database resource spec [reference](../reference/configuration.mdx#database-resource).
+See the full database resource spec [reference](../../../reference/agent-services/database-access-reference/configuration.mdx).
 
 To create a database resource, run:
 
@@ -106,11 +127,11 @@ $ tctl rm db/example
 ```
 
 Aside from `tctl`, dynamic resources can also be added by:
-- [Auto-Discovery](../../auto-discovery/databases.mdx)
-- [Terraform Provider](../../../management/dynamic-resources/terraform-provider.mdx)
-- [Kubernetes Operator](../../../management/dynamic-resources/teleport-operator.mdx)
-- [Teleport API](../../../api/introduction.mdx)
+- [Auto-Discovery](../../auto-discovery/databases/databases.mdx)
+- [Terraform Provider](../../../admin-guides/infrastructure-as-code/terraform-provider/terraform-provider.mdx)
+- [Kubernetes Operator](../../../admin-guides/infrastructure-as-code/teleport-operator/teleport-operator.mdx)
+- [Teleport API](../../../admin-guides/api/api.mdx)
 
-See [Using Dynamic Resources](../../../management/dynamic-resources.mdx) to learn
+See [Using Dynamic Resources](../../../admin-guides/infrastructure-as-code/infrastructure-as-code.mdx) to learn
 more about managing Teleport's dynamic resources in general.
 

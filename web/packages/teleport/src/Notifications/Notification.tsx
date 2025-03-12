@@ -16,37 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { formatDistanceToNowStrict } from 'date-fns';
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { formatDistanceToNowStrict } from 'date-fns';
 
-import * as Icons from 'design/Icon';
-
-import Text, { P3 } from 'design/Text';
 import { ButtonSecondary } from 'design/Button';
-
-import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
-import { IGNORE_CLICK_CLASSNAME } from 'shared/hooks/useRefClickOutside/useRefClickOutside';
 import Dialog, {
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
+import * as Icons from 'design/Icon';
+import Text, { P3 } from 'design/Text';
 import { Theme } from 'design/theme/themes/types';
-
+import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
 import { useAsync } from 'shared/hooks/useAsync';
+import { IGNORE_CLICK_CLASSNAME } from 'shared/hooks/useRefClickOutside/useRefClickOutside';
 
-import {
-  Notification as NotificationType,
-  NotificationState,
-} from 'teleport/services/notifications';
 import history from 'teleport/services/history';
-
+import {
+  NotificationState,
+  Notification as NotificationType,
+} from 'teleport/services/notifications';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { useTeleport } from '..';
-
 import { NotificationContent } from './notificationContentFactory';
 import { View } from './Notifications';
 
@@ -67,6 +62,10 @@ export function Notification({
   const { clusterId } = useStickyClusterId();
 
   const content = ctx.notificationContentFactory(notification);
+  // If there is no notification content because it is an unsupported kind, don't render anything.
+  if (!content) {
+    return null;
+  }
 
   const [markAsClickedAttempt, markAsClicked] = useAsync(() =>
     ctx.notificationService
@@ -91,22 +90,33 @@ export function Notification({
       });
   });
 
-  function onMarkAsClicked() {
-    if (notification.localNotification) {
-      ctx.storeNotifications.markNotificationAsClicked(notification.id);
-      markNotificationAsClicked(notification.id);
-      return;
-    }
-    markAsClicked();
-  }
-
   // Whether to show the text content dialog. This is only ever used for user-created notifications which only contain informational text
   // and don't redirect to any page.
   const [showTextContentDialog, setShowTextContentDialog] = useState(false);
 
-  // If the notification is unsupported or hidden, or if the view is "Unread" and the notification has been read,
-  // it should not be shown.
-  if (!content || (view === 'Unread' && notification.clicked)) {
+  // If the view is "Unread" and the notification has been read, it should not be shown.
+  if (view === 'Unread' && notification.clicked) {
+    // If this is a text content notification, the dialog should still be renderable. This is to prevent the text content dialog immediately disappearing
+    // when trying to open an unread text notification, since clicking on the notification instantly marks it as read.
+    if (content.kind === 'text') {
+      return (
+        <Dialog open={showTextContentDialog} className={IGNORE_CLICK_CLASSNAME}>
+          <DialogHeader>
+            <DialogTitle>{content.title}</DialogTitle>
+          </DialogHeader>
+          <DialogContent>{content.textContent}</DialogContent>
+          <DialogFooter>
+            <ButtonSecondary
+              onClick={() => setShowTextContentDialog(false)}
+              size="small"
+              className={IGNORE_CLICK_CLASSNAME}
+            >
+              Close
+            </ButtonSecondary>
+          </DialogFooter>
+        </Dialog>
+      );
+    }
     return null;
   }
 
@@ -140,9 +150,10 @@ export function Notification({
   function onClick() {
     if (content.kind === 'text') {
       setShowTextContentDialog(true);
+      markAsClicked();
       return;
     }
-    onMarkAsClicked();
+    markAsClicked();
     closeNotificationsList();
     history.push(content.redirectRoute);
   }
@@ -158,11 +169,7 @@ export function Notification({
         onClick={onNotificationClick}
         className="notification"
         tabIndex={0}
-        onKeyDown={e => {
-          if (e.key === 'Enter') {
-            onClick();
-          }
-        }}
+        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && onClick()}
       >
         <GraphicContainer>
           <MainIconContainer type={content.type}>
@@ -176,7 +183,7 @@ export function Notification({
           <ContentBody>
             <Text>{content.title}</Text>
             {content.kind === 'redirect' && content.QuickAction && (
-              <content.QuickAction markAsClicked={onMarkAsClicked} />
+              <content.QuickAction markAsClicked={markAsClicked} />
             )}
             {hideNotificationAttempt.status === 'error' && (
               <Text typography="body4" color="error.main">
@@ -195,31 +202,29 @@ export function Notification({
             {!content?.hideDate && (
               <Text typography="body4">{formattedDate}</Text>
             )}
-            {!notification.localNotification && (
-              <MenuIcon
-                menuProps={{
-                  anchorOrigin: { vertical: 'bottom', horizontal: 'right' },
-                  transformOrigin: { vertical: 'top', horizontal: 'right' },
-                  backdropProps: { className: IGNORE_CLICK_CLASSNAME },
-                }}
-                buttonIconProps={{ style: { borderRadius: '4px' } }}
-              >
-                {!isClicked && (
-                  <MenuItem
-                    onClick={onMarkAsClicked}
-                    className={IGNORE_CLICK_CLASSNAME}
-                  >
-                    Mark as read
-                  </MenuItem>
-                )}
+            <MenuIcon
+              menuProps={{
+                anchorOrigin: { vertical: 'bottom', horizontal: 'right' },
+                transformOrigin: { vertical: 'top', horizontal: 'right' },
+                backdropProps: { className: IGNORE_CLICK_CLASSNAME },
+              }}
+              buttonIconProps={{ style: { borderRadius: '4px' } }}
+            >
+              {!isClicked && (
                 <MenuItem
-                  onClick={hideNotification}
+                  onClick={markAsClicked}
                   className={IGNORE_CLICK_CLASSNAME}
                 >
-                  Hide this notification
+                  Mark as read
                 </MenuItem>
-              </MenuIcon>
-            )}
+              )}
+              <MenuItem
+                onClick={hideNotification}
+                className={IGNORE_CLICK_CLASSNAME}
+              >
+                Hide this notification
+              </MenuItem>
+            </MenuIcon>
           </SideContent>
         </ContentContainer>
       </Container>
@@ -279,11 +284,11 @@ function getInteractiveStateStyles(theme: Theme, clicked: boolean): string {
     return `
         background: transparent;
         &:hover {
-          background: ${theme.colors.interactive.tonal.neutral[0].background};
+          background: ${theme.colors.interactive.tonal.neutral[0]};
         }
         &:active {
           outline: none;
-          background: ${theme.colors.interactive.tonal.neutral[1].background};
+          background: ${theme.colors.interactive.tonal.neutral[1]};
         }
         &:focus {
           outline: ${theme.borders[2]} ${theme.colors.text.slightlyMuted};
@@ -292,16 +297,16 @@ function getInteractiveStateStyles(theme: Theme, clicked: boolean): string {
   }
 
   return `
-    background: ${theme.colors.interactive.tonal.primary[0].background};
+    background: ${theme.colors.interactive.tonal.primary[0]};
     &:hover {
-      background: ${theme.colors.interactive.tonal.primary[1].background};
+      background: ${theme.colors.interactive.tonal.primary[1]};
     }
     &:active {
       outline: none;
-      background: ${theme.colors.interactive.tonal.primary[2].background};
+      background: ${theme.colors.interactive.tonal.primary[2]};
     }
     &:focus {
-      outline: ${theme.borders[2]} ${theme.colors.interactive.solid.primary.default.background};
+      outline: ${theme.borders[2]} ${theme.colors.interactive.solid.primary.default};
     }
     `;
 }
@@ -351,28 +356,28 @@ function getIconColors(
   switch (type) {
     case 'success':
       return {
-        primary: theme.colors.interactive.solid.success.active.background,
-        secondary: theme.colors.interactive.tonal.success[0].background,
+        primary: theme.colors.interactive.solid.success.active,
+        secondary: theme.colors.interactive.tonal.success[0],
       };
     case 'success-alt':
       return {
-        primary: theme.colors.interactive.solid.accent.active.background,
-        secondary: theme.colors.interactive.tonal.informational[0].background,
+        primary: theme.colors.interactive.solid.accent.active,
+        secondary: theme.colors.interactive.tonal.informational[0],
       };
     case 'informational':
       return {
         primary: theme.colors.brand,
-        secondary: theme.colors.interactive.tonal.primary[0].background,
+        secondary: theme.colors.interactive.tonal.primary[0],
       };
     case `warning`:
       return {
-        primary: theme.colors.interactive.solid.alert.active.background,
-        secondary: theme.colors.interactive.tonal.alert[0].background,
+        primary: theme.colors.interactive.solid.alert.active,
+        secondary: theme.colors.interactive.tonal.alert[0],
       };
     case 'failure':
       return {
         primary: theme.colors.error.main,
-        secondary: theme.colors.interactive.tonal.danger[0].background,
+        secondary: theme.colors.interactive.tonal.danger[0],
       };
   }
 }

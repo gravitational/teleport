@@ -20,11 +20,16 @@ package generic
 
 import (
 	"context"
+	"fmt"
+	"math/rand/v2"
+	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -39,6 +44,7 @@ import (
 // testResource for testing the generic service.
 type testResource struct {
 	types.ResourceHeader
+	Spec testResourceSpec
 }
 
 func newTestResource(name string) *testResource {
@@ -49,6 +55,28 @@ func newTestResource(name string) *testResource {
 			},
 			Kind:    "test_resource",
 			Version: types.V1,
+		},
+	}
+
+	tr.CheckAndSetDefaults()
+	return tr
+}
+
+type testResourceSpec struct {
+	PropA string
+}
+
+func newTestResourceWithSpec(name string, specPropA string) *testResource {
+	tr := &testResource{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: name,
+			},
+			Kind:    "test_resource",
+			Version: types.V1,
+		},
+		Spec: testResourceSpec{
+			PropA: specPropA,
 		},
 	}
 
@@ -81,7 +109,7 @@ func unmarshalResource(data []byte, opts ...services.MarshalOption) (*testResour
 
 	var r testResource
 	if err := utils.FastUnmarshal(data, &r); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	if err := r.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -109,7 +137,7 @@ func TestGenericCRUD(t *testing.T) {
 		Backend:       memBackend,
 		ResourceKind:  "generic resource",
 		PageLimit:     200,
-		BackendPrefix: "generic_prefix",
+		BackendPrefix: backend.NewKey("generic_prefix"),
 		UnmarshalFunc: unmarshalResource,
 		MarshalFunc:   marshalResource,
 	})
@@ -259,8 +287,8 @@ func TestGenericCRUD(t *testing.T) {
 	require.ErrorIs(t, err, trace.NotFound(`generic resource "doesnotexist" doesn't exist`))
 
 	// Test running while locked.
-	err = service.RunWhileLocked(ctx, "test-lock", time.Second*5, func(ctx context.Context, backend backend.Backend) error {
-		item, err := backend.Get(ctx, service.MakeKey(r1.GetName()))
+	err = service.RunWhileLocked(ctx, []string{"test-lock"}, time.Second*5, func(ctx context.Context, b backend.Backend) error {
+		item, err := b.Get(ctx, service.MakeKey(backend.NewKey(r1.GetName())))
 		require.NoError(t, err)
 
 		r, err = unmarshalResource(item.Value, services.WithRevision(item.Revision))
@@ -300,7 +328,7 @@ func TestGenericListResourcesReturnNextResource(t *testing.T) {
 		Backend:       memBackend,
 		ResourceKind:  "generic resource",
 		PageLimit:     200,
-		BackendPrefix: "generic_prefix",
+		BackendPrefix: backend.NewKey("generic_prefix"),
 		UnmarshalFunc: unmarshalResource,
 		MarshalFunc:   marshalResource,
 	})
@@ -343,7 +371,7 @@ func TestGenericListResourcesWithMultiplePrefixes(t *testing.T) {
 		Backend:       memBackend,
 		ResourceKind:  "generic resource",
 		PageLimit:     200,
-		BackendPrefix: "generic_prefix",
+		BackendPrefix: backend.NewKey("generic_prefix"),
 		UnmarshalFunc: unmarshalResource,
 		MarshalFunc:   marshalResource,
 	})
@@ -402,7 +430,7 @@ func TestGenericListResourcesWithFilter(t *testing.T) {
 		Backend:       memBackend,
 		ResourceKind:  "generic resource",
 		PageLimit:     200,
-		BackendPrefix: "generic_prefix",
+		BackendPrefix: backend.NewKey("generic_prefix"),
 		UnmarshalFunc: unmarshalResource,
 		MarshalFunc:   marshalResource,
 	})
@@ -434,4 +462,211 @@ func TestGenericListResourcesWithFilter(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 	require.Equal(t, "", nextKey)
+}
+
+func TestGenericListResourcesWithFilterForScale(t *testing.T) {
+	ctx := context.Background()
+
+	memBackend, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	service, err := NewService(&ServiceConfig[*testResource]{
+		Backend:       memBackend,
+		ResourceKind:  "generic resource",
+		PageLimit:     200,
+		BackendPrefix: backend.NewKey("my-prefix"),
+		UnmarshalFunc: unmarshalResource,
+		MarshalFunc:   marshalResource,
+	})
+	require.NoError(t, err)
+
+	totalResourcesPerProp := 100
+	totalProps := 100
+	var totalResources []*testResource
+	for i := 0; i < totalResourcesPerProp; i++ {
+		for j := 0; j < totalProps; j++ {
+			r := newTestResourceWithSpec(uuid.NewString(), strconv.Itoa(j))
+			totalResources = append(totalResources, r)
+		}
+	}
+
+	r := rand.New(rand.NewPCG(uint64(82), uint64(123)))
+	r.Shuffle(len(totalResources), func(i, j int) {
+		totalResources[i], totalResources[j] = totalResources[j], totalResources[i]
+	})
+
+	for _, r := range totalResources {
+		_, err = service.UpsertResource(ctx, r)
+		require.NoError(t, err)
+	}
+
+	pageSizes := []int{1, 2, 3, 5, 7, 100_000}
+	for _, pageSize := range pageSizes {
+		testingProp := strconv.Itoa(r.IntN(totalProps))
+		t.Run(fmt.Sprintf("pageSize=%d,prop=%s", pageSize, testingProp), func(t *testing.T) {
+			var startingKey string
+			var foundResourcesPropAEquals []*testResource
+			for {
+				var totalMatchedElements atomic.Uint64
+				page, nextKey, err := service.ListResourcesWithFilter(ctx, pageSize, startingKey, func(r *testResource) bool {
+					if r.Spec.PropA == testingProp {
+						totalMatchedElements.Add(1)
+						return true
+					}
+
+					return false
+				})
+				require.NoError(t, err)
+				// At most, there's an extra comparison to ensure the next key is valid and there are actually more elements.
+				require.LessOrEqual(t, totalMatchedElements.Load(), uint64(pageSize+1))
+				foundResourcesPropAEquals = append(foundResourcesPropAEquals, page...)
+
+				// A page must never contain more items than the page size limit.
+				require.LessOrEqual(t, len(page), pageSize)
+				if nextKey == "" {
+					// A page can contain 0 elements but only when there's no matching elements.
+					// This is never true for our current test setup.
+					require.NotEmpty(t, page)
+					break
+				}
+				startingKey = nextKey
+			}
+			require.Len(t, foundResourcesPropAEquals, totalResourcesPerProp)
+		})
+	}
+}
+
+func TestGenericValidation(t *testing.T) {
+	ctx := context.Background()
+
+	memBackend, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	validationErr := trace.BadParameter("invalid test resource")
+	service, err := NewService(&ServiceConfig[*testResource]{
+		Backend:       memBackend,
+		ResourceKind:  "generic resource",
+		PageLimit:     200,
+		BackendPrefix: backend.NewKey("generic_prefix"),
+		UnmarshalFunc: unmarshalResource,
+		MarshalFunc:   marshalResource,
+		ValidateFunc:  func(tr *testResource) error { return validationErr },
+	})
+	require.NoError(t, err)
+
+	r1 := newTestResource("r1")
+
+	_, err = service.CreateResource(ctx, r1)
+	require.ErrorIs(t, err, validationErr)
+
+	_, err = service.UpdateResource(ctx, r1)
+	require.ErrorIs(t, err, validationErr)
+
+	_, err = service.UpsertResource(ctx, r1)
+	require.ErrorIs(t, err, validationErr)
+}
+
+func TestGenericKeyOverride(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	memBackend, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+	defer memBackend.Close()
+
+	service, err := NewService(&ServiceConfig[*testResource]{
+		Backend:       memBackend,
+		ResourceKind:  "generic resource",
+		PageLimit:     200,
+		BackendPrefix: backend.NewKey("generic_prefix"),
+		UnmarshalFunc: unmarshalResource,
+		MarshalFunc:   marshalResource,
+		NameKeyFunc:   func(string) string { return "llama" },
+	})
+	require.NoError(t, err)
+
+	r1 := newTestResource("r1")
+
+	// Create the test resource
+	created, err := service.CreateResource(ctx, r1)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(r1, created, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	// Validate that the resource is stored under the custom key
+	item, err := memBackend.Get(ctx, backend.NewKey("generic_prefix", "llama"))
+	require.NoError(t, err)
+	require.NotNil(t, item)
+
+	// Validate that the default key does not exist
+	item, err = memBackend.Get(ctx, backend.NewKey("generic_prefix", r1.GetName()))
+	require.Error(t, err)
+	require.Nil(t, item)
+
+	// Update the test resource
+	updated, err := service.UpdateResource(ctx, created)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(r1, updated, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	// Validate that the resource is stored under the custom key
+	item, err = memBackend.Get(ctx, backend.NewKey("generic_prefix", "llama"))
+	require.NoError(t, err)
+	require.NotNil(t, item)
+
+	// Validate that the default key still does not exist
+	item, err = memBackend.Get(ctx, backend.NewKey("generic_prefix", r1.GetName()))
+	require.Error(t, err)
+	require.Nil(t, item)
+
+	// Upsert the test resource
+	upserted, err := service.UpsertResource(ctx, updated)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(r1, upserted, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	// Validate that the resource is stored under the custom key
+	item, err = memBackend.Get(ctx, backend.NewKey("generic_prefix", "llama"))
+	require.NoError(t, err)
+	require.NotNil(t, item)
+
+	// Validate that the default key still does not exist
+	item, err = memBackend.Get(ctx, backend.NewKey("generic_prefix", r1.GetName()))
+	require.Error(t, err)
+	require.Nil(t, item)
+
+	// Compare and swap the resource
+	swapped, err := service.UpdateAndSwapResource(ctx, "llama", func(tr *testResource) error { return nil })
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(r1, swapped, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	// Validate that the resource is stored under the custom key
+	item, err = memBackend.Get(ctx, backend.NewKey("generic_prefix", "llama"))
+	require.NoError(t, err)
+	require.NotNil(t, item)
+
+	// Validate that the default key still does not exist
+	item, err = memBackend.Get(ctx, backend.NewKey("generic_prefix", r1.GetName()))
+	require.Error(t, err)
+	require.Nil(t, item)
+
+	// Validate that getting the resource through the service uses the overridden name
+	_, err = service.GetResource(ctx, r1.GetName())
+	require.NoError(t, err)
+	_, err = service.GetResource(ctx, "llama")
+	require.NoError(t, err)
+	_, err = service.GetResource(ctx, "notllama")
+	require.NoError(t, err)
+
+	// Validate that deleting the resource also uses the overridden name
+	err = service.DeleteResource(ctx, "notllama")
+	require.NoError(t, err)
+	_, err = memBackend.Get(ctx, backend.NewKey("generic_prefix", "llama"))
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 }

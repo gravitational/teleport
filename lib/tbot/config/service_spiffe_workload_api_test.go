@@ -20,8 +20,9 @@ package config
 
 import (
 	"testing"
+	"time"
 
-	"github.com/gravitational/teleport/lib/tbot/spiffe/workloadattest"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 )
 
 func ptr[T any](v T) *T {
@@ -35,7 +36,8 @@ func TestSPIFFEWorkloadAPIService_YAML(t *testing.T) {
 		{
 			name: "full",
 			in: SPIFFEWorkloadAPIService{
-				Listen: "unix:///var/run/spiffe.sock",
+				Listen:     "unix:///var/run/spiffe.sock",
+				JWTSVIDTTL: time.Minute * 5,
 				Attestors: workloadattest.Config{
 					Kubernetes: workloadattest.KubernetesAttestorConfig{
 						Enabled: true,
@@ -79,6 +81,10 @@ func TestSPIFFEWorkloadAPIService_YAML(t *testing.T) {
 						},
 					},
 				},
+				CredentialLifetime: CredentialLifetime{
+					TTL:             1 * time.Minute,
+					RenewalInterval: 30 * time.Second,
+				},
 			},
 		},
 		{
@@ -106,7 +112,8 @@ func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 			name: "valid",
 			in: func() *SPIFFEWorkloadAPIService {
 				return &SPIFFEWorkloadAPIService{
-					Listen: "unix:///var/run/spiffe.sock",
+					JWTSVIDTTL: time.Minute,
+					Listen:     "unix:///var/run/spiffe.sock",
 					SVIDs: []SVIDRequestWithRules{
 						{
 							SVIDRequest: SVIDRequest{

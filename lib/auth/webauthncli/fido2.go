@@ -25,9 +25,11 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -36,7 +38,6 @@ import (
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/gravitational/trace"
 	"github.com/keys-pub/go-libfido2"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
@@ -164,7 +165,11 @@ func fido2Login(
 	// Presence of any allowed credential is interpreted as the user identity
 	// being partially established, aka non-passwordless.
 	passwordless := len(allowedCreds) == 0
-	log.Debugf("FIDO2: assertion: passwordless=%v, uv=%v, %v allowed credentials", passwordless, uv, len(allowedCreds))
+	fidoLog.DebugContext(ctx, "assertion",
+		"passwordless", passwordless,
+		"uv", uv,
+		"allowed_cred_count", len(allowedCreds),
+	)
 
 	// Prepare challenge data for the device.
 	ccdJSON, err := json.Marshal(&CollectedClientData{
@@ -208,7 +213,11 @@ func fido2Login(
 	deviceCallback := func(dev FIDODevice, info *deviceInfo, pin string) error {
 		actualRPID := rpID
 		if usesAppID(dev, info, ccdHash[:], allowedCreds, rpID, appID) {
-			log.Debugf("FIDO2: Device %v registered for AppID (%q) instead of RPID", info.path, appID)
+			fidoLog.DebugContext(ctx, "Device registered for AppID instead of RPID",
+				"device", info.path,
+				"app_id", appID,
+				"rp_id", rpID,
+			)
 			actualRPID = appID
 		}
 
@@ -220,15 +229,15 @@ func fido2Login(
 		if uv {
 			opts.UV = libfido2.True
 		}
-		assertions, err := dev.Assertion(actualRPID, ccdHash[:], allowedCreds, pin, opts)
+		assertions, err := devAssertion(dev, info, actualRPID, ccdHash[:], allowedCreds, pin, opts)
 		if errors.Is(err, libfido2.ErrUnsupportedOption) && uv && pin != "" {
 			// Try again if we are getting "unsupported option" and the PIN is set.
 			// Happens inconsistently in some authenticator series (YubiKey 5).
 			// We are relying on the fact that, because the PIN is set, the
 			// authenticator will set the UV bit regardless of it being requested.
-			log.Debugf("FIDO2: Device %v: retrying assertion without UV", info.path)
+			fidoLog.DebugContext(ctx, "Retrying assertion without UV", "device", info.path)
 			opts.UV = libfido2.Default
-			assertions, err = dev.Assertion(actualRPID, ccdHash[:], allowedCreds, pin, opts)
+			assertions, err = devAssertion(dev, info, actualRPID, ccdHash[:], allowedCreds, pin, opts)
 		}
 		if errors.Is(err, libfido2.ErrNoCredentials) {
 			// U2F devices error instantly with ErrNoCredentials.
@@ -238,7 +247,7 @@ func fido2Login(
 			// touch - this causes another slew of problems with abandoned U2F
 			// goroutines during registration.
 			if !info.fido2 {
-				log.Debugf("FIDO2: U2F device %v not registered, ignoring it", info.path)
+				fidoLog.DebugContext(ctx, "U2F device not registered, ignoring it", "device", info.path)
 				err = &nonInteractiveError{err: err}
 			} else {
 				err = ErrUsingNonRegisteredDevice // "Upgrade" error message.
@@ -247,7 +256,7 @@ func fido2Login(
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		log.Debugf("FIDO2: Got %v assertions", len(assertions))
+		fidoLog.DebugContext(ctx, "Got assertions", "assertion_count", len(assertions))
 
 		// Find assertion for target user, or show the prompt.
 		assertion, err := pickAssertion(assertions, prompt, user, passwordless)
@@ -255,9 +264,11 @@ func fido2Login(
 			return trace.Wrap(err)
 		}
 
-		log.Debugf(
-			"FIDO2: Authenticated: credential ID (b64) = %v, user ID (hex) = %x, user name = %q",
-			base64.RawURLEncoding.EncodeToString(assertion.CredentialID), assertion.User.ID, assertion.User.Name)
+		fidoLog.DebugContext(ctx, "Authenticated",
+			"credential_id", base64.RawURLEncoding.EncodeToString(assertion.CredentialID),
+			"user_id", assertion.User.ID,
+			"user_name", assertion.User.Name,
+		)
 
 		// Use the first successful assertion.
 		// In practice it is very unlikely we'd hit this twice.
@@ -312,11 +323,76 @@ func usesAppID(dev FIDODevice, info *deviceInfo, ccdHash []byte, allowedCreds []
 
 	isRegistered := func(id string) bool {
 		const pin = "" // Not necessary here.
-		_, err := dev.Assertion(id, ccdHash, allowedCreds, pin, opts)
+		_, err := devAssertion(dev, info, id, ccdHash, allowedCreds, pin, opts)
 		return err == nil || (!info.fido2 && errors.Is(err, libfido2.ErrUserPresenceRequired))
 	}
 
 	return isRegistered(appID) && !isRegistered(rpID)
+}
+
+func devAssertion(
+	dev FIDODevice,
+	info *deviceInfo,
+	rpID string,
+	ccdHash []byte,
+	allowedCreds [][]byte,
+	pin string,
+	opts *libfido2.AssertionOpts,
+) ([]*libfido2.Assertion, error) {
+	// Handle U2F devices separately when there is more than one allowed
+	// credential.
+	// This avoids "internal errors" on older Yubikey models (eg, FIDO U2F
+	// Security Key firmware 4.1.8).
+	if !info.fido2 && len(allowedCreds) > 1 {
+		cred, ok := findFirstKnownCredential(dev, info, rpID, ccdHash, allowedCreds)
+		if ok {
+			isCredentialCheck := pin == "" && opts != nil && opts.UP == libfido2.False
+			if isCredentialCheck {
+				// No need to assert again, reply as the U2F authenticator would.
+				return nil, trace.Wrap(libfido2.ErrUserPresenceRequired)
+			}
+
+			if fidoLog.Enabled(context.Background(), slog.LevelDebug) {
+				credPrefix := hex.EncodeToString(cred)
+				const prefixLen = 10
+				if len(credPrefix) > prefixLen {
+					credPrefix = credPrefix[:prefixLen]
+				}
+				fidoLog.DebugContext(context.Background(), "Using credential",
+					"device", info.path,
+					"credential", credPrefix,
+				)
+			}
+
+			allowedCreds = [][]byte{cred}
+		}
+	}
+
+	assertion, err := dev.Assertion(rpID, ccdHash, allowedCreds, pin, opts)
+	return assertion, trace.Wrap(err)
+}
+
+func findFirstKnownCredential(
+	dev FIDODevice,
+	info *deviceInfo,
+	rpID string,
+	ccdHash []byte,
+	allowedCreds [][]byte,
+) ([]byte, bool) {
+	const pin = ""
+	opts := &libfido2.AssertionOpts{
+		UP: libfido2.False,
+	}
+	for _, cred := range allowedCreds {
+		_, err := dev.Assertion(rpID, ccdHash, [][]byte{cred}, pin, opts)
+		// FIDO2 devices return err=nil on up=false queries; U2F devices return
+		// libfido2.ErrUserPresenceRequired.
+		// https://github.com/Yubico/libfido2/blob/03c18d396eb209a42bbf62f5f4415203cba2fc50/src/u2f.c#L787-L791.
+		if err == nil || (!info.fido2 && errors.Is(err, libfido2.ErrUserPresenceRequired)) {
+			return cred, true
+		}
+	}
+	return nil, false
 }
 
 func pickAssertion(
@@ -388,7 +464,7 @@ func fido2Register(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Debugf("FIDO2: registration: resident key=%v", rrk)
+	fidoLog.DebugContext(ctx, "registration", "resident_key", rrk)
 
 	// Can we create ES256 keys?
 	// TODO(codingllama): Consider supporting other algorithms and respecting
@@ -452,7 +528,7 @@ func fido2Register(
 
 		// Does the device hold an excluded credential?
 		const pin = "" // not required to filter
-		switch _, err := dev.Assertion(rp.ID, ccdHash[:], excludeList, pin, &libfido2.AssertionOpts{
+		switch _, err := devAssertion(dev, info, rp.ID, ccdHash[:], excludeList, pin, &libfido2.AssertionOpts{
 			UP: libfido2.False,
 		}); {
 		case errors.Is(err, libfido2.ErrNoCredentials):
@@ -463,12 +539,13 @@ func fido2Register(
 		case err != nil:
 			// Swallow unexpected errors: a double registration is better than
 			// aborting the ceremony.
-			log.Debugf(
-				"FIDO2: Device %v: excluded credential assertion failed, letting device through: err=%q",
-				info.path, err)
+			fidoLog.DebugContext(ctx, "excluded credential assertion failed, letting device through",
+				"device", info.path,
+				"error", err,
+			)
 			return nil
 		default:
-			log.Debugf("FIDO2: Device %v: filtered due to presence of excluded credential", info.path)
+			fidoLog.DebugContext(ctx, "filtered due to presence of excluded credential", "device", info.path)
 			return errHasExcludedCredential
 		}
 	}
@@ -556,7 +633,7 @@ func makeAttStatement(attestation *libfido2.Attestation) (string, map[string]int
 	case none:
 		return format, nil, nil
 	default:
-		log.Debugf(`FIDO2: Unsupported attestation format %q, using "none"`, format)
+		fidoLog.DebugContext(context.Background(), `Unsupported attestation format, using "none"`, "attestation_format", format)
 		return none, nil, nil
 	}
 
@@ -623,11 +700,11 @@ func runOnFIDO2Devices(
 			case <-devicesC:
 				receiveCount++
 			case <-maxWait.C:
-				log.Debugf("FIDO2: Abandoning device goroutines after %s", fido2DeviceMaxWait)
+				fidoLog.DebugContext(ctx, "Abandoning device goroutines after exceeding wait time", "max_wait_time", fido2DeviceMaxWait)
 				return
 			}
 		}
-		log.Debug("FIDO2: Device goroutines exited cleanly")
+		fidoLog.DebugContext(ctx, "Device goroutines exited cleanly")
 	}()
 
 	// First "interactive" response wins.
@@ -638,7 +715,7 @@ func runOnFIDO2Devices(
 
 			// Keep going on cancels or non-interactive errors.
 			if errors.Is(err, libfido2.ErrKeepaliveCancel) || errors.Is(err, &nonInteractiveError{}) {
-				log.Debugf("FIDO2: Got cancel or non-interactive device error: %v", err)
+				fidoLog.DebugContext(ctx, "Got cancel or non-interactive device error", "error", err)
 				continue
 			}
 
@@ -666,7 +743,10 @@ func startDevices(
 		for i, dev := range fidoDevs {
 			path := openDevs[i].path
 			err := dev.Close()
-			log.Debugf("FIDO2: Close device %v, err=%v", path, err)
+			fidoLog.DebugContext(context.Background(), "Close device",
+				"device", path,
+				"error", err,
+			)
 		}
 	}
 
@@ -684,7 +764,10 @@ func startDevices(
 			// This is largely safe to ignore, as opening is fairly consistent in
 			// other situations and failures are likely from a non-chosen device in
 			// multi-device scenarios.
-			log.Debugf("FIDO2: Device %v failed to open, skipping: %v", path, err)
+			fidoLog.DebugContext(context.Background(), "Device failed to open, skipping",
+				"device", path,
+				"error", err,
+			)
 			continue
 		}
 
@@ -765,7 +848,10 @@ func (l *openedDevices) cancelAll(except FIDODevice) {
 
 		// Note that U2F devices fail Cancel with "invalid argument".
 		err := d.dev.Cancel()
-		log.Debugf("FIDO2: Cancel device %v, err=%v", d.path, err)
+		fidoLog.DebugContext(context.Background(), "Cancel device",
+			"device", d.path,
+			"error", err,
+		)
 	}
 }
 
@@ -778,10 +864,14 @@ func handleDevice(
 	firstTouchAck func() error,
 	pinPrompt runPrompt,
 ) error {
+	ctx := context.Background()
 	// handleDevice owns the device, thus it has the privilege to shut it down.
 	defer func() {
 		err := dev.Close()
-		log.Debugf("FIDO2: Close device %v, err=%v", path, err)
+		fidoLog.DebugContext(ctx, "Close device",
+			"device", path,
+			"error", err,
+		)
 	}()
 
 	if err := dev.SetTimeout(fido2DeviceTimeout); err != nil {
@@ -799,16 +889,22 @@ func handleDevice(
 		if err != nil {
 			return trace.Wrap(&nonInteractiveError{err: err})
 		}
-		log.Debugf("FIDO2: Device %v: info %#v", path, info)
+		fidoLog.DebugContext(ctx, "Device",
+			"path", path,
+			"info", info,
+		)
 	} else {
-		log.Debugf("FIDO2: Device %v: not a FIDO2 device", path)
+		fidoLog.DebugContext(ctx, "not a FIDO2 device", "device", path)
 	}
 	di := makeDevInfo(path, info, isFIDO2)
 
 	// Apply initial filters, waiting for confirmation if the filter fails before
 	// relaying the error.
 	if err := filter(dev, di); err != nil {
-		log.Debugf("FIDO2: Device %v filtered, err=%v", path, err)
+		fidoLog.DebugContext(ctx, "Device filtered",
+			"device", path,
+			"error", err,
+		)
 
 		// If the device is chosen then treat the error as interactive.
 		if touched, _ := waitForTouch(dev); touched {
@@ -822,7 +918,11 @@ func handleDevice(
 	// Run the callback.
 	cb := withPINHandler(withRetries(deviceCallback))
 	requiresPIN, err := cb(dev, di, "" /* pin */)
-	log.Debugf("FIDO2: Device %v: callback returned, requiresPIN=%v, err=%v", path, requiresPIN, err)
+	fidoLog.DebugContext(ctx, "callback returned",
+		"device", path,
+		"requires_pin", requiresPIN,
+		"error", err,
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -869,7 +969,11 @@ func devInfo(path string, dev FIDODevice) (*libfido2.DeviceInfo, error) {
 		}
 
 		lastErr = err
-		log.Debugf("FIDO2: Device %v: Info failed, retrying after %s: %v", path, fido2RetryInterval, err)
+		fidoLog.DebugContext(context.Background(), "Info failed, retrying",
+			"device", path,
+			"backoff_duration", fido2RetryInterval,
+			"error", err,
+		)
 		time.Sleep(fido2RetryInterval)
 	}
 
@@ -892,7 +996,7 @@ func withRetries(callback deviceCallbackFunc) deviceCallbackFunc {
 			// ErrOperationDenied happens when fingerprint reading fails (UV=false).
 			if errors.Is(err, libfido2.ErrOperationDenied) {
 				fmt.Println("Gesture validation failed, make sure you use a registered fingerprint")
-				log.Debug("FIDO2: Retrying libfido2 error 'operation denied'")
+				fidoLog.DebugContext(context.Background(), "Retrying libfido2 error 'operation denied'")
 				continue
 			}
 
@@ -912,7 +1016,7 @@ func withRetries(callback deviceCallbackFunc) deviceCallbackFunc {
 					"Alternatively, you may unblock your device by using it in the Web UI."
 				return trace.Wrap(err, msg)
 			case 63: // FIDO_ERR_UV_INVALID, 0x3f
-				log.Debug("FIDO2: Retrying libfido2 error 63")
+				fidoLog.DebugContext(context.Background(), "Retrying libfido2 error 63")
 				continue
 			default: // Unexpected code.
 				return err
@@ -978,7 +1082,7 @@ func waitForTouch(dev FIDODevice) (touched bool, err error) {
 	touch, err := dev.TouchBegin()
 	if err != nil {
 		// Error logged here as it's mostly ignored by callers.
-		log.Debugf("FIDO2: Device touch begin error: %v", err)
+		fidoLog.DebugContext(context.Background(), "Device touch begin error", "error", err)
 		return false, trace.Wrap(err)
 	}
 	defer touch.Stop()
@@ -988,7 +1092,7 @@ func waitForTouch(dev FIDODevice) (touched bool, err error) {
 		touched, err := touch.Status(fido2TouchMaxWait)
 		if err != nil {
 			// Error logged here as it's mostly ignored by callers.
-			log.Debugf("FIDO2: Device touch status error: %v", err)
+			fidoLog.DebugContext(context.Background(), "Device touch status error", "error", err)
 			return false, trace.Wrap(err)
 		}
 		if touched {

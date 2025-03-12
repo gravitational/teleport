@@ -17,12 +17,12 @@ Service to assume an AWS role in another account before it uses the AWS API
 for further actions.
 
 This is not limited to a single AWS role:
-the Teleport Database Service can be configured to connect databases in its own
-AWS account and multiple external AWS accounts at the same time.
+the Teleport Database Service can be configured to connect to databases in its
+own AWS account and multiple external AWS accounts at the same time.
 
 You will need to configure the Teleport Database Service to assume an AWS IAM
 role and ensure that AWS IAM permissions are configured to allow the
-`AssumeRole` call.
+`sts:AssumeRole` call.
 
 <Admonition type="note">
 You should also check that your network configuration in AWS allows the
@@ -31,7 +31,7 @@ Teleport Database Service to connect to the databases.
 This guide does not cover AWS network configuration, because it depends on your
 specific AWS network setup and the kind(s) of AWS databases you wish to connect
 to Teleport. For more information, see [how to connect your
-database](../enroll-aws-databases.mdx).
+database](enroll-aws-databases.mdx).
 </Admonition>
 
 ## Teleport configuration
@@ -167,10 +167,11 @@ AWS IAM identity and the external AWS IAM role:
   [AWS cross-account policy evaluation](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic-cross-account.html#policy-eval-cross-account).
 </Details>
 
-(!docs/pages/includes/database-access/aws-bootstrap.mdx attachToRole="teleport-db-service" !)
+### Database Service IAM policy
 
-Specifically, the Teleport Database Service's AWS IAM identity must be granted
-`sts:AssumeRole` permission for the external AWS IAM role. For example:
+Attach the following permission policy to the Teleport Database Service's AWS
+IAM identity:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -184,21 +185,14 @@ Specifically, the Teleport Database Service's AWS IAM identity must be granted
 }
 ```
 
+### External AWS IAM permission policy
+
 You will also need to configure permissions for the external AWS IAM role,
 specific to the type of database(s) that it will be used to access.
 
-For example, suppose `assume_role_arn` is set to
-`arn:aws:iam::222222222222:role/example-role` -
-you can bootstrap permissions for it automatically by running the following
-command with AWS credentials for account `222222222222` configured in your
-shell:
-```code
-$ teleport db configure bootstrap \
-    -c /etc/teleport.yaml \
-    --attach-to-role "example-role"
-```
+(!docs/pages/includes/database-access/aws-db-iam-policy-picker.mdx!)
 
-## AWS IAM trust policy
+## External AWS IAM trust policy
 
 Modify the external AWS IAM role's trust policy to allow the Teleport Database
 Service's AWS IAM identity as a trusted principal. If you require an external 
@@ -232,4 +226,4 @@ role, then the trust policy might look like:
 
 ## Next steps
 
-- Get started by [connecting](../guides.mdx) your database.
+- Get started by [connecting](../guides/guides.mdx) your database.

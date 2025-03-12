@@ -7,7 +7,7 @@ Teleport can provide secure access to applications and cloud provider APIs.
 
 Examples include: 
 
-- The AWS management console.
+- The AWS and GCP management consoles.
 - The `aws`, `gcloud`, `gsutil`, and `az` CLIs.
 - Applications configured for single sign-on through Okta.
 - Internal control panels.
@@ -18,12 +18,12 @@ Examples include:
 ![Application access architecture](../../../img/application-access/architecture.png)
 
 If you are running applications on Kubernetes, you can [enroll them in your
-Teleport cluster automatically](../auto-discovery/kubernetes-applications.mdx).
+Teleport cluster automatically](../auto-discovery/kubernetes-applications/kubernetes-applications.mdx).
 
 Teleport protects applications through the Teleport Application Service, which
-is a Teleport agent service. For more information on agent services, read
-[Teleport Agent Architecture](../../architecture/agents.mdx). You can also learn
-how to deploy a [pool of Teleport agents](../agents/introduction.mdx) to run
+is a Teleport Agent service. For more information on agent services, read
+[Teleport Agent Architecture](../../reference/architecture/agents.mdx). You can also learn
+how to deploy a [pool of Teleport Agents](../agents/introduction.mdx) to run
 multiple agent services.
 
 ## Getting started
@@ -39,6 +39,7 @@ CLI tools with the same RBAC system you use to protect your infrastructure.
 
 - [AWS Console and CLI Applications](./cloud-apis/aws-console.mdx): How to access
   AWS Management Console, AWS CLI, and AWS SDKs with Teleport.
+- [Google Cloud Web Console](../../admin-guides/access-controls/idps/saml-gcp-workforce-identity-federation.mdx): How to access the Google Cloud web console with Teleport.
 - [Google Cloud CLI Applications](./cloud-apis/google-cloud.mdx): How to access
   Google Cloud CLI applications and SDKs with Teleport.
 - [Azure CLI Applications](./cloud-apis/azure.mdx): How to access Azure CLI
@@ -77,4 +78,4 @@ can access Okta applications through the Teleport Web UI and `tsh`, and
 administrators can manage access to these applications by defining RBAC policies
 in Teleport roles.
 
-Learn more about the [Teleport Okta integration](./okta.mdx).
+Learn more about the [Teleport Okta integration](okta/okta.mdx).

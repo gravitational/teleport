@@ -16,21 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled from 'styled-components';
 
 import {
-  fontSize,
-  FontSizeProps,
   color,
   ColorProps,
-  width,
-  WidthProps,
+  fontSize,
+  FontSizeProps,
   space,
   SpaceProps,
+  width,
+  WidthProps,
 } from 'design/system';
-import { fade } from 'design/theme/utils/colorManipulator';
 import { Theme } from 'design/theme/themes/types';
+import { fade } from 'design/theme/utils/colorManipulator';
 
 export type LabelKind =
   | 'primary'
@@ -110,12 +109,20 @@ const LabelState = styled.span<LabelStateProps>`
   ${color}
   ${fontSize}
 `;
-LabelState.defaultProps = {
-  shadow: false,
-};
 
 export default LabelState;
-export const StateDanger = props => <LabelState kind="danger" {...props} />;
-export const StateInfo = props => <LabelState kind="secondary" {...props} />;
-export const StateWarning = props => <LabelState kind="warning" {...props} />;
-export const StateSuccess = props => <LabelState kind="success" {...props} />;
+
+type LabelStatePropsWithoutKind = Omit<LabelStateProps, 'kind'>;
+
+export const StateDanger = (props: LabelStatePropsWithoutKind) => (
+  <LabelState kind="danger" {...props} />
+);
+export const StateInfo = (props: LabelStatePropsWithoutKind) => (
+  <LabelState kind="secondary" {...props} />
+);
+export const StateWarning = (props: LabelStatePropsWithoutKind) => (
+  <LabelState kind="warning" {...props} />
+);
+export const StateSuccess = (props: LabelStatePropsWithoutKind) => (
+  <LabelState kind="success" {...props} />
+);

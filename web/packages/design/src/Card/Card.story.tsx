@@ -16,11 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import { Flex, Text } from '..';
-
 import Card from '.';
+import { Flex, Text } from '..';
 
 export default {
   title: 'Design/Card',

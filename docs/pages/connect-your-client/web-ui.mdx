@@ -2,8 +2,8 @@
 title: Using the Web UI
 description: Using the Teleport Web UI
 ---
-The Teleport Web UI is a web-based visual interface from which you can access resources, 
-view active sessions and recordings, create and review Access Requests, 
+The Teleport Web UI is a web-based visual interface from which you can access resources,
+view active sessions and recordings, create and review Access Requests,
 manage users and roles, and more.
 
 This page serves a reference on Web UI features and their usage.
@@ -12,24 +12,21 @@ This page serves a reference on Web UI features and their usage.
 
 The Teleport Web UI allows you to list and join active SSH sessions using a web-based terminal.
 
-You can view the active SSH sessions that you are allowed to list by clicking **Active Sessions** in the navigation sidebar. 
-You can only see active sessions if you are assigned a role with `list` access for the `ssh_session` resource. 
-For more information about role permissions and access to resources, see [Teleport Access Controls 
-Reference](../access-controls/reference.mdx).
+You can view the active SSH sessions that you are allowed to list by clicking **Active Sessions** in the navigation sidebar.
 
-From the active sessions list, click **Join** and select a participant mode to join the session: 
+From the active sessions list, click **Join** and select a participant mode to join the session:
 
-- **As an Observer** with read-only access to the session. You can view output but cannot control the session in any way nor 
+- **As an Observer** with read-only access to the session. You can view output but cannot control the session in any way nor
   send any input.
-- **As a Moderator** with permission to watch, pause, or terminate the session. You can view output and forcefully terminate 
-  or pause the session at any time, but can't send input.
 - **As a Peer** to collaborate in the session. You can view output and send input.
+- **As a Moderator** with permission to watch, pause, or terminate the session. You can view output and forcefully terminate
+  or pause the session at any time, but can't send input. Moderated sessions are an enterprise-only feature.
 
 ![joining an active session from the Web UI](../../img/webui-active-session.png)
 
-You must have the `join_sessions` allow policy in a role you've been assigned to join sessions in any participant mode. 
-For information about how to configure the `join_sessions` allow policy and participant modes for a role, see 
-[Configure an allow policy](../access-controls/guides/moderated-sessions.mdx#configure-an-allow-policy).
+You must have the `join_sessions` allow policy in a role you've been assigned to join sessions in any participant mode.
+For information about how to configure the `join_sessions` allow policy and participant modes for a role, see
+[Configure an allow policy](../admin-guides/access-controls/guides/joining-sessions.mdx).
 
 ## Idle timeout
 
@@ -39,9 +36,6 @@ interacted with any Web UI browser tab, either through keyboard input or mouse m
 
 To change the default idle timeout of 10 minutes, ask your cluster admin to adjust the
 `web_idle_timeout` setting in the Auth Service configuration.
-
-<Tabs>
-<TabItem scope={["cloud", "team"]} label="Dynamic Resources (All Editions)">
 
 Use `tctl` to edit the `cluster_networking_config` value:
 
@@ -68,15 +62,57 @@ After you save and exit the editor, `tctl` will update the resource:
 cluster networking configuration has been updated
 ```
 
-</TabItem>
-<TabItem label="Static Config (Self-Hosted)" scope={["oss", "enterprise"]}>
+## Starting a database session
 
-Update `/etc/teleport.yaml` in the `auth_service` section and restart the `teleport` daemon.
+Starting from version `17.1`, users can establish database sessions using the
+Teleport Web UI. Currently, it is supported in PostgreSQL databases.
 
-```yaml
-auth_service:
-  web_idle_timeout: 10m0s
-```
+To start a new session, locate your database in the resources list and click
+"Connect".
 
-</TabItem>
-</Tabs>
+![Resources list](../../img/connect-your-client/webui-db-sessions/resources-list.png)
+
+For supported databases, the dialog will present the option to start
+the session in your browser.
+
+![Resources list database connect dialog](../../img/connect-your-client/webui-db-sessions/resources-connect-dialog.png)
+
+After clicking on the "Connect in the browser" button, a new tab will open with
+a form. Teleport will pre-fill this form based on your permissions, but you can
+adjust the options as needed.
+
+![New database session connect dialog](../../img/connect-your-client/webui-db-sessions/connect-dialog.png)
+
+If your user has wildcard permissions (*), you can type custom values into the
+form fields. This allows flexibility in selecting specific databases or
+credentials.
+
+![New database session connect dialog with custom values](../../img/connect-your-client/webui-db-sessions/connect-dialog-custom.png)
+
+Once you've filled in the session details, click the "Connect" button. Your
+session will start, and a terminal interface will appear in the browser.
+
+The browser-based terminal allows you to execute queries and interact with your
+database. Follow the on-screen instructions to see available commands and
+limitations.
+
+![Database session terminal](../../img/connect-your-client/webui-db-sessions/session-terminal.png)
+
+<Admonition type="note" title="Database CLI compatibility">
+  While the terminal interface provided in the Teleport Web UI is designed to
+  resemble popular database CLIs such as `psql`, it is a custom implementation
+  with some differences and limitations:
+  - **Feature Set:** Not all features available in `psql` are implemented.
+    For instance, scripting capabilities, query cancellation, or informational
+    commands like `\d` or `\dt` are currently unsupported.
+  - **Error Handling:** Error messages and diagnostics might differ from what
+    users are accustomed to in `psql`.
+
+  These distinctions are designed to maintain a lightweight and secure interface
+  directly in your browser. For more complex operations, you may prefer
+  accessing your database from your terminal using `tsh` and your preferred
+  tool.
+
+  Future updates may expand functionality or address feedback based on user
+  needs and supported databases.
+</Admonition>

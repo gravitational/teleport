@@ -1,6 +1,7 @@
-# This changelog ensures that PR bodies include a `changelog: <changelog entry>` section,
-# or a `no-changelog` label set. If they do not, then a comment will be added to the PR
-# asking the developer to add one of the two.
+# The changelog workflow checks that a PR message has a line of the form
+# `changelog: <text>` or a `no-changelog` label. If neither are present,
+# the workflow run will fail, and as this workflow job is a required check,
+# the PR cannot be merged.
 name: Validate changelog entry
 on:
   pull_request:
@@ -16,15 +17,10 @@ on:
 permissions:
   pull-requests: write
 
-concurrency: 
-  cancel-in-progress: true
-  # This value is arbitrary as long as it includes the pull request number
-  group: 'limit to running one instance at a time for the pull request ${{ github.event.pull_request.number }}'
-
 jobs:
   validate-changelog:
     name: Validate the changelog entry
-    if: ${{ !github.event.pull_request.draft }}
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     steps:
       # Checkout main branch of shared-workflow repository.

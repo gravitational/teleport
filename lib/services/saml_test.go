@@ -58,12 +58,16 @@ func TestParseFromMetadata(t *testing.T) {
 func TestCheckSAMLEntityDescriptor(t *testing.T) {
 	t.Parallel()
 
-	for name, input := range map[string]string{
-		"without certificate padding": fixtures.SAMLOktaConnectorV2,
-		"with certificate padding":    fixtures.SAMLOktaConnectorV2WithPadding,
+	for name, tt := range map[string]struct {
+		resource  string
+		wantCerts int
+	}{
+		"without certificate padding": {resource: fixtures.SAMLOktaConnectorV2, wantCerts: 1},
+		"with certificate padding":    {resource: fixtures.SAMLOktaConnectorV2WithPadding, wantCerts: 1},
+		"missing IDPSSODescriptor":    {resource: fixtures.SAMLConnectorMissingIDPSSODescriptor, wantCerts: 0},
 	} {
 		t.Run(name, func(t *testing.T) {
-			decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(input), defaults.LookaheadBufSize)
+			decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(tt.resource), defaults.LookaheadBufSize)
 			var raw UnknownResource
 			err := decoder.Decode(&raw)
 			require.NoError(t, err)
@@ -74,7 +78,7 @@ func TestCheckSAMLEntityDescriptor(t *testing.T) {
 			ed := oc.GetEntityDescriptor()
 			certs, err := CheckSAMLEntityDescriptor(ed)
 			require.NoError(t, err)
-			require.Len(t, certs, 1)
+			require.Len(t, certs, tt.wantCerts)
 		})
 	}
 }
@@ -179,7 +183,7 @@ func TestFillSAMLSigningKeyFromExisting(t *testing.T) {
 		assertResult  require.ValueAssertionFunc
 	}{
 		{
-			name:          "should read singing key from existing connector with matching cert",
+			name:          "should read signing key from existing connector with matching cert",
 			connectorName: existingConnectorName,
 			connectorSpec: types.SAMLConnectorSpecV2{
 				SigningKeyPair: &types.AsymmetricKeyPair{
@@ -249,4 +253,61 @@ func (rs roleSet) GetRole(ctx context.Context, name string) (types.Role, error) 
 		return r, nil
 	}
 	return nil, trace.NotFound("unknown role: %s", name)
+}
+
+func Test_ValidateSAMLConnector(t *testing.T) {
+	t.Parallel()
+
+	const entityDescriptor = `
+		<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" validUntil="2024-07-04T11:40:17.481Z" cacheDuration="PT48H" entityID="teleport.example.com/metadata">
+			<IDPSSODescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+				<SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://first.in.the.descriptor.example.com/sso/saml"></SingleSignOnService>
+				<SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://second.in.the.descriptor.example.com/sso/saml"></SingleSignOnService>
+			</IDPSSODescriptor>
+		</EntityDescriptor>`
+
+	// Create a roleSet with <nil> role values as ValidateSAMLConnector only checks if the role
+	// in the connector role mapping exists.
+	var existingRoles roleSet = map[string]types.Role{
+		"existing-test-role": nil,
+	}
+
+	testCases := []struct {
+		name           string
+		connectorDesc  types.SAMLConnectorSpecV2
+		expectedSsoUrl string
+	}{
+		{
+			name: "matching set SSO and entity descriptor URLs",
+			connectorDesc: types.SAMLConnectorSpecV2{
+				AssertionConsumerService: "https://example.com/acs",
+				EntityDescriptor:         entityDescriptor,
+				AttributesToRoles: []types.AttributeMapping{
+					{Name: "groups", Value: "Everyone", Roles: []string{"existing-test-role"}},
+				},
+			},
+			expectedSsoUrl: "https://first.in.the.descriptor.example.com/sso/saml",
+		},
+		{
+			name: "if set SSO URL and entity descriptor do not match, overwrite with the one from the descriptor",
+			connectorDesc: types.SAMLConnectorSpecV2{
+				AssertionConsumerService: "https://example.com/acs",
+				SSO:                      "https://i.do.not.match.example.com/sso",
+				EntityDescriptor:         entityDescriptor,
+				AttributesToRoles: []types.AttributeMapping{
+					{Name: "groups", Value: "Everyone", Roles: []string{"existing-test-role"}},
+				},
+			},
+			expectedSsoUrl: "https://first.in.the.descriptor.example.com/sso/saml",
+		},
+	}
+	for _, tc := range testCases {
+		connector, err := types.NewSAMLConnector("test-connector", tc.connectorDesc)
+		require.NoError(t, err)
+
+		err = ValidateSAMLConnector(connector, existingRoles)
+		require.NoError(t, err)
+
+		require.Equal(t, tc.expectedSsoUrl, connector.GetSSO())
+	}
 }

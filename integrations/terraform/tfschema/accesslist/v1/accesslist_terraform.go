@@ -29,6 +29,7 @@ import (
 	github_com_gravitational_teleport_api_gen_proto_go_teleport_header_v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	_ "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
 	github_com_gravitational_teleport_api_gen_proto_go_teleport_trait_v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
+	github_com_gravitational_teleport_integrations_terraform_tfschema "github.com/gravitational/teleport/integrations/terraform/tfschema"
 	github_com_hashicorp_terraform_plugin_framework_attr "github.com/hashicorp/terraform-plugin-framework/attr"
 	github_com_hashicorp_terraform_plugin_framework_diag "github.com/hashicorp/terraform-plugin-framework/diag"
 	github_com_hashicorp_terraform_plugin_framework_tfsdk "github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -60,7 +61,11 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"expires": GenSchemaTimestamp(ctx),
+						"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "expires is a global expiry time header can be set on any resource in the system.",
+							Optional:    true,
+							Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+						}),
 						"labels": {
 							Description: "labels is a set of labels.",
 							Optional:    true,
@@ -113,9 +118,17 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"audit": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"next_audit_date": GenSchemaTimestamp(ctx),
+						"next_audit_date": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Computed:      true,
+							Description:   "next_audit_date is when the next audit date should be done by.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+						}),
 						"notifications": {
-							Attributes:  github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"start": GenSchemaDuration(ctx)}),
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"start": GenSchemaDuration(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								Description: "start specifies when to start notifying users that the next audit date is coming up.",
+								Optional:    true,
+							})}),
 							Description: "notifications is the configuration for notifying users.",
 							Optional:    true,
 						},
@@ -136,18 +149,18 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Required:    true,
 						},
 					}),
-					Description: "audit describes the frequency that this access list must be audited.",
+					Description: "audit describes the frequency that this Access List must be audited.",
 					Required:    true,
 				},
 				"description": {
-					Description: "description is an optional plaintext description of the access list.",
+					Description: "description is an optional plaintext description of the Access List.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"grants": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"roles": {
-							Description: "roles are the roles that are granted to users who are members of the access list.",
+							Description: "roles are the roles that are granted to users who are members of the Access List.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
@@ -164,11 +177,11 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 								},
 							}),
-							Description: "traits are the traits that are granted to users who are members of the access list.",
+							Description: "traits are the traits that are granted to users who are members of the Access List.",
 							Optional:    true,
 						},
 					}),
-					Description: "grants describes the access granted by membership to this access list.",
+					Description: "grants describes the access granted by membership to this Access List.",
 					Required:    true,
 				},
 				"membership_requires": {
@@ -195,13 +208,13 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Optional:    true,
 						},
 					}),
-					Description: "membership_requires describes the requirements for a user to be a member of the access list. For a membership to an access list to be effective, the user must meet the requirements of Membership_requires and must be in the members list.",
+					Description: "membership_requires describes the requirements for a user to be a member of the Access List. For a membership to an Access List to be effective, the user must meet the requirements of Membership_requires and must be in the members list.",
 					Optional:    true,
 				},
 				"owner_grants": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"roles": {
-							Description: "roles are the roles that are granted to users who are members of the access list.",
+							Description: "roles are the roles that are granted to users who are members of the Access List.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
@@ -218,11 +231,11 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 								},
 							}),
-							Description: "traits are the traits that are granted to users who are members of the access list.",
+							Description: "traits are the traits that are granted to users who are members of the Access List.",
 							Optional:    true,
 						},
 					}),
-					Description: "owner_grants describes the access granted by owners to this access list.",
+					Description: "owner_grants describes the access granted by owners to this Access List.",
 					Optional:    true,
 				},
 				"owners": {
@@ -232,13 +245,18 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
+						"membership_kind": {
+							Description: "membership_kind describes the type of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
 						"name": {
 							Description: "name is the username of the owner.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
-					Description: "owners is a list of owners of the access list.",
+					Description: "owners is a list of owners of the Access List.",
 					Required:    true,
 				},
 				"ownership_requires": {
@@ -265,16 +283,16 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Optional:    true,
 						},
 					}),
-					Description: "ownership_requires describes the requirements for a user to be an owner of the access list. For ownership of an access list to be effective, the user must meet the requirements of ownership_requires and must be in the owners list.",
+					Description: "ownership_requires describes the requirements for a user to be an owner of the Access List. For ownership of an Access List to be effective, the user must meet the requirements of ownership_requires and must be in the owners list.",
 					Optional:    true,
 				},
 				"title": {
-					Description: "title is a plaintext short description of the access list.",
+					Description: "title is a plaintext short description of the Access List.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 			}),
-			Description: "spec is the specification for the access list.",
+			Description: "spec is the specification for the Access List.",
 			Optional:    true,
 		},
 	}}, nil
@@ -555,6 +573,23 @@ func CopyAccessListFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 																t = string(v.Value)
 															}
 															obj.Description = t
+														}
+													}
+												}
+												{
+													a, ok := tf.Attrs["membership_kind"]
+													if !ok {
+														diags.Append(attrReadMissingDiag{"AccessList.spec.owners.membership_kind"})
+													} else {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"AccessList.spec.owners.membership_kind", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+														} else {
+															var t github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.MembershipKind
+															if !v.Null && !v.Unknown {
+																t = github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.MembershipKind(v.Value)
+															}
+															obj.MembershipKind = t
 														}
 													}
 												}
@@ -1584,6 +1619,28 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 													v.Value = string(obj.Description)
 													v.Unknown = false
 													tf.Attrs["description"] = v
+												}
+											}
+											{
+												t, ok := tf.AttrTypes["membership_kind"]
+												if !ok {
+													diags.Append(attrWriteMissingDiag{"AccessList.spec.owners.membership_kind"})
+												} else {
+													v, ok := tf.Attrs["membership_kind"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+													if !ok {
+														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+														if err != nil {
+															diags.Append(attrWriteGeneralError{"AccessList.spec.owners.membership_kind", err})
+														}
+														v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+														if !ok {
+															diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.owners.membership_kind", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+														}
+														v.Null = int64(obj.MembershipKind) == 0
+													}
+													v.Value = int64(obj.MembershipKind)
+													v.Unknown = false
+													tf.Attrs["membership_kind"] = v
 												}
 											}
 										}

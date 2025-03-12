@@ -22,41 +22,48 @@ import (
 	"context"
 	"encoding/xml"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/iam"
-	"github.com/aws/aws-sdk-go/service/iam/iamiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/gravitational/trace"
 	samltypes "github.com/russellhaering/gosaml2/types"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
 
-func (a *awsFetcher) pollAWSSAMLProviders(ctx context.Context, result *Resources, collectErr func(error)) func() error {
+func (a *Fetcher) pollAWSSAMLProviders(ctx context.Context, result *Resources, collectErr func(error)) func() error {
 	return func() error {
-		var err error
-
-		iamClient, err := a.CloudClients.GetAWSIAMClient(
+		existing := a.lastResult
+		awsCfg, err := a.AWSConfigProvider.GetConfig(
 			ctx,
 			"", /* region is empty because saml providers are global */
 			a.getAWSOptions()...,
 		)
 		if err != nil {
 			collectErr(trace.Wrap(err, "failed to get AWS IAM client"))
+			result.SAMLProviders = existing.SAMLProviders
 			return nil
 		}
-		listResp, err := iamClient.ListSAMLProvidersWithContext(ctx, &iam.ListSAMLProvidersInput{})
+		iamClient := a.awsClients.getIAMClient(awsCfg)
+
+		listResp, err := iamClient.ListSAMLProviders(ctx, &iam.ListSAMLProvidersInput{})
 		if err != nil {
 			collectErr(trace.Wrap(err, "failed to list AWS SAML identity providers"))
+			result.SAMLProviders = existing.SAMLProviders
 			return nil
 		}
 
 		providers := make([]*accessgraphv1alpha.AWSSAMLProviderV1, 0, len(listResp.SAMLProviderList))
 		for _, providerRef := range listResp.SAMLProviderList {
-			arn := aws.StringValue(providerRef.Arn)
+			arn := aws.ToString(providerRef.Arn)
 			provider, err := a.fetchAWSSAMLProvider(ctx, iamClient, arn)
 			if err != nil {
 				collectErr(trace.Wrap(err, "failed to get info for SAML provider %s", arn))
-			} else {
+				provider = sliceFilterPickFirst(existing.SAMLProviders, func(p *accessgraphv1alpha.AWSSAMLProviderV1) bool {
+					return p.Arn == arn
+				})
+			}
+			if provider != nil {
 				providers = append(providers, provider)
 			}
 		}
@@ -67,8 +74,8 @@ func (a *awsFetcher) pollAWSSAMLProviders(ctx context.Context, result *Resources
 }
 
 // fetchAWSSAMLProvider fetches data about a single SAML identity provider.
-func (a *awsFetcher) fetchAWSSAMLProvider(ctx context.Context, client iamiface.IAMAPI, arn string) (*accessgraphv1alpha.AWSSAMLProviderV1, error) {
-	providerResp, err := client.GetSAMLProviderWithContext(ctx, &iam.GetSAMLProviderInput{
+func (a *Fetcher) fetchAWSSAMLProvider(ctx context.Context, client iamClient, arn string) (*accessgraphv1alpha.AWSSAMLProviderV1, error) {
+	providerResp, err := client.GetSAMLProvider(ctx, &iam.GetSAMLProviderInput{
 		SAMLProviderArn: aws.String(arn),
 	})
 	if err != nil {
@@ -83,13 +90,13 @@ func awsSAMLProviderOutputToProto(arn string, accountID string, provider *iam.Ge
 	var tags []*accessgraphv1alpha.AWSTag
 	for _, v := range provider.Tags {
 		tags = append(tags, &accessgraphv1alpha.AWSTag{
-			Key:   aws.StringValue(v.Key),
+			Key:   aws.ToString(v.Key),
 			Value: strPtrToWrapper(v.Value),
 		})
 	}
 
 	var metadata samltypes.EntityDescriptor
-	if err := xml.Unmarshal([]byte(aws.StringValue(provider.SAMLMetadataDocument)), &metadata); err != nil {
+	if err := xml.Unmarshal([]byte(aws.ToString(provider.SAMLMetadataDocument)), &metadata); err != nil {
 		return nil, trace.Wrap(err, "failed to parse SAML metadata for %s", arn)
 	}
 
@@ -121,35 +128,43 @@ func awsSAMLProviderOutputToProto(arn string, accountID string, provider *iam.Ge
 		EntityId:            metadata.EntityID,
 		SsoUrls:             ssoURLs,
 		SigningCertificates: signingCerts,
+		LastSyncTime:        timestamppb.Now(),
 	}, nil
 }
 
-func (a *awsFetcher) pollAWSOIDCProviders(ctx context.Context, result *Resources, collectErr func(error)) func() error {
+func (a *Fetcher) pollAWSOIDCProviders(ctx context.Context, result *Resources, collectErr func(error)) func() error {
 	return func() error {
-		var err error
-
-		iamClient, err := a.CloudClients.GetAWSIAMClient(
+		existing := a.lastResult
+		awsCfg, err := a.AWSConfigProvider.GetConfig(
 			ctx,
 			"", /* region is empty because oidc providers are global */
 			a.getAWSOptions()...,
 		)
 		if err != nil {
 			collectErr(trace.Wrap(err, "failed to get AWS IAM client"))
+			result.OIDCProviders = existing.OIDCProviders
 			return nil
 		}
-		listResp, err := iamClient.ListOpenIDConnectProvidersWithContext(ctx, &iam.ListOpenIDConnectProvidersInput{})
+		iamClient := a.awsClients.getIAMClient(awsCfg)
+
+		listResp, err := iamClient.ListOpenIDConnectProviders(ctx, &iam.ListOpenIDConnectProvidersInput{})
 		if err != nil {
 			collectErr(trace.Wrap(err, "failed to list AWS OIDC identity providers"))
+			result.OIDCProviders = existing.OIDCProviders
 			return nil
 		}
 
 		providers := make([]*accessgraphv1alpha.AWSOIDCProviderV1, 0, len(listResp.OpenIDConnectProviderList))
 		for _, providerRef := range listResp.OpenIDConnectProviderList {
-			arn := aws.StringValue(providerRef.Arn)
+			arn := aws.ToString(providerRef.Arn)
 			provider, err := a.fetchAWSOIDCProvider(ctx, iamClient, arn)
 			if err != nil {
 				collectErr(trace.Wrap(err, "failed to get info for OIDC provider %s", arn))
-			} else {
+				provider = sliceFilterPickFirst(existing.OIDCProviders, func(p *accessgraphv1alpha.AWSOIDCProviderV1) bool {
+					return p.Arn == arn
+				})
+			}
+			if provider != nil {
 				providers = append(providers, provider)
 			}
 		}
@@ -160,8 +175,8 @@ func (a *awsFetcher) pollAWSOIDCProviders(ctx context.Context, result *Resources
 }
 
 // fetchAWSOIDCProvider fetches data about a single OIDC identity provider.
-func (a *awsFetcher) fetchAWSOIDCProvider(ctx context.Context, client iamiface.IAMAPI, arn string) (*accessgraphv1alpha.AWSOIDCProviderV1, error) {
-	providerResp, err := client.GetOpenIDConnectProviderWithContext(ctx, &iam.GetOpenIDConnectProviderInput{
+func (a *Fetcher) fetchAWSOIDCProvider(ctx context.Context, client iamClient, arn string) (*accessgraphv1alpha.AWSOIDCProviderV1, error) {
+	providerResp, err := client.GetOpenIDConnectProvider(ctx, &iam.GetOpenIDConnectProviderInput{
 		OpenIDConnectProviderArn: aws.String(arn),
 	})
 	if err != nil {
@@ -176,18 +191,19 @@ func awsOIDCProviderOutputToProto(arn string, accountID string, provider *iam.Ge
 	var tags []*accessgraphv1alpha.AWSTag
 	for _, v := range provider.Tags {
 		tags = append(tags, &accessgraphv1alpha.AWSTag{
-			Key:   aws.StringValue(v.Key),
+			Key:   aws.ToString(v.Key),
 			Value: strPtrToWrapper(v.Value),
 		})
 	}
 
 	return &accessgraphv1alpha.AWSOIDCProviderV1{
-		Arn:         arn,
-		CreatedAt:   awsTimeToProtoTime(provider.CreateDate),
-		Tags:        tags,
-		AccountId:   accountID,
-		ClientIds:   aws.StringValueSlice(provider.ClientIDList),
-		Thumbprints: aws.StringValueSlice(provider.ThumbprintList),
-		Url:         aws.StringValue(provider.Url),
+		Arn:          arn,
+		CreatedAt:    awsTimeToProtoTime(provider.CreateDate),
+		Tags:         tags,
+		AccountId:    accountID,
+		ClientIds:    provider.ClientIDList,
+		Thumbprints:  provider.ThumbprintList,
+		Url:          aws.ToString(provider.Url),
+		LastSyncTime: timestamppb.Now(),
 	}, nil
 }

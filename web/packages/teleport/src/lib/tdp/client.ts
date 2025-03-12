@@ -16,48 +16,47 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useEffect } from 'react';
+
 import Logger from 'shared/libs/logger';
 
 import init, {
-  init_wasm_log,
   FastPathProcessor,
+  init_wasm_log,
 } from 'teleport/ironrdp/pkg/ironrdp';
-
-import { WebsocketCloseCode, TermEvent } from 'teleport/lib/term/enums';
-import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
+import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
+import { TermEvent, WebsocketCloseCode } from 'teleport/lib/term/enums';
+import { MfaChallengeResponse } from 'teleport/services/mfa';
 
 import Codec, {
-  MessageType,
   FileType,
-  SharedDirectoryErrCode,
+  MessageType,
+  PointerData,
   Severity,
+  SharedDirectoryErrCode,
+  type ButtonState,
+  type ClientScreenSpec,
+  type ClipboardData,
+  type FileSystemObject,
+  type MouseButton,
+  type PngFrame,
+  type ScrollAxis,
+  type SharedDirectoryCreateResponse,
+  type SharedDirectoryDeleteResponse,
+  type SharedDirectoryInfoResponse,
+  type SharedDirectoryListResponse,
+  type SharedDirectoryMoveResponse,
+  type SharedDirectoryReadResponse,
+  type SharedDirectoryTruncateResponse,
+  type SharedDirectoryWriteResponse,
+  type SyncKeys,
 } from './codec';
 import {
   PathDoesNotExistError,
   SharedDirectoryManager,
+  type FileOrDirInfo,
 } from './sharedDirectoryManager';
-
-import type { FileOrDirInfo } from './sharedDirectoryManager';
-import type {
-  MouseButton,
-  ButtonState,
-  ScrollAxis,
-  ClientScreenSpec,
-  PngFrame,
-  ClipboardData,
-  SharedDirectoryInfoResponse,
-  SharedDirectoryListResponse,
-  SharedDirectoryMoveResponse,
-  SharedDirectoryReadResponse,
-  SharedDirectoryWriteResponse,
-  SharedDirectoryCreateResponse,
-  SharedDirectoryDeleteResponse,
-  FileSystemObject,
-  SyncKeys,
-  SharedDirectoryTruncateResponse,
-} from './codec';
-import type { WebauthnAssertionResponse } from 'teleport/services/auth';
 
 export enum TdpClientEvent {
   TDP_CLIENT_SCREEN_SPEC = 'tdp client screen spec',
@@ -93,7 +92,7 @@ export enum LogType {
 // sending client commands, and receiving and processing server messages. Its creator is responsible for
 // ensuring the websocket gets closed and all of its event listeners cleaned up when it is no longer in use.
 // For convenience, this can be done in one fell swoop by calling Client.shutdown().
-export default class Client extends EventEmitterWebAuthnSender {
+export default class Client extends EventEmitterMfaSender {
   protected codec: Codec;
   protected socket: AuthenticatedWebSocket | undefined;
   private socketAddr: string;
@@ -155,6 +154,71 @@ export default class Client extends EventEmitterWebAuthnSender {
       this.emit(TdpClientEvent.WS_CLOSE, message);
     };
   }
+
+  onClientError = (listener: (error: Error) => void) => {
+    this.on(TdpClientEvent.CLIENT_ERROR, listener);
+    return () => this.off(TdpClientEvent.CLIENT_ERROR, listener);
+  };
+
+  onClientWarning = (listener: (warningMessage: string) => void) => {
+    this.on(TdpClientEvent.CLIENT_WARNING, listener);
+    return () => this.off(TdpClientEvent.CLIENT_WARNING, listener);
+  };
+
+  onError = (listener: (error: Error) => void) => {
+    this.on(TdpClientEvent.TDP_ERROR, listener);
+    return () => this.off(TdpClientEvent.TDP_ERROR, listener);
+  };
+
+  onInfo = (listener: (info: string) => void) => {
+    this.on(TdpClientEvent.TDP_INFO, listener);
+    return () => this.off(TdpClientEvent.TDP_INFO, listener);
+  };
+
+  onReset = (listener: () => void) => {
+    this.on(TdpClientEvent.RESET, listener);
+    return () => this.off(TdpClientEvent.RESET, listener);
+  };
+
+  onBmpFrame = (listener: (bmpFrame: BitmapFrame) => void) => {
+    this.on(TdpClientEvent.TDP_BMP_FRAME, listener);
+    return () => this.off(TdpClientEvent.TDP_BMP_FRAME, listener);
+  };
+
+  onPngFrame = (listener: (pngFrame: PngFrame) => void) => {
+    this.on(TdpClientEvent.TDP_PNG_FRAME, listener);
+    return () => this.off(TdpClientEvent.TDP_PNG_FRAME, listener);
+  };
+
+  onPointer = (listener: (pointerData: PointerData) => void) => {
+    this.on(TdpClientEvent.POINTER, listener);
+    return () => this.off(TdpClientEvent.POINTER, listener);
+  };
+
+  onWarning = (listener: (warningMessage: string) => void) => {
+    this.on(TdpClientEvent.TDP_WARNING, listener);
+    return () => this.off(TdpClientEvent.TDP_WARNING, listener);
+  };
+
+  onWsClose = (listener: (message: string) => void) => {
+    this.on(TdpClientEvent.WS_CLOSE, listener);
+    return () => this.off(TdpClientEvent.WS_CLOSE, listener);
+  };
+
+  onWsOpen = (listener: () => void) => {
+    this.on(TdpClientEvent.WS_OPEN, listener);
+    return () => this.off(TdpClientEvent.WS_OPEN, listener);
+  };
+
+  onClipboardData = (listener: (clipboardData: ClipboardData) => void) => {
+    this.on(TdpClientEvent.TDP_CLIPBOARD_DATA, listener);
+    return () => this.off(TdpClientEvent.TDP_CLIPBOARD_DATA, listener);
+  };
+
+  onScreenSpec = (listener: (spec: ClientScreenSpec) => void) => {
+    this.on(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, listener);
+    return () => this.off(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, listener);
+  };
 
   private async initWasm() {
     // select the wasm log level
@@ -220,8 +284,8 @@ export default class Client extends EventEmitterWebAuthnSender {
             TdpClientEvent.TDP_ERROR
           );
           break;
-        case MessageType.NOTIFICATION:
-          this.handleTdpNotification(buffer);
+        case MessageType.ALERT:
+          this.handleTdpAlert(buffer);
           break;
         case MessageType.MFA_JSON:
           this.handleMfaChallenge(buffer);
@@ -297,17 +361,15 @@ export default class Client extends EventEmitterWebAuthnSender {
     );
   }
 
-  handleTdpNotification(buffer: ArrayBuffer) {
-    const notification = this.codec.decodeNotification(buffer);
-    if (notification.severity === Severity.Error) {
-      this.handleError(
-        new Error(notification.message),
-        TdpClientEvent.TDP_ERROR
-      );
-    } else if (notification.severity === Severity.Warning) {
-      this.handleWarning(notification.message, TdpClientEvent.TDP_WARNING);
+  handleTdpAlert(buffer: ArrayBuffer) {
+    const alert = this.codec.decodeAlert(buffer);
+    // TODO(zmb3): info and warning should use the same handler
+    if (alert.severity === Severity.Error) {
+      this.handleError(new Error(alert.message), TdpClientEvent.TDP_ERROR);
+    } else if (alert.severity === Severity.Warning) {
+      this.handleWarning(alert.message, TdpClientEvent.TDP_WARNING);
     } else {
-      this.handleInfo(notification.message);
+      this.handleInfo(alert.message);
     }
   }
 
@@ -376,7 +438,7 @@ export default class Client extends EventEmitterWebAuthnSender {
     try {
       const mfaJson = this.codec.decodeMfaJson(buffer);
       if (mfaJson.mfaType == 'n') {
-        this.emit(TermEvent.WEBAUTHN_CHALLENGE, mfaJson.jsonString);
+        this.emit(TermEvent.MFA_CHALLENGE, mfaJson.jsonString);
       } else {
         // mfaJson.mfaType === 'u', or else decodeMfaJson would have thrown an error.
         this.handleError(
@@ -397,10 +459,13 @@ export default class Client extends EventEmitterWebAuthnSender {
   handleSharedDirectoryAcknowledge(buffer: ArrayBuffer) {
     const ack = this.codec.decodeSharedDirectoryAcknowledge(buffer);
     if (ack.errCode !== SharedDirectoryErrCode.Nil) {
-      // TODO(zmb3): get a better error message here
-      this.handleError(
-        new Error(`Encountered shared directory error: ${ack.errCode}`),
-        TdpClientEvent.CLIENT_ERROR
+      // A failure in the acknowledge message means the directory
+      // share operation failed (likely due to server side configuration).
+      // Since this is not a fatal error, we emit a warning but otherwise
+      // keep the sesion alive.
+      this.handleWarning(
+        `Failed to share directory '${this.sdManager.getName()}', drive redirection may be disabled on the RDP server.`,
+        TdpClientEvent.TDP_WARNING
       );
       return;
     }
@@ -623,7 +688,7 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.send(this.codec.encodeClipboardData(clipboardData));
   }
 
-  sendWebAuthn(data: WebauthnAssertionResponse) {
+  sendChallengeResponse(data: MfaChallengeResponse) {
     const msg = this.codec.encodeMfaJson({
       mfaType: 'n',
       jsonString: JSON.stringify(data),
@@ -699,17 +764,24 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.send(this.codec.encodeRdpResponsePDU(responseFrame));
   }
 
-  // Emits an errType event, closing the socket if the error was fatal.
+  // Emits an errType event and closes the websocket connection.
+  // Should only be used for fatal errors.
   private handleError(
     err: Error,
     errType: TdpClientEvent.TDP_ERROR | TdpClientEvent.CLIENT_ERROR
   ) {
     this.logger.error(err);
     this.emit(errType, err);
-    this.socket?.close();
+    // All errors are fatal, meaning that we are closing the connection after they happen.
+    // To prevent overwriting such error with our close handler, remove it before
+    // closing the connection.
+    if (this.socket) {
+      this.socket.onclose = null;
+      this.socket.close();
+    }
   }
 
-  // Emits an warnType event
+  // Emits a warning event, but keeps the socket open.
   private handleWarning(
     warning: string,
     warnType: TdpClientEvent.TDP_WARNING | TdpClientEvent.CLIENT_WARNING
@@ -723,13 +795,9 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.emit(TdpClientEvent.TDP_INFO, info);
   }
 
-  // Ensures full cleanup of this object.
-  // Note that it removes all listeners first and then cleans up the socket,
-  // so don't call this if your calling object is relying on listeners.
   // It's safe to call this multiple times, calls subsequent to the first call
   // will simply do nothing.
   shutdown(closeCode = WebsocketCloseCode.NORMAL) {
-    this.removeAllListeners();
     this.socket?.close(closeCode);
   }
 }
@@ -740,3 +808,18 @@ export type BitmapFrame = {
   left: number;
   image_data: ImageData;
 };
+
+export function useListener<T extends any[]>(
+  emitter: (callback: (...args: T) => void) => () => void | undefined,
+  listener: ((...args: T) => void) | undefined
+) {
+  useEffect(() => {
+    if (!emitter) {
+      return;
+    }
+    const unregister = emitter((...args) => listener?.(...args));
+    return () => {
+      unregister();
+    };
+  }, [emitter, listener]);
+}

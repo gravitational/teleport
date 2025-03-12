@@ -92,29 +92,6 @@ func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListU
 				},
 				RequiresRequest: requiresRequest,
 			})
-		case types.AppServerOrSAMLIdPServiceProvider:
-			//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
-			if r.IsAppServer() {
-				app := r.GetAppServer().GetApp()
-				response.Resources = append(response.Resources, UnifiedResource{
-					App: &clusters.App{
-						URI:      cluster.URI.AppendApp(app.GetName()),
-						FQDN:     cluster.AssembleAppFQDN(app),
-						AWSRoles: cluster.GetAWSRoles(app),
-						App:      app,
-					},
-					RequiresRequest: requiresRequest,
-				})
-			} else {
-				provider := r.GetSAMLIdPServiceProvider()
-				response.Resources = append(response.Resources, UnifiedResource{
-					SAMLIdPServiceProvider: &clusters.SAMLIdPServiceProvider{
-						URI:      cluster.URI.AppendApp(provider.GetName()),
-						Provider: provider,
-					},
-					RequiresRequest: requiresRequest,
-				})
-			}
 		case types.SAMLIdPServiceProvider:
 			response.Resources = append(response.Resources, UnifiedResource{
 				SAMLIdPServiceProvider: &clusters.SAMLIdPServiceProvider{

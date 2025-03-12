@@ -37,15 +37,16 @@ or by installing [cert-manager](https://cert-manager.io/docs/) and setting the `
 
 ### Replicated setup guides
 
-- [Running an HA Teleport cluster in Kubernetes using an AWS EKS Cluster](https://goteleport.com/docs/deploy-a-cluster/helm-deployments/aws/)
-- [Running an HA Teleport cluster in Kubernetes using a Google Cloud GKE cluster](https://goteleport.com/docs/deploy-a-cluster/helm-deployments/gcp/)
-- [Running a Teleport cluster in Kubernetes with a custom Teleport config](https://goteleport.com/docs/deploy-a-cluster/helm-deployments/custom/)
+- [Running an HA Teleport cluster in Kubernetes using an AWS EKS Cluster](https://goteleport.com/docs/admin-guides/deploy-a-cluster/helm-deployments/aws/)
+- [Running an HA Teleport cluster in Kubernetes using an Google Cloud GKE cluster](https://goteleport.com/docs/admin-guides/deploy-a-cluster/helm-deployments/gcp/)
+- [Running an HA Teleport cluster in Kubernetes using an Azure AKS cluster](https://goteleport.com/docs/admin-guides/deploy-a-cluster/helm-deployments/azure/)
+- [Running a Teleport cluster in Kubernetes with a custom Teleport config](https://goteleport.com/docs/admin-guides/deploy-a-cluster/helm-deployments/custom/)
 
 ### Creating first user
 
 The first user can be created by executing a command in one of the auth pods.
 
-```shell
+```code
 kubectl exec it -n teleport-cluster statefulset/teleport-cluster-auth -- tctl users add my-username --roles=editor,auditor,access
 ```
 
@@ -59,7 +60,7 @@ helm uninstall --namespace teleport-cluster teleport-cluster
 
 ## Documentation
 
-See https://goteleport.com/docs/kubernetes-access/helm/guides/ for guides on setting up HA Teleport clusters
+See https://goteleport.com/docs/admin-guides/deploy-a-cluster/helm-deployments/ for guides on setting up HA Teleport clusters
 in EKS or GKE, plus a comprehensive chart reference.
 
 ## Contributing to the chart

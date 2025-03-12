@@ -16,34 +16,31 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { MemoryRouter } from 'react-router';
 import { StoryObj } from '@storybook/react';
+import { delay, http, HttpResponse } from 'msw';
+import { MemoryRouter } from 'react-router';
 import { withoutQuery } from 'web/packages/build/storybook';
 
-import { http, HttpResponse, delay } from 'msw';
-
-import { Context as TeleportContext, ContextProvider } from 'teleport';
+import { ContextProvider, Context as TeleportContext } from 'teleport';
 import cfg from 'teleport/config';
-import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
-import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
-import { userContext } from 'teleport/Main/fixtures';
 import { ResourceKind } from 'teleport/Discover/Shared';
+import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
+import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
+import {
+  DiscoverContextState,
+  DiscoverProvider,
+} from 'teleport/Discover/useDiscover';
+import { userContext } from 'teleport/Main/fixtures';
 import {
   IntegrationKind,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
 import {
-  DiscoverContextState,
-  DiscoverProvider,
-} from 'teleport/Discover/useDiscover';
-import { DiscoverEventResource } from 'teleport/services/userEvent';
-
-import { UserContextProvider } from 'teleport/User';
-import {
   INTERNAL_RESOURCE_ID_LABEL_KEY,
   JoinToken,
 } from 'teleport/services/joinToken';
+import { DiscoverEventResource } from 'teleport/services/userEvent';
+import { UserContextProvider } from 'teleport/User';
 
 import DownloadScript from './DownloadScript';
 
@@ -66,7 +63,7 @@ export const Polling: StoryObj = {
         http.get(nodesPathWithoutQuery, () => {
           return delay('infinite');
         }),
-        http.post(cfg.api.joinTokenPath, () => {
+        http.post(cfg.api.discoveryJoinToken.createV2, () => {
           return HttpResponse.json(joinToken);
         }),
       ],
@@ -75,7 +72,7 @@ export const Polling: StoryObj = {
   render() {
     return (
       <Provider>
-        <DownloadScript />
+        <DownloadScript prevStep={() => null} />
       </Provider>
     );
   },
@@ -89,7 +86,7 @@ export const PollingSuccess: StoryObj = {
         http.get(nodesPathWithoutQuery, () => {
           return HttpResponse.json({ items: [{}] });
         }),
-        http.post(cfg.api.joinTokenPath, () => {
+        http.post(cfg.api.discoveryJoinToken.createV2, () => {
           return HttpResponse.json(joinToken);
         }),
       ],
@@ -98,7 +95,7 @@ export const PollingSuccess: StoryObj = {
   render() {
     return (
       <Provider interval={5}>
-        <DownloadScript />
+        <DownloadScript prevStep={() => null} />
       </Provider>
     );
   },
@@ -114,7 +111,7 @@ export const PollingError: StoryObj = {
         http.get(nodesPathWithoutQuery, () => {
           return delay('infinite');
         }),
-        http.post(cfg.api.joinTokenPath, () => {
+        http.post(cfg.api.discoveryJoinToken.createV2, () => {
           return HttpResponse.json(joinToken);
         }),
       ],
@@ -123,7 +120,7 @@ export const PollingError: StoryObj = {
   render() {
     return (
       <Provider interval={50}>
-        <DownloadScript />
+        <DownloadScript prevStep={() => null} />
       </Provider>
     );
   },
@@ -133,7 +130,7 @@ export const Processing: StoryObj = {
   parameters: {
     msw: {
       handlers: [
-        http.post(cfg.api.joinTokenPath, () => {
+        http.post(cfg.api.discoveryJoinToken.createV2, () => {
           return delay('infinite');
         }),
       ],
@@ -142,7 +139,7 @@ export const Processing: StoryObj = {
   render() {
     return (
       <Provider interval={5}>
-        <DownloadScript />
+        <DownloadScript prevStep={() => null} />
       </Provider>
     );
   },
@@ -152,7 +149,7 @@ export const Failed: StoryObj = {
   parameters: {
     msw: {
       handlers: [
-        http.post(cfg.api.joinTokenPath, () => {
+        http.post(cfg.api.discoveryJoinToken.createV2, () => {
           return HttpResponse.json(
             {
               error: { message: 'Whoops, something went wrong.' },
@@ -166,7 +163,7 @@ export const Failed: StoryObj = {
   render() {
     return (
       <Provider>
-        <DownloadScript />
+        <DownloadScript prevStep={() => null} />
       </Provider>
     );
   },
@@ -196,7 +193,7 @@ const Provider = props => {
       name: 'kube',
       kind: ResourceKind.Kubernetes,
       icon: 'kube',
-      keywords: '',
+      keywords: [],
       event: DiscoverEventResource.Kubernetes,
     },
     exitFlow: () => null,

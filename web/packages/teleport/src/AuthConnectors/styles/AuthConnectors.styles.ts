@@ -17,7 +17,8 @@
  */
 
 import styled from 'styled-components';
-import { Box, ButtonPrimary, Subtitle1 } from 'design';
+
+import { Box, Button, Subtitle1 } from 'design';
 
 import { FeatureHeader } from 'teleport/components/Layout';
 
@@ -51,7 +52,7 @@ export const DesktopDescription = styled(Box)`
   }
 `;
 
-export const ResponsiveAddButton = styled(ButtonPrimary)`
+export const ResponsiveAddButton = styled(Button)`
   width: 240px;
   @media screen and (max-width: ${p => p.theme.breakpoints.tablet}px) {
     width: 100%;

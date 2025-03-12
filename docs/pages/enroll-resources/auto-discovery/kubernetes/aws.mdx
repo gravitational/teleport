@@ -9,6 +9,8 @@ configured labels.
 
 (!docs/pages/includes/discovery/step-description.mdx serviceName="Kubernetes" resourceDesc="cluster" resourceKind="kube_cluster" !)
 
+(!docs/pages/includes/discovery/same-host-tip.mdx serviceName="Kubernetes" resourceDesc="cluster" !)
+
 ## How it works
 
 The Teleport Discovery Service scans configured cloud providers, including AWS,
@@ -48,12 +50,12 @@ running the Teleport Discovery Service:
 
 ## Step 2/3. Configure EKS cluster authorization
 
-<Notice type="warning">
+<Admonition type="warning">
 If you are running Teleport Discovery v15.3.8 or later and the IAM role
 used by the Discovery Service has the necessary permissions to create and
 update Access Entries, you can skip this section. The service can self-bootstrap
 the required permissions automatically.
-</Notice>
+</Admonition>
 
 When the Kubernetes Service uses an IAM role that is different from the one that
 creates the clusters, you need to configure the mapping between the Teleport IAM
@@ -135,33 +137,12 @@ subjects:
 
 ### IAM mapping
 
-<Tabs>
-  <TabItem label="EKS access entry" >
-
-Create an EKS access entry to link the <Var name="arn:aws:iam::222222222222:role/teleport-role" />
-to the Kubernetes Group `teleport` we created in the previous step.
-
-```shell
-$ aws eks create-access-entry \
-  --cluster-name <Var name="eks-cluster" /> \
-  --region <Var name="eu-west-1" /> \
-  --principal-arn <Var name="arn:aws:iam::222222222222:role/teleport-role" /> \
-  --kubernetes-groups teleport
-
-{
-  ...
-}
-```
-
-  </TabItem>
-
-  <TabItem label="aws-auth Configmap" >
-
-Finally, edit the `configmap/aws-auth` in the `kube-system` namespace and append
-the following to `mapRoles`. Replace `{teleport_aws_iam_role}` with the
-appropriate IAM role that Teleport Kubernetes Service will use.
-This step will link the Teleport IAM role into the Kubernetes RBAC group `teleport`,
-allowing Teleport Kubernetes Service to forward requests into the cluster.
+If your cluster includes the `aws-auth` config map, edit the `configmap/aws-auth`
+in the `kube-system` namespace and append the following to `mapRoles`. Replace
+`{teleport_aws_iam_role}` with the appropriate IAM role that Teleport Kubernetes
+Service will use. This step will link the Teleport IAM role into the Kubernetes
+RBAC group `teleport`, allowing Teleport Kubernetes Service to forward requests
+into the cluster:
 
 ```yaml
 apiVersion: v1
@@ -172,8 +153,22 @@ data:
       rolearn: {teleport_aws_iam_role} # e.g. arn:aws:iam::222222222222:role/teleport-role
       username: teleport
 ```
-  </TabItem>
-</Tabs>
+
+Otherwise, create an EKS access entry to link the <Var
+name="arn:aws:iam::222222222222:role/teleport-role" /> to the Kubernetes Group
+`teleport` we created in the previous step:
+
+```code
+$ aws eks create-access-entry \
+  --cluster-name <Var name="eks-cluster" /> \
+  --region <Var name="eu-west-1" /> \
+  --principal-arn <Var name="arn:aws:iam::222222222222:role/teleport-role" /> \
+  --kubernetes-groups teleport
+
+{
+  ...
+}
+```
 
 At this point, the Teleport IAM role already has the minimum permissions
 to forward requests to the cluster.
@@ -207,50 +202,16 @@ to forward requests to the cluster.
 
 <TabItem label="Use system:masters" >
 
-    <Notice type="warning">
+    <Admonition type="warning">
 Granting the `system:masters` group to the IAM role associated with the Teleport
 service means granting administrator-level permissions on the Kubernetes cluster.
 To follow least privilege principle we do not recommend using this method in production.
-  </Notice>
+  </Admonition>
 
-
-
-<Tabs>
-  <TabItem label="EKS access entry" >
-
-Create an EKS access entry and Access Policy to link the <Var name="arn:aws:iam::222222222222:role/teleport-role" />
-to the cluster wide policy `arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy` (equivalent of `cluster-admin` `ClusterRole`).
-
-```shell
-$ aws eks create-access-entry \
-  --cluster-name <Var name="eks-cluster" /> \
-  --region <Var name="eu-west-1" /> \
-  --principal-arn <Var name="arn:aws:iam::222222222222:role/teleport-role" />
-
-{
-  ...
-}
-
-$ aws eks associate-access-policy \
-  --cluster-name <Var name="eks-cluster" /> \
-  --region <Var name="eu-west-1" /> \
-  --principal-arn <Var name="arn:aws:iam::222222222222:role/teleport-role" />
-  --policy-arn "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy" \
-  --access-scope type=cluster
-
-{
-  ...
-}
-
-```
-
-  </TabItem>
-
-  <TabItem label="aws-auth Configmap" >
-
-To associate the Teleport IAM role with the `system:masters` RBAC group,
-edit the `configmap/aws-auth` in the `kube-system` namespace and append
-the following to `mapRoles`.
+If your cluster contains an `aws-auth` config map, you can use this to associate
+the Teleport IAM role with the `system:masters` RBAC group. Edit the
+`configmap/aws-auth` in the `kube-system` namespace and append the following to
+`mapRoles`:
 
 ```yaml
 apiVersion: v1
@@ -263,11 +224,36 @@ data:
       username: teleport
 ```
 
-Please replace `{teleport_aws_iam_role}` with the appropriate IAM role that
+Replace `{teleport_aws_iam_role}` with the appropriate IAM role that
 Teleport Kubernetes Service is using.
-  </TabItem>
-</Tabs>
 
+Otherwise, create an EKS access entry and Access Policy to link the <Var
+name="arn:aws:iam::222222222222:role/teleport-role" /> to the cluster wide
+policy `arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy`
+(equivalent of `cluster-admin` `ClusterRole`):
+
+```code
+$ aws eks create-access-entry \
+  --cluster-name <Var name="eks-cluster" /> \
+  --region <Var name="eu-west-1" /> \
+  --principal-arn <Var name="arn:aws:iam::222222222222:role/teleport-role" />
+
+{
+  ...
+}
+
+$ aws eks associate-access-policy \
+  --cluster-name <Var name="eks-cluster" /> \
+  --region <Var name="eu-west-1" /> \
+  --principal-arn <Var name="arn:aws:iam::222222222222:role/teleport-role" /> \
+  --policy-arn "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy" \
+  --access-scope type=cluster
+
+{
+  ...
+}
+
+```
 
 At this point, the Teleport IAM role already has the minimum permissions
 to forward requests to the cluster.
@@ -275,11 +261,11 @@ to forward requests to the cluster.
   </TabItem>
 </Tabs>
 
-<Notice type="tip">
+<Admonition type="tip">
 If you provision your EKS clusters using tools such as `terraform`, `eksctl` or
 `Cloudformation`, you can use them to automatically configure the `aws-auth` `Configmap` or access entry
 and create the `ClusterRole` and `ClusterRoleBinding` resources during cluster provisioning.
-</Notice>
+</Admonition>
 
 ## Step 3/3. Configure Teleport to discover EKS clusters
 
@@ -311,7 +297,7 @@ teleport:
   join_params:
     token_name: "/tmp/token"
     method: token
-  proxy_server: <Var name="teleport.example.com" />:443
+  proxy_server: "teleport.example.com:443"
 auth_service:
   enabled: off
 proxy_service:

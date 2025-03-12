@@ -35,6 +35,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -43,7 +44,10 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 type options struct {
@@ -59,8 +63,8 @@ func withEditor(editor func(string) error) optionsFunc {
 }
 
 type cliCommand interface {
-	Initialize(app *kingpin.Application, cfg *servicecfg.Config)
-	TryRun(ctx context.Context, cmd string, client *authclient.Client) (bool, error)
+	Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config)
+	TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (bool, error)
 }
 
 func runCommand(t *testing.T, client *authclient.Client, cmd cliCommand, args []string) error {
@@ -68,13 +72,14 @@ func runCommand(t *testing.T, client *authclient.Client, cmd cliCommand, args []
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	app := utils.InitCLIParser("tctl", GlobalHelpString)
-	cmd.Initialize(app, cfg)
+	cmd.Initialize(app, &tctlcfg.GlobalCLIFlags{}, cfg)
 
 	selectedCmd, err := app.Parse(args)
 	require.NoError(t, err)
 
-	ctx := context.Background()
-	_, err = cmd.TryRun(ctx, selectedCmd, client)
+	_, err = cmd.TryRun(context.Background(), selectedCmd, func(ctx context.Context) (*authclient.Client, func(context.Context), error) {
+		return client, func(context.Context) {}, nil
+	})
 	return err
 }
 
@@ -133,11 +138,28 @@ func runIdPSAMLCommand(t *testing.T, client *authclient.Client, args []string) e
 	return runCommand(t, client, command, args)
 }
 
+func runNotificationsCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
+	var stdoutBuff bytes.Buffer
+	command := &NotificationCommand{
+		stdout: &stdoutBuff,
+	}
+
+	args = append([]string{"notifications"}, args...)
+	return &stdoutBuff, runCommand(t, client, command, args)
+}
+
 func mustDecodeJSON[T any](t *testing.T, r io.Reader) T {
 	var out T
 	err := json.NewDecoder(r).Decode(&out)
 	require.NoError(t, err)
 	return out
+}
+
+func mustTranscodeYAMLToJSON(t *testing.T, r io.Reader) []byte {
+	decoder := kyaml.NewYAMLToJSONDecoder(r)
+	var resource services.UnknownResource
+	require.NoError(t, decoder.Decode(&resource))
+	return resource.Raw
 }
 
 func mustDecodeYAMLDocuments[T any](t *testing.T, r io.Reader, out *[]T) {
@@ -194,7 +216,7 @@ func mustWriteIdentityFile(t *testing.T, client *authclient.Client, username str
 type testServerOptions struct {
 	fileConfig      *config.FileConfig
 	fileDescriptors []*servicecfg.FileDescriptor
-	fakeClock       clockwork.FakeClock
+	fakeClock       *clockwork.FakeClock
 }
 
 type testServerOptionFunc func(options *testServerOptions)
@@ -211,7 +233,7 @@ func withFileDescriptors(fds []*servicecfg.FileDescriptor) testServerOptionFunc 
 	}
 }
 
-func withFakeClock(fakeClock clockwork.FakeClock) testServerOptionFunc {
+func withFakeClock(fakeClock *clockwork.FakeClock) testServerOptionFunc {
 	return func(options *testServerOptions) {
 		options.fakeClock = fakeClock
 	}

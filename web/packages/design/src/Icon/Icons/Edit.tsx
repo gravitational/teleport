@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,9 +50,15 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function Edit({ size = 24, color, ...otherProps }: IconProps) {
-  return (
-    <Icon size={size} color={color} className="icon icon-edit" {...otherProps}>
+export const Edit = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
+    <Icon
+      size={size}
+      color={color}
+      className="icon icon-edit"
+      {...otherProps}
+      ref={ref}
+    >
       <path
         fillRule="evenodd"
         clipRule="evenodd"
@@ -60,5 +66,5 @@ export function Edit({ size = 24, color, ...otherProps }: IconProps) {
       />
       <path d="M4.5 3C4.10217 3 3.72064 3.15804 3.43934 3.43934C3.15804 3.72064 3 4.10217 3 4.5V19.5C3 19.8978 3.15804 20.2794 3.43934 20.5607C3.72065 20.842 4.10218 21 4.5 21H19.5C19.8978 21 20.2794 20.842 20.5607 20.5607C20.842 20.2794 21 19.8978 21 19.5V11.25C21 10.8358 20.6642 10.5 20.25 10.5C19.8358 10.5 19.5 10.8358 19.5 11.25V19.5H4.5L4.5 4.5L12.75 4.5C13.1642 4.5 13.5 4.16421 13.5 3.75C13.5 3.33579 13.1642 3 12.75 3H4.5Z" />
     </Icon>
-  );
-}
+  )
+);

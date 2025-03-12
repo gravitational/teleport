@@ -15,11 +15,10 @@ end of an SSH session.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- A running Linux server registered with Teleport. See the [Server Access
-  Getting Started Guide](../getting-started.mdx) for how to add a server to your
-  Teleport cluster. We recommend enrolling a server that runs in a demo
-  environment for the purpose of this guide until you are familiar with the
-  instructions.
+- A running Linux server registered with Teleport. See the [getting started
+  guide](../getting-started.mdx) for how to add a server to your Teleport
+  cluster. We recommend enrolling a server that runs in a demo environment for
+  the purpose of this guide until you are familiar with the instructions.
 - The following utilities should be available in the PATH for the Teleport SSH
   Service, since it must execute these commands in order to create transient
   users:
@@ -31,10 +30,12 @@ end of an SSH session.
   - `visudo`
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/3. Configure RBAC
+## Automatic host users
 
-In this section, you will configure a Teleport role that enables host user
-creation.  
+In this section, you will configure Teleport to create local users when a
+Teleport user starts an SSH session.
+
+### Step 1/4. Configure RBAC
 
 When a Teleport user accesses an SSH Service instance, Teleport checks each of
 the user's roles that match the instance. If at least one role matches the
@@ -50,7 +51,7 @@ To enable host user creation, you will:
 - For the purpose of this guide, create a Teleport user with only the role you
   created.
 
-### Label your server
+#### Label your server
 
 1. Access the server you enrolled with Teleport before beginning this guide and
    open the Teleport configuration file, which is `/etc/teleport.yaml` by
@@ -65,7 +66,7 @@ To enable host user creation, you will:
 
 1. Restart Teleport on the server.
 
-### Define a Teleport role
+#### Define a Teleport role
 
 The following role specification allows users to log in as `nginxrestarter` on
 any matching server. Add this content to a file called `auto-users.yaml`:
@@ -79,6 +80,7 @@ spec:
   options:
     # Allow automatic creation of users.
     create_host_user_mode: keep
+    create_host_user_default_shell: /bin/bash
   allow:
     logins: [ "nginxrestarter" ]
     # List of host groups the created user will be added to. Any that don't already exist are created.
@@ -101,7 +103,9 @@ The `create_host_user_mode` field enables host user creation when the value is
 the `app:nginx` label, the Teleport SSH Service creates a host user, adds it to
 the groups listed in `host_groups`, and gives it the sudoer permissions
 specified in the `host_sudoers` field. In this case, the new user receives
-permission to restart the Nginx service as root.
+permission to restart the Nginx service as root. In Teleport 16.4.0 and later,
+the default shell for a created user can be configured with `create_host_user_default_shell`. 
+Otherwise the host's default shell will be used.
 
 {/*TODO (ptgott): We should move the information below into a reference guide*/}
 <Details title="Customizing host user creation">
@@ -164,7 +168,9 @@ $ tctl create -f auto-users.yaml
 # role 'auto-users' has been created
 ```
 
-### Create a Teleport user
+(!docs/pages/includes/create-role-using-web.mdx!)
+
+#### Create a Teleport user
 
 1. Run the following command to create a Teleport user with the `auto-users`
    role:
@@ -176,7 +182,7 @@ $ tctl create -f auto-users.yaml
 1. Follow the instructions in your terminal to visit the Teleport Web UI and
    create the user.
 
-## Step 2/3. [Optional] Configure the UID and GID for the created users
+### Step 2/4. [Optional] Configure the UID and GID for the created users
 
 If the user has the `host_user_uid` and `host_user_gid` traits
 specified, when the host user is being created the UID and GID will be
@@ -211,7 +217,61 @@ If multiple entries are specified in the `host_user_uid` or `host_user_gid` only
 
 </Admonition>
 
-## Step 3/3 Test host user creation
+For Teleport users that don't have a `host_user_uid` trait, starting from Teleport 17.3, it's possible to configure the cluster to assign the same UID for any given username for automatically created host users across all Teleport SSH instances.
+
+Edit your cluster authentication preference using the following command:
+
+```code
+$ tctl edit cluster_auth_preference
+```
+
+In your editor, ensure that your `cluster_auth_preference` includes a `stable_unix_user_config` field similar to the following:
+
+```yaml
+kind: cluster_auth_preference
+version: v2
+metadata:
+  name: cluster-auth-preference
+spec:
+  # ...
+  stable_unix_user_config:
+    enabled: true
+    first_uid: 90000
+    last_uid: 95000
+```
+
+The range of UIDs between `first_uid` and `last_uid` (inclusive) will be used by Teleport to assign UIDs for new users, and you should make sure it's not a range of UIDs already in use by other services or workloads across your fleet of servers. While UID allocations in Linux can vary, we recommend sticking to one of the available ranges listed in the [systemd documentation for "Users, Groups, UIDs and GIDs on systemd Systems"](https://github.com/systemd/systemd/blob/main/docs/UIDS-GIDS.md).
+
+Once enabled, all Teleport SSH instances (of version 17.3 and newer) will use the UID provided by the control plane when automatically creating a new host user, if no other UID is specified by the user trait.
+
+<Admonition type="note">
+
+Teleport will only use the UID defined by the control plane if the `create_host_user_mode` is `keep` (and not `insecure-drop`), and only for automatically created host users that were created after the feature was enabled. The UID will not be applied to users that already exist, and it will not take effect for static host users.
+
+</Admonition>
+
+You can inspect the list of assigned UIDs with the following command:
+
+```code
+$ tctl stable-unix-users ls
+```
+
+### Step 3/4. Configure sudoers on your Linux servers
+
+Teleport host user creation leverages the `sudoers.d` directory for new users. 
+For CentOS builds, ensure that the following line is present in your sudoers file. Ignore for any other Linux distros:
+
+```bash
+#includedir /etc/sudoers.d
+```
+
+In the sudoers file, the `#` symbol is typically used to indicate comments. However, 
+in this context, `#includedir` is a directive and not a comment.
+
+For Debian-based systems, you might encounter `@includedir /etc/sudoers.d`, 
+which serves a similar purpose. Ensure that the correct directive is used based on your operating system.
+
+### Step 4/4 Test host user creation
 
 When you connect to a remote Node via `tsh`, and host user creation is enabled, the
 Teleport SSH Service will automatically create a user on the host:
@@ -235,6 +295,143 @@ not already exist are created on the host. The `nginxrestarter` user is added to
 the `ubuntu`, `nginx`, and `other` groups, as specified in the `host_groups`
 field.
 
+## Static host users
+
+In this section, you will configure Teleport to create local users independently
+of an SSH session. Static host users require Teleport version >=16.3.0 on auth
+servers, SSH services, and `tctl`.
+
+### Step 1/3. Configure RBAC
+
+#### Label your server
+
+1. Access the server you enrolled with Teleport before beginning this guide and
+   open the Teleport configuration file, which is `/etc/teleport.yaml` by
+   default.
+
+1. Make the following change to the configuration file:
+
+   ```diff
+     labels:
+   +   app: "nginx"
+   ```
+
+1. Restart Teleport on the server.
+
+#### Define a Teleport role
+
+The following role specification allows users to log in as `nginxrestarter` on
+any matching server. Add this content to a file called `auto-users.yaml`:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: auto-users
+spec:
+  allow:
+    logins: ["nginxrestarter"]
+    node_labels:
+      "app": "nginx"
+```
+
+Create the role:
+
+```code
+$ tctl create -f auto-users.yaml
+# role 'auto-users' has been created
+```
+
+#### Create a Teleport user
+
+1. Run the following command to create a Teleport user with the `auto-users`
+   role:
+
+   ```code
+   $ tctl users add demo-user --roles=auto-users --logins=nginxrestarter
+   ```
+
+1. Follow the instructions in your terminal to visit the Teleport Web UI and
+   create the user.
+
+### Step 2/3. Create the static host user
+
+Add this content to a file called `nginxrestarter.yaml`:
+
+```yaml
+kind: static_host_user
+metadata:
+  name: nginxrestarter
+spec:
+  matchers:
+    # Use either node_labels or node_labels_expression to select which servers
+    # to create the host user on. Only one is required.
+    - node_labels:
+      - name: app
+        values: ["nginx"]
+      node_labels_expression: 'labels["app"] == "nginx"'
+      # List of host groups the created user will be added to. Any that don't already exist are created.
+      groups: [ubuntu, nginx, other]
+      # List of entries to include in a temporary sudoers file created in /etc/sudoers.d
+      sudoers: [
+        # This line will allow the `nginxrestarter` user to run
+        # `systemctl restart nginx.service` as
+        # root without requiring a password.
+        # The sudoers entries will be prefixed with `nginxrestarter` in this case.
+        # sudoers file reference documentation: https://www.sudo.ws/docs/man/1.8.17/sudoers.man/
+        "ALL = (root) NOPASSWD: /usr/bin/systemctl restart nginx.service"
+      ]
+      # UID of the host user. Optional.
+      # uid: 1234
+      # GID of the host user. Optional.
+      # gid: 1234
+      # Default shell for the created user. Optional.
+      # default_shell: /bin/bash
+      # Whether or not static host user provisioning should automatically take ownership of existing users
+      # created outside of Teleport. Optional.
+      # take_ownership_if_user_exists: true
+
+    # Add additional matchers if needed to configure nginxrestarter differently
+    # on different servers.
+    # - node_labels:
+      # ...
+```
+
+The name of the static host user resource must match the login of the user to
+be created. A server will only provision the user if a single defined matcher is
+satisfied. If there are multiple matches for a single static host user resource,
+or if the user already exists and `take_ownership_if_user_exists` is not set to
+`true`, then the server will refuse to provision the user. 
+
+Create the static host user:
+
+```code
+$ tctl create -f nginxrestarter.yaml
+# static_host_user 'nginxrestarter' has been created
+```
+
+<Admonition type="note">
+
+Deleting the static host user resource does not remove the host user from any
+servers it has been applied to.
+
+</Admonition>
+
+### Step 3/3. Test
+
+Connect to the remote Node via `tsh` to verify that the host user was created:
+
+```code
+$ tsh login
+$ tsh ssh nginxrestarter@develnode
+$ grep "nginxrestarter" /etc/passwd
+# nginxrestarter:x:1001:1003::/home/nginxrestarter:/bin/bash
+$ grep "other" /etc/group
+# other:x:1002:nginxrestarter
+```
+
+## Under the hood
+
 The Teleport SSH Service executes `useradd` to create new users on the host, and
 returns an error if it cannot find the `useradd` binary. The `useradd` command
 adds the user to the groups specified in the Teleport user's roles, and Teleport
@@ -252,7 +449,7 @@ contents of the `host_sudoers` file written with one entry per line, each
 prefixed with the username of the user that has logged in.
 
 The session can then proceed as usual. When the SSH session ends, the user
-and their home directory will be kept on the machine. It is possible to remove the user
+and their home directory will be kept on the machine. It is possible to remove automatic host users
 by setting `create_host_user_mode` to `insecure-drop` in the role definition. However,
 the potential for a user id to be reused on the system opens up a number of potential security risks,
 so we recommend using `keep` mode unless you have a specific need and understand
@@ -261,7 +458,25 @@ the potential impacts.
 Should a Teleport SSH instance be restarted while a session is in progress, the user
 will be cleaned up at the next Teleport restart.
 
+## Migrating unmanaged users
+
+### `keep` mode users from previous versions of Teleport
+Automatic host users created with `create_host_user_mode: keep` prior to `v14.3.24`, `v15.4.16`, and `v16.1.8`
+will not be managed by later versions of Teleport. In order to migrate these users automatically on their next
+session, you can add `teleport-keep` to your role's `host_groups`. Host users can also be migrated manually by adding
+them to the `teleport-keep` group directly on the hosts you wish to migrate.
+
+### Static host users
+By default, static host user provisioning will not take ownership of any existing users created outside of Teleport.
+In order to configure Teleport to automatically take ownership of any unmanaged users that collide with a static host
+user, the `take_ownership_if_user_exists` flag can be set to `true` on the static host user resource. This will bring
+the existing user under Teleport's management and override the groups assigned to that user. Similar to migrating
+`teleport-keep` users, it is possible to migrate users manually by adding them to the `teleport-static` group directly
+on the hosts.
+
 ## Next steps
 
-- Configure automatic user provisioning for [Database Access](../../database-access/auto-user-provisioning.mdx).
-- Configure automatic user provisioning for [desktop access](../../desktop-access/reference/user-creation.mdx).
+- Configure automatic user provisioning for [database access](../../database-access/auto-user-provisioning/auto-user-provisioning.mdx).
+- Configure automatic user provisioning for [desktop access](../../../reference/agent-services/desktop-access-reference/user-creation.mdx).
+- Configure automatic user provisioning with [Terraform](../../../reference/terraform-provider/resources/role.mdx).
+Note when using the terraform provider that some values may be different than described in this guide.

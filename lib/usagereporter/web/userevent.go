@@ -58,9 +58,7 @@ const (
 	uiDiscoverDesktopActiveDirectoryToolsInstallEvent = "tp.ui.discover.desktop.activeDirectory.tools.install"
 	uiDiscoverDesktopActiveDirectoryConfigureEvent    = "tp.ui.discover.desktop.activeDirectory.configure"
 	uiDiscoverAutoDiscoveredResourcesEvent            = "tp.ui.discover.autoDiscoveredResources"
-	uiDiscoverEC2InstanceSelectionEvent               = "tp.ui.discover.selectedEC2Instance"
-	uiDiscoverDeployEICEEvent                         = "tp.ui.discover.deployEICE"
-	uiDiscoverCreateNodeEvent                         = "tp.ui.discover.createNode"
+	uiDiscoverCreateAppServerEvent                    = "tp.ui.discover.createAppServer"
 	uiDiscoverCreateDiscoveryConfigEvent              = "tp.ui.discover.createDiscoveryConfig"
 	uiDiscoverPrincipalsConfigureEvent                = "tp.ui.discover.principals.configure"
 	uiDiscoverTestConnectionEvent                     = "tp.ui.discover.testConnection"
@@ -68,8 +66,11 @@ const (
 
 	uiIntegrationEnrollStartEvent    = "tp.ui.integrationEnroll.start"
 	uiIntegrationEnrollCompleteEvent = "tp.ui.integrationEnroll.complete"
+	uiIntegrationEnrollStepEvent     = "tp.ui.integrationEnroll.step"
 
 	uiCallToActionClickEvent = "tp.ui.callToAction.click"
+
+	uiAccessGraphCrownJewelDiffViewEvent = "tp.ui.accessGraph.crownJewelDiffView"
 
 	featureRecommendationEvent = "tp.ui.feature.recommendation"
 )
@@ -93,7 +94,9 @@ var eventsWithDataRequired = []string{
 	uiDiscoverKubeEKSEnrollEvent,
 	uiIntegrationEnrollStartEvent,
 	uiIntegrationEnrollCompleteEvent,
+	uiIntegrationEnrollStepEvent,
 	uiDiscoverCreateDiscoveryConfigEvent,
+	uiAccessGraphCrownJewelDiffViewEvent,
 }
 
 // CreatePreUserEventRequest contains the event and properties associated with a user event
@@ -283,7 +286,38 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 				},
 			}}, nil
 		}
+	case uiIntegrationEnrollStepEvent:
+		eventData := struct {
+			ID     string `json:"id"`
+			Kind   string `json:"kind"`
+			Step   string `json:"step"`
+			Status struct {
+				Code  string `json:"code"`
+				Error string `json:"error"`
+			} `json:"status"`
+		}{}
+		if err := json.Unmarshal([]byte(*req.EventData), &eventData); err != nil {
+			return nil, trace.BadParameter("eventData is invalid: %v", err)
+		}
 
+		kindEnum, ok := usageeventsv1.IntegrationEnrollKind_value[eventData.Kind]
+		if !ok {
+			return nil, trace.BadParameter("invalid integration enroll kind %s", eventData.Kind)
+		}
+
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiIntegrationEnrollStepEvent{
+			UiIntegrationEnrollStepEvent: &usageeventsv1.UIIntegrationEnrollStepEvent{
+				Metadata: &usageeventsv1.IntegrationEnrollMetadata{
+					Id:   eventData.ID,
+					Kind: usageeventsv1.IntegrationEnrollKind(kindEnum),
+				},
+				Step: usageeventsv1.IntegrationEnrollStep(usageeventsv1.IntegrationEnrollStep_value[eventData.Step]),
+				Status: &usageeventsv1.IntegrationEnrollStepStatus{
+					Code:  usageeventsv1.IntegrationEnrollStatusCode(usageeventsv1.IntegrationEnrollStatusCode_value[eventData.Status.Code]),
+					Error: eventData.Status.Error,
+				},
+			},
+		}}, nil
 	case uiDiscoverStartedEvent,
 		uiDiscoverResourceSelectionEvent,
 		uiDiscoverIntegrationAWSOIDCConnectEvent,
@@ -298,9 +332,7 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 		uiDiscoverAutoDiscoveredResourcesEvent,
 		uiDiscoverPrincipalsConfigureEvent,
 		uiDiscoverTestConnectionEvent,
-		uiDiscoverEC2InstanceSelectionEvent,
-		uiDiscoverDeployEICEEvent,
-		uiDiscoverCreateNodeEvent,
+		uiDiscoverCreateAppServerEvent,
 		uiDiscoverCreateDiscoveryConfigEvent,
 		uiDiscoverCompletedEvent:
 
@@ -374,6 +406,28 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 				},
 			}},
 			nil
+	case uiAccessGraphCrownJewelDiffViewEvent:
+		event := struct {
+			AffectedResourceSource string `json:"affected_resource_source,omitempty"`
+			AffectedResourceType   string `json:"affected_resource_type,omitempty"`
+		}{}
+		if err := json.Unmarshal(*req.EventData, &event); err != nil {
+			return nil, trace.BadParameter("eventData is invalid: %v", err)
+		}
+		if event.AffectedResourceType == "" {
+			return nil, trace.BadParameter("affected resource type is empty")
+		}
+		if event.AffectedResourceSource == "" {
+			return nil, trace.BadParameter("affected resource source is empty")
+		}
+		return &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_UiAccessGraphCrownJewelDiffView{
+				UiAccessGraphCrownJewelDiffView: &usageeventsv1.UIAccessGraphCrownJewelDiffViewEvent{
+					AffectedResourceSource: event.AffectedResourceSource,
+					AffectedResourceType:   event.AffectedResourceType,
+				},
+			},
+		}, nil
 	}
 
 	return nil, trace.BadParameter("invalid event %s", req.Event)

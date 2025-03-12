@@ -160,6 +160,9 @@ func TestGlobalNotificationCRUD(t *testing.T) {
 	_, err = service.CreateGlobalNotification(ctx, globalNotificationLateExpiry)
 	require.True(t, trace.IsBadParameter(err), "got error %T, expected a bad parameter error due to notification-late-expiry having an expiry date more than 90 days later", err)
 
+	// Verify that the Metada.Expires on the global notification wrapper is the same as in the inner notification.
+	require.Equal(t, notification.Metadata.Expires, notification.Spec.Notification.Metadata.Expires)
+
 	// Test deleting a notification.
 	err = service.DeleteGlobalNotification(ctx, globalNotification1Id)
 	require.NoError(t, err)
@@ -319,6 +322,31 @@ func TestUserNotificationStateCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, out)
+
+	// Create a global notification.
+	globalNotification, err := service.CreateGlobalNotification(ctx, newGlobalNotification(t, "test-global"))
+	require.NoError(t, err)
+
+	// Create a notification state for this notification
+	userNotificationStateGlobal := &notificationsv1.UserNotificationState{
+		Spec: &notificationsv1.UserNotificationStateSpec{
+			NotificationId: globalNotification.GetMetadata().GetName(),
+		},
+		Status: &notificationsv1.UserNotificationStateStatus{
+			NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED,
+		},
+	}
+	// Upsert a notification state for user 1
+	_, err = service.UpsertUserNotificationState(ctx, testUsername, userNotificationStateGlobal)
+	require.NoError(t, err)
+	// Upsert the notification state for user 2
+	_, err = service.UpsertUserNotificationState(ctx, "test-username-2", userNotificationStateGlobal)
+	require.NoError(t, err)
+
+	// Test that getting all notification states works.
+	uns, _, err := service.ListNotificationStatesForAllUsers(ctx, 0, "")
+	require.NoError(t, err)
+	require.Len(t, uns, 2)
 }
 
 // TestUserLastSeenNotificationCRUD tests backend operations for user last seen notification resources.
@@ -373,6 +401,88 @@ func TestUserLastSeenNotificationCRUD(t *testing.T) {
 	// Getting the user's last seen notification object should now fail again since we deleted it.
 	_, err = service.GetUserLastSeenNotification(ctx, testUsername)
 	require.True(t, trace.IsNotFound(err), "got error %T, expected a not found error due to user_last_seen_notification for test-username not existing", err)
+}
+
+// TestUniqueNotificationIdentifierCRUD tests backend operations for unique notification identifier resources.
+func TestUniqueNotificationIdentifierCRUD(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewNotificationsService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	testPrefix1 := "test-prefix-1"
+	testPrefix2 := "test-prefix-2"
+
+	// Initially we expect there not to be any existing unique notification identifiers for either identifier prefix.
+	out, nextToken, err := service.ListUniqueNotificationIdentifiersForPrefix(ctx, testPrefix1, 5, "")
+	require.NoError(t, err)
+	require.Empty(t, out)
+	require.Empty(t, nextToken)
+
+	out, nextToken, err = service.ListUniqueNotificationIdentifiersForPrefix(ctx, testPrefix2, 5, "")
+	require.NoError(t, err)
+	require.Empty(t, out)
+	require.Empty(t, nextToken)
+
+	// Create unique notification identifiers with the testPrefix1 prefix.
+	identifier, err := service.CreateUniqueNotificationIdentifier(ctx, testPrefix1, "1")
+	require.NoError(t, err)
+	require.Equal(t, "1", identifier.Spec.UniqueIdentifier)
+	require.Equal(t, testPrefix1, identifier.Spec.UniqueIdentifierPrefix)
+
+	identifier, err = service.CreateUniqueNotificationIdentifier(ctx, testPrefix1, "2")
+	require.NoError(t, err)
+	require.Equal(t, "2", identifier.Spec.UniqueIdentifier)
+	require.Equal(t, testPrefix1, identifier.Spec.UniqueIdentifierPrefix)
+
+	// Create a unique notification identifier with the testPrefix2 prefix.
+	identifier, err = service.CreateUniqueNotificationIdentifier(ctx, testPrefix2, "1")
+	require.NoError(t, err)
+	require.Equal(t, "1", identifier.Spec.UniqueIdentifier)
+	require.Equal(t, testPrefix2, identifier.Spec.UniqueIdentifierPrefix)
+
+	// List identifiers with the testPrefix1 prefix.
+	out, _, err = service.ListUniqueNotificationIdentifiersForPrefix(ctx, testPrefix1, 5, "")
+	require.NoError(t, err)
+	// Verify that only the identifiers with testPrefix1 as prefix are returned.
+	require.Len(t, out, 2)
+	require.Equal(t, "1", out[0].Spec.UniqueIdentifier)
+	require.Equal(t, "2", out[1].Spec.UniqueIdentifier)
+
+	// List identifiers with the testPrefix2 prefix.
+	out, _, err = service.ListUniqueNotificationIdentifiersForPrefix(ctx, testPrefix2, 5, "")
+	require.NoError(t, err)
+	// Verify that only the identifier with testPrefix2 as prefix is returned.
+	require.Len(t, out, 1)
+	require.Equal(t, "1", out[0].Spec.UniqueIdentifier)
+
+	// Test that getting a unique notification identifier works.
+	uni, err := service.GetUniqueNotificationIdentifier(ctx, testPrefix1, "1")
+	require.NoError(t, err)
+	require.Equal(t, "1", uni.Spec.UniqueIdentifier)
+	require.Equal(t, testPrefix1, uni.Spec.UniqueIdentifierPrefix)
+
+	// Delete one of the identifiers with testPrefix1 prefix.
+	err = service.DeleteUniqueNotificationIdentifier(ctx, testPrefix1, "1")
+	require.NoError(t, err)
+
+	// Verify that it no longer exists and that only "2" is returned when listing for identifiers with testPrefix1.
+	out, _, err = service.ListUniqueNotificationIdentifiersForPrefix(ctx, testPrefix1, 5, "")
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Equal(t, "2", out[0].Spec.UniqueIdentifier)
+	require.Equal(t, testPrefix1, out[0].Spec.UniqueIdentifierPrefix)
+
+	// Try to create an identifier with an empty prefix and identifier and verify that there is an error.
+	_, err = service.CreateUniqueNotificationIdentifier(ctx, "", "")
+	require.True(t, trace.IsBadParameter(err), "got error %T, expected a bad parameter error due to no identifier or prefix being provided", err)
 }
 
 func newUserNotification(t *testing.T, username string, title string) *notificationsv1.Notification {

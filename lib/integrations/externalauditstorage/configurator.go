@@ -20,25 +20,22 @@ package externalauditstorage
 
 import (
 	"context"
-	"errors"
-	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
-	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/credprovider"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 const (
@@ -86,7 +83,7 @@ type Configurator struct {
 	spec   *externalauditstorage.ExternalAuditStorageSpec
 	isUsed bool
 
-	credentialsCache *credentialsCache
+	credentialsCache *credprovider.CredentialsCache
 }
 
 // Options holds options for the Configurator.
@@ -108,12 +105,11 @@ func (o *Options) setDefaults(ctx context.Context, region string) error {
 			ctx,
 			config.WithRegion(region),
 			config.WithUseFIPSEndpoint(useFips),
-			config.WithRetryMaxAttempts(10),
 		)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		o.stsClient = sts.NewFromConfig(cfg)
+		o.stsClient = stsutils.NewFromConfig(cfg)
 	}
 	return nil
 }
@@ -203,7 +199,10 @@ func newConfigurator(ctx context.Context, spec *externalauditstorage.ExternalAud
 			"ExternalAuditStorage: configured integration %q does not appear to be an AWS OIDC integration",
 			oidcIntegrationName)
 	}
-	awsRoleARN := awsOIDCSpec.RoleARN
+	awsRoleARN, err := arn.Parse(awsOIDCSpec.RoleARN)
+	if err != nil {
+		return nil, trace.Wrap(err, "AWS role is not a valid ARN")
+	}
 
 	options := &Options{}
 	for _, optFn := range optFns {
@@ -213,11 +212,20 @@ func newConfigurator(ctx context.Context, spec *externalauditstorage.ExternalAud
 		return nil, trace.Wrap(err)
 	}
 
-	credentialsCache, err := newCredentialsCache(oidcIntegrationName, awsRoleARN, options)
+	credentialsCache, err := credprovider.NewCredentialsCache(credprovider.CredentialsCacheOptions{
+		Integration: oidcIntegrationName,
+		RoleARN:     awsRoleARN,
+		STSClient:   options.stsClient,
+		Clock:       options.clock,
+		// SetGenerateOIDCTokenFn will be called later, until then we must allow
+		// credentialsCache.Retrieve to return errors instead of blocking auth
+		// startup.
+		AllowRetrieveBeforeInit: true,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	go credentialsCache.run(ctx)
+	go credentialsCache.Run(ctx)
 
 	// Draft configurator does not need to count errors or create cluster
 	// alerts.
@@ -246,13 +254,9 @@ func (c *Configurator) GetSpec() *externalauditstorage.ExternalAuditStorageSpec 
 	return c.spec
 }
 
-// GenerateOIDCTokenFn is a function that should return a valid, signed JWT for
-// authenticating to AWS via OIDC.
-type GenerateOIDCTokenFn func(ctx context.Context, integration string) (string, error)
-
 // SetGenerateOIDCTokenFn sets the source of OIDC tokens for this Configurator.
-func (c *Configurator) SetGenerateOIDCTokenFn(fn GenerateOIDCTokenFn) {
-	c.credentialsCache.setGenerateOIDCTokenFn(fn)
+func (c *Configurator) SetGenerateOIDCTokenFn(fn credprovider.GenerateOIDCTokenFn) {
+	c.credentialsCache.SetGenerateOIDCTokenFn(fn)
 }
 
 // CredentialsProvider returns an aws.CredentialsProvider that can be used to
@@ -262,224 +266,11 @@ func (p *Configurator) CredentialsProvider() aws.CredentialsProvider {
 	return p.credentialsCache
 }
 
-// CredentialsProviderSDKV1 returns a credentials.ProviderWithContext that can be used to
-// authenticate with the customer AWS account via the configured AWS OIDC
-// integration with aws-sdk-go.
-func (p *Configurator) CredentialsProviderSDKV1() credentials.ProviderWithContext {
-	return &v1Adapter{cc: p.credentialsCache}
-}
-
 // WaitForFirstCredentials waits for the internal credentials cache to finish
 // fetching its first credentials (or getting an error attempting to do so).
 // This can be called after SetGenerateOIDCTokenFn to make sure any returned
 // credential providers won't return errors simply due to the cache not being
 // ready yet.
 func (p *Configurator) WaitForFirstCredentials(ctx context.Context) {
-	p.credentialsCache.waitForFirstCredsOrErr(ctx)
-}
-
-// credentialsCache is used to store and refresh AWS credentials used with
-// AWS OIDC integration.
-//
-// Credentials are valid for 1h, but they cannot be refreshed if Proxy is down,
-// so we attempt to refresh the credentials early and retry on failure.
-//
-// credentialsCache is a dependency to both the s3 session uploader and the
-// athena audit logger. They are both initialized before auth. However AWS
-// credentials using OIDC integration can be obtained only after auth is
-// initialized. That's why generateOIDCTokenFn is injected dynamically after
-// auth is initialized. Before initialization, credentialsCache will return
-// an error on any Retrieve call.
-type credentialsCache struct {
-	log *logrus.Entry
-
-	roleARN     string
-	integration string
-
-	// generateOIDCTokenFn is dynamically set after auth is initialized.
-	generateOIDCTokenFn GenerateOIDCTokenFn
-
-	// initialized communicates (via closing channel) that generateOIDCTokenFn is set.
-	initialized      chan struct{}
-	closeInitialized func()
-
-	// gotFirstCredsOrErr communicates (via closing channel) that the first
-	// credsOrErr has been set.
-	gotFirstCredsOrErr      chan struct{}
-	closeGotFirstCredsOrErr func()
-
-	credsOrErr   credsOrErr
-	credsOrErrMu sync.RWMutex
-
-	stsClient stscreds.AssumeRoleWithWebIdentityAPIClient
-	clock     clockwork.Clock
-}
-
-type credsOrErr struct {
-	creds aws.Credentials
-	err   error
-}
-
-func newCredentialsCache(integration, roleARN string, options *Options) (*credentialsCache, error) {
-	initialized := make(chan struct{})
-	gotFirstCredsOrErr := make(chan struct{})
-	return &credentialsCache{
-		roleARN:                 roleARN,
-		integration:             integration,
-		log:                     logrus.WithField(teleport.ComponentKey, "ExternalAuditStorage.CredentialsCache"),
-		initialized:             initialized,
-		closeInitialized:        sync.OnceFunc(func() { close(initialized) }),
-		gotFirstCredsOrErr:      gotFirstCredsOrErr,
-		closeGotFirstCredsOrErr: sync.OnceFunc(func() { close(gotFirstCredsOrErr) }),
-		credsOrErr: credsOrErr{
-			err: errors.New("ExternalAuditStorage: credential cache not yet initialized"),
-		},
-		clock:     options.clock,
-		stsClient: options.stsClient,
-	}, nil
-}
-
-func (cc *credentialsCache) setGenerateOIDCTokenFn(fn GenerateOIDCTokenFn) {
-	cc.generateOIDCTokenFn = fn
-	cc.closeInitialized()
-}
-
-// Retrieve implements [aws.CredentialsProvider] and returns the latest cached
-// credentials, or an error if no credentials have been generated yet or the
-// last generated credentials have expired.
-func (cc *credentialsCache) Retrieve(ctx context.Context) (aws.Credentials, error) {
-	cc.credsOrErrMu.RLock()
-	defer cc.credsOrErrMu.RUnlock()
-	return cc.credsOrErr.creds, cc.credsOrErr.err
-}
-
-func (cc *credentialsCache) run(ctx context.Context) {
-	// Wait for initialized signal before running loop.
-	select {
-	case <-cc.initialized:
-	case <-ctx.Done():
-		cc.log.Debug("Context canceled before initialized.")
-		return
-	}
-
-	cc.refreshIfNeeded(ctx)
-
-	ticker := cc.clock.NewTicker(refreshCheckInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.Chan():
-			cc.refreshIfNeeded(ctx)
-		case <-ctx.Done():
-			cc.log.Debugf("Context canceled, stopping refresh loop.")
-			return
-		}
-	}
-}
-
-func (cc *credentialsCache) refreshIfNeeded(ctx context.Context) {
-	credsFromCache, err := cc.Retrieve(ctx)
-	if err == nil &&
-		credsFromCache.HasKeys() &&
-		cc.clock.Now().Add(refreshBeforeExpirationPeriod).Before(credsFromCache.Expires) {
-		// No need to refresh, credentials in cache are still valid for longer
-		// than refreshBeforeExpirationPeriod
-		return
-	}
-	cc.log.Debugf("Refreshing credentials.")
-
-	creds, err := cc.refresh(ctx)
-	if err != nil {
-		cc.log.Warnf("Failed to retrieve new credentials: %v", err)
-		// If we were not able to refresh, check if existing credentials in cache are still valid.
-		// If yes, just log debug, it will be retried on next interval check.
-		if credsFromCache.HasKeys() && cc.clock.Now().Before(credsFromCache.Expires) {
-			cc.log.Debugf("Using existing credentials expiring in %s.", credsFromCache.Expires.Sub(cc.clock.Now()).Round(time.Second).String())
-			return
-		}
-		// If existing creds are expired, update cached error.
-		cc.setCredsOrErr(credsOrErr{err: trace.Wrap(err)})
-		return
-	}
-	// Refresh went well, update cached creds.
-	cc.setCredsOrErr(credsOrErr{creds: creds})
-	cc.log.Debugf("Successfully refreshed credentials, new expiry at %v", creds.Expires)
-}
-
-func (cc *credentialsCache) setCredsOrErr(coe credsOrErr) {
-	cc.credsOrErrMu.Lock()
-	defer cc.credsOrErrMu.Unlock()
-	cc.credsOrErr = coe
-	cc.closeGotFirstCredsOrErr()
-}
-
-func (cc *credentialsCache) refresh(ctx context.Context) (aws.Credentials, error) {
-	oidcToken, err := cc.generateOIDCTokenFn(ctx, cc.integration)
-	if err != nil {
-		return aws.Credentials{}, trace.Wrap(err)
-	}
-
-	roleProvider := stscreds.NewWebIdentityRoleProvider(
-		cc.stsClient,
-		cc.roleARN,
-		identityToken(oidcToken),
-		func(wiro *stscreds.WebIdentityRoleOptions) {
-			wiro.Duration = TokenLifetime
-		},
-	)
-
-	ctx, cancel := context.WithTimeout(ctx, retrieveTimeout)
-	defer cancel()
-
-	creds, err := roleProvider.Retrieve(ctx)
-	return creds, trace.Wrap(err)
-}
-
-func (cc *credentialsCache) waitForFirstCredsOrErr(ctx context.Context) {
-	select {
-	case <-ctx.Done():
-	case <-cc.gotFirstCredsOrErr:
-	}
-}
-
-// identityToken is an implementation of [stscreds.IdentityTokenRetriever] for returning a static token.
-type identityToken string
-
-// GetIdentityToken returns the token configured.
-func (j identityToken) GetIdentityToken() ([]byte, error) {
-	return []byte(j), nil
-}
-
-// v1Adapter wraps the credentialsCache to implement
-// [credentials.ProviderWithContext] used by aws-sdk-go (v1).
-type v1Adapter struct {
-	cc *credentialsCache
-}
-
-var _ credentials.ProviderWithContext = (*v1Adapter)(nil)
-
-// RetrieveWithContext returns cached credentials.
-func (a *v1Adapter) RetrieveWithContext(ctx context.Context) (credentials.Value, error) {
-	credsV2, err := a.cc.Retrieve(ctx)
-	if err != nil {
-		return credentials.Value{}, trace.Wrap(err)
-	}
-
-	return credentials.Value{
-		AccessKeyID:     credsV2.AccessKeyID,
-		SecretAccessKey: credsV2.SecretAccessKey,
-		SessionToken:    credsV2.SessionToken,
-		ProviderName:    credsV2.Source,
-	}, nil
-}
-
-// Retrieve returns cached credentials.
-func (a *v1Adapter) Retrieve() (credentials.Value, error) {
-	return a.RetrieveWithContext(context.Background())
-}
-
-// IsExpired always returns true in order to opt out of AWS SDK credential
-// caching. Retrieve(WithContext) already returns cached credentials.
-func (a *v1Adapter) IsExpired() bool {
-	return true
+	p.credentialsCache.WaitForFirstCredsOrErr(ctx)
 }

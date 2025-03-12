@@ -8,7 +8,7 @@ HOSTNAME=buildbox
 SRCDIR=/go/src/github.com/gravitational/teleport
 GOMODCACHE ?= /tmp/gomodcache
 # TODO(hugoShaka) remove HELM_PLUGINS with teleport13 buildbox
-DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOMODCACHE=$(GOMODCACHE) -e HELM_PLUGINS=/home/ci/.local/share/helm/plugins-new -e GITHUB_REPOSITORY_OWNER=$(GITHUB_REPOSITORY_OWNER)
+DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOMODCACHE=$(GOMODCACHE) -e HELM_PLUGINS=/home/ci/.local/share/helm/plugins-new -e GITHUB_REPOSITORY_OWNER=$(GITHUB_REPOSITORY_OWNER) -e MAKEFLAGS
 # Teleport version - some targets require this to be set
 VERSION ?= $(shell egrep ^VERSION ../Makefile | cut -d= -f2)
 
@@ -35,19 +35,7 @@ ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
 endif
 
-# conditionally force the use of UID/GID 1000:1000 if we're running in Github Actions (in which case CI env var will be set)
 ifeq ("$(CI)","true")
-# The UID/GID of the runner user on ARC runners is 1001, not 1000
-# This var is currently only set for ARC runners via https://github.com/gravitational/cloud-terraform/pull/2473
-ifeq ("$(CI_SYSTEM)","ARC")
-UID := 1001
-GID := 1001
-NOROOT := -u 1001:1001
-else
-UID := 1000
-GID := 1000
-NOROOT := -u 1000:1000
-endif
 # if running in CI and the GOCACHE environment variable is not set, set it to a sensible default
 ifeq ("$(GOCACHE)",)
 GOCACHE := /go/cache
@@ -592,30 +580,36 @@ release: $(BUILDBOX_TARGET)
 		/usr/bin/make $(RELEASE_TARGET) -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=yes
 
 
-.PHONY: release-ng-amd64 release-ng-arm64 release-ng-386 release-ng-arm
+.PHONY: release-ng-amd64 release-ng-amd64-fips release-ng-arm64 release-ng-386 release-ng-arm
 release-ng-amd64:
 	$(MAKE) release-ng ARCH=amd64 FIDO2=yes PIV=yes
+release-ng-amd64-fips:
+	$(MAKE) release-ng ARCH=amd64 FIDO2=yes PIV=yes FIPS=yes RELEASE_TARGET=release-ent
 release-ng-arm64:
 	$(MAKE) release-ng ARCH=arm64 FIDO2=yes PIV=yes
+release-ng-arm64-fips:
+	$(MAKE) release-ng ARCH=arm64 FIDO2=yes PIV=yes FIPS=yes RELEASE_TARGET=release-ent
 release-ng-386:
 	$(MAKE) release-ng ARCH=386
 release-ng-arm:
 	$(MAKE) release-ng ARCH=arm
 
 .PHONY: release-ng
+release-ng: RELEASE_TARGET = release-unix-preserving-webassets
 release-ng: webassets buildbox-ng
 	docker run --rm --interactive $(shell test -t 0 && echo --tty) \
 		--volume $(shell pwd)/..:/home/teleport \
 		--workdir /home/teleport \
 		--user $(shell id -u):$(shell id -g) \
 		$(BUILDBOX_NG) \
-		make -e release-unix-preserving-webassets \
+		make -e $(RELEASE_TARGET) \
 			ADDFLAGS="$(ADDFLAGS)" \
 			OS="$(OS)" \
 			ARCH="$(ARCH)" \
 			RUNTIME="$(GOLANG_VERSION)" \
 			FIDO2="$(FIDO2)" \
 			PIV="$(PIV)" \
+			FIPS="$(FIPS)" \
 			REPRODUCIBLE=yes
 
 #

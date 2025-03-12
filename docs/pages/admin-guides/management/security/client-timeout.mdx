@@ -1,0 +1,86 @@
+---
+title: Securing Sessions with Client Timeout Enforcement
+description: How to implement idle client timeouts.
+---
+
+The `client_idle_timeout` in Teleport is a configurable setting that helps improve security by terminating inactive sessions after a specified period. It can be applied globally or per role, 
+allowing for flexibility based on your organization's security policies. The `client_idle_timeout` configuration ensures that SSH sessions, desktop sessions, kubectl exec or database 
+connections that remain inactive for a certain period of time are automatically terminated. This helps to mitigate risks associated with unattended sessions, such as unauthorized access.
+
+## Use cases
+
+- Security compliance: Many organizations require idle timeout enforcement as part of their security policies, ensuring that inactive sessions are not left open.
+- Risk mitigation: If users forget to disconnect from a session, an idle timeout ensures that they are logged out automatically after a set period of inactivity, reducing the risk of unauthorized access.
+
+## How it works
+Teleport monitors user activity, such as key presses or mouse movement in desktop sessions, or network traffic from ssh or database connections.
+If there is no detected activity for the duration defined by `client_idle_timeout`, the session is terminated, forcing the user to reconnect.
+   
+## Configuration
+The `client_idle_timeout` can be configured globally or per role, giving administrators flexibility in how they apply client idle timeout rules.
+
+### Global configuration (applies to all users)
+
+You can set the `client_idle_timeout` globally in the Teleport cluster configuration (`teleport.yaml`) under the `auth_service` section:
+
+```yaml
+auth_service:
+  client_idle_timeout: 15m
+```
+This example configures a global client idle timeout of **15 minutes**. After 15 minutes of client inactivity, the session will be terminated.
+
+
+If you are a cloud customer, you will need to modify these settings using dynamic configuration.
+
+Log in and use the `tctl` admin tool:
+
+```code
+$ tsh login --proxy=myinstance.teleport.sh
+$ tctl status
+```
+
+Obtain your existing `cluster_auth_preference` resource:
+
+```code
+$ tctl get cap > cap.yaml
+```
+
+Include `client_idle_timeout` in `cap.yaml`:
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  options:
+    client_idle_timeout: 30m # Set your desired timeout value
+```
+
+Create the `cluster_auth_preference` resource via `tctl`:
+
+```code
+$ tctl create -f cap.yaml
+```
+
+You should then see the following output:
+
+```code
+$ cluster auth preference has been created
+```
+
+### Per-role configuration (applies to specific users or groups)
+
+You can also specify the timeout on a per-role basis, allowing different users or groups to have different timeout settings. For example, you might want a shorter timeout for higher-privileged roles.
+
+```yaml
+kind: role
+version: v3
+metadata:
+  name: admin-role
+spec:
+  options:
+    client_idle_timeout: 10m
+```
+
+## Default behavior
+If the `client_idle_timeout` is not set, sessions will not automatically close due to inactivity unless other timeout policies (like `disconnect_expired_cert`) are applied.

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/user"
 	"path/filepath"
 	"slices"
 	"sync"
@@ -47,18 +48,20 @@ import (
 func TestAuthorizedKeys(t *testing.T) {
 	hostID := "hostID"
 
-	etcPasswdFile := createFSData(t)
+	dir := createFSData(t)
 	clock := clockwork.NewFakeClockAt(time.Date(2024, time.January, 1, 0, 0, 0, 0, time.UTC))
 	client := &fakeClient{}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	watcher, err := NewWatcher(ctx, WatcherConfig{
-		Client:        client,
-		etcPasswdFile: etcPasswdFile,
-		HostID:        hostID,
-		Clock:         clock,
-		Logger:        slog.Default(),
+		Client: client,
+		getHostUsers: func() ([]user.User, error) {
+			return exampleUsers(dir)
+		},
+		HostID: hostID,
+		Clock:  clock,
+		Logger: slog.Default(),
 		getRuntimeOS: func() string {
 			return constants.LinuxOS
 		},
@@ -103,26 +106,19 @@ func TestAuthorizedKeys(t *testing.T) {
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "expires"),
 	),
 	)
-
 	// Clear the requests
 	client.clear()
-
-	// Update the etcPasswdFile
-	createUsersAndAuthorizedKeys(t, filepath.Dir(etcPasswdFile))
 
 	cancel()
 	err = group.Wait()
 	require.NoError(t, err)
-
 }
 
 func createFSData(t *testing.T) string {
 	dir := t.TempDir()
-	etcPasswd := exampleEtcPasswdFile(dir)
-	createFile(t, dir, "passwd", etcPasswd)
 
 	createUsersAndAuthorizedKeys(t, dir)
-	return filepath.Join(dir, "passwd")
+	return dir
 }
 
 func createFile(t *testing.T, dir, name, content string) {
@@ -133,14 +129,31 @@ func createFile(t *testing.T, dir, name, content string) {
 	require.NoError(t, err)
 }
 
-func exampleEtcPasswdFile(dir string) string {
-	return fmt.Sprintf(
-		`root:x:0:0::%s/root:/usr/bin/bash
-bin:x:1:1::/:/usr/bin/nologin
-user:x:1000:1000::%s/user:/usr/bin/zsh`,
-		dir,
-		dir,
-	)
+func exampleUsers(dir string) ([]user.User, error) {
+	return []user.User{
+		{
+			Name:     "root",
+			Username: "root",
+			Uid:      "0",
+			Gid:      "0",
+			HomeDir:  fmt.Sprintf("%s/root", dir),
+		},
+		{
+			Name:     "bin",
+			Username: "bin",
+			Uid:      "1",
+			Gid:      "1",
+			HomeDir:  "/",
+		},
+		{
+			Name:     "user",
+			Username: "user",
+			Uid:      "1000",
+			Gid:      "1000",
+			HomeDir:  fmt.Sprintf("%s/user", dir),
+		},
+	}, nil
+
 }
 
 const authorizedFileExample = `
@@ -186,6 +199,14 @@ func (f *fakeClient) Send(req *accessgraphsecretsv1pb.ReportAuthorizedKeysReques
 	defer f.mu.Unlock()
 	f.reqReceived = append(f.reqReceived, req)
 	return nil
+}
+
+func (f *fakeClient) CloseSend() error {
+	return nil
+}
+
+func (f *fakeClient) Recv() (*accessgraphsecretsv1pb.ReportAuthorizedKeysResponse, error) {
+	return nil, nil
 }
 
 func (f *fakeClient) clear() {

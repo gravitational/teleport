@@ -17,7 +17,6 @@
  */
 
 import React from 'react';
-
 import { useTheme } from 'styled-components';
 
 import { Box } from 'design';
@@ -55,7 +54,7 @@ export const IconCircle = ({ Icon, bg, size, fill }: IconCircleProps) => {
       width={size}
       height={size}
     >
-      <Icon size={size / 2} bg={background} fill={color} />
+      <Icon size={size / 2} fill={color} />
     </Box>
   );
 };

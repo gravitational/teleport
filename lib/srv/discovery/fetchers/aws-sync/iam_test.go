@@ -26,16 +26,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
+	"github.com/gravitational/teleport/api/types"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 )
 
@@ -45,12 +46,6 @@ func TestAWSIAMPollSAMLProviders(t *testing.T) {
 
 	timestamp1 := time.Date(2024, time.May, 1, 1, 2, 3, 0, time.UTC)
 	timestamp2 := timestamp1.AddDate(1, 0, 0)
-
-	mockedClients := &cloud.TestCloudClients{
-		IAM: &mocks.IAMMock{
-			SAMLProviders: samlProviders(timestamp1, timestamp2),
-		},
-	}
 
 	var (
 		errs []error
@@ -62,13 +57,32 @@ func TestAWSIAMPollSAMLProviders(t *testing.T) {
 		defer mu.Unlock()
 		errs = append(errs, err)
 	}
-	a := &awsFetcher{
-		Config: Config{
-			AccountID:    accountID,
-			CloudClients: mockedClients,
-			Regions:      regions,
-			Integration:  accountID,
+
+	awsOIDCIntegration, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: "integration-test"},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "arn:aws:sts::123456789012:role/TestRole",
 		},
+	)
+	require.NoError(t, err)
+	a := &Fetcher{
+		Config: Config{
+			AccountID: accountID,
+			AWSConfigProvider: &mocks.AWSConfigProvider{
+				OIDCIntegrationClient: &mocks.FakeOIDCIntegrationClient{
+					Integration: awsOIDCIntegration,
+					Token:       "fake-oidc-token",
+				},
+			},
+			Regions:     regions,
+			Integration: awsOIDCIntegration.GetName(),
+			awsClients: fakeAWSClients{
+				iamClient: &mocks.IAMMock{
+					SAMLProviders: samlProviders(timestamp1, timestamp2),
+				},
+			},
+		},
+		lastResult: &Resources{},
 	}
 	expected := []*accessgraphv1alpha.AWSSAMLProviderV1{
 		{
@@ -101,6 +115,7 @@ func TestAWSIAMPollSAMLProviders(t *testing.T) {
 		expected,
 		result.SAMLProviders,
 		protocmp.Transform(),
+		protocmp.IgnoreFields(&accessgraphv1alpha.AWSSAMLProviderV1{}, "last_sync_time"),
 	))
 }
 
@@ -139,7 +154,7 @@ func samlProviders(timestamp1, timestamp2 time.Time) map[string]*iam.GetSAMLProv
       </md:IDPSSODescriptor>
     </md:EntityDescriptor>`),
 			ValidUntil: aws.Time(timestamp2),
-			Tags: []*iam.Tag{
+			Tags: []iamtypes.Tag{
 				{Key: aws.String("key1"), Value: aws.String("value1")},
 				{Key: aws.String("key2"), Value: aws.String("value2")},
 			},
@@ -170,26 +185,13 @@ func TestAWSIAMPollOIDCProviders(t *testing.T) {
 	timestamp1 := time.Date(2024, time.May, 1, 1, 2, 3, 0, time.UTC)
 	timestamp2 := timestamp1.AddDate(1, 0, 0)
 
-	mockedClients := &cloud.TestCloudClients{
-		IAM: &mocks.IAMMock{
-			OIDCProviders: map[string]*iam.GetOpenIDConnectProviderOutput{
-				"arn:aws:iam::1234678:oidc-provider/provider1": {
-					ClientIDList: aws.StringSlice([]string{"audience1", "audience2"}),
-					CreateDate:   aws.Time(timestamp1),
-					Tags: []*iam.Tag{
-						{Key: aws.String("key1"), Value: aws.String("value1")},
-						{Key: aws.String("key2"), Value: aws.String("value2")},
-					},
-					ThumbprintList: aws.StringSlice([]string{"thumb1", "thumb2"}),
-					Url:            aws.String("https://example.com"),
-				},
-				"arn:aws:iam::1234678:oidc-provider/provider2": {
-					CreateDate: aws.Time(timestamp2),
-					Url:        aws.String("https://teleport.local"),
-				},
-			},
+	awsOIDCIntegration, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: "integration-test"},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "arn:aws:sts::123456789012:role/TestRole",
 		},
-	}
+	)
+	require.NoError(t, err)
 
 	var (
 		errs []error
@@ -201,13 +203,39 @@ func TestAWSIAMPollOIDCProviders(t *testing.T) {
 		defer mu.Unlock()
 		errs = append(errs, err)
 	}
-	a := &awsFetcher{
+	a := &Fetcher{
 		Config: Config{
-			AccountID:    accountID,
-			CloudClients: mockedClients,
-			Regions:      regions,
-			Integration:  accountID,
+			AccountID: accountID,
+			AWSConfigProvider: &mocks.AWSConfigProvider{
+				OIDCIntegrationClient: &mocks.FakeOIDCIntegrationClient{
+					Integration: awsOIDCIntegration,
+					Token:       "fake-oidc-token",
+				},
+			},
+			Regions:     regions,
+			Integration: awsOIDCIntegration.GetName(),
+			awsClients: fakeAWSClients{
+				iamClient: &mocks.IAMMock{
+					OIDCProviders: map[string]*iam.GetOpenIDConnectProviderOutput{
+						"arn:aws:iam::1234678:oidc-provider/provider1": {
+							ClientIDList: []string{"audience1", "audience2"},
+							CreateDate:   aws.Time(timestamp1),
+							Tags: []iamtypes.Tag{
+								{Key: aws.String("key1"), Value: aws.String("value1")},
+								{Key: aws.String("key2"), Value: aws.String("value2")},
+							},
+							ThumbprintList: []string{"thumb1", "thumb2"},
+							Url:            aws.String("https://example.com"),
+						},
+						"arn:aws:iam::1234678:oidc-provider/provider2": {
+							CreateDate: aws.Time(timestamp2),
+							Url:        aws.String("https://teleport.local"),
+						},
+					},
+				},
+			},
 		},
+		lastResult: &Resources{},
 	}
 	expected := []*accessgraphv1alpha.AWSOIDCProviderV1{
 		{
@@ -238,6 +266,7 @@ func TestAWSIAMPollOIDCProviders(t *testing.T) {
 		expected,
 		result.OIDCProviders,
 		protocmp.Transform(),
+		protocmp.IgnoreFields(&accessgraphv1alpha.AWSOIDCProviderV1{}, "last_sync_time"),
 	))
 }
 

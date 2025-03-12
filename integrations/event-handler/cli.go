@@ -18,13 +18,13 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/alecthomas/kong"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/stringset"
 
 	"github.com/gravitational/teleport/integrations/event-handler/lib"
@@ -46,6 +46,10 @@ type FluentdConfig struct {
 
 	// FluentdCA is a path to fluentd CA
 	FluentdCA string `help:"fluentd TLS CA file" type:"existingfile" env:"FDWRD_FLUENTD_CA"`
+
+	// FluentdMaxConnections caps the number of connections to fluentd. Defaults to a dynamic value
+	// calculated relative to app-level concurrency.
+	FluentdMaxConnections int `help:"Maximum number of connections to fluentd" env:"FDWRD_MAX_CONNECTIONS"`
 }
 
 // TeleportConfig is Teleport instance configuration
@@ -143,7 +147,7 @@ type IngestConfig struct {
 	Timeout time.Duration `help:"Polling timeout" default:"5s" env:"FDFWD_TIMEOUT"`
 
 	// DryRun is the flag which simulates execution without sending events to fluentd
-	DryRun bool `help:"Events are read from Teleport, but are not sent to fluentd. Separate stroage is used. Debug flag."`
+	DryRun bool `help:"Events are read from Teleport, but are not sent to fluentd. Separate storage is used. Debug flag."`
 
 	// ExitOnLastEvent exit when last event is processed
 	ExitOnLastEvent bool `help:"Exit when last event is processed"`
@@ -238,46 +242,51 @@ func (c *StartCmdConfig) Validate() error {
 	c.SkipSessionTypes = lib.SliceToAnonymousMap(c.SkipSessionTypesRaw)
 	c.SkipEventTypes = lib.SliceToAnonymousMap(c.SkipEventTypesRaw)
 
+	if c.FluentdMaxConnections < 1 {
+		// 2x concurrency is effectively uncapped.
+		c.FluentdMaxConnections = c.Concurrency * 2
+	}
+
 	return nil
 }
 
 // Dump dumps configuration values to the log
-func (c *StartCmdConfig) Dump(ctx context.Context) {
-	log := logger.Get(ctx)
-
+func (c *StartCmdConfig) Dump(ctx context.Context, log *slog.Logger) {
 	// Log configuration variables
-	log.WithField("batch", c.BatchSize).Info("Using batch size")
-	log.WithField("types", c.Types).Info("Using type filter")
-	log.WithField("skip-event-types", c.SkipEventTypes).Info("Using type exclude filter")
-	log.WithField("types", c.SkipSessionTypes).Info("Skipping session events of type")
-	log.WithField("value", c.StartTime).Info("Using start time")
-	log.WithField("timeout", c.Timeout).Info("Using timeout")
-	log.WithField("url", c.FluentdURL).Info("Using Fluentd url")
-	log.WithField("url", c.FluentdSessionURL).Info("Using Fluentd session url")
-	log.WithField("ca", c.FluentdCA).Info("Using Fluentd ca")
-	log.WithField("cert", c.FluentdCert).Info("Using Fluentd cert")
-	log.WithField("key", c.FluentdKey).Info("Using Fluentd key")
-	log.WithField("window-size", c.WindowSize).Info("Using window size")
+	log.InfoContext(ctx, "Using batch size", "batch", c.BatchSize)
+	log.InfoContext(ctx, "Using concurrency", "concurrency", c.Concurrency)
+	log.InfoContext(ctx, "Using type filter", "types", c.Types)
+	log.InfoContext(ctx, "Using type exclude filter", "skip_event_types", c.SkipEventTypes)
+	log.InfoContext(ctx, "Skipping session events of type", "types", c.SkipSessionTypes)
+	log.InfoContext(ctx, "Using start time", "value", c.StartTime)
+	log.InfoContext(ctx, "Using timeout", "timeout", c.Timeout)
+	log.InfoContext(ctx, "Using Fluentd url", "url", c.FluentdURL)
+	log.InfoContext(ctx, "Using Fluentd session url", "url", c.FluentdSessionURL)
+	log.InfoContext(ctx, "Using Fluentd ca", "ca", c.FluentdCA)
+	log.InfoContext(ctx, "Using Fluentd cert", "cert", c.FluentdCert)
+	log.InfoContext(ctx, "Using Fluentd key", "key", c.FluentdKey)
+	log.InfoContext(ctx, "Using Fluentd max connections", "max_connections", c.FluentdMaxConnections)
+	log.InfoContext(ctx, "Using window size", "window_size", c.WindowSize)
 
 	if c.TeleportIdentityFile != "" {
-		log.WithField("file", c.TeleportIdentityFile).Info("Using Teleport identity file")
+		log.InfoContext(ctx, "Using Teleport identity file", "file", c.TeleportIdentityFile)
 	}
 	if c.TeleportRefreshEnabled {
-		log.WithField("interval", c.TeleportRefreshInterval).Info("Using Teleport identity file refresh")
+		log.InfoContext(ctx, "Using Teleport identity file refresh", "interval", c.TeleportRefreshInterval)
 	}
 
 	if c.TeleportKey != "" {
-		log.WithField("addr", c.TeleportAddr).Info("Using Teleport addr")
-		log.WithField("ca", c.TeleportCA).Info("Using Teleport CA")
-		log.WithField("cert", c.TeleportCert).Info("Using Teleport cert")
-		log.WithField("key", c.TeleportKey).Info("Using Teleport key")
+		log.InfoContext(ctx, "Using Teleport addr", "addr", c.TeleportAddr)
+		log.InfoContext(ctx, "Using Teleport CA", "ca", c.TeleportCA)
+		log.InfoContext(ctx, "Using Teleport cert", "cert", c.TeleportCert)
+		log.InfoContext(ctx, "Using Teleport key", "key", c.TeleportKey)
 	}
 
 	if c.LockEnabled {
-		log.WithField("count", c.LockFailedAttemptsCount).WithField("period", c.LockPeriod).Info("Auto-locking enabled")
+		log.InfoContext(ctx, "Auto-locking enabled", "count", c.LockFailedAttemptsCount, "period", c.LockPeriod)
 	}
 
 	if c.DryRun {
-		log.Warn("Dry run! Events are not sent to Fluentd. Separate storage is used.")
+		log.WarnContext(ctx, "Dry run! Events are not sent to Fluentd. Separate storage is used.")
 	}
 }

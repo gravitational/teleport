@@ -23,7 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -42,12 +42,14 @@ type StaticHostUserService struct {
 // NewStaticHostUserService creates a new static host user service.
 func NewStaticHostUserService(bk backend.Backend) (*StaticHostUserService, error) {
 	svc, err := generic.NewServiceWrapper(
-		bk,
-		types.KindStaticHostUser,
-		staticHostUserPrefix,
-		services.MarshalProtoResource[*userprovisioningpb.StaticHostUser],
-		services.UnmarshalProtoResource[*userprovisioningpb.StaticHostUser],
-	)
+		generic.ServiceConfig[*userprovisioningpb.StaticHostUser]{
+			Backend:       bk,
+			ResourceKind:  types.KindStaticHostUser,
+			BackendPrefix: backend.NewKey(staticHostUserPrefix),
+			MarshalFunc:   services.MarshalProtoResource[*userprovisioningpb.StaticHostUser],
+			UnmarshalFunc: services.UnmarshalProtoResource[*userprovisioningpb.StaticHostUser],
+			ValidateFunc:  services.ValidateStaticHostUser,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -73,27 +75,18 @@ func (s *StaticHostUserService) GetStaticHostUser(ctx context.Context, name stri
 
 // CreateStaticHostUser creates a static host user.
 func (s *StaticHostUserService) CreateStaticHostUser(ctx context.Context, in *userprovisioningpb.StaticHostUser) (*userprovisioningpb.StaticHostUser, error) {
-	if err := services.ValidateStaticHostUser(in); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	out, err := s.svc.CreateResource(ctx, in)
 	return out, trace.Wrap(err)
 }
 
 // UpdateStaticHostUser updates a static host user.
 func (s *StaticHostUserService) UpdateStaticHostUser(ctx context.Context, in *userprovisioningpb.StaticHostUser) (*userprovisioningpb.StaticHostUser, error) {
-	if err := services.ValidateStaticHostUser(in); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	out, err := s.svc.ConditionalUpdateResource(ctx, in)
 	return out, trace.Wrap(err)
 }
 
 // UpsertStaticHostUser upserts a static host user.
 func (s *StaticHostUserService) UpsertStaticHostUser(ctx context.Context, in *userprovisioningpb.StaticHostUser) (*userprovisioningpb.StaticHostUser, error) {
-	if err := services.ValidateStaticHostUser(in); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	out, err := s.svc.UpsertResource(ctx, in)
 	return out, trace.Wrap(err)
 }
@@ -104,7 +97,7 @@ func (s *StaticHostUserService) DeleteStaticHostUser(ctx context.Context, name s
 	return trace.Wrap(s.svc.DeleteResource(ctx, name))
 }
 
-// DeleteStaticHostUser deletes a static host user. Note that this does not
+// DeleteAllStaticHostUsers deletes all static host users. Note that this does not
 // remove any host users created on nodes from the resources.
 func (s *StaticHostUserService) DeleteAllStaticHostUsers(ctx context.Context) error {
 	return trace.Wrap(s.svc.DeleteAllResources(ctx))

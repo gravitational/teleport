@@ -32,13 +32,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/go-oidc"
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/cryptosigner"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -145,8 +145,20 @@ func (k *Key) sign(claims any, opts *jose.SignerOptions) (string, error) {
 
 // signAny will return a signed JWT with the passed in claims embedded within; unlike sign it allows more flexibility in the claim data.
 func (k *Key) signAny(claims any, opts *jose.SignerOptions) (string, error) {
+	sig, err := k.getSigner(opts)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	token, err := jwt.Signed(sig).Claims(claims).CompactSerialize()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return token, nil
+}
+
+func (k *Key) getSigner(opts *jose.SignerOptions) (jose.Signer, error) {
 	if k.config.PrivateKey == nil {
-		return "", trace.BadParameter("can not sign token with non-signing key")
+		return nil, trace.BadParameter("can not sign token with non-signing key")
 	}
 
 	// Create a signer with configured private key and algorithm.
@@ -157,12 +169,10 @@ func (k *Key) signAny(claims any, opts *jose.SignerOptions) (string, error) {
 	default:
 		signer = cryptosigner.Opaque(k.config.PrivateKey)
 	}
-
 	algorithm, err := joseAlgorithm(k.config.PrivateKey.Public())
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
 	signingKey := jose.SigningKey{
 		Algorithm: algorithm,
 		Key:       signer,
@@ -174,14 +184,9 @@ func (k *Key) signAny(claims any, opts *jose.SignerOptions) (string, error) {
 	opts = opts.WithType("JWT")
 	sig, err := jose.NewSigner(signingKey, opts)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
-	token, err := jwt.Signed(sig).Claims(claims).CompactSerialize()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return token, nil
+	return sig, nil
 }
 
 func joseAlgorithm(pub crypto.PublicKey) (jose.SignatureAlgorithm, error) {
@@ -216,7 +221,10 @@ func (k *Key) Sign(p SignParams) (string, error) {
 		Traits:   p.Traits,
 	}
 
-	return k.sign(claims, nil)
+	// RFC 7517 requires that `kid` be present in the JWT header if there are multiple keys in the JWKS.
+	// We ignore the error because go-jose omits the kid if it is empty.
+	kid, _ := KeyID(k.config.PublicKey)
+	return k.sign(claims, (&jose.SignerOptions{}).WithHeader("kid", kid))
 }
 
 // awsOIDCCustomClaims defines the require claims for the JWT token used in AWS OIDC Integration.
@@ -253,6 +261,87 @@ func (k *Key) SignAWSOIDC(p SignParams) (string, error) {
 	// but it seems to (NB: educated guess) require it if JWKS has multiple JWK-s with different `kid`-s.
 	opts := (&jose.SignerOptions{}).
 		WithHeader(jose.HeaderKey("kid"), "")
+
+	return k.sign(claims, opts)
+}
+
+// SignParamsJWTSVID are the parameters needed to sign a JWT SVID token.
+type SignParamsJWTSVID struct {
+	// JTI is the unique JWT ID.
+	JTI string
+	// SPIFFEID is the SPIFFE ID of the workload to which it is issued.
+	SPIFFEID spiffeid.ID
+	// Audiences are the audiences to include in the token as the expected
+	// recipients of the token.
+	Audiences []string
+	// TTL is the time to live for the token.
+	TTL time.Duration
+	// Issuer is the value that should be included in the `iss` claim of the
+	// created token.
+	Issuer string
+
+	// SetExpiry overrides the expiry time of the token. This causes the value
+	// of TTL to be ignored.
+	SetExpiry time.Time
+	// SetIssuedAt overrides the issued at time of the token.
+	SetIssuedAt time.Time
+}
+
+// SignJWTSVID signs a JWT SVID token.
+// See https://github.com/spiffe/spiffe/blob/main/standards/JWT-SVID.md
+func (k *Key) SignJWTSVID(p SignParamsJWTSVID) (string, error) {
+	// Record time here for consistency between exp and iat.
+	now := k.config.Clock.Now()
+	claims := jwt.Claims{
+		// > 3.1. Subject:
+		// > The sub claim MUST be set to the SPIFFE ID of the workload to which it is issued.
+		Subject: p.SPIFFEID.String(),
+		// > 3.2. Audience:
+		// > The aud claim MUST be present, containing one or more values.
+		Audience: p.Audiences,
+		// > 3.3. Expiration Time:
+		// > The exp claim MUST be set
+		Expiry: jwt.NewNumericDate(now.Add(p.TTL)),
+		// The spec makes no comment on inclusion of `iat`, but the SPIRE
+		// implementation does set this value and it feels like a good idea.
+		IssuedAt: jwt.NewNumericDate(now),
+		// > 7.1. Replay Protection
+		// > the jti claim is permitted by this specification, it should be
+		// > noted that JWT-SVID validators are not required to track jti
+		// > uniqueness.
+		ID: p.JTI,
+		// The SPIFFE specification makes no comment on the inclusion of `iss`,
+		// however, we provide this value so that the issued token can be a
+		// valid OIDC ID token and used with non-SPIFFE aware systems that do
+		// understand OIDC.
+		Issuer: p.Issuer,
+	}
+	if !p.SetIssuedAt.IsZero() {
+		claims.IssuedAt = jwt.NewNumericDate(p.SetIssuedAt)
+	}
+	if !p.SetExpiry.IsZero() {
+		claims.Expiry = jwt.NewNumericDate(p.SetExpiry)
+	}
+
+	// > 2.2. Key ID:
+	// >The kid header is optional.
+	//
+	// Whilst optional, the SPIRE reference implementation does set this value
+	// and it will be beneficial for compatibility with a range of consumers
+	// which may require this value.
+	kid, err := KeyID(k.config.PublicKey)
+	if err != nil {
+		return "", trace.Wrap(err, "calculating 'kid'")
+	}
+	opts := (&jose.SignerOptions{}).
+		WithHeader("kid", kid)
+
+	// > 2.3. Type
+	// > The typ header is optional. If set, its value MUST be either JWT or
+	// > JOSE.
+	//
+	// We will omit the inclusion of the type header until we can validate the
+	// ramifications of including it.
 
 	return k.sign(claims, opts)
 }
@@ -561,11 +650,18 @@ type Claims struct {
 	Traits wrappers.Traits `json:"traits"`
 }
 
+// IDToken allows introspecting claims from an OpenID Connect
+// ID Token.
+type IDToken interface {
+	// Claims unmarshals the raw JSON payload of the ID Token into a provided struct.
+	Claims(v any) error
+}
+
 // CheckNotBefore ensures the token was not issued in the future.
 // https://www.rfc-editor.org/rfc/rfc7519#section-4.1.5
 // 4.1.5.  "nbf" (Not Before) Claim
 // TODO(strideynet): upstream support for `nbf` into the go-oidc lib.
-func CheckNotBefore(now time.Time, leeway time.Duration, token *oidc.IDToken) error {
+func CheckNotBefore(now time.Time, leeway time.Duration, token IDToken) error {
 	claims := struct {
 		NotBefore *JSONTime `json:"nbf"`
 	}{}
@@ -606,4 +702,17 @@ func (j *JSONTime) UnmarshalJSON(b []byte) error {
 	}
 	*j = JSONTime(time.Unix(unix, 0))
 	return nil
+}
+
+// SignPayload signs the payload with the key and JSONWebSignature.
+func (k *Key) SignPayload(payload []byte, opts *jose.SignerOptions) (*jose.JSONWebSignature, error) {
+	sig, err := k.getSigner(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	signature, err := sig.Sign(payload)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return signature, nil
 }

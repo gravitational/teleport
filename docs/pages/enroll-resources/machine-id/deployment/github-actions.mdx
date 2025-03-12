@@ -28,7 +28,7 @@ Actions runners as well as GitHub Enterprise Server.
 
 In order to allow your GitHub Actions workflow to authenticate with your
 Teleport cluster, you'll first need to create a join token. These tokens set out
-criteria by which the Auth Server decides whether to allow a bot or node
+criteria by which the Auth Service decides whether to allow a bot or node
 to join.
 
 In this example, you will create a join token that grants access to any
@@ -36,7 +36,7 @@ GitHub Actions run within a specific GitHub repository. In production, you may
 wish to further restrict these rules to ensure that access can only occur
 when CI is running against a specific branch. You can find a full list of the
 available rules on the
-[GitHub Actions reference page.](../reference/github-actions.mdx#github-join-token)
+[GitHub Actions reference page.](../../../reference/machine-id/github-actions.mdx)
 
 Create a file named `bot-token.yaml`:
 
@@ -68,11 +68,11 @@ to more accurately describe your use-case.
 <Admonition type="note" title="Using GitHub Enterprise?">
 **Enterprise Server**
 
-From Teleport 11.1.4, users with Teleport Enterprise are able to permit
+If you are using self-hosted Teleport Enterprise you are able to permit
 workflows within GitHub Enterprise Server instances to authenticate using the
 GitHub join method.
 
-The Teleport Auth Server must be able to connect to the GitHub Enterprise
+The Teleport Auth Service must be able to connect to the GitHub Enterprise
 Server.
 
 To configure this, set `spec.github.enterprise_server_host` to the hostname of
@@ -277,6 +277,13 @@ spec:
     - editor
 ```
 
+<Admonition type="note">
+This example assumes the role is version `v6`. If you are using a `v7`+ role
+you will need to include `verbs: ["get", "list"]` for the `kind: pod` section
+in `kubernetes_resources`. Otherwise the example `kubectl get pods -A` execution
+will be denied.
+</Admonition>
+
 With that privileges granted, you can now create the GitHub Actions workflow.
 Create `.github/workflows/example.yaml`:
 
@@ -367,7 +374,7 @@ outputs: []
 Replace:
 
 - `example.teleport.sh:443` with the address of your Teleport Proxy or
-  Auth Server. Prefer using the address of a Teleport Proxy.
+  Auth Service. Prefer using the address of a Teleport Proxy.
 - `example-bot` with the name of the token you created in the first step.
 
 Now you can define a GitHub Actions workflow that will start `tbot` with this
@@ -435,8 +442,8 @@ interact with.
   - [teleport-actions/auth-k8s](https://github.com/teleport-actions/auth-k8s)
   - [teleport-actions/auth-application](https://github.com/teleport-actions/auth-application)
 - For more information about the `github` join method, read the [GitHub Actions
-  reference page](../reference/github-actions.mdx#github-join-token)
+  reference page](../../../reference/machine-id/github-actions.mdx)
 - Find out more about GitHub Actions itself, read
   [their documentation](https://docs.github.com/en/actions).
-- [More information about `anonymous-telemetry`.](../reference/telemetry.mdx)
+- [More information about `anonymous-telemetry`.](../../../reference/machine-id/telemetry.mdx)
 

@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { forwardRef, useRef, useState } from 'react';
+import { forwardRef, useRef, useState } from 'react';
 import styled, { css } from 'styled-components';
-import { Box, Button, Indicator, Menu, MenuItem, blink } from 'design';
-import { Laptop, Warning } from 'design/Icon';
 
+import { blink, Box, Button, Indicator, Menu, MenuItem } from 'design';
+import { Laptop, Warning } from 'design/Icon';
 import { Attempt, AttemptStatus } from 'shared/hooks/useAsync';
 
 import { useWorkspaceContext } from 'teleterm/ui/Documents';

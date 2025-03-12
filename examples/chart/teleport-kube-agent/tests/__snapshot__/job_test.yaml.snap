@@ -25,7 +25,7 @@ should create ServiceAccount for post-delete hook by default:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:18.0.0-dev
       imagePullPolicy: IfNotPresent
       name: post-delete-job
       securityContext:
@@ -91,6 +91,8 @@ should not create ServiceAccount for post-delete hook if serviceAccount.create i
     spec:
       template:
         metadata:
+          labels:
+            app: RELEASE-NAME
           name: RELEASE-NAME-delete-hook
         spec:
           containers:
@@ -106,7 +108,7 @@ should not create ServiceAccount for post-delete hook if serviceAccount.create i
                   fieldPath: metadata.namespace
             - name: RELEASE_NAME
               value: RELEASE-NAME
-            image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
+            image: public.ecr.aws/gravitational/teleport-distroless:18.0.0-dev
             imagePullPolicy: IfNotPresent
             name: post-delete-job
             securityContext:
@@ -136,7 +138,7 @@ should not create ServiceAccount, Role or RoleBinding for post-delete hook if se
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:18.0.0-dev
       imagePullPolicy: IfNotPresent
       name: post-delete-job
       securityContext:
@@ -166,7 +168,7 @@ should set nodeSelector in post-delete hook:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:18.0.0-dev
       imagePullPolicy: IfNotPresent
       name: post-delete-job
       securityContext:
@@ -181,5 +183,42 @@ should set nodeSelector in post-delete hook:
           type: RuntimeDefault
     nodeSelector:
       gravitational.io/k8s-role: node
+    restartPolicy: OnFailure
+    serviceAccountName: RELEASE-NAME-delete-hook
+should set resources in the Job's pod spec if resources is set in values:
+  1: |
+    containers:
+    - args:
+      - kube-state
+      - delete
+      command:
+      - teleport
+      env:
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
+      image: public.ecr.aws/gravitational/teleport-distroless:18.0.0-dev
+      imagePullPolicy: IfNotPresent
+      name: post-delete-job
+      resources:
+        limits:
+          cpu: 2
+          memory: 4Gi
+        requests:
+          cpu: 1
+          memory: 2Gi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
     restartPolicy: OnFailure
     serviceAccountName: RELEASE-NAME-delete-hook

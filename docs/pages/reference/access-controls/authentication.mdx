@@ -1,0 +1,315 @@
+---
+title: Authentication options
+description: A reference for Teleport's authentication connectors
+---
+
+Teleport authenticates users either via the Proxy Service or with an identity
+provider via **authentication connectors**.
+
+## Local (no authentication connector)
+
+Local authentication is used to authenticate against a local Teleport user
+database. This database is managed by the [`tctl
+users`](../cli/tctl.mdx) command. Teleport also supports
+multi-factor authentication (MFA) for the local connector. There are several
+possible values (types) of MFA:
+
+- `otp` is the default. It implements the [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
+  standard. You can use [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator), [Authy](https://www.authy.com/) or any other TOTP client.
+- `webauthn` implements the [Web Authentication standard](https://webauthn.guide) for utilizing
+  multi-factor authenticators and hardware devices.
+  You can use [YubiKeys](https://www.yubico.com/), [SoloKeys](https://solokeys.com/) or any other authenticator that
+  implements FIDO2 or FIDO U2F standards.
+  See our [Harden your Cluster Against IdP Compromises](../../admin-guides/access-controls/guides/webauthn.mdx) guide for detailed
+  instructions on setting up WebAuthn for Teleport.
+- `on` enables both TOTP and WebAuthn, and all local users are required to have at least one MFA device registered.
+- `optional` enables both TOTP and WebAuthn but makes it optional for users. Local users that register a MFA device will
+  be prompted for it during login. This option is useful when you need to gradually enable MFA usage before switching
+  the value to `on`.
+- `off` turns off multi-factor authentication.
+
+<Admonition type="note">
+  If you are using Teleport with a Single Sign-On solution, users can also register MFA devices, but Teleport will not prompt them for MFA during login. MFA for SSO users should be handled by the SSO provider.
+</Admonition>
+
+<Tabs>
+<TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
+
+You can modify these settings either using a static configuration file or
+dynamic configuration resources.
+
+### Static configuration
+
+Add the following to your Teleport configuration file, which is stored in
+`/etc/teleport.yaml` by default.
+
+  ```yaml
+  auth_service:
+    authentication:
+      type: local
+      second_factors: ["webauthn"]
+      webauthn:
+        rp_id: example.teleport.sh
+  ```
+
+### Dynamic resource
+
+Edit your `cluster_auth_preference` resource:
+
+```code
+$ tctl edit cap
+```
+
+Ensure that the resource includes the following content:
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  type: local
+  second_factors: ["webauthn"]
+  webauthn:
+    rp_id: example.teleport.sh
+version: v2
+```
+
+Save and close the file in your editor to apply changes.
+
+</TabItem>
+<TabItem scope={["cloud","team"]} label="Cloud-Hosted">
+
+You can modify these settings using dynamic configuration resources.
+
+Log in to Teleport from your local machine so you can use the `tctl` admin tool:
+
+```code
+$ tsh login --proxy=myinstance.teleport.sh
+$ tctl status
+```
+
+Edit your `cluster_auth_preference` resource:
+
+```code
+$ tctl edit cap
+```
+
+Ensure that `cap.yaml` includes the following content:
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  type: local
+  second_factors: ["webauthn"]
+  webauthn:
+    rp_id: example.teleport.sh
+version: v2
+```
+
+Save and close the file in your editor to apply changes.
+
+</TabItem>
+</Tabs>
+
+### Local user policies
+
+Teleport requires that passwords for local users be at least 12 characters long.
+
+Additionally, Teleport will lock local user accounts if there are multiple
+failed login attempts within a 30-minute window. The account will remain locked
+for 30 minutes before the user can attempt to log in again.
+
+Overriding a block is available to users with rights to maintain `user` resources,
+available in the built-in `editor` role. To turn off a block, update the user entry,
+following these steps.
+
+Open the user resource in your editor:
+
+```code
+$ tctl edit users/<Var name="username" />
+```
+
+The resource should resemble the following:
+
+```yaml
+kind: user
+metadata:
+  name: jeff
+spec:
+  roles:
+  - access
+  status:
+    is_locked: true
+    lock_expires: "2023-04-22T01:55:02.228158166Z"
+    locked_message: user has exceeded maximum failed login attempts
+version: v2
+```
+
+Update the `is_locked` field under `status` to `false`, save the file, and close
+your editor.
+
+The user will now be unblocked from login attempts and can attempt to authenticate again.
+
+## Authentication connectors
+
+<Tabs>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+
+### GitHub
+
+This connector implements GitHub's OAuth 2.0 authentication flow. Please refer to GitHub's documentation on [Creating an OAuth App](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/)
+to learn how to create and register an OAuth app.
+
+Here is an example of this setting in a `cluster_auth_preference` resource:
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  type: github
+version: v2
+```
+
+See [GitHub OAuth 2.0](../../admin-guides/access-controls/sso/github-sso.mdx) for details on how to configure it.
+
+### SAML
+
+This connector type implements SAML authentication. It can be configured against any external identity manager like Okta or Auth0.
+
+Here is an example of this setting in a `cluster_auth_preference` resource:
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  type: saml
+version: v2
+```
+
+### OIDC
+
+Teleport implements OpenID Connect (OIDC) authentication.
+
+Here is an example of this setting in a `cluster_auth_preference` resource:
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  type: oidc
+version: v2
+```
+
+</TabItem>
+<TabItem scope={["enterprise"]} label="Enterprise">
+
+### GitHub
+
+This connector implements GitHub's OAuth 2.0 authentication flow. Please refer to GitHub's documentation on [Creating an OAuth App](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/)
+to learn how to create and register an OAuth app.
+
+Here is an example of this setting in the `teleport.yaml` :
+
+```yaml
+auth_service:
+  authentication:
+    type: github
+```
+
+See [GitHub OAuth 2.0](../../admin-guides/access-controls/sso/github-sso.mdx) for details on how to configure it.
+
+### SAML
+
+This connector type implements SAML authentication. It can be configured against any external identity manager like Okta or Auth0.
+
+Here is an example of this setting in the `teleport.yaml` :
+
+```yaml
+auth_service:
+  authentication:
+    type: saml
+```
+
+### OIDC
+
+Teleport implements OpenID Connect (OIDC) authentication, which is similar to SAML in principle.
+
+Here is an example of this setting in the `teleport.yaml` :
+
+```yaml
+auth_service:
+  authentication:
+    type: oidc
+```
+
+</TabItem>
+<TabItem scope={["oss"]} label="Open Source">
+
+### GitHub
+
+This connector implements GitHub's OAuth 2.0 authentication flow. Please refer to GitHub's documentation on [Creating an OAuth App](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/)
+to learn how to create and register an OAuth app.
+
+Here is an example of this setting in the `teleport.yaml` :
+
+```yaml
+auth_service:
+  authentication:
+    type: github
+```
+
+See [GitHub OAuth 2.0](../../admin-guides/access-controls/sso/github-sso.mdx) for details on how to configure it.
+
+</TabItem>
+</Tabs>
+
+## Require displaying a message of the day
+
+Teleport can display a custom message of the day (MOTD) for users prior to authenticating
+in the Teleport Web UI and CLI. 
+
+### Self-Hosted
+
+Add the following to your Teleport configuration file, which is stored in
+`/etc/teleport.yaml` by default.
+
+```yaml
+auth_service:
+  message_of_the_day: |
+    Welcome to the Example Teleport Cluster
+    All activity is monitored and should follow organization policies
+```
+
+Restart the Teleport Auth Service instances to apply this change.
+
+### Teleport Enterprise Cloud/Dynamic
+
+Edit your `cluster_auth_preference` resource:
+
+```code
+$ tctl edit cap
+```
+
+Ensure that the resource includes the `message_of_the_day` field:
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  message_of_the_day: |
+    Welcome to the Example Teleport Cluster
+    All activity is monitored and should follow organization policies
+  type: local
+  second_factor: "on"
+  webauthn:
+    rp_id: example.teleport.sh
+version: v2
+```
+
+Save and close the file in your editor to apply changes.

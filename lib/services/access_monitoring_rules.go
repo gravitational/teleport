@@ -39,7 +39,7 @@ type AccessMonitoringRules interface {
 	DeleteAccessMonitoringRule(ctx context.Context, name string) error
 	DeleteAllAccessMonitoringRules(ctx context.Context) error
 	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
-	ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, nextToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
+	ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
 }
 
 // NewAccessMonitoringRuleWithLabels creates a new AccessMonitoringRule  with the given spec and labels.
@@ -88,10 +88,18 @@ func ValidateAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.
 	if accessMonitoringRule.Spec.Notification != nil && accessMonitoringRule.Spec.Notification.Name == "" {
 		return trace.BadParameter("accessMonitoringRule notification plugin name is missing")
 	}
-	if hasAccessRequestAsSubject := slices.ContainsFunc(accessMonitoringRule.Spec.Subjects, func(subject string) bool {
-		return subject == types.KindAccessRequest
-	}); hasAccessRequestAsSubject && accessMonitoringRule.Spec.Notification == nil {
-		return trace.BadParameter("accessMonitoringRule notification configuration must be set if subjects contain %q",
+	if accessMonitoringRule.GetSpec().GetAutomaticApproval() != nil && accessMonitoringRule.GetSpec().GetAutomaticApproval().GetName() == "" {
+		return trace.BadParameter("accessMonitoringRule automatic_approval plugin name is missing")
+	}
+
+	if slices.Contains(accessMonitoringRule.GetSpec().GetSubjects(), types.KindAccessRequest) {
+		if accessMonitoringRule.GetSpec().GetNotification() != nil {
+			return nil
+		}
+		if accessMonitoringRule.GetSpec().GetAutomaticApproval() != nil {
+			return nil
+		}
+		return trace.BadParameter("one of notification or automatic_approval must be configured if subjects contain %q",
 			types.KindAccessRequest)
 	}
 

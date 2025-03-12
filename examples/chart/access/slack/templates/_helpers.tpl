@@ -60,3 +60,23 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{- define "slack.identitySecretName" -}}
+{{- if .Values.teleport.identitySecretName -}}
+{{- .Values.teleport.identitySecretName -}}
+{{- else if .Values.tbot.enabled -}}
+  {{- .Release.Name }}-{{ default .Values.tbot.nameOverride "tbot" }}-out
+{{- end }}
+{{- end -}}
+
+{{- define "slack.identitySecretPath" -}}
+{{- if .Values.tbot.enabled -}}
+identity
+{{- else -}}
+{{- .Values.teleport.identitySecretPath -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "slack.teleportAddress" -}}
+
+{{- end -}}

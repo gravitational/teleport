@@ -135,7 +135,7 @@ Next assign the managed identity desired permissions that the Teleport user
 should have. In this example, the "Reader" role is assigned to the managed
 identity:
 ```code
-$ az role assignment create --role "<Var name="Reader" />" --scope "/subscriptions/${SUBSCRIPTION}" --assignee-object-id $(az identity show --name "<Var name="teleport-reader" />" --resource-group "${RESOURCE_GROUP}" --query principalId --output tsv) --assignee-principal-type ServicePrincipal
+$ az role assignment create --role "Reader" --scope "/subscriptions/${SUBSCRIPTION}" --assignee-object-id $(az identity show --name "<Var name="teleport-reader" />" --resource-group "${RESOURCE_GROUP}" --query principalId --output tsv) --assignee-principal-type ServicePrincipal
 ```
 
 ### Associate the managed identity with the Kubernetes service account
@@ -194,13 +194,13 @@ extraLabels:
 EOF
 ```
 
-Install the Helm chart for Teleport agent services, `teleport-kube-agent`:
+Install the Helm chart for Teleport Agent services, `teleport-kube-agent`:
 ```code
 $ helm -n <Var name="teleport-ns" /> install teleport-azure-access-agent \
   teleport/teleport-kube-agent --values azure_access_agent.values.yaml
 ```
 
-Make sure that the Teleport agent pod is running. You should see one
+Make sure that the Teleport Agent pod is running. You should see one
 `teleport-azure-access-agent` pod with a single ready container:
 
 ```code
@@ -221,8 +221,8 @@ teleport-azure-access-agent-0   1/1     Running   0          99s
   your Teleport users can only manage Azure resources temporarily, with no
   longstanding admin roles for attackers to hijack. View our documentation on
   [Role Access
-  Requests](../../../access-controls/access-requests/role-requests.mdx) and
-  [Access Request plugins](../../../access-controls/access-request-plugins.mdx).
+  Requests](../../../admin-guides/access-controls/access-requests/role-requests.mdx) and
+  [Access Request plugins](../../../admin-guides/access-controls/access-request-plugins/access-request-plugins.mdx).
 - Consult the Azure documentation for information about [Azure managed
   identities](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview)
   and how to [manage user-assigned managed
@@ -232,6 +232,6 @@ teleport-azure-access-agent-0   1/1     Running   0          99s
   for the full list of `az` CLI commands.
 - For full details on how Teleport populates the `internal` and `external`
   traits we illustrated in the Teleport roles within this guide, see
-  the [Teleport Access Controls
-  Reference](../../../access-controls/reference.mdx).
+  the [Access Controls
+  Reference](../../../reference/access-controls/roles.mdx).
 

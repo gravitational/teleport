@@ -28,9 +28,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
-	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
@@ -78,45 +76,6 @@ func (c *Cluster) GetDatabase(ctx context.Context, authClient authclient.ClientI
 	}, err
 }
 
-func (c *Cluster) GetDatabases(ctx context.Context, authClient authclient.ClientI, r *api.GetDatabasesRequest) (*GetDatabasesResponse, error) {
-	var (
-		page apiclient.ResourcePage[types.DatabaseServer]
-		err  error
-	)
-
-	req := &proto.ListResourcesRequest{
-		Namespace:           defaults.Namespace,
-		ResourceType:        types.KindDatabaseServer,
-		Limit:               r.Limit,
-		SortBy:              types.GetSortByFromString(r.SortBy),
-		StartKey:            r.StartKey,
-		PredicateExpression: r.Query,
-		SearchKeywords:      client.ParseSearchKeywords(r.Search, ' '),
-		UseSearchAsRoles:    r.SearchAsRoles == "yes",
-	}
-
-	err = AddMetadataToRetryableError(ctx, func() error {
-		page, err = apiclient.GetResourcePage[types.DatabaseServer](ctx, authClient, req)
-		return trace.Wrap(err)
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	response := &GetDatabasesResponse{
-		StartKey:   page.NextKey,
-		TotalCount: page.Total,
-	}
-	for _, database := range page.Resources {
-		response.Databases = append(response.Databases, Database{
-			URI:      c.URI.AppendDB(database.GetName()),
-			Database: database.GetDatabase(),
-		})
-	}
-
-	return response, nil
-}
-
 // reissueDBCerts issues new certificates for specific DB access and saves them to disk.
 func (c *Cluster) reissueDBCerts(ctx context.Context, clusterClient *client.ClusterClient, routeToDatabase tlsca.RouteToDatabase) (tls.Certificate, error) {
 	if dbrole.RequireDatabaseUserMatcher(routeToDatabase.Protocol) && routeToDatabase.Username == "" {
@@ -126,7 +85,7 @@ func (c *Cluster) reissueDBCerts(ctx context.Context, clusterClient *client.Clus
 	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
 	err := clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
-		AccessRequests: c.status.ActiveRequests.AccessRequests,
+		AccessRequests: c.status.ActiveRequests,
 	})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
@@ -139,9 +98,10 @@ func (c *Cluster) reissueDBCerts(ctx context.Context, clusterClient *client.Clus
 			Protocol:    routeToDatabase.Protocol,
 			Username:    routeToDatabase.Username,
 		},
-		AccessRequests: c.status.ActiveRequests.AccessRequests,
+		AccessRequests: c.status.ActiveRequests,
 		RequesterName:  proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
-	}, c.clusterClient.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("database", routeToDatabase.ServiceName)))
+		TTL:            c.clusterClient.KeyTTL,
+	})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}

@@ -19,18 +19,19 @@
 package postgres
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgproto3/v2"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/events"
@@ -146,6 +147,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		cancelAutoUserLease()
 		return trace.Wrap(err)
 	}
+	sessionCtx.PostgresPID = hijackedConn.PID
+	e.Log = e.Log.With("pg_backend_pid", hijackedConn.PID)
 	e.rawServerConn = hijackedConn.Conn
 	// Release the auto-users semaphore now that we've successfully connected.
 	cancelAutoUserLease()
@@ -210,6 +213,9 @@ func (e *Engine) handleStartup(client *pgproto3.Backend, sessionCtx *common.Sess
 				sessionCtx.DatabaseName = value
 			case "user":
 				sessionCtx.DatabaseUser = value
+			// https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-CONNECT-APPLICATION-NAME
+			case "application_name":
+				sessionCtx.UserAgent = value
 			default:
 				sessionCtx.StartupParameters[key] = value
 			}
@@ -224,6 +230,16 @@ func (e *Engine) handleStartup(client *pgproto3.Backend, sessionCtx *common.Sess
 }
 
 func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) error {
+	// Don't allow an empty user names. Postgres will silently use
+	// the user name as the database name if no database name is passed which
+	// can cause Teleport to allow connections that are explicitly blocked by
+	// RBAC rules. Follow Postgres' behavior and use the user name as the
+	// database name if no database name is passed.
+	if sessionCtx.DatabaseUser == "" {
+		return trace.BadParameter("user name must not be empty")
+	}
+	sessionCtx.DatabaseName = cmp.Or(sessionCtx.DatabaseName, sessionCtx.DatabaseUser)
+
 	if err := sessionCtx.CheckUsernameForAutoUserProvisioning(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -489,9 +505,9 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 
 func (e *Engine) newConnector(sessionCtx *common.Session) *connector {
 	conn := &connector{
-		auth:         e.Auth,
-		cloudClients: e.CloudClients,
-		log:          e.Log,
+		auth:       e.Auth,
+		gcpClients: e.GCPClients,
+		log:        e.Log,
 
 		certExpiry:    sessionCtx.GetExpiry(),
 		database:      sessionCtx.Database,
@@ -517,9 +533,6 @@ func (e *Engine) handleCancelRequest(ctx context.Context, sessionCtx *common.Ses
 	// Instead, use the pgconn config string parser for convenience and dial
 	// db host:port ourselves.
 	network, address := pgconn.NetworkAddress(config.Host, config.Port)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	dialer := net.Dialer{Timeout: defaults.DefaultIOTimeout}
 	conn, err := dialer.DialContext(ctx, network, address)
 	if err != nil {
@@ -571,8 +584,10 @@ func formatParameters(parameters [][]byte, formatCodes []int16) (formatted []str
 	// https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-BIND
 	// https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-FUNCTIONCALL
 	if len(formatCodes) > 1 && len(formatCodes) != len(parameters) {
-		logrus.Warnf("Postgres parameter format codes and parameters don't match: %#v %#v.",
-			parameters, formatCodes)
+		slog.WarnContext(context.Background(), "Postgres parameter format codes and parameters don't match",
+			"parameters", parameters,
+			"format_codes", formatCodes,
+		)
 		return formatted
 	}
 	for i, p := range parameters {
@@ -601,8 +616,7 @@ func formatParameters(parameters [][]byte, formatCodes []int16) (formatted []str
 			formatted = append(formatted, base64.StdEncoding.EncodeToString(p))
 		default:
 			// Should never happen but...
-			logrus.Warnf("Unknown Postgres parameter format code: %#v.",
-				formatCode)
+			slog.WarnContext(context.Background(), "Unknown Postgres parameter format code", "format_code", formatCode)
 			formatted = append(formatted, "<unknown>")
 		}
 	}

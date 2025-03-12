@@ -20,6 +20,8 @@ package pgbk
 
 import (
 	"github.com/google/uuid"
+
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 // revision is transparently converted to and from Postgres UUIDs.
@@ -44,6 +46,15 @@ func revisionFromString(s string) (r revision, ok bool) {
 		return revision{}, false
 	}
 	return u, true
+}
+
+// nonNilKey replaces an empty key with a non-nil one.
+func nonNilKey(b backend.Key) []byte {
+	if b.IsZero() {
+		return []byte{}
+	}
+
+	return []byte(b.String())
 }
 
 // nonNil replaces a nil slice with an empty, non-nil one.

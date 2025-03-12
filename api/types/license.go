@@ -529,7 +529,7 @@ func (c *LicenseV3) String() string {
 	if c.GetTrial() {
 		features = append(features, "is trial")
 	}
-	if c.GetReportsUsage() {
+	if c.GetSalesCenterReporting() {
 		features = append(features, "reports usage")
 	}
 	if c.GetSupportsKubernetes() {

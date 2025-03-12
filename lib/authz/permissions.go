@@ -23,6 +23,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"strings"
@@ -30,7 +31,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate/builder"
 
 	"github.com/gravitational/teleport"
@@ -81,7 +81,7 @@ type AuthorizerOpts struct {
 	ReadOnlyAccessPoint ReadOnlyAuthorizerAccessPoint
 	MFAAuthenticator    MFAAuthenticator
 	LockWatcher         *services.LockWatcher
-	Logger              logrus.FieldLogger
+	Logger              *slog.Logger
 
 	// DeviceAuthorization holds Device Trust authorization options.
 	//
@@ -104,7 +104,7 @@ func NewAuthorizer(opts AuthorizerOpts) (Authorizer, error) {
 	}
 	logger := opts.Logger
 	if logger == nil {
-		logger = logrus.WithFields(logrus.Fields{teleport.ComponentKey: "authorizer"})
+		logger = slog.With(teleport.ComponentKey, "authorizer")
 	}
 
 	if opts.ReadOnlyAccessPoint == nil {
@@ -225,7 +225,7 @@ type authorizer struct {
 	readOnlyAccessPoint ReadOnlyAuthorizerAccessPoint
 	mfaAuthenticator    MFAAuthenticator
 	lockWatcher         *services.LockWatcher
-	logger              logrus.FieldLogger
+	logger              *slog.Logger
 
 	disableGlobalDeviceMode bool
 	disableRoleDeviceMode   bool
@@ -443,7 +443,7 @@ func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error
 
 	// Device Trust: authorize device extensions.
 	if !a.disableGlobalDeviceMode {
-		if err := dtauthz.VerifyTLSUser(authPref.GetDeviceTrust(), authContext.Identity.GetIdentity()); err != nil {
+		if err := dtauthz.VerifyTLSUser(ctx, authPref.GetDeviceTrust(), authContext.Identity.GetIdentity()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -537,17 +537,18 @@ func (a *authorizer) isAdminActionAuthorizationRequired(ctx context.Context, aut
 		return false, nil
 	}
 
+	ident := authContext.Identity.GetIdentity()
 	// Skip MFA check if the user is a Bot.
-	if user, err := a.accessPoint.GetUser(ctx, authContext.Identity.GetIdentity().Username, false); err == nil && user.IsBot() {
-		a.logger.Debugf("Skipping admin action MFA check for bot identity: %v", authContext.Identity.GetIdentity())
+	if user, err := a.accessPoint.GetUser(ctx, ident.Username, false); err == nil && user.IsBot() {
+		a.logger.DebugContext(ctx, "Skipping admin action MFA check for bot identity", "identity", ident)
 		return false, nil
 	}
 
 	// Skip MFA if the identity is being impersonated by the Bot or Admin built in role.
-	if impersonator := authContext.Identity.GetIdentity().Impersonator; impersonator != "" {
+	if impersonator := ident.Impersonator; impersonator != "" {
 		impersonatorUser, err := a.accessPoint.GetUser(ctx, impersonator, false)
 		if err == nil && impersonatorUser.IsBot() {
-			a.logger.Debugf("Skipping admin action MFA check for bot-impersonated identity: %v", authContext.Identity.GetIdentity())
+			a.logger.DebugContext(ctx, "Skipping admin action MFA check for bot-impersonated identity", "identity", ident)
 			return false, nil
 		}
 
@@ -557,7 +558,7 @@ func (a *authorizer) isAdminActionAuthorizationRequired(ctx context.Context, aut
 			hostFQDNParts := strings.SplitN(impersonator, ".", 2)
 			if hostFQDNParts[1] == a.clusterName {
 				if _, err := uuid.Parse(hostFQDNParts[0]); err == nil {
-					a.logger.Debugf("Skipping admin action MFA check for admin-impersonated identity: %v", authContext.Identity.GetIdentity())
+					a.logger.DebugContext(ctx, "Skipping admin action MFA check for admin-impersonated identity", "identity", ident)
 					return false, nil
 				}
 			}
@@ -610,17 +611,16 @@ func (a *authorizer) convertAuthorizerError(err error) error {
 		// user not found, wrap error with access denied
 		return trace.Wrap(err, "access denied")
 	case errors.Is(err, ErrIPPinningMissing) || errors.Is(err, ErrIPPinningMismatch) || errors.Is(err, ErrIPPinningNotAllowed):
-		a.logger.Warn(err)
+		a.logger.WarnContext(context.Background(), "ip pinning requirements not satisfied", "error", err)
 		return trace.Wrap(err)
 	case trace.IsAccessDenied(err):
-		// don't print stack trace, just log the warning
-		a.logger.Warn(err)
+		a.logger.WarnContext(context.Background(), "access denied", "error", err)
 	case keys.IsPrivateKeyPolicyError(err):
 		// private key policy errors should be returned to the client
 		// unaltered so that they know to reauthenticate with a valid key.
 		return trace.Unwrap(err)
 	default:
-		a.logger.WithError(err).Warn("Suppressing unknown authz error.")
+		a.logger.WarnContext(context.Background(), "Suppressing unknown authz error", "error", err)
 	}
 	return trace.AccessDenied("access denied")
 }
@@ -637,7 +637,7 @@ var ErrIPPinningNotAllowed = trace.AccessDenied("IP pinning is not allowed for c
 
 // CheckIPPinning verifies IP pinning for the identity, using the client IP taken from context.
 // Check is considered successful if no error is returned.
-func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bool, log logrus.FieldLogger) error {
+func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bool, log *slog.Logger) error {
 	if identity.PinnedIP == "" {
 		if pinSourceIP {
 			return ErrIPPinningMissing
@@ -657,10 +657,10 @@ func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bo
 
 	if clientIP != identity.PinnedIP {
 		if log != nil {
-			log.WithFields(logrus.Fields{
-				"client_ip": clientIP,
-				"pinned_ip": identity.PinnedIP,
-			}).Debug("Pinned IP and client IP mismatch")
+			log.DebugContext(ctx, "Pinned IP and client IP mismatch",
+				"client_ip", clientIP,
+				"pinned_ip", identity.PinnedIP,
+			)
 		}
 		return ErrIPPinningMismatch
 	}
@@ -668,10 +668,9 @@ func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bo
 	// For security reason we don't allow such connection for IP pinning because we can't rely on client IP being correct.
 	if clientPort == "0" {
 		if log != nil {
-			log.WithFields(logrus.Fields{
-				"client_ip": clientIP,
-				"pinned_ip": identity.PinnedIP,
-			}).Debug(ErrIPPinningNotAllowed.Error())
+			const msg = "IP pinning is not allowed for connections behind L4 load balancers with " +
+				"PROXY protocol enabled without explicitly setting 'proxy_protocol: on' in the proxy_service and/or auth_service config"
+			log.DebugContext(ctx, msg, "client_ip", clientIP, "pinned_ip", identity.PinnedIP)
 		}
 		return ErrIPPinningMismatch
 	}
@@ -694,7 +693,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		return nil, trace.Wrap(err)
 	}
 
-	accessInfo, err := services.AccessInfoFromRemoteIdentity(u.Identity, ca.CombinedMapping())
+	accessInfo, err := services.AccessInfoFromRemoteTLSIdentity(u.Identity, ca.CombinedMapping())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -796,6 +795,9 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				GitHubPermissions: []types.GitHubPermission{{
+					Organizations: []string{types.Wildcard},
+				}},
 				Rules: []types.Rule{
 					types.NewRule(types.KindNode, services.RO()),
 					types.NewRule(types.KindProxy, services.RO()),
@@ -815,6 +817,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 					types.NewRule(types.KindInstaller, services.RO()),
 					types.NewRule(types.KindUIConfig, services.RO()),
 					types.NewRule(types.KindDatabaseService, services.RO()),
+					types.NewRule(types.KindGitServer, services.RO()),
 					// this rule allows remote proxy to update the cluster's certificate authorities
 					// during certificates renewal
 					{
@@ -868,6 +871,9 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 			DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
+			GitHubPermissions: []types.GitHubPermission{{
+				Organizations: []string{types.Wildcard},
+			}},
 			Rules: []types.Rule{
 				types.NewRule(types.KindProxy, services.RW()),
 				types.NewRule(types.KindOIDCRequest, services.RW()),
@@ -913,10 +919,15 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindSAMLIdPServiceProvider, services.RO()),
 				types.NewRule(types.KindUserGroup, services.RO()),
 				types.NewRule(types.KindClusterMaintenanceConfig, services.RO()),
+				types.NewRule(types.KindAutoUpdateConfig, services.RO()),
+				types.NewRule(types.KindAutoUpdateVersion, services.RO()),
+				types.NewRule(types.KindAutoUpdateAgentRollout, services.RO()),
 				types.NewRule(types.KindIntegration, append(services.RO(), types.VerbUse)),
 				types.NewRule(types.KindAuditQuery, services.RO()),
 				types.NewRule(types.KindSecurityReport, services.RO()),
 				types.NewRule(types.KindSecurityReportState, services.RO()),
+				types.NewRule(types.KindUserTask, services.RO()),
+				types.NewRule(types.KindGitServer, services.RO()),
 				// this rule allows cloud proxies to read
 				// plugins of `openai` type, since Assist uses the OpenAI API and runs in Proxy.
 				{
@@ -1007,6 +1018,8 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindNetworkRestrictions, services.RO()),
 						types.NewRule(types.KindConnectionDiagnostic, services.RW()),
+						types.NewRule(types.KindStaticHostUser, services.RO()),
+						types.NewRule(types.KindStableUNIXUser, []string{types.VerbCreate, types.VerbRead}),
 					},
 				},
 			})
@@ -1109,6 +1122,9 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					ClusterLabels:         types.Labels{types.Wildcard: []string{types.Wildcard}},
 					WindowsDesktopLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+					GitHubPermissions: []types.GitHubPermission{{
+						Organizations: []string{types.Wildcard},
+					}},
 					Rules: []types.Rule{
 						types.NewRule(types.Wildcard, services.RW()),
 						types.NewRule(types.KindDevice, append(services.RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
@@ -1171,6 +1187,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindWindowsDesktopService, services.RW()),
 						types.NewRule(types.KindWindowsDesktop, services.RW()),
+						types.NewRule(types.KindDynamicWindowsDesktop, services.RW()),
 					},
 				},
 			})
@@ -1194,6 +1211,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindDiscoveryConfig, services.RO()),
 						types.NewRule(types.KindIntegration, append(services.RO(), types.VerbUse)),
 						types.NewRule(types.KindSemaphore, services.RW()),
+						types.NewRule(types.KindUserTask, services.RW()),
 					},
 					// Discovery service should only access kubes/apps/dbs that originated from discovery.
 					KubernetesLabels: types.Labels{types.OriginLabel: []string{types.OriginCloud}},
@@ -1225,7 +1243,8 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindLock, services.RW()),
 						types.NewRule(types.KindSAML, services.ReadNoSecrets()),
-						// Okta can manage access lists and roles it creates.
+						types.NewRule(types.KindAccessList, services.RO()),
+						// Okta can read/write access lists and roles it creates.
 						{
 							Resources: []string{types.KindRole},
 							Verbs:     services.RW(),
@@ -1270,7 +1289,6 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					},
 				},
 			})
-
 	}
 
 	return nil, trace.NotFound("builtin role %q is not recognized", role.String())
@@ -1326,7 +1344,7 @@ func ContextForLocalUser(ctx context.Context, u LocalUser, accessPoint Authorize
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromLocalIdentity(u.Identity, accessPoint)
+	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(u.Identity, accessPoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1499,6 +1517,13 @@ func (c *Context) CheckAccessToRule(ruleCtx *services.Context, kind string, verb
 }
 
 // AuthorizeAdminAction will ensure that the user is authorized to perform admin actions.
+// MFA challenges that allow reuse will not be accepted.
+//
+// In the majority of cases, allowing reuse is ok and can result in better UX. Forbidding
+// reuse should be reserved for critical actions (e.g. CA rotation, cert generation) and
+// other actions that are not expected to be performed in bulk (e.g. access request reviews).
+//
+// See https://github.com/gravitational/teleport/blob/master/rfd/0155-scoped-webauthn-credentials.md#when-to-extend-reuse
 func (c *Context) AuthorizeAdminAction() error {
 	switch c.AdminActionAuthState {
 	case AdminActionAuthMFAVerified, AdminActionAuthNotRequired:
@@ -1508,7 +1533,13 @@ func (c *Context) AuthorizeAdminAction() error {
 }
 
 // AuthorizeAdminActionAllowReusedMFA will ensure that the user is authorized to perform
-// admin actions. Additionally, MFA challenges that allow reuse will be accepted.
+// admin actions. MFA challenges that allow reuse will be accepted.
+//
+// In the majority of cases, allowing reuse is ok and can result in better UX. Forbidding
+// reuse should be reserved for critical actions (e.g. CA rotation, cert generation) and
+// other actions that are not expected to be performed in bulk (e.g. access request reviews).
+//
+// See https://github.com/gravitational/teleport/blob/master/rfd/0155-scoped-webauthn-credentials.md#when-to-extend-reuse
 func (c *Context) AuthorizeAdminActionAllowReusedMFA() error {
 	if c.AdminActionAuthState == AdminActionAuthMFAVerifiedWithReuse {
 		return nil

@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "datadog.fullname" . }}
+  {{- with .Values.annotations.deployment }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  labels:
+    {{- include "datadog.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "datadog.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with coalesce .Values.annotations.pod .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "datadog.labels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /usr/local/bin/teleport-plugin
+            - start
+            - "--config"
+            - "/etc/teleport-datadog.toml"
+          env:
+            - name: "TELEPORT_PLUGIN_FAIL_FAST"
+              value: "true"
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/teleport-datadog.toml
+              subPath: teleport-datadog.toml
+            - name: teleport-identity
+              mountPath: /var/lib/teleport/plugins/datadog/teleport-identity
+            - name: {{ .Values.secretVolumeName }}-api-key
+              mountPath: /var/lib/teleport/plugins/datadog/datadog-api-key
+              subPath: {{ .Values.datadog.apiKeySecretPath }}
+            - name: {{ .Values.secretVolumeName }}-application-key
+              mountPath: /var/lib/teleport/plugins/datadog/datadog-application-key
+              subPath: {{ .Values.datadog.applicationKeySecretPath }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "datadog.fullname" . }}
+            defaultMode: 0600
+        - name: teleport-identity
+          secret:
+            secretName: {{ include "datadog.identitySecretName" . | quote }}
+            defaultMode: 0600
+        - name: {{ .Values.secretVolumeName }}-api-key
+          secret:
+            secretName: "{{ coalesce .Values.datadog.apiKeyFromSecret (printf "%s-api-key" (include "datadog.fullname" .)) }}"
+            defaultMode: 0600
+        - name: {{ .Values.secretVolumeName }}-application-key
+          secret:
+            secretName: "{{ coalesce .Values.datadog.applicationKeyFromSecret (printf "%s-application-key" (include "datadog.fullname" .)) }}"
+            defaultMode: 0600

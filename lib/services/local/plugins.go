@@ -48,7 +48,7 @@ func (s *PluginsService) CreatePlugin(ctx context.Context, plugin types.Plugin) 
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(pluginsPrefix, plugin.GetName()),
+		Key:     backend.NewKey(pluginsPrefix, plugin.GetName()),
 		Value:   value,
 		Expires: plugin.Expiry(),
 	}
@@ -62,7 +62,7 @@ func (s *PluginsService) CreatePlugin(ctx context.Context, plugin types.Plugin) 
 
 // DeletePlugin implements service.Plugins
 func (s *PluginsService) DeletePlugin(ctx context.Context, name string) error {
-	err := s.backend.Delete(ctx, backend.Key(pluginsPrefix, name))
+	err := s.backend.Delete(ctx, backend.NewKey(pluginsPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("plugin %q doesn't exist", name)
@@ -82,7 +82,7 @@ func (s *PluginsService) UpdatePlugin(ctx context.Context, plugin types.Plugin) 
 		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      backend.Key(pluginsPrefix, plugin.GetName()),
+		Key:      backend.NewKey(pluginsPrefix, plugin.GetName()),
 		Value:    value,
 		Expires:  plugin.Expiry(),
 		Revision: plugin.GetRevision(),
@@ -109,7 +109,7 @@ func (s *PluginsService) DeleteAllPlugins(ctx context.Context) error {
 
 // GetPlugin implements services.Plugins
 func (s *PluginsService) GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error) {
-	item, err := s.backend.Get(ctx, backend.Key(pluginsPrefix, name))
+	item, err := s.backend.Get(ctx, backend.NewKey(pluginsPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("plugin %q doesn't exist", name)
@@ -159,7 +159,7 @@ func (s *PluginsService) ListPlugins(ctx context.Context, limit int, startKey st
 	// Get at most limit+1 results to determine if there will be a next key.
 	maxLimit := limit + 1
 
-	startKeyBytes := backend.Key(pluginsPrefix, startKey)
+	startKeyBytes := backend.NewKey(pluginsPrefix, startKey)
 	endKey := backend.RangeEnd(backend.ExactKey(pluginsPrefix))
 	result, err := s.backend.GetRange(ctx, startKeyBytes, endKey, maxLimit)
 	if err != nil {
@@ -218,7 +218,7 @@ func (s *PluginsService) SetPluginStatus(ctx context.Context, name string, statu
 }
 
 func (s *PluginsService) updateAndSwap(ctx context.Context, name string, modify func(types.Plugin) error) error {
-	key := backend.Key(pluginsPrefix, name)
+	key := backend.NewKey(pluginsPrefix, name)
 	item, err := s.backend.Get(ctx, key)
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -246,8 +246,8 @@ func (s *PluginsService) updateAndSwap(ctx context.Context, name string, modify 
 		return trace.Wrap(err)
 	}
 
-	_, err = s.backend.CompareAndSwap(ctx, *item, backend.Item{
-		Key:      backend.Key(pluginsPrefix, plugin.GetName()),
+	_, err = s.backend.ConditionalUpdate(ctx, backend.Item{
+		Key:      backend.NewKey(pluginsPrefix, plugin.GetName()),
 		Value:    value,
 		Expires:  plugin.Expiry(),
 		Revision: rev,

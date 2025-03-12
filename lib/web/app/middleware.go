@@ -64,7 +64,7 @@ func (h *Handler) withAuth(handler handlerAuthFunc) http.HandlerFunc {
 // redirectToLauncher redirects to the proxy web's app launcher if the public
 // address of the proxy is set.
 func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p launcherURLParams) error {
-	if p.stateToken == "" && !HasSessionCookie(r) {
+	if p.stateToken == "" && !HasSessionCookie(r) && !p.requiresAppRedirect {
 		// Reaching this block means the application was accessed through the CLI (eg: tsh app login)
 		// and there was a forwarding error and we could not renew the app web session.
 		// Since we can't redirect the user to the app launcher from the CLI,
@@ -75,12 +75,13 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 	if h.c.WebPublicAddr == "" {
 		// The error below tends to be swallowed by the Web UI, so log a warning for
 		// admins as well.
-		h.log.Error("" +
-			"Application Service requires public_addr to be set in the Teleport Proxy Service configuration. " +
+		const msg = "Application Service requires public_addr to be set in the Teleport Proxy Service configuration. " +
 			"Please contact your Teleport cluster administrator or refer to " +
-			"https://goteleport.com/docs/application-access/guides/connecting-apps/#start-authproxy-service.")
+			"https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/."
+		h.logger.ErrorContext(r.Context(), msg)
 		return trace.BadParameter("public address of the proxy is not set")
 	}
+
 	addr, err := utils.ParseAddr(r.Host)
 	if err != nil {
 		return trace.Wrap(err)
@@ -139,4 +140,10 @@ type launcherURLParams struct {
 	// This field is used to preserve the original requested path through
 	// the app access authentication redirections.
 	path string
+	// requiredAppFQDNs is a list of required app fqdn to be used during application
+	// authentication redirects.
+	requiredAppFQDNs string
+	// requiredAppRedirect is used to tell the url builder an app redirect is required. If required,
+	// it will build the full launcher redirect url (similar to the one built with the stateToken)
+	requiresAppRedirect bool
 }

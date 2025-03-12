@@ -1,5 +1,5 @@
 ---
-title: Storage backends
+title: Storage Backends
 description: How to configure Teleport deployment for high-availability using storage backends
 ---
 
@@ -10,12 +10,12 @@ For self-hosted Teleport deployments, you can configure Teleport to integrate
 with other storage types based on the nature of the stored data (size,
 read/write ratio, mutability, etc.).
 
-| Data type | Description | Supported storage backends |
-| - | - | - |
-| core cluster state | Cluster configuration (e.g. users, roles, auth connectors) and identity (e.g. certificate authorities, registered nodes, trusted clusters). | Local directory (SQLite), etcd, PostgreSQL, Amazon DynamoDB, GCP Firestore, CockroachDB |
-| audit events | JSON-encoded events from the audit log (e.g. user logins, RBAC changes) | Local directory, PostgreSQL, AWS DynamoDB, GCP Firestore |
-| session recordings | Raw terminal recordings of interactive user sessions | Local directory, AWS S3 (and any S3-compatible product), GCP Cloud Storage, Azure Blob Storage |
-| teleport instance state | ID and credentials of a non-auth teleport instance (e.g. node, proxy) | Local directory, Kubernetes Secret |
+| Data type               | Description                                                                                                                                 | Supported storage backends                                                                             |
+|-------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
+| core cluster state      | Cluster configuration (e.g. users, roles, auth connectors) and identity (e.g. certificate authorities, registered nodes, trusted clusters). | Local directory (SQLite), etcd, PostgreSQL, Amazon DynamoDB, GCP Firestore, CockroachDB                |
+| audit events            | JSON-encoded events from the audit log (e.g. user logins, RBAC changes)                                                                     | Local directory, PostgreSQL, CockroachDB, Amazon DynamoDB, GCP Firestore |
+| session recordings      | Raw terminal recordings of interactive user sessions                                                                                        | Local directory, AWS S3 (and any S3-compatible product), GCP Cloud Storage, Azure Blob Storage         |
+| teleport instance state | ID and credentials of a non-auth teleport instance (e.g. node, proxy)                                                                       | Local directory, Kubernetes Secret                                                                     |
 
 ## Cluster state
 
@@ -43,9 +43,9 @@ run in a highly available fashion.
 ## Auth Service State
 
 To run multiple instances of the Teleport Auth Service, you must switch to one of
-the high-availability secrets backend listed below first.
+the high-availability storage backends listed below first.
 
-Once you have a high-availability secrets backend and multiple instances of
+Once you have a high-availability storage backend and multiple instances of
 the Auth Service running, you'll need to create a load balancer to evenly
 distribute traffic to all Auth Service instances and have a single point of
 entry for all components that need to communicate with the Auth Service. Use the
@@ -81,7 +81,7 @@ load balancer you'll need to run Teleport with `--insecure-no-tls`
 </Admonition>
 
 If your load balancer supports HTTP health checks, configure it to hit the
-`/readyz` [diagnostics endpoint](../management/diagnostics/monitoring.mdx) on
+`/readyz` [diagnostics endpoint](../admin-guides/management/diagnostics/monitoring.mdx) on
 machines running Teleport. This endpoint must be enabled by using the
 `--diag-addr` flag to teleport start:
 
@@ -209,6 +209,13 @@ its repository. The plugin is pre-installed with no extra steps to take in
 [Azure Database for
 PostgreSQL](https://azure.microsoft.com/en-us/products/postgresql).
 
+<Admonition type="note">
+CockroachDB can be used as a PostgreSQL drop-in replacement to store audit events (requires Teleport version >= 15.4.2).
+
+Teleport can store the cluster state in CockroachDB but this require CockroachDB-specific configuration.
+See the [CockroachDB backend section](#cockroachdb) for more details.
+</Admonition>
+
 Teleport needs separate databases for the cluster state and the
 audit log, and it will attempt to create them if given permissions to do so; it
 will also set up the database schemas as needed, so we recommend giving the user
@@ -269,7 +276,7 @@ To configure Teleport to use PostgreSQL:
   `storage` section of `teleport.yaml` as shown below.
 - Deploy several Auth Service instances connected to the PostgreSQL storage backend.
 - Deploy several Proxy Service nodes.
-- Make sure that the Proxy Service instances and all Teleport agent services that
+- Make sure that the Proxy Service instances and all Teleport Agent services that
   connect directly to the Auth Service have the `auth_server` configuration
   setting populated with the address of a load balancer for Auth Service
   instances.
@@ -354,9 +361,10 @@ If the use of passwords is unavoidable, we recommend configuring them in [the
 `~/.pgpass` file](https://www.postgresql.org/docs/current/libpq-pgpass.html)
 rather than storing them in Teleport's configuration file.
 
-### Azure AD authentication
+### Microsoft Entra ID authentication
 
-If you are running Teleport on Azure, Teleport can make use of [Azure AD
+If you are running Teleport on Azure, Teleport can make use of [Microsoft Entra
+ID
 authentication](https://learn.microsoft.com/azure/postgresql/flexible-server/concepts-azure-ad-authentication)
 to connect to an Azure Database for PostgreSQL server without having to manage
 any secrets:
@@ -376,13 +384,13 @@ teleport:
 When `auth_mode` is set to `azure`, Teleport will automatically fetch
 short-lived tokens from the credentials available to it, to be used as database
 passwords. The database user must be [configured to allow connections using
-Azure
-AD](https://learn.microsoft.com/azure/postgresql/flexible-server/how-to-configure-sign-in-azure-ad-authentication).
+Microsoft Entra ID](https://learn.microsoft.com/azure/postgresql/flexible-server/how-to-configure-sign-in-azure-ad-authentication).
 
-Teleport will make use of the Azure AD credentials specified by [environment
+Teleport will make use of the Microsoft Entra ID credentials specified by
+[environment
 variables](https://learn.microsoft.com/azure/developer/go/azure-sdk-authentication#2-authenticate-with-azure),
-[Azure AD Workload
-Identity](https://learn.microsoft.com/azure/aks/workload-identity-overview)
+[Microsoft Entra Workload
+ID](https://learn.microsoft.com/azure/aks/workload-identity-overview)
 credentials, or [managed
 identity](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview)
 credentials.
@@ -571,10 +579,13 @@ teleport:
     conn_string: "postgresql://teleport@localhost:5432/teleport_backend?sslcert=/path/to/certs/client.crt&sslkey=/path/to/certs/client.key&sslrootcert=/path/to/certs/ca.crt&sslmode=verify-full&pool_max_conns=20"
 ```
 
-## S3
+## S3 (Session Recordings)
 
-S3 buckets can only be used as storage for the recorded sessions. S3 cannot
-store the audit log or the cluster state.
+Teleport supports using S3 as a backend for both session recordings
+and audit logs. S3 cannot be used as the cluster state backend.
+This section covers the use of S3 as a session recording backend.
+For information on using S3 for audit logs, see the [Athena](#Athena)
+section.
 
 S3 buckets must have versioning enabled, which ensures that a session log cannot
 be permanently altered or deleted. Teleport will always look at the oldest
@@ -639,6 +650,10 @@ Service reads these parameters to configure its interactions with S3:
 
 - `use_fips_endpoint=true` -  [Configure S3 FIPS
   endpoints](#configuring-aws-fips-endpoints)
+
+- `use_s3_virtual_style_addressing` - Whether to use virtual-host-style instead of path-style URLs for the
+  bucket. Only applies when a custom endpoint is set. Defaults to false when unset. If used
+  without a custom endpoint set, this option has no effect.
 
 ### S3 IAM policy
 
@@ -841,7 +856,7 @@ To configure Teleport to use DynamoDB:
 - Make sure that all Teleport resource services have the `auth_servers` configuration setting
   populated with the addresses of your cluster's Auth Service instances.
 
-<Notice type="danger">
+<Admonition type="danger">
 
 AWS can throttle DynamoDB if more than two processes are reading from the same
 stream's shard simultaneously, so you must not deploy more than two Auth Service
@@ -849,7 +864,7 @@ instances that read from a DynamoDB backend. For details on DynamoDB Streams,
 read the [AWS
 documentation](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.html).
 
-</Notice>
+</Admonition>
 
 ```yaml
 teleport:
@@ -921,7 +936,7 @@ mode. This helps prevent any DynamoDB throttling due to underestimated usage or 
 
 ### Configuring AWS FIPS endpoints
 
-This config option applies to [AWS S3](#s3) and [AWS DynamoDB](#dynamodb).
+This config option applies to [Amazon S3](#s3-session-recordings) and [Amazon DynamoDB](#dynamodb).
 
 Set `use_fips_endpoint` to `true` or `false`. If `true`, [FIPS](https://aws.amazon.com/compliance/fips/) Dynamo endpoints will be used.
 If `false`, normal Dynamo endpoints will be used. If unset, the AWS Environment Variable `AWS_USE_FIPS_ENDPOINT` will determine which endpoint is used.
@@ -1297,6 +1312,10 @@ teleport:
     # Name of the Firestore table.
     collection_name: Example_TELEPORT_FIRESTORE_TABLE_NAME
 
+    # An optional database id to use. If not provided the default
+    # database for the project is used.
+    database_id: Example_TELEPORT_FIRESTORE_DATABASE_ID
+
     credentials_path: /var/lib/teleport/gcs_creds
 
     # This setting configures Teleport to send the audit events to three places:
@@ -1305,7 +1324,7 @@ teleport:
     # database table, so attempting to use the same table for both will result in errors.
     # When using highly available storage like Firestore, you should make sure that the list always specifies
     # the High Availability storage method first, as this is what the Teleport web UI uses as its source of events to display.
-    audit_events_uri:  ['firestore://Example_TELEPORT_FIRESTORE_EVENTS_TABLE_NAME', 'file:///var/lib/teleport/audit/events', 'stdout://']
+    audit_events_uri:  ['firestore://Example_TELEPORT_FIRESTORE_EVENTS_TABLE_NAME?projectID=$PROJECT_ID&credentialsPath=$CREDENTIALS_PATH&databaseID=$DATABASE_ID', 'file:///var/lib/teleport/audit/events', 'stdout://']
 
     # This setting configures Teleport to save the recorded sessions in GCP storage:
     audit_sessions_uri: gs://Example_TELEPORT_GCS_BUCKET/records
@@ -1376,10 +1395,10 @@ to define a custom role for it.
 
 ### Authentication
 
-Teleport will make use of the Azure AD credentials specified by [environment
+Teleport will make use of the Microsoft Entra ID credentials specified by [environment
 variables](https://learn.microsoft.com/azure/developer/go/azure-sdk-authentication#2-authenticate-with-azure),
-[Azure AD Workload
-Identity](https://learn.microsoft.com/azure/aks/workload-identity-overview)
+[Microsoft Entra Workload
+ID](https://learn.microsoft.com/azure/aks/workload-identity-overview)
 credentials, or [managed
 identity](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview)
 credentials.
@@ -1453,15 +1472,6 @@ to achieve high availability and survive regional failures. You must take steps 
 protect access to CockroachDB in this configuration because that is where Teleport
 secrets like keys and user records will be stored.
 
-<Admonition
-  type="warning"
-  title="IMPORTANT"
->
-  CockroachDB can currently only be used to store Teleport's cluster state.
-  It cannot be used for Teleport's audit log in the same way that
-  [DynamoDB](#dynamodb) or [Firestore](#firestore) can.
-</Admonition>
-
 At a minimum you must configure CockroachDB to allow Teleport to create tables.
 Teleport will create the database if given permission to do so but this is not
 required if the database already exists.
@@ -1490,7 +1500,7 @@ To configure Teleport to use CockroachDB as a storage backend:
   `storage` section of `teleport.yaml` as shown below.
 - Deploy several Auth Service instances connected to the CockroachDB storage backend.
 - Deploy several Proxy Service instances.
-- Make sure that the Proxy Service instances and all Teleport agent services that
+- Make sure that the Proxy Service instances and all Teleport Agent services that
   connect directly to to the Auth Service have the `auth_server` configuration
   setting populated with the address of a load balancer for Auth Service
   instances.

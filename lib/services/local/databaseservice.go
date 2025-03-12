@@ -44,13 +44,17 @@ func (s *DatabaseServicesService) UpsertDatabaseService(ctx context.Context, ser
 	if err := services.CheckAndSetDefaults(service); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := types.ValidateNamespaceDefault(service.GetNamespace()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	rev := service.GetRevision()
 	value, err := services.MarshalDatabaseService(service)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      backend.Key(databaseServicePrefix, service.GetName()),
+		Key:      backend.NewKey(databaseServicePrefix, service.GetName()),
 		Value:    value,
 		Expires:  service.Expiry(),
 		Revision: rev,
@@ -73,7 +77,7 @@ func (s *DatabaseServicesService) UpsertDatabaseService(ctx context.Context, ser
 
 // DeleteDatabaseService removes the specified DatabaseService resource.
 func (s *DatabaseServicesService) DeleteDatabaseService(ctx context.Context, name string) error {
-	err := s.Delete(ctx, backend.Key(databaseServicePrefix, name))
+	err := s.Delete(ctx, backend.NewKey(databaseServicePrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("databaseService %q doesn't exist", name)

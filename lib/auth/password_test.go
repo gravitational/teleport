@@ -22,7 +22,7 @@ import (
 	"context"
 	"encoding/base32"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"testing"
 	"time"
 
@@ -379,10 +379,11 @@ func TestServer_ChangePassword_Fails(t *testing.T) {
 	password := mfa.Password
 
 	tests := []struct {
-		name             string
-		oldPass          string
-		device           *TestDevice
-		challengeRequest *proto.CreateAuthenticateChallengeRequest
+		name                     string
+		oldPass                  string
+		device                   *TestDevice
+		challengeRequest         *proto.CreateAuthenticateChallengeRequest
+		createChallengeAssertion require.ErrorAssertionFunc
 	}{
 		{
 			name:    "No old password, TOTP challenge",
@@ -397,6 +398,7 @@ func TestServer_ChangePassword_Fails(t *testing.T) {
 					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_CHANGE_PASSWORD,
 				},
 			},
+			createChallengeAssertion: require.NoError,
 		},
 		{
 			name:    "No old password, WebAuthn challenge",
@@ -411,12 +413,14 @@ func TestServer_ChangePassword_Fails(t *testing.T) {
 					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_CHANGE_PASSWORD,
 				},
 			},
+			createChallengeAssertion: require.NoError,
 		},
 		{
-			name:             "Empty challenge request",
-			oldPass:          password,
-			device:           mfa.WebDev,
-			challengeRequest: &proto.CreateAuthenticateChallengeRequest{},
+			name:                     "Empty challenge request",
+			oldPass:                  password,
+			device:                   mfa.WebDev,
+			challengeRequest:         &proto.CreateAuthenticateChallengeRequest{},
+			createChallengeAssertion: require.Error,
 		},
 		{
 			name:    "Unspecified challenge scope",
@@ -428,6 +432,7 @@ func TestServer_ChangePassword_Fails(t *testing.T) {
 				},
 				ChallengeExtensions: &mfav1.ChallengeExtensions{},
 			},
+			createChallengeAssertion: require.Error,
 		},
 		{
 			name:    "Illegal challenge scope",
@@ -441,6 +446,7 @@ func TestServer_ChangePassword_Fails(t *testing.T) {
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				},
 			},
+			createChallengeAssertion: require.NoError,
 		},
 	}
 
@@ -455,7 +461,10 @@ func TestServer_ChangePassword_Fails(t *testing.T) {
 
 			// Acquire and solve an MFA challenge.
 			mfaChallenge, err := userClient.CreateAuthenticateChallenge(ctx, test.challengeRequest)
-			require.NoError(t, err, "creating challenge")
+			test.createChallengeAssertion(t, err, "creating challenge")
+			if err != nil {
+				return
+			}
 			mfaResp, err := test.device.SolveAuthn(mfaChallenge)
 			require.NoError(t, err, "solving challenge with device")
 

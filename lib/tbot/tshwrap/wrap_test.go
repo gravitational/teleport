@@ -40,7 +40,7 @@ func TestGetEnvForTSH(t *testing.T) {
 	expected := map[string]string{
 		client.VirtualPathEnvName(client.VirtualPathKey, nil):      filepath.Join(p, identity.PrivateKeyKey),
 		client.VirtualPathEnvName(client.VirtualPathDatabase, nil): filepath.Join(p, identity.TLSCertKey),
-		client.VirtualPathEnvName(client.VirtualPathApp, nil):      filepath.Join(p, identity.TLSCertKey),
+		client.VirtualPathEnvName(client.VirtualPathAppCert, nil):  filepath.Join(p, identity.TLSCertKey),
 
 		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.UserCA)):     filepath.Join(p, config.UserCAPath),
 		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.HostCA)):     filepath.Join(p, config.HostCAPath),
@@ -68,16 +68,16 @@ func TestGetDestinationDirectory(t *testing.T) {
 		return cfg
 	}
 	t.Run("one output configured", func(t *testing.T) {
-		dest, err := GetDestinationDirectory(config(1))
+		dest, err := GetDestinationDirectory("", config(1))
 		require.NoError(t, err)
 		require.Equal(t, "/from-bot-config0", dest.Path)
 	})
 	t.Run("no outputs specified", func(t *testing.T) {
-		_, err := GetDestinationDirectory(config(0))
+		_, err := GetDestinationDirectory("", config(0))
 		require.ErrorContains(t, err, "either --destination-dir or a config file containing an output or service must be specified")
 	})
 	t.Run("multiple outputs specified", func(t *testing.T) {
-		_, err := GetDestinationDirectory(config(2))
+		_, err := GetDestinationDirectory("", config(2))
 		require.ErrorContains(t, err, "the config file contains multiple outputs and services; a --destination-dir must be specified")
 	})
 }

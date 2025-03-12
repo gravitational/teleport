@@ -165,6 +165,25 @@ func TestDiscoverEventDataToUsageEvent(t *testing.T) {
 			}},
 		},
 		{
+			name:     uiDiscoverCreateAppServerEvent + "/success_test",
+			event:    uiDiscoverCreateAppServerEvent,
+			errCheck: require.NoError,
+			req: DiscoverEventData{
+				ID:         "someid",
+				Resource:   "DISCOVER_RESOURCE_APPLICATION_AWS_CONSOLE",
+				StepStatus: "DISCOVER_STATUS_SUCCESS",
+			},
+			expected: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverCreateAppServerEvent{
+				UiDiscoverCreateAppServerEvent: &usageeventsv1.UIDiscoverCreateAppServerEvent{
+					Metadata: &usageeventsv1.DiscoverMetadata{Id: "someid"},
+					Resource: &usageeventsv1.DiscoverResourceMetadata{Resource: usageeventsv1.DiscoverResource_DISCOVER_RESOURCE_APPLICATION_AWS_CONSOLE},
+					Status: &usageeventsv1.DiscoverStepStatus{
+						Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS,
+					},
+				},
+			}},
+		},
+		{
 			name:     uiDiscoverKubeEKSEnrollEvent + "/success_test",
 			event:    uiDiscoverKubeEKSEnrollEvent,
 			errCheck: require.NoError,

@@ -19,7 +19,6 @@
 package dynamo
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"slices"
@@ -35,7 +34,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -178,7 +176,7 @@ TxnLoop:
 					First:  time.Millisecond * 16,
 					Driver: retryutils.NewExponentialDriver(time.Millisecond * 16),
 					Max:    time.Millisecond * 1024,
-					Jitter: utils.FullJitter,
+					Jitter: retryutils.FullJitter,
 				})
 
 				if err != nil {
@@ -201,7 +199,7 @@ TxnLoop:
 			var txnErr *types.TransactionCanceledException
 			if !errors.As(err, &txnErr) {
 				if s := err.Error(); strings.Contains(s, "AccessDenied") && strings.Contains(s, "dynamodb:ConditionCheckItem") {
-					b.Warnf("AtomicWrite failed with error that may indicate dynamodb is missing the required dynamodb:ConditionCheckItem permission (this permission is now required for teleport v16 and later). Consider updating your IAM policy to include this permission.  Original error: %v", err)
+					b.logger.WarnContext(ctx, "AtomicWrite failed with error that may indicate dynamodb is missing the required dynamodb:ConditionCheckItem permission (this permission is now required for teleport v16 and later). Consider updating your IAM policy to include this permission.", "error", err)
 					return "", trace.Errorf("teleport is missing required AWS permission dynamodb:ConditionCheckItem, please contact your administrator to update permissions")
 				}
 				return "", trace.Errorf("unexpected error during atomic write: %v", err)
@@ -258,7 +256,7 @@ TxnLoop:
 		if n := i + 1; n > 2 {
 			// if we retried more than once, txn experienced non-trivial conflict and we should warn about it. Infrequent warnings of this kind
 			// are nothing to be concerned about, but high volumes may indicate that an automatic process is creating excessive conflicts.
-			b.Warnf("AtomicWrite retried %d times due to dynamodb transaction conflicts. Some conflict is expected, but persistent conflict warnings may indicate an unhealthy state.", n)
+			b.logger.WarnContext(ctx, "AtomicWrite retried due to dynamodb transaction conflicts. Some conflict is expected, but persistent conflict warnings may indicate an unhealthy state.", "retry_attempts", n)
 		}
 
 		if !includesPut {
@@ -269,12 +267,12 @@ TxnLoop:
 		return revision, nil
 	}
 
-	var keys [][]byte
+	var keys []string
 	for _, ca := range condacts {
-		keys = append(keys, ca.Key)
+		keys = append(keys, ca.Key.String())
 	}
 
-	b.Errorf("AtomicWrite failed, dynamodb transaction experienced too many conflicts. keys=%s", bytes.Join(keys, []byte(",")))
+	b.logger.ErrorContext(ctx, "AtomicWrite failed, dynamodb transaction experienced too many conflicts", "keys", strings.Join(keys, ","))
 
 	return "", trace.Errorf("dynamodb transaction experienced too many conflicts")
 }

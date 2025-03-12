@@ -17,12 +17,11 @@ Check out the
 
 ## Can Teleport be used to restrict access to Kubernetes resources?
 
-Yes. Since version 12, Teleport can be used to restrict access to individual
+Yes. Teleport can be used to restrict access to individual
 Kubernetes resources.
 
-Check out the [Teleport Kubernetes Access Controls Guide](./controls.mdx) for
+Check out the [Teleport Kubernetes RBAC Guide](./controls.mdx) for
 more information and examples.
-
 
 ## Can Teleport automatically discover my Kubernetes clusters on cloud providers (AWS, GCP, Azure)?
 
@@ -30,6 +29,11 @@ Since version 11, Teleport can discover your Kubernetes clusters on AWS, GCP,
 and Azure.
 
 Check out the [Kubernetes Service Discovery
-Guide](../auto-discovery/kubernetes.mdx) for more
+Guide](../auto-discovery/kubernetes/kubernetes.mdx) for more
 documentation and examples.
 
+## Does Teleport work with Kubernetes desktop UI applications?
+
+Yes, Teleport generates a kubeconfig file (default `~/.kube/config`) when a user
+logs in to a Kubernetes cluster. GUI tools such as Lens can 
+interact with the Kubernetes cluster through Teleport as with any other standard kubeconfig.

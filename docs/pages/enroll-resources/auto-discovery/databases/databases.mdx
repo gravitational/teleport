@@ -1,0 +1,221 @@
+---
+title: Database Discovery
+description: Detailed guides for configuring database discovery.
+---
+
+Teleport can be configured to discover databases automatically and register
+them with your Teleport cluster.
+
+## Supported clouds
+
+- [AWS](aws.mdx): Discovery for AWS databases.
+- [Azure](../../database-access/enroll-azure-databases/enroll-azure-databases.mdx): Discovery for Azure databases.
+{/* TODO(gavin): Add an Azure discovery guide and permission reference */}
+
+## Architecture overview
+
+Database auto-discovery consists of the following components:
+
+1. One or more Teleport Discovery Service instances polling APIs to discover and
+  register databases with your Teleport cluster.
+1. One or more Teleport Database Service instances forwarding database
+  connections to the discovered databases.
+
+Both the Discovery Service and Database Service can be configured in the same Teleport
+process or separate processes.
+We recommend running them as separate processes to decouple database discovery
+from database access.
+
+## How the Discovery Service works
+
+The Teleport Discovery Service is responsible for polling APIs for databases
+that match its configured selectors.
+When the Discovery Service matches a database, it will
+[dynamically register the database](../../database-access/guides/dynamic-registration.mdx)
+with your Teleport cluster.
+The dynamic `db` resources it creates in your Teleport cluster will include
+information such as:
+
+- *Name*: Database name, with additional identifying information appended to it
+          to avoid colliding with other `db` names in your Teleport cluster
+- *Labels*
+  - Imported database tags
+  - Database location/region
+  - Cloud account information, e.g. AWS Account ID / Azure Subscription ID
+  - The type of database discovered corresponding to the matcher type, e.g.
+    "rds", "redshift", etc.
+- *Endpoint Info*: Connection endpoint the database can be reached at
+
+<Admonition type="tip">
+You can override a discovered database's name by using a special tag attached
+to the database in your cloud provider:
+ - ***key***: `TeleportDatabaseName`
+ - ***value***: desired name
+
+The Discovery Service will check if the database metadata includes the tag and
+use its value as the resource name in Teleport.
+The name override will be used verbatim, i.e. additional metadata will not be
+appended to it.
+</Admonition>
+
+The Teleport Discovery Service only needs access to APIs that it can poll for
+databases - it does not need network connectivity or permissions to connect to
+any databases.
+
+In addition to registering new databases, the Discovery Service also removes
+— from Teleport's registry — the databases that have been deleted or that no
+longer match the Discovery Service's configured selectors.
+
+(!docs/pages/includes/discovery/discovery-group.mdx!)
+
+## Discovery Service configuration
+
+Here's an example database discovery configuration for the Discovery Service:
+
+```yaml
+discovery_service:
+    enabled: true
+    discovery_group: "disc-group"
+    # poll_interval is the cadence at which the discovery server will run each of its
+    # discovery cycles. The default is 5m.
+    poll_interval: 5m
+    # Matchers for discovering AWS-hosted resources.
+    aws:
+      # AWS resource types to discover and register with your Teleport cluster.
+      # Valid database discovery options are:
+      # 'rds' - Amazon RDS and Aurora databases.
+      # 'rdsproxy' - Amazon RDS Proxy databases.
+      # 'redshift' - Amazon Redshift databases.
+      # 'redshift-serverless' - Amazon Redshift Serverless databases.
+      # 'elasticache' - Amazon ElastiCache Redis databases.
+      # 'memorydb' - Amazon MemoryDB Redis databases.
+      # 'opensearch' - Amazon OpenSearch Redis databases.
+      # 'docdb' - Amazon DocumentDB databases.
+    - types: ["rds"]
+      # AWS regions to search for resources from
+      regions: ["us-east-1","us-west-1"]
+      # Optional AWS resource tags to match when registering resources
+      # Defaults to a wildcard selector that matches any resource: "*":"*"
+      tags:
+        "env": "prod"
+      # Optional AWS role that the Discovery Service will assume to discover
+      # and register AWS-hosted resources.
+      assume_role_arn: "arn:aws:iam::123456789012:role/rds-discovery"
+      # Optional AWS external ID that the Discovery Service will use to assume
+      # a role in an external AWS account.
+      external_id: "example-external-id"
+```
+
+The `discovery_service.aws[]` setting is a list of selectors for AWS resources.
+This example configures the Teleport Discovery Service to poll AWS for Amazon
+RDS databases in the us-east-1 and us-west-1 regions.
+It will assume an AWS IAM role in the `123...` AWS account, which has
+the permissions necessary for RDS database discovery.
+Here's how it works in detail:
+
+1. **Provider type:** The Discovery Service can discover resources
+  hosted by different providers. Each provider type has its own configuration
+  section.
+  The Discovery Service will poll the provider API for resources based on a
+  configured list of selectors for that provider.
+  Each selector will be used by the Discovery Service when it polls the provider
+  API.
+  In this example, the provider configuration is for AWS.
+1. **Permissions:** The Discovery Service will need access to credentials that
+  it can use to authenticate itself to the provider API. If
+  `discovery_service.aws[].assume_role_arn` is configured, then the Discovery
+  Service will first assume that AWS IAM role before making further API calls
+  for resource discovery. This means one Discovery Service can be used to
+  discover resources across multiple AWS accounts by assuming an external role.
+  It can also be useful to simplify IAM configuration - you can configure
+  a Discovery Service to use a different role depending on the type of resources
+  it needs to discover.
+  In this example, the Discovery Service will assume the "rds-discovery" IAM role
+  which, as the name implies, only has the permissions necessary for RDS
+  database discovery.
+1. **Selectors:**
+  When a resource is found via a provider API, the Discovery Service will
+  check the corresponding selector tags/labels to determine whether it should
+  register that resource.
+  If the selector matches, then the Discovery Service will dynamically register
+  that resource with your Teleport cluster. For databases, that means it will
+  create a `db` resource.
+  In this example, the Discovery Service will poll for Amazon RDS databases in
+  the us-east-1 and us-west-1 regions and register `db` resources in your
+  Teleport cluster for any RDS databases that have the AWS tag "env: prod".
+
+For more information about Discovery Service configuration, refer to
+[one of the guides above](#supported-clouds) or the
+[Discovery Service Config File Reference](../../../reference/config.mdx).
+
+## How the Database Service works
+
+The Teleport Database Service is responsible for monitoring
+[dynamically registered](../../database-access/guides/dynamic-registration.mdx)
+`db` resources in your Teleport cluster and acting as a connection proxy for the
+databases they represent.
+
+The Database Service must be configured with label selectors to match `db`
+resources.
+When a `db` resource is matched, the Database Service creates a `db_server`
+heartbeat to signal to your Teleport cluster that it can provide access to the
+database that the `db` resource represents.
+The Database Service must have network connectivity to the database endpoint and
+permissions to authenticate to the database.
+The permissions it needs vary by database type, so refer to Teleport's
+[database access guides](../../database-access/database-access.mdx)
+for detailed permissions information.
+
+## Database Service configuration
+
+Here's an example configuration for the Database Service:
+
+```yaml
+db_service:
+  enabled: true
+  # Matchers for dynamic db resources created with the "tctl create" command or by database auto-discovery.
+  resources:
+    - labels:
+        # These labels, among others, are added automatically by the Discovery
+        # Service.
+        # "cloud" origin indicates that a `db` resource was created for a
+        # resource discovered in the cloud.
+        "teleport.dev/origin": "cloud"
+        # Cloud resources are also labeled to indicate which cloud provider
+        # they came from.
+        "teleport.dev/cloud": "AWS"
+        # Specific to AWS. This is the AWS account ID.
+        "account-id": "123456789012"
+      aws:
+        # This is an optional AWS role ARN to assume when forwarding connections
+        # to AWS databases.
+        # The Database Service's IAM identity must be allowed to assume this
+        # role.
+        assume_role_arn: "arn:aws:iam::123456789012:role/StagingDBAccess"
+    - labels:
+        "teleport.dev/origin": "cloud"
+        "teleport.dev/cloud": "AWS"
+        "account-id": "222222222222"
+      aws:
+        assume_role_arn: "arn:aws:iam::222222222222:role/ProdDBAccess"
+        # External ID is an optional value that should be set when accessing
+        # your AWS account from a third-party service (delegated access).
+        external_id: "exampleID123"
+```
+
+The `db_service.resources[]` setting is a list of label selectors.
+This example configures the Teleport Database Service to match AWS databases
+discovered in two accounts: `123...` and `222...`.
+For each account it will assume a different AWS IAM role.
+Here's how it works in detail:
+
+1. **Label matching:** The Database Service monitors `db` resources and the
+  first label selector in `db_service.resources[].labels` that matches a `db`
+  will be used. If no selector matches, then the `db` resource is ignored.
+1. **Permissions:** The Database Service will assume the identity configured in
+  the label selector that matched. If the selector does not specify an identity,
+  then the Database Service will use its own identity.
+1. **Connection:** The Database Service, acting as either its own identity or
+  the identity it assumed, will retrieve credentials to authenticate to the
+  database and use those credentials to act as a proxy for an authorized
+  Teleport user.

@@ -17,60 +17,58 @@
  */
 
 import React, {
-  useEffect,
-  useLayoutEffect,
-  useState,
-  useCallback,
   Children,
   PropsWithChildren,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
   useRef,
+  useState,
 } from 'react';
-
 import styled from 'styled-components';
-import { Box, Flex, Button, ButtonSecondary, Text, ButtonBorder } from 'design';
-import { Icon, Magnifier, PushPin } from 'design/Icon';
+
+import { Box, ButtonBorder, ButtonSecondary, Flex, Text } from 'design';
 import { Danger } from 'design/Alert';
+import { Icon, Magnifier, PushPin } from 'design/Icon';
 
 import './unifiedStyles.css';
 
-import { ResourcesResponse } from 'teleport/services/agents';
-
+import { HoverTooltip } from 'design/Tooltip';
 import {
+  AvailableResourceMode,
   DefaultTab,
   LabelsViewMode,
   UnifiedResourcePreferences,
   ViewMode,
-  AvailableResourceMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-
-import { HoverTooltip } from 'shared/components/ToolTip';
 import {
+  Attempt as AsyncAttempt,
+  hasFinished,
   makeEmptyAttempt,
   makeSuccessAttempt,
   useAsync,
-  Attempt as AsyncAttempt,
-  hasFinished,
 } from 'shared/hooks/useAsync';
-import {
-  useKeyBasedPagination,
-  useInfiniteScroll,
-} from 'shared/hooks/useInfiniteScroll';
 import { Attempt } from 'shared/hooks/useAttemptNext';
+import {
+  useInfiniteScroll,
+  useKeyBasedPagination,
+} from 'shared/hooks/useInfiniteScroll';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 
+import { ResourcesResponse } from 'teleport/services/agents';
+
+import { CardsView } from './CardsView/CardsView';
+import { FilterPanel } from './FilterPanel';
+import { ListView } from './ListView/ListView';
+import { ResourceTab } from './ResourceTab';
+import { mapResourceToViewItem } from './shared/viewItemsFactory';
 import {
-  SharedUnifiedResource,
+  IncludedResourceMode,
   PinningSupport,
+  SharedUnifiedResource,
   UnifiedResourcesPinning,
   UnifiedResourcesQueryParams,
-  IncludedResourceMode,
 } from './types';
-
-import { ResourceTab } from './ResourceTab';
-import { FilterPanel } from './FilterPanel';
-import { CardsView } from './CardsView/CardsView';
-import { ListView } from './ListView/ListView';
-import { mapResourceToViewItem } from './shared/viewItemsFactory';
 
 // get 48 resources to start
 const INITIAL_FETCH_SIZE = 48;
@@ -113,12 +111,12 @@ export type BulkAction = {
    * over if this prop is supplied
    */
   tooltip?: string;
-  action: (
-    selectedResources: {
-      unifiedResourceId: string;
-      resource: SharedUnifiedResource['resource'];
-    }[]
-  ) => void;
+  action: (selectedResources: SelectedResource[]) => void;
+};
+
+export type SelectedResource = {
+  unifiedResourceId: string;
+  resource: SharedUnifiedResource['resource'];
 };
 
 export type FilterKind = {
@@ -139,7 +137,7 @@ export type ResourceAvailabilityFilter =
 export interface UnifiedResourcesProps {
   params: UnifiedResourcesQueryParams;
   resourcesFetchAttempt: Attempt;
-  fetchResources(options?: { force?: boolean }): Promise<void>;
+  fetchResources(options?: { force?: boolean; clear?: boolean }): Promise<void>;
   resources: SharedUnifiedResource[];
   Header?: React.ReactElement;
   /**
@@ -399,6 +397,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     unifiedResourcePreferences.labelsViewMode === LabelsViewMode.EXPANDED;
 
   useLayoutEffect(() => {
+    // TODO(ravicious): Use useResizeObserver instead. Ensure that the callback passed to
+    // useResizeObserver has a stable identity.
     const resizeObserver = new ResizeObserver(entries => {
       const container = entries[0];
 
@@ -442,35 +442,47 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     >
       <ErrorsContainer>
         {resourcesFetchAttempt.status === 'failed' && (
-          <Danger mb={0}>
-            Could not fetch resources: {resourcesFetchAttempt.statusText}
-            {/* we don't want them to try another request with BAD REQUEST, it will just fail again. */}
-            {resourcesFetchAttempt.statusCode !== 400 &&
-              resourcesFetchAttempt.statusCode !== 403 && (
-                <Box flex="0 0 auto" ml={2}>
-                  <Button type="button" onClick={onRetryClicked}>
-                    Retry
-                  </Button>
-                </Box>
-              )}
+          <Danger
+            mb={0}
+            bg="levels.sunken"
+            primaryAction={
+              // We don't want them to try another request with BAD REQUEST, it will just fail again.
+              resourcesFetchAttempt.statusCode !== 400 &&
+              resourcesFetchAttempt.statusCode !== 403 && {
+                content: 'Retry',
+                onClick: onRetryClicked,
+              }
+            }
+            details={resourcesFetchAttempt.statusText}
+          >
+            Could not fetch resources
           </Danger>
         )}
         {getPinnedResourcesAttempt.status === 'error' && (
-          <Danger mb={0}>
-            Could not fetch pinned resources:{' '}
-            {getPinnedResourcesAttempt.statusText}
+          <Danger
+            mb={0}
+            bg="levels.sunken"
+            details={getPinnedResourcesAttempt.statusText}
+          >
+            Could not fetch pinned resources
           </Danger>
         )}
         {updatePinnedResourcesAttempt.status === 'error' && (
-          <Danger mb={0}>
-            Could not update pinned resources:{' '}
-            {updatePinnedResourcesAttempt.statusText}
+          <Danger
+            mb={0}
+            bg="levels.sunken"
+            details={updatePinnedResourcesAttempt.statusText}
+          >
+            Could not update pinned resources
           </Danger>
         )}
         {unifiedResourcePreferencesAttempt?.status === 'error' && (
-          <Danger mb={0}>
-            Could not fetch unified view preferences:{' '}
-            {unifiedResourcePreferencesAttempt.statusText}
+          <Danger
+            mb={0}
+            bg="levels.sunken"
+            details={unifiedResourcePreferencesAttempt.statusText}
+          >
+            Could not fetch unified view preferences
           </Danger>
         )}
       </ErrorsContainer>
@@ -494,6 +506,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
           );
         }}
         hideViewModeOptions={forceCardView}
+        onRefresh={() => fetchResources({ clear: true })}
         BulkActions={
           <>
             {selectedResources.length > 0 && (
@@ -646,8 +659,8 @@ function getResourcePinningSupport(
 function generateUnifiedResourceKey(
   resource: SharedUnifiedResource['resource']
 ): string {
-  if (resource.kind === 'node') {
-    return `${resource.hostname}/${resource.id}/node`.toLowerCase();
+  if (resource.kind === 'node' || resource.kind == 'git_server') {
+    return `${resource.hostname}/${resource.id}/${resource.kind}`.toLowerCase();
   }
   return `${resource.name}/${resource.kind}`.toLowerCase();
 }

@@ -43,7 +43,7 @@ var databaseConfigTemplateFuncs = template.FuncMap{
 // databaseAgentConfigurationTemplate database configuration template.
 var databaseAgentConfigurationTemplate = template.Must(template.New("").Funcs(databaseConfigTemplateFuncs).Parse(`#
 # Teleport database agent configuration file.
-# Configuration reference: https://goteleport.com/docs/database-access/reference/configuration/
+# Configuration reference: https://goteleport.com/docs/reference/agent-services/database-access-reference/configuration/
 #
 version: v3
 teleport:
@@ -62,7 +62,7 @@ db_service:
   enabled: true
 
   # Matchers for database resources created with "tctl create" command or by the discovery service.
-  # For more information about dynamic registration: https://goteleport.com/docs/database-access/guides/dynamic-registration/
+  # For more information about dynamic registration: https://goteleport.com/docs/enroll-resources/database-access/guides/dynamic-registration/
   {{- if .DynamicResourcesLabels }}
   resources:
   {{- range $index, $resourceLabel := .DynamicResourcesLabels }}
@@ -97,12 +97,7 @@ db_service:
   aws:
   {{- else }}
   # For more information about AWS auto-discovery:
-  # RDS/Aurora: https://goteleport.com/docs/database-access/guides/rds/
-  # RDS Proxy: https://goteleport.com/docs/database-access/guides/rdsproxy/
-  # Redshift: https://goteleport.com/docs/database-access/guides/postgres-redshift/
-  # Redshift Serverless: https://goteleport.com/docs/database-access/guides/postgres-redshift-serverless/
-  # ElastiCache/MemoryDB: https://goteleport.com/docs/database-access/guides/redis-aws/
-  # OpenSearch: https://goteleport.com/docs/database-access/guides/aws-opensearch/
+  # https://goteleport.com/docs/enroll-resources/auto-discovery/databases/aws/
   #
   # aws:
   #   # Database types. Valid options are:
@@ -122,7 +117,7 @@ db_service:
   {{- end }}
   {{- if .RDSDiscoveryRegions }}
   # RDS/Aurora databases auto-discovery.
-  # For more information about RDS/Aurora auto-discovery: https://goteleport.com/docs/database-access/guides/rds/
+  # For more information about RDS/Aurora auto-discovery: https://goteleport.com/docs/enroll-resources/auto-discovery/databases/aws/
   - types: ["rds"]
     # AWS regions to register databases from.
     regions:
@@ -137,7 +132,7 @@ db_service:
   {{- end }}
   {{- if .RDSProxyDiscoveryRegions }}
   # RDS Proxies auto-discovery.
-  # For more information about RDS Proxy auto-discovery: https://goteleport.com/docs/database-access/guides/rdsproxy/
+  # For more information about RDS Proxy auto-discovery: https://goteleport.com/docs/enroll-resources/auto-discovery/databases/aws/
   - types: ["rdsproxy"]
     # AWS regions to register databases from.
     regions:
@@ -152,7 +147,7 @@ db_service:
   {{- end }}
   {{- if .RedshiftDiscoveryRegions }}
   # Redshift databases auto-discovery.
-  # For more information about Redshift auto-discovery: https://goteleport.com/docs/database-access/guides/postgres-redshift/
+  # For more information about Redshift auto-discovery: https://goteleport.com/docs/enroll-resources/auto-discovery/databases/aws/
   - types: ["redshift"]
     # AWS regions to register databases from.
     regions:
@@ -167,7 +162,7 @@ db_service:
   {{- end }}
   {{- if .RedshiftServerlessDiscoveryRegions }}
   # Redshift Serverless databases auto-discovery.
-  # For more information about Redshift Serverless auto-discovery: https://goteleport.com/docs/database-access/guides/postgres-redshift-serverless/
+  # For more information about Redshift Serverless auto-discovery: https://goteleport.com/docs/enroll-resources/auto-discovery/databases/aws/
   - types: ["redshift-serverless"]
     # AWS regions to register databases from.
     regions:
@@ -182,7 +177,7 @@ db_service:
   {{- end }}
   {{- if .ElastiCacheDiscoveryRegions }}
   # ElastiCache databases auto-discovery.
-  # For more information about ElastiCache auto-discovery: https://goteleport.com/docs/database-access/guides/redis-aws/
+  # For more information about ElastiCache auto-discovery: https://goteleport.com/docs/enroll-resources/auto-discovery/databases/aws/
   - types: ["elasticache"]
     # AWS regions to register databases from.
     regions:
@@ -197,7 +192,7 @@ db_service:
   {{- end }}
   {{- if .MemoryDBDiscoveryRegions }}
   # MemoryDB databases auto-discovery.
-  # For more information about MemoryDB auto-discovery: https://goteleport.com/docs/database-access/guides/redis-aws/
+  # For more information about MemoryDB auto-discovery: https://goteleport.com/docs/enroll-resources/auto-discovery/databases/aws/
   - types: ["memorydb"]
     # AWS regions to register databases from.
     regions:
@@ -212,7 +207,7 @@ db_service:
   {{- end }}
   {{- if .OpenSearchDiscoveryRegions }}
   # OpenSearch databases auto-discovery.
-  # For more information about OpenSearch auto-discovery: https://goteleport.com/docs/database-access/guides/aws-opensearch/
+  # For more information about OpenSearch auto-discovery: https://goteleport.com/docs/enroll-resources/auto-discovery/databases/aws/
   - types: ["opensearch"]
     # AWS regions to register databases from.
     regions:
@@ -231,9 +226,9 @@ db_service:
   azure:
   {{- else }}
   # For more information about Azure auto-discovery:
-  # MySQL/PostgreSQL: https://goteleport.com/docs/database-access/guides/azure-postgres-mysql/
-  # Redis: https://goteleport.com/docs/database-access/guides/azure-redis/
-  # SQL Server: https://goteleport.com/docs/database-access/guides/azure-sql-server-ad/
+  # MySQL/PostgreSQL: https://goteleport.com/docs/enroll-resources/database-access/enroll-azure-databases/azure-postgres-mysql/
+  # Redis: https://goteleport.com/docs/enroll-resources/database-access/enroll-azure-databases/azure-redis/
+  # SQL Server: https://goteleport.com/docs/enroll-resources/database-access/enroll-azure-databases/azure-sql-server-ad/
   #
   # azure:
   #   # Database types. Valid options are:
@@ -257,7 +252,7 @@ db_service:
   {{- end }}
   {{- if or .AzureMySQLDiscoveryRegions }}
   # Azure MySQL databases auto-discovery.
-  # For more information about Azure MySQL auto-discovery: https://goteleport.com/docs/database-access/guides/azure-postgres-mysql/
+  # For more information about Azure MySQL auto-discovery: https://goteleport.com/docs/enroll-resources/database-access/enroll-azure-databases/azure-postgres-mysql/
   - types: ["mysql"]
     # Azure subscription IDs to match.
     subscriptions:
@@ -282,7 +277,7 @@ db_service:
   {{- end }}
   {{- if or .AzurePostgresDiscoveryRegions }}
   # Azure Postgres databases auto-discovery.
-  # For more information about Azure Postgres auto-discovery: https://goteleport.com/docs/database-access/guides/azure-postgres-mysql/
+  # For more information about Azure Postgres auto-discovery: https://goteleport.com/docs/enroll-resources/database-access/enroll-azure-databases/azure-postgres-mysql/
   - types: ["postgres"]
     # Azure subscription IDs to match.
     subscriptions:
@@ -307,7 +302,7 @@ db_service:
   {{- end }}
   {{- if or .AzureRedisDiscoveryRegions }}
   # Azure Cache For Redis databases auto-discovery.
-  # For more information about Azure Cache for Redis auto-discovery: https://goteleport.com/docs/database-access/guides/azure-redis/
+  # For more information about Azure Cache for Redis auto-discovery: https://goteleport.com/docs/enroll-resources/database-access/enroll-azure-databases/azure-redis/
   - types: ["redis"]
     # Azure subscription IDs to match.
     subscriptions:
@@ -332,7 +327,7 @@ db_service:
   {{- end }}
   {{- if or .AzureSQLServerDiscoveryRegions }}
   # Azure SQL server and Managed instances auto-discovery.
-  # For more information about SQL server and Managed instances auto-discovery: https://goteleport.com/docs/database-access/guides/azure-sql-server-ad/
+  # For more information about SQL server and Managed instances auto-discovery: https://goteleport.com/docs/enroll-resources/database-access/enroll-azure-databases/azure-sql-server-ad/
   - types: ["sqlserver"]
     # Azure subscription IDs to match.
     subscriptions:
@@ -453,7 +448,7 @@ db_service:
   #
   # databases:
   # # RDS database static configuration.
-  # # RDS/Aurora databases Auto-discovery reference: https://goteleport.com/docs/database-access/guides/rds/
+  # # RDS/Aurora databases Auto-discovery guide: https://goteleport.com/docs/enroll-resources/auto-discovery/databases/aws/
   # - name: rds
   #   description: AWS RDS/Aurora instance configuration example.
   #   # Supported protocols for RDS/Aurora: "postgres" or "mysql"
@@ -469,7 +464,7 @@ db_service:
   #       # RDS Instance ID. Only present on RDS databases.
   #       instance_id: rds-instance-1
   # # Aurora database static configuration.
-  # # RDS/Aurora databases Auto-discovery reference: https://goteleport.com/docs/database-access/guides/rds/
+  # # RDS/Aurora databases Auto-discovery guide: https://goteleport.com/docs/enroll-resources/auto-discovery/databases/aws/
   # - name: aurora
   #   description: AWS Aurora cluster configuration example.
   #   # Supported protocols for RDS/Aurora: "postgres" or "mysql"
@@ -485,7 +480,7 @@ db_service:
   #       # Aurora Cluster ID. Only present on Aurora databases.
   #       cluster_id: aurora-cluster-1
   # # Redshift database static configuration.
-  # # For more information: https://goteleport.com/docs/database-access/guides/postgres-redshift/
+  # # For more information: https://goteleport.com/docs/enroll-resources/auto-discovery/databases/aws/
   # - name: redshift
   #   description: AWS Redshift cluster configuration example.
   #   # Supported protocols for Redshift: "postgres".

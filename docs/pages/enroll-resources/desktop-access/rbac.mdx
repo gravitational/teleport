@@ -11,7 +11,7 @@ desktop access:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: developer
 spec:
@@ -30,6 +30,12 @@ spec:
     # if unspecified. If one or more of the user's roles has disabled
     # the clipboard, then it will be disabled.
     desktop_clipboard: true
+
+    # Specify whether directory sharing should be allowed from the
+    # local machine to remote desktop (requires a supported browser). Defaults to true
+    # if unspecified. If one or more of the user's roles has disabled
+    # directory sharing, then it will be disabled.
+    desktop_directory_sharing: true
 
     # Specify whether local users should be created automatically at connection
     # time. By default, this feature is disabled, and the user must already exist.
@@ -55,7 +61,7 @@ spec:
 
 For a full Teleport role reference, including information on how Teleport
 expands the `internal` and `external` traits, see the [Teleport
-Access Controls Reference](../../access-controls/reference.mdx).
+Access Controls Reference](../../reference/access-controls/roles.mdx).
 
 ## Labeling
 

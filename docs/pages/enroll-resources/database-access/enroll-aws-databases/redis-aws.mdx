@@ -23,10 +23,10 @@ AWS-hosted Redis database can take one of two forms:
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Teleport Database Access RDS Self-Hosted](../../../../img/database-access/guides/redis_elasticache_selfhosted.png)
+![Enroll RDS with a Self-Hosted Teleport Cluster](../../../../img/database-access/guides/redis_elasticache_selfhosted.png)
 </TabItem>
 <TabItem scope={["cloud","team"]} label="Teleport Cloud">
-![Teleport Database Access RDS Cloud](../../../../img/database-access/guides/redis_elasticache_cloud.png)
+![Enroll RDS with a Cloud-Hosted Teleport Cluster](../../../../img/database-access/guides/redis_elasticache_cloud.png)
 </TabItem>
 
 </Tabs>
@@ -102,20 +102,30 @@ Create the Database Service configuration:
 The command will generate a Database Service configuration and place it at the
 `/etc/teleport.yaml` location.
 
-## Step 3/6. Create an IAM policy for Teleport
+## Step 3/6. Create an IAM role for Teleport
 
-Teleport needs AWS IAM permissions to be able to:
+(!docs/pages/includes/database-access/create-iam-role-step-description.mdx accessFor="ElastiCache or MemoryDB databases" !)
 
-- Modify ElastiCache and MemoryDB user passwords for Teleport-managed users.
-- Save user passwords in AWS Secrets Manager for Teleport-managed users.
-- Connect to an ElastiCache or MemoryDB cluster using IAM auth.
-
-Before you can generate IAM permissions, you must provide the Teleport Database
-Service access to AWS credentials.
+### Create an IAM role for Teleport
 
 (!docs/pages/includes/aws-credentials.mdx service="the Database Service"!)
 
-(!docs/pages/includes/database-access/aws-bootstrap.mdx!)
+### Grant permissions
+
+Attach the following AWS IAM permissions to the Database Service IAM role:
+
+<Tabs>
+<TabItem label="ElastiCache">
+
+(!docs/pages/includes/database-access/reference/aws-iam/elasticache/access-policy.mdx!)
+
+</TabItem>
+<TabItem label="MemoryDB">
+
+(!docs/pages/includes/database-access/reference/aws-iam/memorydb/access-policy.mdx!)
+
+</TabItem>
+</Tabs>
 
 ## Step 4/6. Start the Database Service
 

@@ -180,8 +180,10 @@ type WriteConfig struct {
 	// formats (like FormatOpenSSH and FormatTLS) write multiple output files
 	// and use OutputPath as a prefix.
 	OutputPath string
-	// Key contains the credentials to write to the identity file.
-	Key *client.KeyRing
+	// KeyRing contains the credentials to write to the identity file.
+	KeyRing *client.KeyRing
+	// WindowsDesktopCerts contains windows desktop certs to write.
+	WindowsDesktopCerts map[string][]byte
 	// Format is the output format for the identity file.
 	Format Format
 	// KubeProxyAddr is the public address of the proxy with its kubernetes
@@ -224,25 +226,32 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 	switch cfg.Format {
 	// dump user identity into a single file:
 	case FormatFile:
+		// Identity files only hold a single private key, and all certs are
+		// associated with that key. All callers should provide a
+		// [client.KeyRing] where [KeyRing.SSHPrivateKey] and
+		// [KeyRing.TLSPrivateKey] are equal. Assert that here.
+		if !bytes.Equal(cfg.KeyRing.SSHPrivateKey.MarshalSSHPublicKey(), cfg.KeyRing.TLSPrivateKey.MarshalSSHPublicKey()) {
+			return nil, trace.BadParameter("identity files don't support mismatched SSH and TLS keys, this is a bug")
+		}
 		filesWritten = append(filesWritten, cfg.OutputPath)
 		if err := checkOverwrite(ctx, writer, cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		idFile := &identityfile.IdentityFile{
-			PrivateKey: cfg.Key.PrivateKey.PrivateKeyPEM(),
+			PrivateKey: cfg.KeyRing.TLSPrivateKey.PrivateKeyPEM(),
 			Certs: identityfile.Certs{
-				SSH: cfg.Key.Cert,
-				TLS: cfg.Key.TLSCert,
+				SSH: cfg.KeyRing.Cert,
+				TLS: cfg.KeyRing.TLSCert,
 			},
 		}
 		// append trusted host certificate authorities
-		for _, ca := range cfg.Key.TrustedCerts {
+		for _, ca := range cfg.KeyRing.TrustedCerts {
 			// append ssh ca certificates
 			for _, publicKey := range ca.AuthorizedKeys {
 				knownHost, err := sshutils.MarshalKnownHost(sshutils.KnownHost{
 					Hostname:      ca.ClusterName,
-					ProxyHost:     cfg.Key.ProxyHost,
+					ProxyHost:     cfg.KeyRing.ProxyHost,
 					AuthorizedKey: publicKey,
 				})
 				if err != nil {
@@ -272,18 +281,22 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 			return nil, trace.Wrap(err)
 		}
 
-		err = writer.WriteFile(certPath, cfg.Key.Cert, identityfile.FilePermissions)
+		err = writer.WriteFile(certPath, cfg.KeyRing.Cert, identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		err = writer.WriteFile(keyPath, cfg.Key.PrivateKey.PrivateKeyPEM(), identityfile.FilePermissions)
+		sshPrivateKeyPEM, err := cfg.KeyRing.SSHPrivateKey.MarshalSSHPrivateKey()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		err = writer.WriteFile(keyPath, sshPrivateKeyPEM, identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 	case FormatWindows:
-		for k, cert := range cfg.Key.WindowsDesktopCerts {
+		for k, cert := range cfg.WindowsDesktopCerts {
 			certPath := cfg.OutputPath + "." + k + ".der"
 			filesWritten = append(filesWritten, certPath)
 			if err := checkOverwrite(ctx, writer, cfg.OverwriteDestination, certPath); err != nil {
@@ -309,12 +322,12 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 			return nil, trace.Wrap(err)
 		}
 
-		err = writer.WriteFile(certPath, cfg.Key.TLSCert, identityfile.FilePermissions)
+		err = writer.WriteFile(certPath, cfg.KeyRing.TLSCert, identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		err = writer.WriteFile(keyPath, cfg.Key.PrivateKey.PrivateKeyPEM(), identityfile.FilePermissions)
+		err = writer.WriteFile(keyPath, cfg.KeyRing.TLSPrivateKey.PrivateKeyPEM(), identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -329,7 +342,7 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 		}
 
 		var clientCACerts []byte
-		for _, ca := range cfg.Key.TrustedCerts {
+		for _, ca := range cfg.KeyRing.TrustedCerts {
 			for _, cert := range ca.TLSCertificates {
 				clientCACerts = append(clientCACerts, cert...)
 			}
@@ -349,17 +362,17 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 			return nil, trace.Wrap(err)
 		}
 
-		err = writer.WriteFile(certPath, cfg.Key.TLSCert, identityfile.FilePermissions)
+		err = writer.WriteFile(certPath, cfg.KeyRing.TLSCert, identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		err = writer.WriteFile(keyPath, cfg.Key.PrivateKey.PrivateKeyPEM(), identityfile.FilePermissions)
+		err = writer.WriteFile(keyPath, cfg.KeyRing.TLSPrivateKey.PrivateKeyPEM(), identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		var caCerts []byte
-		for _, ca := range cfg.Key.TrustedCerts {
+		for _, ca := range cfg.KeyRing.TrustedCerts {
 			for _, cert := range ca.TLSCertificates {
 				caCerts = append(caCerts, cert...)
 			}
@@ -377,12 +390,12 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 		if err := checkOverwrite(ctx, writer, cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		err = writer.WriteFile(certPath, append(cfg.Key.TLSCert, cfg.Key.PrivateKey.PrivateKeyPEM()...), identityfile.FilePermissions)
+		err = writer.WriteFile(certPath, append(cfg.KeyRing.TLSCert, cfg.KeyRing.TLSPrivateKey.PrivateKeyPEM()...), identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		var caCerts []byte
-		for _, ca := range cfg.Key.TrustedCerts {
+		for _, ca := range cfg.KeyRing.TrustedCerts {
 			for _, cert := range ca.TLSCertificates {
 				caCerts = append(caCerts, cert...)
 			}
@@ -400,7 +413,7 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 		}
 
 		var caCerts []byte
-		for _, ca := range cfg.Key.TrustedCerts {
+		for _, ca := range cfg.KeyRing.TrustedCerts {
 			for _, cert := range ca.TLSCertificates {
 				block, _ := pem.Decode(cert)
 				cert, err := x509.ParseCertificate(block.Bytes)
@@ -458,9 +471,9 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 		}
 
 		if err := kubeconfig.UpdateConfig(cfg.OutputPath, kubeconfig.Values{
-			TeleportClusterName: cfg.Key.ClusterName,
+			TeleportClusterName: cfg.KeyRing.ClusterName,
 			ClusterAddr:         cfg.KubeProxyAddr,
-			Credentials:         cfg.Key,
+			Credentials:         cfg.KeyRing,
 			TLSServerName:       cfg.KubeTLSServerName,
 			KubeClusters:        kubeCluster,
 		}, cfg.KubeStoreAllCAs, writer); err != nil {
@@ -513,11 +526,11 @@ func writeCassandraFormat(cfg WriteConfig, writer ConfigWriter) ([]string, error
 // is user env otherwise creates a p12 key-pair file allowing to run orapki on the Oracle server
 // and create the Oracle wallet manually.
 func writeOracleFormat(cfg WriteConfig, writer ConfigWriter) ([]string, error) {
-	certBlock, err := tlsca.ParseCertificatePEM(cfg.Key.TLSCert)
+	certBlock, err := tlsca.ParseCertificatePEM(cfg.KeyRing.TLSCert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keyK, err := keys.ParsePrivateKey(cfg.Key.PrivateKey.PrivateKeyPEM())
+	keyK, err := keys.ParsePrivateKey(cfg.KeyRing.TLSPrivateKey.PrivateKeyPEM())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -537,7 +550,7 @@ func writeOracleFormat(cfg WriteConfig, writer ConfigWriter) ([]string, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clientCAs := cfg.Key.TLSCAs()
+	clientCAs := cfg.KeyRing.TLSCAs()
 	var caPaths []string
 	for i, caPEM := range clientCAs {
 		var caPath string
@@ -633,7 +646,7 @@ func createOracleWallet(caCertPaths []string, walletPath, p12Path, password stri
 
 func prepareCassandraTruststore(cfg WriteConfig) (*bytes.Buffer, error) {
 	var caCerts []byte
-	for _, ca := range cfg.Key.TrustedCerts {
+	for _, ca := range cfg.KeyRing.TrustedCerts {
 		for _, cert := range ca.TLSCertificates {
 			block, _ := pem.Decode(cert)
 			caCerts = append(caCerts, block.Bytes...)
@@ -659,8 +672,8 @@ func prepareCassandraTruststore(cfg WriteConfig) (*bytes.Buffer, error) {
 }
 
 func prepareCassandraKeystore(cfg WriteConfig) (*bytes.Buffer, error) {
-	certBlock, _ := pem.Decode(cfg.Key.TLSCert)
-	privBlock, _ := pem.Decode(cfg.Key.PrivateKey.PrivateKeyPEM())
+	certBlock, _ := pem.Decode(cfg.KeyRing.TLSCert)
+	privBlock, _ := pem.Decode(cfg.KeyRing.TLSPrivateKey.PrivateKeyPEM())
 
 	privKey, err := x509.ParsePKCS1PrivateKey(privBlock.Bytes)
 	if err != nil {
@@ -724,8 +737,8 @@ func checkOverwrite(ctx context.Context, writer ConfigWriter, force bool, paths 
 	return nil
 }
 
-// KeyFromIdentityFile loads client key from identity file.
-func KeyFromIdentityFile(identityPath, proxyHost, clusterName string) (*client.KeyRing, error) {
+// KeyRingFromIdentityFile loads client key ring from an identity file.
+func KeyRingFromIdentityFile(identityPath, proxyHost, clusterName string) (*client.KeyRing, error) {
 	if proxyHost == "" {
 		return nil, trace.BadParameter("proxyHost must be provided to parse identity file")
 	}
@@ -739,10 +752,11 @@ func KeyFromIdentityFile(identityPath, proxyHost, clusterName string) (*client.K
 		return nil, trace.Wrap(err)
 	}
 
-	key := client.NewKey(priv)
-	key.Cert = ident.Certs.SSH
-	key.TLSCert = ident.Certs.TLS
-	key.KeyIndex = client.KeyIndex{
+	// Identity file uses same private key for SSH and TLS.
+	keyRing := client.NewKeyRing(priv, priv)
+	keyRing.Cert = ident.Certs.SSH
+	keyRing.TLSCert = ident.Certs.TLS
+	keyRing.KeyRingIndex = client.KeyRingIndex{
 		ProxyHost:   proxyHost,
 		ClusterName: clusterName,
 	}
@@ -755,33 +769,47 @@ func KeyFromIdentityFile(identityPath, proxyHost, clusterName string) (*client.K
 			return nil, trace.Wrap(err)
 		}
 
-		if key.ClusterName == "" {
-			key.ClusterName = cert.Issuer.CommonName
+		if keyRing.ClusterName == "" {
+			keyRing.ClusterName = cert.Issuer.CommonName
 		}
 
 		parsedIdent, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		key.Username = parsedIdent.Username
+		keyRing.Username = parsedIdent.Username
 
 		// If this identity file has any database certs, copy it into the DBTLSCerts map.
 		if parsedIdent.RouteToDatabase.ServiceName != "" {
-			key.DBTLSCerts[parsedIdent.RouteToDatabase.ServiceName] = ident.Certs.TLS
+			keyRing.DBTLSCredentials[parsedIdent.RouteToDatabase.ServiceName] = client.TLSCredential{
+				// Identity files only have room for one private key, it must match the db cert.
+				PrivateKey: priv,
+				Cert:       ident.Certs.TLS,
+			}
 		}
 
 		// Similarly, if this identity has any app certs, copy them in.
 		if parsedIdent.RouteToApp.Name != "" {
-			key.AppTLSCerts[parsedIdent.RouteToApp.Name] = ident.Certs.TLS
+			keyRing.AppTLSCredentials[parsedIdent.RouteToApp.Name] = client.TLSCredential{
+				// Identity files only have room for one private key and TLS
+				// cert, it must match the app cert.
+				PrivateKey: priv,
+				Cert:       ident.Certs.TLS,
+			}
 		}
 
 		// If this identity file has any kubernetes certs, copy it into the
 		// KubeTLSCerts map.
 		if parsedIdent.KubernetesCluster != "" {
-			key.KubeTLSCerts[parsedIdent.KubernetesCluster] = ident.Certs.TLS
+			keyRing.KubeTLSCredentials[parsedIdent.KubernetesCluster] = client.TLSCredential{
+				// Identity files only have room for one private key, it must
+				// match the kube cert.
+				PrivateKey: priv,
+				Cert:       ident.Certs.TLS,
+			}
 		}
 	} else {
-		key.Username, err = key.CertUsername()
+		keyRing.Username, err = keyRing.CertUsername()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -793,12 +821,12 @@ func KeyFromIdentityFile(identityPath, proxyHost, clusterName string) (*client.K
 	}
 
 	// Use all Trusted certs found in the identity file.
-	key.TrustedCerts, err = client.TrustedCertsFromCACerts(ident.CACerts.TLS, knownHosts)
+	keyRing.TrustedCerts, err = client.TrustedCertsFromCACerts(ident.CACerts.TLS, knownHosts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return key, nil
+	return keyRing, nil
 }
 
 // NewClientStoreFromIdentityFile initializes a new in-memory client store
@@ -830,18 +858,18 @@ func LoadIdentityFileIntoClientStore(store *client.Store, identityFile, proxyAdd
 		return trace.Wrap(err)
 	}
 
-	key, err := KeyFromIdentityFile(identityFile, proxyHost, clusterName)
+	keyRing, err := KeyRingFromIdentityFile(identityFile, proxyHost, clusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// This key may already exist in a tsh profile, delete it before overwriting
 	// it with the identity key to avoid leaving app/db/kube certs from the old key.
-	if err := store.DeleteKey(key.KeyIndex); err != nil && !trace.IsNotFound(err) {
+	if err := store.DeleteKeyRing(keyRing.KeyRingIndex); err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 
-	if err := store.AddKey(key); err != nil {
+	if err := store.AddKeyRing(keyRing); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -853,9 +881,9 @@ func LoadIdentityFileIntoClientStore(store *client.Store, identityFile, proxyAdd
 		profile := &profile.Profile{
 			MissingClusterDetails: true,
 			WebProxyAddr:          proxyAddr,
-			SiteName:              key.ClusterName,
-			Username:              key.Username,
-			PrivateKeyPolicy:      key.PrivateKey.GetPrivateKeyPolicy(),
+			SiteName:              keyRing.ClusterName,
+			Username:              keyRing.Username,
+			PrivateKeyPolicy:      keyRing.TLSPrivateKey.GetPrivateKeyPolicy(),
 		}
 		if err := store.SaveProfile(profile, true); err != nil {
 			return trace.Wrap(err)

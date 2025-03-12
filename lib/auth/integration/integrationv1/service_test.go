@@ -19,28 +19,41 @@
 package integrationv1
 
 import (
+	"cmp"
 	"context"
+	"os"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
+	"github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
+
 func TestIntegrationCRUD(t *testing.T) {
-	t.Parallel()
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+
 	clusterName := "test-cluster"
 	proxyPublicAddr := "127.0.0.1.nip.io"
 
@@ -63,12 +76,14 @@ func TestIntegrationCRUD(t *testing.T) {
 	}
 
 	tt := []struct {
-		Name         string
-		Role         types.RoleSpecV6
-		Setup        func(t *testing.T, igName string)
-		Test         func(ctx context.Context, resourceSvc *Service, igName string) error
-		Cleanup      func(t *testing.T, igName string)
-		ErrAssertion func(error) bool
+		Name            string
+		Role            types.RoleSpecV6
+		IntegrationName string
+		Setup           func(t *testing.T, igName string)
+		Test            func(ctx context.Context, resourceSvc *Service, igName string) error
+		Validate        func(t *testing.T, igName string)
+		Cleanup         func(t *testing.T, igName string)
+		ErrAssertion    func(error) bool
 	}{
 		// Read
 		{
@@ -180,10 +195,49 @@ func TestIntegrationCRUD(t *testing.T) {
 					Verbs:     []string{types.VerbCreate},
 				}}},
 			},
+			IntegrationName: "integration-allow-create-access",
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
 				ig := sampleIntegrationFn(t, igName)
 				_, err := resourceSvc.CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: ig.(*types.IntegrationV1)})
 				return err
+			},
+			ErrAssertion: noError,
+		},
+		{
+			Name: "access to create integrations but name is invalid",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbCreate},
+				}}},
+			},
+			IntegrationName: "integration-awsoidc-invalid.name",
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				ig := sampleIntegrationFn(t, igName)
+				_, err := resourceSvc.CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: ig.(*types.IntegrationV1)})
+				return err
+			},
+			ErrAssertion: trace.IsBadParameter,
+		},
+		{
+			Name: "create github integrations",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbCreate},
+				}}},
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				ig, err := newGitHubIntegration(igName, "id", "secret")
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				_, err = resourceSvc.CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: ig})
+				return trace.Wrap(err)
+			},
+			Validate: func(t *testing.T, igName string) {
+				mustFindGitHubCredentials(t, localClient, igName, "id", "secret")
 			},
 			ErrAssertion: noError,
 		},
@@ -217,6 +271,123 @@ func TestIntegrationCRUD(t *testing.T) {
 				return err
 			},
 			ErrAssertion: noError,
+		},
+		{
+			Name: "credentials updated",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbUpdate, types.VerbCreate},
+				}}},
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				oldIg, err := newGitHubIntegration(igName, "id", "secret")
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				_, err = resourceSvc.CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: oldIg})
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				newIg, err := newGitHubIntegration(igName, "new-id", "new-secret")
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				_, err = resourceSvc.UpdateIntegration(ctx, &integrationpb.UpdateIntegrationRequest{Integration: newIg})
+				return err
+			},
+			Validate: func(t *testing.T, igName string) {
+				mustFindGitHubCredentials(t, localClient, igName, "new-id", "new-secret")
+			},
+			ErrAssertion: noError,
+		},
+		{
+			Name: "credentials preserved",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbUpdate, types.VerbCreate},
+				}}},
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				oldIg, err := newGitHubIntegration(igName, "id", "secret")
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				_, err = resourceSvc.CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: oldIg})
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				newIg, err := newGitHubIntegration(igName, "", "")
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				_, err = resourceSvc.UpdateIntegration(ctx, &integrationpb.UpdateIntegrationRequest{Integration: newIg})
+				return err
+			},
+			Validate: func(t *testing.T, igName string) {
+				mustFindGitHubCredentials(t, localClient, igName, "id", "secret")
+			},
+			ErrAssertion: noError,
+		},
+		{
+			Name: "OAuth secret only update",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbUpdate, types.VerbCreate},
+				}}},
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				oldIg, err := newGitHubIntegration(igName, "id", "secret")
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				_, err = resourceSvc.CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: oldIg})
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				newIg, err := newGitHubIntegration(igName, "", "new-secret")
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				_, err = resourceSvc.UpdateIntegration(ctx, &integrationpb.UpdateIntegrationRequest{Integration: newIg})
+				return err
+			},
+			Validate: func(t *testing.T, igName string) {
+				mustFindGitHubCredentials(t, localClient, igName, "id", "new-secret")
+			},
+			ErrAssertion: noError,
+		},
+		{
+			Name: "OAuth update fails when secret is missing",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbUpdate, types.VerbCreate},
+				}}},
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				oldIg, err := newGitHubIntegration(igName, "id", "secret")
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				_, err = resourceSvc.CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: oldIg})
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				newIg, err := newGitHubIntegration(igName, "new-id", "")
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				_, err = resourceSvc.UpdateIntegration(ctx, &integrationpb.UpdateIntegrationRequest{Integration: newIg})
+				return err
+			},
+			ErrAssertion: trace.IsBadParameter,
 		},
 
 		// Delete
@@ -281,6 +452,31 @@ func TestIntegrationCRUD(t *testing.T) {
 			ErrAssertion: trace.IsBadParameter,
 		},
 		{
+			Name: "can't delete integration referenced by AWS Identity Center plugin",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbDelete},
+				}}},
+			},
+			Setup: func(t *testing.T, igName string) {
+				_, err := localClient.CreateIntegration(ctx, sampleIntegrationFn(t, igName))
+				require.NoError(t, err)
+				// other existing plugin should not affect identity center plugin referenced integration.
+				require.NoError(t, localClient.CreatePlugin(ctx, fixtures.NewMattermostPlugin(t)))
+				require.NoError(t, localClient.CreatePlugin(ctx, fixtures.NewIdentityCenterPlugin(t, igName, igName)))
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: igName})
+				return err
+			},
+			Cleanup: func(t *testing.T, igName string) {
+				require.NoError(t, localClient.DeletePlugin(ctx, types.PluginTypeMattermost))
+				require.NoError(t, localClient.DeletePlugin(ctx, types.PluginTypeAWSIdentityCenter))
+			},
+			ErrAssertion: trace.IsBadParameter,
+		},
+		{
 			Name: "access to delete integration",
 			Role: types.RoleSpecV6{
 				Allow: types.RoleConditions{Rules: []types.Rule{{
@@ -295,6 +491,170 @@ func TestIntegrationCRUD(t *testing.T) {
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
 				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: igName})
 				return err
+			},
+			ErrAssertion: noError,
+		},
+		{
+			Name: "credentials are also deleted",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbDelete},
+				}}},
+			},
+			Setup: func(t *testing.T, igName string) {
+				t.Helper()
+
+				ig := sampleIntegrationFn(t, igName)
+				refUUID := uuid.NewString()
+				ig.SetCredentials(&types.PluginCredentialsV1{
+					Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+						StaticCredentialsRef: credentials.NewRefWithUUID(refUUID),
+					},
+				})
+
+				_, err := localClient.CreateIntegration(ctx, ig)
+				require.NoError(t, err)
+
+				// Save a fake credentials that can be found using igName.
+				cred := &types.PluginStaticCredentialsV1{
+					ResourceHeader: types.ResourceHeader{
+						Metadata: types.Metadata{
+							Name: igName,
+							Labels: map[string]string{
+								credentials.LabelStaticCredentialsIntegration: refUUID,
+								credentials.LabelStaticCredentialsPurpose:     "test",
+							},
+						},
+					},
+					Spec: &types.PluginStaticCredentialsSpecV1{
+						Credentials: &types.PluginStaticCredentialsSpecV1_OAuthClientSecret{
+							OAuthClientSecret: &types.PluginStaticCredentialsOAuthClientSecret{
+								ClientId:     "id",
+								ClientSecret: "secret",
+							},
+						},
+					},
+				}
+				err = localClient.CreatePluginStaticCredentials(ctx, cred)
+				require.NoError(t, err)
+
+				// double-check
+				staticCreds, err := localClient.GetPluginStaticCredentials(context.Background(), igName)
+				require.NoError(t, err)
+				require.NotNil(t, staticCreds)
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: igName})
+				return err
+			},
+			Validate: func(t *testing.T, igName string) {
+				t.Helper()
+				_, err := localClient.GetPluginStaticCredentials(context.Background(), igName)
+				require.Error(t, err)
+				require.True(t, trace.IsNotFound(err))
+			},
+			ErrAssertion: noError,
+		},
+		{
+			Name: "cannot delete github integration with existing git server",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbDelete},
+				}}},
+			},
+			Setup: func(t *testing.T, igName string) {
+				t.Helper()
+
+				ig, err := newGitHubIntegration(igName, "", "")
+				require.NoError(t, err)
+				_, err = localClient.CreateIntegration(ctx, ig)
+				require.NoError(t, err)
+				_, err = localClient.CreateGitServer(ctx, mustMakeGitHubServer(t, ig))
+				require.NoError(t, err)
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{
+					Name: igName,
+				})
+				return err
+			},
+			ErrAssertion: trace.IsBadParameter,
+		},
+		{
+			Name: "no access to delete github integration with associated resources",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbDelete},
+				}}},
+			},
+			Setup: func(t *testing.T, igName string) {
+				t.Helper()
+
+				ig, err := newGitHubIntegration(igName, "", "")
+				require.NoError(t, err)
+				_, err = localClient.CreateIntegration(ctx, ig)
+				require.NoError(t, err)
+				_, err = localClient.CreateGitServer(ctx, mustMakeGitHubServer(t, ig))
+				require.NoError(t, err)
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{
+					Name:                      igName,
+					DeleteAssociatedResources: true,
+				})
+				return err
+			},
+			ErrAssertion: trace.IsAccessDenied,
+		},
+		{
+			Name: "delete github integration with associated resources",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{
+					{
+						Resources: []string{types.KindIntegration},
+						Verbs:     []string{types.VerbDelete},
+					},
+					{
+						Resources: []string{types.KindGitServer},
+						Verbs:     []string{types.VerbDelete, types.VerbList},
+					},
+				}},
+			},
+			Setup: func(t *testing.T, igName string) {
+				t.Helper()
+
+				ig, err := newGitHubIntegration(igName, "", "")
+				require.NoError(t, err)
+				_, err = localClient.CreateIntegration(ctx, ig)
+				require.NoError(t, err)
+				_, err = localClient.CreateGitServer(ctx, mustMakeGitHubServer(t, ig))
+				require.NoError(t, err)
+
+				anotherIg, err := newGitHubIntegration(igName+igName, "", "")
+				require.NoError(t, err)
+				_, err = localClient.CreateIntegration(ctx, anotherIg)
+				require.NoError(t, err)
+				_, err = localClient.CreateGitServer(ctx, mustMakeGitHubServer(t, anotherIg))
+				require.NoError(t, err)
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{
+					Name:                      igName,
+					DeleteAssociatedResources: true,
+				})
+				return err
+			},
+			Validate: func(t *testing.T, igName string) {
+				t.Helper()
+				// Validate git server associated with the integration is
+				// removed and other git server is intact.
+				_, err := localClient.GetGitServer(context.Background(), igName)
+				require.True(t, trace.IsNotFound(err))
+				_, err = localClient.GetGitServer(context.Background(), igName+igName)
+				require.NoError(t, err)
 			},
 			ErrAssertion: noError,
 		},
@@ -321,7 +681,7 @@ func TestIntegrationCRUD(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			localCtx := authorizerForDummyUser(t, ctx, tc.Role, localClient)
-			igName := uuid.NewString()
+			igName := cmp.Or(tc.IntegrationName, uuid.NewString())
 			if tc.Setup != nil {
 				tc.Setup(t, igName)
 			}
@@ -331,7 +691,12 @@ func TestIntegrationCRUD(t *testing.T) {
 			}
 
 			err := tc.Test(localCtx, resourceSvc, igName)
-			require.True(t, tc.ErrAssertion(err), err)
+			require.True(t, tc.ErrAssertion(err), trace.DebugReport(err))
+
+			// Extra validation
+			if tc.Validate != nil {
+				tc.Validate(t, igName)
+			}
 		})
 	}
 }
@@ -364,11 +729,15 @@ func authorizerForDummyUser(t *testing.T, ctx context.Context, roleSpec types.Ro
 type localClient interface {
 	CreateUser(ctx context.Context, user types.User) (types.User, error)
 	CreateRole(ctx context.Context, role types.Role) (types.Role, error)
-	CreateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error)
 	GenerateDraftExternalAuditStorage(ctx context.Context, integrationName, region string) (*externalauditstorage.ExternalAuditStorage, error)
 	DeleteDraftExternalAuditStorage(ctx context.Context) error
 	PromoteToClusterExternalAuditStorage(ctx context.Context) error
 	DisableClusterExternalAuditStorage(ctx context.Context) error
+	CreatePlugin(ctx context.Context, plugin types.Plugin) error
+	DeletePlugin(ctx context.Context, name string) error
+	services.PluginStaticCredentials
+	services.Integrations
+	services.GitServers
 }
 
 type testClient struct {
@@ -387,8 +756,10 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 	require.NoError(t, err)
 	trustSvc := local.NewCAService(backend)
 	roleSvc := local.NewAccessService(backend)
-	userSvc := local.NewTestIdentityService(backend)
+	userSvc, err := local.NewTestIdentityService(backend)
+	require.NoError(t, err)
 	easSvc := local.NewExternalAuditStorageService(backend)
+	pluginSvc := local.NewPluginsService(backend)
 
 	_, err = clusterConfigSvc.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
 	require.NoError(t, err)
@@ -415,6 +786,8 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		LockGetter: accessService,
 	})
 	require.NoError(t, err)
+	gitServerService, err := local.NewGitServerService(backend)
+	require.NoError(t, err)
 
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: clusterName,
@@ -425,6 +798,18 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 
 	localResourceService, err := local.NewIntegrationsService(backend)
 	require.NoError(t, err)
+	localCredService, err := local.NewPluginStaticCredentialsService(backend)
+	require.NoError(t, err)
+
+	backendSvc := struct {
+		services.Integrations
+		services.PluginStaticCredentials
+		services.GitServers
+	}{
+		Integrations:            localResourceService,
+		PluginStaticCredentials: localCredService,
+		GitServers:              gitServerService,
+	}
 
 	cacheResourceService, err := local.NewIntegrationsService(backend, local.WithIntegrationsServiceCacheMode(true))
 	require.NoError(t, err)
@@ -437,11 +822,12 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 				PublicAddrs: []string{proxyPublicAddr},
 			}},
 		},
-		IntegrationsService: *cacheResourceService,
+		IntegrationsService:            *cacheResourceService,
+		PluginStaticCredentialsService: localCredService,
 	}
 
 	resourceSvc, err := NewService(&ServiceConfig{
-		Backend:         localResourceService,
+		Backend:         backendSvc,
 		Authorizer:      authorizer,
 		Cache:           cache,
 		KeyStoreManager: keystore.NewSoftwareKeystoreForTests(t),
@@ -454,11 +840,17 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		*local.IdentityService
 		*local.ExternalAuditStorageService
 		*local.IntegrationsService
+		*local.PluginsService
+		*local.PluginStaticCredentialsService
+		*local.GitServerService
 	}{
-		AccessService:               roleSvc,
-		IdentityService:             userSvc,
-		ExternalAuditStorageService: easSvc,
-		IntegrationsService:         localResourceService,
+		AccessService:                  roleSvc,
+		IdentityService:                userSvc,
+		ExternalAuditStorageService:    easSvc,
+		IntegrationsService:            localResourceService,
+		PluginsService:                 pluginSvc,
+		PluginStaticCredentialsService: localCredService,
+		GitServerService:               gitServerService,
 	}, resourceSvc
 }
 
@@ -470,6 +862,7 @@ type mockCache struct {
 	returnErr error
 
 	local.IntegrationsService
+	*local.PluginStaticCredentialsService
 }
 
 func (m *mockCache) GetProxies() ([]types.Server, error) {
@@ -523,4 +916,72 @@ func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) ty
 	require.NoError(t, err)
 
 	return ca
+}
+
+func newGitHubIntegration(name, id, secret string) (*types.IntegrationV1, error) {
+	ig, err := types.NewIntegrationGitHub(
+		types.Metadata{
+			Name: name,
+		},
+		&types.GitHubIntegrationSpecV1{
+			Organization: "my-org",
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if id != "" || secret != "" {
+		ig.SetCredentials(&types.PluginCredentialsV1{
+			Credentials: &types.PluginCredentialsV1_IdSecret{
+				IdSecret: &types.PluginIdSecretCredential{
+					Id:     id,
+					Secret: secret,
+				},
+			},
+		})
+	}
+	return ig, nil
+}
+
+func mustFindGitHubCredentials(t *testing.T, localClient Backend, igName, wantId, wantSecret string) {
+	t.Helper()
+
+	ig, err := localClient.GetIntegration(context.Background(), igName)
+	require.NoError(t, err)
+
+	creds := ig.GetCredentials()
+	require.NotNil(t, creds)
+	require.NotNil(t, creds.GetStaticCredentialsRef())
+
+	staticCreds, err := localClient.GetPluginStaticCredentialsByLabels(context.Background(), creds.GetStaticCredentialsRef().Labels)
+	require.NoError(t, err)
+	require.Len(t, staticCreds, 2)
+
+	var seenSSHCA, seenOAuth bool
+	for _, cred := range staticCreds {
+		if len(cred.GetSSHCertAuthorities()) != 0 {
+			seenSSHCA = true
+			continue
+		}
+		if id, secret := cred.GetOAuthClientSecret(); id != "" {
+			assert.Equal(t, wantId, id)
+			assert.Equal(t, wantSecret, secret)
+			seenOAuth = true
+		}
+	}
+	assert.True(t, seenSSHCA)
+	assert.True(t, seenOAuth)
+}
+
+func mustMakeGitHubServer(t *testing.T, ig types.Integration) types.Server {
+	t.Helper()
+	require.NotNil(t, ig.GetGitHubIntegrationSpec())
+	server, err := types.NewGitHubServer(types.GitHubServerMetadata{
+		Organization: ig.GetGitHubIntegrationSpec().Organization,
+		Integration:  ig.GetName(),
+	})
+	require.NoError(t, err)
+	server.SetName(ig.GetName())
+	return server
 }

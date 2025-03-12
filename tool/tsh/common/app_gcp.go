@@ -24,7 +24,7 @@ import (
 	"hash/fnv"
 	"os"
 	"os/exec"
-	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/gcp"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -59,7 +60,7 @@ func onGcloud(cf *CLIConf) error {
 
 	defer func() {
 		if err := app.Close(); err != nil {
-			log.WithError(err).Error("Failed to close GCP app.")
+			logger.ErrorContext(cf.Context, "Failed to close GCP app", "error", err)
 		}
 	}()
 
@@ -82,7 +83,7 @@ func onGsutil(cf *CLIConf) error {
 
 	defer func() {
 		if err := app.Close(); err != nil {
-			log.WithError(err).Error("Failed to close GCP app.")
+			logger.ErrorContext(cf.Context, "Failed to close GCP app", "error", err)
 		}
 	}()
 
@@ -114,9 +115,13 @@ func newGCPApp(tc *client.TeleportClient, cf *CLIConf, appInfo *appInfo) (*gcpAp
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(secret))
 	prefix := fmt.Sprintf("%x", h.Sum32())
+	localProxyApp, err := newLocalProxyApp(tc, appInfo.profile, appInfo.RouteToApp, cf.LocalProxyPort, cf.InsecureSkipVerify)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return &gcpApp{
-		localProxyApp: newLocalProxyApp(tc, appInfo, cf.LocalProxyPort, cf.InsecureSkipVerify),
+		localProxyApp: localProxyApp,
 		cf:            cf,
 		secret:        secret,
 		prefix:        prefix,
@@ -162,7 +167,7 @@ func (a *gcpApp) Close() error {
 }
 
 func (a *gcpApp) getGcloudConfigPath() string {
-	return path.Join(profile.FullProfilePath(a.cf.HomePath), "gcp", a.appInfo.RouteToApp.ClusterName, a.appInfo.RouteToApp.Name, "gcloud")
+	return filepath.Join(profile.FullProfilePath(a.cf.HomePath), "gcp", a.routeToApp.ClusterName, a.routeToApp.Name, "gcloud")
 }
 
 // removeBotoConfig removes config files written by WriteBotoConfig.
@@ -175,15 +180,15 @@ func (a *gcpApp) removeBotoConfig() []error {
 }
 
 func (a *gcpApp) getBotoConfigDir() string {
-	return path.Join(profile.FullProfilePath(a.cf.HomePath), "gcp", a.appInfo.RouteToApp.ClusterName, a.appInfo.RouteToApp.Name)
+	return filepath.Join(profile.FullProfilePath(a.cf.HomePath), "gcp", a.routeToApp.ClusterName, a.routeToApp.Name)
 }
 
 func (a *gcpApp) getBotoConfigPath() string {
-	return path.Join(a.getBotoConfigDir(), a.prefix+"_boto.cfg")
+	return filepath.Join(a.getBotoConfigDir(), a.prefix+"_boto.cfg")
 }
 
 func (a *gcpApp) getExternalAccountFilePath() string {
-	return path.Join(a.getBotoConfigDir(), a.prefix+"_external.json")
+	return filepath.Join(a.getBotoConfigDir(), a.prefix+"_external.json")
 }
 
 // getBotoConfig returns minimal boto configuration, referencing an external account file.
@@ -224,7 +229,7 @@ func (a *gcpApp) writeBotoConfig() error {
 // GetEnvVars returns required environment variables to configure the
 // clients.
 func (a *gcpApp) GetEnvVars() (map[string]string, error) {
-	projectID, err := gcp.ProjectIDFromServiceAccountName(a.appInfo.RouteToApp.GCPServiceAccount)
+	projectID, err := gcp.ProjectIDFromServiceAccountName(a.routeToApp.GCPServiceAccount)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -236,7 +241,7 @@ func (a *gcpApp) GetEnvVars() (map[string]string, error) {
 
 		// Set core.custom_ca_certs_file via env variable, customizing the path to CA certs file.
 		// https://cloud.google.com/sdk/gcloud/reference/config/set#:~:text=custom_ca_certs_file
-		"CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE": a.appInfo.appLocalCAPath(a.cf.SiteName),
+		"CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE": a.profile.AppLocalCAPath(a.cf.SiteName, a.routeToApp.Name),
 
 		// We need to set project ID. This is sourced from the account name.
 		// https://cloud.google.com/sdk/gcloud/reference/config#GROUP:~:text=authentication%20to%20gsutil.-,project,-Project%20ID%20of
@@ -265,7 +270,7 @@ func (a *gcpApp) RunCommand(cmd *exec.Cmd) error {
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("Running command: %q", cmd)
+	logger.DebugContext(a.cf.Context, "Running gcp command", "command", logutils.StringerAttr(cmd))
 
 	cmd.Stdout = a.cf.Stdout()
 	cmd.Stderr = a.cf.Stderr()
@@ -322,7 +327,7 @@ func getGCPServiceAccountFromFlags(cf *CLIConf, profile *client.ProfileStatus) (
 	// if flag is missing, try to find singleton service account; failing that, print available options.
 	if reqAccount == "" {
 		if len(accounts) == 1 {
-			log.Infof("GCP service account %v is selected by default as it is the only one available for this GCP app.", accounts[0])
+			logger.InfoContext(cf.Context, "GCP service account is selected by default as it is the only one available for this GCP app", "service_account", accounts[0])
 			return validate(accounts[0])
 		}
 
@@ -369,8 +374,23 @@ func pickGCPApp(cf *CLIConf) (*gcpApp, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	appInfo, err := getAppInfo(cf, tc, matchGCPApp)
-	if err != nil {
+	var appInfo *appInfo
+	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		var err error
+		profile, err := tc.ProfileStatus()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+
+		appInfo, err = getAppInfo(cf, clusterClient.AuthClient, profile, tc.SiteName, matchGCPApp)
+		return trace.Wrap(err)
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

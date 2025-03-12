@@ -3,6 +3,14 @@ title: Networking
 description: This reference explains the networking requirements of a Teleport cluster, including its public address, ports, and support for HTTP CONNECT proxies.
 ---
 
+A Teleport cluster is a distributed system that may comprise a number of
+networks. On Teleport Enterprise (Cloud), for example, the Auth Service and
+Proxy Service run in Teleport-managed infrastructure, while Teleport users
+manage Agents and `tbot` instances.
+
+This reference guide describes the networking requirements of a Teleport
+cluster.
+
 ## Public address
 
 <Tabs>
@@ -36,21 +44,9 @@ following use cases:
 </TabItem>
 <TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
 
-All Teleport services (e.g., the Application Service and Database Service) have
-an optional `public_addr` property that you can modify in each service's
-configuration file. The public address can take an IP or a DNS name. It can also
-be a list of values:
+On Teleport Enterprise (Cloud) the Teleport Agent services always
+connect using reverse tunnels so there is no need to set a public address for an Agent.
 
-```yaml
-public_addr: ["service-one.example.com", "service-two.example.com"]
-```
-
-Specifying a public address for a Teleport agent may be useful in the
-following use cases:
-
-- You have multiple identical services behind a load balancer.
-- You want Teleport to issue an SSH certificate for the service with additional
-  principals, e.g., host names.
 </TabItem>
 </Tabs>
 
@@ -149,7 +145,7 @@ TLS routing is enabled by default. In this mode, all connections to a Teleport
 service (e.g., the Teleport SSH Service or Kubernetes) are routed through the
 Proxy Service's public web address.
 
-Read more in our [TLS Routing](../architecture/tls-routing.mdx) guide.
+Read more in our [TLS Routing](architecture/tls-routing.mdx) guide.
 
 | Port | Downstream Service | Description |
 | - | - | - |
@@ -185,11 +181,11 @@ In those cases, they can set up separate listeners in the config file.
 
 Cloud-hosted Teleport deployments allocate a different set of ports to each
 tenant's Proxy Service. To see which ports are available for your Teleport
-tenant, run a command similar to the following, replacing `mytenant.teleport.sh`
+tenant, run a command similar to the following, replacing `example.teleport.sh`
 with your tenant domain:
 
 ```code
-$ curl https://mytenant.teleport.sh/webapi/ping | jq '.proxy'
+$ curl https://example.teleport.sh/webapi/ping | jq '.proxy'
 ```
 
 The output should resemble the following, including the unique ports assigned to
@@ -199,20 +195,18 @@ your tenant:
 {
   "kube": {
     "enabled": true,
-    "public_addr": "mytenant.teleport.sh:11107",
-    "listen_addr": "0.0.0.0:3026"
+    "listen_addr": "0.0.0.0:3080"
   },
   "ssh": {
-    "listen_addr": "[::]:3023",
-    "tunnel_listen_addr": "0.0.0.0:3024",
-    "public_addr": "mytenant.teleport.sh:443",
-    "ssh_public_addr": "mytenant.teleport.sh:11105",
-    "ssh_tunnel_public_addr": "mytenant.teleport.sh:11106"
+    "listen_addr": "0.0.0.0:3080",
+    "tunnel_listen_addr": "0.0.0.0:3080",
+    "web_listen_addr": "0.0.0.0:3080",
+    "public_addr": "example.teleport.sh:443",
+    "dial_timeout": 30000000000
   },
   "db": {
-    "postgres_public_addr": "mytenant.teleport.sh:11109",
-    "mysql_listen_addr": "0.0.0.0:3036",
-    "mysql_public_addr": "mytenant.teleport.sh:11108"
+    "postgres_listen_addr": "0.0.0.0:3080",
+    "mysql_listen_addr": "0.0.0.0:3080"
   },
   "tls_routing_enabled": true
 }
@@ -226,14 +220,14 @@ than through a port allocated to that service.
 In this case, you can see that TLS routing is enabled, and that the Proxy
 Service's public web address (`ssh.public_addr`) is `mytenant.teleport.sh:443`.
 
-Read more in our [TLS Routing](../architecture/tls-routing.mdx) guide.
+Read more in our [TLS Routing](architecture/tls-routing.mdx) guide.
 
 </TabItem>
 </Tabs>
 
 ### Agent ports
 
-Teleport agents dial the Teleport Proxy Service to establish a reverse tunnel.
+Teleport Agents dial the Teleport Proxy Service to establish a reverse tunnel.
 Client traffic flows via the Proxy Service to the agent, and the agent forwards
 traffic to resources in your infrastructure.
 
@@ -242,11 +236,10 @@ Service, Kubernetes Service, and other services that protect resources in your
 infrastructure, there is no need to open ports on the machines running the
 agents to the public internet. 
 
-<Details title="Direct connections to agents">
+### Direct connections to agents
 
 If you run a self-hosted Teleport cluster, you can join an agent [directly to
-the Teleport Auth
-Service](../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx#start-your-teleport-process-with-the-invite-token).
+the Teleport Auth Service](../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx#start-your-teleport-process-with-the-invite-token).
 In this setup, certain Teleport services open their own listeners rather than
 accepting connections via reverse tunnel. The Proxy Service connects to these
 agent services by dialing them directly.
@@ -265,4 +258,6 @@ Proxy Service. The Teleport Application Service and Teleport Database Service
 use reverse tunnel connections through the Teleport Proxy Service and cannot
 expose ports directly.
 
-</Details>
+<Admonition type="important">
+Direct auth joining is only supported for ssh and kube agents. Application, database, and other discovery-based features are not supported when joining auth directly.
+</Admonition>

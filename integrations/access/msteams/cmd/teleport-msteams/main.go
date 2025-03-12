@@ -16,6 +16,7 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"time"
 
@@ -99,7 +100,7 @@ func main() {
 		if err := run(*startConfigPath, *debug); err != nil {
 			lib.Bail(err)
 		} else {
-			logger.Standard().Info("Successfully shut down")
+			slog.InfoContext(context.Background(), "Successfully shut down")
 		}
 	}
 
@@ -111,15 +112,8 @@ func run(configPath string, debug bool) error {
 		return trace.Wrap(err)
 	}
 
-	logConfig := conf.Log
 	if debug {
-		logConfig.Severity = "debug"
-	}
-	if err = logger.Setup(logConfig); err != nil {
-		return err
-	}
-	if debug {
-		logger.Standard().Debugf("DEBUG logging enabled")
+		conf.Log.Severity = "debug"
 	}
 
 	app, err := msteams.NewApp(*conf)

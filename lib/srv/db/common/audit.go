@@ -20,10 +20,10 @@ package common
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -118,7 +118,7 @@ type audit struct {
 	// cfg is the audit events emitter configuration.
 	cfg AuditConfig
 	// log is used for logging
-	log logrus.FieldLogger
+	logger *slog.Logger
 }
 
 // NewAudit returns a new instance of the audit events emitter.
@@ -127,8 +127,8 @@ func NewAudit(config AuditConfig) (Audit, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &audit{
-		cfg: config,
-		log: logrus.WithField(teleport.ComponentKey, config.Component),
+		cfg:    config,
+		logger: slog.With(teleport.ComponentKey, config.Component),
 	}, nil
 }
 
@@ -144,6 +144,10 @@ func (a *audit) OnSessionStart(ctx context.Context, session *Session, sessionErr
 		DatabaseMetadata: MakeDatabaseMetadata(session),
 		Status: events.Status{
 			Success: true,
+		},
+		PostgresPID: session.PostgresPID,
+		ClientMetadata: events.ClientMetadata{
+			UserAgent: session.UserAgent,
 		},
 	}
 	event.SetTime(session.StartTime)
@@ -302,14 +306,26 @@ func (a *audit) EmitEvent(ctx context.Context, event events.AuditEvent) {
 	defer methodCallMetrics("EmitEvent", a.cfg.Component, a.cfg.Database)()
 	preparedEvent, err := a.cfg.Recorder.PrepareSessionEvent(event)
 	if err != nil {
-		a.log.WithError(err).Errorf("Failed to setup event: %s - %s.", event.GetType(), event.GetID())
+		a.logger.ErrorContext(ctx, "Failed to setup event",
+			"error", err,
+			"event_type", event.GetType(),
+			"event_id", event.GetID(),
+		)
 		return
 	}
 	if err := a.cfg.Recorder.RecordEvent(ctx, preparedEvent); err != nil {
-		a.log.WithError(err).Errorf("Failed to record session event: %s - %s.", event.GetType(), event.GetID())
+		a.logger.ErrorContext(ctx, "Failed to record session event",
+			"error", err,
+			"event_type", event.GetType(),
+			"event_id", event.GetID(),
+		)
 	}
 	if err := a.cfg.Emitter.EmitAuditEvent(ctx, preparedEvent.GetAuditEvent()); err != nil {
-		a.log.WithError(err).Errorf("Failed to emit audit event: %s - %s.", event.GetType(), event.GetID())
+		a.logger.ErrorContext(ctx, "Failed to emit audit event",
+			"error", err,
+			"event_type", event.GetType(),
+			"event_id", event.GetID(),
+		)
 	}
 }
 
@@ -318,11 +334,19 @@ func (a *audit) RecordEvent(ctx context.Context, event events.AuditEvent) {
 	defer methodCallMetrics("RecordEvent", a.cfg.Component, a.cfg.Database)()
 	preparedEvent, err := a.cfg.Recorder.PrepareSessionEvent(event)
 	if err != nil {
-		a.log.WithError(err).Errorf("Failed to setup event: %s - %s.", event.GetType(), event.GetID())
+		a.logger.ErrorContext(ctx, "Failed to setup event",
+			"error", err,
+			"event_type", event.GetType(),
+			"event_id", event.GetID(),
+		)
 		return
 	}
 	if err := a.cfg.Recorder.RecordEvent(ctx, preparedEvent); err != nil {
-		a.log.WithError(err).Errorf("Failed to record session event: %s - %s.", event.GetType(), event.GetID())
+		a.logger.ErrorContext(ctx, "Failed to record session event",
+			"error", err,
+			"event_type", event.GetType(),
+			"event_id", event.GetID(),
+		)
 	}
 }
 

@@ -16,41 +16,59 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Flex, ButtonIcon } from 'design';
+import { ButtonIcon, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
+import { HoverTooltip } from 'design/Tooltip';
 
 import { useFileTransferContext } from './FileTransferContextProvider';
 
 type FileTransferActionBarProps = {
   isConnected: boolean;
+  // if any role has `options.ssh_file_copy: true` without any other role having `false` (false overrides).
+  hasAccess: boolean;
 };
 
 export function FileTransferActionBar({
   isConnected,
+  hasAccess,
 }: FileTransferActionBarProps) {
   const fileTransferContext = useFileTransferContext();
   const areFileTransferButtonsDisabled =
-    fileTransferContext.openedDialog || !isConnected;
+    fileTransferContext.openedDialog || !isConnected || !hasAccess;
 
   return (
     <Flex flex="none" alignItems="center" height="24px">
-      <ButtonIcon
-        disabled={areFileTransferButtonsDisabled}
-        size={0}
-        title="Download files"
-        onClick={fileTransferContext.openDownloadDialog}
+      <HoverTooltip
+        position="bottom"
+        tipContent={
+          !hasAccess ? (
+            <Text>
+              You are missing the{' '}
+              <Text bold as="span">
+                ssh_file_copy
+              </Text>{' '}
+              role option.
+            </Text>
+          ) : null
+        }
       >
-        <Icons.Download size={16} />
-      </ButtonIcon>
-      <ButtonIcon
-        disabled={areFileTransferButtonsDisabled}
-        size={0}
-        title="Upload files"
-        onClick={fileTransferContext.openUploadDialog}
-      >
-        <Icons.Upload size={16} />
-      </ButtonIcon>
+        <ButtonIcon
+          disabled={areFileTransferButtonsDisabled}
+          size={0}
+          title="Download files"
+          onClick={fileTransferContext.openDownloadDialog}
+        >
+          <Icons.Download size={16} />
+        </ButtonIcon>
+        <ButtonIcon
+          disabled={areFileTransferButtonsDisabled}
+          size={0}
+          title="Upload files"
+          onClick={fileTransferContext.openUploadDialog}
+        >
+          <Icons.Upload size={16} />
+        </ButtonIcon>
+      </HoverTooltip>
     </Flex>
   );
 }

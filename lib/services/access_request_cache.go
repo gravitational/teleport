@@ -56,6 +56,8 @@ type AccessRequestCacheConfig struct {
 	Events types.Events
 	// Getter is an access request getter client.
 	Getter AccessRequestGetter
+	// MaxRetryPeriod is the maximum retry period on failed watches.
+	MaxRetryPeriod time.Duration
 }
 
 // CheckAndSetDefaults valides the config and provides reasonable defaults for optional fields.
@@ -87,8 +89,12 @@ type AccessRequestCache struct {
 	primaryCache *sortcache.SortCache[*types.AccessRequestV3]
 	ttlCache     *utils.FnCache
 	initC        chan struct{}
+	initOnce     sync.Once
 	closeContext context.Context
 	cancel       context.CancelFunc
+	// onInit is a callback used in tests to detect
+	// individual initializations.
+	onInit func()
 }
 
 // NewAccessRequestCache sets up a new [AccessRequestCache] instance based on the supplied
@@ -120,8 +126,9 @@ func NewAccessRequestCache(cfg AccessRequestCacheConfig) (*AccessRequestCache, e
 	}
 
 	if _, err := newResourceWatcher(ctx, c, ResourceWatcherConfig{
-		Component: "access-request-cache",
-		Client:    cfg.Events,
+		Component:      "access-request-cache",
+		Client:         cfg.Events,
+		MaxRetryPeriod: cfg.MaxRetryPeriod,
 	}); err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -201,9 +208,9 @@ func (c *AccessRequestCache) ListMatchingAccessRequests(ctx context.Context, req
 		return nil, trace.Errorf("access request cache was not configured with sort index %q (this is a bug)", index)
 	}
 
-	traverse := cache.Ascend
+	accessRequests := cache.Ascend
 	if req.Descending {
-		traverse = cache.Descend
+		accessRequests = cache.Descend
 	}
 
 	limit := int(req.Limit)
@@ -212,34 +219,30 @@ func (c *AccessRequestCache) ListMatchingAccessRequests(ctx context.Context, req
 	var rsp proto.ListAccessRequestsResponse
 	now := time.Now()
 	var expired int
-	traverse(index, req.StartKey, "", func(r *types.AccessRequestV3) (continueTraversal bool) {
+	for r := range accessRequests(index, req.StartKey, "") {
+		if len(rsp.AccessRequests) == limit {
+			rsp.NextKey = cache.KeyOf(index, r)
+			break
+		}
+
 		if !r.Expiry().IsZero() && now.After(r.Expiry()) {
 			expired++
 			// skip requests that appear expired. some backends can take up to 48 hours to expired items
 			// and access requests showing up past their expiry time is particularly confusing.
-			return true
+			continue
 		}
 		if !req.Filter.Match(r) || !match(r) {
-			return true
+			continue
 		}
 
 		c := r.Copy()
 		cr, ok := c.(*types.AccessRequestV3)
 		if !ok {
 			slog.WarnContext(ctx, "clone returned unexpected type (this is a bug)", "expected", logutils.TypeAttr(r), "got", logutils.TypeAttr(c))
-			return true
+			continue
 		}
 
 		rsp.AccessRequests = append(rsp.AccessRequests, cr)
-
-		// halt when we have Limit+1 items so that we can create a
-		// correct 'NextKey'.
-		return len(rsp.AccessRequests) <= limit
-	})
-
-	if len(rsp.AccessRequests) > limit {
-		rsp.NextKey = cache.KeyOf(index, rsp.AccessRequests[limit])
-		rsp.AccessRequests = rsp.AccessRequests[:limit]
 	}
 
 	if expired > 0 {
@@ -352,8 +355,20 @@ func (c *AccessRequestCache) getResourcesAndUpdateCurrent(ctx context.Context) e
 	c.rw.Lock()
 	defer c.rw.Unlock()
 	c.primaryCache = cache
-	close(c.initC)
+	c.initOnce.Do(func() {
+		close(c.initC)
+	})
+	if c.onInit != nil {
+		c.onInit()
+	}
 	return nil
+}
+
+// SetInitCallback is used in tests that care about cache inits.
+func (c *AccessRequestCache) SetInitCallback(cb func()) {
+	c.rw.Lock()
+	defer c.rw.Unlock()
+	c.onInit = cb
 }
 
 // processEventsAndUpdateCurrent is part of the resourceCollector interface and is used to update the
@@ -395,6 +410,7 @@ func (c *AccessRequestCache) notifyStale() {
 	}
 	c.primaryCache = nil
 	c.initC = make(chan struct{})
+	c.initOnce = sync.Once{}
 }
 
 // initializationChan is part of the resourceCollector interface and gets the channel

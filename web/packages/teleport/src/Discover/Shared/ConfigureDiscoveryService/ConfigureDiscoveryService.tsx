@@ -16,27 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link as InternalLink } from 'react-router-dom';
-import { Box, Text, Mark } from 'design';
+
+import { Box, Mark, Text } from 'design';
 import { OutlineInfo } from 'design/Alert/Alert';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
 
+import cfg from 'teleport/config';
 import { useDiscover } from 'teleport/Discover/useDiscover';
+import {
+  createDiscoveryConfig,
+  DEFAULT_DISCOVERY_GROUP_NON_CLOUD,
+} from 'teleport/services/discovery';
 import useTeleport from 'teleport/useTeleport';
 
-import {
-  DEFAULT_DISCOVERY_GROUP_NON_CLOUD,
-  createDiscoveryConfig,
-} from 'teleport/services/discovery';
-import cfg from 'teleport/config';
-
 import { ActionButtons, Header, ResourceKind } from '../../Shared';
-import { InfoIcon } from '../InfoIcon';
-
-import { CreatedDiscoveryConfigDialog } from './CreatedDiscoveryConfigDialog';
 import { ConfigureDiscoveryServiceDirections } from './ConfigureDiscoveryServiceDirections';
+import { CreatedDiscoveryConfigDialog } from './CreatedDiscoveryConfigDialog';
 
 export function ConfigureDiscoveryService({
   withCreateConfig = false,
@@ -161,23 +159,18 @@ function EnrollInfo({ kind }: { kind: ResourceKind }) {
           automatically discover and enroll EC2 instances.
         </Text>
         <OutlineInfo mt={3} linkColor="buttons.link.default">
-          <Box>
-            <InfoIcon />
-          </Box>
-          <Box>
-            Auto discovery will enroll all EC2 instances found in a region. If
-            you want to enroll a <Mark>single</Mark> EC2 instance instead,
-            consider following{' '}
-            <InternalLink
-              to={{
-                pathname: cfg.routes.discover,
-                state: { searchKeywords: 'linux' },
-              }}
-            >
-              the Teleport service installation flow
-            </InternalLink>
-            .
-          </Box>
+          Auto discovery will enroll all EC2 instances found in a region. If you
+          want to enroll a <Mark>single</Mark> EC2 instance instead, consider
+          following{' '}
+          <InternalLink
+            to={{
+              pathname: cfg.routes.discover,
+              state: { searchKeywords: 'linux' },
+            }}
+          >
+            the Teleport service installation flow
+          </InternalLink>
+          .
         </OutlineInfo>
       </>
     );

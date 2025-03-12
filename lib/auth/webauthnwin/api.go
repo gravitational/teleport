@@ -27,12 +27,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
+	"sync"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -166,22 +167,42 @@ func Register(_ context.Context, origin string, cc *wantypes.CredentialCreation)
 
 const defaultPromptMessage = "Using platform authenticator, follow the OS dialogs"
 
-var (
-	// PromptPlatformMessage is the message shown before system prompts.
-	PromptPlatformMessage = defaultPromptMessage
+// promptPlatformMessage is the message shown before system prompts.
+var promptPlatformMessage = struct {
+	mu      sync.Mutex
+	message string
+}{
+	message: defaultPromptMessage,
+}
 
-	// PromptWriter is the writer used for prompt messages.
-	PromptWriter io.Writer = os.Stderr
-)
+// PromptWriter is the writer used for prompt messages.
+var PromptWriter io.Writer = os.Stderr
 
-// ResetPromptPlatformMessage resets [PromptPlatformMessage] to its original state.
+// SetPromptPlatformMessage assigns a new prompt platform message. The prompt
+// platform message is shown by [Login] or [Register] when prompting for a
+// device touch.
+//
+// See [ResetPromptPlatformMessage].
+func SetPromptPlatformMessage(message string) {
+	promptPlatformMessage.mu.Lock()
+	promptPlatformMessage.message = message
+	promptPlatformMessage.mu.Unlock()
+}
+
+// ResetPromptPlatformMessage resets the prompt platform message to its original
+// state.
+//
+// See [SetPromptPlatformMessage].
 func ResetPromptPlatformMessage() {
-	PromptPlatformMessage = defaultPromptMessage
+	SetPromptPlatformMessage(defaultPromptMessage)
 }
 
 func promptPlatform() {
-	if PromptPlatformMessage != "" {
-		fmt.Fprintln(PromptWriter, PromptPlatformMessage)
+	promptPlatformMessage.mu.Lock()
+	defer promptPlatformMessage.mu.Unlock()
+
+	if msg := promptPlatformMessage.message; msg != "" {
+		fmt.Fprintln(PromptWriter, msg)
 	}
 }
 
@@ -200,7 +221,7 @@ type CheckSupportResult struct {
 func IsAvailable() bool {
 	supports := CheckSupport()
 	if supports.HasCompileSupport && !supports.IsAvailable {
-		log.Warn("Webauthn is not supported on this version of Windows, supported from version 1903")
+		slog.WarnContext(context.Background(), "Webauthn is not supported on this version of Windows, supported from version 1903")
 	}
 
 	return supports.IsAvailable

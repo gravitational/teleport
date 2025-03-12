@@ -21,14 +21,14 @@ package db
 import (
 	"context"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
+	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -39,13 +39,6 @@ func newDocumentDBFetcher(cfg awsFetcherConfig) (common.Fetcher, error) {
 }
 
 // rdsDocumentDBFetcher retrieves DocumentDB clusters.
-//
-// Note that AWS DocumentDB internally uses the RDS APIs:
-// https://github.com/aws/aws-sdk-go/blob/3248e69e16aa601ffa929be53a52439425257e5e/service/docdb/service.go#L33
-// The interfaces/structs in "services/docdb" are usually a subset of those in
-// "services/rds".
-//
-// TODO(greedy52) switch to aws-sdk-go-v2/services/docdb.
 type rdsDocumentDBFetcher struct{}
 
 func (f *rdsDocumentDBFetcher) ComponentShortName() string {
@@ -54,38 +47,39 @@ func (f *rdsDocumentDBFetcher) ComponentShortName() string {
 
 // GetDatabases returns a list of database resources representing DocumentDB endpoints.
 func (f *rdsDocumentDBFetcher) GetDatabases(ctx context.Context, cfg *awsFetcherConfig) (types.Databases, error) {
-	rdsClient, err := cfg.AWSClients.GetAWSRDSClient(ctx, cfg.Region,
-		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
-		cloud.WithCredentialsMaybeIntegration(cfg.Integration),
+	awsCfg, err := cfg.AWSConfigProvider.GetConfig(ctx, cfg.Region,
+		awsconfig.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
+		awsconfig.WithCredentialsMaybeIntegration(cfg.Integration),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusters, err := f.getAllDBClusters(ctx, rdsClient)
+	clt := cfg.awsClients.GetRDSClient(awsCfg)
+	clusters, err := f.getAllDBClusters(ctx, clt)
 	if err != nil {
-		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
+		return nil, trace.Wrap(err)
 	}
 
 	databases := make(types.Databases, 0)
 	for _, cluster := range clusters {
-		if !libcloudaws.IsDocumentDBClusterSupported(cluster) {
+		if !libcloudaws.IsDocumentDBClusterSupported(&cluster) {
 			cfg.Logger.DebugContext(ctx, "DocumentDB cluster doesn't support IAM authentication. Skipping.",
-				"cluster", aws.StringValue(cluster.DBClusterIdentifier),
-				"engine_version", aws.StringValue(cluster.EngineVersion))
+				"cluster", aws.ToString(cluster.DBClusterIdentifier),
+				"engine_version", aws.ToString(cluster.EngineVersion))
 			continue
 		}
 
 		if !libcloudaws.IsDBClusterAvailable(cluster.Status, cluster.DBClusterIdentifier) {
 			cfg.Logger.DebugContext(ctx, "DocumentDB cluster is not available. Skipping.",
-				"cluster", aws.StringValue(cluster.DBClusterIdentifier),
-				"status", aws.StringValue(cluster.Status))
+				"cluster", aws.ToString(cluster.DBClusterIdentifier),
+				"status", aws.ToString(cluster.Status))
 			continue
 		}
 
-		dbs, err := common.NewDatabasesFromDocumentDBCluster(cluster)
+		dbs, err := common.NewDatabasesFromDocumentDBCluster(&cluster)
 		if err != nil {
 			cfg.Logger.WarnContext(ctx, "Could not convert DocumentDB cluster to database resources.",
-				"cluster", aws.StringValue(cluster.DBClusterIdentifier),
+				"cluster", aws.ToString(cluster.DBClusterIdentifier),
 				"error", err)
 		}
 		databases = append(databases, dbs...)
@@ -93,15 +87,23 @@ func (f *rdsDocumentDBFetcher) GetDatabases(ctx context.Context, cfg *awsFetcher
 	return databases, nil
 }
 
-func (f *rdsDocumentDBFetcher) getAllDBClusters(ctx context.Context, rdsClient rdsiface.RDSAPI) ([]*rds.DBCluster, error) {
-	var pageNum int
-	var clusters []*rds.DBCluster
-	err := rdsClient.DescribeDBClustersPagesWithContext(ctx, &rds.DescribeDBClustersInput{
-		Filters: rdsEngineFilter([]string{"docdb"}),
-	}, func(ddo *rds.DescribeDBClustersOutput, lastPage bool) bool {
-		pageNum++
-		clusters = append(clusters, ddo.DBClusters...)
-		return pageNum <= maxAWSPages
-	})
-	return clusters, trace.Wrap(err)
+func (f *rdsDocumentDBFetcher) getAllDBClusters(ctx context.Context, clt RDSClient) ([]rdstypes.DBCluster, error) {
+	pager := rds.NewDescribeDBClustersPaginator(clt,
+		&rds.DescribeDBClustersInput{
+			Filters: rdsEngineFilter([]string{"docdb"}),
+		},
+		func(pagerOpts *rds.DescribeDBClustersPaginatorOptions) {
+			pagerOpts.StopOnDuplicateToken = true
+		},
+	)
+
+	var clusters []rdstypes.DBCluster
+	for i := 0; i < maxAWSPages && pager.HasMorePages(); i++ {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
+		}
+		clusters = append(clusters, page.DBClusters...)
+	}
+	return clusters, nil
 }

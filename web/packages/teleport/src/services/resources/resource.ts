@@ -16,16 +16,37 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import cfg, { UrlListRolesParams, UrlResourcesParams } from 'teleport/config';
 import api from 'teleport/services/api';
-import cfg, { UrlResourcesParams, UrlListRolesParams } from 'teleport/config';
 
-import { UnifiedResource, ResourcesResponse } from '../agents';
-
+import { ResourcesResponse, UnifiedResource } from '../agents';
+import auth, { MfaChallengeScope } from '../auth/auth';
+import {
+  CreateOrOverwriteGitServer,
+  DefaultAuthConnector,
+  GitServer,
+  makeResource,
+  makeResourceList,
+  Resource,
+  RoleResource,
+} from './';
 import { makeUnifiedResource } from './makeUnifiedResource';
 
-import { makeResource, makeResourceList, RoleResource } from './';
-
 class ResourceService {
+  createOrOverwriteGitServer(
+    clusterId: string,
+    req: CreateOrOverwriteGitServer
+  ): Promise<GitServer> {
+    return api.put(
+      cfg.getGitServerUrl({ clusterId }, 'createOrOverwrite'),
+      req
+    );
+  }
+
+  deleteGitServer(clusterId: string, name: string): Promise<GitServer> {
+    return api.delete(cfg.getGitServerUrl({ clusterId, name }, 'delete'));
+  }
+
   fetchTrustedClusters() {
     return api
       .get(cfg.getTrustedClustersUrl())
@@ -50,30 +71,45 @@ class ResourceService {
       });
   }
 
-  fetchGithubConnectors() {
+  async fetchGithubConnectors(): Promise<{
+    defaultConnector: DefaultAuthConnector;
+    connectors: Resource<'github'>[];
+  }> {
+    // MFA reuse needs to be allowed in case we need to fallback to another default connector
+    const challengeResponse =
+      await await auth.getMfaChallengeResponseForAdminAction(true);
+
     return api
-      .get(cfg.getGithubConnectorsUrl())
-      .then(res => makeResourceList<'github'>(res));
+      .get(cfg.getGithubConnectorsUrl(), undefined, challengeResponse)
+      .then(res => ({
+        defaultConnector: {
+          name: res.defaultConnectorName,
+          type: res.defaultConnectorType,
+        },
+        connectors: makeResourceList<'github'>(res.connectors),
+      }));
+  }
+
+  async setDefaultAuthConnector(req: DefaultAuthConnector | { type: 'local' }) {
+    // This is an admin action that needs an mfa challenge with reuse allowed.
+    const challenge = await auth.getMfaChallenge({
+      scope: MfaChallengeScope.ADMIN_ACTION,
+      allowReuse: true,
+      isMfaRequiredRequest: {
+        admin_action: {},
+      },
+    });
+
+    const challengeResponse = await auth.getMfaChallengeResponse(challenge);
+
+    return api.put(cfg.api.defaultConnectorPath, req, challengeResponse);
   }
 
   async fetchRoles(params?: UrlListRolesParams): Promise<{
     items: RoleResource[];
     startKey: string;
   }> {
-    const response = await api.get(cfg.getListRolesUrl(params));
-
-    // This will handle backward compatibility with roles.
-    // The old roles API returns only an array of resources while
-    // the new one sends the paginated object with startKey/requests
-    // If this webclient requests an older proxy
-    // (this may happen in multi proxy deployments),
-    //  this should allow the old request to not break the Web UI.
-    // TODO (gzdunek): DELETE in 17.0.0
-    if (Array.isArray(response)) {
-      return makeRolesPageLocally(params, response);
-    }
-
-    return response;
+    return await api.get(cfg.getListRolesUrl(params));
   }
 
   fetchPresetRoles() {
@@ -112,6 +148,12 @@ class ResourceService {
       .then(res => makeResource<'role'>(res));
   }
 
+  fetchGithubConnector(name: string) {
+    return api
+      .get(cfg.getGithubConnectorUrl(name))
+      .then(res => makeResource<'github'>(res));
+  }
+
   updateGithubConnector(name: string, content: string) {
     return api
       .put(cfg.getGithubConnectorsUrl(name), { content })
@@ -132,31 +174,3 @@ class ResourceService {
 }
 
 export default ResourceService;
-
-// TODO (gzdunek): DELETE in 17.0.0.
-// See the comment where this function is used.
-function makeRolesPageLocally(
-  params: UrlListRolesParams,
-  response: RoleResource[]
-): {
-  items: RoleResource[];
-  startKey: string;
-} {
-  if (params.search) {
-    // A serverside search would also match labels, here we only check the name.
-    response = response.filter(p =>
-      p.name.toLowerCase().includes(params.search.toLowerCase())
-    );
-  }
-
-  if (params.startKey) {
-    const startIndex = response.findIndex(p => p.name === params.startKey);
-    response = response.slice(startIndex);
-  }
-
-  const limit = params.limit || 200;
-  const nextKey = response.at(limit)?.name;
-  response = response.slice(0, limit);
-
-  return { items: response, startKey: nextKey };
-}

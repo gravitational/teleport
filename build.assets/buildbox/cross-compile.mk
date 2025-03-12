@@ -21,6 +21,10 @@ CROSSTOOLNG_TARGET_arm64 = aarch64-unknown-linux-gnu
 CROSSTOOLNG_TARGET_386 = i686-unknown-linux-gnu
 CROSSTOOLNG_TARGET_arm = arm-unknown-linux-gnueabihf
 
+# Define some vars that locate the installation of the toolchain.
+CROSSTOOLNG_TOOLCHAIN = $(THIRDPARTY_HOST_PREFIX)/$(CROSSTOOLNG_TARGET)
+CROSSTOOLNG_SYSROOT = $(CROSSTOOLNG_TOOLCHAIN)/$(CROSSTOOLNG_TARGET)/sysroot
+
 # Define environment variables used by gcc, clang and make to find the
 # appropriate compiler and third party libraries.
 export C_INCLUDE_PATH = $(THIRDPARTY_PREFIX)/include
@@ -31,6 +35,14 @@ export CXX = $(CROSSTOOLNG_TARGET)-g++
 export LD = $(CROSSTOOLNG_TARGET)-ld
 
 CROSS_VARS = C_INCLUDE_PATH LIBRARY_PATH PKG_CONFIG_PATH CC CXX LD
+
+# Clang needs to find the gcc toolchain libraries that are not in the sysroot.
+# These extra args are used by the clang-12.sh front-end script so clang is
+# always invoked with the correct location for the GCC cross toolchain.
+# This is used for the boring-rs crate to build boringssl in FIPS mode.
+export CLANG_EXTRA_ARGS = --gcc-toolchain=$(CROSSTOOLNG_TOOLCHAIN) --sysroot=$(CROSSTOOLNG_SYSROOT)
+
+CROSS_VARS += CLANG_EXTRA_ARGS
 
 # arm64 has linking issues using the binutils linker when building the
 # Enterprise Teleport binary ("relocation truncated to fit: R_AARCH64_CALL26

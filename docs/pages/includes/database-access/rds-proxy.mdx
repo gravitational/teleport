@@ -31,11 +31,11 @@ Teleport currently supports RDS Proxy instances with engine family
   Service.
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/7. Install Teleport
+## Step 1/6. Install Teleport
 
 (!docs/pages/includes/install-linux.mdx!)
 
-## Step 2/7. Create a Teleport Database Service configuration
+## Step 2/6. Create a Teleport Database Service configuration
 
 (!docs/pages/includes/tctl-token.mdx serviceName="Database" tokenType="db" tokenFile="/tmp/token"!)
 
@@ -59,21 +59,25 @@ $ sudo teleport db configure create \
 The command will generate a Teleport Database Service configuration file and
 place it at the `/etc/teleport.yaml` location.
 
-## Step 3/7. Configure AWS Credentials
+## Step 3/6. Configure Database Service IAM permissions
 
-(!docs/pages/includes/aws-credentials.mdx service="the Teleport Database Service"!)
+(!docs/pages/includes/database-access/create-iam-role-step-description.mdx accessFor="RDS Proxy instances" !)
 
-## Step 4/7. Create an IAM policy for Teleport
+### Create an IAM role for Teleport
 
-Teleport needs AWS IAM permissions to be able to access RDS Proxy instances.
+(!docs/pages/includes/aws-credentials.mdx service="the Database Service"!)
 
-(!docs/pages/includes/database-access/aws-bootstrap.mdx!)
+### Grant permissions
 
-## Step 5/7. Start the Database Service
+Attach the following AWS IAM permissions to the Database Service IAM role:
+
+(!docs/pages/includes/database-access/reference/aws-iam/rds-proxy/access-policy.mdx!)
+
+## Step 4/6. Start the Database Service
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
-## Step 6/7. Configure database user credentials
+## Step 5/6. Configure database user credentials
 
 The Database Service connects to an RDS Proxy instance using IAM
 authentication. In addition, the RDS Proxy instance must also be able to
@@ -161,7 +165,7 @@ IAMAuth=REQUIRED AuthScheme=SECRETS,SecretArn=arn-of-non-teleport-user,IAMAuth=D
 See `aws rds modify-db-proxy help` for more information.
 </Admonition>
 
-## Step 7/7. Connect
+## Step 6/6. Connect
 
 Once the Database Service has started and joined the cluster, log in to see the
 registered database:
@@ -179,6 +183,8 @@ Retrieve credentials for the database and connect to it as the `alice` user:
 ```code
 $ tsh db connect --db-user=alice --db-name=dev rds-proxy
 ```
+
+(!docs/pages/includes/database-access/pg-access-webui.mdx!)
 
 To log out of the database and remove credentials:
 

@@ -50,7 +50,7 @@ func (s *Server) startKubeAppsWatchers() error {
 			GetCurrentResources: func() map[string]types.Application {
 				apps, err := s.AccessPoint.GetApps(s.ctx)
 				if err != nil {
-					s.Log.WithError(err).Warn("Unable to get applications from cache.")
+					s.Log.WarnContext(s.ctx, "Unable to get applications from cache", "error", err)
 					return nil
 				}
 
@@ -61,7 +61,7 @@ func (s *Server) startKubeAppsWatchers() error {
 				defer mu.Unlock()
 				return utils.FromSlice(appResources, types.Application.GetName)
 			},
-			Log:      s.Log.WithField("kind", types.KindApp),
+			Logger:   s.Log.With("kind", types.KindApp),
 			OnCreate: s.onAppCreate,
 			OnUpdate: s.onAppUpdate,
 			OnDelete: s.onAppDelete,
@@ -74,7 +74,7 @@ func (s *Server) startKubeAppsWatchers() error {
 	watcher, err := common.NewWatcher(s.ctx, common.WatcherConfig{
 		FetchersFn:     common.StaticFetchers(s.kubeAppsFetchers),
 		Interval:       5 * time.Minute,
-		Log:            s.Log.WithField("kind", types.KindApp),
+		Logger:         s.Log.With("kind", types.KindApp),
 		DiscoveryGroup: s.DiscoveryGroup,
 		Origin:         types.OriginDiscoveryKubernetes,
 	})
@@ -102,7 +102,7 @@ func (s *Server) startKubeAppsWatchers() error {
 				mu.Unlock()
 
 				if err := reconciler.Reconcile(s.ctx); err != nil {
-					s.Log.WithError(err).Warn("Unable to reconcile resources.")
+					s.Log.WarnContext(s.ctx, "Unable to reconcile resources", "error", err)
 				}
 
 			case <-s.ctx.Done():
@@ -114,7 +114,7 @@ func (s *Server) startKubeAppsWatchers() error {
 }
 
 func (s *Server) onAppCreate(ctx context.Context, app types.Application) error {
-	s.Log.Debugf("Creating app %s", app.GetName())
+	s.Log.DebugContext(ctx, "Creating app", "app_name", app.GetName())
 	err := s.AccessPoint.CreateApp(ctx, app)
 	// If the resource already exists, it means that the resource was created
 	// by a previous discovery_service instance that didn't support the discovery
@@ -139,17 +139,17 @@ func (s *Server) onAppCreate(ctx context.Context, app types.Application) error {
 		},
 	})
 	if err != nil {
-		s.Log.WithError(err).Debug("Error emitting usage event.")
+		s.Log.DebugContext(ctx, "Error emitting usage event", "error", err)
 	}
 	return nil
 }
 
 func (s *Server) onAppUpdate(ctx context.Context, app, _ types.Application) error {
-	s.Log.Debugf("Updating app %s.", app.GetName())
+	s.Log.DebugContext(ctx, "Updating app", "app_name", app.GetName())
 	return trace.Wrap(s.AccessPoint.UpdateApp(ctx, app))
 }
 
 func (s *Server) onAppDelete(ctx context.Context, app types.Application) error {
-	s.Log.Debugf("Deleting app %s.", app.GetName())
+	s.Log.DebugContext(ctx, "Deleting app", "app_name", app.GetName())
 	return trace.Wrap(s.AccessPoint.DeleteApp(ctx, app.GetName()))
 }

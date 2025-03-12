@@ -34,11 +34,12 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -48,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/shell"
 	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils/networking"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/envutils"
@@ -76,20 +78,16 @@ const (
 	// to pid 1 and "live forever". Killing the shell should not prevent processes
 	// preventing SIGHUP to be reassigned (ex. processes running with nohup).
 	TerminateFile
-	// X11File is used to communicate to the parent process that the child
-	// process has set up X11 forwarding.
-	X11File
-	// ErrorFile is used to communicate any errors terminating the child process
-	// to the parent process
-	ErrorFile
-	// PTYFile is a PTY the parent process passes to the child process.
-	PTYFile
+	// PTYFileDeprecated is a placeholder for the unused PTY file that
+	// was passed to the child process. The PTY should only be used in the
+	// the parent process but was left here for compatibility purposes.
+	PTYFileDeprecated
 	// TTYFile is a TTY the parent process passes to the child process.
 	TTYFile
 
 	// FirstExtraFile is the first file descriptor that will be valid when
 	// extra files are passed to child processes without a terminal.
-	FirstExtraFile FileFD = ErrorFile + 1
+	FirstExtraFile FileFD = TerminateFile + 1
 )
 
 func fdName(f FileFD) string {
@@ -156,9 +154,6 @@ type ExecCommand struct {
 	// UaccMetadata contains metadata needed for user accounting.
 	UaccMetadata UaccMetadata `json:"uacc_meta"`
 
-	// X11Config contains an xauth entry to be added to the command user's xauthority.
-	X11Config X11Config `json:"x11_config"`
-
 	// ExtraFilesLen is the number of extra files that are inherited from
 	// the parent process. These files start at file descriptor 3 of the
 	// child process, and are only valid for processes without a terminal.
@@ -176,14 +171,6 @@ type PAMConfig struct {
 
 	// Environment represents env variables to pass to PAM.
 	Environment map[string]string `json:"environment"`
-}
-
-// X11Config contains information used by the child process to set up X11 forwarding.
-type X11Config struct {
-	// XAuthEntry contains xauth data used for X11 forwarding.
-	XAuthEntry x11.XAuthEntry `json:"xauth_entry,omitempty"`
-	// XServerUnixSocket is the name of an open XServer unix socket used for X11 forwarding.
-	XServerUnixSocket string `json:"xserver_unix_socket"`
 }
 
 // UaccMetadata contains information the child needs from the parent for user accounting.
@@ -207,6 +194,8 @@ type UaccMetadata struct {
 // RunCommand reads in the command to run from the parent process (over a
 // pipe) then constructs and runs the command.
 func RunCommand() (errw io.Writer, code int, err error) {
+	ctx := context.Background()
+
 	// SIGQUIT is used by teleport to initiate graceful shutdown, waiting for
 	// existing exec sessions to close before ending the process. For this to
 	// work when closing the entire teleport process group, exec sessions must
@@ -242,8 +231,8 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		_ = readyfd.Close()
 	}()
 
-	termiantefd := os.NewFile(TerminateFile, fdName(TerminateFile))
-	if termiantefd == nil {
+	terminatefd := os.NewFile(TerminateFile, fdName(TerminateFile))
+	if terminatefd == nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("terminate pipe not found")
 	}
 
@@ -262,36 +251,34 @@ func RunCommand() (errw io.Writer, code int, err error) {
 
 	if err := auditd.SendEvent(auditd.AuditUserLogin, auditd.Success, auditdMsg); err != nil {
 		// Currently, this logs nothing. Related issue https://github.com/gravitational/teleport/issues/17318
-		log.WithError(err).Debugf("failed to send user start event to auditd: %v", err)
+		slog.DebugContext(ctx, "failed to send user start event to auditd", "error", err)
 	}
 
 	defer func() {
 		if err != nil {
 			if errors.Is(err, user.UnknownUserError(c.Login)) {
 				if err := auditd.SendEvent(auditd.AuditUserErr, auditd.Failed, auditdMsg); err != nil {
-					log.WithError(err).Debugf("failed to send UserErr event to auditd: %v", err)
+					slog.DebugContext(ctx, "failed to send UserErr event to auditd", "error", err)
 				}
 				return
 			}
 		}
 
 		if err := auditd.SendEvent(auditd.AuditUserEnd, auditd.Success, auditdMsg); err != nil {
-			log.WithError(err).Debugf("failed to send UserEnd event to auditd: %v", err)
+			slog.DebugContext(ctx, "failed to send UserEnd event to auditd", "error", err)
 		}
 	}()
 
 	var tty *os.File
-	var pty *os.File
 	uaccEnabled := false
 
-	// If a terminal was requested, file descriptors 6 and 7 always point to the
-	// PTY and TTY. Extract them and set the controlling TTY. Otherwise, connect
+	// If a terminal was requested, file descriptor 7 always points to the
+	// TTY. Extract it and set the controlling TTY. Otherwise, connect
 	// std{in,out,err} directly.
 	if c.Terminal {
-		pty = os.NewFile(PTYFile, fdName(PTYFile))
 		tty = os.NewFile(TTYFile, fdName(TTYFile))
-		if pty == nil || tty == nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("pty and tty not found")
+		if tty == nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("tty not found")
 		}
 		errorWriter = tty
 	}
@@ -350,7 +337,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	localUser, err := user.Lookup(c.Login)
 	if err != nil {
 		if uaccErr := uacc.LogFailedLogin(c.UaccMetadata.BtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr); uaccErr != nil {
-			log.WithError(uaccErr).Debug("uacc unsupported.")
+			slog.DebugContext(ctx, "uacc unsupported", "error", uaccErr)
 		}
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
@@ -363,12 +350,12 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		if err == nil {
 			uaccEnabled = true
 		} else {
-			log.WithError(err).Debug("uacc unsupported.")
+			slog.DebugContext(ctx, "uacc unsupported", "error", err)
 		}
 	}
 
 	// Build the actual command that will launch the shell.
-	cmd, err := buildCommand(&c, localUser, tty, pty, pamEnvironment)
+	cmd, err := buildCommand(&c, localUser, tty, pamEnvironment)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
@@ -398,72 +385,8 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		}
 	}
 
-	if c.X11Config.XServerUnixSocket != "" {
-		// Set the open XServer unix socket's owner to the localuser
-		// to prevent a potential privilege escalation vulnerability.
-		uid, err := strconv.Atoi(localUser.Uid)
-		if err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
-		gid, err := strconv.Atoi(localUser.Gid)
-		if err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
-		if err := os.Lchown(c.X11Config.XServerUnixSocket, uid, gid); err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
-
-		// Update localUser's xauth database for X11 forwarding. We set
-		// cmd.SysProcAttr.Setsid, cmd.Env, and cmd.Dir so that the xauth command
-		// acts as if called within the following shell/exec, so that the
-		// xauthority files is put into the correct place ($HOME/.Xauthority)
-		// with the right permissions.
-		removeCmd := x11.NewXAuthCommand(context.Background(), "")
-		removeCmd.SysProcAttr = &syscall.SysProcAttr{
-			Setsid:     true,
-			Credential: cmd.SysProcAttr.Credential,
-		}
-		removeCmd.Env = cmd.Env
-		removeCmd.Dir = cmd.Dir
-		if err := removeCmd.RemoveEntries(c.X11Config.XAuthEntry.Display); err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
-
-		addCmd := x11.NewXAuthCommand(context.Background(), "")
-		addCmd.SysProcAttr = &syscall.SysProcAttr{
-			Setsid:     true,
-			Credential: cmd.SysProcAttr.Credential,
-		}
-		addCmd.Env = cmd.Env
-		addCmd.Dir = cmd.Dir
-		if err := addCmd.AddEntry(c.X11Config.XAuthEntry); err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
-
-		// Set $DISPLAY so that XServer requests forwarded to the X11 unix listener.
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", x11.DisplayEnv, c.X11Config.XAuthEntry.Display.String()))
-
-		// Open x11rdy fd to signal parent process once X11 forwarding is set up.
-		x11rdyfd := os.NewFile(X11File, fdName(X11File))
-		if x11rdyfd == nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("continue pipe not found")
-		}
-
-		// Write a single byte to signal to the parent process that X11 forwarding is set up.
-		if _, err := x11rdyfd.Write([]byte{0}); err != nil {
-			if err2 := x11rdyfd.Close(); err2 != nil {
-				return errorWriter, teleport.RemoteCommandFailure, trace.NewAggregate(err, err2)
-			}
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
-
-		if err := x11rdyfd.Close(); err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
-	}
-
 	if err := setNeutralOOMScore(); err != nil {
-		log.WithError(err).Warnf("failed to adjust OOM score")
+		slog.WarnContext(ctx, "failed to adjust OOM score", "error", err)
 	}
 
 	// Start the command.
@@ -473,7 +396,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 
 	parkerCancel()
 
-	err = waitForShell(termiantefd, cmd)
+	err = waitForShell(terminatefd, cmd)
 
 	if uaccEnabled {
 		uaccErr := uacc.Close(c.UaccMetadata.UtmpPath, c.UaccMetadata.WtmpPath, tty)
@@ -486,14 +409,14 @@ func RunCommand() (errw io.Writer, code int, err error) {
 }
 
 // waitForShell waits either for the command to return or the kill signal from the parent Teleport process.
-func waitForShell(termiantefd *os.File, cmd *exec.Cmd) error {
+func waitForShell(terminatefd *os.File, cmd *exec.Cmd) error {
 	terminateChan := make(chan error)
 
 	go func() {
 		buf := make([]byte, 1)
 		// Wait for the terminate file descriptor to be closed. The FD will be closed when Teleport
 		// parent process wants to terminate the remote command and all childs.
-		_, err := termiantefd.Read(buf)
+		_, err := terminatefd.Read(buf)
 		if errors.Is(err, io.EOF) {
 			// Kill the shell process
 			err = trace.Errorf("shell process has been killed: %w", cmd.Process.Kill())
@@ -570,9 +493,9 @@ func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Cred
 		return nil
 	}
 
-	group, err := o.LookupGroup(types.TeleportServiceGroup)
+	group, err := o.LookupGroup(types.TeleportDropGroup)
 	if err != nil {
-		if isUnknownGroupError(err, types.TeleportServiceGroup) {
+		if isUnknownGroupError(err, types.TeleportDropGroup) {
 			// The service group doesn't exist. Auto-provision is disabled, do nothing.
 			return nil
 		}
@@ -593,7 +516,7 @@ func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Cred
 	}
 
 	if !found {
-		// Check if the new user guid matches the TeleportServiceGroup. If not
+		// Check if the new user guid matches the TeleportDropGroup. If not
 		// this user hasn't been created by Teleport, and we don't need the parker.
 		return nil
 	}
@@ -613,87 +536,15 @@ func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Cred
 	return nil
 }
 
-type forwardHandler func(ctx context.Context, addr string, file *os.File) error
+const rootDirectory = "/"
 
-func handleLocalPortForward(ctx context.Context, addr string, file *os.File) error {
-	conn, err := uds.FromFile(file)
-	_ = file.Close()
-	if err != nil {
-		return trace.Wrap(err)
-	}
+func RunNetworking() (errw io.Writer, code int, err error) {
+	// SIGQUIT is used by teleport to initiate graceful shutdown, waiting for
+	// existing exec sessions to close before ending the process. For this to
+	// work when closing the entire teleport process group, exec sessions must
+	// ignore SIGQUIT signals.
+	signal.Ignore(syscall.SIGQUIT)
 
-	defer conn.Close()
-	var d net.Dialer
-	remote, err := d.DialContext(ctx, "tcp", addr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer remote.Close()
-	if err := utils.ProxyConn(ctx, conn, remote); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func createRemotePortForwardingListener(ctx context.Context, addr string) (*os.File, error) {
-	lc := net.ListenConfig{
-		Control: func(network, addr string, conn syscall.RawConn) error {
-			var err error
-			err2 := conn.Control(func(descriptor uintptr) {
-				// Disable address reuse to prevent socket replacement.
-				err = syscall.SetsockoptInt(int(descriptor), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 0)
-			})
-			return trace.NewAggregate(err2, err)
-		},
-	}
-
-	listener, err := lc.Listen(ctx, "tcp", addr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer listener.Close()
-
-	tcpListener, _ := listener.(*net.TCPListener)
-	if tcpListener == nil {
-		return nil, trace.Errorf("expected listener to be of type *net.TCPListener, but was %T", listener)
-	}
-
-	listenerFD, err := tcpListener.File()
-	return listenerFD, trace.Wrap(err)
-}
-
-func handleRemotePortForward(ctx context.Context, addr string, file *os.File) error {
-	controlConn, err := uds.FromFile(file)
-	_ = file.Close()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	// unblock the final write
-	context.AfterFunc(ctx, func() { _ = controlConn.Close() })
-	go func() {
-		defer cancel()
-		_, _ = controlConn.Read(make([]byte, 1))
-	}()
-
-	var payload []byte
-	var files []*os.File
-	listenerFD, err := createRemotePortForwardingListener(ctx, addr)
-	if err == nil {
-		files = []*os.File{listenerFD}
-	} else {
-		payload = []byte(err.Error())
-	}
-	_, _, err2 := uds.WriteWithFDs(controlConn, payload, files)
-	return trace.NewAggregate(err, err2)
-}
-
-// runForward reads in the command to run from the parent process (over a
-// pipe) then port forwards.
-func runForward(handler forwardHandler) (errw io.Writer, code int, err error) {
 	// errorWriter is used to return any error message back to the client.
 	// Use stderr so that it's not forwarded to the remote client.
 	errorWriter := os.Stderr
@@ -704,15 +555,10 @@ func runForward(handler forwardHandler) (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("command pipe not found")
 	}
 
-	// Parent receives any errors on the sixth file descriptor.
-	errfd := os.NewFile(ErrorFile, fdName(ErrorFile))
-	if errfd == nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("error pipe not found")
+	terminatefd := os.NewFile(TerminateFile, fdName(TerminateFile))
+	if terminatefd == nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("terminate pipe not found")
 	}
-
-	defer func() {
-		writeChildError(errfd, err)
-	}()
 
 	// Read in the command payload.
 	var c ExecCommand
@@ -721,8 +567,9 @@ func runForward(handler forwardHandler) (errw io.Writer, code int, err error) {
 	}
 
 	// If PAM is enabled, open a PAM context. This has to be done before anything
-	// else because PAM is sometimes used to create the local user used to
-	// launch the shell under.
+	// else because PAM is sometimes used to create the local user used for
+	// networking requests.
+	var pamEnvironment []string
 	if c.PAMConfig != nil {
 		// Open the PAM context.
 		pamContext, err := pam.Open(&servicecfg.PAMConfig{
@@ -740,20 +587,76 @@ func runForward(handler forwardHandler) (errw io.Writer, code int, err error) {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
 		defer pamContext.Close()
+
+		pamEnvironment = pamContext.Environment()
 	}
 
-	if _, err := user.Lookup(c.Login); err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.NotFound(err.Error())
+	// Once the PAM stack is called with parent process permissions, set the process uid
+	// and gid to the requested user. This way, the user's networking requests will be
+	// done with the user's permissions.
+	localUser, err := user.Lookup(c.Login)
+	if err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.NotFound("%s", err)
 	}
 
-	// build forwarder from first extra file that was passed to command
+	cred, err := getCmdCredential(localUser)
+	if err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+
+	if os.Getuid() != int(cred.Uid) || os.Getgid() != int(cred.Gid) {
+		if !cred.NoSetGroups {
+			groups := make([]int, len(cred.Groups))
+			for i, g := range cred.Groups {
+				groups[i] = int(g)
+			}
+			if err := unix.Setgroups(groups); err != nil {
+				return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set groups for networking process")
+			}
+		}
+		if err := unix.Setgid(int(cred.Gid)); err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set gid for networking process")
+		}
+		if err := unix.Setuid(int(cred.Uid)); err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set uid for networking process")
+		}
+	}
+
+	// Create a minimal default environment for the user.
+	workingDir := rootDirectory
+
+	hasAccess, err := CheckHomeDir(localUser)
+	if hasAccess && err == nil {
+		workingDir = localUser.HomeDir
+	}
+
+	os.Setenv("HOME", localUser.HomeDir)
+	os.Setenv("USER", c.Login)
+
+	// Apply any additional environment variables from PAM.
+	for _, kv := range pamEnvironment {
+		key, value, ok := strings.Cut(strings.TrimSpace(kv), "=")
+		if !ok {
+			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("bad environment variable from PAM, expected format \"key=value\" but got %q", kv)
+		}
+		if err := os.Setenv(key, value); err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
+	}
+
+	// Ensure that the working directory is one that the local user has access to.
+	if err := os.Chdir(workingDir); err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set working directory for networking process: %s", workingDir)
+	}
+
+	// Build request listener from first extra file that was passed to command.
 	ffd := os.NewFile(FirstExtraFile, "listener")
 	if ffd == nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("missing socket fd")
 	}
 
-	conn, err := uds.FromFile(ffd)
-	ffd.Close()
+	parentConn, err := uds.FromFile(ffd)
+	_ = ffd.Close()
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
@@ -761,54 +664,236 @@ func runForward(handler forwardHandler) (errw io.Writer, code int, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	writeErrorToConn := func(conn io.Writer, err error) {
+		conn.Write([]byte(err.Error()))
+	}
+
+	// Maintain a list of file paths to cleanup at the end of the process. This
+	// ensures that file cleanup is handled by the child in cases where the parent
+	// fails to cleanup due to filesystem namespace discrepancy (pam_namespace)
+	var filePathsToCleanup []string
+	defer func() {
+		for _, path := range filePathsToCleanup {
+			os.Remove(path)
+		}
+	}()
+
+	// parentConn is a datagram Unix socket, which is not connection oriented
+	// and thus won't unblock when the parent closes its side of the connection.
+	// Instead we use an interrupt signal from the parent process to unblock.
+	go func() {
+		_, _ = terminatefd.Read(make([]byte, 1))
+		parentConn.Close()
+	}()
+
 	for {
 		buf := make([]byte, 1024)
 		fbuf := make([]*os.File, 1)
-		n, fn, err := uds.ReadWithFDs(conn, buf, fbuf)
+		n, fn, err := uds.ReadWithFDs(parentConn, buf, fbuf)
 		if err != nil {
 			if utils.IsOKNetworkError(err) {
+				// parent connection closed, process should exit.
 				return errorWriter, teleport.RemoteCommandSuccess, nil
 			}
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
-		addr := string(buf[:n])
-		if fn == 0 {
-			log.Errorf("Parent did not send a file descriptor for address %q.", addr)
+			writeErrorToConn(parentConn, trace.Wrap(err, "error reading networking request from parent"))
 			continue
 		}
 
-		go func() {
-			if err := handler(ctx, addr, fbuf[0]); err != nil {
-				log.WithError(err).Errorf("Error handling forwarding request for address %q.", addr)
+		if fn == 0 {
+			writeErrorToConn(parentConn, trace.BadParameter("networking request requires a control file"))
+			continue
+		}
+
+		requestConn, err := uds.FromFile(fbuf[0])
+		_ = fbuf[0].Close()
+		if err != nil {
+			writeErrorToConn(parentConn, trace.Wrap(err, "failed to get a connection from control file"))
+			continue
+		}
+
+		var req networking.Request
+		if err := json.Unmarshal(buf[:n], &req); err != nil {
+			writeErrorToConn(requestConn, trace.Wrap(err, "error parsing networking request"))
+			_ = requestConn.Close()
+			continue
+		}
+
+		// Some PAM modules (e.g. pam_namespace) do not behave properly in multithreaded contexts.
+		// Therefore we favor handling requests and cleanup on the main PAM thread for requests that
+		// are expected to be impacted (unix socket listeners).
+		switch req.Operation {
+		case networking.NetworkingOperationDial, networking.NetworkingOperationListen:
+			switch req.Network {
+			case "tcp":
+				// There are currently no known issues with tcp listen/dial in a multithreaded PAM context.
+				go handleNetworkingRequest(ctx, requestConn, req)
+			default:
+				// Note: we don't currently support non-tcp network forwarding, so this branch is not
+				// currently reached. If in the future we add unix socket forwarding similar to OpenSSH's
+				// direct-streamlocal@openssh.com extension, we should revisit this multithreading limitation
+				// to prevent performance degradation.
+				filePaths := handleNetworkingRequest(ctx, requestConn, req)
+				filePathsToCleanup = append(filePathsToCleanup, filePaths...)
 			}
-		}()
+		case networking.NetworkingOperationListenAgent, networking.NetworkingOperationListenX11:
+			// Agent and X11 forwarding requests should occur very rarely, so handling
+			// them in the main thread should have negligible performance impact.
+			cleanupFilePaths := handleNetworkingRequest(ctx, requestConn, req)
+			filePathsToCleanup = append(filePathsToCleanup, cleanupFilePaths...)
+		}
 	}
 }
 
-// RunLocalForward reads in the command to run from the parent process (over a
-// pipe) then port forwards.
-func RunLocalForward() (errw io.Writer, code int, err error) {
-	errw, code, err = runForward(handleLocalPortForward)
-	return errw, code, trace.Wrap(err)
-}
+func handleNetworkingRequest(ctx context.Context, conn *net.UnixConn, req networking.Request) []string {
+	defer conn.Close()
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	go func() {
+		defer cancel()
+		_, _ = conn.Read(make([]byte, 1))
+	}()
 
-// RunRemoteForward reads in the command to run from the parent process (over a
-// pipe) then listens for port forwarding.
-func RunRemoteForward() (errw io.Writer, code int, err error) {
-	errw, code, err = runForward(handleRemotePortForward)
-	return errw, code, trace.Wrap(err)
-}
-
-// runCheckHomeDir check's if the active user's $HOME dir exists.
-func runCheckHomeDir() (errw io.Writer, code int, err error) {
-	home, err := os.UserHomeDir()
+	netFile, filePaths, err := createNetworkingFile(ctx, req)
 	if err != nil {
-		return io.Discard, teleport.HomeDirNotFound, nil
+		conn.Write([]byte(trace.Wrap(err, "failed to create networking file").Error()))
+		return nil
 	}
-	if !utils.IsDir(home) {
-		return io.Discard, teleport.HomeDirNotFound, nil
+	defer netFile.Close()
+
+	if _, _, err := uds.WriteWithFDs(conn, nil, []*os.File{netFile}); err != nil {
+		conn.Write([]byte(trace.Wrap(err, "failed to write networking file to control conn").Error()))
+		return nil
 	}
-	return io.Discard, teleport.RemoteCommandSuccess, nil
+	return filePaths
+}
+
+func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File, []string, error) {
+	switch req.Operation {
+	case networking.NetworkingOperationDial:
+		var d net.Dialer
+		conn, err := d.DialContext(ctx, req.Network, req.Address)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		defer conn.Close()
+
+		connFD, err := getConnFile(conn)
+		return connFD, nil, trace.Wrap(err)
+
+	case networking.NetworkingOperationListen:
+		listener, err := net.Listen(req.Network, req.Address)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		defer listener.Close()
+
+		listenerFD, err := getListenerFile(listener)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		return listenerFD, []string{listener.Addr().String()}, trace.Wrap(err)
+
+	case networking.NetworkingOperationListenAgent:
+		// Create a temp directory to hold the agent socket.
+		sockDir, err := os.MkdirTemp("", "teleport-")
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		sockPath := filepath.Join(sockDir, "agent.sock")
+
+		listener, err := net.Listen("unix", sockPath)
+		if err != nil {
+			os.RemoveAll(sockDir)
+			return nil, nil, trace.Wrap(err)
+		}
+		defer listener.Close()
+
+		listenerFD, err := getListenerFile(listener)
+		if err != nil {
+			os.RemoveAll(sockDir)
+			return nil, nil, trace.Wrap(err)
+		}
+
+		return listenerFD, []string{sockPath, sockDir}, nil
+
+	case networking.NetworkingOperationListenX11:
+		listener, display, err := x11.OpenNewXServerListener(req.X11Request.DisplayOffset, req.X11Request.MaxDisplay, req.X11Request.ScreenNumber)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		defer listener.Close()
+
+		removeCmd := x11.NewXAuthCommand(ctx, req.X11Request.XauthFile)
+		if err := removeCmd.RemoveEntries(display); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		addCmd := x11.NewXAuthCommand(ctx, req.X11Request.XauthFile)
+		if err := addCmd.AddEntry(x11.XAuthEntry{
+			Display: display,
+			Proto:   req.X11Request.AuthProtocol,
+			Cookie:  req.X11Request.AuthCookie,
+		}); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		listenerFD, err := getListenerFile(listener)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		return listenerFD, []string{listener.Addr().String()}, trace.Wrap(err)
+
+	default:
+		return nil, nil, trace.BadParameter("unsupported networking operation %q", req.Operation)
+	}
+}
+
+func getListenerFile(listener net.Listener) (*os.File, error) {
+	switch l := listener.(type) {
+	case *net.UnixListener:
+		// Unlinking the socket here will cause the parent process to open a new
+		// socket in the parent namespace, which may be inaccessible for the user.
+		// Instead we close the listener without unlinking the socket, and cleanup
+		// the socket in the child namepsace once the process is closed.
+		l.SetUnlinkOnClose(false)
+		listenerFD, err := l.File()
+		return listenerFD, trace.Wrap(err)
+	case *net.TCPListener:
+		listenerFD, err := l.File()
+		return listenerFD, trace.Wrap(err)
+	default:
+		return nil, trace.Errorf("expected listener to be of type *net.UnixListener or *net.TCPListener, but was %T", l)
+	}
+}
+
+func getConnFile(conn net.Conn) (*os.File, error) {
+	switch c := conn.(type) {
+	case *net.UnixConn:
+		connFD, err := c.File()
+		return connFD, trace.Wrap(err)
+	case *net.TCPConn:
+		connFD, err := c.File()
+		return connFD, trace.Wrap(err)
+	default:
+		return nil, trace.Errorf("expected connection to be of type *net.UnixConn or *net.TCPConn, but was %T", conn)
+	}
+}
+
+// runCheckHomeDir checks if the active user's $HOME dir exists and is accessible.
+func runCheckHomeDir() (errw io.Writer, code int, err error) {
+	code = teleport.RemoteCommandSuccess
+	if err := hasAccessibleHomeDir(); err != nil {
+		switch {
+		case trace.IsNotFound(err), trace.IsBadParameter(err):
+			code = teleport.HomeDirNotFound
+		case trace.IsAccessDenied(err):
+			code = teleport.HomeDirNotAccessible
+		default:
+			code = teleport.RemoteCommandFailure
+		}
+	}
+
+	return io.Discard, code, nil
 }
 
 // runPark does nothing, forever.
@@ -831,10 +916,8 @@ func RunAndExit(commandType string) {
 	switch commandType {
 	case teleport.ExecSubCommand:
 		w, code, err = RunCommand()
-	case teleport.LocalForwardSubCommand:
-		w, code, err = RunLocalForward()
-	case teleport.RemoteForwardSubCommand:
-		w, code, err = RunRemoteForward()
+	case teleport.NetworkingSubCommand:
+		w, code, err = RunNetworking()
 	case teleport.CheckHomeDirSubCommand:
 		w, code, err = runCheckHomeDir()
 	case teleport.ParkSubCommand:
@@ -852,10 +935,11 @@ func RunAndExit(commandType string) {
 // IsReexec determines if the current process is a teleport reexec command.
 // Used by tests to reroute the execution to RunAndExit.
 func IsReexec() bool {
-	if len(os.Args) == 2 {
+	if len(os.Args) >= 2 {
 		switch os.Args[1] {
-		case teleport.ExecSubCommand, teleport.LocalForwardSubCommand, teleport.RemoteForwardSubCommand,
-			teleport.CheckHomeDirSubCommand, teleport.ParkSubCommand, teleport.SFTPSubCommand:
+		case teleport.ExecSubCommand, teleport.NetworkingSubCommand,
+			teleport.CheckHomeDirSubCommand,
+			teleport.ParkSubCommand, teleport.SFTPSubCommand:
 			return true
 		}
 	}
@@ -863,16 +947,69 @@ func IsReexec() bool {
 	return false
 }
 
+// openFileAsUser opens a file as the given user to ensure proper access checks. This is unsafe and should not be used outside of
+// bootstrapping reexec commands.
+func openFileAsUser(localUser *user.User, path string) (file *os.File, err error) {
+	if os.Args[1] != teleport.ExecSubCommand {
+		return nil, trace.Errorf("opening files as a user is only possible in a reexec context")
+	}
+
+	uid, err := strconv.Atoi(localUser.Uid)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	gid, err := strconv.Atoi(localUser.Gid)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	prevUID := os.Geteuid()
+	prevGID := os.Getegid()
+
+	defer func() {
+		gidErr := syscall.Setegid(prevGID)
+		uidErr := syscall.Seteuid(prevUID)
+		if uidErr != nil || gidErr != nil {
+			file.Close()
+			slog.ErrorContext(context.Background(), "cannot proceed with invalid effective credentials", "uid_err", uidErr, "gid_err", gidErr, "error", err)
+			os.Exit(teleport.UnexpectedCredentials)
+		}
+	}()
+
+	if err := syscall.Setegid(gid); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := syscall.Seteuid(uid); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	file, err = utils.OpenFileNoUnsafeLinks(path)
+	return file, trace.Wrap(err)
+}
+
+func readUserEnv(localUser *user.User, path string) ([]string, error) {
+	file, err := openFileAsUser(localUser, path)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer file.Close()
+
+	envs, err := envutils.ReadEnvironment(context.Background(), file)
+	return envs, trace.Wrap(err)
+}
+
 // buildCommand constructs a command that will execute the users shell. This
 // function is run by Teleport while it's re-executing.
-func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
+func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
 	var cmd exec.Cmd
 	isReexec := false
 
 	// Get the login shell for the user (or fallback to the default).
 	shellPath, err := shell.GetLoginShell(c.Login)
 	if err != nil {
-		log.Debugf("Failed to get login shell for %v: %v.", c.Login, err)
+		slog.DebugContext(context.Background(), "Failed to get login shell", "login", c.Login, "error", err)
 	}
 	if c.IsTestStub {
 		shellPath = "/bin/sh"
@@ -931,12 +1068,13 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 	// and pass environment variables along to new session.
 	// User controlled values are added last to ensure administrator controlled sources take priority (duplicates ignored)
 	if c.PermitUserEnvironment {
-		filename := filepath.Join(localUser.HomeDir, ".tsh", "environment")
-		userEnvs, err := envutils.ReadEnvironmentFile(filename)
+		path := filepath.Join(localUser.HomeDir, ".tsh", "environment")
+		userEnvs, err := readUserEnv(localUser, path)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			slog.WarnContext(context.Background(), "Could not read user environment", "error", err)
+		} else {
+			env.AddFullUnique(userEnvs...)
 		}
-		env.AddFullUnique(userEnvs...)
 	}
 
 	// after environment is fully built, set it to cmd
@@ -984,18 +1122,20 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 	// Set the command's cwd to the user's $HOME, or "/" if
 	// they don't have an existing home dir.
 	// TODO (atburke): Generalize this to support Windows.
-	exists, err := CheckHomeDir(localUser)
+	hasAccess, err := CheckHomeDir(localUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	} else if exists {
+	}
+
+	if hasAccess {
 		cmd.Dir = localUser.HomeDir
-	} else if !exists {
+	} else {
 		// Write failure to find home dir to stdout, same as OpenSSH.
-		msg := fmt.Sprintf("Could not set shell's cwd to home directory %q, defaulting to %q\n", localUser.HomeDir, string(os.PathSeparator))
+		msg := fmt.Sprintf("Could not set shell's cwd to home directory %q, defaulting to %q\n", localUser.HomeDir, rootDirectory)
 		if _, err := cmd.Stdout.Write([]byte(msg)); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cmd.Dir = string(os.PathSeparator)
+		cmd.Dir = rootDirectory
 	}
 
 	// Only set process credentials if the UID/GID of the requesting user are
@@ -1016,11 +1156,17 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 
 	if os.Getuid() != int(credential.Uid) || os.Getgid() != int(credential.Gid) {
 		cmd.SysProcAttr.Credential = credential
-		log.Debugf("Creating process with UID %v, GID: %v, and Groups: %v.",
-			credential.Uid, credential.Gid, credential.Groups)
+		slog.DebugContext(context.Background(), "Creating process",
+			"uid", credential.Uid,
+			"gid", credential.Gid,
+			"groups", credential.Groups,
+		)
 	} else {
-		log.Debugf("Creating process with ambient credentials UID %v, GID: %v, Groups: %v.",
-			credential.Uid, credential.Gid, credential.Groups)
+		slog.DebugContext(context.Background(), "Creating process with ambient credentials",
+			"uid", credential.Uid,
+			"gid", credential.Gid,
+			"groups", credential.Groups,
+		)
 	}
 
 	// Perform OS-specific tweaks to the command.
@@ -1067,14 +1213,11 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 	}
 	executableDir, _ := filepath.Split(executable)
 
-	// The channel/request type determines the subcommand to execute (execution or
-	// port forwarding).
+	// The channel/request type determines the subcommand to execute.
 	var subCommand string
 	switch ctx.ExecType {
-	case teleport.ChanDirectTCPIP:
-		subCommand = teleport.LocalForwardSubCommand
-	case teleport.TCPIPForwardRequest:
-		subCommand = teleport.RemoteForwardSubCommand
+	case teleport.NetworkingSubCommand:
+		subCommand = teleport.NetworkingSubCommand
 	default:
 		subCommand = teleport.ExecSubCommand
 	}
@@ -1098,36 +1241,11 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 			ctx.contr,
 			ctx.readyw,
 			ctx.killShellr,
-			ctx.x11rdyw,
-			ctx.errw,
 		},
 	}
 	// Add extra files if applicable.
 	if len(extraFiles) > 0 {
 		cmd.ExtraFiles = append(cmd.ExtraFiles, extraFiles...)
-	}
-
-	// For remote port forwarding, the child needs to run as the user to
-	// create listeners with the correct permissions.
-	if subCommand == teleport.RemoteForwardSubCommand {
-		localUser, err := user.Lookup(ctx.Identity.Login)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		// Ensure that the working directory is one that the child has access to.
-		cmd.Dir = "/"
-		credential, err := getCmdCredential(localUser)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		log := slog.With("uid", credential.Uid, "gid", credential.Gid, "groups", credential.Groups)
-		if os.Getuid() != int(credential.Uid) || os.Getgid() != int(credential.Gid) {
-			cmd.SysProcAttr = &syscall.SysProcAttr{Credential: credential}
-			log.DebugContext(ctx.Context, "Creating process with new credentials.")
-		} else {
-			log.DebugContext(ctx.Context, "Creating process with environment credentials.")
-		}
 	}
 
 	// Perform OS-specific tweaks to the command.
@@ -1142,7 +1260,7 @@ func copyCommand(ctx *ServerContext, cmdmsg *ExecCommand) {
 	defer func() {
 		err := ctx.cmdw.Close()
 		if err != nil {
-			log.Errorf("Failed to close command pipe: %v.", err)
+			slog.ErrorContext(ctx.CancelContext(), "Failed to close command pipe", "error", err)
 		}
 
 		// Set to nil so the close in the context doesn't attempt to re-close.
@@ -1152,21 +1270,78 @@ func copyCommand(ctx *ServerContext, cmdmsg *ExecCommand) {
 	// Write command bytes to pipe. The child process will read the command
 	// to execute from this pipe.
 	if err := json.NewEncoder(ctx.cmdw).Encode(cmdmsg); err != nil {
-		log.Errorf("Failed to copy command over pipe: %v.", err)
+		slog.ErrorContext(ctx.CancelContext(), "Failed to copy command over pipe", "error", err)
 		return
 	}
 }
 
-// CheckHomeDir checks if the user's home dir exists
-func CheckHomeDir(localUser *user.User) (bool, error) {
-	if fi, err := os.Stat(localUser.HomeDir); err == nil {
-		return fi.IsDir(), nil
+func coerceHomeDirError(usr *user.User, err error) error {
+	if os.IsNotExist(err) {
+		return trace.NotFound("home directory %q not found for user %q", usr.HomeDir, usr.Name)
 	}
 
-	// In some environments, the user's home directory exists but isn't visible to
-	// root, e.g. /home is mounted to an nfs export with root_squash enabled.
-	// In case we are in that scenario, re-exec teleport as the user to check
-	// if the home dir actually does exist.
+	if os.IsPermission(err) {
+		return trace.AccessDenied("%q does not have permission to access %q", usr.Name, usr.HomeDir)
+	}
+
+	return err
+}
+
+// hasAccessibleHomeDir checks if the current user has access to an existing home directory.
+func hasAccessibleHomeDir() error {
+	// this should usually be fetching a cached value
+	currentUser, err := user.Current()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fi, err := os.Stat(currentUser.HomeDir)
+	if err != nil {
+		return trace.Wrap(coerceHomeDirError(currentUser, err))
+	}
+
+	if !fi.IsDir() {
+		return trace.BadParameter("%q is not a directory", currentUser.HomeDir)
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// make sure we return to the original working directory
+	defer os.Chdir(cwd)
+
+	// attemping to cd into the target directory is the easiest, cross-platform way to test
+	// whether or not the current user has access
+	if err := os.Chdir(currentUser.HomeDir); err != nil {
+		return trace.Wrap(coerceHomeDirError(currentUser, err))
+	}
+
+	return nil
+}
+
+// CheckHomeDir checks if the user's home directory exists and is accessible to the user. Only catastrophic
+// errors will be returned, which means a missing, inaccessible, or otherwise invalid home directory will result
+// in a return of (false, nil)
+func CheckHomeDir(localUser *user.User) (bool, error) {
+	currentUser, err := user.Current()
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	// don't spawn a subcommand if already running as the user in question
+	if currentUser.Uid == localUser.Uid {
+		if err := hasAccessibleHomeDir(); err != nil {
+			if trace.IsNotFound(err) || trace.IsAccessDenied(err) || trace.IsBadParameter(err) {
+				return false, nil
+			}
+
+			return false, trace.Wrap(err)
+		}
+
+		return true, nil
+	}
+
 	executable, err := os.Executable()
 	if err != nil {
 		return false, trace.Wrap(err)
@@ -1182,6 +1357,7 @@ func CheckHomeDir(localUser *user.User) (bool, error) {
 		Path: executable,
 		Args: []string{executable, teleport.CheckHomeDirSubCommand},
 		Env:  []string{"HOME=" + localUser.HomeDir},
+		Dir:  rootDirectory,
 		SysProcAttr: &syscall.SysProcAttr{
 			Setsid:     true,
 			Credential: credential,
@@ -1192,11 +1368,13 @@ func CheckHomeDir(localUser *user.User) (bool, error) {
 	reexecCommandOSTweaks(cmd)
 
 	if err := cmd.Run(); err != nil {
-		if cmd.ProcessState.ExitCode() == teleport.HomeDirNotFound {
-			return false, nil
+		if cmd.ProcessState.ExitCode() == teleport.RemoteCommandFailure {
+			return false, trace.Wrap(err)
 		}
-		return false, trace.Wrap(err)
+
+		return false, nil
 	}
+
 	return true, nil
 }
 
@@ -1213,7 +1391,7 @@ func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential
 	}
 
 	// Perform OS-specific tweaks to the command.
-	reexecCommandOSTweaks(cmd)
+	parkerCommandOSTweaks(cmd)
 
 	if err := cmd.Start(); err != nil {
 		return trace.Wrap(err)
@@ -1258,7 +1436,7 @@ func getCmdCredential(localUser *user.User) (*syscall.Credential, error) {
 	for _, sgid := range userGroups {
 		igid, err := strconv.ParseUint(sgid, 10, 32)
 		if err != nil {
-			log.Warnf("Cannot interpret user group: '%v'", sgid)
+			slog.WarnContext(context.Background(), "Cannot interpret user group", "user_group", sgid)
 		} else {
 			groups = append(groups, uint32(igid))
 		}

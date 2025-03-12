@@ -16,18 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Flex, Box } from 'design';
+import { useState } from 'react';
 
-import { SelectCreatable, Option } from '../Select';
+import { Box, Flex } from 'design';
+
+import { Option, SelectCreatable } from '../Select';
 
 export default {
   title: 'Shared/SelectCreatable',
 };
 
 export const Selects = () => {
-  const [input, setInput] = React.useState('');
-  const [selected, setSelected] = React.useState<Option[]>();
+  const [input, setInput] = useState('');
+  const [inputMulti, setInputMulti] = useState('');
+  const [selected, setSelected] = useState<Option>();
+  const [selectedMulti, setSelectedMulti] = useState<readonly Option[]>();
 
   return (
     // Note that these examples don't provide for great UX. Implementations
@@ -42,10 +45,10 @@ export const Selects = () => {
           isMulti
           isClearable
           isSearchable
-          inputValue={input}
-          value={selected}
-          onInputChange={v => setInput(v)}
-          onChange={v => setSelected((v as Option[] | null) || [])}
+          inputValue={inputMulti}
+          value={selectedMulti}
+          onInputChange={v => setInputMulti(v)}
+          onChange={v => setSelectedMulti(v)}
         />
         Note: accept new candidate with Enter or mouse click
       </Box>
@@ -56,7 +59,7 @@ export const Selects = () => {
           inputValue={input}
           value={selected}
           onInputChange={v => setInput(v)}
-          onChange={v => setSelected((v as Option[] | null) || [])}
+          onChange={v => setSelected(v)}
         />
       </Box>
     </Flex>

@@ -16,43 +16,42 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
-
-import useAttempt from 'shared/hooks/useAttemptNext';
-
 import {
   getDryRunMaxDuration,
+  isKubeClusterWithNamespaces,
+  PendingKubeResourceItem,
   PendingListItem,
+  RequestableResourceKind,
 } from 'shared/components/AccessRequests/NewRequest';
 import { useSpecifiableFields } from 'shared/components/AccessRequests/NewRequest/useSpecifiableFields';
-
 import { CreateRequest } from 'shared/components/AccessRequests/Shared/types';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import {
-  PendingAccessRequest,
-  extractResourceRequestProperties,
-  ResourceRequest,
-} from 'teleterm/ui/services/workspacesService/accessRequestsService';
-import { retryWithRelogin } from 'teleterm/ui/utils';
 import {
   CreateAccessRequestRequest,
   AccessRequest as TeletermAccessRequest,
 } from 'teleterm/services/tshd/types';
-
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useWorkspaceServiceState } from 'teleterm/ui/services/workspacesService';
+import {
+  extractResourceRequestProperties,
+  mapKubeNamespaceUriToRequest,
+  mapRequestToKubeNamespaceUri,
+  PendingAccessRequest,
+  ResourceRequest,
+} from 'teleterm/ui/services/workspacesService/accessRequestsService';
 import { routing } from 'teleterm/ui/uri';
-
-import { ResourceKind } from '../DocumentAccessRequests/NewRequest/useNewRequest';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 import { makeUiAccessRequest } from '../DocumentAccessRequests/useAccessRequests';
 
 export default function useAccessRequestCheckout() {
   const ctx = useAppContext();
-  ctx.workspacesService.useState();
+  useWorkspaceServiceState();
   ctx.clustersService.useState();
-  const clusterUri =
-    ctx.workspacesService?.getActiveWorkspace()?.localClusterUri;
   const rootClusterUri = ctx.workspacesService?.getRootClusterUri();
 
   const {
@@ -72,6 +71,7 @@ export default function useAccessRequestCheckout() {
     onDryRunChange,
     startTime,
     onStartTimeChange,
+    reset: resetSpecifiableFields,
   } = useSpecifiableFields();
 
   const [showCheckout, setShowCheckout] = useState(false);
@@ -80,6 +80,12 @@ export default function useAccessRequestCheckout() {
 
   const { attempt: createRequestAttempt, setAttempt: setCreateRequestAttempt } =
     useAttempt('');
+  // isCreatingRequest is an auxiliary variable that helps to differentiate between a dry run being
+  // performed vs an actual request being created, as both types of requests use the same attempt
+  // object (createRequestAttempt).
+  // TODO(ravicious): Remove this in React 19 when useSyncExternalStore updates are batched with
+  // other updates.
+  const [isCreatingRequest, setIsCreatingRequest] = useState(false);
 
   const { attempt: fetchResourceRolesAttempt, run: runFetchResourceRoles } =
     useAttempt('success');
@@ -87,31 +93,44 @@ export default function useAccessRequestCheckout() {
   const workspaceAccessRequest =
     ctx.workspacesService.getActiveWorkspaceAccessRequestsService();
   const docService = ctx.workspacesService.getActiveWorkspaceDocumentService();
-  const pendingAccessRequest =
+  const pendingAccessRequestRequest =
     workspaceAccessRequest?.getPendingAccessRequest();
 
+  const pendingAccessRequests = getPendingAccessRequestsPerResource(
+    pendingAccessRequestRequest
+  );
+
+  const pendingAccessRequestsWithoutParentResource =
+    pendingAccessRequests.filter(
+      p => !isKubeClusterWithNamespaces(p, pendingAccessRequests)
+    );
+
   useEffect(() => {
-    // Do a new dry run per changes to pending data
+    // Do a new dry run per changes to pending access requests
     // to get the latest time options and latest calculated
     // suggested reviewers.
     // Options and reviewers can change depending on the selected
     // roles or resources.
-    if (showCheckout && requestedCount == 0) {
+    if (showCheckout && requestedCount == 0 && !isCreatingRequest) {
       performDryRun();
     }
-  }, [showCheckout, pendingAccessRequest]);
+  }, [
+    showCheckout,
+    pendingAccessRequestRequest,
+    requestedCount,
+    isCreatingRequest,
+  ]);
 
   useEffect(() => {
-    if (!pendingAccessRequest || requestedCount > 0) {
+    if (!pendingAccessRequestRequest || requestedCount > 0) {
       return;
     }
 
-    const data = getPendingAccessRequestsPerResource(pendingAccessRequest);
     runFetchResourceRoles(() =>
-      retryWithRelogin(ctx, clusterUri, async () => {
+      retryWithRelogin(ctx, rootClusterUri, async () => {
         const { response } = await ctx.tshd.getRequestableRoles({
           clusterUri: rootClusterUri,
-          resourceIds: data
+          resourceIds: pendingAccessRequestsWithoutParentResource
             .filter(d => d.kind !== 'role')
             .map(d => ({
               // We have to use id, not name.
@@ -120,18 +139,18 @@ export default function useAccessRequestCheckout() {
               name: d.id,
               kind: d.kind,
               clusterName: d.clusterName,
-              subResourceName: '',
+              subResourceName: d.subResourceName || '',
             })),
         });
         setResourceRequestRoles(response.applicableRoles);
         setSelectedResourceRequestRoles(response.applicableRoles);
       })
     );
-  }, [pendingAccessRequest]);
+  }, [pendingAccessRequestRequest, requestedCount]);
 
   useEffect(() => {
     clearCreateAttempt();
-  }, [clusterUri]);
+  }, [rootClusterUri]);
 
   useEffect(() => {
     if (
@@ -145,12 +164,15 @@ export default function useAccessRequestCheckout() {
     }
   }, [showCheckout, hasExited, createRequestAttempt.status]);
 
+  /**
+   * @param pendingRequest holds a list or map of resources to process
+   */
   function getPendingAccessRequestsPerResource(
     pendingRequest: PendingAccessRequest
   ): PendingListItemWithOriginalItem[] {
-    const data: PendingListItemWithOriginalItem[] = [];
+    const pendingAccessRequests: PendingListItemWithOriginalItem[] = [];
     if (!workspaceAccessRequest) {
-      return data;
+      return pendingAccessRequests;
     }
 
     switch (pendingRequest.kind) {
@@ -158,7 +180,7 @@ export default function useAccessRequestCheckout() {
         const clusterName =
           ctx.clustersService.findCluster(rootClusterUri)?.name;
         pendingRequest.roles.forEach(role => {
-          data.push({
+          pendingAccessRequests.push({
             kind: 'role',
             id: role,
             name: role,
@@ -169,9 +191,34 @@ export default function useAccessRequestCheckout() {
       }
       case 'resource': {
         pendingRequest.resources.forEach(resourceRequest => {
+          // If this request is a kube cluster and has namespaces
+          // extract each as own request.
+          if (
+            resourceRequest.kind === 'kube' &&
+            resourceRequest.resource.namespaces?.size > 0
+          ) {
+            // Process each namespace.
+            resourceRequest.resource.namespaces.forEach(namespaceRequestUri => {
+              const { kind, id, name } =
+                mapKubeNamespaceUriToRequest(namespaceRequestUri);
+
+              const item = {
+                kind,
+                id,
+                name,
+                subResourceName: name,
+                originalItem: resourceRequest,
+                clusterName:
+                  ctx.clustersService.findClusterByResource(namespaceRequestUri)
+                    ?.name,
+              };
+              pendingAccessRequests.push(item);
+            });
+          }
+
           const { kind, id, name } =
             extractResourceRequestProperties(resourceRequest);
-          data.push({
+          const item: PendingListItemWithOriginalItem = {
             kind,
             id,
             name,
@@ -179,11 +226,12 @@ export default function useAccessRequestCheckout() {
             clusterName: ctx.clustersService.findClusterByResource(
               resourceRequest.resource.uri
             )?.name,
-          });
+          };
+          pendingAccessRequests.push(item);
         });
       }
     }
-    return data;
+    return pendingAccessRequests;
   }
 
   function isCollapsed() {
@@ -206,40 +254,53 @@ export default function useAccessRequestCheckout() {
     );
   }
 
-  function getAssumedRequests() {
-    if (!clusterUri) {
-      return [];
-    }
-    const assumed = ctx.clustersService.getAssumedRequests(rootClusterUri);
-    if (!assumed) {
-      return [];
-    }
-    return Object.values(assumed);
+  function updateNamespacesForKubeCluster(
+    items: PendingKubeResourceItem[],
+    kubeCluster: PendingListKubeClusterWithOriginalItem
+  ) {
+    workspaceAccessRequest.updateNamespacesForKubeCluster(
+      items.map(item =>
+        mapRequestToKubeNamespaceUri({
+          id: item.id,
+          name: item.subResourceName,
+          clusterUri: kubeCluster.originalItem.resource.uri,
+        })
+      ),
+      kubeCluster.originalItem.resource.uri
+    );
   }
 
   /**
    * Shared logic used both during dry runs and regular access request creation.
    */
   function prepareAndCreateRequest(req: CreateRequest) {
-    const data = getPendingAccessRequestsPerResource(pendingAccessRequest);
     const params: CreateAccessRequestRequest = {
       rootClusterUri,
       reason: req.reason,
       suggestedReviewers: req.suggestedReviewers || [],
       dryRun: req.dryRun,
-      resourceIds: data
+      resourceIds: pendingAccessRequestsWithoutParentResource
         .filter(d => d.kind !== 'role')
-        .map(d => ({
-          name: d.id,
-          clusterName: d.clusterName,
-          kind: d.kind,
-          subResourceName: '',
-        })),
-      roles: data.filter(d => d.kind === 'role').map(d => d.name),
+        .map(d => {
+          return {
+            name: d.id,
+            clusterName: d.clusterName,
+            kind: d.kind,
+            subResourceName: d.subResourceName || '',
+          };
+        }),
+      roles: pendingAccessRequestsWithoutParentResource
+        .filter(d => d.kind === 'role')
+        .map(d => d.name),
       assumeStartTime: req.start && Timestamp.fromDate(req.start),
       maxDuration: req.maxDuration && Timestamp.fromDate(req.maxDuration),
       requestTtl: req.requestTTL && Timestamp.fromDate(req.requestTTL),
     };
+
+    // Don't attempt creating anything if there are no resources selected.
+    if (!params.resourceIds.length && !params.roles.length) {
+      return;
+    }
 
     // if we have a resource access request, we pass along the selected roles from the checkout
     if (params.resourceIds.length > 0) {
@@ -248,9 +309,12 @@ export default function useAccessRequestCheckout() {
 
     setCreateRequestAttempt({ status: 'processing' });
 
-    return retryWithRelogin(ctx, clusterUri, () =>
+    return retryWithRelogin(ctx, rootClusterUri, () =>
       ctx.clustersService.createAccessRequest(params).then(({ response }) => {
-        return { accessRequest: response.request, requestedCount: data.length };
+        return {
+          accessRequest: response.request,
+          requestedCount: pendingAccessRequestsWithoutParentResource.length,
+        };
       })
     ).catch(e => {
       setCreateRequestAttempt({ status: 'failed', statusText: e.message });
@@ -263,14 +327,15 @@ export default function useAccessRequestCheckout() {
 
     try {
       const { accessRequest } = await prepareAndCreateRequest({
+        reason: 'placeholder-reason',
         dryRun: true,
         maxDuration: getDryRunMaxDuration(),
       });
       teletermAccessRequest = accessRequest;
     } catch {
+      setCreateRequestAttempt({ status: '' });
       return;
     }
-
     setCreateRequestAttempt({ status: '' });
 
     const accessRequest = makeUiAccessRequest(teletermAccessRequest);
@@ -278,6 +343,7 @@ export default function useAccessRequestCheckout() {
   }
 
   async function createRequest(req: CreateRequest) {
+    setIsCreatingRequest(true);
     let requestedCount: number;
     try {
       const response = await prepareAndCreateRequest(req);
@@ -289,6 +355,7 @@ export default function useAccessRequestCheckout() {
     setRequestedCount(requestedCount);
     reset();
     setCreateRequestAttempt({ status: 'success' });
+    setIsCreatingRequest(false);
   }
 
   function clearCreateAttempt() {
@@ -302,6 +369,7 @@ export default function useAccessRequestCheckout() {
   }
 
   function reset() {
+    resetSpecifiableFields();
     if (workspaceAccessRequest) {
       return workspaceAccessRequest.clearPendingAccessRequest();
     }
@@ -326,18 +394,35 @@ export default function useAccessRequestCheckout() {
     }
   }
 
+  async function fetchKubeNamespaces(
+    search: string,
+    kubeCluster: PendingListKubeClusterWithOriginalItem
+  ): Promise<string[]> {
+    const { response } = await ctx.tshd.listKubernetesResources({
+      searchKeywords: search,
+      limit: 50,
+      useSearchAsRoles: true,
+      nextKey: '',
+      resourceType: 'namespace',
+      clusterUri: kubeCluster.originalItem.resource.uri,
+      predicateExpression: '',
+      kubernetesCluster: kubeCluster.id,
+      kubernetesNamespace: '',
+    });
+    return response.resources.map(i => i.name);
+  }
+
   const shouldShowClusterNameColumn =
-    pendingAccessRequest?.kind === 'resource' &&
-    Array.from(pendingAccessRequest.resources.values()).some(a =>
+    pendingAccessRequestRequest?.kind === 'resource' &&
+    Array.from(pendingAccessRequestRequest.resources.values()).some(a =>
       routing.isLeafCluster(a.resource.uri)
     );
 
   return {
     showCheckout,
     isCollapsed,
-    assumedRequests: getAssumedRequests(),
     toggleResource,
-    data: getPendingAccessRequestsPerResource(pendingAccessRequest),
+    pendingAccessRequests,
     shouldShowClusterNameColumn,
     createRequest,
     reset,
@@ -345,11 +430,9 @@ export default function useAccessRequestCheckout() {
     goToRequestsList,
     requestedCount,
     clearCreateAttempt,
-    clusterUri,
     selectedResourceRequestRoles,
     setSelectedResourceRequestRoles,
     resourceRequestRoles,
-    rootClusterUri,
     fetchResourceRolesAttempt,
     createRequestAttempt,
     collapseBar,
@@ -365,8 +448,23 @@ export default function useAccessRequestCheckout() {
     pendingRequestTtlOptions,
     startTime,
     onStartTimeChange,
+    fetchKubeNamespaces,
+    updateNamespacesForKubeCluster,
   };
 }
+
+type ResourceKind =
+  | Extract<
+      RequestableResourceKind,
+      | 'node'
+      | 'app'
+      | 'db'
+      | 'kube_cluster'
+      | 'saml_idp_service_provider'
+      | 'namespace'
+      | 'aws_ic_account_assignment'
+    >
+  | 'role';
 
 type PendingListItemWithOriginalItem = Omit<PendingListItem, 'kind'> &
   (
@@ -378,3 +476,11 @@ type PendingListItemWithOriginalItem = Omit<PendingListItem, 'kind'> &
         kind: 'role';
       }
   );
+
+export type PendingListKubeClusterWithOriginalItem = Omit<
+  PendingListItem,
+  'kind'
+> & {
+  kind: Extract<ResourceKind, 'kube_cluster'>;
+  originalItem: Extract<ResourceRequest, { kind: 'kube' }>;
+};

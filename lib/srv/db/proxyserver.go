@@ -21,16 +21,12 @@ package db
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
-	"math/rand"
+	"math/rand/v2"
 	"net"
-	"sort"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -38,27 +34,23 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/connect"
 	"github.com/gravitational/teleport/lib/srv/db/common/enterprise"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
 	"github.com/gravitational/teleport/lib/srv/ingress"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -105,42 +97,22 @@ type ProxyServerConfig struct {
 	MySQLServerVersion string
 }
 
-// ShuffleFunc defines a function that shuffles a list of database servers.
-type ShuffleFunc func([]types.DatabaseServer) []types.DatabaseServer
-
-// ShuffleRandom is a ShuffleFunc that randomizes the order of database servers.
-// Used to provide load balancing behavior when proxying to multiple agents.
-func ShuffleRandom(servers []types.DatabaseServer) []types.DatabaseServer {
-	rand.New(rand.NewSource(time.Now().UnixNano())).Shuffle(
-		len(servers), func(i, j int) {
-			servers[i], servers[j] = servers[j], servers[i]
-		})
-	return servers
-}
-
-// ShuffleSort is a ShuffleFunc that sorts database servers by name and host ID.
-// Used to provide predictable behavior in tests.
-func ShuffleSort(servers []types.DatabaseServer) []types.DatabaseServer {
-	sort.Sort(types.DatabaseServers(servers))
-	return servers
-}
-
 var (
 	// mu protects the shuffleFunc global access.
 	mu sync.RWMutex
 	// shuffleFunc provides shuffle behavior for multiple database agents.
-	shuffleFunc ShuffleFunc = ShuffleRandom
+	shuffleFunc connect.ShuffleFunc = connect.ShuffleRandom
 )
 
 // SetShuffleFunc sets the shuffle behavior when proxying to multiple agents.
-func SetShuffleFunc(fn ShuffleFunc) {
+func SetShuffleFunc(fn connect.ShuffleFunc) {
 	mu.Lock()
 	defer mu.Unlock()
 	shuffleFunc = fn
 }
 
 // getShuffleFunc returns the configured function used to shuffle agents.
-func getShuffleFunc() ShuffleFunc {
+func getShuffleFunc() connect.ShuffleFunc {
 	mu.RLock()
 	defer mu.RUnlock()
 	return shuffleFunc
@@ -379,8 +351,7 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 // the MySQL.ServerVersion set in configuration if the first one is not available.
 // Function picks a random server each time if more than one are available.
 func getMySQLVersionFromServer(servers []types.DatabaseServer) string {
-	count := len(servers)
-	db := servers[rand.Intn(count)].GetDatabase()
+	db := servers[rand.N(len(servers))].GetDatabase()
 	return db.GetMySQLServerVersion()
 }
 
@@ -453,59 +424,38 @@ func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext
 	} else {
 		labels = getLabelsFromDB(nil)
 	}
-
 	labels["available_db_servers"] = strconv.Itoa(len(proxyCtx.Servers))
-
 	defer observeLatency(connectionSetupTime.With(labels))()
 
-	var attemptedServers int
+	var (
+		serviceConn net.Conn
+		stats       connect.ConnectStats
+		err         error
+	)
+
 	defer func() {
-		dialAttemptedServers.With(labels).Observe(float64(attemptedServers))
+		dialAttemptedServers.With(labels).Observe(float64(stats.GetAttemptedServers()))
+		dialAttempts.With(labels).Add(float64(stats.GetDialAttempts()))
+		dialFailures.With(labels).Add(float64(stats.GetDialFailures()))
 	}()
 
-	// There may be multiple database servers proxying the same database. If
-	// we get a connection problem error trying to dial one of them, likely
-	// the database server is down so try the next one.
-	for _, server := range getShuffleFunc()(proxyCtx.Servers) {
-		attemptedServers++
-		s.log.DebugContext(ctx, "Dialing to database service.", "server", server)
-		tlsConfig, err := s.getConfigForServer(ctx, proxyCtx.Identity, server)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		dialAttempts.With(labels).Inc()
-		serviceConn, err := proxyCtx.Cluster.Dial(reversetunnelclient.DialParams{
-			From:                  clientSrcAddr,
-			To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalNode},
-			OriginalClientDstAddr: clientDstAddr,
-			ServerID:              fmt.Sprintf("%v.%v", server.GetHostID(), proxyCtx.Cluster.GetName()),
-			ConnType:              types.DatabaseTunnel,
-			ProxyIDs:              server.GetProxyIDs(),
-		})
-		if err != nil {
-			dialFailures.With(labels).Inc()
-			// If an agent is down, we'll retry on the next one (if available).
-			if isReverseTunnelDownError(err) {
-				s.log.WarnContext(ctx, "Failed to dial database service.", "server", server, "error", err)
-				continue
-			}
-			return nil, trace.Wrap(err)
-		}
-		// Upgrade the connection so the client identity can be passed to the
-		// remote server during TLS handshake. On the remote side, the connection
-		// received from the reverse tunnel will be handled by tls.Server.
-		serviceConn = tls.Client(serviceConn, tlsConfig)
-		return serviceConn, nil
+	serviceConn, stats, err = connect.Connect(ctx, connect.ConnectParams{
+		Logger:         s.log,
+		Identity:       proxyCtx.Identity,
+		Servers:        proxyCtx.Servers,
+		ShuffleFunc:    getShuffleFunc(),
+		ClusterName:    proxyCtx.Cluster.GetName(),
+		Dialer:         proxyCtx.Cluster,
+		CertSigner:     s.cfg.AuthClient,
+		AuthPreference: s.cfg.AccessPoint,
+		ClientSrcAddr:  clientSrcAddr,
+		ClientDstAddr:  clientDstAddr,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return nil, trace.BadParameter("failed to connect to any of the database servers")
-}
 
-// isReverseTunnelDownError returns true if the provided error indicates that
-// the reverse tunnel connection is down e.g. because the agent is down.
-func isReverseTunnelDownError(err error) bool {
-	return trace.IsConnectionProblem(err) ||
-		strings.Contains(err.Error(), reversetunnelclient.NoDatabaseTunnel)
+	return serviceConn, nil
 }
 
 // Proxy starts proxying all traffic received from database client between
@@ -569,7 +519,20 @@ func (s *ProxyServer) Authorize(ctx context.Context, tlsConn utils.TLSConn, para
 	if params.ClientIP != "" {
 		identity.LoginIP = params.ClientIP
 	}
-	cluster, servers, err := s.getDatabaseServers(ctx, identity)
+	cluster, err := s.cfg.Tunnel.GetSite(identity.RouteToCluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	accessPoint, err := cluster.CachingAccessPoint()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers, err := connect.GetDatabaseServers(ctx, connect.GetDatabaseServersParams{
+		Logger:                s.log,
+		ClusterName:           cluster.GetName(),
+		DatabaseServersGetter: accessPoint,
+		Identity:              identity,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -581,84 +544,7 @@ func (s *ProxyServer) Authorize(ctx context.Context, tlsConn utils.TLSConn, para
 	}, nil
 }
 
-// getDatabaseServers finds database servers that proxy the database instance
-// encoded in the provided identity.
-func (s *ProxyServer) getDatabaseServers(ctx context.Context, identity tlsca.Identity) (reversetunnelclient.RemoteSite, []types.DatabaseServer, error) {
-	cluster, err := s.cfg.Tunnel.GetSite(identity.RouteToCluster)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	accessPoint, err := cluster.CachingAccessPoint()
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	servers, err := accessPoint.GetDatabaseServers(ctx, apidefaults.Namespace)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	s.log.DebugContext(ctx, "Available database servers.", "cluster", cluster.GetName(), "servers", servers)
-	// Find out which database servers proxy the database a user is
-	// connecting to using routing information from identity.
-	var result []types.DatabaseServer
-	for _, server := range servers {
-		if server.GetDatabase().GetName() == identity.RouteToDatabase.ServiceName {
-			result = append(result, server)
-		}
-	}
-	if len(result) != 0 {
-		return cluster, result, nil
-	}
-	return nil, nil, trace.NotFound("database %q not found among registered databases in cluster %q",
-		identity.RouteToDatabase.ServiceName,
-		identity.RouteToCluster)
-}
-
-// getConfigForServer returns TLS config used for establishing connection
-// to a remote database server over reverse tunnel.
-func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Identity, server types.DatabaseServer) (*tls.Config, error) {
-	defer observeLatency(tlsConfigTime.With(getLabelsFromDB(server.GetDatabase())))()
-
-	privateKey, err := cryptosuites.GenerateKey(ctx, s.cfg.AccessPoint, cryptosuites.ProxyToDatabaseAgent)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	subject, err := identity.Subject()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	csr, err := tlsca.GenerateCertificateRequestPEM(subject, privateKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	response, err := s.cfg.AuthClient.SignDatabaseCSR(ctx, &proto.DatabaseCSRRequest{
-		CSR:         csr,
-		ClusterName: identity.RouteToCluster,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cert, err := keys.TLSCertificateForSigner(privateKey, response.Cert)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	pool := x509.NewCertPool()
-	for _, caCert := range response.CACerts {
-		ok := pool.AppendCertsFromPEM(caCert)
-		if !ok {
-			return nil, trace.BadParameter("failed to append CA certificate")
-		}
-	}
-
-	return &tls.Config{
-		ServerName:   server.GetHostname(),
-		Certificates: []tls.Certificate{cert},
-		RootCAs:      pool,
-	}, nil
-}
-
-func getConfigForClient(ctx context.Context, conf *tls.Config, ap authclient.ReadDatabaseAccessPoint, log *slog.Logger, caTypes ...types.CertAuthType) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+func getConfigForClient(ctx context.Context, conf *tls.Config, ap authclient.ReadDatabaseAccessPoint, log *slog.Logger, caType types.CertAuthType) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		var clusterName string
 		var err error
@@ -668,7 +554,7 @@ func getConfigForClient(ctx context.Context, conf *tls.Config, ap authclient.Rea
 				log.DebugContext(ctx, "Ignoring unsupported cluster name.", "cluster_name", info.ServerName)
 			}
 		}
-		pool, _, err := authclient.ClientCertPool(info.Context(), ap, clusterName, caTypes...)
+		pool, _, err := authclient.ClientCertPool(info.Context(), ap, clusterName, caType)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to retrieve client CA pool.", "error", err)
 			return nil, nil // Fall back to the default config.

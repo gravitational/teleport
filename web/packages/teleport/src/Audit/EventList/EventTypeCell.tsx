@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled from 'styled-components';
+
 import { Cell } from 'design/DataTable';
 import * as Icons from 'design/Icon';
 
-import { eventCodes, Event, EventCode } from 'teleport/services/audit';
+import { Event, EventCode, eventCodes } from 'teleport/services/audit';
 
 const EventIconMap: Record<EventCode, any> = {
   [eventCodes.AUTH_ATTEMPT_FAILURE]: Icons.Info,
@@ -50,20 +50,8 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.SCP_DISALLOWED]: Icons.FolderPlus,
   [eventCodes.SFTP_OPEN_FAILURE]: Icons.FolderPlus,
   [eventCodes.SFTP_OPEN]: Icons.FolderPlus,
-  [eventCodes.SFTP_CLOSE_FAILURE]: Icons.FolderPlus,
-  [eventCodes.SFTP_CLOSE]: Icons.FolderPlus,
-  [eventCodes.SFTP_READ_FAILURE]: Icons.FolderPlus,
-  [eventCodes.SFTP_READ]: Icons.FolderPlus,
-  [eventCodes.SFTP_WRITE_FAILURE]: Icons.FolderPlus,
-  [eventCodes.SFTP_WRITE]: Icons.FolderPlus,
-  [eventCodes.SFTP_LSTAT_FAILURE]: Icons.FolderPlus,
-  [eventCodes.SFTP_LSTAT]: Icons.FolderPlus,
-  [eventCodes.SFTP_FSTAT_FAILURE]: Icons.FolderPlus,
-  [eventCodes.SFTP_FSTAT]: Icons.FolderPlus,
   [eventCodes.SFTP_SETSTAT_FAILURE]: Icons.FolderPlus,
   [eventCodes.SFTP_SETSTAT]: Icons.FolderPlus,
-  [eventCodes.SFTP_FSETSTAT_FAILURE]: Icons.FolderPlus,
-  [eventCodes.SFTP_FSETSTAT]: Icons.FolderPlus,
   [eventCodes.SFTP_OPENDIR_FAILURE]: Icons.FolderPlus,
   [eventCodes.SFTP_OPENDIR]: Icons.FolderPlus,
   [eventCodes.SFTP_READDIR_FAILURE]: Icons.FolderPlus,
@@ -74,14 +62,8 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.SFTP_MKDIR]: Icons.FolderPlus,
   [eventCodes.SFTP_RMDIR_FAILURE]: Icons.FolderPlus,
   [eventCodes.SFTP_RMDIR]: Icons.FolderPlus,
-  [eventCodes.SFTP_REALPATH_FAILURE]: Icons.FolderPlus,
-  [eventCodes.SFTP_REALPATH]: Icons.FolderPlus,
-  [eventCodes.SFTP_STAT_FAILURE]: Icons.FolderPlus,
-  [eventCodes.SFTP_STAT]: Icons.FolderPlus,
   [eventCodes.SFTP_RENAME_FAILURE]: Icons.FolderPlus,
   [eventCodes.SFTP_RENAME]: Icons.FolderPlus,
-  [eventCodes.SFTP_READLINK_FAILURE]: Icons.FolderPlus,
-  [eventCodes.SFTP_READLINK]: Icons.FolderPlus,
   [eventCodes.SFTP_SYMLINK_FAILURE]: Icons.FolderPlus,
   [eventCodes.SFTP_SYMLINK]: Icons.FolderPlus,
   [eventCodes.SFTP_LINK]: Icons.FolderPlus,
@@ -107,12 +89,15 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.SESSION_COMMAND]: Icons.Cli,
   [eventCodes.SESSION_PROCESS_EXIT]: Icons.Cli,
   [eventCodes.SESSION_CONNECT]: Icons.Cli,
-  [eventCodes.USER_CREATED]: Icons.Info,
-  [eventCodes.USER_UPDATED]: Icons.Info,
-  [eventCodes.USER_DELETED]: Icons.Info,
+  [eventCodes.USER_CREATED]: Icons.User,
+  [eventCodes.USER_UPDATED]: Icons.User,
+  [eventCodes.USER_DELETED]: Icons.User,
   [eventCodes.BOT_CREATED]: Icons.Info,
   [eventCodes.BOT_UPDATED]: Icons.Info,
   [eventCodes.BOT_DELETED]: Icons.Info,
+  [eventCodes.WORKLOAD_IDENTITY_CREATE]: Icons.Info,
+  [eventCodes.WORKLOAD_IDENTITY_UPDATE]: Icons.Info,
+  [eventCodes.WORKLOAD_IDENTITY_DELETE]: Icons.Info,
   [eventCodes.RESET_PASSWORD_TOKEN_CREATED]: Icons.Info,
   [eventCodes.USER_PASSWORD_CHANGED]: Icons.Info,
   [eventCodes.ACCESS_REQUEST_CREATED]: Icons.Info,
@@ -213,6 +198,7 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.CLIENT_DISCONNECT]: Icons.Info,
   [eventCodes.PORTFORWARD]: Icons.Info,
   [eventCodes.PORTFORWARD_FAILURE]: Icons.Info,
+  [eventCodes.PORTFORWARD_STOP]: Icons.Info,
   [eventCodes.SUBSYSTEM]: Icons.Info,
   [eventCodes.SUBSYSTEM_FAILURE]: Icons.Info,
   [eventCodes.LOCK_CREATED]: Icons.Lock,
@@ -272,6 +258,7 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST]: Icons.User,
   [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE]:
     Icons.Warning,
+  [eventCodes.USER_LOGIN_INVALID_ACCESS_LIST]: Icons.Warning,
   [eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN]: Icons.Info,
   [eventCodes.SECURITY_REPORT_RUN]: Icons.Info,
   [eventCodes.EXTERNAL_AUDIT_STORAGE_ENABLE]: Icons.Database,
@@ -288,7 +275,33 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.INTEGRATION_CREATE]: Icons.Info,
   [eventCodes.INTEGRATION_UPDATE]: Icons.Info,
   [eventCodes.INTEGRATION_DELETE]: Icons.Info,
+  [eventCodes.STATIC_HOST_USER_CREATE]: Icons.User,
+  [eventCodes.STATIC_HOST_USER_UPDATE]: Icons.User,
+  [eventCodes.STATIC_HOST_USER_DELETE]: Icons.User,
+  [eventCodes.CROWN_JEWEL_CREATE]: Icons.Info,
+  [eventCodes.CROWN_JEWEL_UPDATE]: Icons.Info,
+  [eventCodes.CROWN_JEWEL_DELETE]: Icons.Info,
+  [eventCodes.USER_TASK_CREATE]: Icons.Info,
+  [eventCodes.USER_TASK_UPDATE]: Icons.Info,
+  [eventCodes.USER_TASK_DELETE]: Icons.Info,
+  [eventCodes.SFTP_SUMMARY]: Icons.FolderPlus,
+  [eventCodes.PLUGIN_CREATE]: Icons.Info,
+  [eventCodes.PLUGIN_UPDATE]: Icons.Info,
+  [eventCodes.PLUGIN_DELETE]: Icons.Info,
+  [eventCodes.CONTACT_CREATE]: Icons.Info,
+  [eventCodes.CONTACT_DELETE]: Icons.Info,
   [eventCodes.UNKNOWN]: Icons.Question,
+  [eventCodes.GIT_COMMAND]: Icons.GitHub,
+  [eventCodes.GIT_COMMAND_FAILURE]: Icons.GitHub,
+  [eventCodes.STABLE_UNIX_USER_CREATE]: Icons.Info,
+  [eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS]: Icons.AmazonAws,
+  [eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE]: Icons.Warning,
+  [eventCodes.AUTOUPDATE_CONFIG_CREATE]: Icons.Info,
+  [eventCodes.AUTOUPDATE_CONFIG_UPDATE]: Icons.Info,
+  [eventCodes.AUTOUPDATE_CONFIG_DELETE]: Icons.Info,
+  [eventCodes.AUTOUPDATE_VERSION_CREATE]: Icons.Info,
+  [eventCodes.AUTOUPDATE_VERSION_UPDATE]: Icons.Info,
+  [eventCodes.AUTOUPDATE_VERSION_DELETE]: Icons.Info,
 };
 
 export default function renderTypeCell(event: Event) {

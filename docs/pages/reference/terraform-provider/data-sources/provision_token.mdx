@@ -1,5 +1,6 @@
 ---
 title: Reference for the teleport_provision_token Terraform data-source
+sidebar_label: provision_token
 description: This page describes the supported values of the teleport_provision_token data-source of the Teleport Terraform provider.
 ---
 
@@ -34,6 +35,7 @@ Optional:
 - `allow` (Attributes List) Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token. (see [below for nested schema](#nested-schema-for-specallow))
 - `aws_iid_ttl` (String) AWSIIDTTL is the TTL to use for AWS EC2 Instance Identity Documents used to join the cluster with this token.
 - `azure` (Attributes) Azure allows the configuration of options specific to the "azure" join method. (see [below for nested schema](#nested-schema-for-specazure))
+- `bitbucket` (Attributes) Bitbucket allows the configuration of options specific to the "bitbucket" join method. (see [below for nested schema](#nested-schema-for-specbitbucket))
 - `bot_name` (String) BotName is the name of the bot this token grants access to, if any
 - `circleci` (Attributes) CircleCI allows the configuration of options specific to the "circleci" join method. (see [below for nested schema](#nested-schema-for-speccircleci))
 - `gcp` (Attributes) GCP allows the configuration of options specific to the "gcp" join method. (see [below for nested schema](#nested-schema-for-specgcp))
@@ -41,9 +43,11 @@ Optional:
 - `gitlab` (Attributes) GitLab allows the configuration of options specific to the "gitlab" join method. (see [below for nested schema](#nested-schema-for-specgitlab))
 - `join_method` (String) JoinMethod is the joining method required in order to use this token. Supported joining methods include: azure, circleci, ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm
 - `kubernetes` (Attributes) Kubernetes allows the configuration of options specific to the "kubernetes" join method. (see [below for nested schema](#nested-schema-for-speckubernetes))
+- `oracle` (Attributes) Oracle allows the configuration of options specific to the "oracle" join method. (see [below for nested schema](#nested-schema-for-specoracle))
 - `spacelift` (Attributes) Spacelift allows the configuration of options specific to the "spacelift" join method. (see [below for nested schema](#nested-schema-for-specspacelift))
-- `suggested_agent_matcher_labels` (Map of List of String)
-- `suggested_labels` (Map of List of String)
+- `suggested_agent_matcher_labels` (Map of List of String) SuggestedAgentMatcherLabels is a set of labels to be used by agents to match on resources. When an agent uses this token, the agent should monitor resources that match those labels. For databases, this means adding the labels to `db_service.resources.labels`. Currently, only node-join scripts create a configuration according to the suggestion.
+- `suggested_labels` (Map of List of String) SuggestedLabels is a set of labels that resources should set when using this token to enroll themselves in the cluster. Currently, only node-join scripts create a configuration according to the suggestion.
+- `terraform_cloud` (Attributes) TerraformCloud allows the configuration of options specific to the "terraform_cloud" join method. (see [below for nested schema](#nested-schema-for-specterraform_cloud))
 - `tpm` (Attributes) TPM allows the configuration of options specific to the "tpm" join method. (see [below for nested schema](#nested-schema-for-spectpm))
 
 ### Nested Schema for `spec.allow`
@@ -53,7 +57,7 @@ Optional:
 - `aws_account` (String) AWSAccount is the AWS account ID.
 - `aws_arn` (String) AWSARN is used for the IAM join method, the AWS identity of joining nodes must match this ARN. Supports wildcards "*" and "?".
 - `aws_regions` (List of String) AWSRegions is used for the EC2 join method and is a list of AWS regions a node is allowed to join from.
-- `aws_role` (String) AWSRole is used for the EC2 join method and is the ARN of the AWS role that the auth server will assume in order to call the ec2 API.
+- `aws_role` (String) AWSRole is used for the EC2 join method and is the ARN of the AWS role that the Auth Service will assume in order to call the ec2 API.
 
 
 ### Nested Schema for `spec.azure`
@@ -68,6 +72,25 @@ Optional:
 
 - `resource_groups` (List of String) ResourceGroups is a list of Azure resource groups the node is allowed to join from.
 - `subscription` (String) Subscription is the Azure subscription.
+
+
+
+### Nested Schema for `spec.bitbucket`
+
+Optional:
+
+- `allow` (Attributes List) Allow is a list of Rules, nodes using this token must match one allow rule to use this token. (see [below for nested schema](#nested-schema-for-specbitbucketallow))
+- `audience` (String) Audience is a Bitbucket-specified audience value for this token. It is unique to each Bitbucket repository, and must be set to the value as written in the Pipelines -> OpenID Connect section of the repository settings.
+- `identity_provider_url` (String) IdentityProviderURL is a Bitbucket-specified issuer URL for incoming OIDC tokens. It is unique to each Bitbucket repository, and must be set to the value as written in the Pipelines -> OpenID Connect section of the repository settings.
+
+### Nested Schema for `spec.bitbucket.allow`
+
+Optional:
+
+- `branch_name` (String) BranchName is the name of the branch on which this pipeline executed.
+- `deployment_environment_uuid` (String) DeploymentEnvironmentUUID is the UUID of the deployment environment targeted by this pipelines run, if any. These values may be found in the "Pipelines -> OpenID Connect -> Deployment environments" section of the repository settings.
+- `repository_uuid` (String) RepositoryUUID is the UUID of the repository for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`. This value may be found in the Pipelines -> OpenID Connect section of the repository settings.
+- `workspace_uuid` (String) WorkspaceUUID is the UUID of the workspace for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`. This value may be found in the Pipelines -> OpenID Connect section of the repository settings.
 
 
 
@@ -108,8 +131,9 @@ Optional:
 Optional:
 
 - `allow` (Attributes List) Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token. (see [below for nested schema](#nested-schema-for-specgithuballow))
-- `enterprise_server_host` (String) EnterpriseServerHost allows joining from runners associated with a GitHub Enterprise Server instance. When unconfigured, tokens will be validated against github.com, but when configured to the host of a GHES instance, then the tokens will be validated against host.  This value should be the hostname of the GHES instance, and should not include the scheme or a path. The instance must be accessible over HTTPS at this hostname and the certificate must be trusted by the Auth Server.
+- `enterprise_server_host` (String) EnterpriseServerHost allows joining from runners associated with a GitHub Enterprise Server instance. When unconfigured, tokens will be validated against github.com, but when configured to the host of a GHES instance, then the tokens will be validated against host.  This value should be the hostname of the GHES instance, and should not include the scheme or a path. The instance must be accessible over HTTPS at this hostname and the certificate must be trusted by the Auth Service.
 - `enterprise_slug` (String) EnterpriseSlug allows the slug of a GitHub Enterprise organisation to be included in the expected issuer of the OIDC tokens. This is for compatibility with the `include_enterprise_slug` option in GHE.  This field should be set to the slug of your enterprise if this is enabled. If this is not enabled, then this field must be left empty. This field cannot be specified if `enterprise_server_host` is specified.  See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise for more information about customized issuer values.
+- `static_jwks` (String) StaticJWKS disables fetching of the GHES signing keys via the JWKS/OIDC endpoints, and allows them to be directly specified. This allows joining from GitHub Actions in GHES instances that are not reachable by the Teleport Auth Service.
 
 ### Nested Schema for `spec.github.allow`
 
@@ -141,15 +165,15 @@ Optional:
 - `ci_config_sha` (String) CIConfigSHA is the git commit SHA for the ci_config_ref_uri.
 - `deployment_tier` (String) DeploymentTier is the deployment tier of the environment the job specifies
 - `environment` (String) Environment limits access by the environment the job deploys to (if one is associated)
-- `environment_protected` (Boolean)
-- `namespace_path` (String) NamespacePath is used to limit access to jobs in a group or user's projects. Example: `mygroup`  This field supports simple "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+- `environment_protected` (Boolean) EnvironmentProtected is true if the Git ref is protected, false otherwise.
+- `namespace_path` (String) NamespacePath is used to limit access to jobs in a group or user's projects. Example: `mygroup`  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
 - `pipeline_source` (String) PipelineSource limits access by the job pipeline source type. https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules Example: `web`
-- `project_path` (String) ProjectPath is used to limit access to jobs belonging to an individual project. Example: `mygroup/myproject`  This field supports simple "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+- `project_path` (String) ProjectPath is used to limit access to jobs belonging to an individual project. Example: `mygroup/myproject`  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
 - `project_visibility` (String) ProjectVisibility is the visibility of the project where the pipeline is running. Can be internal, private, or public.
-- `ref` (String) Ref allows access to be limited to jobs triggered by a specific git ref. Ensure this is used in combination with ref_type.  This field supports simple "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
-- `ref_protected` (Boolean)
+- `ref` (String) Ref allows access to be limited to jobs triggered by a specific git ref. Ensure this is used in combination with ref_type.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+- `ref_protected` (Boolean) RefProtected is true if the Git ref is protected, false otherwise.
 - `ref_type` (String) RefType allows access to be limited to jobs triggered by a specific git ref type. Example: `branch` or `tag`
-- `sub` (String) Sub roughly uniquely identifies the workload. Example: `project_path:mygroup/my-project:ref_type:branch:ref:main` project_path:GROUP/PROJECT:ref_type:TYPE:ref:BRANCH_NAME  This field supports simple "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+- `sub` (String) Sub roughly uniquely identifies the workload. Example: `project_path:mygroup/my-project:ref_type:branch:ref:main` project_path:GROUP/PROJECT:ref_type:TYPE:ref:BRANCH_NAME  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
 - `user_email` (String) UserEmail is the email of the user executing the job
 - `user_id` (String) UserID is the ID of the user executing the job
 - `user_login` (String) UserLogin is the username of the user executing the job
@@ -179,6 +203,22 @@ Optional:
 
 
 
+### Nested Schema for `spec.oracle`
+
+Optional:
+
+- `allow` (Attributes List) Allow is a list of Rules, nodes using this token must match one allow rule to use this token. (see [below for nested schema](#nested-schema-for-specoracleallow))
+
+### Nested Schema for `spec.oracle.allow`
+
+Optional:
+
+- `parent_compartments` (List of String) ParentCompartments is a list of the OCIDs of compartments an instance is allowed to join from. Only direct parents are allowed, i.e. no nested compartments. If empty, any compartment is allowed.
+- `regions` (List of String) Regions is a list of regions an instance is allowed to join from. Both full region names ("us-phoenix-1") and abbreviations ("phx") are allowed. If empty, any region is allowed.
+- `tenancy` (String) Tenancy is the OCID of the instance's tenancy. Required.
+
+
+
 ### Nested Schema for `spec.spacelift`
 
 Optional:
@@ -194,6 +234,28 @@ Optional:
 - `caller_type` (String) CallerType is the type of the caller, ie. the entity that owns the run - either `stack` or `module`.
 - `scope` (String) Scope is the scope of the token - either `read` or `write`. See https://docs.spacelift.io/integrations/cloud-providers/oidc/#about-scopes
 - `space_id` (String) SpaceID is the ID of the space in which the run that owns the token was executed.
+
+
+
+### Nested Schema for `spec.terraform_cloud`
+
+Optional:
+
+- `allow` (Attributes List) Allow is a list of Rules, nodes using this token must match one allow rule to use this token. (see [below for nested schema](#nested-schema-for-specterraform_cloudallow))
+- `audience` (String) Audience is the JWT audience as configured in the TFC_WORKLOAD_IDENTITY_AUDIENCE(_$TAG) variable in Terraform Cloud. If unset, defaults to the Teleport cluster name. For example, if `TFC_WORKLOAD_IDENTITY_AUDIENCE_TELEPORT=foo` is set in Terraform Cloud, this value should be `foo`. If the variable is set to match the cluster name, it does not need to be set here.
+- `hostname` (String) Hostname is the hostname of the Terraform Enterprise instance expected to issue JWTs allowed by this token. This may be unset for regular Terraform Cloud use, in which case it will be assumed to be `app.terraform.io`. Otherwise, it must both match the `iss` (issuer) field included in JWTs, and provide standard JWKS endpoints.
+
+### Nested Schema for `spec.terraform_cloud.allow`
+
+Optional:
+
+- `organization_id` (String) OrganizationID is the ID of the HCP Terraform organization. At least one organization value is required, either ID or name.
+- `organization_name` (String) OrganizationName is the human-readable name of the HCP Terraform organization. At least one organization value is required, either ID or name.
+- `project_id` (String) ProjectID is the ID of the HCP Terraform project. At least one project or workspace value is required, either ID or name.
+- `project_name` (String) ProjectName is the human-readable name for the HCP Terraform project. At least one project or workspace value is required, either ID or name.
+- `run_phase` (String) RunPhase is the phase of the run the token was issued for, e.g. `plan` or `apply`
+- `workspace_id` (String) WorkspaceID is the ID of the HCP Terraform workspace. At least one project or workspace value is required, either ID or name.
+- `workspace_name` (String) WorkspaceName is the human-readable name of the HCP Terraform workspace. At least one project or workspace value is required, either ID or name.
 
 
 

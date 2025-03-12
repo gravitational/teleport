@@ -1,0 +1,21 @@
+type: workload-identity-api
+listen: tcp://0.0.0.0:4040
+attestors:
+  kubernetes:
+    enabled: true
+    kubelet:
+      secure_port: 12345
+      token_path: /path/to/token
+      ca_path: /path/to/ca.pem
+      skip_verify: true
+      anonymous: true
+  podman:
+    enabled: false
+  docker:
+    enabled: false
+  systemd:
+    enabled: false
+selector:
+  name: my-workload-identity
+credential_ttl: 1m0s
+renewal_interval: 30s

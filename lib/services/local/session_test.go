@@ -42,7 +42,8 @@ func TestDeleteUserAppSessions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	identity := NewTestIdentityService(backend)
+	identity, err := NewTestIdentityService(backend)
+	require.NoError(t, err)
 	users := []string{"alice", "bob"}
 	ctx := context.Background()
 
@@ -94,7 +95,8 @@ func TestListAppSessions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	identity := NewTestIdentityService(backend)
+	identity, err := NewTestIdentityService(backend)
+	require.NoError(t, err)
 
 	users := []string{"alice", "bob"}
 	ctx := context.Background()
@@ -181,7 +183,8 @@ func TestDeleteUserSAMLIdPSessions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	identity := NewTestIdentityService(backend)
+	identity, err := NewTestIdentityService(backend)
+	require.NoError(t, err)
 	users := []string{"alice", "bob"}
 	ctx := context.Background()
 
@@ -233,7 +236,8 @@ func TestListSAMLIdPSessions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	identity := NewTestIdentityService(backend)
+	identity, err := NewTestIdentityService(backend)
+	require.NoError(t, err)
 
 	users := []string{"alice", "bob"}
 	ctx := context.Background()

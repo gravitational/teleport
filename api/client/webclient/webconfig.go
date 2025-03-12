@@ -100,6 +100,11 @@ type WebConfig struct {
 	// IsPolicyEnabled is true if [Features.Policy] = true
 	// Deprecated, use entitlements
 	IsPolicyEnabled bool `json:"isPolicyEnabled"`
+	// TODO (avatus) delete in v18
+	// IsPolicyRoleVisualizerEnabled is the graph visualizer for diffs made
+	// when editing roles in the Web UI. This defaults to true, but has an environment
+	// variable to turn off if needed TELEPORT_UNSTABLE_DISABLE_ROLE_VISUALIZER=true
+	IsPolicyRoleVisualizerEnabled bool `json:"isPolicyRoleVisualizerEnabled"`
 	// featureLimits define limits for features.
 	// Typically used with feature teasers if feature is not enabled for the
 	// product type eg: Team product contains teasers to upgrade to Enterprise.
@@ -188,6 +193,8 @@ type WebConfigAuthSettings struct {
 	AllowPasswordless bool `json:"allowPasswordless,omitempty"`
 	// AuthType is the authentication type.
 	AuthType string `json:"authType"`
+	// DefaultConnectorName is the name of the default connector in the auth preferences. This will be empty if the default is "local".
+	DefaultConnectorName string `json:"defaultConnectorName"`
 	// PreferredLocalMFA is a server-side hint for clients to pick an MFA method
 	// when various options are available.
 	// It is empty if there is nothing to suggest.

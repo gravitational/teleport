@@ -26,6 +26,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -48,11 +50,11 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cloud/imds"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
@@ -62,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/hostid"
 	"github.com/gravitational/teleport/tool/teleport/common"
 )
 
@@ -149,7 +152,7 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 
 	cfg.Hostname = "server01"
 	cfg.DataDir = t.TempDir()
-	cfg.Log = utils.NewLoggerForTests()
+	cfg.Logger = utils.NewSlogLoggerForTests()
 	authAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerAuth, &cfg.FileDescriptors)}
 	cfg.SetToken(StaticToken)
 	cfg.SetAuthServerAddress(authAddr)
@@ -166,6 +169,7 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 	})
 	require.NoError(t, err)
 	cfg.Auth.StaticTokens = staticToken
+	cfg.Auth.Preference.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1)
 
 	// Disable session recording to prevent writing to disk after the test concludes.
 	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
@@ -179,6 +183,10 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 
 	cfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerNodeSSH, &cfg.FileDescriptors)}
 	cfg.SSH.DisableCreateHostUser = true
+
+	// Disabling debug service for tests so that it doesn't break if the data
+	// directory path is too long.
+	cfg.DebugService.Enabled = false
 
 	// Apply options
 	for _, fn := range options.ConfigFuncs {
@@ -253,6 +261,10 @@ func waitForServices(t *testing.T, auth *service.TeleportProcess, cfg *servicecf
 	if cfg.Auth.Enabled && cfg.Databases.Enabled {
 		waitForDatabases(t, auth, cfg.Databases.Databases)
 	}
+
+	if cfg.Auth.Enabled && cfg.Apps.Enabled {
+		waitForApps(t, auth, cfg.Apps.Apps)
+	}
 }
 
 func waitForEvents(t *testing.T, svc service.Supervisor, events ...string) {
@@ -287,6 +299,34 @@ func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []service
 			}
 		case <-ctx.Done():
 			t.Fatal("Databases not registered after 10s")
+		}
+	}
+}
+
+func waitForApps(t *testing.T, auth *service.TeleportProcess, apps []servicecfg.App) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	for {
+		select {
+		case <-time.After(500 * time.Millisecond):
+			all, err := auth.GetAuthServer().GetApplicationServers(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
+
+			var registered int
+			for _, app := range apps {
+				for _, a := range all {
+					if a.GetName() == app.Name {
+						registered++
+						break
+					}
+				}
+			}
+
+			if registered == len(apps) {
+				return
+			}
+		case <-ctx.Done():
+			t.Fatal("Apps not registered after 10s")
 		}
 	}
 }
@@ -371,15 +411,58 @@ func WithProxyKube(t *testing.T) TestServerOptFunc {
 	})
 }
 
+// WithDebugApp enables the app service and the debug app.
+func WithDebugApp() TestServerOptFunc {
+	return WithConfig(func(cfg *servicecfg.Config) {
+		cfg.Apps.Enabled = true
+		cfg.Apps.DebugApp = true
+	})
+}
+
+// WithTestApp enables the app service and adds a test app server
+// with the given name.
+func WithTestApp(t *testing.T, name string) TestServerOptFunc {
+	appUrl := startDummyHTTPServer(t, name)
+	return WithConfig(func(cfg *servicecfg.Config) {
+		cfg.Apps.Enabled = true
+		cfg.Apps.Apps = append(cfg.Apps.Apps,
+			servicecfg.App{
+				Name: name,
+				URI:  appUrl,
+				StaticLabels: map[string]string{
+					"name": name,
+				},
+			})
+	})
+}
+
+func startDummyHTTPServer(t *testing.T, name string) string {
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Server", name)
+		_, _ = w.Write([]byte("hello"))
+	}))
+
+	srv.Start()
+
+	t.Cleanup(func() {
+		srv.Close()
+	})
+
+	return srv.URL
+}
+
 func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServer *service.TeleportProcess, additionalRoleMappings ...types.RoleMapping) {
-	// TODO(noah): This function relies on extremely specific cluster names
-	// being used, it should be more resilient.
+	// Use insecure mode so that the trusted cluster can establish trust over reverse tunnel.
+	isInsecure := lib.IsInsecureDevMode()
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(isInsecure) })
+
 	rootProxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
 	rootProxyTunnelAddr, err := rootServer.ProxyTunnelAddr()
 	require.NoError(t, err)
 
-	tc, err := types.NewTrustedCluster("root-cluster", types.TrustedClusterSpecV2{
+	tc, err := types.NewTrustedCluster(rootServer.Config.Auth.ClusterName.GetClusterName(), types.TrustedClusterSpecV2{
 		Enabled:              true,
 		Token:                StaticToken,
 		ProxyAddress:         rootProxyAddr.String(),
@@ -393,13 +476,19 @@ func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServ
 	})
 	require.NoError(t, err)
 
-	_, err = leafServer.GetAuthServer().UpsertTrustedCluster(ctx, tc)
+	_, err = leafServer.GetAuthServer().UpsertTrustedClusterV2(ctx, tc)
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		rt, err := rootServer.GetAuthServer().GetTunnelConnections("leaf")
+		rt, err := rootServer.GetAuthServer().GetTunnelConnections(leafServer.Config.Auth.ClusterName.GetClusterName())
 		assert.NoError(t, err)
 		assert.Len(t, rt, 1)
+	}, time.Second*10, time.Second)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		rts, err := rootServer.GetAuthServer().GetRemoteClusters(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, rts, 1)
 	}, time.Second*10, time.Second)
 }
 
@@ -409,13 +498,18 @@ func (p *cliModules) GenerateAccessRequestPromotions(_ context.Context, _ module
 	return &types.AccessRequestAllowedPromotions{}, nil
 }
 
-func (p *cliModules) GetSuggestedAccessLists(ctx context.Context, _ *tlsca.Identity, _ modules.AccessListSuggestionClient, _ modules.AccessListGetter, _ string) ([]*accesslist.AccessList, error) {
+func (p *cliModules) GetSuggestedAccessLists(ctx context.Context, _ *tlsca.Identity, _ modules.AccessListSuggestionClient, _ modules.AccessListAndMembersGetter, _ string) ([]*accesslist.AccessList, error) {
 	return []*accesslist.AccessList{}, nil
 }
 
 // BuildType returns build type.
 func (p *cliModules) BuildType() string {
 	return "CLI"
+}
+
+// LicenseExpiry returns the expiry date of the enterprise license, if applicable.
+func (p *cliModules) LicenseExpiry() time.Time {
+	return time.Time{}
 }
 
 // IsEnterpriseBuild returns false for [cliModules].
@@ -482,13 +576,15 @@ func CreateAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nod
 	caCheckers, err := sshutils.GetCheckers(openSSHCA)
 	require.NoError(t, err)
 
-	key, err := native.GeneratePrivateKey()
+	key, err := cryptosuites.GenerateKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(authServer), cryptosuites.HostSSH)
+	require.NoError(t, err)
+	sshPub, err := ssh.NewPublicKey(key.Public())
 	require.NoError(t, err)
 
 	nodeUUID := uuid.New().String()
 	hostCertBytes, err := authServer.GenerateHostCert(
 		ctx,
-		key.MarshalSSHPublicKey(),
+		ssh.MarshalAuthorizedKey(sshPub),
 		"",
 		"",
 		[]string{nodeUUID, nodeHostname, Loopback},
@@ -500,7 +596,7 @@ func CreateAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nod
 
 	hostCert, err := apisshutils.ParseCertificate(hostCertBytes)
 	require.NoError(t, err)
-	signer, err := ssh.NewSignerFromSigner(key.Signer)
+	signer, err := ssh.NewSignerFromSigner(key)
 	require.NoError(t, err)
 	hostKeySigner, err := ssh.NewCertSigner(hostCert, signer)
 	require.NoError(t, err)
@@ -525,7 +621,7 @@ func CreateAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nod
 	require.NoError(t, err)
 
 	// wait for node resource to be written to the backend
-	timedCtx, cancel := context.WithTimeout(ctx, time.Second)
+	timedCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	t.Cleanup(cancel)
 	w, err := authServer.NewWatcher(timedCtx, types.Watch{
 		Name: "node-create watcher",
@@ -563,6 +659,11 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 			cert, ok := key.(*ssh.Certificate)
 			if !ok {
 				return nil, fmt.Errorf("expected *ssh.Certificate, got %T", key)
+			}
+
+			// Sanity check incoming cert from proxy has Ed25519 key.
+			if cert.Key.Type() != ssh.KeyAlgoED25519 {
+				return nil, trace.BadParameter("expected Ed25519 key, got %v", cert.Key.Type())
 			}
 
 			for _, pubKey := range caPubKeys {
@@ -654,7 +755,7 @@ func MakeDefaultAuthClient(t *testing.T, process *service.TeleportProcess) *auth
 	t.Helper()
 
 	cfg := process.Config
-	hostUUID, err := utils.ReadHostUUID(process.Config.DataDir)
+	hostUUID, err := hostid.ReadFile(process.Config.DataDir)
 	require.NoError(t, err)
 
 	identity, err := storage.ReadLocalIdentity(
@@ -668,7 +769,7 @@ func MakeDefaultAuthClient(t *testing.T, process *service.TeleportProcess) *auth
 	require.NoError(t, err)
 
 	authConfig.AuthServers = cfg.AuthServerAddresses()
-	authConfig.Log = utils.NewLogger()
+	authConfig.Log = cfg.Logger
 
 	client, err := authclient.Connect(context.Background(), authConfig)
 	require.NoError(t, err)

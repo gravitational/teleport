@@ -25,8 +25,10 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -34,30 +36,33 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
+	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/auth/autoupdate/autoupdatev1"
 	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
+	igcredentials "github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/migration"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -68,11 +73,10 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var log = logrus.WithFields(logrus.Fields{
-	teleport.ComponentKey: teleport.ComponentAuth,
-})
+var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentAuth)
 
 // VersionStorage local storage for saving the version.
 type VersionStorage interface {
@@ -156,7 +160,10 @@ type InitConfig struct {
 	Events types.Events
 
 	// ClusterConfiguration is a services that holds cluster wide configuration.
-	ClusterConfiguration services.ClusterConfiguration
+	ClusterConfiguration services.ClusterConfigurationInternal
+
+	// AutoUpdateService is a service of autoupdate configuration and version.
+	AutoUpdateService services.AutoUpdateService
 
 	// Restrictions is a service to access network restrictions, etc
 	Restrictions services.Restrictions
@@ -213,8 +220,11 @@ type InitConfig struct {
 	// session related streams
 	Streamer events.Streamer
 
-	// WindowsServices is a service that manages Windows desktop resources.
+	// WindowsDesktops is a service that manages Windows desktop resources.
 	WindowsDesktops services.WindowsDesktops
+
+	// DynamicWindowsServices is a service that manages dynamic Windows desktop resources.
+	DynamicWindowsDesktops services.DynamicWindowsDesktops
 
 	// SAMLIdPServiceProviders is a service that manages SAML IdP service providers.
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
@@ -227,6 +237,9 @@ type InitConfig struct {
 
 	// Integrations is a service that manages Integrations.
 	Integrations services.Integrations
+
+	// UserTasks is a service that manages UserTasks.
+	UserTasks services.UserTasks
 
 	// DiscoveryConfigs is a service that manages DiscoveryConfigs.
 	DiscoveryConfigs services.DiscoveryConfigs
@@ -293,9 +306,6 @@ type InitConfig struct {
 	// AccessMonitoringRules is a service that manages access monitoring rules.
 	AccessMonitoringRules services.AccessMonitoringRules
 
-	// CloudClients provides clients for various cloud providers.
-	CloudClients cloud.Clients
-
 	// KubeWaitingContainers is a service that manages
 	// Kubernetes ephemeral containers that are waiting
 	// to be created until moderated session conditions are met.
@@ -306,6 +316,41 @@ type InitConfig struct {
 
 	// BotInstance is a service that manages Machine ID bot instances
 	BotInstance services.BotInstance
+
+	// SPIFFEFederations is a service that manages storing SPIFFE federations.
+	SPIFFEFederations services.SPIFFEFederations
+
+	// WorkloadIdentity is the service for storing and retrieving
+	// WorkloadIdentity resources.
+	WorkloadIdentity services.WorkloadIdentities
+
+	// WorkloadIdentityX509Revocations is the service for storing and retrieving
+	// WorkloadIdentityX509Revocations.
+	WorkloadIdentityX509Revocations services.WorkloadIdentityX509Revocations
+
+	// StaticHostUsers is a service that manages host users that should be
+	// created on SSH nodes.
+	StaticHostUsers services.StaticHostUser
+
+	// ProvisioningStates is a service that manages the storage and retrieval of
+	// downstream User and Access List provisioning records
+	ProvisioningStates services.ProvisioningStates
+
+	// Logger is the logger instance for the auth service to use.
+	Logger *slog.Logger
+
+	// IdentityCenter is the Identity Center state storage service to use in
+	// this node.
+	IdentityCenter services.IdentityCenter
+
+	// PluginStaticCredentials handles credentials for integrations and plugins.
+	PluginStaticCredentials services.PluginStaticCredentials
+
+	// GitServers manages git servers.
+	GitServers services.GitServers
+
+	// StableUNIXUsers handles the storage for stable UNIX users.
+	StableUNIXUsers services.StableUNIXUsersInternal
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -329,9 +374,9 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 	if err := backend.RunWhileLocked(ctx,
 		backend.RunWhileLockedConfig{
 			LockConfiguration: backend.LockConfiguration{
-				Backend:  cfg.Backend,
-				LockName: domainName,
-				TTL:      30 * time.Second,
+				Backend:            cfg.Backend,
+				LockNameComponents: []string{domainName},
+				TTL:                30 * time.Second,
 			},
 			RefreshLockInterval: 20 * time.Second,
 		}, func(ctx context.Context) error {
@@ -353,7 +398,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, teleport.SemVersion, firstStart); err != nil {
+	if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, teleport.SemVersion); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -361,7 +406,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	// on initial startup.
 	if len(cfg.BootstrapResources) > 0 {
 		if firstStart {
-			log.Infof("Applying %v bootstrap resources (first initialization)", len(cfg.BootstrapResources))
+			asrv.logger.InfoContext(ctx, "Applying bootstrap resources (first initialization)", "resource_count", len(cfg.BootstrapResources))
 			if err := checkResourceConsistency(ctx, asrv.keyStore, domainName, cfg.BootstrapResources...); err != nil {
 				return trace.Wrap(err, "refusing to bootstrap backend")
 			}
@@ -369,13 +414,13 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 				return trace.Wrap(err, "backend bootstrap failed")
 			}
 		} else {
-			log.Warnf("Ignoring %v bootstrap resources (previously initialized)", len(cfg.BootstrapResources))
+			asrv.logger.WarnContext(ctx, "Ignoring bootstrap resources (previously initialized)", "resource_count", len(cfg.BootstrapResources))
 		}
 	}
 
 	// if apply-on-startup resources are supplied, apply them
 	if len(cfg.ApplyOnStartupResources) > 0 {
-		log.Infof("Applying %v resources (apply-on-startup)", len(cfg.ApplyOnStartupResources))
+		asrv.logger.InfoContext(ctx, "Applying resources (apply-on-startup)", "resource_count", len(cfg.ApplyOnStartupResources))
 
 		if err := applyResources(ctx, asrv.Services, cfg.ApplyOnStartupResources); err != nil {
 			return trace.Wrap(err, "applying resources failed")
@@ -392,7 +437,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		if _, err := asrv.UpsertRole(ctx, role); err != nil {
 			return trace.Wrap(err)
 		}
-		log.Infof("Created role: %v.", role)
+		asrv.logger.InfoContext(ctx, "Created role", "role", role.GetName())
 	}
 	for i := range cfg.Authorities {
 		ca := cfg.Authorities[i]
@@ -410,14 +455,17 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 				return trace.Wrap(err)
 			}
 		} else {
-			log.Infof("Created trusted certificate authority: %q, type: %q.", ca.GetName(), ca.GetType())
+			asrv.logger.InfoContext(ctx, "Created trusted certificate authority",
+				"ca_name", ca.GetName(),
+				"ca_type", ca.GetType(),
+			)
 		}
 	}
 	for _, tunnel := range cfg.ReverseTunnels {
-		if err := asrv.UpsertReverseTunnel(tunnel); err != nil {
+		if err := asrv.UpsertReverseTunnel(ctx, tunnel); err != nil {
 			return trace.Wrap(err)
 		}
-		log.Infof("Created reverse tunnel: %v.", tunnel)
+		asrv.logger.InfoContext(ctx, "Created reverse tunnel", "tunnel", tunnel.GetName())
 	}
 
 	g, gctx := errgroup.WithContext(ctx)
@@ -454,15 +502,8 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	g.Go(func() error {
 		_, span := cfg.Tracer.Start(gctx, "auth/SetStaticTokens")
 		defer span.End()
-		log.Infof("Updating cluster configuration: %v.", cfg.StaticTokens)
+		asrv.logger.InfoContext(ctx, "Updating cluster configuration", "static_tokens", cfg.StaticTokens)
 		return trace.Wrap(asrv.SetStaticTokens(cfg.StaticTokens))
-	})
-
-	g.Go(func() error {
-		_, span := cfg.Tracer.Start(gctx, "auth/SetClusterNamespace")
-		defer span.End()
-		log.Infof("Creating namespace: %q.", apidefaults.Namespace)
-		return trace.Wrap(asrv.UpsertNamespace(types.DefaultNamespace()))
 	})
 
 	var cn types.ClusterName
@@ -490,18 +531,18 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 			return trace.Wrap(err)
 		}
 		if cn.GetClusterName() != cfg.ClusterName.GetClusterName() {
-			msg := "Cannot rename cluster: continuing with current cluster name. Teleport " +
+			const msg = "Cannot rename cluster: continuing with current cluster name. Teleport " +
 				"clusters can not be renamed once they are created. You are seeing this " +
 				"message for one of two reasons. Either you have not set \"cluster_name\" in " +
 				"Teleport configuration and changed the hostname of the auth server or you " +
 				"are trying to change the value of \"cluster_name\"."
-			log.WithFields(logrus.Fields{
-				"current_cluster_name":    cn.GetClusterName(),
-				"configured_cluster_name": cfg.ClusterName.GetClusterName(),
-			}).Error(msg)
+			asrv.logger.ErrorContext(ctx, msg,
+				"current_cluster_name", cn.GetClusterName(),
+				"configured_cluster_name", cfg.ClusterName.GetClusterName(),
+			)
 		}
 
-		log.Debugf("Cluster configuration: %v.", cn.GetClusterName())
+		asrv.logger.DebugContext(ctx, "Cluster configuration", "cluster_name", cn.GetClusterName())
 		return nil
 	})
 
@@ -513,7 +554,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	cfg.ClusterName = cn
 
 	// Apply any outstanding migrations.
-	if err := migration.Apply(ctx, cfg.Backend); err != nil {
+	if err := migration.Apply(ctx, asrv.logger, cfg.Backend); err != nil {
 		return trace.Wrap(err, "applying migrations")
 	}
 
@@ -523,10 +564,10 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	}
 
 	if lib.IsInsecureDevMode() {
-		warningMessage := "Starting teleport in insecure mode. This is " +
+		const warningMessage = "Starting teleport in insecure mode. This is " +
 			"dangerous! Sensitive information will be logged to console and " +
 			"certificates will not be verified. Proceed with caution!"
-		log.Warn(warningMessage)
+		asrv.logger.WarnContext(ctx, warningMessage)
 	}
 
 	span.AddEvent("migrating legacy resources")
@@ -535,6 +576,12 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		return trace.Wrap(err)
 	}
 	span.AddEvent("completed migration legacy resources")
+
+	span.AddEvent("checking certificate authority cluster names")
+	if err := checkAuthorityClusterNames(ctx, asrv); err != nil {
+		return trace.Wrap(err)
+	}
+	span.AddEvent("completed checking certificate authority cluster names")
 
 	// Create presets - convenience and example resources.
 	if !services.IsDashboard(*modules.GetModules().Features().ToProto()) {
@@ -553,18 +600,18 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		span.AddEvent("creating preset database object import rules")
 		if err := createPresetDatabaseObjectImportRule(ctx, asrv); err != nil {
 			// merely raise a warning; this is not a fatal error.
-			log.WithError(err).Warn("error creating preset database object import rules")
+			asrv.logger.WarnContext(ctx, "error creating preset database object import rules", "error", err)
 		}
 		span.AddEvent("completed creating database object import rules")
 	} else {
-		log.Info("skipping preset role and user creation")
+		asrv.logger.InfoContext(ctx, "skipping preset role and user creation")
 	}
 
 	if !cfg.SkipPeriodicOperations {
-		log.Infof("Auth server is running periodic operations.")
+		asrv.logger.InfoContext(ctx, "Auth server is running periodic operations")
 		go asrv.runPeriodicOperations()
 	} else {
-		log.Infof("Auth server is skipping periodic operations.")
+		asrv.logger.InfoContext(ctx, "Auth server is skipping periodic operations")
 	}
 
 	return nil
@@ -604,25 +651,43 @@ func initializeAuthorities(ctx context.Context, asrv *Server, cfg *InitConfig) e
 		return trace.Wrap(err)
 	}
 
+	// Collect CAs from integrations to avoid deleting them.
+	err := clientutils.IterateResources(ctx, asrv.Services.ListIntegrations, func(ig types.Integration) error {
+		caKeySet, err := igcredentials.GetIntegrationCertAuthorities(ctx, ig, asrv.Services)
+		switch {
+		case trace.IsNotImplemented(err):
+		case err != nil:
+			// This should not happen by design. In case integration is in a
+			// bad state, log a warning instead of failing this initialization.
+			asrv.logger.WarnContext(ctx, "Failed to fetch integration CAs", "ig", ig.GetName(), "error", err)
+		default:
+			allKeysInUse = append(allKeysInUse, collectKeysInUse(*caKeySet)...)
+		}
+		return nil
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Delete any unused keys from the keyStore. This is to avoid exhausting
 	// (or wasting) HSM resources.
 	if err := asrv.keyStore.DeleteUnusedKeys(ctx, allKeysInUse); err != nil {
 		// Key deletion is best-effort, log a warning if it fails and carry on.
 		// We don't want to prevent a CA rotation, which may be necessary in
 		// some cases where this would fail.
-		log.Warnf("An attempt to clean up unused HSM or KMS CA keys has failed unexpectedly: %v", err)
+		asrv.logger.WarnContext(ctx, "An attempt to clean up unused HSM or KMS CA keys has failed unexpectedly", "error", err)
 	}
 	return nil
 }
 
-func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthID) (usableKeysResult *keystore.UsableKeysResult, keysInUse [][]byte, err error) {
+func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthID) (*keystore.UsableKeysResult, [][]byte, error) {
 	ca, err := asrv.Services.GetCertAuthority(ctx, caID, true)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		log.Infof("First start: generating %s certificate authority.", caID.Type)
+		asrv.logger.InfoContext(ctx, "First start: generating certificate authority", "ca_type", caID.Type)
 		if ca, err = generateAuthority(ctx, asrv, caID); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -635,7 +700,7 @@ func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthI
 	// Make sure the keystore has usable keys. This is a bit redundant if the CA
 	// was just generated above, but cheap relative to generating the CA, and
 	// it's nice to get the usableKeysResult.
-	usableKeysResult, err = asrv.keyStore.HasUsableActiveKeys(ctx, ca)
+	usableKeysResult, err := asrv.keyStore.HasUsableActiveKeys(ctx, ca)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -665,31 +730,42 @@ func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthI
 				return nil, nil, trace.Wrap(err)
 			}
 		} else {
-			log.Warnf("This Auth Service is configured to use %s but the %s CA contains only %s. "+
-				"No new certificates can be signed with the existing keys. "+
-				"You must perform a CA rotation to generate new keys, or adjust your configuration to use the existing keys.",
-				usableKeysResult.PreferredKeyType,
-				caID.Type,
-				strings.Join(usableKeysResult.CAKeyTypes, " and "))
+			const msg = "This Auth Service is configured to use key types that the CA does not contain. " +
+				"No new certificates can be signed with the existing keys. " +
+				"You must perform a CA rotation to generate new keys, or adjust your configuration to use the existing keys."
+			asrv.logger.WarnContext(ctx, msg,
+				"configured_key_type", usableKeysResult.PreferredKeyType,
+				"ca_type", caID.Type,
+				"available_key_types", usableKeysResult.CAKeyTypes,
+			)
 		}
 	} else if !usableKeysResult.CAHasPreferredKeyType {
-		log.Warnf("This Auth Service is configured to use %s but the %s CA contains only %s. "+
-			"New certificates will continue to be signed with raw software keys but you must perform a CA rotation to begin using %s.",
-			usableKeysResult.PreferredKeyType,
-			caID.Type,
-			strings.Join(usableKeysResult.CAKeyTypes, " and "),
-			usableKeysResult.PreferredKeyType)
+		const msg = "This Auth Service is configured to use key types that the CA does not contain. " +
+			"New certificates will continue to be signed with raw software keys but you must perform a CA rotation to begin using the new key type."
+		asrv.logger.WarnContext(ctx, msg,
+			"configured_key_type", usableKeysResult.PreferredKeyType,
+			"ca_type", caID.Type,
+			"available_key_types", usableKeysResult.CAKeyTypes,
+		)
 	}
 	allKeyTypes := ca.AllKeyTypes()
 	numKeyTypes := len(allKeyTypes)
 	if numKeyTypes > 1 {
-		log.Warnf("%s CA contains a combination of %s and %s keys. If you are attempting to"+
-			" configure HSM or KMS key storage, make sure it is configured on all auth servers in"+
-			" this cluster and then perform a CA rotation: https://goteleport.com/docs/management/operations/ca-rotation/",
-			caID.Type, strings.Join(allKeyTypes[:numKeyTypes-1], ", "), allKeyTypes[numKeyTypes-1])
+		const msg = "CA contains a combination of key types. If you are attempting to" +
+			" configure HSM or KMS key storage, make sure it is configured on all auth servers in" +
+			" this cluster and then perform a CA rotation: https://goteleport.com/docs/admin-guides/management/operations/ca-rotation/"
+		asrv.logger.WarnContext(ctx, msg,
+			"ca_type", caID.Type,
+			"key_types", []string{strings.Join(allKeyTypes[:numKeyTypes-1], ", "), allKeyTypes[numKeyTypes-1]},
+		)
 	}
 
-	for _, keySet := range []types.CAKeySet{ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys()} {
+	keysInUse := collectKeysInUse(ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys())
+	return usableKeysResult, keysInUse, nil
+}
+
+func collectKeysInUse(cas ...types.CAKeySet) (keysInUse [][]byte) {
+	for _, keySet := range cas {
 		for _, sshKeyPair := range keySet.SSH {
 			keysInUse = append(keysInUse, sshKeyPair.PrivateKey)
 		}
@@ -700,7 +776,7 @@ func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthI
 			keysInUse = append(keysInUse, jwtKeyPair.PrivateKey)
 		}
 	}
-	return usableKeysResult, keysInUse, nil
+	return keysInUse
 }
 
 // generateAuthority creates a new self-signed authority of the provided type
@@ -723,6 +799,35 @@ func generateAuthority(ctx context.Context, asrv *Server, caID types.CertAuthID)
 	return ca, nil
 }
 
+func checkAuthorityClusterNames(ctx context.Context, asrv *Server) error {
+	for _, caType := range types.CertAuthTypes {
+		authorities, err := asrv.Services.GetCertAuthorities(ctx, caType, false)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, ca := range authorities {
+			caClusterName := ca.GetClusterName()
+			// sanity check that the cluster name in the CA certificates
+			// matches the authority resource's cluster name
+			for _, keyPair := range ca.GetTrustedTLSKeyPairs() {
+				cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				clusterName, err := tlsca.ClusterName(cert.Subject)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				if clusterName != caClusterName {
+					return trace.BadParameter("CA certificate of type %s has cluster name %q that does not match the cluster name %q found in the subject", ca.GetType(), caClusterName, clusterName)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 var secondFactorUpgradeInstructions = `
 Teleport requires second factor authentication for local users.
 The auth_service configuration should be updated to enable it.
@@ -734,7 +839,7 @@ auth_service:
       rp_id: example.com
 
 For more information:
-- https://goteleport.com/docs/access-controls/guides/webauthn/
+- https://goteleport.com/docs/admin-guides/access-controls/guides/webauthn/
 `
 
 func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
@@ -745,13 +850,13 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 			return trace.Wrap(err)
 		}
 
-		shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedAuthPref, newAuthPref)
+		shouldReplace, err := shouldInitReplaceResourceWithOrigin(ctx, storedAuthPref, newAuthPref, asrv.logger)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		if !shouldReplace {
-			if os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "true" {
+			if allowNoSecondFactor, _ := strconv.ParseBool(os.Getenv(teleport.EnvVarAllowNoSecondFactor)); allowNoSecondFactor {
 				err := modules.ValidateResource(storedAuthPref)
 				if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
 					return trace.Wrap(err, secondFactorUpgradeInstructions)
@@ -763,13 +868,38 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 			return nil
 		}
 
+		switch {
+		case storedAuthPref == nil:
+			// This is a brand new cluster with no stored auth pref, set a
+			// default signature algorithm suite.
+			newAuthPref = newAuthPref.Clone()
+			newAuthPref.SetDefaultSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
+				FIPS:          asrv.fips,
+				UsingHSMOrKMS: asrv.keyStore.UsingHSMOrKMS(),
+				Cloud:         modules.GetModules().Features().Cloud,
+			})
+		case newAuthPref.Origin() == types.OriginDefaults:
+			// There is a stored auth preference which we are overwriting with a
+			// default auth preference. Maintain the stored signature algorithm
+			// suite to avoid automatically changing it on version upgrades, new
+			// suites should always be opt-in for existing clusters.
+			newAuthPref = newAuthPref.Clone()
+			newAuthPref.SetSignatureAlgorithmSuite(storedAuthPref.GetSignatureAlgorithmSuite())
+		case newAuthPref.GetSignatureAlgorithmSuite() == types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED:
+			// There is a stored auth preference and the new auth preference is
+			// coming from a config file where the signature_algorithm_suite is
+			// unset. Maintain the stored signature algorithm suite otherwise we
+			// would unset the default suite after the first auth restart.
+			newAuthPref = newAuthPref.Clone()
+			newAuthPref.SetSignatureAlgorithmSuite(storedAuthPref.GetSignatureAlgorithmSuite())
+		}
+
 		if storedAuthPref == nil {
-			log.Infof("Creating cluster auth preference: %v.", newAuthPref)
+			asrv.logger.InfoContext(ctx, "Creating cluster auth preference", "auth_preference", newAuthPref)
 			_, err := asrv.CreateAuthPreference(ctx, newAuthPref)
 			if trace.IsAlreadyExists(err) {
 				continue
 			}
-
 			return trace.Wrap(err)
 		}
 
@@ -796,7 +926,7 @@ func initializeClusterNetworkingConfig(ctx context.Context, asrv *Server, newNet
 			return trace.Wrap(err)
 		}
 
-		shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedNetConfig, newNetConfig)
+		shouldReplace, err := shouldInitReplaceResourceWithOrigin(ctx, storedNetConfig, newNetConfig, asrv.logger)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -806,7 +936,7 @@ func initializeClusterNetworkingConfig(ctx context.Context, asrv *Server, newNet
 		}
 
 		if storedNetConfig == nil {
-			log.Infof("Creating cluster networking configuration: %v.", newNetConfig)
+			asrv.logger.InfoContext(ctx, "Creating cluster networking configuration", "networking_config", newNetConfig)
 			_, err = asrv.CreateClusterNetworkingConfig(ctx, newNetConfig)
 			if trace.IsAlreadyExists(err) {
 				continue
@@ -815,7 +945,7 @@ func initializeClusterNetworkingConfig(ctx context.Context, asrv *Server, newNet
 			return trace.Wrap(err)
 		}
 
-		log.Infof("Updating cluster networking configuration: %v.", newNetConfig)
+		asrv.logger.InfoContext(ctx, "Updating cluster networking configuration", "networking_config", newNetConfig)
 		newNetConfig.SetRevision(storedNetConfig.GetRevision())
 		_, err = asrv.UpdateClusterNetworkingConfig(ctx, newNetConfig)
 		if trace.IsCompareFailed(err) {
@@ -836,7 +966,7 @@ func initializeSessionRecordingConfig(ctx context.Context, asrv *Server, newRecC
 			return trace.Wrap(err)
 		}
 
-		shouldReplace, err := shouldInitReplaceResourceWithOrigin(storedRecConfig, newRecConfig)
+		shouldReplace, err := shouldInitReplaceResourceWithOrigin(ctx, storedRecConfig, newRecConfig, asrv.logger)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -846,7 +976,7 @@ func initializeSessionRecordingConfig(ctx context.Context, asrv *Server, newRecC
 		}
 
 		if storedRecConfig == nil {
-			log.Infof("Creating session recording config: %v.", newRecConfig)
+			asrv.logger.InfoContext(ctx, "Creating session recording config", "recording_config", newRecConfig)
 			_, err := asrv.CreateSessionRecordingConfig(ctx, newRecConfig)
 			if trace.IsAlreadyExists(err) {
 				continue
@@ -855,7 +985,7 @@ func initializeSessionRecordingConfig(ctx context.Context, asrv *Server, newRecC
 			return trace.Wrap(err)
 		}
 
-		log.Infof("Updating session recording config: %v.", newRecConfig)
+		asrv.logger.InfoContext(ctx, "Updating session recording config", "recording_config", newRecConfig)
 		newRecConfig.SetRevision(storedRecConfig.GetRevision())
 		_, err = asrv.UpdateSessionRecordingConfig(ctx, newRecConfig)
 		if trace.IsCompareFailed(err) {
@@ -884,7 +1014,7 @@ func initializeAccessGraphSettings(ctx context.Context, asrv *Server) error {
 		return trace.Wrap(err)
 	}
 
-	log.Infof("Creating access graph settings: %v.", stored)
+	asrv.logger.InfoContext(ctx, "Creating access graph settings", "settings", stored)
 	_, err = asrv.CreateAccessGraphSettings(ctx, stored)
 	if trace.IsAlreadyExists(err) {
 		return nil
@@ -897,7 +1027,7 @@ func initializeAccessGraphSettings(ctx context.Context, asrv *Server) error {
 // resource should be used to replace the stored resource during auth server
 // initialization.  Dynamically configured resources must not be overwritten
 // when the corresponding file config is left unspecified (i.e., by defaults).
-func shouldInitReplaceResourceWithOrigin(stored, candidate types.ResourceWithOrigin) (bool, error) {
+func shouldInitReplaceResourceWithOrigin(ctx context.Context, stored, candidate types.ResourceWithOrigin, logger *slog.Logger) (bool, error) {
 	if candidate == nil || (candidate.Origin() != types.OriginDefaults && candidate.Origin() != types.OriginConfigFile) {
 		return false, trace.BadParameter("candidate origin must be either defaults or config-file (this is a bug)")
 	}
@@ -913,7 +1043,7 @@ func shouldInitReplaceResourceWithOrigin(stored, candidate types.ResourceWithOri
 	if candidate.Origin() == types.OriginConfigFile {
 		// Log a warning when about to overwrite a dynamically configured resource.
 		if stored.Origin() == types.OriginDynamic {
-			log.Warnf("Stored %v resource that was configured dynamically is about to be discarded in favor of explicit file configuration.", stored.GetKind())
+			logger.WarnContext(ctx, "Stored resource that was configured dynamically is about to be discarded in favor of explicit file configuration", "resource", stored.GetKind())
 		}
 		return true, nil
 	}
@@ -926,15 +1056,15 @@ func shouldInitReplaceResourceWithOrigin(stored, candidate types.ResourceWithOri
 
 // migrationStart marks the migration as active.
 // It should be called when a migration starts.
-func migrationStart(ctx context.Context, migrationName string) {
-	log.Debugf("Migrations: %q migration started.", migrationName)
+func migrationStart(ctx context.Context, migrationName string, logger *slog.Logger) {
+	logger.DebugContext(ctx, "Migration started", "migration_name", migrationName)
 	migrations.WithLabelValues(migrationName).Set(1)
 }
 
 // migrationEnd marks the migration as inactive.
 // It should be called when a migration ends.
-func migrationEnd(ctx context.Context, migrationName string) {
-	log.Debugf("Migrations: %q migration ended.", migrationName)
+func migrationEnd(ctx context.Context, migrationName string, logger *slog.Logger) {
+	logger.DebugContext(ctx, "Migration ended", "migration_name", migrationName)
 	migrations.WithLabelValues(migrationName).Set(0)
 }
 
@@ -972,6 +1102,8 @@ func GetPresetRoles() []types.Role {
 		services.NewSystemOktaAccessRole(),
 		services.NewSystemOktaRequesterRole(),
 		services.NewPresetTerraformProviderRole(),
+		services.NewSystemIdentityCenterAccessRole(),
+		services.NewPresetWildcardWorkloadIdentityIssuerRole(),
 	}
 
 	// Certain `New$FooRole()` functions will return a nil role if the
@@ -1014,7 +1146,7 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 					return trace.Wrap(err)
 				}
 
-				role, err := services.AddRoleDefaults(currentRole)
+				role, err := services.AddRoleDefaults(gctx, currentRole)
 				if trace.IsAlreadyExists(err) {
 					return nil
 				}
@@ -1045,12 +1177,23 @@ type PresetUsers interface {
 	UpsertUser(ctx context.Context, user types.User) (types.User, error)
 }
 
+// getPresetUsers returns a list of all preset users expected to be available on
+// this cluster.
+func getPresetUsers() []types.User {
+	presets := []types.User{
+		services.NewSystemAutomaticAccessBotUser(),
+	}
+
+	// Certain `New$FooUser()` functions will return a nil role if the
+	// corresponding feature is disabled. They should be filtered out as they
+	// are not actually made available on the cluster.
+	return slices.DeleteFunc(presets, func(u types.User) bool { return u == nil })
+}
+
 // createPresetUsers creates all of the required user presets. No attempt is
 // made to migrate any existing users to the lastest preset.
 func createPresetUsers(ctx context.Context, um PresetUsers) error {
-	users := []types.User{
-		services.NewSystemAutomaticAccessBotUser(),
-	}
+	users := getPresetUsers()
 	for _, user := range users {
 		// Some users are only valid for enterprise Teleport, and so will be
 		// nil for an OSS build and can be skipped
@@ -1081,6 +1224,25 @@ func createPresetDatabaseObjectImportRule(ctx context.Context, rules services.Da
 		return trace.Wrap(err, "failed listing available database object import rules")
 	}
 	if len(importRules) > 0 {
+		// If the single rule is the old preset, we assume the user hasn't used
+		// DB DAC feature yet since the old preset alone is usually not enough
+		// to make things work. Replace it with the new preset.
+		//
+		// Creating and updating the database object import rule is handled on
+		// a best-effort basis, so it’s not included in backend migrations.
+		//
+		// TODO(greedy52) DELETE in 18.0
+		if len(importRules) == 1 && databaseobjectimportrule.IsOldImportAllObjectsRulePreset(importRules[0]) {
+			rule := databaseobjectimportrule.NewPresetImportAllObjectsRule()
+			if rule == nil {
+				return nil
+			}
+
+			_, err = rules.UpsertDatabaseObjectImportRule(ctx, rule)
+			if err != nil {
+				return trace.Wrap(err, "failed to update the default database object import rule")
+			}
+		}
 		return nil
 	}
 
@@ -1124,7 +1286,8 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 		case types.CertAuthority:
 			// check that signing CAs have expected cluster name and that
 			// all CAs for this cluster do having signing keys.
-			seemsLocal := r.GetClusterName() == clusterName
+			caClusterName := r.GetClusterName()
+			seemsLocal := caClusterName == clusterName
 
 			var hasKeys bool
 			var signerErr error
@@ -1133,7 +1296,7 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 				_, signerErr = keyStore.GetSSHSigner(ctx, r)
 			case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
-			case types.JWTSigner, types.OIDCIdPCA:
+			case types.JWTSigner, types.OIDCIdPCA, types.OktaCA:
 				_, signerErr = keyStore.GetJWTSigner(ctx, r)
 			default:
 				return trace.BadParameter("unexpected cert_authority type %s for cluster %v", r.GetType(), clusterName)
@@ -1153,6 +1316,9 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 			if !seemsLocal && hasKeys {
 				return trace.BadParameter("unexpected cluster name %q for signing ca (expected %q)", r.GetClusterName(), clusterName)
 			}
+			if !seemsLocal {
+				continue
+			}
 		case types.TrustedCluster:
 			if r.GetName() == clusterName {
 				return trace.BadParameter("trusted cluster has same name as local cluster (%q)", clusterName)
@@ -1171,12 +1337,17 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 
 // GenerateIdentity generates identity for the auth server
 func GenerateIdentity(a *Server, id state.IdentityID, additionalPrincipals, dnsNames []string) (*state.Identity, error) {
-	priv, pub, err := native.GenerateKeyPair()
+	key, err := cryptosuites.GenerateKey(context.Background(), cryptosuites.GetCurrentSuiteFromAuthPreference(a), cryptosuites.HostIdentity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	tlsPub, err := PrivateKeyToPublicKeyTLS(priv)
+	sshPub, err := ssh.NewPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsPub, err := keys.MarshalPublicKey(key.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1188,9 +1359,14 @@ func GenerateIdentity(a *Server, id state.IdentityID, additionalPrincipals, dnsN
 			Role:                 id.Role,
 			AdditionalPrincipals: additionalPrincipals,
 			DNSNames:             dnsNames,
-			PublicSSHKey:         pub,
+			PublicSSHKey:         ssh.MarshalAuthorizedKey(sshPub),
 			PublicTLSKey:         tlsPub,
 		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	priv, err := keys.MarshalPrivateKey(key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1234,8 +1410,8 @@ func CertAuthorityInfo(ca types.CertAuthority) string {
 // where the presence of remote cluster was identified only by presence
 // of host certificate authority with cluster name not equal local cluster name
 func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
-	migrationStart(ctx, "remote_clusters")
-	defer migrationEnd(ctx, "remote_clusters")
+	migrationStart(ctx, "remote_clusters", asrv.logger)
+	defer migrationEnd(ctx, "remote_clusters", asrv.logger)
 
 	clusterName, err := asrv.Services.GetClusterName()
 	if err != nil {
@@ -1249,13 +1425,13 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 	// forward and forward agent allowed
 	for _, certAuthority := range certAuthorities {
 		if certAuthority.GetName() == clusterName.GetClusterName() {
-			log.Debugf("Migrations: skipping local cluster cert authority %q.", certAuthority.GetName())
+			asrv.logger.DebugContext(ctx, "Migrations: skipping local cluster cert authority", "cert_authority", certAuthority.GetName())
 			continue
 		}
 		// remote cluster already exists
 		_, err = asrv.Services.GetRemoteCluster(ctx, certAuthority.GetName())
 		if err == nil {
-			log.Debugf("Migrations: remote cluster already exists for cert authority %q.", certAuthority.GetName())
+			asrv.logger.DebugContext(ctx, "Migrations: remote cluster already exists for cert authority", "cert_authority", certAuthority.GetName())
 			continue
 		}
 		if !trace.IsNotFound(err) {
@@ -1264,7 +1440,7 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 		// the cert authority is associated with trusted cluster
 		_, err = asrv.Services.GetTrustedCluster(ctx, certAuthority.GetName())
 		if err == nil {
-			log.Debugf("Migrations: trusted cluster resource exists for cert authority %q.", certAuthority.GetName())
+			asrv.logger.DebugContext(ctx, "Migrations: trusted cluster resource exists for cert authority", "cert_authority", certAuthority.GetName())
 			continue
 		}
 		if !trace.IsNotFound(err) {
@@ -1280,7 +1456,7 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 				return trace.Wrap(err)
 			}
 		}
-		log.Infof("Migrations: added remote cluster resource for cert authority %q.", certAuthority.GetName())
+		asrv.logger.InfoContext(ctx, "Migrations: added remote cluster resource for cert authority", "cert_authority", certAuthority.GetName())
 	}
 
 	return nil
@@ -1330,13 +1506,17 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		case types.Role:
 			_, err = service.Access.UpsertRole(ctx, r)
 		case types.ClusterNetworkingConfig:
-			_, err = service.ClusterConfiguration.UpsertClusterNetworkingConfig(ctx, r)
+			_, err = service.ClusterConfigurationInternal.UpsertClusterNetworkingConfig(ctx, r)
 		case types.AuthPreference:
-			_, err = service.ClusterConfiguration.UpsertAuthPreference(ctx, r)
+			_, err = service.ClusterConfigurationInternal.UpsertAuthPreference(ctx, r)
 		case *machineidv1pb.Bot:
 			_, err = machineidv1.UpsertBot(ctx, service, r, time.Now(), "system")
 		case *dbobjectimportrulev1pb.DatabaseObjectImportRule:
 			_, err = dbobjectimportrulev1.UpsertDatabaseObjectImportRule(ctx, service, r)
+		case *autoupdatev1pb.AutoUpdateConfig:
+			_, err = autoupdatev1.UpsertAutoUpdateConfig(ctx, service, r)
+		case *autoupdatev1pb.AutoUpdateVersion:
+			_, err = autoupdatev1.UpsertAutoUpdateVersion(ctx, service, r)
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}

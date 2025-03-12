@@ -27,13 +27,25 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 )
+
+// LicenseStore implements client-side license storage for Microsoft
+// Remote Desktop Services (RDS) licenses.
+type LicenseStore interface {
+	WriteRDPLicense(ctx context.Context, key *types.RDPLicenseKey, license []byte) error
+	ReadRDPLicense(ctx context.Context, key *types.RDPLicenseKey) ([]byte, error)
+}
 
 // Config for creating a new Client.
 type Config struct {
 	// Addr is the network address of the RDP server, in the form host:port.
 	Addr string
+
+	LicenseStore LicenseStore
+	HostID       string
+
 	// UserCertGenerator generates user certificates for RDP authentication.
 	GenerateUserCert GenerateUserCertFn
 	CertTTL          time.Duration
@@ -60,12 +72,29 @@ type Config struct {
 	// user-selected wallpaper vs a system-default, single-color wallpaper.
 	ShowDesktopWallpaper bool
 
+	// NLA indicates whether the client should perform Network Level Authentication
+	// (NLA) when initiating the RDP session.
+	NLA bool
+
 	// Width and Height optionally override the dimensions received from
 	// the browser and force the session to use a particular size.
 	Width, Height uint32
 
 	// Logger is the logger for status messages.
 	Logger *slog.Logger
+
+	// ComputerName is the name used to communicate with KDC.
+	// Used for NLA support when AD is true.
+	ComputerName string
+
+	// KDCAddr is the address of Key Distribution Center.
+	// This is used to support RDP Network Level Authentication (NLA)
+	// when connecting to hosts enrolled in Active Directory.
+	// This filed is not used when AD is false.
+	KDCAddr string
+
+	// AD indicates whether the desktop is part of an Active Directory domain.
+	AD bool
 }
 
 // GenerateUserCertFn generates user certificates for RDP authentication.

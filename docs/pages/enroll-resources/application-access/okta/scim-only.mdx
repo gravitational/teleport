@@ -42,7 +42,7 @@ Okta does not send SCIM updates to Teleport when a user is merely suspended. Eve
 ## Prerequisites
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
-- [Authentication With Okta as an SSO Provider](../../../access-controls/sso/okta.mdx)
+- [Authentication With Okta as an SSO Provider](../../../admin-guides/access-controls/sso/okta.mdx)
 
 
 ## Step 1/2. Installing the Teleport SCIM integration
@@ -57,7 +57,7 @@ Run the following `tctl` command to install the SCIM integration.
 <Tabs>
 <TabItem label="Without API token">
 
-```bash
+```code
 $ tctl plugins install okta  \
   --org https://trial-12356.okta.com \
   --saml-connector "${SAML_CONNECTOR_NAME}" \
@@ -75,14 +75,14 @@ SCIM Bearer Token: 1234567891234567891234567890
 </TabItem>
 <TabItem label="With API token">
 
-```bash
+```code
 $ tctl plugins install okta  \
   --org https://trial-12356.okta.com \
   --saml-connector "${SAML_CONNECTOR_NAME}" \
   --no-users-sync \
   --no-accesslist-sync \
   --no-appgroup-sync \
-  --scim
+  --scim \
   --api-token="${OKTA_API_TOKEN}"
 Successfully created Okta plugin "okta"
 
@@ -90,6 +90,12 @@ SCIM Base URL: https://teleport.example.com:443/v1/webapi/scim/okta
 SCIM Identifier field for users: userName
 SCIM Bearer Token: 1234567891234567891234567890
 ```
+<Admonition type="note">
+The Okta API Token requires the following permissions:
+ - View users and their details
+ - View groups and their details
+ - View applications and their details
+</Admonition>
 
 </TabItem>
 </Tabs>
@@ -125,7 +131,7 @@ with a subset and/or mapped version of the full User profile.
 You can delete the SCIM integration via the Integrations page in the Teleport UI,
 or with tctl like so:
 
-```bash
+```code
 $ tctl plugins delete okta
 ```
 
@@ -138,7 +144,7 @@ You can semi-manually delete all SCIM-provisioned users using a combination of
 tctl and jq.
 
 For example:
-```bash
+```code
 tctl get users --format=json \
  |  jq '.[] | select(.metadata.labels["teleport.dev/origin"] == "okta") | .metadata.name' -r \
  | xargs -L 1 tctl users rm

@@ -4,23 +4,24 @@
 # to build the Teleport Connect. It can also be used to build the
 # web assets for the Teleport UI.
 #
-# This image is base on the node image, which is based on Debian Buster.
-# Using it as a image allows us to link agains the same version of
-# glibc as Node.js.
+# This image is base on the node image, which is based on Debian Bullseye.
+# Using it as an image allows us to link against the oldest version of glibc
+# supported by Node.js Docker images.
 #
 # Check the README to learn how to safely introduce changes to Dockerfiles.
 
 ## BUILDBOX-NODE ###################################################################
 
-# Pin the tag to Debian Buster to make sure the Glibc compatibility.
+# Pin the tag to Debian Bullseye to make sure the glibc compatibility
+# (glibc version of Bullseye is 2.31).
 ARG NODE_VERSION
-FROM node:${NODE_VERSION}-buster AS buildbox
+FROM node:${NODE_VERSION}-bullseye AS buildbox
 
 # BUILDARCH is automatically set by DOCKER when building the image with Build Kit (MacOS by deafult).
 # https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
 ARG BUILDARCH
 
-RUN corepack enable pnpm
+RUN npm install -g corepack@0.31.0 && corepack enable pnpm
 
 COPY locale.gen /etc/locale.gen
 COPY profile /etc/profile

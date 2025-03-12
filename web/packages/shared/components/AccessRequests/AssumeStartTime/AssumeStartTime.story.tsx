@@ -16,17 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import { format } from 'date-fns';
+import { useState } from 'react';
 
 import { Box, Text } from 'design';
-
+import { displayDateTime } from 'design/datetime';
 import { Option } from 'shared/components/Select';
-import cfg from 'shared/config';
 
-import { dryRunResponse } from '../fixtures';
 import { AccessDurationRequest, AccessDurationReview } from '../AccessDuration';
-
+import { dryRunResponse } from '../fixtures';
 import { AssumeStartTime } from './AssumeStartTime';
 
 export default {
@@ -42,12 +39,11 @@ export const NewRequest = () => {
       <Box mb={4}>
         <Text>Sample Dry Run Access Requeset Response:</Text>
         <Text>
-          <b>Created Date:</b>{' '}
-          {format(dryRunResponse.created, cfg.dateTimeFormat)}
+          <b>Created Date:</b> {displayDateTime(dryRunResponse.created)}
         </Text>
         <Text>
           <b>Max Duration Date:</b>{' '}
-          {format(dryRunResponse.maxDuration, cfg.dateTimeFormat)}
+          {displayDateTime(dryRunResponse.maxDuration)}
         </Text>
       </Box>
       <AssumeStartTime
@@ -72,12 +68,11 @@ export const CreatedRequestWithoutStart = () => {
       <Box mb={4}>
         <Text>Sample Access Request:</Text>
         <Text>
-          <b>Created Date:</b>{' '}
-          {format(dryRunResponse.created, cfg.dateTimeFormat)}
+          <b>Created Date:</b> {displayDateTime(dryRunResponse.created)}
         </Text>
         <Text>
           <b>Max Duration Date:</b>{' '}
-          {format(dryRunResponse.maxDuration, cfg.dateTimeFormat)}
+          {displayDateTime(dryRunResponse.maxDuration)}
         </Text>
       </Box>
       <AssumeStartTime
@@ -107,11 +102,10 @@ export const CreatedRequestWithStart = () => {
       <Box mb={4}>
         <Text>Sample Access Request:</Text>
         <Text>
-          <b>Created Date:</b> {format(withStart.created, cfg.dateTimeFormat)}
+          <b>Created Date:</b> {displayDateTime(withStart.created)}
         </Text>
         <Text>
-          <b>Max Duration Date:</b>{' '}
-          {format(withStart.maxDuration, cfg.dateTimeFormat)}
+          <b>Max Duration Date:</b> {displayDateTime(withStart.maxDuration)}
         </Text>
       </Box>
       <AssumeStartTime

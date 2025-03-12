@@ -27,7 +27,9 @@ package storage
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
@@ -63,7 +65,7 @@ type stateBackend interface {
 	// exists, updates it otherwise)
 	Put(ctx context.Context, i backend.Item) (*backend.Lease, error)
 	// Get returns a single item or not found error
-	Get(ctx context.Context, key []byte) (*backend.Item, error)
+	Get(ctx context.Context, key backend.Key) (*backend.Item, error)
 }
 
 // ProcessStorage is a backend for local process state,
@@ -88,13 +90,13 @@ func (p *ProcessStorage) Close() error {
 
 // GetState reads rotation state from disk.
 func (p *ProcessStorage) GetState(ctx context.Context, role types.SystemRole) (*state.StateV2, error) {
-	item, err := p.stateStorage.Get(ctx, backend.Key(statesPrefix, strings.ToLower(role.String()), stateName))
+	item, err := p.stateStorage.Get(ctx, backend.NewKey(statesPrefix, strings.ToLower(role.String()), stateName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	var res state.StateV2
 	if err := utils.FastUnmarshal(item.Value, &res); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 
 	// an empty InitialLocalVersion is treated as an error by CheckAndSetDefaults, but if the field
@@ -121,7 +123,7 @@ func (p *ProcessStorage) CreateState(role types.SystemRole, state state.StateV2)
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:   backend.Key(statesPrefix, strings.ToLower(role.String()), stateName),
+		Key:   backend.NewKey(statesPrefix, strings.ToLower(role.String()), stateName),
 		Value: value,
 	}
 	_, err = p.stateStorage.Create(context.TODO(), item)
@@ -141,7 +143,7 @@ func (p *ProcessStorage) WriteState(role types.SystemRole, state state.StateV2) 
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:   backend.Key(statesPrefix, strings.ToLower(role.String()), stateName),
+		Key:   backend.NewKey(statesPrefix, strings.ToLower(role.String()), stateName),
 		Value: value,
 	}
 	_, err = p.stateStorage.Put(context.TODO(), item)
@@ -156,13 +158,13 @@ func (p *ProcessStorage) ReadIdentity(name string, role types.SystemRole) (*stat
 	if name == "" {
 		return nil, trace.BadParameter("missing parameter name")
 	}
-	item, err := p.stateStorage.Get(context.TODO(), backend.Key(idsPrefix, strings.ToLower(role.String()), name))
+	item, err := p.stateStorage.Get(context.TODO(), backend.NewKey(idsPrefix, strings.ToLower(role.String()), name))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	var res state.IdentityV2
 	if err := utils.FastUnmarshal(item.Value, &res); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	if err := res.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -201,7 +203,7 @@ func (p *ProcessStorage) WriteIdentity(name string, id state.Identity) error {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:   backend.Key(idsPrefix, strings.ToLower(id.ID.Role.String()), name),
+		Key:   backend.NewKey(idsPrefix, strings.ToLower(id.ID.Role.String()), name),
 		Value: value,
 	}
 	_, err = p.stateStorage.Put(context.TODO(), item)
@@ -210,7 +212,7 @@ func (p *ProcessStorage) WriteIdentity(name string, id state.Identity) error {
 
 // GetTeleportVersion reads the last known Teleport version from storage.
 func (p *ProcessStorage) GetTeleportVersion(ctx context.Context) (*semver.Version, error) {
-	item, err := p.stateStorage.Get(ctx, backend.Key(teleportPrefix, lastKnownVersion))
+	item, err := p.stateStorage.Get(ctx, backend.NewKey(teleportPrefix, lastKnownVersion))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -223,7 +225,7 @@ func (p *ProcessStorage) WriteTeleportVersion(ctx context.Context, version *semv
 		return trace.BadParameter("wrong version parameter")
 	}
 	item := backend.Item{
-		Key:   backend.Key(teleportPrefix, lastKnownVersion),
+		Key:   backend.NewKey(teleportPrefix, lastKnownVersion),
 		Value: []byte(version.String()),
 	}
 	_, err := p.stateStorage.Put(ctx, item)
@@ -231,6 +233,42 @@ func (p *ProcessStorage) WriteTeleportVersion(ctx context.Context, version *semv
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func rdpLicenseKey(key *types.RDPLicenseKey) backend.Key {
+	return backend.NewKey("rdplicense", key.Issuer, strconv.Itoa(int(key.Version)), key.Company, key.ProductID)
+}
+
+type rdpLicense struct {
+	Data []byte `json:"data"`
+}
+
+// WriteRDPLicense writes an RDP license to local storage.
+func (p *ProcessStorage) WriteRDPLicense(ctx context.Context, key *types.RDPLicenseKey, license []byte) error {
+	value, err := json.Marshal(rdpLicense{Data: license})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:     rdpLicenseKey(key),
+		Value:   value,
+		Expires: p.BackendStorage.Clock().Now().Add(28 * 24 * time.Hour),
+	}
+	_, err = p.stateStorage.Put(ctx, item)
+	return trace.Wrap(err)
+}
+
+// ReadRDPLicense reads a previously obtained license from storage.
+func (p *ProcessStorage) ReadRDPLicense(ctx context.Context, key *types.RDPLicenseKey) ([]byte, error) {
+	item, err := p.stateStorage.Get(ctx, rdpLicenseKey(key))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	license := rdpLicense{}
+	if err := json.Unmarshal(item.Value, &license); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return license.Data, nil
 }
 
 // ReadLocalIdentity reads, parses and returns the given pub/pri key + cert from the

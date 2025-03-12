@@ -18,24 +18,23 @@
 
 import React from 'react';
 
-import { AwsAccount, ResourceKind, Finished } from 'teleport/Discover/Shared';
-import { ResourceViewConfig } from 'teleport/Discover/flow';
-import { DatabaseWrapper } from 'teleport/Discover/Database/DatabaseWrapper';
-import {
-  ResourceSpec,
-  DatabaseLocation,
-} from 'teleport/Discover/SelectResource';
 import cfg from 'teleport/config';
-
 import { CreateDatabase } from 'teleport/Discover/Database/CreateDatabase';
-import { SetupAccess } from 'teleport/Discover/Database/SetupAccess';
+import { DatabaseWrapper } from 'teleport/Discover/Database/DatabaseWrapper';
 import { DeployService } from 'teleport/Discover/Database/DeployService';
 import { ManualDeploy } from 'teleport/Discover/Database/DeployService/ManualDeploy';
-import { MutualTls } from 'teleport/Discover/Database/MutualTls';
-import { TestConnection } from 'teleport/Discover/Database/TestConnection';
-import { DiscoverEvent } from 'teleport/services/userEvent';
 import { EnrollRdsDatabase } from 'teleport/Discover/Database/EnrollRdsDatabase';
 import { IamPolicy } from 'teleport/Discover/Database/IamPolicy';
+import { MutualTls } from 'teleport/Discover/Database/MutualTls';
+import { SetupAccess } from 'teleport/Discover/Database/SetupAccess';
+import { TestConnection } from 'teleport/Discover/Database/TestConnection';
+import { ResourceViewConfig } from 'teleport/Discover/flow';
+import {
+  DatabaseLocation,
+  ResourceSpec,
+} from 'teleport/Discover/SelectResource';
+import { AwsAccount, Finished, ResourceKind } from 'teleport/Discover/Shared';
+import { DiscoverEvent } from 'teleport/services/userEvent';
 
 import { ConfigureDiscoveryService } from '../Shared/ConfigureDiscoveryService';
 
@@ -44,7 +43,7 @@ export const DatabaseResource: ResourceViewConfig<ResourceSpec> = {
   wrapper(component: React.ReactNode) {
     return <DatabaseWrapper>{component}</DatabaseWrapper>;
   },
-  shouldPrompt(currentStep, resourceSpec) {
+  shouldPrompt(currentStep, currentView, resourceSpec) {
     if (resourceSpec.dbMeta?.location === DatabaseLocation.Aws) {
       // Allow user to bypass prompting on this step (Connect AWS Connect)
       // on exit because users might need to change route to setup an
@@ -53,7 +52,7 @@ export const DatabaseResource: ResourceViewConfig<ResourceSpec> = {
         return false;
       }
     }
-    return true;
+    return currentView?.eventName !== DiscoverEvent.Completed;
   },
   views(resource) {
     let configureResourceViews;

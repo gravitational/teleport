@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services/suite"
 )
@@ -259,6 +260,31 @@ func TestNodeCRUD(t *testing.T) {
 		require.NoError(t, err)
 		_, err = presence.UpsertNode(ctx, node2)
 		require.NoError(t, err)
+	})
+
+	t.Run("UpdateNode", func(t *testing.T) {
+		node1, err = presence.GetNode(ctx, apidefaults.Namespace, node1.GetName())
+		require.NoError(t, err)
+		node1.SetAddr("1.2.3.4:8080")
+
+		node2, err = presence.GetNode(ctx, apidefaults.Namespace, node2.GetName())
+		require.NoError(t, err)
+
+		node1, err = presence.UpdateNode(ctx, node1)
+		require.NoError(t, err)
+		require.Equal(t, "1.2.3.4:8080", node1.GetAddr())
+
+		rev := node2.GetRevision()
+		node2.SetAddr("1.2.3.4:9090")
+		node2.SetRevision(node1.GetRevision())
+
+		_, err = presence.UpdateNode(ctx, node2)
+		require.True(t, trace.IsCompareFailed(err))
+		node2.SetRevision(rev)
+
+		node2, err = presence.UpdateNode(ctx, node2)
+		require.NoError(t, err)
+		require.Equal(t, "1.2.3.4:9090", node2.GetAddr())
 	})
 
 	// Run NodeGetters in nested subtests to allow parallelization.
@@ -1274,4 +1300,86 @@ func TestServerInfoCRUD(t *testing.T) {
 	out, err = stream.Collect(presence.GetServerInfos(ctx))
 	require.NoError(t, err)
 	require.Empty(t, out)
+}
+
+func TestPresenceService_ListReverseTunnels(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, bk.Close()) })
+
+	presenceService := NewPresenceService(bk)
+
+	// With no resources, we should not get an error but we should get an empty
+	// token and an empty slice.
+	rcs, pageToken, err := presenceService.ListReverseTunnels(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, pageToken)
+	require.Empty(t, rcs)
+
+	// Create a few remote clusters
+	for i := 0; i < 10; i++ {
+		rc, err := types.NewReverseTunnel(fmt.Sprintf("rt-%d", i), []string{"example.com:443"})
+		require.NoError(t, err)
+		err = presenceService.UpsertReverseTunnel(ctx, rc)
+		require.NoError(t, err)
+	}
+
+	// Check limit behaves
+	rcs, pageToken, err = presenceService.ListReverseTunnels(ctx, 1, "")
+	require.NoError(t, err)
+	require.NotEmpty(t, pageToken)
+	require.Len(t, rcs, 1)
+
+	// Iterate through all pages with a low limit to ensure that pageToken
+	// behaves correctly.
+	rcs = []types.ReverseTunnel{}
+	pageToken = ""
+	for i := 0; i < 10; i++ {
+		var got []types.ReverseTunnel
+		got, pageToken, err = presenceService.ListReverseTunnels(ctx, 1, pageToken)
+		require.NoError(t, err)
+		if i == 9 {
+			// For the final page, we should not get a page token
+			require.Empty(t, pageToken)
+		} else {
+			require.NotEmpty(t, pageToken)
+		}
+		require.Len(t, got, 1)
+		rcs = append(rcs, got...)
+	}
+	require.Len(t, rcs, 10)
+
+	// Check that with a higher limit, we get all resources
+	rcs, pageToken, err = presenceService.ListReverseTunnels(ctx, 20, "")
+	require.NoError(t, err)
+	require.Empty(t, pageToken)
+	require.Len(t, rcs, 10)
+}
+
+func TestPresenceService_UpsertReverseTunnel(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, bk.Close()) })
+
+	presenceService := NewPresenceService(bk)
+
+	rt, err := types.NewReverseTunnel("my-tunnel", []string{"example.com:443"})
+	require.NoError(t, err)
+
+	// Upsert a reverse tunnel
+	got, err := presenceService.UpsertReverseTunnelV2(ctx, rt)
+	require.NoError(t, err)
+	// Check that the returned resource is the same as the one we upserted
+	require.Empty(t, cmp.Diff(rt, got, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	// Do a get to check revision matches
+	fetched, err := presenceService.GetReverseTunnel(ctx, rt.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(got, fetched))
 }

@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -32,7 +33,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -59,9 +59,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // SessionContext is a context associated with a user's
@@ -86,7 +88,7 @@ type SessionContext struct {
 
 type SessionContextConfig struct {
 	// Log is used to emit logs
-	Log *logrus.Entry
+	Log *slog.Logger
 	// User is the name of the current user
 	User string
 
@@ -139,10 +141,10 @@ func (c *SessionContextConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = log.WithFields(logrus.Fields{
-			"user":    c.User,
-			"session": c.Session.GetShortName(),
-		})
+		c.Log = slog.With(
+			"user", c.User,
+			"session", c.Session.GetShortName(),
+		)
 	}
 
 	if c.newRemoteClient == nil {
@@ -202,8 +204,12 @@ func (c *SessionContext) validateBearerToken(ctx context.Context, token string) 
 	}
 
 	if fetchedToken.GetUser() != c.cfg.User {
-		c.cfg.Log.Warnf("Failed validating bearer token: the user[%s] in bearer token[%s] did not match the user[%s] for session[%s]",
-			fetchedToken.GetUser(), token, c.cfg.User, c.GetSessionID())
+		c.cfg.Log.WarnContext(ctx, "Failed validating bearer token: the user in bearer token did not match the user for session",
+			"token_user", fetchedToken.GetUser(),
+			"token", token,
+			"session_user", c.cfg.User,
+			"session_id", c.GetSessionID(),
+		)
 		return trace.AccessDenied("access denied")
 	}
 
@@ -260,7 +266,10 @@ func (c *SessionContext) remoteClient(ctx context.Context, site reversetunnelcli
 		// the session context is closed.
 		err = c.remoteClientCache.addRemoteClient(site, rClt)
 		if err != nil {
-			c.cfg.Log.WithError(err).Info("Failed closing stale remote client for site: ", site.GetName())
+			c.cfg.Log.InfoContext(ctx, "Failed closing stale remote client for site",
+				"remote_site", site.GetName(),
+				"error", err,
+			)
 		}
 
 		return rClt, nil
@@ -503,10 +512,12 @@ func (c *SessionContext) GetUserAccessChecker() (services.AccessChecker, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	accessInfo, err := services.AccessInfoFromLocalCertificate(cert)
+	ident, err := sshca.DecodeIdentity(cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	accessInfo := services.AccessInfoFromLocalSSHIdentity(ident)
 
 	accessChecker, err := services.NewAccessChecker(accessInfo, c.cfg.RootClusterName, c.cfg.UnsafeCachedAuthClient)
 	return accessChecker, trace.Wrap(err)
@@ -595,7 +606,7 @@ func (c *SessionContext) expired(ctx context.Context) bool {
 		// was removed during user logout, expire the session immediately.
 		return true
 	default:
-		c.cfg.Log.WithError(err).Debug("Failed to query web session.")
+		c.cfg.Log.DebugContext(ctx, "Failed to query web session", "error", err)
 	}
 
 	// If the session has no expiry time, then also by definition it
@@ -634,6 +645,7 @@ type sessionCacheOptions struct {
 	sessionWatcherStartImmediately bool
 	// See [sessionCache.sessionWatcherEventProcessedChannel]. Used for testing.
 	sessionWatcherEventProcessedChannel chan struct{}
+	logger                              *slog.Logger
 }
 
 // newSessionCache creates a [sessionCache] from the provided [config] and
@@ -649,6 +661,10 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 		config.clock = clockwork.NewRealClock()
 	}
 
+	if config.logger == nil {
+		config.logger = slog.Default()
+	}
+
 	cache := &sessionCache{
 		clusterName:                         clusterName.GetClusterName(),
 		proxyClient:                         config.proxyClient,
@@ -658,7 +674,7 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 		authServers:                         config.servers,
 		closer:                              utils.NewCloseBroadcaster(),
 		cipherSuites:                        config.cipherSuites,
-		log:                                 newPackageLogger(),
+		log:                                 config.logger,
 		clock:                               config.clock,
 		sessionLingeringThreshold:           config.sessionLingeringThreshold,
 		proxySigner:                         config.proxySigner,
@@ -678,7 +694,7 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 // sessionCache handles web session authentication,
 // and holds in-memory contexts associated with each session
 type sessionCache struct {
-	log         logrus.FieldLogger
+	log         *slog.Logger
 	proxyClient authclient.ClientI
 	authServers []utils.NetAddr
 	accessPoint authclient.ReadProxyAccessPoint
@@ -724,7 +740,7 @@ type sessionCache struct {
 
 // Close closes all allocated resources and stops goroutines
 func (s *sessionCache) Close() error {
-	s.log.Info("Closing session cache.")
+	s.log.InfoContext(context.Background(), "Closing session cache")
 	return s.closer.Close()
 }
 
@@ -757,8 +773,8 @@ func (s *sessionCache) clearExpiredSessions(ctx context.Context) {
 		if !c.expired(ctx) {
 			continue
 		}
-		s.removeSessionContextLocked(c.cfg.Session.GetUser(), c.cfg.Session.GetName())
-		s.log.WithField("ctx", c.String()).Debug("Context expired.")
+		s.removeSessionContextLocked(ctx, c.cfg.Session.GetUser(), c.cfg.Session.GetName())
+		s.log.DebugContext(ctx, "Context expired", "context", logutils.StringerAttr(c))
 	}
 }
 
@@ -775,12 +791,12 @@ func (s *sessionCache) watchWebSessions(ctx context.Context) {
 		linear.First = 0
 	}
 
-	s.log.Debug("sessionCache: Starting WebSession watcher")
+	s.log.DebugContext(ctx, "sessionCache: Starting WebSession watcher")
 	for {
 		select {
 		// Stop when the context tells us to.
 		case <-ctx.Done():
-			s.log.Debug("sessionCache: Stopping WebSession watcher")
+			s.log.DebugContext(ctx, "sessionCache: Stopping WebSession watcher")
 			return
 
 		case <-linear.After():
@@ -791,7 +807,7 @@ func (s *sessionCache) watchWebSessions(ctx context.Context) {
 			const msg = "" +
 				"sessionCache: WebSession watcher aborted, re-connecting. " +
 				"This may have an impact in device trust web sessions."
-			s.log.WithError(err).Warn(msg)
+			s.log.WarnContext(ctx, msg, "error", err)
 		}
 	}
 }
@@ -840,9 +856,9 @@ func (s *sessionCache) watchWebSessionsOnce(ctx context.Context, reset func()) e
 		case event := <-watcher.Events():
 			reset() // Reset linear backoff attempts.
 
-			s.log.
-				WithField("event", event).
-				Trace("sessionCache: Received watcher event")
+			s.log.Log(ctx, logutils.TraceLevel, "sessionCache: Received watcher event",
+				"event", logutils.StringerAttr(event),
+			)
 
 			if event.Type != types.OpPut {
 				continue // We only care about OpPut at the moment.
@@ -850,25 +866,25 @@ func (s *sessionCache) watchWebSessionsOnce(ctx context.Context, reset func()) e
 
 			session, ok := event.Resource.(types.WebSession)
 			if !ok {
-				s.log.
-					WithField("resource_type", fmt.Sprintf("%T", event.Resource)).
-					Warn("sessionCache: Received unexpected resource type")
+				s.log.WarnContext(ctx, "sessionCache: Received unexpected resource type",
+					"resource_type", logutils.TypeAttr(event.Resource),
+				)
 				continue
 			}
 			if !session.GetHasDeviceExtensions() {
-				s.log.
-					WithField("session_id", session.GetName()).
-					Debug("sessionCache: Updated session doesn't have device extensions, skipping")
+				s.log.DebugContext(ctx, "sessionCache: Updated session doesn't have device extensions, skipping",
+					"session_id", session.GetName(),
+				)
 				notifyProcessed()
 				continue
 			}
 
 			// Release existing and non-device-aware session.
-			if err := s.releaseResourcesIfNoDeviceExtensions(session.GetUser(), session.GetName()); err != nil {
-				s.log.
-					WithError(err).
-					WithField("session_id", session.GetName()).
-					Debug("sessionCache: Failed to release updated session")
+			if err := s.releaseResourcesIfNoDeviceExtensions(ctx, session.GetUser(), session.GetName()); err != nil {
+				s.log.DebugContext(ctx, "sessionCache: Failed to release updated session",
+					"error", err,
+					"session_id", session.GetName(),
+				)
 			}
 
 			notifyProcessed()
@@ -876,7 +892,7 @@ func (s *sessionCache) watchWebSessionsOnce(ctx context.Context, reset func()) e
 	}
 }
 
-func (s *sessionCache) releaseResourcesIfNoDeviceExtensions(user, sessionID string) error {
+func (s *sessionCache) releaseResourcesIfNoDeviceExtensions(ctx context.Context, user, sessionID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -885,16 +901,16 @@ func (s *sessionCache) releaseResourcesIfNoDeviceExtensions(user, sessionID stri
 	case !ok:
 		return nil // Session not found
 	case sessionCtx.cfg.Session.GetHasDeviceExtensions():
-		s.log.
-			WithField("session_id", sessionID).
-			Debug("sessionCache: Session already has device extensions, skipping")
+		s.log.DebugContext(ctx, "sessionCache: Session already has device extensions, skipping",
+			"session_id", sessionID,
+		)
 		return nil
 	}
 
-	s.log.
-		WithField("session_id", sessionID).
-		Debug("sessionCache: Releasing session resources due to device extensions upgrade")
-	return s.releaseResourcesLocked(user, sessionID)
+	s.log.DebugContext(ctx, "sessionCache: Releasing session resources due to device extensions upgrade",
+		"session_id", sessionID,
+	)
+	return s.releaseResourcesLocked(ctx, user, sessionID)
 }
 
 // AuthWithOTP authenticates the specified user with the given password and OTP token.
@@ -948,7 +964,8 @@ func (s *sessionCache) AuthenticateSSHUser(
 	authReq := authclient.AuthenticateUserRequest{
 		Username:       c.User,
 		ClientMetadata: clientMeta,
-		PublicKey:      c.PubKey,
+		SSHPublicKey:   c.UserPublicKeys.SSHPubKey,
+		TLSPublicKey:   c.UserPublicKeys.TLSPubKey,
 	}
 	if c.Password != "" {
 		authReq.Pass = &authclient.PassCreds{Password: []byte(c.Password)}
@@ -968,7 +985,8 @@ func (s *sessionCache) AuthenticateSSHUser(
 		TTL:                     c.TTL,
 		RouteToCluster:          c.RouteToCluster,
 		KubernetesCluster:       c.KubernetesCluster,
-		AttestationStatement:    c.AttestationStatement,
+		SSHAttestationStatement: c.UserPublicKeys.SSHAttestationStatement,
+		TLSAttestationStatement: c.UserPublicKeys.TLSAttestationStatement,
 	})
 }
 
@@ -1022,13 +1040,7 @@ func (s *sessionCache) invalidateSession(ctx context.Context, sctx *SessionConte
 	if err := clt.DeleteUserAppSessions(ctx, &proto.DeleteUserAppSessionsRequest{Username: sctx.GetUser()}); err != nil {
 		sessionDeletionErrs = err
 	}
-	if samlSession := sctx.cfg.Session.GetSAMLSession(); samlSession != nil && samlSession.ID != "" {
-		if err := clt.DeleteSAMLIdPSession(ctx, types.DeleteSAMLIdPSessionRequest{
-			SessionID: samlSession.ID,
-		}); err != nil && !trace.IsNotFound(err) {
-			sessionDeletionErrs = errors.Join(sessionDeletionErrs, err)
-		}
-	}
+
 	// Delete just the session - leave the bearer token to linger to avoid
 	// failing a client query still using the old token.
 	if err := clt.WebSessions().Delete(ctx, types.DeleteWebSessionRequest{
@@ -1059,40 +1071,40 @@ func (s *sessionCache) insertContext(user string, sctx *SessionContext) (exists 
 	return false
 }
 
-func (s *sessionCache) releaseResources(user, sessionID string) error {
+func (s *sessionCache) releaseResources(ctx context.Context, user, sessionID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.releaseResourcesLocked(user, sessionID)
+	return s.releaseResourcesLocked(ctx, user, sessionID)
 }
 
-func (s *sessionCache) removeSessionContextLocked(user, sessionID string) error {
+func (s *sessionCache) removeSessionContextLocked(ctx context.Context, user, sessionID string) error {
 	id := sessionKey(user, sessionID)
-	ctx, ok := s.sessions[id]
+	sess, ok := s.sessions[id]
 	if !ok {
 		return nil
 	}
 	delete(s.sessions, id)
-	err := ctx.Close()
+	err := sess.Close()
 	if err != nil {
-		s.log.WithFields(logrus.Fields{
-			"ctx":           ctx.String(),
-			logrus.ErrorKey: err,
-		}).Warn("Failed to close session context.")
+		s.log.WarnContext(ctx, "Failed to close session context",
+			"context", logutils.StringerAttr(sess),
+			"error", err,
+		)
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func (s *sessionCache) releaseResourcesLocked(user, sessionID string) error {
+func (s *sessionCache) releaseResourcesLocked(ctx context.Context, user, sessionID string) error {
 	var errors []error
-	err := s.removeSessionContextLocked(user, sessionID)
+	err := s.removeSessionContextLocked(ctx, user, sessionID)
 	if err != nil {
 		errors = append(errors, err)
 	}
-	if ctx, ok := s.resources[user]; ok {
+	if sess, ok := s.resources[user]; ok {
 		delete(s.resources, user)
-		if err := ctx.Close(); err != nil {
-			s.log.WithError(err).Warn("Failed to clean up session context.")
+		if err := sess.Close(); err != nil {
+			s.log.WarnContext(ctx, "Failed to clean up session context", "error", err)
 			errors = append(errors, err)
 		}
 	}
@@ -1106,10 +1118,10 @@ func (s *sessionCache) upsertSessionContext(user string) *sessionResources {
 		return ctx
 	}
 	ctx := &sessionResources{
-		log: s.log.WithFields(logrus.Fields{
-			teleport.ComponentKey: "user-session",
-			"user":                user,
-		}),
+		log: s.log.With(
+			teleport.ComponentKey, "user-session",
+			"user", user,
+		),
 	}
 	s.resources[user] = ctx
 	return ctx
@@ -1147,10 +1159,10 @@ func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session
 	}
 
 	sctx, err := NewSessionContext(SessionContextConfig{
-		Log: s.log.WithFields(logrus.Fields{
-			"user":    session.GetUser(),
-			"session": session.GetShortName(),
-		}),
+		Log: s.log.With(
+			"user", session.GetUser(),
+			"session", session.GetShortName(),
+		),
 		User:                   session.GetUser(),
 		RootClient:             userClient,
 		UnsafeCachedAuthClient: s.accessPoint,
@@ -1221,7 +1233,6 @@ func (c *sessionResources) Close() error {
 	closers := c.transferClosers()
 	var errors []error
 	for _, closer := range closers {
-		c.log.Debugf("Closing %v.", closer)
 		if err := closer.Close(); err != nil {
 			errors = append(errors, err)
 		}
@@ -1232,7 +1243,7 @@ func (c *sessionResources) Close() error {
 // sessionResources persists resources initiated by a web session
 // but which might outlive the session.
 type sessionResources struct {
-	log logrus.FieldLogger
+	log *slog.Logger
 
 	mu      sync.Mutex
 	closers []io.Closer
@@ -1340,7 +1351,7 @@ const (
 // the server to send the session ID it's using. The returned function
 // will return the current session ID from the server or a reason why
 // one wasn't received.
-func prepareToReceiveSessionID(ctx context.Context, log *logrus.Entry, nc *client.NodeClient) func() (session.ID, sessionIDStatus) {
+func prepareToReceiveSessionID(ctx context.Context, log *slog.Logger, nc *client.NodeClient) func() (session.ID, sessionIDStatus) {
 	// send the session ID received from the server
 	var gotSessionID atomic.Bool
 	sessionIDFromServer := make(chan session.ID, 1)
@@ -1353,7 +1364,7 @@ func prepareToReceiveSessionID(ctx context.Context, log *logrus.Entry, nc *clien
 
 		sid, err := session.ParseID(string(req.Payload))
 		if err != nil {
-			log.WithError(err).Warn("Unable to parse session ID.")
+			log.WarnContext(ctx, "Unable to parse session ID", "error", err)
 			return nil
 		}
 
@@ -1372,7 +1383,7 @@ func prepareToReceiveSessionID(ctx context.Context, log *logrus.Entry, nc *clien
 	go func() {
 		resp, _, err := nc.Client.SendRequest(ctx, teleport.SessionIDQueryRequest, true, nil)
 		if err != nil {
-			log.WithError(err).Warn("Failed to send session ID query request")
+			log.WarnContext(ctx, "Failed to send session ID query request", "error", err)
 			serverWillSetSessionID <- false
 		} else {
 			serverWillSetSessionID <- resp

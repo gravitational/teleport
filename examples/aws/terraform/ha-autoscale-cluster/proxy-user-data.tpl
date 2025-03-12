@@ -14,3 +14,8 @@ TELEPORT_ENABLE_POSTGRES=${enable_postgres_listener}
 USE_ACM=${use_acm}
 USE_TLS_ROUTING=${use_tls_routing}
 EOF
+cat >>/etc/default/teleport <<EOF
+EC2_REGION=${region}
+TELEPORT_DOMAIN_NAME=${domain_name}
+TELEPORT_S3_BUCKET=${s3_bucket}
+EOF

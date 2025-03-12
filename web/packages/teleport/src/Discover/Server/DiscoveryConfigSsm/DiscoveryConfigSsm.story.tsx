@@ -16,29 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect } from 'react';
+import { delay, http, HttpResponse } from 'msw';
+import { useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
-import { http, HttpResponse, delay } from 'msw';
+
 import { Info } from 'design/Alert';
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { createTeleportContext } from 'teleport/mocks/contexts';
+import { ServerLocation } from 'teleport/Discover/SelectResource';
+import { ResourceKind } from 'teleport/Discover/Shared';
 import {
-  DiscoverProvider,
-  DiscoverContextState,
   AutoDiscovery,
+  DiscoverContextState,
+  DiscoverProvider,
 } from 'teleport/Discover/useDiscover';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
   IntegrationKind,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
-import { ResourceKind } from 'teleport/Discover/Shared';
 import {
   DiscoverDiscoveryConfigMethod,
   DiscoverEventResource,
 } from 'teleport/services/userEvent';
-import { ServerLocation } from 'teleport/Discover/SelectResource';
 
 import { DiscoveryConfigSsm } from './DiscoveryConfigSsm';
 
@@ -65,7 +66,7 @@ export const SuccessCloud = () => {
 SuccessCloud.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.joinTokenPath, () =>
+      http.post(cfg.api.discoveryJoinToken.createV2, () =>
         HttpResponse.json({ id: 'token-id' })
       ),
       http.post(cfg.api.discoveryConfigPath, () =>
@@ -89,7 +90,7 @@ export const SuccessSelfHosted = () => (
 SuccessSelfHosted.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.joinTokenPath, () =>
+      http.post(cfg.api.discoveryJoinToken.createV2, () =>
         HttpResponse.json({ id: 'token-id' })
       ),
       http.post(cfg.api.discoveryConfigPath, () =>
@@ -106,7 +107,7 @@ export const Loading = () => {
 Loading.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.joinTokenPath, () =>
+      http.post(cfg.api.discoveryJoinToken.createV2, () =>
         HttpResponse.json({ id: 'token-id' })
       ),
       http.post(cfg.api.discoveryConfigPath, () => delay('infinite')),
@@ -121,7 +122,7 @@ export const Failed = () => {
 Failed.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.joinTokenPath, () =>
+      http.post(cfg.api.discoveryJoinToken.createV2, () =>
         HttpResponse.json({ id: 'token-id' })
       ),
       http.post(cfg.api.discoveryConfigPath, () =>
@@ -167,7 +168,7 @@ const Component = ({
       name: '',
       kind: ResourceKind.Application,
       icon: null,
-      keywords: '',
+      keywords: [],
       event: DiscoverEventResource.Ec2Instance,
       nodeMeta: {
         location: ServerLocation.Aws,

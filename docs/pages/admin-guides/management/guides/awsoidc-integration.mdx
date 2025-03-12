@@ -1,0 +1,144 @@
+---
+title: AWS OIDC Integration
+description: How to connect your AWS account with Teleport and provide access to AWS resources.
+---
+
+This guide explains how to set up the Teleport AWS OIDC integration.
+
+With the AWS OIDC integration you will no longer need to deploy Teleport Agents in AWS manually for most use cases.
+The following features use an AWS OIDC integration to interact with AWS:
+- [External Audit Storage](../external-audit-storage.mdx)
+- [RDS Enrollment](./awsoidc-integration-rds.mdx)
+- EC2 Enrollment
+- [Access Graph AWS Sync](../../teleport-policy/integrations/aws-sync.mdx)
+
+It targets users who would prefer a more manual approach or to manage the integration with Infrastructure as Code tools.
+
+As an alternative to this guide, you can use the Teleport Web UI (Access Management / Enroll New Integration).
+
+## How it works
+Teleport is added as an [OpenID Connect identity provider](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html) to establish trust with your AWS account and assume a configured IAM role in order to access AWS resources.
+
+For this to work, the `openid-configuration` and public keys are automatically exposed in your cluster at:
+```code
+$ curl https://<Var name="teleport.example.com" />/.well-known/openid-configuration
+```
+The integration requires no extra configuration or services to run.
+
+Initially, no policy is added to the IAM role, but users are asked to add them the first time they are trying to use a given feature.
+For example, when setting up [External Audit Storage](../external-audit-storage.mdx), you will be asked to add the required policies to this IAM role.
+
+AWS resources created by the integration are tagged so that you can search and export them using the [AWS Resource Groups / Tag Editor](https://console.aws.amazon.com/resource-groups/tag-editor/find-resources).
+The following tags are applied:
+```code
+teleport.dev/cluster      <Var name="cluster-name"/>
+teleport.dev/origin       integration_awsoidc
+teleport.dev/integration  <Var name="my-integration"/>
+```
+
+## Prerequisites
+
+- A running Teleport cluster.
+- AWS Account with permissions to create IAM Identity Providers and roles
+
+## Step 1/4. Configure RBAC
+
+To configure the integration you will need the following allow rules in one of your Teleport roles.
+These are available by default in the preset `editor` role:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: example
+spec:
+  allow:
+    rules:
+    - resources:
+      - integration
+      verbs:
+      - create
+      - update
+      - list
+      - read
+      - delete
+      - use
+```
+
+
+## Step 2/4. Configure the Identity Provider in AWS
+Navigate to [AWS IAM Identity Provider](https://console.aws.amazon.com/iam/home#/identity_providers/create) and configure the Identity Provider:
+- Provider type: OpenID Connect
+- Provider URL:
+```code
+https://<Var name="teleport.example.com" />
+```
+- Audience: `discover.teleport`
+
+You should also add the following tags to help you track the resource in the future:
+```code
+teleport.dev/cluster      <Var name="cluster-name"/>
+teleport.dev/origin       integration_awsoidc
+teleport.dev/integration  <Var name="my-integration"/>
+```
+
+## Step 3/4. Create IAM role
+An IAM role must be created to assign the required policies to the integration <Var name="iam-role"/>.
+
+This IAM role is created without any policy, as those are added depending on the feature you would like to use, for example when setting up [Access Graph AWS Sync](../../teleport-policy/integrations/aws-sync.mdx).
+However, it must be configured to allow the Identity Provider to assume it.
+To achieve this, add the following Trust Relationship:
+```json
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Effect": "Allow",
+			"Principal": {
+				"Federated": "arn:aws:iam::<Var name="aws-account-id" description="AWS Account ID"/>:oidc-provider/<Var name="teleport.example.com" />"
+			},
+			"Action": "sts:AssumeRoleWithWebIdentity",
+			"Condition": {
+				"StringEquals": {
+					"<Var name="teleport.example.com" />:aud": "discover.teleport"
+				}
+			}
+		}
+	]
+}
+```
+
+It is also required to add the following tags, which are used by Teleport to ensure it can change the IAM role when onboarding new features:
+```code
+teleport.dev/cluster      <Var name="cluster-name"/>
+teleport.dev/origin       integration_awsoidc
+teleport.dev/integration  <Var name="my-integration"/>
+```
+
+## Step 4/4. Create integration resource
+Create a file called `awsoidc-integration.yaml` with the following content:
+
+```yaml
+kind: integration
+sub_kind: aws-oidc
+version: v1
+metadata:
+  name: <Var name="my-integration"/>
+spec:
+  aws_oidc:
+    role_arn: "arn:aws:iam::<Var name="aws-account-id"/>:role/<Var name="iam-role"/>"
+```
+
+Create the resource:
+```code
+$ tctl create -f awsoidc-integration.yaml
+integration '<Var name="my-integration"/>' has been created
+```
+
+After the set up is complete, you can now use the "Enroll New Resource" flow in Teleport Web UI, or other integration dependent features.
+
+## Next steps
+
+Now that you have an integration, you can use the following features:
+- [Access Graph AWS Sync](../../teleport-policy/integrations/aws-sync.mdx)
+- [External Audit Storage](../external-audit-storage.mdx)

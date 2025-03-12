@@ -27,31 +27,31 @@ Process exited with status 255
 
 ### Solution
 
-You should check the permission settings for the `teleport` binary. 
+You should check the permission settings for the `teleport` binary.
 
 To check the file system permissions on the `teleport` binary:
 
 1. Open a terminal shell on the computer where you have installed the `teleport` service.
 
 1. Determine the location and file system permission of the Teleport binary by running the following command:
-   
+
    ```code
    ls -al $(which teleport)
    ```
 
    The command should return output similar to the following:
-   
+
    ```text
    -rwxr-xr-x  1 root  wheel  531849504 Aug 30 18:32 /usr/local/bin/teleport
    ```
-   
-   If you don't see the permission that allows other users to read and execute (-rwxr-x**r-x**), 
+
+   If you don't see the permission that allows other users to read and execute (-rwxr-x**r-x**),
    you should update the permissions. For example:
 
    ```code
    sudo chmod go+rx $(which teleport)
    ```
-   
+
 1. Restart the `teleport` service.
 
 ## Missing logins for single sign-on users
@@ -66,10 +66,10 @@ provider don't see any of the logins they need to access remote resources.
 
 ### Solution
 
-To fix this issue, you should check that the configuration of your auth connectors assigns logins to 
-your single sign-on users or modify the traits in the Teleport roles assigned to users through their 
+To fix this issue, you should check that the configuration of your auth connectors assigns logins to
+your single sign-on users or modify the traits in the Teleport roles assigned to users through their
 group membership in the external identity provider.
-For more information about using traits in roles, see [Role Templates](../../access-controls/guides/role-templates.mdx).
+For more information about using traits in roles, see [Role Templates](../../admin-guides/access-controls/guides/role-templates.mdx).
 
 ## Offline servers are included in the server list
 
@@ -86,17 +86,17 @@ servers that have previously sent a heartbeat signal to the Teleport Proxy Servi
 one of these servers subsequently went offline:
 
 ```
-Node Name      Address        Labels                  
--------------- -------------- ----------------------- 
-ip-172-3-1-242 127.0.0.1:3022 hostname=ip-172-3-1-242 
-ip-172-3-1-75  ⟵ Tunnel       hostname=ip-172-3-1-75  
+Node Name      Address        Labels
+-------------- -------------- -----------------------
+ip-172-3-1-242 127.0.0.1:3022 hostname=ip-172-3-1-242
+ip-172-3-1-75  ⟵ Tunnel       hostname=ip-172-3-1-75
 ip-172-3-2-177 ⟵ Tunnel       hostname=ip-172-3-2-177
 ```
 
 ### Solution
 
-To investigate whether a server that previously sent a heartbeat has become unresponsive, you can run the 
-`tsh ls` or `tctl nodes ls` command with the `--format json` command-line option to see additional 
+To investigate whether a server that previously sent a heartbeat has become unresponsive, you can run the
+`tsh ls` or `tctl nodes ls` command with the `--format json` command-line option to see additional
 information, including an expiration time. For example:
 
 ```json
@@ -112,16 +112,16 @@ information, including an expiration time. For example:
     },
 ```
 
-If the server sends a regular heartbeat signal, the `expires` value should remain relatively consistent, 
-for example, eight to ten minutes from the current time. If the time to expire is less than the typical 
-expiration time—for example, within the next two or three minutes from the current time—it's likely that 
+If the server sends a regular heartbeat signal, the `expires` value should remain relatively consistent,
+for example, eight to ten minutes from the current time. If the time to expire is less than the typical
+expiration time—for example, within the next two or three minutes from the current time—it's likely that
 the server has stopped sending the heartbeat.
 
 ## Unable to join a shared session
 
-Teleport allows multiple users to observe or participate in active sessions. You can define rules and 
-configure role-based policies to control which users can join other users' sessions from `tsh` and the 
-Teleport Web UI. If you are unable to join a shared session, you should check your role assignments 
+Teleport allows multiple users to observe or participate in active sessions. You can define rules and
+configure role-based policies to control which users can join other users' sessions from `tsh` and the
+Teleport Web UI. If you are unable to join a shared session, you should check your role assignments
 and ensure you have a role that include the `join_session` permission.
 For example:
 
@@ -139,14 +139,14 @@ spec:
         modes: ['moderator', 'observer']
 ```
 
-For more information about moderated sessions and session sharing, see 
-[Moderated Sessions](../../access-controls/guides/moderated-sessions.mdx).
+For more information about moderated sessions and session sharing, see
+[Joining Sessions](../../admin-guides/access-controls/guides/joining-sessions.mdx).
 
 ## Unable to connect to agentless OpenSSH server as root
 
 You should check your sshd configuration in `/etc/ssh/sshd_config` for a setting like
 `PermitRootLogin no` or `PermitRootLogin forced-commands-only` - either of these
-settings will prevent login as root. 
+settings will prevent login as root.
 If you wish to log in as root to an OpenSSH server via Teleport, we recommend
 changing this setting to `PermitRootLogin prohibit-password`.
 

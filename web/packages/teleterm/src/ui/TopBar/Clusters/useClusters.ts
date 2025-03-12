@@ -17,13 +17,14 @@
  */
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useWorkspaceServiceState } from 'teleterm/ui/services/workspacesService';
 import { ClusterUri } from 'teleterm/ui/uri';
 
 export function useClusters() {
   const { workspacesService, clustersService, commandLauncher } =
     useAppContext();
 
-  workspacesService.useState();
+  useWorkspaceServiceState();
   clustersService.useState();
 
   function findLeaves(clusterUri: string) {

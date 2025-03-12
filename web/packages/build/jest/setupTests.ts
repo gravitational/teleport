@@ -18,13 +18,15 @@
 
 import 'whatwg-fetch';
 
-const crypt = require('crypto');
-const path = require('path');
+import crypto from 'node:crypto';
+import path from 'node:path';
 
-const failOnConsole = require('jest-fail-on-console');
+import failOnConsole from 'jest-fail-on-console';
 
 let entFailOnConsoleIgnoreList = [];
 try {
+  // Cannot do `await import` yet here.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   entFailOnConsoleIgnoreList = require('../../../../e/web/testsWithIgnoredConsole');
 } catch (err) {
   // Ignore errors related to teleport.e not being present. This allows OSS users and OSS CI to run
@@ -36,7 +38,7 @@ try {
 
 Object.defineProperty(globalThis, 'crypto', {
   value: {
-    randomUUID: () => crypt.randomUUID(),
+    randomUUID: () => crypto.randomUUID(),
   },
 });
 
@@ -53,24 +55,16 @@ const rootDir = path.join(__dirname, '..', '..', '..', '..');
 // If the test is expected to use either of those console functions, follow the advice from the
 // error message.
 const failOnConsoleIgnoreList = new Set([
+  ...entFailOnConsoleIgnoreList,
   'web/packages/design/src/utils/match/matchers.test.ts',
   'web/packages/shared/components/TextEditor/TextEditor.test.tsx',
   'web/packages/teleport/src/components/BannerList/useAlerts.test.tsx',
-  'web/packages/teleport/src/Navigation/NavigationItem.test.tsx',
-  // As of the parent commit (708dac8e0d0), the tests below are flakes.
-  // https://github.com/gravitational/teleport/pull/41252#discussion_r1595036569
-  'web/packages/teleport/src/Console/DocumentNodes/DocumentNodes.story.test.tsx',
-  'web/packages/teleport/src/Recordings/Recordings.story.test.tsx',
-  'web/packages/teleport/src/Audit/Audit.story.test.tsx',
-  'web/packages/teleport/src/Discover/Database/DeployService/AutoDeploy/AutoDeploy.test.tsx',
-  ...entFailOnConsoleIgnoreList,
 ]);
+
 // A list of allowed messages, for expected messages that shouldn't fail the build (e.g., warnings
 // about deprecated functions from 3rd-party libraries).
-const failOnConsoleAllowedMessages = [
-  'defaultProps will be removed',
-  'findDOMNode is deprecated',
-];
+const failOnConsoleAllowedMessages = [];
+
 failOnConsole({
   skipTest: ({ testPath }) => {
     const relativeTestPath = path.relative(rootDir, testPath);

@@ -12,7 +12,7 @@ are two other AWS join methods available depending on your use case:
 
 1. The **IAM join method** is available to any Teleport process running anywhere
    with access to IAM credentials, such as an EC2 instance with an attached IAM
-   role (see [documentation](aws-iam.mdx). No specific permissions or IAM policy
+   role (see [documentation](aws-iam.mdx)). No specific permissions or IAM policy
    is required: an IAM role with no attached policies is sufficient. No IAM
    credentials are required on the Teleport Auth Service.
 1. **Tokens not signed by AWS:** You can configure Teleport processes running on
@@ -45,7 +45,7 @@ Teleport processes joining the cluster.
   by default). Remove the data directory if this instance has previously joined
   a Teleport cluster.
 
-## Step 1/4. Set up AWS IAM credentials
+## Step 1/5. Set up AWS IAM credentials
 
 The Teleport Auth Service needs permission to call `ec2:DescribeInstances` in order to check
 that the EC2 instances attempting to join your cluster are legitimate and
@@ -86,7 +86,7 @@ file or environment variables. See
 [Specifying Credentials](https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/#specifying-credentials)
 for details.
 
-## Step 2/4. Create the AWS joining token
+## Step 2/5. Create the AWS joining token
 
 Configure your Teleport Auth Service with a special dynamic token which will
 allow services from your AWS account to join your Teleport cluster.
@@ -102,7 +102,13 @@ account and the AWS regions in which your EC2 instances will run.
 
 Run `tctl create token.yaml` to create the token.
 
-## Step 3/4. Configure your services
+## Step 3/5 Install Teleport
+
+Install Teleport on your AWS EC2 Instance.
+
+(!docs/pages/includes/install-linux.mdx!)
+
+## Step 4/5. Configure your services
 
 The EC2 join method can be used for Teleport processes running the SSH, Proxy,
 Kubernetes, Application, Database, or Windows Desktop Services. The Teleport
@@ -129,7 +135,7 @@ proxy_service:
   enabled: no
 ```
 
-## Step 4/4. Launch your Teleport process
+## Step 5/5. Launch your Teleport process
 
 <Admonition
   type="note"
@@ -143,6 +149,8 @@ proxy_service:
   to join.
 
 </Admonition>
+
+(!docs/pages/includes/start-teleport.mdx!)
 
 Start Teleport on the host and confirm that it is able to connect to and join
 your cluster. You're all set!

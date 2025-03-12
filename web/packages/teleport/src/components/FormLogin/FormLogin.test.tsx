@@ -16,11 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { fireEvent, render, screen } from 'design/utils/testing';
 
-import { render, fireEvent, screen } from 'design/utils/testing';
+import history from 'teleport/services/history';
 
 import FormLogin, { Props } from './FormLogin';
+
+beforeEach(() => {
+  jest.restoreAllMocks();
+  jest.spyOn(history, 'hasAccessChangedParam').mockImplementation(() => false);
+});
 
 test('primary username and password with mfa off', () => {
   const onLogin = jest.fn();

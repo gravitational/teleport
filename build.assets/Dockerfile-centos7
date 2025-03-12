@@ -126,9 +126,9 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.11.0 && \
 # Specific install arguments used to skip docs.
 # Note that FIPS is enabled as part of this build, but it is unused without the
 # necessary configuration (which is included as part of the separate FIPS buildbox).
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.14 && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.16 && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = '9cff14fd97814baf8a9a07d8447960a64d616ada' ] && \
+    [ "$(git rev-parse HEAD)" = 'fa1e5dfb142bb1c26c3c38a10aafa7a095df52e5' ] && \
     ./config enable-fips --release -fPIC --libdir=/usr/local/lib64 && \
     make -j"$(nproc)" && \
     make install_sw install_ssldirs install_fips

@@ -1,0 +1,171 @@
+---
+title: Best Practices for Teleport Workload Identity
+description: Answers common questions and describes best practices for using Teleport Workload Identity in production.
+---
+
+This page covers common questions and best practices for using Teleport's
+Workload Identity feature in production.
+
+## Structuring SPIFFE IDs
+
+The SPIFFE ID is a flexible identifier for workloads, and potentially even
+users. It is ultimately up to your organization to decide how to structure
+your SPIFFE ID namespace.
+
+There's a few common strategies to structuring SPIFFE IDs. Generally, though, a
+hierarchical structure is used, with the root of the hierarchy being the most
+general and the deepest part being the most specific. This allows rules to be
+created which allow access to a group of workloads that share common parts
+of the hierarchy.
+
+### Logical structure
+
+One strategy is to structure SPIFFE IDs based on the logical function of a
+workload. For example, you may have a service named `processor` that falls
+within a group of `payments` services. You could give this a SPIFFE ID of
+`spiffe://example.teleport.sh/production/payments/processor`. You may then
+decide that all `payments` services should be able to access each other and
+create a rule that allows access to any SPIFFE ID that starts with
+`spiffe://example.teleport.sh/production/payments`.
+
+### Physical structure
+
+Another strategy is to structure the SPIFFE IDs using a more "physical" location
+of a workload. This may still include elements that are "virtual". For example,
+you may have a workload running on a VM on a host in a datacenter in London.
+You could give this a SPIFFE ID of
+`spiffe://example.teleport.sh/europe/uk/london/hypervisor-001/vm-a3847f`.
+This is useful in a different way to the logical structure, it'd be ideal in a
+case where you want to restrict a workload to only be able to access other
+workloads which are physically proximate, such as a cache. You may say that
+the cache located in London will only accept connections from workloads with a
+SPIFFE ID that starts with `spiffe://example.teleport.sh/europe/uk`.
+
+### Hybrid structure
+
+However, it's worth noting that a workload can possess multiple SVIDs and use
+these for different purposes. This means you could actually use multiple
+strategies. You'll want to ensure you use some form of namespacing to ensure
+these two different types of SPIFFE ID don't collide. For example, taking our
+last two examples we can prefix the ID with `phy` for the physical location
+and `svc` for the logical location:
+
+- spiffe://example.teleport.sh/phy/europe/uk/london/hypervisor-001/vm-a3847f
+- spiffe://example.teleport.sh/svc/payments/processor
+
+### Avoiding Sensitive Information
+
+It's worth noting that the SPIFFE ID contained within a SVID is not secret and
+is exposed to workloads that connect and that you connect out to. So avoid
+placing sensitive information within the SPIFFE ID.
+
+## Integrating SPIFFE with your workloads
+
+One challenge with successfully implementing SPIFFE is determining how you will
+integrate your workloads with it. Integration typically has two parts,
+configuring your workload to obtain a SVID for the purposes of making calls and
+configuring your workload to obtain and use the trust bundle to validate SVIDs
+from other workloads.
+
+### SPIFFE SDKs and the `spiffe-workload-api` Service
+
+The most native way to integrate with SPIFFE is to use the SPIFFE SDKs. These
+manage the process of obtaining SVIDs and trust bundles for you, and manage
+using the SVIDs when making calls, and validating the SVIDs when receiving
+calls.
+
+The Workload API endpoint is used by the SPIFFE SDKs to request the SVIDs
+and trust bundles from the `tbot` agent.
+
+The SPIFFE SDKs are available in a number of languages:
+
+- [Go (Official)](https://github.com/spiffe/go-spiffe)
+- [Java (Official)](https://github.com/spiffe/java-spiffe)
+- [Python (Community)](https://github.com/HewlettPackard/py-spiffe)
+- [C/C++ (Community)](https://github.com/HewlettPackard/c-spiffe)
+- [Rust (Community)](https://github.com/maxlambrecht/rust-spiffe)
+
+To configure the SPIFFE Workload API, follow the instructions in
+[Getting Started with Workload Identity](./getting-started.mdx).
+
+### Using the `spiffe-svid` Output
+
+In cases where your workload is not written in a language that has a SPIFFE SDK,
+`tbot` can be configured to write the SVID, SVID key and trust bundle to files
+on disk.
+
+The workload can then be modified to read these files and use the SVID and
+trust bundle for mTLS. If the workload is long-running, it must watch these
+files and reload them when changes occur. This accounts for renewals of the
+short-lived SVID and CA rotations.
+
+To configure the `spiffe-svid` output type follow the instructions in
+[Getting Started with Workload Identity](./getting-started.mdx).
+
+### Proxy
+
+In some cases, it can be simpler to leverage a proxy to implement SPIFFE. The
+proxy can be installed as a sidecar to your workload and automatically handle
+setting up mTLS connections to other workloads. In addition, the proxy could
+enforce access control policies based on the SPIFFE ID of the connecting
+workload, ensuring that only certain workloads can connect to your workload.
+
+This is ideal in cases where you may not be able to modify the workload
+yourself.
+
+One such proxy is [Ghostunnel](https://github.com/ghostunnel/ghostunnel).
+
+## X509 SVID Subject
+
+When the X509 SVIDs are issued by Teleport Workload Identity, the subject
+distinguished name of the certificate is determined by the following criteria:
+
+- If no DNS SANs have been requested, the subject is unset.
+- If DNS SANs have been requested, the first DNS SAN is set as the subject
+  common name.
+
+This behavior exists to support interoperability with legacy systems which are
+not able to parse DNS SANs or which are not SPIFFE aware.
+
+An example of one such legacy system is Postgres. Postgres supports client
+authentication using certificates, but only allows the common name to be used
+to determine which database user access should be granted to. To integrate
+Teleport Workload Identity with Postgres, you can issue X509 SVIDs with a DNS
+SAN which can then be mapped to database user. For example, you could issue
+a certificate with a DNS SAN of `myuser.mydb.db-access.example.com`. The
+behavior described above will then set the common name to this DNS SAN, and you
+can then configure Postgres to map this common name to `myuser`.
+
+## Direct database access
+
+There are certain circumstances where you may wish to use Teleport Workload ID
+to authenticate a workload's access to a database.
+
+This differs from using Machine ID with the Database Service in a few ways:
+
+- The connection is made directly from the workload to the database, rather
+  than through Teleport's Proxy Service and Database Service.
+- Reduced latency of the connection between the workload and database.
+- Teleport will not record the queries of the workload in the audit log.
+- Teleport will not be able to enforce fine-grained access control policies.
+- The database must natively support mTLS client authentication.
+- The database must be directly configured with authorization rules.
+
+Typically, the workload will connect to the database using its X509 SVID as a
+client certificate. The database will then validate this certificate using the
+trust bundle provided by Teleport Workload ID. We recommend installing `tbot`
+in close proximity to the database to ensure that the trust bundle remains
+up to date if a CA rotation occurs.
+
+Databases typically use the Common Name (CN) of the client certificate to
+determine which user the connection should be authenticated as. This means it
+is not compatible with the default behaviour of Workload ID where the SPIFFE ID
+is only present as a URI SAN. See [X509 SVID Subject](#x509-svid-subject) for
+information on how to set the CN.
+
+Follow the database's documentation for how to configure client authentication
+using mTLS:
+
+- [Postgres](https://www.postgresql.org/docs/current/auth-cert.html)
+- [MySQL](https://dev.mysql.com/doc/refman/8.0/en/using-encrypted-connections.html)
+- [MongoDB](https://www.mongodb.com/docs/manual/tutorial/configure-x509-client-authentication/)

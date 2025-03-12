@@ -479,7 +479,7 @@ type testServer struct {
 	serverURL *url.URL
 }
 
-func setup(t *testing.T, clock clockwork.FakeClock, authClient authclient.ClientI, proxyClient reversetunnelclient.Tunnel) *testServer {
+func setup(t *testing.T, clock *clockwork.FakeClock, authClient authclient.ClientI, proxyClient reversetunnelclient.Tunnel) *testServer {
 	appHandler, err := NewHandler(context.Background(), &HandlerConfig{
 		Clock:                 clock,
 		AuthClient:            authClient,
@@ -636,7 +636,7 @@ func (r *fakeRemoteListener) Addr() net.Addr {
 }
 
 // createAppSession generates a WebSession for an application.
-func createAppSession(t *testing.T, clock clockwork.FakeClock, caKey, caCert []byte, clusterName, publicAddr string) types.WebSession {
+func createAppSession(t *testing.T, clock *clockwork.FakeClock, caKey, caCert []byte, clusterName, publicAddr string) types.WebSession {
 	key, cert := createAppKeyCertPair(t, clock, caKey, caCert, clusterName, publicAddr)
 	keyPEM, err := keys.MarshalPrivateKey(key)
 	require.NoError(t, err)
@@ -653,7 +653,7 @@ func createAppSession(t *testing.T, clock clockwork.FakeClock, caKey, caCert []b
 }
 
 // createAppKeyCertPair creates and a client key and signed app cert for the client key
-func createAppKeyCertPair(t *testing.T, clock clockwork.FakeClock, caKey, caCert []byte, clusterName, publicAddr string) (crypto.Signer, []byte) {
+func createAppKeyCertPair(t *testing.T, clock *clockwork.FakeClock, caKey, caCert []byte, clusterName, publicAddr string) (crypto.Signer, []byte) {
 	tlsCA, err := tlsca.FromKeys(caCert, caKey)
 	require.NoError(t, err)
 
@@ -764,7 +764,7 @@ func TestMakeAppRedirectURL(t *testing.T) {
 				clusterName: "im-a-cluster-name",
 				publicAddr:  "grafana.localhost",
 			},
-			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost?path=&state=abc123",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost?path=&required-apps=&state=abc123",
 		},
 		{
 			name: "OK - with clusterId, publicAddr, and arn",
@@ -774,7 +774,7 @@ func TestMakeAppRedirectURL(t *testing.T) {
 				publicAddr:  "grafana.localhost",
 				arn:         "arn:aws:iam::123456789012:role%2Frole-name",
 			},
-			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%252Frole-name?path=&state=abc123",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%252Frole-name?path=&required-apps=&state=abc123",
 		},
 		{
 			name: "OK - with clusterId, publicAddr, arn and path",
@@ -785,7 +785,19 @@ func TestMakeAppRedirectURL(t *testing.T) {
 				arn:         "arn:aws:iam::123456789012:role%2Frole-name",
 				path:        "/foo/bar?qux=qex",
 			},
-			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%252Frole-name?path=%2Ffoo%2Fbar%3Fqux%3Dqex&state=abc123",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%252Frole-name?path=%2Ffoo%2Fbar%3Fqux%3Dqex&required-apps=&state=abc123",
+		},
+		{
+			name: "OK - with clusterId, publicAddr, arn, path, and required-apps",
+			launderURLParams: launcherURLParams{
+				stateToken:       "abc123",
+				clusterName:      "im-a-cluster-name",
+				publicAddr:       "grafana.localhost",
+				arn:              "arn:aws:iam::123456789012:role%2Frole-name",
+				path:             "/foo/bar?qux=qex",
+				requiredAppFQDNs: "api.example.com,grafana.localhost",
+			},
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%252Frole-name?path=%2Ffoo%2Fbar%3Fqux%3Dqex&required-apps=api.example.com%2Cgrafana.localhost&state=abc123",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {

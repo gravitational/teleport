@@ -12,6 +12,8 @@ default.etcd
 
 # usually release tarballs get in the way
 *.gz
+# ignore all tarballs except the alpine one
+!fixtures/alpine/alpine-minirootfs-*.tar.gz
 *.zip
 
 # editors
@@ -106,3 +108,7 @@ web/certs/
 
 # We have switched to pnpm, ignore Yarn lockfile
 yarn.lock
+
+# mockServiceWorker.js is generated on each start of Storybook instead of being vendored into the
+# repo, see web/scripts/run-storybook.sh.
+web/.storybook/public/mockServiceWorker.js

@@ -15,7 +15,7 @@ used to access a Kubernetes cluster enrolled with your Teleport cluster.
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - If you have not already connected your Kubernetes cluster to Teleport, follow
-  the [Kubernetes Access Getting Started Guide](../../kubernetes-access/getting-started.mdx).
+  [Enroll a Kubernetes Cluster](../../kubernetes-access/getting-started.mdx).
 - (!docs/pages/includes/tctl.mdx!)
 - To configure the Kubernetes cluster, your client system will need to have
   `kubectl` installed. See the
@@ -23,7 +23,7 @@ used to access a Kubernetes cluster enrolled with your Teleport cluster.
   installation instructions.
 - `tbot` must already be installed and configured on the machine that will
   access Kubernetes clusters. For more information, see the
-  [deployment guides](../deployment.mdx).
+  [deployment guides](../deployment/deployment.mdx).
 - To demonstrate connecting to the Kubernetes cluster, the machine that will
   access Kubernetes clusters will need to have `kubectl` installed. See the
   [Kubernetes documentation](https://kubernetes.io/docs/tasks/tools/) for
@@ -70,7 +70,7 @@ Create a file called `role.yaml` with the following content:
 
 ```yaml
 kind: role
-version: v6
+version: v7
 metadata:
   name: example-role
 spec:
@@ -83,6 +83,7 @@ spec:
     - kind: "*"
       namespace: "*"
       name: "*"
+      verbs: ["*"]
 ```
 
 Replace `example-role` with a descriptive name related to your use case.
@@ -100,29 +101,26 @@ Adjust the `allow` field for your environment:
 
 Use `tctl create -f ./role.yaml` to create the role.
 
+(!docs/pages/includes/create-role-using-web.mdx!)
+
 Now, use `tctl bots update` to add the role to the Bot. Replace `example`
 with the name of the Bot you created in the deployment guide and `example-role`
 with the name of the role you just created:
 
-```bash
+```code
 $ tctl bots update example --add-roles example-role
 ```
 
 ## Step 2/3. Configure a Kubernetes `tbot` output
 
 Now, `tbot` needs to be configured with an output to produce the Kubernetes
-credentials and client configuration file. This is done using the `kubernetes`
-output type.
+credentials and client configuration file. This is done using the
+`kubernetes/v2` output type.
 
-The Kubernetes cluster you want the credentials to have access to must
-be specified using the `kubernetes_cluster` field. In this example,
-`example-k8s-cluster` will be used.
-
-The output must be configured with a destination and the name of the
-Kubernetes cluster that should be encoded in the credentials produced by `tbot`.
-At this time, each output can only contain credentials for a single Kubernetes
-cluster. If your bot needs to connect to multiple Kubernetes clusters,
-create an output for each cluster.
+The Kubernetes clusters you wish to make available must be specified using
+entries in the `selectors` list. In this example, `example-k8s-cluster` will be
+selected using a name selector, and all clusters with the label
+`environment=dev` will be selected as well.
 
 Outputs must also be configured with a destination. In this example, the
 `directory` type will be used. This will write artifacts to a specified
@@ -130,14 +128,22 @@ directory on disk. Ensure that this directory can be written to by the Linux
 user that `tbot` runs as, and that it can be read by the Linux user that will
 be accessing the Kubernetes cluster.
 
-Modify your `tbot` configuration to add a `kubernetes` output:
+Modify your `tbot` configuration to add a `kubernetes/v2` output:
 
 ```yaml
 outputs:
-  - type: kubernetes
-    # Specify the name of the Kubernetes cluster you wish the credentials to
-    # grant access to.
-    kubernetes_cluster: example-k8s-cluster
+  - type: kubernetes/v2
+    selectors:
+      # Specify the name of the Kubernetes cluster you wish the credentials to
+      # grant access to. Note that wildcards are not supported.
+      - name: example-k8s-cluster
+
+      # Specify a label selector to dynamically select many clusters at once.
+      # All labels in a selector must match for a cluster to be selected, and
+      # multiple separate selectors can be specified if desired. Note that
+      # wildcards are not supported.
+      - labels:
+          environment: dev
     destination:
       type: directory
           # For this guide, /opt/machine-id is used as the destination directory.
@@ -147,7 +153,7 @@ outputs:
 ```
 
 Ensure you replace `example-k8s-cluster` with the name of the Kubernetes cluster
-as registered in Teleport and adjust `/opt/machine-id` if you wish
+as registered in Teleport and adjust `/opt/machine-id` if you wish.
 
 If operating `tbot` as a background service, restart it. If running `tbot` in
 one-shot mode, it must be executed before you attempt to use the credentials.
@@ -169,6 +175,25 @@ $ export KUBECONFIG=/opt/machine-id/kubeconfig.yaml
 $ kubectl get pods -A
 ```
 
+If you selected multiple clusters, they will be exposed as separate contexts
+within the generated `kubeconfig.yaml`, and will be named following the format
+`$teleportClusterName-$kubeClusterName`. To target a specific cluster, use the
+`--context` flag:
+
+```code
+$ kubectl --kubeconfig /opt/machine-id/kubeconfig.yaml --context=example.teleport.sh-my-kube-cluster get pods -A
+```
+
+Note that the first selected cluster in `tbot.yaml` will be used as the default
+context. If using label selectors, the default context may vary over time if
+clusters are added or removed in Teleport.
+
+If new matching clusters are added or removed in Teleport, `kubeconfig.yaml`
+will be regenerated to reflect the change on the bot's next certificate renewal.
+If needed, the `tbot` process can be restarted or signaled (`pkill -USR1 tbot`)
+to trigger an immediate reload. Note that modifications to `kubeconfig.yaml`,
+such as changes to the `current-context` field, will be overwritten.
+
 Whilst this guide has demonstrated `kubeconfig.yaml` being used with `kubectl`,
 this format is compatible with most Kubernetes tools including:
 
@@ -178,7 +203,7 @@ this format is compatible with most Kubernetes tools including:
 
 ## Next steps
 
-- Read the [configuration reference](../reference/configuration.mdx) to explore
+- Read the [configuration reference](../../../reference/machine-id/configuration.mdx) to explore
   all the available configuration options.
-- Read the [Kubernetes Access RBAC guide](../../kubernetes-access/controls.mdx)
+- Read the [Teleport Kubernetes RBAC guide](../../kubernetes-access/controls.mdx)
   for more details on controlling Kubernetes access.

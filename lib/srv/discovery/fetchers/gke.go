@@ -21,10 +21,10 @@ package fetchers
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	containerpb "cloud.google.com/go/container/apiv1/containerpb"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -35,8 +35,10 @@ import (
 
 // GKEFetcherConfig configures the GKE fetcher.
 type GKEFetcherConfig struct {
-	// Client is the GCP GKE client.
-	Client gcp.GKEClient
+	// GKEClient is the GCP GKE client.
+	GKEClient gcp.GKEClient
+	// ProjectClient is the GCP project client.
+	ProjectClient gcp.ProjectsClient
 	// ProjectID is the projectID the cluster should belong to.
 	ProjectID string
 	// Location is the GCP's location where the clusters should be located.
@@ -45,13 +47,18 @@ type GKEFetcherConfig struct {
 	// FilterLabels are the filter criteria.
 	FilterLabels types.Labels
 	// Log is the logger.
-	Log logrus.FieldLogger
+	Logger *slog.Logger
+	// DiscoveryConfigName is the name of the discovery config which originated the resource.
+	DiscoveryConfigName string
 }
 
 // CheckAndSetDefaults validates and sets the defaults values.
 func (c *GKEFetcherConfig) CheckAndSetDefaults() error {
-	if c.Client == nil {
+	if c.GKEClient == nil {
 		return trace.BadParameter("missing Client field")
+	}
+	if c.ProjectClient == nil {
+		return trace.BadParameter("missing ProjectClient field")
 	}
 	if len(c.Location) == 0 {
 		return trace.BadParameter("missing Location field")
@@ -61,8 +68,8 @@ func (c *GKEFetcherConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing FilterLabels field")
 	}
 
-	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, "fetcher:gke")
+	if c.Logger == nil {
+		c.Logger = slog.With(teleport.ComponentKey, "fetcher:gke")
 	}
 	return nil
 }
@@ -73,7 +80,7 @@ type gkeFetcher struct {
 }
 
 // NewGKEFetcher creates a new GKE fetcher configuration.
-func NewGKEFetcher(cfg GKEFetcherConfig) (common.Fetcher, error) {
+func NewGKEFetcher(ctx context.Context, cfg GKEFetcherConfig) (common.Fetcher, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -82,28 +89,46 @@ func NewGKEFetcher(cfg GKEFetcherConfig) (common.Fetcher, error) {
 }
 
 func (a *gkeFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
-	clusters, err := a.getGKEClusters(ctx)
+
+	// Get the project IDs that this fetcher is configured to query.
+	projectIDs, err := a.getProjectIDs(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	a.Logger.DebugContext(ctx, "Fetching GKE clusters for configured projects", "project_ids", projectIDs)
+	var clusters types.KubeClusters
+	for _, projectID := range projectIDs {
+		lClusters, err := a.getGKEClusters(ctx, projectID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		clusters = append(clusters, lClusters...)
 	}
 
 	a.rewriteKubeClusters(clusters)
 	return clusters.AsResources(), nil
 }
 
-func (a *gkeFetcher) getGKEClusters(ctx context.Context) (types.KubeClusters, error) {
+func (a *gkeFetcher) getGKEClusters(ctx context.Context, projectID string) (types.KubeClusters, error) {
 	var clusters types.KubeClusters
 
-	gkeClusters, err := a.Client.ListClusters(ctx, a.ProjectID, a.Location)
+	gkeClusters, err := a.GKEClient.ListClusters(ctx, projectID, a.Location)
+	if trace.IsAccessDenied(err) {
+		a.Logger.WarnContext(ctx, "Access denied to list GKE clusters", "project_id", projectID, "location", a.Location)
+		return nil, nil
+	} else if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	for _, gkeCluster := range gkeClusters {
 		cluster, err := a.getMatchingKubeCluster(gkeCluster)
 		// trace.CompareFailed is returned if the cluster did not match the matcher filtering labels
 		// or if the cluster is not yet active.
 		if trace.IsCompareFailed(err) {
-			a.Log.WithError(err).Debugf("Cluster %q did not match the filtering criteria.", gkeCluster.Name)
+			a.Logger.DebugContext(ctx, "Cluster did not match the filtering criteria", "error", err, "cluster", gkeCluster.Name)
 			continue
 		} else if err != nil {
-			a.Log.WithError(err).Warnf("Failed to discover GKE cluster %q.", gkeCluster.Name)
+			a.Logger.WarnContext(ctx, "Failed to discover GKE cluster", "error", err, "cluster", gkeCluster.Name)
 			continue
 		}
 		clusters = append(clusters, cluster)
@@ -129,6 +154,14 @@ func (a *gkeFetcher) FetcherType() string {
 
 func (a *gkeFetcher) Cloud() string {
 	return types.CloudGCP
+}
+
+func (a *gkeFetcher) IntegrationName() string {
+	// There is currently no integration that supports Auto Discover for GCP resources.
+	return ""
+}
+func (a *gkeFetcher) GetDiscoveryConfigName() string {
+	return a.DiscoveryConfigName
 }
 
 func (a *gkeFetcher) String() string {
@@ -159,4 +192,24 @@ func (a *gkeFetcher) getMatchingKubeCluster(gkeCluster gcp.GKECluster) (types.Ku
 	}
 
 	return cluster, nil
+}
+
+// getProjectIDs returns the project ids that this fetcher is configured to query.
+// This will make an API call to list project IDs when the fetcher is configured to match "*" projectID,
+// in order to discover and query new projectID.
+// Otherwise, a list containing the fetcher's non-wildcard project is returned.
+func (a *gkeFetcher) getProjectIDs(ctx context.Context) ([]string, error) {
+	if a.ProjectID != types.Wildcard {
+		return []string{a.ProjectID}, nil
+	}
+
+	gcpProjects, err := a.ProjectClient.ListProjects(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var projectIDs []string
+	for _, prj := range gcpProjects {
+		projectIDs = append(projectIDs, prj.ID)
+	}
+	return projectIDs, nil
 }

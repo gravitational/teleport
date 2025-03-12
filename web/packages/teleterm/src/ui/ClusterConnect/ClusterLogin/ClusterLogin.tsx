@@ -17,18 +17,29 @@
  */
 
 import React from 'react';
+
+import {
+  Box,
+  ButtonIcon,
+  ButtonPrimary,
+  Flex,
+  H2,
+  Indicator,
+  Text,
+} from 'design';
 import * as Alerts from 'design/Alert';
-import { ButtonIcon, Text, Indicator, Box, H2 } from 'design';
+import { DialogContent, DialogHeader } from 'design/Dialog';
 import * as Icons from 'design/Icon';
-import { DialogHeader, DialogContent } from 'design/Dialog';
+import { AuthSettings } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 import { PrimaryAuthType } from 'shared/services';
 
-import { AuthSettings } from 'teleterm/ui/services/clusters/types';
-import { ClusterConnectReason } from 'teleterm/ui/services/modals';
+import { publicAddrWithTargetPort } from 'teleterm/services/tshd/app';
 import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
+import { ClusterConnectReason } from 'teleterm/ui/services/modals';
 
+import { outermostPadding } from '../spacing';
 import LoginForm from './FormLogin';
-import useClusterLogin, { State, Props } from './useClusterLogin';
+import useClusterLogin, { Props, State } from './useClusterLogin';
 
 export function ClusterLogin(props: Props & { reason: ClusterConnectReason }) {
   const { reason, ...otherProps } = props;
@@ -43,6 +54,7 @@ export type ClusterLoginPresentationProps = State & {
 export function ClusterLoginPresentation({
   title,
   initAttempt,
+  init,
   loginAttempt,
   clearLoginAttempt,
   onLoginWithLocal,
@@ -52,36 +64,54 @@ export function ClusterLoginPresentation({
   onAbort,
   loggedInUserName,
   shouldPromptSsoStatus,
-  webauthnLogin,
+  passwordlessLoginState,
   reason,
+  shouldSkipVersionCheck,
+  disableVersionCheck,
+  platform,
 }: ClusterLoginPresentationProps) {
   return (
     <>
-      <DialogHeader px={4} pt={4} mb={0}>
+      <DialogHeader px={outermostPadding}>
         <H2>
-          Login to <b>{title}</b>
+          Log in to <b>{title}</b>
         </H2>
         <ButtonIcon ml="auto" p={3} onClick={onCloseDialog} aria-label="Close">
           <Icons.Cross size="medium" />
         </ButtonIcon>
       </DialogHeader>
-      <DialogContent mb={0}>
-        {reason && <Reason reason={reason} />}
+      <DialogContent mb={0} gap={2}>
+        {reason && (
+          <Box px={outermostPadding}>
+            <Reason reason={reason} />
+          </Box>
+        )}
 
         {initAttempt.status === 'error' && (
-          <Alerts.Danger m={4}>
-            Unable to retrieve cluster auth preferences,{' '}
-            {initAttempt.statusText}
-          </Alerts.Danger>
+          <Flex
+            px={outermostPadding}
+            flexDirection="column"
+            alignItems="flex-start"
+            gap={3}
+          >
+            <Alerts.Danger
+              details={initAttempt.statusText}
+              margin={0}
+              width="100%"
+            >
+              Unable to retrieve cluster auth preferences
+            </Alerts.Danger>
+            <ButtonPrimary onClick={init}>Retry</ButtonPrimary>
+          </Flex>
         )}
         {initAttempt.status === 'processing' && (
-          <Box textAlign="center" m={4}>
+          <Box px={outermostPadding} textAlign="center">
             <Indicator delay="none" />
           </Box>
         )}
         {initAttempt.status === 'success' && (
           <LoginForm
-            {...initAttempt.data}
+            authSettings={initAttempt.data}
             primaryAuthType={getPrimaryAuthType(initAttempt.data)}
             loggedInUserName={loggedInUserName}
             onLoginWithSso={onLoginWithSso}
@@ -91,7 +121,10 @@ export function ClusterLoginPresentation({
             loginAttempt={loginAttempt}
             clearLoginAttempt={clearLoginAttempt}
             shouldPromptSsoStatus={shouldPromptSsoStatus}
-            webauthnLogin={webauthnLogin}
+            passwordlessLoginState={passwordlessLoginState}
+            shouldSkipVersionCheck={shouldSkipVersionCheck}
+            disableVersionCheck={disableVersionCheck}
+            platform={platform}
           />
         )}
       </DialogContent>
@@ -116,7 +149,7 @@ function Reason({ reason }: { reason: ClusterConnectReason }) {
   const $targetDesc = getTargetDesc(reason);
 
   return (
-    <Text px={4} pt={2} mb={0}>
+    <Text>
       You tried to connect to {$targetDesc} but your session has expired. Please
       log in to refresh the session.
     </Text>
@@ -144,7 +177,7 @@ const getTargetDesc = (reason: ClusterConnectReason): React.ReactNode => {
       }
     }
     case 'reason.vnet-cert-expired': {
-      return <strong>{reason.publicAddr}</strong>;
+      return <strong>{publicAddrWithTargetPort(reason.routeToApp)}</strong>;
     }
     default: {
       reason satisfies never;

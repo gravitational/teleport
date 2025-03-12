@@ -1,0 +1,354 @@
+---
+title: Running an HA Teleport cluster using Microsoft Azure, AKS, and Helm
+description: Install and configure an HA Teleport cluster using a Microsoft Azure AKS cluster.
+---
+
+In this guide, we'll go through how to set up a High Availability Teleport
+cluster with multiple replicas in Kubernetes using Teleport Helm charts and
+Microsoft Azure managed services (Kubernetes Services, Database for PostgreSQL,
+Blob Storage).
+
+<Admonition type="tip" title="Have an existing Teleport cluster?">
+If you are already running Teleport on another platform, you can use your
+existing Teleport deployment to access your Kubernetes cluster. [Follow our
+guide](../../../enroll-resources/kubernetes-access/getting-started.mdx) to connect your Kubernetes
+cluster to Teleport.
+</Admonition>
+
+(!docs/pages/includes/cloud/call-to-action.mdx!)
+
+## Prerequisites
+
+(!docs/pages/includes/kubernetes-access/helm/teleport-cluster-prereqs.mdx!)
+
+In addition, you will need `azure-cli` 2.51 or later to follow along these
+instructions. Reference the Azure docs on [how to install the Azure
+CLI](https://learn.microsoft.com/cli/azure/install-azure-cli).
+
+After installing it, make sure you are logged in by typing `az login`. This
+guide assumes that your user has permissions to create Azure Database for
+PostgreSQL instances, Azure Blob Storage accounts, and Managed Identities, and
+has the ability to add role assignments for those. You will also need an Azure
+DNS zone, and access to an AKS cluster with cert-manager
+[installed](https://cert-manager.io/docs/installation/) and configured to [issue
+certificates for said Azure DNS
+zone](https://cert-manager.io/docs/configuration/acme/dns01/azuredns/).
+
+In this guide we'll use [workload
+identity](https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview)
+to authenticate Teleport to PostgreSQL and Blob Storage, so you'll need to
+[enable workload identity and the OIDC issuer in your AKS
+cluster](https://learn.microsoft.com/en-us/azure/aks/workload-identity-deploy-cluster#update-an-existing-aks-cluster)
+if they're not enabled already:
+
+```code
+$ az aks update --resource-group <Var name="aks-rg" /> --name <Var name="aks-name" /> --enable-oidc-issuer --enable-workload-identity
+```
+
+## Step 1/5. Add the Teleport Helm chart repository
+
+(!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
+
+## Step 2/5. Set up PostgreSQL and Blob Storage
+
+For convenience, we'll create all the resources necessary in a brand new
+resource group; if you want to use an existing one, you can skip this step.
+Assign <Var name="region" /> to your Azure region:
+
+```code
+$ az group create --name <Var name="teleport-rg" /> --location <Var name="region" />
+```
+
+We're going to need a Managed Identity for Teleport to use these services.
+
+```code
+$ az identity create --resource-group <Var name="teleport-rg" /> --name teleport-id
+```
+
+The recommended HA deployment of Teleport on Azure stores the cluster state and
+the audit log entries in a PostgreSQL instance. In this guide we'll create a
+publicly accessible one, but you can restrict it to your AKS cluster's IP
+address, or you can create it attached to the same virtual network that the
+cluster is using, instead.
+
+Depending on your region, you might be able to use `ZoneRedundant` high
+availability, or you might have to use `SameZone` high availability.
+
+```code
+$ az postgres flexible-server create --resource-group <Var name="teleport-rg" /> --name <Var name="teleport-pg" /> \
+    --active-directory-auth Enabled --password-auth Disabled \
+    --version 15 --high-availability SameZone --public-access All
+$ az postgres flexible-server parameter set --resource-group <Var name="teleport-rg" /> --name <Var name="teleport-pg" /> \
+    --name wal_level --value logical
+$ az postgres flexible-server restart --resource-group <Var name="teleport-rg" /> --name <Var name="teleport-pg" />
+$ az postgres flexible-server ad-admin create --resource-group <Var name="teleport-rg" /> --server-name <Var name="teleport-pg" /> \
+    --display-name <Var name="pguser" /> --type ServicePrincipal \
+    --object-id "$(az identity show --resource-group <Var name="teleport-rg" /> --name teleport-id --query principalId -o tsv)"
+```
+
+Teleport will store session recordings in a Blob Storage account. Optionally,
+access can be restricted to just the AKS outbound address, or the account can be
+made part of the virtual network that the AKS cluster is using.
+
+```code
+$ az storage account create --resource-group <Var name="teleport-rg" /> --name "teleport-blob" \
+    --allow-blob-public-access false
+$ az role assignment create --role "Storage Blob Data Owner" --assignee-principal-type ServicePrincipal \
+    --assignee-object-id "$(az identity show --resource-group <Var name="teleport-rg" /> --name teleport-id --query principalId -o tsv)" \
+    --scope "$(az storage account show --resource-group <Var name="teleport-rg" /> --name <Var name="teleportblob" /> --query id -o tsv)""
+```
+
+We'll use Workload Identity to authenticate to those services, so we'll add
+federated credentials for the Teleport service account used by the Auth Service.
+
+```code
+$ az identity federated-credential create --resource-group <Var name="teleport-rg" /> --identity-name teleport-id \
+    --name aks --audience api://AzureADTokenExchange \
+    --subject system:serviceaccount:<Var name="teleport-ns" />:<Var name="teleport-release" /> \
+    --issuer "$(az aks show --resource-group <Var name="aks-rg" /> --name <Var name="aks-name" /> --query oidcIssuerProfile.issuerUrl -o tsv)"
+```
+
+## Step 3/5. Set values to configure the cluster
+
+<Details title="License Secret" scopeOnly={false} scope={"enterprise"} opened={true}>
+
+Before you can install Teleport Enterprise in your Kubernetes cluster, you will need to
+create a secret that contains your Teleport license information.
+
+(!docs/pages/includes/enterprise/obtainlicense.mdx!)
+
+Create a secret from your license file. Teleport will automatically discover
+this secret as long as your file is named `license.pem`.
+
+```code
+$ kubectl create namespace <Var name="teleport-ns" />
+$ kubectl -n <Var name="teleport-ns" /> create secret generic license --from-file=license.pem
+```
+
+</Details>
+
+Now we'll configure the `teleport-cluster` Helm chart to use the `azure` mode.
+
+First get the client ID for the `teleport-id` identity:
+```code
+$ az identity show --resource-group <Var name="teleport-rg" /> --name teleport-id --query clientId -o tsv
+<Var name="teleport-client-id-uuid-123456789012" />
+```
+
+Then create a file called `azure-values.yaml` containing the values you've selected above:
+
+<Tabs>
+<TabItem scope={["oss"]} label="Open Source">
+
+```yaml
+chartMode: azure
+# Name of your cluster. Use the FQDN you intend to configure in DNS later
+clusterName: teleport.example.com
+azure:
+  databaseHost: "<Var name="teleport-pg" />.postgres.database.azure.com"
+  databaseUser: "<Var name="pguser" />"
+  sessionRecordingStorageAccount: "<Var name="teleportblob" />.blob.core.windows.net"
+  # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
+  auditLogMirrorOnStdout: false
+  clientID: "<Var name="teleport-client-id-uuid-123456789012" />"
+highAvailability:
+  # Number of replicas to configure
+  replicaCount: 2
+  certManager:
+    # Enable cert-manager support to get TLS certificates
+    enabled: true
+    # Name of the cert-manager GlobalIssuer or Issuer to use
+    issuerName: letsencrypt-production
+    issuerKind: ClusterIssuer
+# If you are running Kubernetes 1.23 or above, disable PodSecurityPolicies
+podSecurityPolicy:
+  enabled: false
+```
+
+</TabItem>
+<TabItem scope={["enterprise"]} label="Enterprise">
+
+```yaml
+chartMode: azure
+# Name of your cluster. Use the FQDN you intend to configure in DNS later
+clusterName: teleport.example.com
+azure:
+  databaseHost: "<Var name="teleport-pg" />.postgres.database.azure.com"
+  databaseUser: "<Var name="pguser" />"
+  sessionRecordingStorageAccount: "<Var name="teleportblob" />.blob.core.windows.net"
+  # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
+  auditLogMirrorOnStdout: false
+  clientID: "<Var name="teleport-client-id-uuid-123456789012" />"
+highAvailability:
+  # Number of replicas to configure
+  replicaCount: 2
+  certManager:
+    # Enable cert-manager support to get TLS certificates
+    enabled: true
+    # Name of the cert-manager GlobalIssuer or Issuer to use
+    issuerName: letsencrypt-production
+    issuerKind: ClusterIssuer
+# If you are running Kubernetes 1.23 or above, disable PodSecurityPolicies
+podSecurityPolicy:
+  enabled: false
+# Indicate that this is a Teleport Enterprise deployment
+enterprise: true
+```
+
+</TabItem>
+</Tabs>
+
+Install the chart with the values from your `azure-values.yaml` file using this command:
+
+```code
+$ helm install <Var name="teleport-release" /> teleport/teleport-cluster \
+    --create-namespace --namespace <Var name="teleport-ns" /> \
+    --values azure-values.yaml
+```
+
+<Admonition type="note">
+  You cannot change the `clusterName` after the cluster is configured, so make sure you choose wisely. We recommend using the fully-qualified domain name that you'll use for external access to your Teleport cluster.
+</Admonition>
+
+Once the chart is installed, you can use `kubectl` commands to view the deployment:
+
+```code
+$ kubectl --namespace <Var name="teleport-ns" /> get all
+
+NAME                                 READY   STATUS    RESTARTS   AGE
+pod/teleport-auth-57989d4cb-4q2ds    1/1     Running   0          22h
+pod/teleport-auth-57989d4cb-rtrzn    1/1     Running   0          22h
+pod/teleport-proxy-c6bf55cfc-w96d2   1/1     Running   0          22h
+pod/teleport-proxy-c6bf55cfc-z256w   1/1     Running   0          22h
+
+NAME                        TYPE           CLUSTER-IP     EXTERNAL-IP     PORT(S)                                                                     AGE
+service/teleport            LoadBalancer   10.40.11.180   34.138.177.11   443:30258/TCP,3023:31802/TCP,3026:32182/TCP,3024:30101/TCP,3036:30302/TCP   22h
+service/teleport-auth       ClusterIP      10.40.8.251    <none>          3025/TCP,3026/TCP                                                           22h
+service/teleport-auth-v13   ClusterIP      None           <none>          <none>                                                                      22h
+service/teleport-auth-v14   ClusterIP      None           <none>          <none>                                                                      22h
+
+NAME                             READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/teleport-auth    2/2     2            2           22h
+deployment.apps/teleport-proxy   2/2     2            2           22h
+
+NAME                                       DESIRED   CURRENT   READY   AGE
+replicaset.apps/teleport-auth-57989d4cb    2         2         2       22h
+replicaset.apps/teleport-proxy-c6bf55cfc   2         2         2       22h
+```
+
+## Step 4/5. Set up DNS
+
+We'll now set up DNS `A` records for `teleport.example.com` and
+`*.teleport.example.com`, using your Azure DNS zone rooted at `example.com`. If
+you're using a different DNS hosting service, follow their instructions instead.
+
+```code
+$ PREFIX=teleport
+$ ZONE=example.com
+$ ZONE_RG=dns-rg
+$ external_ip="$(kubectl --namespace <Var name="teleport-ns" /> get service/<Var name="teleport-release" /> -o jsonpath='{.status.loadBalancer.ingress[*].ip}')"
+$ az network dns record-set a add-record --resource-group ${ZONE_RG} --zone-name ${ZONE} --record-set-name ${PREFIX} --ipv4-address "${external_ip}"
+$ az network dns record-set a add-record --resource-group ${ZONE_RG} --zone-name ${ZONE} --record-set-name "*.${PREFIX}" --ipv4-address "${external_ip}"
+```
+
+## Step 5/5. Create a Teleport user
+
+Create a user to be able to log into Teleport. This needs to be done on the Teleport Auth Service,
+so we can run the command using `kubectl`:
+
+<Tabs>
+<TabItem scope={["oss"]} label="Open Source">
+
+```code
+$ kubectl --namespace <Var name="teleport-ns" /> exec deploy/<Var name="teleport-release" />-auth -- tctl users add test --roles=access,editor
+
+User "test" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
+https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
+
+NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users can access.
+```
+
+</TabItem>
+<TabItem scope={["enterprise"]} label="Enterprise">
+
+```code
+$ kubectl --namespace <Var name="teleport-ns" /> exec deploy/<Var name="teleport-release" />-auth -- tctl users add test --roles=access,editor,reviewer
+
+User "test" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
+https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
+
+NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users can access.
+```
+
+</TabItem>
+</Tabs>
+
+Load the user creation link to create a password and set up multi-factor authentication for the Teleport user via the web UI.
+
+### High Availability
+
+In this guide, we have configured 2 replicas. This can be changed after cluster creation by altering the `highAvailability.replicaCount`
+value [using `helm upgrade` as detailed below](#upgrading-the-cluster-after-deployment).
+
+## Upgrading the cluster after deployment
+
+To make changes to your Teleport cluster after deployment, you can use `helm upgrade`.
+
+Helm defaults to using the latest version of the chart available in the repo, which will also correspond to the latest
+version of Teleport. You can make sure that the repo is up to date by running `helm repo update`.
+
+If you want to use a different version of Teleport, pass the `--version` argument to Helm:
+
+```code
+$ helm upgrade --version 14.0.0 \
+  <Var name="teleport-release" /> teleport/teleport-cluster \
+  --namespace <Var name="teleport-ns" /> \
+  -f azure-values.yaml
+```
+
+Here's an example where we set the chart to use 3 replicas:
+
+<Tabs>
+  <TabItem label="Using values.yaml">
+  Edit your `azure-values.yaml` file from above and make the appropriate changes.
+
+  Upgrade the deployment with the values from your `azure-values.yaml` file using this command:
+
+  ```code
+  $ helm upgrade <Var name="teleport-release" /> teleport/teleport-cluster \
+    --namespace <Var name="teleport-ns" /> \
+    -f azure-values.yaml
+  ```
+
+  </TabItem>
+  <TabItem label="Using --set via CLI">
+  Run this command, editing your command line parameters as appropriate:
+
+  ```code
+  $ helm upgrade <Var name="teleport-release" /> teleport/teleport-cluster \
+    --namespace <Var name="teleport-ns" /> \
+    --set highAvailability.replicaCount=3
+  ```
+  </TabItem>
+</Tabs>
+
+<Admonition type="note">
+  To change `chartMode`, `clusterName` or any `azure` settings, you must first uninstall the existing chart and then install
+  a new version with the appropriate values.
+</Admonition>
+
+## Uninstalling Teleport
+
+To uninstall the `teleport-cluster` chart, use `helm uninstall`. For example:
+
+```code
+$ helm --namespace <Var name="teleport-ns" /> uninstall <Var name="teleport-release" />
+```
+
+## Next steps
+
+Now that you have deployed a Teleport cluster, read the [Manage
+Access](../../access-controls/access-controls.mdx) section to get started enrolling
+users and setting up RBAC.
+
+See the [high availability section of our Helm chart reference](../../../reference/helm-reference/teleport-cluster.mdx) for more details on high availability.

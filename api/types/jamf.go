@@ -44,13 +44,6 @@ func ValidateJamfSpecV1(s *JamfSpecV1) error {
 		return trace.BadParameter("spec required")
 	}
 
-	// Jamf can handle both credential sets being present, so we let it pass.
-	hasUserPass := s.Username != "" && s.Password != ""
-	hasAPICreds := s.ClientId != "" && s.ClientSecret != ""
-	if !hasUserPass && !hasAPICreds {
-		return trace.BadParameter("either username+password or clientID+clientSecret must be provided")
-	}
-
 	switch u, err := url.Parse(s.ApiEndpoint); {
 	case err != nil:
 		return trace.BadParameter("invalid API endpoint: %v", err)

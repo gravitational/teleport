@@ -19,17 +19,18 @@
 package authz_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -39,19 +40,34 @@ func TestIsTLSDeviceVerified(t *testing.T) {
 
 func TestIsSSHDeviceVerified(t *testing.T) {
 	testIsDeviceVerified(t, "IsSSHDeviceVerified", func(ext *tlsca.DeviceExtensions) bool {
-		var cert *ssh.Certificate
+		var ident *sshca.Identity
 		if ext != nil {
-			cert = &ssh.Certificate{
-				Permissions: ssh.Permissions{
-					Extensions: map[string]string{
-						teleport.CertExtensionDeviceID:           ext.DeviceID,
-						teleport.CertExtensionDeviceAssetTag:     ext.AssetTag,
-						teleport.CertExtensionDeviceCredentialID: ext.CredentialID,
-					},
-				},
+			ident = &sshca.Identity{
+				DeviceID:           ext.DeviceID,
+				DeviceAssetTag:     ext.AssetTag,
+				DeviceCredentialID: ext.CredentialID,
 			}
 		}
-		return authz.IsSSHDeviceVerified(cert)
+		return authz.IsSSHDeviceVerified(ident)
+	})
+}
+
+func TestHasDeviceTrustExtensions(t *testing.T) {
+	testIsDeviceVerified(t, "HasDeviceTrustExtensions", func(ext *tlsca.DeviceExtensions) bool {
+		if ext == nil {
+			return authz.HasDeviceTrustExtensions(nil)
+		}
+		var extensions []string
+		if ext.DeviceID != "" {
+			extensions = append(extensions, teleport.CertExtensionDeviceID)
+		}
+		if ext.AssetTag != "" {
+			extensions = append(extensions, teleport.CertExtensionDeviceAssetTag)
+		}
+		if ext.CredentialID != "" {
+			extensions = append(extensions, teleport.CertExtensionDeviceCredentialID)
+		}
+		return authz.HasDeviceTrustExtensions(extensions)
 	})
 }
 
@@ -112,7 +128,7 @@ func testIsDeviceVerified(t *testing.T, name string, fn func(ext *tlsca.DeviceEx
 
 func TestVerifyTLSUser(t *testing.T) {
 	runVerifyUserTest(t, "VerifyTLSUser", func(dt *types.DeviceTrust, ext *tlsca.DeviceExtensions) error {
-		return authz.VerifyTLSUser(dt, tlsca.Identity{
+		return authz.VerifyTLSUser(context.Background(), dt, tlsca.Identity{
 			Username:         "llama",
 			DeviceExtensions: *ext,
 		})
@@ -121,15 +137,10 @@ func TestVerifyTLSUser(t *testing.T) {
 
 func TestVerifySSHUser(t *testing.T) {
 	runVerifyUserTest(t, "VerifySSHUser", func(dt *types.DeviceTrust, ext *tlsca.DeviceExtensions) error {
-		return authz.VerifySSHUser(dt, &ssh.Certificate{
-			KeyId: "llama",
-			Permissions: ssh.Permissions{
-				Extensions: map[string]string{
-					teleport.CertExtensionDeviceID:           ext.DeviceID,
-					teleport.CertExtensionDeviceAssetTag:     ext.AssetTag,
-					teleport.CertExtensionDeviceCredentialID: ext.CredentialID,
-				},
-			},
+		return authz.VerifySSHUser(context.Background(), dt, &sshca.Identity{
+			DeviceID:           ext.DeviceID,
+			DeviceAssetTag:     ext.AssetTag,
+			DeviceCredentialID: ext.CredentialID,
 		})
 	})
 }
@@ -174,13 +185,13 @@ func runVerifyUserTest(t *testing.T, method string, verify func(dt *types.Device
 			assertErr: assertNoErr,
 		},
 		{
-			name:      "OSS mode never enforced",
+			name:      "OSS mode=required (Enterprise Auth)",
 			buildType: modules.BuildOSS,
 			dt: &types.DeviceTrust{
-				Mode: constants.DeviceTrustModeRequired, // Invalid for OSS, treated as "off".
+				Mode: constants.DeviceTrustModeRequired,
 			},
 			ext:       userWithoutExtensions,
-			assertErr: assertNoErr,
+			assertErr: assertDeniedErr,
 		},
 		{
 			name:      "Enterprise mode=off",

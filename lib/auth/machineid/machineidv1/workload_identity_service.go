@@ -23,6 +23,7 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/x509"
+	"log/slog"
 	"math/big"
 	"net"
 	"net/url"
@@ -31,41 +32,55 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 
-	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
-const spiffeScheme = "spiffe"
+const (
+	spiffeScheme       = "spiffe"
+	jtiLength          = 16
+	maxSVIDTTL         = 24 * time.Hour
+	defaultX509SVIDTTL = 1 * time.Hour
+	defaultJWTSVIDTTL  = 5 * time.Minute
+)
 
 // WorkloadIdentityServiceConfig holds configuration options for
 // the WorkloadIdentity gRPC service.
 type WorkloadIdentityServiceConfig struct {
 	Authorizer authz.Authorizer
 	Cache      WorkloadIdentityCacher
-	Logger     logrus.FieldLogger
+	Logger     *slog.Logger
 	Emitter    apievents.Emitter
 	Reporter   usagereporter.UsageReporter
 	Clock      clockwork.Clock
 	KeyStore   KeyStorer
 }
 
+// WorkloadIdentityCacher is an interface that provides methods to retrieve
+// cached information that is necessary for the workload identity service to
+// function.
 type WorkloadIdentityCacher interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetProxies() ([]types.Server, error)
 }
 
+// KeyStorer is an interface that provides methods to retrieve keys and
+// certificates from the backend.
 type KeyStorer interface {
 	GetTLSCertAndSigner(ctx context.Context, ca types.CertAuthority) ([]byte, crypto.Signer, error)
+	GetJWTSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error)
 }
 
 // NewWorkloadIdentityService returns a new instance of the
@@ -84,11 +99,10 @@ func NewWorkloadIdentityService(
 		return nil, trace.BadParameter("reporter is required")
 	case cfg.KeyStore == nil:
 		return nil, trace.BadParameter("keyStore is required")
+	case cfg.Logger == nil:
+		return nil, trace.BadParameter("logger is required")
 	}
 
-	if cfg.Logger == nil {
-		cfg.Logger = logrus.WithField(teleport.ComponentKey, "workload-identity.service")
-	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
 	}
@@ -112,7 +126,7 @@ type WorkloadIdentityService struct {
 	cache      WorkloadIdentityCacher
 	authorizer authz.Authorizer
 	keyStorer  KeyStorer
-	logger     logrus.FieldLogger
+	logger     *slog.Logger
 	emitter    apievents.Emitter
 	reporter   usagereporter.UsageReporter
 	clock      clockwork.Clock
@@ -215,7 +229,7 @@ func (wis *WorkloadIdentityService) signX509SVID(
 	// Setup audit log event, we will emit these even on failure to catch any
 	// authz denials
 	var serialNumber *big.Int
-	var spiffeID *url.URL
+	var spiffeID spiffeid.ID
 	defer func() {
 		evt := &apievents.SPIFFESVIDIssued{
 			Metadata: apievents.Metadata{
@@ -235,12 +249,12 @@ func (wis *WorkloadIdentityService) signX509SVID(
 		if serialNumber != nil {
 			evt.SerialNumber = serialString(serialNumber)
 		}
-		if spiffeID != nil {
+		if !spiffeID.IsZero() {
 			evt.SPIFFEID = spiffeID.String()
 		}
 		if emitErr := wis.emitter.EmitAuditEvent(ctx, evt); emitErr != nil {
-			wis.logger.WithError(emitErr).Warn(
-				"Failed to emit SPIFFE SVID issued event.",
+			wis.logger.WarnContext(
+				ctx, "Failed to emit SPIFFE SVID issued event", "error", err,
 			)
 		}
 	}()
@@ -254,11 +268,16 @@ func (wis *WorkloadIdentityService) signX509SVID(
 	case len(req.PublicKey) == 0:
 		return nil, trace.BadParameter("publicKey: must be non-empty")
 	}
-	spiffeID = &url.URL{
+
+	spiffeID, err = spiffeid.FromURI(&url.URL{
 		Scheme: spiffeScheme,
 		Host:   clusterName,
 		Path:   req.SpiffeIdPath,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating SPIFFE ID")
 	}
+
 	ipSans := []net.IP{}
 	for i, stringIP := range req.IpSans {
 		ip := net.ParseIP(stringIP)
@@ -272,12 +291,12 @@ func (wis *WorkloadIdentityService) signX509SVID(
 
 	// Default TTL is 1 hour - maximum is 24 hours. If TTL is greater than max,
 	// we will use the max.
-	ttl := defaults.DefaultRenewableCertTTL
+	ttl := defaultX509SVIDTTL
 	if reqTTL := req.Ttl.AsDuration(); reqTTL > 0 {
 		ttl = reqTTL
 	}
-	if ttl > defaults.MaxRenewableCertTTL {
-		ttl = defaults.MaxRenewableCertTTL
+	if ttl > maxSVIDTTL {
+		ttl = maxSVIDTTL
 	}
 	notAfter := wis.clock.Now().Add(ttl)
 	// NotBefore is one minute in the past to prevent "Not yet valid" errors on
@@ -296,7 +315,7 @@ func (wis *WorkloadIdentityService) signX509SVID(
 
 	var pemBytes []byte
 	pemBytes, serialNumber, err = signx509SVID(
-		notBefore, notAfter, ca, req.PublicKey, spiffeID, req.DnsSans, ipSans,
+		notBefore, notAfter, ca, req.PublicKey, spiffeID.URL(), req.DnsSans, ipSans,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -350,6 +369,175 @@ func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.S
 		}
 		res.Svids = append(res.Svids, svidRes)
 	}
+
+	wis.logger.WarnContext(
+		ctx,
+		"The 'SignX509SVIDs' RPC has been invoked. This RPC is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
+	)
+
+	return res, nil
+}
+
+func (wis *WorkloadIdentityService) signJWTSVID(
+	ctx context.Context,
+	authCtx *authz.Context,
+	clusterName string,
+	issuer string,
+	key *jwt.Key,
+	req *pb.JWTSVIDRequest,
+) (res *pb.JWTSVIDResponse, err error) {
+	var jti string
+	var spiffeID spiffeid.ID
+	defer func() {
+		evt := &apievents.SPIFFESVIDIssued{
+			Metadata: apievents.Metadata{
+				Type: events.SPIFFESVIDIssuedEvent,
+				Code: events.SPIFFESVIDIssuedSuccessCode,
+			},
+			UserMetadata:       authz.ClientUserMetadata(ctx),
+			ConnectionMetadata: authz.ConnectionMetadata(ctx),
+			Hint:               req.Hint,
+			SVIDType:           "jwt",
+			Audiences:          req.Audiences,
+		}
+		if err != nil {
+			evt.Code = events.SPIFFESVIDIssuedFailureCode
+		}
+		if !spiffeID.IsZero() {
+			evt.SPIFFEID = spiffeID.String()
+		}
+		if jti != "" {
+			evt.JTI = jti
+		}
+		if emitErr := wis.emitter.EmitAuditEvent(ctx, evt); emitErr != nil {
+			wis.logger.WarnContext(
+				ctx,
+				"Failed to emit SPIFFE SVID issued event.",
+				"error", emitErr,
+			)
+		}
+	}()
+
+	switch {
+	case req.SpiffeIdPath == "":
+		return nil, trace.BadParameter("spiffe_id_path: must be non-empty")
+	case !strings.HasPrefix(req.SpiffeIdPath, "/"):
+		return nil, trace.BadParameter("spiffe_id_path: must start with '/'")
+	case len(req.Audiences) == 0:
+		return nil, trace.BadParameter("audiences: must be non-empty")
+	}
+
+	// Perform authz checks. They must be allowed to issue the SPIFFE ID. Since
+	// this is a JWT SVID, there are no SANs to check.
+	if err := authCtx.Checker.CheckSPIFFESVID(
+		req.SpiffeIdPath,
+		[]string{},
+		[]net.IP{},
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Create a JTI to uniquely identify this JWT for audit logging purposes
+	jti, err = utils.CryptoRandomHex(jtiLength)
+	if err != nil {
+		return nil, trace.Wrap(err, "generating JTI")
+	}
+
+	spiffeID, err = spiffeid.FromURI(&url.URL{
+		Scheme: spiffeScheme,
+		Host:   clusterName,
+		Path:   req.SpiffeIdPath,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating SPIFFE ID")
+	}
+
+	ttl := defaultJWTSVIDTTL
+	if reqTTL := req.Ttl.AsDuration(); reqTTL > 0 {
+		ttl = reqTTL
+	}
+	if ttl > maxSVIDTTL {
+		ttl = maxSVIDTTL
+	}
+
+	signed, err := key.SignJWTSVID(jwt.SignParamsJWTSVID{
+		Audiences: req.Audiences,
+		SPIFFEID:  spiffeID,
+		TTL:       ttl,
+		JTI:       jti,
+		Issuer:    issuer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "signing jwt")
+	}
+
+	return &pb.JWTSVIDResponse{
+		Audiences: req.Audiences,
+		Jwt:       signed,
+		SpiffeId:  spiffeID.String(),
+		Jti:       jti,
+		Hint:      req.Hint,
+	}, nil
+}
+
+// SignJWTSVIDs signs and returns the requested JWT SVIDs.
+func (wis *WorkloadIdentityService) SignJWTSVIDs(
+	ctx context.Context, req *pb.SignJWTSVIDsRequest,
+) (*pb.SignJWTSVIDsResponse, error) {
+	if len(req.Svids) == 0 {
+		return nil, trace.BadParameter("svids: must be non-empty")
+	}
+
+	authCtx, err := wis.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Fetch info that will be needed to create the SVIDs
+	clusterName, err := wis.cache.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err, "getting cluster name")
+	}
+	ca, err := wis.cache.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.SPIFFECA,
+		DomainName: clusterName.GetClusterName(),
+	}, true)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting SPIFFE CA")
+	}
+	jwtSigner, err := wis.keyStorer.GetJWTSigner(ctx, ca)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting JWT signer")
+	}
+	jwtKey, err := services.GetJWTSigner(
+		jwtSigner, clusterName.GetClusterName(), wis.clock,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting JWT key")
+	}
+
+	// Determine the public address of the proxy for inclusion in the JWT as
+	// the issuer for purposes of OIDC compatibility.
+	issuer, err := oidc.IssuerForCluster(ctx, wis.cache, "/workload-identity")
+	if err != nil {
+		return nil, trace.Wrap(err, "determining issuer")
+	}
+
+	res := &pb.SignJWTSVIDsResponse{}
+	for i, svidReq := range req.Svids {
+		svidRes, err := wis.signJWTSVID(
+			ctx, authCtx, clusterName.GetClusterName(), issuer, jwtKey, svidReq,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "signing svid %d", i)
+		}
+		res.Svids = append(res.Svids, svidRes)
+	}
+
+	wis.logger.WarnContext(
+		ctx,
+		"The 'SignJWTSVIDs' RPC has been invoked. This RPC is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
+	)
 
 	return res, nil
 }

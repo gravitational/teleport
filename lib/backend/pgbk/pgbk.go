@@ -19,9 +19,9 @@
 package pgbk
 
 import (
-	"bytes"
 	"context"
 	"errors"
+	"iter"
 	"log/slog"
 	"sync"
 	"time"
@@ -259,7 +259,7 @@ func (b *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 				" ON CONFLICT (key) DO UPDATE SET"+
 				" value = excluded.value, expires = excluded.expires, revision = excluded.revision"+
 				" WHERE kv.expires IS NOT NULL AND kv.expires <= now()",
-			nonNil(i.Key), nonNil(i.Value), zeronull.Timestamptz(i.Expires), revision)
+			nonNilKey(i.Key), nonNil(i.Value), zeronull.Timestamptz(i.Expires), revision)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
@@ -286,7 +286,7 @@ func (b *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, erro
 			"INSERT INTO kv (key, value, expires, revision) VALUES ($1, $2, $3, $4)"+
 				" ON CONFLICT (key) DO UPDATE SET"+
 				" value = excluded.value, expires = excluded.expires, revision = excluded.revision",
-			nonNil(i.Key), nonNil(i.Value), zeronull.Timestamptz(i.Expires), revision)
+			nonNilKey(i.Key), nonNil(i.Value), zeronull.Timestamptz(i.Expires), revision)
 		return struct{}{}, trace.Wrap(err)
 	}); err != nil {
 		return nil, trace.Wrap(err)
@@ -298,7 +298,7 @@ func (b *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, erro
 
 // CompareAndSwap implements [backend.Backend].
 func (b *Backend) CompareAndSwap(ctx context.Context, expected, replaceWith backend.Item) (*backend.Lease, error) {
-	if !bytes.Equal(expected.Key, replaceWith.Key) {
+	if expected.Key.Compare(replaceWith.Key) != 0 {
 		return nil, trace.BadParameter("expected and replaceWith keys should match")
 	}
 
@@ -309,7 +309,7 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected, replaceWith back
 			"UPDATE kv SET value = $1, expires = $2, revision = $3"+
 				" WHERE kv.key = $4 AND kv.value = $5 AND (kv.expires IS NULL OR kv.expires > now())",
 			nonNil(replaceWith.Value), zeronull.Timestamptz(replaceWith.Expires), revision,
-			nonNil(replaceWith.Key), nonNil(expected.Value))
+			nonNilKey(replaceWith.Key), nonNil(expected.Value))
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
@@ -335,7 +335,7 @@ func (b *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, e
 		tag, err := b.pool.Exec(ctx,
 			"UPDATE kv SET value = $1, expires = $2, revision = $3"+
 				" WHERE kv.key = $4 AND (kv.expires IS NULL OR kv.expires > now())",
-			nonNil(i.Value), zeronull.Timestamptz(i.Expires), revision, nonNil(i.Key))
+			nonNil(i.Value), zeronull.Timestamptz(i.Expires), revision, nonNilKey(i.Key))
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
@@ -367,7 +367,7 @@ func (b *Backend) ConditionalUpdate(ctx context.Context, i backend.Item) (*backe
 				"WHERE kv.key = $4 AND kv.revision = $5 AND "+
 				"(kv.expires IS NULL OR kv.expires > now())",
 			nonNil(i.Value), zeronull.Timestamptz(i.Expires), newRevision,
-			nonNil(i.Key), expectedRevision)
+			nonNilKey(i.Key), expectedRevision)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
@@ -386,7 +386,7 @@ func (b *Backend) ConditionalUpdate(ctx context.Context, i backend.Item) (*backe
 }
 
 // Get implements [backend.Backend].
-func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
+func (b *Backend) Get(ctx context.Context, key backend.Key) (*backend.Item, error) {
 	item, err := pgcommon.RetryIdempotent(ctx, b.log, func() (*backend.Item, error) {
 		batch := new(pgx.Batch)
 		// batches run in an implicit transaction
@@ -394,7 +394,7 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 
 		var item *backend.Item
 		batch.Queue("SELECT kv.value, kv.expires, kv.revision FROM kv"+
-			" WHERE kv.key = $1 AND (kv.expires IS NULL OR kv.expires > now())", nonNil(key),
+			" WHERE kv.key = $1 AND (kv.expires IS NULL OR kv.expires > now())", nonNilKey(key),
 		).QueryRow(func(row pgx.Row) error {
 			var value []byte
 			var expires time.Time
@@ -431,62 +431,121 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 	return item, nil
 }
 
-// GetRange implements [backend.Backend].
-func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, limit int) (*backend.GetResult, error) {
+func (b *Backend) Items(ctx context.Context, params backend.IterateParams) iter.Seq2[backend.Item, error] {
+	if params.StartKey.IsZero() {
+		err := trace.BadParameter("missing parameter startKey")
+		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
+	}
+	if params.EndKey.IsZero() {
+		err := trace.BadParameter("missing parameter endKey")
+		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
+	}
+
+	limit := params.Limit
 	if limit <= 0 {
 		limit = backend.DefaultRangeLimit
 	}
 
-	items, err := pgcommon.RetryIdempotent(ctx, b.log, func() ([]backend.Item, error) {
-		batch := new(pgx.Batch)
-		// batches run in an implicit transaction
-		batch.Queue("SET transaction_read_only TO on")
-		// TODO(espadolini): figure out if we want transaction_deferred enabled
-		// for GetRange
+	const (
+		queryAsc = "SELECT kv.key, kv.value, kv.expires, kv.revision FROM kv" +
+			" WHERE kv.key BETWEEN $1 AND $2 AND ($3::bytea is NULL or kv.key > $3) AND (kv.expires IS NULL OR kv.expires > now())" +
+			" ORDER BY kv.key ASC LIMIT $4"
 
-		var items []backend.Item
-		batch.Queue(
-			"SELECT kv.key, kv.value, kv.expires, kv.revision FROM kv"+
-				" WHERE kv.key BETWEEN $1 AND $2 AND (kv.expires IS NULL OR kv.expires > now())"+
-				" ORDER BY kv.key LIMIT $3",
-			nonNil(startKey), nonNil(endKey), limit,
-		).Query(func(rows pgx.Rows) error {
-			var err error
-			items, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (backend.Item, error) {
-				var key, value []byte
-				var expires time.Time
-				var revision revision
-				if err := row.Scan(&key, &value, (*zeronull.Timestamptz)(&expires), &revision); err != nil {
-					return backend.Item{}, err
+		queryDesc = "SELECT kv.key, kv.value, kv.expires, kv.revision FROM kv" +
+			" WHERE kv.key BETWEEN $1 AND $2 AND ($3::bytea is NULL or kv.key < $3) AND (kv.expires IS NULL OR kv.expires > now())" +
+			" ORDER BY kv.key DESC LIMIT $4"
+
+		defaultPageSize = 1000
+	)
+	return func(yield func(backend.Item, error) bool) {
+		var exclusiveStartKey []byte
+		query := queryAsc
+		if params.Descending {
+			query = queryDesc
+		}
+
+		var totalCount int
+		for {
+			pageLimit := min(limit-totalCount, defaultPageSize)
+
+			items, err := pgcommon.RetryIdempotent(ctx, b.log, func() ([]backend.Item, error) {
+				batch := new(pgx.Batch)
+				// batches run in an implicit transaction
+				batch.Queue("SET transaction_read_only TO on")
+				// TODO(espadolini): figure out if we want transaction_deferred enabled
+				var items []backend.Item
+				batch.Queue(query, nonNilKey(params.StartKey), nonNilKey(params.EndKey), exclusiveStartKey, pageLimit).Query(func(rows pgx.Rows) error {
+					var err error
+					items, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (backend.Item, error) {
+						var key backend.Key
+						var value []byte
+						var expires time.Time
+						var revision revision
+						if err := row.Scan(&key, &value, (*zeronull.Timestamptz)(&expires), &revision); err != nil {
+							return backend.Item{}, err
+						}
+						return backend.Item{
+							Key:      key,
+							Value:    value,
+							Expires:  expires.UTC(),
+							Revision: revisionToString(revision),
+						}, nil
+					})
+					return trace.Wrap(err)
+				})
+
+				if err := b.pool.SendBatch(ctx, batch).Close(); err != nil {
+					return nil, trace.Wrap(err)
 				}
-				return backend.Item{
-					Key:      key,
-					Value:    value,
-					Expires:  expires.UTC(),
-					Revision: revisionToString(revision),
-				}, nil
-			})
-			return trace.Wrap(err)
-		})
 
-		if err := b.pool.SendBatch(ctx, batch).Close(); err != nil {
+				return items, nil
+			})
+			if err != nil {
+				yield(backend.Item{}, trace.Wrap(err))
+				return
+			}
+
+			if len(items) >= pageLimit {
+				exclusiveStartKey = []byte(items[len(items)-1].Key.String())
+			}
+
+			for _, item := range items {
+				if !yield(item, nil) {
+					return
+				}
+
+				totalCount++
+				if limit != backend.NoLimit && totalCount >= limit {
+					return
+				}
+			}
+
+			if len(items) < pageLimit {
+				return
+			}
+		}
+	}
+}
+
+// GetRange implements [backend.Backend].
+func (b *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
+	var result backend.GetResult
+	for item, err := range b.Items(ctx, backend.IterateParams{StartKey: startKey, EndKey: endKey, Limit: limit}) {
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		return items, nil
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+		result.Items = append(result.Items, item)
 	}
 
-	return &backend.GetResult{Items: items}, nil
+	return &result, nil
 }
 
 // Delete implements [backend.Backend].
-func (b *Backend) Delete(ctx context.Context, key []byte) error {
+func (b *Backend) Delete(ctx context.Context, key backend.Key) error {
 	deleted, err := pgcommon.Retry(ctx, b.log, func() (bool, error) {
 		tag, err := b.pool.Exec(ctx,
-			"DELETE FROM kv WHERE kv.key = $1 AND (kv.expires IS NULL OR kv.expires > now())", nonNil(key))
+			"DELETE FROM kv WHERE kv.key = $1 AND (kv.expires IS NULL OR kv.expires > now())", nonNilKey(key))
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
@@ -502,7 +561,7 @@ func (b *Backend) Delete(ctx context.Context, key []byte) error {
 	return nil
 }
 
-func (b *Backend) ConditionalDelete(ctx context.Context, key []byte, rev string) error {
+func (b *Backend) ConditionalDelete(ctx context.Context, key backend.Key, rev string) error {
 	expectedRevision, ok := revisionFromString(rev)
 	if !ok {
 		return trace.Wrap(backend.ErrIncorrectRevision)
@@ -512,7 +571,7 @@ func (b *Backend) ConditionalDelete(ctx context.Context, key []byte, rev string)
 		tag, err := b.pool.Exec(ctx,
 			"DELETE FROM kv WHERE kv.key = $1 AND kv.revision = $2 AND "+
 				"(kv.expires IS NULL OR kv.expires > now())",
-			nonNil(key), expectedRevision)
+			nonNilKey(key), expectedRevision)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
@@ -529,7 +588,7 @@ func (b *Backend) ConditionalDelete(ctx context.Context, key []byte, rev string)
 }
 
 // DeleteRange implements [backend.Backend].
-func (b *Backend) DeleteRange(ctx context.Context, startKey []byte, endKey []byte) error {
+func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key) error {
 	// this is the only backend operation that might affect a disproportionate
 	// amount of rows at the same time; in actual operation, DeleteRange hardly
 	// ever deletes more than dozens of items at once, and logical decoding
@@ -538,7 +597,7 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey []byte, endKey []byt
 	if _, err := pgcommon.Retry(ctx, b.log, func() (struct{}, error) {
 		_, err := b.pool.Exec(ctx,
 			"DELETE FROM kv WHERE kv.key BETWEEN $1 AND $2",
-			nonNil(startKey), nonNil(endKey),
+			nonNilKey(startKey), nonNilKey(endKey),
 		)
 		return struct{}{}, trace.Wrap(err)
 	}); err != nil {
@@ -555,7 +614,7 @@ func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 		tag, err := b.pool.Exec(ctx,
 			"UPDATE kv SET expires = $1, revision = $2"+
 				" WHERE kv.key = $3 AND (kv.expires IS NULL OR kv.expires > now())",
-			zeronull.Timestamptz(expires.UTC()), revision, nonNil(lease.Key))
+			zeronull.Timestamptz(expires.UTC()), revision, nonNilKey(lease.Key))
 		if err != nil {
 			return false, trace.Wrap(err)
 		}

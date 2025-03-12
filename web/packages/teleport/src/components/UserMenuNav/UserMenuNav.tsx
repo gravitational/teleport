@@ -16,43 +16,45 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useRef, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 
-import { Moon, Sun, ChevronDown, Logout as LogoutIcon } from 'design/Icon';
-import { Text } from 'design';
-import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
-import { getCurrentTheme, getNextTheme } from 'design/ThemeProvider';
-
+import { Box, Text } from 'design';
+import { ChevronDown, Logout as LogoutIcon, Moon, Sun } from 'design/Icon';
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
+import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 
-import session from 'teleport/services/websession';
-import { useFeatures } from 'teleport/FeaturesContext';
 import { useTeleport } from 'teleport';
-import { useUser } from 'teleport/User/UserContext';
 import {
   Dropdown,
+  DropdownDivider,
   DropdownItem,
   DropdownItemButton,
-  DropdownItemLink,
   DropdownItemIcon,
-  DropdownDivider,
-  STARTING_TRANSITION_DELAY,
+  DropdownItemLink,
   INCREMENT_TRANSITION_DELAY,
+  STARTING_TRANSITION_DELAY,
 } from 'teleport/components/Dropdown';
-import { DeviceTrustIcon } from 'teleport/TopBar/DeviceTrustIcon';
+import { useFeatures } from 'teleport/FeaturesContext';
+import { focusOutsideTarget } from 'teleport/lib/util/eventTarget';
+import session from 'teleport/services/websession';
+import { getCurrentTheme, getNextTheme } from 'teleport/ThemeProvider';
+import { DeviceTrustStatus } from 'teleport/TopBar/DeviceTrustStatus';
+import { useUser } from 'teleport/User/UserContext';
 
 interface UserMenuNavProps {
   username: string;
-  iconSize: number;
 }
+
+const USER_MENU_DROPDOWN_ID = 'tb-user-menu';
 
 const Container = styled.div`
   position: relative;
   align-self: center;
   padding-left: ${props => props.theme.space[3]}px;
   padding-right: ${props => props.theme.space[3]}px;
-  &:hover {
+  &:hover,
+  &:focus-within {
     background: ${props => props.theme.colors.spotBackground[0]};
   }
   height: 100%;
@@ -66,6 +68,7 @@ const UserInfo = styled.div`
   cursor: pointer;
   user-select: none;
   position: relative;
+  outline: none;
 `;
 
 const Username = styled(Text)`
@@ -101,7 +104,7 @@ const StyledAvatar = styled.div`
 
 const Arrow = styled.div<{ open?: boolean }>`
   line-height: 0;
-  padding-left: 32px;
+  padding-left: ${p => p.theme.space[3]}px;
 
   svg {
     transform: ${p => (p.open ? 'rotate(-180deg)' : 'none')};
@@ -114,13 +117,14 @@ const Arrow = styled.div<{ open?: boolean }>`
   }
 `;
 
-export function UserMenuNav({ username, iconSize }: UserMenuNavProps) {
+export function UserMenuNav({ username }: UserMenuNavProps) {
   const [open, setOpen] = useState(false);
   const theme = useTheme();
 
   const { preferences, updatePreferences } = useUser();
 
-  const ref = useRefClickOutside<HTMLDivElement>({ open, setOpen });
+  const outsideClickRef = useRefClickOutside<HTMLDivElement>({ open, setOpen });
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const ctx = useTeleport();
   const clusterId = ctx.storeUser.getClusterId();
@@ -145,10 +149,16 @@ export function UserMenuNav({ username, iconSize }: UserMenuNavProps) {
   let transitionDelay = STARTING_TRANSITION_DELAY;
   for (const [index, item] of topMenuItems.entries()) {
     items.push(
-      <DropdownItem open={open} key={index} $transitionDelay={transitionDelay}>
+      <DropdownItem
+        open={open}
+        key={index}
+        $transitionDelay={transitionDelay}
+        role="menuitem"
+      >
         <DropdownItemLink
           to={item.topMenuItem.getLink(clusterId)}
           onClick={() => setOpen(false)}
+          onKeyUp={e => (e.key === 'Enter' || e.key === ' ') && setOpen(false)}
         >
           <DropdownItemIcon>{<item.topMenuItem.icon />}</DropdownItemIcon>
           {item.topMenuItem.title}
@@ -160,27 +170,71 @@ export function UserMenuNav({ username, iconSize }: UserMenuNavProps) {
   }
 
   return (
-    <Container ref={ref}>
-      <UserInfo onClick={() => setOpen(!open)}>
+    <Container ref={outsideClickRef}>
+      <UserInfo
+        onClick={() => setOpen(!open)}
+        onKeyUp={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            setOpen(!open);
+            return;
+          }
+          if (e.key === 'Tab' && open) {
+            // move to first focusable item in dropdown
+            dropdownRef.current
+              ?.querySelector<HTMLElement>('a, div[role="button"]')
+              ?.focus();
+          }
+        }}
+        onBlur={e =>
+          focusOutsideTarget(e, dropdownRef.current) && setOpen(false)
+        }
+        tabIndex={0}
+        role="button"
+        aria-label="User Menu"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={USER_MENU_DROPDOWN_ID}
+      >
         <StyledAvatar>{initial}</StyledAvatar>
 
         <Username>{username}</Username>
-        <DeviceTrustIcon iconSize={iconSize} />
+        <Box ml={3}>
+          <DeviceTrustStatus iconOnly />
+        </Box>
 
         <Arrow open={open}>
           <ChevronDown size="medium" />
         </Arrow>
       </UserInfo>
 
-      <Dropdown open={open}>
+      <Dropdown
+        open={open}
+        ref={dropdownRef}
+        role="menu"
+        id={USER_MENU_DROPDOWN_ID}
+        onBlur={e =>
+          !e.currentTarget.contains(e.relatedTarget as Node) && setOpen(false)
+        }
+      >
+        <DeviceTrustStatus />
         {items}
 
         <DropdownDivider />
 
         {/* Hide ability to switch themes if the theme is a custom theme */}
         {!theme.isCustomTheme && (
-          <DropdownItem open={open} $transitionDelay={transitionDelay}>
-            <DropdownItemButton onClick={onThemeChange}>
+          <DropdownItem
+            open={open}
+            $transitionDelay={transitionDelay}
+            role="menuitem"
+          >
+            <DropdownItemButton
+              onClick={onThemeChange}
+              onKeyUp={e =>
+                (e.key === 'Enter' || e.key === ' ') && onThemeChange()
+              }
+              tabIndex={0}
+            >
               <DropdownItemIcon>
                 {currentTheme === Theme.DARK ? <Sun /> : <Moon />}
               </DropdownItemIcon>
@@ -189,8 +243,18 @@ export function UserMenuNav({ username, iconSize }: UserMenuNavProps) {
           </DropdownItem>
         )}
 
-        <DropdownItem open={open} $transitionDelay={transitionDelay}>
-          <DropdownItemButton onClick={() => session.logout()}>
+        <DropdownItem
+          open={open}
+          $transitionDelay={transitionDelay}
+          role="menuitem"
+        >
+          <DropdownItemButton
+            onClick={() => session.logout()}
+            onKeyUp={e =>
+              (e.key === 'Enter' || e.key === ' ') && session.logout()
+            }
+            tabIndex={0}
+          >
             <DropdownItemIcon>
               <LogoutIcon />
             </DropdownItemIcon>

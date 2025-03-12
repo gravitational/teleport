@@ -16,15 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
 import {
-  rootClusterUri,
   leafClusterUri,
-  makeServer,
   makeApp,
-  makeKube,
   makeDatabase,
+  makeKube,
+  makeServer,
+  rootClusterUri,
 } from 'teleterm/services/tshd/testHelpers';
+import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
 import { ModalsService } from 'teleterm/ui/services/modals';
 
 import {
@@ -37,6 +37,11 @@ function getMockPendingResourceAccessRequest(): PendingAccessRequest {
   const server = makeServer();
   const app1 = makeApp();
   const app2 = makeApp({ uri: `${rootClusterUri}/apps/foo2`, name: 'foo2' });
+  const samlApp = makeApp({
+    uri: `${rootClusterUri}/samlapp`,
+    name: 'samlapp',
+    samlApp: true,
+  });
   const kube = makeKube();
   const database = makeDatabase();
 
@@ -48,6 +53,7 @@ function getMockPendingResourceAccessRequest(): PendingAccessRequest {
       [app2.uri, { kind: 'app', resource: app2 }],
       [kube.uri, { kind: 'kube', resource: kube }],
       [database.uri, { kind: 'database', resource: database }],
+      [samlApp.uri, { kind: 'app', resource: samlApp }],
     ]),
   };
 }
@@ -113,9 +119,72 @@ test('getAddedItemsCount() returns added resource count for pending request', ()
   const { accessRequestsService: service } = getTestSetup(
     getMockPendingResourceAccessRequest()
   );
-  expect(service.getAddedItemsCount()).toBe(5);
+  expect(service.getAddedItemsCount()).toBe(6);
   service.clearPendingAccessRequest();
   expect(service.getAddedItemsCount()).toBe(0);
+});
+
+test('addAllOrRemoveAllResources() adds all resources to pending request', async () => {
+  const { accessRequestsService: service } = getTestSetup(
+    getMockPendingResourceAccessRequest()
+  );
+  const server = makeServer({
+    uri: `${rootClusterUri}/servers/ser`,
+    hostname: 'ser',
+  });
+  const server2 = makeServer({
+    uri: `${rootClusterUri}/servers/ser2`,
+    hostname: 'ser2',
+  });
+
+  // add a single resource that isn't added should add to the request
+  await service.addAllOrRemoveAllResources([
+    { kind: 'server', resource: server },
+  ]);
+  let pendingAccessRequest = service.getPendingAccessRequest();
+  expect(
+    pendingAccessRequest.kind === 'resource' &&
+      pendingAccessRequest.resources.get(server.uri)
+  ).toStrictEqual({
+    kind: 'server',
+    resource: { hostname: server.hostname, uri: server.uri },
+  });
+
+  // padding an array that contains some resources already added and some that aren't should add them all
+  await service.addAllOrRemoveAllResources([
+    { kind: 'server', resource: server },
+    { kind: 'server', resource: server2 },
+  ]);
+  pendingAccessRequest = service.getPendingAccessRequest();
+  expect(
+    pendingAccessRequest.kind === 'resource' &&
+      pendingAccessRequest.resources.get(server.uri)
+  ).toStrictEqual({
+    kind: 'server',
+    resource: { hostname: server.hostname, uri: server.uri },
+  });
+  expect(
+    pendingAccessRequest.kind === 'resource' &&
+      pendingAccessRequest.resources.get(server2.uri)
+  ).toStrictEqual({
+    kind: 'server',
+    resource: { hostname: server2.hostname, uri: server2.uri },
+  });
+
+  // passing an array of resources that are all already added should remove all the passed resources
+  await service.addAllOrRemoveAllResources([
+    { kind: 'server', resource: server },
+    { kind: 'server', resource: server2 },
+  ]);
+  pendingAccessRequest = service.getPendingAccessRequest();
+  expect(
+    pendingAccessRequest.kind === 'resource' &&
+      pendingAccessRequest.resources.get(server.uri)
+  ).toStrictEqual(undefined);
+  expect(
+    pendingAccessRequest.kind === 'resource' &&
+      pendingAccessRequest.resources.get(server2.uri)
+  ).toStrictEqual(undefined);
 });
 
 test('addOrRemoveResource() adds resource to pending request', async () => {

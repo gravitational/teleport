@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
@@ -85,7 +86,7 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 				func(emails Set) (Set, error) {
 					locals, err := parse.EmailLocal(emails.items())
 					if err != nil {
-						return nil, trace.Wrap(err)
+						return Set{}, trace.Wrap(err)
 					}
 					return NewSet(locals...), nil
 				}),
@@ -93,14 +94,14 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 				func(inputs Set, match string, replacement string) (Set, error) {
 					replaced, err := parse.RegexpReplace(inputs.items(), match, replacement)
 					if err != nil {
-						return nil, trace.Wrap(err)
+						return Set{}, trace.Wrap(err)
 					}
 					return NewSet(replaced...), nil
 				}),
 			"strings.split": typical.BinaryFunction[evaluationEnv](
 				func(inputs Set, sep string) (Set, error) {
 					var outputs []string
-					for input := range inputs {
+					for input := range inputs.s {
 						outputs = append(outputs, strings.Split(input, sep)...)
 					}
 					return NewSet(outputs...), nil
@@ -130,16 +131,25 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 				}),
 			"contains_any": typical.BinaryFunction[evaluationEnv](
 				func(s1, s2 Set) (bool, error) {
-					for _, v := range s2.items() {
+					for v := range s2.s {
 						if s1.contains(v) {
 							return true, nil
 						}
 					}
 					return false, nil
 				}),
+			"contains_all": typical.BinaryFunction[evaluationEnv](
+				func(s1, s2 Set) (bool, error) {
+					for v := range s2.s {
+						if !s1.contains(v) {
+							return false, nil
+						}
+					}
+					return len(s2.s) > 0, nil
+				}),
 			"is_empty": typical.UnaryFunction[evaluationEnv](
 				func(s Set) (bool, error) {
-					return len(s) == 0, nil
+					return len(s.s) == 0, nil
 				}),
 		},
 		Methods: map[string]typical.Function{
@@ -184,16 +194,25 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 				}),
 			"contains_any": typical.BinaryFunction[evaluationEnv](
 				func(s1, s2 Set) (bool, error) {
-					for _, v := range s2.items() {
+					for v := range s2.s {
 						if s1.contains(v) {
 							return true, nil
 						}
 					}
 					return false, nil
 				}),
+			"contains_all": typical.BinaryFunction[evaluationEnv](
+				func(s1, s2 Set) (bool, error) {
+					for v := range s2.s {
+						if !s1.contains(v) {
+							return false, nil
+						}
+					}
+					return len(s2.s) > 0, nil
+				}),
 			"isempty": typical.UnaryFunction[evaluationEnv](
 				func(s Set) (bool, error) {
-					return len(s) == 0, nil
+					return len(s.s) == 0, nil
 				}),
 		},
 	}
@@ -220,7 +239,7 @@ func traitsMapResultToSet(result any, expr string) (Set, error) {
 	case Set:
 		return v, nil
 	default:
-		return nil, trace.BadParameter("traits_map expression must evaluate to type string or set, the following expression evaluates to %T: %q", result, expr)
+		return Set{}, trace.BadParameter("traits_map expression must evaluate to type string or set, the following expression evaluates to %T: %q", result, expr)
 	}
 }
 
@@ -248,7 +267,7 @@ func StringTransform(name string, input any, f func(string) string) (any, error)
 	case string:
 		return f(typedInput), nil
 	case Set:
-		return typedInput.transform(f), nil
+		return Set{utils.SetTransform(typedInput.s, f)}, nil
 	default:
 		return nil, trace.BadParameter("failed to evaluate argument to %s: expected string or set, got value of type %T", name, input)
 	}

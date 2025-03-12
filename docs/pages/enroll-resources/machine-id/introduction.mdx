@@ -25,7 +25,7 @@ for:
 
 Read this section to understand the high-level architecture of a Machine ID
 setup. For a more in-depth overview, check out the [architecture
-page](./architecture.mdx).
+page](../../reference/architecture/machine-id-architecture.mdx).
 
 ![Machine ID architecture](../../../img/machine-id/architecture-diagram.png)
 
@@ -48,6 +48,27 @@ which is configured within Teleport and specifies which bot user it grants
 access to and what sort of proof (known as the **join method**) is needed to use
 this join token. This proof is typically an identity issued to the machine by
 the platform it runs on (e.g. AWS IAM).
+
+Multiple join tokens may be created for a single bot to allow joining with
+different join methods.
+
+### Bot Instances
+
+Each time a new `tbot` client joins from scratch, it creates a new server-side
+Bot Instance. Bot Instances keep track of individual `tbot` installations over
+time, even as they renew their certificates or rejoin. These server-side
+resources also record the most recent authentication attempts, as well as
+bot heartbeats.
+
+Many Bot Instances can exist concurrently for a given Bot, regardless of their
+join method.
+
+Bot Instances can be inspected with:
+- `tctl get bot_instance` to list all instances
+- `tctl get bot_instance/$botName` to list all instances associated with a
+  particular Bot
+- `tctl get bot_instance/$botName/$id` to show a single bot instance by its bot
+  name and ID
 
 ### tbot
 
@@ -73,22 +94,22 @@ For a quickstart non-production introduction to Machine ID, read the
 
 Production-ready guidance on deploying Machine ID is broken out into two parts:
 
-- [Deploying Machine ID](./deployment.mdx): How to install and configure
+- [Deploying Machine ID](deployment/deployment.mdx): How to install and configure
   Machine ID for a specific platform.
-- [Access your Infrastructure with Machine ID](./access-guides.mdx): How to use Machine ID to access
+- [Access your Infrastructure with Machine ID](access-guides/access-guides.mdx): How to use Machine ID to access
   Teleport and Teleport resources.
 
 ## Further reading
 
-- [Workload Identity](./workload-identity.mdx): Information on Teleport Workload
+- [Workload Identity](../workload-identity/introduction.mdx): Information on Teleport Workload
   Identity for SPIFFE, a feature for issuing short-lived identities intended
   for workload to workload communication.
 - [Frequently Asked Questions](./faq.mdx): Commonly asked questions.
 - [Troubleshooting Guide](./troubleshooting.mdx): Common issues and how to solve
   them.
-- [Architecture](./architecture.mdx): A technical deep-dive into how Machine ID
+- [Architecture](../../reference/architecture/machine-id-architecture.mdx): A technical deep-dive into how Machine ID
   works.
-- [Reference](./reference.mdx): Complete documentation of available
+- [Reference](../../reference/machine-id/machine-id.mdx): Complete documentation of available
   configuration options.
 - [Manifesto](./manifesto.mdx): Our vision for Machine Identity and the
   direction Machine ID and Workload ID are heading in.

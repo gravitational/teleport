@@ -81,7 +81,8 @@ func NewConnection(
 		client.WithALPNConnUpgrade(alpnConnUpgrade),
 	)
 
-	conn, err := grpc.NewClient(
+	//nolint:staticcheck // ignore deprecation until https://github.com/grpc/grpc-go/issues/7556 is fixed, at which point we should switch to grpc.NewClient.
+	conn, err := grpc.Dial(
 		params.ProxyServer,
 		grpc.WithContextDialer(client.GRPCContextDialer(dialer)),
 		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),

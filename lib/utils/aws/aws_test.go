@@ -50,19 +50,42 @@ func TestExtractCredFromAuthHeader(t *testing.T) {
 			wantErr: require.NoError,
 		},
 		{
-			name:  "signed headers section missing",
-			input: "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, Signature=fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024",
+			name:  "valid header without spaces",
+			input: "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request,SignedHeaders=host;x-amz-content-sha256;x-amz-date,Signature=fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024",
 			expCred: &SigV4{
 				KeyID:     "AKIAIOSFODNN7EXAMPLE",
 				Date:      "20130524",
 				Region:    "us-east-1",
 				Service:   "s3",
 				Signature: "fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024",
+				SignedHeaders: []string{
+					"host",
+					"x-amz-content-sha256",
+					"x-amz-date",
+				},
 			},
 			wantErr: require.NoError,
 		},
 		{
-			name:    "credential  section missing",
+			name:  "valid with empty list of signed headers",
+			input: "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request,SignedHeaders=,Signature=fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024",
+			expCred: &SigV4{
+				KeyID:         "AKIAIOSFODNN7EXAMPLE",
+				Date:          "20130524",
+				Region:        "us-east-1",
+				Service:       "s3",
+				Signature:     "fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024",
+				SignedHeaders: nil,
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name:    "signed headers section missing",
+			input:   "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, Signature=fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024",
+			wantErr: require.Error,
+		},
+		{
+			name:    "credential section missing",
 			input:   "AWS4-HMAC-SHA256 SignedHeaders=host;range;x-amz-date, Signature=fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024",
 			wantErr: require.Error,
 		},
@@ -490,6 +513,36 @@ func TestResourceARN(t *testing.T) {
 			case "policy":
 				require.Equal(t, tt.expected, PolicyARN(tt.partition, tt.accountID, tt.resourceName))
 			}
+		})
+	}
+}
+
+func TestMaybeHashRoleSessionName(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		role     string
+		expected string
+	}{
+		{
+			name:     "role session name not hashed, less than 64 characters",
+			role:     "MyRole",
+			expected: "MyRole",
+		},
+		{
+			name:     "role session name not hashed, exactly 64 characters",
+			role:     "Role123456789012345678901234567890123456789012345678901234567890",
+			expected: "Role123456789012345678901234567890123456789012345678901234567890",
+		},
+		{
+			name:     "role session name hashed, longer than 64 characters",
+			role:     "remote-raimundo.oliveira@abigcompany.com-teleport.abigcompany.com",
+			expected: "remote-raimundo.oliveira@abigcompany.com-telepo-8fe1f87e599b043e",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := MaybeHashRoleSessionName(tt.role)
+			require.Equal(t, tt.expected, actual)
+			require.LessOrEqual(t, len(actual), MaxRoleSessionNameLength)
 		})
 	}
 }

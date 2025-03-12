@@ -11,10 +11,10 @@ description: How to configure Teleport database access with Cassandra and Scylla
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Teleport Database Access Cassandra Self-Hosted](../../../../img/database-access/guides/cassandra_selfhosted.png)
+![Enroll Cassandra with a Self-Hosted Teleport Cluster](../../../../img/database-access/guides/cassandra_selfhosted.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Teleport Database Access Cassandra Cloud](../../../../img/database-access/guides/cassandra_cloud.png)
+![Enroll Cassandra with a Cloud-Hosted Teleport Cluster](../../../../img/database-access/guides/cassandra_cloud.png)
 </TabItem>
 
 </Tabs>
@@ -110,6 +110,7 @@ Follow the instructions for your database to enable TLS communication with your 
       cipher_suites: [TLS_RSA_WITH_AES_256_CBC_SHA]
     ```
     In the configuration above, replace `"password"` with the value generated in the previous step by the `tctl auth sign` command.
+    Restart the Cassandra instance to enable this configuration.
 
   </TabItem>
   <TabItem label="Scylla">
@@ -122,6 +123,7 @@ Follow the instructions for your database to enable TLS communication with your 
       truststore:  /path/to/server.cas
       require_client_auth: True
     ```
+    Restart the Scylla instance to enable this configuration.
   </TabItem>
 </Tabs>
 

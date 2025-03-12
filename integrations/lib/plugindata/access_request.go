@@ -48,6 +48,7 @@ type AccessRequestData struct {
 	SystemAnnotations  map[string][]string
 	Resources          []string
 	SuggestedReviewers []string
+	LoginsByRole       map[string][]string
 }
 
 // DecodeAccessRequestData deserializes a string map to PluginData struct.
@@ -92,6 +93,17 @@ func DecodeAccessRequestData(dataMap map[string]string) (data AccessRequestData,
 			data.SuggestedReviewers = nil
 		}
 	}
+
+	if str, ok := dataMap["logins_by_role"]; ok {
+		err = json.Unmarshal([]byte(str), &data.LoginsByRole)
+		if err != nil {
+			err = trace.Wrap(err)
+			return
+		}
+		if len(data.LoginsByRole) == 0 {
+			data.LoginsByRole = nil
+		}
+	}
 	return
 }
 
@@ -134,6 +146,14 @@ func EncodeAccessRequestData(data AccessRequestData) (map[string]string, error) 
 			return nil, trace.Wrap(err)
 		}
 		result["suggested_reviewers"] = string(reviewers)
+	}
+
+	if len(data.LoginsByRole) != 0 {
+		logins, err := json.Marshal(data.LoginsByRole)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result["logins_by_role"] = string(logins)
 	}
 	return result, nil
 }

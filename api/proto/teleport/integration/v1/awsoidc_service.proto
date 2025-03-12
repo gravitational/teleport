@@ -26,12 +26,18 @@ service AWSOIDCService {
   // An optional NextToken that can be used to fetch the next page.
   // It uses the following API:
   // https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstanceConnectEndpoints.html
-  rpc ListEICE(ListEICERequest) returns (ListEICEResponse);
+  rpc ListEICE(ListEICERequest) returns (ListEICEResponse) {
+    // TODO(marco): DELETE IN v19.0.0
+    option deprecated = true;
+  }
 
   // CreateEICE creates multiple EC2 Instance Connect Endpoint using the provided Subnets and Security Group IDs.
   // It uses the following API:
   // https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_CreateInstanceConnectEndpoint.html
-  rpc CreateEICE(CreateEICERequest) returns (CreateEICEResponse);
+  rpc CreateEICE(CreateEICERequest) returns (CreateEICEResponse) {
+    // TODO(marco): DELETE IN v19.0.0
+    option deprecated = true;
+  }
 
   // ListDatabases calls the following AWS API:
   // https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBClusters.html
@@ -57,6 +63,9 @@ service AWSOIDCService {
   // DeployDatabaseService deploys a Database Services to Amazon ECS.
   rpc DeployDatabaseService(DeployDatabaseServiceRequest) returns (DeployDatabaseServiceResponse);
 
+  // ListDeployedDatabaseServices returns the deployed Database Services in Amazon ECS.
+  rpc ListDeployedDatabaseServices(ListDeployedDatabaseServicesRequest) returns (ListDeployedDatabaseServicesResponse);
+
   // DeployService deploys an ECS Service to Amazon ECS.
   rpc DeployService(DeployServiceRequest) returns (DeployServiceResponse);
 
@@ -66,17 +75,27 @@ service AWSOIDCService {
   // ListEC2 lists the EC2 instances of the AWS account per region.
   // It uses the following API:
   // https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html
-  rpc ListEC2(ListEC2Request) returns (ListEC2Response);
+  rpc ListEC2(ListEC2Request) returns (ListEC2Response) {
+    // TODO(marco): DELETE IN v19.0.0
+    option deprecated = true;
+  }
 
   // ListEKSClusters retrieves a paginated list of EKS clusters in the specified AWS region for a specific account.
   // It uses the following APIs:
   // https://docs.aws.amazon.com/eks/latest/APIReference/API_ListClusters.html
   // https://docs.aws.amazon.com/eks/latest/APIReference/API_DescribeCluster.html
   rpc ListEKSClusters(ListEKSClustersRequest) returns (ListEKSClustersResponse);
+
+  // Ping does an health check for the integration.
+  // Returns the caller identity.
+  // It uses the following APIs:
+  // https://docs.aws.amazon.com/STS/latest/APIReference/API_GetCallerIdentity.html
+  rpc Ping(PingRequest) returns (PingResponse);
 }
 
 // ListEICERequest is a request for a paginated list of AWS EC2 Instance Connect Endpoints.
 message ListEICERequest {
+  option deprecated = true;
   // Integration is the AWS OIDC Integration name.
   // Required.
   string integration = 1;
@@ -93,6 +112,7 @@ message ListEICERequest {
 
 // EC2InstanceConnectEndpoint is a representation of a Amazon VPC EC2 Instance Connect Endpoint.
 message EC2InstanceConnectEndpoint {
+  option deprecated = true;
   // Name is the endpoint name.
   string name = 1;
   // State is the endpoint state.
@@ -111,6 +131,7 @@ message EC2InstanceConnectEndpoint {
 
 // ListEICEResponse contains a page of AWS EC2 Instance Connect Endpoints.
 message ListEICEResponse {
+  option deprecated = true;
   // EC2ICEs contains the page of EC2 Instance Connect Endpoints.
   repeated EC2InstanceConnectEndpoint ec2ices = 1;
   // DashboardLink is the URL for AWS Web Console that lists all the Endpoints for the queries VPCs.
@@ -122,6 +143,7 @@ message ListEICEResponse {
 
 // CreateEICERequest contains the required fields to create an AWS EC2 Instance Connect Endpoint.
 message CreateEICERequest {
+  option deprecated = true;
   // Integration is the AWS OIDC Integration name.
   // Required.
   string integration = 1;
@@ -135,6 +157,7 @@ message CreateEICERequest {
 
 // EC2ICEndpoint contains the information for a single Endpoint to be created.
 message EC2ICEndpoint {
+  option deprecated = true;
   // Name is the endpoint name.
   string name = 1;
   // SubnetID is the Subnet where the Endpoint will be created.
@@ -146,6 +169,7 @@ message EC2ICEndpoint {
 
 // CreateEICEResponse is a request to create a VPC Endpoint of EC2 Instance Connect Endpoint type.
 message CreateEICEResponse {
+  option deprecated = true;
   // Name is the Endpoint ID.
   string name = 1;
   // CreatedEndpoints contains the name of created endpoints and their Subnet.
@@ -208,6 +232,15 @@ message SecurityGroupRuleCIDR {
   string description = 2;
 }
 
+// SecurityGroupRuleGroupID has an allowed security group ID and a description
+// for the rule.
+message SecurityGroupRuleGroupID {
+  // GroupID is the allowed security group ID.
+  string group_id = 1;
+  // Description contains a small text describing the allowed security group.
+  string description = 2;
+}
+
 // SecurityGroupRule is a representation of a SecurityGroupRule.
 // Either for Inbound or Outbound rules.
 message SecurityGroupRule {
@@ -222,6 +255,9 @@ message SecurityGroupRule {
   int32 to_port = 3;
   // CIDRs contains a list of IP ranges that this rule applies to and a description for the value.
   repeated SecurityGroupRuleCIDR cidrs = 4;
+  // GroupIds is a list of rules that allow another security group referenced
+  // by ID.
+  repeated SecurityGroupRuleGroupID group_ids = 5;
 }
 
 // SecurityGroup is a representation of a SecurityGroup
@@ -364,6 +400,40 @@ message DeployDatabaseServiceResponse {
   string cluster_dashboard_url = 2;
 }
 
+// ListDeployedDatabaseServicesRequest is a request for listing the deployed database services in Amazon ECS.
+message ListDeployedDatabaseServicesRequest {
+  // Integration is the AWS OIDC Integration name.
+  // Required.
+  string integration = 1;
+  // Region is the AWS Region
+  // Required.
+  string region = 2;
+  // NextToken is the token to be used to fetch the next page.
+  // If empty, the first page is fetched.
+  string next_token = 3;
+}
+
+// DeployedDatabaseService contains a database service that was deployed to Amazon ECS.
+message DeployedDatabaseService {
+  // Name is the Amazon ECS Service name.
+  string name = 1;
+  // ServiceDashboardURL is a link to the Amazon ECS Service dashboard.
+  string service_dashboard_url = 2;
+  // ContainerEntryPoint is the entry point for the container 0 that is running in the ECS Task.
+  repeated string container_entry_point = 3;
+  // ContainerCommand is the list of arguments that are passed into the ContainerEntryPoint.
+  repeated string container_command = 4;
+}
+
+// ListDeployedDatabaseServicesResponse contains the list of the database services that were deployed in Amazon ECS.
+message ListDeployedDatabaseServicesResponse {
+  // DeployedDatabaseServices contains a page of  page of EC2.
+  repeated DeployedDatabaseService deployed_database_services = 1;
+  // NextToken is the token to be used to fetch the next page.
+  // If empty, the first page is fetched.
+  string next_token = 2;
+}
+
 // DeployServiceRequest is a request to deploy .
 message DeployServiceRequest {
   // Integration is the AWS OIDC Integration name.
@@ -427,6 +497,8 @@ message EnrollEKSClustersRequest {
   // AgentVersion is version of agent Helm chart to install on the EKS cluster.
   // Required.
   string agent_version = 5;
+  // ExtraLabels added to the enrolled clusters.
+  map<string, string> extra_labels = 6;
 }
 
 // EnrollEKSClusterResult contains result for a single cluster enrollment.
@@ -437,6 +509,16 @@ message EnrollEKSClusterResult {
   string resource_id = 2;
   // Error show what error happened during enrollment. Empty if no error happened.
   string error = 3;
+  // IssueType contains the UserTask's issue type for well-known errors.
+  // Example of allowed values:
+  // - eks-status-not-active
+  // - eks-missing-endpoint-public-access
+  // - eks-authentication-mode-unsupported
+  // - eks-cluster-unreachable
+  // - eks-agent-not-connecting
+  // See usertasks.DiscoverEKSIssueTypes for a complete list of allowed values.
+  // Empty if no error happened, or the error is not yet handled.
+  string issue_type = 4;
 }
 
 // EnrollEKSClustersResponse is a response to enrolling EKS clusters.
@@ -447,6 +529,7 @@ message EnrollEKSClustersResponse {
 
 // ListEC2Request is a request for a paginated list of AWS EC2 instances.
 message ListEC2Request {
+  option deprecated = true;
   // Integration is the AWS OIDC Integration name.
   // Required.
   string integration = 1;
@@ -460,6 +543,7 @@ message ListEC2Request {
 
 // ListEC2Response contains a page of AWS EC2 instances represented as Nodes.
 message ListEC2Response {
+  option deprecated = true;
   // Servers contains the page of EC2.
   repeated types.ServerV2 servers = 1;
   // NextToken is used for pagination.
@@ -497,6 +581,13 @@ message EKSCluster {
   // Known values are:
   // CREATING | ACTIVE | DELETING | FAILED | UPDATING | PENDING
   string status = 6;
+  // EndpointPublicAccess indicates whether this EKS Cluster is accessible publicly.
+  // If only private access is available, then the EKS Cluster can't be enrolled from Teleport Cloud.
+  bool endpoint_public_access = 7;
+  // AuthenticationMode is the allowed authentication mode for the cluster.
+  // Known values are:
+  // API | API_AND_CONFIG_MAP | CONFIG_MAP
+  string authentication_mode = 8;
 }
 
 // ListEKSClustersResponse contains a page of AWS EKS Clusters.
@@ -506,4 +597,26 @@ message ListEKSClustersResponse {
   // NextToken is used for pagination.
   // If non-empty, it can be used to request the next page.
   string next_token = 2;
+}
+
+// PingRequest is a request for doing an health check against the configured integration.
+message PingRequest {
+  // Integration is the AWS OIDC Integration name.
+  // Required if ARN is empty.
+  string integration = 1;
+
+  // The AWS Role ARN to be used when generating the token.
+  // This is used to test another ARN before saving the Integration.
+  // Required if integration is empty.
+  string role_arn = 2;
+}
+
+// PingResponse contains the response for the Ping operation.
+message PingResponse {
+  // The AWS account ID number of the account that owns or contains the calling entity.
+  string account_id = 1;
+  // The AWS ARN associated with the calling entity.
+  string arn = 2;
+  // The unique identifier of the calling entity.
+  string user_id = 3;
 }

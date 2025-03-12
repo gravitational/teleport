@@ -27,9 +27,11 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -38,6 +40,7 @@ type CertificateSigner interface {
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
+	Ping(context.Context) (proto.PingResponse, error)
 }
 
 // GenerateDatabaseCertificatesRequest contains the required fields used to generate database certificates
@@ -50,7 +53,7 @@ type GenerateDatabaseCertificatesRequest struct {
 	OutputLocation     string
 	IdentityFileWriter identityfile.ConfigWriter
 	TTL                time.Duration
-	Key                *client.KeyRing
+	KeyRing            *client.KeyRing
 	// Password is used to generate JKS keystore used for cassandra format or Oracle wallet.
 	Password string
 }
@@ -93,15 +96,21 @@ func GenerateDatabaseServerCertificates(ctx context.Context, req GenerateDatabas
 		subject.Organization = []string{clusterName}
 	}
 
-	if req.Key == nil {
-		key, err := client.GenerateRSAKey()
+	if req.KeyRing == nil {
+		key, err := cryptosuites.GenerateKey(ctx,
+			cryptosuites.GetCurrentSuiteFromPing(req.ClusterAPI),
+			cryptosuites.DatabaseServer)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		req.Key = key
+		privateKey, err := keys.NewSoftwarePrivateKey(key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		req.KeyRing = client.NewKeyRing(privateKey, privateKey)
 	}
 
-	csr, err := tlsca.GenerateCertificateRequestPEM(subject, req.Key.PrivateKey)
+	csr, err := tlsca.GenerateCertificateRequestPEM(subject, req.KeyRing.TLSPrivateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -141,14 +150,14 @@ func GenerateDatabaseServerCertificates(ctx context.Context, req GenerateDatabas
 		}
 	}
 
-	req.Key.TLSCert = resp.Cert
-	req.Key.TrustedCerts = []authclient.TrustedCerts{{
-		ClusterName:     req.Key.ClusterName,
+	req.KeyRing.TLSCert = resp.Cert
+	req.KeyRing.TrustedCerts = []authclient.TrustedCerts{{
+		ClusterName:     req.KeyRing.ClusterName,
 		TLSCertificates: resp.CACerts,
 	}}
 	filesWritten, err := identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           req.OutputLocation,
-		Key:                  req.Key,
+		KeyRing:              req.KeyRing,
 		Format:               req.OutputFormat,
 		OverwriteDestination: req.OutputCanOverwrite,
 		Writer:               req.IdentityFileWriter,

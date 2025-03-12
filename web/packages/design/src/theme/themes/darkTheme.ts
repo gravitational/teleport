@@ -29,11 +29,14 @@ import {
 } from 'design/theme/palette';
 
 import { lighten } from '../utils/colorManipulator';
-
 import { sharedColors, sharedStyles } from './sharedStyles';
 import { DataVisualisationColors, Theme, ThemeColors } from './types';
 
-const dataVisualisationColors: DataVisualisationColors = {
+/**
+ * Used for the user icon in Connect (the top-right one).
+ * In both the light and dark mode, the dark version of dataVisualisationColors is used.
+ */
+export const dataVisualisationColors: DataVisualisationColors = {
   primary: {
     purple: '#9F85FF',
     wednesdays: '#F74DFF',
@@ -93,63 +96,59 @@ const colors: ThemeColors = {
   interactive: {
     solid: {
       primary: {
-        default: { text: '#000000', background: '#9F85FF' },
-        hover: { text: '#000000', background: '#B29DFF' },
-        active: { text: '#000000', background: '#C5B6FF' },
+        default: '#9F85FF',
+        hover: '#B29DFF',
+        active: '#C5B6FF',
       },
       success: {
-        default: { text: '#000000', background: '#00BFA6' },
-        hover: { text: '#000000', background: '#33CCB8' },
-        active: { text: '#000000', background: '#66D9CA' },
+        default: '#00BFA6',
+        hover: '#33CCB8',
+        active: '#66D9CA',
       },
       accent: {
-        default: { text: '#000000', background: '#009EFF' },
-        hover: { text: '#000000', background: '#33B1FF' },
-        active: { text: '#000000', background: '#66C5FF' },
+        default: '#009EFF',
+        hover: '#33B1FF',
+        active: '#66C5FF',
       },
       danger: {
-        default: { text: '#000000', background: '#FF6257' },
-        hover: { text: '#000000', background: '#FF8179' },
-        active: { text: '#000000', background: '#FFA19A' },
+        default: '#FF6257',
+        hover: '#FF8179',
+        active: '#FFA19A',
       },
       alert: {
-        default: { text: '#000000', background: '#FFAB00' },
-        hover: { text: '#000000', background: '#FFBC33' },
-        active: { text: '#000000', background: '#FFCD66' },
+        default: '#FFAB00',
+        hover: '#FFBC33',
+        active: '#FFCD66',
       },
     },
 
     tonal: {
       primary: [
-        { text: '#B29DFF', background: 'rgba(159,133,255, 0.1)' },
-        { text: '#C5B6FF', background: 'rgba(159,133,255, 0.18)' },
-        { text: '#C5B6FF', background: 'rgba(159,133,255, 0.25)' },
+        'rgba(159,133,255, 0.1)',
+        'rgba(159,133,255, 0.18)',
+        'rgba(159,133,255, 0.25)',
       ],
       success: [
-        { text: '#33CCB8', background: 'rgba(0, 191, 166, 0.1)' },
-        { text: '#33CCB8', background: 'rgba(0, 191, 166, 0.18)' },
-        { text: '#66D9CA', background: 'rgba(0, 191, 166, 0.25)' },
+        'rgba(0, 191, 166, 0.1)',
+        'rgba(0, 191, 166, 0.18)',
+        'rgba(0, 191, 166, 0.25)',
       ],
       danger: [
-        { text: '#FF8179', background: 'rgba(255, 98, 87, 0.1)' },
-        { text: '#FF8179', background: 'rgba(255, 98, 87, 0.18)' },
-        { text: '#FFA19A', background: 'rgba(255, 98, 87, 0.25)' },
+        'rgba(255, 98, 87, 0.1)',
+        'rgba(255, 98, 87, 0.18)',
+        'rgba(255, 98, 87, 0.25)',
       ],
       alert: [
-        { text: '#FFCD66', background: 'rgba(255, 171, 0, 0.1)' },
-        { text: '#FFCD66', background: 'rgba(255, 171, 0, 0.18)' },
-        { text: '#FFCD66', background: 'rgba(255, 171, 0, 0.25)' },
+        'rgba(255, 171, 0, 0.1)',
+        'rgba(255, 171, 0, 0.18)',
+        'rgba(255, 171, 0, 0.25)',
       ],
       informational: [
-        { text: '#66C5FF', background: 'rgba(0, 158, 255, 0.1)' },
-        { text: '#66C5FF', background: 'rgba(0, 158, 255, 0.18)' },
-        { text: '#66C5FF', background: 'rgba(0, 158, 255, 0.25)' },
+        'rgba(0, 158, 255, 0.1)',
+        'rgba(0, 158, 255, 0.18)',
+        'rgba(0, 158, 255, 0.25)',
       ],
-      neutral: [
-        { text: 'rgba(255, 255, 255, 0.72)', background: neutralColors[0] },
-        { text: '#FFFFFF', background: neutralColors[1] },
-        { text: '#FFFFFF', background: neutralColors[2] },
-      ],
+      neutral: [neutralColors[0], neutralColors[1], neutralColors[2]],
     },
   },
 
@@ -206,7 +205,8 @@ const colors: ThemeColors = {
   },
 
   tooltip: {
-    background: '#212B2F',
+    background: 'rgba(255, 255, 255, 0.8)',
+    inverseBackground: 'rgba(0, 0, 0, 0.5)',
   },
 
   progressBarColor: '#00BFA5',
@@ -270,6 +270,8 @@ const colors: ThemeColors = {
     brightBlue: dataVisualisationColors.tertiary.picton,
     brightMagenta: dataVisualisationColors.tertiary.purple,
     brightCyan: dataVisualisationColors.tertiary.cyan,
+    searchMatch: '#FFD98C',
+    activeSearchMatch: '#FFAB00',
   },
 
   accessGraph: {

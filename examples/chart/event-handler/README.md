@@ -21,7 +21,9 @@ The following values can be set for the Helm chart:
 
   <tr>
     <td><code>teleport.address</code></td>
-    <td>Host/port combination of the teleport auth server</td>
+    <td>hostname and HTTPS port of your Teleport Proxy Service
+or Teleport Enterprise Cloud account (e.g., `teleport.example.com:443` or
+`mytenant.teleport.sh:443`)</td>
     <td>string</td>
     <td><code>""</code></td>
     <td>yes</td>

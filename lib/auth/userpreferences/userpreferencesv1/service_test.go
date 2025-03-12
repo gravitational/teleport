@@ -55,7 +55,8 @@ func TestService_GetUserPreferences(t *testing.T) {
 			req:      &userpreferencesv1.GetUserPreferencesRequest{},
 			want: &userpreferencesv1.GetUserPreferencesResponse{
 				Preferences: &userpreferencesv1.UserPreferences{
-					Theme: userpreferencesv1.Theme_THEME_UNSPECIFIED,
+					Theme:             userpreferencesv1.Theme_THEME_UNSPECIFIED,
+					SideNavDrawerMode: userpreferencesv1.SideNavDrawerMode_SIDE_NAV_DRAWER_MODE_COLLAPSED,
 					UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
 						DefaultTab:            userpreferencesv1.DefaultTab_DEFAULT_TAB_ALL,
 						ViewMode:              userpreferencesv1.ViewMode_VIEW_MODE_CARD,
@@ -163,7 +164,8 @@ func initSvc(t *testing.T) (map[string]context.Context, *Service) {
 	require.NoError(t, err)
 	trustSvc := local.NewCAService(backend)
 	roleSvc := local.NewAccessService(backend)
-	userSvc := local.NewTestIdentityService(backend)
+	userSvc, err := local.NewTestIdentityService(backend)
+	require.NoError(t, err)
 
 	_, err = clusterConfigSvc.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
 	require.NoError(t, err)

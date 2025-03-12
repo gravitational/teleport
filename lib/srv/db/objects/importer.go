@@ -51,10 +51,10 @@ func startDatabaseImporter(ctx context.Context, cfg Config, database types.Datab
 	cfg.Log = cfg.Log.With("database", database.GetName(), "protocol", database.GetProtocol())
 
 	fetcher, err := GetObjectFetcher(ctx, database, ObjectFetcherConfig{
-		ImportRules:  cfg.ImportRules,
-		Auth:         cfg.Auth,
-		CloudClients: cfg.CloudClients,
-		Log:          cfg.Log,
+		ImportRules: cfg.ImportRules,
+		Auth:        cfg.Auth,
+		GCPClients:  cfg.GCPClients,
+		Log:         cfg.Log,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -77,11 +77,15 @@ func newSingleDatabaseImporter(cfg Config, database types.Database, fetcher Obje
 }
 
 func (i *singleDatabaseImporter) start(ctx context.Context) {
-	i.cfg.Log.DebugContext(ctx, "Starting database importer.")
+	i.cfg.Log.DebugContext(ctx, "Starting database importer",
+		"scan_interval", i.cfg.ScanInterval.String(),
+		"object_ttl", i.cfg.ObjectTTL.String(),
+		"refresh_threshold", i.cfg.RefreshThreshold.String(),
+	)
 	ticker := interval.New(interval.Config{
-		Jitter:        retryutils.NewSeventhJitter(),
+		Jitter:        retryutils.SeventhJitter,
 		Duration:      i.cfg.ScanInterval * 7 / 6,
-		FirstDuration: retryutils.NewFullJitter()(i.cfg.ScanInterval),
+		FirstDuration: retryutils.FullJitter(i.cfg.ScanInterval),
 	})
 	defer ticker.Stop()
 

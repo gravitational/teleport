@@ -28,7 +28,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"path"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -46,6 +46,7 @@ import (
 	awsimds "github.com/gravitational/teleport/lib/cloud/imds/aws"
 	azureimds "github.com/gravitational/teleport/lib/cloud/imds/azure"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
+	oracleimds "github.com/gravitational/teleport/lib/cloud/imds/oracle"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/linux"
 	"github.com/gravitational/teleport/lib/utils"
@@ -68,7 +69,7 @@ type AutoDiscoverNodeInstallerConfig struct {
 	ProxyPublicAddr string
 
 	// TeleportPackage contains the teleport package name.
-	// Allowed values: teleport, teleport-ent
+	// Allowed values: teleport, teleport-ent, teleport-ent-fips
 	TeleportPackage string
 
 	// RepositoryChannel is the repository channel to use.
@@ -129,8 +130,12 @@ func (c *AutoDiscoverNodeInstallerConfig) checkAndSetDefaults() error {
 		return trace.BadParameter("teleport-package must be one of %+v", types.PackageNameKinds)
 	}
 
-	if c.AutoUpgrades && c.TeleportPackage != types.PackageNameEnt {
+	if c.AutoUpgrades && c.TeleportPackage == types.PackageNameOSS {
 		return trace.BadParameter("only enterprise package supports auto upgrades")
+	}
+
+	if c.AutoUpgrades && c.TeleportPackage == types.PackageNameEntFIPS {
+		return trace.BadParameter("auto upgrades are not supported in FIPS environments")
 	}
 
 	if c.autoUpgradesChannelURL == "" {
@@ -156,6 +161,9 @@ func (c *AutoDiscoverNodeInstallerConfig) checkAndSetDefaults() error {
 
 				clt, err := gcpimds.NewInstanceMetadataClient(instancesClient)
 				return clt, trace.Wrap(err)
+			},
+			func(ctx context.Context) (imds.Client, error) {
+				return oracleimds.NewInstanceMetadataClient(), nil
 			},
 		}
 	}
@@ -222,6 +230,8 @@ func (ani *AutoDiscoverNodeInstaller) Install(ctx context.Context) error {
 	ani.Logger.InfoContext(ctx, "Detected cloud provider", "cloud", imdsClient.GetType())
 
 	// Check if teleport is already installed and install it, if it's absent.
+	// In the new autoupdate install flow, teleport-update should have already
+	// taken care of installing teleport.
 	if _, err := os.Stat(ani.binariesLocation.Teleport); err != nil {
 		ani.Logger.InfoContext(ctx, "Installing teleport")
 		if err := ani.installTeleportFromRepo(ctx); err != nil {
@@ -369,7 +379,7 @@ func (ani *AutoDiscoverNodeInstaller) configureTeleportNode(ctx context.Context,
 }
 
 func checksum(filename string) (string, error) {
-	f, err := utils.OpenFileNoUnsafeLinks(filename)
+	f, err := utils.OpenFileAllowingUnsafeLinks(filename)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -525,8 +535,9 @@ func fetchNodeAutoDiscoverLabels(ctx context.Context, imdsClient imds.Client) (m
 			return nil, trace.Wrap(err)
 		}
 
-		nodeLabels[types.NameLabel] = name
-		nodeLabels[types.ZoneLabel] = zone
+		nodeLabels[types.NameLabelDiscovery] = name
+		nodeLabels[types.ZoneLabelDiscovery] = zone
+		nodeLabels[types.ProjectIDLabelDiscovery] = projectID
 		nodeLabels[types.ProjectIDLabel] = projectID
 
 	default:
@@ -537,8 +548,8 @@ func fetchNodeAutoDiscoverLabels(ctx context.Context, imdsClient imds.Client) (m
 }
 
 // buildAbsoluteFilePath creates the absolute file path
-func (ani *AutoDiscoverNodeInstaller) buildAbsoluteFilePath(filepath string) string {
-	return path.Join(ani.fsRootPrefix, filepath)
+func (ani *AutoDiscoverNodeInstaller) buildAbsoluteFilePath(path string) string {
+	return filepath.Join(ani.fsRootPrefix, path)
 }
 
 // linuxDistribution reads the current file system to detect the Linux Distro and Version of the current system.

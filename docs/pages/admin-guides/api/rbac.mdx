@@ -1,0 +1,987 @@
+---
+title: Generate Teleport Roles from an External RBAC System
+description: Use Teleport's API to automatically generate Teleport roles based on third-party RBAC policies
+---
+
+You can use the Teleport gRPC API to generate roles automatically based on an
+external role-based access control (RBAC) system, such as GitHub or AWS Identity
+and Access Management.
+
+This is especially useful for:
+
+- Setting up a new Teleport cluster, since you can preserve your existing
+  authorization levels or categories while letting Teleport handle access
+  control.
+- Ensuring that your Teleport cluster stays up to date with the RBAC systems of
+  the infrastructure it manages access to. This way, Teleport roles do not
+  unexpectedly gain or lose permissions if your teams reconfigure your external
+  RBAC systems.
+
+In this guide, we will build a small demo application to show you how to
+generate Teleport roles using Teleport's API client library.
+
+<Admonition type="danger">
+
+The program we will build in this guide is intended as a learning tool. **Do not
+connect it to your production Teleport cluster.**  Use a demo cluster instead.
+
+</Admonition>
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- Go version (=teleport.golang=) or above installed on your workstation. See the
+  [Go download page](https://go.dev/dl/). You will not need to be familiar with
+  Go to complete this guide, though Go knowledge is required if you want to
+  build a production-ready Teleport client application.
+
+In a production scenario, you will already have a third-party RBAC solution to
+use as a basis for generating Teleport roles. In this guide, we will simulate
+this by deploying a local Kubernetes cluster using `minikube` and setting up
+some RBAC resources. We will then use this Kubernetes cluster to generate
+Teleport roles.
+
+To run the local demo environment, ensure that you have the following tools
+installed on your workstation:
+
+| Tool     | Purpose                          | Installation link                                             |
+|----------|----------------------------------|---------------------------------------------------------------|
+| minikube | Local Kubernetes deployment tool | [Install minikube](https://minikube.sigs.k8s.io/docs/start/)  |
+| Helm     | Kubernetes package manager       | [Install Helm](https://helm.sh/docs/intro/install/)           |
+| kubectl  | Kubernetes admin CLI             | [Install kubectl](https://kubernetes.io/docs/tasks/tools/)    |
+| Docker   | Required minikube driver         | [Get Started With Docker](https://www.docker.com/get-started) |
+<Admonition type="tip">
+
+Even if you do not plan to set up the demo project, you can follow this guide to
+see which libraries, types, and functions you can use to automatically generate
+Teleport roles based on an external RBAC system.
+
+</Admonition>
+
+- (!docs/pages/includes/tctl.mdx!)
+
+## Step 1/4. Set up your Kubernetes cluster
+
+In this step, we will launch a local Kubernetes cluster and set up role-based
+access controls within it. We will then use this Kubernetes cluster as a basis
+for generating Teleport roles.
+
+### Start minikube
+
+Start minikube with the Docker driver, which boots a local Kubernetes cluster on
+a single Docker container:
+
+```code
+$ minikube start --driver=docker
+```
+
+This command should start a local Kubernetes cluster and set your context (i.e.,
+the Kubernetes cluster you are currently interacting with) to `minikube`. To
+verify this, run the following command:
+
+```code
+$ kubectl config current-context
+minikube
+```
+
+### Define demo Kubernetes RBAC resources
+
+Next, we will set up RBAC resources in your local `minikube` cluster to use as a
+basis for generating Teleport roles.
+
+In Kubernetes, you can divide a cluster into logically isolated **namespaces**.
+A **role** defines a set of permissions for manipulating resources in a specific
+namespace. A **cluster role** is a role that applies to all namespaces in a
+cluster. You can use a **role binding** or **cluster role binding** to attach a
+role or cluster role to Kubernetes users and groups.
+
+Define a Kubernetes role and role binding that allows users in the
+`app-developer` group to read and list pods in the `app` namespace. Add the
+following to a file called `pod-reader.yaml`:
+
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: app
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: app
+  name: pod-reader
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: read-pods
+  namespace: app
+  annotations:
+    'create-teleport-role': 'true'
+subjects:
+- kind: Group
+  name: app-developer
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: pod-reader
+  apiGroup: rbac.authorization.k8s.io
+```
+
+Create the resources:
+
+```code
+$ kubectl apply -f pod-reader.yaml
+namespace/app created
+role.rbac.authorization.k8s.io/pod-reader created
+rolebinding.rbac.authorization.k8s.io/read-pods created
+```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
+
+Next, define a cluster role and cluster role binding that allow users in the
+`ops` group to read, create, and execute commands on pods in all namespaces. Add
+the following to a file called `pod-ops.yaml`:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pod-ops
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "watch", "list", "create", "exec", "logs"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: pod-ops
+  annotations:
+    'create-teleport-role': 'true'
+subjects:
+- kind: Group
+  name: ops
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: pod-ops
+  apiGroup: rbac.authorization.k8s.io
+```
+
+Create the resources:
+
+```code
+$ kubectl apply -f pod-ops.yaml
+clusterrole.rbac.authorization.k8s.io/pod-ops created
+clusterrolebinding.rbac.authorization.k8s.io/pod-ops created
+```
+
+Later in this guide, we will show you how to automatically generate Teleport
+roles based on the Kubernetes RBAC resources you created.
+
+### Define RBAC resources for the client application
+
+Next, ensure that your API client can read the RBAC resources you created.
+Create a file called `rbac-sync.yaml` with the following content:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: rbac-sync
+rules:
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["roles", "clusterroles", "rolebindings", "clusterrolebindings"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: rbac-sync
+subjects:
+- kind: User
+  name: sync-kubernetes-rbac
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: rbac-sync
+  apiGroup: rbac.authorization.k8s.io
+```
+
+Apply the changes:
+
+```code
+$ kubectl apply -f rbac-sync.yaml
+clusterrole.rbac.authorization.k8s.io/rbac-sync created
+clusterrolebinding.rbac.authorization.k8s.io/rbac-sync created
+```
+
+## Step 2/4. Set up Teleport
+
+In this step, you will configure Teleport to enable your API client application
+to interact with your Kubernetes cluster.
+
+### Create a user and role for the client application
+
+Give the client application a Teleport user and role that can retrieve
+information about a Kubernetes cluster that is registered with Teleport,
+authenticate to the cluster, and create or update Teleport roles.
+
+Create a file called `sync-kubernetes-rbac.yaml` with the following content:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: sync-kubernetes-rbac
+spec:
+  allow:
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_users:
+      - sync-kubernetes-rbac
+    kubernetes_resources:
+      - kind: pod
+        name: '*'
+        namespace: '*'
+    rules:
+      - resources: ['kubernetes_cluster']
+        verbs: ['read']
+      - resources: ['role']
+        verbs: ['create', 'update']
+---
+kind: user
+metadata:
+  name: sync-kubernetes-rbac
+spec:
+  roles: ['sync-kubernetes-rbac']
+version: v2
+```
+
+Create the user and role:
+
+```code
+$ tctl create -f sync-kubernetes-rbac.yaml
+role 'sync-kubernetes-rbac' has been created
+user "sync-kubernetes-rbac" has been created
+```
+
+### Enable impersonation of the client application
+
+As with all Teleport users, the Teleport Auth Service authenticates the
+`sync-kubernetes-rbac` user by issuing short-lived TLS credentials. In this
+case, we will request the credentials manually by *impersonating* the
+`sync-kubernetes-rbac` role and user.
+
+If you are running a self-hosted Teleport Enterprise deployment and are using
+`tctl` from the Auth Service host, you will already have impersonation
+privileges.
+
+To grant your user impersonation privileges for `sync-kubernetes-rbac`, define a role
+called `sync-kubernetes-rbac-impersonator` by pasting the following YAML document into
+a file called `sync-kubernetes-rbac-impersonator.yaml`:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: sync-kubernetes-rbac-impersonator
+spec:
+  allow:
+    impersonate:
+      roles:
+      - sync-kubernetes-rbac
+      users:
+      - sync-kubernetes-rbac
+```
+
+Create the `sync-kubernetes-rbac-impersonator` role:
+
+```code
+$ tctl create -f sync-kubernetes-rbac-impersonator.yaml
+```
+
+(!docs/pages/includes/add-role-to-user.mdx role="sync-kubernetes-rbac-impersonator"!)
+
+You will now be able to generate signed certificates for the `sync-kubernetes-rbac`
+role and user.
+
+### Install the Teleport Kubernetes Service
+
+We will enable your client application to communicate with your Kubernetes
+cluster via the Teleport Kubernetes Service, which forwards requests after
+authorizing them. While this step is not strictly necessary with a local
+`minikube` cluster, it demonstrates one way to use Teleport to securely access
+your external RBAC system's API.
+
+(!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
+
+Request a token that the Kubernetes Service will use to join your Teleport
+cluster:
+
+```code
+$ tctl tokens add --type=kube,app,discovery --ttl=10000h --format=json
+```
+
+Copy this token so you can use it when running the Teleport Kubernetes Service.
+
+Ensure that you are connected to the right Kubernetes cluster (logging into
+Teleport earlier will have changed your Kubernetes context):
+
+```code
+$ kubectl config use-context minikube
+Switched to context "minikube".
+```
+
+Install the Teleport Kubernetes Service in your cluster, assigning <Var
+name="proxy-address" /> to the host **and port** of your Teleport Proxy Service
+(e.g., `mytenant.teleport.sh:443`) and <Var name="token" /> to the token you
+requested earlier:
+
+```code
+$ helm install teleport-agent teleport/teleport-kube-agent \
+  --set kubeClusterName=minikube \
+  --set roles="kube\,app\,discovery" \
+  --set proxyAddr=<Var name="proxy-address" /> \
+  --set authToken=<Var name="token" /> \
+  --create-namespace \
+  --namespace=teleport-agent \
+  --set labels.environment=demo \
+  --version (=teleport.version=)
+```
+
+After a few seconds, verify that you have deployed the Teleport Kubernetes
+Service by running the following command:
+
+```code
+$ kubectl -n teleport-agent get pods
+```
+
+This should show that the Kubernetes Service is running:
+
+```text
+NAME               READY   STATUS    RESTARTS   AGE
+teleport-agent-0   1/1     Running   0          22s
+```
+
+`tsh` should indicate that the cluster has registered with Teleport:
+
+```code
+$ tsh kube ls
+Kube Cluster Name Labels           Selected
+----------------- ---------------- --------
+minikube          environment=demo
+```
+
+## Step 3/4. Write the client application
+
+At this point, we have set up an external RBAC system to use for generating
+Teleport roles and configured Teleport to allow our API client to interact with
+our Kubernetes cluster and Teleport cluster. In this step, we will write our
+client application.
+
+### Set up your Go project
+
+Download the source code for the API client application:
+
+```code
+$ git clone --depth=1 https://github.com/gravitational/teleport -b branch/v(=teleport.major_version=)
+$ cd teleport/examples/api-sync-roles
+```
+
+For the rest of this guide, we will show you how to set up the client
+application and explore the ways it uses Teleport's API to automatically
+generate Teleport roles.
+
+### Export identity files for the client application
+
+The `sync-kubernetes-rbac` user needs signed credentials in order to connect to
+your Teleport cluster as well as your Kubernetes cluster. You will use the `tctl
+auth sign` command to request these credentials for your API client.
+
+#### Connecting to your Teleport cluster
+
+The following `tctl auth sign` command impersonates the `sync-kubernetes-rbac`
+user, generates signed credentials, and writes an identity file to the local
+directory:
+
+```code
+$ tctl auth sign --user=sync-kubernetes-rbac --out=auth.pem
+```
+
+The identity file, `auth.pem`, includes both TLS and SSH credentials. Your
+client application uses the SSH credentials to connect to the Proxy Service,
+which establishes a reverse tunnel connection to the Auth Service. The client
+application uses this reverse tunnel, along with your TLS credentials, to
+connect to the Auth Service's gRPC endpoint.
+
+#### Connecting to the Kubernetes cluster
+
+You will also need to give the client application a way to authenticate to your
+Kubernetes cluster. To do this, use Teleport's certificate authority to sign
+credentials for the `sync-kubernetes-rbac` user. Your API client will present
+these credentials to authenticate to the Teleport Kubernetes Service, which will
+proxy requests to the Kubernetes cluster.
+
+Run the following command, ensuring that <Var name="proxy-address" /> includes
+the host and port of your Proxy Service:
+
+```code
+$ tctl auth sign --user=sync-kubernetes-rbac \
+  --kube-cluster-name=minikube \
+  --format=kubernetes \
+  --proxy=https://<Var name="proxy-address" /> \
+  --out=kubeconfig
+```
+
+### Imports
+
+In the `api-sync-roles` directory, open `main.go`, which contains the API client
+program we demonstrate in this guide.
+
+Here are the packages our client application imports from Go's standard library:
+
+|Package|Description|
+|---|---|
+| `context`|Includes the `context.Context` type. `context.Context` is an abstraction for controlling long-running routines, such as connections to external services, that might fail or time out. Programs can cancel contexts or assign them timeouts and metadata.|
+|`fmt`|Formatting data for printing, strings, or errors.|
+|`io`|Dealing with I/O operations, e.g., reading files or network sockets.|
+|`os`|Interacting with the operating system, e.g., to open files.|
+|`time`|Dealing with time. We will use this to define a timeout for connecting to the Auth Service along with a ticker for executing our discovery logic in a loop.|
+
+The client imports the following third-party code:
+
+|Package|Description|
+|---|---|
+|`github.com/gravitational/teleport/api/client`|A library for authenticating to the Auth Service's gRPC API and making requests, aliased as `teleport`.|
+|`github.com/gravitational/teleport/api/types`|Types used in the Auth Service API, e.g., Application Service records.|
+|`github.com/gravitational/trace`|Presenting errors with more useful detail than the standard library provides.|
+|`google.golang.org/grpc`|The gRPC client and server library.|
+|`k8s.io/api/rbac/v1`|The Kubernetes RBAC API client library.|
+|`k8s.io/apimachinery/pkg/apis/meta/v1`|Code common to Kubernetes' API client libraries.|
+|`k8s.io/client-go/kubernetes`|Setting up an general-purpose Kubernetes client.|
+|`k8s.io/client-go/kubernetes/typed/rbac/v1`|Types for the Kubernetes RBAC API.|
+|`k8s.io/client-go/tools/clientcmd`|Another general-purpose Kubernetes client library.|
+
+### Constants
+
+The program defines constants in a visible location so, later on, it's easier to
+make them configurable outside the program:
+
+```go
+const (
+	proxyAddr         string = ""
+	initTimeout              = time.Duration(30) * time.Second
+	identityFilePath  string = "auth.pem"
+	kubeconfigPath    string = "kubeconfig"
+	clusterName       string = "minikube"
+	roleAnnotationKey string = "create-teleport-role"
+)
+```
+
+We will use these constants later in the program. They define some values we may
+want to change later, including:
+
+|Constant|Description|
+|---|---|
+|`proxyAddr`|The host and port of the Teleport Proxy Service, e.g., `mytenant.teleport.sh:443`, which we will use to connect the client to your cluster. **Assign this to your own Proxy Service's host and port:** <Var name="proxy-address" /> |
+|`initTimeout`|The timeout for connecting to the Teleport cluster. We have defined this as 30 seconds.|
+|`identityFilePath`|The path to the Teleport identity file you created earlier.|
+|`clusterName`|The name of the Kubernetes cluster you will fetch RBAC resources from. In this guide, the cluster's name is `minikube`.|
+|`roleAnnotationKey`|In Kubernetes, annotations are arbitrary key/value pairs that you can add to resources. The role and cluster role bindings we created earlier have the annotation key we specify here so our client application can fetch them.|
+
+### Initializing a Kubernetes RBAC client
+
+To contact the Kubernetes API, we will need to set up an HTTP client. The client
+authenticates to the API using mutual TLS, loading a client certificate,
+certificate authority, and private key from the file at `kubeconfigPath`.
+Earlier in the guide, we requested this from the Teleport Auth Service.
+
+The program sets up a Kubernetes API client with the `getRBACClient` function:
+
+```go
+func getRBACClient() (v1.RbacV1Interface, error) {
+	f, err := os.Open(kubeconfigPath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	kc, err := io.ReadAll(f)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	n, err := clientcmd.RESTConfigFromKubeConfig(kc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	c, err := kubernetes.NewForConfig(n)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return c.RbacV1(), nil
+}
+```
+
+`getRBACClient` opens and reads the Kubernetes credentials file at
+`kubeconfigPath`, then uses the file to set up a Kubernetes API client
+configuration (`clientcmd.RESTConfigFromKubeConfig(kc)`) and, with that, an HTTP
+client (`kubernetes.NewForConfig(n)`).
+
+Finally, it returns an interface to the Kubernetes API dedicated to role-based
+access controls, which the rest of the program uses to interact with your
+Kubernetes cluster.
+
+### Creating a Teleport role from a Kubernetes cluster role binding
+
+The `createTeleportRoleFromClusterRoleBinding` function creates a Teleport role
+from a Kubernetes cluster role binding by populating fields in the former based
+on fields in latter:
+
+```go
+func createTeleportRoleFromClusterRoleBinding(teleport *client.Client, k types.KubeCluster, r rbacv1.ClusterRoleBinding) error {
+	if e, ok := r.Annotations[roleAnnotationKey]; !ok || e != "true" {
+		return nil
+	}
+
+	role := types.RoleV6{}
+	role.SetMetadata(types.Metadata{
+		Name: k.GetName() + "-" + r.RoleRef.Name + "-" + "cluster",
+	})
+
+	b := k.GetStaticLabels()
+	labels := make(types.Labels)
+	for k, v := range b {
+		labels[k] = []string{v}
+	}
+	role.SetKubernetesLabels(types.Allow, labels)
+	role.SetKubeResources(types.Allow, []types.KubernetesResource{
+		types.KubernetesResource{
+			Kind:      "pod",
+			Namespace: "*",
+			Name:      "*",
+		},
+	})
+
+	var g []string
+	var u []string
+	for _, s := range r.Subjects {
+		if s.Kind == "User" || s.Kind == "ServiceAccount" {
+			u = append(u, s.Name)
+			continue
+		}
+		if s.Kind == "Group" {
+			g = append(g, s.Name)
+			continue
+		}
+	}
+	role.SetKubeGroups(types.Allow, g)
+	role.SetKubeUsers(types.Allow, u)
+	if err := teleport.UpsertRole(
+		context.Background(),
+		&role,
+	); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Println("Upserted Teleport role:", role.GetName())
+	return nil
+}
+```
+
+To avoid unexpected behavior, this function ignores Kubernetes-managed roles and
+roles for internal systems like the Teleport Kubernetes Service. This function
+checks the cluster role binding's metadata for an annotation with a specific
+key, `roleAnnotationKey`, and ignores any resource where this key is not set to
+`"true"`.
+
+We also want a quick way to identify roles we created with this program. To do
+so, this function names all roles it generates based on cluster role bindings
+according to the following attributes:
+
+- Kubernetes cluster name
+- Kubernetes role name
+- The suffix `-cluster`.
+
+In our demo application, this function will create a Teleport role called
+`minikube-pod-ops-cluster`.
+
+The rest of the function assigns fields to a `types.RoleV6`, the Teleport API
+client's role type, based on the cluster role binding:
+
+|Role field|Purpose|How we assign it|
+|---|---|---|
+|`allow.kubernetes_labels`|Labels for Teleport-registered Kubernetes clusters that a user with this role is allowed to access.|Based on the Teleport-registered Kubernetes cluster that the cluster role binding belongs to.|
+|`allow.kubernetes_resources`|Kubernetes pods in specific namespaces that that a user with this role is allowed to access.|Allow access to all namespaces, since cluster role bindings are not restricted by namespace.|
+|`allow.kubernetes_users` and `allow.kubernetes_groups`|The Kubernetes groups and users that a Teleport user with this role will assume when interacting with the Kubernetes cluster.|Supply the names of any users or groups connected to the cluster role binding.|
+
+### Creating a Teleport role from a Kubernetes role binding
+
+As with cluster role bindings, this program will also create Teleport roles
+based on Kubernetes role bindings:
+
+```go
+func createTeleportRoleFromRoleBinding(teleport *client.Client, k types.KubeCluster, r rbacv1.RoleBinding) error {
+	if e, ok := r.Annotations[roleAnnotationKey]; !ok || e != "true" {
+		return nil
+	}
+
+	role := types.RoleV6{}
+	role.SetMetadata(types.Metadata{
+		Name: k.GetName() + "-" + r.RoleRef.Name + "-" + r.Namespace,
+	})
+
+	b := k.GetStaticLabels()
+	labels := make(types.Labels)
+	for k, v := range b {
+		labels[k] = []string{v}
+	}
+	role.SetKubernetesLabels(types.Allow, labels)
+	role.SetKubeResources(types.Allow, []types.KubernetesResource{
+		types.KubernetesResource{
+			Kind:      "pod",
+			Namespace: r.Namespace,
+			Name:      "*",
+		},
+	})
+	var g []string
+	var u []string
+	for _, s := range r.Subjects {
+		if s.Kind == "User" || s.Kind == "ServiceAccount" {
+			u = append(u, s.Name)
+			continue
+		}
+		if s.Kind == "Group" {
+			g = append(g, s.Name)
+			continue
+		}
+	}
+	role.SetKubeGroups(types.Allow, g)
+	role.SetKubeUsers(types.Allow, u)
+
+	if err := teleport.UpsertRole(
+		context.Background(),
+		&role,
+	); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Println("Upserted Teleport role:", role.GetName())
+	return nil
+}
+```
+
+While the overall behavior of this function is the same as
+`createTeleportRoleFromClusterRoleBinding`, Kubernetes role bindings require
+some differences in how we assign fields to Teleport roles:
+
+- When setting the name of the role, we use the role binding's namespace as the
+  suffix, rather than `-cluster`, to indicate the namespace that this role
+  applies to.
+- In the role's `kubernetes_resources` field, the value has the same namespace
+  as the role binding, rather than applying to all namespaces.
+
+### Creating Teleport roles based on Kubernetes resources
+
+Now that we have functions to create Teleport roles based on individual
+Kubernetes RBAC resources, we can fetch all RBAC resources from our Kubernetes
+cluster and call these functions:
+
+```go
+func createTeleportRolesForKubeCluster(teleport *client.Client, k types.KubeCluster) error {
+	rbac, err := getRBACClient()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	crb, err := rbac.ClusterRoleBindings().List(
+		context.Background(),
+		metav1.ListOptions{},
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, i := range crb.Items {
+		if err := createTeleportRoleFromClusterRoleBinding(teleport, k, i); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	rb, err := rbac.RoleBindings("").List(
+		context.Background(),
+		metav1.ListOptions{},
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, i := range rb.Items {
+		if err := createTeleportRoleFromRoleBinding(teleport, k, i); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+```
+
+`createTeleportRolesForKubeCluster` takes a Teleport client and a
+Teleport-registered Kubernetes cluster. It calls the `getRBACClient` function we
+defined earlier to set up a client for the Kubernetes cluster. It then:
+
+- Lists Kubernetes cluster role bindings and creates a Teleport role for each one.
+- Lists Kubernetes role bindings and creates a Teleport role for each one.
+
+### Initializing clients and start the application
+
+The functions we declared earlier require a Teleport API client and a
+Teleport-registered Kubernetes cluster, and we initialize these in the
+entrypoint of the program, the `main` function:
+
+```go
+func main() {
+	ctx, cancel := context.WithTimeout(context.Background(), initTimeout)
+	defer cancel()
+	creds := client.LoadIdentityFile(identityFilePath)
+
+	teleport, err := client.New(ctx, client.Config{
+		Addrs:       []string{proxyAddr},
+		Credentials: []client.Credentials{creds},
+	})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("Connected to Teleport")
+
+	ks, err := teleport.GetKubernetesServers(context.Background())
+	if err != nil {
+		panic(err)
+	}
+	for _, k := range ks {
+		if k.GetCluster().GetName() != clusterName {
+			continue
+		}
+		fmt.Println("Retrieved Kubernetes cluster", clusterName)
+
+		if err := createTeleportRolesForKubeCluster(teleport, k.GetCluster()); err != nil {
+			panic(err)
+		}
+		fmt.Println("Created roles for Kubernetes cluster", clusterName)
+		return
+	}
+	panic("Unable to locate a Kubernetes Service instance for " + clusterName)
+}
+```
+
+`client` is Teleport's library for setting up an API client. Our program
+initializes a Teleport client by calling `client.LoadIdentityFile` to obtain a
+`client.Credentials`. It then uses the `client.Credentials` to call
+`client.New`, which connects to the Teleport Proxy Service specified in the
+`Addrs` field using the provided identity file.
+
+<Admonition type="warning">
+
+This program does not validate your credentials or Teleport cluster address.
+Make sure that:
+
+- The identity file you exported earlier does not have an expired TTL
+- The value you supplied to the `Addrs` field in `teleport.Config` includes both
+  the host **and** the web port of your Teleport Proxy Service, e.g.,
+  `mytenant.teleport.sh:443`
+
+</Admonition>
+
+After initializing a Teleport client, the `main` function fetches all Kubernetes
+servers registered with Teleport (`teleport.GetKubernetesServers`) and checks if
+there is a registered Kubernetes cluster that matches the one you specified.
+
+If a matching Kubernetes cluster exists, the code calls the
+`createTeleportRolesForKubeClusters` function we defined earlier. If not, the
+program prints an error message and a stack trace by calling Go's built-in
+`panic` function.
+
+## Step 4/4. Test your client application
+
+To test the client application, start it up from within its project directory:
+
+```code
+$ go run main.go
+```
+
+You should see the following output:
+
+```text
+Connected to Teleport
+Retrieved Kubernetes cluster minikube
+Upserted Teleport role: minikube-pod-ops-cluster
+Upserted Teleport role: minikube-pod-reader-app
+Created roles for Kubernetes cluster minikube
+```
+
+Examine the new `minikube-pod-ops-cluster` role by running the command below:
+
+```code
+$ tctl get roles/minikube-pod-ops-cluster
+```
+
+You should see output similar to the following:
+
+```yaml
+kind: role
+metadata:
+  id: 1678732494974032643
+  name: minikube-pod-ops-cluster
+spec:
+  allow:
+    kubernetes_groups:
+    - ops
+    kubernetes_labels:
+      environment: demo
+    kubernetes_resources:
+    - kind: pod
+      name: '*'
+      namespace: '*'
+  deny: {}
+  options:
+    cert_format: standard
+    create_host_user: false
+    desktop_clipboard: true
+    desktop_directory_sharing: true
+    enhanced_recording:
+    - command
+    - network
+    forward_agent: false
+    idp:
+      saml:
+        enabled: true
+    max_session_ttl: 30h0m0s
+    pin_source_ip: false
+    ssh_port_forwarding:
+      remote:
+        enabled: true
+      local:
+        enabled: true
+    record_session:
+      default: best_effort
+      desktop: true
+    ssh_file_copy: true
+version: v7
+```
+
+Compare this with the `minikube-pod-reader-app` role, which you can retrieve
+with the following command:
+
+```code
+$ tctl get roles/minikube-pod-reader-app
+```
+
+Here is the role we created:
+
+```yaml
+kind: role
+metadata:
+  id: 1678732495284493075
+  name: minikube-pod-reader-app
+spec:
+  allow:
+    kubernetes_groups:
+    - app-developer
+    kubernetes_labels:
+      environment: demo
+    kubernetes_resources:
+    - kind: pod
+      name: '*'
+      namespace: app
+  deny: {}
+  options:
+    cert_format: standard
+    create_host_user: false
+    desktop_clipboard: true
+    desktop_directory_sharing: true
+    enhanced_recording:
+    - command
+    - network
+    forward_agent: false
+    idp:
+      saml:
+        enabled: true
+    max_session_ttl: 30h0m0s
+    pin_source_ip: false
+    ssh_port_forwarding:
+      remote:
+        enabled: true
+      local:
+        enabled: true
+    record_session:
+      default: best_effort
+      desktop: true
+    ssh_file_copy: true
+version: v7
+```
+
+Since role bindings are namespaced, this role only allows access to pods in the
+`app` namespace, where this role binding was applied. The Kubernetes Service
+forwards traffic from users with this role using the `app-developer` Kubernetes
+group.
+
+## Next steps
+
+We have implemented a Teleport API client that generates Teleport roles based on
+the Kubernetes RBAC system. You can use Teleport's API to build similar
+applications that interact with other RBAC systems, such as GitHub teams or
+groups within your database management system.
+
+Here are some starting points for building out your client application.
+
+### Learn more about Teleport roles
+
+To write an effective client application that generates Teleport roles from an
+external RBAC solution, you should understand the role fields that apply to
+infrastructure resources you want to manage access to.
+
+See the links below for guides to fields related to different infrastructure
+resources:
+
+- [Servers](../../enroll-resources/server-access/rbac.mdx)
+- [Databases](../../enroll-resources/database-access/rbac.mdx)
+- [Kubernetes clusters](../../enroll-resources/kubernetes-access/controls.mdx)
+- [Windows Desktops](../../enroll-resources/desktop-access/rbac.mdx)
+- [Applications](../../enroll-resources/application-access/controls.mdx)
+
+For general guidance, read our [Access Controls
+Reference](../../reference/access-controls/roles.mdx).
+
+### Register your cloud provider with Teleport
+
+You can protect cloud provider APIs with Teleport and instruct your API client
+applications to connect to these APIs via the Teleport Application Service.
+Using Teleport-protected cloud provider APIs, you can generate Teleport roles
+based on your cloud provider's RBAC solution.
+
+Read our guides for how to set up the Teleport Application Service for cloud
+provider APIs:
+
+- [AWS](../../enroll-resources/application-access/cloud-apis/aws-console.mdx)
+- [Google Cloud](../../enroll-resources/application-access/cloud-apis/google-cloud.mdx)
+- [Azure](../../enroll-resources/application-access/cloud-apis/azure.mdx)
+
+### Consult examples
+
+The Teleport code repository contains [examples of production-ready Teleport API
+clients](https://github.com/gravitational/teleport/tree/v(=teleport.version=)/examples/).
+While we currently do not maintain plugins that generate Teleport
+roles, you can use these examples to see how to implement configuration
+parsing, retries, and other tasks.
+
+### Provision the client application with short-lived credentials
+
+In this example, we used the `tctl auth sign` command to fetch credentials for
+the program you wrote. For production usage, we recommend provisioning
+short-lived credentials via Machine ID, which reduces the risk of these
+credentials becoming stolen. View our [Machine ID
+documentation](../../enroll-resources/machine-id/introduction.mdx) to learn more.

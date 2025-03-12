@@ -21,12 +21,12 @@ package tbot
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"testing"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -36,12 +36,14 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
-	"github.com/gravitational/teleport/lib/utils/golden"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
 const (
 	// mockProxyAddr is the address of the mock proxy server, used in tests
-	mockProxyAddr = "tele.blackmesa.gov:443"
+	mockProxyAddr    = "tele.blackmesa.gov:443"
+	mockProxySSHAddr = "tele.blackmesa.gov:3023"
 	// mockRemoteClusterName is the remote cluster name used for the mock auth
 	// client
 	mockRemoteClusterName = "tele.aperture.labs"
@@ -117,39 +119,28 @@ func (p *mockALPNConnTester) isUpgradeRequired(ctx context.Context, addr string,
 func Test_renderSSHConfig(t *testing.T) {
 	tests := []struct {
 		Name        string
-		Version     string
-		Env         map[string]string
 		TLSRouting  bool
 		ALPNUpgrade bool
 	}{
 		{
-			Name:       "legacy OpenSSH",
-			Version:    "6.5.0",
-			TLSRouting: true,
+			Name:        "no tls routing, no alpn upgrade",
+			TLSRouting:  false,
+			ALPNUpgrade: false,
 		},
 		{
-			Name:       "latest OpenSSH",
-			Version:    "9.0.0",
-			TLSRouting: true,
-		},
-		{
-			Name:       "latest OpenSSH no tls routing",
-			Version:    "9.0.0",
-			TLSRouting: false,
-		},
-		{
-			Name:        "latest OpenSSH with alpn upgrade",
-			Version:     "9.0.0",
+			Name:        "no tls routing, alpn upgrade",
+			TLSRouting:  false,
 			ALPNUpgrade: true,
-			TLSRouting:  true,
 		},
 		{
-			Name:    "latest OpenSSH with legacy proxycommand",
-			Version: "9.0.0",
-			Env: map[string]string{
-				sshConfigProxyModeEnv: "legacy",
-			},
-			TLSRouting: true,
+			Name:        "tls routing, no alpn upgrade",
+			TLSRouting:  true,
+			ALPNUpgrade: false,
+		},
+		{
+			Name:        "tls routing, alpn upgrade",
+			TLSRouting:  true,
+			ALPNUpgrade: true,
 		},
 	}
 
@@ -166,12 +157,16 @@ func Test_renderSSHConfig(t *testing.T) {
 
 			err := renderSSHConfig(
 				context.Background(),
-				&webclient.PingResponse{
-					ClusterName: mockClusterName,
-					Proxy: webclient.ProxySettings{
-						TLSRoutingEnabled: tc.TLSRouting,
-						SSH: webclient.SSHProxySettings{
-							PublicAddr: mockProxyAddr,
+				utils.NewSlogLoggerForTests(),
+				&proxyPingResponse{
+					PingResponse: &webclient.PingResponse{
+						ClusterName: mockClusterName,
+						Proxy: webclient.ProxySettings{
+							TLSRoutingEnabled: tc.TLSRouting,
+							SSH: webclient.SSHProxySettings{
+								PublicAddr:    mockProxyAddr,
+								SSHPublicAddr: mockProxySSHAddr,
+							},
 						},
 					},
 				},
@@ -182,15 +177,6 @@ func Test_renderSSHConfig(t *testing.T) {
 					clusterName:       mockClusterName,
 				},
 				fakeGetExecutablePath,
-				func() (*semver.Version, error) {
-					return semver.New(tc.Version), nil
-				},
-				func(key string) string {
-					if tc.Env == nil {
-						return ""
-					}
-					return tc.Env[key]
-				},
 				&mockALPNConnTester{
 					isALPNUpgradeRequired: tc.ALPNUpgrade,
 				},
@@ -218,6 +204,35 @@ func Test_renderSSHConfig(t *testing.T) {
 			require.Equal(
 				t, string(golden.GetNamed(t, "ssh_config")), string(sshConfigBytes),
 			)
+
+			for clusterType, clusterName := range map[string]string{
+				"local":  mockClusterName,
+				"remote": mockRemoteClusterName,
+			} {
+				clusterKnownHostBytes, err := os.ReadFile(
+					filepath.Join(dir, fmt.Sprintf("%s.%s", clusterName, ssh.KnownHostsName)),
+				)
+				require.NoError(t, err)
+				clusterKnownHostBytes = replaceTestDir(clusterKnownHostBytes)
+				clusterSSHConfigBytes, err := os.ReadFile(
+					filepath.Join(dir, fmt.Sprintf("%s.%s", clusterName, ssh.ConfigName)),
+				)
+				require.NoError(t, err)
+				clusterSSHConfigBytes = replaceTestDir(clusterSSHConfigBytes)
+
+				configGolden := fmt.Sprintf("%s_cluster_ssh_config", clusterType)
+				knownHostsGolden := fmt.Sprintf("%s_cluster_known_hosts", clusterType)
+				if golden.ShouldSet() {
+					golden.SetNamed(t, knownHostsGolden, clusterKnownHostBytes)
+					golden.SetNamed(t, configGolden, clusterSSHConfigBytes)
+				}
+				require.Equal(
+					t, string(golden.GetNamed(t, knownHostsGolden)), string(clusterKnownHostBytes),
+				)
+				require.Equal(
+					t, string(golden.GetNamed(t, configGolden)), string(clusterSSHConfigBytes),
+				)
+			}
 		})
 	}
 }

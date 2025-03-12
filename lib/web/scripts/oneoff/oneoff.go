@@ -22,6 +22,7 @@ import (
 	"bytes"
 	_ "embed"
 	"slices"
+	"strings"
 	"text/template"
 
 	"github.com/gravitational/trace"
@@ -29,13 +30,10 @@ import (
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/utils/teleportassets"
 )
 
 const (
-	// teleportCDNLocation is the Teleport's CDN URL
-	// This is used to download the Teleport Binary
-	teleportCDNLocation = "https://cdn.teleport.dev"
-
 	// binUname is the default binary name for inspecting the host's OS.
 	binUname = "uname"
 
@@ -66,9 +64,12 @@ type OneOffScriptParams struct {
 	// Used for testing.
 	binSudo string
 
-	// TeleportArgs is the arguments to pass to the teleport binary.
+	// Entrypoint is the name of the binary from the teleport package. Defaults to "teleport", but can be set to
+	// other binaries such as "teleport-update" or "tbot".
+	Entrypoint string
+	// EntrypointArgs is the arguments to pass to the Entrypoint binary.
 	// Eg, 'version'
-	TeleportArgs string
+	EntrypointArgs string
 
 	// BinUname is the binary used to get OS name and Architecture of the host.
 	// Defaults to `uname`.
@@ -91,14 +92,21 @@ type OneOffScriptParams struct {
 	// - teleport-ent
 	TeleportFlavor string
 
+	// TeleportFIPS represents if the script should install a FIPS build of Teleport.
+	TeleportFIPS bool
+
 	// SuccessMessage is a message shown to the user after the one off is completed.
 	SuccessMessage string
 }
 
 // CheckAndSetDefaults checks if the required params ara present.
 func (p *OneOffScriptParams) CheckAndSetDefaults() error {
-	if p.TeleportArgs == "" {
+	if p.EntrypointArgs == "" {
 		return trace.BadParameter("missing teleport args")
+	}
+
+	if p.Entrypoint == "" {
+		p.Entrypoint = "teleport"
 	}
 
 	if p.BinUname == "" {
@@ -113,13 +121,14 @@ func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 		p.binSudo = "sudo"
 	}
 
-	if p.CDNBaseURL == "" {
-		p.CDNBaseURL = teleportCDNLocation
-	}
-
 	if p.TeleportVersion == "" {
 		p.TeleportVersion = "v" + api.Version
 	}
+
+	if p.CDNBaseURL == "" {
+		p.CDNBaseURL = teleportassets.CDNBaseURL()
+	}
+	p.CDNBaseURL = strings.TrimRight(p.CDNBaseURL, "/")
 
 	if p.TeleportFlavor == "" {
 		p.TeleportFlavor = types.PackageNameOSS

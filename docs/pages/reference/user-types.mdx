@@ -23,7 +23,7 @@ one-time passwords.
 
 Local user login can be disabled via `cluster_auth_preference` or `teleport.yaml`.
 Disabling local authentication is required for [FIPS/FedRAMP compliance
-](../access-controls/compliance-frameworks/fedramp.mdx).
+](../admin-guides/access-controls/compliance-frameworks/fedramp.mdx).
 
 ### Special case: Bots
 
@@ -50,7 +50,7 @@ authentication method required by the upstream SSO provider. Teleport is not
 aware of the authentication method not the user credentials, it trusts the IdP
 response.
 
-If `teleport.auth_service.authentication.second_factor` is `webauthn`, Teleport
+If `teleport.auth_service.authentication.second_factors` is `["webauthn"]`, Teleport
 might ask for an additional MFA for administrative actions. This protects
 against IdP compromise.
 
@@ -68,7 +68,7 @@ and automatically expire. The expiry is dynamically computed based on the IdP
 answer validity, the max session duration allowed by the user roles, and cannot
 exceed 30 hours. Those users cannot be edited via `tctl`, only deleted.
 
-See the [SSO setup guides](../access-controls/sso.mdx) to learn how to setup an
+See the [SSO setup guides](../admin-guides/access-controls/sso/sso.mdx) to learn how to setup an
 authentication connector and allow user to log in via an IdP.
 
 ### Synced users
@@ -82,7 +82,7 @@ integration are:
 - Automatic user locking and deletion if the user is suspended or removed in the
   IdP.
 - Ability to see all users within Teleport regardless of the last login date.
-- All IdP users are displayed in Teleport Policy's Access Graph.
+- All IdP users are displayed in Access Graph.
 
 The Okta synchronization service is in charge of creating new users when they
 are created in Okta, and locking/deleting users if they get deactivated/removed

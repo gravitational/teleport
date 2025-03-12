@@ -75,7 +75,7 @@ $ curl -u elastic:your_elasticsearch_password -X POST "https://elasticsearch.exa
 
 <Details title="Role Mapping with wildcards">
 
-In a scenario where Teleport is using [single sign-on](../../../access-controls/sso.mdx) you may want to define a mapping for all users to a role:
+In a scenario where Teleport is using [single sign-on](../../../admin-guides/access-controls/sso/sso.mdx) you may want to define a mapping for all users to a role:
 
 ```code
 $ curl -u elastic:your_elasticsearch_password -X POST "https://elasticsearch.example.com:9200/_security/role_mapping/mapping1?pretty" -H 'Content-Type: application/json' -d'
@@ -116,10 +116,10 @@ xpack.security.authc.realms.pki.pki1:
   certificate_authorities: /path/to/server.cas
 ```
 
-Once mutual TLS has been enabled, you will no longer be able to connect to the cluster without
-providing a valid client certificate. You can set `xpack.security.http.ssl.client_authentication`
-to `optional` to allow connections from clients that do not present a certificate, using other
-methods like username and password.
+Restart Elasticsearch to enable this configuration. Once mutual TLS has been enabled, you will no
+longer be able to connect to the cluster without providing a valid client certificate. You can set
+`xpack.security.http.ssl.client_authentication` to `optional` to allow connections from clients
+that do not present a certificate, using other methods like username and password.
 
 ## Step 5/5. Connect
 

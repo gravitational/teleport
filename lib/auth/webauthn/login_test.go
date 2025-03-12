@@ -34,6 +34,7 @@ import (
 
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -441,7 +442,7 @@ func TestPasswordlessFlow_BeginAndFinish(t *testing.T) {
 				AllowCredentials: [][]uint8{}, // aka unset
 				ResidentKey:      false,       // irrelevant for login
 				UserVerification: string(protocol.VerificationRequired),
-				ChallengeExtensions: &mfav1.ChallengeExtensions{
+				ChallengeExtensions: &mfatypes.ChallengeExtensions{
 					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN,
 					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 				},
@@ -1016,6 +1017,168 @@ func TestLoginFlow_userVerification(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCredentialBackupFlags(t *testing.T) {
+	t.Parallel()
+
+	key, err := mocku2f.Create()
+	require.NoError(t, err, "Create failed")
+	key.SetPasswordless()
+	key.SetBackupFlags = true // BE=1 and BS=1
+
+	const user = "llama"
+	const origin = "https://example.com"
+	webIdentity := newFakeIdentity(user)
+	webConfig := &types.Webauthn{RPID: "example.com"}
+	ctx := context.Background()
+
+	assertBackupFlags := func(t *testing.T, mfaDev *types.MFADevice, wantBE, wantBS bool) {
+		t.Helper()
+
+		be := mfaDev.GetWebauthn().CredentialBackupEligible
+		require.NotNil(t, be, "CredentialBackupEligible is nil")
+		bs := mfaDev.GetWebauthn().CredentialBackedUp
+		require.NotNil(t, bs, "CredentialBackedUp is nil")
+
+		assert.Equal(t, wantBE, be.Value, "CredentialBackupEligible mismatch")
+		assert.Equal(t, wantBS, bs.Value, "CredentialBackedUp mismatch")
+	}
+
+	t.Run("register", func(t *testing.T) {
+		rf := &wanlib.RegistrationFlow{
+			Webauthn: webConfig,
+			Identity: webIdentity,
+		}
+		cc, err := rf.Begin(ctx, user, true /* passwordless */)
+		require.NoError(t, err, "Begin failed")
+		ccr, err := key.SignCredentialCreation(origin, cc)
+		require.NoError(t, err, "SignCredentialCreation failed")
+		mfaDev, err := rf.Finish(ctx, wanlib.RegisterResponse{
+			User:             user,
+			DeviceName:       "mydevice",
+			CreationResponse: ccr,
+			Passwordless:     true,
+		})
+		require.NoError(t, err, "Finish failed")
+
+		// Assert backup flags after registration.
+		assertBackupFlags(t, mfaDev, true /* wantBE */, true /* wantBS */)
+	})
+
+	// Erase BE/BS from storage device. Simulates a legacy device.
+	require.Len(t,
+		webIdentity.UpdatedDevices, 1,
+		"Unexpected number of registered devices, aborting test",
+	)
+	webIdentity.UpdatedDevices[0].GetWebauthn().CredentialBackupEligible = nil
+	webIdentity.UpdatedDevices[0].GetWebauthn().CredentialBackedUp = nil
+
+	lf := &wanlib.PasswordlessFlow{
+		Webauthn: webConfig,
+		Identity: webIdentity,
+	}
+
+	t.Run("login legacy", func(t *testing.T) {
+		assertion, err := lf.Begin(ctx)
+		require.NoError(t, err, "Begin")
+		assertionResp, err := key.SignAssertion(origin, assertion)
+		require.NoError(t, err, "SignAssertion failed")
+
+		// Sanity check BE/BS in the authenticator response.
+		var ad protocol.AuthenticatorData
+		require.NoError(t,
+			ad.Unmarshal(assertionResp.AssertionResponse.AuthenticatorData),
+			"AuthenticatorData.Unmarshal failed",
+		)
+		require.True(t,
+			ad.Flags.HasBackupEligible() && ad.Flags.HasBackupState(),
+			"AuthenticatorData BE or BS flags not true",
+			ad.Flags.HasBackupEligible(),
+			ad.Flags.HasBackupState())
+
+		loginData, err := lf.Finish(ctx, assertionResp)
+		require.NoError(t, err, "Finish failed")
+
+		// Assert backfill.
+		mfaDev := loginData.Device
+		assertBackupFlags(t, mfaDev, true /* wantBE */, true /* wantBS */)
+	})
+
+	t.Run("login with BE/BS=1", func(t *testing.T) {
+		assertion, err := lf.Begin(ctx)
+		require.NoError(t, err, "Begin")
+		assertionResp, err := key.SignAssertion(origin, assertion)
+		require.NoError(t, err, "SignAssertion failed")
+		loginData, err := lf.Finish(ctx, assertionResp)
+		require.NoError(t, err, "Finish failed")
+
+		// Assert backup flags unchanged.
+		mfaDev := loginData.Device
+		assertBackupFlags(t, mfaDev, true /* wantBE */, true /* wantBS */)
+	})
+}
+
+func TestPasswordlessFlow_backfillResidentKey(t *testing.T) {
+	t.Parallel()
+
+	key, err := mocku2f.Create()
+	require.NoError(t, err, "Create failed")
+	key.SetPasswordless()
+
+	const user = "llama"
+	const origin = "https://example.com"
+	webIdentity := newFakeIdentity(user)
+	webConfig := &types.Webauthn{RPID: "example.com"}
+	ctx := context.Background()
+
+	// Register passwordless device as MFA.
+	// (Providers might make it passwordless regardless.)
+	rf := &wanlib.RegistrationFlow{
+		Webauthn: webConfig,
+		Identity: webIdentity,
+	}
+	cc, err := rf.Begin(ctx, user, false /* passwordless */)
+	require.NoError(t, err, "Begin failed")
+	ccr, err := key.SignCredentialCreation(origin, cc)
+	require.NoError(t, err, "SignCredentialCreation failed")
+	mfaDev, err := rf.Finish(ctx, wanlib.RegisterResponse{
+		User:             user,
+		DeviceName:       "mydevice",
+		CreationResponse: ccr,
+	})
+	require.NoError(t, err, "Finish failed")
+	// Sanity check.
+	require.False(t,
+		mfaDev.GetWebauthn().ResidentKey,
+		"MFA device unexpectedly marked as resident key",
+	)
+
+	// Set the UserHandle in our fake key. A "regular" authenticator would save
+	// the handle during registration, but our fake only does that for
+	// "passwordless" registrations.
+	wla, err := webIdentity.GetWebauthnLocalAuth(ctx, user)
+	require.NoError(t, err, "GetWebauthnLocalAuth failed")
+	key.UserHandle = wla.UserID
+
+	t.Run("ok", func(t *testing.T) {
+		lf := &wanlib.PasswordlessFlow{
+			Webauthn: webConfig,
+			Identity: webIdentity,
+		}
+
+		// Login.
+		assertion, err := lf.Begin(ctx)
+		require.NoError(t, err, "Begin failed")
+		assertionResp, err := key.SignAssertion(origin, assertion)
+		require.NoError(t, err, "SignAssertion failed")
+		loginData, err := lf.Finish(ctx, assertionResp)
+		require.NoError(t, err, "Finish failed")
+
+		// Verify that we corrected the ResidentKey field.
+		mfaDev := loginData.Device
+		assert.True(t, mfaDev.GetWebauthn().ResidentKey, "ResidentKey field not corrected")
+	})
 }
 
 type fakeIdentity struct {

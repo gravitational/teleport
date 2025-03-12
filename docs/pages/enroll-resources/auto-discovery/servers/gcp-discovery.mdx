@@ -93,6 +93,12 @@ discover instances.
   your custom role. Click *Save*.
 
   ![Role assignment](../../../../img/server-access/guides/gcp/assign-role-to-service-account@2x.png)
+
+  If the Discovery Service will run in a GCP compute instance, edit the instance and
+  assign the service account to the instance and set its access scopes to include 
+  Read Write access to the Compute API.
+
+  ![Service account assignment](../../../../img/server-access/guides/gcp/access-scopes@2x.png)
 </TabItem>
 <TabItem label="gcloud">
   Copy the following and paste it into a file called `teleport-discovery-role.yaml`:
@@ -130,6 +136,16 @@ discover instances.
   $ gcloud projects add-iam-policy-binding <Var name="project_id" description="GCP project ID" /> \
   --member="serviceAccount:teleport-discovery@<Var name="project_id" />.iam.gserviceaccount.com" \
   --role="projects/<Var name="project_id" />/roles/teleport_discovery"
+  ```
+
+  If the Discovery Service will run in a GCP compute instance, run the following
+  command to add the service account to the instance, replacing <Var
+  name="discovery_service_vm_name" /> with the name of the Discovery Service VM:
+
+  ```code
+  $ gcloud compute instances set-service-account <Var name="discovery_service_vm_name" description="Name of the instance running the Discovery Service" /> \
+  --service-account=teleport-discovery@<Var name="project_id" />.iam.gserviceaccount.com \
+  --scopes=default,compute-rw
   ```
 </TabItem>
 </Tabs>
@@ -217,6 +233,8 @@ the Discovery Service.
 In order to enable GCP instance discovery the `discovery_service.gcp` section
 of `teleport.yaml` must include at least one entry:
 
+(!docs/pages/includes/discovery/discovery-group.mdx!)
+
 ```yaml
 version: v3
 teleport:
@@ -232,6 +250,7 @@ ssh_service:
   enabled: off
 discovery_service:
   enabled: "yes"
+  discovery_group: "gcp-prod"
   gcp:
     - types: ["gce"]
       # The IDs of GCP projects that VMs can join from.
@@ -276,5 +295,3 @@ for details on alternate methods.
   for more information on GCP tokens.
 - Full documentation on GCP discovery configuration can be found through the [
   config file reference documentation](../../../reference/config.mdx).
-- The complete default installer can be found [with the Teleport source
-](https://github.com/gravitational/teleport/blob/branch/v(=teleport.major_version=)/api/types/installers/installer.sh.tmpl).

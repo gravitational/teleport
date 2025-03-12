@@ -1,5 +1,5 @@
 // Teleport
-// Copyright (C) 2024 Gravitational, Inc.
+// Copyright (C) 2025 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -203,7 +203,7 @@ func (c *Client) request(ctx context.Context, method string, uri string, payload
 			lastErr = trace.Wrap(graphError)
 		} else {
 			// API did not return a valid error structure, best-effort reporting.
-			lastErr = trace.Errorf(resp.Status)
+			lastErr = trace.Errorf("%s", resp.Status)
 		}
 		if !isRetriable(resp.StatusCode) {
 			break
@@ -336,6 +336,17 @@ func (c *Client) GetServicePrincipalsByDisplayName(ctx context.Context, displayN
 	return out.Value, nil
 }
 
+// GetServicePrincipal returns the service principal for the given principal ID.
+// Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-get].
+func (c *Client) GetServicePrincipal(ctx context.Context, principalId string) (*ServicePrincipal, error) {
+	uri := c.endpointURI(fmt.Sprintf("servicePrincipals/%s", principalId))
+	out, err := roundtrip[*ServicePrincipal](ctx, c, http.MethodGet, uri.String(), nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return out, nil
+}
+
 // GrantAppRoleToServicePrincipal grants the given app role to the specified Service Principal.
 // Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-post-approleassignedto]
 func (c *Client) GrantAppRoleToServicePrincipal(ctx context.Context, spID string, assignment *AppRoleAssignment) (*AppRoleAssignment, error) {
@@ -368,6 +379,19 @@ func (c *Client) InstantiateApplicationTemplate(ctx context.Context, appTemplate
 func (c *Client) UpdateApplication(ctx context.Context, appObjectID string, app *Application) error {
 	uri := c.endpointURI("applications", appObjectID)
 	return trace.Wrap(c.patch(ctx, uri.String(), app))
+}
+
+// GetApplication returns the application with the given app client ID.
+// Note that appID here is the app the application "client ID" ([Application.AppID]) not  "object ID" ([Application.ID]).
+// Ref: [https://learn.microsoft.com/en-us/graph/api/application-get].
+func (c *Client) GetApplication(ctx context.Context, applicationID string) (*Application, error) {
+	applicationIDFilter := fmt.Sprintf("applications(appId='%s')", applicationID)
+	uri := c.endpointURI(applicationIDFilter)
+	out, err := roundtrip[*Application](ctx, c, http.MethodGet, uri.String(), nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return out, nil
 }
 
 // UpdateServicePrincipal issues a partial update for a [ServicePrincipal].

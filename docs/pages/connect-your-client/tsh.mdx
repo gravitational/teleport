@@ -190,7 +190,7 @@ This allows you to authenticate just once, maybe at the beginning of the day. Su
   It is recommended to always use [`tsh login`](../reference/cli/tsh.mdx#tsh-login) before using any other `tsh` commands. This allows users to omit `--proxy` flag in subsequent tsh commands. For example `tsh ssh user@host` will work.
 </Admonition>
 
-A Teleport cluster can be configured for multiple user identity sources. For example, a cluster may have a local user called `admin` while regular users should [authenticate via GitHub](../access-controls/sso/github-sso.mdx). In this case, you have to pass `--auth` flag to `tsh login` to specify which identity storage to use:
+A Teleport cluster can be configured for multiple user identity sources. For example, a cluster may have a local user called `admin` while regular users should [authenticate via GitHub](../admin-guides/access-controls/sso/github-sso.mdx). In this case, you have to pass `--auth` flag to `tsh login` to specify which identity storage to use:
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -646,8 +646,8 @@ scp"` and use the familiar syntax:
 $ scp -P 61122 -r files root@node:/path/to/dest
 ```
 
-Starting from Teleport 9 the SCP and SFTP protocols are both supported by Server
-Access. OpenSSH `scp` or `sftp` commands can both be used in place of `tsh scp`
+Teleport supports both the SCP and SFTP protocols.
+OpenSSH `scp` or `sftp` commands can both be used in place of `tsh scp`
 if desired.
 
 ## Sharing sessions
@@ -683,12 +683,14 @@ $ tsh join <session_ID>
   title="Lacking permission?"
 >
   Joining sessions requires special permissions that need to be set up by your cluster administrator.
-  Refer them to the [Moderated Sessions guide](../access-controls/guides/moderated-sessions.mdx) for more information on configuring join permissions.
+  Refer them to the [Moderated Sessions guide](../admin-guides/access-controls/guides/joining-sessions.mdx) for more information on configuring join permissions.
 </Admonition>
 
-<Notice type="note" scope={["oss", "enterprise"]}>
+You can also list active sessions with the `tsh sessions ls` command.
+
+<Admonition type="note" scope={["oss", "enterprise"]}>
   Joining sessions is not supported in recording proxy mode (where `session_recording` is set to `proxy`).
-</Notice>
+</Admonition>
 
 ## Connecting to SSH clusters behind firewalls
 
@@ -697,10 +699,11 @@ Teleport supports creating clusters of servers located behind firewalls
 tunnels from behind-firewall environments into a Teleport Proxy Service you have access to.
 
 To learn more about setting up a trust relationship between clusters behind firewalls, see
-[Configure Trusted Clusters](../management/admin/trustedclusters.mdx).
+[Configure Trusted Clusters](../admin-guides/management/admin/trustedclusters.mdx).
 
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+<Admonition type="note" >
+  Trusted clusters are only available for self-hosted Teleport clusters.
+</Admonition>
 
 Assuming the Teleport Proxy Server called `work` is configured with a few trusted
 clusters, you can use the `tsh clusters` command to see a list of all the trusted clusters on the server:
@@ -714,31 +717,9 @@ $ tsh --proxy=work clusters
 # production       offline
 ```
 
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-
-Assuming the Teleport Cloud tenant called `mytenant.teleport.sh` is configured with a few trusted
-clusters, a user may use the `tsh clusters` command to see a list of all Trusted Clusters on the server:
-
-```code
-$ tsh --proxy=mytenant.teleport.sh clusters
-
-# Cluster Name     Status
-# ------------     ------
-# staging          online
-# production       offline
-```
-
-</TabItem>
-
-</Tabs>
-
 [CLI Docs - tsh clusters](../reference/cli/tsh.mdx#tsh-clusters)
 
 Now you can use the `--cluster` flag with any `tsh` command. For example, to list SSH nodes that are members of the `production` cluster, simply run:
-
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh --proxy=work ls --cluster=production
@@ -749,26 +730,7 @@ $ tsh --proxy=work ls --cluster=production
 # db-2          xxxxxxxxx     10.0.20.41:3022    kernel:4.2
 ```
 
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-
-```code
-$ tsh --proxy=mytenant.teleport.sh ls --cluster=production
-
-# Node Name     Node ID       Address            Labels
-# ---------     -------       -------            ------
-# db-1          xxxxxxxxx     10.0.20.31:3022    kernel:4.4
-# db-2          xxxxxxxxx     10.0.20.41:3022    kernel:4.2
-```
-
-</TabItem>
-
-</Tabs>
-
 Similarly, if you want to SSH into `db-1` inside the `production` cluster:
-
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh --proxy=work ssh --cluster=production db-1
@@ -778,22 +740,6 @@ This is possible even if Nodes in the `production` cluster are located behind a
 firewall without open ports. This works because the `production` cluster
 establishes a reverse SSH tunnel back into the Proxy Service called `work`, and
 this tunnel is used to establish inbound SSH connections.
-
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-
-```code
-$ tsh --proxy=mytenant.teleport.sh ssh --cluster=production db-1
-```
-
-This is possible even if Nodes in the `production` cluster are located behind a
-firewall without open ports. This works because the `production` cluster
-establishes a reverse SSH tunnel back into your Teleport Cloud tenant's Proxy
-Service, and this tunnel is used to establish inbound SSH connections.
-
-</TabItem>
-
-</Tabs>
 
 ## X11 forwarding
 
@@ -808,13 +754,13 @@ $ tsh ssh -X node01
 X11 forwarding provides the server with secure access to your local X Server
 so that it can communicate directly with your local display and I/O devices.
 
-<Notice type="note">
+<Admonition type="note">
   The `-Y` flag can be used to start Trusted X11 forwarding. This is needed
   in order to enable more "unsafe" features, such as running clipboard or
   screenshot utilities like `xclip`. However, it provides the server with
   unmitigated access to your local X Server and puts your local machine at
   risk of X11 attacks, so it should only be used with extreme caution.
-</Notice>
+</Admonition>
 
 In order to use X11 forwarding, you'll need to enable it on the Teleport Node.
 You'll also need to ensure that your user has the `permit_x11_forwarding` role option:
@@ -826,6 +772,10 @@ $ tsh status
   ...
   Extensions:         permit-X11-forwarding
 ```
+
+## Proxying Git commands
+
+(!docs/pages/connect-your-client/includes/tsh-git.mdx!)
 
 ## Custom aliases and defaults
 
@@ -892,7 +842,7 @@ aliases:
 
 The alias substitution happens before the command line flags are fully parsed. This means that it is not affected by the `--debug` flag. To troubleshoot your aliases, set the `TELEPORT_DEBUG=1` environment variable instead. This will cause the `tsh` logs to be printed to the console:
 
-```bash
+```code
 $ TELEPORT_DEBUG=1 tsh status
 DEBU [TSH]       Self re-exec command: tsh [status --format=json]. tsh/aliases.go:203
 ...
@@ -924,7 +874,7 @@ d0a04442-70dc-4be8-9308-7b7901d2d600 ssh  navin        test      Nov 26 16:36:16
 ### Playing recordings
 
 To play a session recording, run the `tsh play` command with the ID of a session
-as returned by `tsh recordings ls`: 
+as returned by `tsh recordings ls`:
 
 ```code
 $ tsh play c0a02222-70dc-4be8-9308-7b7901d2d600
@@ -940,17 +890,30 @@ $ tsh play ./my-recording.tar
 To retrieve a TAR file containing a session recording, you must have access to
 the session recording backend. This requires either a self-hosted Teleport
 cluster or [external audit
-storage](../choose-an-edition/teleport-cloud/external-audit-storage.mdx).
+storage](../admin-guides/management/external-audit-storage.mdx).
 
-The `tsh play` command can print recordings in three formats, depending on the
+The `tsh play` command can print recordings in several formats, depending on the
 kind of resource the recorded session interacts with. To choose a format, use
 the `--format` flag of `tsh play`:
 
 | `--format` value | Supported resources | Description |
 |------------------|---------------------|-------------|
 | `pty` (default)  | Servers, Kubernetes clusters | `tsh` opens a pseudo-terminal to play each command executed in the session. |
+| `text` | Servers, Kubernetes clusters | `tsh` dumps the entire recording directly to standard out. Timing data is ignored. |
 | `json` | Servers, Kubernetes clusters, applications, databases | `tsh` prints a JSON-serialized list of audit events, separated by newlines. |
 | `yaml` | Servers, Kubernetes clusters, applications, databases | `tsh` prints a YAML-serialized list of audit events, separated by `---` characters. |
+
+The playback speed can be customized with the `--speed` flag, which must be
+one of `0.5x`, `1x`, `2x`, `4x`, or `8x`.
+
+```code
+tsh play --speed=8x UUID
+```
+
+Another way to speed up playback is to skip idle time in the recording with the
+`--skip-idle-time` flag. When enabled, tsh will respect the configured playback
+speed during active sections of the recording, but it will skip over larger periods
+of inactivity.
 
 ## tsh configuration files
 
@@ -1052,7 +1015,7 @@ aliases:
 
 To troubleshoot aliases, set the `TELEPORT_DEBUG=1` environment variable. This will cause detailed logs to be printed to standard error:
 
-```bash
+```code
 $ TELEPORT_DEBUG=1 tsh status
 DEBU [TSH]       Self re-exec command: tsh [status --format=json]. tsh/aliases.go:203
 ...
@@ -1098,9 +1061,6 @@ proxy_templates:
   #
   # Query by predicate expression similar to tsh ls --query.
   # Has priority over search but will be ignored if a host is provided.
-  #
-  # See https://goteleport.com/docs/reference/predicate-language/#resource-filtering for
-  # predicate expression examples.
   query: "labels.env == $1"
 
   # Optional fuzzy search terms to resolve the target host with.
@@ -1114,6 +1074,12 @@ proxy_templates:
 - template: ...
 ```
 
+In the configuration above, `query` accepts an predicate expression.  This has
+priority over search but will be ignored if a host is provided.  See the
+[predicate language
+documentation](../reference/predicate-language.mdx#resource-filtering for
+predicate expression examples.
+
 `tsh -J {{proxy}} ssh` and `tsh -J {{proxy}} proxy ssh` will attempt to match the
 host server address `%h:%p` with the configured templates. For each replace rule set,
 the corresponding cli value will be set.
@@ -1121,7 +1087,7 @@ the corresponding cli value will be set.
 If leaf certificates are required to connect to the node, `tsh` automatically
 retrieves leaf certificates from the root cluster:
 
-```bash
+```code
 $ tsh ssh -J {{proxy}} node1.leaf1
 # becomes
 $ tsh ssh -J leaf1.eu.example.com:443 --cluster leaf1 node1
@@ -1129,7 +1095,7 @@ $ tsh ssh -J leaf1.eu.example.com:443 --cluster leaf1 node1
 
 If there is no template matched, an error is returned.
 
-```bash
+```code
 $ tsh ssh -J {{proxy}} node1.none.example.com
 ERROR: proxy jump contains {{proxy}} variable but did not match any of the templates in tsh config
 ```
@@ -1139,7 +1105,7 @@ attempts to match a template, but won't fail if there isn't a match.
 Additionally, `tsh` won't replace the `proxy` value if it's explicitly set by
 the client:
 
-```bash
+```code
 $ tsh ssh -J leaf2.us.example.com:443 node1.leaf2
 # becomes
 $ tsh ssh -J leaf2.us.example.com:443 --cluster leaf2 node1
@@ -1156,7 +1122,7 @@ Host *.example.com
 
 As a result, you can use `tsh ssh` and `ssh` interchangeably.
 
-```bash
+```code
 $ tsh ssh node1.leaf1
 # is equivalent to
 $ ssh node1.leaf1
@@ -1165,7 +1131,7 @@ $ ssh node1.leaf1
 ## Uninstalling tsh
 
 To remove `tsh` and associated user data see
-[Uninstalling Teleport](../management/admin/uninstall-teleport.mdx).
+[Uninstalling Teleport](../admin-guides/management/admin/uninstall-teleport.mdx).
 
 ## Further reading
 

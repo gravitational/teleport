@@ -13,21 +13,21 @@ Kubernetes issues signed proof to each pod describing which Kubernetes
 ServiceAccount they can assume. When using the Kubernetes join
 method, Teleport uses this Kubernetes proof to become part of the cluster.
 
-<Notice type="warning">
+<Admonition type="warning">
 
 The Kubernetes join method is not available in Teleport Enterprise Cloud as it requires the
 joining service to run in the same Kubernetes cluster as the Auth Service.
 
-</Notice>
+</Admonition>
 
-The Kubernetes join method is available in self-hosted versions of Teleport 12+.
+The Kubernetes join method is available in self-hosted versions of Teleport.
 It supports joining any Teleport service running in the same Kubernetes cluster
 as the Auth Service.
 
 ## Prerequisites
 
 - A running Teleport cluster in Kubernetes. For details on how to set this up,
-  see [Guides for running Teleport using Helm](../../../deploy-a-cluster/helm-deployments.mdx).
+  see [Guides for running Teleport using Helm](../../../admin-guides/deploy-a-cluster/helm-deployments/helm-deployments.mdx).
 - Editor access to the Kubernetes cluster running the Teleport cluster.
   You must be able to create Namespaces and Deployments.
 - A Teleport user with `access` role, or any other role that allows access to
@@ -36,8 +36,8 @@ as the Auth Service.
   existing Teleport Auth Service pods.
 - The Auth Service ServiceAccount must be granted the `system:auth-delegator`
   ClusterRole. Clusters deployed with the [`teleport-cluster` Helm
-  chart](../../../reference/helm-reference/teleport-cluster.mdx) version 12 or
-  higher have the correct role by default.
+  chart](../../../reference/helm-reference/teleport-cluster.mdx) 
+  have the correct role by default.
 
 ## Step 1/5. Create a Kubernetes join token
 
@@ -65,7 +65,6 @@ instance running both the Application Service and Database Service should use a 
 Follow the instructions below to create the token depending on whether you have administrative access to the Auth Service pod:
 <Tabs>
 <TabItem label="Using tctl locally as your current user">
-Make sure your local `tctl` is at least at version 12 with `tctl version`.
 
 Create the token:
 
@@ -239,7 +238,9 @@ namespace "teleport-agent" deleted
 
 ## Going further
 
+{/* vale messaging.protocol-products = NO */}
 - The possible values for `teleport-kube-agent` chart are documented
   [in its reference](../../../reference/helm-reference/teleport-kube-agent.mdx).
-- See [Application Access Guides](../../application-access/guides.mdx)
-- See [Database Access Guides](../../database-access/guides.mdx)
+- See [Application Access Guides](../../application-access/guides/guides.mdx)
+- See [Database Access Guides](../../database-access/guides/guides.mdx)
+{/* vale messaging.protocol-products = YES */}

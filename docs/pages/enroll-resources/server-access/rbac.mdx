@@ -11,7 +11,7 @@ everything, the QA team and engineers have full access to staging servers, and
 engineers can gain temporary access to production servers in case of
 emergency.*
 
-For a more general description of Teleport roles and examples see our [Access Controls guides](../../access-controls/introduction.mdx), as
+For a more general description of Teleport roles and examples see our [Access Controls guides](../../admin-guides/access-controls/access-controls.mdx), as
 this section focuses on configuring RBAC for servers connected to Teleport.
 
 ## Role configuration
@@ -44,7 +44,9 @@ spec:
       # the list example above can be expressed as:
       'reg': '^us-west-1|eu-central-1$'
 
-    # List of host groups the created user will be added to. Any that don't already exist are created.
+    # List of host groups the created user will be added to. Any that don't
+    # already exist are created. Only applies when create_host_user_mode
+    # is not 'off'.
     host_groups: [ubuntu, nginx, other]
 
     # Assign the user to the sudoers group
@@ -69,7 +71,7 @@ spec:
 
 Similar to role fields for accessing other resources in Teleport, server-related fields support template variables.
 
-Variables with the format `{{external.xyz}}` are replaced with values from external [SSO](../../access-controls/sso.mdx)
+Variables with the format `{{external.xyz}}` are replaced with values from external [SSO](../../admin-guides/access-controls/sso/sso.mdx)
 providers. For OIDC logins, `{{external.xyz}}` refers to the "xyz" claim; for
 SAML logins, `{{external.xyz}}` refers to the "xyz" assertion.
 
@@ -113,8 +115,8 @@ spec:
 ```
 
 For full details on how variable expansion works in Teleport roles, see the
-[Teleport Access Controls
-Reference](../../access-controls/reference.mdx).
+[Access Controls
+Reference](../../reference/access-controls/roles.mdx).
 
 ## Server role options
 
@@ -133,8 +135,18 @@ spec:
     create_host_user_mode: keep
     # forward_agent controls whether SSH agent forwarding is allowed
     forward_agent: true
-    # port_forwarding controls whether TCP port forwarding is allowed for SSH
-    port_forwarding: true
+    # ssh_port_forwarding controls which TCP port forwarding modes are allowed over SSH. This replaces
+    # the deprecated port_forwarding field, which did not differentiate between remote and local
+    # port forwarding modes. If you have any existing roles that allow forwarding by enabling the
+    # legacy port_forwarding field then the forwarding controls configured in ssh_port_forwarding will be
+    # ignored.
+    ssh_port_forwarding:
+      # configures remote port forwarding behavior
+      remote:
+        enabled: true
+      # configures local port forwarding behavior
+      local:
+        enabled: true
     # ssh_file_copy controls whether file copying (SCP/SFTP) is allowed.
     # Defaults to true.
     ssh_file_copy: false

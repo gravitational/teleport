@@ -24,6 +24,7 @@ import (
 	"regexp"
 
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -46,6 +47,12 @@ type WindowsDesktopConfig struct {
 	// but Teleport is used to provide access to users and computers in a child
 	// domain.
 	PKIDomain string
+	// KDCAddr optionally configure the address of the Kerberos Key Distribution Center,
+	// which is used to support RDP Network Level Authentication (NLA).
+	// If empty, the LDAP address will be used instead.
+	// Note: NLA is only supported in Active Directory environments - this field has
+	// no effect when connecting to desktops as local Windows users.
+	KDCAddr string
 
 	// Discovery configures automatic desktop discovery via LDAP.
 	Discovery LDAPDiscoveryConfig
@@ -59,6 +66,8 @@ type WindowsDesktopConfig struct {
 	// HostLabels specifies rules that are used to apply labels to Windows hosts.
 	HostLabels HostLabelRules
 	Labels     map[string]string
+	// ResourceMatchers match dynamic Windows desktop resources.
+	ResourceMatchers []services.ResourceMatcher
 }
 
 // WindowsHost is configuration for single Windows desktop host

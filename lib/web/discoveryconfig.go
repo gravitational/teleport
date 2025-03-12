@@ -35,7 +35,7 @@ import (
 // discoveryconfigCreate creates a DiscoveryConfig
 func (h *Handler) discoveryconfigCreate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	var req ui.DiscoveryConfig
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -84,7 +84,7 @@ func (h *Handler) discoveryconfigUpdate(w http.ResponseWriter, r *http.Request, 
 	}
 
 	var req *ui.UpdateDiscoveryConfigRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

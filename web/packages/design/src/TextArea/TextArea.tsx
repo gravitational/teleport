@@ -16,53 +16,119 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React, {
+  forwardRef,
+  HTMLAttributes,
+  HTMLInputAutoCompleteAttribute,
+} from 'react';
 import styled, { CSSObject } from 'styled-components';
 import {
-  space,
-  width,
   color,
-  height,
   ColorProps,
-  SpaceProps,
-  WidthProps,
+  height,
   HeightProps,
+  space,
+  SpaceProps,
+  width,
+  WidthProps,
 } from 'styled-system';
+
+import { Theme } from 'design/theme/themes/types';
+
+export type TextAreaSize = 'large' | 'medium' | 'small';
 
 export interface TextAreaProps
   extends ColorProps,
     SpaceProps,
     WidthProps,
     HeightProps {
+  size?: TextAreaSize;
   hasError?: boolean;
   resizable?: boolean;
 
-  // TS: temporary handles ...styles
-  [key: string]: any;
+  // TextArea element attributes
+  autoFocus?: boolean;
+  disabled?: boolean;
+  id?: string;
+  name?: string;
+  readOnly?: boolean;
+  value?: string;
+  defaultValue?: string;
+  placeholder?: string;
+  autoComplete?: HTMLInputAutoCompleteAttribute;
+  spellCheck?: boolean;
+  style?: React.CSSProperties;
+
+  'aria-invalid'?: HTMLAttributes<'textarea'>['aria-invalid'];
+  'aria-describedby'?: HTMLAttributes<'textarea'>['aria-describedby'];
+
+  onChange?: React.ChangeEventHandler<HTMLInputElement>;
+  onKeyPress?: React.KeyboardEventHandler<HTMLInputElement>;
+  onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
+  onFocus?: React.FocusEventHandler<HTMLInputElement>;
+  onBlur?: React.FocusEventHandler<HTMLInputElement>;
+  onClick?: React.MouseEventHandler<HTMLInputElement>;
 }
 
-export const TextArea = styled.textarea<TextAreaProps>`
+export const textAreaGeometry: {
+  [s in TextAreaSize]: {
+    height: number;
+    typography: keyof Theme['typography'];
+  };
+} = {
+  large: {
+    height: 96,
+    typography: 'body1',
+  },
+  medium: {
+    height: 84,
+    typography: 'body2',
+  },
+  small: {
+    height: 76,
+    typography: 'body3',
+  },
+};
+
+export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
+  ({ size = 'medium', ...rest }, ref) => (
+    <StyledTextArea ref={ref} taSize={size} {...rest} />
+  )
+);
+
+type StyledTextAreaProps = Omit<TextAreaProps, 'size'> & {
+  taSize: TextAreaSize;
+};
+
+const StyledTextArea = styled.textarea<StyledTextAreaProps>`
   appearance: none;
-  border: 1px solid ${props => props.theme.colors.text.muted};
+  border: 1px solid;
+  border-color: ${props => props.theme.colors.interactive.tonal.neutral[2]};
   border-radius: 4px;
   box-sizing: border-box;
+  display: block;
   min-height: 50px;
-  height: 80px;
-  font-size: 16px;
-  padding: 16px;
+  height: ${props => textAreaGeometry[props.taSize].height}px;
+  padding: 8px 16px;
   outline: none;
   width: 100%;
+  background-color: transparent;
   color: ${props => props.theme.colors.text.main};
-  background: inherit;
+
+  ${props => props.theme.typography[textAreaGeometry[props.taSize].typography]}
+
+  &:hover {
+    border: 1px solid ${props => props.theme.colors.text.muted};
+  }
+
+  &:focus-visible {
+    border-color: ${props =>
+      props.theme.colors.interactive.solid.primary.default};
+  }
 
   &::placeholder {
     color: ${props => props.theme.colors.text.muted};
     opacity: 1;
-  }
-
-  &:hover,
-  &:focus,
-  &:active {
-    border: 1px solid ${props => props.theme.colors.text.slightlyMuted};
   }
 
   &:read-only {
@@ -70,8 +136,10 @@ export const TextArea = styled.textarea<TextAreaProps>`
   }
 
   &:disabled {
+    background-color: ${props =>
+      props.theme.colors.interactive.tonal.neutral[0]};
     color: ${props => props.theme.colors.text.disabled};
-    border-color: ${props => props.theme.colors.text.disabled};
+    border-color: transparent;
   }
 
   ${color}
@@ -93,9 +161,9 @@ function error({
   }
 
   return {
-    border: `2px solid ${theme.colors.error.main}`,
-    '&:hover, &:focus': {
-      border: `2px solid ${theme.colors.error.main}`,
+    borderColor: theme.colors.interactive.solid.danger.default,
+    '&:hover': {
+      borderColor: theme.colors.interactive.solid.danger.default,
     },
   };
 }

@@ -157,8 +157,9 @@ func (s *KubeConnectionTester) TestConnection(ctx context.Context, req TestConne
 // genKubeRestTLSClientConfig creates the Teleport user credentials to access
 // the given Kubernetes cluster name.
 func (s KubeConnectionTester) genKubeRestTLSClientConfig(ctx context.Context, mfaResponse *proto.MFAAuthenticateResponse, connectionDiagnosticID, clusterName, userName string) (rest.TLSClientConfig, error) {
-	// TODO(nklaassen): support configurable key algorithms.
-	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
+	key, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromAuthPreference(s.cfg.UserClient),
+		cryptosuites.UserTLS)
 	if err != nil {
 		return rest.TLSClientConfig{}, trace.Wrap(err)
 	}

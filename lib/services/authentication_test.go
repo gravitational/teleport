@@ -40,24 +40,24 @@ func TestValidateLocalAuthSecrets_deviceTypes(t *testing.T) {
 	otp, err := services.NewTOTPDevice("otp", "supersecretkeyLLAMA", addedAt)
 	require.NoError(t, err, "NewTOTPDevice failed")
 
-	u2f := types.NewMFADevice("u2f", "u2fID", addedAt)
-	u2f.Device = &types.MFADevice_U2F{
+	u2f, err := types.NewMFADevice("u2f", "u2fID", addedAt, &types.MFADevice_U2F{
 		U2F: &types.U2FDevice{
 			KeyHandle: []byte{1, 2, 3, 4, 5}, // Contents don't matter.
 			PubKey:    []byte{1, 2, 3, 4, 5},
 			Counter:   1,
 		},
-	}
+	})
+	require.NoError(t, err, "NewMFADevice failed")
 
-	wan := types.NewMFADevice("webauthn", "webauthbID", addedAt)
-	wan.Device = &types.MFADevice_Webauthn{
+	wan, err := types.NewMFADevice("webauthn", "webauthbID", addedAt, &types.MFADevice_Webauthn{
 		Webauthn: &types.WebauthnDevice{
 			CredentialId:     []byte{1, 2, 3, 4, 5}, // Arbitrary
 			PublicKeyCbor:    []byte{1, 2, 3, 4, 5}, // Arbitrary
 			Aaguid:           []byte{1, 2, 3, 4, 5}, // Arbitrary
 			SignatureCounter: 1,
 		},
-	}
+	})
+	require.NoError(t, err, "NewMFADevice failed")
 
 	err = services.ValidateLocalAuthSecrets(&types.LocalAuthSecrets{
 		MFA: []*types.MFADevice{

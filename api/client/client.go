@@ -53,25 +53,34 @@ import (
 	"github.com/gravitational/teleport/api/client/accessmonitoringrules"
 	crownjewelapi "github.com/gravitational/teleport/api/client/crownjewel"
 	"github.com/gravitational/teleport/api/client/discoveryconfig"
+	"github.com/gravitational/teleport/api/client/dynamicwindows"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
+	gitserverclient "github.com/gravitational/teleport/api/client/gitserver"
 	kubewaitingcontainerclient "github.com/gravitational/teleport/api/client/kubewaitingcontainer"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/scim"
 	"github.com/gravitational/teleport/api/client/secreport"
+	statichostuserclient "github.com/gravitational/teleport/api/client/statichostuser"
 	"github.com/gravitational/teleport/api/client/userloginstate"
+	usertaskapi "github.com/gravitational/teleport/api/client/usertask"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	accessmonitoringrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
+	dynamicwindowsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	externalauditstoragev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
+	gitserverpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -81,13 +90,18 @@ import (
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	presencepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
+	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
+	usertaskv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
@@ -657,6 +671,9 @@ type Config struct {
 	// MFAPromptConstructor is used to create MFA prompts when needed.
 	// If nil, the client will not prompt for MFA.
 	MFAPromptConstructor mfa.PromptConstructor
+	// SSOMFACeremonyConstructor is used to handle SSO MFA when needed.
+	// If nil, the client will not prompt for MFA.
+	SSOMFACeremonyConstructor mfa.SSOMFACeremonyConstructor
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -721,6 +738,11 @@ func (c *Client) GetConnection() *grpc.ClientConn {
 // SetMFAPromptConstructor sets the MFA prompt constructor for this client.
 func (c *Client) SetMFAPromptConstructor(pc mfa.PromptConstructor) {
 	c.c.MFAPromptConstructor = pc
+}
+
+// SetSSOMFACeremonyConstructor sets the SSO MFA ceremony constructor for this client.
+func (c *Client) SetSSOMFACeremonyConstructor(scc mfa.SSOMFACeremonyConstructor) {
+	c.c.SSOMFACeremonyConstructor = scc
 }
 
 // Close closes the Client connection to the auth server.
@@ -856,6 +878,28 @@ func (c *Client) BotServiceClient() machineidv1pb.BotServiceClient {
 // BotInstanceServiceClient returns an unadorned client for the bot instance service
 func (c *Client) BotInstanceServiceClient() machineidv1pb.BotInstanceServiceClient {
 	return machineidv1pb.NewBotInstanceServiceClient(c.conn)
+}
+
+func (c *Client) SPIFFEFederationServiceClient() machineidv1pb.SPIFFEFederationServiceClient {
+	return machineidv1pb.NewSPIFFEFederationServiceClient(c.conn)
+}
+
+// WorkloadIdentityResourceServiceClient returns an unadorned client for the
+// workload identity resource service.
+func (c *Client) WorkloadIdentityResourceServiceClient() workloadidentityv1pb.WorkloadIdentityResourceServiceClient {
+	return workloadidentityv1pb.NewWorkloadIdentityResourceServiceClient(c.conn)
+}
+
+// WorkloadIdentityRevocationServiceClient returns an unadorned client for the
+// workload identity revocation service.
+func (c *Client) WorkloadIdentityRevocationServiceClient() workloadidentityv1pb.WorkloadIdentityRevocationServiceClient {
+	return workloadidentityv1pb.NewWorkloadIdentityRevocationServiceClient(c.conn)
+}
+
+// WorkloadIdentityIssuanceClient returns an unadorned client for the workload
+// identity service.
+func (c *Client) WorkloadIdentityIssuanceClient() workloadidentityv1pb.WorkloadIdentityIssuanceServiceClient {
+	return workloadidentityv1pb.NewWorkloadIdentityIssuanceServiceClient(c.conn)
 }
 
 // PresenceServiceClient returns an unadorned client for the presence service.
@@ -1492,6 +1536,8 @@ func (c *Client) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, 
 }
 
 // ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
+// Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
+// SAML IdP Sessions are directly tied to their parent web sessions instead.
 func (c *Client) ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
 	resp, err := c.grpc.ListSAMLIdPSessions(
 		ctx,
@@ -1537,6 +1583,8 @@ func (c *Client) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 }
 
 // CreateSAMLIdPSession creates a SAML IdP session.
+// Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
+// SAML IdP Sessions are directly tied to their parent web sessions instead.
 func (c *Client) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
 	resp, err := c.grpc.CreateSAMLIdPSession(ctx, &proto.CreateSAMLIdPSessionRequest{
 		SessionID:   req.SessionID,
@@ -1563,6 +1611,8 @@ func (c *Client) GetSnowflakeSession(ctx context.Context, req types.GetSnowflake
 }
 
 // GetSAMLIdPSession gets a SAML IdP session.
+// Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
+// SAML IdP Sessions are directly tied to their parent web sessions instead.
 func (c *Client) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessionRequest) (types.WebSession, error) {
 	resp, err := c.grpc.GetSAMLIdPSession(ctx, &proto.GetSAMLIdPSessionRequest{
 		SessionID: req.SessionID,
@@ -1591,6 +1641,9 @@ func (c *Client) DeleteSnowflakeSession(ctx context.Context, req types.DeleteSno
 }
 
 // DeleteSAMLIdPSession removes a SAML IdP session.
+// Deprecated: Do not use. As of v16, the Concept of SAML IdP Sessions is no longer in use.
+// SAML IdP Sessions are directly tied to their parent web sessions instead. This endpoint
+// will be removed in v17.
 func (c *Client) DeleteSAMLIdPSession(ctx context.Context, req types.DeleteSAMLIdPSessionRequest) error {
 	_, err := c.grpc.DeleteSAMLIdPSession(ctx, &proto.DeleteSAMLIdPSessionRequest{
 		SessionID: req.SessionID,
@@ -1611,6 +1664,8 @@ func (c *Client) DeleteAllSnowflakeSessions(ctx context.Context) error {
 }
 
 // DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
+// Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
+// SAML IdP Sessions are directly tied to their parent web sessions instead.
 func (c *Client) DeleteAllSAMLIdPSessions(ctx context.Context) error {
 	_, err := c.grpc.DeleteAllSAMLIdPSessions(ctx, &emptypb.Empty{})
 	return trace.Wrap(err)
@@ -1623,6 +1678,8 @@ func (c *Client) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUse
 }
 
 // DeleteUserSAMLIdPSessions deletes all user’s SAML IdP sessions.
+// Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
+// SAML IdP Sessions are directly tied to their parent web sessions instead.
 func (c *Client) DeleteUserSAMLIdPSessions(ctx context.Context, username string) error {
 	req := &proto.DeleteUserSAMLIdPSessionsRequest{
 		Username: username,
@@ -1758,11 +1815,6 @@ func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 	for {
 		rsp, err := c.ListRoles(ctx, &req)
 		if err != nil {
-			if trace.IsNotImplemented(err) {
-				// fallback to calling the old non-paginated role API.
-				roles, err = c.getRoles(ctx)
-				return roles, trace.Wrap(err)
-			}
 			return nil, trace.Wrap(err)
 		}
 
@@ -1775,21 +1827,6 @@ func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 		}
 	}
 
-	return roles, nil
-}
-
-// getRoles calls the old non-paginated GetRoles method.
-//
-// DELETE IN 17.0
-func (c *Client) getRoles(ctx context.Context) ([]types.Role, error) {
-	resp, err := c.grpc.GetRoles(ctx, &emptypb.Empty{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	roles := make([]types.Role, 0, len(resp.GetRoles()))
-	for _, role := range resp.GetRoles() {
-		roles = append(roles, role)
-	}
 	return roles, nil
 }
 
@@ -2262,12 +2299,56 @@ func (c *Client) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster
 }
 
 // UpsertTrustedCluster creates or updates a Trusted Cluster.
-func (c *Client) UpsertTrustedCluster(ctx context.Context, trusedCluster types.TrustedCluster) (types.TrustedCluster, error) {
-	trustedCluster, ok := trusedCluster.(*types.TrustedClusterV2)
+//
+// Deprecated: Use [Client.UpsertTrustedClusterV2] instead.
+func (c *Client) UpsertTrustedCluster(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
+	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
 	if !ok {
-		return nil, trace.BadParameter("invalid type %T", trusedCluster)
+		return nil, trace.BadParameter("invalid type %T", trustedCluster)
 	}
-	resp, err := c.grpc.UpsertTrustedCluster(ctx, trustedCluster)
+	resp, err := c.grpc.UpsertTrustedCluster(ctx, trustedClusterV2)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpsertTrustedClusterV2 creates or updates a Trusted Cluster.
+func (c *Client) UpsertTrustedClusterV2(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
+	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", trustedCluster)
+	}
+	req := &trustpb.UpsertTrustedClusterRequest{TrustedCluster: trustedClusterV2}
+	resp, err := c.TrustClient().UpsertTrustedCluster(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// CreateTrustedCluster creates a Trusted Cluster.
+func (c *Client) CreateTrustedCluster(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
+	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", trustedCluster)
+	}
+	req := &trustpb.CreateTrustedClusterRequest{TrustedCluster: trustedClusterV2}
+	resp, err := c.TrustClient().CreateTrustedCluster(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpdateTrustedCluster updates a Trusted Cluster.
+func (c *Client) UpdateTrustedCluster(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
+	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", trustedCluster)
+	}
+	req := &trustpb.UpdateTrustedClusterRequest{TrustedCluster: trustedClusterV2}
+	resp, err := c.TrustClient().UpdateTrustedCluster(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2515,6 +2596,58 @@ func (c *Client) SearchUnstructuredEvents(ctx context.Context, fromUTC, toUTC ti
 	return response.Items, response.LastKey, nil
 }
 
+// ExportUnstructuredEvents exports events from a given event chunk returned by GetEventExportChunks. This API prioritizes
+// performance over ordering and filtering, and is intended for bulk export of events.
+func (c *Client) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+	// set up cancelable context so that Stream.Done can close the stream if the caller
+	// halts early.
+	ctx, cancel := context.WithCancel(ctx)
+
+	events, err := c.grpc.ExportUnstructuredEvents(ctx, req)
+	if err != nil {
+		cancel()
+		return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.Wrap(err))
+	}
+
+	return stream.Func[*auditlogpb.ExportEventUnstructured](func() (*auditlogpb.ExportEventUnstructured, error) {
+		event, err := events.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				// io.EOF signals that stream has completed successfully
+				return nil, io.EOF
+			}
+			return nil, trace.Wrap(err)
+		}
+		return event, nil
+	}, cancel)
+}
+
+// GetEventExportChunks returns a stream of event chunks that can be exported via ExportUnstructuredEvents. The returned
+// list isn't ordered and polling for new chunks requires re-consuming the entire stream from the beginning.
+func (c *Client) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+	// set up cancelable context so that Stream.Done can close the stream if the caller
+	// halts early.
+	ctx, cancel := context.WithCancel(ctx)
+
+	chunks, err := c.grpc.GetEventExportChunks(ctx, req)
+	if err != nil {
+		cancel()
+		return stream.Fail[*auditlogpb.EventExportChunk](trace.Wrap(err))
+	}
+
+	return stream.Func[*auditlogpb.EventExportChunk](func() (*auditlogpb.EventExportChunk, error) {
+		chunk, err := chunks.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				// io.EOF signals that stream has completed successfully
+				return nil, io.EOF
+			}
+			return nil, trace.Wrap(err)
+		}
+		return chunk, nil
+	}, cancel)
+}
+
 // StreamUnstructuredSessionEvents streams audit events from a given session recording in an unstructured format.
 // This method is used by the Teleport event-handler plugin to receive events
 // from the auth server wihout having to support the Protobuf event schema.
@@ -2581,6 +2714,10 @@ func (c *Client) SearchSessionEvents(ctx context.Context, fromUTC time.Time, toU
 	}
 
 	return decodedEvents, response.LastKey, nil
+}
+
+func (c *Client) DynamicDesktopClient() *dynamicwindows.Client {
+	return dynamicwindows.NewClient(dynamicwindowsv1.NewDynamicWindowsServiceClient(c.conn))
 }
 
 // ClusterConfigClient returns an unadorned Cluster Configuration client, using the underlying
@@ -2750,10 +2887,6 @@ func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, e
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		// An old server would send PIVSlot instead of HardwareKey.PIVSlot
-		// TODO(Joerger): DELETE IN 17.0.0
-		pref.CheckSetPIVSlot()
 	}
 
 	return pref, trace.Wrap(err)
@@ -2768,10 +2901,6 @@ func (c *Client) SetAuthPreference(ctx context.Context, authPref types.AuthPrefe
 		return trace.BadParameter("invalid type %T", authPref)
 	}
 
-	// An old server would expect PIVSlot instead of HardwareKey.PIVSlot
-	// TODO(Joerger): DELETE IN 17.0.0
-	authPrefV2.CheckSetPIVSlot()
-
 	_, err := c.grpc.SetAuthPreference(ctx, authPrefV2)
 	return trace.Wrap(err)
 }
@@ -2779,10 +2908,6 @@ func (c *Client) SetAuthPreference(ctx context.Context, authPref types.AuthPrefe
 // setAuthPreference sets cluster auth preference via the legacy mechanism.
 // TODO(tross) DELETE IN v18.0.0
 func (c *Client) setAuthPreference(ctx context.Context, authPref *types.AuthPreferenceV2) (types.AuthPreference, error) {
-	// An old server would expect PIVSlot instead of HardwareKey.PIVSlot
-	// TODO(Joerger): DELETE IN 17.0.0
-	authPref.CheckSetPIVSlot()
-
 	_, err := c.grpc.SetAuthPreference(ctx, authPref)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2842,6 +2967,165 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditC
 		return nil, trace.Wrap(err)
 	}
 	return resp, nil
+}
+
+// CreateAutoUpdateConfig creates AutoUpdateConfig resource.
+func (c *Client) CreateAutoUpdateConfig(ctx context.Context, config *autoupdatev1pb.AutoUpdateConfig) (*autoupdatev1pb.AutoUpdateConfig, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.CreateAutoUpdateConfig(ctx, &autoupdatev1pb.CreateAutoUpdateConfigRequest{
+		Config: config,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// GetAutoUpdateConfig gets AutoUpdateConfig resource.
+func (c *Client) GetAutoUpdateConfig(ctx context.Context) (*autoupdatev1pb.AutoUpdateConfig, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.GetAutoUpdateConfig(ctx, &autoupdatev1pb.GetAutoUpdateConfigRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpdateAutoUpdateConfig updates AutoUpdateConfig resource.
+func (c *Client) UpdateAutoUpdateConfig(ctx context.Context, config *autoupdatev1pb.AutoUpdateConfig) (*autoupdatev1pb.AutoUpdateConfig, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.UpdateAutoUpdateConfig(ctx, &autoupdatev1pb.UpdateAutoUpdateConfigRequest{
+		Config: config,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpsertAutoUpdateConfig updates or creates AutoUpdateConfig resource.
+func (c *Client) UpsertAutoUpdateConfig(ctx context.Context, config *autoupdatev1pb.AutoUpdateConfig) (*autoupdatev1pb.AutoUpdateConfig, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.UpsertAutoUpdateConfig(ctx, &autoupdatev1pb.UpsertAutoUpdateConfigRequest{
+		Config: config,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// DeleteAutoUpdateConfig deletes AutoUpdateConfig resource.
+func (c *Client) DeleteAutoUpdateConfig(ctx context.Context) error {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	_, err := client.DeleteAutoUpdateConfig(ctx, &autoupdatev1pb.DeleteAutoUpdateConfigRequest{})
+	return trace.Wrap(err)
+}
+
+// CreateAutoUpdateVersion creates AutoUpdateVersion resource.
+func (c *Client) CreateAutoUpdateVersion(ctx context.Context, version *autoupdatev1pb.AutoUpdateVersion) (*autoupdatev1pb.AutoUpdateVersion, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.CreateAutoUpdateVersion(ctx, &autoupdatev1pb.CreateAutoUpdateVersionRequest{
+		Version: version,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// GetAutoUpdateVersion gets AutoUpdateVersion resource.
+func (c *Client) GetAutoUpdateVersion(ctx context.Context) (*autoupdatev1pb.AutoUpdateVersion, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.GetAutoUpdateVersion(ctx, &autoupdatev1pb.GetAutoUpdateVersionRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpdateAutoUpdateVersion updates AutoUpdateVersion resource.
+func (c *Client) UpdateAutoUpdateVersion(ctx context.Context, version *autoupdatev1pb.AutoUpdateVersion) (*autoupdatev1pb.AutoUpdateVersion, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.UpdateAutoUpdateVersion(ctx, &autoupdatev1pb.UpdateAutoUpdateVersionRequest{
+		Version: version,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpsertAutoUpdateVersion updates or creates AutoUpdateVersion resource.
+func (c *Client) UpsertAutoUpdateVersion(ctx context.Context, version *autoupdatev1pb.AutoUpdateVersion) (*autoupdatev1pb.AutoUpdateVersion, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.UpsertAutoUpdateVersion(ctx, &autoupdatev1pb.UpsertAutoUpdateVersionRequest{
+		Version: version,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// DeleteAutoUpdateVersion deletes AutoUpdateVersion resource.
+func (c *Client) DeleteAutoUpdateVersion(ctx context.Context) error {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	_, err := client.DeleteAutoUpdateVersion(ctx, &autoupdatev1pb.DeleteAutoUpdateVersionRequest{})
+	return trace.Wrap(err)
+}
+
+// CreateAutoUpdateAgentRollout creates AutoUpdateAgentRollout resource.
+func (c *Client) CreateAutoUpdateAgentRollout(ctx context.Context, rollout *autoupdatev1pb.AutoUpdateAgentRollout) (*autoupdatev1pb.AutoUpdateAgentRollout, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.CreateAutoUpdateAgentRollout(ctx, &autoupdatev1pb.CreateAutoUpdateAgentRolloutRequest{
+		Rollout: rollout,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// GetAutoUpdateAgentRollout gets AutoUpdateAgentRollout resource.
+func (c *Client) GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdatev1pb.AutoUpdateAgentRollout, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.GetAutoUpdateAgentRollout(ctx, &autoupdatev1pb.GetAutoUpdateAgentRolloutRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpdateAutoUpdateAgentRollout updates AutoUpdateAgentRollout resource.
+func (c *Client) UpdateAutoUpdateAgentRollout(ctx context.Context, rollout *autoupdatev1pb.AutoUpdateAgentRollout) (*autoupdatev1pb.AutoUpdateAgentRollout, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.UpdateAutoUpdateAgentRollout(ctx, &autoupdatev1pb.UpdateAutoUpdateAgentRolloutRequest{
+		Rollout: rollout,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpsertAutoUpdateAgentRollout updates or creates AutoUpdateAgentRollout resource.
+func (c *Client) UpsertAutoUpdateAgentRollout(ctx context.Context, rollout *autoupdatev1pb.AutoUpdateAgentRollout) (*autoupdatev1pb.AutoUpdateAgentRollout, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.UpsertAutoUpdateAgentRollout(ctx, &autoupdatev1pb.UpsertAutoUpdateAgentRolloutRequest{
+		Rollout: rollout,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// DeleteAutoUpdateAgentRollout deletes AutoUpdateAgentRollout resource.
+func (c *Client) DeleteAutoUpdateAgentRollout(ctx context.Context) error {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	_, err := client.DeleteAutoUpdateAgentRollout(ctx, &autoupdatev1pb.DeleteAutoUpdateAgentRolloutRequest{})
+	return trace.Wrap(err)
 }
 
 // GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
@@ -3182,6 +3466,11 @@ func (c *Client) CreateKubernetesWaitingContainer(ctx context.Context, waitingPo
 // session conditions are met.
 func (c *Client) DeleteKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest) error {
 	return c.GetKubernetesWaitingContainerClient().DeleteKubernetesWaitingContainer(ctx, req)
+}
+
+// StaticHostUserClient returns a new static host user client.
+func (c *Client) StaticHostUserClient() *statichostuserclient.Client {
+	return statichostuserclient.NewClient(userprovisioningpb.NewStaticHostUsersServiceClient(c.conn))
 }
 
 // CreateDatabase creates a new database resource.
@@ -3584,6 +3873,12 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			resources[i] = respResource.GetAppServerOrSAMLIdPServiceProvider()
 		case types.KindSAMLIdPServiceProvider:
 			resources[i] = respResource.GetSAMLIdPServiceProvider()
+		case types.KindIdentityCenterAccount:
+			resources[i] = respResource.GetAppServer()
+		case types.KindIdentityCenterAccountAssignment:
+			src := respResource.GetIdentityCenterAccountAssignment()
+			dst := proto.UnpackICAccountAssignment(src)
+			resources[i] = dst
 		default:
 			return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 		}
@@ -3673,6 +3968,8 @@ func convertEnrichedResource(resource *proto.PaginatedResource) (*types.Enriched
 		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetSAMLIdPServiceProvider(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
+	} else if r := resource.GetGitServer(); r != nil {
+		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", resource.Resource)
 	}
@@ -3715,6 +4012,31 @@ func GetUnifiedResourcePage(ctx context.Context, clt ListUnifiedResourcesClient,
 
 		return out, resp.NextKey, nil
 	}
+}
+
+// GetAllUnifiedResources is a helper for getting all existing resources that match the provided request. In addition to
+// iterating pages, it also correctly handles downsizing pages when LimitExceeded errors are encountered.
+func GetAllUnifiedResources(ctx context.Context, clt ListUnifiedResourcesClient, req *proto.ListUnifiedResourcesRequest) ([]*types.EnrichedResource, error) {
+	var out []*types.EnrichedResource
+
+	// Set the limit to the default size.
+	req.Limit = int32(defaults.DefaultChunkSize)
+	for {
+		resources, nextKey, err := GetUnifiedResourcePage(ctx, clt, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		out = append(out, resources...)
+
+		if nextKey == "" || len(resources) == 0 {
+			break
+		}
+
+		req.StartKey = nextKey
+	}
+
+	return out, nil
 }
 
 // GetEnrichedResourcePage is a helper for getting a single page of enriched resources.
@@ -3912,6 +4234,7 @@ func GetResourcesWithFilters(ctx context.Context, clt ListResourcesClient, req p
 			SearchKeywords:      req.SearchKeywords,
 			PredicateExpression: req.PredicateExpression,
 			UseSearchAsRoles:    req.UseSearchAsRoles,
+			UsePreviewAsRoles:   req.UsePreviewAsRoles,
 		})
 		if err != nil {
 			if trace.IsLimitExceeded(err) {
@@ -3993,36 +4316,13 @@ func GetKubernetesResourcesWithFilters(ctx context.Context, clt kubeproto.KubeSe
 // but may result in confusing behavior if it is used outside of those contexts.
 func (c *Client) GetSSHTargets(ctx context.Context, req *proto.GetSSHTargetsRequest) (*proto.GetSSHTargetsResponse, error) {
 	rsp, err := c.grpc.GetSSHTargets(ctx, req)
-	if err := trace.Wrap(err); !trace.IsNotImplemented(err) {
-		return rsp, err
-	}
+	return rsp, trace.Wrap(err)
+}
 
-	// if we got a not implemented error, fallback to client-side filtering
-	servers, err := GetAllResources[*types.ServerV2](ctx, c, &proto.ListResourcesRequest{
-		ResourceType:     types.KindNode,
-		UseSearchAsRoles: true,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// we only get here if we hit a NotImplementedError from GetSSHTargets, which means
-	// we should be performing client-side filtering with default parameters instead.
-	routeMatcher := utils.NewSSHRouteMatcher(req.Host, req.Port, false)
-
-	// do client-side filtering
-	filtered := servers[:0]
-	for _, srv := range servers {
-		if !routeMatcher.RouteToServer(srv) {
-			continue
-		}
-
-		filtered = append(filtered, srv)
-	}
-
-	return &proto.GetSSHTargetsResponse{
-		Servers: filtered,
-	}, nil
+// ResolveSSHTarget gets a server that would match an equivalent ssh dial request.
+func (c *Client) ResolveSSHTarget(ctx context.Context, req *proto.ResolveSSHTargetRequest) (*proto.ResolveSSHTargetResponse, error) {
+	rsp, err := c.grpc.ResolveSSHTarget(ctx, req)
+	return rsp, trace.Wrap(err)
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.
@@ -4542,6 +4842,18 @@ func (c *Client) GenerateAWSOIDCToken(ctx context.Context, integration string) (
 	return resp.GetToken(), nil
 }
 
+// GenerateAzureOIDCToken generates a token to be used when executing an Azure OIDC Integration action.
+func (c *Client) GenerateAzureOIDCToken(ctx context.Context, integration string) (string, error) {
+	resp, err := c.integrationsClient().GenerateAzureOIDCToken(ctx, &integrationpb.GenerateAzureOIDCTokenRequest{
+		Integration: integration,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return resp.GetToken(), nil
+}
+
 // PluginsClient returns an unadorned Plugins client, using the underlying
 // Auth gRPC connection.
 // Clients connecting to non-Enterprise clusters, or older Teleport versions,
@@ -4645,6 +4957,29 @@ func (c *Client) CrownJewelServiceClient() *crownjewelapi.Client {
 // (as per the default gRPC behavior).
 func (c *Client) UserLoginStateClient() *userloginstate.Client {
 	return userloginstate.NewClient(userloginstatev1.NewUserLoginStateServiceClient(c.conn))
+}
+
+// UserTasksServiceClient returns a UserTask client.
+// Clients connecting to older Teleport versions, still get a UserTask client
+// when calling this method, but all RPCs will return "not implemented" errors
+// (as per the default gRPC behavior).
+func (c *Client) UserTasksServiceClient() *usertaskapi.Client {
+	return usertaskapi.NewClient(usertaskv1.NewUserTaskServiceClient(c.conn))
+}
+
+// GitServerClient returns a client for managing Git servers
+func (c *Client) GitServerClient() *gitserverclient.Client {
+	return gitserverclient.NewClient(gitserverpb.NewGitServerServiceClient(c.conn))
+}
+
+// GitServerReadOnlyClient returns the read-only client for Git servers.
+func (c *Client) GitServerReadOnlyClient() gitserverclient.ReadOnlyClient {
+	return c.GitServerClient()
+}
+
+// StableUNIXUsersClient returns a client for the stable UNIX users API.
+func (c *Client) StableUNIXUsersClient() stableunixusersv1.StableUNIXUsersServiceClient {
+	return stableunixusersv1.NewStableUNIXUsersServiceClient(c.conn)
 }
 
 // GetCertAuthority retrieves a CA by type and domain.
@@ -4805,6 +5140,30 @@ func (c *Client) ListNotifications(ctx context.Context, req *notificationsv1pb.L
 	return rsp, trace.Wrap(err)
 }
 
+// CreateGlobalNotification creates a global notification.
+func (c *Client) CreateGlobalNotification(ctx context.Context, req *notificationsv1pb.CreateGlobalNotificationRequest) (*notificationsv1pb.GlobalNotification, error) {
+	rsp, err := c.NotificationServiceClient().CreateGlobalNotification(ctx, req)
+	return rsp, trace.Wrap(err)
+}
+
+// CreateUserNotification creates a user-specific notification.
+func (c *Client) CreateUserNotification(ctx context.Context, req *notificationsv1pb.CreateUserNotificationRequest) (*notificationsv1pb.Notification, error) {
+	rsp, err := c.NotificationServiceClient().CreateUserNotification(ctx, req)
+	return rsp, trace.Wrap(err)
+}
+
+// DeleteGlobalNotification deletes a global notification.
+func (c *Client) DeleteGlobalNotification(ctx context.Context, req *notificationsv1pb.DeleteGlobalNotificationRequest) error {
+	_, err := c.NotificationServiceClient().DeleteGlobalNotification(ctx, req)
+	return trace.Wrap(err)
+}
+
+// DeleteUserNotification not implemented: can only be called locally.
+func (c *Client) DeleteUserNotification(ctx context.Context, req *notificationsv1pb.DeleteUserNotificationRequest) error {
+	_, err := c.NotificationServiceClient().DeleteUserNotification(ctx, req)
+	return trace.Wrap(err)
+}
+
 // UpsertUserNotificationState creates or updates a user notification state which records whether the user has clicked on or dismissed a notification.
 func (c *Client) UpsertUserNotificationState(ctx context.Context, req *notificationsv1pb.UpsertUserNotificationStateRequest) (*notificationsv1pb.UserNotificationState, error) {
 	rsp, err := c.NotificationServiceClient().UpsertUserNotificationState(ctx, req)
@@ -4817,6 +5176,52 @@ func (c *Client) UpsertUserLastSeenNotification(ctx context.Context, req *notifi
 	return rsp, trace.Wrap(err)
 }
 
+// GetWorkloadIdentity returns a workload identity by name.
+func (c *Client) GetWorkloadIdentity(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error) {
+	resp, err := c.WorkloadIdentityResourceServiceClient().GetWorkloadIdentity(ctx, &workloadidentityv1pb.GetWorkloadIdentityRequest{
+		Name: name,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// DeleteWorkloadIdentity deletes a workload identity by name. It will throw an
+// error if the workload identity does not exist.
+func (c *Client) DeleteWorkloadIdentity(ctx context.Context, name string) error {
+	_, err := c.WorkloadIdentityResourceServiceClient().DeleteWorkloadIdentity(ctx, &workloadidentityv1pb.DeleteWorkloadIdentityRequest{
+		Name: name,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// CreateWorkloadIdentity creates a new workload identity, it will not overwrite
+// an existing workload identity with the same name.
+func (c *Client) CreateWorkloadIdentity(ctx context.Context, r *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, error) {
+	resp, err := c.WorkloadIdentityResourceServiceClient().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.CreateWorkloadIdentityRequest{
+		WorkloadIdentity: r,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpsertWorkloadIdentity creates or updates a workload identity.
+func (c *Client) UpsertWorkloadIdentity(ctx context.Context, r *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, error) {
+	resp, err := c.WorkloadIdentityResourceServiceClient().UpsertWorkloadIdentity(ctx, &workloadidentityv1pb.UpsertWorkloadIdentityRequest{
+		WorkloadIdentity: r,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
 // ResourceUsageClient returns an unadorned Resource Usage service client,
 // using the underlying Auth gRPC connection.
 // Clients connecting to non-Enterprise clusters, or older Teleport versions,
@@ -4827,16 +5232,16 @@ func (c *Client) ResourceUsageClient() resourceusagepb.ResourceUsageServiceClien
 }
 
 // UpdateRemoteCluster updates remote cluster from the specified value.
-// TODO(noah): In v17.0.0 this method should switch to call UpdateRemoteCluster
-// on the presence service client.
-func (c *Client) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) error {
+func (c *Client) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error) {
 	rcV3, ok := rc.(*types.RemoteClusterV3)
 	if !ok {
-		return trace.BadParameter("unsupported remote cluster type %T", rcV3)
+		return nil, trace.BadParameter("unsupported remote cluster type %T", rcV3)
 	}
 
-	_, err := c.grpc.UpdateRemoteCluster(ctx, rcV3)
-	return trace.Wrap(err)
+	res, err := c.PresenceServiceClient().UpdateRemoteCluster(ctx, &presencepb.UpdateRemoteClusterRequest{
+		RemoteCluster: rcV3,
+	})
+	return res, trace.Wrap(err)
 }
 
 // ListRemoteClusters returns a page of remote clusters.
@@ -4869,4 +5274,84 @@ func (c *Client) GetRemoteCluster(ctx context.Context, name string) (types.Remot
 		Name: name,
 	})
 	return rc, trace.Wrap(err)
+}
+
+// ListReverseTunnels returns a page of remote clusters.
+func (c *Client) ListReverseTunnels(ctx context.Context, pageSize int, nextToken string) ([]types.ReverseTunnel, string, error) {
+	res, err := c.PresenceServiceClient().ListReverseTunnels(ctx, &presencepb.ListReverseTunnelsRequest{
+		PageSize:  int32(pageSize),
+		PageToken: nextToken,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	rcs := make([]types.ReverseTunnel, 0, len(res.ReverseTunnels))
+	for _, rc := range res.ReverseTunnels {
+		rcs = append(rcs, rc)
+	}
+	return rcs, res.NextPageToken, nil
+}
+
+// DeleteReverseTunnel deletes a reverse tunnel resource
+func (c *Client) DeleteReverseTunnel(ctx context.Context, name string) error {
+	_, err := c.PresenceServiceClient().DeleteReverseTunnel(ctx, &presencepb.DeleteReverseTunnelRequest{
+		Name: name,
+	})
+	return trace.Wrap(err)
+}
+
+// UpsertReverseTunnel creates or updates reverse tunnel resource
+func (c *Client) UpsertReverseTunnel(ctx context.Context, rt types.ReverseTunnel) (types.ReverseTunnel, error) {
+	rtV3, ok := rt.(*types.ReverseTunnelV2)
+	if !ok {
+		return nil, trace.BadParameter("unsupported reverse tunnel type %T", rt)
+	}
+	res, err := c.PresenceServiceClient().UpsertReverseTunnel(ctx, &presencepb.UpsertReverseTunnelRequest{
+		ReverseTunnel: rtV3,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return res, nil
+}
+
+// GetRemoteClusters returns all remote clusters.
+// Deprecated: use ListRemoteClusters instead.
+func (c *Client) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
+	var rcs []types.RemoteCluster
+	pageToken := ""
+	for {
+		page, nextToken, err := c.ListRemoteClusters(ctx, 0, pageToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		rcs = append(rcs, page...)
+		if nextToken == "" {
+			return rcs, nil
+		}
+		pageToken = nextToken
+	}
+}
+
+// IdentityCenterClient returns Identity Center service client using an underlying
+// gRPC connection.
+func (c *Client) IdentityCenterClient() identitycenterv1.IdentityCenterServiceClient {
+	return identitycenterv1.NewIdentityCenterServiceClient(c.conn)
+}
+
+// ProvisioningServiceClient returns provisioning service client using
+// an underlying gRPC connection.
+func (c *Client) ProvisioningServiceClient() provisioningv1.ProvisioningServiceClient {
+	return provisioningv1.NewProvisioningServiceClient(c.conn)
+}
+
+// IntegrationsClient returns integrations client.
+func (c *Client) IntegrationsClient() integrationpb.IntegrationServiceClient {
+	return c.integrationsClient()
+}
+
+// DecisionClient returns an unadorned DecisionService client using the
+// underlying Auth gRPC connection.
+func (c *Client) DecisionClient() decisionpb.DecisionServiceClient {
+	return decisionpb.NewDecisionServiceClient(c.conn)
 }

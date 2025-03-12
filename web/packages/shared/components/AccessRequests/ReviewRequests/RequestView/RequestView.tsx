@@ -16,62 +16,56 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { Fragment } from 'react';
 import styled from 'styled-components';
-import { format } from 'date-fns';
+
 import {
   Alert,
   Box,
   ButtonBorder,
   ButtonPrimary,
   Flex,
+  H3,
   Indicator,
+  Label,
   LabelState,
   Text,
-  Label,
-  H3,
 } from 'design';
+import Table from 'design/DataTable';
+import { displayDateWithPrefixedTime } from 'design/datetime';
 import {
+  ArrowFatLinesUp,
   ChevronCircleDown,
   CircleCheck,
   CircleCross,
-  ArrowFatLinesUp,
 } from 'design/Icon';
-import { TeleportGearIcon } from 'design/SVGIcon';
-import Table from 'design/DataTable';
-
 import { LabelKind } from 'design/LabelState/LabelState';
-
-import { HoverTooltip } from 'shared/components/ToolTip';
-import { hasFinished, Attempt } from 'shared/hooks/useAsync';
-import cfg from 'shared/config';
-
+import { TeleportGearIcon } from 'design/SVGIcon';
+import { HoverTooltip } from 'design/Tooltip';
+import { Attempt, hasFinished } from 'shared/hooks/useAsync';
 import {
-  canAssumeNow,
+  AccessRequest,
   AccessRequestReview,
   AccessRequestReviewer,
+  canAssumeNow,
   RequestState,
   Resource,
-  AccessRequest,
 } from 'shared/services/accessRequests';
-
-import {
-  PromotedMessage,
-  getAssumeStartTimeTooltipText,
-} from '../../Shared/Shared';
-import { getFormattedDurationTxt } from '../../Shared/utils';
-
-import { formattedName } from '../formattedName';
-
-import RequestReview from './RequestReview';
-import RolesRequested from './RolesRequested';
-import { SuggestedAccessList } from './types';
-import { RequestDelete } from './RequestDelete';
 
 import type {
   RequestFlags,
   SubmitReview,
 } from '../../ReviewRequests/RequestView/types';
+import {
+  getAssumeStartTimeTooltipText,
+  PromotedMessage,
+} from '../../Shared/Shared';
+import { getFormattedDurationTxt } from '../../Shared/utils';
+import { formattedName } from '../formattedName';
+import { RequestDelete } from './RequestDelete';
+import RequestReview from './RequestReview';
+import RolesRequested from './RolesRequested';
+import { SuggestedAccessList } from './types';
 
 export interface RequestViewProps {
   user: string;
@@ -162,9 +156,9 @@ export function RequestView({
     start: request.created,
     end: request.expires,
   });
-  let startingTime = format(request.created, cfg.dateWithPrefixedTime);
+  let startingTime = displayDateWithPrefixedTime(request.created);
   if (request.assumeStartTime) {
-    startingTime = format(request.assumeStartTime, cfg.dateWithPrefixedTime);
+    startingTime = displayDateWithPrefixedTime(request.assumeStartTime);
     requestedAccessTime = getFormattedDurationTxt({
       start: request.assumeStartTime,
       end: request.expires,
@@ -617,7 +611,7 @@ function Reviews({ reviews }: { reviews: AccessRequestReview[] }) {
       review;
 
     return (
-      <React.Fragment key={index}>
+      <Fragment key={index}>
         <Timestamp
           author={author}
           state={state}
@@ -632,7 +626,7 @@ function Reviews({ reviews }: { reviews: AccessRequestReview[] }) {
             createdDuration={createdDuration}
           />
         )}
-      </React.Fragment>
+      </Fragment>
     );
   });
 

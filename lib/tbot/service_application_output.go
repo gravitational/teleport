@@ -19,6 +19,7 @@
 package tbot
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -60,9 +61,10 @@ func (s *ApplicationOutputService) Run(ctx context.Context) error {
 	defer unsubscribe()
 
 	err := runOnInterval(ctx, runOnIntervalConfig{
+		service:    s.String(),
 		name:       "output-renewal",
 		f:          s.generate,
-		interval:   s.botCfg.RenewalInterval,
+		interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
 		retryLimit: renewalRetryLimit,
 		log:        s.log,
 		reloadCh:   reloadCh,
@@ -104,7 +106,7 @@ func (s *ApplicationOutputService) generate(ctx context.Context) error {
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateTTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		nil,
 	)
 	if err != nil {
@@ -134,7 +136,7 @@ func (s *ApplicationOutputService) generate(ctx context.Context) error {
 		s.botAuthClient,
 		id,
 		roles,
-		s.botCfg.CertificateTTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		func(req *proto.UserCertsRequest) {
 			req.RouteToApp = routeToApp
 		},
@@ -179,12 +181,12 @@ func (s *ApplicationOutputService) render(
 	)
 	defer span.End()
 
-	key, err := NewClientKey(routedIdentity, hostCAs)
+	keyRing, err := NewClientKeyRing(routedIdentity, hostCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := writeIdentityFile(ctx, s.log, key, s.cfg.Destination); err != nil {
+	if err := writeIdentityFile(ctx, s.log, keyRing, s.cfg.Destination); err != nil {
 		return trace.Wrap(err, "writing identity file")
 	}
 	if err := identity.SaveIdentity(
@@ -194,7 +196,7 @@ func (s *ApplicationOutputService) render(
 	}
 
 	if s.cfg.SpecificTLSExtensions {
-		if err := writeIdentityFileTLS(ctx, s.log, key, s.cfg.Destination); err != nil {
+		if err := writeIdentityFileTLS(ctx, s.log, keyRing, s.cfg.Destination); err != nil {
 			return trace.Wrap(err, "writing specific tls extension files")
 		}
 	}
@@ -216,18 +218,13 @@ func getRouteToApp(
 		return proto.RouteToApp{}, nil, trace.Wrap(err)
 	}
 
+	// TODO(noah): Now that app session ids are no longer being retrieved,
+	// we can begin to cache the routeToApp rather than regenerating this
+	// on each renew in the ApplicationTunnelSvc
 	routeToApp := proto.RouteToApp{
 		Name:        app.GetName(),
 		PublicAddr:  app.GetPublicAddr(),
 		ClusterName: botIdentity.ClusterName,
-	}
-
-	// TODO (Joerger): DELETE IN v17.0.0
-	// TODO(noah): When this is deleted, we can begin to cache the routeToApp
-	// rather than regenerating this on each renew in the ApplicationTunnelSvc
-	routeToApp.SessionID, err = authclient.TryCreateAppSessionForClientCertV15(ctx, client, botIdentity.X509Cert.Subject.CommonName, routeToApp)
-	if err != nil {
-		return proto.RouteToApp{}, nil, trace.Wrap(err)
 	}
 
 	return routeToApp, app, nil

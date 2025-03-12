@@ -17,22 +17,23 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"io/fs"
+	"log/slog"
 	"net"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/peterbourgon/diskv/v3"
-	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport/integrations/lib/logger"
+	"github.com/gravitational/teleport/lib/events/export"
 
 	"github.com/gravitational/teleport/integrations/event-handler/lib"
 )
@@ -49,6 +50,9 @@ const (
 
 	// cursorName is the cursor variable name
 	cursorName = "cursor"
+
+	// cursorV2Dir is the cursor v2 directory
+	cursorV2Dir = "cursor_v2"
 
 	// idName is the id variable name
 	idName = "id"
@@ -67,14 +71,22 @@ const (
 type State struct {
 	// dv is a diskv instance
 	dv *diskv.Diskv
+
+	// cursorV2 is an export cursor. if the event handler was started before
+	// introduction of the v2 cursor or is talking to an auth that does not
+	// implement the newer bulk export apis, the v1 cursor stored in the above
+	// dv may be the source of truth still.
+	cursorV2 *export.Cursor
+
+	log *slog.Logger
 }
 
 // NewCursor creates new cursor instance
-func NewState(c *StartCmdConfig) (*State, error) {
+func NewState(c *StartCmdConfig, log *slog.Logger) (*State, error) {
 	// Simplest transform function: put all the data files into the base dir.
 	flatTransform := func(s string) []string { return []string{} }
 
-	dir, err := createStorageDir(c)
+	dir, err := createStorageDir(c, log)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -85,15 +97,24 @@ func NewState(c *StartCmdConfig) (*State, error) {
 		CacheSizeMax: cacheSizeMaxBytes,
 	})
 
-	s := State{dv}
+	cursorV2, err := export.NewCursor(export.CursorConfig{
+		Dir: filepath.Join(dir, cursorV2Dir),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s := State{
+		dv:       dv,
+		cursorV2: cursorV2,
+		log:      log,
+	}
 
 	return &s, nil
 }
 
 // createStorageDir is used to calculate storage dir path and create dir if it does not exits
-func createStorageDir(c *StartCmdConfig) (string, error) {
-	log := logger.Standard()
-
+func createStorageDir(c *StartCmdConfig, log *slog.Logger) (string, error) {
 	host, port, err := net.SplitHostPort(c.TeleportAddr)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -110,10 +131,10 @@ func createStorageDir(c *StartCmdConfig) (string, error) {
 			return "", trace.Wrap(err)
 		}
 
-		dir = path.Join(dir, "dry_run", rs)
+		dir = filepath.Join(dir, "dry_run", rs)
 	}
 
-	dir = path.Join(c.StorageDir, dir)
+	dir = filepath.Join(c.StorageDir, dir)
 
 	_, err = os.Stat(dir)
 	if os.IsNotExist(err) {
@@ -122,12 +143,62 @@ func createStorageDir(c *StartCmdConfig) (string, error) {
 			return "", trace.Errorf("Can not create storage directory %v : %w", dir, err)
 		}
 
-		log.WithField("dir", dir).Info("Created storage directory")
+		log.InfoContext(context.TODO(), "Created storage directory", "dir", dir)
 	} else {
-		log.WithField("dir", dir).Info("Using existing storage directory")
+		log.InfoContext(context.TODO(), "Using existing storage directory", "dir", dir)
 	}
 
 	return dir, nil
+}
+
+func (s *State) GetCursorV2State() export.ExporterState {
+	return s.cursorV2.GetState()
+}
+
+func (s *State) SetCursorV2State(state export.ExporterState) error {
+	return s.cursorV2.Sync(state)
+}
+
+func (s *State) GetLegacyCursorValues() (*LegacyCursorValues, error) {
+	latestCursor, err := s.GetCursor()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	latestID, err := s.GetID()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	lastWindowTime, err := s.GetLastWindowTime()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var windowStartTime time.Time
+	if lastWindowTime != nil {
+		windowStartTime = *lastWindowTime
+	}
+
+	lcv := &LegacyCursorValues{
+		Cursor:          latestCursor,
+		ID:              latestID,
+		WindowStartTime: windowStartTime,
+	}
+
+	return lcv, nil
+}
+
+func (s *State) SetLegacyCursorValues(v LegacyCursorValues) error {
+	if err := s.SetCursor(v.Cursor); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := s.SetID(v.ID); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return s.SetLastWindowTime(&v.WindowStartTime)
 }
 
 // GetStartTime gets current start time
@@ -292,7 +363,12 @@ func (s *State) IterateMissingRecordings(callback func(s session, attempts int) 
 
 		var m missingRecording
 		if err := json.Unmarshal(b, &m); err != nil {
-			logrus.WithError(err).Warnf("Failed to unmarshal missing recording %s from persisted state", key)
+			s.log.WarnContext(
+				context.TODO(),
+				"Failed to unmarshal missing recording from persisted state",
+				"key", key,
+				"error", err,
+			)
 			continue
 		}
 

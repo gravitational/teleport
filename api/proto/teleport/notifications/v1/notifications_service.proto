@@ -70,6 +70,20 @@ message ListNotificationsRequest {
   int32 page_size = 1;
   // page_token is the next_page_token value returned from a previous ListUserNotifications request, if any.
   string page_token = 2;
+  // filters specify search criteria to limit which notifications should be returned. If omitted, the default behavior will be to list all notifications.
+  NotificationFilters filters = 3;
+}
+
+// NotificationFilters provide a mechanism to refine ListNotification results.
+message NotificationFilters {
+  // username is the username of the user the notifications being listed are for.
+  string username = 1;
+  // global_only is whether to only list global notifications (notifications capable of targetting multiple users).
+  bool global_only = 2;
+  // user_created_only is whether to only list user-created notifications (ie. notifications created by an admin via the tctl interface).
+  bool user_created_only = 3;
+  // labels is used to request only notifications with specific labels.
+  map<string, string> labels = 4;
 }
 
 // ListNotificationsResponse is the response from listing a user's notifications.

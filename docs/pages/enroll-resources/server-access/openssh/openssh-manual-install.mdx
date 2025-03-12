@@ -12,7 +12,7 @@ Using Teleport and OpenSSH has the advantage of getting you up
 and running, but in the long run, we would recommend replacing `sshd` with `teleport`.
 `teleport` SSH servers have support for multiple features that are incompatible with OpenSSH:
 
-- RBAC and resource filtering based on [dynamically updated labels](../../../management/admin/labels.mdx)
+- RBAC and resource filtering based on [dynamically updated labels](../../../admin-guides/management/admin/labels.mdx)
 - [Session recording without SSH connection termination](../guides/recording-proxy-mode.mdx)
 - [Session sharing](../../../connect-your-client/tsh.mdx)
 - [Advanced session recording](../guides/bpf-session-recording.mdx)
@@ -35,7 +35,7 @@ In this setup, the Teleport SSH Service performs RBAC checks as well as audits a
   This guide shows you how to register an OpenSSH node by creating a node resource
   and configuring OpenSSH to trust the Teleport CA. If you can copy the
   `teleport` binary onto your OpenSSH node and execute it however, you can follow
-  the [standard registration guide](openssh.mdx) instead, which has fewer steps.
+  the [standard registration guide](openssh-agentless.mdx) instead, which has fewer steps.
   Teleport is able to perform many of the steps we show in this guide automatically.
 
 </Admonition>
@@ -99,9 +99,7 @@ and `spec.hostname` to the name of the node as you would like users to see it in
 
 The `metadata.labels` field labels the SSH Service instance so you can apply RBAC rules to it.
 
-The `metadata.name` field isn't mandatory, but setting it here will save you some work later.
-
-To generate a new universal unique identifier (UUID) suitable for a `node` name, use the `uuidgen`
+The `metadata.name` field isn't mandatory, but if supplied, it must be a universal unique identifier (UUID).  To generate a new UUID suitable for a `node` name, use the `uuidgen` command
 on Linux or macOS, or use the `New-Guid` cmdlet in Powershell on Windows.
 
 Create the node resource:
@@ -113,7 +111,7 @@ $ tctl create openssh-node-resource.yaml
 <Admonition type="note">
   This step can be done with Infrastructure-as-Code (IaC) tools (tctl,
   Terraform, or Kubernetes Operator). This is described [in the OpenSSH server
-  IaC guide](../../../management/dynamic-resources/agentless-ssh-servers.mdx).
+  IaC guide](../../../admin-guides/infrastructure-as-code/managing-resources/agentless-ssh-servers.mdx).
 </Admonition>
 
 ## Step 2/5. Configure `sshd` to trust the Teleport CA
@@ -186,6 +184,8 @@ $ tctl create host-certifier.yaml
 # role 'host-certifier' has been created
 ```
 
+(!docs/pages/includes/create-role-using-web.mdx!)
+
 (!docs/pages/includes/add-role-to-user.mdx role="host-certifier"!)
 
 You will now have the required permissions to export a host key for your `sshd`
@@ -224,7 +224,7 @@ $ tctl get node/openssh-node
 
 When creating host certificates, it is important to specify all the domain names
 and addresses that refer to your node. If you try to connect to a node with a
-name or address that was not specified when creating it's host certificate,
+name or address that was not specified when creating its host certificate,
 Teleport will reject the SSH connection.
 
 On your local machine, assign the IP address, fully qualified domain name of

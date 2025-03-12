@@ -16,10 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { ButtonPrimary, H2, Subtitle2 } from 'design';
 
-import { OnboardCard } from 'design/Onboard/OnboardCard';
+import { OnboardCard } from 'teleport/components/Onboard';
 
 export function CardWelcome({ title, subTitle, btnText, onClick }: Props) {
   return (

@@ -1,0 +1,44 @@
+```yaml
+kind: token
+version: v2
+metadata:
+  name: terraform
+spec:
+  roles: [Bot]
+  join_method: terraform
+
+  # This must match a bot name, created either with `tctl bots add` or by
+  # creating a `bot` resource.
+  bot_name: terraform
+
+  terraform:
+    # Manually override the expected audience. If unset, defaults to the
+    # Teleport cluster name. It is not recommended to override this value.
+    audience: ''
+
+    # Specify the hostname of a Terraform Enterprise instance. Overriding this
+    # value to use Terraform Enterprise requires Teleport Enterprise.
+    # If unset, refers to the public `app.terraform.io` instance.
+    hostname: ''
+
+    allow:
+      # At least one of `organization_name` or `organization_id` must be set.
+      # Values are case and whitespace sensitive.
+      - organization_name: OrgName
+        organization_id: org-foo
+
+        # At least one of `project_name`, `project_id`, `workspace_name`, or
+        # `workspace_id` must also be set.
+        project_name: ProjectName
+        project_id: prj-bar
+
+        # If no `workspace_name` or `workspace_id` are set, all workspaces
+        # within the specified project will be allowed to join.
+        workspace_name: WorkspaceName
+        workspace_id: ws-baz
+
+        # If set, requires that a run be using a particular run phase. For
+        # example, this could allow a particular run to only be used for
+        # planning. Valid values: empty, `plan`, or `apply`.
+        run_phase: ''
+```

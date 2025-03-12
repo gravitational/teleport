@@ -5,10 +5,16 @@ description: Configure automatic user provisioning for MongoDB.
 
 (!docs/pages/includes/database-access/auto-user-provisioning/intro.mdx!)
 
+## Prerequisites
+
 - Teleport cluster v14.3 or above.
 - A self-hosted MongoDB database enrolled with your Teleport cluster. Follow
   the [Teleport documentation](../enroll-self-hosted-databases/mongodb-self-hosted.mdx) to learn how
   to enroll your database.
+  Your MongoDB database must have Role-Based Access Control (RBAC) enabled by
+  setting
+  [`security.authorization`](https://www.mongodb.com/docs/manual/reference/configuration-options/#mongodb-setting-security.authorization)
+  to `enabled` in the configuration file.
 - Ability to connect to and create user accounts in the target database.
 
 <Admonition type="note" title="Supported services">
@@ -26,7 +32,7 @@ connections.
 
 First create a role on `admin` database with the following privileges:
 
-```bash
+```code
 db.getSiblingDB("admin").runCommand({
     createRole: "teleport-admin-role",
     privileges: [
@@ -47,7 +53,7 @@ To enforce the principle of least privilege, you can limit the `grantRole` to
 only the databases that own the roles to be assigned to the auto-provisioned
 users:
 
-```bash
+```code
 db.getSiblingDB("admin").runCommand({
     createRole: "teleport-admin-role",
     privileges: [
@@ -65,7 +71,7 @@ db.getSiblingDB("admin").runCommand({
 
 Now create the admin user with this role:
 
-```bash
+```code
 db.getSiblingDB("$external").runCommand({
   createUser: "CN=teleport-admin",
   roles: [ { role: 'teleport-admin-role', db: 'admin' } ],
@@ -127,5 +133,5 @@ Users created within the database will:
 ## Next steps
 - Learn more about MongoDB [built-in roles](https://www.mongodb.com/docs/manual/reference/built-in-roles/) and [User-Defined Roles](https://www.mongodb.com/docs/manual/core/security-user-defined-roles/).
 - Connect using your [GUI database client](../../../connect-your-client/gui-clients.mdx).
-- Learn about [role templating](../../../access-controls/guides/role-templates.mdx#interpolation-rules).
+- Learn about [role templating](../../../admin-guides/access-controls/guides/role-templates.mdx).
 - Read automatic user provisioning [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0113-automatic-database-users.md).

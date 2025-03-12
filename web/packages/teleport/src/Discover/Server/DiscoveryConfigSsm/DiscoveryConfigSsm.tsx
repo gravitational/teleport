@@ -16,54 +16,61 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useRef, useState } from 'react';
+import styled from 'styled-components';
+
 import {
   Box,
-  Link as ExternalLink,
-  Text,
-  Flex,
   ButtonSecondary,
-  Mark,
+  Link as ExternalLink,
+  Flex,
   H3,
+  Mark,
   Subtitle3,
+  Text,
 } from 'design';
-import styled from 'styled-components';
 import { Danger, Info } from 'design/Alert';
-import TextEditor from 'shared/components/TextEditor';
-import { ToolTipInfo } from 'shared/components/ToolTip';
-import FieldInput from 'shared/components/FieldInput';
-import { Rule } from 'shared/components/Validation/rules';
-import Validation, { Validator } from 'shared/components/Validation';
-import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
-import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
-
 import { P } from 'design/Text/Text';
+import { IconTooltip } from 'design/Tooltip';
+import FieldInput from 'shared/components/FieldInput';
+import TextEditor from 'shared/components/TextEditor';
+import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
+import Validation, { Validator } from 'shared/components/Validation';
+import { Rule } from 'shared/components/Validation/rules';
+import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 
 import cfg from 'teleport/config';
-import { useDiscover } from 'teleport/Discover/useDiscover';
-import { Regions } from 'teleport/services/integrations';
 import { AwsRegionSelector } from 'teleport/Discover/Shared/AwsRegionSelector';
-import JoinTokenService, { JoinToken } from 'teleport/services/joinToken';
-
+import { useDiscover } from 'teleport/Discover/useDiscover';
 import {
-  DISCOVERY_GROUP_CLOUD,
   createDiscoveryConfig,
+  DISCOVERY_GROUP_CLOUD,
   InstallParamEnrollMode,
 } from 'teleport/services/discovery';
+import { Regions } from 'teleport/services/integrations';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
+import JoinTokenService, { JoinToken } from 'teleport/services/joinToken';
+import {
+  DiscoverEvent,
+  DiscoverEventStatus,
+} from 'teleport/services/userEvent';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { ActionButtons, Header, StyledBox } from '../../Shared';
-
 import { SingleEc2InstanceInstallation } from '../Shared';
-
 import { DiscoveryConfigCreatedDialog } from './DiscoveryConfigCreatedDialog';
 
 const IAM_POLICY_NAME = 'EC2DiscoverWithSSM';
 
 export function DiscoveryConfigSsm() {
-  const { agentMeta, emitErrorEvent, nextStep, updateAgentMeta, prevStep } =
-    useDiscover();
+  const {
+    agentMeta,
+    emitErrorEvent,
+    nextStep,
+    updateAgentMeta,
+    prevStep,
+    emitEvent,
+  } = useDiscover();
 
   const { arnResourceName, awsAccountId } = splitAwsIamArn(
     agentMeta.awsIntegration.spec.roleArn
@@ -115,6 +122,13 @@ export function DiscoveryConfigSsm() {
           ],
         });
 
+        emitEvent(
+          { stepStatus: DiscoverEventStatus.Success },
+          {
+            eventName: DiscoverEvent.CreateDiscoveryConfig,
+          }
+        );
+
         updateAgentMeta({
           ...agentMeta,
           awsRegion: selectedRegion,
@@ -137,6 +151,7 @@ export function DiscoveryConfigSsm() {
       region: selectedRegion,
       ssmDocument: ssmDocumentName,
       integrationName: agentMeta.awsIntegration.name,
+      accountID: awsAccountId,
     });
     setScriptUrl(scriptUrl);
   }
@@ -299,7 +314,7 @@ export function DiscoveryConfigSsm() {
                   </ExternalLink>{' '}
                   to configure your IAM permissions.
                 </P>
-                <ToolTipInfo sticky={true} maxWidth={450}>
+                <IconTooltip sticky={true} maxWidth={450}>
                   The following IAM permissions will be added as an inline
                   policy named <Mark>{IAM_POLICY_NAME}</Mark> to IAM role{' '}
                   <Mark>{arnResourceName}</Mark>
@@ -312,7 +327,7 @@ export function DiscoveryConfigSsm() {
                       />
                     </EditorWrapper>
                   </Box>
-                </ToolTipInfo>
+                </IconTooltip>
               </Flex>
               <TextSelectCopyMulti
                 lines={[{ text: `bash -c "$(curl '${scriptUrl}')"` }]}

@@ -98,6 +98,9 @@ service DeviceTrustService {
   // ListDevices lists all registered devices.
   rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse);
 
+  // ListDevicesByUser lists all devices owned by the user
+  rpc ListDevicesByUser(ListDevicesByUserRequest) returns (ListDevicesByUserResponse);
+
   // BulkCreateDevices is a bulk variant of CreateDevice.
   //
   // Unlike CreateDevice, it does not support creation of enrollment tokens, as
@@ -259,6 +262,31 @@ message ListDevicesRequest {
 // Response for ListDevices.
 message ListDevicesResponse {
   // Devices that matched the search.
+  repeated Device devices = 1;
+
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+// Request for ListDevicesByUser.
+//
+// Follows the pagination semantics of
+// https://cloud.google.com/apis/design/standard_methods#list.
+message ListDevicesByUserRequest {
+  reserved 3;
+  reserved "view";
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+// Response for ListDevicesByUser.
+message ListDevicesByUserResponse {
+  // Devices owned by the user.
   repeated Device devices = 1;
 
   // Token to retrieve the next page of results, or empty if there are no
@@ -513,8 +541,11 @@ message AuthenticateDeviceInit {
   // - The x509 certificate is acquired from the mTLS connection, thus the
   //   in-band certificate is ignored.
   // - All certificates must be valid and issued by the Teleport CA.
-  // - All certificates must match (same public key, same Teleport user, plus
-  //   whatever additional checks the backend sees fit).
+  // - TLS and SSH certificates must match (same Teleport user, plus whatever
+  //   additional checks the backend sees fit).
+  // - TLS and SSH certificates must either have matching public keys, or
+  //   (TPM)AuthenticateDeviceChallengeResponse.SshSignature must be a valid
+  //   signature over the challenge by the SSH private key.
   // - Augmented certificates have the same expiration as the original
   //   certificates.
   UserCertificates user_certificates = 1;

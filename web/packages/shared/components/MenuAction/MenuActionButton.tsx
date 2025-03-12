@@ -17,16 +17,17 @@
  */
 
 import React, { PropsWithChildren } from 'react';
-import Menu from 'design/Menu';
+
 import { ButtonBorder } from 'design';
 import { ChevronDown } from 'design/Icon';
+import Menu from 'design/Menu';
 
-import { MenuProps, AnchorProps } from './types';
+import { AnchorProps, MenuProps } from './types';
 
 type Props = MenuProps & {
   defaultOpen?: boolean;
   buttonProps?: AnchorProps;
-  buttonText?: string;
+  buttonText?: React.ReactNode;
   menuProps?: MenuProps;
 };
 

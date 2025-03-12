@@ -18,24 +18,22 @@
 
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { ButtonPrimary, Text, Box, Alert, Flex, Label, H3 } from 'design';
+
+import { Alert, Box, ButtonPrimary, Flex, H3, Label, Text } from 'design';
 import { Warning } from 'design/Icon';
 import { Radio } from 'design/RadioGroup';
-
-import Validation, { Validator } from 'shared/components/Validation';
-import FieldSelect from 'shared/components/FieldSelect';
-import { Option } from 'shared/components/Select';
-import { Attempt } from 'shared/hooks/useAsync';
-import { requiredField } from 'shared/components/Validation/rules';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
+import { FieldSelect } from 'shared/components/FieldSelect';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
-
+import { Option } from 'shared/components/Select';
+import Validation, { Validator } from 'shared/components/Validation';
+import { requiredField } from 'shared/components/Validation/rules';
+import { Attempt } from 'shared/hooks/useAsync';
 import { AccessRequest, RequestState } from 'shared/services/accessRequests';
 
-import { AssumeStartTime } from '../../../AssumeStartTime/AssumeStartTime';
 import { AccessDurationReview } from '../../../AccessDuration';
-
-import { SuggestedAccessList, SubmitReview } from '../types';
+import { AssumeStartTime } from '../../../AssumeStartTime/AssumeStartTime';
+import { SubmitReview, SuggestedAccessList } from '../types';
 
 type ReviewStateOption = Option<RequestState, React.ReactElement> & {
   disabled?: boolean;
@@ -167,18 +165,27 @@ export default function RequestReview({
                       {radio}
                       <Box ml={4} mt={2} css={{ position: 'relative' }}>
                         <HorizontalLine />
-                        <FieldSelect
+                        <FieldSelect<SuggestedAcessListOption>
                           ml={1}
                           maxWidth="600px"
                           label={`Select a suggested Access List to add ${request.user} as a member to:`}
                           rule={requiredField('Required')}
                           value={
-                            selectedAccessList
+                            // TODO(bl-nero): The type casting here is a hack.
+                            // This code actually works, but it doesn't work in
+                            // a way supported by type bindings. The type of
+                            // this value is deliberately different from the
+                            // options array element type. This is because we
+                            // want to visualize the options differently on the
+                            // option face and inside the options list. The
+                            // correct way of doing it would be to provide a
+                            // custom option component.
+                            (selectedAccessList
                               ? {
-                                  value: selectedAccessList,
+                                  value: selectedAccessList.value,
                                   label: selectedAccessList.value.title,
                                 }
-                              : undefined
+                              : undefined) as any as SuggestedAcessListOption
                           }
                           onChange={(o: SuggestedAcessListOption) =>
                             setSelectedAccessList(o)
@@ -200,7 +207,6 @@ export default function RequestReview({
               mb={4}
               maxWidth="500px"
               textAreaCss={`
-                  font-size: 14px;
                   min-height: 100px;
                 `}
               onChange={e => setReason(e.target.value)}

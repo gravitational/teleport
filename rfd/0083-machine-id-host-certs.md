@@ -165,7 +165,7 @@ Are you sure you want to continue connecting (yes/no/[fingerprint])?
 This is nearly identical to the usual ssh TOFU message, save for the
 easy-to-miss "Certificate invalid: expired" message. Users are likely
 conditioned to accept this, and if that happens the expired or invalid host key
-will be comitted to their `known_hosts` permanently, after which the "expired"
+will be committed to their `known_hosts` permanently, after which the "expired"
 message will not be shown again.
 
 We'll need to document this caveat along with a workaround (e.g. a

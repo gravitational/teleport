@@ -463,16 +463,20 @@ func (r *Rotation) String() string {
 	switch r.State {
 	case "", RotationStateStandby:
 		if r.LastRotated.IsZero() {
-			return "never updated"
+			return "standby (never rotated)"
 		}
-		return fmt.Sprintf("rotated %v", r.LastRotated.Format(constants.HumanDateFormatSeconds))
+		return fmt.Sprintf("standby (last rotated: %v)", r.LastRotated.Format(constants.HumanDateFormatSeconds))
 	case RotationStateInProgress:
-		return fmt.Sprintf("%v (mode: %v, started: %v, ending: %v)",
-			r.PhaseDescription(),
-			r.Mode,
-			r.Started.Format(constants.HumanDateFormatSeconds),
-			r.Started.Add(r.GracePeriod.Duration()).Format(constants.HumanDateFormatSeconds),
-		)
+		switch r.Mode {
+		case RotationModeManual:
+			return fmt.Sprintf("in progress (mode: manual, phase: %s)", r.Phase)
+		default:
+			return fmt.Sprintf("in progress (mode: automatic, phase: %s, started: %v, ending: %v)",
+				r.Phase,
+				r.Started.Format(constants.HumanDateFormatSeconds),
+				r.Started.Add(r.GracePeriod.Duration()).Format(constants.HumanDateFormatSeconds),
+			)
+		}
 	default:
 		return "unknown"
 	}
@@ -543,14 +547,6 @@ func (s *RotationSchedule) CheckAndSetDefaults(now time.Time) error {
 		return trace.BadParameter("phase %q can not be scheduled in the past", RotationPhaseStandby)
 	}
 	return nil
-}
-
-// CertRoles defines certificate roles
-type CertRoles struct {
-	// Version is current version of the roles
-	Version string `json:"version"`
-	// Roles is a list of roles
-	Roles []string `json:"roles"`
 }
 
 // Clone returns a deep copy of TLSKeyPair that can be mutated without

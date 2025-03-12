@@ -1,6 +1,6 @@
 ---
-authors:  Anton Miniailo (anton@goteleport.com)
-state: Draft
+authors: Anton Miniailo (anton@goteleport.com)
+state: implemented (v15.0)
 ---
 
 # RFD 0157 - AWS EKS Discover Integration
@@ -56,7 +56,8 @@ associate access policies for an EKS cluster (details [below](#eks-access-entrie
                 "eks:ListAccessEntries",
                 "eks:CreateAccessEntry",
                 "eks:DeleteAccessEntry",
-                "eks:AssociateAccessPolicy"
+                "eks:AssociateAccessPolicy",
+                "eks:TagResource"
             ],
             "Resource": "*"
         }

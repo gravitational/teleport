@@ -11,18 +11,18 @@ description: How to configure Teleport database access for Vitess (MySQL protoco
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Teleport Database Access Vitess Self-Hosted](../../../../img/database-access/guides/vitess_selfhosted.png)
+![Enroll Vitess with a self-hosted Teleport cluster](../../../../img/database-access/guides/vitess_selfhosted.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Teleport Database Access Vitess Cloud](../../../../img/database-access/guides/vitess_cloud.png)
+![Enroll Vitess with a cloud-hosted Teleport cluster](../../../../img/database-access/guides/vitess_cloud.png)
 </TabItem>
 
 </Tabs>
 
-<Notice type="note">
+<Admonition type="note">
   Accessing Vitess using the gRPC protocol is not currently supported by
   Teleport.
-</Notice>
+</Admonition>
 
 ## Prerequisites
 
@@ -116,7 +116,7 @@ vtgate ...                                      \
 ```
 
 The files `server.cas`, `server.crt` and `server.key` must be in a location
-accessible by the `vtgate` service.
+accessible by the `vtgate` service. Restart the Vitess service to apply these flags.
 
 For more details about `vtgate` and Vitess configuration, please see the
 [documentation](https://vitess.io/docs/18.0/user-guides/configuration-basic/vtgate/).

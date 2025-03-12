@@ -19,6 +19,8 @@ package types
 import (
 	"fmt"
 	"net/url"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
+	netutils "github.com/gravitational/teleport/api/utils/net"
 )
 
 var _ compare.IsEqual[Application] = (*AppV3)(nil)
@@ -82,6 +85,16 @@ type Application interface {
 	// GetIntegration will return the Integration.
 	// If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
 	GetIntegration() string
+	// GetRequiredAppNames will return a list of required apps names that should be authenticated during this apps authentication process.
+	GetRequiredAppNames() []string
+	// GetCORS returns the CORS configuration for the app.
+	GetCORS() *CORSPolicy
+	// GetTCPPorts returns port ranges supported by the app to which connections can be forwarded to.
+	GetTCPPorts() PortRanges
+	// SetTCPPorts sets port ranges to which connections can be forwarded to.
+	SetTCPPorts([]*PortRange)
+	// GetIdentityCenter fetches identity center info for the app, if any.
+	GetIdentityCenter() *AppIdentityCenter
 }
 
 // NewAppV3 creates a new app resource.
@@ -302,6 +315,16 @@ func (a *AppV3) SetUserGroups(userGroups []string) {
 	a.Spec.UserGroups = userGroups
 }
 
+// GetTCPPorts returns port ranges supported by the app to which connections can be forwarded to.
+func (a *AppV3) GetTCPPorts() PortRanges {
+	return a.Spec.TCPPorts
+}
+
+// SetTCPPorts sets port ranges to which connections can be forwarded to.
+func (a *AppV3) SetTCPPorts(ports []*PortRange) {
+	a.Spec.TCPPorts = ports
+}
+
 // GetIntegration will return the Integration.
 // If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
 func (a *AppV3) GetIntegration() string {
@@ -317,6 +340,14 @@ func (a *AppV3) String() string {
 // Copy returns a copy of this database resource.
 func (a *AppV3) Copy() *AppV3 {
 	return utils.CloneProtoMsg(a)
+}
+
+func (a *AppV3) GetRequiredAppNames() []string {
+	return a.Spec.RequiredAppNames
+}
+
+func (a *AppV3) GetCORS() *CORSPolicy {
+	return a.Spec.CORS
 }
 
 // MatchSearch goes through select field values and tries to
@@ -359,13 +390,21 @@ func (a *AppV3) CheckAndSetDefaults() error {
 	default:
 		return trace.BadParameter("app %q has unexpected Cloud value %q", a.GetName(), a.Spec.Cloud)
 	}
-	url, err := url.Parse(a.Spec.PublicAddr)
+	publicAddr := a.Spec.PublicAddr
+	// If the public addr has digits in a sub-host and a port, it might cause url.Parse to fail.
+	// Eg of a failing url: 123.teleport.example.com:3080
+	// This is not a valid URL, but we have been using it as such.
+	// To prevent this from failing, we add the `//`.
+	if !strings.Contains(publicAddr, "//") && strings.Contains(publicAddr, ":") {
+		publicAddr = "//" + publicAddr
+	}
+	publicAddrURL, err := url.Parse(publicAddr)
 	if err != nil {
 		return trace.BadParameter("invalid PublicAddr format: %v", err)
 	}
 	host := a.Spec.PublicAddr
-	if url.Host != "" {
-		host = url.Host
+	if publicAddrURL.Host != "" {
+		host = publicAddrURL.Host
 	}
 
 	if strings.HasPrefix(host, constants.KubeTeleportProxyALPNPrefix) {
@@ -382,7 +421,60 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		}
 	}
 
+	if len(a.Spec.TCPPorts) != 0 {
+		if err := a.checkTCPPorts(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
+}
+
+func (a *AppV3) checkTCPPorts() error {
+	// Parsing the URI here does not break compatibility. The URI is parsed only if Ports are present.
+	// This means that old apps that do have invalid URIs but don't use Ports can continue existing.
+	uri, err := url.Parse(a.Spec.URI)
+	if err != nil {
+		return trace.BadParameter("invalid app URI format: %v", err)
+	}
+
+	// The scheme of URI is enforced to be "tcp" on purpose. This way in the future we can add
+	// multi-port support to web apps without throwing hard errors when a cluster with a multi-port
+	// web app gets downgraded to a version which supports multi-port only for TCP apps.
+	//
+	// For now, we simply ignore the Ports field set on non-TCP apps.
+	if uri.Scheme != "tcp" {
+		return nil
+	}
+
+	if uri.Port() != "" {
+		return trace.BadParameter("TCP app URI %q must not include a port number when the app spec defines a list of ports", a.Spec.URI)
+	}
+
+	for _, portRange := range a.Spec.TCPPorts {
+		if err := netutils.ValidatePortRange(int(portRange.Port), int(portRange.EndPort)); err != nil {
+			return trace.Wrap(err, "validating a port range of a TCP app")
+		}
+	}
+
+	return nil
+}
+
+// GetIdentityCenter returns the Identity Center information for the app, if any.
+// May be nil.
+func (a *AppV3) GetIdentityCenter() *AppIdentityCenter {
+	return a.Spec.IdentityCenter
+}
+
+// GetDisplayName fetches a human-readable display name for the App.
+func (a *AppV3) GetDisplayName() string {
+	// Only Identity Center apps have a display name at this point. Returning
+	// the empty string signals to the caller they should fall back to whatever
+	// they have been using in the past.
+	if a.Spec.IdentityCenter == nil {
+		return ""
+	}
+	return a.Metadata.Description
 }
 
 // IsEqual determines if two application resources are equivalent to one another.
@@ -438,3 +530,43 @@ func (a Apps) Less(i, j int) bool { return a[i].GetName() < a[j].GetName() }
 
 // Swap swaps two apps.
 func (a Apps) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
+// GetPermissionSets fetches the list of permission sets from the Identity Center
+// app information. Handles nil identity center values.
+func (a *AppIdentityCenter) GetPermissionSets() []*IdentityCenterPermissionSet {
+	if a == nil {
+		return nil
+	}
+	return a.PermissionSets
+}
+
+// PortRanges is a list of port ranges.
+type PortRanges []*PortRange
+
+// Contains checks if targetPort is within any of the port ranges.
+func (p PortRanges) Contains(targetPort int) bool {
+	return slices.ContainsFunc(p, func(portRange *PortRange) bool {
+		return netutils.IsPortInRange(int(portRange.Port), int(portRange.EndPort), targetPort)
+	})
+}
+
+// String returns a string representation of port ranges.
+func (p PortRanges) String() string {
+	var builder strings.Builder
+	for i, portRange := range p {
+		if i > 0 {
+			builder.WriteString(", ")
+		}
+		builder.WriteString(portRange.String())
+	}
+	return builder.String()
+}
+
+// String returns a string representation of a port range.
+func (p *PortRange) String() string {
+	if p.EndPort == 0 {
+		return strconv.Itoa(int(p.Port))
+	} else {
+		return fmt.Sprintf("%d-%d", p.Port, p.EndPort)
+	}
+}

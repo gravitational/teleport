@@ -27,7 +27,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"path"
+	"path/filepath"
 	"text/template"
 	"time"
 
@@ -38,13 +38,12 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	kubeclient "github.com/gravitational/teleport/lib/client/kube"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/utils"
@@ -75,8 +74,9 @@ func newProxyKubeCommand(parent *kingpin.CmdClause) *proxyKubeCommand {
 	c.Arg("kube-cluster", "Name of the Kubernetes cluster to proxy. Check 'tsh kube ls' for a list of available clusters. If not specified, all clusters previously logged in through `tsh kube login` will be used.").StringsVar(&c.kubeClusters)
 	c.Flag("as", "Configure custom Kubernetes user impersonation.").StringVar(&c.impersonateUser)
 	c.Flag("as-groups", "Configure custom Kubernetes group impersonation.").StringsVar(&c.impersonateGroups)
-	// TODO (tigrato): move this back to namespace once teleport drops the namespace flag.
-	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
+	// kube-namespace exists for backwards compatibility.
+	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Hidden().StringVar(&c.namespace)
+	c.Flag("namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
 	c.Flag("port", "Specifies the source port used by the proxy listener").Short('p').StringVar(&c.port)
 	c.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&c.format, envVarFormats...)
 	c.Flag("labels", labelHelp).StringVar(&c.labels)
@@ -246,13 +246,13 @@ func (c *proxyKubeCommand) prepare(cf *CLIConf, tc *client.TeleportClient) (*cli
 	// In headless mode it's assumed user works on a remote machine where they don't have
 	// tsh credentials and can't login into Teleport Kubernetes clusters.
 	if cf.Headless {
-		return nil, nil, trace.BadParameter(errorMsg)
+		return nil, nil, trace.BadParameter("%s", errorMsg)
 	}
 
 	// Use logged-in clusters.
 	clusters := kubeconfig.LocalProxyClustersFromDefaultConfig(defaultConfig, tc.KubeClusterAddr())
 	if len(clusters) == 0 {
-		return nil, nil, trace.BadParameter(errorMsg)
+		return nil, nil, trace.BadParameter("%s", errorMsg)
 	}
 
 	c.printPrepare(cf, "Preparing the following Teleport Kubernetes clusters from the default kubeconfig:", clusters)
@@ -261,9 +261,14 @@ func (c *proxyKubeCommand) prepare(cf *CLIConf, tc *client.TeleportClient) (*cli
 
 func (c *proxyKubeCommand) printPrepare(cf *CLIConf, title string, clusters kubeconfig.LocalProxyClusters) {
 	fmt.Fprintln(cf.Stdout(), title)
-	table := asciitable.MakeTable([]string{"Teleport Cluster Name", "Kube Cluster Name"})
+	table := asciitable.MakeTable([]string{"Teleport Cluster Name", "Kube Cluster Name", "Context Name"})
 	for _, cluster := range clusters {
-		table.AddRow([]string{cluster.TeleportCluster, cluster.KubeCluster})
+		contextName, err := kubeconfig.ContextNameFromTemplate(c.overrideContextName, cluster.TeleportCluster, cluster.KubeCluster)
+		if err != nil {
+			logger.WarnContext(cf.Context, "Failed to generate context name", "error", err)
+			contextName = kubeconfig.ContextName(cluster.TeleportCluster, cluster.KubeCluster)
+		}
+		table.AddRow([]string{cluster.TeleportCluster, cluster.KubeCluster, contextName})
 	}
 	fmt.Fprintln(cf.Stdout(), table.AsBuffer().String())
 }
@@ -316,7 +321,11 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 
 	// Generate a new private key for the proxy. The client's existing private key may be
 	// a hardware-backed private key, which cannot be added to the local proxy kube config.
-	localClientKey, err := native.GeneratePrivateKey()
+	key, err := cryptosuites.GenerateKey(cf.Context, tc.GetCurrentSignatureAlgorithmSuite, cryptosuites.UserTLS)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	localClientKey, err := keys.NewSoftwarePrivateKey(key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -341,7 +350,7 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 		Certs:        certs,
 		CertReissuer: kubeProxy.getCertReissuer(tc),
 		Headless:     cf.Headless,
-		Logger:       log,
+		Logger:       logger,
 		CloseContext: cf.Context,
 	})
 
@@ -369,7 +378,7 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 		kubeProxy.kubeConfigPath = os.Getenv(proxyKubeConfigEnvVar)
 		if kubeProxy.kubeConfigPath == "" {
 			_, port, _ := net.SplitHostPort(kubeProxy.forwardProxy.GetAddr())
-			kubeProxy.kubeConfigPath = path.Join(profile.KubeConfigPath(fmt.Sprintf("localproxy-%v", port)))
+			kubeProxy.kubeConfigPath = filepath.Join(profile.KubeConfigPath(fmt.Sprintf("localproxy-%v", port)))
 		}
 	}
 
@@ -484,9 +493,9 @@ func loadKubeUserCerts(ctx context.Context, tc *client.TeleportClient, clusters 
 	for _, cluster := range clusters {
 		// Try load from store.
 		if key := kubeKeys[cluster.TeleportCluster]; key != nil {
-			cert, err := kubeCertFromKey(key, cluster.KubeCluster)
+			cert, err := kubeCertFromKeyRing(key, cluster.KubeCluster)
 			if err == nil {
-				log.Debugf("Client cert loaded from keystore for %v.", cluster)
+				logger.DebugContext(ctx, "Client cert loaded from keystore for cluster", "cluster", cluster)
 				certs.Add(cluster.TeleportCluster, cluster.KubeCluster, cert)
 				continue
 			}
@@ -501,7 +510,7 @@ func loadKubeUserCerts(ctx context.Context, tc *client.TeleportClient, clusters 
 			return nil, trace.Wrap(err)
 		}
 
-		log.Debugf("Client cert issued for %v.", cluster)
+		logger.DebugContext(ctx, "Client cert issued for cluster", "cluster", cluster)
 		certs.Add(cluster.TeleportCluster, cluster.KubeCluster, cert)
 	}
 	return certs, nil
@@ -510,24 +519,24 @@ func loadKubeUserCerts(ctx context.Context, tc *client.TeleportClient, clusters 
 func loadKubeKeys(tc *client.TeleportClient, teleportClusters []string) (map[string]*client.KeyRing, error) {
 	kubeKeys := map[string]*client.KeyRing{}
 	for _, teleportCluster := range teleportClusters {
-		key, err := tc.LocalAgent().GetKey(teleportCluster, client.WithKubeCerts{})
+		keyRing, err := tc.LocalAgent().GetKeyRing(teleportCluster, client.WithKubeCerts{})
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
-		kubeKeys[teleportCluster] = key
+		kubeKeys[teleportCluster] = keyRing
 	}
 	return kubeKeys, nil
 }
 
-func kubeCertFromKey(key *client.KeyRing, kubeCluster string) (tls.Certificate, error) {
-	x509cert, err := key.KubeX509Cert(kubeCluster)
+func kubeCertFromKeyRing(keyRing *client.KeyRing, kubeCluster string) (tls.Certificate, error) {
+	x509cert, err := keyRing.KubeX509Cert(kubeCluster)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 	if time.Until(x509cert.NotAfter) <= time.Minute {
 		return tls.Certificate{}, trace.NotFound("TLS cert is expiring in a minute")
 	}
-	cert, err := key.KubeTLSCert(kubeCluster)
+	cert, err := keyRing.KubeTLSCert(kubeCluster)
 	return cert, trace.Wrap(err)
 }
 
@@ -576,14 +585,14 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, clusterClient
 		requesterName = proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS
 	}
 
-	key, mfaRequired, err := clusterClient.IssueUserCertsWithMFA(
+	keyRing, mfaRequired, err := clusterClient.IssueUserCertsWithMFA(
 		ctx,
 		client.ReissueParams{
 			RouteToCluster:    teleportCluster,
 			KubernetesCluster: kubeCluster,
 			RequesterName:     requesterName,
+			TTL:               tc.KeyTTL,
 		},
-		tc.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("Kubernetes cluster", kubeCluster)),
 	)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
@@ -599,7 +608,7 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, clusterClient
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 	if err := kubeclient.CheckIfCertsAreAllowedToAccessCluster(
-		key,
+		keyRing,
 		rootClusterName,
 		teleportCluster,
 		kubeCluster); err != nil {
@@ -608,12 +617,12 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, clusterClient
 
 	// Save it if MFA was not required.
 	if mfaRequired == proto.MFARequired_MFA_REQUIRED_NO {
-		if err := tc.LocalAgent().AddKubeKey(key); err != nil {
+		if err := tc.LocalAgent().AddKubeKeyRing(keyRing); err != nil {
 			return tls.Certificate{}, trace.Wrap(err)
 		}
 	}
 
-	cert, err := key.KubeTLSCert(kubeCluster)
+	cert, err := keyRing.KubeTLSCert(kubeCluster)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}

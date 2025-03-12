@@ -1,5 +1,6 @@
 ---
 title: Reference for the teleport_cluster_maintenance_config Terraform resource
+sidebar_label: cluster_maintenance_config
 description: This page describes the supported values of the teleport_cluster_maintenance_config resource of the Teleport Terraform provider.
 ---
 
@@ -14,6 +15,7 @@ description: This page describes the supported values of the teleport_cluster_ma
 # Teleport Cluster Networking config
 
 resource "teleport_cluster_maintenance_config" "example" {
+  version = "v1"
   metadata = {
     description = "Maintenance config"
   }

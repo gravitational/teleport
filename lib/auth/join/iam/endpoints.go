@@ -19,10 +19,13 @@ package iam
 import "sync"
 
 var (
-	// ValidSTSEndpoints holds a sorted list of all known valid public endpoints for
-	// the AWS STS service. You can generate this list by running
-	// $ go run github.com/nklaassen/sts-endpoints@latest --go-list
-	// Update aws-sdk-go in that package to learn about new endpoints.
+	// ValidSTSEndpoints returns a sorted list of all known valid public endpoints for
+	// the AWS STS service.
+	//
+	// TODO(nklaassen): find a better way to validate STS endpoints or generate
+	// this list and get notified when it needs to be updated. The original
+	// solution was https://github.com/nklaassen/sts-endpoints which is based on
+	// aws-sdk-go v1 which no longer gets updates for new regions.
 	ValidSTSEndpoints = sync.OnceValue(func() []string {
 		return []string{
 			"sts-fips.us-east-1.amazonaws.com",
@@ -69,15 +72,7 @@ var (
 		}
 	})
 
-	GlobalSTSEndpoints = sync.OnceValue(func() []string {
-		return []string{
-			"sts.amazonaws.com",
-			// This is not a real endpoint, but the SDK will select it if
-			// AWS_USE_FIPS_ENDPOINT is set and a region is not.
-			"sts-fips.aws-global.amazonaws.com",
-		}
-	})
-
+	// FIPSSTSEndpoints returns the set of known valid FIPS AWS STS endpoints.
 	FIPSSTSEndpoints = sync.OnceValue(func() []string {
 		return []string{
 			"sts-fips.us-east-1.amazonaws.com",
@@ -86,6 +81,18 @@ var (
 			"sts-fips.us-west-2.amazonaws.com",
 			"sts.us-gov-east-1.amazonaws.com",
 			"sts.us-gov-west-1.amazonaws.com",
+		}
+	})
+
+	// FIPSSTSRegions returns the set of known AWS regions with FIPS STS endpoints.
+	FIPSSTSRegions = sync.OnceValue(func() []string {
+		return []string{
+			"us-east-1",
+			"us-east-2",
+			"us-west-1",
+			"us-west-2",
+			"us-gov-east-1",
+			"us-gov-west-1",
 		}
 	})
 )

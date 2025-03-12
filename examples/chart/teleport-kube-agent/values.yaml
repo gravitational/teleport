@@ -56,7 +56,7 @@ enterprise: false
 # roles `App` and `Kube`.
 authToken: ""
 
-# joinParams -- controls how the Teleport agent joins the Teleport cluster.
+# joinParams -- controls how the Teleport Agent joins the Teleport cluster.
 # These sub-values must be configured for the agent to connect to a cluster.
 #
 # This value serves the same purpose as [`authToken`](#authToken) but supports
@@ -66,7 +66,7 @@ joinParams:
   # joinParams.method(string) -- controls which join method will be used by the
   # instance to join the Teleport cluster.
   #
-  # See [the join method reference](../../join-methods.mdx) for the list of possible
+  # See [the join method reference](../../reference/join-methods.mdx) for the list of possible
   # values, the implications of each join method, and guides to set up each method.
   #
   # Common join-methods for the `teleport-kube-agent` are:
@@ -80,7 +80,7 @@ joinParams:
   # joinParams.tokenName(string) -- controls which token is used by the agent to
   # join the Teleport cluster.
   #
-  # When `joinParams.method` is [a delegated join method](../../join-methods.mdx#delegated-join-methods),
+  # When `joinParams.method` is [a delegated join method](../../reference/join-methods.mdx#delegated-join-methods),
   # the value is not sensitive.
   #
   # When `joinParams.method` is `token` (by default), `joinParams.tokenName`
@@ -98,7 +98,7 @@ joinParams:
 ################################################################
 
 # kubeClusterName(string) -- sets the name used for the Kubernetes cluster proxied by
-# the Teleport agent. This name will be shown to Teleport users connecting to
+# the Teleport Agent. This name will be shown to Teleport users connecting to
 # the cluster.
 #
 # This setting is required if the chart `roles` contains `kube`.
@@ -109,7 +109,7 @@ kubeClusterName: ""
 ################################################################
 
 # apps(list) -- is a static list of applications that should be proxied by
-# the agent. See [the Teleport Application access documentation](../../../enroll-resources/application-access/introduction.mdx)
+# the agent. See [the Teleport Application access documentation](../../reference/agent-services/application-access.mdx#configuration)
 # for more details.
 #
 # Proxied applications can be defined statically (through this value) or dynamically
@@ -134,13 +134,13 @@ kubeClusterName: ""
 # <Admonition type="tip" title="Supported values">
 #   You can see a list of all the supported values that can be used in a Teleport
 #   Application Service configuration in the [Application Service Configuration
-#   Reference](../../../enroll-resources/application-access/reference.mdx#configuration).
+#   Reference](../../reference/agent-services/application-access.mdx#configuration).
 # </Admonition>
 apps: []
 
 # appResources(list) -- is a set of labels the agent will monitor. Any application
 # matching those labels will be proxied by the agent. See [the Teleport
-# Application access documentation](../../../enroll-resources/application-access/introduction.mdx)
+# Application access documentation](../../enroll-resources/application-access/introduction.mdx)
 # for more details.
 #
 # Proxied applications can be defined statically (through [`apps`](#apps)) or
@@ -159,7 +159,7 @@ apps: []
 #
 # <Admonition type="tip" title="Example">
 # Once `appResources` is set, you can dynamically register application with
-# `tsh` by following [the Dynamic App Registration guide](../../../enroll-resources/application-access/guides/dynamic-registration.mdx).
+# `tsh` by following [the Dynamic App Registration guide](../../enroll-resources/application-access/guides/dynamic-registration.mdx).
 # </Admonition>
 appResources: []
 
@@ -179,7 +179,7 @@ clusterDomain: "cluster.local"
 # awsDatabases(list) -- configures AWS database auto-discovery.
 #
 # <Admonition type="note" title="IAM roles">
-#   For AWS database auto-discovery to work, your Database Service pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../../enroll-resources/database-access/enroll-aws-databases/rds.mdx#step-36-create-iam-policies-for-teleport).
+#   For AWS database auto-discovery to work, your Database Service pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../enroll-resources/database-access/enroll-aws-databases/rds.mdx#step-36-create-iam-policies-for-teleport).
 #   After configuring a role, you can use an `eks.amazonaws.com/role-arn` annotation with the `annotations.serviceAccount` value to associate it with the service account and grant permissions:
 #
 #   ```yaml
@@ -219,7 +219,7 @@ awsDatabases: []
 
 # azureDatabases(list) -- configures Azure database auto-discovery.
 # <Admonition type="note" title="Azure IAM">
-#   For Azure database auto-discovery to work, your Database Service pods will need to have appropriate IAM permissions as per the [database documentation](../../../enroll-resources/database-access/enroll-azure-databases/azure-postgres-mysql.mdx#step-35-configure-iam-permissions-for-teleport).
+#   For Azure database auto-discovery to work, your Database Service pods will need to have appropriate IAM permissions as per the [database documentation](../../enroll-resources/database-access/enroll-azure-databases/azure-postgres-mysql.mdx#step-25-configure-iam-permissions-for-teleport).
 #
 #   After configuring a service principal with appropriate IAM permissions, you must pass credentials to the pods.
 #   The easiest way is to use an Azure client secret.
@@ -291,7 +291,7 @@ awsDatabases: []
 azureDatabases: []
 
 # databases(list) -- is a static list of databases that should be proxied by
-# the agent. See [the Teleport Database access documentation](../../../enroll-resources/database-access/database-access.mdx)
+# the agent. See [the Teleport Database access documentation](../../enroll-resources/database-access/database-access.mdx)
 # for more details.
 #
 # Proxied applications can be defined statically (through this value) or dynamically
@@ -320,7 +320,7 @@ azureDatabases: []
 # ```
 #
 # <Admonition type="tip" title="Supported values">
-#   You can see a list of all the supported [values which can be used in a Teleport database service configuration here](../../../enroll-resources/database-access/reference/configuration.mdx).
+#   You can see a list of all the supported [values which can be used in a Teleport Database Service configuration here](../../reference/agent-services/database-access-reference/configuration.mdx).
 # </Admonition>
 #
 # <Admonition type="tip" title="Trusting Database CA">
@@ -355,7 +355,7 @@ databases: []
 # databaseResources(list) -- is a set of labels the agent will monitor.
 # Any database matching those labels will be proxied by the agent. See [the Teleport
 # Database access
-# documentation](../../../enroll-resources/database-access/database-access.mdx)
+# documentation](../../enroll-resources/database-access/database-access.mdx)
 # for more details.
 #
 # Proxied databases can be defined statically (through [`databases`](#databases)) or
@@ -375,7 +375,7 @@ databases: []
 #
 # <Admonition type="tip" title="Example">
 # Once `databaseResources` is set, you can dynamically register database with
-# `tsh` by following [this guide](../../../enroll-resources/database-access/guides/dynamic-registration.mdx).
+# `tsh` by following [this guide](../../enroll-resources/database-access/guides/dynamic-registration.mdx).
 # </Admonition>
 databaseResources: []
 
@@ -389,7 +389,7 @@ databaseResources: []
 # The Discovery Service is enabled when the agent `roles` contains "discovery".
 # The Discovery service automatically detects Kubernetes Services and configures
 # the agent to provide access to them. See [the Kubernetes App Discovery
-# documentation](../../../enroll-resources/auto-discovery/kubernetes-applications/architecture.mdx)
+# documentation](../../reference/architecture/kubernetes-applications-architecture.mdx)
 # for more details.
 #
 # <Admonition type="note">
@@ -515,7 +515,7 @@ caPin: []
 #   Using a self-signed TLS certificate and disabling TLS verification is OK for testing, but is not viable when running a production Teleport
 #   cluster as it will drastically reduce security. You must configure valid TLS certificates on your Teleport cluster for production workloads.
 #
-#   One option might be to use Teleport's built-in [ACME support](../teleport-cluster.mdx#acme) or enable [cert-manager support](../teleport-cluster.mdx#highavailabilitycertmanager).
+#   One option might be to use Teleport's built-in [ACME support](../../reference/helm-reference/teleport-cluster.mdx#acme) or enable [cert-manager support](../../reference/helm-reference/teleport-cluster.mdx#highavailabilitycertmanager).
 # </Admonition>
 insecureSkipProxyTLSVerify: false
 
@@ -523,7 +523,7 @@ insecureSkipProxyTLSVerify: false
 # Teleport pods. The configuration will be merged with the chart-generated
 # configuration and will take precedence in case of conflict.
 #
-# See the [Teleport Configuration Reference](../../config.mdx) for the list of supported fields.
+# See the [Teleport Configuration Reference](../../reference/config.mdx) for the list of supported fields.
 #
 # ```yaml
 # teleportConfig:
@@ -537,6 +537,16 @@ insecureSkipProxyTLSVerify: false
 #         "*":"*"
 # ```
 teleportConfig: {}
+
+# terminationGracePeriodSeconds(integer) -- is the time the pod has to do a graceful shutdown.
+# If teleport has not existed after this delay, the process gets killed.
+# Teleport will wait until every connection backed by the agent is over before exiting.
+# If you want to reduce the disruption of rolling out agents at the price of a slower rollout, you can increase this
+# value to an hour.
+#
+# See the [Kubernetes Pod Lifecycle docs](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination)
+# for more details.
+terminationGracePeriodSeconds: 30
 
 # tls -- contains settings for mounting your own TLS material in the agent pod.
 # The agent does not expose a TLS server, so this is only used to trust CAs.
@@ -559,15 +569,23 @@ tls:
   # $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
   # ```
   #
-  # <Notice type="warning" title="Root CA filename">
+  # <Admonition type="warning" title="Root CA filename">
   #   The key containing the root CA in the secret must be `ca.pem`.
-  # </Notice>
+  # </Admonition>
   existingCASecretName: ""
 
 # updater -- controls whether the Kube Agent Updater should be deployed alongside
 # the `teleport-kube-agent`. The updater fetches the target version, validates the
-# image signature, and updates the teleport deployment. The `enterprise` value should
-# have been set to `true`.
+# image signature, and updates the teleport deployment.
+#
+# The updater can fetch the update information using two protocols:
+# - the webapi update protocol (in this case the Teleport Proxy Service is the one driving the version rollout)
+# - the version server protocol (this is an HTTP server serving static files specifying the version and if the update is critical).
+#
+# The webapi protocol takes precedence over the version server one if the Teleport Proxy Service supports it.
+# The version server protocol failover can be disabled by unsetting `updater.versionServer`.
+# The webapi protocol can be disabled by setting `updater.proxyAddr` to `""`.
+# For backward compatibility reasons, the webapi protocol is not enabled if a custom `updater.versionServer` is set.
 #
 # All Kubernetes-specific fields such as `tolerations`, `affinity`, `nodeSelector`,
 # ... default to the agent values. However, they can be overridden from the
@@ -616,9 +634,8 @@ updater:
   # ](#updaterreleasechannel).
   # This field supports gotemplate.
   #
-  # You must set this if the updater is enabled, and you are not a Teleport Cloud user.
-  #
-  # You must not change the default values if you are a Teleport Cloud user.
+  # Setting this field makes the updater fetch the version using the version server protocol.
+  # Setting this field to a custom value disables the webapi update protocol to ensure backward compatibility.
   versionServer: "https://{{ .Values.proxyAddr }}/v1/webapi/automaticupgrades/channel"
 
   # updater.releaseChannel(string) -- is the release channel the updater
@@ -629,9 +646,13 @@ updater:
   # You must not change the default value if you are a Teleport Cloud user unless
   # instructed by Teleport support.
   #
-  # You can change this value if the updater is enabled, you are not a Teleport
-  # Cloud user, and manage your own version server.
+  # This value is used when the updater is fetching the version using the version server protocol.
+  # It is also used as a failover when fetching the version using the webapi protocol if `updater.group` is unset.
   releaseChannel: "stable/cloud"
+
+  # updater.group(string) -- is the update group used when fetching the version using the webapi protocol.
+  # When unset, the group defaults to `update.releaseChannel`.
+  group: ""
 
   # updater.image(string) -- sets the container image used for Teleport updater
   # pods run when `updater.enabled` is true.
@@ -704,7 +725,7 @@ podSecurityPolicy:
   # and replaced since 1.23 by PodSecurityAdmission (PSA). If you are running on
   # Kubernetes 1.23 or later, it is recommended to disable PSPs and use PSAs.
   # The steps are documented in the
-  # [PSP removal guide](../../../deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp.mdx).
+  # [PSP removal guide](../../admin-guides/deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp.mdx).
   #
   # This value will be removed in a future chart version.
   enabled: true
@@ -725,7 +746,7 @@ podSecurityPolicy:
 #   To set labels for applications, add a `labels` element to the [`apps`](#apps) section.
 #   To set labels for databases, add a `static_labels` element to the [`databases`](#databases) section.
 #
-#   For more information on how to set static/dynamic labels for Teleport services, see [labelling nodes and applications](../../../management/admin/labels.mdx).
+#   For more information on how to set static/dynamic labels for Teleport services, see [labelling nodes and applications](../../admin-guides/management/admin/labels.mdx).
 # </Admonition>
 #
 # For example:
@@ -738,7 +759,7 @@ podSecurityPolicy:
 labels: {}
 
 # highAvailability -- contains settings controlling the availability of the
-# Teleport agent deployed by the chart.
+# Teleport Agent deployed by the chart.
 #
 # The availability can be increased by:
 # - running more replicas with `replicaCount`
@@ -866,25 +887,23 @@ adminClusterRoleBinding:
 # Values that you shouldn't need to change.
 ################################################################
 
-# image(string) -- sets the container image used for Teleport OSS agent pods
-# created by the chart.
+# image(string) -- sets the container image used for Teleport Community Edition
+# Agent pods created by the chart.
 #
-# You can override this to use your own Teleport image rather than a Teleport-published image.
+# You can override this to use your own Teleport image rather than a
+# Teleport-published image.
 #
-# <Admonition type="warning" title="Interaction with Teleport Kube Agent Updater">
-#   When using the Teleport Kube Agent Updater, you must ensure the image is
-#   available before the updater version target gets updated and Kubernetes tries
-#   to pull the image.
+# <Admonition type="warning" title="Interaction with Teleport Kube Agent Updater"> 
+# When using the Teleport Kube Agent Updater, you must ensure the
+# image is available before the updater version target gets updated and
+# Kubernetes tries to pull the image.
 #
-#   For this reason, it is strongly discouraged to set a custom image when
-#   using automatic updates. Teleport Cloud uses automatic updates by default.
+# For this reason, it is strongly discouraged to set a custom image when using
+# automatic updates. Teleport Cloud uses automatic updates by default.
 # </Admonition>
 #
-# Since version 13, hardened distroless images are used by default.
-# You can use the deprecated debian-based images by setting the value to
-# `public.ecr.aws/gravitational/teleport`. Those images will be
-# removed with teleport 15.
-#
+# By default, the image contains only the Teleport application and its runtime
+# dependencies, and does not contain a shell.
 # This setting only takes effect when [`enterprise`](#enterprise) is `false`.
 # When running an enterprise version, you must use
 # [`enterpriseImage`](#enterpriseImage) instead.
@@ -905,11 +924,8 @@ image: public.ecr.aws/gravitational/teleport-distroless
 #   using automatic updates. Teleport Cloud uses automatic updates by default.
 # </Admonition>
 #
-# Since version 13, hardened distroless images are used by default.
-# You can use the deprecated debian-based images by setting the value to
-# `public.ecr.aws/gravitational/teleport-ent`. Those images will be
-# removed with teleport 15.
-#
+# By default, the image contains only the Teleport application and its runtime
+# dependencies, and does not contain a shell.
 # This setting only takes effect when [`enterprise`](#enterprise) is `true`.
 # When running an enterprise version, you must use [`image`](#image) instead.
 enterpriseImage: public.ecr.aws/gravitational/teleport-ent-distroless
@@ -1053,7 +1069,7 @@ log:
   format: text
   # log.extraFields(list) -- sets the fields used in logging for the Teleport process.
   #
-  # See the [Teleport config file reference](../../config.mdx) for
+  # See the [Teleport config file reference](../../reference/config.mdx) for
   # more details on possible values for `extra_fields`.
   extraFields: ["timestamp", "level", "component", "caller"]
 
@@ -1120,7 +1136,7 @@ extraLabels:
   # extraLabels.job(object) -- are labels to set on the post-delete Job created by the chart.
   job: {}
   # extraLabels.pod(object) -- are labels to set on the Pods created by the
-  # Deployment or StatefulSet.
+  # Deployment, StatefulSet, or Job.
   pod: {}
   # extraLabels.podDisruptionBudget(object) -- are labels to set on the podDisruptionBudget.
   podDisruptionBudget: {}

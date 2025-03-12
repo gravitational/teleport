@@ -27,6 +27,9 @@ import (
 )
 
 const referenceTemplate = `
+{/* Generated file. Do not edit.*/}
+{/* Generate this file by navigating to examples/chart and running  make render-chart-ref*/}
+
 {{- range .Values }}
 #{{- range splitList "." .Name -}}#{{- end }} ` + "`" + `{{ .Name }}` + "`" + `
 

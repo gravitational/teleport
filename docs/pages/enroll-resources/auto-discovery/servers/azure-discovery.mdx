@@ -182,15 +182,11 @@ you want to further limit the `assignableScopes`, you can use a resource group
 Now go to the [Subscriptions](https://portal.azure.com/#view/Microsoft_Azure_Billing/SubscriptionsBlade) page and select a subscription.
 
 Click on *Access control (IAM)* in the subscription and select *Add > Add custom role*:
-<Figure align="left">
 ![IAM custom role](../../../../img/azure/add-custom-role@2x.png)
-</Figure>
 
 In the custom role creation page, click the *JSON* tab and click *Edit*, then paste the JSON example
 and replace the subscription in `assignableScopes` with your own subscription id:
-<Figure align="left">
 ![Create JSON role](../../../../img/server-access/guides/azure/vm-create-role-from-json@2x.png)
-</Figure>
 
 ### Create a role assignment for the Teleport Discovery Service principal
 
@@ -235,13 +231,15 @@ the Discovery Service.
 In order to enable Azure instance discovery the `discovery_service.azure` section
 of `teleport.yaml` must include at least one entry:
 
+(!docs/pages/includes/discovery/discovery-group.mdx!)
+
 ```yaml
 version: v3
 teleport:
   join_params:
     token_name: "/tmp/token"
     method: token
-  proxy_server: "<Var name="teleport.example.com" />:443"
+  proxy_server: "teleport.example.com:443"
 auth_service:
   enabled: off
 proxy_service:
@@ -250,6 +248,7 @@ ssh_service:
   enabled: off
 discovery_service:
   enabled: "yes"
+  discovery_group: "azure-prod"
   azure:
     - types: ["vm"]
       subscriptions: ["<subscription>"]
@@ -306,5 +305,3 @@ logs can be found on the targeted VM at
   for more information on Azure tokens.
 - Full documentation on Azure discovery configuration can be found through the [
   config file reference documentation](../../../reference/config.mdx).
-- The complete default installer can be found [with the Teleport source
-](https://github.com/gravitational/teleport/blob/branch/v(=teleport.major_version=)/api/types/installers/installer.sh.tmpl).

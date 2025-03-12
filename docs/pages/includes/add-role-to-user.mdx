@@ -1,5 +1,5 @@
-{{ role="myrole" }}
-Assign the `{{ role }}` role to your Teleport user by running the appropriate
+{{ role="myrole" user="your Teleport user" }}
+Assign the `{{ role }}` role to {{ user }} by running the appropriate
 commands for your authentication provider:
 
 <Tabs>
@@ -23,17 +23,13 @@ commands for your authentication provider:
 </TabItem>
 <TabItem label="GitHub">
 
-1. Retrieve your `github` authentication connector:
+1. Open your `github` authentication connector in a text editor:
 
    ```code
-   $ tctl get github/github --with-secrets > github.yaml
+   $ tctl edit github/github
    ```
 
-   Note that the `--with-secrets` flag adds the value of `spec.signing_key_pair.private_key` 
-   to the `github.yaml` file. Because this key contains a sensitive value, you should remove the 
-   github.yaml file immediately after updating the resource.
-
-1. Edit `github.yaml`, adding `{{ role }}` to the `teams_to_roles` section. 
+1. Edit the `github` connector, adding `{{ role }}` to the `teams_to_roles` section. 
    
    The team you should map to this role depends on how you have designed your 
    organization's role-based access controls (RBAC). However, the team must include your user account and
@@ -50,12 +46,8 @@ commands for your authentication provider:
    +       - {{ role }}
    ```
 
-1. Apply your changes:
+1. Apply your changes by saving closing the file in your editor.
    
-   ```code
-   $ tctl create -f github.yaml
-   ```
-
 1. Sign out of the Teleport cluster and sign in again to assume the new role.
 
 </TabItem>

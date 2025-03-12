@@ -30,9 +30,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 // ParseKeyStorePEM parses signing key store from PEM encoded key pair
@@ -62,16 +62,24 @@ type KeyStore struct {
 	cert       []byte
 }
 
+// GetKeyPair implements goxmldsig.X509KeyPair.
 func (ks *KeyStore) GetKeyPair() (*rsa.PrivateKey, []byte, error) {
 	return ks.privateKey, ks.cert, nil
 }
 
-// GenerateSelfSignedSigningCert generates self-signed certificate used for digital signatures
-func GenerateSelfSignedSigningCert(entity pkix.Name, dnsNames []string, ttl time.Duration) ([]byte, []byte, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+// GenerateSelfSignedSigningCert is an alias of GenerateRSASelfSignedSigningCert
+// used due to references in teleport.e.
+var GenerateSelfSignedSigningCert = GenerateRSASelfSignedSigningCert
+
+// GenerateRSASelfSignedSigningCert generates an RSA self-signed certificate used
+// for digital signatures.
+// This should only be used for the SAML implementation and tests.
+func GenerateRSASelfSignedSigningCert(entity pkix.Name, dnsNames []string, ttl time.Duration) ([]byte, []byte, error) {
+	priv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+	rsaPriv := priv.(*rsa.PrivateKey)
 	// to account for clock skew
 	notBefore := time.Now().Add(-2 * time.Minute)
 	notAfter := notBefore.Add(ttl)
@@ -93,12 +101,12 @@ func GenerateSelfSignedSigningCert(entity pkix.Name, dnsNames []string, ttl time
 		DNSNames:              dnsNames,
 	}
 
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &rsaPriv.PublicKey, rsaPriv)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(rsaPriv)})
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
 
 	return keyPEM, certPEM, nil
@@ -169,25 +177,15 @@ func VerifyCertificateChain(certificateChain []*x509.Certificate) error {
 	return nil
 }
 
-// IsSelfSigned checks if the certificate is a self-signed certificate. To
-// check if a certificate is self-signed, we make sure that only one
-// certificate is in the chain and that the SubjectKeyId and AuthorityKeyId
-// match.
-//
-// From RFC5280: https://tools.ietf.org/html/rfc5280#section-4.2.1.1
-//
-//	The signature on a self-signed certificate is generated with the private
-//	key associated with the certificate's subject public key. (This
-//	proves that the issuer possesses both the public and private keys.)
-//	In this case, the subject and authority key identifiers would be
-//	identical, but only the subject key identifier is needed for
-//	certification path building.
+// IsSelfSigned checks if the certificate is a self-signed certificate. To check
+// if a certificate is self-signed, we make sure that only one certificate is in
+// the chain and that its Subject and Issuer match.
 func IsSelfSigned(certificateChain []*x509.Certificate) bool {
 	if len(certificateChain) != 1 {
 		return false
 	}
 
-	return bytes.Equal(certificateChain[0].SubjectKeyId, certificateChain[0].AuthorityKeyId)
+	return bytes.Equal(certificateChain[0].RawSubject, certificateChain[0].RawIssuer)
 }
 
 // ReadCertificates parses PEM encoded bytes that can contain one or

@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
-import { render, fireEvent, screen } from 'design/utils/testing';
+
+import { fireEvent, render, screen } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
 import { createTeleportContext } from 'teleport/mocks/contexts';
@@ -65,9 +65,11 @@ test('lock search', async () => {
   expect(rows).toHaveLength(3);
 
   // Test searching.
-  fireEvent.change(screen.getByPlaceholderText(/search/i), {
+  const search = screen.getByPlaceholderText(/search/i);
+  fireEvent.change(search, {
     target: { value: 'lock-role' },
   });
+  fireEvent.submit(search);
 
   expect(screen.queryAllByText(/lock-role/i)).toHaveLength(2);
   expect(screen.queryByText(/lock-user/i)).not.toBeInTheDocument();

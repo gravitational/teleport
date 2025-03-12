@@ -1,0 +1,566 @@
+---
+title: "Part 2: Configure Teleport RBAC with Terraform"
+h1: "Terraform Starter: Configure RBAC"
+description: Explains how to manage Teleport roles and authentication connectors with Terraform so you can implement the principle of least privilege in your infrastructure.
+---
+
+*This guide is Part Two of the Teleport Terraform starter guide. Read the
+[overview](terraform-starter.mdx) for the scope and purpose of the Terraform
+starter guide.*
+
+In [Part One](enroll-resources.mdx) of this series, we showed you how to use
+Terraform to deploy Teleport Agents in order to enroll infrastructure resources
+with your Teleport cluster. While configuring Agents, you labeled them based on
+their environment, with some falling under `dev` and others under `prod`. 
+
+In this guide, you will configure your Teleport cluster to manage access to
+resources with the `dev` and `prod` labels in order to implement the principle
+of least privilege. 
+
+## How it works
+
+This guide shows you how to create:
+
+- A role that can access `prod` resources.
+- A role that can access `dev` resources and request access to `prod` resources.
+- An authentication connector that allows users to sign into your organization's
+  identity provider and automatically gain access to `dev` resources. 
+
+In this setup, the only way to access `prod` resources is with an Access
+Request, meaning that there are no standing credentials for accessing `prod`
+resources that an attacker can compromise.
+
+## Prerequisites
+
+This guide assumes that you have completed [Part 1: Enroll Infrastructure with
+Terraform](./enroll-resources.mdx).
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx version="16.2.0"!)
+
+- Resources enrolled with Teleport that include the `dev` and `prod` labels. We
+  show you how to enroll these resources using Terraform in Part One.
+- An identity provider that supports OIDC or SAML. You should have either:
+  - The ability to modify SAML attributes or OIDC claims in your organization.
+  - Pre-existing groups of users that you want to map to two levels of access:
+    the ability to connect to `dev` resources; and the ability to review Access
+    Requests for `prod` access.
+
+<Admonition type="tip">
+
+We recommend following this guide on the same Teleport demo cluster you used for
+Part One. After you are familiar with the setup, you can apply the lessons from
+this guide to manage RBAC with Terraform.
+
+</Admonition>
+
+- Terraform v(=terraform.version=) or higher.
+- (!docs/pages/includes/tctl.mdx!)
+- To help with troubleshooting, we recommend completing the setup steps in this
+  guide with a local user that has the preset `editor` and `auditor` roles. In
+  production, you can apply the lessons in this guide using a less privileged
+  user.
+
+## Step 1/4. Import Terraform modules
+
+In this step, you will download Terraform modules that show you how to get
+started managing Teleport RBAC. These modules are minimal examples of how
+Teleport Terraform resources work together to enable you to manage Teleport
+roles and authentication connectors. 
+
+After finishing this guide and becoming familiar with the setup, you should
+modify your Terraform configuration to accommodate your infrastructure in
+production.
+
+1. Navigate to the directory where you organized files for your root Terraform
+   module.
+
+1. Fetch the Teleport code repository and copy the example Terraform
+   configuration for this project into your current working directory. 
+
+   Since you will enable users to authenticate to Teleport through your
+   organization's identity provider (IdP), the modules depend on whether your
+   organization uses OIDC or SAML to communicate with services:
+
+   <Tabs>
+   <TabItem label="OIDC">
+
+   ```code
+   $ git clone --depth=1 https://github.com/gravitational/teleport teleport-clone
+   $ cp -R teleport-clone/examples/terraform-starter/env_role env_role
+   $ cp -R teleport-clone/examples/terraform-starter/oidc oidc
+   $ rm -rf teleport-clone
+   ```
+   </TabItem>
+   <TabItem label="SAML">
+
+   ```code
+   $ git clone --depth=1 https://github.com/gravitational/teleport teleport-clone
+   $ cp -R teleport-clone/examples/terraform-starter/env_role env_role
+   $ cp -R teleport-clone/examples/terraform-starter/saml saml
+   $ rm -rf teleport-clone
+   ```
+
+   </TabItem>
+   </Tabs>
+
+   Your project directory will include two new modules: 
+
+   <Tabs>
+   <TabItem label="OIDC">
+
+   |Name|Description|
+   |---|---|
+   |`env_role`|A module for a Teleport role that grants access to resources with a specific `env` label.|
+   |`oidc`|Teleport resources to configure an OIDC authentication connector and require that users authenticate with it.|
+
+   </TabItem>
+   <TabItem label="SAML">
+
+   |Name|Description|
+   |---|---|
+   |`env_role`|A module for a Teleport role that grants access to resources with a specific `env` label.|
+   |`saml`|Teleport resources to configure a SAML authentication connector and require that users authenticate with it.|
+
+   </TabItem>
+   </Tabs>
+
+1. Create a file called `rbac.tf` that includes the following `module` blocks: 
+
+   <Tabs>
+   <TabItem label="OIDC">
+
+   ```hcl
+   module "oidc" {
+     source               = "./oidc"
+     oidc_claims_to_roles = []
+     oidc_client_id       = ""
+     oidc_connector_name  = "Log in with OIDC"
+     oidc_redirect_url    = ""
+     oidc_secret          = ""
+     teleport_domain      = ""
+   }
+   
+   module "prod_role" {
+     source        = "./env_role"
+     env_label     = "prod"
+     principals    = {}
+     request_roles = []
+   }
+
+   module "dev_role" {
+     source        = "./env_role"
+     env_label     = "dev"
+     principals    = {}
+     request_roles = [module.prod_role.role_name]
+   }
+   ```
+   </TabItem>
+   <TabItem label="SAML">
+
+   ```hcl
+   module "saml" {
+     source                   = "./saml"
+     saml_connector_name      = "Log in with SAML"
+     saml_attributes_to_roles = []
+     saml_acs                 = ""
+     saml_entity_descriptor   = ""
+     teleport_domain          = ""
+   }
+   
+   module "prod_role" {
+     source        = "./env_role"
+     env_label     = "prod"
+     principals    = {}
+     request_roles = []
+   }
+   
+   module "dev_role" {
+     source        = "./env_role"
+     env_label     = "dev"
+     principals    = {}
+     request_roles = [module.prod_role.role_name]
+   }
+   ```
+   </TabItem>
+   </Tabs>
+
+Next, we will show you how to configure the two child modules, and walk you
+through the Terraform resources that they apply.
+
+## Step 2/4. Configure role principals
+
+Together, the `prod_role` and `dev_role` modules you declared in Step 1 create
+three Teleport roles:
+
+|Role|Description|
+|---|---|
+|`prod_access`|Allows access to infrastructure resources with the `env:prod` label.|
+|`dev_access`|Allows access to infrastructure resources with the `env:dev` label, and Access Requests for the `prod_access` role.|
+|`prod_reviewer`|Allows reviews of Access Requests for the `prod_access` role.|
+
+When Teleport users connect to resources in your infrastructure, they assume a
+principal, such as an operating system login or Kubernetes user, in order to
+interact with those resources. In this step, you will configure the `prod_role`
+and `dev_role` modules to grant access to principals in your infrastructure.
+
+In `rbac.tf`, edit the `prod_role` and `dev_role` blocks so that the
+`principals` field contains a mapping, similar to the example below. Use the
+list of keys below the example to configure the principals.
+
+```hcl
+module "prod_role" {
+  principals = {
+    KEY = "value"
+  }
+  // ...
+}
+
+// ...
+```
+
+|Key|Description|
+|---|---|
+|`aws_role_arns`|AWS role ARNs the user can access when authenticating to an AWS API.|
+|`azure_identities`|Azure identities the user can access when authenticating to an Azure API.|
+|`db_names`|Names of databases the user can access within a database server.|
+|`db_roles`|Roles the user can access on a database when they authenticate to a database server.|
+|`db_users`|Users the user can access on a database when they authenticate to a database server.|
+|`gcp_service_accounts`|Google Cloud service accounts the user can access when authenticating to a Google Cloud API.|
+|`kubernetes_groups`|Kubernetes groups the Teleport Database Service can impersonate when proxying requests from the user.|
+|`kubernetes_users`|Kubernetes users the Teleport Database Service can impersonate when proxying requests from the user.|
+|`logins`|Operating system logins the user can access when authenticating to a Linux server.|
+|`windows_desktop_logins`|Operating system logins the user can access when authenticating to a Windows desktop.|
+
+For example, the following configuration allows users with the `dev_access` role
+to assume the `dev` login on Linux hosts and the `developers` group on
+Kubernetes. `prod` users have more privileges and can assume the `root` login
+and `system:masters` Kubernetes group:
+
+```hcl
+module "dev_role" {
+  principals = {
+    logins            = ["dev"]
+    kubernetes_groups = ["developers"]
+  }
+  // ...
+}
+
+module "prod_role" {
+  principals = {
+    logins            = ["root"]
+    kubernetes_groups = ["system:masters"]
+  }
+  // ...
+}
+```
+
+## Step 3/4. [Optional] Configure the single sign-on connector
+
+In this step, you will configure your Terraform module to enable authentication
+through your organization's IdP. Configure the `saml` or `oidc` module you
+declared in Step 1 by following the instructions.
+
+<Admonition type="tip">
+
+You can skip this step for now if you want to assign the `dev_access` and
+`prod_access` roles to local Teleport users instead of single sign-on users. To
+do so, you can:
+
+- Import existing `teleport_user` resources and modify them to include the
+  `dev_access` and `prod_access` roles (see the
+  [documentation](../managing-resources/import-existing-resources.mdx)).
+- Create a new `teleport_user` resource that includes the roles
+  ([documentation](../managing-resources/user-and-role.mdx).
+
+If you plan to skip this step, make sure to remove the `module "saml"` or
+`module "oidc"` block from your Terraform configuration.
+
+</Admonition>
+
+1. Register your Teleport cluster with your IdP as a relying party. The
+   instructions depend on your IdP. 
+
+   The following guides show you how to set up your IdP to support the SAML or
+   OIDC authentication connector. **Read only the linked section**, since these
+   guides assume you are using `tctl` instead of Terraform to manage
+   authentication connectors:
+
+   - [AD FS](../../../admin-guides/access-controls/sso/adfs.mdx#step-13-configure-adfs)
+   - [GitLab](../../../admin-guides/access-controls/sso/gitlab.mdx#configure-gitlab)
+   - [Google
+     Workspace](../../../admin-guides/access-controls/sso/google-workspace.mdx#step-14-configure-google-workspace)
+   - [OneLogin](../../../admin-guides/access-controls/sso/one-login.mdx#step-13-create-teleport-application-in-onelogin)
+   - [Azure
+     AD](../../../admin-guides/access-controls/sso/azuread.mdx#step-13-configure-microsoft-entra-id)
+   - [Okta](../../../admin-guides/access-controls/sso/okta.mdx#step-24-configure-okta)
+
+1. Configure the redirect URL (for OIDC) or assertion consumer service (for SAML):
+
+   <Tabs>
+   <TabItem label="OIDC">
+
+   Set `oidc_redirect_url` to
+   `https://example.teleport.sh:443/v1/webapi/oidc/callback`, replacing
+   `example.teleport.sh` with the domain name of your Teleport cluster. 
+
+   Ensure that `oidc_redirect_url` matches match the URL you configured with
+   your IdP when registering your Teleport cluster as a relying party.
+
+   </TabItem>
+   <TabItem label="SAML">
+
+   Set `saml_acs` to `https://example.teleport.sh:443/v1/webapi/saml/acs`,
+   replacing `example.teleport.sh` with the domain name of your Teleport
+   cluster. 
+
+   Ensure that `saml_acs` matches the URL you configured with your IdP when
+   registering your Teleport cluster as a relying party.
+
+   </TabItem>
+   </Tabs>
+
+1. After you register Teleport as a relying party, your identity provider will
+   print information that you will use to configure the authentication
+   connector. Fill in the information depending on your provider type:
+
+   <Tabs>
+   <TabItem label="OIDC">
+
+   Fill in the `oidc_client_id` and `oidc_secret` with the client ID and secret
+   returned by the IdP.
+
+   </TabItem>
+   <TabItem label="SAML">
+
+   Assign `saml_entity_descriptor` to the contents of the XML document that
+   contains the SAML entity descriptor for the IdP.
+
+   </TabItem>
+   </Tabs>
+
+1. Assign `teleport_domain` to the domain name of your Teleport Proxy Service,
+   with no scheme or path, e.g., `example.teleport.sh`. The child module uses
+   this to configure WebAuthn for local users. This way, you can authenticate as
+   a local user as a fallback if you need to troubleshoot your single sign-on
+   authentication connector.
+
+1. Configure role mapping for your authentication connector. When a user
+   authenticates to Teleport through your organization's IdP, Teleport assigns
+   roles to the user based on your connector's role mapping configuration:
+
+   <Tabs>
+   <TabItem label="OIDC">
+
+   In this example, users with a `group` claim with the `developers` value
+   receive the `dev_access` role, while users with a `group` claim with the
+   value `admins` receive the `prod_reviewer` role:
+
+   ```hcl
+        oidc_claims_to_roles = [
+          {
+            claim = "group"
+            value = "developers"
+            roles = [
+              module.dev_role.role_name
+            ]
+          },
+          {
+            claim = "group"
+            value = "admins"
+            roles = module.dev_role.reviewer_role_names
+          }
+        ]
+   ```
+
+   Edit the `claim` value for each item in `oidc_claims_to_roles` to match the
+   name of an OIDC claim you have configured on your IdP. 
+
+   </TabItem>
+   <TabItem label="SAML">
+
+   In this example, users with a `group` attribute with the `developers` value
+   receive the `dev_access` role, while users with a `group` attribute with the
+   value `admins` receive the `prod_reviewer` role:
+
+   ```hcl
+        saml_attributes_to_roles = [
+          {
+            name  = "group"
+            value = "developers"
+            roles = [
+              module.dev_role.role_name
+            ]
+          },
+          {
+            name  = "group"
+            value = "admins"
+            roles = module.dev_role.reviewer_role_names
+          }
+        ]
+   ```
+
+   </TabItem>
+   </Tabs>
+
+## Step 4/4. Apply and verify changes
+
+In this step, you will create a Teleport bot to apply your Terraform
+configuration. The bot will exist for one hour and will be granted the default
+`terraform-provider` role that can edit every resource the TF provider supports.
+
+1. Navigate to your Terraform project directory and run the following command.
+   The `eval`command assigns environment variables in your shell to credentials
+   for the Teleport Terraform provider:
+
+   ```code
+   $ eval "$(tctl terraform env)"
+   🔑 Detecting if MFA is required
+   This is an admin-level action and requires MFA to complete
+   Tap any security key
+   Detected security key tap
+   ⚙️ Creating temporary bot "tctl-terraform-env-82ab1a2e" and its token
+   🤖 Using the temporary bot to obtain certificates
+   🚀 Certificates obtained, you can now use Terraform in this terminal for 1h0m0s
+   ```
+
+1. Make sure your cloud provider credentials are available to Terraform using
+   the standard approach for your organization.
+
+1. Apply the Terraform configuration:
+
+   ```code
+   $ terraform init
+   $ terraform apply
+   ```
+
+1. Open the Teleport Web UI in a browser and sign in to Teleport as a user on
+   your IdP with the `groups` trait assigned to the value that you mapped to the
+   role in your authentication connector. Your user should have the `dev_access`
+   role.
+
+   <Admonition type="tip">
+
+   If you receive errors logging in using your authentication connector, log in
+   as a local user with permissions to view the Teleport audit log. These is
+   available in the preset `auditor` role. Check for error messages in events
+   related with the "SSO Login" type.
+
+   </Admonition>
+
+1. Request access to the `prod_access` role through the Web UI. Visit the
+   "Access Requests" tab and click "New Request".
+
+1. Sign out of the Web UI and, as a user in a group that you mapped to the
+   `prod_access` role, sign in. In the "Access Requests" tab, you should be able
+   to see and resolve the Access Request you created.
+
+## Further reading: How the module works
+
+This section describes the resources managed by the `env_role`, `saml`, and
+`oidc` child modules. We encourage you to copy and customize these
+configurations in order to refine your settings and choose the best reusable
+interface for your environment.
+
+### The `env_access` role
+
+The `env_role` child module creates Teleport roles with the ability to access
+Teleport-protected resources with the `env` label:
+
+```hcl
+(!examples/terraform-starter/env_role/env_role.tf!)
+```
+
+The role hardcodes an `allow` rule with the ability to access applications,
+databases, Linux servers, Kubernetes clusters, and Windows desktops with the
+user-configured `env` label. 
+
+Since we cannot predict which principals are available in your infrastructure,
+this role leaves the `aws_role_arns`, `logins`, and other principal-related role
+attributes for the user to configure.
+
+The role also configures an `allow` rule that enables users to request access
+for the roles configured in the `request_roles` input variable.
+
+An `output` prints the name of the role to allow us to create a dependency
+relationship between this role and an authentication connector.
+
+### The `env_access_reviewer` role
+
+If `var.request_roles` in the `env_access` role is nonempty, the `env_role`
+module creates a role that can review those roles. This is a separate role to
+make permissions more composable:
+
+```hcl
+(!examples/terraform-starter/env_role/reviewer.tf!)
+```
+
+As with the `env_access` role, there is an output to print the name of the
+`env_access_reviewer` role to create a dependency relationship with the
+authentication connector.
+
+### Configuring an authentication connector
+
+The authentication connector resources are minimal. Beyond providing the
+attributes necessary to send and receive Teleport OIDC and SAML messages, the
+connectors configure role mappings based on user-provided values:
+
+<Tabs>
+<TabItem label="OIDC">
+
+```hcl
+(!examples/terraform-starter/oidc/oidc_connector.tf!)
+```
+</TabItem>
+<TabItem label="SAML">
+
+```hcl
+(!examples/terraform-starter/saml/saml.tf!)
+```
+
+</TabItem>
+</Tabs>
+
+Since the role mappings inputs are composite data types, we add a complex type
+definition when declaring the input variables for the `oidc` and `saml` child
+modules:
+
+<Tabs>
+<TabItem label="OIDC">
+
+```hcl
+(!examples/terraform-starter/oidc/inputs.tf!)
+```
+</TabItem>
+<TabItem label="SAML">
+
+```hcl
+(!examples/terraform-starter/saml/inputs.tf!)
+```
+</TabItem>
+</Tabs>
+
+For each authentication connector, we declare a cluster authentication
+preference that enables the connector. The cluster authentication preference
+enables local user login with WebAuthn as a secure fallback in case you need to
+troubleshoot the single sign-on provider.
+
+<Tabs>
+<TabItem label="OIDC">
+
+```hcl
+(!examples/terraform-starter/oidc/auth_pref.tf!)
+```
+</TabItem>
+<TabItem label="SAML">
+
+```hcl
+(!examples/terraform-starter/saml/auth_pref.tf!)
+```
+</TabItem>
+</Tabs>
+
+## Next steps
+
+Now that you have configured RBAC in your Terraform demo cluster, fine-tune your
+setup by reading the comprehensive [Terraform provider
+reference](../../../reference/terraform-provider/terraform-provider.mdx).

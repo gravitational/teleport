@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 const light = 300;
 const regular = 400;
 const medium = 500;
@@ -114,6 +116,8 @@ const typography = {
     fontSize: '14px',
     lineHeight: '20px',
   },
-};
+
+  // Declare value type, while the key type is narrowed down automatically.
+} satisfies Record<string, React.CSSProperties>;
 
 export default typography;

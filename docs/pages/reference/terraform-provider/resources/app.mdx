@@ -1,5 +1,6 @@
 ---
 title: Reference for the teleport_app Terraform resource
+sidebar_label: app
 description: This page describes the supported values of the teleport_app resource of the Teleport Terraform provider.
 ---
 
@@ -14,6 +15,7 @@ description: This page describes the supported values of the teleport_app resour
 # Teleport App
 
 resource "teleport_app" "example" {
+  version = "v3"
   metadata = {
     name        = "example"
     description = "Test app"
@@ -60,11 +62,15 @@ Optional:
 
 - `aws` (Attributes) AWS contains additional options for AWS applications. (see [below for nested schema](#nested-schema-for-specaws))
 - `cloud` (String) Cloud identifies the cloud instance the app represents.
+- `cors` (Attributes) CORSPolicy defines the Cross-Origin Resource Sharing settings for the app. (see [below for nested schema](#nested-schema-for-speccors))
 - `dynamic_labels` (Attributes Map) DynamicLabels are the app's command labels. (see [below for nested schema](#nested-schema-for-specdynamic_labels))
+- `identity_center` (Attributes) IdentityCenter encasulates AWS identity-center specific information. Only valid for Identity Center account apps. (see [below for nested schema](#nested-schema-for-specidentity_center))
 - `insecure_skip_verify` (Boolean) InsecureSkipVerify disables app's TLS certificate verification.
 - `integration` (String) Integration is the integration name that must be used to access this Application. Only applicable to AWS App Access. If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
 - `public_addr` (String) PublicAddr is the public address the application is accessible at.
+- `required_app_names` (List of String) RequiredAppNames is a list of app names that are required for this app to function. Any app listed here will be part of the authentication redirect flow and authenticate along side this app.
 - `rewrite` (Attributes) Rewrite is a list of rewriting rules to apply to requests and responses. (see [below for nested schema](#nested-schema-for-specrewrite))
+- `tcp_ports` (Attributes List) TCPPorts is a list of ports and port ranges that an app agent can forward connections to. Only applicable to TCP App Access. If this field is not empty, URI is expected to contain no port number and start with the tcp protocol. (see [below for nested schema](#nested-schema-for-spectcp_ports))
 - `uri` (String) URI is the web app endpoint.
 - `user_groups` (List of String) UserGroups are a list of user group IDs that this app is associated with.
 
@@ -75,6 +81,18 @@ Optional:
 - `external_id` (String) ExternalID is the AWS External ID used when assuming roles in this app.
 
 
+### Nested Schema for `spec.cors`
+
+Optional:
+
+- `allow_credentials` (Boolean) allow_credentials indicates whether credentials are allowed.
+- `allowed_headers` (List of String) allowed_headers specifies which headers can be used when accessing the app.
+- `allowed_methods` (List of String) allowed_methods specifies which methods are allowed when accessing the app.
+- `allowed_origins` (List of String) allowed_origins specifies which origins are allowed to access the app.
+- `exposed_headers` (List of String) exposed_headers indicates which headers are made available to scripts via the browser.
+- `max_age` (Number) max_age indicates how long (in seconds) the results of a preflight request can be cached.
+
+
 ### Nested Schema for `spec.dynamic_labels`
 
 Optional:
@@ -82,6 +100,23 @@ Optional:
 - `command` (List of String) Command is a command to run
 - `period` (String) Period is a time between command runs
 - `result` (String) Result captures standard output
+
+
+### Nested Schema for `spec.identity_center`
+
+Optional:
+
+- `account_id` (String) Account ID is the AWS-assigned ID of the account
+- `permission_sets` (Attributes List) PermissionSets lists the available permission sets on the given account (see [below for nested schema](#nested-schema-for-specidentity_centerpermission_sets))
+
+### Nested Schema for `spec.identity_center.permission_sets`
+
+Optional:
+
+- `arn` (String) ARN is the fully-formed ARN of the Permission Set.
+- `assignment_name` (String) AssignmentID is the ID of the Teleport Account Assignment resource that represents this permission being assigned on the enclosing Account.
+- `name` (String) Name is the human-readable name of the Permission Set.
+
 
 
 ### Nested Schema for `spec.rewrite`
@@ -98,4 +133,13 @@ Optional:
 
 - `name` (String) Name is the http header name.
 - `value` (String) Value is the http header value.
+
+
+
+### Nested Schema for `spec.tcp_ports`
+
+Optional:
+
+- `end_port` (Number) EndPort describes the end of the range, inclusive. If set, it must be between 2 and 65535 and be greater than Port when describing a port range. When omitted or set to zero, it signifies that the port range defines a single port.
+- `port` (Number) Port describes the start of the range. It must be between 1 and 65535.
 

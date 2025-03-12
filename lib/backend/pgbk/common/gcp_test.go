@@ -22,7 +22,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -79,7 +79,7 @@ func Test_makeGCPCloudSQLAuthOptionsForServiceAccount(t *testing.T) {
 func mustSetGoogleApplicationCredentialsEnv(t *testing.T) {
 	t.Helper()
 
-	file := path.Join(t.TempDir(), uuid.New().String())
+	file := filepath.Join(t.TempDir(), uuid.New().String())
 	err := os.WriteFile(file, []byte(fakeServiceAccountCredentialsJSON), 0644)
 	require.NoError(t, err)
 

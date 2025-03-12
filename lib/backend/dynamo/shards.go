@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 type shardEvent struct {
@@ -48,7 +49,7 @@ func (b *Backend) asyncPollStreams(ctx context.Context) error {
 		Max:  b.RetryPeriod,
 	})
 	if err != nil {
-		b.Errorf("Bad retry parameters: %v", err)
+		b.logger.ErrorContext(ctx, "Bad retry parameters", "error", err)
 		return trace.Wrap(err)
 	}
 
@@ -61,14 +62,14 @@ func (b *Backend) asyncPollStreams(ctx context.Context) error {
 			if b.isClosed() {
 				return trace.Wrap(err)
 			}
-			b.Errorf("Poll streams returned with error: %v.", err)
+			b.logger.ErrorContext(ctx, "Poll streams returned with error", "error", err)
 		}
-		b.Debugf("Reloading %v.", retry)
+		b.logger.DebugContext(ctx, "Reloading", "retry_duration", retry.Duration())
 		select {
 		case <-retry.After():
 			retry.Inc()
 		case <-ctx.Done():
-			b.Debugf("Closed, returning from asyncPollStreams loop.")
+			b.logger.DebugContext(ctx, "Closed, returning from asyncPollStreams loop.")
 			return nil
 		}
 	}
@@ -82,7 +83,7 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	b.Debugf("Found latest event stream %v.", aws.ToString(streamArn))
+	b.logger.DebugContext(ctx, "Found latest event stream", "stream_arn", aws.ToString(streamArn))
 
 	set := make(map[string]struct{})
 	eventsC := make(chan shardEvent)
@@ -94,7 +95,7 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 			return false
 		}
 		if _, ok := set[aws.ToString(shard.ParentShardId)]; ok {
-			b.Tracef("Skipping child shard: %s, still polling parent %s", sid, aws.ToString(shard.ParentShardId))
+			b.logger.Log(ctx, logutils.TraceLevel, "Skipping child shard, still polling parent", "child_shard_id", sid, "parent_shard_id", aws.ToString(shard.ParentShardId))
 			// still processing parent
 			return false
 		}
@@ -120,7 +121,7 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 				continue
 			}
 			shardID := aws.ToString(shards[i].ShardId)
-			b.Tracef("Adding active shard %v.", shardID)
+			b.logger.Log(ctx, logutils.TraceLevel, "Adding active shard", "shard_id", shardID)
 			set[shardID] = struct{}{}
 			go b.asyncPollShard(ctx, streamArn, shards[i], eventsC, initC)
 			started++
@@ -161,15 +162,15 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 				if event.shardID == "" {
 					// empty shard IDs in err-variant events are programming bugs and will lead to
 					// invalid state.
-					b.WithError(err).Warnf("Forcing watch system reset due to empty shard ID on error (this is a bug)")
+					b.logger.WarnContext(ctx, "Forcing watch system reset due to empty shard ID on error (this is a bug)", "error", err)
 					return trace.BadParameter("empty shard ID")
 				}
 				delete(set, event.shardID)
 				if !errors.Is(event.err, io.EOF) {
-					b.Debugf("Shard ID %v closed with error: %v, reseting buffers.", event.shardID, event.err)
+					b.logger.DebugContext(ctx, "Shard closed with error, resetting buffers.", "shard_id", event.shardID, "error", event.err)
 					return trace.Wrap(event.err)
 				}
-				b.Tracef("Shard ID %v exited gracefully.", event.shardID)
+				b.logger.Log(ctx, logutils.TraceLevel, "Shard exited gracefully.", "shard_id", event.shardID)
 			} else {
 				b.buf.Emit(event.events...)
 			}
@@ -178,7 +179,7 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 				return trace.Wrap(err)
 			}
 		case <-ctx.Done():
-			b.Tracef("Context is closing, returning.")
+			b.logger.Log(ctx, logutils.TraceLevel, "Context is closing, returning.")
 			return nil
 		}
 	}
@@ -231,18 +232,18 @@ func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard stream
 				return convertError(err)
 			}
 			if len(out.Records) > 0 {
-				b.Tracef("Got %v new stream shard records.", len(out.Records))
+				b.logger.Log(ctx, logutils.TraceLevel, "Got new stream shard records.", "num_records", len(out.Records))
 			}
 			if len(out.Records) == 0 {
 				if out.NextShardIterator == nil {
-					b.Tracef("Shard is closed: %v.", aws.ToString(shard.ShardId))
+					b.logger.Log(ctx, logutils.TraceLevel, "Shard is closed", "shard_id", aws.ToString(shard.ShardId))
 					return io.EOF
 				}
 				iterator = out.NextShardIterator
 				continue
 			}
 			if out.NextShardIterator == nil {
-				b.Tracef("Shard is closed: %v.", aws.ToString(shard.ShardId))
+				b.logger.Log(ctx, logutils.TraceLevel, "Shard is closed", "shard_id", aws.ToString(shard.ShardId))
 				return io.EOF
 			}
 			events := make([]backend.Event, 0, len(out.Records))
@@ -354,7 +355,7 @@ func (b *Backend) asyncPollShard(ctx context.Context, streamArn *string, shard s
 		select {
 		case eventsC <- shardEvent{err: err, shardID: shardID}:
 		case <-ctx.Done():
-			b.Debugf("Context is closing, returning")
+			b.logger.DebugContext(ctx, "Context is closing, returning")
 			return
 		}
 	}()

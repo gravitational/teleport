@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -31,7 +32,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
@@ -41,8 +41,6 @@ import (
 
 	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -50,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/web/terminal"
 )
 
@@ -63,7 +62,7 @@ type podHandler struct {
 	sctx                *SessionContext
 	ws                  *websocket.Conn
 	keepAliveInterval   time.Duration
-	log                 *logrus.Entry
+	logger              *slog.Logger
 	userClient          authclient.ClientI
 	localCA             types.CertAuthority
 
@@ -130,7 +129,10 @@ func (p *podHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
 
 	sessionMetadataResponse, err := json.Marshal(siteSessionGenerateResponse{Session: p.sess})
 	if err != nil {
-		p.sendAndLogError(err)
+		p.logger.ErrorContext(r.Context(), "failed marshaling session data", "error", err)
+		if err := p.sendErrorMessage(err); err != nil {
+			p.logger.ErrorContext(r.Context(), "failed to send error message to client", "error", err)
+		}
 		return
 	}
 
@@ -142,18 +144,29 @@ func (p *podHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
 
 	envelopeBytes, err := proto.Marshal(envelope)
 	if err != nil {
-		p.sendAndLogError(err)
+		p.logger.ErrorContext(r.Context(), "failed marshaling message envelope", "error", err)
+		if err := p.sendErrorMessage(err); err != nil {
+			p.logger.ErrorContext(r.Context(), "failed to send error message to client", "error", err)
+		}
+
 		return
 	}
 
 	err = p.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
 	if err != nil {
-		p.sendAndLogError(err)
+		p.logger.ErrorContext(r.Context(), "failed write session data message", "error", err)
+		if err := p.sendErrorMessage(err); err != nil {
+			p.logger.ErrorContext(r.Context(), "failed to send error message to client", "error", err)
+		}
+
 		return
 	}
 
 	if err := p.handler(r); err != nil {
-		p.sendAndLogError(err)
+		p.logger.ErrorContext(r.Context(), "handling kube session unexpectedly terminated", "error", err)
+		if err := p.sendErrorMessage(err); err != nil {
+			p.logger.ErrorContext(r.Context(), "failed to send error message to client", "error", err)
+		}
 	}
 }
 
@@ -161,11 +174,9 @@ func (p *podHandler) Close() error {
 	return trace.Wrap(p.ws.Close())
 }
 
-func (p *podHandler) sendAndLogError(err error) {
-	p.log.Error(err)
-
+func (p *podHandler) sendErrorMessage(err error) error {
 	if p.closedByClient.Load() {
-		return
+		return nil
 	}
 
 	envelope := &terminal.Envelope{
@@ -176,16 +187,17 @@ func (p *podHandler) sendAndLogError(err error) {
 
 	envelopeBytes, err := proto.Marshal(envelope)
 	if err != nil {
-		p.log.WithError(err).Error("failed to marshal error message")
-		return
+		return trace.Wrap(err, "creating envelope payload")
 	}
 	if err := p.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes); err != nil {
-		p.log.WithError(err).Error("failed to send error message")
+		return trace.Wrap(err, "writing error message")
 	}
+
+	return nil
 }
 
 func (p *podHandler) handler(r *http.Request) error {
-	p.log.Debug("Creating websocket stream for a kube exec request")
+	p.logger.DebugContext(r.Context(), "Creating websocket stream for a kube exec request")
 
 	// Create a context for signaling when the terminal session is over and
 	// link it first with the trace context from the request context
@@ -196,7 +208,7 @@ func (p *podHandler) handler(r *http.Request) error {
 	defaultCloseHandler := p.ws.CloseHandler()
 	p.ws.SetCloseHandler(func(code int, text string) error {
 		p.closedByClient.Store(true)
-		p.log.Debug("websocket connection was closed by client")
+		p.logger.DebugContext(r.Context(), "websocket connection was closed by client")
 
 		cancel()
 		// Call the default close handler if one was set.
@@ -209,7 +221,7 @@ func (p *podHandler) handler(r *http.Request) error {
 	})
 
 	// Start sending ping frames through websocket to the client.
-	go startWSPingLoop(r.Context(), p.ws, p.keepAliveInterval, p.log, p.Close)
+	go startWSPingLoop(r.Context(), p.ws, p.keepAliveInterval, p.logger, p.Close)
 
 	pk, err := keys.ParsePrivateKey(p.sctx.cfg.Session.GetTLSPriv())
 	if err != nil {
@@ -229,7 +241,13 @@ func (p *podHandler) handler(r *http.Request) error {
 		Width:  p.req.Term.Winsize().Width,
 		Height: p.req.Term.Winsize().Height,
 	})
-	stream := terminal.NewStream(ctx, terminal.StreamConfig{WS: p.ws, Logger: p.log, Handlers: map[string]terminal.WSHandlerFunc{defaults.WebsocketResize: p.handleResize(resizeQueue)}})
+	stream := terminal.NewStream(ctx, terminal.StreamConfig{
+		WS:     p.ws,
+		Logger: p.logger,
+		Handlers: map[string]terminal.WSHandlerFunc{
+			defaults.WebsocketResize: p.handleResize(resizeQueue),
+		},
+	})
 
 	certsReq := clientproto.UserCertsRequest{
 		TLSPublicKey:      publicKeyPEM,
@@ -241,19 +259,13 @@ func (p *podHandler) handler(r *http.Request) error {
 		Usage:             clientproto.UserCertsRequest_Kubernetes,
 	}
 
-	_, certs, err := client.PerformMFACeremony(ctx, client.PerformMFACeremonyParams{
+	_, certs, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: p.userClient,
 		RootAuthClient:    p.sctx.cfg.RootClient,
-		MFAPrompt: mfa.PromptFunc(func(ctx context.Context, chal *clientproto.MFAAuthenticateChallenge) (*clientproto.MFAAuthenticateResponse, error) {
-			assertion, err := promptMFAChallenge(stream.WSStream, protobufMFACodec{}).Run(ctx, chal)
-			return assertion, trace.Wrap(err)
-		}),
-		MFAAgainstRoot: p.sctx.cfg.RootClusterName == p.teleportCluster,
+		MFACeremony:       newMFACeremony(stream.WSStream, p.sctx.cfg.RootClient.CreateAuthenticateChallenge),
+		MFAAgainstRoot:    p.sctx.cfg.RootClusterName == p.teleportCluster,
 		MFARequiredReq: &clientproto.IsMFARequiredRequest{
 			Target: &clientproto.IsMFARequiredRequest_KubernetesCluster{KubernetesCluster: p.req.KubeCluster},
-		},
-		ChallengeExtensions: mfav1.ChallengeExtensions{
-			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
 		},
 		CertsReq: &certsReq,
 	})
@@ -290,7 +302,7 @@ func (p *podHandler) handler(r *http.Request) error {
 	}
 
 	kubeReq.VersionedParams(option, scheme.ParameterCodec)
-	p.log.Debugf("Web kube exec request URL: %s", kubeReq.URL())
+	p.logger.DebugContext(ctx, "Web kube exec request created", "url", logutils.StringerAttr(kubeReq.URL()))
 
 	wsExec, err := remotecommand.NewWebSocketExecutor(restConfig, "POST", kubeReq.URL().String())
 	if err != nil {
@@ -321,16 +333,16 @@ func (p *podHandler) handler(r *http.Request) error {
 	if p.req.IsInteractive {
 		// Send close envelope to web terminal upon exit without an error.
 		if err := stream.SendCloseMessage(""); err != nil {
-			p.log.WithError(err).Error("unable to send close event to web client.")
+			p.logger.ErrorContext(ctx, "unable to send close event to web client", "error", err)
 		}
 	}
 
 	if err := stream.Close(); err != nil {
-		p.log.WithError(err).Error("unable to close websocket stream to web client.")
+		p.logger.ErrorContext(ctx, "unable to close websocket stream to web client", "error", err)
 		return nil
 	}
 
-	p.log.Debug("Sent close event to web client.")
+	p.logger.DebugContext(ctx, "Sent close event to web client", "error", err)
 
 	return nil
 }
@@ -339,19 +351,19 @@ func (p *podHandler) handleResize(termSizeQueue *termSizeQueue) func(context.Con
 	return func(ctx context.Context, envelope terminal.Envelope) {
 		var e map[string]any
 		if err := json.Unmarshal([]byte(envelope.Payload), &e); err != nil {
-			p.log.Warnf("Failed to parse resize payload: %v", err)
+			p.logger.WarnContext(ctx, "Failed to parse resize payload", "error", err)
 			return
 		}
 
 		size, ok := e["size"].(string)
 		if !ok {
-			p.log.Errorf("expected size to be of type string, got type %T instead", size)
+			p.logger.ErrorContext(ctx, "got unexpected size type, expected type string", "size_type", logutils.TypeAttr(size))
 			return
 		}
 
 		params, err := session.UnmarshalTerminalParams(size)
 		if err != nil {
-			p.log.Warnf("Failed to retrieve terminal size: %v", err)
+			p.logger.WarnContext(ctx, "Failed to retrieve terminal size", "error", err)
 			return
 		}
 

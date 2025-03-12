@@ -18,6 +18,7 @@ package main
 
 import (
 	"cmp"
+	"log/slog"
 	"slices"
 	"strconv"
 	"testing"
@@ -52,7 +53,7 @@ func newStartCmdConfig(t *testing.T) *StartCmdConfig {
 // TestStatePersist checks that state is persisted when StartTime stays constant
 func TestStatePersist(t *testing.T) {
 	config := newStartCmdConfig(t)
-	state, err := NewState(config)
+	state, err := NewState(config, slog.Default())
 	require.NoError(t, err)
 
 	startTime, errt := state.GetStartTime()
@@ -74,7 +75,7 @@ func TestStatePersist(t *testing.T) {
 	require.NoError(t, erri)
 	require.NoError(t, errt)
 
-	state, err = NewState(config)
+	state, err = NewState(config, slog.Default())
 	require.NoError(t, err)
 
 	startTime, errt = state.GetStartTime()
@@ -94,7 +95,7 @@ func TestStatePersist(t *testing.T) {
 
 func TestStateMissingRecordings(t *testing.T) {
 	config := newStartCmdConfig(t)
-	state, err := NewState(config)
+	state, err := NewState(config, slog.Default())
 	require.NoError(t, err)
 
 	// Iterating should find no records if nothing has been stored yet.

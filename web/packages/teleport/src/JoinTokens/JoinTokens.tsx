@@ -16,46 +16,53 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled from 'styled-components';
+import { addHours, isAfter } from 'date-fns';
 import { useEffect, useState } from 'react';
-import { isAfter, addHours } from 'date-fns';
+import styled from 'styled-components';
+
 import {
+  Alert,
   Box,
-  Text,
+  Button,
+  ButtonSecondary,
+  ButtonWarning,
   Flex,
   Indicator,
   Label,
-  Alert,
   Link,
+  Mark,
   MenuItem,
-  ButtonWarning,
-  ButtonSecondary,
-  Button,
+  Text,
 } from 'design';
 import Table, { Cell } from 'design/DataTable';
-import { Warning } from 'design/Icon';
 import Dialog, {
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
+import { Warning } from 'design/Icon';
+import { HoverTooltip } from 'design/Tooltip';
 import { MenuButton } from 'shared/components/MenuAction';
-import { Attempt, useAsync } from 'shared/hooks/useAsync';
-import { HoverTooltip } from 'shared/components/ToolTip';
 import { CopyButton } from 'shared/components/UnifiedResources/shared/CopyButton';
+import { Attempt, useAsync } from 'shared/hooks/useAsync';
 
 import { useTeleport } from 'teleport';
-import useResources from 'teleport/components/useResources';
-
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { JoinToken } from 'teleport/services/joinToken';
-import { Resource, KindJoinToken } from 'teleport/services/resources';
 import ResourceEditor from 'teleport/components/ResourceEditor';
+import {
+  InfoExternalTextLink,
+  InfoGuideWrapper,
+  InfoParagraph,
+  ReferenceLinks,
+} from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
+import useResources from 'teleport/components/useResources';
+import { JoinToken } from 'teleport/services/joinToken';
+import { KindJoinToken, Resource } from 'teleport/services/resources';
 
 import { UpsertJoinTokenDialog } from './UpsertJoinTokenDialog';
 
@@ -137,18 +144,21 @@ export const JoinTokens = () => {
           border-bottom: none;
         `}
         alignItems="center"
+        justifyContent="space-between"
       >
         <FeatureHeaderTitle>Join Tokens</FeatureHeaderTitle>
         {!creatingToken && !editingToken && (
-          <Button
-            intent="primary"
-            fill="border"
-            ml="auto"
-            width="240px"
-            onClick={() => setCreatingToken(true)}
-          >
-            Create new Token
-          </Button>
+          <InfoGuideWrapper guide={<InfoGuide />}>
+            <Button
+              intent="primary"
+              fill="border"
+              ml="auto"
+              width="240px"
+              onClick={() => setCreatingToken(true)}
+            >
+              Create New Token
+            </Button>
+          </InfoGuideWrapper>
         )}
       </FeatureHeader>
       <Flex>
@@ -325,11 +335,8 @@ const NameCell = ({ token }: { token: JoinToken }) => {
     <Cell
       align="left"
       style={{
-        minWidth: '320px',
+        maxWidth: '320px',
         fontFamily: 'monospace',
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -337,13 +344,18 @@ const NameCell = ({ token }: { token: JoinToken }) => {
       <Flex alignItems="center" gap={2}>
         <Text
           css={`
-            text-overflow: clip;
-            overflow-x: auto;
+            overflow-wrap: break-word;
           `}
         >
           {method !== 'token' ? id : safeName}
         </Text>
-        {hovered && <CopyButton name={id} />}
+        <Box
+          css={`
+            visibility: ${hovered ? 'visible' : 'hidden'};
+          `}
+        >
+          <CopyButton name={id} />
+        </Box>
       </Flex>
     </Cell>
   );
@@ -368,7 +380,7 @@ function TokenDelete({
   attempt,
 }: {
   token: JoinToken;
-  onDelete: (token: string) => Promise<any>;
+  onDelete: () => void;
   onClose: () => void;
   attempt: Attempt<void>;
 }) {
@@ -390,8 +402,9 @@ function TokenDelete({
             {` ${token.safeName}`}
           </Text>
           . This will not remove any resources that used this token to join the
-          cluster. This will remove the ability for any new resources to join
-          with this token and any non-renewable resource from renewing.
+          cluster. This will remove the ability for any new resources or
+          resources using non-renewable certificates from joining with this
+          token.
         </Text>
       </DialogContent>
       <DialogFooter>
@@ -443,7 +456,7 @@ const ActionCell = ({
 function Directions() {
   return (
     <>
-      WARNING Roles are defined using{' '}
+      WARNING Tokens are defined using{' '}
       <Link
         color="text.main"
         target="_blank"
@@ -455,3 +468,57 @@ function Directions() {
     </>
   );
 }
+
+const InfoGuideReferenceLinks = {
+  JoinTokens: {
+    title: 'Join Tokens',
+    href: 'https://goteleport.com/docs/reference/join-methods/',
+  },
+  DelegatedJoinMethods: {
+    title: 'Delegated Join Methods',
+    href: 'https://goteleport.com/docs/reference/join-methods/#delegated-join-methods',
+  },
+  SecretBasedJoinMethods: {
+    title: 'Secret-based Join Methods',
+    href: 'https://goteleport.com/docs/reference/join-methods/#secret-based-join-methods',
+  },
+};
+
+const InfoGuide = () => (
+  <Box>
+    <InfoParagraph>
+      <InfoExternalTextLink href={InfoGuideReferenceLinks.JoinTokens.href}>
+        Join Tokens
+      </InfoExternalTextLink>{' '}
+      are how a Teleport agent authenticates itself to the Teleport cluster.
+    </InfoParagraph>
+    <InfoParagraph>
+      There are Join Tokens for most types of infrastructure you can connect to
+      Teleport that establish an identity for that infrastructure using
+      metadata, such as AWS role, GitHub organization or TPM hash. These are
+      called{' '}
+      <InfoExternalTextLink
+        href={InfoGuideReferenceLinks.DelegatedJoinMethods.href}
+      >
+        delegated join methods
+      </InfoExternalTextLink>
+      . We recommend you use these methods whenever possible. When they are not
+      available, there are{' '}
+      <InfoExternalTextLink
+        href={InfoGuideReferenceLinks.SecretBasedJoinMethods.href}
+      >
+        secret-based join methods
+      </InfoExternalTextLink>{' '}
+      to fall back on.
+    </InfoParagraph>
+    <InfoParagraph>
+      Agents’ permission to provide different connection services are limited by
+      the system role of their join token. For example, if you want to provide
+      access to a HTTP application running on a server, but also want to provide
+      SSH access to that server, the join token it uses must have both the{' '}
+      <Mark>node</Mark>
+      and <Mark>app</Mark> permissions.
+    </InfoParagraph>
+    <ReferenceLinks links={Object.values(InfoGuideReferenceLinks)} />
+  </Box>
+);

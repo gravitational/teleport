@@ -37,7 +37,7 @@ func (h *Handler) azureOIDCConfigure(w http.ResponseWriter, r *http.Request, p h
 	ctx := r.Context()
 	queryParams := r.URL.Query()
 
-	oidcIssuer, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr)
+	oidcIssuer, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -66,8 +66,8 @@ func (h *Handler) azureOIDCConfigure(w http.ResponseWriter, r *http.Request, p h
 	}
 
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
-		TeleportArgs:   strings.Join(argsList, " "),
-		SuccessMessage: "Success! You can now go back to the browser to use the integration with Azure.",
+		EntrypointArgs: strings.Join(argsList, " "),
+		SuccessMessage: "Success! You can now go back to the Teleport Web UI to use the integration with Azure.",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

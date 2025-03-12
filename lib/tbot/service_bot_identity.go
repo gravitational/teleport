@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -36,8 +37,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -261,16 +262,17 @@ func (s *identityService) Run(ctx context.Context) error {
 	s.log.InfoContext(
 		ctx,
 		"Beginning bot identity renewal loop",
-		"ttl", s.cfg.CertificateTTL,
-		"interval", s.cfg.RenewalInterval,
+		"ttl", s.cfg.CredentialLifetime.TTL,
+		"interval", s.cfg.CredentialLifetime.RenewalInterval,
 	)
 
 	err := runOnInterval(ctx, runOnIntervalConfig{
-		name: "bot-identity-renewal",
+		service: s.String(),
+		name:    "bot-identity-renewal",
 		f: func(ctx context.Context) error {
 			return s.renew(ctx, storageDestination)
 		},
-		interval:             s.cfg.RenewalInterval,
+		interval:             s.cfg.CredentialLifetime.RenewalInterval,
 		exitOnRetryExhausted: true,
 		retryLimit:           botIdentityRenewalRetryLimit,
 		log:                  s.log,
@@ -332,7 +334,7 @@ func renewIdentity(
 		// When using a renewable join method, we use GenerateUserCerts to
 		// request a new certificate using our current identity.
 		newIdentity, err := botIdentityFromAuth(
-			ctx, log, oldIdentity, authClient, botCfg.CertificateTTL,
+			ctx, log, oldIdentity, authClient, botCfg.CredentialLifetime.TTL,
 		)
 		if err != nil {
 			return nil, trace.Wrap(err, "renewing identity using GenerateUserCert")
@@ -364,13 +366,26 @@ func botIdentityFromAuth(
 		return nil, trace.BadParameter("renewIdentityWithAuth must be called with non-nil client and identity")
 	}
 
-	// TODO(nklaassen): split SSH and TLS keys in identity.
-	sshPublicKey := ident.PublicKeyBytes
-	cryptoPubKey, err := sshutils.CryptoPublicKey(sshPublicKey)
+	// Always generate a new key when refreshing the identity. This limits
+	// usefulness of compromised keys to the lifetime of their associated cert,
+	// and allows for new keys to follow any changes to the signature algorithm
+	// suite.
+	key, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromAuthPreference(client),
+		cryptosuites.HostIdentity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsPublicKey, err := keys.MarshalPublicKey(cryptoPubKey)
+	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshPubKey, err := ssh.NewPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshPub := ssh.MarshalAuthorizedKey(sshPubKey)
+	tlsPub, err := keys.MarshalPublicKey(key.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -378,8 +393,8 @@ func botIdentityFromAuth(
 	// Ask the auth server to generate a new set of certs with a new
 	// expiration date.
 	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		SSHPublicKey: sshPublicKey,
-		TLSPublicKey: tlsPublicKey,
+		SSHPublicKey: sshPub,
+		TLSPublicKey: tlsPub,
 		Username:     ident.X509Cert.Subject.CommonName,
 		Expires:      time.Now().Add(ttl),
 	})
@@ -387,10 +402,11 @@ func botIdentityFromAuth(
 		return nil, trace.Wrap(err, "calling GenerateUserCerts")
 	}
 
-	newIdentity, err := identity.ReadIdentityFromStore(
-		ident.Params(),
-		certs,
-	)
+	newIdentity, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
+		PrivateKeyBytes: privateKeyPEM,
+		PublicKeyBytes:  sshPub,
+		TokenHashBytes:  ident.TokenHashBytes,
+	}, certs)
 	if err != nil {
 		return nil, trace.Wrap(err, "reading renewed identity")
 	}
@@ -415,26 +431,19 @@ func botIdentityFromToken(
 
 	log.InfoContext(ctx, "Fetching bot identity using token")
 
-	tlsPrivateKey, sshPublicKey, tlsPublicKey, err := generateKeys()
-	if err != nil {
-		return nil, trace.Wrap(err, "unable to generate new keypairs")
-	}
-
 	token, err := cfg.Onboarding.Token()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	expires := time.Now().Add(cfg.CertificateTTL)
+	expires := time.Now().Add(cfg.CredentialLifetime.TTL)
 	params := join.RegisterParams{
 		Token: token,
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
-		PublicTLSKey: tlsPublicKey,
-		PublicSSHKey: sshPublicKey,
-		JoinMethod:   cfg.Onboarding.JoinMethod,
-		Expires:      &expires,
+		JoinMethod: cfg.Onboarding.JoinMethod,
+		Expires:    &expires,
 
 		// Below options are effectively ignored if AuthClient is not-nil
 		Insecure:           cfg.Insecure,
@@ -472,16 +481,30 @@ func botIdentityFromToken(
 		}
 	}
 
-	certs, err := join.Register(ctx, params)
+	if params.JoinMethod == types.JoinMethodTerraformCloud {
+		params.TerraformCloudAudienceTag = cfg.Onboarding.Terraform.AudienceTag
+	}
+
+	result, err := join.Register(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	privateKeyPEM, err := keys.MarshalPrivateKey(result.PrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshPub, err := ssh.NewPublicKey(result.PrivateKey.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	sha := sha256.Sum256([]byte(params.Token))
 	tokenHash := hex.EncodeToString(sha[:])
 	ident, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
-		PrivateKeyBytes: tlsPrivateKey,
-		PublicKeyBytes:  sshPublicKey,
+		PrivateKeyBytes: privateKeyPEM,
+		PublicKeyBytes:  ssh.MarshalAuthorizedKey(sshPub),
 		TokenHashBytes:  []byte(tokenHash),
-	}, certs)
+	}, result.Certs)
 	return ident, trace.Wrap(err)
 }

@@ -19,6 +19,7 @@
 package awsoidc
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/http/httptest"
@@ -29,22 +30,25 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
-	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib"
+	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
 func TestIdPIAMConfigReqDefaults(t *testing.T) {
 	baseIdPIAMConfigReq := func() IdPIAMConfigureRequest {
 		return IdPIAMConfigureRequest{
-			Cluster:            "mycluster",
-			IntegrationName:    "myintegration",
-			IntegrationRole:    "integrationrole",
-			ProxyPublicAddress: "https://proxy.example.com",
+			Cluster:                 "mycluster",
+			IntegrationName:         "myintegration",
+			IntegrationRole:         "integrationrole",
+			ProxyPublicAddress:      "https://proxy.example.com",
+			IntegrationPolicyPreset: "",
+			AutoConfirm:             true,
 		}
 	}
 
@@ -70,6 +74,8 @@ func TestIdPIAMConfigReqDefaults(t *testing.T) {
 					"teleport.dev/integration": "myintegration",
 					"teleport.dev/origin":      "integration_awsoidc",
 				},
+				IntegrationPolicyPreset: PolicyPresetUnspecified,
+				AutoConfirm:             true,
 			},
 		},
 		{
@@ -104,6 +110,15 @@ func TestIdPIAMConfigReqDefaults(t *testing.T) {
 			req: func() IdPIAMConfigureRequest {
 				req := baseIdPIAMConfigReq()
 				req.IntegrationRole = ""
+				return req
+			},
+			errCheck: badParameterCheck,
+		},
+		{
+			name: "invalid preset type",
+			req: func() IdPIAMConfigureRequest {
+				req := baseIdPIAMConfigReq()
+				req.IntegrationPolicyPreset = "invalid_preset"
 				return req
 			},
 			errCheck: badParameterCheck,
@@ -167,6 +182,7 @@ func TestConfigureIdPIAM(t *testing.T) {
 			IntegrationName:    "myintegration",
 			IntegrationRole:    "integrationrole",
 			ProxyPublicAddress: tlsServer.URL,
+			AutoConfirm:        true,
 		}
 	}
 
@@ -196,19 +212,11 @@ func TestConfigureIdPIAM(t *testing.T) {
 			errCheck:           require.NoError,
 		},
 		{
-			name:               "role exists, no ownership tags",
-			mockAccountID:      "123456789012",
-			mockExistingIdPUrl: []string{},
-			mockExistingRoles:  map[string]mockRole{"integrationrole": {}},
-			req:                baseIdPIAMConfigReqWithTLServer,
-			errCheck:           badParameterCheck,
-		},
-		{
-			name:               "role exists, ownership tags, no assume role",
+			name:               "role exists with empty trust policy",
 			mockAccountID:      "123456789012",
 			mockExistingIdPUrl: []string{},
 			mockExistingRoles: map[string]mockRole{"integrationrole": {
-				tags: []iamTypes.Tag{
+				tags: []iamtypes.Tag{
 					{Key: aws.String("teleport.dev/origin"), Value: aws.String("integration_awsoidc")},
 					{Key: aws.String("teleport.dev/cluster"), Value: aws.String("mycluster")},
 					{Key: aws.String("teleport.dev/integration"), Value: aws.String("myintegration")},
@@ -226,14 +234,12 @@ func TestConfigureIdPIAM(t *testing.T) {
 			},
 		},
 		{
-			name:               "role exists, ownership tags, with existing assume role",
+			name:               "role exists with existing trust policy and without matching tags",
 			mockAccountID:      "123456789012",
 			mockExistingIdPUrl: []string{},
 			mockExistingRoles: map[string]mockRole{"integrationrole": {
-				tags: []iamTypes.Tag{
-					{Key: aws.String("teleport.dev/origin"), Value: aws.String("integration_awsoidc")},
-					{Key: aws.String("teleport.dev/cluster"), Value: aws.String("mycluster")},
-					{Key: aws.String("teleport.dev/integration"), Value: aws.String("myintegration")},
+				tags: []iamtypes.Tag{
+					{Key: aws.String("teleport.dev/origin"), Value: aws.String("should be overwritten")},
 				},
 				assumeRolePolicyDoc: policyDocWithStatementsJSON(
 					assumeRoleStatementJSON("some-other-issuer"),
@@ -248,14 +254,24 @@ func TestConfigureIdPIAM(t *testing.T) {
 					assumeRoleStatementJSON(tlsServerIssuer),
 				)
 				require.JSONEq(t, *expectedAssumeRolePolicyDoc, aws.ToString(role.assumeRolePolicyDoc))
+				gotTags := map[string]string{}
+				for _, tag := range role.tags {
+					gotTags[aws.ToString(tag.Key)] = aws.ToString(tag.Value)
+				}
+				wantTags := map[string]string{
+					"teleport.dev/origin":      "integration_awsoidc",
+					"teleport.dev/cluster":     "mycluster",
+					"teleport.dev/integration": "myintegration",
+				}
+				require.Equal(t, wantTags, gotTags)
 			},
 		},
 		{
-			name:               "role exists, ownership tags, assume role already exists",
+			name:               "role exists with matching trust policy",
 			mockAccountID:      "123456789012",
 			mockExistingIdPUrl: []string{},
 			mockExistingRoles: map[string]mockRole{"integrationrole": {
-				tags: []iamTypes.Tag{
+				tags: []iamtypes.Tag{
 					{Key: aws.String("teleport.dev/origin"), Value: aws.String("integration_awsoidc")},
 					{Key: aws.String("teleport.dev/cluster"), Value: aws.String("mycluster")},
 					{Key: aws.String("teleport.dev/integration"), Value: aws.String("myintegration")},
@@ -277,9 +293,9 @@ func TestConfigureIdPIAM(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			clt := mockIdPIAMConfigClient{
-				accountID:      tt.mockAccountID,
-				existingRoles:  tt.mockExistingRoles,
-				existingIDPUrl: tt.mockExistingIdPUrl,
+				CallerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
+				existingRoles:        tt.mockExistingRoles,
+				existingIDPUrl:       tt.mockExistingIdPUrl,
 			}
 
 			err := ConfigureIdPIAM(ctx, &clt, tt.req())
@@ -292,22 +308,151 @@ func TestConfigureIdPIAM(t *testing.T) {
 	}
 }
 
+func TestConfigureIdPIAMWithPresetPolicy(t *testing.T) {
+	ctx := context.Background()
+	tlsServer := httptest.NewTLSServer(nil)
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+	const mockAccountID string = "123456789012"
+	baseIdPIAMConfigReqWithTLServer := func() IdPIAMConfigureRequest {
+		return IdPIAMConfigureRequest{
+			Cluster:            "mycluster",
+			IntegrationName:    "myintegration",
+			IntegrationRole:    "integrationrole",
+			ProxyPublicAddress: tlsServer.URL,
+			AutoConfirm:        true,
+		}
+	}
+
+	for _, tt := range []struct {
+		name               string
+		mockExistingRoles  map[string]mockRole
+		mockExistingIdPUrl []string
+		req                func() IdPIAMConfigureRequest
+		errCheck           require.ErrorAssertionFunc
+		policyStatement    *awslib.Statement
+		externalStateCheck func(*testing.T, mockIdPIAMConfigClient)
+	}{
+		{
+			name: "without policy-preset",
+			req: func() IdPIAMConfigureRequest {
+				req := baseIdPIAMConfigReqWithTLServer()
+				req.IntegrationPolicyPreset = ""
+				return req
+			},
+			mockExistingIdPUrl: []string{},
+			mockExistingRoles:  map[string]mockRole{},
+			errCheck:           require.NoError,
+		},
+		{
+			name: "with PolicyPresetUnspecified",
+			req: func() IdPIAMConfigureRequest {
+				req := baseIdPIAMConfigReqWithTLServer()
+				req.IntegrationPolicyPreset = PolicyPresetUnspecified
+				return req
+			},
+			mockExistingIdPUrl: []string{},
+			mockExistingRoles:  map[string]mockRole{},
+			errCheck:           require.NoError,
+		},
+		{
+			name: "with PolicyPresetAWSIdentityCenter",
+			req: func() IdPIAMConfigureRequest {
+				req := baseIdPIAMConfigReqWithTLServer()
+				req.IntegrationPolicyPreset = PolicyPresetAWSIdentityCenter
+				return req
+			},
+			mockExistingIdPUrl: []string{},
+			mockExistingRoles:  map[string]mockRole{},
+			policyStatement:    awslib.StatementForAWSIdentityCenterAccess(),
+			errCheck:           require.NoError,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			clt := mockIdPIAMConfigClient{
+				CallerIdentityGetter: mockSTSClient{accountID: mockAccountID},
+				existingRoles:        tt.mockExistingRoles,
+				existingIDPUrl:       tt.mockExistingIdPUrl,
+			}
+
+			err := ConfigureIdPIAM(ctx, &clt, tt.req())
+			tt.errCheck(t, err)
+
+			role, ok := clt.existingRoles[(tt.req().IntegrationRole)]
+			require.True(t, ok)
+
+			if tt.req().IntegrationPolicyPreset == "" || tt.req().IntegrationPolicyPreset == PolicyPresetUnspecified {
+				require.Nil(t, role.presetPolicyDoc)
+			} else {
+				policyDocument, err := awslib.NewPolicyDocument(
+					tt.policyStatement,
+				).Marshal()
+				require.NoError(t, err)
+				require.NotEmpty(t, role.presetPolicyDoc)
+				require.Equal(t, &policyDocument, role.presetPolicyDoc)
+			}
+		})
+	}
+}
+
+var goldenIdPIAMConfigureRequest IdPIAMConfigureRequest = IdPIAMConfigureRequest{
+	Cluster:            "mycluster",
+	IntegrationName:    "myintegration",
+	IntegrationRole:    "integrationrole",
+	ProxyPublicAddress: "https://example.com",
+	AutoConfirm:        true,
+	fakeThumbprint:     "15dbd260c7465ecca6de2c0b2181187f66ee0d1a",
+}
+
+func TestConfigureIdPIAMOutput(t *testing.T) {
+	ctx := context.Background()
+	var buf bytes.Buffer
+	req := goldenIdPIAMConfigureRequest
+	req.stdout = &buf
+
+	clt := mockIdPIAMConfigClient{
+		CallerIdentityGetter: mockSTSClient{accountID: "123456789012"},
+		existingRoles:        map[string]mockRole{},
+		existingIDPUrl:       []string{},
+	}
+
+	require.NoError(t, ConfigureIdPIAM(ctx, &clt, req))
+	if golden.ShouldSet() {
+		golden.Set(t, buf.Bytes())
+	}
+	require.Equal(t, string(golden.Get(t)), buf.String())
+}
+
+func TestConfigureIdPIAMWithPolicyPresetOutput(t *testing.T) {
+	ctx := context.Background()
+	var buf bytes.Buffer
+	req := goldenIdPIAMConfigureRequest
+	req.stdout = &buf
+	req.IntegrationPolicyPreset = PolicyPresetAWSIdentityCenter
+
+	clt := mockIdPIAMConfigClient{
+		CallerIdentityGetter: mockSTSClient{accountID: "123456789012"},
+		existingRoles:        map[string]mockRole{},
+		existingIDPUrl:       []string{},
+	}
+
+	require.NoError(t, ConfigureIdPIAM(ctx, &clt, req))
+	if golden.ShouldSet() {
+		golden.Set(t, buf.Bytes())
+	}
+	require.Equal(t, string(golden.Get(t)), buf.String())
+}
+
 type mockRole struct {
 	assumeRolePolicyDoc *string
-	tags                []iamTypes.Tag
+	tags                []iamtypes.Tag
+	presetPolicyDoc     *string
 }
 
 type mockIdPIAMConfigClient struct {
-	accountID      string
+	CallerIdentityGetter
 	existingIDPUrl []string
 	existingRoles  map[string]mockRole
-}
-
-// GetCallerIdentity returns information about the caller identity.
-func (m *mockIdPIAMConfigClient) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
-	return &sts.GetCallerIdentityOutput{
-		Account: &m.accountID,
-	}, nil
 }
 
 // CreateRole creates a new IAM Role.
@@ -315,7 +460,7 @@ func (m *mockIdPIAMConfigClient) CreateRole(ctx context.Context, params *iam.Cre
 	alreadyExistsMessage := fmt.Sprintf("Role %q already exists.", *params.RoleName)
 	_, found := m.existingRoles[aws.ToString(params.RoleName)]
 	if found {
-		return nil, &iamTypes.EntityAlreadyExistsException{
+		return nil, &iamtypes.EntityAlreadyExistsException{
 			Message: &alreadyExistsMessage,
 		}
 	}
@@ -325,17 +470,35 @@ func (m *mockIdPIAMConfigClient) CreateRole(ctx context.Context, params *iam.Cre
 	}
 
 	return &iam.CreateRoleOutput{
-		Role: &iamTypes.Role{
+		Role: &iamtypes.Role{
 			Arn: aws.String("arn:something"),
 		},
 	}, nil
+}
+
+// PutRolePolicy assigns a policy to an existing IAM Role.
+func (m *mockIdPIAMConfigClient) PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error) {
+	doesNotExistMessage := fmt.Sprintf("Role %q does not exist.", *params.RoleName)
+	if _, ok := m.existingRoles[aws.ToString(params.RoleName)]; !ok {
+		return nil, &iamtypes.NoSuchEntityException{
+			Message: &doesNotExistMessage,
+		}
+	}
+
+	m.existingRoles[*params.RoleName] = mockRole{
+		tags:                m.existingRoles[*params.RoleName].tags,
+		assumeRolePolicyDoc: m.existingRoles[*params.RoleName].assumeRolePolicyDoc,
+		presetPolicyDoc:     params.PolicyDocument,
+	}
+
+	return &iam.PutRolePolicyOutput{}, nil
 }
 
 // CreateOpenIDConnectProvider creates an IAM OpenID Connect Provider.
 func (m *mockIdPIAMConfigClient) CreateOpenIDConnectProvider(ctx context.Context, params *iam.CreateOpenIDConnectProviderInput, optFns ...func(*iam.Options)) (*iam.CreateOpenIDConnectProviderOutput, error) {
 	alreadyExistsMessage := fmt.Sprintf("IdP with URL %q already exists.", *params.Url)
 	if slices.Contains(m.existingIDPUrl, *params.Url) {
-		return nil, &iamTypes.EntityAlreadyExistsException{
+		return nil, &iamtypes.EntityAlreadyExistsException{
 			Message: &alreadyExistsMessage,
 		}
 	}
@@ -353,7 +516,7 @@ func (m *mockIdPIAMConfigClient) GetRole(ctx context.Context, params *iam.GetRol
 		return nil, trace.NotFound("role not found")
 	}
 	return &iam.GetRoleOutput{
-		Role: &iamTypes.Role{
+		Role: &iamtypes.Role{
 			Tags:                     role.tags,
 			AssumeRolePolicyDocument: role.assumeRolePolicyDoc,
 		},
@@ -372,6 +535,25 @@ func (m *mockIdPIAMConfigClient) UpdateAssumeRolePolicy(ctx context.Context, par
 	m.existingRoles[aws.ToString(params.RoleName)] = role
 
 	return &iam.UpdateAssumeRolePolicyOutput{}, nil
+}
+
+func (m *mockIdPIAMConfigClient) TagRole(ctx context.Context, params *iam.TagRoleInput, _ ...func(*iam.Options)) (*iam.TagRoleOutput, error) {
+	roleName := aws.ToString(params.RoleName)
+	role, found := m.existingRoles[roleName]
+	if !found {
+		return nil, trace.NotFound("role not found")
+	}
+
+	tags := tags.AWSTags{}
+	for _, existingTag := range role.tags {
+		tags[*existingTag.Key] = *existingTag.Value
+	}
+	for _, newTag := range params.Tags {
+		tags[*newTag.Key] = *newTag.Value
+	}
+	role.tags = tags.ToIAMTags()
+	m.existingRoles[roleName] = role
+	return &iam.TagRoleOutput{}, nil
 }
 
 func TestNewIdPIAMConfigureClient(t *testing.T) {

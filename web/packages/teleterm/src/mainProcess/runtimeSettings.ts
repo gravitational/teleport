@@ -22,10 +22,9 @@ import path from 'path';
 
 import { app } from 'electron';
 
-import Logger from 'teleterm/logger';
-
-import { GrpcServerAddresses, RuntimeSettings } from './types';
 import { loadInstallationId } from './loadInstallationId';
+import { getAvailableShells, getDefaultShell } from './shell';
+import { GrpcServerAddresses, RuntimeSettings } from './types';
 
 const { argv, env } = process;
 
@@ -57,7 +56,7 @@ const insecure =
   // flag one level down.
   (dev && !!env.CONNECT_INSECURE);
 
-export function getRuntimeSettings(): RuntimeSettings {
+export async function getRuntimeSettings(): Promise<RuntimeSettings> {
   const userDataDir = app.getPath('userData');
   const sessionDataDir = app.getPath('sessionData');
   const tempDataDir = app.getPath('temp');
@@ -98,6 +97,7 @@ export function getRuntimeSettings(): RuntimeSettings {
   //
   // A workaround is to read the version from `process.env.npm_package_version`.
   const appVersion = dev ? process.env.npm_package_version : app.getVersion();
+  const availableShells = await getAvailableShells();
 
   return {
     dev,
@@ -112,7 +112,8 @@ export function getRuntimeSettings(): RuntimeSettings {
     binDir,
     agentBinaryPath: path.resolve(sessionDataDir, 'teleport', 'teleport'),
     certsDir: getCertsDir(),
-    defaultShell: getDefaultShell(),
+    availableShells,
+    defaultOsShellId: getDefaultShell(availableShells),
     kubeConfigsDir,
     logsDir,
     platform: process.platform,
@@ -201,29 +202,6 @@ function getBinaryPaths(): { binDir?: string; tshBinPath: string } {
 
 export function getAssetPath(...paths: string[]): string {
   return path.join(RESOURCES_PATH, 'assets', ...paths);
-}
-
-function getDefaultShell(): string {
-  const logger = new Logger();
-  switch (process.platform) {
-    case 'linux':
-    case 'darwin': {
-      const fallbackShell = 'bash';
-      const { shell } = os.userInfo();
-
-      if (!shell) {
-        logger.error(
-          `Failed to read ${process.platform} platform default shell, using fallback: ${fallbackShell}.\n`
-        );
-
-        return fallbackShell;
-      }
-
-      return shell;
-    }
-    case 'win32':
-      return 'powershell.exe';
-  }
 }
 
 /**

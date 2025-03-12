@@ -16,29 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useMemo, useRef } from 'react';
-import { debounce } from 'shared/utils/highbar';
-import { Box, ButtonSecondary, Flex, H1, H2, Link, Text } from 'design';
-import Validation from 'shared/components/Validation';
+import { useMemo, useRef } from 'react';
+
+import { Alert, Box, ButtonSecondary, Flex, H1, H2, Link, Text } from 'design';
 import * as Alerts from 'design/Alert';
+import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
+import Validation from 'shared/components/Validation';
+import { Attempt, RunFuncReturnValue } from 'shared/hooks/useAsync';
+import { debounce } from 'shared/utils/highbar';
 
 import { ConfigFieldInput, PortFieldInput } from '../components/FieldInputs';
-
 import { CliCommand } from './CliCommand';
-import { DocumentGatewayProps } from './DocumentGateway';
 
-type OnlineDocumentGatewayProps = Pick<
-  DocumentGatewayProps,
-  | 'changeDbNameAttempt'
-  | 'changePortAttempt'
-  | 'disconnect'
-  | 'changeDbName'
-  | 'changePort'
-  | 'gateway'
-  | 'runCliCommand'
->;
-
-export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
+export function OnlineDocumentGateway(props: {
+  changeDbName: (name: string) => RunFuncReturnValue<void>;
+  changeDbNameAttempt: Attempt<void>;
+  changePort: (port: string) => RunFuncReturnValue<void>;
+  changePortAttempt: Attempt<void>;
+  disconnect: () => RunFuncReturnValue<void>;
+  disconnectAttempt: Attempt<void>;
+  gateway: Gateway;
+  runCliCommand: () => void;
+}) {
   const isPortOrDbNameProcessing =
     props.changeDbNameAttempt.status === 'processing' ||
     props.changePortAttempt.status === 'processing';
@@ -65,14 +64,13 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
   const $errors = hasError && (
     <Flex flexDirection="column" gap={2} mb={3}>
       {props.changeDbNameAttempt.status === 'error' && (
-        <Alerts.Danger mb={0}>
-          Could not change the database name:{' '}
-          {props.changeDbNameAttempt.statusText}
+        <Alerts.Danger mb={0} details={props.changeDbNameAttempt.statusText}>
+          Could not change the database name
         </Alerts.Danger>
       )}
       {props.changePortAttempt.status === 'error' && (
-        <Alerts.Danger mb={0}>
-          Could not change the port number: {props.changePortAttempt.statusText}
+        <Alerts.Danger mb={0} details={props.changePortAttempt.statusText}>
+          Could not change the port number
         </Alerts.Danger>
       )}
     </Flex>
@@ -86,6 +84,13 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
           Close Connection
         </ButtonSecondary>
       </Flex>
+
+      {props.disconnectAttempt.status === 'error' && (
+        <Alert details={props.disconnectAttempt.statusText}>
+          Could not close the connection
+        </Alert>
+      )}
+
       <H2 mb={2}>Connect with CLI</H2>
       <Flex as="form" ref={formRef}>
         <Validation>
@@ -111,6 +116,7 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
         onButtonClick={props.runCliCommand}
       />
       {$errors}
+
       <H2 mt={3} mb={2}>
         Connect with GUI
       </H2>
@@ -129,7 +135,7 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
         The connection is made through an authenticated proxy so no extra
         credentials are necessary. See{' '}
         <Link
-          href="https://goteleport.com/docs/database-access/guides/gui-clients/"
+          href="https://goteleport.com/docs/connect-your-client/gui-clients/"
           target="_blank"
         >
           the documentation

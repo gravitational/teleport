@@ -1,5 +1,6 @@
 ---
 title: Reference for the teleport_access_list Terraform data-source
+sidebar_label: access_list
 description: This page describes the supported values of the teleport_access_list data-source of the Teleport Terraform provider.
 ---
 
@@ -16,7 +17,7 @@ description: This page describes the supported values of the teleport_access_lis
 ### Optional
 
 - `header` (Attributes) header is the header for the resource. (see [below for nested schema](#nested-schema-for-header))
-- `spec` (Attributes) spec is the specification for the access list. (see [below for nested schema](#nested-schema-for-spec))
+- `spec` (Attributes) spec is the specification for the Access List. (see [below for nested schema](#nested-schema-for-spec))
 
 ### Nested Schema for `header`
 
@@ -39,7 +40,7 @@ Required:
 Optional:
 
 - `description` (String) description is object description.
-- `expires` (String)
+- `expires` (String) expires is a global expiry time header can be set on any resource in the system.
 - `labels` (Map of String) labels is a set of labels.
 - `namespace` (String) namespace is object namespace. The field should be called "namespace" when it returns in Teleport 2.4.
 - `revision` (String) revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.
@@ -50,17 +51,17 @@ Optional:
 
 Required:
 
-- `audit` (Attributes) audit describes the frequency that this access list must be audited. (see [below for nested schema](#nested-schema-for-specaudit))
-- `grants` (Attributes) grants describes the access granted by membership to this access list. (see [below for nested schema](#nested-schema-for-specgrants))
-- `owners` (Attributes List) owners is a list of owners of the access list. (see [below for nested schema](#nested-schema-for-specowners))
+- `audit` (Attributes) audit describes the frequency that this Access List must be audited. (see [below for nested schema](#nested-schema-for-specaudit))
+- `grants` (Attributes) grants describes the access granted by membership to this Access List. (see [below for nested schema](#nested-schema-for-specgrants))
+- `owners` (Attributes List) owners is a list of owners of the Access List. (see [below for nested schema](#nested-schema-for-specowners))
 
 Optional:
 
-- `description` (String) description is an optional plaintext description of the access list.
-- `membership_requires` (Attributes) membership_requires describes the requirements for a user to be a member of the access list. For a membership to an access list to be effective, the user must meet the requirements of Membership_requires and must be in the members list. (see [below for nested schema](#nested-schema-for-specmembership_requires))
-- `owner_grants` (Attributes) owner_grants describes the access granted by owners to this access list. (see [below for nested schema](#nested-schema-for-specowner_grants))
-- `ownership_requires` (Attributes) ownership_requires describes the requirements for a user to be an owner of the access list. For ownership of an access list to be effective, the user must meet the requirements of ownership_requires and must be in the owners list. (see [below for nested schema](#nested-schema-for-specownership_requires))
-- `title` (String) title is a plaintext short description of the access list.
+- `description` (String) description is an optional plaintext description of the Access List.
+- `membership_requires` (Attributes) membership_requires describes the requirements for a user to be a member of the Access List. For a membership to an Access List to be effective, the user must meet the requirements of Membership_requires and must be in the members list. (see [below for nested schema](#nested-schema-for-specmembership_requires))
+- `owner_grants` (Attributes) owner_grants describes the access granted by owners to this Access List. (see [below for nested schema](#nested-schema-for-specowner_grants))
+- `ownership_requires` (Attributes) ownership_requires describes the requirements for a user to be an owner of the Access List. For ownership of an Access List to be effective, the user must meet the requirements of ownership_requires and must be in the owners list. (see [below for nested schema](#nested-schema-for-specownership_requires))
+- `title` (String) title is a plaintext short description of the Access List.
 
 ### Nested Schema for `spec.audit`
 
@@ -70,7 +71,7 @@ Required:
 
 Optional:
 
-- `next_audit_date` (String)
+- `next_audit_date` (String) next_audit_date is when the next audit date should be done by.
 - `notifications` (Attributes) notifications is the configuration for notifying users. (see [below for nested schema](#nested-schema-for-specauditnotifications))
 
 ### Nested Schema for `spec.audit.recurrence`
@@ -88,7 +89,7 @@ Optional:
 
 Optional:
 
-- `start` (String)
+- `start` (String) start specifies when to start notifying users that the next audit date is coming up.
 
 
 
@@ -96,8 +97,8 @@ Optional:
 
 Optional:
 
-- `roles` (List of String) roles are the roles that are granted to users who are members of the access list.
-- `traits` (Attributes List) traits are the traits that are granted to users who are members of the access list. (see [below for nested schema](#nested-schema-for-specgrantstraits))
+- `roles` (List of String) roles are the roles that are granted to users who are members of the Access List.
+- `traits` (Attributes List) traits are the traits that are granted to users who are members of the Access List. (see [below for nested schema](#nested-schema-for-specgrantstraits))
 
 ### Nested Schema for `spec.grants.traits`
 
@@ -113,6 +114,7 @@ Optional:
 Optional:
 
 - `description` (String) description is the plaintext description of the owner and why they are an owner.
+- `membership_kind` (Number) membership_kind describes the type of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
 - `name` (String) name is the username of the owner.
 
 
@@ -136,8 +138,8 @@ Optional:
 
 Optional:
 
-- `roles` (List of String) roles are the roles that are granted to users who are members of the access list.
-- `traits` (Attributes List) traits are the traits that are granted to users who are members of the access list. (see [below for nested schema](#nested-schema-for-specowner_grantstraits))
+- `roles` (List of String) roles are the roles that are granted to users who are members of the Access List.
+- `traits` (Attributes List) traits are the traits that are granted to users who are members of the Access List. (see [below for nested schema](#nested-schema-for-specowner_grantstraits))
 
 ### Nested Schema for `spec.owner_grants.traits`
 

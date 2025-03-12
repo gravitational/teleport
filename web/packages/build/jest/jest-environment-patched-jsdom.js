@@ -1,4 +1,6 @@
-import { TextEncoder, TextDecoder } from 'node:util';
+import { TransformStream } from 'node:stream/web';
+import { TextDecoder, TextEncoder } from 'node:util';
+import { BroadcastChannel } from 'node:worker_threads';
 
 import { TestEnvironment as JSDOMEnvironment } from 'jest-environment-jsdom';
 
@@ -32,6 +34,51 @@ export default class PatchedJSDOMEnvironment extends JSDOMEnvironment {
     // https://github.com/jsdom/jsdom/issues/1695#issuecomment-449931788
     if (!global.Element.prototype.scrollIntoView) {
       global.Element.prototype.scrollIntoView = () => {};
+    }
+
+    // TODO(gzdunek): Remove this once JSDOM provides matchMedia.
+    // https://github.com/jsdom/jsdom/issues/3522
+    if (!global.matchMedia) {
+      global.matchMedia = query => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => {},
+      });
+    }
+
+    // TODO(ravicious): JSDOM doesn't have BroadcastChannel and TransformStream which are used by msw.
+    // https://github.com/mswjs/msw/issues/2340
+    if (!global.BroadcastChannel) {
+      global.BroadcastChannel = BroadcastChannel;
+    }
+    if (!global.TransformStream) {
+      global.TransformStream = TransformStream;
+    }
+    // TODO(gzdunek): JSDOM doesn't support AbortSignal.any().
+    // Overwriting only this function doesn't help much, something between
+    // AbortSignal and AbortController is missing.
+    if (!global.AbortSignal.any) {
+      global.AbortSignal = AbortSignal;
+      global.AbortController = AbortController;
+    }
+    // TODO(gzdunek): Remove when JSDOM supports Set.prototype.difference.
+    // After the update to Node.js 22, we can replace the implementation with
+    // global.Set.prototype.difference = Set.prototype.difference.
+    if (!global.Set.difference) {
+      global.Set.prototype.difference = function (otherSet) {
+        const result = new Set();
+        for (const value of this) {
+          if (!otherSet.has(value)) {
+            result.add(value);
+          }
+        }
+        return result;
+      };
     }
   }
 }

@@ -16,9 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { AccessRequest } from 'shared/services/accessRequests';
-
 import { AccessRequest as TshdAccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
+import { AccessRequest } from 'shared/services/accessRequests';
 
 import { makeUiAccessRequest } from './useAccessRequests';
 

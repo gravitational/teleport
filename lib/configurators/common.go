@@ -114,8 +114,6 @@ type BootstrapFlags struct {
 type ConfiguratorActionContext struct {
 	// AWSPolicyArn AWS ARN of the created policy.
 	AWSPolicyArn string
-	// AWS ARN of the created policy boundary.
-	AWSPolicyBoundaryArn string
 }
 
 // ConfiguratorAction is single configurator action, its details can be retrieved

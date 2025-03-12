@@ -15,8 +15,8 @@
 | `backend_batch_write_seconds`                            | histogram | cache               | Latency for backend batch write operations.                                                        |
 | `backend_read_requests_total`                            | counter   | cache               | Number of read requests to the backend.                                                            |
 | `backend_read_seconds`                                   | histogram | cache               | Latency for read operations.                                                                       |
-| `backend_requests`                                       | counter   | cache               | Number of requests to the backend (reads, writes, and keepalives).                                                           |
-| `backend_write_requests_total`                           | counter   | cache               | Number of write requests to the backend. |
+| `backend_requests`                                       | counter   | cache               | Number of requests to the backend (reads, writes, and keepalives).                                 |
+| `backend_write_requests_total`                           | counter   | cache               | Number of write requests to the backend.                                                           |
 | `backend_write_seconds`                                  | histogram | cache               | Latency for backend write operations.                                                              |
 | `cluster_name_not_found_total`                           | counter   | Teleport Auth       | Number of times a cluster was not found.                                                           |
 | `dynamo_requests_total`                                  | counter   | DynamoDB            | Total number of requests to the DynamoDB API.                                                      |
@@ -31,7 +31,7 @@
 | `etcd_backend_write_requests`                            | counter   | etcd                | Number of write requests to the database.                                                          |
 | `etcd_backend_write_seconds`                             | histogram | etcd                | Latency for etcd write operations.                                                                 |
 | `teleport_etcd_events`                                   | counter   | etcd                | Total number of etcd events processed.                                                             |
-| `teleport_etcd_event_backpressure`                       | counter   | etcd                | Total number of times event processing encountered backpressure.                                      |
+| `teleport_etcd_event_backpressure`                       | counter   | etcd                | Total number of times event processing encountered backpressure.                                   |
 | `firestore_events_backend_batch_read_requests`           | counter   | GCP Cloud Firestore | Number of batch read requests to Cloud Firestore events.                                           |
 | `firestore_events_backend_batch_read_seconds`            | histogram | GCP Cloud Firestore | Latency for Cloud Firestore events batch read operations.                                          |
 | `firestore_events_backend_batch_write_requests`          | counter   | GCP Cloud Firestore | Number of batch write requests to Cloud Firestore events.                                          |
@@ -59,17 +59,18 @@
 | `teleport_audit_parquetlog_last_processed_timestamp`     | gauge     | Teleport Audit Log  | Number of last processing time in Parquet-format audit log.                                        |
 | `teleport_audit_parquetlog_age_oldest_processed_message` | gauge     | Teleport Audit Log  | Number of age of oldest event in Parquet-format audit log.                                         |
 | `teleport_audit_parquetlog_errors_from_collect_count`    | counter   | Teleport Audit Log  | Number of collect failures in Parquet-format audit log.                                            |
+| `teleport_connected_resources`                           | gauge     | Teleport Auth       | Number and type of resources connected via keepalives.                                            x |
 | `teleport_postgres_events_backend_write_requests`        | counter   | Postgres (Events)   | Number of write requests to postgres events, labeled with the request `status` (success or failure). |
 | `teleport_postgres_events_backend_batch_read_requests`   | counter   | Postgres (Events)   | Number of batch read requests to postgres events, labeled with the request `status` (success or failure). |
 | `teleport_postgres_events_backend_batch_delete_requests` | counter   | Postgres (Events)   | Number of batch delete requests to postgres events, labeled with the request `status` (success or failure). |
 | `teleport_postgres_events_backend_write_seconds`         | histogram | Postgres (Events)   | Latency for postgres events write operations, in seconds.                                          |
 | `teleport_postgres_events_backend_batch_read_seconds`    | histogram | Postgres (Events)   | Latency for postgres events batch read operations, in seconds.                                     |
 | `teleport_postgres_events_backend_batch_delete_seconds`  | histogram | Postgres (Events)   | Latency for postgres events batch delete operations, in seconds.                                   |
-| `teleport_connected_resources`                           | gauge     | Teleport Auth       | Number and type of resources connected via keepalives.                                             |
 | `teleport_registered_servers`                            | gauge     | Teleport Auth       | The number of Teleport services that are connected to an Auth Service instance grouped by version. |
 | `teleport_registered_servers_by_install_methods`         | gauge     | Teleport Auth       | The number of Teleport services that are connected to an Auth Service instance grouped by install methods. |
-| `user_login_total`                                       | counter   | Teleport Auth       | Number of user logins.                                                                             |
+| `teleport_roles_total`                                   | gauge     | Teleport Auth       | The number of roles that exist in the cluster.                                                     |
 | `teleport_migrations`                                    | gauge     | Teleport Auth       | Tracks for each migration if it is active (1) or not (0).                                          |
+| `user_login_total`                                       | counter   | Teleport Auth       | Number of user logins.                                                                             |
 | `watcher_event_sizes`                                    | histogram | cache               | Overall size of events emitted.                                                                    |
 | `watcher_events`                                         | histogram | cache               | Per resource size of events emitted.                                                               |
 
@@ -110,13 +111,13 @@
 | `remote_clusters`                                      | gauge     | Teleport Proxy | Number of inbound connections from leaf clusters.                                                                                        |
 | `teleport_connect_to_node_attempts_total`              | counter   | Teleport Proxy | Number of SSH connection attempts to a SSH Service. Use with `failed_connect_to_node_attempts_total` to get the failure rate.            |
 | `teleport_reverse_tunnels_connected`                   | gauge     | Teleport Proxy | Number of reverse SSH tunnels connected to the Teleport Proxy Service by Teleport instances.                                             |
-| `trusted_clusters`                                     | gauge     | Teleport Proxy | Number of outbound connections to leaf clusters.                                                                                         |
 | `teleport_proxy_db_connection_setup_time_seconds`      | histogram | Teleport Proxy | Time to establish connection to DB service from Proxy service.                                                                           |
 | `teleport_proxy_db_connection_dial_attempts_total`     | counter   | Teleport Proxy | Number of dial attempts from Proxy to DB service made.                                                                                   |
 | `teleport_proxy_db_connection_dial_failures_total`     | counter   | Teleport Proxy | Number of failed dial attempts from Proxy to DB service made.                                                                            |
 | `teleport_proxy_db_attempted_servers_total`            | histogram | Teleport Proxy | Number of servers processed during connection attempt to the DB service from Proxy service.                                              |
 | `teleport_proxy_db_connection_tls_config_time_seconds` | histogram | Teleport Proxy | Time to fetch TLS configuration for the connection to DB service from Proxy service.                                                     |
 | `teleport_proxy_db_active_connections_total`           | gauge     | Teleport Proxy | Number of currently active connections to DB service from Proxy service.                                                                 |
+| `trusted_clusters`                                     | gauge     | Teleport Proxy | Number of outbound connections to leaf clusters.                                                                                         |
 
 ## Database Service
 
@@ -132,10 +133,10 @@
 | `teleport_db_connection_setup_time_seconds` | histogram | Teleport Database Service | Initial time to setup DB connection, before any requests are handled.  |
 | `teleport_db_errors_total`                  | counter   | Teleport Database Service | Number of synthetic DB errors sent to the client.                      |
 
-### Kubernetes Access
+### Kubernetes access
 
-The following tables identify all metrics available in the proxy service if
-Kubernetes access is enabled.
+The following tables identify all metrics available in the Teleport Proxy
+Service if at least one Kubernetes cluster is enrolled in your Teleport cluster.
 
 #### Client
 

@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strconv"
 	"sync"
 	"time"
 
@@ -34,12 +35,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -61,6 +60,10 @@ type Features struct {
 	SupportType proto.SupportType
 	// Entitlements reflect Cloud Entitlements including access and limits
 	Entitlements map[entitlements.EntitlementKind]EntitlementInfo
+	// CloudAnonymizationKey is the key used to anonymize usage events in a cluster.
+	// Only applicable for Cloud customers (self-hosted clusters get their anonymization key from the
+	// license file).
+	CloudAnonymizationKey []byte
 
 	// todo (michellescripts) have the following fields evaluated for deprecation, consolidation, or fetch from Cloud
 	// AdvancedAccessWorkflows is currently set to the value of the Cloud Access Requests entitlement
@@ -128,6 +131,7 @@ func (f Features) ToProto() *proto.Features {
 		RecoveryCodes:              f.RecoveryCodes,
 		AccessMonitoringConfigured: f.AccessMonitoringConfigured,
 		Entitlements:               f.EntitlementsToProto(),
+		CloudAnonymizationKey:      f.CloudAnonymizationKey,
 	}
 
 	// remove setLegacyLogic in v18
@@ -234,6 +238,9 @@ type AccessResourcesGetter interface {
 	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 
+	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
+	GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error)
+
 	ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
 
@@ -255,8 +262,12 @@ type AccessListSuggestionClient interface {
 type RoleGetter interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 }
-type AccessListGetter interface {
+
+type AccessListAndMembersGetter interface {
 	GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error)
+	GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error)
+	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 }
 
 // Modules defines interface that external libraries can implement customizing
@@ -281,7 +292,7 @@ type Modules interface {
 	// GenerateAccessRequestPromotions generates a list of valid promotions for given access request.
 	GenerateAccessRequestPromotions(context.Context, AccessResourcesGetter, types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 	// GetSuggestedAccessLists generates a list of valid promotions for given access request.
-	GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt AccessListSuggestionClient, accessListGetter AccessListGetter, requestID string) ([]*accesslist.AccessList, error)
+	GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt AccessListSuggestionClient, accessListGetter AccessListAndMembersGetter, requestID string) ([]*accesslist.AccessList, error)
 	// EnableRecoveryCodes enables the usage of recovery codes for resetting forgotten passwords
 	EnableRecoveryCodes()
 	// EnablePlugins enables the hosted plugins runtime
@@ -290,6 +301,8 @@ type Modules interface {
 	EnableAccessGraph()
 	// EnableAccessMonitoring enables the usage of access monitoring.
 	EnableAccessMonitoring()
+	// LicenseExpiry returns the expiry date of the enterprise license, if applicable.
+	LicenseExpiry() time.Time
 }
 
 const (
@@ -321,14 +334,13 @@ var ErrCannotDisableSecondFactor = errors.New("cannot disable multi-factor authe
 
 // ValidateResource performs additional resource checks.
 func ValidateResource(res types.Resource) error {
-	// todo(lxea): DELETE IN 17 [remove env var, leave insecure test mode]
+	// todo(tross): DELETE WHEN ABLE TO [remove env var, leave insecure test mode]
+	allowNoSecondFactor, _ := strconv.ParseBool(os.Getenv(teleport.EnvVarAllowNoSecondFactor))
 	if GetModules().Features().Cloud ||
-		(os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "yes" && !IsInsecureTestMode()) {
-
+		(!allowNoSecondFactor && !IsInsecureTestMode()) {
 		switch r := res.(type) {
 		case types.AuthPreference:
-			switch r.GetSecondFactor() {
-			case constants.SecondFactorOff, constants.SecondFactorOptional:
+			if !r.IsSecondFactorEnforced() {
 				return trace.Wrap(ErrCannotDisableSecondFactor)
 			}
 		}
@@ -379,6 +391,12 @@ func (p *defaultModules) PrintVersion() {
 	fmt.Printf("Teleport v%s git:%s %s\n", teleport.Version, teleport.Gitref, runtime.Version())
 }
 
+// LicenseExpiry returns the expiry date of the enterprise license, if applicable.
+// Returns the zero value for time.Time for OSS.
+func (p *defaultModules) LicenseExpiry() time.Time {
+	return time.Time{}
+}
+
 // Features returns supported features for default modules which is applied for OSS users
 // todo (michellescripts) remove deprecated features
 func (p *defaultModules) Features() Features {
@@ -405,7 +423,7 @@ func (p *defaultModules) SetFeatures(f Features) {
 }
 
 func (p *defaultModules) IsBoringBinary() bool {
-	return native.IsBoringBinary()
+	return IsBoringBinary()
 }
 
 // AttestHardwareKey attests a hardware key.
@@ -421,7 +439,7 @@ func (p *defaultModules) GenerateAccessRequestPromotions(_ context.Context, _ Ac
 }
 
 func (p *defaultModules) GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt AccessListSuggestionClient,
-	accessListGetter AccessListGetter, requestID string,
+	accessListGetter AccessListAndMembersGetter, requestID string,
 ) ([]*accesslist.AccessList, error) {
 	return nil, trace.NotImplemented("GetSuggestedAccessLists not implemented")
 }

@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled, { css } from 'styled-components';
 
 /** State of an authentication method (password, MFA method, or passkey). */
@@ -59,13 +58,13 @@ function statePillStyles({ state }: StatePillProps): ReturnType<typeof css> {
     case 'active':
       return css`
         background-color: ${props =>
-          props.theme.colors.interactive.tonal.success[0].background};
+          props.theme.colors.interactive.tonal.success[0]};
         color: ${props => props.theme.colors.success.main};
       `;
     case 'inactive':
       return css`
         background-color: ${props =>
-          props.theme.colors.interactive.tonal.neutral[0].background};
+          props.theme.colors.interactive.tonal.neutral[0]};
         color: ${props => props.theme.colors.text.disabled};
       `;
     default:

@@ -1,0 +1,168 @@
+---
+title: Run the Teleport Terraform Provider Locally
+description: How to manage dynamic resources using the Teleport Terraform provider from your workstation.
+---
+
+This guide covers how to run the Teleport terraform provider from your local computer,
+where you are already logged in Teleport as yourself.
+
+This guide does not cover running Teleport in remote environments such as a cloud VM, an on-prem server,
+or CI/CD pipelines. If you are in one of those cases, please follow the dedicated guides:
+- [Run the Terraform Provider in CI or cloud VMs](./ci-or-cloud.mdx)
+- [Run the Terraform Provider on a server](./dedicated-server.mdx)
+
+## How it works
+
+This setup relies on the user's local credentials (from `tsh login`) to create a temporary bot in Teleport,
+connect as the bot to obtain short-lived credentials, and export those credentials in the shell's environment variables.
+Every Terraform command run in this same terminal will then read credentials from environment variables and be able to
+connect to Teleport as the temporary bot.
+
+## Prerequisites
+
+- A running Teleport Cluster whose version is higher than 16.2
+- Local tsh/tctl clients with versions higher than 16.2
+- Being locally logged in Teleport with a role that allows creating Bot and Token resources.
+  You can use the default `editor` role for this.
+
+To check that you can connect to your Teleport cluster, sign in with `tsh login`, then
+verify that you can run `tctl` commands using your current credentials.
+`tctl` is supported on macOS and Linux machines.
+
+For example:
+
+```code
+$ tsh login --proxy=teleport.example.com --user=email@example.com
+$ tctl status
+# Cluster  (=teleport.url=)
+# Version  (=teleport.version=)
+# CA pin   (=presets.ca_pin=)
+```
+
+Validate that you meet the version requirements (16.2 or greater) by running:
+
+```code
+$ tsh status
+Teleport v(=teleport.version=) go(=teleport.golang=)
+Proxy version: (=teleport.version=)
+Proxy: <Var name="teleport.example.com:443" />
+```
+
+## Step 1/2. Generate temporary bot credentials
+
+In this step, you will use `tctl` and your local credentials to create a temporary bot in Teleport for the Terraform
+provider. The bot will exist for one hour and will be granted the default `terraform-provider` role that can edit every
+resource the TF provider supports.
+
+`tctl` will then obtain credentials for the temporary bot and export them in your shell's environment variables.
+If [MFA for Administrative Actions](../../../admin-guides/access-controls/guides/mfa-for-admin-actions.mdx)
+is enabled on your cluster, `tctl` will prompt for your MFA.
+
+Run the following command, do not remove the `eval` as it is required to load credentials in your shell:
+
+```code
+$ eval "$(tctl terraform env)"
+🔑 Detecting if MFA is required
+This is an admin-level action and requires MFA to complete
+Tap any security key
+Detected security key tap
+⚙️ Creating temporary bot "tctl-terraform-env-82ab1a2e" and its token
+🤖 Using the temporary bot to obtain certificates
+🚀 Certificates obtained, you can now use Terraform in this terminal for 1h0m0s
+```
+
+
+## Step 2/2. Run the Terraform provider
+
+At this point, you got valid credentials in your shell's environment variables for one hour.
+You can run the Teleport Terraform provider from this shell.
+
+<Admonition type="important">
+    Only the shell you ran `eval "$(tctl terraform env)"` in has the Bot credentials.
+    If you close this shell or open a new one, you will need to do the first step again.
+</Admonition>
+
+
+1. Create a `main.tf` file containing this minimal Terraform code:
+
+   ```hcl
+   terraform {
+     required_providers {
+       teleport = {
+         source  = "terraform.releases.teleport.dev/gravitational/teleport"
+         version = "~> (=teleport.major_version=).0"
+       }
+     }
+   }
+   
+   provider "teleport" {
+     addr               = "<Var name="teleport.example.com:443" />"
+   }
+   
+   # We must create a test role, if we don't declare resources, Terraform won't try to
+   # connect to Teleport and we won't be able to validate the setup.
+   resource "teleport_role" "test" {
+     version = "v7"
+     metadata = {
+       name        = "test"
+       description = "Dummy role to validate Terraform Provider setup"
+       labels = {
+         test = "yes"
+       }
+     }
+   
+     spec = {}
+   }
+   ```
+   
+1. Then, init your Terraform working directory to download the Teleport provider:
+   
+   ```code
+   $ terraform init
+   Initializing the backend...
+   
+   Initializing provider plugins...
+   - Finding terraform.releases.teleport.dev/gravitational/teleport versions matching ...
+   ```
+   
+1. Finally, run a Terraform plan:
+
+   ```code
+   $ terraform plan
+   Terraform used the selected providers to generate the following execution plan. Resource actions are indicated with the following symbols:
+     + create
+   
+   Terraform will perform the following actions:
+   
+     # teleport_role.test will be created
+     + resource "teleport_role" "test" {
+         + id       = (known after apply)
+         + kind     = (known after apply)
+         + metadata = {
+             + name      = "test"
+             + namespace = (known after apply)
+           }
+         + spec     = {}
+         + version  = "v7"
+       }
+   
+   Plan: 1 to add, 0 to change, 0 to destroy.
+   ```
+
+If the plan succeeds, the Terraform provider successfully connected to Teleport.
+You can now start developing locally with the Teleport Terraform provider.
+
+Do not forget to obtain new temporary credentials every hour by re-running `eval $(tctl terraform env)`.
+
+## Next steps
+
+- Follow [the user and role IaC guide](../managing-resources/user-and-role.mdx) to use the Terraform
+  Provider to create Teleport users and grant them roles.
+- Consult the list of Terraform-supported
+  resources [in the Terraform
+  reference](../../../reference/terraform-provider/terraform-provider.mdx).
+- Once you have working Terraform code that configures your Teleport cluster,
+  you might want to run it in the CI or from a bastion instead of running it
+  locally. To do this, please follow the dedicated guides:
+  - [Run the Terraform Provider in CI or cloud VMs](./ci-or-cloud.mdx)
+  - [Run the Terraform Provider on a dedicated server](./dedicated-server.mdx)

@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func makeMetadataGetter(values map[string]string) metadataGetter {
+func makeMetadataGetter(values map[string]string) MetadataGetter {
 	return func(ctx context.Context, path string) (string, error) {
 		value, ok := values[path]
 		if ok {
@@ -58,7 +58,7 @@ func TestIsInstanceMetadataAvailable(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		getMetadata metadataGetter
+		getMetadata MetadataGetter
 		assert      require.BoolAssertionFunc
 	}{
 		{
@@ -130,7 +130,7 @@ func TestGetTags(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		getMetadata     metadataGetter
+		getMetadata     MetadataGetter
 		instancesClient *mockInstanceGetter
 		assertErr       require.ErrorAssertionFunc
 		expectedTags    map[string]string

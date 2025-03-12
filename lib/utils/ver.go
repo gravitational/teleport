@@ -25,21 +25,33 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// MeetsVersion returns true if gotVer is empty or at least minVer.
-func MeetsVersion(gotVer, minVer string) bool {
+// MeetsMinVersion returns true if gotVer is empty or at least minVer.
+func MeetsMinVersion(gotVer, minVer string) bool {
 	if gotVer == "" {
 		return true // Ignore empty versions.
 	}
 
-	err := CheckVersion(gotVer, minVer)
+	err := CheckMinVersion(gotVer, minVer)
 
 	// Non BadParameter errors are semver parsing errors.
 	return !trace.IsBadParameter(err)
 }
 
-// CheckVersion compares a version with a minimum version supported.
-func CheckVersion(currentVersion, minVersion string) error {
-	currentSemver, minSemver, err := versionStringToSemver(currentVersion, minVersion)
+// MeetsMaxVersion returns true if gotVer is empty or at most maxVer.
+func MeetsMaxVersion(gotVer, maxVer string) bool {
+	if gotVer == "" {
+		return true // Ignore empty versions.
+	}
+
+	err := CheckMaxVersion(gotVer, maxVer)
+
+	// Non BadParameter errors are semver parsing errors.
+	return !trace.IsBadParameter(err)
+}
+
+// CheckMinVersion compares a version with a minimum version supported.
+func CheckMinVersion(currentVersion, minVersion string) error {
+	currentSemver, minSemver, err := versionStringsToSemver(currentVersion, minVersion)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -51,16 +63,43 @@ func CheckVersion(currentVersion, minVersion string) error {
 	return nil
 }
 
+// CheckMaxVersion compares a version with a maximum version supported.
+func CheckMaxVersion(currentVersion, maxVersion string) error {
+	currentSemver, maxSemver, err := versionStringsToSemver(currentVersion, maxVersion)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if maxSemver.LessThan(*currentSemver) {
+		return trace.BadParameter("incompatible versions: %v > %v", currentVersion, maxVersion)
+	}
+
+	return nil
+}
+
 // VersionBeforeAlpha appends "-aa" to the version so that it comes before <version>-alpha.
 // This ban be used to make version checks work during development.
 func VersionBeforeAlpha(version string) string {
 	return version + "-aa"
 }
 
+// VersionWithoutPreRelease removes the prerelease suffix. Useful when showing
+// teleport.MinClientSemVersion, which by default comes with the -aa prerelease.
+func VersionWithoutPreRelease(version string) (string, error) {
+	semver, err := versionStringToSemver(version)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	semver.PreRelease = ""
+
+	return semver.String(), nil
+}
+
 // MinVerWithoutPreRelease compares semver strings, but skips prerelease. This allows to compare
 // two versions and ignore dev,alpha,beta, etc. strings.
 func MinVerWithoutPreRelease(currentVersion, minVersion string) (bool, error) {
-	currentSemver, minSemver, err := versionStringToSemver(currentVersion, minVersion)
+	currentSemver, minSemver, err := versionStringsToSemver(currentVersion, minVersion)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -82,16 +121,34 @@ func MajorSemver(version string) (string, error) {
 	return fmt.Sprintf("%d.0.0", ver.Major), nil
 }
 
-func versionStringToSemver(ver1, ver2 string) (*semver.Version, *semver.Version, error) {
-	v1Semver, err := semver.NewVersion(ver1)
+// MajorSemverWithWildcards returns the major version as a semver string.
+// Ex: 13.4.3 -> 13.x.x
+func MajorSemverWithWildcards(version string) (string, error) {
+	ver, err := semver.NewVersion(version)
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "unsupported version format, need semver format: %q, e.g 1.0.0", v1Semver)
+		return "", trace.Wrap(err)
+	}
+	return fmt.Sprintf("%d.x.x", ver.Major), nil
+}
+
+func versionStringsToSemver(ver1, ver2 string) (*semver.Version, *semver.Version, error) {
+	v1Semver, err := versionStringToSemver(ver1)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
 
-	v2Semver, err := semver.NewVersion(ver2)
+	v2Semver, err := versionStringToSemver(ver2)
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "unsupported version format, need semver format: %q, e.g 1.0.0", v2Semver)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	return v1Semver, v2Semver, nil
+}
+
+func versionStringToSemver(ver string) (*semver.Version, error) {
+	semver, err := semver.NewVersion(ver)
+	if err != nil {
+		return nil, trace.Wrap(err, "unsupported version format, need semver format: %q, e.g 1.0.0", semver)
+	}
+	return semver, nil
 }

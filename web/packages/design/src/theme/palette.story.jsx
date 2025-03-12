@@ -18,10 +18,7 @@
 
 /*eslint import/namespace: ['error', { allowComputed: true }]*/
 
-import React from 'react';
-
-import { Flex, Box } from '..';
-
+import { Box, Flex } from '..';
 import * as colors from './palette';
 import { getContrastText } from './themes/sharedStyles';
 

@@ -20,7 +20,7 @@ package common
 
 import (
 	"context"
-	"fmt"
+	"encoding/hex"
 	"log/slog"
 	"time"
 
@@ -181,7 +181,9 @@ func (a *UserProvisioner) makeAcquireSemaphoreConfig(sessionCtx *Session) servic
 		// in a minute anyway.
 		Request: types.AcquireSemaphoreRequest{
 			SemaphoreKind: "db-auto-users",
-			SemaphoreName: fmt.Sprintf("%v-%v", sessionCtx.Database.GetName(), sessionCtx.DatabaseUser),
+			// The name of the sempahore is encoded to prevent any invalid characters
+			// in a user's name from being rejected by the backend when creating the semaphore.
+			SemaphoreName: hex.EncodeToString([]byte(sessionCtx.Database.GetName() + "-" + sessionCtx.DatabaseUser)),
 			MaxLeases:     1,
 			Expires:       a.Clock.Now().Add(time.Minute),
 		},

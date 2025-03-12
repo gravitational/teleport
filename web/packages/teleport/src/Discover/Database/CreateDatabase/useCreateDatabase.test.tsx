@@ -16,32 +16,31 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { renderHook, act, waitFor } from '@testing-library/react';
 
-import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ContextProvider } from 'teleport';
-import {
-  DiscoverProvider,
-  DiscoverContextState,
-} from 'teleport/Discover/useDiscover';
-import api from 'teleport/services/api';
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-import { userEventService } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
 import {
   DatabaseEngine,
   DatabaseLocation,
 } from 'teleport/Discover/SelectResource';
 import {
-  IamPolicyStatus,
+  DiscoverContextState,
+  DiscoverProvider,
+} from 'teleport/Discover/useDiscover';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import api from 'teleport/services/api';
+import {
   CreateDatabaseRequest,
+  IamPolicyStatus,
 } from 'teleport/services/databases';
+import { userEventService } from 'teleport/services/userEvent';
 
 import {
-  useCreateDatabase,
   findActiveDatabaseSvc,
+  useCreateDatabase,
   WAITING_TIMEOUT,
 } from './useCreateDatabase';
 

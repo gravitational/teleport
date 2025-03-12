@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
 )
@@ -59,9 +60,14 @@ func TestAuditPostgres(t *testing.T) {
 	requireEvent(t, testCtx, libevents.DatabaseSessionStartFailureCode)
 
 	// Connect should trigger successful session start event.
-	psql, err := testCtx.postgresClient(ctx, "alice", "postgres", "postgres", "postgres")
+	userAgent := "psql"
+	psql, err := testCtx.postgresClient(ctx, "alice", "postgres", "postgres", "postgres", common.WithUserAgent(userAgent))
 	require.NoError(t, err)
-	requireEvent(t, testCtx, libevents.DatabaseSessionStartCode)
+	startEvt, ok := requireEvent(t, testCtx, libevents.DatabaseSessionStartCode).(*events.DatabaseSessionStart)
+	require.True(t, ok)
+	require.NotNil(t, startEvt)
+	require.NotZero(t, startEvt.PostgresPID)
+	require.Equal(t, userAgent, startEvt.ClientMetadata.UserAgent)
 
 	// Simple query should trigger the query event.
 	_, err = psql.Exec(ctx, "select 1").ReadAll()
@@ -416,8 +422,8 @@ func waitForAnyEvent(t *testing.T, testCtx *testContext) events.AuditEvent {
 	select {
 	case event := <-testCtx.emitter.C():
 		return event
-	case <-time.After(time.Second):
-		require.FailNow(t, "timed out waiting for an audit event", "didn't receive any event after 1 second")
+	case <-time.After(3 * time.Second):
+		require.FailNow(t, "timed out waiting for an audit event", "didn't receive any event in time")
 	}
 	return nil
 }
@@ -463,8 +469,8 @@ func waitForEvent(t *testing.T, testCtx *testContext, code string) events.AuditE
 				continue
 			}
 			return event
-		case <-time.After(time.Second):
-			require.FailNow(t, "timed out waiting for an audit event", "didn't receive %v event after 1 second", code)
+		case <-time.After(3 * time.Second):
+			require.FailNow(t, "timed out waiting for an audit event", "didn't receive %v event in time", code)
 		}
 	}
 }

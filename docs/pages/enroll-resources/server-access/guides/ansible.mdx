@@ -23,7 +23,7 @@ and run a sample ansible playbook.
 Log into Teleport with `tsh`:
 
 ```code
-$ tsh login --proxy=example.com
+$ tsh login --proxy=<Var name="teleport.example.com" />
 ```
 
 Generate `openssh` configuration using `tsh config` shortcut:
@@ -87,7 +87,7 @@ to a valid SSH username that works with the target host and is allowed by Telepo
 From the folder `ansible`, run the ansible playbook:
 
 ```code
-$ ansible-playbook playbook.yaml 
+$ ansible-playbook playbook.yaml
 
 # PLAY [all] *****************************************************************************************************************************************
 # TASK [Gathering Facts] *****************************************************************************************************************************
@@ -106,7 +106,7 @@ all ansible commands in the audit log.
 
 ## Troubleshooting
 
-In case if ansible can not connect, you may see error like this one:
+In cases where Ansible cannot connect, you may see an error like this:
 
 ```txt
 example.host | UNREACHABLE! => {
@@ -129,3 +129,31 @@ If `ssh` works, try running the playbook with verbose mode on:
 ```code
 $ ansible-playbook -vvvv playbook.yaml
 ```
+
+If your hostnames contain uppercase characters (like `MYHOSTNAME`), please note that Teleport's internal hostname matching
+is case sensitive by default, which can also lead to seeing this error.
+
+If this is the case, you can work around this by enabling case-insensitive routing at the cluster level.
+
+<Tabs>
+<TabItem label="Self-hosted Teleport">
+
+Edit your `/etc/teleport.yaml` config file on all servers running the Teleport `auth_service`, then restart Teleport on each.
+
+```yaml
+auth_service:
+  case_insensitive_routing: true
+```
+
+</TabItem>
+<TabItem label="Managed Teleport Enterprise/Cloud">
+
+Run `tctl edit cluster_networking_config` to add the following specification, then save and exit.
+
+```yaml
+spec:
+  case_insensitive_routing: true
+```
+
+</TabItem>
+</Tabs>

@@ -50,7 +50,7 @@ func (s *RestrictionsService) SetNetworkRestrictions(ctx context.Context, nr typ
 	}
 
 	item := backend.Item{
-		Key:      backend.Key(restrictionsPrefix, network),
+		Key:      backend.NewKey(restrictionsPrefix, network),
 		Value:    value,
 		Expires:  nr.Expiry(),
 		Revision: rev,
@@ -64,7 +64,7 @@ func (s *RestrictionsService) SetNetworkRestrictions(ctx context.Context, nr typ
 }
 
 func (s *RestrictionsService) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
-	item, err := s.Get(context.TODO(), backend.Key(restrictionsPrefix, network))
+	item, err := s.Get(context.TODO(), backend.NewKey(restrictionsPrefix, network))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -74,7 +74,7 @@ func (s *RestrictionsService) GetNetworkRestrictions(ctx context.Context) (types
 
 // SetNetworkRestrictions upserts NetworkRestrictions
 func (s *RestrictionsService) DeleteNetworkRestrictions(ctx context.Context) error {
-	return trace.Wrap(s.Delete(ctx, backend.Key(restrictionsPrefix, network)))
+	return trace.Wrap(s.Delete(ctx, backend.NewKey(restrictionsPrefix, network)))
 }
 
 const (

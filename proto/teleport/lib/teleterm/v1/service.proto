@@ -58,12 +58,17 @@ service TerminalService {
   // ListLeafClusters lists leaf clusters
   // Does not include detailed cluster information that would require a network request.
   rpc ListLeafClusters(ListLeafClustersRequest) returns (ListClustersResponse);
-  // GetDatabases returns a filtered and paginated list of databases
-  rpc GetDatabases(GetDatabasesRequest) returns (GetDatabasesResponse);
+  // StartHeadlessWatcher starts a headless watcher.
+  // If the watcher is already running, it is restarted.
+  rpc StartHeadlessWatcher(StartHeadlessWatcherRequest) returns (StartHeadlessWatcherResponse);
   // ListDatabaseUsers lists allowed users for the given database based on the role set.
   rpc ListDatabaseUsers(ListDatabaseUsersRequest) returns (ListDatabaseUsersResponse);
   // GetServers returns filtered, sorted, and paginated servers
-  rpc GetServers(GetServersRequest) returns (GetServersResponse);
+  //
+  // Deprecated: Use ListUnifiedResources instead.
+  rpc GetServers(GetServersRequest) returns (GetServersResponse) {
+    option deprecated = true;
+  }
   // GetAccessRequests lists filtered AccessRequests
   rpc GetAccessRequests(GetAccessRequestsRequest) returns (GetAccessRequestsResponse);
   // GetAccessRequest retreives a single Access Request
@@ -82,11 +87,10 @@ service TerminalService {
   rpc PromoteAccessRequest(PromoteAccessRequestRequest) returns (PromoteAccessRequestResponse);
   // GetSuggestedAccessLists returns suggested access lists for an access request.
   rpc GetSuggestedAccessLists(GetSuggestedAccessListsRequest) returns (GetSuggestedAccessListsResponse);
+  // ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
+  // Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
+  rpc ListKubernetesResources(ListKubernetesResourcesRequest) returns (ListKubernetesResourcesResponse);
 
-  // GetKubes returns filtered, sorted, and paginated kubes
-  rpc GetKubes(GetKubesRequest) returns (GetKubesResponse);
-  // GetApps returns a filtered and paginated list of apps.
-  rpc GetApps(GetAppsRequest) returns (GetAppsResponse);
   // AddCluster adds a cluster to profile
   rpc AddCluster(AddClusterRequest) returns (Cluster);
   // RemoveCluster removes a cluster from profile
@@ -173,6 +177,10 @@ service TerminalService {
   // See
   // https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-web-authentication.
   rpc AuthenticateWebDevice(AuthenticateWebDeviceRequest) returns (AuthenticateWebDeviceResponse);
+
+  // GetApp returns details of an app resource. It does not include information about AWS roles and
+  // FQDN.
+  rpc GetApp(GetAppRequest) returns (GetAppResponse);
 }
 
 message EmptyResponse {}
@@ -191,6 +199,12 @@ message GetClusterRequest {
 message LogoutRequest {
   string cluster_uri = 1;
 }
+
+message StartHeadlessWatcherRequest {
+  string root_cluster_uri = 1;
+}
+
+message StartHeadlessWatcherResponse {}
 
 // PasswordlessPrompt describes different prompts we need from users
 // during the passwordless login flow.
@@ -308,6 +322,36 @@ message GetSuggestedAccessListsResponse {
   repeated accesslist.v1.AccessList access_lists = 1;
 }
 
+message ListKubernetesResourcesRequest {
+  string cluster_uri = 1;
+  // ResourceType is the Kubernetes resource that is going to be retrieved.
+  string resource_type = 2;
+  // Limit is the maximum amount of resources to retrieve.
+  int32 limit = 3;
+  // NextKey is used to start listing resources from a specific spot. It
+  // should be set to the previous NextKey value if using pagination, or
+  // left empty.
+  string next_key = 4;
+  // PredicateExpression defines boolean conditions that will be matched against the resource.
+  string predicate_expression = 5;
+  // SearchKeywords is a string containing search keywords to match against resource field values.
+  string search_keywords = 6;
+  // UseSearchAsRoles indicates that the response should include all resources
+  // the caller is able to request access to using search_as_roles
+  bool use_search_as_roles = 7;
+  // Cluster is the Kubernetes Cluster to request the resources.
+  string kubernetes_cluster = 8;
+  // Namespace is the Kubernetes namespace where the resources must be located.
+  // To search on every Kubernetes Namespace, do not define the value.
+  string kubernetes_namespace = 9;
+}
+
+message ListKubernetesResourcesResponse {
+  repeated KubeResource resources = 1;
+  reserved 2;
+  reserved "next_key";
+}
+
 // CredentialInfo holds fields related to a user's WebAuthn credential.
 message CredentialInfo {
   string username = 1;
@@ -414,16 +458,6 @@ message ListClustersResponse {
   repeated Cluster clusters = 1;
 }
 
-message GetDatabasesRequest {
-  string cluster_uri = 1;
-  int32 limit = 2;
-  string start_key = 3;
-  string search = 4;
-  string query = 5;
-  string sort_by = 6;
-  string search_as_roles = 7;
-}
-
 message ListLeafClustersRequest {
   string cluster_uri = 1;
 }
@@ -475,44 +509,6 @@ message GetServersRequest {
 
 message GetServersResponse {
   repeated Server agents = 1;
-  int32 total_count = 2;
-  string start_key = 3;
-}
-
-message GetDatabasesResponse {
-  repeated Database agents = 1;
-  int32 total_count = 2;
-  string start_key = 3;
-}
-
-message GetKubesRequest {
-  string cluster_uri = 1;
-  int32 limit = 2;
-  string start_key = 3;
-  string search = 4;
-  string query = 5;
-  string sort_by = 6;
-  string search_as_roles = 7;
-}
-
-message GetKubesResponse {
-  repeated Kube agents = 1;
-  int32 total_count = 2;
-  string start_key = 3;
-}
-
-message GetAppsRequest {
-  string cluster_uri = 1;
-  int32 limit = 2;
-  string start_key = 3;
-  string search = 4;
-  string query = 5;
-  string sort_by = 6;
-  string search_as_roles = 7;
-}
-
-message GetAppsResponse {
-  repeated App agents = 1;
   int32 total_count = 2;
   string start_key = 3;
 }
@@ -667,4 +663,12 @@ message AuthenticateWebDeviceResponse {
   // Device confirmation token to be sent to the browser that originated the
   // authentication attempt.
   teleport.devicetrust.v1.DeviceConfirmationToken confirmation_token = 1;
+}
+
+message GetAppRequest {
+  string app_uri = 1;
+}
+
+message GetAppResponse {
+  App app = 1;
 }

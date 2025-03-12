@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -44,7 +45,7 @@ func newFakeKubeBackend() *fakeKubeBackend {
 }
 
 func (b *fakeKubeBackend) Put(ctx context.Context, item backend.Item) (*backend.Lease, error) {
-	b.data[string(item.Key)] = string(item.Value)
+	b.data[item.Key.String()] = string(item.Value)
 	return nil, nil
 }
 
@@ -182,6 +183,37 @@ func TestSystemdUnitDriver(t *testing.T) {
 	require.Equal(t, "", string(sb))
 }
 
+// TestSystemdUnitDriverNop verifies the nop schedule behavior of the systemd unit export driver.
+func TestSystemdUnitDriverNop(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// use a sub-directory of a temp dir in order to verify that
+	// driver creates dir when needed.
+	dir := filepath.Join(t.TempDir(), "config")
+
+	driver, err := NewSystemdUnitDriver(SystemdUnitDriverConfig{
+		ConfigDir: dir,
+	})
+	require.NoError(t, err)
+
+	err = driver.Sync(ctx, proto.ExportUpgradeWindowsResponse{
+		SystemdUnitSchedule: "fake-schedule",
+	})
+	require.NoError(t, err)
+
+	err = driver.ForceNop(ctx)
+	require.NoError(t, err)
+
+	schedPath := filepath.Join(dir, "schedule")
+	sb, err := os.ReadFile(schedPath)
+	require.NoError(t, err)
+
+	require.Equal(t, scheduleNop, string(sb))
+}
+
 // fakeDriver is used to inject custom behavior into a dummy Driver instance.
 type fakeDriver struct {
 	mu    sync.Mutex
@@ -207,6 +239,10 @@ func (d *fakeDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindowsRes
 	}
 
 	return nil
+}
+
+func (d *fakeDriver) ForceNop(ctx context.Context) error {
+	return trace.NotImplemented("force-nop not used by exporter")
 }
 
 func (d *fakeDriver) Reset(ctx context.Context) error {

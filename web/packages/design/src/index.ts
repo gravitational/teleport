@@ -16,30 +16,35 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Alert from './Alert';
+import { Alert, Banner } from './Alert';
 import Box from './Box';
 import {
   Button,
-  ButtonPrimary,
-  ButtonWarning,
-  ButtonSecondary,
   ButtonBorder,
+  ButtonPrimary,
+  ButtonSecondary,
   ButtonText,
+  ButtonWarning,
 } from './Button';
 import ButtonIcon from './ButtonIcon';
 import ButtonLink from './ButtonLink';
 import { ButtonWithMenu } from './ButtonWithMenu';
 import Card from './Card';
 import CardSuccess, { CardSuccessLogin } from './CardSuccess';
-import DocumentTitle from './DocumentTitle';
-import Indicator from './Indicator';
+import Flex from './Flex';
+import Image from './Image';
+import { Indicator } from './Indicator';
 import Input from './Input';
 import Label from './Label';
-import LabelInput from './LabelInput';
+import { LabelInput } from './LabelInput';
 import LabelState from './LabelState';
 import Link from './Link';
 import { Mark } from './Mark';
-import Image from './Image';
+import Menu, { MenuItem, MenuItemIcon } from './Menu';
+import { Pill } from './Pill';
+import Popover from './Popover';
+import { ResourceIcon } from './ResourceIcon';
+import { StepSlider } from './StepSlider';
 import Text, {
   H1,
   H2,
@@ -52,20 +57,14 @@ import Text, {
   Subtitle2,
   Subtitle3,
 } from './Text';
-import SideNav, { SideNavItem } from './SideNav';
-import { StepSlider } from './StepSlider';
-import TopNav from './TopNav';
-import Flex from './Flex';
-import Menu, { MenuItem, MenuItemIcon } from './Menu';
-import { Pill } from './Pill';
-import Popover from './Popover';
 import { TextArea } from './TextArea';
-import { ResourceIcon } from './ResourceIcon';
 import { Toggle } from './Toggle';
+import TopNav from './TopNav';
 
 export { AnimatedProgressBar } from './AnimatedProgressBar';
 export {
   Alert,
+  Banner,
   Box,
   Button,
   ButtonBorder,
@@ -79,7 +78,6 @@ export {
   Card,
   CardSuccess,
   CardSuccessLogin,
-  DocumentTitle,
   Flex,
   H1,
   H2,
@@ -102,8 +100,6 @@ export {
   Pill,
   Popover,
   ResourceIcon,
-  SideNav,
-  SideNavItem,
   StepSlider,
   Subtitle1,
   Subtitle2,
@@ -115,3 +111,4 @@ export {
 };
 export type { TextAreaProps } from './TextArea';
 export * from './keyframes';
+export { Stack } from './Flex';

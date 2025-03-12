@@ -16,13 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import Dialog, {
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from 'design/Dialog';
+import { useState } from 'react';
+
 import {
   Box,
   ButtonPrimary,
@@ -31,11 +26,16 @@ import {
   Text,
   Toggle,
 } from 'design';
-
-import Validation from 'shared/components/Validation';
+import Dialog, {
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from 'design/Dialog';
+import { IconTooltip } from 'design/Tooltip';
 import FieldInput from 'shared/components/FieldInput';
+import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
-import { ToolTipInfo } from 'shared/components/ToolTip';
 
 type Props = {
   onClose(): void;
@@ -123,11 +123,11 @@ function KubeExecDataDialog({ onClose, onExec }: Props) {
                     <Box ml={2} mr={1}>
                       Interactive shell
                     </Box>
-                    <ToolTipInfo>
+                    <IconTooltip>
                       You can start an interactive shell and have a
                       bidirectional communication with the target pod, or you
                       can run one-off command and see its output.
-                    </ToolTipInfo>
+                    </IconTooltip>
                   </Toggle>
                 </Flex>
               </Box>

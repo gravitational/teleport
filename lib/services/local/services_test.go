@@ -62,12 +62,15 @@ func setupServicesContext(ctx context.Context, t *testing.T) *servicesContext {
 
 	caService := NewCAService(tt.bk)
 
+	identityService, err := NewTestIdentityService(tt.bk)
+	require.NoError(t, err)
+
 	tt.suite = &suite.ServicesTestSuite{
 		TrustS:         caService,
 		TrustInternalS: caService,
 		PresenceS:      presenceService,
 		ProvisioningS:  NewProvisioningService(tt.bk),
-		WebS:           NewTestIdentityService(tt.bk),
+		WebS:           identityService,
 		Access:         NewAccessService(tt.bk),
 		EventsS:        eventsService,
 		ChangesC:       make(chan interface{}),

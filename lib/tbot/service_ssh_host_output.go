@@ -19,6 +19,7 @@
 package tbot
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -29,9 +30,11 @@ import (
 
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -61,9 +64,10 @@ func (s *SSHHostOutputService) Run(ctx context.Context) error {
 	defer unsubscribe()
 
 	err := runOnInterval(ctx, runOnIntervalConfig{
+		service:    s.String(),
 		name:       "output-renewal",
 		f:          s.generate,
-		interval:   s.botCfg.RenewalInterval,
+		interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
 		retryLimit: renewalRetryLimit,
 		log:        s.log,
 		reloadCh:   reloadCh,
@@ -105,7 +109,7 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateTTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		nil,
 	)
 	if err != nil {
@@ -122,31 +126,40 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 	clusterName := facade.Get().ClusterName
 
 	// generate a keypair
-	key, err := client.GenerateRSAKey()
+	key, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromAuthPreference(s.botAuthClient),
+		cryptosuites.HostSSH)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	privKey, err := keys.NewSoftwarePrivateKey(key)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// For now, we'll reuse the bot's regular TTL, and hostID and nodeName are
 	// left unset.
 	res, err := impersonatedClient.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
-		Key:         key.PrivateKey.MarshalSSHPublicKey(),
+		Key:         privKey.MarshalSSHPublicKey(),
 		HostId:      "",
 		NodeName:    "",
 		Principals:  s.cfg.Principals,
 		ClusterName: clusterName,
 		Role:        string(types.RoleNode),
-		Ttl:         durationpb.New(s.botCfg.CertificateTTL),
+		Ttl:         durationpb.New(cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL),
 	},
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	key.Cert = res.SshCertificate
+	keyRing := &client.KeyRing{
+		SSHPrivateKey: privKey,
+		Cert:          res.SshCertificate,
+	}
 
 	cfg := identityfile.WriteConfig{
 		OutputPath: config.SSHHostCertPath,
 		Writer:     newBotConfigWriter(ctx, s.cfg.Destination, ""),
-		Key:        key,
+		KeyRing:    keyRing,
 		Format:     identityfile.FormatOpenSSH,
 
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.

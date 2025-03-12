@@ -25,7 +25,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -238,6 +240,63 @@ func TestConvertUsageEvent(t *testing.T) {
 			}},
 		},
 		{
+			name: "integration enroll step success event",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiIntegrationEnrollStepEvent{
+				UiIntegrationEnrollStepEvent: &usageeventsv1.UIIntegrationEnrollStepEvent{
+					Metadata: &usageeventsv1.IntegrationEnrollMetadata{Id: "someid", Kind: usageeventsv1.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER},
+					Step:     usageeventsv1.IntegrationEnrollStep_INTEGRATION_ENROLL_STEP_AWSIC_CONNECT_OIDC,
+					Status: &usageeventsv1.IntegrationEnrollStepStatus{
+						Code: usageeventsv1.IntegrationEnrollStatusCode_INTEGRATION_ENROLL_STATUS_CODE_SUCCESS,
+					},
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_UiIntegrationEnrollStepEvent{
+				UiIntegrationEnrollStepEvent: &prehogv1a.UIIntegrationEnrollStepEvent{
+					Metadata: &prehogv1a.IntegrationEnrollMetadata{
+						Id:       "someid",
+						UserName: expectedAnonymizedUserString,
+						Kind:     prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER,
+					},
+					Step: prehogv1a.IntegrationEnrollStep_INTEGRATION_ENROLL_STEP_AWSIC_CONNECT_OIDC,
+					Status: &prehogv1a.IntegrationEnrollStepStatus{
+						Code:  prehogv1a.IntegrationEnrollStatusCode_INTEGRATION_ENROLL_STATUS_CODE_SUCCESS,
+						Error: "",
+					},
+				},
+			}},
+		},
+		{
+			name: "integration enroll step error event",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiIntegrationEnrollStepEvent{
+				UiIntegrationEnrollStepEvent: &usageeventsv1.UIIntegrationEnrollStepEvent{
+					Metadata: &usageeventsv1.IntegrationEnrollMetadata{Id: "someid", Kind: usageeventsv1.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER},
+					Step:     usageeventsv1.IntegrationEnrollStep_INTEGRATION_ENROLL_STEP_AWSIC_CONNECT_OIDC,
+					Status: &usageeventsv1.IntegrationEnrollStepStatus{
+						Code:  usageeventsv1.IntegrationEnrollStatusCode_INTEGRATION_ENROLL_STATUS_CODE_ERROR,
+						Error: "error",
+					},
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_UiIntegrationEnrollStepEvent{
+				UiIntegrationEnrollStepEvent: &prehogv1a.UIIntegrationEnrollStepEvent{
+					Metadata: &prehogv1a.IntegrationEnrollMetadata{
+						Id:       "someid",
+						UserName: expectedAnonymizedUserString,
+						Kind:     prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER,
+					},
+					Step: prehogv1a.IntegrationEnrollStep_INTEGRATION_ENROLL_STEP_AWSIC_CONNECT_OIDC,
+					Status: &prehogv1a.IntegrationEnrollStepStatus{
+						Code:  prehogv1a.IntegrationEnrollStatusCode_INTEGRATION_ENROLL_STATUS_CODE_ERROR,
+						Error: "error",
+					},
+				},
+			}},
+		},
+		{
 			name: "discover deploy service event",
 			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent{
 				UiDiscoverDeployServiceEvent: &usageeventsv1.UIDiscoverDeployServiceEvent{
@@ -308,6 +367,29 @@ func TestConvertUsageEvent(t *testing.T) {
 						Sso:      false,
 					},
 					Resource: &prehogv1a.DiscoverResourceMetadata{Resource: prehogv1a.DiscoverResource_DISCOVER_RESOURCE_EC2_INSTANCE},
+					Status:   &prehogv1a.DiscoverStepStatus{Status: prehogv1a.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+				},
+			}},
+		},
+		{
+			name: "discover create app server event",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverCreateAppServerEvent{
+				UiDiscoverCreateAppServerEvent: &usageeventsv1.UIDiscoverCreateAppServerEvent{
+					Metadata: &usageeventsv1.DiscoverMetadata{Id: "someid"},
+					Resource: &usageeventsv1.DiscoverResourceMetadata{Resource: usageeventsv1.DiscoverResource_DISCOVER_RESOURCE_APPLICATION_AWS_CONSOLE},
+					Status:   &usageeventsv1.DiscoverStepStatus{Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_UiDiscoverCreateAppServerEvent{
+				UiDiscoverCreateAppServerEvent: &prehogv1a.UIDiscoverCreateAppServerEvent{
+					Metadata: &prehogv1a.DiscoverMetadata{
+						Id:       "someid",
+						UserName: expectedAnonymizedUserString,
+						Sso:      false,
+					},
+					Resource: &prehogv1a.DiscoverResourceMetadata{Resource: prehogv1a.DiscoverResource_DISCOVER_RESOURCE_APPLICATION_AWS_CONSOLE},
 					Status:   &prehogv1a.DiscoverStepStatus{Status: prehogv1a.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
 				},
 			}},
@@ -425,6 +507,9 @@ func TestConvertUsageEvent(t *testing.T) {
 					Metadata: &usageeventsv1.AccessListMetadata{
 						Id: "someid",
 					},
+					MemberMetadata: &usageeventsv1.AccessListMemberMetadata{
+						MembershipKind: accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER,
+					},
 				},
 			}},
 			identityUsername: "myuser",
@@ -435,6 +520,7 @@ func TestConvertUsageEvent(t *testing.T) {
 					Metadata: &prehogv1a.AccessListMetadata{
 						Id: expectedAnonymizedAccessListIDString,
 					},
+					MemberKind: accesslist.MembershipKindUser,
 				},
 			}},
 		},
@@ -444,6 +530,9 @@ func TestConvertUsageEvent(t *testing.T) {
 				AccessListMemberUpdate: &usageeventsv1.AccessListMemberUpdate{
 					Metadata: &usageeventsv1.AccessListMetadata{
 						Id: "someid",
+					},
+					MemberMetadata: &usageeventsv1.AccessListMemberMetadata{
+						MembershipKind: accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER,
 					},
 				},
 			}},
@@ -455,6 +544,7 @@ func TestConvertUsageEvent(t *testing.T) {
 					Metadata: &prehogv1a.AccessListMetadata{
 						Id: expectedAnonymizedAccessListIDString,
 					},
+					MemberKind: accesslist.MembershipKindUser,
 				},
 			}},
 		},
@@ -464,6 +554,9 @@ func TestConvertUsageEvent(t *testing.T) {
 				AccessListMemberDelete: &usageeventsv1.AccessListMemberDelete{
 					Metadata: &usageeventsv1.AccessListMetadata{
 						Id: "someid",
+					},
+					MemberMetadata: &usageeventsv1.AccessListMemberMetadata{
+						MembershipKind: accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER,
 					},
 				},
 			}},
@@ -475,6 +568,7 @@ func TestConvertUsageEvent(t *testing.T) {
 					Metadata: &prehogv1a.AccessListMetadata{
 						Id: expectedAnonymizedAccessListIDString,
 					},
+					MemberKind: accesslist.MembershipKindUser,
 				},
 			}},
 		},
@@ -482,17 +576,22 @@ func TestConvertUsageEvent(t *testing.T) {
 			name: "access list grants to user event",
 			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_AccessListGrantsToUser{
 				AccessListGrantsToUser: &usageeventsv1.AccessListGrantsToUser{
-					CountRolesGranted:  5,
-					CountTraitsGranted: 6,
+					CountRolesGranted:           5,
+					CountTraitsGranted:          6,
+					CountInheritedRolesGranted:  0,
+					CountInheritedTraitsGranted: 0,
+					UserName:                    "myuser",
 				},
 			}},
 			identityUsername: "myuser",
 			errCheck:         require.NoError,
 			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_AccessListGrantsToUser{
 				AccessListGrantsToUser: &prehogv1a.AccessListGrantsToUserEvent{
-					UserName:           expectedAnonymizedUserString,
-					CountRolesGranted:  5,
-					CountTraitsGranted: 6,
+					UserName:                    expectedAnonymizedUserString,
+					CountRolesGranted:           5,
+					CountTraitsGranted:          6,
+					CountInheritedRolesGranted:  0,
+					CountInheritedTraitsGranted: 0,
 				},
 			}},
 		},
@@ -582,6 +681,23 @@ func TestConvertUsageEvent(t *testing.T) {
 					},
 					Resource: &prehogv1a.DiscoverResourceMetadata{Resource: prehogv1a.DiscoverResource_DISCOVER_RESOURCE_KUBERNETES_EKS},
 					Status:   &prehogv1a.DiscoverStepStatus{Status: prehogv1a.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+				},
+			}},
+		},
+		{
+			name: "discover kube eks enroll",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiAccessGraphCrownJewelDiffView{
+				UiAccessGraphCrownJewelDiffView: &usageeventsv1.UIAccessGraphCrownJewelDiffViewEvent{
+					AffectedResourceType:   "ssh",
+					AffectedResourceSource: "TELEPORT",
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_UiAccessGraphCrownJewelDiffView{
+				UiAccessGraphCrownJewelDiffView: &prehogv1a.UIAccessGraphCrownJewelDiffViewEvent{
+					AffectedResourceType:   "ssh",
+					AffectedResourceSource: "TELEPORT",
 				},
 			}},
 		},

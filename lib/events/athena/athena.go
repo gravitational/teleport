@@ -21,6 +21,7 @@ package athena
 import (
 	"context"
 	"io"
+	"log/slog"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -32,11 +33,11 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
@@ -123,13 +124,19 @@ type Config struct {
 	BatchMaxItems int
 	// BatchMaxInterval defined interval at which parquet files will be created (optional).
 	BatchMaxInterval time.Duration
+	// ConsumerLockName defines a name of a SQS consumer lock (optional).
+	// If provided, it will be prefixed with "athena/" to avoid accidental
+	// collision with existing locks.
+	ConsumerLockName string
+	// ConsumerDisabled defines if SQS consumer should be disabled (optional).
+	ConsumerDisabled bool
 
 	// Clock is a clock interface, used in tests.
 	Clock clockwork.Clock
 	// UIDGenerator is unique ID generator.
 	UIDGenerator utils.UID
-	// LogEntry is a log entry.
-	LogEntry *log.Entry
+	// Logger emits log messages.
+	Logger *slog.Logger
 
 	// PublisherConsumerAWSConfig is an AWS config which can be used to
 	// construct AWS Clients using aws-sdk-go-v2, used by the publisher and
@@ -249,7 +256,7 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 	}
 
 	if cfg.LimiterRefillAmount < 0 {
-		return trace.BadParameter("LimiterRefillAmount cannot be nagative")
+		return trace.BadParameter("LimiterRefillAmount cannot be negative")
 	}
 	if cfg.LimiterBurst < 0 {
 		return trace.BadParameter("LimiterBurst cannot be negative")
@@ -274,10 +281,8 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 		cfg.UIDGenerator = utils.NewRealUID()
 	}
 
-	if cfg.LogEntry == nil {
-		cfg.LogEntry = log.WithFields(log.Fields{
-			teleport.ComponentKey: teleport.ComponentAthena,
-		})
+	if cfg.Logger == nil {
+		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAthena)
 	}
 
 	if cfg.PublisherConsumerAWSConfig == nil {
@@ -290,7 +295,6 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 		if cfg.Region != "" {
 			awsCfg.Region = cfg.Region
 		}
-		otelaws.AppendMiddlewares(&awsCfg.APIOptions)
 		cfg.PublisherConsumerAWSConfig = &awsCfg
 	}
 
@@ -415,6 +419,16 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 		}
 		cfg.BatchMaxInterval = dur
 	}
+	if consumerLockName := url.Query().Get("consumerLockName"); consumerLockName != "" {
+		cfg.ConsumerLockName = consumerLockName
+	}
+	if val := url.Query().Get("consumerDisabled"); val != "" {
+		boolVal, err := strconv.ParseBool(val)
+		if err != nil {
+			return trace.BadParameter("invalid consumerDisabled value: %v", err)
+		}
+		cfg.ConsumerDisabled = boolVal
+	}
 
 	return nil
 }
@@ -436,7 +450,6 @@ func (cfg *Config) UpdateForExternalAuditStorage(ctx context.Context, externalAu
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	otelaws.AppendMiddlewares(&awsCfg.APIOptions)
 	cfg.StorerQuerierAWSConfig = &awsCfg
 
 	cfg.ObserveWriteEventsError = externalAuditStorage.ErrorCounter.ObserveEmitError
@@ -469,10 +482,12 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		database:                     cfg.Database,
 		workgroup:                    cfg.Workgroup,
 		queryResultsS3:               cfg.QueryResultsS3,
+		locationS3Prefix:             cfg.locationS3Prefix,
+		locationS3Bucket:             cfg.locationS3Bucket,
 		getQueryResultsInterval:      cfg.GetQueryResultsInterval,
 		disableQueryCostOptimization: cfg.DisableSearchCostOptimization,
 		awsCfg:                       cfg.StorerQuerierAWSConfig,
-		logger:                       cfg.LogEntry,
+		logger:                       cfg.Logger,
 		clock:                        cfg.Clock,
 		tracer:                       cfg.Tracer,
 	})
@@ -480,20 +495,23 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	consumerCtx, consumerCancel := context.WithCancel(ctx)
-
-	consumer, err := newConsumer(cfg, consumerCancel)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	l := &Log{
-		publisher:      newPublisherFromAthenaConfig(cfg),
-		querier:        querier,
-		consumerCloser: consumer,
+		publisher: newPublisherFromAthenaConfig(cfg),
+		querier:   querier,
 	}
 
-	go consumer.run(consumerCtx)
+	if !cfg.ConsumerDisabled {
+		consumerCtx, consumerCancel := context.WithCancel(ctx)
+
+		consumer, err := newConsumer(cfg, consumerCancel)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		l.consumerCloser = consumer
+
+		go consumer.run(consumerCtx)
+	}
 
 	return l, nil
 }
@@ -507,12 +525,28 @@ func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) 
 	return l.querier.SearchEvents(ctx, req)
 }
 
+func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+	return l.querier.ExportUnstructuredEvents(ctx, req)
+}
+
+func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+	return l.querier.GetEventExportChunks(ctx, req)
+}
+
 func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	return l.querier.SearchSessionEvents(ctx, req)
 }
 
 func (l *Log) Close() error {
-	return trace.Wrap(l.consumerCloser.Close())
+	// consumerCloser is nil when consumer is disabled.
+	if l.consumerCloser != nil {
+		return trace.Wrap(l.consumerCloser.Close())
+	}
+	return nil
+}
+
+func (l *Log) IsConsumerDisabled() bool {
+	return l.consumerCloser == nil
 }
 
 var isAlphanumericOrUnderscoreRe = regexp.MustCompile("^[a-zA-Z0-9_]+$")
@@ -583,7 +617,7 @@ func newAthenaMetrics(cfg athenaMetricsConfig) (*athenaMetrics, error) {
 			prometheus.HistogramOpts{
 				Namespace: teleport.MetricNamespace,
 				Name:      teleport.MetricParquetlogConsumerDeleteEventsDuration,
-				Help:      "Duration of delation of events on SQS in parquetlog",
+				Help:      "Duration of deletion of events on SQS in parquetlog",
 				// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
 				// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
 				Buckets:     prometheus.ExponentialBuckets(0.001, 2, 16),
@@ -643,8 +677,4 @@ func newAthenaMetrics(cfg athenaMetricsConfig) (*athenaMetrics, error) {
 		m.consumerAgeOfOldestProcessedMessage,
 		m.consumerNumberOfErrorsFromSQSCollect,
 	))
-}
-
-type trimmableEvent interface {
-	TrimToMaxSize(int) apievents.AuditEvent
 }

@@ -32,9 +32,11 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 const (
@@ -49,10 +51,13 @@ func logErrorMessage(err error) slog.Attr {
 }
 
 type pluginInstallArgs struct {
-	cmd  *kingpin.CmdClause
-	name string
-	okta oktaArgs
-	scim scimArgs
+	cmd     *kingpin.CmdClause
+	name    string
+	okta    oktaArgs
+	scim    scimArgs
+	entraID entraArgs
+	netIQ   netIQArgs
+	awsIC   awsICArgs
 }
 
 type scimArgs struct {
@@ -79,7 +84,7 @@ type PluginsCommand struct {
 }
 
 // Initialize creates the plugins command and subcommands
-func (p *PluginsCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (p *PluginsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	p.config = config
 	p.dryRun = true
 
@@ -98,6 +103,9 @@ func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause, config *servicec
 
 	p.initInstallOkta(p.install.cmd)
 	p.initInstallSCIM(p.install.cmd)
+	p.initInstallEntra(p.install.cmd)
+	p.initInstallNetIQ(p.install.cmd)
+	p.initInstallAWSIC(p.install.cmd)
 }
 
 func (p *PluginsCommand) initInstallSCIM(parent *kingpin.CmdClause) {
@@ -126,7 +134,6 @@ func (p *PluginsCommand) initInstallSCIM(parent *kingpin.CmdClause) {
 		Short('f').
 		Default("false").
 		BoolVar(&p.install.scim.force)
-
 }
 
 func (p *PluginsCommand) initDelete(parent *kingpin.CmdClause) {
@@ -137,12 +144,11 @@ func (p *PluginsCommand) initDelete(parent *kingpin.CmdClause) {
 }
 
 // Delete implements `tctl plugins delete`, deleting a plugin from the Teleport cluster
-func (p *PluginsCommand) Delete(ctx context.Context, client *authclient.Client) error {
+func (p *PluginsCommand) Delete(ctx context.Context, args installPluginArgs) error {
 	log := p.config.Logger.With("plugin", p.delete.name)
-	plugins := client.PluginsClient()
 
 	req := &pluginsv1.DeletePluginRequest{Name: p.delete.name}
-	if _, err := plugins.DeletePlugin(ctx, req); err != nil {
+	if _, err := args.plugins.DeletePlugin(ctx, req); err != nil {
 		if trace.IsNotFound(err) {
 			log.InfoContext(ctx, "Plugin not found")
 			return nil
@@ -154,8 +160,8 @@ func (p *PluginsCommand) Delete(ctx context.Context, client *authclient.Client) 
 }
 
 // Cleanup cleans up the given plugin.
-func (p *PluginsCommand) Cleanup(ctx context.Context, clusterAPI *authclient.Client) error {
-	needsCleanup, err := clusterAPI.PluginsClient().NeedsCleanup(ctx, &pluginsv1.NeedsCleanupRequest{
+func (p *PluginsCommand) Cleanup(ctx context.Context, args installPluginArgs) error {
+	needsCleanup, err := args.plugins.NeedsCleanup(ctx, &pluginsv1.NeedsCleanupRequest{
 		Type: p.pluginType,
 	})
 	if err != nil {
@@ -187,7 +193,7 @@ func (p *PluginsCommand) Cleanup(ctx context.Context, clusterAPI *authclient.Cli
 		return nil
 	}
 
-	if _, err := clusterAPI.PluginsClient().Cleanup(ctx, &pluginsv1.CleanupRequest{
+	if _, err := args.plugins.Cleanup(ctx, &pluginsv1.CleanupRequest{
 		Type: p.pluginType,
 	}); err != nil {
 		return trace.Wrap(err)
@@ -200,11 +206,23 @@ func (p *PluginsCommand) Cleanup(ctx context.Context, clusterAPI *authclient.Cli
 
 type authClient interface {
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
+	CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
+	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
+	CreateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error)
+	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+	UpdateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error)
 	Ping(ctx context.Context) (proto.PingResponse, error)
+	PerformMFACeremony(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error)
+	GetRole(ctx context.Context, name string) (types.Role, error)
 }
 
 type pluginsClient interface {
 	CreatePlugin(ctx context.Context, in *pluginsv1.CreatePluginRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	GetPlugin(ctx context.Context, in *pluginsv1.GetPluginRequest, opts ...grpc.CallOption) (*types.PluginV1, error)
+	UpdatePlugin(ctx context.Context, in *pluginsv1.UpdatePluginRequest, opts ...grpc.CallOption) (*types.PluginV1, error)
+	NeedsCleanup(ctx context.Context, in *pluginsv1.NeedsCleanupRequest, opts ...grpc.CallOption) (*pluginsv1.NeedsCleanupResponse, error)
+	Cleanup(ctx context.Context, in *pluginsv1.CleanupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeletePlugin(ctx context.Context, in *pluginsv1.DeletePluginRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type installPluginArgs struct {
@@ -214,11 +232,11 @@ type installPluginArgs struct {
 
 // InstallSCIM implements `tctl plugins install scim`, installing a SCIM integration
 // plugin into the teleport cluster
-func (p *PluginsCommand) InstallSCIM(ctx context.Context, client *authclient.Client) error {
+func (p *PluginsCommand) InstallSCIM(ctx context.Context, args installPluginArgs) error {
 	log := p.config.Logger.With(logFieldPlugin, p.install.name)
 
 	log.DebugContext(ctx, "Fetching cluster info...")
-	info, err := client.Ping(ctx)
+	info, err := args.authClient.Ping(ctx)
 	if err != nil {
 		return trace.Wrap(err, "failed fetching cluster info")
 	}
@@ -232,7 +250,7 @@ func (p *PluginsCommand) InstallSCIM(ctx context.Context, client *authclient.Cli
 
 	connectorID := p.install.scim.samlConnector
 	log.DebugContext(ctx, "Validating SAML Connector...", logFieldSAMLConnector, connectorID)
-	connector, err := client.GetSAMLConnector(ctx, p.install.scim.samlConnector, false)
+	connector, err := args.authClient.GetSAMLConnector(ctx, p.install.scim.samlConnector, false)
 	if err != nil {
 		if !p.install.scim.force {
 			return trace.Wrap(err, "failed validating SAML connector")
@@ -241,7 +259,7 @@ func (p *PluginsCommand) InstallSCIM(ctx context.Context, client *authclient.Cli
 
 	role := p.install.scim.role
 	log.DebugContext(ctx, "Validating Default Role...", logFieldRole, role)
-	if _, err := client.GetRole(ctx, role); err != nil {
+	if _, err := args.authClient.GetRole(ctx, role); err != nil {
 		if !p.install.scim.force {
 			return trace.Wrap(err, "failed validating role")
 		}
@@ -281,7 +299,7 @@ func (p *PluginsCommand) InstallSCIM(ctx context.Context, client *authclient.Cli
 	}
 
 	log.DebugContext(ctx, "Creating SCIM Plugin...")
-	if _, err := client.PluginsClient().CreatePlugin(ctx, request); err != nil {
+	if _, err := args.plugins.CreatePlugin(ctx, request); err != nil {
 		log.ErrorContext(ctx, "Failed to create SCIM integration", logErrorMessage(err))
 		return trace.Wrap(err)
 	}
@@ -301,19 +319,32 @@ func (p *PluginsCommand) InstallSCIM(ctx context.Context, client *authclient.Cli
 }
 
 // TryRun runs the plugins command
-func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, args installPluginArgs) error
 	switch cmd {
 	case p.cleanupCmd.FullCommand():
-		err = p.Cleanup(ctx, client)
+		commandFunc = p.Cleanup
 	case p.install.okta.cmd.FullCommand():
-		args := installPluginArgs{authClient: client, plugins: client.PluginsClient()}
-		err = p.InstallOkta(ctx, args)
+		commandFunc = p.InstallOkta
 	case p.install.scim.cmd.FullCommand():
-		err = p.InstallSCIM(ctx, client)
+		commandFunc = p.InstallSCIM
+	case p.install.entraID.cmd.FullCommand():
+		commandFunc = p.InstallEntra
+	case p.install.netIQ.cmd.FullCommand():
+		commandFunc = p.InstallNetIQ
+	case p.install.awsIC.cmd.FullCommand():
+		commandFunc = p.InstallAWSIC
 	case p.delete.cmd.FullCommand():
-		err = p.Delete(ctx, client)
+		commandFunc = p.Delete
 	default:
 		return false, nil
 	}
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, installPluginArgs{authClient: client, plugins: client.PluginsClient()})
+	closeFn(ctx)
+
 	return true, trace.Wrap(err)
 }

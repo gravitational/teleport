@@ -197,7 +197,7 @@ $ teleport debug profile heap,goroutine > profile.tar.gz
 ### Security
 
 Items listed on this section are have their impact limited due to the fact that
-the service will not be exposed outsite the machine/container running the
+the service will not be exposed outside the machine/container running the
 Teleport instance.
 
 #### CPU and Memory consumption during profiling
@@ -249,5 +249,5 @@ Here's an example of what the configuration could look like:
 ```
 debug_service:
   users: [root]
-  groups: [adminstrators]
+  groups: [administrators]
 ```

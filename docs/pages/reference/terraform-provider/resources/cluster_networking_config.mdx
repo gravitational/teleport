@@ -1,5 +1,6 @@
 ---
 title: Reference for the teleport_cluster_networking_config Terraform resource
+sidebar_label: cluster_networking_config
 description: This page describes the supported values of the teleport_cluster_networking_config resource of the Teleport Terraform provider.
 ---
 
@@ -14,6 +15,7 @@ description: This page describes the supported values of the teleport_cluster_ne
 # Teleport Cluster Networking config
 
 resource "teleport_cluster_networking_config" "example" {
+  version = "v2"
   metadata = {
     description = "Networking config"
     labels = {
@@ -61,6 +63,7 @@ Optional:
 - `proxy_ping_interval` (String) ProxyPingInterval defines in which interval the TLS routing ping message should be sent. This is applicable only when using ping-wrapped connections, regular TLS routing connections are not affected.
 - `routing_strategy` (Number) RoutingStrategy determines the strategy used to route to nodes. 0 is "unambiguous_match"; 1 is "most_recent".
 - `session_control_timeout` (String) SessionControlTimeout is the session control lease expiry and defines the upper limit of how long a node may be out of contact with the auth server before it begins terminating controlled sessions.
+- `ssh_dial_timeout` (String) SSHDialTimeout is a custom dial timeout used when establishing SSH connections. If not set, the default timeout of 30s will be used.
 - `tunnel_strategy` (Attributes) TunnelStrategyV1 determines the tunnel strategy used in the cluster. (see [below for nested schema](#nested-schema-for-spectunnel_strategy))
 - `web_idle_timeout` (String) WebIdleTimeout sets global cluster default setting for the web UI idle timeouts.
 

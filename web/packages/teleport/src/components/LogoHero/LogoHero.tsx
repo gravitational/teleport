@@ -16,15 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { useTheme } from 'styled-components';
-import Image from 'design/Image';
-import AGPLLogoLight from 'design/assets/images/agpl-light.svg';
+
 import AGPLLogoDark from 'design/assets/images/agpl-dark.svg';
-import CommunityLogoLight from 'design/assets/images/community-light.svg';
+import AGPLLogoLight from 'design/assets/images/agpl-light.svg';
 import CommunityLogoDark from 'design/assets/images/community-dark.svg';
-import EnterpriseLogoLight from 'design/assets/images/enterprise-light.svg';
+import CommunityLogoLight from 'design/assets/images/community-light.svg';
 import EnterpriseLogoDark from 'design/assets/images/enterprise-dark.svg';
+import EnterpriseLogoLight from 'design/assets/images/enterprise-light.svg';
+import Image from 'design/Image';
 
 import cfg, { TeleportEdition } from 'teleport/config';
 
@@ -48,10 +48,10 @@ export const logos: Record<TeleportEdition, LogoMap> = {
   },
 };
 
-export const LogoHero = () => {
+export const LogoHero = ({ my = '48px' }: { my?: string }) => {
   const theme = useTheme();
   const src = logos[cfg.edition][theme.type];
   return (
-    <Image src={src} maxHeight="120px" maxWidth="200px" my="48px" mx="auto" />
+    <Image src={src} maxHeight="120px" maxWidth="200px" my={my} mx="auto" />
   );
 };

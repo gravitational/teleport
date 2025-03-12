@@ -109,7 +109,7 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 	}
 	wsConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to upgrade weboscket.", "error", err)
+		h.logger.DebugContext(r.Context(), "Failed to upgrade WebSocket.", "error", err)
 		return nil, trace.Wrap(err)
 	}
 	defer wsConn.Close()
@@ -243,6 +243,10 @@ func (conn *waitConn) Close() error {
 	return trace.Wrap(err)
 }
 
+func (conn *waitConn) NetConn() net.Conn {
+	return conn.Conn
+}
+
 type websocketALPNServerConn struct {
 	net.Conn
 	readBuffer []byte
@@ -260,6 +264,10 @@ func newWebSocketALPNServerConn(ctx context.Context, conn net.Conn, logger *slog
 		logContext: ctx,
 		logger:     logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentWeb, "alpnws")),
 	}
+}
+
+func (c *websocketALPNServerConn) NetConn() net.Conn {
+	return c.Conn
 }
 
 func (c *websocketALPNServerConn) Read(b []byte) (int, error) {
@@ -305,6 +313,11 @@ func (c *websocketALPNServerConn) readLocked(b []byte) (int, error) {
 			return 0, trace.Wrap(err)
 		}
 
+		// All client frames should be masked.
+		if frame.Header.Masked {
+			frame = ws.UnmaskFrame(frame)
+		}
+
 		c.logger.Log(c.logContext, logutils.TraceLevel, "Read websocket frame.", "op", frame.Header.OpCode, "payload_len", len(frame.Payload))
 
 		switch frame.Header.OpCode {
@@ -325,7 +338,7 @@ func (c *websocketALPNServerConn) writeFrame(frame ws.Frame) error {
 	c.writeMutex.Lock()
 	defer c.writeMutex.Unlock()
 
-	frame.Header.Masked = true
+	// There is no need to mask from server to client.
 	return trace.Wrap(ws.WriteFrame(c.Conn, frame))
 }
 

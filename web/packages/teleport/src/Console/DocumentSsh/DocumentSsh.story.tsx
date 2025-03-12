@@ -16,22 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { ContextProvider } from 'teleport';
-
-import { createTeleportContext } from 'teleport/mocks/contexts';
-
-import TeleportContext from 'teleport/teleportContext';
-
 import * as stores from 'teleport/Console/stores/types';
-
-import DocumentSsh from './DocumentSsh';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import type { Session } from 'teleport/services/session';
+import TeleportContext from 'teleport/teleportContext';
 
 import { TestLayout } from './../Console.story';
 import ConsoleCtx from './../consoleContext';
-
-import type { Session } from 'teleport/services/session';
+import DocumentSsh from './DocumentSsh';
 
 export const Connected = () => {
   const { ctx, consoleCtx } = getContexts();

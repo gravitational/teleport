@@ -2,6 +2,7 @@
 title: Configure access for Active Directory manually
 description: Explains how to manually connect Teleport to an Active Directory domain.
 videoBanner: YvMqgcq0MTQ
+tocDepth: 3
 ---
 
 This guide demonstrates how to connect an Active Directory domain and how to log
@@ -34,7 +35,7 @@ To complete the steps in this guide, verify your environment meets the following
   edition you use.
 
 - A Linux server to run the Teleport Windows Desktop Service.
-  You can use an existing server that runs the Teleport agent for other resources.
+  You can use an existing server that runs the Teleport Agent for other resources.
 
 - An Active Directory domain that is configured for LDAPS. Because Teleport requires an
   encrypted LDAP connection, you should verify that your domain uses Active Directory
@@ -65,7 +66,7 @@ It may also be easier to comprehend what the script does by following the manual
 
 To use the `tctl` generated configuration script, run the following command:
 
-```bash
+```code
 # Generate the script and save it to a file named configure-ad.ps1.
 tctl desktop bootstrap > configure-ad.ps1
 ```
@@ -204,9 +205,7 @@ logins.
 
 1. Verify the **Teleport Service Account** is selected, then click **OK** in all the dialogs.
 
-   <Figure align="left" bordered caption="Deny Interactive Login">
    ![Deny interactive login](../../../img/desktop-access/deny-interactive-login.png)
-   </Figure>
 
 1. Repeat these steps for **Deny log on through Remote Desktop Services**.
 
@@ -236,7 +235,7 @@ You must repeat these steps if you rotate the Teleport user certificate authorit
 
 To export the Teleport user CA certificate:
 
-1. Log on to a Windows domain controller where you can access **Group Policy Management**.
+1. Log on to a Windows host where you can access **Group Policy Management**.
 
 1. Open PowerShell and download the Teleport user certificate authority by running the following
    command and replacing `teleport.example.com` with the address of your Teleport cluster:
@@ -245,7 +244,11 @@ To export the Teleport user CA certificate:
    $ curl.exe -fo user-ca.cer https://<Var name="teleport.example.com"/>/webapi/auth/export?type=windows
    ```
 
-1. Take note of the path to the `user-ca.cer` file for use in a later step.
+   If you are using Teleport's support for HSM-backed keys, then your Teleport
+   cluster has multiple user CAs (one for each Auth Service instance). You can
+   download a bundle containing all CAs by appending `&format=zip` to the URL.
+
+1. Take note of the path to file you just downloaded for use in a later step.
 
 #### Create the GPO for the Teleport certificate
 
@@ -268,9 +271,7 @@ To configure the group policy object:
    should apply this GPO to the automatically-created OU with the NetBIOS domain name
    containing `Computers` and `Users` nested one level inside the domain root.
 
-   <Figure align="left" bordered caption="AWS Managed AD OU Location">
    ![AWS Managed AD OU Location](../../../img/desktop-access/aws-managed-ad.png)
-   </Figure>
 
 1. Open **Group Policy Management** and expand Forest, Domains, your domain, and
    Group Policy Objects to locate the GPO you just created.
@@ -284,9 +285,9 @@ To configure the group policy object:
 
 1. Use the wizard to select and import the Teleport certificate.
 
-   <Figure align="left" bordered caption="Import Teleport CA">
    ![Import Teleport CA](../../../img/desktop-access/ca.png)
-   </Figure>
+
+   If you are using HSM-backed keys, you should repeat this step for each CA certificate.
 
 1. To ensure your GPO update takes effect immediately on this host,
    open PowerShell and run the following command (optional):
@@ -313,6 +314,9 @@ To publish the Teleport certificate in the Active Directory domain:
    This command enables the domain controllers to trust the Teleport CA so that
    certificate-based smart card authentication through Teleport can succeed.
 
+   If you are using HSM-backed keys, you should repeat this step for each CA certificate
+   in the zip file you exported earlier in this guide.
+
 #### Publish the Teleport CA to the NTAuth Store
 
 For authentication with Teleport-issued certificates to succeed, the
@@ -320,6 +324,9 @@ Teleport CA also must be published to the enterprise NTAuth store.
 Teleport periodically publishes its CA after it is able to authenticate, but
 this step must be performed manually the first time for Teleport to have LDAP
 access.
+
+If you are using HSM-backed keys, you should repeat these steps for each CA certificate
+in the bundle.
 
 To publish the Teleport CA to LDAP:
 
@@ -354,9 +361,7 @@ To add smart card authentication to your group policy object:
 
 1. Select **Automatic**, then click **OK**.
 
-   <Figure align="left" bordered caption="Enable the Smart Card Service">
    ![Enable Smartcard](../../../img/desktop-access/smartcard.png)
-   </Figure>
 
 1. To ensure your GPO update takes effect immediately on this host,
    open PowerShell and run the following command (optional):
@@ -382,9 +387,13 @@ Next you need to configure policies that allow remote connections to domain comp
 1. Right-click **Require user authentication for remote connections by using
    Network Level Authentication**, select **Edit**, select **Disabled**, then click **OK**.
 
-   <Figure align="left" bordered caption="Disable Require user authentication...">
+   <Admonition type="note" title="NLA Support">
+   Teleport 16.2.0 and later support NLA. If you are running a supported version
+   and enable NLA, you can skip this step. Read more in the
+   [NLA](#network-level-authentication-nla) section.
+   </Admonition>
+
    ![Disable Require](../../../img/desktop-access/disable.png)
-   </Figure>
 
 1. Right-click **Always prompt for password upon connection**, select **Edit**,
    select **Disabled**, then click **OK**.
@@ -404,9 +413,7 @@ Next you need to configure policies that allow remote connections to domain comp
    - Select **User Mode (TCP-in)**, then click **Next**.
    - Select **Allow the connection**, then click **Finish**.
 
-   <Figure align="left" bordered caption="Open the Firewall">
    ![Open the Firewall](../../../img/desktop-access/firewall.png)
-   </Figure>
 
 1. To ensure your GPO update takes effect immediately on this host,
    open PowerShell and run the following command (optional):
@@ -428,15 +435,17 @@ the performance of remote desktop connections.
 
 1. Right-click **Configure RemoteFX**, select **Edit**, select **Enabled**, then click **OK**.
 
+   ![Enable RemoteFX](../../../img/desktop-access/enable-remotefx-step-1.png)
+
 1. Now left-click **Remote Session Environment**
    (**`Computer Configuration > Policies > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Remote Session Environment`** in the left pane)
    and from the items in the right pane, right-click **Enable RemoteFX encoding for RemoteFX clients designed for Windows Server 2008 R2 SP1**, select **Edit**, select **Enabled**, then click **OK**.
 
-   <Figure align="left" bordered caption="Enable RemoteFX">
-   ![Enable RemoteFX](../../../img/desktop-access/enable-remotefx.png)
-   </Figure>
+   ![Enable RemoteFX](../../../img/desktop-access/enable-remotefx-step-2.png)
 
 1. Again left-click **Remote Session Environment** in the left pane, and from the items in the right pane, right-click **Limit maximum color depth**, select **Edit**, select **Enabled**, then click **OK**.
+
+   ![Enable RemoteFX](../../../img/desktop-access/enable-remotefx-step-3.png)
 
 1. Open PowerShell and run the following command to update your Teleport
    group policy object:
@@ -516,9 +525,7 @@ To update the Teleport group policy object to use the new certificate template:
 1. Right-click **Server authentication certificate template**, select **Edit**, select
    **Enabled**, then set the Certificate Template Name to **RemoteDesktopAccess**.
 
-   <Figure align="left" bordered caption="RDP Certificate Template">
    ![RDP Certificate Template](../../../img/desktop-access/rdp-certificate-template.png)
-   </Figure>
 
 1. Expand Computer Configuration, Policies, and Windows Settings to select
    **Public Key Policies**.
@@ -587,7 +594,7 @@ To configure Teleport to protect access to Windows desktops:
    ```yaml
    version: v3
    teleport:
-     auth_token: <Var name="path-to-token"/>
+     auth_token: "path/to/token"
      proxy_server: <Var name="teleport.example.com"/> # replace with your proxy address
    windows_desktop_service:
      enabled: yes
@@ -599,7 +606,7 @@ To configure Teleport to protect access to Windows desktops:
        username: "$LDAP_USERNAME"
        sid: "$LDAP_USER_SID"
        # Path to the certificate you exported.
-       der_ca_file: <Var name="path-to-exported-cert"/>
+       der_ca_file: "path/to/exported/cert"
      discovery:
        base_dn: "*"
    auth_service:
@@ -611,7 +618,7 @@ To configure Teleport to protect access to Windows desktops:
    ```
 
    For a detailed description of the configuration fields, see
-   [Desktop Configuration Reference](./reference/configuration.mdx).
+   [Desktop Configuration Reference](../../reference/agent-services/desktop-access-reference/configuration.mdx).
 
 1. (!docs/pages/includes/start-teleport.mdx service="the Teleport Desktop Service"!)
 
@@ -674,6 +681,61 @@ To connect to a Windows desktop:
    To view the recording, select **Management** in the Teleport Web UI, then click **Session Recordings**
    in the Activity section.
 
+## LDAP Discovery
+
+In Active Directory environments, Teleport can be configured to discover hosts
+via LDAP. LDAP discovery is enabled by setting the `discovery.base_dn` field in
+the Teleport Windows Desktop Service configuration. You can set `base_dn` to a
+wildcard `'*` to search from the root of the domain, or you can specify an alternate
+base distinguished name to search from.
+
+```yaml
+windows_desktop_service:
+  enabled: yes
+  discovery:
+    base_dn: '*'
+```
+
+### Filters
+
+Teleport optionally accepts a set of filters that can be used to narrow the
+search results for discovery. The filters are specified with [LDAP
+Filter](https://ldap.com/ldap-filters/) syntax. Teleport will automatically
+compute a logical AND of all filters specified.
+
+```yaml
+windows_desktop_service:
+  enabled: yes
+  discovery:
+    base_dn: '*'
+    filters:
+    - '(location=Oakland)'
+    - '(!(primaryGroupID=516))'
+```
+
+### Labeling
+
+It is often necessary to apply labels to discovered hosts to control access. You
+can configure Teleport to convert LDAP attributes to Teleport labels by setting
+the `discovery.label_attributes` field in the Teleport Windows Desktop Service
+configuration.
+
+```yaml
+windows_desktop_service:
+  enabled: yes
+  discovery:
+    base_dn: '*'
+    label_attributes:
+      - 'location'
+      - 'department'
+```
+
+Each of the specified attributes will be placed in a Teleport label prefixed with `ldap/`.
+
+For example, if an AD computer object had a location attribute with a value of Oakland,
+and a department attribute with a value of Engineering, the Teleport resource for this
+host would have both `ldap/location=Oakland` and `ldap/department=Engineering` labels.
+
 ## Security hardening
 
 By default, the Default Domain Policy grants the **Add workstations to domain
@@ -695,7 +757,7 @@ To change the default domain policy:
 
 Each `windows_desktop_service` is designed to support connecting to hosts in a
 single Active Directory domain. If you have multiple independent domains, you
-can deploy multiple Teleport agents to service them.
+can deploy multiple Teleport Agents to service them.
 
 If you have multiple domains with a trust relationship between them, you can
 configure Teleport to perform PKI operations against one domain, while generating
@@ -736,9 +798,64 @@ domain, you would do the following:
 With this configuration, Teleport will generate certificates for users in
 `dev.example.com`, but it will publish its CA and CRLs to `example.com`.
 
+## Network Level Authentication (NLA)
+
+With Teleport 16.2.0 and later, you can configure `windows_desktop_service` to
+perform Network Level Authentication (NLA) when connecting to Windows hosts. NLA
+is a security feature that authenticates the user *prior* to establishing the
+remote desktop connection, which ensures that the remote Windows host doesn't
+consume system resources to present a login screen to an unauthenticated user.
+
+In order to perform NLA, Teleport's `windows_desktop_service` needs to be able
+to make an outbound Kerberos connection to a key distribution center (KDC). This
+is most commonly performed on TCP port 88.
+
+By default, Teleport will assume that a KDC is available on the same host that
+is specified in the `ldap` configuration's `addr` field, using the default
+Kerberos port.
+
+For example, with the following configuration, Teleport will attempt to perform
+NLA against `example.com:88`.
+
+```yaml
+windows_desktop_service:
+    enabled: yes
+    ldap:
+      addr: example.com:636
+```
+
+Alternatively, you can override the KDC address by specifying the `kdc_address`
+in your Teleport configuration file.
+
+```yaml
+windows_desktop_service:
+    enabled: yes
+    kdc_address: kdc.example.com   # defaults to port 88 if unspecified
+```
+
+To enable NLA, set the `TELEPORT_ENABLE_RDP_NLA` environment variable to `yes`
+on any hosts running the Teleport's `windows_desktop_service`. Note that NLA is
+only supported when connecting to hosts that are part of an Active Directory
+domain. Teleport will not perform NLA when connecting to hosts as a local
+Windows user.
+
+### Computer Name
+
+In order to complete a successful authentication flow, Teleport needs to know
+the hostname of the target Windows server. If you are using Teleport's
+LDAP-based discovery no action is necessary - Teleport will default to using the
+`teleport.dev/computer_name` label which is automatically populated. If this
+label is not present then Teleport will use the desktop's `addr` field.
+
+If you register your Windows hosts via configuration file or via Teleport's API
+and you want to enable NLA, then you should either:
+
+- manually set the `teleport.dev/computer_name` label to the proper hostname
+- ensure that the host's `addr` is its actual hostname
+
 ## Next steps
 
-If you encounter any issues, see [Troubleshooting](./troubleshooting.mdx) for common problems and
-solutions.
-For information about configuring Windows-specific role permissions, see
+If you encounter any issues, see [Troubleshooting](./troubleshooting.mdx) for
+common problems and solutions. For information about configuring
+Windows-specific role permissions, see
 [Role-Based Access Control for Desktops](./rbac.mdx).

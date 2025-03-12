@@ -3,33 +3,58 @@ title: AWS Database Discovery
 description: How to configure Teleport to auto-discover AWS databases.
 ---
 
-Teleport can be configured to discover AWS databases automatically and register
-them with your Teleport cluster.
+Teleport can be configured to discover AWS-hosted databases automatically and
+register them with your Teleport cluster.
+
+In this guide, we will show you how to set-up AWS database auto-discovery.
+
+## How it works
 
 (!docs/pages/includes/discovery/step-description.mdx serviceName="Database" resourceDesc="database" resourceKind="db"!)
+
+{/*
+TODO(gavin): include the architecture diagram once we've made one for the
+Discover web UI integration
+*/}
 
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - An AWS account with permissions to create and attach IAM policies.
-- One or more database servers hosted by AWS database services.
 - A host to run the Teleport Discovery Service.
+- A host to run the Teleport Database Service.
+- One or more databases hosted on AWS.
 
-## Step 1/4. Generate a join token
+## Step 1/8. Install Teleport
 
-(!docs/pages/includes/tctl-token.mdx serviceName="Discovery" tokenType="discovery" tokenFile="/tmp/token" !)
+Install Teleport on the host(s) that will run the Teleport Discovery Service and
+Teleport Database Service.
 
-(!docs/pages/includes/database-access/alternative-methods-join.mdx!)
+The Database Service needs network connectivity to databases, whereas the
+Discovery Service does not.
 
-## Step 2/4. Configure the Discovery service
+(!docs/pages/includes/install-linux.mdx!)
 
-Enabling AWS database discovery requires that the `discovery_service.aws`
-section includes at least one entry and that `discovery_service.aws.types`
-includes one of database types listed in the sample YAML below. 
+## Step 2/8. Discovery Service IAM permissions
 
-Create a `teleport.yaml` file similar to the following on the host that will
-run the Discovery Service:
+(!docs/pages/includes/aws-credentials.mdx service="the Discovery Service"!)
+
+### Grant AWS IAM permissions
+
+Attach the following AWS IAM permissions to the Discovery Service AWS IAM
+role:
+
+(!docs/pages/includes/discovery/aws-db-iam-policy-picker.mdx!)
+
+## Step 3/8. Deploy the Discovery Service
+
+### Create a Teleport config file
+
+Create a `teleport.yaml` config file on the host that will run the Discovery
+Service.
+You can leave the `discovery_group` <Var name="aws-example"/> value as-is or
+change it to something you find more descriptive.
 
 ```yaml
 version: v3
@@ -39,141 +64,245 @@ teleport:
     method: token
   proxy_server: "<Var name="teleport.example.com:443"/>"
 auth_service:
-  enabled: off
+  enabled: false
 proxy_service:
-  enabled: off
+  enabled: false
 ssh_service:
-  enabled: off
+  enabled: false
 discovery_service:
-  enabled: "yes"
-  discovery_group: "aws-prod"
-  aws:
-    # Database types. Valid options are:
-    # 'rds' - discovers Amazon RDS and Aurora databases.
-    # 'rdsproxy' - discovers Amazon RDS Proxy databases.
-    # 'redshift' - discovers Amazon Redshift databases.
-    # 'redshift-serverless' - discovers Amazon Redshift Serverless databases.
-    # 'elasticache' - discovers Amazon ElastiCache Redis databases.
-    # 'memorydb' - discovers Amazon MemoryDB Redis databases.
-    # 'opensearch' - discovers Amazon OpenSearch Redis databases.
-    # 'docdb' - discovers and registers Amazon DocumentDB databases.
-  - types: ["rds"]
-    regions: ["us-east-1"]
-    tags:
-      "env": "prod" # Match database resource tags where tag:env=prod
-
-  - types: ["redshift", "redshift-serverless"]
-    regions: ["us-west-1"]
-    tags:
-      "env": "prod"
-    # Optional AWS role that the Discovery Service will assume to discover
-    # AWS-hosted databases. The IAM identity assigned to the host must be able
-    # to assume this role.
-    assume_role_arn: "arn:aws:iam::123456789012:role/example-role-name"
-    # Optional AWS external ID that the Database Service will use to assume
-    # a role in an external AWS account.
-    external_id: "example-external-id"
+  enabled: true
+  discovery_group: "<Var name="aws-example"/>"
 ```
 
-Adjust the keys under `discovery_service.aws` to match your AWS databases.
+This config file enables the `discovery_service` and configures it to join
+the Teleport cluster.
+It also sets the Discovery Service's `discovery_group`.
+We will configure the `discovery_group` <Var name="aws-example"/> dynamically
+in a later step, so that we can control the Discovery Service's
+configuration without restarting the Discovery Service.
 
 (!docs/pages/includes/discovery/discovery-group.mdx!)
 
-## Step 3/4. Bootstrap IAM permissions
+### Generate a join token
 
-Create an IAM role and attach it to the host that will run the Discovery
-Service.
+(!docs/pages/includes/tctl-token.mdx serviceName="Discovery" tokenType="discovery" tokenFile="/tmp/token" !)
 
-Teleport can bootstrap IAM permissions for the Discovery Service using the
-`teleport discovery bootstrap` command. You can use this command in automatic
-or manual mode:
-
-- In automatic mode, Teleport attempts to create the appropriate IAM policies
-  and attach them to the specified IAM roles. This requires IAM permissions to
-  create and attach IAM policies.
-- In manual mode, Teleport prints the required IAM policies. You can then create
-  and attach them manually using the AWS management console.
-
-<Tabs>
-  <TabItem label="Automatic">
-  Either temporarily give IAM admin permissions to the host of the Discovery
-  Service or copy the service YAML configuration file to your desktop where you
-  have the IAM admin permissions.
-
-  Use this command to bootstrap the permissions automatically with YAML
-  configuration file of the Discovery Service:
-
-  ```code
-  $ teleport discovery bootstrap \
-    --attach-to-role arn:aws:iam::<Var name="aws-account-id"/>:role/<Var name="iam-role-name"/> \
-    --policy-name TeleportDatabaseDiscovery \
-    -c <Var name="/etc/teleport.yaml"/>
-  ```
-  </TabItem>
-
-  <TabItem label="Manual">
-  Use the following command to display the required IAM policies that you need
-  to create in your AWS console:
-
-  ```code
-  $ teleport discovery bootstrap --manual \
-    --attach-to-role arn:aws:iam::<Var name="aws-account-id"/>:role/<Var name="iam-role-name"/> \
-    --policy-name TeleportDatabaseDiscovery \
-    -c <Var name="/etc/teleport.yaml"/>
-  ```
-  </TabItem>
-</Tabs>
-
-<Details title="Bootstrapping with assume_role_arn in config">
-When `assume_role_arn` is configured for AWS matchers, `teleport discovery
-bootstrap` command determines the permissions required for the bootstrap target
-AWS IAM identity using the following logic:
-
-- When the target does not match `assume_role_arn` in any AWS matcher in the
-  configuration file, the target is assumed to be the Teleport Discovery
-  Service's AWS IAM identity and permissions are bootstrapped for all the AWS
-  matchers without `assume_role_arn`.
-- When an `--attach-to-role` target matches an `assume_role_arn` setting for
-  AWS matchers in the configuration file, permissions are bootstrapped only for
-  those AWS matchers.
-
-You will need to run the bootstrap command once with the Teleport Discovery
-Service's IAM identity as the policy attachment target, and once for each AWS
-IAM role that is used for `assume_role_arn`.
-</Details>
-
-## Step 4/4. Use the Discovery Service
+(!docs/pages/includes/database-access/alternative-methods-join.mdx!)
 
 ### Start the Discovery Service
 
 (!docs/pages/includes/start-teleport.mdx service="the Discovery Service"!)
 
-After the Discovery Service starts, database servers matching the tags and
-regions specified in the AWS section are added to the Teleport cluster
-automatically.
+## Step 4/8. Discovery group config
 
-### List registered databases
+Create a file <Var name="aws-example-discovery-config.yaml"/> and save it on a
+host where you can use `tctl`.
 
-You can list them with the `tctl get db` command or check a specific database
-with `tctl get db/<database-name>`.
+(!docs/pages/includes/discovery/aws-db-discovery-config-picker.mdx!)
 
-The default name of the discovered database includes the AWS resource ID,
-endpoint and matcher types, AWS region and account ID to ensure uniqueness, for
-example `my-postgres-rds-aurora-us-east-1-123456789012`.
+Create the `discovery_config`:
 
-A discovered database with the default name also has a shorter display name
-that consists only the AWS resource ID and the endpoint type, for example
-`my-postgres`, `my-postgres-reader`. Either the full name or the display name
-can be used for `tctl` and `tsh` commands.
+```code
+$ tctl create <Var name="aws-example-discovery-config.yaml"/>
+```
 
-You can override the default name by applying the `TeleportDatabaseName` AWS
-tag to the AWS database resource.
+The Discovery Service we configured earlier is in the same `discovery_group`
+as this `discovery_config` and will begin using the `discovery_config` to
+discover AWS databases.
+Once it discovers databases, the Discovery Service will register them as `db`
+resources in your Teleport cluster.
+
+<Admonition type="info">
+A Teleport `db` resource represents the specification of a database that a
+Teleport Database Service can then use to provide access to the database.
+When a Database Service instance matches the `db` resource via label selectors, it will
+begin to heartbeat the database by regularly creating short-lived `db_server`
+resources in your Teleport cluster.
+Tools like `tsh db ls` and `tctl db ls` will only display `db_server` resources,
+i.e. databases that a Database Service instance is providing access to.
+</Admonition>
+
+## Step 5/8. List registered databases
+
+Before we set-up the Database Service to provide access to discovered databases,
+we should check that the Discovery Service is actually discovering databases.
+
+You can list dynamically registered databases with `tctl`.
+The Discovery Service adds the label `teleport.dev/origin: cloud` to every
+database it registers with your Teleport cluster.
+
+Verify that the Discovery Service has registered `db` resources for databases
+that you expect it to have discovered:
+
+```code
+$ tctl get db
+```
+
+Or check for a specific database:
+
+```code
+$ tctl get db/<database-name>
+```
+
+Refer to
+[Discovery Service troubleshooting](#discovery-service-troubleshooting)
+if you do not see `db` resources corresponding to databases that you think
+should be discovered.
+
+<Details title="discovered database names">
+Each discovered database's name will have additional identifying information
+appended to it to ensure uniqueness.
+That additional info may include:
+- endpoint type (e.g. "reader" endpoint)
+- matcher type
+- AWS region
+- AWS account ID.
+
+For example, if an RDS Aurora database named "my-postgres" is discovered in
+AWS account "123456789012" in region us-east-1, it would be named
+"my-postgres-rds-aurora-us-east-1-123456789012" in Teleport.
+
+A discovered database also has a shorter display name that consists of only the
+AWS database name and the endpoint type, for example "my-postgres" or
+"my-postgres-reader".
+Either the full name or the display name can be used for `tctl` and `tsh`
+commands, but if the display name is ambiguous, then you will have to use the
+full name.
+
+You can override the database name by applying the `TeleportDatabaseName` AWS
+tag to the AWS database resource - this is used as the `db` name verbatim, i.e.
+additional identifying information will not be appended to it.
+</Details>
+
+## Step 6/8. Database Service IAM permissions
+
+(!docs/pages/includes/aws-credentials.mdx service="the Database Service"!)
+
+Create an AWS IAM role for the Database Service and attach the following
+permissions:
+
+(!docs/pages/includes/database-access/aws-db-iam-policy-picker.mdx!)
+
+## Step 7/8. Deploy the Database Service
+
+### Configure database connectivity
+
+Unlike the Discovery Service, the Database Service must have network
+connectivity to databases to provide access to them for your Teleport cluster.
+You will need to ensure that several network reachability requirements are met
+for the Database Service:
+
+1. The Database Service has a network route to database(s)
+1. The Database Service has a network route to your Teleport cluster
+1. The Database Service security group allows outbound traffic to database(s)
+1. The Database Service security group allows outbound traffic to your Teleport
+   cluster
+1. The database(s) security group(s) allow inbound traffic from the Database
+   Service
+
+In the highly likely case that your databases are deployed in private subnets
+with strict security group(s) attached to them, you will typically need to
+deploy a Database Service instance in the same VPC, possibly in the same subnet(s), and
+with a security group attached to it that the database(s) allow inbound traffic
+from.
+The Teleport Database Service will probably need a route to the public internet
+via an AWS NAT gateway or internet gateway in order to reach your Teleport
+cluster.
+
+This is not an exhaustive list of network requirements or suggestions, as that
+will depend on your specific networking setup.
+
+### Create a Teleport config file
+
+Create a `teleport.yaml` config file on the host that will run the Discovery
+Service:
+
+```yaml
+version: v3
+teleport:
+  join_params:
+    token_name: "/tmp/token"
+    method: token
+  proxy_server: "<Var name="teleport.example.com:443"/>"
+auth_service:
+  enabled: false
+proxy_service:
+  enabled: false
+ssh_service:
+  enabled: false
+db_service:
+  enabled: true
+  resources:
+    - labels:
+        "account-id": "*"
+        "region": "<Var name="us-east-1"/>"
+        "teleport.dev/cloud": "AWS"
+        "teleport.dev/origin": "cloud"
+```
+
+This config file enables the `db_service` and configures it to join the Teleport
+cluster.
+The section `db_service.resources` is a list of label selectors.
+The Database Service will match `db` resources that have these labels and begin
+to heartbeat the databases by regularly creating short-lived `db_server`
+resources in your Teleport cluster.
+
+In this case, it will match auto-discovered AWS databases in the
+<Var name="us-east-1"/> region
+from any AWS account (`"*"` is a wildcard and it can be used as a label key and/or value).
+You can make it match more specific databases by adjusting the label selectors.
+
+<Admonition type="tip">
+The AWS tags attached to AWS databases are imported as Teleport `db` labels
+in addition to some other identifying metadata.
+Refer to
+[Database Labels Reference](../../../reference/agent-services/database-access-reference/labels.mdx)
+for more information about available database labels.
+</Admonition>
+
+### Generate a join token
+
+(!docs/pages/includes/tctl-token.mdx serviceName="Database" tokenType="db" tokenFile="/tmp/token" !)
+
+(!docs/pages/includes/database-access/alternative-methods-join.mdx!)
+
+### Start the Database Service
+
+(!docs/pages/includes/start-teleport.mdx service="the Database Service"!)
+
+## Step 8/8. List database servers
+
+To confirm that the Database Service is proxying discovered databases, run
+the following `tctl` command:
+
+```code
+## adjust these comma-separated filtering labels as needed
+$ tctl db ls teleport.dev/origin=cloud,teleport.dev/cloud=AWS,region=<Var name="us-east-1"/>,account-id="*"
+```
+
+If you do not see the databases that you expected, then refer to
+[Database Service troubleshooting](#database-service-troubleshooting) below.
+
+<Admonition type="note">
+This guide shows you how to set-up AWS database auto-discovery with a Discovery
+Service and Database Service, but does not cover database user provisioning.
+
+Additional Teleport RBAC configuration and possibly IAM configuration may also
+be required to connect to the discovered databases via Teleport.
+
+Refer to the appropriate guide in
+[Enroll AWS Databases](../../database-access/enroll-aws-databases/enroll-aws-databases.mdx)
+for information about database user provisioning and configuration.
+</Admonition>
 
 ## Next
 - Learn about [Dynamic Registration](../../database-access/guides/dynamic-registration.mdx) by the
   Teleport Database Service.
-- Get started by [connecting](../../database-access/guides.mdx) your database.
+- Get started by [connecting](../../database-access/guides/guides.mdx) your database.
 - Connect AWS databases in [external AWS accounts](../../database-access/enroll-aws-databases/aws-cross-account.mdx).
+- Refer to the appropriate guide in
+[Enroll AWS Databases](../../database-access/enroll-aws-databases/enroll-aws-databases.mdx)
+for information about database user provisioning and configuration.
 
 ## Troubleshooting
 

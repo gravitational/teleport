@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package teleport.usageevents.v1;
 
+import "teleport/accesslist/v1/accesslist.proto";
+
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1;usageeventsv1";
 
 // UIBannerClickEvent is a usage event sent by the UI when the upgrade
@@ -242,6 +244,7 @@ enum CTA {
   CTA_EXTERNAL_AUDIT_STORAGE = 10;
   CTA_OKTA_USER_SYNC = 11;
   CTA_ENTRA_ID = 12;
+  CTA_OKTA_SCIM = 13;
 }
 
 // UIDiscoverDeployServiceEvent is emitted after the user installs a Teleport Agent.
@@ -366,6 +369,13 @@ message UIDiscoverCreateNodeEvent {
   DiscoverStepStatus status = 3;
 }
 
+// UIDiscoverCreateAppServerEvent is emitted when an app server is created.
+message UIDiscoverCreateAppServerEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
 // UIDiscoverDatabaseConfigureIAMPolicyEvent is emitted when a user is finished with the step that configures IAM policy for an RDS database.
 message UIDiscoverDatabaseConfigureIAMPolicyEvent {
   DiscoverMetadata metadata = 1;
@@ -474,6 +484,14 @@ message AccessListMetadata {
   string id = 1;
 }
 
+// AccessListMemberMetadata contains common metadata for Access List Member related events.
+message AccessListMemberMetadata {
+  // name is the name of the member.
+  string name = 1;
+  // membership_kind is the type of membership in the parent access list.
+  teleport.accesslist.v1.MembershipKind membership_kind = 2;
+}
+
 // AccessListCreate is an event that is emitted when an access list is created.
 message AccessListCreate {
   AccessListMetadata metadata = 1;
@@ -492,16 +510,19 @@ message AccessListDelete {
 // AccessListMemberCreate is an event that is emitted when a member is added to an access list.
 message AccessListMemberCreate {
   AccessListMetadata metadata = 1;
+  AccessListMemberMetadata member_metadata = 2;
 }
 
 // AccessListMemberCreate is an event that is emitted when a member is updated in an access list.
 message AccessListMemberUpdate {
   AccessListMetadata metadata = 1;
+  AccessListMemberMetadata member_metadata = 2;
 }
 
 // AccessListMemberDelete is an event that is emitted when a member is removed from an access list.
 message AccessListMemberDelete {
   AccessListMetadata metadata = 1;
+  AccessListMemberMetadata member_metadata = 2;
 }
 
 // AccessListGrantsToUser is an event that is emitted when access list permissions are granted to a user
@@ -510,8 +531,17 @@ message AccessListGrantsToUser {
   // count_roles_granted is the number of roles granted to a user.
   int32 count_roles_granted = 1;
 
+  // count_inherited_roles_granted is the number of roles granted to a user inherited from nested access lists.
+  int32 count_inherited_roles_granted = 3;
+
   // count_traits_granted is the number of traits granted to a user.
   int32 count_traits_granted = 2;
+
+  // count_inherited_traits_granted is the number of traits granted to a user inherited from nested access lists.
+  int32 count_inherited_traits_granted = 4;
+
+  // user_name is the Teleport username of the user for whom a role or trait was granted for.
+  string user_name = 5;
 }
 
 // AccessListReviewCreate is an event that is emitted when an access list review is created.
@@ -544,6 +574,10 @@ message AccessListReviewDelete {
 
 // IntegrationEnrollKind represents the types of integration that
 // can be enrolled.
+//
+// Note: IntegrationEnrollKind enum must be kept in sync with the values defined
+// in proto/prehog/v1alpha/teleport.proto. Values 18-25 have become out of sync
+// and are manually mapped to each other.
 enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_UNSPECIFIED = 0;
   INTEGRATION_ENROLL_KIND_SLACK = 1;
@@ -565,6 +599,13 @@ enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_MACHINE_ID_ANSIBLE = 17;
   INTEGRATION_ENROLL_KIND_SERVICENOW = 18;
   INTEGRATION_ENROLL_KIND_ENTRA_ID = 19;
+  INTEGRATION_ENROLL_KIND_DATADOG_INCIDENT_MANAGEMENT = 20;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_AWS = 21;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_GCP = 22;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_AZURE = 23;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_SPACELIFT = 24;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES = 25;
+  INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER = 26;
 }
 
 // IntegrationEnrollMetadata contains common metadata
@@ -589,6 +630,56 @@ message UIIntegrationEnrollStartEvent {
 // completed enrolling an integration.
 message UIIntegrationEnrollCompleteEvent {
   IntegrationEnrollMetadata metadata = 1;
+}
+
+// IntegrationEnrollStep defines inner configuration steps
+// for a given integration type.
+enum IntegrationEnrollStep {
+  INTEGRATION_ENROLL_STEP_UNSPECIFIED = 0;
+
+  // AWSIC denotes AWS Identity Center integration.
+  INTEGRATION_ENROLL_STEP_AWSIC_CONNECT_OIDC = 1;
+  INTEGRATION_ENROLL_STEP_AWSIC_SET_ACCESSLIST_DEFAULT_OWNER = 2;
+  INTEGRATION_ENROLL_STEP_AWSIC_UPLOAD_AWS_SAML_SP_METADATA = 3;
+  INTEGRATION_ENROLL_STEP_AWSIC_TEST_SCIM_CONNECTION = 4;
+}
+
+// IntegrationEnrollStatusCode defines status code for an integration enroll step.
+enum IntegrationEnrollStatusCode {
+  INTEGRATION_ENROLL_STATUS_CODE_UNSPECIFIED = 0;
+  // The user tried to complete the action and it succeeded.
+  INTEGRATION_ENROLL_STATUS_CODE_SUCCESS = 1;
+  // The user or system skipped the step.
+  // For example:
+  // When setting up an AWS IAM Identity Center integration, we allow reusing
+  // OIDC integrationn if it was previously created for the Identity Center.
+  INTEGRATION_ENROLL_STATUS_CODE_SKIPPED = 2;
+  // The user tried to complete the action and it failed.
+  INTEGRATION_ENROLL_STATUS_CODE_ERROR = 3;
+  // The user did not complete the action and left the wizard.
+  INTEGRATION_ENROLL_STATUS_CODE_ABORTED = 4;
+}
+
+// IntegrationEnrollStepStatus defines fields that track a particular step outcome,
+// for example connection test failed or succeeded, or user aborted the step.
+message IntegrationEnrollStepStatus {
+  // Code indicates the step outcome.
+  IntegrationEnrollStatusCode code = 1;
+  // Error contains error details in case of an error status code.
+  // Error message should not include any identifiable information
+  // like server address.
+  string error = 2;
+}
+
+// UIIntegrationEnrollStepEvent defines configuration step event
+// with a status for a specific integration enroll kind.
+message UIIntegrationEnrollStepEvent {
+  // Metadata is the metadata of an event.
+  IntegrationEnrollMetadata metadata = 1;
+  // Step is the name of the step for a given integration kind.
+  IntegrationEnrollStep step = 2;
+  // Status is the status of the step outcome.
+  IntegrationEnrollStepStatus status = 3;
 }
 
 // ResourceCreateEvent is emitted when a resource is created.
@@ -660,6 +751,41 @@ message TAGExecuteQueryEvent {
   bool is_success = 3;
 }
 
+// AccessGraphAWSScanEvent is emitted when the Access Graph
+// AWS scan is enabled.
+message AccessGraphAWSScanEvent {
+  // total_ec2_instances is the total amount of EC2 instances found in the AWS scan.
+  uint64 total_ec2_instances = 1;
+  // total_users is the total amount of users found in the AWS scan.
+  uint64 total_users = 2;
+  // total_groups is the total amount of groups found in the AWS scan.
+  uint64 total_groups = 3;
+  // total_roles is the total amount of roles found in the AWS scan.
+  uint64 total_roles = 4;
+  // total_policies is the total amount of policies found in the AWS scan.
+  uint64 total_policies = 5;
+  // total_eks_clusters is the total amount of EKS clusters found in the AWS scan.
+  uint64 total_eks_clusters = 6;
+  // total_rds_instances is the total amount of RDS instances found in the AWS scan.
+  uint64 total_rds_instances = 7;
+  // total_s3_buckets is the total amount of S3 buckets found in the AWS scan.
+  uint64 total_s3_buckets = 8;
+  // total_saml_providers is the total amount of SAML providers found in the AWS scan.
+  uint64 total_saml_providers = 9;
+  // total_oidc_providers is the total amount of OIDC providers found in the AWS scan.
+  uint64 total_oidc_providers = 10;
+  // total_accounts is the total amount of accounts synchronized in the AWS scan.
+  uint64 total_accounts = 11;
+}
+
+// UIAccessGraphCrownJewelDiffViewEvent is emitted when a user reviews the output of a Crown Jewel access path dff.
+message UIAccessGraphCrownJewelDiffViewEvent {
+  // affected_resource_source is the source of the affected resource.
+  string affected_resource_source = 1;
+  // affected_resource_type is the type of the affected resource.
+  string affected_resource_type = 2;
+}
+
 // SecurityReportGetResultEvent is emitted when the user requests a security report.
 message SecurityReportGetResultEvent {
   // name is the name of the security report.
@@ -678,6 +804,38 @@ message DiscoveryFetchEvent {
   // It depends on the Cloud Provider (defined above).
   // Eg, rds, ec2, vm, aks, gce, app
   string resource_type = 2;
+}
+
+// UserTaskStateEvent is emitted when a UserTask state changes.
+// This can happen when the Task is created, when it's manually
+// resolved by the user or when it changes back to being open
+// when the issue happens again.
+//
+// PostHog event: tp.usertask.state
+message UserTaskStateEvent {
+  // task_type is the identifier for the type of task.
+  // Eg, discover-ec2
+  //
+  // PostHog property: tp.usertask.task_type
+  string task_type = 1;
+
+  // issue_type is the identifier for the type of issue that occurred.
+  //
+  // PostHog property: tp.usertask.issue_type
+  string issue_type = 2;
+
+  // state identifies the new state for this task.
+  // One of: OPEN, RESOLVED
+  //
+  // PostHog property: tp.usertask.state
+  string state = 3;
+
+  // instances_count contains the number of instances that were affected by the issue
+  // This field is only present for the following task_types:
+  // - discover-ec2
+  //
+  // PostHog property: tp.usertask.discover_ec2.instances_count
+  int32 instances_count = 4;
 }
 
 // UsageEventOneOf is a message that can accept a oneof of any supported
@@ -739,6 +897,11 @@ message UsageEventOneOf {
     DiscoveryFetchEvent discovery_fetch_event = 54;
     UIDiscoverCreateDiscoveryConfigEvent ui_discover_create_discovery_config = 55;
     UIDiscoverKubeEKSEnrollEvent ui_discover_kube_eks_enroll_event = 56;
+    UIDiscoverCreateAppServerEvent ui_discover_create_app_server_event = 57;
+    AccessGraphAWSScanEvent access_graph_aws_scan_event = 58;
+    UIAccessGraphCrownJewelDiffViewEvent ui_access_graph_crown_jewel_diff_view = 59;
+    UserTaskStateEvent user_task_state_event = 60;
+    UIIntegrationEnrollStepEvent ui_integration_enroll_step_event = 61;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

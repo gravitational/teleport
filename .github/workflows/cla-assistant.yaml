@@ -1,0 +1,67 @@
+name: "CLA Assistant"
+on:
+  issue_comment:
+    types:
+      - created # PR comments are considered issue_comments
+  pull_request_target:
+    types:
+      - opened
+      - synchronize # Run on any diff changes to the PR (e.g. code updates)
+# explicitly configure permissions, in case your GITHUB_TOKEN workflow permissions are set to read-only in repository settings
+permissions:
+  actions: read
+  contents: read # this can be 'read' if the signatures are in remote repository
+  pull-requests: write
+jobs:
+  cla-assistant:
+    # Only do job for pull requests. For issues this is skipped making workflow a no-op
+    if: ${{ github.event_name == 'pull_request_target' || github.event.issue.pull_request }} # triggers on pr updates and coments
+    name: "Check Contributor License Agreement Signed"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch installation token
+        id: fetch-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.CLA_ASSISTANT_APP_ID }}
+          private-key: ${{ secrets.CLA_ASSISTANT_APP_PRIVATE_KEY }}
+          repositories: cla-signatures
+      - name: "Determine gravitational membership"
+        id: get-membership
+        env:
+          GITHUB_TOKEN: ${{ steps.fetch-token.outputs.token }}
+          USER: ${{ github.actor }}
+        continue-on-error: true
+        # Use the "Check Membership" API for user
+        # If the user is a member of the org expect a 204 HTTP Status Code
+        # If the above is success the process will exit 0
+        run: |
+          gh api "orgs/gravitational/members/${USER}" > /dev/null
+      # This step runs the CLA Assistant GHA
+      # If the creator of the PR is someone in the 'gravitational' org this step is skipped
+      # Otherwise for those out of the gravitational org:
+      # * CLA Assistant gathers authors from commits made to the PR
+      # * Will determine if authors have already signed the CLA
+      # 
+      # To sign the CLA a user can reply to the PR with the comment:
+      # * 'I have read the CLA Document and I hereby sign the CLA'
+      #
+      # The workflow will be rerun again to perform a recheck on:
+      # * Any code changes to the PR
+      # * PR comment with the body being 'recheck' - In the event of a transient failure
+      # * PR comment with body 'I have read the CLA Document and I hereby sign the CLA' 
+      - name: "CLA Assistant"
+        if: steps.get-membership.outcome != 'success' && ((github.event.comment.body == 'recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA') || github.event_name == 'pull_request_target')
+        uses: contributor-assistant/github-action@ca4a40a7d1004f18d9960b404b97e5f30a505a08 # v2.6.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PERSONAL_ACCESS_TOKEN: ${{ steps.fetch-token.outputs.token }}
+        with:
+          remote-organization-name: gravitational
+          remote-repository-name: cla-signatures
+          path-to-signatures: 'version1_signatures.json'
+          path-to-document: 'https://github.com/gravitational/teleport/blob/master/CLA.md'
+          # branch should not be protected
+          branch: 'main'
+          allowlist: 'dependabot[bot],teleport-post-release-automation[bot]'
+          lock-pullrequest-aftermerge: false

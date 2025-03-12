@@ -30,7 +30,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -40,7 +40,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -53,7 +52,7 @@ const (
 )
 
 var (
-	testRSAPrivateKeyPEM = []byte(`-----BEGIN RSA PRIVATE KEY-----
+	testRSA2048PrivateKeyPEM = []byte(`-----BEGIN RSA PRIVATE KEY-----
 MIIEowIBAAKCAQEAqiD2rRJ5kq7hP55eOCM9DtdkWPMI8PBKgxaAiQ9J9YF3aNur
 98b8kACcTQ8ixSkHsLccVqRdt/Cnb7jtBSrwxJ9BN09fZEiyCvy7lwxNGBMQEaov
 9UU722nvuWKb+EkHzcVV9ie9i8wM88xpzzYO8eda8FZjHxaaoe2lkrHiiOFQRubJ
@@ -116,17 +115,17 @@ JhuTMEqUaAOZBoQLn+txjl3nu9WwTThJzlY0L4w=
 
 	testRawSSHKeyPair = &types.SSHKeyPair{
 		PublicKey:      testRSASSHPublicKey,
-		PrivateKey:     testRSAPrivateKeyPEM,
+		PrivateKey:     testRSA2048PrivateKeyPEM,
 		PrivateKeyType: types.PrivateKeyType_RAW,
 	}
 	testRawTLSKeyPair = &types.TLSKeyPair{
 		Cert:    testRSACert,
-		Key:     testRSAPrivateKeyPEM,
+		Key:     testRSA2048PrivateKeyPEM,
 		KeyType: types.PrivateKeyType_RAW,
 	}
 	testRawJWTKeyPair = &types.JWTKeyPair{
 		PublicKey:      testRSAPublicKeyPEM,
-		PrivateKey:     testRSAPrivateKeyPEM,
+		PrivateKey:     testRSA2048PrivateKeyPEM,
 		PrivateKeyType: types.PrivateKeyType_RAW,
 	}
 
@@ -271,6 +270,11 @@ func TestManager(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
+	sshSubjectKey, _, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	sshSubjectPubKey, err := ssh.NewPublicKey(sshSubjectKey)
+	require.NoError(t, err)
+
 	pack := newTestPack(ctx, t)
 
 	for _, backendDesc := range pack.backends {
@@ -334,6 +338,20 @@ func TestManager(t *testing.T) {
 			pubkeyPem, err := keys.MarshalPublicKey(jwtSigner.Public())
 			require.NoError(t, err)
 			require.Equal(t, jwtKeyPair.PublicKey, pubkeyPem)
+
+			// Try signing an SSH cert.
+			sshCert := ssh.Certificate{
+				Key:         sshSubjectPubKey,
+				ValidBefore: uint64(time.Now().Add(time.Hour).Unix()),
+			}
+			require.NoError(t, sshCert.SignCert(rand.Reader, sshSigner))
+			// Verify the signature.
+			checker := ssh.CertChecker{
+				IsUserAuthority: func(pub ssh.PublicKey) bool {
+					return pub == sshSigner.PublicKey()
+				},
+			}
+			require.NoError(t, checker.CheckCert("root", &sshCert))
 
 			// Test what happens when the CA has only raw keys, which will be the
 			// initial state when migrating from software to a HSM/KMS backend.
@@ -437,6 +455,7 @@ func testAlgorithmSuite(t *testing.T, ctx context.Context, pack *testPack, suite
 		t.Run(backendDesc.name, func(t *testing.T) {
 			authPrefGetter := &fakeAuthPreferenceGetter{suite}
 			backendDesc.opts.AuthPreferenceGetter = authPrefGetter
+			currentSuiteGetter := cryptosuites.GetCurrentSuiteFromAuthPreference(authPrefGetter)
 			manager, err := NewManager(ctx, &backendDesc.config, backendDesc.opts)
 			require.NoError(t, err)
 
@@ -450,7 +469,7 @@ func testAlgorithmSuite(t *testing.T, ctx context.Context, pack *testPack, suite
 			sshPubKey, _, _, _, err := ssh.ParseAuthorizedKey(sshKeyPair.PublicKey)
 			require.NoError(t, err)
 			sshPub := sshPubKey.(ssh.CryptoPublicKey).CryptoPublicKey()
-			expectedAlgorithm, err := cryptosuites.AlgorithmForKey(ctx, authPrefGetter, cryptosuites.UserCASSH)
+			expectedAlgorithm, err := cryptosuites.AlgorithmForKey(ctx, currentSuiteGetter, cryptosuites.UserCASSH)
 			require.NoError(t, err)
 			assertKeyAlgorithm(t, expectedAlgorithm, sshPub)
 
@@ -458,7 +477,7 @@ func testAlgorithmSuite(t *testing.T, ctx context.Context, pack *testPack, suite
 			require.NoError(t, err)
 			tlsCert, err := tlsca.ParseCertificatePEM(tlsKeyPair.Cert)
 			require.NoError(t, err)
-			expectedAlgorithm, err = cryptosuites.AlgorithmForKey(ctx, authPrefGetter, cryptosuites.DatabaseClientCATLS)
+			expectedAlgorithm, err = cryptosuites.AlgorithmForKey(ctx, currentSuiteGetter, cryptosuites.DatabaseClientCATLS)
 			require.NoError(t, err)
 			assertKeyAlgorithm(t, expectedAlgorithm, tlsCert.PublicKey)
 
@@ -466,7 +485,7 @@ func testAlgorithmSuite(t *testing.T, ctx context.Context, pack *testPack, suite
 			require.NoError(t, err)
 			jwtPubKey, err := keys.ParsePublicKey(jwtKeyPair.PublicKey)
 			require.NoError(t, err)
-			expectedAlgorithm, err = cryptosuites.AlgorithmForKey(ctx, authPrefGetter, cryptosuites.JWTCAJWT)
+			expectedAlgorithm, err = cryptosuites.AlgorithmForKey(ctx, currentSuiteGetter, cryptosuites.JWTCAJWT)
 			require.NoError(t, err)
 			assertKeyAlgorithm(t, expectedAlgorithm, jwtPubKey)
 		})
@@ -489,7 +508,7 @@ func assertKeyAlgorithm(t *testing.T, expectedAlgorithm cryptosuites.Algorithm, 
 
 type testPack struct {
 	backends []*backendDesc
-	clock    clockwork.FakeClock
+	clock    *clockwork.FakeClock
 }
 
 type backendDesc struct {
@@ -528,11 +547,9 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		HostUUID:             hostUUID,
 		Logger:               logger,
 		AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
-		CloudClients: &cloud.TestCloudClients{
-			KMS: newFakeAWSKMSService(t, clock, "123456789012", "us-west-2", 100),
-			STS: &fakeAWSSTSClient{
-				account: "123456789012",
-			},
+		awsKMSClient:         newFakeAWSKMSService(t, clock, "123456789012", "us-west-2", 100),
+		awsSTSClient: &fakeAWSSTSClient{
+			account: "123456789012",
 		},
 		kmsClient:         testGCPKMSClient,
 		clockworkOverride: clock,
@@ -544,7 +561,7 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		config:              servicecfg.KeystoreConfig{},
 		opts:                &baseOpts,
 		backend:             softwareBackend,
-		unusedRawKey:        testRSAPrivateKeyPEM,
+		unusedRawKey:        testRSA2048PrivateKeyPEM,
 		deletionDoesNothing: true,
 	})
 
@@ -587,6 +604,7 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		})
 	}
 
+	// Test with real GCP account if environment is enabled.
 	if config, ok := gcpKMSTestConfig(t); ok {
 		opts := baseOpts
 		opts.kmsClient = nil
@@ -604,6 +622,7 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 			}.marshal(),
 		})
 	}
+	// Always test with fake GCP client.
 	fakeGCPKMSConfig := servicecfg.KeystoreConfig{
 		GCPKMS: servicecfg.GCPKMSConfig{
 			ProtectionLevel: "HSM",
@@ -623,59 +642,77 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		}.marshal(),
 	})
 
-	if config, ok := awsKMSTestConfig(t); ok {
-		opts := baseOpts
-		opts.CloudClients, err = cloud.NewClients()
-		require.NoError(t, err)
+	// Test AWS with and without multi-region keys
+	for _, multiRegion := range []bool{false, true} {
+		// Test with real AWS account if environment is enabled.
+		if config, ok := awsKMSTestConfig(t); ok {
+			config.AWSKMS.MultiRegion.Enabled = multiRegion
+			opts := baseOpts
+			// Unset the fake clients so this test can use the real AWS clients.
+			opts.awsKMSClient = nil
+			opts.awsSTSClient = nil
 
-		backend, err := newAWSKMSKeystore(ctx, &config.AWSKMS, &opts)
+			backend, err := newAWSKMSKeystore(ctx, config.AWSKMS, &opts)
+			require.NoError(t, err)
+			name := "aws_kms"
+			if multiRegion {
+				name += "_multi_region"
+			}
+			backends = append(backends, &backendDesc{
+				name:            name,
+				config:          config,
+				opts:            &opts,
+				backend:         backend,
+				expectedKeyType: types.PrivateKeyType_AWS_KMS,
+				unusedRawKey: awsKMSKeyID{
+					arn: arn.ARN{
+						Partition: "aws",
+						Service:   "kms",
+						Region:    config.AWSKMS.AWSRegion,
+						AccountID: config.AWSKMS.AWSAccount,
+						Resource:  "unused",
+					}.String(),
+					account: config.AWSKMS.AWSAccount,
+					region:  config.AWSKMS.AWSRegion,
+				}.marshal(),
+			})
+		}
+
+		// Always test with fake AWS client.
+		fakeAWSKMSConfig := servicecfg.KeystoreConfig{
+			AWSKMS: &servicecfg.AWSKMSConfig{
+				AWSAccount: "123456789012",
+				AWSRegion:  "us-west-2",
+				MultiRegion: struct{ Enabled bool }{
+					Enabled: multiRegion,
+				},
+			},
+		}
+		fakeAWSKMSBackend, err := newAWSKMSKeystore(ctx, fakeAWSKMSConfig.AWSKMS, &baseOpts)
 		require.NoError(t, err)
+		name := "fake_aws_kms"
+		if multiRegion {
+			name += "_multi_region"
+		}
 		backends = append(backends, &backendDesc{
-			name:            "aws_kms",
-			config:          config,
-			opts:            &opts,
-			backend:         backend,
+			name:            name,
+			config:          fakeAWSKMSConfig,
+			opts:            &baseOpts,
+			backend:         fakeAWSKMSBackend,
 			expectedKeyType: types.PrivateKeyType_AWS_KMS,
 			unusedRawKey: awsKMSKeyID{
 				arn: arn.ARN{
 					Partition: "aws",
 					Service:   "kms",
-					Region:    config.AWSKMS.AWSRegion,
-					AccountID: config.AWSKMS.AWSAccount,
+					Region:    "us-west-2",
+					AccountID: "123456789012",
 					Resource:  "unused",
 				}.String(),
-				account: config.AWSKMS.AWSAccount,
-				region:  config.AWSKMS.AWSRegion,
+				account: "123456789012",
+				region:  "us-west-2",
 			}.marshal(),
 		})
 	}
-
-	fakeAWSKMSConfig := servicecfg.KeystoreConfig{
-		AWSKMS: servicecfg.AWSKMSConfig{
-			AWSAccount: "123456789012",
-			AWSRegion:  "us-west-2",
-		},
-	}
-	fakeAWSKMSBackend, err := newAWSKMSKeystore(ctx, &fakeAWSKMSConfig.AWSKMS, &baseOpts)
-	require.NoError(t, err)
-	backends = append(backends, &backendDesc{
-		name:            "fake_aws_kms",
-		config:          fakeAWSKMSConfig,
-		opts:            &baseOpts,
-		backend:         fakeAWSKMSBackend,
-		expectedKeyType: types.PrivateKeyType_AWS_KMS,
-		unusedRawKey: awsKMSKeyID{
-			arn: arn.ARN{
-				Partition: "aws",
-				Service:   "kms",
-				Region:    "us-west-2",
-				AccountID: "123456789012",
-				Resource:  "unused",
-			}.String(),
-			account: "123456789012",
-			region:  "us-west-2",
-		}.marshal(),
-	})
 
 	return &testPack{
 		backends: backends,

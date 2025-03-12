@@ -31,7 +31,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
@@ -51,49 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
 )
-
-func TestParseAccessRequestIDs(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		input     string
-		comment   string
-		result    []string
-		assertErr require.ErrorAssertionFunc
-	}{
-		{
-			input:     `{"access_requests":["1a7483e0-575a-4bd1-9faa-022500a49325","30b344f5-d1ba-49fc-b2aa-b04234d0a4ec"]}`,
-			comment:   "complete valid input",
-			assertErr: require.NoError,
-			result:    []string{"1a7483e0-575a-4bd1-9faa-022500a49325", "30b344f5-d1ba-49fc-b2aa-b04234d0a4ec"},
-		},
-		{
-			input:     `{"access_requests":["1a7483e0-575a-4bd1-9faa-022500a49325","30b344f5-d1ba-49fc-b2aa"]}`,
-			comment:   "invalid uuid",
-			assertErr: require.Error,
-			result:    nil,
-		},
-		{
-			input:     `{"access_requests":[nil,"30b344f5-d1ba-49fc-b2aa-b04234d0a4ec"]}`,
-			comment:   "invalid value, value in slice is nil",
-			assertErr: require.Error,
-			result:    nil,
-		},
-		{
-			input:     `{"access_requests":nil}`,
-			comment:   "invalid value, whole value is nil",
-			assertErr: require.Error,
-			result:    nil,
-		},
-	}
-	for _, tt := range testCases {
-		t.Run(tt.comment, func(t *testing.T) {
-			out, err := ParseAccessRequestIDs(tt.input)
-			tt.assertErr(t, err)
-			require.Equal(t, out, tt.result)
-		})
-	}
-}
 
 func TestIsApprovedFileTransfer(t *testing.T) {
 	// set enterprise for tests
@@ -235,9 +192,7 @@ func TestSession_newRecorder(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	logger := logrus.WithFields(logrus.Fields{
-		teleport.ComponentKey: teleport.ComponentAuth,
-	})
+	logger := utils.NewSlogLoggerForTests()
 
 	isNotSessionWriter := func(t require.TestingT, i interface{}, i2 ...interface{}) {
 		require.NotNil(t, i)
@@ -255,9 +210,10 @@ func TestSession_newRecorder(t *testing.T) {
 		{
 			desc: "discard-stream-when-proxy-recording",
 			sess: &session{
-				id:  "test",
-				log: logger,
+				id:     "test",
+				logger: logger,
 				registry: &SessionRegistry{
+					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -275,9 +231,10 @@ func TestSession_newRecorder(t *testing.T) {
 		{
 			desc: "discard-stream--when-proxy-sync-recording",
 			sess: &session{
-				id:  "test",
-				log: logger,
+				id:     "test",
+				logger: logger,
 				registry: &SessionRegistry{
+					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -295,9 +252,10 @@ func TestSession_newRecorder(t *testing.T) {
 		{
 			desc: "strict-err-new-audit-writer-fails",
 			sess: &session{
-				id:  "test",
-				log: logger,
+				id:     "test",
+				logger: logger,
 				registry: &SessionRegistry{
+					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -334,9 +292,10 @@ func TestSession_newRecorder(t *testing.T) {
 		{
 			desc: "best-effort-err-new-audit-writer-succeeds",
 			sess: &session{
-				id:  "test",
-				log: logger,
+				id:     "test",
+				logger: logger,
 				registry: &SessionRegistry{
+					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -380,9 +339,10 @@ func TestSession_newRecorder(t *testing.T) {
 		{
 			desc: "audit-writer",
 			sess: &session{
-				id:  "test",
-				log: logger,
+				id:     "test",
+				logger: logger,
 				registry: &SessionRegistry{
+					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -421,9 +381,7 @@ func TestSession_newRecorder(t *testing.T) {
 func TestSession_emitAuditEvent(t *testing.T) {
 	t.Parallel()
 
-	logger := logrus.WithFields(logrus.Fields{
-		teleport.ComponentKey: teleport.ComponentAuth,
-	})
+	logger := utils.NewSlogLoggerForTests()
 
 	t.Run("FallbackConcurrency", func(t *testing.T) {
 		srv := newMockServer(t)
@@ -435,8 +393,8 @@ func TestSession_emitAuditEvent(t *testing.T) {
 		t.Cleanup(func() { reg.Close() })
 
 		sess := &session{
-			id:  "test",
-			log: logger,
+			id:     "test",
+			logger: logger,
 			recorder: &mockRecorder{
 				SessionPreparerRecorder: events.WithNoOpPreparer(events.NewDiscardRecorder()),
 				done:                    true,
@@ -773,7 +731,15 @@ func TestParties(t *testing.T) {
 
 	// If a party's session context is closed, the party should leave the session.
 	p = sess.getParties()[0]
-	require.NoError(t, p.ctx.Close())
+
+	// TODO(Joerger): Closing the host party's server context will result in the terminal
+	// shell being killed, and the session ending for all parties. Once this bug is
+	// fixed, we can re-enable this section of the test. For now just close the party.
+	// https://github.com/gravitational/teleport/issues/46308
+	//
+	// require.NoError(t, p.ctx.Close())
+
+	require.NoError(t, p.Close())
 
 	partyIsRemoved = func() bool {
 		return len(sess.getParties()) == 1 && !sess.isStopped()
@@ -816,7 +782,7 @@ func TestParties(t *testing.T) {
 func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
 	scx := newTestServerContext(t, reg.Srv, nil)
 	sshChanOpen := newMockSSHChannel()
-	scx.setSession(sess, sshChanOpen)
+	scx.setSession(context.Background(), sess, sshChanOpen)
 
 	// Open a new session
 	go func() {
@@ -1110,9 +1076,10 @@ func TestTrackingSession(t *testing.T) {
 			}
 
 			sess := &session{
-				id:  rsession.NewID(),
-				log: utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test-session"),
+				id:     rsession.NewID(),
+				logger: utils.NewSlogLoggerForTests().With(teleport.ComponentKey, "test-session"),
 				registry: &SessionRegistry{
+					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv:                   srv,
 						SessionTrackerService: trackingService,
@@ -1420,4 +1387,390 @@ func mockSSHSession(t *testing.T) *tracessh.Session {
 		require.Fail(t, "timeout while waiting for the SSH session")
 		return nil
 	}
+}
+
+func TestUpsertHostUser(t *testing.T) {
+	username := "alice"
+
+	cases := []struct {
+		name string
+
+		identityContext   IdentityContext
+		hostUsers         *fakeHostUsersBackend
+		createHostUser    bool
+		obtainFallbackUID ObtainFallbackUIDFunc
+
+		expectCreated     bool
+		expectErrIs       error
+		expectErrContains string
+		expectUsers       map[string]fakeUser
+	}{
+		{
+			name:           "should upsert existing user with permission",
+			createHostUser: true,
+			identityContext: IdentityContext{
+				Login: username,
+				AccessChecker: &fakeAccessChecker{
+					hostInfo: services.HostUsersInfo{
+						Groups: []string{"foo", "bar"},
+					},
+				},
+			},
+			hostUsers: &fakeHostUsersBackend{users: map[string]fakeUser{
+				username: {},
+			}},
+
+			expectCreated: true,
+
+			expectUsers: map[string]fakeUser{
+				username: {groups: []string{"foo", "bar"}},
+			},
+		},
+		{
+			name:           "should upsert new user with permission",
+			createHostUser: true,
+			identityContext: IdentityContext{
+				Login: username,
+				AccessChecker: &fakeAccessChecker{
+					hostInfo: services.HostUsersInfo{
+						Groups: []string{"foo", "bar"},
+					},
+				},
+			},
+			hostUsers: &fakeHostUsersBackend{},
+
+			expectCreated: true,
+			expectUsers: map[string]fakeUser{
+				username: {groups: []string{"foo", "bar"}},
+			},
+		},
+		{
+			name:            "should not upsert existing user without permission",
+			createHostUser:  true,
+			identityContext: IdentityContext{Login: username, AccessChecker: &fakeAccessChecker{err: trace.AccessDenied("test")}},
+			hostUsers: &fakeHostUsersBackend{
+				users: map[string]fakeUser{
+					username: {},
+				},
+			},
+
+			expectCreated: false,
+			expectErrIs:   trace.AccessDenied("test"),
+			expectUsers: map[string]fakeUser{
+				username: {},
+			},
+		},
+		{
+			name:            "should not upsert new user without permission",
+			createHostUser:  true,
+			identityContext: IdentityContext{Login: username, AccessChecker: &fakeAccessChecker{err: trace.AccessDenied("test")}},
+			hostUsers:       &fakeHostUsersBackend{},
+
+			expectCreated:     false,
+			expectUsers:       nil,
+			expectErrIs:       trace.AccessDenied("test"),
+			expectErrContains: "insufficient permissions for host user creation",
+		},
+		{
+			name:            "should do nothing if login is session join principal",
+			createHostUser:  true,
+			identityContext: IdentityContext{Login: teleport.SSHSessionJoinPrincipal},
+			hostUsers:       &fakeHostUsersBackend{},
+
+			expectCreated: false,
+			expectUsers:   nil,
+		},
+		{
+			name:           "should use fallback UIDs in keep mode",
+			createHostUser: true,
+			identityContext: IdentityContext{
+				Login: username,
+				AccessChecker: &fakeAccessChecker{
+					hostInfo: services.HostUsersInfo{
+						Mode: services.HostUserModeKeep,
+					},
+				},
+			},
+			hostUsers: &fakeHostUsersBackend{},
+			obtainFallbackUID: func(ctx context.Context, username string) (uid int32, ok bool, _ error) {
+				return 1, true, nil
+			},
+
+			expectCreated: true,
+			expectUsers: map[string]fakeUser{
+				username: {uid: "1", gid: "1"},
+			},
+		},
+		{
+			name:           "should only use fallback UIDs in keep mode",
+			createHostUser: true,
+			identityContext: IdentityContext{
+				Login: username,
+				AccessChecker: &fakeAccessChecker{
+					hostInfo: services.HostUsersInfo{
+						Mode: services.HostUserModeDrop,
+					},
+				},
+			},
+			hostUsers: &fakeHostUsersBackend{},
+			obtainFallbackUID: func(ctx context.Context, username string) (uid int32, ok bool, _ error) {
+				return 0, false, trace.BadParameter("not reached")
+			},
+
+			expectCreated: true,
+			expectUsers: map[string]fakeUser{
+				username: {},
+			},
+		},
+		{
+			name:           "should only use fallback UIDs for users that don't exist",
+			createHostUser: true,
+			identityContext: IdentityContext{
+				Login: username,
+				AccessChecker: &fakeAccessChecker{
+					hostInfo: services.HostUsersInfo{
+						Mode: services.HostUserModeKeep,
+					},
+				},
+			},
+			hostUsers: &fakeHostUsersBackend{
+				users: map[string]fakeUser{
+					username: {},
+				},
+			},
+			obtainFallbackUID: func(ctx context.Context, username string) (uid int32, ok bool, _ error) {
+				return 0, false, trace.BadParameter("not reached")
+			},
+
+			expectCreated: true,
+			expectUsers: map[string]fakeUser{
+				username: {},
+			},
+		},
+		{
+			name:           "should not override a configured GID",
+			createHostUser: true,
+			identityContext: IdentityContext{
+				Login: username,
+				AccessChecker: &fakeAccessChecker{
+					hostInfo: services.HostUsersInfo{
+						Mode: services.HostUserModeKeep,
+						GID:  "set",
+					},
+				},
+			},
+			hostUsers: &fakeHostUsersBackend{},
+			obtainFallbackUID: func(ctx context.Context, username string) (uid int32, ok bool, _ error) {
+				return 1, true, nil
+			},
+
+			expectCreated: true,
+			expectUsers: map[string]fakeUser{
+				username: {uid: "1", gid: "set"},
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			registry := SessionRegistry{
+				logger: utils.NewSlogLoggerForTests(),
+				SessionRegistryConfig: SessionRegistryConfig{
+					Srv: &fakeServer{createHostUser: c.createHostUser},
+				},
+				users: c.hostUsers,
+			}
+
+			userCreated, _, err := registry.UpsertHostUser(c.identityContext, c.obtainFallbackUID)
+
+			if c.expectErrIs != nil {
+				assert.ErrorIs(t, err, c.expectErrIs)
+			}
+
+			if c.expectErrContains != "" {
+				assert.Contains(t, err.Error(), c.expectErrContains)
+			}
+
+			if c.expectErrIs == nil && c.expectErrContains == "" {
+				assert.NoError(t, err)
+			}
+
+			assert.Equal(t, c.expectCreated, userCreated)
+
+			for name, user := range c.hostUsers.users {
+				expectedUser, ok := c.expectUsers[name]
+				assert.True(t, ok, "user must be present in expected users")
+				assert.ElementsMatch(t, expectedUser.groups, user.groups)
+				assert.Equal(t, expectedUser.uid, user.uid)
+				assert.Equal(t, expectedUser.gid, user.gid)
+			}
+		})
+	}
+}
+
+func TestWriteSudoersFile(t *testing.T) {
+	username := "alice"
+
+	cases := []struct {
+		name string
+
+		identityContext IdentityContext
+		hostSudoers     *fakeSudoersBackend
+
+		expectSudoers     map[string][]string
+		expectErrIs       error
+		expectErrContains string
+	}{
+		{
+			name:            "should write sudoers with permission",
+			identityContext: IdentityContext{Login: username, AccessChecker: &fakeAccessChecker{}},
+			hostSudoers:     &fakeSudoersBackend{},
+
+			expectSudoers: map[string][]string{
+				username: {"foo", "bar"},
+			},
+		},
+		{
+			name:            "should not write sudoers without permission",
+			identityContext: IdentityContext{Login: username, AccessChecker: &fakeAccessChecker{err: trace.AccessDenied("test")}},
+			hostSudoers:     &fakeSudoersBackend{},
+
+			expectSudoers: map[string][]string{},
+			expectErrIs:   trace.AccessDenied("test"),
+		},
+		{
+			name:            "should do nothing for session join principal",
+			identityContext: IdentityContext{Login: teleport.SSHSessionJoinPrincipal, AccessChecker: &fakeAccessChecker{}},
+			hostSudoers:     &fakeSudoersBackend{},
+
+			expectSudoers: map[string][]string{},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			registry := SessionRegistry{
+				logger: utils.NewSlogLoggerForTests(),
+				SessionRegistryConfig: SessionRegistryConfig{
+					Srv: &fakeServer{hostSudoers: c.hostSudoers},
+				},
+				sessionsByUser: &userSessions{
+					sessionsByUser: make(map[string]int),
+				},
+			}
+
+			_, err := registry.WriteSudoersFile(c.identityContext)
+
+			if c.expectErrIs != nil {
+				assert.ErrorIs(t, err, c.expectErrIs)
+			}
+
+			if c.expectErrContains != "" {
+				assert.Contains(t, err.Error(), c.expectErrContains)
+			}
+
+			if c.expectErrIs == nil && c.expectErrContains == "" {
+				assert.NoError(t, err)
+			}
+
+			for name, sudoers := range c.hostSudoers.sudoers {
+				expectedSudoers, ok := c.expectSudoers[name]
+				assert.True(t, ok, "there should be an expected name for each login name")
+				assert.ElementsMatch(t, expectedSudoers, sudoers)
+			}
+		})
+	}
+}
+
+type fakeServer struct {
+	Server
+
+	createHostUser bool
+	hostSudoers    HostSudoers
+}
+
+func (f *fakeServer) GetCreateHostUser() bool {
+	return f.createHostUser
+}
+
+func (f *fakeServer) GetHostSudoers() HostSudoers {
+	return f.hostSudoers
+}
+
+func (f *fakeServer) GetInfo() types.Server {
+	return nil
+}
+
+func (f *fakeServer) Context() context.Context {
+	return context.Background()
+}
+
+type fakeAccessChecker struct {
+	services.AccessChecker
+	err      error
+	hostInfo services.HostUsersInfo
+}
+
+func (f *fakeAccessChecker) HostSudoers(srv types.Server) ([]string, error) {
+	return []string{"foo", "bar"}, f.err
+}
+
+func (f *fakeAccessChecker) HostUsers(srv types.Server) (*services.HostUsersInfo, error) {
+	return &f.hostInfo, f.err
+}
+
+type fakeUser struct {
+	groups []string
+	uid    string
+	gid    string
+}
+
+type fakeHostUsersBackend struct {
+	HostUsers
+
+	users map[string]fakeUser
+}
+
+func (f *fakeHostUsersBackend) UpsertUser(name string, hostRoleInfo services.HostUsersInfo) (io.Closer, error) {
+	if f.users == nil {
+		f.users = make(map[string]fakeUser)
+	}
+
+	f.users[name] = fakeUser{
+		groups: hostRoleInfo.Groups,
+		uid:    hostRoleInfo.UID,
+		gid:    hostRoleInfo.GID,
+	}
+	return nil, nil
+}
+
+func (f *fakeHostUsersBackend) UserExists(name string) error {
+	if _, exists := f.users[name]; !exists {
+		return trace.NotFound("%v", name)
+	}
+
+	return nil
+}
+
+type fakeSudoersBackend struct {
+	sudoers map[string][]string
+	err     error
+}
+
+func (f *fakeSudoersBackend) WriteSudoers(name string, sudoers []string) error {
+	if f.sudoers == nil {
+		f.sudoers = make(map[string][]string)
+	}
+
+	f.sudoers[name] = append(f.sudoers[name], sudoers...)
+	return f.err
+}
+
+func (f *fakeSudoersBackend) RemoveSudoers(name string) error {
+	if f.sudoers == nil {
+		return nil
+	}
+
+	delete(f.sudoers, name)
+	return f.err
 }

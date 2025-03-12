@@ -47,7 +47,7 @@ func TestJoinOpenSSH(t *testing.T) {
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Loopback,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      utils.NewSlogLoggerForTests(),
 	}
 	cfg.Listeners = helpers.StandardListenerSetup(t, &cfg.Fds)
 	rc := helpers.NewInstance(t, cfg)
@@ -103,7 +103,7 @@ func TestJoinOpenSSH(t *testing.T) {
 	}, openSSHCfg)
 	require.NoError(t, err)
 
-	err = service.Run(ctx, *openSSHCfg, nil)
+	err = service.RunWithSignalChannel(ctx, *openSSHCfg, nil, nil)
 	require.NoError(t, err)
 
 	client := rc.GetSiteAPI(rc.Secrets.SiteName)

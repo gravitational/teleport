@@ -22,12 +22,12 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
-	log "github.com/sirupsen/logrus"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/devicetrust/native"
 )
@@ -94,8 +94,7 @@ func (c *Ceremony) RunAdmin(
 
 	rewordAccessDenied := func(err error, action string) error {
 		if trace.IsAccessDenied(trail.FromGRPC(err)) {
-			log.WithError(err).Debug(
-				"Device Trust: Redacting access denied error with user-friendly message")
+			slog.DebugContext(ctx, "Device Trust: Redacting access denied error with user-friendly message", "error", err)
 			return trace.AccessDenied(
 				"User does not have permissions to %s. Contact your cluster device administrator.",
 				action,
@@ -115,9 +114,12 @@ func (c *Ceremony) RunAdmin(
 	for _, dev := range findResp.Devices {
 		if dev.OsType == osType {
 			currentDev = dev
-			log.Debugf(
-				"Device Trust: Found device %q/%v, id=%q",
-				currentDev.AssetTag, devicetrust.FriendlyOSType(currentDev.OsType), currentDev.Id,
+			slog.DebugContext(ctx, "Device Trust: Found device",
+				slog.Group("device",
+					slog.String("asset_tag", currentDev.AssetTag),
+					slog.String("os", devicetrust.FriendlyOSType(currentDev.OsType)),
+					slog.String("id", currentDev.Id),
+				),
 			)
 			break
 		}
@@ -148,10 +150,13 @@ func (c *Ceremony) RunAdmin(
 		if err != nil {
 			return currentDev, outcome, trace.Wrap(rewordAccessDenied(err, "create device enrollment tokens"))
 		}
-		log.Debugf(
-			"Device Trust: Created enrollment token for device %q/%s",
-			currentDev.AssetTag,
-			devicetrust.FriendlyOSType(currentDev.OsType))
+		slog.DebugContext(ctx, "Device Trust: Created enrollment token for device",
+			slog.Group("device",
+				slog.String("asset_tag", currentDev.AssetTag),
+				slog.String("os", devicetrust.FriendlyOSType(currentDev.OsType)),
+				slog.String("id", currentDev.Id),
+			),
+		)
 	}
 	token := currentDev.EnrollToken.GetToken()
 
@@ -172,6 +177,15 @@ func (c *Ceremony) Run(ctx context.Context, devicesClient devicepb.DeviceTrustSe
 		return nil, trace.Wrap(err)
 	}
 	init.Token = enrollToken
+
+	return c.run(ctx, devicesClient, debug, init)
+}
+
+func (c *Ceremony) run(ctx context.Context, devicesClient devicepb.DeviceTrustServiceClient, debug bool, init *devicepb.EnrollDeviceInit) (*devicepb.Device, error) {
+	// Sanity check.
+	if init.GetToken() == "" {
+		return nil, trace.BadParameter("enroll init message lacks enrollment token")
+	}
 
 	stream, err := devicesClient.EnrollDevice(ctx)
 	if err != nil {

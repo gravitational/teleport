@@ -16,34 +16,34 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
-import { Box, Text, Link as ExternalLink, Flex, ButtonSecondary } from 'design';
+import { useEffect, useState } from 'react';
+
+import { Text } from 'design';
+import { Alert } from 'design/Alert/Alert';
 import { FetchStatus } from 'design/DataTable/types';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
-import Alert, { OutlineInfo } from 'design/Alert/Alert';
 
+import cfg from 'teleport/config';
+import { CreatedDiscoveryConfigDialog } from 'teleport/Discover/Shared/ConfigureDiscoveryService';
 import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import {
+  createDiscoveryConfig,
+  DISCOVERY_GROUP_CLOUD,
+} from 'teleport/services/discovery';
+import {
   AwsRdsDatabase,
+  integrationService,
   Regions,
   Vpc,
-  integrationService,
 } from 'teleport/services/integrations';
-import cfg from 'teleport/config';
-import {
-  DISCOVERY_GROUP_CLOUD,
-  createDiscoveryConfig,
-} from 'teleport/services/discovery';
-import useTeleport from 'teleport/useTeleport';
 import {
   DiscoverEvent,
   DiscoverEventStatus,
 } from 'teleport/services/userEvent';
-import { CreatedDiscoveryConfigDialog } from 'teleport/Discover/Shared/ConfigureDiscoveryService';
+import useTeleport from 'teleport/useTeleport';
 
 import { ActionButtons } from '../../Shared';
-
 import { DatabaseList } from './RdsDatabaseList';
 
 type TableData = {
@@ -79,8 +79,6 @@ export function AutoEnrollment({
    */
   key: string;
 }) {
-  const hasDatabaseServiceForVpc = !!vpc?.ecsServiceDashboardURL;
-
   const ctx = useTeleport();
   const clusterId = ctx.storeUser.getClusterId();
 
@@ -94,13 +92,6 @@ export function AutoEnrollment({
   const [tableData, setTableData] = useState<TableData>();
 
   useEffect(() => {
-    if (hasDatabaseServiceForVpc) {
-      // No need to fetch rds's since in place of rds table
-      // we will render a info banner that a db service
-      // already exists.
-      return;
-    }
-
     if (vpc) {
       // Start with empty table data for new vpc's.
       fetchRdsDatabases(emptyTableData(), vpc);
@@ -133,7 +124,7 @@ export function AutoEnrollment({
         }
       );
 
-      // Abort if there were no rds dbs for the selected region.
+      // Abort if there were no rds dbs for the selected region/vpc.
       if (fetchedDbs.length <= 0) {
         onFetchAttempt({ status: 'success' });
         setTableData({ ...data, fetchStatus: 'disabled' });
@@ -217,37 +208,20 @@ export function AutoEnrollment({
   }
 
   const selectedVpc = !!vpc;
-  const showTable =
-    selectedVpc &&
-    !hasDatabaseServiceForVpc &&
-    fetchAttempt.status !== 'failed';
+  const showTable = selectedVpc && fetchAttempt.status !== 'failed';
 
   return (
     <>
-      {hasDatabaseServiceForVpc && (
-        <OutlineInfo mt={3} width="480px" linkColor="buttons.link.default">
-          <Box>
-            There is a database service already deployed for the selected VPC,
-            visit its{' '}
-            <ExternalLink target="_blank" href={vpc.ecsServiceDashboardURL}>
-              dashboard
-            </ExternalLink>{' '}
-            to check it out.
-          </Box>
-        </OutlineInfo>
-      )}
       {showTable && (
         <>
           {tableData?.oneOfError && (
-            <Alert>
-              <Flex alignItems="center" gap={2}>
-                {tableData.oneOfError}
-                <ButtonSecondary
-                  onClick={() => fetchRdsDatabases(emptyTableData(), vpc)}
-                >
-                  Retry
-                </ButtonSecondary>
-              </Flex>
+            <Alert
+              primaryAction={{
+                content: 'Retry',
+                onClick: () => fetchRdsDatabases(emptyTableData(), vpc),
+              }}
+            >
+              {tableData.oneOfError}
             </Alert>
           )}
           <Text mt={3}>List of databases that will be auto enrolled:</Text>
@@ -261,7 +235,7 @@ export function AutoEnrollment({
       )}
       <ActionButtons
         onProceed={handleOnProceed}
-        disableProceed={disableBtns || !showTable || hasDatabaseServiceForVpc}
+        disableProceed={disableBtns || !showTable}
       />
       {createDiscoveryConfigAttempt.status !== '' && (
         <CreatedDiscoveryConfigDialog
