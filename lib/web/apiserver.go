@@ -66,6 +66,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	sessionrecordingmetatadav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionrecordingmetatada/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -4124,14 +4125,29 @@ func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	// var ids []string
-	// for _, e := range eventsList.Events {
-	// 	ids = append(ids, e.GetString(events.SessionEventID))
-	// }
+	var sessionIDs []string
+	for _, e := range eventsList.Events {
+		sessionIDs = append(sessionIDs, e.GetString(events.SessionEventID))
+	}
 
-	for i := range eventsList.Events {
-		if i%2 == 0 {
-			eventsList.Events[i]["summary"] = fmt.Sprintf("Dummy summary %d", i)
+	userClt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	srmClt := userClt.SessionRecordingMetadataClient()
+	recordingMetadata, _, err := srmClt.ListSessionRecordingMetadata(ctx, len(sessionIDs), "", sessionIDs, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	recMetaMap := make(map[string]*sessionrecordingmetatadav1.SessionRecordingMetadata)
+	for _, rm := range recordingMetadata {
+		recMetaMap[rm.Metadata.Name] = rm
+	}
+
+	for _, ev := range eventsList.Events {
+		rm, ok := recMetaMap[ev.GetString(events.SessionEventID)]
+		if ok {
+			ev["summary"] = rm.Spec.Summary
 		}
 	}
 

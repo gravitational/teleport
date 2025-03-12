@@ -22,13 +22,14 @@ package sessionrecordingmetadatav1
 
 import (
 	"context"
+	"log/slog"
+
 	"github.com/gravitational/teleport"
 	sessionrecordingmetadatapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionrecordingmetatada/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"log/slog"
 )
 
 type Backend interface {
