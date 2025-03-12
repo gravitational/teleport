@@ -16,15 +16,17 @@ let addr = "\(FileManager.default.homeDirectoryForCurrentUser.path()).tsh/tsh.so
 @MainActor
 class AppModel: ObservableObject {
   @Published var listRootClustersResponse: Teleport_Lib_Teleterm_V1_ListClustersResponse?
+  var vnetServiceClient: Teleport_Lib_Teleterm_Vnet_V1_VnetService.Client<HTTP2ClientTransport.Posix>
 
   init() {
-    runTshd()
-
     let client = GRPCClient(transport: try! .http2NIOPosix(
       target: .unixDomainSocket(path: addr),
       transportSecurity: .plaintext
     ))
-    let serviceClient = Teleport_Lib_Teleterm_V1_TerminalService.Client(wrapping: client)
+    let tshdServiceClient = Teleport_Lib_Teleterm_V1_TerminalService.Client(wrapping: client)
+    self.vnetServiceClient = Teleport_Lib_Teleterm_Vnet_V1_VnetService.Client(wrapping: client)
+
+    runTshd()
 
     Task {
       try await Task.sleep(nanoseconds: UInt64(250 * Double(NSEC_PER_MSEC)))
@@ -41,7 +43,7 @@ class AppModel: ObservableObject {
 
     Task {
       do {
-        self.listRootClustersResponse = try await serviceClient.listRootClusters(.with {_ in })
+        self.listRootClustersResponse = try await tshdServiceClient.listRootClusters(.with {_ in })
         print("Fetched root clusters")
       } catch let error {
         print("Could not fetch root clusters: \(error)")
@@ -51,7 +53,7 @@ class AppModel: ObservableObject {
 
   func runTshd() {
     let process = try! Process.run(Bundle.main.url(forResource: "tsh", withExtension: "").unsafelyUnwrapped,
-                                      arguments: ["daemon", "start", "--addr=unix://\(addr)",
+                                   arguments: ["daemon", "start", "--addr=unix://\(addr)",
                                                "--certs-dir=nothing",
                                                "--prehog-addr=127.0.0.1:9090",
                                                "--kubeconfigs-dir=${settings.",
@@ -63,6 +65,26 @@ class AppModel: ObservableObject {
       process.terminate()
     }
   }
+
+  func startVnet() async -> Bool {
+    var success = false
+    do {
+      try await self.vnetServiceClient.start(.with {_ in })
+      success = true
+    } catch let error {
+      print("Could not start Vnet: \(error)")
+    }
+
+    return success
+  }
+
+  func stopVnet()async {
+    do {
+      try await self.vnetServiceClient.stop(.with {_ in })
+    } catch let error {
+      print("Could not stop Vnet: \(error)")
+    }
+  }
 }
 
 @main
@@ -70,6 +92,6 @@ struct TeleportMenuBarApp: App {
   @StateObject private var model = AppModel()
 
   var body: some Scene {
-    MenuBar(listRootClustersResponse: model.listRootClustersResponse)
+    MenuBar(listRootClustersResponse: model.listRootClustersResponse, startVnet: model.startVnet, stopVnet: model.stopVnet)
   }
 }

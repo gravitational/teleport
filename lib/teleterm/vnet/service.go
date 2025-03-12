@@ -137,10 +137,10 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 	// However, there is one exception: during the first launch of the app, the user is asked if they
 	// want to enable telemetry. Agreeing to that changes the setting without restarting the app.
 	// As such, this service needs to ask for this setting on every launch.
-	isUsageReportingEnabled, err := s.isUsageReportingEnabled(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err, "getting usage reporting settings")
-	}
+	isUsageReportingEnabled := false
+	//if err != nil {
+	//	return nil, trace.Wrap(err, "getting usage reporting settings")
+	//}
 
 	if isUsageReportingEnabled {
 		usageReporter, err := newDaemonUsageReporter(daemonUsageReporterConfig{

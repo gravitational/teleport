@@ -10,6 +10,8 @@ import SwiftUI
 struct MenuBar: Scene {
   @State var isVnetRunning: Bool = false
   var listRootClustersResponse: Teleport_Lib_Teleterm_V1_ListClustersResponse?
+  var startVnet: () async -> Bool
+  var stopVnet: () async -> Void
 
   var body: some Scene {
     MenuBarExtra("Teleport Menu Bar App", systemImage: "gearshape.fill") {
@@ -37,11 +39,19 @@ struct MenuBar: Scene {
 
       if isVnetRunning {
         Button("Stop VNet") {
-          isVnetRunning = false
+          Task {
+            await stopVnet()
+            isVnetRunning = false
+          }
         }
       } else {
         Button("Start VNet") {
-          isVnetRunning = true
+          Task {
+            let succces = await startVnet()
+            if succces {
+              isVnetRunning = true
+            }
+          }
         }
       }
       Divider()
