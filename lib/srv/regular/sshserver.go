@@ -850,7 +850,11 @@ func New(
 		component,
 		addr, s,
 		getHostSigners,
-		sshutils.AuthMethods{PublicKey: s.authHandlers.UserKeyAuth},
+		sshutils.AuthMethods{
+			PublicKey: s.authHandlers.UserKeyAuth,
+
+			GetPublicKeyCallbackForPermit: s.authHandlers.GetPublicKeyCallbackForPermit,
+		},
 		sshutils.SetLimiter(s.limiter),
 		sshutils.SetRequestHandler(s),
 		sshutils.SetNewConnHandler(s),

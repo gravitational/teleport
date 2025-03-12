@@ -82,6 +82,8 @@ type Server struct {
 	cfg     ssh.ServerConfig
 	limiter *limiter.Limiter
 
+	GetPublicKeyCallbackForPermit func(*decisionpb.SSHAccessPermit) PublicKeyFunc
+
 	closeContext context.Context
 	closeFunc    context.CancelFunc
 
@@ -499,7 +501,7 @@ func (s *Server) HandleStapledConnection(conn net.Conn, permit []byte) {
 	s.handleConnection(conn, p)
 }
 
-func (s *Server) handleConnection(conn net.Conn, _ *decisionpb.SSHAccessPermit) {
+func (s *Server) handleConnection(conn net.Conn, permit *decisionpb.SSHAccessPermit) {
 	if s.ingressReporter != nil {
 		s.ingressReporter.ConnectionAccepted(s.ingressService, conn)
 		defer s.ingressReporter.ConnectionClosed(s.ingressService, conn)
@@ -521,6 +523,9 @@ func (s *Server) handleConnection(conn net.Conn, _ *decisionpb.SSHAccessPermit) 
 	}
 	if v := serverVersionOverrideFromConn(conn); v != "" && v != cfg.ServerVersion {
 		cfg.ServerVersion = v
+	}
+	if f := s.GetPublicKeyCallbackForPermit; f != nil && permit != nil {
+		cfg.PublicKeyCallback = f(permit)
 	}
 
 	// apply idle read/write timeout to this connection.
@@ -743,6 +748,8 @@ type AuthMethods struct {
 	PublicKey PublicKeyFunc
 	Password  PasswordFunc
 	NoClient  bool
+
+	GetPublicKeyCallbackForPermit func(*decisionpb.SSHAccessPermit) PublicKeyFunc
 }
 
 // GetHostSignersFunc is an infallible function that returns host signers for

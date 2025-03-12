@@ -294,9 +294,20 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, request
 	return nil
 }
 
+func (h *AuthHandlers) GetPublicKeyCallbackForPermit(permit *decisionpb.SSHAccessPermit) sshutils.PublicKeyFunc {
+	return func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+		return h.userKeyAuth(conn, key, permit)
+	}
+}
+
 // UserKeyAuth implements SSH client authentication using public keys and is
 // called by the server every time the client connects.
 func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (ppms *ssh.Permissions, rerr error) {
+	var noPermit *decisionpb.SSHAccessPermit
+	return h.userKeyAuth(conn, key, noPermit)
+}
+
+func (h *AuthHandlers) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey, permit *decisionpb.SSHAccessPermit) (ppms *ssh.Permissions, rerr error) {
 	ctx := context.Background()
 
 	fingerprint := fmt.Sprintf("%v %v", key.Type(), sshutils.Fingerprint(key))
