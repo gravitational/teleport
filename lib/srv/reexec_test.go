@@ -42,6 +42,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/sshutils/networking"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -232,7 +233,7 @@ func testNetworkingCommand(t *testing.T, login string) {
 	ctx := context.Background()
 	srv := newMockServer(t)
 
-	scx := newTestServerContext(t, srv, nil)
+	scx := newTestServerContext(t, srv, nil, &decisionpb.SSHAccessPermit{})
 	scx.ExecType = teleport.NetworkingSubCommand
 	if login != "" {
 		scx.Identity.Login = login

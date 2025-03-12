@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -37,106 +38,60 @@ import (
 
 func TestCheckSFTPAllowed(t *testing.T) {
 	srv := newMockServer(t)
-	ctx := newTestServerContext(t, srv, nil)
+	ctx := newTestServerContext(t, srv, nil, nil)
 
 	tests := []struct {
 		name                 string
 		nodeAllowFileCopying bool
-		roles                []types.Role
+		permit               *decisionpb.SSHAccessPermit
+		sessionPolicies      []*types.SessionRequirePolicy
 		expectedErr          error
 	}{
 		{
 			name:                 "node disallowed",
 			nodeAllowFileCopying: false,
-			roles: []types.Role{
-				&types.RoleV6{
-					Kind: types.KindNode,
-				},
+			permit: &decisionpb.SSHAccessPermit{
+				SshFileCopy: true,
 			},
 			expectedErr: ErrNodeFileCopyingNotPermitted,
 		},
 		{
 			name:                 "node allowed",
 			nodeAllowFileCopying: true,
-			roles: []types.Role{
-				&types.RoleV6{
-					Kind: types.KindNode,
-				},
+			permit: &decisionpb.SSHAccessPermit{
+				SshFileCopy: true,
 			},
 			expectedErr: nil,
 		},
 		{
 			name:                 "role disallowed",
 			nodeAllowFileCopying: true,
-			roles: []types.Role{
-				&types.RoleV6{
-					Kind: types.KindNode,
-					Spec: types.RoleSpecV6{
-						Options: types.RoleOptions{
-							SSHFileCopy: types.NewBoolOption(false),
-						},
-					},
-				},
+			permit: &decisionpb.SSHAccessPermit{
+				SshFileCopy: false,
 			},
 			expectedErr: errRoleFileCopyingNotPermitted,
 		},
 		{
 			name:                 "role allowed",
 			nodeAllowFileCopying: true,
-			roles: []types.Role{
-				&types.RoleV6{
-					Kind: types.KindNode,
-					Spec: types.RoleSpecV6{
-						Options: types.RoleOptions{
-							SSHFileCopy: types.NewBoolOption(true),
-						},
-					},
-				},
+			permit: &decisionpb.SSHAccessPermit{
+				SshFileCopy: true,
 			},
 			expectedErr: nil,
 		},
 		{
-			name:                 "conflicting roles",
-			nodeAllowFileCopying: true,
-			roles: []types.Role{
-				&types.RoleV6{
-					Kind: types.KindNode,
-					Spec: types.RoleSpecV6{
-						Options: types.RoleOptions{
-							SSHFileCopy: types.NewBoolOption(true),
-						},
-					},
-				},
-				&types.RoleV6{
-					Kind: types.KindNode,
-					Spec: types.RoleSpecV6{
-						Options: types.RoleOptions{
-							SSHFileCopy: types.NewBoolOption(false),
-						},
-					},
-				},
-			},
-			expectedErr: errRoleFileCopyingNotPermitted,
-		},
-		{
 			name:                 "moderated sessions enforced",
 			nodeAllowFileCopying: true,
-			roles: []types.Role{
-				&types.RoleV6{
-					Kind: types.KindNode,
-					Spec: types.RoleSpecV6{
-						Allow: types.RoleConditions{
-							RequireSessionJoin: []*types.SessionRequirePolicy{
-								{
-									Name:   "test",
-									Filter: `contains(user.roles, "auditor")`,
-									Kinds:  []string{string(types.SSHSessionKind)},
-									Modes:  []string{string(types.SessionModeratorMode)},
-									Count:  3,
-								},
-							},
-						},
-					},
+			permit: &decisionpb.SSHAccessPermit{
+				SshFileCopy: true,
+			},
+			sessionPolicies: []*types.SessionRequirePolicy{
+				{
+					Name:   "test",
+					Filter: `contains(user.roles, "auditor")`,
+					Kinds:  []string{string(types.SSHSessionKind)},
+					Modes:  []string{string(types.SessionModeratorMode)},
+					Count:  3,
 				},
 			},
 			expectedErr: errCannotStartUnattendedSession,
@@ -147,15 +102,27 @@ func TestCheckSFTPAllowed(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx.AllowFileCopying = tt.nodeAllowFileCopying
 
-			roles := services.NewRoleSet(tt.roles...)
+			sessionJoiningRoles := services.NewRoleSet(&types.RoleV6{
+				Kind: types.KindRole,
+				Metadata: types.Metadata{
+					Name: "test",
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						RequireSessionJoin: tt.sessionPolicies,
+					},
+				},
+			})
 
-			ctx.Identity.AccessChecker = services.NewAccessCheckerWithRoleSet(
+			ctx.Identity.UnstableSessionJoiningAccessChecker = services.NewAccessCheckerWithRoleSet(
 				&services.AccessInfo{
-					Roles: roles.RoleNames(),
+					Roles: sessionJoiningRoles.RoleNames(),
 				},
 				"localhost",
-				roles,
+				sessionJoiningRoles,
 			)
+
+			ctx.Identity.AccessPermit = tt.permit
 
 			err := ctx.CheckSFTPAllowed(nil)
 			if tt.expectedErr == nil {
@@ -240,36 +207,34 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 	}
 }
 
-func TestComputeLockTargets(t *testing.T) {
+func TestSSHAccessLockTargets(t *testing.T) {
 	t.Run("all locks", func(t *testing.T) {
 		const clusterName = "mycluster"
 		const serverID = "myserver"
 		const mfaDevice = "my-mfa-device-1"
 		const trustedDevice = "my-trusted-device-1"
+		const osLogin = "camel"
+		const username = "llama"
 		mappedRoles := []string{"access", "editor"}
 		unmappedRoles := []string{"unmapped-role-1", "unmapped-role-2", "access"}
 		accessRequests := []string{"access-request-1", "access-request-2"}
 
-		identityCtx := IdentityContext{
-			UnmappedIdentity: &sshca.Identity{
-				Username:    "llama",
-				MFAVerified: mfaDevice,
-				DeviceID:    trustedDevice,
-			},
-			TeleportUser: "llama",
-			Impersonator: "alpaca",
-			Login:        "camel",
-			AccessChecker: &fixedRolesChecker{
-				roleNames: mappedRoles,
-			},
-			UnmappedRoles:  unmappedRoles,
+		unmappedIdentity := &sshca.Identity{
+			Username:       username,
+			MFAVerified:    mfaDevice,
+			DeviceID:       trustedDevice,
+			Roles:          unmappedRoles,
 			ActiveRequests: accessRequests,
 		}
 
-		got := ComputeLockTargets(clusterName, serverID, identityCtx)
+		accessInfo := &services.AccessInfo{
+			Username: username,
+			Roles:    mappedRoles,
+		}
+
+		got := services.SSHAccessLockTargets(clusterName, serverID, osLogin, accessInfo, unmappedIdentity)
 		want := []types.LockTarget{
-			{User: identityCtx.TeleportUser},
-			{Login: identityCtx.Login},
+			{User: username},
 			{Node: serverID, ServerID: serverID},
 			{Node: serverID + "." + clusterName, ServerID: serverID + "." + clusterName},
 			{MFADevice: mfaDevice},
@@ -284,8 +249,9 @@ func TestComputeLockTargets(t *testing.T) {
 		for _, request := range accessRequests {
 			want = append(want, types.LockTarget{AccessRequest: request})
 		}
+		want = append(want, types.LockTarget{Login: osLogin})
 		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
-			t.Errorf("ComputeLockTargets mismatch (-want +got)\n%s", diff)
+			t.Errorf("SSHAccessLockTargets mismatch (-want +got)\n%s", diff)
 		}
 	})
 }
@@ -311,7 +277,7 @@ func TestCreateOrJoinSession(t *testing.T) {
 	require.NoError(t, err)
 
 	runningSessionID := rsession.NewID()
-	sess, _, err := newSession(context.Background(), runningSessionID, registry, newTestServerContext(t, srv, nil), newMockSSHChannel(), sessionTypeInteractive)
+	sess, _, err := newSession(context.Background(), runningSessionID, registry, newTestServerContext(t, srv, nil, nil), newMockSSHChannel(), sessionTypeInteractive)
 	require.NoError(t, err)
 	registry.sessions[runningSessionID] = sess
 
@@ -354,7 +320,7 @@ func TestCreateOrJoinSession(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			ctx := newTestServerContext(t, srv, nil)
+			ctx := newTestServerContext(t, srv, nil, nil)
 			if tt.sessionID != "" {
 				ctx.SetEnv(sshutils.SessionEnvVar, tt.sessionID)
 			}

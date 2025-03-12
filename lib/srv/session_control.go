@@ -38,6 +38,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/decision"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -174,12 +175,14 @@ func WebSessionController(controller *SessionController) func(ctx context.Contex
 
 		identity := IdentityContext{
 			UnmappedIdentity: unmappedIdentity,
-			AccessChecker:    accessChecker,
-			TeleportUser:     sctx.GetUser(),
-			Login:            login,
-			UnmappedRoles:    unmappedIdentity.Roles,
-			ActiveRequests:   unmappedIdentity.ActiveRequests,
-			Impersonator:     unmappedIdentity.Impersonator,
+			//AccessChecker:    accessChecker,
+			UnstableSessionJoiningAccessChecker: accessChecker,
+			UnstableClusterAccessChecker:        accessChecker.CheckAccessToRemoteCluster,
+			TeleportUser:                        sctx.GetUser(),
+			Login:                               login,
+			UnmappedRoles:                       unmappedIdentity.Roles,
+			ActiveRequests:                      unmappedIdentity.ActiveRequests,
+			Impersonator:                        unmappedIdentity.Impersonator,
 		}
 		ctx, err = controller.AcquireSessionContext(ctx, identity, localAddr, remoteAddr)
 		return ctx, trace.Wrap(err)
@@ -202,25 +205,41 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 		return ctx, trace.Wrap(err)
 	}
 
-	clusterName, err := s.cfg.AccessPoint.GetClusterName()
-	if err != nil {
-		return ctx, trace.Wrap(err)
+	var lockingMode constants.LockingMode
+	switch {
+	case identity.AccessPermit != nil:
+		lockingMode = constants.LockingMode(identity.AccessPermit.LockingMode)
+	case identity.ProxyingPermit != nil:
+		lockingMode = identity.ProxyingPermit.LockingMode
+	default:
+		return nil, trace.BadParameter("session context requires one of AccessPermit or ProxyingPermit to be set (this is a bug)")
 	}
 
-	lockingMode := identity.AccessChecker.LockingMode(authPref.GetLockingMode())
-	lockTargets := ComputeLockTargets(clusterName.GetClusterName(), s.cfg.ServerID, identity)
+	var lockTargets []types.LockTarget
+	switch {
+	case identity.AccessPermit != nil:
+		lockTargets = decision.LockTargetsFromProto(identity.AccessPermit.LockTargets)
+	case identity.ProxyingPermit != nil:
+		lockTargets = identity.ProxyingPermit.LockTargets
+	default:
+		return nil, trace.BadParameter("session context requires one of AccessPermit or ProxyingPermit to be set (this is a bug)")
+	}
 
 	if lockErr := s.cfg.LockEnforcer.CheckLockInForce(lockingMode, lockTargets...); lockErr != nil {
 		s.emitRejection(spanCtx, identity.GetUserMetadata(), localAddr, remoteAddr, lockErr.Error(), 0)
 		return ctx, trace.Wrap(lockErr)
 	}
 
-	// Check that the required private key policy, defined by roles and auth pref,
-	// is met by this Identity's ssh certificate.
-	requiredPolicy, err := identity.AccessChecker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var requiredPolicy keys.PrivateKeyPolicy
+	switch {
+	case identity.AccessPermit != nil:
+		requiredPolicy = keys.PrivateKeyPolicy(identity.AccessPermit.PrivateKeyPolicy)
+	case identity.ProxyingPermit != nil:
+		requiredPolicy = identity.ProxyingPermit.PrivateKeyPolicy
+	default:
+		return nil, trace.BadParameter("session context requires one of AccessPermit or ProxyingPermit to be set (this is a bug)")
 	}
+
 	if !requiredPolicy.IsSatisfiedBy(identity.UnmappedIdentity.PrivateKeyPolicy) {
 		return ctx, keys.NewPrivateKeyPolicyError(requiredPolicy)
 	}
@@ -235,11 +254,21 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 		return ctx, trace.Wrap(err)
 	}
 
+	var maxConnections int64
+	switch {
+	case identity.AccessPermit != nil:
+		maxConnections = identity.AccessPermit.MaxConnections
+	case identity.ProxyingPermit != nil:
+		maxConnections = identity.ProxyingPermit.MaxConnections
+	default:
+		return nil, trace.BadParameter("session context requires one of AccessPermit or ProxyingPermit to be set (this is a bug)")
+	}
+
 	ctx, err = s.EnforceConnectionLimits(
 		ctx,
 		auth.ConnectionIdentity{
 			Username:       identity.TeleportUser,
-			MaxConnections: identity.AccessChecker.MaxConnections(),
+			MaxConnections: maxConnections,
 			LocalAddr:      localAddr,
 			RemoteAddr:     remoteAddr,
 			UserMetadata:   identity.GetUserMetadata(),
