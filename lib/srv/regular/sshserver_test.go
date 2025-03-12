@@ -850,20 +850,26 @@ func setPortForwarding(t *testing.T, ctx context.Context, f *sshTestFixture, leg
 // forwarding is built upon.
 func TestDirectTCPIP(t *testing.T) {
 	ctx := context.Background()
-	t.Parallel()
-	f := newFixtureWithoutDiskBasedLogging(t)
 
-	// Startup a test server that will reply with "hello, world\n"
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, "hello, world")
-	}))
-	defer ts.Close()
+	setup := func(t *testing.T) (*sshTestFixture, *httptest.Server, *url.URL) {
+		f := newFixtureWithoutDiskBasedLogging(t)
 
-	// Extract the host:port the test HTTP server is running on.
-	u, err := url.Parse(ts.URL)
-	require.NoError(t, err)
+		// Startup a test server that will reply with "hello, world\n"
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintln(w, "hello, world")
+		}))
+
+		// Extract the host:port the test HTTP server is running on.
+		u, err := url.Parse(ts.URL)
+		require.NoError(t, err)
+
+		return f, ts, u
+	}
 
 	t.Run("Local forwarding is successful", func(t *testing.T) {
+		f, ts, u := setup(t)
+		defer ts.Close()
+
 		// Build a http.Client that will dial through the server to establish the
 		// connection. That's why a custom dialer is used and the dialer uses
 		// s.clt.Dial (which performs the "direct-tcpip" request).
@@ -887,38 +893,65 @@ func TestDirectTCPIP(t *testing.T) {
 	})
 
 	t.Run("Local forwarding fails when access is denied", func(t *testing.T) {
+		f, ts, u := setup(t)
+		defer ts.Close()
+
+		// update rules before creating conn to ensure that permissions are calculated
+		// using the updated rules.
+		setPortForwarding(t, ctx, f, nil, nil, types.NewBoolOption(false))
+
+		// create a new client connection to the node
+		clientConn, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
+		require.NoError(t, err)
+		defer clientConn.Close()
+
+		// create an http client that does forwarding through the node
 		httpClient := http.Client{
 			Transport: &http.Transport{
 				Dial: func(network string, addr string) (net.Conn, error) {
-					return f.ssh.clt.DialContext(context.Background(), "tcp", u.Host)
+					return clientConn.DialContext(context.Background(), "tcp", u.Host)
 				},
 			},
 		}
 
-		setPortForwarding(t, ctx, f, nil, nil, types.NewBoolOption(false))
 		// Perform a HTTP GET to the test HTTP server through a "direct-tcpip" request.
 		//nolint:bodyclose // We expect an error here, no need to close.
-		_, err := httpClient.Get(ts.URL)
+		_, err = httpClient.Get(ts.URL)
 		require.Error(t, err)
 	})
 
 	t.Run("Local forwarding fails when access is denied by legacy config", func(t *testing.T) {
+		f, ts, u := setup(t)
+		defer ts.Close()
+
+		// update rules before creating conn to ensure that permissions are calculated
+		// using the updated rules.
+		setPortForwarding(t, ctx, f, types.NewBoolOption(false), nil, nil)
+
+		// create a new client connection to the node
+		clientConn, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
+		require.NoError(t, err)
+		defer clientConn.Close()
+
+		// create an http client that does forwarding through the node
 		httpClient := http.Client{
 			Transport: &http.Transport{
 				Dial: func(network string, addr string) (net.Conn, error) {
-					return f.ssh.clt.DialContext(context.Background(), "tcp", u.Host)
+					return clientConn.DialContext(context.Background(), "tcp", u.Host)
 				},
 			},
 		}
 
-		setPortForwarding(t, ctx, f, types.NewBoolOption(false), nil, nil)
 		// Perform a HTTP GET to the test HTTP server through a "direct-tcpip" request.
 		//nolint:bodyclose // We expect an error here, no need to close.
-		_, err := httpClient.Get(ts.URL)
+		_, err = httpClient.Get(ts.URL)
 		require.Error(t, err)
 	})
 
 	t.Run("SessionJoinPrincipal cannot use direct-tcpip", func(t *testing.T) {
+		f, ts, u := setup(t)
+		defer ts.Close()
+
 		// Ensure that ssh client using SessionJoinPrincipal as Login, cannot
 		// connect using "direct-tcpip".
 		ctx := context.Background()
@@ -985,8 +1018,15 @@ func TestTCPIPForward(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newFixtureWithoutDiskBasedLogging(t)
 			setPortForwarding(t, context.Background(), f, tc.legacyAllow, tc.remoteAllow, tc.localAllow)
+
+			// create a new client connection to the node which will have its permissions
+			// calculated with the updated rules.
+			clientConn, err := tracessh.Dial(context.Background(), "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
+			require.NoError(t, err)
+			defer clientConn.Close()
+
 			// Request a listener from the server.
-			listener, err := f.ssh.clt.Listen("tcp", tc.listenAddr)
+			listener, err := clientConn.Listen("tcp", tc.listenAddr)
 			if tc.expectErr {
 				require.Error(t, err)
 				return
@@ -1080,7 +1120,13 @@ func TestAgentForwardPermission(t *testing.T) {
 	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
-	se, err := f.ssh.clt.NewSession(ctx)
+	// create a new client connection to the node which will have its permissions
+	// calculated with the updated rules.
+	clientConn, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
+	require.NoError(t, err)
+	defer clientConn.Close()
+
+	se, err := clientConn.NewSession(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() { se.Close() })
 
