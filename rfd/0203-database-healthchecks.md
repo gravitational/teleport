@@ -338,10 +338,10 @@ If we make a completely empty `spec.match` default to "match nothing", then it w
 
 In future work we may expand health checks to other kinds of resources like desktops or kube clusters.
 If a matcher is specified for one type of resource, but not another, then only the configured matcher will match resources.
-For example, if `kube_labels` is given, but `db_labels` is not, then the matcher will only match kube clusters and not databases:
+For example, if `kubernetes_labels` is given, but `db_labels` is not, then the matcher will only match kube clusters and not databases:
 
     match:
-      kube_labels:
+      kubernetes_labels:
       - name: '*'
         values: ['*']
 
