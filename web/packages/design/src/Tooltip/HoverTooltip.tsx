@@ -41,6 +41,8 @@ export const HoverTooltip: React.FC<
     transformOrigin?: Origin;
     justifyContentProps?: JustifyContentProps;
     flexBasisProps?: FlexBasisProps;
+    sticky?: boolean;
+    trigger?: 'click' | 'hover';
   }>
 > = ({
   tipContent,
@@ -52,6 +54,8 @@ export const HoverTooltip: React.FC<
   transformOrigin,
   justifyContentProps = {},
   flexBasisProps = {},
+  sticky = false,
+  trigger = 'hover',
 }) => {
   const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState<Element | undefined>();
@@ -80,6 +84,14 @@ export const HoverTooltip: React.FC<
     setAnchorEl(undefined);
   }
 
+  const triggerOnHoverProps = {
+    onMouseEnter: handlePopoverOpen,
+    onMouseLeave: sticky ? undefined : handlePopoverClose,
+  };
+  const triggerOnClickProps = {
+    onClick: handlePopoverOpen,
+  };
+
   // Don't render the tooltip if the content is undefined.
   if (!tipContent) {
     return <>{children}</>;
@@ -100,15 +112,17 @@ export const HoverTooltip: React.FC<
   return (
     <Flex
       aria-owns={open ? 'mouse-over-popover' : undefined}
-      onMouseEnter={handlePopoverOpen}
-      onMouseLeave={handlePopoverClose}
+      {...(trigger === 'hover' && triggerOnHoverProps)}
+      {...(trigger === 'click' && triggerOnClickProps)}
       className={className}
       {...justifyContentProps}
       {...flexBasisProps}
     >
       {children}
       <Popover
-        modalCss={modalCss}
+        modalCss={() =>
+          trigger === 'hover' && `pointer-events: ${sticky ? 'auto' : 'none'}`
+        }
         popoverCss={() => ({
           background: theme.colors.tooltip.background,
           backdropFilter: 'blur(2px)',

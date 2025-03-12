@@ -16,9 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ButtonPrimary, ButtonSecondary } from 'design';
+import { useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
+import styled from 'styled-components';
+
+import { ButtonIcon, ButtonPrimary, Mark } from 'design';
 import Table, { Cell, TextCell } from 'design/DataTable';
 import * as Icons from 'design/Icon';
+import { HoverTooltip } from 'design/Tooltip';
 import { dateTimeMatcher } from 'design/utils/match';
 
 import cfg from 'teleport/config';
@@ -143,7 +148,7 @@ const renderPlayCell = (
     }
   );
   return (
-    <Cell align="right">
+    <Cell align="right" width="0.1%">
       <ButtonPrimary
         as="a"
         href={url}
@@ -160,15 +165,29 @@ const renderPlayCell = (
 const renderSummarizeCell = (
   { sid, summary }: Recording,
   onSummarize: (sessionId: string) => void
-) => (
-  <Cell>
-    {summary && (
-      <ButtonSecondary size="small" onClick={() => onSummarize(sid)}>
-        Summary
-      </ButtonSecondary>
-    )}
-  </Cell>
-);
+) => {
+  const btnRef = useRef();
+  return (
+    <Cell width="0.1%">
+      {summary && (
+        <HoverTooltip
+          tipContent={
+            <ReactMarkdown components={{ code: MarkInverse }}>
+              {summary}
+            </ReactMarkdown>
+          }
+          position="left"
+          sticky
+          trigger="click"
+        >
+          <ButtonIcon>
+            <Icons.Wand />
+          </ButtonIcon>
+        </HoverTooltip>
+      )}
+    </Cell>
+  );
+};
 
 type Props = {
   pageSize?: number;
@@ -178,3 +197,8 @@ type Props = {
   fetchStatus: State['fetchStatus'];
   onSummarize(sessionId: string): void;
 };
+
+const MarkInverse = styled(Mark)`
+  background: ${p => p.theme.colors.text.primaryInverse};
+  color: ${p => p.theme.colors.text.main};
+`;
