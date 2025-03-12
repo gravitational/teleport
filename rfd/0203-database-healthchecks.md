@@ -441,7 +441,6 @@ This is the default preset we will create:
             values = ["*"]
           }]
           db_labels_expression = "labels.env != `prod`" 
-          env = "dev"
         }
         healthy_threshold   = 1
         unhealthy_threshold = 1
