@@ -44,6 +44,10 @@ class AppModel: ObservableObject {
                                                "--agents-dir=${agentsDir}",
                                                "--installation-id=${settings.installationId}",
                                                "--add-keys-to-agent=no"])
+    
+    NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) {_ in
+      process.terminate()
+    }
   }
 }
 
