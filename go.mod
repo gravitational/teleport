@@ -250,6 +250,8 @@ require (
 	software.sslmate.com/src/go-pkcs12 v0.5.0
 )
 
+require github.com/sashabaranov/go-openai v1.38.0
+
 require (
 	cel.dev/expr v0.19.1 // indirect
 	cloud.google.com/go v0.118.2 // indirect
