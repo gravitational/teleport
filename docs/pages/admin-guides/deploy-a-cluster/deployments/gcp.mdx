@@ -117,7 +117,7 @@ storage:
 Load Balancing is required for Proxy and SSH traffic. Use `TCP Load Balancing` as
 Teleport requires custom ports for SSH and Web Traffic.
 
-GCP sets a default Load Balancer timeout of 30 seconds. You should either increase this to be longer than the Teleport Auth service default keepalive interval of 300 seconds or decrease the Teleport ```keep_alive_interval``` to be lower than the GCP timeout value.
+GCP sets a default Load Balancer timeout of 30 seconds. You should either increase this to be longer than the Teleport Auth Service default keepalive interval of 300 seconds or decrease the Teleport `keep_alive_interval` to be lower than the GCP timeout value.
 
 Please reference the [Teleport Auth Service Configuration](https://goteleport.com/docs/reference/config/#auth-service) documentation for additional details.
 
