@@ -49,7 +49,7 @@ type KubeSession struct {
 }
 
 // NewKubeSession joins a live kubernetes session.
-func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.SessionTracker, tlsServer string, mode types.SessionParticipantMode, tlsConfig *tls.Config) (*KubeSession, error) {
+func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.SessionTracker, tlsServer string, mode types.SessionParticipantMode, tlsConfig *tls.Config) (_ *KubeSession, err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	joinEndpoint := "wss://" + tc.KubeProxyAddr + "/api/v1/teleport/join/" + meta.GetSessionID()
 
@@ -86,6 +86,15 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.SessionT
 
 		return nil, trace.BadParameter("failed to decode remote error: %v", string(body))
 	}
+	defer func() {
+		if err == nil {
+			return
+		}
+
+		if err := ws.Close(); err != nil {
+			log.DebugContext(ctx, "Close stream in response to context termination", "error", err)
+		}
+	}()
 
 	stream, err := streamproto.NewSessionStream(ws, streamproto.ClientHandshake{Mode: mode})
 	if err != nil {
