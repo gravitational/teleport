@@ -73,6 +73,7 @@
     "@codemirror/autocomplete": "^6.18.6",
     "@codemirror/lang-sql": "^6.8.0",
     "@codemirror/view": "^6.36.4",
+    "@floating-ui/react": "^0.27.5",
     "@grpc/grpc-js": "1.12.6",
     "@lezer/highlight": "^1.2.1",
     "@nivo/bar": "^0.88.0",
