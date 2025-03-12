@@ -496,9 +496,7 @@ func (s *Server) HandleStapledConnection(conn net.Conn, permit []byte) {
 		return
 	}
 
-	// TODO: use the permit
-	s.logger.ErrorContext(context.TODO(), "=== GOT STAPLED CONNECTION, PROCEEDING NORMALLY ===", "permit", p.String())
-	s.HandleConnection(conn)
+	s.handleConnection(conn, p)
 }
 
 func (s *Server) handleConnection(conn net.Conn, _ *decisionpb.SSHAccessPermit) {

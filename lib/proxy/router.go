@@ -327,8 +327,10 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		return nil, trace.AccessDenied("pdp: access denied (missing permit)")
 	}
 
-	// HACK(espadolini): this should not be unconditionally bob
-	permitBytes, _ := proto.Marshal(permit)
+	permitBytes, err := proto.Marshal(permit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	conn, err := site.Dial(reversetunnelclient.DialParams{
 		SSHAccessPermit:       permit,
