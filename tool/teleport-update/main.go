@@ -465,7 +465,7 @@ func cmdStatus(ctx context.Context, ccfg *cliConfig) error {
 		return trace.Wrap(err, "failed to get status")
 	}
 	if errors.Is(err, autoupdate.ErrNotInstalled) {
-		plog.InfoContext(ctx, "Teleport is not installed.")
+		plog.InfoContext(ctx, "Teleport is not installed by teleport-update with this suffix.")
 		return nil
 	}
 	enc := yaml.NewEncoder(os.Stdout)
