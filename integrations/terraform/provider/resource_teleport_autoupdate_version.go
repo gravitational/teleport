@@ -101,7 +101,10 @@ func (r resourceTeleportAutoUpdateVersion) Create(ctx context.Context, req tfsdk
 			resp.Diagnostics.Append(diagFromWrappedErr("Error reading AutoUpdateVersion", trace.Wrap(err), "autoupdate_version"))
 			return
 		}
-		if autoUpdateVersionBefore.GetMetadata().Revision != autoUpdateVersionI.GetMetadata().Revision || false {
+
+		previousMetadata := autoUpdateVersionBefore.GetMetadata()
+		currentMetadata := autoUpdateVersionI.GetMetadata()
+		if previousMetadata.GetRevision() != currentMetadata.GetRevision() || false {
 			break
 		}
 		if bErr := backoff.Do(ctx); bErr != nil {

@@ -46,17 +46,19 @@ exclude_fields:
 # These fields will be marked as Computed: true
 computed_fields:
     # Metadata
+    - "AutoUpdateVersion.metadata"
+    - "AutoUpdateVersion.metadata.name"
     - "AutoUpdateVersion.metadata.namespace"
     - "AutoUpdateVersion.kind"
+    - "AutoUpdateConfig.metadata"
+    - "AutoUpdateConfig.metadata.name"
     - "AutoUpdateConfig.metadata.namespace"
     - "AutoUpdateConfig.kind"
 
 # These fields will be marked as Required: true
 required_fields:
-    - "AutoUpdateVersion.metadata.name"
     - "AutoUpdateVersion.version"
     - "AutoUpdateVersion.spec"
-    - "AutoUpdateConfig.metadata.name"
     - "AutoUpdateConfig.version"
     - "AutoUpdateConfig.spec"
 

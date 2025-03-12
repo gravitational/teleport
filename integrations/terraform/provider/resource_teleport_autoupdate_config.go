@@ -101,7 +101,10 @@ func (r resourceTeleportAutoUpdateConfig) Create(ctx context.Context, req tfsdk.
 			resp.Diagnostics.Append(diagFromWrappedErr("Error reading AutoUpdateConfig", trace.Wrap(err), "autoupdate_config"))
 			return
 		}
-		if autoUpdateConfigBefore.GetMetadata().Revision != autoUpdateConfigI.GetMetadata().Revision || false {
+
+		previousMetadata := autoUpdateConfigBefore.GetMetadata()
+		currentMetadata := autoUpdateConfigI.GetMetadata()
+		if previousMetadata.GetRevision() != currentMetadata.GetRevision() || false {
 			break
 		}
 		if bErr := backoff.Do(ctx); bErr != nil {
