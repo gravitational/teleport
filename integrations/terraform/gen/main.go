@@ -288,7 +288,6 @@ var (
 		Kind:                   "token",
 		HasStaticID:            false,
 		SchemaPackage:          "token",
-		SchemaPackagePath:      "github.com/gravitational/teleport/integrations/terraform/tfschema/token",
 		TerraformResourceType:  "teleport_provision_token",
 		HasCheckAndSetDefaults: true,
 	}
