@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"os"
 	"slices"
 	"time"
 
@@ -297,7 +296,6 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, request
 }
 
 func (h *AuthHandlers) GetPublicKeyCallbackForPermit(permit *decisionpb.SSHAccessPermit) sshutils.PublicKeyFunc {
-	fmt.Fprintf(os.Stderr, "\n\n---> GetPublicKeyCallbackForPermit: %+v\n\n", permit)
 	return func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 		return h.userKeyAuth(conn, key, permit)
 	}
@@ -312,8 +310,6 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 
 func (h *AuthHandlers) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey, stapledAccessPermit *decisionpb.SSHAccessPermit) (ppms *ssh.Permissions, rerr error) {
 	ctx := context.Background()
-
-	fmt.Fprintf(os.Stderr, "\n\n---> user key auth : %+v\n\n", stapledAccessPermit)
 
 	fingerprint := fmt.Sprintf("%v %v", key.Type(), sshutils.Fingerprint(key))
 
@@ -548,7 +544,7 @@ func (h *AuthHandlers) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey, sta
 			if stapledAccessPermit == nil {
 				accessPermit, err = h.evaluateSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.TargetServer, conn.User())
 			} else {
-				fmt.Println("\n---> using stapled access permit!\n\n")
+				log.InfoContext(ctx, "using stapled access permit", "permit", stapledAccessPermit)
 				accessPermit = stapledAccessPermit
 			}
 		} else {
@@ -559,7 +555,7 @@ func (h *AuthHandlers) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey, sta
 		if stapledAccessPermit == nil {
 			accessPermit, err = h.evaluateSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.Server.GetInfo(), conn.User())
 		} else {
-			fmt.Printf("\n---> using stapled access permit!\n\n")
+			log.InfoContext(ctx, "using stapled access permit", "permit", stapledAccessPermit)
 			accessPermit = stapledAccessPermit
 		}
 	default:
