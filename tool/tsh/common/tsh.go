@@ -1069,6 +1069,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	sessionsList := sessions.Command("ls", "List active sessions.")
 	sessionsList.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	sessionsList.Flag("kind", "Filter by session kind(s)").Default("ssh", "k8s", "db", "app", "desktop").EnumsVar(&cf.SessionKinds, "ssh", "k8s", "kube", "db", "app", "desktop")
+	sessionsSummarize := sessions.Command("summarize", "Display a summary of a recorded session.")
+	sessionsSummarize.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
+	sessionsSummarize.Arg("session-id", "ID of the session").Required().StringVar(&cf.SessionID)
 
 	// login logs in with remote proxy and obtains a "session certificate" which gets
 	// stored in ~/.tsh directory
@@ -1513,6 +1516,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onListClusters(&cf)
 	case sessionsList.FullCommand():
 		err = onListSessions(&cf)
+	case sessionsSummarize.FullCommand():
+		err = onSummarizeSession(&cf)
 	case login.FullCommand():
 		err = onLogin(&cf, args...)
 	case logout.FullCommand():
@@ -3414,6 +3419,43 @@ func onListClusters(cf *CLIConf) error {
 	default:
 		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
+	return nil
+}
+
+func onSummarizeSession(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clt, err := tc.ConnectToCluster(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer clt.Close()
+
+	meta := clt.AuthClient.SessionRecordingMetadataClient()
+	recording, err := meta.GetSessionRecordingMetadata(cf.Context, cf.SessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO: support alternative formats
+	switch cf.Format {
+	case teleport.Text:
+		fmt.Println("Session:", cf.SessionID)
+		fmt.Println("User:", "TODO")
+		fmt.Println("Kind:", "TODO")
+		fmt.Println()
+		if summary := recording.GetSpec().GetSummary(); summary != "" {
+			fmt.Println(summary)
+		} else {
+			fmt.Println("No summary is available for this session")
+		}
+	default:
+		return trace.NotImplemented("support for other formats is not implemented")
+	}
+
 	return nil
 }
 

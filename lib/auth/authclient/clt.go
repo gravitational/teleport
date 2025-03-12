@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/client/gitserver"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
+	"github.com/gravitational/teleport/api/client/sessionrecordingmetadata"
 	"github.com/gravitational/teleport/api/client/usertask"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
@@ -1653,6 +1654,9 @@ type ClientI interface {
 
 	// UserTasksServiceClient returns an User Task service client.
 	UserTasksServiceClient() *usertask.Client
+
+	// SessionRecordingMetadataClient returns a client to the session recording metadata service.
+	SessionRecordingMetadataClient() *sessionrecordingmetadata.Client
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
