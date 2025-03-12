@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.sessionrecordingmetadata.v1;
 
+import "google/protobuf/duration.proto";
 import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionrecordingmetatada/v1;sessionrecordingmetatadav1";
@@ -34,5 +35,8 @@ message SessionRecordingMetadata {
 
 // SessionRecordingMetadata stores metadata for session recordings
 message SessionRecordingMetadataSpec {
-  optional string summary = 2;
+  string summary = 2;
+  string user = 3;
+  string kind = 4;
+  google.protobuf.Duration duration = 5;
 }
