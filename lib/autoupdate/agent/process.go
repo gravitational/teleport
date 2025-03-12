@@ -415,7 +415,7 @@ func (s SystemdService) IsEnabled(ctx context.Context) (bool, error) {
 		return false, trace.Wrap(err)
 	}
 	if hasSystemDBelow(ctx, 238) {
-		return false, trace.Wrap(ErrNotSupported)
+		return false, trace.Wrap(ErrNotAvailable)
 	}
 	code := s.systemctl(ctx, slog.LevelDebug, "is-enabled", "--quiet", s.ServiceName)
 	switch {
@@ -448,7 +448,7 @@ func (s SystemdService) IsPresent(ctx context.Context) (bool, error) {
 		return false, trace.Wrap(err)
 	}
 	if hasSystemDBelow(ctx, 246) {
-		return false, trace.Wrap(ErrNotSupported)
+		return false, trace.Wrap(ErrNotAvailable)
 	}
 	code := s.systemctl(ctx, slog.LevelDebug, "list-unit-files", "--quiet", s.ServiceName)
 	if code < 0 {

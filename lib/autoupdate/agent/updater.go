@@ -114,13 +114,10 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 	}
 	validator := Validator{Log: cfg.Log}
 	debugClient := debug.NewClient(filepath.Join(ns.dataDir, debugSocketFileName))
-	ok, err := hasSystemD()
-	systemdUnavailable := err == nil && !ok
 	return &Updater{
 		Log:                cfg.Log,
 		Pool:               certPool,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
-		SystemDUnavailable: systemdUnavailable,
 		UpdateConfigFile:   filepath.Join(ns.Dir(), updateConfigName),
 		TeleportConfigFile: ns.configFile,
 		DefaultProxyAddr:   ns.defaultProxyAddr,
@@ -203,8 +200,6 @@ type Updater struct {
 	Pool *x509.CertPool
 	// InsecureSkipVerify skips TLS verification.
 	InsecureSkipVerify bool
-	// SystemDUnavailable is true if SystemD is not available.
-	SystemDUnavailable bool
 	// UpdateConfigFile contains the path to the agent auto-updates configuration.
 	UpdateConfigFile string
 	// TeleportConfigFile contains the path to Teleport's configuration.
@@ -273,6 +268,8 @@ var (
 	ErrNotNeeded = errors.New("not needed")
 	// ErrNotSupported is returned when the operation is not supported on the platform.
 	ErrNotSupported = errors.New("not supported on this platform")
+	// ErrNotAvailable is returned when the operation is not available at the current version of the platform.
+	ErrNotAvailable = errors.New("not available at this version")
 	// ErrNoBinaries is returned when no binaries are available to be linked.
 	ErrNoBinaries = errors.New("no binaries available to link")
 	// ErrFilePresent is returned when a file is present.
@@ -892,16 +889,15 @@ func (u *Updater) Setup(ctx context.Context, path string, restart bool) error {
 		return trace.Wrap(err, "failed to setup updater")
 	}
 
-	if u.SystemDUnavailable {
-		u.Log.WarnContext(ctx, "Skipping all systemd setup because systemd is not running.")
-		return nil
-	}
-
 	present, err := u.Process.IsPresent(ctx)
 	if errors.Is(err, context.Canceled) {
 		return trace.Errorf("config check canceled")
 	}
 	if errors.Is(err, ErrNotSupported) {
+		u.Log.WarnContext(ctx, "Skipping all systemd setup because systemd is not running.")
+		return nil
+	}
+	if errors.Is(err, ErrNotAvailable) {
 		u.Log.DebugContext(ctx, "Systemd version is outdated. Skipping SELinux verification.")
 	} else if err != nil {
 		return trace.Wrap(err, "failed to determine if new version of Teleport has an installed systemd service")
@@ -926,13 +922,13 @@ func (u *Updater) Setup(ctx context.Context, path string, restart bool) error {
 
 // notices displays final notices after install or update.
 func (u *Updater) notices(ctx context.Context) error {
-	if u.SystemDUnavailable {
+	enabled, err := u.Process.IsEnabled(ctx)
+	if errors.Is(err, ErrNotSupported) {
 		u.Log.WarnContext(ctx, "Teleport is installed, but systemd is not present to start it.")
 		u.Log.WarnContext(ctx, "After configuring teleport.yaml, your system must also be configured to start Teleport.")
 		return nil
 	}
-	enabled, err := u.Process.IsEnabled(ctx)
-	if errors.Is(err, ErrNotSupported) {
+	if errors.Is(err, ErrNotAvailable) {
 		u.Log.WarnContext(ctx, "Remember to use systemctl to enable and start Teleport.")
 		return nil
 	}
@@ -1027,7 +1023,7 @@ func (u *Updater) LinkPackage(ctx context.Context) error {
 		return trace.Wrap(err, "failed to sync systemd configuration")
 	} else {
 		present, err := u.Process.IsPresent(ctx)
-		if errors.Is(err, ErrNotSupported) {
+		if errors.Is(err, ErrNotAvailable) {
 			u.Log.DebugContext(ctx, "Systemd version is outdated. Skipping SELinux verification.")
 		} else if err != nil {
 			return trace.Wrap(err, "failed to determine if Teleport has an installed systemd service")

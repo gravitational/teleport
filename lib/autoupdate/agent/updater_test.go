@@ -1893,7 +1893,6 @@ func TestUpdater_Setup(t *testing.T) {
 			ns := &Namespace{}
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{}, ns)
 			require.NoError(t, err)
-			updater.SystemDUnavailable = false
 
 			updater.Process = &testProcess{
 				FuncReload: func(_ context.Context) error {
