@@ -27,8 +27,10 @@ import { TermEvent } from 'teleport/lib/term/enums';
 import Tty from 'teleport/lib/term/tty';
 import type {
   ParticipantMode,
+  PolicyFulfillmentStatus,
   Session,
   SessionMetadata,
+  SessionStatus,
 } from 'teleport/services/session';
 
 const tracer = trace.getTracer('TTY');
@@ -40,6 +42,7 @@ export default function useSshSession(doc: DocumentSsh) {
   const tty = ttyRef.current as ReturnType<typeof ctx.createTty>;
   const [session, setSession] = useState<Session>(null);
   const [status, setStatus] = useState<Status>('loading');
+  const [sessionStatus, setSessionStatus] = useState<SessionStatus>(null);
 
   function closeDocument() {
     ctx.closeTab(doc);
@@ -71,7 +74,9 @@ export default function useSshSession(doc: DocumentSsh) {
 
           tty.on(TermEvent.SESSION_STATUS, payload => {
             const data = JSON.parse(payload);
-            console.log('SESSION_STATUS', data);
+            console.log('THIS IS RUN');
+            console.log('THIS IS THE DATA', data);
+            setSessionStatus(makeSessionStatus(data));
           });
 
           tty.on(TermEvent.LATENCY, payload => {
@@ -117,7 +122,30 @@ export default function useSshSession(doc: DocumentSsh) {
     tty,
     status,
     session,
+    sessionStatus,
     closeDocument,
+  };
+}
+
+function makeSessionStatus(json): SessionStatus {
+  let policyFulfillmentStatus: PolicyFulfillmentStatus[] = [];
+
+  if (json?.policyFulfillmentStatus?.length > 0) {
+    policyFulfillmentStatus = json.policyFulfillmentStatus.map(status => ({
+      name: status.string,
+      count: status.count || 0,
+      satisfies:
+        status?.satisfies?.map(p => ({
+          user: p.user,
+          mode: p.mode,
+        })) || [],
+    }));
+  }
+
+  return {
+    state: json.state,
+    parties: json.parties || [],
+    policyFulfillmentStatus,
   };
 }
 

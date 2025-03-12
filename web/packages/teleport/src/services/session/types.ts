@@ -21,6 +21,24 @@ export interface Participant {
   mode: ParticipantMode;
 }
 
+export enum SessionState {
+  Pending = 0,
+  Running = 1,
+  Terminated = 2,
+}
+
+export interface SessionStatus {
+  state: SessionState;
+  parties: Participant[];
+  policyFulfillmentStatus: PolicyFulfillmentStatus[];
+}
+
+export interface PolicyFulfillmentStatus {
+  name: string;
+  count: number;
+  satisfies: Participant[];
+}
+
 export interface Session {
   kind: SessionKind;
   sid: string;

@@ -28,7 +28,7 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import AjaxPoller from 'teleport/components/AjaxPoller';
 import { ItemStatus, StatusLight } from 'teleport/Discover/Shared';
 import Tty from 'teleport/lib/term/tty';
-import { Participant } from 'teleport/services/session';
+import { Participant, ParticipantMode } from 'teleport/services/session';
 
 import ActionBar from './ActionBar';
 import { useConsoleContext, useStoreDocs } from './consoleContextProvider';
@@ -95,6 +95,7 @@ export default function Console() {
             doc={doc}
             visible={doc.id === activeDocId}
             key={doc.id}
+            mode={doc.kind === 'terminal' ? doc.mode : null}
           />
           {doc.kind === 'terminal' && (
             <PartiesList
@@ -155,12 +156,16 @@ export default function Console() {
 /**
  * Ensures that document is not getting re-rendered if it's invisible
  */
-function MemoizedDocument(props: { doc: stores.Document; visible: boolean }) {
+function MemoizedDocument(props: {
+  doc: stores.Document;
+  visible: boolean;
+  mode: ParticipantMode;
+}) {
   const { doc, visible } = props;
   return useMemo(() => {
     switch (doc.kind) {
       case 'terminal':
-        return <DocumentSsh doc={doc} visible={visible} />;
+        return <DocumentSsh doc={doc} visible={visible} mode={props.mode} />;
       case 'nodes':
         return <DocumentNodes doc={doc} visible={visible} />;
       case 'kubeExec':
@@ -211,7 +216,7 @@ function PartiesList({
                 <Flex key={p.user} flexDirection="row" alignItems="center">
                   <StatusLight status={ItemStatus.Success} />{' '}
                   <P>
-                    {p.user} {username === p.user ? '(me)' : ''}
+                    {p.user} {username === p.user ? <b>(me)</b> : ''}
                   </P>
                 </Flex>
               ))}

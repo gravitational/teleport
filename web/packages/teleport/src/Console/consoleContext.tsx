@@ -36,6 +36,7 @@ import serviceSession, {
   ParticipantList,
   ParticipantMode,
   Session,
+  SessionStatus,
 } from 'teleport/services/session';
 import usersService from 'teleport/services/user';
 import webSession from 'teleport/services/websession';
@@ -81,6 +82,7 @@ export default class ConsoleContext {
   }
 
   ttyForDoc: Record<string, Tty> = {};
+  sessionStatusForDoc: Record<string, SessionStatus> = {};
 
   setTtyForDoc(doc: Document, tty: Tty) {
     this.ttyForDoc[doc.id] = tty;
@@ -88,6 +90,14 @@ export default class ConsoleContext {
 
   getTtyForDoc(doc: Document) {
     return this.ttyForDoc[doc.id];
+  }
+
+  setSessionStatusForDoc(doc: Document, status: SessionStatus) {
+    this.sessionStatusForDoc[doc.id] = status;
+  }
+
+  getSessionStatusForDoc(doc: Document) {
+    return this.sessionStatusForDoc[doc.id];
   }
 
   getStoreUser() {
