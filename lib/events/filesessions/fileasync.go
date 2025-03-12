@@ -291,7 +291,7 @@ func (u *Uploader) Scan(ctx context.Context) (*ScanStats, error) {
 		stats.Started++
 	}
 	if stats.Scanned > 0 {
-		u.log.DebugContext(ctx, "Session recording scan completed ", "scanned", stats.Scanned, "started", stats.Started, "corupted", stats.Corrupted, "upload_dir", u.cfg.ScanDir)
+		u.log.DebugContext(ctx, "Session recording scan completed ", "scanned", stats.Scanned, "started", stats.Started, "corrupted", stats.Corrupted, "upload_dir", u.cfg.ScanDir)
 	}
 	return &stats, nil
 }
@@ -528,7 +528,7 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 	case <-stream.Done():
 		if errStream, ok := stream.(interface{ Error() error }); ok {
 			if err := errStream.Error(); err != nil {
-				return trace.ConnectionProblem(err, err.Error())
+				return trace.ConnectionProblem(err, "%s", err.Error())
 			}
 		}
 

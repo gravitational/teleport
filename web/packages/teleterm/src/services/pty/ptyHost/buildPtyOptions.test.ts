@@ -16,19 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import Logger, { NullService } from 'teleterm/logger';
 import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
 
-import Logger, { NullService } from 'teleterm/logger';
-
 import {
-  ShellCommand,
-  TshLoginCommand,
   GatewayCliClientCommand,
   PtyProcessCreationStatus,
+  ShellCommand,
   SshOptions,
+  TshLoginCommand,
 } from '../types';
-
-import { getPtyProcessOptions, buildPtyOptions } from './buildPtyOptions';
+import { buildPtyOptions, getPtyProcessOptions } from './buildPtyOptions';
 
 beforeAll(() => {
   Logger.init(new NullService());
@@ -331,7 +329,7 @@ describe('buildPtyOptions', () => {
     });
 
     expect(processOptions.env.WSLENV).toBe(
-      'CUSTOM_VAR:TERM_PROGRAM:TERM_PROGRAM_VERSION:TELEPORT_CLUSTER:TELEPORT_PROXY:TELEPORT_HOME/p:KUBECONFIG/p'
+      'CUSTOM_VAR:KUBECONFIG/p:TERM_PROGRAM:TERM_PROGRAM_VERSION:TELEPORT_CLUSTER:TELEPORT_PROXY:TELEPORT_HOME/p:TELEPORT_TOOLS_VERSION'
     );
   });
 });

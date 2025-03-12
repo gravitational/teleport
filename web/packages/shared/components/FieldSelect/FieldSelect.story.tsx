@@ -17,12 +17,13 @@
  */
 
 import { useState } from 'react';
+
 import { Flex } from 'design';
-
-import { wait } from 'shared/utils/wait';
-import Validation from 'shared/components/Validation';
 import { Option } from 'shared/components/Select';
+import Validation from 'shared/components/Validation';
+import { wait } from 'shared/utils/wait';
 
+import { requiredField } from '../Validation/rules';
 import { FieldSelect, FieldSelectAsync } from './FieldSelect';
 import {
   FieldSelectCreatable,
@@ -53,7 +54,10 @@ export function Default() {
   return (
     <Validation>
       {({ validator }) => {
-        validator.validate();
+        // Prevent rendering loop.
+        if (!validator.state.validating) {
+          validator.validate();
+        }
         return (
           <Flex flexDirection="column">
             <FieldSelect
@@ -77,6 +81,16 @@ export function Default() {
               options={OPTIONS}
               value={selectedOptions}
               onChange={setSelectedOptions}
+            />
+            <FieldSelect
+              label="FieldSelect, multi-select, required, with tooltip"
+              isMulti
+              options={OPTIONS}
+              value={selectedOptions}
+              onChange={setSelectedOptions}
+              rule={requiredField('Field is required')}
+              required
+              toolTipContent="I'm a tooltip."
             />
             <FieldSelectAsync
               label="FieldSelectAsync with search"

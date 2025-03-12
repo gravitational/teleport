@@ -42,7 +42,7 @@ type StaticHostUserService struct {
 // NewStaticHostUserService creates a new static host user service.
 func NewStaticHostUserService(bk backend.Backend) (*StaticHostUserService, error) {
 	svc, err := generic.NewServiceWrapper(
-		generic.ServiceWrapperConfig[*userprovisioningpb.StaticHostUser]{
+		generic.ServiceConfig[*userprovisioningpb.StaticHostUser]{
 			Backend:       bk,
 			ResourceKind:  types.KindStaticHostUser,
 			BackendPrefix: backend.NewKey(staticHostUserPrefix),

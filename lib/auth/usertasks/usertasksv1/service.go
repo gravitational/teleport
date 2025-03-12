@@ -19,11 +19,13 @@
 package usertasksv1
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -47,6 +49,9 @@ type ServiceConfig struct {
 
 	// Cache is the cache for storing UserTask.
 	Cache Reader
+
+	// Clock is used to control time - mainly used for testing.
+	Clock clockwork.Clock
 
 	// UsageReporter is the reporter for sending usage without it be related to an API call.
 	UsageReporter func() usagereporter.UsageReporter
@@ -74,14 +79,16 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 	if s.Emitter == nil {
 		return trace.BadParameter("emitter is required")
 	}
+	if s.Clock == nil {
+		s.Clock = clockwork.NewRealClock()
+	}
 
 	return nil
 }
 
 // Reader contains the methods defined for cache access.
 type Reader interface {
-	ListUserTasks(ctx context.Context, pageSize int64, nextToken string) ([]*usertasksv1.UserTask, string, error)
-	ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextToken string, integration string) ([]*usertasksv1.UserTask, string, error)
+	ListUserTasks(ctx context.Context, pageSize int64, nextToken string, filters *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error)
 	GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error)
 }
 
@@ -92,6 +99,7 @@ type Service struct {
 	authorizer    authz.Authorizer
 	backend       services.UserTasks
 	cache         Reader
+	clock         clockwork.Clock
 	usageReporter func() usagereporter.UsageReporter
 	emitter       apievents.Emitter
 }
@@ -106,6 +114,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		authorizer:    cfg.Authorizer,
 		backend:       cfg.Backend,
 		cache:         cfg.Cache,
+		clock:         cfg.Clock,
 		usageReporter: cfg.UsageReporter,
 		emitter:       cfg.Emitter,
 	}, nil
@@ -121,6 +130,8 @@ func (s *Service) CreateUserTask(ctx context.Context, req *usertasksv1.CreateUse
 	if err := authCtx.CheckAccessToKind(types.KindUserTask, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	s.updateStatus(req.UserTask, nil /* existing user task */)
 
 	rsp, err := s.backend.CreateUserTask(ctx, req.UserTask)
 	s.emitCreateAuditEvent(ctx, rsp, authCtx, err)
@@ -160,11 +171,16 @@ func (s *Service) emitCreateAuditEvent(ctx context.Context, req *usertasksv1.Use
 func userTaskToUserTaskStateEvent(ut *usertasksv1.UserTask) *usagereporter.UserTaskStateEvent {
 	ret := &usagereporter.UserTaskStateEvent{
 		TaskType:  ut.GetSpec().GetTaskType(),
-		IssueType: ut.GetSpec().GetTaskType(),
+		IssueType: ut.GetSpec().GetIssueType(),
 		State:     ut.GetSpec().GetState(),
 	}
-	if ut.GetSpec().GetTaskType() == usertasks.TaskTypeDiscoverEC2 {
+	switch ut.GetSpec().GetTaskType() {
+	case usertasks.TaskTypeDiscoverEC2:
 		ret.InstancesCount = int32(len(ut.GetSpec().GetDiscoverEc2().GetInstances()))
+	case usertasks.TaskTypeDiscoverEKS:
+		ret.InstancesCount = int32(len(ut.GetSpec().GetDiscoverEks().GetClusters()))
+	case usertasks.TaskTypeDiscoverRDS:
+		ret.InstancesCount = int32(len(ut.GetSpec().GetDiscoverRds().GetDatabases()))
 	}
 	return ret
 }
@@ -180,7 +196,7 @@ func (s *Service) ListUserTasks(ctx context.Context, req *usertasksv1.ListUserTa
 		return nil, trace.Wrap(err)
 	}
 
-	rsp, nextToken, err := s.cache.ListUserTasks(ctx, req.PageSize, req.PageToken)
+	rsp, nextToken, err := s.cache.ListUserTasks(ctx, req.PageSize, req.PageToken, req.Filters)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -202,7 +218,10 @@ func (s *Service) ListUserTasksByIntegration(ctx context.Context, req *usertasks
 		return nil, trace.Wrap(err)
 	}
 
-	rsp, nextToken, err := s.cache.ListUserTasksByIntegration(ctx, req.PageSize, req.PageToken, req.Integration)
+	filters := &usertasksv1.ListUserTasksFilters{
+		Integration: req.Integration,
+	}
+	rsp, nextToken, err := s.cache.ListUserTasks(ctx, req.PageSize, req.PageToken, filters)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -249,13 +268,16 @@ func (s *Service) UpdateUserTask(ctx context.Context, req *usertasksv1.UpdateUse
 		return nil, trace.Wrap(err)
 	}
 
+	stateChanged := existingUserTask.GetSpec().GetState() != req.GetUserTask().GetSpec().GetState()
+	s.updateStatus(req.UserTask, existingUserTask)
+
 	rsp, err := s.backend.UpdateUserTask(ctx, req.UserTask)
 	s.emitUpdateAuditEvent(ctx, existingUserTask, req.GetUserTask(), authCtx, err)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if existingUserTask.GetSpec().GetState() != req.GetUserTask().GetSpec().GetState() {
+	if stateChanged {
 		s.usageReporter().AnonymizeAndSubmit(userTaskToUserTaskStateEvent(req.GetUserTask()))
 	}
 
@@ -299,19 +321,21 @@ func (s *Service) UpsertUserTask(ctx context.Context, req *usertasksv1.UpsertUse
 		return nil, trace.Wrap(err)
 	}
 
-	var emitStateChangeEvent bool
+	var stateChanged bool
 
 	existingUserTask, err := s.backend.GetUserTask(ctx, req.GetUserTask().GetMetadata().GetName())
 	switch {
 	case trace.IsNotFound(err):
-		emitStateChangeEvent = true
+		stateChanged = true
 
 	case err != nil:
 		return nil, trace.Wrap(err)
 
 	default:
-		emitStateChangeEvent = existingUserTask.GetSpec().GetState() != req.GetUserTask().GetSpec().GetState()
+		stateChanged = existingUserTask.GetSpec().GetState() != req.GetUserTask().GetSpec().GetState()
 	}
+
+	s.updateStatus(req.UserTask, existingUserTask)
 
 	rsp, err := s.backend.UpsertUserTask(ctx, req.UserTask)
 	s.emitUpsertAuditEvent(ctx, existingUserTask, req.GetUserTask(), authCtx, err)
@@ -319,11 +343,28 @@ func (s *Service) UpsertUserTask(ctx context.Context, req *usertasksv1.UpsertUse
 		return nil, trace.Wrap(err)
 	}
 
-	if emitStateChangeEvent {
+	if stateChanged {
 		s.usageReporter().AnonymizeAndSubmit(userTaskToUserTaskStateEvent(req.GetUserTask()))
 	}
 
 	return rsp, nil
+}
+
+func (s *Service) updateStatus(ut *usertasksv1.UserTask, existing *usertasksv1.UserTask) {
+	// Default status for UserTask.
+	ut.Status = &usertasksv1.UserTaskStatus{
+		LastStateChange: timestamppb.New(s.clock.Now()),
+	}
+
+	if existing != nil {
+		// Inherit everything from existing UserTask.
+		ut.Status.LastStateChange = cmp.Or(existing.GetStatus().GetLastStateChange(), ut.Status.LastStateChange)
+
+		// Update specific values.
+		if existing.GetSpec().GetState() != ut.GetSpec().GetState() {
+			ut.Status.LastStateChange = timestamppb.New(s.clock.Now())
+		}
+	}
 }
 
 func (s *Service) emitUpsertAuditEvent(ctx context.Context, old, new *usertasksv1.UserTask, authCtx *authz.Context, err error) {

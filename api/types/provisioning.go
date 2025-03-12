@@ -74,10 +74,17 @@ const (
 	// JoinMethodTerraformCloud indicates that the node will join using the Terraform
 	// join method. See lib/terraformcloud for more.
 	JoinMethodTerraformCloud JoinMethod = "terraform_cloud"
+	// JoinMethodBitbucket indicates that the node will join using the Bitbucket
+	// join method. See lib/bitbucket for more.
+	JoinMethodBitbucket JoinMethod = "bitbucket"
+	// JoinMethodOracle indicates that the node will join using the Oracle join
+	// method.
+	JoinMethodOracle JoinMethod = "oracle"
 )
 
 var JoinMethods = []JoinMethod{
 	JoinMethodAzure,
+	JoinMethodBitbucket,
 	JoinMethodCircleCI,
 	JoinMethodEC2,
 	JoinMethodGCP,
@@ -89,6 +96,7 @@ var JoinMethods = []JoinMethod{
 	JoinMethodToken,
 	JoinMethodTPM,
 	JoinMethodTerraformCloud,
+	JoinMethodOracle,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {
@@ -362,6 +370,28 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 		}
 		if err := providerCfg.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "spec.terraform_cloud: failed validation")
+		}
+	case JoinMethodBitbucket:
+		providerCfg := p.Spec.Bitbucket
+		if providerCfg == nil {
+			return trace.BadParameter(
+				"spec.bitbucket: must be configured for the join method %q",
+				JoinMethodBitbucket,
+			)
+		}
+		if err := providerCfg.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "spec.bitbucket: failed validation")
+		}
+	case JoinMethodOracle:
+		providerCfg := p.Spec.Oracle
+		if providerCfg == nil {
+			return trace.BadParameter(
+				"spec.oracle: must be configured for the join method %q",
+				JoinMethodOracle,
+			)
+		}
+		if err := providerCfg.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "spec.oracle: failed validation")
 		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
@@ -860,5 +890,51 @@ func (a *ProvisionTokenSpecV2TerraformCloud) checkAndSetDefaults() error {
 		}
 	}
 
+	return nil
+}
+
+func (a *ProvisionTokenSpecV2Bitbucket) checkAndSetDefaults() error {
+	if len(a.Allow) == 0 {
+		return trace.BadParameter("the %q join method requires at least one token allow rule", JoinMethodBitbucket)
+	}
+
+	if a.Audience == "" {
+		return trace.BadParameter("audience: an OpenID Connect Audience value is required")
+	}
+
+	if a.IdentityProviderURL == "" {
+		return trace.BadParameter("identity_provider_url: an identity provider URL is required")
+	}
+
+	for i, rule := range a.Allow {
+		workspaceSet := rule.WorkspaceUUID != ""
+		repositorySet := rule.RepositoryUUID != ""
+
+		if !workspaceSet && !repositorySet {
+			return trace.BadParameter(
+				"allow[%d]: at least one of ['workspace_uuid', 'repository_uuid'] must be set",
+				i,
+			)
+		}
+	}
+
+	return nil
+}
+
+// checkAndSetDefaults checks and sets defaults on the Oracle spec. This only
+// covers basics like the presence of required fields; more complex validation
+// (e.g. requiring the Oracle SDK) is in auth.validateOracleJoinToken.
+func (a *ProvisionTokenSpecV2Oracle) checkAndSetDefaults() error {
+	if len(a.Allow) == 0 {
+		return trace.BadParameter("the %q join method requires at least one allow rule", JoinMethodOracle)
+	}
+	for i, rule := range a.Allow {
+		if rule.Tenancy == "" {
+			return trace.BadParameter(
+				"allow[%d]: tenancy must be set",
+				i,
+			)
+		}
+	}
 	return nil
 }

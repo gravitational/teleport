@@ -13,8 +13,18 @@ spec:
     max_session_ttl: 8h
     # forward_agent controls whether SSH agent forwarding is allowed
     forward_agent: true
-    # port_forwarding controls whether TCP port forwarding is allowed for SSH
-    port_forwarding: true
+    # ssh_port_forwarding controls which TCP port forwarding modes are allowed over SSH. This replaces
+    # the deprecated port_forwarding field, which did not differentiate between remote and local
+    # port forwarding modes. If you have any existing roles that allow forwarding by enabling the
+    # legacy port_forwarding field then the forwarding controls configured in ssh_port_forwarding will be
+    # ignored.
+    ssh_port_forwarding:
+      # configures remote port forwarding behavior
+      remote:
+        enabled: true
+      # configures local port forwarding behavior
+      local:
+        enabled: true
     # ssh_file_copy controls whether file copying (SCP/SFTP) is allowed.
     # Defaults to true.
     ssh_file_copy: false
@@ -319,6 +329,15 @@ spec:
       - 'arn:aws:iam::1234567890:role/ec2-full-access'
       - 'arn:aws:iam::0987654321:role/example-role'
 
+    # AWS account and permission set bindings for the Identity Center integration
+    account_assignments:
+    - # AWS identity center account ID
+      account: "<account_id>"
+      # name of the permission set in AWS
+      name: AdministratorAccess
+      # permission set ARN
+      permission_set: arn:aws:sso:::permissionSet/ssoins-1234/ps-5678 # permission set ARN
+
     # impersonate allows a user with this role to issue certificates on behalf
     # of other users and roles matching expressions below
     impersonate:
@@ -357,6 +376,14 @@ spec:
       kubernetes_resources:
         - kind: "namespace"
 
+      # 'reason' defines settings for the reason for the access provided by the user.
+      reason:
+        # 'mode' can be either "required" or "optional". Empty string is treated as
+        # "optional". If a role has the request reason mode set to "required", then reason
+        # is required for all Access Requests requesting roles or resources allowed by
+        # this role. It applies only to users who have this role assigned.
+        mode: "optional"
+
       # thresholds specifies minimum amount of approvers and deniers,
       # defaults to 1 for both (enterprise-only)
       thresholds:
@@ -388,7 +415,7 @@ spec:
           # generates a role name from the value capture
           roles: ['$1-admin']
 
-      # Teleport can attach annotations to pending Access Requests. these
+      # Teleport can attach annotations to pending Access Requests. These
       # annotations may be literals, or be variable interpolation expressions,
       # effectively creating a means for propagating selected claims from an
       # external identity provider to the plugin system.
@@ -426,7 +453,7 @@ spec:
         # The different session kinds this policy applies to.
         kinds: ['k8s', 'ssh']
         # The list of session participant modes the role may join the session as.
-        modes: ['moderator', 'observer']
+        modes: ['moderator', 'observer', 'peer']
 
     # spiffe is a list of SPIFFE IDs that the role holder is allowed to request
     # SVIDs for. As long as the request matches one of the blocks within the
@@ -449,6 +476,12 @@ spec:
         # 'foo.example.com'.
         dns_sans: ["foo.svc.example.com"]
 
+    # GitHub-related permissions used for proxying Git commands.
+    github_permissions:
+      # List of GitHub organizations the user has access to.
+    - orgs:
+      - my-org
+
     # rules allow a user holding this role to modify other resources
     # matching the expressions below
     # supported resources:
@@ -468,7 +501,6 @@ spec:
     #
     # session            - session playback records
     # session_tracker    - an active session
-    # ssh_session        - allows seeing active sessions page
     # instance           - a Teleport instance
     # event              - structured audit logging event
     #
@@ -484,6 +516,7 @@ spec:
     # kube_cluster          - Kubernetes cluster resource
     # token                 - provisioning token resource
     # cert_authority        - certificate authority resource
+    # git_server            - Git server resource
     #
     # cluster_name              - resource that contains the cluster name.
     # cluster_config            - resource that holds cluster level config

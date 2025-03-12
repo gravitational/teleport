@@ -7,7 +7,7 @@ In this guide, we will explain how to address issues or unexpected behavior in y
 Teleport cluster.
 
 You can use these steps to get more visibility into the `teleport` process so
-you can troubleshoot the Auth Service, Proxy Service, and Teleport agent
+you can troubleshoot the Auth Service, Proxy Service, and Teleport Agent
 services such as the Application Service and Database Service.
 
 ## Prerequisites
@@ -82,13 +82,13 @@ DEBU [NODE:PROX] Pool is closing agent. leaseID:2 target:tele.example.com:11106 
 DEBU [NODE:PROX] Pool is closing agent. leaseID:3 target:tele.example.com:11106 reversetunnel/agentpool.go:238
 ```
 
-<Notice
+<Admonition
   type="warning"
 >
   It is not recommended to run Teleport in production with verbose logging as it
   generates a substantial amount of data.
 
-</Notice>
+</Admonition>
 
 ## Step 2/3. Generate a debug dump
 
@@ -127,11 +127,11 @@ runtime/pprof.writeGoroutineStacks(0x3c2ffc0, 0xc0001a8010, 0xc001011a38, 0x4bcf
 ...
 ```
 
-<Notice type="tip">
+<Admonition type="tip">
 
 You can print a goroutine dump without enabling verbose logging.
 
-</Notice>
+</Admonition>
 
 ## Step 3/3. Ask for help
 
@@ -184,7 +184,8 @@ through the [Teleport support portal](https://support.goteleport.com).
 <TabItem scope={["oss"]} label="Teleport Community Edition">
 If you need help, please ask on our [community forum](https://github.com/gravitational/teleport/discussions). You can also open an [issue on GitHub](https://github.com/gravitational/teleport/issues).
 
-For more information about custom features, or to try the [self-hosted Enterprise edition](../../deploy-a-cluster/deploy-a-cluster.mdx) of Teleport, reach out to us at [sales](https://goteleport.com/signup/enterprise/).
+For more information about Enterprise features reach out to [the Teleport sales team](https://goteleport.com/signup/enterprise/).
+You can also sign up for a [free trial](https://goteleport.com/signup) of Teleport Enterprise.
 </TabItem>
 </Tabs>
 
@@ -207,7 +208,7 @@ purposes and seeing it within your logs is not necessarily an indication that
 anything is incorrect.
 
 Firstly, Teleport uses this value within certificates (as a DNS Subject
-Alternative Name) issued to the Auth and Proxy Service. Teleport clients can
+Alternative Name) issued to the Auth Service and Proxy Service. Teleport clients can
 then use this value to validate the service's certificates during the TLS
 handshake regardless of the service address as long as the client already has a
 copy of the cluster's certificate authorities. This is important as there are
@@ -219,7 +220,7 @@ HTTP requests to the Teleport API. This is because the Teleport API client uses
 special logic to open the connection to the Auth Service to make the request,
 rather than connecting to a single address as a typical client may do. This
 special logic is necessary for the client to be able to support connecting to a
-list of Auth Services or to be able to connect to the Auth Service through a
+list of Auth Service instances or to be able to connect to the Auth Service through a
 tunnel via the Proxy Service. This means that `teleport.cluster.local` appears
 in log messages that show the URL of a request made to the Auth Service, and
 does not explicitly indicate that something is misconfigured.

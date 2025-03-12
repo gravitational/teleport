@@ -16,14 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { ButtonPrimary, Text } from 'design';
 
 import Validation from '../../components/Validation';
-
 import { requiredField } from '../Validation/rules';
-
 import { FieldTextArea } from './FieldTextArea';
 
 export default {
@@ -49,6 +45,7 @@ export const Fields = () => (
           placeholder="placeholder"
           value={''}
           rule={requiredField('So required. Much mandatory.')}
+          required
         />
         <FieldTextArea
           label="Label with tooltip"
@@ -56,12 +53,12 @@ export const Fields = () => (
           onChange={() => {}}
           placeholder="placeholder"
           value={''}
-          toolTipContent={<Text>Hello world</Text>}
+          tooltipContent={<Text>Hello world</Text>}
         />
         <FieldTextArea
           label="Label with helper text and tooltip"
           helperText="Helper text"
-          toolTipContent={<Text>Hello world</Text>}
+          tooltipContent={<Text>Hello world</Text>}
           name="optional name"
           onChange={() => {}}
           placeholder="placeholder"
@@ -70,6 +67,7 @@ export const Fields = () => (
         <FieldTextArea placeholder="without label" onChange={() => {}} />
         <FieldTextArea
           label="Required"
+          required
           rule={requiredField('So required. Much mandatory.')}
           onChange={() => {}}
           value=""

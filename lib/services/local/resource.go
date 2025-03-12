@@ -24,14 +24,15 @@ import (
 
 	"github.com/gravitational/trace"
 
+	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 // CreateResources attempts to dynamically create the supplied resources.
-// This function returns `trace.AlreadyExistsError` if one or more resources
-// would be overwritten, and `trace.NotImplementedError` if any resources
+// If any resources already exist they are skipped and not overwritten.
+// This function returns a `trace.NotImplementedError` if any resources
 // are of an unsupported type (see `itemsFromResources(...)`).
 //
 // NOTE: This function is non-atomic and performs no internal synchronization;
@@ -41,20 +42,9 @@ func CreateResources(ctx context.Context, b backend.Backend, resources ...types.
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// ensure all items do not exist before continuing.
-	for _, item := range items {
-		_, err = b.Get(ctx, item.Key)
-		if !trace.IsNotFound(err) {
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			return trace.AlreadyExists("resource %q already exists", item.Key.String())
-		}
-	}
-	// create all items.
 	for _, item := range items {
 		_, err := b.Create(ctx, item)
-		if err != nil {
+		if !trace.IsAlreadyExists(err) && err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -82,7 +72,15 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 	var item *backend.Item
 	var extItems []backend.Item
 	var err error
-	switch r := resource.(type) {
+
+	// Unwrap "new style" resources.
+	// We always want to switch over the underlying type.
+	var res any = resource
+	if w, ok := res.(types.Resource153Unwrapper); ok {
+		res = w.Unwrap()
+	}
+
+	switch r := res.(type) {
 	case types.User:
 		item, err = itemFromUser(r)
 		if auth := r.GetLocalAuth(); err == nil && auth != nil {
@@ -108,6 +106,10 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 		item, err = itemFromClusterNetworkingConfig(r)
 	case types.AuthPreference:
 		item, err = itemFromAuthPreference(r)
+	case *autoupdatev1pb.AutoUpdateConfig:
+		item, err = itemFromAutoUpdateConfig(r)
+	case *autoupdatev1pb.AutoUpdateVersion:
+		item, err = itemFromAutoUpdateVersion(r)
 	default:
 		return nil, trace.NotImplemented("cannot itemFrom resource of type %T", resource)
 	}
@@ -350,11 +352,6 @@ func userFromUserItems(name string, items userItems) (*types.UserV2, error) {
 		return nil, trace.Wrap(err)
 	}
 	user.SetLocalAuth(auth)
-
-	if auth != nil {
-		// when reading with secrets, we can populate the data automatically.
-		user.SetWeakestDevice(getWeakestMFADeviceKind(auth.MFA))
-	}
 
 	return user, nil
 }

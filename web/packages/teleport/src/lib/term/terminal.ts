@@ -17,21 +17,25 @@
  */
 
 import '@xterm/xterm/css/xterm.css';
-import { ITheme, Terminal } from '@xterm/xterm';
+
+import { CanvasAddon } from '@xterm/addon-canvas';
 import { FitAddon } from '@xterm/addon-fit';
 import { ImageAddon } from '@xterm/addon-image';
-import { WebglAddon } from '@xterm/addon-webgl';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { CanvasAddon } from '@xterm/addon-canvas';
-import { debounce, isInteger } from 'shared/utils/highbar';
+import { WebglAddon } from '@xterm/addon-webgl';
+import { ITheme, Terminal } from '@xterm/xterm';
+
+import {
+  SearchAddon,
+  TerminalSearcher,
+} from 'shared/components/TerminalSearch';
 import Logger from 'shared/libs/logger';
+import { debounce, isInteger, type DebouncedFunc } from 'shared/utils/highbar';
 
 import cfg from 'teleport/config';
 
 import { TermEvent } from './enums';
 import Tty from './tty';
-
-import type { DebouncedFunc } from 'shared/utils/highbar';
 
 const logger = Logger.create('lib/term/terminal');
 const DISCONNECT_TXT = 'disconnected';
@@ -40,10 +44,11 @@ const WINDOW_RESIZE_DEBOUNCE_DELAY = 200;
 /**
  * TtyTerminal is a wrapper on top of xtermjs
  */
-export default class TtyTerminal {
+export default class TtyTerminal implements TerminalSearcher {
   term: Terminal;
   tty: Tty;
 
+  // TODO (avatus): migrate all of these to using `private` instead of underscore
   _el: HTMLElement;
   _scrollBack: number;
   _fontFamily: string;
@@ -52,9 +57,12 @@ export default class TtyTerminal {
   _debouncedResize: DebouncedFunc<() => void>;
   _fitAddon = new FitAddon();
   _imageAddon = new ImageAddon();
+  _searchAddon = new SearchAddon();
   _webLinksAddon = new WebLinksAddon();
   _webglAddon: WebglAddon;
   _canvasAddon = new CanvasAddon();
+
+  private customKeyEventHandlers = new Set<(event: KeyboardEvent) => boolean>();
 
   constructor(
     tty: Tty,
@@ -76,6 +84,13 @@ export default class TtyTerminal {
     }, WINDOW_RESIZE_DEBOUNCE_DELAY);
   }
 
+  registerCustomKeyEventHandler(customHandler: (e: KeyboardEvent) => boolean) {
+    this.customKeyEventHandlers.add(customHandler);
+    return {
+      unregister: () => this.customKeyEventHandlers.delete(customHandler),
+    };
+  }
+
   open() {
     this.term = new Terminal({
       lineHeight: 1,
@@ -86,11 +101,13 @@ export default class TtyTerminal {
       cursorBlink: false,
       minimumContrastRatio: 4.5, // minimum for WCAG AA compliance
       theme: this.options.theme,
+      allowProposedApi: true, // required for customizing SearchAddon properties
     });
 
     this.term.loadAddon(this._fitAddon);
     this.term.loadAddon(this._webLinksAddon);
     this.term.loadAddon(this._imageAddon);
+    this.term.loadAddon(this._searchAddon);
     // handle context loss and load webgl addon
     try {
       // try to create a new WebglAddon. If webgl is not supported, this
@@ -107,13 +124,13 @@ export default class TtyTerminal {
         this.fallbackToCanvas();
       });
       this.term.loadAddon(this._webglAddon);
-    } catch (err) {
+    } catch {
       this.fallbackToCanvas();
     }
 
     this.term.open(this._el);
     this._fitAddon.fit();
-    this.term.focus();
+    this.focus();
     this.term.onData(data => {
       this.tty.send(data);
     });
@@ -129,6 +146,21 @@ export default class TtyTerminal {
 
     // subscribe to window resize events
     window.addEventListener('resize', this._debouncedResize);
+
+    this.term.attachCustomKeyEventHandler(e => {
+      for (const eventHandler of this.customKeyEventHandlers) {
+        if (!eventHandler(e)) {
+          // The event was handled, we can return early.
+          return false;
+        }
+      }
+      // The event wasn't handled, pass it to xterm.
+      return true;
+    });
+  }
+
+  focus() {
+    this.term.focus();
   }
 
   fallbackToCanvas() {
@@ -137,7 +169,7 @@ export default class TtyTerminal {
     this._webglAddon = undefined;
     try {
       this.term.loadAddon(this._canvasAddon);
-    } catch (err) {
+    } catch {
       logger.error(
         'Canvas renderer could not be loaded. Falling back to default'
       );
@@ -159,12 +191,17 @@ export default class TtyTerminal {
     this._debouncedResize.cancel();
     this._fitAddon.dispose();
     this._imageAddon.dispose();
+    this._searchAddon?.dispose();
     this._webglAddon?.dispose();
     this._canvasAddon?.dispose();
     this._el.innerHTML = null;
     this.term?.dispose();
 
     window.removeEventListener('resize', this._debouncedResize);
+  }
+
+  getSearchAddon() {
+    return this._searchAddon;
   }
 
   reset() {

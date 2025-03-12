@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { Desktop, WindowsDesktopService } from './types';
+import type { Desktop } from './types';
 
 export function makeDesktop(json): Desktop {
   const { os, name, addr, host_id, requiresRequest } = json;
@@ -33,19 +33,5 @@ export function makeDesktop(json): Desktop {
     host_id,
     logins,
     requiresRequest,
-  };
-}
-
-export function makeDesktopService(json): WindowsDesktopService {
-  const { name, hostname, addr } = json;
-
-  const labels = json.labels || [];
-
-  return {
-    kind: 'windows_desktop_service',
-    hostname,
-    addr,
-    labels,
-    name,
   };
 }

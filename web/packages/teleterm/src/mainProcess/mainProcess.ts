@@ -16,11 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ChildProcess, fork, spawn, exec } from 'node:child_process';
-import path from 'node:path';
+import { ChildProcess, exec, fork, spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
+import path from 'node:path';
 import { promisify } from 'node:util';
 
+import { ChannelCredentials } from '@grpc/grpc-js';
+import { GrpcTransport } from '@protobuf-ts/grpc-transport';
 import {
   app,
   dialog,
@@ -30,51 +32,52 @@ import {
   nativeTheme,
   shell,
 } from 'electron';
-import { ChannelCredentials } from '@grpc/grpc-js';
-import { GrpcTransport } from '@protobuf-ts/grpc-transport';
 
-import { FileStorage, RuntimeSettings } from 'teleterm/types';
-import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
-import {
-  LoggerColor,
-  KeepLastChunks,
-  createFileLoggerService,
-} from 'teleterm/services/logger';
+import Logger from 'teleterm/logger';
+import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
 import {
   ChildProcessAddresses,
+  MainProcessClient,
   MainProcessIpc,
   RendererIpc,
   TERMINATE_MESSAGE,
 } from 'teleterm/mainProcess/types';
-import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
-import { RootClusterUri } from 'teleterm/ui/uri';
-import Logger from 'teleterm/logger';
+import {
+  TSH_AUTOUPDATE_ENV_VAR,
+  TSH_AUTOUPDATE_OFF,
+} from 'teleterm/node/tshAutoupdate';
+import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
 import * as grpcCreds from 'teleterm/services/grpcCredentials';
+import {
+  createFileLoggerService,
+  KeepLastChunks,
+  LoggerColor,
+} from 'teleterm/services/logger';
 import { createTshdClient, TshdClient } from 'teleterm/services/tshd';
 import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
 import { staticConfig } from 'teleterm/staticConfig';
+import { FileStorage, RuntimeSettings } from 'teleterm/types';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 import {
   ConfigService,
   subscribeToConfigServiceEvents,
 } from '../services/config';
-
-import { subscribeToTerminalContextMenuEvent } from './contextMenus/terminalContextMenu';
+import { downloadAgent, FileDownloader, verifyAgent } from './agentDownloader';
+import { AgentRunner } from './agentRunner';
 import { subscribeToTabContextMenuEvent } from './contextMenus/tabContextMenu';
-import { resolveNetworkAddress, ResolveError } from './resolveNetworkAddress';
-import { WindowsManager } from './windowsManager';
-import { downloadAgent, verifyAgent, FileDownloader } from './agentDownloader';
+import { subscribeToTerminalContextMenuEvent } from './contextMenus/terminalContextMenu';
 import {
-  getAgentsDir,
   createAgentConfigFile,
+  generateAgentConfigPaths,
+  getAgentsDir,
   isAgentConfigFileCreated,
   removeAgentDirectory,
-  generateAgentConfigPaths,
+  type CreateAgentConfigFileArgs,
 } from './createAgentConfigFile';
-import { AgentRunner } from './agentRunner';
+import { ResolveError, resolveNetworkAddress } from './resolveNetworkAddress';
 import { terminateWithTimeout } from './terminateWithTimeout';
-
-import type { CreateAgentConfigFileArgs } from './createAgentConfigFile';
+import { WindowsManager } from './windowsManager';
 
 type Options = {
   settings: RuntimeSettings;
@@ -188,6 +191,7 @@ export default class MainProcess {
         env: {
           ...process.env,
           TELEPORT_HOME: homeDir,
+          [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
         },
       }
     );
@@ -334,6 +338,45 @@ export default class MainProcess {
       dialog.showSaveDialog({
         defaultPath: path.basename(filePath),
       })
+    );
+
+    ipcMain.handle(
+      MainProcessIpc.SaveTextToFile,
+      async (
+        _,
+        {
+          text,
+          defaultBasename,
+        }: Parameters<MainProcessClient['saveTextToFile']>[0]
+      ): ReturnType<MainProcessClient['saveTextToFile']> => {
+        const { canceled, filePath } = await dialog.showSaveDialog({
+          // Don't trust the renderer and make sure defaultBasename is indeed a basename only.
+          // defaultPath accepts different kinds of paths. For security reasons, the renderer should
+          // not be able to influence _where_ the file is saved, only how the file is named.
+          defaultPath: path.basename(defaultBasename),
+          properties: [
+            'createDirectory', // macOS only
+            'showOverwriteConfirmation', // Linux only.
+          ],
+        });
+
+        if (canceled) {
+          return { canceled };
+        }
+
+        try {
+          await fs.writeFile(filePath, text, {
+            // Overwrite file.
+            flag: 'w',
+          });
+        } catch (error) {
+          // Log the original error on this side of the context bridge.
+          this.logger.error(`Could not save text to "${filePath}"`, error);
+          throw error;
+        }
+
+        return { canceled };
+      }
     );
 
     ipcMain.handle('main-process-force-focus-window', () => {
@@ -634,7 +677,8 @@ export default class MainProcess {
 
 const TSHD_LOGGER_NAME = 'tshd';
 const SHARED_PROCESS_LOGGER_NAME = 'shared';
-const DOCS_URL = 'https://goteleport.com/docs/use-teleport/teleport-connect/';
+const DOCS_URL =
+  'https://goteleport.com/docs/connect-your-client/teleport-connect/';
 
 function openDocsUrl() {
   shell.openExternal(DOCS_URL);

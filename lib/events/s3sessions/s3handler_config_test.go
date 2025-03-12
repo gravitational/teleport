@@ -24,6 +24,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 
@@ -114,6 +115,27 @@ func TestConfig_SetFromURL(t *testing.T) {
 				require.Equal(t, types.ClusterAuditConfigSpecV2_FIPS_DISABLED, config.UseFIPSEndpoint)
 			},
 		},
+		{
+			name: "path style addressing enabled via url",
+			url:  "s3://path/bucket/adit?use_s3_virtual_style_addressing=false",
+			cfgAssertion: func(t *testing.T, config Config) {
+				require.False(t, config.UseVirtualStyleAddressing)
+			},
+		},
+		{
+			name: "path style addressing enabled by default",
+			url:  "s3://path/bucket/audit",
+			cfgAssertion: func(t *testing.T, config Config) {
+				require.False(t, config.UseVirtualStyleAddressing)
+			},
+		},
+		{
+			name: "path style addressing disabled via url",
+			url:  "s3://path/bucket/audit?use_s3_virtual_style_addressing=true",
+			cfgAssertion: func(t *testing.T, config Config) {
+				require.True(t, config.UseVirtualStyleAddressing)
+			},
+		},
 	}
 
 	for _, tt := range cases {
@@ -190,10 +212,13 @@ func TestEndpoints(t *testing.T) {
 			t.Cleanup(server.Close)
 
 			handler, err := NewHandler(context.Background(), Config{
-				Region:          "us-west-1",
-				Path:            "/test/",
-				Bucket:          "teleport-unit-tests",
-				Endpoint:        server.URL,
+				Region: "us-west-1",
+				Path:   "/test/",
+				Bucket: "teleport-unit-tests",
+				// The prefix is intentionally removed to validate that a scheme
+				// is applied automatically. This validates backwards compatible behavior
+				// with existing configurations and the behavior change from aws-sdk-go to aws-sdk-go-v2.
+				Endpoint:        strings.TrimPrefix(server.URL, "http://"),
 				UseFIPSEndpoint: fips,
 				Insecure:        true,
 				CredentialsProvider: aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {

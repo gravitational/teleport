@@ -16,20 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState, useMemo, Dispatch, SetStateAction } from 'react';
+import {
+  Dispatch,
+  SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { useParams } from 'react-router';
 
+import type { NotificationItem } from 'shared/components/Notification';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
+import type { UrlDesktopParams } from 'teleport/config';
 import { ButtonState } from 'teleport/lib/tdp';
-import { useMfa } from 'teleport/lib/useMfa';
+import { useMfaEmitter } from 'teleport/lib/useMfa';
 import desktopService from 'teleport/services/desktops';
 import userService from 'teleport/services/user';
 
 import useTdpClientCanvas from './useTdpClientCanvas';
-
-import type { UrlDesktopParams } from 'teleport/config';
-import type { NotificationItem } from 'shared/components/Notification';
 
 export default function useDesktopSession() {
   const { attempt: fetchAttempt, run } = useAttempt('processing');
@@ -116,6 +122,12 @@ export default function useDesktopSession() {
   const onRemoveAlert = (id: string) => {
     setAlerts(prevState => prevState.filter(alert => alert.id !== id));
   };
+  const addAlert = useCallback((alert: Omit<NotificationItem, 'id'>) => {
+    setAlerts(prevState => [
+      ...prevState,
+      { ...alert, id: crypto.randomUUID() },
+    ]);
+  }, []);
 
   const clientCanvasProps = useTdpClientCanvas({
     username,
@@ -130,7 +142,7 @@ export default function useDesktopSession() {
   });
   const tdpClient = clientCanvasProps.tdpClient;
 
-  const mfa = useMfa(tdpClient);
+  const mfa = useMfaEmitter(tdpClient);
 
   const onShareDirectory = () => {
     try {
@@ -150,39 +162,33 @@ export default function useDesktopSession() {
             ...prevState,
             directorySelected: false,
           }));
-          setAlerts(prevState => [
-            ...prevState,
-            {
-              id: crypto.randomUUID(),
-              severity: 'warn',
-              content: 'Failed to open the directory picker: ' + e.message,
-            },
-          ]);
+          addAlert({
+            severity: 'warn',
+            content: 'Failed to open the directory picker: ' + e.message,
+          });
         });
     } catch (e) {
       setDirectorySharingState(prevState => ({
         ...prevState,
         directorySelected: false,
       }));
-      setAlerts(prevState => [
-        ...prevState,
-        {
-          id: crypto.randomUUID(),
-          severity: 'warn',
-          // This is a gross error message, but should be infrequent enough that its worth just telling
-          // the user the likely problem, while also displaying the error message just in case that's not it.
-          // In a perfect world, we could check for which error message this is and display
-          // context appropriate directions.
-          content:
-            'Encountered an error while attempting to share a directory: ' +
+      addAlert({
+        severity: 'warn',
+        // This is a gross error message, but should be infrequent enough that its worth just telling
+        // the user the likely problem, while also displaying the error message just in case that's not it.
+        // In a perfect world, we could check for which error message this is and display
+        // context appropriate directions.
+        content: {
+          title: 'Encountered an error while attempting to share a directory: ',
+          description:
             e.message +
             '. \n\nYour user role supports directory sharing over desktop access, \
-          however this feature is only available by default on some Chromium \
-          based browsers like Google Chrome or Microsoft Edge. Brave users can \
-          use the feature by navigating to brave://flags/#file-system-access-api \
-          and selecting "Enable". If you\'re not already, please switch to a supported browser.',
+  however this feature is only available by default on some Chromium \
+  based browsers like Google Chrome or Microsoft Edge. Brave users can \
+  use the feature by navigating to brave://flags/#file-system-access-api \
+  and selecting "Enable". If you\'re not already, please switch to a supported browser.',
         },
-      ]);
+      });
     }
   };
 
@@ -213,6 +219,8 @@ export default function useDesktopSession() {
     onCtrlAltDel,
     alerts,
     onRemoveAlert,
+    addAlert,
+    setWsConnection,
     ...clientCanvasProps,
   };
 }

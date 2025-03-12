@@ -12,8 +12,8 @@ Here is why you might use Teleport:
 
 Teleport works with SSH, Kubernetes, databases, RDP, and web services.
 
-* Architecture: https://goteleport.com/docs/architecture/introduction
-* Getting Started: https://goteleport.com/docs/getting-started/
+* Architecture: https://goteleport.com/docs/reference/architecture/
+* Getting Started: https://goteleport.com/docs/get-started/
 
 <div align="center">
    <a href="https://goteleport.com/download">
@@ -57,12 +57,12 @@ We have implemented Teleport as a single Go binary that integrates with multiple
 
 * [SSH nodes](https://goteleport.com/docs/enroll-resources/server-access/introduction/).
 * [Kubernetes clusters](https://goteleport.com/docs/enroll-resources/kubernetes-access/introduction/)
-* [PostgreSQL, MongoDB, CockroachDB and MySQL databases](https://goteleport.com/docs/enroll-resources/database-access/database-access/).
+* [PostgreSQL, MongoDB, CockroachDB and MySQL databases](https://goteleport.com/docs/enroll-resources/database-access/).
 * [Internal Web apps](https://goteleport.com/docs/enroll-resources/application-access/introduction/).
 * [Windows Hosts](https://goteleport.com/docs/enroll-resources/desktop-access/introduction/).
 * [Networked servers](https://goteleport.com/docs/enroll-resources/server-access/introduction/).
 
-You can set up Teleport as a [Linux daemon](https://goteleport.com/docs/deploy-a-cluster/linux-demo) or a [Kubernetes deployment](https://goteleport.com/docs/deploy-a-cluster/helm-deployments/).
+You can set up Teleport as a [Linux daemon](https://goteleport.com/docs/admin-guides/deploy-a-cluster/linux-demo) or a [Kubernetes deployment](https://goteleport.com/docs/admin-guides/deploy-a-cluster/helm-deployments/).
 
 Teleport focuses on best practices for infrastructure security:
 
@@ -98,7 +98,7 @@ deployment that makes it easier to enable secure access to your infrastructure.
 Cloud.
 
 Follow our guide to [registering your first
-server](https://goteleport.com/docs/choose-an-edition/teleport-cloud/get-started/)
+server](https://goteleport.com/docs/get-started/)
 with Teleport Enterprise Cloud.
 
 ## Docker
@@ -357,10 +357,10 @@ We had a choice, either start a security consulting business or build a solution
 
 ## More Information
 
-* [Teleport Getting Started](https://goteleport.com/docs/getting-started/)
+* [Teleport Getting Started](https://goteleport.com/docs/get-started/)
 * [Teleport
   Architecture](https://goteleport.com/teleport/docs/architecture/introduction)
-* [Reference](https://goteleport.com/docs/reference/introduction)
+* [Reference](https://goteleport.com/docs/reference/)
 * [FAQ](https://goteleport.com/docs/faq)
 
 ## Support and Contributing
@@ -403,4 +403,4 @@ The remainder of the source code in this repository is available under the
 from source must comply with the terms of this license.
 
 Teleport Community Edition builds distributed on http://goteleport.com/download
-are available under a [modified Apache 2.0 license](./LICENSE-community).
+are available under a [modified Apache 2.0 license](./build.assets/LICENSE-community).

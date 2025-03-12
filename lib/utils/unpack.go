@@ -20,15 +20,16 @@ package utils
 
 import (
 	"archive/tar"
+	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 )
@@ -140,7 +141,10 @@ func extractFile(tarball *tar.Reader, header *tar.Header, dir string, dirMode os
 	case tar.TypeSymlink:
 		return writeSymbolicLink(filepath.Join(dir, header.Name), header.Linkname, dirMode)
 	default:
-		log.Warnf("Unsupported type flag %v for %v.", header.Typeflag, header.Name)
+		slog.WarnContext(context.Background(), "Unsupported type flag for tarball",
+			"type_flag", header.Typeflag,
+			"header", header.Name,
+		)
 	}
 	return nil
 }

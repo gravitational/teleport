@@ -56,6 +56,69 @@ func TestSetLogLevel(t *testing.T) {
 	})
 }
 
+func TestGetReadiness(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Success", func(t *testing.T) {
+		socketPath, _ := newSocketMockService(t, http.StatusOK, []byte(`{"status": "OK", "pid": 1234}`))
+		clt := NewClient(socketPath)
+
+		out, err := clt.GetReadiness(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "OK", out.Status)
+		require.True(t, out.Ready)
+		require.Equal(t, 1234, out.PID)
+	})
+
+	t.Run("Failure", func(t *testing.T) {
+		socketPath, _ := newSocketMockService(t, http.StatusBadRequest, []byte(`{"status": "BAD", "pid": 1234}`))
+		clt := NewClient(socketPath)
+
+		out, err := clt.GetReadiness(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "BAD", out.Status)
+		require.False(t, out.Ready)
+		require.Equal(t, 1234, out.PID)
+	})
+
+	t.Run("Not found", func(t *testing.T) {
+		socketPath, _ := newSocketMockService(t, http.StatusNotFound, []byte(`404`))
+		clt := NewClient(socketPath)
+
+		out, err := clt.GetReadiness(ctx)
+		require.True(t, trace.IsNotFound(err))
+		require.Equal(t, "", out.Status)
+		require.False(t, out.Ready)
+		require.Equal(t, 0, out.PID)
+	})
+
+	t.Run("Closed", func(t *testing.T) {
+		socketPath, closeFn := newSocketMockService(t, http.StatusOK, []byte(`{"status": "OK", "pid": 1234}`))
+		closeFn()
+		clt := NewClient(socketPath)
+
+		out, err := clt.GetReadiness(ctx)
+		var netError net.Error
+		require.ErrorAs(t, err, &netError)
+		require.Equal(t, "", out.Status)
+		require.False(t, out.Ready)
+		require.Equal(t, 0, out.PID)
+	})
+
+	t.Run("Missing", func(t *testing.T) {
+		socketPath, _ := newSocketMockService(t, http.StatusOK, []byte(`{"status": "OK", "pid": 1234}`))
+		err := os.RemoveAll(socketPath)
+		require.NoError(t, err)
+		clt := NewClient(socketPath)
+
+		out, err := clt.GetReadiness(ctx)
+		require.ErrorIs(t, err, os.ErrNotExist)
+		require.Equal(t, "", out.Status)
+		require.False(t, out.Ready)
+		require.Equal(t, 0, out.PID)
+	})
+}
+
 func TestCollectProfile(t *testing.T) {
 	ctx := context.Background()
 
@@ -144,6 +207,7 @@ func newSocketMockService(t *testing.T, status int, contents []byte) (string, fu
 
 	t.Cleanup(func() { srv.Shutdown(context.Background()) })
 	return socketPath, func() []string {
+		srv.Shutdown(context.Background())
 		return requests
 	}
 }

@@ -284,13 +284,13 @@ IAM credentials with `ec2:DescribeInstances` permissions are required on your
 Teleport Auth Service. No IAM credentials are required on the Teleport processes
 joining the cluster.
 
-<Notice type="warning">
+<Admonition type="warning">
 
 The EC2 join method is not available in Teleport Enterprise Cloud and Teleport
 Team. Teleport Enterprise Cloud and Team customers can use the [IAM join
 method](#aws-iam-role-iam) or [ephemeral secret tokens](#ephemeral-tokens).
 
-</Notice>
+</Admonition>
 
 (!docs/pages/includes/provision-token/ec2-spec.mdx!)
 
@@ -300,7 +300,7 @@ method](#aws-iam-role-iam) or [ephemeral secret tokens](#ephemeral-tokens).
 
 ### Azure managed identity: `azure`
 
-The Azure join method is available to any Teleport process running in an 
+The Azure join method is available to any Teleport process running in an
 Azure Virtual Machine. Support for joining a cluster with the Proxy Service
 behind a layer 7 load balancer or reverse proxy is available in Teleport 13.0+.
 
@@ -438,4 +438,40 @@ Support for self-hosted Terraform Enterprise requires Teleport Enterprise.
 
 <Admonition type="note" title="See Also">
 - [Run the Teleport Terraform Provider on Terraform Cloud](../admin-guides/infrastructure-as-code/terraform-provider/terraform-cloud.mdx)
+</Admonition>
+
+### Spacelift: `spacelift`
+
+This join method is used to authenticate using Spacelift. It is typically used
+by the Teleport Terraform provider on Spacelift (including self-hosted
+deployments).
+
+(!docs/pages/includes/provision-token/spacelift-spec.mdx!)
+
+<Admonition type="note" title="See Also">
+    - [Run the Teleport Terraform Provider on Spacelift](../admin-guides/infrastructure-as-code/terraform-provider/spacelift.mdx)
+</Admonition>
+
+### Bitbucket Pipelines: `bitbucket`
+
+This join method is used to authenticate using Bitbucket's support for OpenID
+Connect, and is typically used to allow either Machine ID's `tbot` or the
+Teleport Terraform provider to authenticate to Teleport without use of shared
+secrets.
+
+(!docs/pages/includes/provision-token/bitbucket-spec.mdx!)
+
+<Admonition type="note" title="See Also">
+- [Deploying Machine ID on Bitbucket Pipelines](../enroll-resources/machine-id/deployment/bitbucket.mdx)
+</Admonition>
+
+### Oracle Cloud: `oracle`
+
+The Oracle join method is available to any Teleport process running on an Oracle
+Cloud Compute instance.
+
+(!docs/pages/includes/provision-token/oracle-spec.mdx!)
+
+<Admonition type="note" title="See Also">
+- How to [Join Services with Oracle Cloud](../enroll-resources/agents/join-services-to-your-cluster/oracle.mdx).
 </Admonition>

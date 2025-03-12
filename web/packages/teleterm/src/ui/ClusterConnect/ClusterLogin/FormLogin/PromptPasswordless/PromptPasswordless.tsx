@@ -17,17 +17,16 @@
  */
 
 import { useState } from 'react';
-import { Box, ButtonSecondary, ButtonPrimary, Text, Image, Flex } from 'design';
+import styled from 'styled-components';
+
+import { Box, ButtonPrimary, ButtonSecondary, Flex, Image, Text } from 'design';
 import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
 
-import styled from 'styled-components';
-
 import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
 
-import svgHardwareKey from './hardware.svg';
-
 import type { PasswordlessLoginState } from '../../useClusterLogin';
+import svgHardwareKey from './hardware.svg';
 
 type Props = PasswordlessLoginState & {
   onCancel(): void;

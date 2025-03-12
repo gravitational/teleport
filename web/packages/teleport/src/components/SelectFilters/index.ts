@@ -17,4 +17,5 @@
  */
 
 import SelectFilters from './SelectFilters';
+
 export default SelectFilters;

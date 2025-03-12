@@ -16,13 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { DatabaseEngine, DatabaseLocation } from '../../SelectResource';
-
 import { CreateDatabaseView } from './CreateDatabase';
-
 import type { State } from './useCreateDatabase';
 
 export default {

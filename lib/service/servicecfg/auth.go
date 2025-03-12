@@ -20,6 +20,7 @@ package servicecfg
 
 import (
 	"slices"
+	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/gravitational/trace"
@@ -116,6 +117,12 @@ type AuthConfig struct {
 
 	// AccessMonitoring configures access monitoring.
 	AccessMonitoring *AccessMonitoringOptions
+
+	// AgentRolloutControllerSyncPeriod controls the period between two
+	// reconciliations of the agent rollout controller. This value is jittered.
+	// Empty value means the controller uses its default.
+	// Used in tests.
+	AgentRolloutControllerSyncPeriod time.Duration
 }
 
 // AccessMonitoringOptions configures access monitoring.
@@ -235,6 +242,8 @@ type PKCS11Config struct {
 	TokenLabel string
 	// PIN is the PKCS11 PIN for the given token.
 	PIN string
+	// MaxSessions is the upper limit of sessions allowed by the HSM.
+	MaxSessions int
 }
 
 // CheckAndSetDefaults checks that required parameters of the config are
@@ -246,6 +255,17 @@ func (cfg *PKCS11Config) CheckAndSetDefaults() error {
 	if cfg.SlotNumber == nil && cfg.TokenLabel == "" {
 		return trace.BadParameter("must provide one of SlotNumber or TokenLabel")
 	}
+
+	switch {
+	case cfg.MaxSessions < 0:
+		return trace.BadParameter("the value of PKCS11 MaxSessions must not be negative")
+	case cfg.MaxSessions == 1:
+		return trace.BadParameter("the minimum value for PKCS11 MaxSessions is 2")
+	case cfg.MaxSessions == 0:
+	// A value of zero is acceptable and indicates to the pkcs11 library to use the default value.
+	default:
+	}
+
 	return nil
 }
 

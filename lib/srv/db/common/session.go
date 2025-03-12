@@ -68,6 +68,8 @@ type Session struct {
 	StartTime time.Time
 	// PostgresPID is the Postgres backend PID for the session.
 	PostgresPID uint32
+	// UserAgent identifies the type of client used on the session.
+	UserAgent string
 }
 
 // String returns string representation of the session parameters.

@@ -20,11 +20,13 @@
 package sftp
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"os"
 	"path" // SFTP requires UNIX-style path separators
@@ -36,7 +38,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
 	"github.com/schollz/progressbar/v3"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -51,6 +52,10 @@ type Options struct {
 	// PreserveAttrs preserves access and modification times
 	// from the original file
 	PreserveAttrs bool
+	// Quiet indicates whether progress should be displayed.
+	Quiet bool
+	// ProgressWriter is used to write the progress output.
+	ProgressWriter io.Writer
 }
 
 // Config describes the settings of a file transfer
@@ -65,7 +70,7 @@ type Config struct {
 	// (used only on the client)
 	ProgressStream func(fileInfo os.FileInfo) io.ReadWriter
 	// Log optionally specifies the logger
-	Log log.FieldLogger
+	Log *slog.Logger
 }
 
 // FileSystem describes file operations to be done either locally or over SFTP
@@ -217,17 +222,21 @@ func (h HTTPTransferRequest) checkDefaults() error {
 func (c *Config) setDefaults() {
 	logger := c.Log
 	if logger == nil {
-		logger = log.StandardLogger()
+		logger = slog.Default()
 	}
-	c.Log = logger.WithFields(log.Fields{
-		teleport.ComponentKey: "SFTP",
-		teleport.ComponentFields: log.Fields{
-			"SrcPaths":      c.srcPaths,
-			"DstPath":       c.dstPath,
-			"Recursive":     c.opts.Recursive,
-			"PreserveAttrs": c.opts.PreserveAttrs,
-		},
-	})
+	c.Log = logger.With(
+		teleport.ComponentKey, "SFTP",
+		"src_paths", c.srcPaths,
+		"dst_path", c.dstPath,
+		"recursive", c.opts.Recursive,
+		"preserve_attrs", c.opts.PreserveAttrs,
+	)
+
+	if !c.opts.Quiet {
+		c.ProgressStream = func(fileInfo os.FileInfo) io.ReadWriter {
+			return NewProgressBar(fileInfo.Size(), fileInfo.Name(), cmp.Or(c.opts.ProgressWriter, io.Writer(os.Stdout)))
+		}
+	}
 }
 
 // TransferFiles transfers files from the configured source paths to the
@@ -320,7 +329,7 @@ func (c *Config) expandPaths(srcIsRemote, dstIsRemote bool) (err error) {
 		for i, srcPath := range c.srcPaths {
 			c.srcPaths[i], err = expandPath(srcPath)
 			if err != nil {
-				return trace.Wrap(err, "error expanding %q", srcPath)
+				return trace.Wrap(err)
 			}
 		}
 	}
@@ -328,11 +337,21 @@ func (c *Config) expandPaths(srcIsRemote, dstIsRemote bool) (err error) {
 	if dstIsRemote {
 		c.dstPath, err = expandPath(c.dstPath)
 		if err != nil {
-			return trace.Wrap(err, "error expanding %q", c.dstPath)
+			return trace.Wrap(err)
 		}
 	}
 
 	return nil
+}
+
+// PathExpansionError is an [error] indicating that
+// path expansion was rejected.
+type PathExpansionError struct {
+	path string
+}
+
+func (p PathExpansionError) Error() string {
+	return fmt.Sprintf("expanding remote ~user paths is not supported, specify an absolute path instead of %q", p.path)
 }
 
 func expandPath(pathStr string) (string, error) {
@@ -349,7 +368,7 @@ func expandPath(pathStr string) (string, error) {
 		return ".", nil
 	}
 	if pfxLen == 1 && len(pathStr) > 1 {
-		return "", trace.BadParameter("expanding remote ~user paths is not supported, specify an absolute path instead")
+		return "", trace.Wrap(PathExpansionError{path: pathStr})
 	}
 
 	// if an SFTP path is not absolute, it is assumed to start at the user's
@@ -477,7 +496,7 @@ func (c *Config) transfer(ctx context.Context) error {
 
 // transferDir transfers a directory
 func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
-	c.Log.Debugf("copying %s dir %q to %s dir %q", c.srcFS.Type(), srcPath, c.dstFS.Type(), dstPath)
+	c.Log.DebugContext(ctx, "transferring contents of directory", "source_fs", c.srcFS.Type(), "source_path", srcPath, "dest_fs", c.dstFS.Type(), "dest_path", dstPath)
 
 	err := c.dstFS.Mkdir(ctx, dstPath)
 	if err != nil && !errors.Is(err, os.ErrExist) {
@@ -521,7 +540,7 @@ func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFi
 
 // transferFile transfers a file
 func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
-	c.Log.Debugf("copying %s file %q to %s file %q", c.srcFS.Type(), srcPath, c.dstFS.Type(), dstPath)
+	c.Log.DebugContext(ctx, "transferring file", "source_fs", c.srcFS.Type(), "source_file", srcPath, "dest_fs", c.dstFS.Type(), "dest_file", dstPath)
 
 	srcFile, err := c.srcFS.Open(ctx, srcPath)
 	if err != nil {

@@ -21,9 +21,10 @@ package sftp
 import (
 	"bytes"
 	"context"
+	cryptorand "crypto/rand"
 	"fmt"
 	"io"
-	"math/rand"
+	mathrand "math/rand/v2"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -31,10 +32,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/utils"
@@ -585,7 +584,7 @@ func TestHomeDirExpansion(t *testing.T) {
 			name: "~user path",
 			path: "~user/foo",
 			errCheck: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsBadParameter(err))
+				require.ErrorIs(t, err, PathExpansionError{path: "~user/foo"})
 			},
 		},
 	}
@@ -723,9 +722,10 @@ func createFile(t *testing.T, path string) {
 	}()
 
 	// populate file with random amount of random contents
-	r := rand.New(rand.NewSource(time.Now().Unix()))
-	lr := io.LimitReader(r, r.Int63n(fileMaxSize)+1)
-	_, err = io.Copy(f, lr)
+	buf := make([]byte, mathrand.N(fileMaxSize)+1)
+	_, err = cryptorand.Read(buf)
+	require.NoError(t, err)
+	_, err = f.Write(buf)
 	require.NoError(t, err)
 }
 

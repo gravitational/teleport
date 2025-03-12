@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,17 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function FingerprintSimple({
-  size = 24,
-  color,
-  ...otherProps
-}: IconProps) {
-  return (
+export const FingerprintSimple = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-fingerprintsimple"
       {...otherProps}
+      ref={ref}
     >
       <path
         fillRule="evenodd"
@@ -85,5 +82,5 @@ export function FingerprintSimple({
         d="M11.9986 11.2501C12.4128 11.2494 12.7492 11.5846 12.7499 11.9988C12.7527 13.5797 12.5558 15.1545 12.164 16.686C12.0613 17.0873 11.6528 17.3294 11.2515 17.2267C10.8502 17.1241 10.6081 16.7155 10.7108 16.3142C11.0713 14.9051 11.2524 13.456 11.2499 12.0014C11.2492 11.5872 11.5844 11.2509 11.9986 11.2501Z"
       />
     </Icon>
-  );
-}
+  )
+);

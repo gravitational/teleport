@@ -131,30 +131,10 @@ func TestSPIFFEJWTPublicEndpoints(t *testing.T) {
 	resp, err = publicClt.Get(ctx, gotConfiguration.JWKSURI, nil)
 	require.NoError(t, err)
 
-	type jwksKey struct {
-		Use     string `json:"use"`
-		KeyID   string `json:"kid"`
-		KeyType string `json:"kty"`
-		Alg     string `json:"alg"`
-	}
-	type jwksKeys struct {
-		Keys []jwksKey `json:"keys"`
-	}
-	gotKeys := jwksKeys{}
+	var gotKeys JWKSResponse
 	err = json.Unmarshal(resp.Bytes(), &gotKeys)
 	require.NoError(t, err)
 
 	require.Len(t, gotKeys.Keys, 1)
 	require.NotEmpty(t, gotKeys.Keys[0].KeyID)
-	expectedKeys := jwksKeys{
-		Keys: []jwksKey{
-			{
-				Use:     "sig",
-				KeyType: "EC",
-				Alg:     "ES256",
-				KeyID:   gotKeys.Keys[0].KeyID,
-			},
-		},
-	}
-	require.Equal(t, expectedKeys, gotKeys)
 }

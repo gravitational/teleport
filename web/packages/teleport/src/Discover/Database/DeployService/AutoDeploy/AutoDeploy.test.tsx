@@ -16,37 +16,36 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
+
 import { act, fireEvent, render, screen } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
-import {
-  AwsRdsDatabase,
-  Integration,
-  IntegrationKind,
-  integrationService,
-  IntegrationStatusCode,
-  Regions,
-} from 'teleport/services/integrations';
-import { createTeleportContext } from 'teleport/mocks/contexts';
 import cfg from 'teleport/config';
-import TeleportContext from 'teleport/teleportContext';
+import {
+  DatabaseEngine,
+  DatabaseLocation,
+} from 'teleport/Discover/SelectResource';
+import { ResourceKind } from 'teleport/Discover/Shared';
+import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
+import { SHOW_HINT_TIMEOUT } from 'teleport/Discover/Shared/useShowHint';
 import {
   DbMeta,
   DiscoverContextState,
   DiscoverProvider,
 } from 'teleport/Discover/useDiscover';
-import {
-  DatabaseEngine,
-  DatabaseLocation,
-} from 'teleport/Discover/SelectResource';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
-import { ResourceKind } from 'teleport/Discover/Shared';
-import { SHOW_HINT_TIMEOUT } from 'teleport/Discover/Shared/useShowHint';
-
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import {
+  AwsRdsDatabase,
+  IntegrationAwsOidc,
+  IntegrationKind,
+  integrationService,
+  IntegrationStatusCode,
+  Regions,
+} from 'teleport/services/integrations';
 import { userEventService } from 'teleport/services/userEvent';
+import TeleportContext from 'teleport/teleportContext';
 
 import { AutoDeploy } from './AutoDeploy';
 
@@ -70,7 +69,7 @@ const mockAwsRdsDb: AwsRdsDatabase = {
   subnets: ['subnet1', 'subnet2'],
 };
 
-const mocKIntegration: Integration = {
+const mockIntegration: IntegrationAwsOidc = {
   kind: IntegrationKind.AwsOidc,
   name: integrationName,
   resourceType: 'integration',
@@ -215,7 +214,7 @@ function getMockedContexts() {
     agentMeta: {
       resourceName: 'db1',
       awsRegion: region,
-      awsIntegration: mocKIntegration,
+      awsIntegration: mockIntegration,
       selectedAwsRdsDb: mockAwsRdsDb,
       agentMatcherLabels: mockDbLabels,
     } as DbMeta,

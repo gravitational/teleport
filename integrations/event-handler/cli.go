@@ -46,6 +46,10 @@ type FluentdConfig struct {
 
 	// FluentdCA is a path to fluentd CA
 	FluentdCA string `help:"fluentd TLS CA file" type:"existingfile" env:"FDWRD_FLUENTD_CA"`
+
+	// FluentdMaxConnections caps the number of connections to fluentd. Defaults to a dynamic value
+	// calculated relative to app-level concurrency.
+	FluentdMaxConnections int `help:"Maximum number of connections to fluentd" env:"FDWRD_MAX_CONNECTIONS"`
 }
 
 // TeleportConfig is Teleport instance configuration
@@ -143,7 +147,7 @@ type IngestConfig struct {
 	Timeout time.Duration `help:"Polling timeout" default:"5s" env:"FDFWD_TIMEOUT"`
 
 	// DryRun is the flag which simulates execution without sending events to fluentd
-	DryRun bool `help:"Events are read from Teleport, but are not sent to fluentd. Separate stroage is used. Debug flag."`
+	DryRun bool `help:"Events are read from Teleport, but are not sent to fluentd. Separate storage is used. Debug flag."`
 
 	// ExitOnLastEvent exit when last event is processed
 	ExitOnLastEvent bool `help:"Exit when last event is processed"`
@@ -238,6 +242,11 @@ func (c *StartCmdConfig) Validate() error {
 	c.SkipSessionTypes = lib.SliceToAnonymousMap(c.SkipSessionTypesRaw)
 	c.SkipEventTypes = lib.SliceToAnonymousMap(c.SkipEventTypesRaw)
 
+	if c.FluentdMaxConnections < 1 {
+		// 2x concurrency is effectively uncapped.
+		c.FluentdMaxConnections = c.Concurrency * 2
+	}
+
 	return nil
 }
 
@@ -245,6 +254,7 @@ func (c *StartCmdConfig) Validate() error {
 func (c *StartCmdConfig) Dump(ctx context.Context, log *slog.Logger) {
 	// Log configuration variables
 	log.InfoContext(ctx, "Using batch size", "batch", c.BatchSize)
+	log.InfoContext(ctx, "Using concurrency", "concurrency", c.Concurrency)
 	log.InfoContext(ctx, "Using type filter", "types", c.Types)
 	log.InfoContext(ctx, "Using type exclude filter", "skip_event_types", c.SkipEventTypes)
 	log.InfoContext(ctx, "Skipping session events of type", "types", c.SkipSessionTypes)
@@ -255,6 +265,7 @@ func (c *StartCmdConfig) Dump(ctx context.Context, log *slog.Logger) {
 	log.InfoContext(ctx, "Using Fluentd ca", "ca", c.FluentdCA)
 	log.InfoContext(ctx, "Using Fluentd cert", "cert", c.FluentdCert)
 	log.InfoContext(ctx, "Using Fluentd key", "key", c.FluentdKey)
+	log.InfoContext(ctx, "Using Fluentd max connections", "max_connections", c.FluentdMaxConnections)
 	log.InfoContext(ctx, "Using window size", "window_size", c.WindowSize)
 
 	if c.TeleportIdentityFile != "" {

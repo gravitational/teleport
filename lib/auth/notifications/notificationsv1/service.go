@@ -297,10 +297,19 @@ func (s *Service) matchGlobalNotification(ctx context.Context, authCtx *authz.Co
 		return false
 	}
 
+	// If the user is explicitly excluded by the notification, return false early.
+	if gn.Spec.ExcludeUsers != nil && slices.Contains(gn.Spec.ExcludeUsers, authCtx.User.GetName()) {
+		return false
+	}
+
 	switch matcher := gn.Spec.Matcher.(type) {
 	case *notificationsv1.GlobalNotificationSpec_All:
 		// Always return true if the matcher is "all."
 		return true
+
+	case *notificationsv1.GlobalNotificationSpec_ByUsers:
+		userList := matcher.ByUsers.GetUsers()
+		return slices.Contains(userList, authCtx.User.GetName())
 
 	case *notificationsv1.GlobalNotificationSpec_ByRoles:
 		matcherRoles := matcher.ByRoles.GetRoles()

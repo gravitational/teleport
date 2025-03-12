@@ -8,6 +8,34 @@ This guide explains how to set up GitHub Single Sign On (SSO) so you can
 automatically map teams in your GitHub organization to users and roles in
 Teleport.
 
+## How it works
+
+A Teleport administrator creates a GitHub authentication connector on the
+Teleport Auth Service backend and requires Teleport users to authenticate
+through GitHub by creating a cluster authentication preference.
+
+When a user authenticates to Teleport, they receive instructions to finish
+authenticating using GitHub. The Teleport Auth Service receives an OAuth 2.0
+access token from GitHub and authenticates the token. (The GitHub authentication
+connector acts as an OAuth 2.0
+[client](https://datatracker.ietf.org/doc/html/rfc6749#section-4.1).)
+
+The Auth Service then issues short-lived TLS and SSH certificates to the user by
+reading data from the OAuth 2.0 access token. In particular, the Auth Service:
+- Maps the user's GitHub teams to Teleport roles in order to assign the user
+  permissions. 
+- Assigns the user's Teleport username to their GitHub username.
+
+<Admonition type="warning">
+
+GitHub usernames are not formatted as email addresses. As a result, any Teleport
+plugin that expects to send email to a user based on their Teleport username
+will not work as expected. For example, the [PagerDuty Access Request
+plugin](../access-request-plugins/ssh-approval-pagerduty.mdx) has this
+limitation.
+
+</Admonition>
+
 ## Prerequisites
 
 - A GitHub organization with at least one team. 
@@ -170,8 +198,10 @@ spec.
 
 <Details title="Self-hosting GitHub Enterprise?" scope={["enterprise", "cloud"]} opened>
 
-For self-hosted GitHub Enterprise servers, you can specify the server
-instance endpoints with the `--endpoint-url`, `--api-endpoint-url` parameters:
+For self-hosted GitHub Enterprise servers, you can specify the server instance
+endpoints with the `--endpoint-url`, `--api-endpoint-url` parameters, replacing
+<Var name="github-enterprise-server-address"/> with your endpoint URL and 
+<Var name="api-github-enterprise-server-address"/> with your API endpoint URL:
 
 ```code
 $ tctl sso configure github \
@@ -306,9 +336,7 @@ GitHub OAuth app:
 Teleport will request only the `read:org` OAuth scope. Read more about OAuth scopes in GitHub's documentation:
 [GitHub OAuth scopes](https://developer.github.com/apps/building-oauth-apps/understanding-scopes-for-oauth-apps/)
 
-After logging in successfully, you will see the following:
-
-![Login success view](../../../../img/login-success.png)
+After logging in, you will receive a "Login Successful" window, which you can then close.
 
 You will receive the details of your user session within the CLI:
 
@@ -453,6 +481,6 @@ shows the slug is `my-team`. Update the teams to roles mapping.
 The role we illustrated in this guide uses the `internal.logins` trait,
 which Teleport replaces with values from the Teleport local user
 database. For full details on how traits work in Teleport roles,
-see the [Teleport Access Controls
+see the [Access Controls
 Reference](../../../reference/access-controls/roles.mdx).
 

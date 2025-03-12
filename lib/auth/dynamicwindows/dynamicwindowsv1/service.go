@@ -29,6 +29,7 @@ import (
 	dynamicwindowspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // Service implements the teleport.trust.v1.TrustService RPC service.
@@ -108,6 +109,9 @@ func (s *Service) GetDynamicWindowsDesktop(ctx context.Context, request *dynamic
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := checkAccess(auth, d); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	desktop, ok := d.(*types.DynamicWindowsDesktopV1)
 	if !ok {
@@ -136,6 +140,9 @@ func (s *Service) ListDynamicWindowsDesktops(ctx context.Context, request *dynam
 		NextPageToken: next,
 	}
 	for _, d := range desktops {
+		if err := checkAccess(auth, d); err != nil {
+			continue
+		}
 		desktop, ok := d.(*types.DynamicWindowsDesktopV1)
 		if !ok {
 			return nil, trace.BadParameter("unexpected type %T", d)
@@ -152,10 +159,13 @@ func (s *Service) CreateDynamicWindowsDesktop(ctx context.Context, req *dynamicw
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := auth.AuthorizeAdminAction(); err != nil {
+	if err := auth.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := auth.CheckAccessToKind(types.KindDynamicWindowsDesktop, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := checkAccess(auth, req.GetDesktop()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	d, err := s.backend.CreateDynamicWindowsDesktop(ctx, types.DynamicWindowsDesktop(req.Desktop))
@@ -171,19 +181,33 @@ func (s *Service) CreateDynamicWindowsDesktop(ctx context.Context, req *dynamicw
 	return createdDesktop, nil
 }
 
+func checkAccess(auth *authz.Context, desktop types.DynamicWindowsDesktop) error {
+	return auth.Checker.CheckAccess(desktop, services.AccessState{MFAVerified: true})
+}
+
 // UpdateDynamicWindowsDesktop updates an existing dynamic Windows desktop.
 func (s *Service) UpdateDynamicWindowsDesktop(ctx context.Context, req *dynamicwindowspb.UpdateDynamicWindowsDesktopRequest) (*types.DynamicWindowsDesktopV1, error) {
 	auth, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := auth.AuthorizeAdminAction(); err != nil {
+	if err := auth.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := auth.CheckAccessToKind(types.KindDynamicWindowsDesktop, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	d, err := s.backend.UpdateDynamicWindowsDesktop(ctx, req.Desktop)
+	d, err := s.cache.GetDynamicWindowsDesktop(ctx, req.GetDesktop().GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := checkAccess(auth, d); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := checkAccess(auth, req.GetDesktop()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	d, err = s.backend.UpdateDynamicWindowsDesktop(ctx, req.Desktop)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -202,13 +226,25 @@ func (s *Service) UpsertDynamicWindowsDesktop(ctx context.Context, req *dynamicw
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := auth.AuthorizeAdminAction(); err != nil {
+	if err := auth.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := auth.CheckAccessToKind(types.KindDynamicWindowsDesktop, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	d, err := s.backend.UpsertDynamicWindowsDesktop(ctx, req.Desktop)
+	d, err := s.cache.GetDynamicWindowsDesktop(ctx, req.GetDesktop().GetName())
+	if !trace.IsNotFound(err) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := checkAccess(auth, d); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if err := checkAccess(auth, req.GetDesktop()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	d, err = s.backend.UpsertDynamicWindowsDesktop(ctx, req.Desktop)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -227,10 +263,17 @@ func (s *Service) DeleteDynamicWindowsDesktop(ctx context.Context, req *dynamicw
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := auth.AuthorizeAdminAction(); err != nil {
+	if err := auth.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := auth.CheckAccessToKind(types.KindDynamicWindowsDesktop, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	d, err := s.cache.GetDynamicWindowsDesktop(ctx, req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := checkAccess(auth, d); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := s.backend.DeleteDynamicWindowsDesktop(ctx, req.GetName()); err != nil {

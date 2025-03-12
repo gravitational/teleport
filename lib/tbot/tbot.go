@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"sync"
 	"time"
@@ -48,7 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/teleport/lib/tbot/spiffe"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -131,7 +132,14 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	defer func() { apitracing.EndSpan(span, err) }()
 	startedAt := time.Now()
 
-	if err := metrics.RegisterPrometheusCollectors(clientMetrics); err != nil {
+	if err := metrics.RegisterPrometheusCollectors(
+		metrics.BuildCollector(),
+		clientMetrics,
+		loopIterationsCounter,
+		loopIterationsSuccessCounter,
+		loopIterationsFailureCounter,
+		loopIterationTime,
+	); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -281,14 +289,14 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 
 	// We only want to create this service if it's needed by a dependent
 	// service.
-	var trustBundleCache *spiffe.TrustBundleCache
-	setupTrustBundleCache := func() (*spiffe.TrustBundleCache, error) {
+	var trustBundleCache *workloadidentity.TrustBundleCache
+	setupTrustBundleCache := func() (*workloadidentity.TrustBundleCache, error) {
 		if trustBundleCache != nil {
 			return trustBundleCache, nil
 		}
 
 		var err error
-		trustBundleCache, err = spiffe.NewTrustBundleCache(spiffe.TrustBundleCacheConfig{
+		trustBundleCache, err = workloadidentity.NewTrustBundleCache(workloadidentity.TrustBundleCacheConfig{
 			FederationClient: b.botIdentitySvc.GetClient().SPIFFEFederationServiceClient(),
 			TrustClient:      b.botIdentitySvc.GetClient().TrustClient(),
 			EventsClient:     b.botIdentitySvc.GetClient(),
@@ -303,12 +311,35 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		services = append(services, trustBundleCache)
 		return trustBundleCache, nil
 	}
+	var crlCache *workloadidentity.CRLCache
+	setupCRLCache := func() (*workloadidentity.CRLCache, error) {
+		if crlCache != nil {
+			return crlCache, nil
+		}
+
+		var err error
+		crlCache, err = workloadidentity.NewCRLCache(workloadidentity.CRLCacheConfig{
+			RevocationsClient: b.botIdentitySvc.GetClient().WorkloadIdentityRevocationServiceClient(),
+			Logger: b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "crl-cache"),
+			),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		services = append(services, crlCache)
+		return crlCache, nil
+	}
 
 	// Append any services configured by the user
 	for _, svcCfg := range b.cfg.Services {
 		// Convert the service config into the actual service type.
 		switch svcCfg := svcCfg.(type) {
 		case *config.SPIFFEWorkloadAPIService:
+			b.log.WarnContext(
+				ctx,
+				"The 'spiffe-workload-api' service is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
+			)
 			clientCredential := &config.UnstableClientCredentialOutput{}
 			svcIdentity := &ClientCredentialOutputService{
 				botAuthClient:     b.botIdentitySvc.GetClient(),
@@ -387,7 +418,26 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
 			)
 			services = append(services, svc)
+		case *config.KubernetesV2Output:
+			svc := &KubernetesV2OutputService{
+				botAuthClient:     b.botIdentitySvc.GetClient(),
+				botCfg:            b.cfg,
+				cfg:               svcCfg,
+				getBotIdentity:    b.botIdentitySvc.GetIdentity,
+				proxyPingCache:    proxyPingCache,
+				reloadBroadcaster: reloadBroadcaster,
+				resolver:          resolver,
+				executablePath:    os.Executable,
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
 		case *config.SPIFFESVIDOutput:
+			b.log.WarnContext(
+				ctx,
+				"The 'spiffe-svid' service is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
+			)
 			svc := &SPIFFESVIDOutputService{
 				botAuthClient:  b.botIdentitySvc.GetClient(),
 				botCfg:         b.cfg,
@@ -486,6 +536,86 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
 			)
 			services = append(services, svc)
+		case *config.WorkloadIdentityX509Service:
+			svc := &WorkloadIdentityX509Service{
+				botAuthClient:  b.botIdentitySvc.GetClient(),
+				botCfg:         b.cfg,
+				cfg:            svcCfg,
+				getBotIdentity: b.botIdentitySvc.GetIdentity,
+				resolver:       resolver,
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			if !b.cfg.Oneshot {
+				tbCache, err := setupTrustBundleCache()
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				svc.trustBundleCache = tbCache
+				crlCache, err := setupCRLCache()
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				svc.crlCache = crlCache
+			}
+			services = append(services, svc)
+		case *config.WorkloadIdentityJWTService:
+			svc := &WorkloadIdentityJWTService{
+				botAuthClient:  b.botIdentitySvc.GetClient(),
+				botCfg:         b.cfg,
+				cfg:            svcCfg,
+				getBotIdentity: b.botIdentitySvc.GetIdentity,
+				resolver:       resolver,
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			if !b.cfg.Oneshot {
+				tbCache, err := setupTrustBundleCache()
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				svc.trustBundleCache = tbCache
+			}
+			services = append(services, svc)
+		case *config.WorkloadIdentityAPIService:
+			clientCredential := &config.UnstableClientCredentialOutput{}
+			svcIdentity := &ClientCredentialOutputService{
+				botAuthClient:     b.botIdentitySvc.GetClient(),
+				botCfg:            b.cfg,
+				cfg:               clientCredential,
+				getBotIdentity:    b.botIdentitySvc.GetIdentity,
+				reloadBroadcaster: reloadBroadcaster,
+			}
+			svcIdentity.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(
+					componentTBot, "svc", svcIdentity.String(),
+				),
+			)
+			services = append(services, svcIdentity)
+
+			tbCache, err := setupTrustBundleCache()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			crlCache, err := setupCRLCache()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			svc := &WorkloadIdentityAPIService{
+				svcIdentity:      clientCredential,
+				botCfg:           b.cfg,
+				cfg:              svcCfg,
+				resolver:         resolver,
+				trustBundleCache: tbCache,
+				crlCache:         crlCache,
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
 		default:
 			return trace.BadParameter("unknown service type: %T", svcCfg)
 		}
@@ -546,7 +676,7 @@ func (b *Bot) preRunChecks(ctx context.Context) (_ func() error, err error) {
 	switch addrKind {
 	case config.AddressKindUnspecified:
 		return nil, trace.BadParameter(
-			"either a proxy or auth address must be set using --proxy, --auth-server or configuration",
+			"either a proxy or auth address must be set using --proxy-server, --auth-server or configuration",
 		)
 	case config.AddressKindAuth:
 		// TODO(noah): DELETE IN V17.0.0
@@ -797,6 +927,27 @@ func (p *proxyPingResponse) proxyWebAddr() (string, error) {
 		return p.configuredProxyAddr, nil
 	}
 	return p.Proxy.SSH.PublicAddr, nil
+}
+
+// proxySSHAddr returns the address to use to connect to the proxy SSH service.
+// Includes potential override via TBOT_USE_PROXY_ADDR.
+func (p *proxyPingResponse) proxySSHAddr() (string, error) {
+	if p.Proxy.TLSRoutingEnabled && shouldUseProxyAddr() {
+		// If using TLS routing, we should use the manually overridden address
+		// for the proxy web port.
+		if p.configuredProxyAddr == "" {
+			return "", trace.BadParameter("TBOT_USE_PROXY_ADDR set but no explicit proxy address configured")
+		}
+		return p.configuredProxyAddr, nil
+	}
+	// SSHProxyHostPort returns the host and port to use to connect to the
+	// proxy's SSH service. If TLS routing is enabled, this will return the
+	// proxy's web address, if not, the proxy SSH listener.
+	host, port, err := p.Proxy.SSHProxyHostPort()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return net.JoinHostPort(host, port), nil
 }
 
 type alpnProxyConnUpgradeRequiredCache struct {

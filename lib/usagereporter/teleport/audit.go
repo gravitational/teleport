@@ -19,6 +19,7 @@
 package usagereporter
 
 import (
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
@@ -78,8 +79,34 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			ConnectorType:            e.Method,
 			DeviceId:                 deviceID,
 			RequiredPrivateKeyPolicy: e.RequiredPrivateKeyPolicy,
+			UserOrigin:               prehogv1a.UserOrigin(e.UserOrigin),
 		}
 
+	case *apievents.AccessRequestCreate:
+		// The access request audit event emitter uses ClientUserMetadata function to
+		// deduce username. The ClientUserMetadata function may return teleport.UserSystem
+		// if it cannot find user identity in the context. Since we want to record
+		// user activity, event containing teleport.UserSystem should be filtered as
+		// it does not refer to an actual user account.
+		switch e.GetType() {
+		case events.AccessRequestCreateEvent:
+			if e.User == "" || e.User == teleport.UserSystem {
+				return nil
+			}
+			return &AccessRequestCreateEvent{
+				UserName: e.User,
+			}
+		case events.AccessRequestReviewEvent:
+			if e.Reviewer == "" || e.Reviewer == teleport.UserSystem {
+				return nil
+			}
+			return &AccessRequestReviewEvent{
+				UserName: e.Reviewer,
+			}
+		default:
+			// Ignore Access Request update event.
+			return nil
+		}
 	case *apievents.SessionStart:
 		// Note: session.start is only SSH and Kubernetes.
 		sessionType := types.SSHSessionKind
@@ -110,18 +137,27 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 				DbType:     e.DatabaseType,
 				DbProtocol: e.DatabaseProtocol,
 				DbOrigin:   e.DatabaseOrigin,
+				UserAgent:  e.UserAgent,
 			},
 			UserKind: prehogUserKindFromEventKind(e.UserKind),
 		}
 	case *apievents.AppSessionStart:
+		var app *prehogv1a.SessionStartAppMetadata
 		sessionType := string(types.AppSessionKind)
 		if types.IsAppTCP(e.AppURI) {
 			sessionType = TCPSessionType
+			// IsMultiPort for now is the only type of app metadata, so don't include it unless it's a TCP
+			// app.
+			app = &prehogv1a.SessionStartAppMetadata{
+				IsMultiPort: e.AppMetadata.AppTargetPort > 0,
+			}
 		}
+
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: sessionType,
 			UserKind:    prehogUserKindFromEventKind(e.UserKind),
+			App:         app,
 		}
 	case *apievents.WindowsDesktopSessionStart:
 		desktopType := "ad"
@@ -186,6 +222,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			JoinMethod:    e.Method,
 			JoinTokenName: e.TokenName,
 			UserName:      e.UserName,
+			BotInstanceId: e.BotInstanceID,
 		}
 
 	case *apievents.DeviceEvent2:
@@ -261,12 +298,13 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		}
 	case *apievents.SPIFFESVIDIssued:
 		return &SPIFFESVIDIssuedEvent{
-			UserName:     e.User,
-			UserKind:     prehogUserKindFromEventKind(e.UserKind),
-			SpiffeId:     e.SPIFFEID,
-			IpSansCount:  int32(len(e.IPSANs)),
-			DnsSansCount: int32(len(e.DNSSANs)),
-			SvidType:     e.SVIDType,
+			UserName:      e.User,
+			UserKind:      prehogUserKindFromEventKind(e.UserKind),
+			SpiffeId:      e.SPIFFEID,
+			IpSansCount:   int32(len(e.IPSANs)),
+			DnsSansCount:  int32(len(e.DNSSANs)),
+			SvidType:      e.SVIDType,
+			BotInstanceId: e.BotInstanceID,
 		}
 	case *apievents.DatabaseUserCreate:
 		return &DatabaseUserCreatedEvent{
@@ -299,6 +337,36 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		}
 	case *apievents.CrownJewelCreate:
 		return &AccessGraphCrownJewelCreateEvent{}
+	case *apievents.SessionRecordingAccess:
+		return &SessionRecordingAccessEvent{
+			SessionType: e.SessionType,
+			UserName:    e.User,
+			Format:      e.Format,
+		}
+	case *apievents.GitCommand:
+		// Only count when a command is executed on remote Git server and ignore
+		// errors that happen before that.
+		if e.ExitCode == "" {
+			return nil
+		}
+		return &SessionStartEvent{
+			UserName:    e.User,
+			SessionType: string(types.GitSessionKind),
+			UserKind:    prehogUserKindFromEventKind(e.UserKind),
+			Git: &prehogv1a.SessionStartGitMetadata{
+				GitType:    e.ServerSubKind,
+				GitService: e.Service,
+			},
+		}
+	case *apievents.SAMLIdPAuthAttempt:
+		// Only count successful auth attempts.
+		if !e.Success {
+			return nil
+		}
+		return &SessionStartEvent{
+			UserName:    e.User,
+			SessionType: string(types.KindSAMLIdPSession),
+		}
 	}
 
 	return nil

@@ -91,15 +91,20 @@ jobs:
           REVIEWER: ${{ github.event.release.author.login }}
         run: |
           BRANCH_NAME="release-auto-branch-$(date +%s)"
-          git config --global user.email "noreply@github.com"
-          git config --global user.name "GitHub"
+          git config --global user.email "128860004+teleport-post-release-automation[bot]@users.noreply.github.com"
+          git config --global user.name "teleport-post-release-automation[bot]"
+
+          # get Go version from go.mod (preferring the toolchain directive if it's present)
+          GO_VERSION=$(go mod edit -json | jq -r 'if has("Toolchain") then .Toolchain | sub("go"; "") else .Go end')
 
           # update versions in docs/config.json
           # for docker images replace version number after <docker image name>:
           jq --arg major "${MAJOR_VERSION}" \
              --arg version "${FULL_VERSION}" \
+             --arg go_version "${GO_VERSION}" \
              '.variables.teleport.major_version |= $major |
               .variables.teleport.version |= $version |
+              .variables.teleport.golang |= $go_version |
               .variables.teleport.plugin.version |= $version |
               .variables.teleport.latest_oss_docker_image |= sub(":.*";":")+$version |
               .variables.teleport.latest_oss_debug_docker_image |= sub(":.*";":")+$version |
@@ -117,4 +122,6 @@ jobs:
           gh pr create --fill "--base=${BASE_BRANCH}" \
              --label=automated --label=documentation --label=no-changelog \
              "--reviewer=${REVIEWER}"
-           echo "Docs PR: $(gh pr view --json url --jq .url)" >> "$GITHUB_STEP_SUMMARY"
+          # enable auto-merge
+          gh pr merge --auto --squash
+          echo "Docs PR: $(gh pr view --json url --jq .url)" >> "$GITHUB_STEP_SUMMARY"

@@ -20,6 +20,8 @@ syntax = "proto3";
 
 package teleport.lib.teleterm.v1;
 
+import "teleport/lib/teleterm/v1/app.proto";
+
 option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
 
 // TshdEventsService is served by the Electron app. The tsh daemon calls this service to notify the
@@ -100,8 +102,10 @@ message GatewayCertExpired {
 message VnetCertExpired {
   // target_uri for now points solely at apps, but it's not called app_uri to make it future-proof.
   string target_uri = 1;
-  // public_addr is the public address of the app that the user tried to access.
-  string public_addr = 2;
+  reserved 2;
+  reserved "public_addr";
+  // route_to_app is the metadata associated with the app that the user was trying to reach.
+  RouteToApp route_to_app = 3;
 }
 
 // Response for Relogin.
@@ -130,12 +134,33 @@ message CannotProxyGatewayConnection {
 }
 
 // CannotProxyVnetConnection describes which app couldn't have been proxied through VNet and why.
-// At the moment this is used solely when refreshing an expired cert.
 message CannotProxyVnetConnection {
   string target_uri = 1;
-  string error = 2;
-  // public_addr is the public address of the app that the user tried to access.
-  string public_addr = 3;
+  reserved 2;
+  reserved "error";
+  reserved 3;
+  reserved "public_addr";
+  // route_to_app is the metadata associated with the app that the user was trying to reach.
+  RouteToApp route_to_app = 4;
+  oneof reason {
+    CertReissueError cert_reissue_error = 5;
+    InvalidLocalPort invalid_local_port = 6;
+  }
+}
+
+// CertReissueError is sent as reason in CannotProxyVnetConnection when VNet wasn't able to reissue
+// a cert for a local proxy.
+message CertReissueError {
+  string error = 1;
+}
+
+// InvalidLocalPort is sent as reason in CannotProxyVnetConnection when VNet refused a connection
+// because its local port did not match any TCP ports in the spec of the app. The port is included
+// in route_to_app as target_port.
+message InvalidLocalPort {
+  // tcp_ports represents valid port ranges for the app. Sent only if there's less than 10 port
+  // ranges to keep the UI clean and to limit how much data is sent on each failed attempt.
+  repeated PortRange tcp_ports = 1;
 }
 
 // Response for SendNotification.

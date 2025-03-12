@@ -16,47 +16,90 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
-import { Alert, Box, Button, Flex, H3, Indicator, Link } from 'design';
-import { P } from 'design/Text/Text';
-import { useAsync } from 'shared/hooks/useAsync';
-import { Danger } from 'design/Alert';
-import { useTheme } from 'styled-components';
+import { useEffect, useState } from 'react';
+import styled from 'styled-components';
 
+import { Alert, Box, Button, Flex, Link } from 'design';
+import { HoverTooltip } from 'design/Tooltip';
+import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
+import {
+  Notification,
+  NotificationItem,
+  NotificationSeverity,
+} from 'shared/components/Notification';
+import { Attempt } from 'shared/hooks/useAsync';
+
+import { useServerSidePagination } from 'teleport/components/hooks';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import ResourceEditor from 'teleport/components/ResourceEditor';
-import useTeleport from 'teleport/useTeleport';
-import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
-import { useServerSidePagination } from 'teleport/components/hooks';
+import {
+  InfoExternalTextLink,
+  InfoGuideWrapper,
+  InfoParagraph,
+  ReferenceLinks,
+} from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
+import useResources from 'teleport/components/useResources';
+import { Role, RoleResource, RoleWithYaml } from 'teleport/services/resources';
 import { storageService } from 'teleport/services/storageService';
-import { RoleWithYaml, Role, RoleResource } from 'teleport/services/resources';
-import useResources, {
-  State as ResourcesState,
-} from 'teleport/components/useResources';
-import { yamlService } from 'teleport/services/yaml';
-import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
+import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
+import useTeleport from 'teleport/useTeleport';
 
-import { RoleList } from './RoleList';
 import DeleteRole from './DeleteRole';
-import { useRoles, State } from './useRoles';
-import { RoleEditor } from './RoleEditor';
+import { RoleEditorDialog } from './RoleEditor/RoleEditorDialog';
+import { RoleList } from './RoleList';
 import templates from './templates';
+import { State, useRoles } from './useRoles';
 
-export function RolesContainer() {
+/** Optional set of props to render the role diff visualizer. */
+type RoleDiffProps = {
+  roleDiffElement: React.ReactNode;
+  updateRoleDiff: (role: Role) => void;
+
+  /** @deprecated Use {@link RoleDiffProps.roleDiffAttempt} instead. */
+  // TODO(bl-nero): Remove this property once the Enterprise code is updated.
+  errorMessage?: string;
+
+  /**
+   * State of the attempt to fetch the information required by the role diff
+   * visualizer. Required to show an error message in the editor UI.
+   */
+  // TODO(bl-nero): Make this property required once the Enterprise code is
+  // updated.
+  roleDiffAttempt?: Attempt<unknown>;
+  clearRoleDiffAttempt?: () => void;
+};
+
+export type RolesProps = {
+  roleDiffProps?: RoleDiffProps;
+};
+
+export function RolesContainer({ roleDiffProps }: RolesProps) {
   const ctx = useTeleport();
   const state = useRoles(ctx);
-  return <Roles {...state} />;
+  return <Roles {...state} roleDiffProps={roleDiffProps} />;
 }
 
 const useNewRoleEditor = storageService.getUseNewRoleEditor();
 
-export function Roles(props: State) {
-  const { remove, create, update, fetch } = props;
+export function Roles(props: State & RolesProps) {
+  const { remove, create, update, fetch, rolesAcl } = props;
   const [search, setSearch] = useState('');
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+
+  function addNotification(content: string, severity: NotificationSeverity) {
+    setNotifications(notifications => [
+      ...notifications,
+      { id: crypto.randomUUID(), content, severity },
+    ]);
+  }
+
+  function removeNotification(id: string) {
+    setNotifications(n => n.filter(item => item.id !== id));
+  }
 
   const serverSidePagination = useServerSidePagination<RoleResource>({
     pageSize: 20,
@@ -80,6 +123,13 @@ export function Roles(props: State) {
     const response: RoleResource = await (resources.status === 'creating'
       ? create(role)
       : update(resources.item.name, role));
+
+    addNotification(
+      resources.status === 'creating'
+        ? `Role ${response.name} has been created`
+        : `Role ${response.name} has been updated`,
+      'success'
+    );
 
     if (useNewRoleEditor) {
       // We don't really disregard anything, since we already saved the role;
@@ -133,82 +183,78 @@ export function Roles(props: State) {
       ...p,
       agents: p.agents.filter(r => r.id !== resources.item.id),
     }));
+    // The new editor doesn't use `resources` to delete, so we need to close it
+    // by resetting the state here.
+    resources.disregard();
   }
 
-  function handleRoleEditorDelete() {
-    const id = resources.item?.id;
-    if (id) {
-      resources.remove(id);
-    }
-  }
+  const canCreate = rolesAcl.create;
 
   return (
     <FeatureBox>
-      <FeatureHeader alignItems="center">
+      <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Roles</FeatureHeaderTitle>
-        <Button
-          intent="primary"
-          fill={
-            serverSidePagination.attempt.status === 'success' &&
-            serverSidePagination.fetchedData.agents.length === 0
-              ? 'filled'
-              : 'border'
-          }
-          ml="auto"
-          width="240px"
-          onClick={handleCreate}
-        >
-          Create New Role
-        </Button>
+        <InfoGuideWrapper guide={<InfoGuide />}>
+          <HoverTooltip
+            position="bottom"
+            tipContent={
+              !canCreate ? (
+                <MissingPermissionsTooltip
+                  missingPermissions={['roles.create']}
+                />
+              ) : (
+                ''
+              )
+            }
+          >
+            <Button
+              data-testid="create_new_role_button"
+              intent="primary"
+              fill={
+                serverSidePagination.attempt.status === 'success' &&
+                serverSidePagination.fetchedData.agents.length === 0
+                  ? 'filled'
+                  : 'border'
+              }
+              ml="auto"
+              width="240px"
+              disabled={!canCreate}
+              onClick={handleCreate}
+            >
+              Create New Role
+            </Button>
+          </HoverTooltip>
+        </InfoGuideWrapper>
       </FeatureHeader>
       {serverSidePagination.attempt.status === 'failed' && (
         <Alert children={serverSidePagination.attempt.statusText} />
       )}
       <Flex flex="1">
-        <Box width="100%" mr="6" mb="4">
+        <Box flex="1" mb="4">
           <RoleList
             serversidePagination={serverSidePagination}
             onSearchChange={setSearch}
             search={search}
             onEdit={handleEdit}
             onDelete={resources.remove}
+            rolesAcl={rolesAcl}
           />
         </Box>
 
-        {/* New editor or descriptive text, depending on state. */}
-        {useNewRoleEditor &&
-        (resources.status === 'creating' || resources.status === 'editing') ? (
-          <RoleEditorAdapter
+        {/* New editor. */}
+        {useNewRoleEditor && (
+          <RoleEditorDialog
+            open={
+              resources.status === 'creating' || resources.status === 'editing'
+            }
+            onClose={() => {
+              resources.disregard();
+              props.roleDiffProps?.clearRoleDiffAttempt();
+            }}
             resources={resources}
             onSave={handleSave}
-            onDelete={handleRoleEditorDelete}
+            roleDiffProps={props.roleDiffProps}
           />
-        ) : (
-          <Box
-            ml="auto"
-            width="240px"
-            color="text.main"
-            style={{ flexShrink: 0 }}
-          >
-            <H3 mb={3}>Role-based access control</H3>
-            <P mb={3}>
-              Teleport Role-based access control (RBAC) provides fine-grained
-              control over who can access resources and in which contexts. A
-              Teleport role can be assigned automatically based on user identity
-              when used with single sign-on (SSO).
-            </P>
-            <P>
-              Learn more in{' '}
-              <Link
-                color="text.main"
-                target="_blank"
-                href="https://goteleport.com/docs/access-controls/guides/role-templates/"
-              >
-                the cluster management (RBAC)
-              </Link>{' '}
-              section of online documentation.
-            </P>
-          </Box>
         )}
       </Flex>
 
@@ -216,7 +262,7 @@ export function Roles(props: State) {
       {!useNewRoleEditor &&
         (resources.status === 'creating' || resources.status === 'editing') && (
           <ResourceEditor
-            docsURL="https://goteleport.com/docs/access-controls/guides/role-templates/"
+            docsURL="https://goteleport.com/docs/admin-guides/access-controls/guides/role-templates/"
             title={title}
             text={resources.item.content}
             name={resources.item.name}
@@ -235,74 +281,18 @@ export function Roles(props: State) {
           onDelete={handleDelete}
         />
       )}
+
+      <NotificationContainer>
+        {notifications.map(item => (
+          <Notification
+            mb={3}
+            key={item.id}
+            item={item}
+            onRemove={() => removeNotification(item.id)}
+          />
+        ))}
+      </NotificationContainer>
     </FeatureBox>
-  );
-}
-
-/**
- * This component is responsible for converting from the `Resource`
- * representation of a role to a more accurate `RoleWithYaml` structure. The
- * conversion is asynchronous and it's performed on the server side.
- */
-function RoleEditorAdapter({
-  resources,
-  onSave,
-  onDelete,
-}: {
-  resources: ResourcesState;
-  onSave: (role: Partial<RoleWithYaml>) => Promise<void>;
-  onDelete: () => void;
-}) {
-  const theme = useTheme();
-  const [convertAttempt, convertToRole] = useAsync(
-    async (yaml: string): Promise<RoleWithYaml | null> => {
-      if (resources.status === 'creating' || !resources.item) {
-        return null;
-      }
-      return {
-        yaml,
-        object: await yamlService.parse<Role>(YamlSupportedResourceKind.Role, {
-          yaml,
-        }),
-      };
-    }
-  );
-
-  const originalContent = resources.item?.content ?? '';
-  useEffect(() => {
-    convertToRole(originalContent);
-  }, [originalContent]);
-
-  return (
-    <Flex
-      flexDirection="column"
-      p={4}
-      borderLeft={1}
-      borderColor={theme.colors.interactive.tonal.neutral[0]}
-      width="900px"
-    >
-      {convertAttempt.status === 'processing' && (
-        <Flex
-          flexDirection="column"
-          alignItems="center"
-          justifyContent="center"
-          flex="1"
-        >
-          <Indicator />
-        </Flex>
-      )}
-      {convertAttempt.status === 'error' && (
-        <Danger>{convertAttempt.statusText}</Danger>
-      )}
-      {convertAttempt.status === 'success' && (
-        <RoleEditor
-          originalRole={convertAttempt.data}
-          onCancel={resources.disregard}
-          onSave={onSave}
-          onDelete={onDelete}
-        />
-      )}
-    </Flex>
   );
 }
 
@@ -321,3 +311,46 @@ function Directions() {
     </>
   );
 }
+
+const InfoGuideReferenceLinks = {
+  PresetRoles: {
+    title: 'Teleport Preset Roles',
+    href: 'https://goteleport.com/docs/reference/access-controls/roles/#preset-roles',
+  },
+  RoleTemplates: {
+    title: 'Teleport Role Templates',
+    href: 'https://goteleport.com/docs/admin-guides/access-controls/guides/role-templates/',
+  },
+};
+
+function InfoGuide() {
+  return (
+    <Box>
+      <InfoParagraph>
+        Teleport Role-based access control (RBAC) provides fine-grained control
+        over who can access resources and in which contexts. A Teleport role can
+        be assigned automatically based on user identity when used with single
+        sign-on (SSO).
+      </InfoParagraph>
+      <InfoParagraph>
+        New clusters have several{' '}
+        <InfoExternalTextLink href={InfoGuideReferenceLinks.PresetRoles.href}>
+          preset roles
+        </InfoExternalTextLink>
+        . These are convenient for getting started but are very permissive, and
+        we recommend you follow our{' '}
+        <InfoExternalTextLink href={InfoGuideReferenceLinks.RoleTemplates.href}>
+          best practices guide
+        </InfoExternalTextLink>{' '}
+        to create your own.
+      </InfoParagraph>
+      <ReferenceLinks links={Object.values(InfoGuideReferenceLinks)} />
+    </Box>
+  );
+}
+
+const NotificationContainer = styled.div`
+  position: absolute;
+  bottom: ${props => props.theme.space[2]}px;
+  right: ${props => props.theme.space[5]}px;
+`;

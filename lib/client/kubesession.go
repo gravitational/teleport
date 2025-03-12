@@ -227,7 +227,7 @@ func (s *KubeSession) pipeInOut(stdout io.Writer, enableEscapeSequences bool, mo
 			handleNonPeerControls(mode, s.term, func() {
 				err := s.stream.ForceTerminate()
 				if err != nil {
-					log.Debugf("Error sending force termination request: %v", err)
+					log.DebugContext(context.Background(), "Error sending force termination request", "error", err)
 					fmt.Print("\n\rError while sending force termination request\n\r")
 				}
 			})

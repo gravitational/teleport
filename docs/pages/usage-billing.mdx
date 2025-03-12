@@ -77,16 +77,16 @@ calculate two types of billing metrics:
 <Admonition type="note">
 
 This will be displayed only for those on usage-based plans. Users will need permission to read the billing resource.
+
 </Admonition>
 
+1. Go to https://teleport.sh/ and enter your tenant name.
+1. Sign in using your administrator credentials.
+1. Click on your username at the top right to expand the dropdown menu.
+1. Click on "Billing Summary".
+1. Usage data for the current billing cycle will be displayed. Example:
 
-  1. Go to https://teleport.sh/ and enter your tenant name.
-  1. Sign in using your administrator credentials.
-  1. Click on "Access Management" at the top.
-  1. Click on "Summary" under "Usage and Billing" at the left-hand side.
-  1. Usage data for the current billing cycle will be displayed. Example:
-  
-  ![Billing Cycle](../img/webui_billing_cycle.png)
+![Billing Cycle](../img/webui_billing_cycle.png)
 
 ### Monthly Active Users
 
@@ -106,7 +106,7 @@ provider, as user activity.
 
 Note: when configured to perform single-sign-on against an external identity
 provider, Teleport creates temporary user records that are valid for the
-duration of the SSO session. As a result, the *Users* page in Teleport's web UI
+duration of the SSO session. As a result, the _Users_ page in Teleport's web UI
 will only show users who have recently logged in and is not a true
 representation of all active users over the last month.
 
@@ -130,6 +130,31 @@ hourly average. For example, if you were to create then delete 10 servers three
 times in one hour, Teleport would display 10 servers at any given time. However,
 for the entire hour, Teleport would report 30 protected servers.
 
+### Machine and Workload Identities
+
+The Machine and Workload Identity (MWI) metric is an aggregate of
+* [Bots](reference/architecture/machine-id-architecture.mdx#what-is-a-bot)
+* [Bot Instances](reference/architecture/machine-id-architecture.mdx#what-is-a-bot)
+* [SPIFFE IDs](enroll-resources/workload-identity/spiffe.mdx#spiffe-ids-and-trust-domains)
+
+We aggregate Bots, Bot Instances and unique SPIFFE IDs during each day on an hourly basis, and take
+an hourly average to compute a daily Bot, Bot Instance and SPIFFE ID count. Then we average the daily
+counts over a monthly period, which starts on the subscription start date and ends on each monthly
+anniversary thereafter.
+
+If you recreate a single Bot or Bot Instance more than once an hour, this will affect the
+hourly average. For example, if you were to create then delete 10 Bots three
+times in one hour, Teleport would display 10 Bots at any given time. However,
+for the entire hour, Teleport would report 30 Bots.
+
+For SPIFFE IDs, unique means that we only count a SPIFFE ID once during the calculation period,
+even if it is used for multiple services. For example, if ten services running 24 hours per day
+share the ID `spiffe://mydomain.cloud.gravitational.io/web-service`, Teleport would report that 
+as one SPIFFE ID for billing.
+
+The sum of your calculated Bots, Bot Instances, and unique SPIFFE IDs is your
+total MWI for the billing period.
+
 ## Usage measurement for billing
 
 We aggregate all counts of the billing metrics on a monthly basis starting on
@@ -149,7 +174,7 @@ self-hosted Teleport infrastructure or Teleport Cloud, depending on the user's
 plan. The submission service persists usage reports in the case of a submission
 failure, and deletes the reports after a successful submission. It is not
 possible to set up a third-party destination for usage events to independently
-verify usage event data. 
+verify usage event data.
 
 If you are using Teleport Enterprise (Cloud), your usage data is accurate as
 long as Teleport-managed reporting infrastructure works as expected (check the
@@ -187,4 +212,3 @@ to Teleport during a given time period. The Teleport documentation includes
 [how-to guides](./admin-guides/management/export-audit-events/export-audit-events.mdx) for
 exporting audit events to common log management solutions so you can identify
 users that have authenticated using an SSO provider.
-

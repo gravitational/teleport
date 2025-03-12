@@ -4,13 +4,13 @@ description: Learn how to enforce trusted devices with Teleport
 videoBanner: gBQyj_X1LVw
 ---
 
-<Admonition type="notice" title="Supported Resources">
-Device trust fully supports SSH, Database and Kubernetes resources using
+<Admonition type="note" title="Supported Resources">
+Device Trust fully supports SSH, database and Kubernetes resources using
 cluster-wide or role-based enforcement.
 
-Apps and Desktops may enforce trusted devices using role-based enforcement. See the [App
-Access support](#app-access-support) and the [Desktop Access support](#desktop-access-support)
-sections for further details.
+Apps and Desktops may enforce trusted devices using role-based enforcement. See
+the [web application support](#web-application-support) and [desktop
+support](#desktop-support) sections for further details.
 
 </Admonition>
 
@@ -35,11 +35,10 @@ by the `device_trust_mode` authentication setting:
 
 (!docs/pages/includes/device-trust/prereqs.mdx!)
 
-- We expect your Teleport cluster to be on version 13.3.6 and above, which has
-  the preset `require-trusted-device` role. The preset `require-trusted-device`
-  role does not enforce the use of a trusted device for
-  [Apps](#app-access-support) or [Desktops](#desktop-access-support).  Refer to
-  their corresponding sections for instructions.
+This guide makes use of the preset `require-trusted-device` role, which does not
+enforce the use of a trusted device for [apps](#web-application-support) or
+[desktops](#desktop-support). Refer to their corresponding sections for
+instructions.
 
 ## Role-based trusted device enforcement
 
@@ -87,6 +86,8 @@ Update the role:
 $ tctl create -f device-enforcement.yaml
 ```
 
+(!docs/pages/includes/create-role-using-web.mdx!)
+
 ## Cluster-wide trusted device enforcement
 
 Cluster-wide configuration enforces trusted device access at the cluster level.
@@ -111,7 +112,7 @@ metadata:
   name: cluster-auth-preference
 spec:
   type: local
-  second_factor: "on"
+  second_factors: ["webauthn"]
   webauthn:
     rp_id: (=clusterDefaults.clusterName=)
   device_trust:
@@ -138,10 +139,10 @@ cluster. Likewise, a root cluster will not enforce Device Trust on resources in
 leaf clusters.
 </Admonition>
 
-## App Access support
+## Web application support
 
-The Teleport App Service may enforce Device Trust via [role-based enforcement](
-#role-based-trusted-device-enforcement).
+The Teleport App Service may enforce Device Trust via [role-based
+enforcement](#role-based-trusted-device-enforcement).
 
 To access apps protected by Device Trust using the Web UI (Teleport v16 or
 later), make sure your device is [registered and enrolled](
@@ -190,7 +191,7 @@ version: v2
 
 Now the alice user can only access `env:production` apps using a trusted device.
 
-## Desktop Access support
+## Desktop support
 
 The Teleport Desktop Service may enforce Device Trust via [role-based
 enforcement]( #role-based-trusted-device-enforcement).

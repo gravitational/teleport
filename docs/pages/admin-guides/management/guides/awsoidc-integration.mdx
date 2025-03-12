@@ -5,11 +5,11 @@ description: How to connect your AWS account with Teleport and provide access to
 
 This guide explains how to set up the Teleport AWS OIDC integration.
 
-With the AWS OIDC integration you will no longer need to deploy Teleport agents in AWS manually for most use cases.
+With the AWS OIDC integration you will no longer need to deploy Teleport Agents in AWS manually for most use cases.
 The following features use an AWS OIDC integration to interact with AWS:
 - [External Audit Storage](../external-audit-storage.mdx)
-- RDS Auto Discovery
-- EC2 Auto Discovery
+- [RDS Enrollment](./awsoidc-integration-rds.mdx)
+- EC2 Enrollment
 - [Access Graph AWS Sync](../../teleport-policy/integrations/aws-sync.mdx)
 
 It targets users who would prefer a more manual approach or to manage the integration with Infrastructure as Code tools.
@@ -28,7 +28,7 @@ The integration requires no extra configuration or services to run.
 Initially, no policy is added to the IAM role, but users are asked to add them the first time they are trying to use a given feature.
 For example, when setting up [External Audit Storage](../external-audit-storage.mdx), you will be asked to add the required policies to this IAM role.
 
-AWS Resources created by the integration are tagged so that you can search and export them using the [AWS Resource Groups / Tag Editor](https://console.aws.amazon.com/resource-groups/tag-editor/find-resources).
+AWS resources created by the integration are tagged so that you can search and export them using the [AWS Resource Groups / Tag Editor](https://console.aws.amazon.com/resource-groups/tag-editor/find-resources).
 The following tags are applied:
 ```code
 teleport.dev/cluster      <Var name="cluster-name"/>

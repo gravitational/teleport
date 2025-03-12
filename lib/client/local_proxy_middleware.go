@@ -161,7 +161,10 @@ func (c *CertChecker) GetOrIssueCert(ctx context.Context) (tls.Certificate, erro
 	}
 
 	certTTL := cert.Leaf.NotAfter.Sub(c.clock.Now()).Round(time.Minute)
-	log.Debugf("Certificate renewed: valid until %s [valid for %v]", cert.Leaf.NotAfter.Format(time.RFC3339), certTTL)
+	log.DebugContext(ctx, "Certificate renewed",
+		"valid_until", cert.Leaf.NotAfter.Format(time.RFC3339),
+		"cert_ttl", certTTL,
+	)
 
 	c.cert = cert
 	return c.cert, nil
@@ -209,9 +212,9 @@ func (c *DBCertIssuer) CheckCert(cert *x509.Certificate) error {
 func (c *DBCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 	var accessRequests []string
 	if profile, err := c.Client.ProfileStatus(); err != nil {
-		log.WithError(err).Warn("unable to load profile, requesting database certs without access requests")
+		log.WarnContext(ctx, "unable to load profile, requesting database certs without access requests", "error", err)
 	} else {
-		accessRequests = profile.ActiveRequests.AccessRequests
+		accessRequests = profile.ActiveRequests
 	}
 
 	var keyRing *KeyRing
@@ -281,9 +284,9 @@ func (c *AppCertIssuer) CheckCert(cert *x509.Certificate) error {
 func (c *AppCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 	var accessRequests []string
 	if profile, err := c.Client.ProfileStatus(); err != nil {
-		log.WithError(err).Warn("unable to load profile, requesting app certs without access requests")
+		log.WarnContext(ctx, "unable to load profile, requesting app certs without access requests", "error", err)
 	} else {
-		accessRequests = profile.ActiveRequests.AccessRequests
+		accessRequests = profile.ActiveRequests
 	}
 
 	var keyRing *KeyRing
@@ -446,7 +449,10 @@ func (r *LocalCertGenerator) ensureValidCA(ctx context.Context) error {
 	}
 
 	certTTL := time.Until(caTLSCert.Leaf.NotAfter).Round(time.Minute)
-	log.Debugf("Local CA renewed: valid until %s [valid for %v]", caTLSCert.Leaf.NotAfter.Format(time.RFC3339), certTTL)
+	log.DebugContext(ctx, "Local CA renewed",
+		"valid_until", caTLSCert.Leaf.NotAfter.Format(time.RFC3339),
+		"cert_ttl", certTTL,
+	)
 
 	// Clear cert cache and use CA for hostnames in the CA.
 	r.certsByHost = make(map[string]*tls.Certificate)

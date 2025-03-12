@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { darken, lighten } from '../utils/colorManipulator';
 import {
   blue,
   green,
@@ -28,7 +27,7 @@ import {
   red,
   yellow,
 } from '../palette';
-
+import { darken, lighten } from '../utils/colorManipulator';
 import { sharedColors, sharedStyles } from './sharedStyles';
 import { DataVisualisationColors, Theme, ThemeColors } from './types';
 
@@ -202,6 +201,7 @@ const colors: ThemeColors = {
 
   tooltip: {
     background: 'rgba(0, 0, 0, 0.80)',
+    inverseBackground: 'rgba(255, 255, 255, 0.5)',
   },
 
   progressBarColor: '#007D6B',
@@ -265,6 +265,8 @@ const colors: ThemeColors = {
     brightBlue: dataVisualisationColors.primary.picton,
     brightMagenta: dataVisualisationColors.primary.purple,
     brightCyan: dataVisualisationColors.primary.cyan,
+    searchMatch: '#FFD98C',
+    activeSearchMatch: '#FFAB00',
   },
 
   accessGraph: {

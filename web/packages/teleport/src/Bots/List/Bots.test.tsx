@@ -16,22 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
+
 import { render, screen, userEvent, waitFor } from 'design/utils/testing';
 
-import api from 'teleport/services/api';
 import { botsApiResponseFixture } from 'teleport/Bots/fixtures';
-import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ContextProvider } from 'teleport/index';
+import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
+import {
+  allAccessAcl,
+  createTeleportContext,
+  noAccess,
+} from 'teleport/mocks/contexts';
+import api from 'teleport/services/api';
+import TeleportContext from 'teleport/teleportContext';
 
 import { Bots } from './Bots';
 
-function renderWithContext(element) {
-  const ctx = createTeleportContext();
+function renderWithContext(element, ctx?: TeleportContext) {
+  if (!ctx) {
+    ctx = createTeleportContext();
+  }
   return render(
     <MemoryRouter>
-      <ContextProvider ctx={ctx}>{element}</ContextProvider>
+      <InfoGuidePanelProvider>
+        <ContextProvider ctx={ctx}>{element}</ContextProvider>
+      </InfoGuidePanelProvider>
     </MemoryRouter>
   );
 }
@@ -55,6 +65,20 @@ test('shows empty state when bots are empty', async () => {
   await waitFor(() => {
     expect(screen.getByTestId('bots-empty-state')).toBeInTheDocument();
   });
+});
+
+test('shows missing permissions error if user lacks permissions to list', async () => {
+  jest.spyOn(api, 'get').mockResolvedValue({ items: [] });
+  const ctx = createTeleportContext();
+  ctx.storeUser.setState({ acl: { ...allAccessAcl, bots: noAccess } });
+  renderWithContext(<Bots />, ctx);
+
+  await waitFor(() => {
+    expect(screen.getByTestId('bots-empty-state')).toBeInTheDocument();
+  });
+  expect(
+    screen.getByText(/You do not have permission to access Bots/i)
+  ).toBeInTheDocument();
 });
 
 test('calls edit endpoint', async () => {

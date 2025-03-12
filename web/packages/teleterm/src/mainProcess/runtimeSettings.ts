@@ -22,9 +22,9 @@ import path from 'path';
 
 import { app } from 'electron';
 
-import { GrpcServerAddresses, RuntimeSettings } from './types';
 import { loadInstallationId } from './loadInstallationId';
 import { getAvailableShells, getDefaultShell } from './shell';
+import { GrpcServerAddresses, RuntimeSettings } from './types';
 
 const { argv, env } = process;
 

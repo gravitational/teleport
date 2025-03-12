@@ -24,7 +24,8 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"math/rand"
+	"log/slog"
+	"math/rand/v2"
 	"net"
 	"net/url"
 	"os"
@@ -38,7 +39,6 @@ import (
 	"unicode"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport"
@@ -124,13 +124,17 @@ func NewTracer(description string) *Tracer {
 
 // Start logs start of the trace
 func (t *Tracer) Start() *Tracer {
-	log.Debugf("Tracer started %v.", t.Description)
+	slog.DebugContext(context.Background(), "Tracer started",
+		"trace", t.Description)
 	return t
 }
 
 // Stop logs stop of the trace
 func (t *Tracer) Stop() *Tracer {
-	log.Debugf("Tracer completed %v in %v.", t.Description, time.Since(t.Started))
+	slog.DebugContext(context.Background(), "Tracer completed",
+		"trace", t.Description,
+		"duration", time.Since(t.Started),
+	)
 	return t
 }
 
@@ -529,7 +533,7 @@ func ChooseRandomString(slice []string) string {
 	case 1:
 		return slice[0]
 	default:
-		return slice[rand.Intn(len(slice))]
+		return slice[rand.N(len(slice))]
 	}
 }
 
@@ -646,10 +650,24 @@ const (
 	CertTeleportClusterName = "x-teleport-cluster-name"
 	// CertTeleportUserCertificate is the certificate of the authenticated in user.
 	CertTeleportUserCertificate = "x-teleport-certificate"
+	// extIntSuffix is the suffix common to all internal extensions.
+	extIntSuffix = "@teleport.internal"
 	// ExtIntCertType is an internal extension used to propagate cert type.
-	ExtIntCertType = "certtype@teleport"
+	ExtIntCertType = "certtype" + extIntSuffix
 	// ExtIntCertTypeHost indicates a host-type certificate.
-	ExtIntCertTypeHost = "host"
+	ExtIntCertTypeHost = "host" + extIntSuffix
 	// ExtIntCertTypeUser indicates a user-type certificate.
-	ExtIntCertTypeUser = "user"
+	ExtIntCertTypeUser = "user" + extIntSuffix
+	// ExtIntSSHAccessPermit is an internal extension used to propagate
+	// the access permit for the user.
+	ExtIntSSHAccessPermit = "ssh-access-permit" + extIntSuffix
+	// ExtIntSSHJoinPermi is an internal extension used to propagate
+	// the join permit for the user.
+	ExtIntSSHJoinPermit = "ssh-join-permit" + extIntSuffix
 )
+
+// IsInternalSSHExtension returns true if the extension has the internal
+// extension suffix.
+func IsInternalSSHExtension(extension string) bool {
+	return strings.HasSuffix(extension, extIntSuffix)
+}

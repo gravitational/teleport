@@ -29,8 +29,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -41,12 +43,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -927,78 +928,6 @@ func TestFormatConnectToProxyErr(t *testing.T) {
 	}
 }
 
-func TestGetDesktopEventWebURL(t *testing.T) {
-	initDate := time.Date(2021, 1, 1, 12, 0, 0, 0, time.UTC)
-
-	tt := []struct {
-		name      string
-		proxyHost string
-		cluster   string
-		sid       session.ID
-		events    []events.EventFields
-		expected  string
-	}{
-		{
-			name:     "nil events",
-			events:   nil,
-			expected: "",
-		},
-		{
-			name:     "empty events",
-			events:   make([]events.EventFields, 0),
-			expected: "",
-		},
-		{
-			name:      "two events, 1000 ms duration",
-			proxyHost: "host",
-			cluster:   "cluster",
-			sid:       "session_id",
-			events: []events.EventFields{
-				{
-					"time": initDate,
-				},
-				{
-					"time": initDate.Add(1000 * time.Millisecond),
-				},
-			},
-			expected: "https://host/web/cluster/cluster/session/session_id?recordingType=desktop&durationMs=1000",
-		},
-		{
-			name:      "multiple events",
-			proxyHost: "host",
-			cluster:   "cluster",
-			sid:       "session_id",
-			events: []events.EventFields{
-				{
-					"time": initDate,
-				},
-				{
-					"time": initDate.Add(10 * time.Millisecond),
-				},
-				{
-					"time": initDate.Add(20 * time.Millisecond),
-				},
-				{
-					"time": initDate.Add(30 * time.Millisecond),
-				},
-				{
-					"time": initDate.Add(40 * time.Millisecond),
-				},
-				{
-					"time": initDate.Add(50 * time.Millisecond),
-				},
-			},
-			expected: "https://host/web/cluster/cluster/session/session_id?recordingType=desktop&durationMs=50",
-		},
-	}
-
-	for _, tc := range tt {
-		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.expected, getDesktopEventWebURL(tc.proxyHost, tc.cluster, &tc.sid, tc.events))
-		})
-	}
-}
-
 type mockRoleGetter func(ctx context.Context) ([]types.Role, error)
 
 func (m mockRoleGetter) GetRoles(ctx context.Context) ([]types.Role, error) {
@@ -1265,6 +1194,18 @@ func TestIsErrorResolvableWithRelogin(t *testing.T) {
 			},
 			expectResolvable: true,
 		},
+		{
+			name:             "trace.BadParameter should be resolvable",
+			err:              trace.BadParameter("bad"),
+			expectResolvable: true,
+		},
+		{
+			name: "nonRetryableError should not be resolvable",
+			err: trace.Wrap(&NonRetryableError{
+				Err: trace.BadParameter("bad"),
+			}),
+			expectResolvable: false,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			resolvable := IsErrorResolvableWithRelogin(tt.err)
@@ -1362,6 +1303,344 @@ func TestGetTargetNodes(t *testing.T) {
 			match, err := clt.GetTargetNodes(context.Background(), test.clt, test.options)
 			require.NoError(t, err)
 			require.EqualValues(t, test.expected, match)
+		})
+	}
+}
+
+type fakeGetTargetNodeClient struct {
+	authclient.ClientI
+
+	nodes             []*types.ServerV2
+	resolved          *types.ServerV2
+	resolveErr        error
+	routeToMostRecent bool
+}
+
+func (f fakeGetTargetNodeClient) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
+	out := make([]*proto.PaginatedResource, 0, len(f.nodes))
+	for _, n := range f.nodes {
+		out = append(out, &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: n}})
+	}
+
+	return &proto.ListUnifiedResourcesResponse{Resources: out}, nil
+}
+
+func (f fakeGetTargetNodeClient) ResolveSSHTarget(ctx context.Context, req *proto.ResolveSSHTargetRequest) (*proto.ResolveSSHTargetResponse, error) {
+	if f.resolveErr != nil {
+		return nil, f.resolveErr
+	}
+
+	return &proto.ResolveSSHTargetResponse{Server: f.resolved}, nil
+}
+
+func (f fakeGetTargetNodeClient) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
+	cfg := types.DefaultClusterNetworkingConfig()
+	if f.routeToMostRecent {
+		cfg.SetRoutingStrategy(types.RoutingStrategy_MOST_RECENT)
+	}
+
+	return cfg, nil
+}
+
+func TestGetTargetNode(t *testing.T) {
+	now := time.Now()
+	then := now.Add(-5 * time.Hour)
+
+	tests := []struct {
+		name         string
+		options      *SSHOptions
+		labels       map[string]string
+		search       []string
+		predicate    string
+		host         string
+		port         int
+		clt          fakeGetTargetNodeClient
+		errAssertion require.ErrorAssertionFunc
+		expected     TargetNode
+	}{
+		{
+			name: "options override",
+			options: &SSHOptions{
+				HostAddress: "test:1234",
+			},
+			host:         "llama",
+			port:         56789,
+			errAssertion: require.NoError,
+			expected:     TargetNode{Hostname: "test:1234", Addr: "test:1234"},
+		},
+		{
+			name:         "explicit target",
+			host:         "test",
+			port:         1234,
+			errAssertion: require.NoError,
+			expected:     TargetNode{Hostname: "test", Addr: "test:1234"},
+		},
+		{
+			name:         "resolved labels",
+			labels:       map[string]string{"foo": "bar"},
+			errAssertion: require.NoError,
+			expected:     TargetNode{Hostname: "resolved-labels", Addr: "abcd:0"},
+			clt: fakeGetTargetNodeClient{
+				nodes:    []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "labels"}}},
+				resolved: &types.ServerV2{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "resolved-labels"}},
+			},
+		},
+		{
+			name:         "fallback labels",
+			labels:       map[string]string{"foo": "bar"},
+			errAssertion: require.NoError,
+			expected:     TargetNode{Hostname: "labels", Addr: "abcd:0"},
+			clt: fakeGetTargetNodeClient{
+				nodes:      []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "labels"}}},
+				resolved:   &types.ServerV2{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "resolved-labels"}},
+				resolveErr: trace.NotImplemented(""),
+			},
+		},
+		{
+			name:         "resolved search",
+			search:       []string{"foo", "bar"},
+			errAssertion: require.NoError,
+			expected:     TargetNode{Hostname: "resolved-search", Addr: "abcd:0"},
+			clt: fakeGetTargetNodeClient{
+				nodes:    []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "search"}}},
+				resolved: &types.ServerV2{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "resolved-search"}},
+			},
+		},
+
+		{
+			name:         "fallback search",
+			search:       []string{"foo", "bar"},
+			errAssertion: require.NoError,
+			expected:     TargetNode{Hostname: "search", Addr: "abcd:0"},
+			clt: fakeGetTargetNodeClient{
+				nodes:      []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "search"}}},
+				resolveErr: trace.NotImplemented(""),
+				resolved:   &types.ServerV2{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "resolved-search"}},
+			},
+		},
+		{
+			name:         "resolved predicate",
+			predicate:    `resource.spec.hostname == "test"`,
+			errAssertion: require.NoError,
+			expected:     TargetNode{Hostname: "resolved-predicate", Addr: "abcd:0"},
+			clt: fakeGetTargetNodeClient{
+				nodes:    []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "predicate"}}},
+				resolved: &types.ServerV2{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "resolved-predicate"}},
+			},
+		},
+		{
+			name:         "fallback predicate",
+			predicate:    `resource.spec.hostname == "test"`,
+			errAssertion: require.NoError,
+			expected:     TargetNode{Hostname: "predicate", Addr: "abcd:0"},
+			clt: fakeGetTargetNodeClient{
+				nodes:      []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "predicate"}}},
+				resolveErr: trace.NotImplemented(""),
+				resolved:   &types.ServerV2{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "resolved-predicate"}},
+			},
+		},
+		{
+			name:         "fallback ambiguous hosts",
+			predicate:    `resource.spec.hostname == "test"`,
+			errAssertion: require.Error,
+			clt: fakeGetTargetNodeClient{
+				nodes: []*types.ServerV2{
+					{Metadata: types.Metadata{Name: "abcd-1"}, Spec: types.ServerSpecV2{Hostname: "predicate"}},
+					{Metadata: types.Metadata{Name: "abcd-2"}, Spec: types.ServerSpecV2{Hostname: "predicate"}},
+				},
+				resolveErr: trace.NotImplemented(""),
+				resolved:   &types.ServerV2{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "resolved-predicate"}},
+			},
+		},
+		{
+			name:         "fallback and route to recent",
+			predicate:    `resource.spec.hostname == "test"`,
+			errAssertion: require.NoError,
+			expected:     TargetNode{Hostname: "predicate-now", Addr: "abcd-1:0"},
+			clt: fakeGetTargetNodeClient{
+				nodes: []*types.ServerV2{
+					{Metadata: types.Metadata{Name: "abcd-0", Expires: &then}, Spec: types.ServerSpecV2{Hostname: "predicate-then"}},
+					{Metadata: types.Metadata{Name: "abcd-1", Expires: &now}, Spec: types.ServerSpecV2{Hostname: "predicate-now"}},
+					{Metadata: types.Metadata{Name: "abcd-2", Expires: &then}, Spec: types.ServerSpecV2{Hostname: "predicate-then-again"}},
+				},
+				resolveErr:        trace.NotImplemented(""),
+				routeToMostRecent: true,
+				resolved:          &types.ServerV2{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "resolved-predicate"}},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			clt := TeleportClient{
+				Config: Config{
+					Tracer:              tracing.NoopTracer(""),
+					Labels:              test.labels,
+					SearchKeywords:      test.search,
+					PredicateExpression: test.predicate,
+					Host:                test.host,
+					HostPort:            test.port,
+				},
+			}
+
+			match, err := clt.GetTargetNode(context.Background(), test.clt, test.options)
+			test.errAssertion(t, err)
+			if match == nil {
+				match = &TargetNode{}
+			}
+			require.EqualValues(t, test.expected, *match)
+		})
+	}
+}
+
+func TestNonRetryableError(t *testing.T) {
+	orgError := trace.AccessDenied("do not enter")
+	err := &NonRetryableError{
+		Err: orgError,
+	}
+	require.Error(t, err)
+	assert.Equal(t, "do not enter", err.Error())
+	assert.True(t, IsNonRetryableError(err))
+	assert.True(t, trace.IsAccessDenied(err))
+	assert.Equal(t, orgError, err.Unwrap())
+}
+
+func TestWarningAboutIncompatibleClientVersion(t *testing.T) {
+	tests := []struct {
+		name            string
+		clientVersion   string
+		serverVersion   string
+		expectedWarning string
+	}{
+		{
+			name:          "client on a higher major version than server triggers a warning",
+			clientVersion: "17.0.0",
+			serverVersion: "16.0.0",
+			expectedWarning: `
+WARNING
+Detected potentially incompatible client and server versions.
+Maximum client version supported by the server is 16.x.x but you are using 17.0.0.
+Please downgrade tsh to 16.x.x or use the --skip-version-check flag to bypass this check.
+Future versions of tsh will fail when incompatible versions are detected.
+
+`,
+		},
+		{
+			name:          "client on a too low major version compared to server triggers a warning",
+			clientVersion: "16.4.0",
+			serverVersion: "18.0.0",
+			expectedWarning: `
+WARNING
+Detected potentially incompatible client and server versions.
+Minimum client version supported by the server is 17.0.0 but you are using 16.4.0.
+Please upgrade tsh to 17.0.0 or newer or use the --skip-version-check flag to bypass this check.
+Future versions of tsh will fail when incompatible versions are detected.
+
+`,
+		},
+		{
+			name:            "client on a higher minor version than server does not trigger a warning",
+			clientVersion:   "17.1.0",
+			serverVersion:   "17.0.0",
+			expectedWarning: "",
+		},
+		{
+			name:            "client on a lower major version than server does not trigger a warning",
+			clientVersion:   "17.0.0",
+			serverVersion:   "18.0.0",
+			expectedWarning: "",
+		},
+		{
+			name:            "client and server on the same version do not trigger a warning",
+			clientVersion:   "18.0.0",
+			serverVersion:   "18.0.0",
+			expectedWarning: "",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			minClientVersion, err := semver.NewVersion(test.serverVersion)
+			require.NoError(t, err)
+			minClientVersion.Major = minClientVersion.Major - 1
+			// Mirror what happens with teleport.MinClientSemVersion.
+			minClientVersion.PreRelease = "aa"
+			warning, err := getClientIncompatibilityWarning(Versions{
+				MinClient: minClientVersion.String(),
+				Client:    test.clientVersion,
+				Server:    test.serverVersion,
+			})
+			require.NoError(t, err)
+			require.Equal(t, test.expectedWarning, warning)
+		})
+	}
+}
+
+func TestParsePortMapping(t *testing.T) {
+	tests := []struct {
+		in      string
+		want    PortMapping
+		wantErr bool
+	}{
+		{
+			in:   "",
+			want: PortMapping{},
+		},
+		{
+			in:   "1337",
+			want: PortMapping{LocalPort: 1337},
+		},
+		{
+			in:   "1337:42",
+			want: PortMapping{LocalPort: 1337, TargetPort: 42},
+		},
+		{
+			in:   "0:0",
+			want: PortMapping{},
+		},
+		{
+			in:   "0:42",
+			want: PortMapping{TargetPort: 42},
+		},
+		{
+			in:      " ",
+			wantErr: true,
+		},
+		{
+			in:      "1337:",
+			wantErr: true,
+		},
+		{
+			in:      ":42",
+			wantErr: true,
+		},
+		{
+			in:      "13371337",
+			wantErr: true,
+		},
+		{
+			in:      "42:73317331",
+			wantErr: true,
+		},
+		{
+			in:      "1337:42:42",
+			wantErr: true,
+		},
+		{
+			in:      "1337:42:",
+			wantErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.in, func(t *testing.T) {
+			out, err := ParsePortMapping(test.in)
+			if test.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.want, out)
+			}
 		})
 	}
 }

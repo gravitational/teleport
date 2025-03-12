@@ -14,7 +14,7 @@ backed up and lays out our recommended approach for performing backups.
 <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
 
 Teleport's Proxy Service and Nodes are stateless. For these components, only
-`teleport.yaml` should be backed up.
+the configuration file (`/etc/teleport.yaml` by default) should be backed up.
 
 The Auth Service is Teleport's brain, and depending on the backend should be
 backed up regularly.
@@ -41,7 +41,7 @@ Teleport audit logs, logged events have a TTL of 1 year.
 
 | Backend | Recommended backup strategy |
 | - | - |
-| Local Filesystem | Back up the `/var/lib/teleport/storage` directory and the output of `tctl get all --with-secrets`. |
+| Local Filesystem | Back up the data directory (`/var/lib/teleport/` by default) and the output of `tctl get all --with-secrets`. |
 | DynamoDB | [Follow AWS's guidelines for backup and restore](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BackupRestore.html) |
 | etcd | [Follow etcd's guidelines for disaster recovery](https://etcd.io/docs/v2/admin_guide) |
 | Firestore | [Follow GCP's guidelines for automated backups](https://firebase.google.com/docs/database/backups) |

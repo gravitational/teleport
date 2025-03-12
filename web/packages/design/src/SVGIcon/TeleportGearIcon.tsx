@@ -16,13 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { useTheme } from 'styled-components';
 
-import { SVGIcon } from './SVGIcon';
-
 import type { SVGIconProps } from './common';
+import { SVGIcon } from './SVGIcon';
 
 export function TeleportGearIcon({ size = 16 }: Omit<SVGIconProps, 'fill'>) {
   const theme = useTheme();

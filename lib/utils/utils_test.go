@@ -271,6 +271,16 @@ func TestIsValidHostname(t *testing.T) {
 			assert:   require.True,
 		},
 		{
+			name:     "only lower case works",
+			hostname: "only-lower-case-works",
+			assert:   require.True,
+		},
+		{
+			name:     "mixed upper case fails",
+			hostname: "mixed-UPPER-CASE-fails",
+			assert:   require.False,
+		},
+		{
 			name:     "one component",
 			hostname: "example",
 			assert:   require.True,
@@ -332,21 +342,21 @@ func TestReplaceRegexp(t *testing.T) {
 			expr:    "value",
 			replace: "value",
 			in:      "val",
-			err:     trace.NotFound(""),
+			err:     ErrReplaceRegexNotFound,
 		},
 		{
 			comment: "empty value is no match",
 			expr:    "",
 			replace: "value",
 			in:      "value",
-			err:     trace.NotFound(""),
+			err:     ErrReplaceRegexNotFound,
 		},
 		{
 			comment: "bad regexp results in bad parameter error",
 			expr:    "^(($",
 			replace: "value",
 			in:      "val",
-			err:     trace.BadParameter(""),
+			err:     &trace.BadParameterError{Message: "error parsing regexp: missing closing ): `^(($`"},
 		},
 		{
 			comment: "full match is supported",
@@ -405,7 +415,7 @@ func TestReplaceRegexp(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, testCase.out, out)
 			} else {
-				require.IsType(t, testCase.err, err)
+				require.ErrorIs(t, err, testCase.err)
 			}
 		})
 	}

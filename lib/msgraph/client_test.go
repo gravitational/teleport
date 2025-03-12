@@ -227,9 +227,13 @@ func TestIterateUsers(t *testing.T) {
 	require.Equal(t, "alice@example.com", *users[0].Mail)
 	require.Equal(t, "Alice Alison", *users[0].DisplayName)
 	require.Equal(t, "alice@example.com", *users[0].UserPrincipalName)
+	require.Nil(t, users[0].Surname)
+	require.Nil(t, users[0].GivenName)
 
 	require.Equal(t, "bob@example.com", *users[1].Mail)
 	require.Equal(t, "bob@example.com", *users[1].UserPrincipalName)
+	require.Equal(t, "Bobert", *users[1].Surname)
+	require.Equal(t, "Bob", *users[1].GivenName)
 
 	require.Equal(t, "admin@example.com", *users[2].Mail)
 	require.Equal(t, "admin@example.com", *users[2].UserPrincipalName)
@@ -536,6 +540,8 @@ func TestGetApplication(t *testing.T) {
 		GroupMembershipClaims: toPtr("SecurityGroup"),
 		IdentifierURIs:        &[]string{"goteleport.com"},
 		OptionalClaims: &OptionalClaims{
+			AccessToken: []OptionalClaim{},
+			IDToken:     []OptionalClaim{},
 			SAML2Token: []OptionalClaim{
 				{
 					AdditionalProperties: []string{"sam_account_name"},

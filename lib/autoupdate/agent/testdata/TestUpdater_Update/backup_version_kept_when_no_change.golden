@@ -2,9 +2,12 @@ version: v1
 kind: update_config
 spec:
     proxy: localhost
-    group: ""
-    url_template: https://example.com
+    path: /usr/local/bin
+    base_url: https://example.com
     enabled: true
+    pinned: false
 status:
-    active_version: 16.3.0
-    backup_version: backup-version
+    active:
+        version: 16.3.0
+    backup:
+        version: backup-version

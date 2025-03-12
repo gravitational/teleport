@@ -92,7 +92,7 @@ func UnmarshalApp(data []byte, opts ...MarshalOption) (types.Application, error)
 	case types.V3:
 		var app types.AppV3
 		if err := utils.FastUnmarshal(data, &app); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		if err := app.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
@@ -144,7 +144,7 @@ func UnmarshalAppServer(data []byte, opts ...MarshalOption) (types.AppServer, er
 	case types.V3:
 		var s types.AppServerV3
 		if err := utils.FastUnmarshal(data, &s); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		if err := s.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
@@ -190,6 +190,7 @@ func NewApplicationFromKubeService(service corev1.Service, clusterName, protocol
 		URI:                appURI,
 		Rewrite:            rewriteConfig,
 		InsecureSkipVerify: getTLSInsecureSkipVerify(service.GetAnnotations()),
+		PublicAddr:         getPublicAddr(service.GetAnnotations()),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "could not create an app from Kubernetes service")
@@ -233,6 +234,10 @@ func getAppRewriteConfig(annotations map[string]string) (*types.Rewrite, error) 
 	return &rw, nil
 }
 
+func getPublicAddr(annotations map[string]string) string {
+	return annotations[types.DiscoveryPublicAddr]
+}
+
 func getTLSInsecureSkipVerify(annotations map[string]string) bool {
 	val := annotations[types.DiscoveryAppInsecureSkipVerify]
 	if val == "" {
@@ -250,7 +255,7 @@ func getAppName(serviceName, namespace, clusterName, portName, nameAnnotation st
 
 		if len(validation.IsDNS1035Label(name)) > 0 {
 			return "", trace.BadParameter(
-				"application name %q must be a valid DNS subdomain: https://goteleport.com/docs/application-access/guides/connecting-apps/#application-name", name)
+				"application name %q must be a valid DNS subdomain: https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name", name)
 		}
 
 		return name, nil

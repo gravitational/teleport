@@ -88,7 +88,7 @@ func (h *Handler) startAppAuthExchange(w http.ResponseWriter, r *http.Request, p
 		// and in the request "state" query param.
 		secretToken, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 		if err != nil {
-			h.log.WithError(err).Debug("Failed to generate token required for app auth exchange")
+			h.logger.DebugContext(r.Context(), "Failed to generate token required for app auth exchange", "error", err)
 			return trace.AccessDenied("access denied")
 		}
 
@@ -100,7 +100,7 @@ func (h *Handler) startAppAuthExchange(w http.ResponseWriter, r *http.Request, p
 		// different token value eg: launch app in multiple tabs in quick succession
 		cookieIdentifier, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 		if err != nil {
-			h.log.WithError(err).Debug("Failed to generate an UID for the app auth state cookie")
+			h.logger.DebugContext(r.Context(), "Failed to generate an UID for the app auth state cookie", "error", err)
 			return trace.AccessDenied("access denied")
 		}
 
@@ -126,14 +126,14 @@ func (h *Handler) startAppAuthExchange(w http.ResponseWriter, r *http.Request, p
 
 	nonce, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 	if err != nil {
-		h.log.WithError(err).Debug("Failed to create a random nonce for the app redirection HTML inline script")
+		h.logger.DebugContext(r.Context(), "Failed to create a random nonce for the app redirection HTML inline script", "error", err)
 		return trace.AccessDenied("access denied")
 	}
 	SetRedirectPageHeaders(w.Header(), nonce)
 
 	// Serving the HTML page.
 	if err := appRedirectTemplate.Execute(w, nonce); err != nil {
-		h.log.WithError(err).Debug("Failed executing appRedirect template")
+		h.logger.DebugContext(r.Context(), "Failed executing appRedirect template", "error", err)
 		return trace.AccessDenied("access denied")
 	}
 	return nil
@@ -146,13 +146,13 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 	httplib.SetNoCacheHeaders(w.Header())
 	var req fragmentRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
-		h.log.WithError(err).Debug("Failed to decode JSON from request body")
+		h.logger.DebugContext(r.Context(), "Failed to decode JSON from request body", "error", err)
 		return trace.AccessDenied("access denied")
 	}
 
 	secretToken, cookieID, ok := strings.Cut(req.StateValue, "_")
 	if !ok {
-		h.log.Warn("Request failed: request state token is not in the expected format")
+		h.logger.WarnContext(r.Context(), "Request failed: request state token is not in the expected format")
 		h.emitErrorEventAndDeleteAppSession(r, emitErrorEventFields{
 			sessionID: req.CookieValue,
 			err:       "state token was not in the expected format",
@@ -163,7 +163,7 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 	// Validate that the caller-provided state token matches the stored state token (CSRF check)
 	stateCookie, err := r.Cookie(getAuthStateCookieName(cookieID))
 	if err != nil || stateCookie.Value == "" {
-		h.log.Warn("Request failed: state cookie is not set.")
+		h.logger.WarnContext(r.Context(), "Request failed: state cookie is not set")
 		h.emitErrorEventAndDeleteAppSession(r, emitErrorEventFields{
 			sessionID: req.CookieValue,
 			err:       "auth state cookie was not set",
@@ -171,7 +171,7 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 		return trace.AccessDenied("access denied")
 	}
 	if subtle.ConstantTimeCompare([]byte(secretToken), []byte(stateCookie.Value)) != 1 {
-		h.log.Warn("Request failed: state token does not match.")
+		h.logger.WarnContext(r.Context(), "Request failed: state token does not match")
 		h.emitErrorEventAndDeleteAppSession(r, emitErrorEventFields{
 			sessionID: req.CookieValue,
 			err:       "state token did not match",
@@ -188,11 +188,11 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 		SessionID: req.CookieValue,
 	})
 	if err != nil {
-		h.log.WithError(err).Warn("Request failed: session does not exist.")
+		h.logger.WarnContext(r.Context(), "Request failed: session does not exist", "error", err)
 		return trace.AccessDenied("access denied")
 	}
 	if err := checkSubjectToken(req.SubjectCookieValue, ws); err != nil {
-		h.log.WithError(err).Warn("Request failed")
+		h.logger.WarnContext(r.Context(), "Request failed", "error", err)
 		h.emitErrorEventAndDeleteAppSession(r, emitErrorEventFields{
 			sessionID: req.CookieValue,
 			err:       err.Error(),
@@ -297,7 +297,7 @@ func (h *Handler) emitErrorEventAndDeleteAppSession(r *http.Request, f emitError
 		if err := h.c.AuthClient.DeleteAppSession(r.Context(), types.DeleteAppSessionRequest{
 			SessionID: f.sessionID,
 		}); err != nil {
-			h.log.WithError(err).Warn("Failed to delete app session after failing authentication")
+			h.logger.WarnContext(r.Context(), "Failed to delete app session after failing authentication", "error", err)
 		}
 	}
 

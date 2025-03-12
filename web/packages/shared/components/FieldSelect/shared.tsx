@@ -16,22 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React, { useId } from 'react';
 import { GroupBase, OnChangeValue, OptionsOrGroups } from 'react-select';
 
 import Box, { BoxProps } from 'design/Box';
-
-import React, { useId } from 'react';
-import LabelInput from 'design/LabelInput';
-
-import Flex from 'design/Flex';
+import { LabelInput } from 'design/LabelInput';
+import { LabelContent } from 'design/LabelInput/LabelInput';
 
 import { HelperTextLine } from '../FieldInput/FieldInput';
-import { useRule } from '../Validation';
 import {
   AsyncProps as AsyncSelectProps,
   Props as SelectProps,
 } from '../Select';
-import { ToolTipInfo } from '../ToolTip';
+import { useRule } from '../Validation';
 
 export const defaultRule = () => () => ({ valid: true });
 
@@ -44,6 +41,8 @@ export const LabelTip = ({ text }) => (
 type FieldSelectWrapperPropsBase<Opt, IsMulti extends boolean> = {
   label?: string;
   toolTipContent?: React.ReactNode;
+  tooltipSticky?: boolean;
+  required?: boolean;
   helperText?: React.ReactNode;
   value?: OnChangeValue<Opt, IsMulti>;
   rule?: (options: OnChangeValue<Opt, IsMulti>) => () => unknown;
@@ -70,6 +69,8 @@ type FieldSelectWrapperProps<
 export const FieldSelectWrapper = <Opt, IsMulti extends boolean>({
   label,
   toolTipContent,
+  tooltipSticky,
+  required,
   helperText,
   value,
   rule,
@@ -92,14 +93,13 @@ export const FieldSelectWrapper = <Opt, IsMulti extends boolean>({
     <Box mb="3" {...styles}>
       {label && (
         <LabelInput htmlFor={id}>
-          {toolTipContent ? (
-            <Flex gap={1} alignItems="center">
-              {label}
-              <ToolTipInfo children={toolTipContent} />
-            </Flex>
-          ) : (
-            label
-          )}
+          <LabelContent
+            required={required}
+            tooltipContent={toolTipContent}
+            tooltipSticky={tooltipSticky}
+          >
+            {label}
+          </LabelContent>
         </LabelInput>
       )}
       {React.cloneElement(children, {
@@ -144,6 +144,12 @@ export type FieldProps<Opt, IsMulti extends boolean> = BoxProps & {
   autoFocus?: boolean;
   label?: string;
   toolTipContent?: React.ReactNode;
+  tooltipSticky?: boolean;
+  /**
+   * Adds a `required` attribute to the underlying select and adds a required
+   * field indicator to the label.
+   */
+  required?: boolean;
   helperText?: React.ReactNode;
   rule?: (options: OnChangeValue<Opt, IsMulti>) => () => unknown;
   markAsError?: boolean;
@@ -202,8 +208,10 @@ export function splitSelectProps<
     onChange,
     onInputChange,
     onKeyDown,
+    openMenuOnClick,
     options,
     placeholder,
+    required,
     rule,
     stylesConfig,
     toolTipContent,
@@ -213,6 +221,11 @@ export function splitSelectProps<
   return {
     // hasError and inputId are deliberately excluded from the base, since they
     // are set by the wrapper component.
+    // `required` is special, because it appears in both places. It's handled
+    // by the wrapper, which uses it to display the read-only decoration;
+    // however, as it can mislead others who would think it's also forwarded to
+    // the underlying `ReactSelect` component, we also forward it there for
+    // consistency with that component's API.
     base: {
       'aria-label': ariaLabel,
       autoFocus,
@@ -239,7 +252,9 @@ export function splitSelectProps<
       onInputChange,
       onKeyDown,
       options,
+      openMenuOnClick,
       placeholder,
+      required,
       stylesConfig,
       value,
     },
@@ -248,6 +263,7 @@ export function splitSelectProps<
       inputId,
       label,
       markAsError,
+      required,
       rule,
       toolTipContent,
       value,
@@ -285,8 +301,10 @@ type KeysRemovedFromOthers =
   | 'onChange'
   | 'onInputChange'
   | 'onKeyDown'
+  | 'openMenuOnClick'
   | 'options'
   | 'placeholder'
+  | 'required'
   | 'rule'
   | 'stylesConfig'
   | 'toolTipContent'

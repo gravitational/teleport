@@ -16,8 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { forwardRef, useRef, useState, useEffect } from 'react';
+import React, { forwardRef, useEffect, useRef, useState } from 'react';
+import type { TransitionStatus } from 'react-transition-group';
 import styled from 'styled-components';
+
 import {
   Alert,
   Box,
@@ -25,48 +27,43 @@ import {
   ButtonIcon,
   ButtonPrimary,
   ButtonSecondary,
+  Link as ExternalLink,
   Flex,
   H2,
   Image,
   Indicator,
   LabelInput,
-  Link as ExternalLink,
   P3,
   Subtitle2,
   Text,
 } from 'design';
-import { ArrowBack, ChevronDown, ChevronRight, Warning } from 'design/Icon';
-import Table, { Cell } from 'design/DataTable';
 import { Danger } from 'design/Alert';
-
+import Table, { Cell } from 'design/DataTable';
+import { ArrowBack, ChevronDown, ChevronRight, Warning } from 'design/Icon';
+import { HoverTooltip } from 'design/Tooltip';
+import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
+import { FieldCheckbox } from 'shared/components/FieldCheckbox';
+import { Option } from 'shared/components/Select';
+import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import Validation, { useRule, Validator } from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAttemptNext';
-import { pluralize } from 'shared/utils/text';
-import { Option } from 'shared/components/Select';
-import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 import { mergeRefs } from 'shared/libs/mergeRefs';
-import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
-import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import type { AccessRequest } from 'shared/services/accessRequests';
+import { pluralize } from 'shared/utils/text';
 
-import { CreateRequest } from '../../Shared/types';
-import { AssumeStartTime } from '../../AssumeStartTime/AssumeStartTime';
 import { AccessDurationRequest } from '../../AccessDuration';
+import { AssumeStartTime } from '../../AssumeStartTime/AssumeStartTime';
+import { CreateRequest } from '../../Shared/types';
 import {
   checkSupportForKubeResources,
   isKubeClusterWithNamespaces,
-  type KubeNamespaceRequest,
 } from '../kube';
-
-import { ReviewerOption } from './types';
-import shieldCheck from './shield-check.png';
-import { SelectReviewers } from './SelectReviewers';
 import { AdditionalOptions } from './AdditionalOptions';
-import { KubeNamespaceSelector } from './KubeNamespaceSelector';
 import { CrossIcon } from './CrossIcon';
-
-import type { TransitionStatus } from 'react-transition-group';
-import type { AccessRequest } from 'shared/services/accessRequests';
+import { KubeNamespaceSelector } from './KubeNamespaceSelector';
+import { SelectReviewers } from './SelectReviewers';
+import shieldCheck from './shield-check.png';
+import { ReviewerOption } from './types';
 
 export const RequestCheckoutWithSlider = forwardRef<
   HTMLDivElement,
@@ -170,7 +167,7 @@ export function RequestCheckout<T extends PendingListItem>({
   startTime,
   onStartTimeChange,
   fetchKubeNamespaces,
-  bulkToggleKubeResources,
+  updateNamespacesForKubeCluster,
 }: RequestCheckoutProps<T>) {
   const [reason, setReason] = useState('');
 
@@ -241,7 +238,7 @@ export function RequestCheckout<T extends PendingListItem>({
   function customRow(item: T) {
     if (item.kind === 'kube_cluster') {
       return (
-        <td colSpan={3}>
+        <td colSpan={showClusterNameColumn ? 4 : 3}>
           <Flex>
             <Flex flexWrap="wrap">
               <Flex
@@ -251,6 +248,7 @@ export function RequestCheckout<T extends PendingListItem>({
                 alignItems="center"
               >
                 <Flex gap={5}>
+                  {showClusterNameColumn && <Box>{item.clusterName}</Box>}
                   <Box>{getPrettyResourceKind(item.kind)}</Box>
                   <Box>{item.name}</Box>
                 </Flex>
@@ -265,7 +263,7 @@ export function RequestCheckout<T extends PendingListItem>({
                 kubeClusterItem={item}
                 savedResourceItems={pendingAccessRequests}
                 fetchKubeNamespaces={fetchKubeNamespaces}
-                bulkToggleKubeResources={bulkToggleKubeResources}
+                updateNamespacesForKubeCluster={updateNamespacesForKubeCluster}
               />
             </Flex>
           </Flex>
@@ -734,9 +732,6 @@ function TextBox({
   const hasError = !valid;
   const labelText = hasError ? message : 'Request Reason';
 
-  const optionalText = requireReason ? '' : ' (optional)';
-  const placeholder = `Describe your request...${optionalText}`;
-
   return (
     <LabelInput hasError={hasError}>
       {labelText}
@@ -749,7 +744,7 @@ function TextBox({
         color="text.main"
         border={hasError ? '2px solid' : '1px solid'}
         borderColor={hasError ? 'error.main' : 'text.muted'}
-        placeholder={placeholder}
+        placeholder="Describe your request..."
         value={reason}
         onChange={e => updateReason(e.target.value)}
         css={`
@@ -793,6 +788,10 @@ function getPrettyResourceKind(kind: RequestableResourceKind): string {
       return 'SAML Application';
     case 'namespace':
       return 'Namespace';
+    case 'aws_ic_account_assignment':
+      return 'AWS IAM Identity Center Account Assignment';
+    case 'git_server':
+      return 'Git';
     default:
       kind satisfies never;
       return kind;
@@ -934,8 +933,8 @@ export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
     Header?: () => JSX.Element;
     startTime: Date;
     onStartTimeChange(t?: Date): void;
-    fetchKubeNamespaces(p: KubeNamespaceRequest): Promise<string[]>;
-    bulkToggleKubeResources(
+    fetchKubeNamespaces(search: string, kubeCluster: T): Promise<string[]>;
+    updateNamespacesForKubeCluster(
       kubeResources: PendingKubeResourceItem[],
       kubeCluster: T
     ): void;

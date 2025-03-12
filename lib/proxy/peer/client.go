@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/proxy/peer/internal"
+	peerquic "github.com/gravitational/teleport/lib/proxy/peer/quic"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -734,7 +735,27 @@ type connectParams struct {
 // connect dials a new connection to a peer proxy with the given ID and address.
 func (c *Client) connect(params connectParams) (internal.ClientConn, error) {
 	if params.supportsQUIC && c.config.QUICTransport != nil {
-		panic("QUIC proxy peering is not implemented")
+		conn, err := peerquic.NewClientConn(peerquic.ClientConnConfig{
+			PeerAddr: params.peerAddr,
+
+			LocalID:     c.config.ID,
+			ClusterName: c.config.ClusterName,
+
+			PeerID:    params.peerID,
+			PeerHost:  params.peerHost,
+			PeerGroup: params.peerGroup,
+
+			Log: c.config.Log,
+
+			GetTLSCertificate: c.config.GetTLSCertificate,
+			GetTLSRoots:       c.config.GetTLSRoots,
+
+			Transport: c.config.QUICTransport,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return conn, nil
 	}
 	tlsConfig := utils.TLSConfig(c.config.TLSCipherSuites)
 	tlsConfig.ServerName = apiutils.EncodeClusterName(c.config.ClusterName)
@@ -760,7 +781,7 @@ func (c *Client) connect(params connectParams) (internal.ClientConn, error) {
 			Timeout:             peerTimeout,
 			PermitWithoutStream: true,
 		}),
-		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"round_robin"}`),
+		grpc.WithDefaultServiceConfig(`{"loadBalancingConfig": [{"round_robin": {}}]}`),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "Error dialing proxy %q", params.peerID)

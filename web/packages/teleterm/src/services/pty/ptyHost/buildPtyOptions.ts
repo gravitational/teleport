@@ -18,22 +18,24 @@
 
 import path, { delimiter } from 'path';
 
+import { makeCustomShellFromPath, Shell } from 'teleterm/mainProcess/shell';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
+import {
+  TSH_AUTOUPDATE_ENV_VAR,
+  TSH_AUTOUPDATE_OFF,
+} from 'teleterm/node/tshAutoupdate';
+import { CUSTOM_SHELL_ID } from 'teleterm/services/config/appConfigSchema';
 import { PtyProcessOptions } from 'teleterm/sharedProcess/ptyHost';
 import { assertUnreachable } from 'teleterm/ui/utils';
-
-import { Shell, makeCustomShellFromPath } from 'teleterm/mainProcess/shell';
-import { CUSTOM_SHELL_ID } from 'teleterm/services/config/appConfigSchema';
 
 import {
   PtyCommand,
   PtyProcessCreationStatus,
-  TshKubeLoginCommand,
-  WindowsPty,
   ShellCommand,
   SshOptions,
+  TshKubeLoginCommand,
+  WindowsPty,
 } from '../types';
-
 import {
   resolveShellEnvCached,
   ResolveShellEnvTimeoutError,
@@ -92,6 +94,9 @@ export async function buildPtyOptions({
       throw error;
     })
     .then(({ shellEnv, creationStatus }) => {
+      // combinedEnv is going to be used as env by every command coming out of buildPtyOptions. Some
+      // commands might add extra variables, but they shouldn't remove any of the env vars that are
+      // added here.
       const combinedEnv = {
         ...processEnv,
         ...shellEnv,
@@ -100,6 +105,7 @@ export async function buildPtyOptions({
         TELEPORT_HOME: settings.tshd.homeDir,
         TELEPORT_CLUSTER: cmd.clusterName,
         TELEPORT_PROXY: cmd.proxyHost,
+        [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
       };
 
       // The regular env vars are not available in WSL,
@@ -108,12 +114,13 @@ export async function buildPtyOptions({
       // https://devblogs.microsoft.com/commandline/share-environment-vars-between-wsl-and-windows/
       if (settings.platform === 'win32' && shell.binName === 'wsl.exe') {
         const wslEnv = [
+          'KUBECONFIG/p',
           'TERM_PROGRAM',
           'TERM_PROGRAM_VERSION',
           'TELEPORT_CLUSTER',
           'TELEPORT_PROXY',
           'TELEPORT_HOME/p',
-          'KUBECONFIG/p',
+          TSH_AUTOUPDATE_ENV_VAR,
         ];
         // Preserve the user defined WSLENV and add ours (ours takes precedence).
         combinedEnv[WSLENV_VAR] = [combinedEnv[WSLENV_VAR], wslEnv]

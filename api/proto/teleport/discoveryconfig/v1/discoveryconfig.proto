@@ -91,6 +91,12 @@ enum DiscoveryConfigState {
 message IntegrationDiscoveredSummary {
   // AWSEC2 contains the summary for the AWS EC2 discovered instances.
   ResourcesDiscoveredSummary aws_ec2 = 1;
+
+  // AWSRDS contains the summary for the AWS RDS discovered databases.
+  ResourcesDiscoveredSummary aws_rds = 2;
+
+  // AWSEKS contains the summary for the AWS EKS discovered clusters.
+  ResourcesDiscoveredSummary aws_eks = 3;
 }
 
 // ResourcesDiscoveredSummary represents the AWS resources that were discovered.

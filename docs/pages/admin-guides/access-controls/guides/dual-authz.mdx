@@ -11,16 +11,16 @@ Here are the most common scenarios:
 - Satisfy FedRAMP AC-3 Dual authorization control that requires approval of two authorized individuals.
 
 In this guide, we will set up Teleport's Just-in-Time Access Requests to require
-the approval of two team members for a privileged role `dbadmin`.
+the approval of two team members for a privileged role `elevated-access`.
 
 The steps below describe how to use Teleport with Mattermost. You can also
 [integrate with many other providers](../access-requests/access-requests.mdx).
 
-<Notice type="warning">
+<Admonition type="warning">
 
 Dual Authorization requires Teleport Enterprise.
 
-</Notice>
+</Admonition>
 
 ## Prerequisites
 
@@ -117,10 +117,10 @@ authorization for a user to assume a role.
 ### Require dual authorization for a role
 
 Alice and Ivan are reviewers. They can approve requests for assuming role
-`dbadmin`. Bob is a DevOps engineer and can assume the `dbadmin` role if two members
+`elevated-access`. Bob is a DevOps engineer and can assume the `elevated-access` role if two members
 of the `reviewer` role approve the request.
 
-Create the following `dbadmin`, `dbreviewer` and `devops` roles:
+Create the following `elevated-access`, `dbreviewer` and `devops` roles:
 
 ```yaml
 kind: role
@@ -130,7 +130,7 @@ metadata:
 spec:
   allow:
     review_requests:
-      roles: ['dbadmin']
+      roles: ['elevated-access']
 ---
 kind: role
 version: v5
@@ -139,7 +139,7 @@ metadata:
 spec:
   allow:
     request:
-      roles: ['dbadmin']
+      roles: ['elevated-access']
       thresholds:
         - approve: 2
           deny: 1
@@ -147,7 +147,7 @@ spec:
 kind: role
 version: v5
 metadata:
-  name: dbadmin
+  name: elevated-access
 spec:
   allow:
     logins: ['root']
@@ -155,6 +155,8 @@ spec:
       'env': 'prod'
       'type': 'db'
 ```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
 
 The commands below create the local users Bob, Alice, and Ivan.
 
@@ -166,52 +168,47 @@ $ tctl users add ivan@example.com --roles=dbreviewer
 
 ### Create an Access Request
 
-Bob does not have a role `dbadmin` assigned to him, but can create an Access Request for it.
-
-Bob can create an Access Request for the `dbadmin` role in the Web UI or CLI:
+Bob does not have a role `elevated-access` assigned to him, but can create an Access Request for this role in the Web UI or CLI:
 
 <Tabs>
 <TabItem label="Web UI">
-  ![Mattermost-Request](../../../../img/access-controls/dual-authz/teleport-4-bob-request.png)
+  ![Role-Request](../../../../img/access-controls/dual-authz/role-new-request.png)
+  ![Request-Success](../../../../img/access-controls/dual-authz/request-success.png)
 </TabItem>
 <TabItem label="Terminal">
   ```code
   # Bob has to set valid emails of Alice and Ivan matching in Mattermost.
-  $ tsh request create --roles=dbadmin --reviewers=alice@example.com,ivan@example.com
+  $ tsh request create --roles=elevated-access --reviewers=alice@example.com,ivan@example.com
   ```
 </TabItem>
 </Tabs>
 
-Chatbot will notify both Alice and Ivan:
+The Web UI will notify the admin:
 
-![Mattermost-Request](../../../../img/access-controls/dual-authz/mattermost-5-request.png)
+![Mattermost-Request](../../../../img/access-controls/dual-authz/pending-access-request.png)
 
-Alice and Ivan can review and approve request using Web UI or CLI:
+The request can then be reviewed and approved through the Web UI or CLI:
 
 <Tabs>
   <TabItem label="Web UI">
-    ![Teleport-Approve](../../../../img/access-controls/dual-authz/teleport-6-ivan-approve.png)
+    ![Teleport-Approve](../../../../img/access-controls/dual-authz/approve-new-request.png)
   </TabItem>
 
   <TabItem label="CLI">
     ```code
     $ tsh request list
 
-    # ID                                   User             Roles   Created (UTC)       Status
-    # ------------------------------------ ---------------  ------- ------------------- -------
-    # 9c721e54-b049-4ef8-a7f6-c777aa066764 bob@example.com  dbadmin 03 Apr 21 03:58 UTC PENDING
+    # ID                                   User        Roles            Created  (UTC)       Status
+    # ------------------------------------ ----------  ---------------  -------------------  ------
+    # 0193496f-268c-727e-b696-600a868429ff test (Bob)  elevated-access  21 Nov 24 18:50 UTC  PENDING
 
-    $ tsh request review --approve --reason="hello" 9c721e54-b049-4ef8-a7f6-c777aa066764
+    $ tsh request review --approve --reason="Need to gain elevated-access for investigation" 0193496f-268c-727e-b696-600a868429ff
     # Successfully submitted review.  Request state: APPROVED
     ```
   </TabItem>
 </Tabs>
 
-If Bob has created a request using CLI, he will assume it once it has been approved.
-Bob can also assume granted Access Request roles using Web UI:
-
-![Teleport Assume](../../../../img/access-controls/dual-authz/teleport-7-bob-assume.png)
-
+If the user has created a request using CLI, the role will be assumed once it has been approved, or they can assume the role using the Web UI.
 
 ## Troubleshooting
 

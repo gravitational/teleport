@@ -16,15 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Flex, Text } from 'design';
 import { components, OptionProps } from 'react-select';
 
+import { Flex, Text } from 'design';
 import { Option as BaseOption } from 'shared/components/Select';
 
 export type Option = BaseOption & {
   isAdded?: boolean;
-  kind: 'app' | 'user_group' | 'namespace';
+  kind: 'app' | 'user_group' | 'namespace' | 'aws_ic_account_assignment';
 };
 
 export const CheckableOptionComponent = (

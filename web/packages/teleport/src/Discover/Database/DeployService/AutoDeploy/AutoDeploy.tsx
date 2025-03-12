@@ -16,62 +16,55 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
+
 import {
+  Alert,
   Box,
   ButtonSecondary,
-  Link,
-  Text,
-  Mark,
-  H3,
-  Subtitle3,
   Link as ExternalLink,
   Flex,
+  H3,
+  Link,
+  Mark,
+  Subtitle3,
+  Text,
 } from 'design';
 import * as Icons from 'design/Icon';
+import { P } from 'design/Text/Text';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
-import useAttempt from 'shared/hooks/useAttemptNext';
 import { requiredIamRoleName } from 'shared/components/Validation/rules';
-
-import { P } from 'design/Text/Text';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+import cfg from 'teleport/config';
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
-import {
-  HintBox,
-  SuccessBox,
-  WaitingInfo,
-} from 'teleport/Discover/Shared/HintBox';
+import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
+import type { Database } from 'teleport/services/databases';
 import { integrationService, Regions } from 'teleport/services/integrations';
-import { useDiscover, DbMeta } from 'teleport/Discover/useDiscover';
+import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 import {
   DiscoverEventStatus,
   DiscoverServiceDeployMethod,
   DiscoverServiceDeployType,
 } from 'teleport/services/userEvent';
-import cfg from 'teleport/config';
-import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
 import {
   ActionButtons,
+  AlternateInstructionButton,
+  Header,
   HeaderSubtitle,
   TextIcon,
   useShowHint,
-  Header,
-  AlternateInstructionButton,
 } from '../../../Shared';
-import awsEcsLight from '../../aws-ecs-light.svg';
-import awsEcsDark from '../../aws-ecs-dark.svg';
 import awsEcsBblp from '../../aws-ecs-bblp.svg';
-
+import awsEcsDark from '../../aws-ecs-dark.svg';
+import awsEcsLight from '../../aws-ecs-light.svg';
 import { DeployServiceProp } from '../DeployService';
-
 import { SelectSecurityGroups } from './SelectSecurityGroups';
 import { SelectSubnetIds } from './SelectSubnetIds';
-
-import type { Database } from 'teleport/services/databases';
 
 export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
   const { emitErrorEvent, nextStep, emitEvent, agentMeta, updateAgentMeta } =
@@ -249,7 +242,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
 
             <StyledBox mb={5}>
               <header>
-                <H3>Step 3 (Optional)</H3>
+                <H3>Step 3</H3>
               </header>
               <SelectSecurityGroups
                 selectedSecurityGroups={selectedSecurityGroups}
@@ -493,93 +486,104 @@ const DeployHints = ({
   }, [result]);
 
   if (showHint && !result) {
-    return (
-      <HintBox header="We're still in the process of creating your Database Service">
-        <Flex flexDirection="column" gap={3}>
-          <Text>
-            Visit your AWS{' '}
-            <Link target="_blank" href={svcDeployedAwsUrl}>
-              dashboard
-            </Link>{' '}
-            to see progress details.
-          </Text>
-          <Text>
-            There are a few possible reasons for why we haven't been able to
-            detect your database service:
-          </Text>
-          <ul
-            css={`
-              margin: 0;
-              padding-left: ${p => p.theme.space[3]}px;
-            `}
+    const details = (
+      <Flex flexDirection="column" gap={3}>
+        <Text>
+          Visit your AWS{' '}
+          <Link target="_blank" href={svcDeployedAwsUrl}>
+            dashboard
+          </Link>{' '}
+          to see progress details.
+        </Text>
+        <Text>
+          There are a few possible reasons for why we haven't been able to
+          detect your database service:
+        </Text>
+        <ul
+          css={`
+            margin: 0;
+            padding-left: ${p => p.theme.space[3]}px;
+          `}
+        >
+          <li>
+            The subnets you selected do not route to an internet gateway (igw)
+            or a NAT gateway in a public subnet.
+          </li>
+          <li>
+            The security groups you selected do not allow outbound traffic (eg:{' '}
+            <Mark>0.0.0.0/0</Mark>) to pull the public Teleport image and to
+            reach your Teleport cluster.
+          </li>
+          <li>
+            The security groups attached to your database(s) neither allow
+            inbound traffic from the security group you selected nor allow
+            inbound traffic from all IPs in the subnets you selected.
+          </li>
+          <li>
+            There may be issues in the region you selected ({region}). Check the{' '}
+            <ExternalLink
+              target="_blank"
+              href="https://health.aws.amazon.com/health/status"
+            >
+              AWS Health Dashboard
+            </ExternalLink>{' '}
+            for any problems.
+          </li>
+          <li>
+            The network may be slow. Try waiting for a few more minutes or{' '}
+            <AlternateInstructionButton onClick={abortDeploying}>
+              try manually deploying your own database service.
+            </AlternateInstructionButton>
+          </li>
+        </ul>
+        <Text>
+          Refer to the{' '}
+          <Link
+            target="_blank"
+            href="https://goteleport.com/docs/admin-guides/management/guides/awsoidc-integration-rds/#troubleshooting"
           >
-            <li>
-              The subnets you selected do not route to an internet gateway (igw)
-              or a NAT gateway in a public subnet.
-            </li>
-            <li>
-              The security groups you selected do not allow outbound traffic
-              (eg: <Mark>0.0.0.0/0</Mark>) to pull the public Teleport image and
-              to reach your Teleport cluster.
-            </li>
-            <li>
-              The security groups attached to your database(s) neither allow
-              inbound traffic from the security group you selected nor allow
-              inbound traffic from all IPs in the subnets you selected.
-            </li>
-            <li>
-              There may be issues in the region you selected ({region}). Check
-              the{' '}
-              <ExternalLink
-                target="_blank"
-                href="https://health.aws.amazon.com/health/status"
-              >
-                AWS Health Dashboard
-              </ExternalLink>{' '}
-              for any problems.
-            </li>
-            <li>
-              The network may be slow. Try waiting for a few more minutes or{' '}
-              <AlternateInstructionButton onClick={abortDeploying}>
-                try manually deploying your own database service.
-              </AlternateInstructionButton>
-            </li>
-          </ul>
-        </Flex>
-      </HintBox>
+            troubleshooting documentation
+          </Link>{' '}
+          for more details.
+        </Text>
+      </Flex>
+    );
+    return (
+      <Alert kind="warning" alignItems="flex-start" details={details}>
+        We&apos;re still in the process of creating your database service
+      </Alert>
     );
   }
 
   if (result) {
     return (
-      <SuccessBox>
-        Successfully created and detected your new Database Service.
-      </SuccessBox>
+      <Alert kind="success" dismissible={false}>
+        Successfully created and detected your new database service.
+      </Alert>
     );
   }
 
+  const details = (
+    <Text>
+      It will take at least a minute for the Database Service to be created and
+      joined to your cluster. <br />
+      We will update this status once detected, meanwhile visit your AWS{' '}
+      <Link target="_blank" href={svcDeployedAwsUrl}>
+        dashboard
+      </Link>{' '}
+      to see progress details.
+    </Text>
+  );
   return (
-    <WaitingInfo>
-      <TextIcon
-        css={`
-          white-space: pre;
-          margin-right: 4px;
-          padding-right: 4px;
-        `}
-      >
-        <Icons.Restore size="medium" mr={1} />
-      </TextIcon>
-      <Text>
-        Teleport is currently deploying a Database Service. It will take at
-        least a minute for the Database Service to be created and joined to your
-        cluster. <br />
-        We will update this status once detected, meanwhile visit your AWS{' '}
-        <Link target="_blank" href={svcDeployedAwsUrl}>
-          dashboard
-        </Link>{' '}
-        to see progress details.
-      </Text>
-    </WaitingInfo>
+    <Alert
+      kind="neutral"
+      alignItems="flex-start"
+      icon={Icons.Restore}
+      dismissible={false}
+      details={details}
+    >
+      Teleport is currently deploying a database service
+    </Alert>
   );
 };
 
@@ -588,15 +592,19 @@ export function AutoDiscoverDeploySuccess({
 }: {
   svcDeployedAwsUrl: string;
 }) {
-  return (
-    <SuccessBox>
-      The required database services have been deployed successfully. Discovery
-      will complete in a minute. You can visit your AWS{' '}
+  const details = (
+    <>
+      Discovery will complete in a minute. You can visit your AWS{' '}
       <Link target="_blank" href={svcDeployedAwsUrl}>
         dashboard
       </Link>{' '}
       to see progress details.
-    </SuccessBox>
+    </>
+  );
+  return (
+    <Alert kind="success" dismissible={false} details={details}>
+      The required database services have been deployed successfully.
+    </Alert>
   );
 }
 

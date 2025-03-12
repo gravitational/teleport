@@ -1,0 +1,288 @@
+---
+title: Workload Identity Attributes
+description: Information about the attributes that can be used in templating and rules in the WorkloadIdentity resource.
+---
+
+Attributes are features of an identity which you can use with the
+[WorkloadIdentity](./workload-identity-resource.mdx) resource to create rules
+and template values.
+
+These attributes come from a variety of sources, such as workload attestations
+performed by `tbot` or the attestation performed by the control plane when
+`tbot` joins.
+
+## Join attributes
+
+Join attributes are sourced from the join process that the Bot underwent. These
+typically allow you to identify the machine that the `tbot` agent is running on.
+
+### `join.meta`
+
+The `join.meta` attributes are not related to any specific join method, and
+instead typically provide information about the join token that was used to
+join.
+
+| Field                       | Description                                                                                                                                                                                                                         |
+|-----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `join.meta.join_token_name` | The name of the join token that was used to join. This field is omitted if the join token that was used to join was of the `token` method as in this case, the name of the join token is sensitive. Example: `my-gitlab-join-token` |
+| `join.meta.join_method`     | The name of the join method that was used to join. Example: `gitlab`                                                                                                                                                                |
+
+### `join.azure`
+
+These attributes are present if the Bot joined using the Azure join method.
+
+| Field                       | Description                                                                    |
+|-----------------------------|--------------------------------------------------------------------------------|
+| `join.azure.subscription`   | The subscription ID of the Azure account that the joining entity is a part of. |
+| `join.azure.resource_group` | The resource group of the Azure account that the joining entity is a part of.  |
+
+### `join.bitbucket`
+
+These attributes are present if the Bot joined using the BitBucket join method.
+
+They are mapped from the JWT issued by BitBucket, for which further
+documentation is available at https://support.atlassian.com/bitbucket-cloud/docs/integrate-pipelines-with-resource-servers-using-oidc/
+
+| Field                                        | Description                                                             |
+|----------------------------------------------|-------------------------------------------------------------------------|
+| `join.bitbucket.sub`                         | The `sub` claim of the Bitbucket JWT that was used to join.             |
+| `join.bitbucket.step_uuid`                   | The UUID of the pipeline step.                                          |
+| `join.bitbucket.repository_uuid`             | The UUID of the repository the pipeline step is running within.         |
+| `join.bitbucket.pipeline_uuid`               | The UUID of the pipeline the step is running within.                    |
+| `join.bitbucket.workspace_uuid`              | The UUID of the workspace the pipeline belongs to.                      |
+| `join.bitbucket.deployment_environment_uuid` | The UUID of the deployment environment the pipeline is running against. |
+| `join.bitbucket.branch_name`                 | The name of the branch the pipeline is running against.                 |
+
+### `join.circleci`
+
+These attributes are present if the Bot joined using the CircleCI join method.
+
+They are mapped from the JWT issued by CircleCI, for which further documentation
+is available at https://circleci.com/docs/openid-connect-tokens/
+
+| Field                       | Description                                                |
+|-----------------------------|------------------------------------------------------------|
+| `join.circleci.sub`         | The `sub` claim of the CircleCI JWT that was used to join. |
+| `join.circleci.context_ids` | The UUIDs of the contexts used in the job.                 |
+| `join.circleci.project_id`  | The UUID of the project in which the job is running..      |
+
+### `join.gcp`
+
+These attributes are present if the Bot joined using the Google Cloud Project
+(GCP) join method.
+
+They are mapped from the JWT issued by GCP, for which further documentation is
+available at https://cloud.google.com/compute/docs/instances/verifying-instance-identity#payload
+
+The attributes beneath `join.gcp.gce` are only present if the Bot is running on
+a Google Compute Engine (GCE) instance.
+
+| Field                       | Description                                                                       |
+|-----------------------------|-----------------------------------------------------------------------------------|
+| `join.gcp.service_account`  | The service account email of the service account that the instance is running as. |
+| `join.gcp.gce.name`         | The name of the GCE instance that the joining entity is running on.               |
+| `join.gcp.gce.zone`         | The zone of the GCE instance that the joining entity is running on.               |
+| `join.gcp.gce.zone.id`      | The ID of the GCE instance that the joining entity is running on.                 |
+| `join.gcp.gce.zone.project` | The project ID of the GCP project that the instance is running within.            |
+
+### `join.github`
+
+These attributes are present if the Bot joined using the GitHub join method.
+
+They are mapped from the JWT issued by GitHub, for which further documentation is
+available at https://docs.github.com/en/actions/security-for-github-actions/security-hardening-your-deployments/about-security-hardening-with-openid-connect#understanding-the-oidc-token
+
+| Field                          | Description                                                                  |
+|--------------------------------|------------------------------------------------------------------------------|
+| `join.github.sub`              | The `sub` claim of the GitHub JWT that was used to join.                     |
+| `join.github.actor`            | The username of the actor that initiated the workflow run.                   |
+| `join.github.environment`      | The name of the environment that the workflow is running against, if any.    |
+| `join.github.ref`              | The ref that the workflow is running against..                               |
+| `join.github.ref_type`         | The type of ref that the workflow is running against. For example, `branch`. |
+| `join.github.repository`       | The name of the repository that the workflow is running within.              |
+| `join.github.repository_owner` | The name of the owner of the repository that the workflow is running within. |
+| `join.github.workflow`         | The name of the workflow that is running.                                    |
+| `join.github.event_name`       | The name of the event that triggered the workflow run..                      |
+| `join.github.sha`              | The SHA of the commit that triggered the workflow run.                       |
+| `join.github.run_id`           | The ID of this GitHub actions workflow run.                                  |
+
+### `join.gitlab`
+
+These attributes are present if the Bot joined using the GitLab join method.
+
+They are mapped from the JWT issued by GitLab, for which further documentation is
+available at https://docs.gitlab.com/ee/ci/secrets/id_token_authentication.html#token-payload
+
+| Field                               | Description                                                                                                                       |
+|-------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `join.gitlab.sub`                   | The `sub` claim of the GitLab JWT that was used to join.  For example: `project_path:mygroup/my-project:ref_type:branch:ref:main` |
+| `join.gitlab.ref`                   | The ref that the pipeline is running against. For example: `main`                                                                 |
+| `join.gitlab.ref_type`              | The type of ref that the pipeline is running against. This is typically `branch` or `tag`.                                        |
+| `join.gitlab.ref_protected`         | Whether or not the ref that the pipeline is running against is protected.                                                         |
+| `join.gitlab.namespace_path`        | The path of the namespace of the project that the pipeline is running within.                                                     |
+| `join.gitlab.project_path`          | The full qualified path of the project that the pipeline is running within. For example: `mygroup/my-project`                     |
+| `join.gitlab.user_login`            | The name of the user that triggered the pipeline run.                                                                             |
+| `join.gitlab.user_email`            | The email of the user that triggered the pipeline run.                                                                            |
+| `join.gitlab.pipeline_id`           | The ID of the pipeline.                                                                                                           |
+| `join.gitlab.pipeline_source`       | The source of the pipeline. For example: `push` or `web`                                                                          |
+| `join.gitlab.environment`           | The environment the pipeline is running against, if any.                                                                          |
+| `join.gitlab.environment_protected` | Whether or not the pipeline is running against a protected environment.                                                           |
+| `join.gitlab.runner_id`             | The ID of the runner that this pipeline is running on.                                                                            |
+| `join.gitlab.runner_environment`    | The type of runner that is processing the pipeline.  Either `gitlab-hosted` or `self-hosted`.                                     |
+| `join.gitlab.sha`                   | The SHA of the commit that triggered the pipeline run.                                                                            |
+| `join.gitlab.ci_config_ref_uri`     | The ref URI of the CI config configuring the pipeline.                                                                            |
+| `join.gitlab.ci_config_sha`         | The Git SHA of the CI config ref configuring the pipeline.                                                                        |
+
+### `join.iam`
+
+These attributes are present if the Bot joined using the AWS IAM join method.
+
+| Field              | Description                                                                                                                 |
+|--------------------|-----------------------------------------------------------------------------------------------------------------------------|
+| `join.iam.account` | The identifier of the account that the joining entity is a part of. For example: `123456789012`.                            |
+| `join.iam.arn`     | The AWS ARN of the joining entity. For example: `arn:aws:sts::123456789012:assumed-role/my-role-name/my-role-session-name`. |
+
+### `join.kubernetes`
+
+These attributes are present if the Bot joined using the Kubernetes join method.
+
+The attributes under `join.kubernetes.pod` are only present if the bot is
+running in a Kubernetes cluster with Projected Service Account Token support.
+
+| Field                                       | Description                                                                                                                                                                           |
+|---------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `join.kubernetes.subject`                   | The fully qualified identifier of the entity based on the Kubernetes token. For a service account, this takes the form of `system:serviceaccount:<namespace>:<service-account-name>`. |
+| `join.kubernetes.service_account.name`      | The name of the service account that the joining entity is running as.                                                                                                                |
+| `join.kubernetes.service_account.namespace` | The namespace of the service account that the joining entity is running as.                                                                                                           |
+| `join.kubernetes.pod.name`                  | The name of the pod that the joining entity is running in.                                                                                                                            |
+
+### `join.spacelift`
+
+These attributes are present if the Bot joined using the Spacelift join method.
+
+They are mapped from the JWT issued by Spacelift, for which further documentation
+is available at https://docs.spacelift.io/integrations/cloud-providers/oidc/#standard-claims
+
+| Field                        | Description                                                                        |
+|------------------------------|------------------------------------------------------------------------------------|
+| `join.spacelift.sub`         | The `sub` claim of the Spacelift JWT that was used to join..                       |
+| `join.spacelift.space_id`    | The ID of the space in which the run is executing.                                 |
+| `join.spacelift.caller_type` | The type of the caller that owns the run, either `stack` or `module`.              |
+| `join.spacelift.caller_id`   | The ID of the caller that generated the run.                                       |
+| `join.spacelift.run_type`    | The type of the run, either `PROPOSED`, `TRACKED`, `TASK`, `TESTING` or `DESTROY`. |
+| `join.spacelift.run_id`      | The ID of the run.                                                                 |
+| `join.spacelift.scope`       | The configured scope of the token, either `read` or `write`.                       |
+
+### `join.terraform_cloud`
+
+These attributes are present if the Bot joined using the Terraform Cloud join
+method.
+
+They are mapped from the JWT issued by Terraform Cloud, for which further
+documentation is available at https://developer.hashicorp.com/terraform/enterprise/workspaces/dynamic-provider-credentials/workload-identity-tokens
+
+| Field                                    | Description                                                                                                                                         |
+|------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `join.terraform_cloud.sub`               | The `sub` claim of the Terraform Cloud JWT that was used to join.                                                                                   |
+| `join.terraform_cloud.organization_name` | The name of the organization the project and workspace belong to.                                                                                   |
+| `join.terraform_cloud.project_name`      | The name of the project the workspace belongs to.                                                                                                   |
+| `join.terraform_cloud.workspace_name`    | The name of the workspace that the plan/apply is running within.                                                                                    |
+| `join.terraform_cloud.full_workspace`    | The fully qualified workspace path, including the organization and project name. For example: `organization:<name>:project:<name>:workspace:<name>` |
+| `join.terraform_cloud.run_id`            | The ID of the run that is being executed..                                                                                                          |
+| `join.terraform_cloud.run_phase`         | The phase of the run that is being executed, either `plan` or `apply`.                                                                              |
+
+### `join.tpm`
+
+These attributes are present if the Bot joined using the TPM join method.
+
+| Field                       | Description                                                                                                      |
+|-----------------------------|------------------------------------------------------------------------------------------------------------------|
+| `join.tpm.ek_pub_hash`      | The SHA256 hash of the PKIX formatted EK public key, encoded in hex. This effectively identifies a specific TPM. |
+| `join.tpm.ek_cert_serial`   | The serial number of the EK certificate, if present.                                                             |
+| `join.tpm.ek_cert_verified` | Whether or not the EK certificate was verified against a certificate authority.                                  |
+
+## Workload attributes
+
+Workload attributes are sourced from workload attestations performed by `tbot`
+when a workload requests an identity via the workload API. They may not be
+present depending on your configuration of `tbot`. See the
+[Workload Attestation reference](./workload-identity-api-and-workload-attestation.mdx) for more
+information.
+
+### `workload.unix`
+
+Attributes sourced from the Unix workload attestor.
+
+See the
+[Workload API and Workload Attestation reference](./workload-identity-api-and-workload-attestation.mdx#Unix)
+for more information.
+
+| Attribute                | Description                                   |
+|--------------------------|-----------------------------------------------|
+| `workload.unix.attested` | Whether the workload passed Unix attestation. |
+| `workload.unix.pid`      | The PID of the workload process.              |
+| `workload.unix.gid`      | The primary user ID of the workload process.  |
+| `workload.unix.uid`      | The primary group ID of the workload process. |
+
+### `workload.kubernetes`
+
+Attributes sourced from the Kubernetes workload attestor.
+
+See the
+[Workload API and Workload Attestation reference](./workload-identity-api-and-workload-attestation.mdx#Kubernetes)
+for more information.
+
+| Attribute                             | Description                                         |
+|---------------------------------------|-----------------------------------------------------|
+| `workload.kubernetes.attested`        | Whether the workload passed Kubernetes attestation. |
+| `workload.kubernetes.namespace`       | The namespace of the workload pod.                  |
+| `workload.kubernetes.pod_name`        | The name of the workload pod.                       |
+| `workload.kubernetes.service_account` | The service account of the workload pod.            |
+| `workload.kubernetes.pod_uid`         | The UID of the workload pod.                        |
+| `workload.kubernetes.labels`          | The labels of the workload pod.                     |
+
+### `workload.docker`
+
+Attributes sourced from the Docker workload attestor.
+
+See the
+[Workload API and Workload Attestation reference](./workload-identity-api-and-workload-attestation.mdx#Docker)
+for more information.
+
+| Attribute                          | Description                                         |
+|------------------------------------|-----------------------------------------------------|
+| `workload.docker.attested`         | Whether the workload passed Docker attestation.     |
+| `workload.docker.container.name`   | Name of the container.                              |
+| `workload.docker.container.image`  | Image name of the container (e.g. `ubuntu:latest`). |
+| `workload.docker.container.labels` | Labels of the container.                            |
+
+### `workload.podman`
+
+Attributes sourced from the Podman workload attestor.
+
+See the
+[Workload API and Workload Attestation reference](./workload-identity-api-and-workload-attestation.mdx#Podman)
+for more information.
+
+| Attribute                          | Description                                         |
+|------------------------------------|-----------------------------------------------------|
+| `workload.podman.attested`         | Whether the workload passed Podman attestation.     |
+| `workload.podman.container.name`   | Name of the container.                              |
+| `workload.podman.container.image`  | Image name of the container (e.g. `ubuntu:latest`). |
+| `workload.podman.container.labels` | Labels of the container.                            |
+| `workload.podman.pod.name`         | Name of the pod.                                    |
+| `workload.podman.pod.labels`       | Labels of the pod.                                  |
+
+## User attributes
+
+User attributes are sourced from the Bot or User that is requesting the
+issuance of the workload identity credential.
+
+| Attribute              | Description                                       |
+|------------------------|---------------------------------------------------|
+| `user.name`            | The name of the user.                             |
+| `user.is_bot`          | Whether the user is a bot.                        |
+| `user.bot_name`        | If the user is a bot, the name of the bot.        |
+| `user.bot_instance_id` | If the user is a bot, the instance ID of the bot. |
+| `user.labels`          | Labels of the user.                               |
+| `user.traits`          | Traits of the user.                               |

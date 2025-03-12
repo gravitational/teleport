@@ -1,7 +1,7 @@
 clusterName: "test.teleport.sh"
 teleportAuthAddress: "my-auth:3024"
 defaultOutput:
-  enabled: false
+  enabled: true
 token: "my-token"
 joinMethod: "modified-join-method"
 
@@ -98,3 +98,14 @@ extraArgs:
 extraEnv:
   - name: "TEST_ENV"
     value: "test-value"
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 9807
+  seccompProfile:
+    type: RuntimeDefault

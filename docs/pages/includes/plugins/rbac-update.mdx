@@ -33,6 +33,8 @@ Create the user and role:
 $ tctl create -f access-plugin.yaml
 ```
 
+(!docs/pages/includes/create-role-using-web.mdx!)
+
 As with all Teleport users, the Teleport Auth Service authenticates the
 `access-plugin` user by issuing short-lived TLS credentials. In this case, we
 will need to request the credentials manually by *impersonating* the

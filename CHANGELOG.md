@@ -1,5 +1,30 @@
 # Changelog
 
+## 18.0.0 (xx/xx/xx)
+
+### Breaking changes
+
+#### TLS Cipher Suites
+
+TLS cipher suites with known security issues can no longer be manually
+configured in the Teleport YAML configuration file.
+If you do not explicitly configure any of the listed TLS cipher suites, you are
+not affected by this change.
+Teleport 18 removes support for:
+- `tls-rsa-with-aes-128-cbc-sha`
+- `tls-rsa-with-aes-256-cbc-sha`
+- `tls-rsa-with-aes-128-cbc-sha256`
+- `tls-rsa-with-aes-128-gcm-sha256`
+- `tls-rsa-with-aes-256-gcm-sha384`
+- `tls-ecdhe-ecdsa-with-aes-128-cbc-sha256`
+- `tls-ecdhe-rsa-with-aes-128-cbc-sha256`
+
+#### AWS endpoint URL mode removed
+
+The AWS endpoint URL mode (`--endpoint-url`) has been removed for
+`tsh proxy aws` and `tsh aws`. Users using this mode should use the default
+HTTPS Proxy mode from now on.
+
 ## 16.0.0 (xx/xx/xx)
 
 ### Breaking changes
@@ -37,10 +62,10 @@ more details.
 
 #### Default keyboard shortcuts in Teleport Connect have been changed
 
-On Windows and Linux, some of the default shortcuts conflicted with the default bash or nano shortcuts 
+On Windows and Linux, some of the default shortcuts conflicted with the default bash or nano shortcuts
 (e.g. Ctrl + E, Ctrl + K).
 On those platforms, the default shortcuts have been changed to a combination of Ctrl + Shift + *.
-We also updated the shortcut to open a new terminal on macOS to Control + Shift + \`.  
+We also updated the shortcut to open a new terminal on macOS to Control + Shift + \`.
 See [configuration](docs/pages/connect-your-client/teleport-connect.mdx#configuration)
 for the current list of shortcuts.
 
@@ -152,8 +177,8 @@ or use PAM.
 
 #### Remove restricted sessions for SSH
 
-The restricted session feature for SSH has been deprecated since Teleport 14 and 
-has been removed in Teleport 15. We recommend implementing network restrictions 
+The restricted session feature for SSH has been deprecated since Teleport 14 and
+has been removed in Teleport 15. We recommend implementing network restrictions
 outside of Teleport (iptables, security groups, etc).
 
 #### Packages no longer published to legacy Debian and RPM repos
@@ -200,7 +225,7 @@ throughout the remainder of these releases' lifecycle.
 
 ##### Helm cluster chart FIPS mode changes
 
-The teleport-cluster chart no longer uses versionOverride and extraArgs to set FIPS mode. 
+The teleport-cluster chart no longer uses versionOverride and extraArgs to set FIPS mode.
 
 Instead, you should use the following values file configuration:
 ```
@@ -277,7 +302,7 @@ used with the legacy AMIs has been removed.
 Due to the new separate operator deployment, the operator is deployed by a subchart.
 This causes the following breaking changes:
 - `installCRDs` has been replaced by `operator.installCRDs`
-- `teleportVersionOverride` does not set the operator version anymore, you must 
+- `teleportVersionOverride` does not set the operator version anymore, you must
   use `operator.teleportVersionOverride` to override the operator version.
 
 Note: version overrides are dangerous and not recommended. Each chart version
@@ -290,7 +315,7 @@ The chart configures this for you since v12, unless you disabled `rbac` creation
 
 ##### Helm cluster chart FIPS mode changes
 
-The teleport-cluster chart no longer uses versionOverride and extraArgs to set FIPS mode. 
+The teleport-cluster chart no longer uses versionOverride and extraArgs to set FIPS mode.
 
 Instead, you should use the following values file configuration:
 
@@ -340,7 +365,7 @@ Teleport 14 brings the following new major features and improvements:
 - Support for TLS routing in Terraform deployment examples
 - Discord and ServiceNow hosted plugins
 - Limited passwordless access for local Windows users in Teleport Community
-  Edition 
+  Edition
 - Machine ID: Kubernetes Secret destination
 
 In addition, this release includes several changes that affect existing
@@ -413,7 +438,7 @@ audit logging support.
 
 See documentation on how to configure it in the [Oracle guide](docs/pages/enroll-resources/database-access/enroll-self-hosted-databases/oracle-self-hosted.mdx).
 
-#### Limited passwordless access for local Windows users in Teleport Community Edition 
+#### Limited passwordless access for local Windows users in Teleport Community Edition
 
 In Teleport 14, access to Windows desktops with local Windows users has been
 extended to Community Edition. Teleport will permit users to register and
@@ -627,7 +652,7 @@ outputs:
 is recommended that you migrate to v2 as soon as possible to benefit from new
 Machine ID features.
 
-For more details and guidance on how to upgrade to v2, see [docs](docs/pages/reference/machine-id/v14-upgrade-guide.mdx).
+For more details and guidance on how to upgrade to v2, see [docs](https://github.com/gravitational/teleport/blob/branch/v14/docs/pages/reference/machine-id/v14-upgrade-guide.mdx).
 
 ## 13.0.1 (05/xx/23)
 
@@ -1212,9 +1237,6 @@ The “teleport-cluster” Helm chart underwent significant refactoring in Telep
 deployments and the new “scratch” chart mode makes it easier to provide a custom
 Teleport config.
 
-“Custom” mode users should follow the [migration
-guide](docs/pages/admin-guides/deploy-a-cluster/helm-deployments/migration-v12.mdx).
-
 ### Dropped support for SHA1 in Teleport-protected servers
 
 Newer OpenSSH clients connecting to Teleport 12 clusters no longer need the
@@ -1237,10 +1259,7 @@ Teleport 12 before upgrading.
 
 #### Helm charts
 
-The teleport-cluster Helm chart underwent significant changes in Teleport 12. To
-upgrade from an older version of the Helm chart deployed in “custom” mode,
-follow
-the [migration guide](docs/pages/admin-guides/deploy-a-cluster/helm-deployments/migration-v12.mdx).
+The teleport-cluster Helm chart underwent significant changes in Teleport 12.
 
 Additionally, PSPs are removed from the chart when installing on Kubernetes 1.23
 and higher to account for the deprecation/removal of PSPs by Kubernetes.
@@ -1947,7 +1966,7 @@ sessions remains deny-by-default but now only `join_sessions` statements are
 checked for session join RBAC.
 
 See the [Moderated Sessions
-guide](docs/pages/admin-guides/access-controls/guides/moderated-sessions.mdx) for more
+guide](docs/pages/admin-guides/access-controls/guides/joining-sessions.mdx) for more
 details.
 
 #### GitHub connectors
@@ -2406,7 +2425,7 @@ With Moderated Sessions, Teleport administrators can define policies that allow
 users to invite other users to participate in SSH or Kubernetes sessions as
 observers, moderators or peers.
 
-[Moderated Sessions guide](docs/pages/admin-guides/access-controls/guides/moderated-sessions.mdx)
+[Moderated Sessions guide](docs/pages/admin-guides/access-controls/guides/joining-sessions.mdx)
 
 ### Breaking Changes
 
@@ -3291,7 +3310,7 @@ auth_service:
     #     EXPERIMENTAL *-sync modes: proxy and node send logs directly to S3 or other
     #     storage without storing the records on disk at all. This mode will kill a
     #     connection if network connectivity is lost.
-    #     NOTE: These experimental modes require all Teleport Auth Service instances, 
+    #     NOTE: These experimental modes require all Teleport Auth Service instances,
     #     Proxy Service instances, and nodes to be running Teleport 4.4.
     #
     #     "node-sync" : sessions recording will be streamed from node -> auth -> storage

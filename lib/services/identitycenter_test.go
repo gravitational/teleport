@@ -48,7 +48,7 @@ func TestIdentityCenterAccountClone(t *testing.T) {
 	}
 
 	// WHEN I clone the resource
-	dst := src.CloneResource()
+	dst := src.CloneResource().(IdentityCenterAccount)
 
 	// EXPECT that the resulting clone compares equally
 	require.Equal(t, src, dst)
@@ -82,7 +82,7 @@ func TestIdentityCenterAccountAssignmentClone(t *testing.T) {
 	}
 
 	// WHEN I clone the resource
-	dst := src.CloneResource()
+	dst := src.CloneResource().(IdentityCenterAccountAssignment)
 
 	// EXPECT that the resulting clone compares equally
 	require.Equal(t, src, dst)
@@ -94,4 +94,298 @@ func TestIdentityCenterAccountAssignmentClone(t *testing.T) {
 	// EXPECT that the cloned object DOES NOT inherit the update
 	require.NotEqual(t, src, dst)
 	require.Equal(t, "original name", dst.Spec.PermissionSet.Name)
+}
+
+func TestIdentityCenterAccountMatcher(t *testing.T) {
+	testCases := []struct {
+		name            string
+		roleAssignments []types.IdentityCenterAccountAssignment
+		condition       types.RoleConditionType
+		matcher         RoleMatcher
+		expectMatch     require.BoolAssertionFunc
+	}{
+		{
+			name:            "empty nonmatch",
+			roleAssignments: nil,
+			condition:       types.Allow,
+			matcher: &IdentityCenterAccountMatcher{
+				accountID: "11111111",
+			},
+			expectMatch: require.False,
+		},
+		{
+			name: "simple account match",
+			roleAssignments: []types.IdentityCenterAccountAssignment{{
+				Account:       "11111111",
+				PermissionSet: "some:arn",
+			}},
+			condition: types.Allow,
+			matcher: &IdentityCenterAccountMatcher{
+				accountID: "11111111",
+			},
+			expectMatch: require.True,
+		},
+		{
+			name: "multiple account assignments match",
+			roleAssignments: []types.IdentityCenterAccountAssignment{
+				{
+					Account:       "00000000",
+					PermissionSet: "some:arn",
+				},
+				{
+					Account:       "11111111",
+					PermissionSet: "some:arn",
+				},
+			},
+			condition: types.Allow,
+			matcher: &IdentityCenterAccountMatcher{
+				accountID: "11111111",
+			},
+			expectMatch: require.True,
+		},
+		{
+			name: "simple account nonmatch",
+			roleAssignments: []types.IdentityCenterAccountAssignment{{
+				Account:       "11111111",
+				PermissionSet: "some:arn",
+			}},
+			condition: types.Allow,
+			matcher: &IdentityCenterAccountMatcher{
+				accountID: "potato",
+			},
+			expectMatch: require.False,
+		},
+		{
+			name: "multiple account assignments match",
+			roleAssignments: []types.IdentityCenterAccountAssignment{
+				{
+					Account:       "00000000",
+					PermissionSet: "some:arn",
+				},
+				{
+					Account:       "11111111",
+					PermissionSet: "some:arn",
+				},
+			},
+			condition: types.Allow,
+			matcher: &IdentityCenterAccountMatcher{
+				accountID: "66666666",
+			},
+			expectMatch: require.False,
+		},
+		{
+			name: "account glob match",
+			roleAssignments: []types.IdentityCenterAccountAssignment{{
+				Account:       "*",
+				PermissionSet: "some:arn",
+			}},
+			condition: types.Allow,
+			matcher: &IdentityCenterAccountMatcher{
+				accountID: "potato",
+			},
+			expectMatch: require.True,
+		},
+		{
+			name: "account glob nonmatch",
+			roleAssignments: []types.IdentityCenterAccountAssignment{{
+				Account:       "*!",
+				PermissionSet: "some:arn",
+			}},
+			condition: types.Allow,
+			matcher: &IdentityCenterAccountMatcher{
+				accountID: "potato",
+			},
+			expectMatch: require.False,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			roleSpec := types.RoleSpecV6{}
+			condition := &roleSpec.Deny
+			if testCase.condition == types.Allow {
+				condition = &roleSpec.Allow
+			}
+			condition.AccountAssignments = append(condition.AccountAssignments,
+				testCase.roleAssignments...)
+
+			r, err := types.NewRole("test", roleSpec)
+			require.NoError(t, err)
+
+			match, err := testCase.matcher.Match(r, testCase.condition)
+			require.NoError(t, err)
+
+			testCase.expectMatch(t, match)
+		})
+	}
+}
+
+func TestIdentityCenterAccountAssignmentMatcher(t *testing.T) {
+	testCases := []struct {
+		name            string
+		roleAssignments []types.IdentityCenterAccountAssignment
+		condition       types.RoleConditionType
+		matcher         RoleMatcher
+		expectMatch     require.BoolAssertionFunc
+	}{
+		{
+			name:            "empty nonmatch",
+			roleAssignments: nil,
+			condition:       types.Allow,
+			matcher: &IdentityCenterAccountAssignmentMatcher{
+				accountID:        "11111111",
+				permissionSetARN: "some:arn",
+			},
+			expectMatch: require.False,
+		},
+		{
+			name: "simple match",
+			roleAssignments: []types.IdentityCenterAccountAssignment{{
+				Account:       "11111111",
+				PermissionSet: "some:arn",
+			}},
+			condition: types.Allow,
+			matcher: &IdentityCenterAccountAssignmentMatcher{
+				accountID:        "11111111",
+				permissionSetARN: "some:arn",
+			},
+			expectMatch: require.True,
+		},
+		{
+			name: "multiple match",
+			roleAssignments: []types.IdentityCenterAccountAssignment{
+				{
+					Account:       "00000000",
+					PermissionSet: "some:arn",
+				},
+				{
+					Account:       "11111111",
+					PermissionSet: "some:arn",
+				},
+			},
+			condition: types.Allow,
+			matcher: &IdentityCenterAccountAssignmentMatcher{
+				accountID:        "11111111",
+				permissionSetARN: "some:arn",
+			},
+			expectMatch: require.True,
+		},
+		{
+			name: "multiple nonmatch",
+			roleAssignments: []types.IdentityCenterAccountAssignment{
+				{
+					Account:       "00000000",
+					PermissionSet: "some:arn",
+				},
+				{
+					Account:       "11111111",
+					PermissionSet: "some:arn",
+				},
+			},
+			condition: types.Allow,
+			matcher: &IdentityCenterAccountAssignmentMatcher{
+				accountID:        "66666666",
+				permissionSetARN: "some:other:arn",
+			},
+			expectMatch: require.False,
+		},
+		{
+			name: "account glob",
+			roleAssignments: []types.IdentityCenterAccountAssignment{{
+				Account:       "*1",
+				PermissionSet: "some:arn",
+			}},
+			condition: types.Allow,
+			matcher: &IdentityCenterAccountAssignmentMatcher{
+				accountID:        "11111111",
+				permissionSetARN: "some:arn",
+			},
+			expectMatch: require.True,
+		},
+		{
+			name: "account glob nonmatch",
+			roleAssignments: []types.IdentityCenterAccountAssignment{{
+				Account:       "*!!!!",
+				PermissionSet: "some:arn",
+			}},
+			condition: types.Allow,
+			matcher: &IdentityCenterAccountAssignmentMatcher{
+				accountID:        "11111111",
+				permissionSetARN: "some:arn",
+			},
+			expectMatch: require.False,
+		},
+		{
+			name: "globbed",
+			roleAssignments: []types.IdentityCenterAccountAssignment{{
+				Account:       "*",
+				PermissionSet: "*",
+			}},
+			condition: types.Allow,
+			matcher: &IdentityCenterAccountAssignmentMatcher{
+				accountID:        "11111111",
+				permissionSetARN: "some:arn",
+			},
+			expectMatch: require.True,
+		},
+		{
+			name: "globbed nonmatch",
+			roleAssignments: []types.IdentityCenterAccountAssignment{{
+				Account:       "*",
+				PermissionSet: ":not:an:arn:*",
+			}},
+			condition: types.Allow,
+			matcher: &IdentityCenterAccountAssignmentMatcher{
+				accountID:        "11111111",
+				permissionSetARN: "some:arn",
+			},
+			expectMatch: require.False,
+		},
+		{
+			name: "bad account",
+			roleAssignments: []types.IdentityCenterAccountAssignment{{
+				Account:       "11111111",
+				PermissionSet: "some:arn",
+			}},
+			condition: types.Allow,
+			matcher: &IdentityCenterAccountAssignmentMatcher{
+				accountID:        "potato",
+				permissionSetARN: "some:arn",
+			},
+			expectMatch: require.False,
+		},
+		{
+			name: "bad permissionset arn",
+			roleAssignments: []types.IdentityCenterAccountAssignment{{
+				Account:       "11111111",
+				PermissionSet: "some:arn",
+			}},
+			condition: types.Allow,
+			matcher: &IdentityCenterAccountAssignmentMatcher{
+				accountID:        "11111111",
+				permissionSetARN: "banana",
+			},
+			expectMatch: require.False,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			roleSpec := types.RoleSpecV6{}
+			condition := &roleSpec.Deny
+			if testCase.condition == types.Allow {
+				condition = &roleSpec.Allow
+			}
+			condition.AccountAssignments = append(condition.AccountAssignments,
+				testCase.roleAssignments...)
+
+			r, err := types.NewRole("test", roleSpec)
+			require.NoError(t, err)
+
+			match, err := testCase.matcher.Match(r, testCase.condition)
+			require.NoError(t, err)
+
+			testCase.expectMatch(t, match)
+		})
+	}
 }

@@ -14,7 +14,7 @@ include ../../build.assets/images.mk
 .PHONY: docker-build
 docker-build:
 	docker buildx build --platform="$(OS)/$(ARCH)" \
-		--build-arg BUILDBOX=$(BUILDBOX_CENTOS7) \
+		--build-arg BUILDBOX=$(BUILDBOX_CENTOS7_NOARCH) \
 		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
 		--load \
 		-f ./Dockerfile \

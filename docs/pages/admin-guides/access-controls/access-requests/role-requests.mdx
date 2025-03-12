@@ -75,7 +75,7 @@ spec:
 <Admonition type="warning" title="Requires Teleport Enterprise">
 Roles containing a `review_requests` rule can only be used in Teleport
 Enterprise. In Teleport Community Edition, Access Requests must be approved by an admin
-running `tctl` on the Auth Server.
+running `tctl` on the Auth Service.
 </Admonition>
 
 ## Requesting Access
@@ -83,7 +83,7 @@ running `tctl` on the Auth Server.
 While Teleport Enterprise supports the same CLI-based workflows for requesting
 access to roles, most users will prefer to request access via the web UI.
 
-To request access to one or more roles, navigate to the access requests page.
+To request access to one or more roles, navigate to the Access Requests page.
 You can find this page by selecting **Resources** on the side bar, expanding the
 *Access Requests* menu, and selecting **New Request**.
 
@@ -126,7 +126,7 @@ with the `tsh` command line:
 $ tsh request review --approve <request-id>
 ```
 
-## Using an approved access request
+## Using an approved Access Request
 
 Once a request has been approved, the requestor can elevate their access for
 both command-line workflows and web UI workflows.
@@ -140,16 +140,12 @@ $ tsh login --request-id=bc8ca931-fec9-4b15-9a6f-20c13c5641a9
 
 In the web UI, the requestor can open their request on the **Review Requests**
 page and click **ASSUME ROLES** to gain access to additional roles. Note:
-role-based access requests are additive. The user will have access to their
+role-based Access Requests are additive. The user will have access to their
 standard role set in addition to the roles granted by the request.
 
-![Approved Request](../../../../img/access-requests/approved-request.png)
-
-A banner will appear at the top of the page while the approved access request is
+A banner will appear at the top of the page while the approved Access Request is
 active. When elevated access is no longer necessary, click **Switch Back** to revert
 to the original set of roles.
-
-![Assumed Roles](../../../../img/access-requests/role-assumed.png)
 
 ## Next Steps
 

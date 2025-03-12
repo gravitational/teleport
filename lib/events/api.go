@@ -205,6 +205,8 @@ const (
 	AccessRequestUpdateEvent = "access_request.update"
 	// AccessRequestReviewEvent is emitted when a review is applied to a request.
 	AccessRequestReviewEvent = "access_request.review"
+	// AccessRequestExpirEvent is emitted when an access request expires.
+	AccessRequestExpireEvent = "access_request.expire"
 	// AccessRequestDeleteEvent is emitted when a new access request is deleted.
 	AccessRequestDeleteEvent = "access_request.delete"
 	// AccessRequestResourceSearch is emitted when a user searches for
@@ -262,10 +264,13 @@ const (
 	X11ForwardErr     = "error"
 
 	// Port forwarding event
-	PortForwardEvent   = "port"
-	PortForwardAddr    = "addr"
-	PortForwardSuccess = "success"
-	PortForwardErr     = "error"
+	PortForwardEvent           = "port"
+	PortForwardLocalEvent      = "port.local"
+	PortForwardRemoteEvent     = "port.remote"
+	PortForwardRemoteConnEvent = "port.remote_conn"
+	PortForwardAddr            = "addr"
+	PortForwardSuccess         = "success"
+	PortForwardErr             = "error"
 
 	// AuthAttemptEvent is authentication attempt that either
 	// succeeded or failed based on event status
@@ -737,6 +742,9 @@ const (
 	// AccessListMemberDeleteAllForAccessListEvent is emitted when all members are deleted from an access list.
 	AccessListMemberDeleteAllForAccessListEvent = "access_list.member.delete_all_for_access_list"
 
+	// UserLoginAccessListInvalidEvent is emitted when a user logs in as a member of an invalid access list, causing the access list to be skipped.
+	UserLoginAccessListInvalidEvent = "user_login.invalid_access_list"
+
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
 
@@ -792,35 +800,35 @@ const (
 
 	// IntegrationCreateEvent is emitted when an integration resource is created.
 	IntegrationCreateEvent = "integration.create"
-	//IntegrationUpdateEvent is emitted when an integration resource is updated.
+	// IntegrationUpdateEvent is emitted when an integration resource is updated.
 	IntegrationUpdateEvent = "integration.update"
 	// IntegrationDeleteEvent is emitted when an integration resource is deleted.
 	IntegrationDeleteEvent = "integration.delete"
 
 	// PluginCreateEvent is emitted when a plugin resource is created.
 	PluginCreateEvent = "plugin.create"
-	//PluginUpdateEvent is emitted when a plugin resource is updated.
+	// PluginUpdateEvent is emitted when a plugin resource is updated.
 	PluginUpdateEvent = "plugin.update"
 	// PluginDeleteEvent is emitted when a plugin resource is deleted.
 	PluginDeleteEvent = "plugin.delete"
 
 	// StaticHostUserCreateEvent is emitted when a static host user resource is created.
 	StaticHostUserCreateEvent = "static_host_user.create"
-	//StaticHostUserUpdateEvent is emitted when a static host user resource is updated.
+	// StaticHostUserUpdateEvent is emitted when a static host user resource is updated.
 	StaticHostUserUpdateEvent = "static_host_user.update"
 	// StaticHostUserDeleteEvent is emitted when a static host user resource is deleted.
 	StaticHostUserDeleteEvent = "static_host_user.delete"
 
 	// CrownJewelCreateEvent is emitted when a crown jewel resource is created.
 	CrownJewelCreateEvent = "access_graph.crown_jewel.create"
-	//CrownJewelUpdateEvent is emitted when a crown jewel resource is updated.
+	// CrownJewelUpdateEvent is emitted when a crown jewel resource is updated.
 	CrownJewelUpdateEvent = "access_graph.crown_jewel.update"
 	// CrownJewelDeleteEvent is emitted when a crown jewel resource is deleted.
 	CrownJewelDeleteEvent = "access_graph.crown_jewel.delete"
 
 	// UserTaskCreateEvent is emitted when a user task resource is created.
 	UserTaskCreateEvent = "user_task.create"
-	//UserTaskUpdateEvent is emitted when a user task resource is updated.
+	// UserTaskUpdateEvent is emitted when a user task resource is updated.
 	UserTaskUpdateEvent = "user_task.update"
 	// UserTaskDeleteEvent is emitted when a user task resource is deleted.
 	UserTaskDeleteEvent = "user_task.delete"
@@ -838,6 +846,40 @@ const (
 	AutoUpdateVersionUpdateEvent = "auto_update_version.update"
 	// AutoUpdateVersionDeleteEvent is emitted when a AutoUpdateVersion resource is deleted.
 	AutoUpdateVersionDeleteEvent = "auto_update_version.delete"
+
+	// ContactCreateEvent is emitted when a Contact resource is created.
+	ContactCreateEvent = "contact.create"
+	// ContactDeleteEvent is emitted when a Contact resource is deleted.
+	ContactDeleteEvent = "contact.delete"
+
+	// WorkloadIdentityCreateEvent is emitted when a WorkloadIdentity resource is created.
+	WorkloadIdentityCreateEvent = "workload_identity.create"
+	// WorkloadIdentityUpdateEvent is emitted when a WorkloadIdentity resource is updated.
+	WorkloadIdentityUpdateEvent = "workload_identity.update"
+	// WorkloadIdentityDeleteEvent is emitted when a WorkloadIdentity resource is deleted.
+	WorkloadIdentityDeleteEvent = "workload_identity.delete"
+
+	// WorkloadIdentityX509RevocationCreateEvent is emitted when a
+	// WorkloadIdentityX509Revocation resource is created.
+	WorkloadIdentityX509RevocationCreateEvent = "workload_identity_x509_revocation.create"
+	// WorkloadIdentityX509RevocationUpdateEvent is emitted when a
+	// WorkloadIdentityX509Revocation resource is updated.
+	WorkloadIdentityX509RevocationUpdateEvent = "workload_identity_x509_revocation.update"
+	// WorkloadIdentityX509RevocationDeleteEvent is emitted when a
+	// WorkloadIdentityX509Revocation resource is deleted.
+	WorkloadIdentityX509RevocationDeleteEvent = "workload_identity_x509_revocation.delete"
+
+	// GitCommandEvent is emitted when a Git command is executed.
+	GitCommandEvent = "git.command"
+
+	// StableUNIXUserCreateEvent is emitted when a stable UNIX user is created.
+	StableUNIXUserCreateEvent = "stable_unix_user.create"
+
+	// AWSICResourceSyncSuccessEvent is emitted when AWS Identity Center resources are imported
+	// and reconciled to Teleport.
+	AWSICResourceSyncSuccessEvent = "aws_identity_center.resource_sync.success"
+	// AWSICResourceSyncFailureEvent is emitted when AWS Identity Center resources sync failed.
+	AWSICResourceSyncFailureEvent = "aws_identity_center.resource_sync.failed"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add
@@ -856,15 +898,13 @@ const (
 	V3 = 3
 )
 
-var (
-	// SessionRecordingEvents is a list of events that are related to session
-	// recorings.
-	SessionRecordingEvents = []string{
-		SessionEndEvent,
-		WindowsDesktopSessionEndEvent,
-		DatabaseSessionEndEvent,
-	}
-)
+// SessionRecordingEvents is a list of events that are related to session
+// recorings.
+var SessionRecordingEvents = []string{
+	SessionEndEvent,
+	WindowsDesktopSessionEndEvent,
+	DatabaseSessionEndEvent,
+}
 
 // ServerMetadataGetter represents interface
 // that provides information about its server id

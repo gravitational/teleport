@@ -3,26 +3,28 @@ title: Teleport Authentication with Azure Active Directory (AD)
 description: How to configure Teleport access with Azure Active Directory.
 ---
 
-This guide will cover how to configure Microsoft Azure Active Directory to issue
-credentials to specific groups of users with a SAML Authentication Connector.
-When used in combination with role-based access control (RBAC), it allows Teleport
+This guide will cover how to configure Microsoft Entra ID to issue credentials
+to specific groups of users with a SAML Authentication Connector. When used in
+combination with role-based access control (RBAC), it allows Teleport
 administrators to define policies like:
 
-- Only members of the "DBA" Azure AD group can connect to PostgreSQL databases.
+- Only members of the "DBA" Microsoft Entra ID group can connect to PostgreSQL
+  databases.
 - Developers must never SSH into production servers.
 
 The following steps configure an example SAML authentication connector matching
-Azure AD groups with security roles. You can choose to configure other options.
+Microsoft Entra ID groups with security roles. You can choose to configure other
+options.
 
 ## Prerequisites
 
 Before you get started, you’ll need:
 
-- An Azure AD admin account with access to creating non-gallery applications
-  (P2 License).
+- A Microsoft Entra ID admin account with access to creating non-gallery
+  applications (P2 License).
 - To register one or more users in the directory.
-- To create at least two security groups in Azure AD and assign one or more
-  users to each group.
+- To create at least two security groups in Microsoft Entra ID and assign one or
+  more users to each group.
 - A Teleport role with access to maintaining `saml` resources. This is available
   in the default `editor` role.
 
@@ -30,7 +32,7 @@ Before you get started, you’ll need:
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/3. Configure Azure AD
+## Step 1/3. Configure Microsoft Entra ID
 
 ### Create an enterprise application
 
@@ -64,10 +66,11 @@ Before you get started, you’ll need:
 
    ![Edit Basic SAML Configuration](../../../../img/azuread/azuread-6-editbasicsaml.png)
 
-1. Enter the URL for your Teleport Proxy Service host in the **Entity ID** and **Reply URL**  fields:
+1. Enter the URL for your Teleport Proxy Service host in the **Entity ID** and
+   **Reply URL**  fields, for example:
 
    ```code
-   https://<Var name="mytenant.teleport.sh:443" />/v1/webapi/saml/acs/ad
+   https://mytenant.teleport.sh:443/v1/webapi/saml/acs/ad
    ```
 
    ![Put in Entity ID and Reply URL](../../../../img/azuread/azuread-7-entityandreplyurl.png)
@@ -213,6 +216,8 @@ Create the role:
 ```code
 $ tctl create dev.yaml
 ```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
 
 (!docs/pages/includes/enterprise/samlauthentication.mdx!)
 
@@ -408,6 +413,6 @@ Change the Name ID format to use email instead:
 - In the Teleport role we illustrated in this guide, `external` traits
   are replaced with values from the single sign-on provider that the
   user used to authenticate to Teleport. For full details on how traits
-  work in Teleport roles, see the [Teleport Access Controls
+  work in Teleport roles, see the [Access Controls
   Reference](../../../reference/access-controls/roles.mdx).
 

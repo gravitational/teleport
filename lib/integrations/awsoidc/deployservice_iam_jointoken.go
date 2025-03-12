@@ -77,7 +77,7 @@ func (u *upsertIAMJoinTokenRequest) CheckAndSetDefaults() error {
 	}
 
 	if u.accountID == "" {
-		return trace.BadParameter("accound id is required")
+		return trace.BadParameter("account id is required")
 	}
 
 	if u.region == "" {

@@ -8,7 +8,7 @@ Teleport Application Service, and annotations on Kubernetes services. This guide
 shows you how to configure each of these to manage Kubernetes Application
 Discovery in your Kubernetes cluster.
 
-## Configuring Teleport agent Helm chart
+## Configuring Teleport Agent Helm chart
 
 You can configure scope of services discovery by setting value `kubernetesDiscovery` of the chart. For more information
 please see [helm chart documentation](../helm-reference/teleport-kube-agent.mdx).
@@ -142,3 +142,11 @@ annotations:
       value: "Bearer {{internal.jwt}}"
 ```
 
+### `teleport.dev/public-addr`
+
+Controls the public address for the Teleport app we create if needed.
+
+```yaml
+annotations:
+  teleport.dev/public-addr: "custom.teleport.dev"
+```

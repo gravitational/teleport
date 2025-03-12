@@ -17,11 +17,46 @@
 package handler
 
 import (
+	"context"
+
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/ui"
 )
+
+func (h *Handler) GetApp(ctx context.Context, req *api.GetAppRequest) (*api.GetAppResponse, error) {
+	appURI, err := uri.Parse(req.AppUri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	proxyClient, err := h.DaemonService.GetCachedClient(ctx, appURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var app types.Application
+	if err := clusters.AddMetadataToRetryableError(ctx, func() error {
+		var err error
+		app, err = clusters.GetApp(ctx, proxyClient.CurrentCluster(), appURI.GetAppName())
+		return trace.Wrap(err)
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clustersApp := clusters.App{
+		URI: appURI,
+		App: app,
+	}
+
+	return &api.GetAppResponse{
+		App: newAPIApp(clustersApp),
+	}, nil
+}
 
 func newAPIApp(clusterApp clusters.App) *api.App {
 	app := clusterApp.App
@@ -38,6 +73,11 @@ func newAPIApp(clusterApp clusters.App) *api.App {
 
 	apiLabels := makeAPILabels(ui.MakeLabelsWithoutInternalPrefixes(app.GetAllLabels()))
 
+	tcpPorts := make([]*api.PortRange, 0, len(app.GetTCPPorts()))
+	for _, portRange := range app.GetTCPPorts() {
+		tcpPorts = append(tcpPorts, &api.PortRange{Port: portRange.Port, EndPort: portRange.EndPort})
+	}
+
 	return &api.App{
 		Uri:          clusterApp.URI.String(),
 		EndpointUri:  app.GetURI(),
@@ -50,6 +90,7 @@ func newAPIApp(clusterApp clusters.App) *api.App {
 		FriendlyName: types.FriendlyName(app),
 		SamlApp:      false,
 		Labels:       apiLabels,
+		TcpPorts:     tcpPorts,
 	}
 }
 

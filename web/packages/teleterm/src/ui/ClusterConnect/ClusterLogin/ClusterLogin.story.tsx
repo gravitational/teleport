@@ -15,17 +15,29 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+import { Meta } from '@storybook/react';
+
 import { makeErrorAttempt, makeProcessingAttempt } from 'shared/hooks/useAsync';
 
 import { ClusterLoginPresentation } from './ClusterLogin';
-import { TestContainer, makeProps } from './storyHelpers';
+import {
+  compatibilityArgType,
+  makeProps,
+  StoryProps,
+  TestContainer,
+} from './storyHelpers';
 
-export default {
+const meta: Meta<StoryProps> = {
   title: 'Teleterm/ModalsHost/ClusterLogin',
+  argTypes: compatibilityArgType,
+  args: {
+    compatibility: 'compatible',
+  },
 };
+export default meta;
 
-export const LocalOnly = () => {
-  const props = makeProps();
+export const LocalOnly = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.initAttempt.data.allowPasswordless = false;
 
   return (
@@ -35,8 +47,8 @@ export const LocalOnly = () => {
   );
 };
 
-export const InitErr = () => {
-  const props = makeProps();
+export const InitErr = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.initAttempt = makeErrorAttempt(new Error('some error message'));
 
   return (
@@ -46,8 +58,8 @@ export const InitErr = () => {
   );
 };
 
-export const InitProcessing = () => {
-  const props = makeProps();
+export const InitProcessing = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.initAttempt.status = 'processing';
 
   return (
@@ -57,8 +69,8 @@ export const InitProcessing = () => {
   );
 };
 
-export const LocalDisabled = () => {
-  const props = makeProps();
+export const LocalDisabled = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.initAttempt.data.localAuthEnabled = false;
 
   return (
@@ -71,8 +83,8 @@ export const LocalDisabled = () => {
 // The password field is empty in this story as there's no way to change the value of a controlled
 // input without touching the internals of React.
 // https://stackoverflow.com/questions/23892547/what-is-the-best-way-to-trigger-change-or-input-event-in-react-js
-export const LocalProcessing = () => {
-  const props = makeProps();
+export const LocalProcessing = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.initAttempt.data.allowPasswordless = false;
   props.loginAttempt = makeProcessingAttempt();
   props.loggedInUserName = 'alice';
@@ -84,8 +96,8 @@ export const LocalProcessing = () => {
   );
 };
 
-export const LocalError = () => {
-  const props = makeProps();
+export const LocalError = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.initAttempt.data.allowPasswordless = false;
   props.loginAttempt = makeErrorAttempt(new Error('invalid credentials'));
   props.loggedInUserName = 'alice';
@@ -102,8 +114,8 @@ const authProviders = [
   { type: 'saml', name: 'microsoft', displayName: 'Microsoft' },
 ];
 
-export const SsoOnly = () => {
-  const props = makeProps();
+export const SsoOnly = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.initAttempt.data.localAuthEnabled = false;
   props.initAttempt.data.authType = 'github';
   props.initAttempt.data.authProviders = authProviders;
@@ -115,8 +127,8 @@ export const SsoOnly = () => {
   );
 };
 
-export const SsoPrompt = () => {
-  const props = makeProps();
+export const SsoPrompt = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.loginAttempt.status = 'processing';
   props.shouldPromptSsoStatus = true;
   return (
@@ -126,8 +138,8 @@ export const SsoPrompt = () => {
   );
 };
 
-export const SsoError = () => {
-  const props = makeProps();
+export const SsoError = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.initAttempt.data.localAuthEnabled = false;
   props.initAttempt.data.authType = 'github';
   props.initAttempt.data.authProviders = authProviders;
@@ -141,16 +153,16 @@ export const SsoError = () => {
   );
 };
 
-export const LocalWithPasswordless = () => {
+export const LocalWithPasswordless = (storyProps: StoryProps) => {
   return (
     <TestContainer>
-      <ClusterLoginPresentation {...makeProps()} />
+      <ClusterLoginPresentation {...makeProps(storyProps)} />
     </TestContainer>
   );
 };
 
-export const LocalLoggedInUserWithPasswordless = () => {
-  const props = makeProps();
+export const LocalLoggedInUserWithPasswordless = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.loggedInUserName = 'llama';
 
   return (
@@ -160,8 +172,8 @@ export const LocalLoggedInUserWithPasswordless = () => {
   );
 };
 
-export const LocalWithSso = () => {
-  const props = makeProps();
+export const LocalWithSso = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.initAttempt.data.authProviders = authProviders;
 
   return (
@@ -171,8 +183,8 @@ export const LocalWithSso = () => {
   );
 };
 
-export const PasswordlessWithLocal = () => {
-  const props = makeProps();
+export const PasswordlessWithLocal = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.initAttempt.data.localConnectorName = 'passwordless';
 
   return (
@@ -182,8 +194,8 @@ export const PasswordlessWithLocal = () => {
   );
 };
 
-export const PasswordlessWithLocalLoggedInUser = () => {
-  const props = makeProps();
+export const PasswordlessWithLocalLoggedInUser = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.initAttempt.data.localConnectorName = 'passwordless';
   props.loggedInUserName = 'llama';
 
@@ -194,8 +206,8 @@ export const PasswordlessWithLocalLoggedInUser = () => {
   );
 };
 
-export const SsoWithLocalAndPasswordless = () => {
-  const props = makeProps();
+export const SsoWithLocalAndPasswordless = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.initAttempt.data.authType = 'github';
   props.initAttempt.data.authProviders = authProviders;
 
@@ -206,8 +218,8 @@ export const SsoWithLocalAndPasswordless = () => {
   );
 };
 
-export const SsoWithNoProvidersConfigured = () => {
-  const props = makeProps();
+export const SsoWithNoProvidersConfigured = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.initAttempt.data.authType = 'github';
 
   return (
@@ -217,8 +229,8 @@ export const SsoWithNoProvidersConfigured = () => {
   );
 };
 
-export const HardwareTapPrompt = () => {
-  const props = makeProps();
+export const HardwareTapPrompt = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.loginAttempt.status = 'processing';
   props.passwordlessLoginState = {
     prompt: 'tap',
@@ -230,8 +242,8 @@ export const HardwareTapPrompt = () => {
   );
 };
 
-export const HardwarePinPrompt = () => {
-  const props = makeProps();
+export const HardwarePinPrompt = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.loginAttempt.status = 'processing';
   props.passwordlessLoginState = {
     prompt: 'pin',
@@ -243,8 +255,8 @@ export const HardwarePinPrompt = () => {
   );
 };
 
-export const HardwareRetapPrompt = () => {
-  const props = makeProps();
+export const HardwareRetapPrompt = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.loginAttempt.status = 'processing';
   props.passwordlessLoginState = {
     prompt: 'retap',
@@ -256,8 +268,8 @@ export const HardwareRetapPrompt = () => {
   );
 };
 
-export const HardwareCredentialPrompt = () => {
-  const props = makeProps();
+export const HardwareCredentialPrompt = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.loginAttempt.status = 'processing';
   props.passwordlessLoginState = {
     prompt: 'credential',
@@ -278,8 +290,8 @@ export const HardwareCredentialPrompt = () => {
   );
 };
 
-export const HardwareCredentialPromptProcessing = () => {
-  const props = makeProps();
+export const HardwareCredentialPromptProcessing = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.loginAttempt.status = 'processing';
   props.passwordlessLoginState = {
     prompt: 'credential',

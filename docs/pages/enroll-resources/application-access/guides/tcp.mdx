@@ -23,7 +23,7 @@ and `*.teleport.example.com`. You can substitute the address of your Teleport
 Proxy Service. (For Teleport Cloud customers, this will be similar to
 `mytenant.teleport.sh`.)
 
-<Admonition type="note" title="Application Access and DNS" scope={["oss", "enterprise"]} scopeOnly>
+<Admonition type="note">
 (!docs/pages/includes/dns-app-access.mdx!)
 </Admonition>
 
@@ -147,6 +147,56 @@ $ psql postgres://postgres@localhost:55868/postgres
 ```
 
 ## Next steps
+
+### Configuring access to multiple ports
+
+By default, the Application Service proxies connections to the `uri` field from the application
+specification. However, Teleport can enable access to multiple ports of a TCP application. An
+application specification in this case needs to have no port number in the `uri` field and a new
+field called `tcp_ports` with a list of ports.
+
+For example, let's take tcp-app from the steps above and add access to port 8080 and port range
+31276-32300. The Application Service definition should look like this:
+
+```yaml
+app_service:
+  enabled: "yes"
+  apps:
+  - name: "tcp-app"
+    uri: tcp://localhost # No port in the URI
+    tcp_ports:
+    - port: 5432 # PostgreSQL
+    - port: 8080 # HTTP server
+    - port: 31276
+      end_port: 32300 # Inclusive end of range
+```
+
+To access the app, [start VNet](../../../connect-your-client/vnet.mdx) and point an application
+client towards the target port:
+
+```code
+$ curl -I http://tcp-app.teleport.example.com:8080
+HTTP/1.1 200 OK
+
+$ psql postgres://postgres@tcp-app.teleport.example.com:5432/postgres
+```
+
+<Admonition type="warning">
+There is no RBAC for TCP ports – a user that has access to an application can connect to any port in
+the specification. We&nbsp;strongly recommend specifying only the necessary ports instead of defining a
+wide port range that happens to include ports that are meant to be available.
+</Admonition>
+
+{/* TODO: DELETE IN 19.0.0. At this point all compatible servers and clients are going
+to support multiple ports. */}
+
+Support for multiple ports is available in Teleport v17.1+. Connections from Teleport clients that
+do not support multiple ports are routed to the first port from the application specification. An
+Application Service that does not support multiple ports will not be able to handle traffic to a
+multi-port application if it receives such application through [dynamic
+registration](./dynamic-registration.mdx) from an Auth Service.
+
+### Further reading
 
 - Learn about [access controls](../controls.mdx) for applications.
 - Learn how to [connect to TCP apps with VNet](../../../connect-your-client/vnet.mdx) and

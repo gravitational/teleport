@@ -16,15 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useStore } from 'shared/libs/stores';
-
-import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
-import { unique } from 'teleterm/ui/utils/uid';
-
 import type {
   NotificationItem,
   NotificationItemContent,
 } from 'shared/components/Notification';
+import { useStore } from 'shared/libs/stores';
+
+import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
+import { unique } from 'teleterm/ui/utils/uid';
 
 export class NotificationsService extends ImmutableStore<NotificationItem[]> {
   state: NotificationItem[] = [];
@@ -42,6 +41,14 @@ export class NotificationsService extends ImmutableStore<NotificationItem[]> {
   }
 
   removeNotification(id: string): void {
+    if (!id) {
+      return;
+    }
+
+    if (!this.state.length) {
+      return;
+    }
+
     this.setState(draftState =>
       draftState.filter(stateItem => stateItem.id !== id)
     );
@@ -49,6 +56,10 @@ export class NotificationsService extends ImmutableStore<NotificationItem[]> {
 
   getNotifications(): NotificationItem[] {
     return this.state;
+  }
+
+  hasNotification(id: string): boolean {
+    return !!this.state.find(n => n.id === id);
   }
 
   useState(): NotificationItem[] {

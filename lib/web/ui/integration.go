@@ -21,6 +21,7 @@ package ui
 import (
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -48,6 +49,11 @@ type IntegrationAWSOIDCSpec struct {
 	Audience string `json:"audience,omitempty"`
 }
 
+// IntegrationGitHub contains the specific fields for the `github` subkind integration.
+type IntegrationGitHub struct {
+	Organization string `json:"organization"`
+}
+
 // CheckAndSetDefaults for the aws oidc integration spec.
 func (r *IntegrationAWSOIDCSpec) CheckAndSetDefaults() error {
 	if r.RoleARN == "" {
@@ -62,6 +68,68 @@ func (r *IntegrationAWSOIDCSpec) CheckAndSetDefaults() error {
 	return nil
 }
 
+// IntegrationWithSummary describes Integration fields and the fields required to return the summary.
+type IntegrationWithSummary struct {
+	*Integration
+	// UnresolvedUserTasks contains the count of unresolved user tasks related to this integration.
+	UnresolvedUserTasks int `json:"unresolvedUserTasks"`
+	// AWSEC2 contains the summary for the AWS EC2 resources for this integration.
+	AWSEC2 ResourceTypeSummary `json:"awsec2,omitempty"`
+	// AWSRDS contains the summary for the AWS RDS resources and agents for this integration.
+	AWSRDS ResourceTypeSummary `json:"awsrds,omitempty"`
+	// AWSEKS contains the summary for the AWS EKS resources for this integration.
+	AWSEKS ResourceTypeSummary `json:"awseks,omitempty"`
+}
+
+// ResourceTypeSummary contains the summary of the enrollment rules and found resources by the integration.
+type ResourceTypeSummary struct {
+	// RulesCount is the number of enrollment rules that are using this integration.
+	// A rule is a matcher in a DiscoveryConfig that is being processed by a DiscoveryService.
+	// If the DiscoveryService is not reporting any Status, it means it is not being processed and it doesn't count for the number of rules.
+	// Example 1: a DiscoveryConfig with a matcher whose Type is "EC2" for two regions count as two EC2 rules.
+	// Example 2: a DiscoveryConfig with a matcher whose Types is "EC2,RDS" for one regions count as one EC2 rule.
+	// Example 3: a DiscoveryConfig with a matcher whose Types is "EC2,RDS", but has no DiscoveryService using it, it counts as 0 rules.
+	RulesCount int `json:"rulesCount,omitempty"`
+	// ResourcesFound contains the count of resources found by this integration.
+	ResourcesFound int `json:"resourcesFound,omitempty"`
+	// ResourcesEnrollmentFailed contains the count of resources that failed to enroll into the cluster.
+	ResourcesEnrollmentFailed int `json:"resourcesEnrollmentFailed,omitempty"`
+	// ResourcesEnrollmentSuccess contains the count of resources that succeeded to enroll into the cluster.
+	ResourcesEnrollmentSuccess int `json:"resourcesEnrollmentSuccess,omitempty"`
+	// DiscoverLastSync contains the time when this integration tried to auto-enroll resources.
+	DiscoverLastSync *time.Time `json:"discoverLastSync,omitempty"`
+	// UnresolvedUserTasks contains the count of unresolved user tasks related to this integration and resource type.
+	UnresolvedUserTasks int `json:"unresolvedUserTasks"`
+	// ECSDatabaseServiceCount is the total number of DatabaseServices that were deployed into Amazon ECS.
+	// Only applicable for AWS RDS resource summary.
+	ECSDatabaseServiceCount int `json:"ecsDatabaseServiceCount,omitempty"`
+}
+
+// IntegrationDiscoveryRule describes a discovery rule associated with an integration.
+type IntegrationDiscoveryRule struct {
+	// ResourceType indicates the type of resource that this rule targets.
+	// This is the same value that is set in DiscoveryConfig.AWS.<Matcher>.Types
+	// Example: ec2, rds, eks
+	ResourceType string `json:"resourceType,omitempty"`
+	// Region where this rule applies to.
+	Region string `json:"region,omitempty"`
+	// LabelMatcher is the set of labels that are used to filter the resources before trying to auto-enroll them.
+	LabelMatcher []ui.Label `json:"labelMatcher,omitempty"`
+	// DiscoveryConfig is the name of the DiscoveryConfig that created this rule.
+	DiscoveryConfig string `json:"discoveryConfig,omitempty"`
+	// LastSync contains the time when this rule was used.
+	// If empty, it indicates that the rule is not being used.
+	LastSync *time.Time `json:"lastSync,omitempty"`
+}
+
+// IntegrationDiscoveryRules contains the list of discovery rules for a given Integration.
+type IntegrationDiscoveryRules struct {
+	// Rules is the list of integration rules.
+	Rules []IntegrationDiscoveryRule `json:"rules"`
+	// NextKey is the position to resume listing rules.
+	NextKey string `json:"nextKey,omitempty"`
+}
+
 // Integration describes Integration fields
 type Integration struct {
 	// Name is the Integration name.
@@ -70,6 +138,8 @@ type Integration struct {
 	SubKind string `json:"subKind,omitempty"`
 	// AWSOIDC contains the fields for `aws-oidc` subkind integration.
 	AWSOIDC *IntegrationAWSOIDCSpec `json:"awsoidc,omitempty"`
+	// GitHub contains the fields for `github` subkind integration.
+	GitHub *IntegrationGitHub `json:"github,omitempty"`
 }
 
 // CheckAndSetDefaults for the create request.
@@ -89,6 +159,45 @@ func (r *Integration) CheckAndSetDefaults() error {
 		}
 	}
 
+	switch r.SubKind {
+	case types.IntegrationSubKindGitHub:
+		if r.GitHub == nil {
+			return trace.BadParameter("missing spec for GitHub integrations")
+		}
+		if err := types.ValidateGitHubOrganizationName(r.GitHub.Organization); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+type IntegrationOAuthCredentials struct {
+	ID     string `json:"id"`
+	Secret string `json:"secret"`
+}
+
+type CreateIntegrationRequest struct {
+	Integration
+
+	OAuth *IntegrationOAuthCredentials `json:"oauth,omitempty"`
+}
+
+func (r *CreateIntegrationRequest) CheckAndSetDefaults() error {
+	if err := r.Integration.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if r.SubKind == types.IntegrationSubKindGitHub {
+		if r.OAuth == nil {
+			return trace.BadParameter("missing OAuth settings for GitHub integrations")
+		}
+		if r.OAuth.ID == "" {
+			return trace.BadParameter("missing OAuth ID for GitHub integration")
+		}
+		if r.OAuth.Secret == "" {
+			return trace.BadParameter("missing OAuth secret for GitHub integration")
+		}
+	}
 	return nil
 }
 
@@ -96,6 +205,8 @@ func (r *Integration) CheckAndSetDefaults() error {
 type UpdateIntegrationRequest struct {
 	// AWSOIDC contains the fields for `aws-oidc` subkind integration.
 	AWSOIDC *IntegrationAWSOIDCSpec `json:"awsoidc,omitempty"`
+	// OAuth contains OAuth settings.
+	OAuth *IntegrationOAuthCredentials `json:"oauth,omitempty"`
 }
 
 // CheckAndSetDefaults checks if the provided values are valid.
@@ -103,6 +214,13 @@ func (r *UpdateIntegrationRequest) CheckAndSetDefaults() error {
 	if r.AWSOIDC != nil {
 		if err := r.AWSOIDC.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
+		}
+	}
+	if r.OAuth != nil {
+		// Update allows reuse of the existing ID but secret must always be
+		// provided.
+		if r.OAuth.Secret == "" {
+			return trace.BadParameter("missing OAuth secret for GitHub integration")
 		}
 	}
 
@@ -160,6 +278,14 @@ func MakeIntegration(ig types.Integration) (*Integration, error) {
 			IssuerS3Bucket: s3Bucket,
 			IssuerS3Prefix: s3Prefix,
 			Audience:       ig.GetAWSOIDCIntegrationSpec().Audience,
+		}
+	case types.IntegrationSubKindGitHub:
+		spec := ig.GetGitHubIntegrationSpec()
+		if spec == nil {
+			return nil, trace.BadParameter("missing spec for GitHub integrations")
+		}
+		ret.GitHub = &IntegrationGitHub{
+			Organization: spec.Organization,
 		}
 	}
 
@@ -287,6 +413,26 @@ type AWSOIDCDeployDatabaseServiceResponse struct {
 	ClusterDashboardURL string `json:"clusterDashboardUrl"`
 }
 
+// AWSOIDCDeployedDatabaseService represents a Teleport Database Service that is deployed in Amazon ECS.
+type AWSOIDCDeployedDatabaseService struct {
+	// Name is the ECS Service name.
+	Name string `json:"name,omitempty"`
+	// DashboardURL is the link to the ECS Service in Amazon Web Console.
+	DashboardURL string `json:"dashboardUrl,omitempty"`
+	// ValidTeleportConfig returns whether this ECS Service has a valid Teleport Configuration for a deployed Database Service.
+	// ECS Services with non-valid configuration require the user to take action on them.
+	// No MatchingLabels are returned with an invalid configuration.
+	ValidTeleportConfig bool `json:"validTeleportConfig,omitempty"`
+	// MatchingLabels are the labels that are used by the Teleport Database Service to know which databases it should proxy.
+	MatchingLabels []ui.Label `json:"matchingLabels,omitempty"`
+}
+
+// AWSOIDCListDeployedDatabaseServiceResponse is a list of Teleport Database Services that are deployed as ECS Services.
+type AWSOIDCListDeployedDatabaseServiceResponse struct {
+	// Services are the ECS Services.
+	Services []AWSOIDCDeployedDatabaseService `json:"services"`
+}
+
 // AWSOIDCEnrollEKSClustersRequest is a request to ListEKSClusters using the AWS OIDC Integration.
 type AWSOIDCEnrollEKSClustersRequest struct {
 	// Region is the AWS Region.
@@ -295,6 +441,8 @@ type AWSOIDCEnrollEKSClustersRequest struct {
 	ClusterNames []string `json:"clusterNames"`
 	// EnableAppDiscovery specifies if Teleport Kubernetes App discovery should be enabled inside enrolled clusters.
 	EnableAppDiscovery bool `json:"enableAppDiscovery"`
+	// ExtraLabels added to the enrolled clusters.
+	ExtraLabels []ui.Label `json:"extraLabels"`
 }
 
 // EKSClusterEnrollmentResult contains result/error for a single cluster enrollment.
@@ -327,25 +475,6 @@ type AWSOIDCListEKSClustersRequest struct {
 type AWSOIDCListEKSClustersResponse struct {
 	// Clusters contains the page with list of EKSCluster
 	Clusters []EKSCluster `json:"clusters"`
-
-	// NextToken is used for pagination.
-	// If non-empty, it can be used to request the next page.
-	NextToken string `json:"nextToken,omitempty"`
-}
-
-// AWSOIDCListEC2Request is a request to ListEC2s using the AWS OIDC Integration.
-type AWSOIDCListEC2Request struct {
-	// Region is the AWS Region.
-	Region string `json:"region"`
-	// NextToken is the token to be used to fetch the next page.
-	// If empty, the first page is fetched.
-	NextToken string `json:"nextToken"`
-}
-
-// AWSOIDCListEC2Response contains a list of Servers and a next token if more pages are available.
-type AWSOIDCListEC2Response struct {
-	// Servers contains the page of Servers
-	Servers []Server `json:"servers"`
 
 	// NextToken is used for pagination.
 	// If non-empty, it can be used to request the next page.
@@ -443,78 +572,6 @@ type AWSOIDCRequiredVPCSResponse struct {
 	VPCMapOfSubnets map[string][]string `json:"vpcMapOfSubnets"`
 }
 
-// AWSOIDCListEC2ICERequest is a request to ListEC2ICEs using the AWS OIDC Integration.
-type AWSOIDCListEC2ICERequest struct {
-	// Region is the AWS Region.
-	Region string `json:"region"`
-	// VPCID is the VPC to filter EC2 Instance Connect Endpoints.
-	// Deprecated: use VPCIDs instead.
-	VPCID string `json:"vpcId"`
-	// VPCIDs is a list of VPCs to filter EC2 Instance Connect Endpoints.
-	VPCIDs []string `json:"vpcIds"`
-	// NextToken is the token to be used to fetch the next page.
-	// If empty, the first page is fetched.
-	NextToken string `json:"nextToken"`
-}
-
-// AWSOIDCListEC2ICEResponse contains a list of AWS Instance Connect Endpoints and a next token if more pages are available.
-type AWSOIDCListEC2ICEResponse struct {
-	// EC2ICEs contains the page of Endpoints
-	EC2ICEs []awsoidc.EC2InstanceConnectEndpoint `json:"ec2Ices"`
-
-	// DashboardLink is the URL for AWS Web Console that lists all the Endpoints for the queries VPCs.
-	DashboardLink string `json:"dashboardLink,omitempty"`
-
-	// NextToken is used for pagination.
-	// If non-empty, it can be used to request the next page.
-	NextToken string `json:"nextToken,omitempty"`
-}
-
-// AWSOIDCDeployEC2ICERequest is a request to create an AWS EC2 Instance Connect Endpoint.
-type AWSOIDCDeployEC2ICERequest struct {
-	// Region is the AWS Region.
-	Region string `json:"region"`
-	// Endpoints is a list of endpoinst to create.
-	Endpoints []AWSOIDCDeployEC2ICERequestEndpoint `json:"endpoints"`
-
-	// SubnetID is the subnet id for the EC2 Instance Connect Endpoint.
-	// Deprecated: use Endpoints instead.
-	SubnetID string `json:"subnetId"`
-	// SecurityGroupIDs is the list of SecurityGroups to apply to the Endpoint.
-	// If not specified, the Endpoint will receive the default SG for the Subnet's VPC.
-	// Deprecated: use Endpoints instead.
-	SecurityGroupIDs []string `json:"securityGroupIds"`
-}
-
-// AWSOIDCDeployEC2ICERequestEndpoint is a single Endpoint that should be created.
-type AWSOIDCDeployEC2ICERequestEndpoint struct {
-	// SubnetID is the subnet id for the EC2 Instance Connect Endpoint.
-	SubnetID string `json:"subnetId"`
-	// SecurityGroupIDs is the list of SecurityGroups to apply to the Endpoint.
-	// If not specified, the Endpoint will receive the default SG for the Subnet's VPC.
-	SecurityGroupIDs []string `json:"securityGroupIds"`
-}
-
-// AWSOIDCDeployEC2ICEResponse is the response after creating an AWS EC2 Instance Connect Endpoint.
-type AWSOIDCDeployEC2ICEResponse struct {
-	// Name is the name of the endpoint that was created.
-	// If multiple endpoints were created, this will contain all of them joined by a `,`.
-	// Eg, eice-1,eice-2
-	// Deprecated: use Endpoints instead.
-	Name string `json:"name"`
-
-	// Endpoints is a list of created endpoints
-	Endpoints []AWSOIDCDeployEC2ICEResponseEndpoint `json:"endpoints"`
-}
-
-// AWSOIDCDeployEC2ICEResponseEndpoint describes a single endpoint that was created.
-type AWSOIDCDeployEC2ICEResponseEndpoint struct {
-	// Name is the EC2 Instance Connect Endpoint name.
-	Name string `json:"name"`
-	// SubnetID is the subnet where this endpoint was created.
-	SubnetID string `json:"subnetId"`
-}
-
 // AWSOIDCPingResponse contains the result of the Ping request.
 // This response contains meta information about the current state of the Integration.
 type AWSOIDCPingResponse struct {
@@ -532,4 +589,10 @@ type AWSOIDCPingRequest struct {
 	// pinging to check validity before upserting an
 	// AWS OIDC integration.
 	RoleARN string `json:"roleArn,omitempty"`
+}
+
+// AWSOIDCDeployEC2ICERequest contains request fields for creating an app server.
+type AWSOIDCCreateAWSAppAccessRequest struct {
+	// Labels added to the app server resource that will be created.
+	Labels map[string]string `json:"labels"`
 }

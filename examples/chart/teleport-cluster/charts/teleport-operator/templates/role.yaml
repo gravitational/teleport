@@ -36,6 +36,8 @@ rules:
       - teleportopensshserversv2/status
       - teleportopenssheiceserversv2
       - teleportopenssheiceserversv2/status
+      - teleporttrustedclustersv2
+      - teleporttrustedclustersv2/status
     verbs:
       - get
       - list
@@ -66,5 +68,6 @@ rules:
     verbs:
       - "get"
       - "list"
+      - "watch"
 {{- end -}}
 {{- end -}}

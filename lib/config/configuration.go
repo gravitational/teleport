@@ -27,7 +27,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"io"
-	"io/fs"
 	"log/slog"
 	"maps"
 	"net"
@@ -45,7 +44,6 @@ import (
 
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -71,13 +69,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-)
-
-const (
-	// logFileDefaultMode is the preferred permissions mode for log file.
-	logFileDefaultMode fs.FileMode = 0o644
-	// logFileDefaultFlag is the preferred flags set to log file.
-	logFileDefaultFlag = os.O_WRONLY | os.O_CREATE | os.O_APPEND
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset
@@ -219,10 +210,6 @@ type CommandLineFlags struct {
 	// `teleport integration configure deployservice-iam` command
 	IntegrationConfDeployServiceIAMArguments IntegrationConfDeployServiceIAM
 
-	// IntegrationConfEICEIAMArguments contains the arguments of
-	// `teleport integration configure eice-iam` command
-	IntegrationConfEICEIAMArguments IntegrationConfEICEIAM
-
 	// IntegrationConfAWSAppAccessIAMArguments contains the arguments of
 	// `teleport integration configure aws-app-access-iam` command
 	IntegrationConfAWSAppAccessIAMArguments IntegrationConfAWSAppAccessIAM
@@ -250,6 +237,10 @@ type CommandLineFlags struct {
 	// IntegrationConfAccessGraphAWSSyncArguments contains the arguments of
 	// `teleport integration configure access-graph aws-iam` command
 	IntegrationConfAccessGraphAWSSyncArguments IntegrationConfAccessGraphAWSSync
+
+	// IntegrationConfAccessGarphAzureSyncArguments contains the arguments of
+	// `teleport integration configure access-graph azure` command
+	IntegrationConfAccessGraphAzureSyncArguments IntegrationConfAccessGraphAzureSync
 
 	// IntegrationConfAzureOIDCArguments contains the arguments of
 	// `teleport integration configure azure-oidc` command
@@ -280,6 +271,19 @@ type IntegrationConfAccessGraphAWSSync struct {
 	// AccountID is the AWS account ID.
 	AccountID string
 	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
+}
+
+// IntegrationConfAccessGraphAzureSync contains the arguments of
+// `teleport integration configure access-graph azure` command.
+type IntegrationConfAccessGraphAzureSync struct {
+	// ManagedIdentity is the principal performing the discovery
+	ManagedIdentity string
+	// RoleName is the name of the Azure Role to create and assign to the managed identity
+	RoleName string
+	// SubscriptionID is the Azure subscription containing resources for sync
+	SubscriptionID string
+	// AutoConfirm skips user confirmation of the operation plan if true
 	AutoConfirm bool
 }
 
@@ -315,19 +319,6 @@ type IntegrationConfDeployServiceIAM struct {
 	Role string
 	// TaskRole is the AWS Role to be used by the deployed service.
 	TaskRole string
-	// AccountID is the AWS account ID.
-	AccountID string
-	// AutoConfirm skips user confirmation of the operation plan if true.
-	AutoConfirm bool
-}
-
-// IntegrationConfEICEIAM contains the arguments of
-// `teleport integration configure eice-iam` command
-type IntegrationConfEICEIAM struct {
-	// Region is the AWS Region used to set up the client.
-	Region string
-	// Role is the AWS Role associated with the Integration
-	Role string
 	// AccountID is the AWS account ID.
 	AccountID string
 	// AutoConfirm skips user confirmation of the operation plan if true.
@@ -429,10 +420,10 @@ func ReadConfigFile(cliConfigPath string) (*FileConfig, error) {
 	}
 	// default config doesn't exist? quietly return:
 	if !utils.FileExists(configFilePath) {
-		log.Info("not using a config file")
+		slog.InfoContext(context.Background(), "not using a config file")
 		return nil, nil
 	}
-	log.Debug("reading config file: ", configFilePath)
+	slog.DebugContext(context.Background(), "reading config file", "config_file", configFilePath)
 	return ReadFromFile(configFilePath)
 }
 
@@ -569,13 +560,14 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 
+	ctx := context.Background()
 	if fc.CachePolicy.TTL != "" {
-		log.Warn("cache.ttl config option is deprecated and will be ignored, caches no longer attempt to anticipate resource expiration.")
+		slog.WarnContext(ctx, "cache.ttl config option is deprecated and will be ignored, caches no longer attempt to anticipate resource expiration")
 	}
 	if fc.CachePolicy.Type == memory.GetName() {
-		log.Debugf("cache.type config option is explicitly set to %v.", memory.GetName())
+		slog.DebugContext(ctx, "cache.type config option is explicitly set to memory")
 	} else if fc.CachePolicy.Type != "" {
-		log.Warn("cache.type config option is deprecated and will be ignored, caches are always in memory in this version.")
+		slog.WarnContext(ctx, "cache.type config option is deprecated and will be ignored, caches are always in memory in this version")
 	}
 
 	// apply cache policy for node and proxy
@@ -604,7 +596,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.MACAlgorithms = fc.MACAlgorithms
 	}
 	if fc.CASignatureAlgorithm != nil {
-		log.Warn("ca_signing_algo config option is deprecated and will be removed in a future release, Teleport defaults to rsa-sha2-512.")
+		slog.WarnContext(ctx, "ca_signing_algo config option is deprecated and will be removed in a future release, Teleport defaults to rsa-sha2-512")
 	}
 
 	// Read in how nodes will validate the CA. A single empty string in the file
@@ -789,137 +781,18 @@ func applyAuthOrProxyAddress(fc *FileConfig, cfg *servicecfg.Config) error {
 }
 
 func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
-	// TODO: this code is copied in the access plugin logging setup `logger.Config.NewSLogLogger`
-	// We'll want to deduplicate the logic next time we refactor the logging setup
-	logger := log.StandardLogger()
-
-	var w io.Writer
-	switch loggerConfig.Output {
-	case "":
-		w = logutils.NewSharedWriter(os.Stderr)
-	case "stderr", "error", "2":
-		w = logutils.NewSharedWriter(os.Stderr)
-		cfg.Console = io.Discard // disable console printing
-	case "stdout", "out", "1":
-		w = logutils.NewSharedWriter(os.Stdout)
-		cfg.Console = io.Discard // disable console printing
-	case teleport.Syslog:
-		w = os.Stderr
-		sw, err := utils.NewSyslogWriter()
-		if err != nil {
-			logger.Errorf("Failed to switch logging to syslog: %v.", err)
-			break
-		}
-
-		hook, err := utils.NewSyslogHook(sw)
-		if err != nil {
-			logger.Errorf("Failed to switch logging to syslog: %v.", err)
-			break
-		}
-
-		logger.ReplaceHooks(make(log.LevelHooks))
-		logger.AddHook(hook)
-		// If syslog output has been configured and is supported by the operating system,
-		// then the shared writer is not needed because the syslog writer is already
-		// protected with a mutex.
-		w = sw
-	default:
-		// Assume this is a file path.
-		sharedWriter, err := logutils.NewFileSharedWriter(loggerConfig.Output, logFileDefaultFlag, logFileDefaultMode)
-		if err != nil {
-			return trace.Wrap(err, "failed to init the log file shared writer")
-		}
-		w = logutils.NewWriterFinalizer[*logutils.FileSharedWriter](sharedWriter)
-		if err := sharedWriter.RunWatcherReopen(context.Background()); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	level := new(slog.LevelVar)
-	switch strings.ToLower(loggerConfig.Severity) {
-	case "", "info":
-		logger.SetLevel(log.InfoLevel)
-		level.Set(slog.LevelInfo)
-	case "err", "error":
-		logger.SetLevel(log.ErrorLevel)
-		level.Set(slog.LevelError)
-	case teleport.DebugLevel:
-		logger.SetLevel(log.DebugLevel)
-		level.Set(slog.LevelDebug)
-	case "warn", "warning":
-		logger.SetLevel(log.WarnLevel)
-		level.Set(slog.LevelWarn)
-	case "trace":
-		logger.SetLevel(log.TraceLevel)
-		level.Set(logutils.TraceLevel)
-	default:
-		return trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
-	}
-
-	configuredFields, err := logutils.ValidateFields(loggerConfig.Format.ExtraFields)
+	logger, level, err := logutils.Initialize(logutils.Config{
+		Output:       loggerConfig.Output,
+		Severity:     loggerConfig.Severity,
+		Format:       loggerConfig.Format.Output,
+		ExtraFields:  loggerConfig.Format.ExtraFields,
+		EnableColors: utils.IsTerminal(os.Stderr),
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	var slogLogger *slog.Logger
-	switch strings.ToLower(loggerConfig.Format.Output) {
-	case "":
-		fallthrough // not set. defaults to 'text'
-	case "text":
-		enableColors := utils.IsTerminal(os.Stderr)
-		formatter := &logutils.TextFormatter{
-			ExtraFields:  configuredFields,
-			EnableColors: enableColors,
-		}
-
-		if err := formatter.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-
-		logger.SetFormatter(formatter)
-		// Disable writing output to stderr/stdout and syslog. The logging
-		// hook will take care of writing the output to the correct location.
-		if len(logger.Hooks) > 0 {
-			logger.SetOutput(io.Discard)
-		} else {
-			logger.SetOutput(w)
-		}
-
-		slogLogger = slog.New(logutils.NewSlogTextHandler(w, logutils.SlogTextHandlerConfig{
-			Level:            level,
-			EnableColors:     enableColors,
-			ConfiguredFields: configuredFields,
-		}))
-		slog.SetDefault(slogLogger)
-	case "json":
-		formatter := &logutils.JSONFormatter{
-			ExtraFields: configuredFields,
-		}
-
-		if err := formatter.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-
-		logger.SetFormatter(formatter)
-		// Disable writing output to stderr/stdout and syslog. The logging
-		// hook will take care of writing the output to the correct location.
-		if len(logger.Hooks) > 0 {
-			logger.SetOutput(io.Discard)
-		} else {
-			logger.SetOutput(w)
-		}
-
-		slogLogger = slog.New(logutils.NewSlogJSONHandler(w, logutils.SlogJSONHandlerConfig{
-			Level:            level,
-			ConfiguredFields: configuredFields,
-		}))
-		slog.SetDefault(slogLogger)
-	default:
-		return trace.BadParameter("unsupported log output format : %q", loggerConfig.Format.Output)
-	}
-
-	cfg.Log = logger
-	cfg.Logger = slogLogger
+	cfg.Logger = logger
 	cfg.LoggerLevel = level
 	return nil
 }
@@ -929,9 +802,9 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	var err error
 
 	if fc.Auth.KubeconfigFile != "" {
-		warningMessage := "The auth_service no longer needs kubeconfig_file. It has " +
+		const warningMessage = "The auth_service no longer needs kubeconfig_file. It has " +
 			"been moved to proxy_service section. This setting is ignored."
-		log.Warning(warningMessage)
+		slog.WarnContext(context.Background(), warningMessage)
 	}
 
 	cfg.Auth.PROXYProtocolMode = multiplexer.PROXYProtocolUnspecified
@@ -1121,6 +994,7 @@ func applyPKCS11Config(pkcs11Config *PKCS11, cfg *servicecfg.Config) error {
 
 	cfg.Auth.KeyStore.PKCS11.TokenLabel = pkcs11Config.TokenLabel
 	cfg.Auth.KeyStore.PKCS11.SlotNumber = pkcs11Config.SlotNumber
+	cfg.Auth.KeyStore.PKCS11.MaxSessions = pkcs11Config.MaxSessions
 
 	cfg.Auth.KeyStore.PKCS11.PIN = pkcs11Config.PIN
 	if pkcs11Config.PINPath != "" {
@@ -1167,13 +1041,15 @@ func applyAWSKMSConfig(kmsConfig *AWSKMS, cfg *servicecfg.Config) error {
 	if kmsConfig.Account == "" {
 		return trace.BadParameter("must set account in ca_key_params.aws_kms")
 	}
-	cfg.Auth.KeyStore.AWSKMS.AWSAccount = kmsConfig.Account
 	if kmsConfig.Region == "" {
 		return trace.BadParameter("must set region in ca_key_params.aws_kms")
 	}
-	cfg.Auth.KeyStore.AWSKMS.AWSRegion = kmsConfig.Region
-	cfg.Auth.KeyStore.AWSKMS.MultiRegion = kmsConfig.MultiRegion
-	cfg.Auth.KeyStore.AWSKMS.Tags = kmsConfig.Tags
+	cfg.Auth.KeyStore.AWSKMS = &servicecfg.AWSKMSConfig{
+		AWSAccount:  kmsConfig.Account,
+		AWSRegion:   kmsConfig.Region,
+		MultiRegion: kmsConfig.MultiRegion,
+		Tags:        kmsConfig.Tags,
+	}
 	return nil
 }
 
@@ -1313,10 +1189,10 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			return trace.Wrap(err)
 		}
 		if utils.IsSelfSigned(certificateChain) {
-			warningMessage := "Starting Teleport with a self-signed TLS certificate, this is " +
+			const warningMessage = "Starting Teleport with a self-signed TLS certificate, this is " +
 				"not safe for production clusters. Using a self-signed certificate opens " +
 				"Teleport users to Man-in-the-Middle attacks."
-			log.Warn(warningMessage)
+			slog.WarnContext(context.Background(), warningMessage)
 		} else {
 			if err := utils.VerifyCertificateChain(certificateChain); err != nil {
 				return trace.BadParameter("unable to verify HTTPS certificate chain in %v:\n\n  %s\n\n  %s",
@@ -1528,7 +1404,7 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 	if fc.SSH.DisableCreateHostUser || runtime.GOOS != constants.LinuxOS {
 		cfg.SSH.DisableCreateHostUser = true
 		if runtime.GOOS != constants.LinuxOS {
-			log.Debugln("Disabling host user creation as this feature is only available on Linux")
+			slog.DebugContext(context.Background(), "Disabling host user creation as this feature is only available on Linux")
 		}
 	}
 	if fc.SSH.PAM != nil {
@@ -1538,17 +1414,17 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 		// and the PAM library was found at runtime.
 		if cfg.SSH.PAM.Enabled {
 			if !pam.BuildHasPAM() {
-				errorMessage := "Unable to start Teleport: PAM was enabled in file configuration but this \n" +
+				const errorMessage = "Unable to start Teleport: PAM was enabled in file configuration but this \n" +
 					"Teleport binary was built without PAM support. To continue either download a \n" +
 					"Teleport binary build with PAM support from https://goteleport.com/teleport \n" +
 					"or disable PAM in file configuration."
-				return trace.BadParameter(errorMessage)
+				return trace.BadParameter("%s", errorMessage)
 			}
 			if !pam.SystemHasPAM() {
-				errorMessage := "Unable to start Teleport: PAM was enabled in file configuration but this \n" +
+				const errorMessage = "Unable to start Teleport: PAM was enabled in file configuration but this \n" +
 					"system does not have the needed PAM library installed. To continue either \n" +
 					"install libpam or disable PAM in file configuration."
-				return trace.BadParameter(errorMessage)
+				return trace.BadParameter("%s", errorMessage)
 			}
 		}
 	}
@@ -1563,7 +1439,7 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 		cfg.SSH.BPF = fc.SSH.BPF.Parse()
 	}
 	if fc.SSH.RestrictedSession != nil {
-		log.Error("Restricted Sessions for SSH were removed in Teleport 15.")
+		slog.ErrorContext(context.Background(), "Restricted Sessions for SSH were removed in Teleport 15")
 	}
 
 	cfg.SSH.AllowTCPForwarding = fc.SSH.AllowTCPForwarding()
@@ -1624,11 +1500,11 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 		for _, region := range matcher.Regions {
 			if !awsutils.IsKnownRegion(region) {
-				log.Warnf("AWS matcher uses unknown region %q. "+
-					"There could be a typo in %q. "+
-					"Ignore this message if this is a new AWS region that is unknown to the AWS SDK used to compile this binary. "+
-					"Known regions are: %v.",
-					region, region, awsutils.GetKnownRegions(),
+				const message = "AWS matcher uses unknown region" +
+					"This is either a typo or a new AWS region that is unknown to the AWS SDK used to compile this binary. "
+				slog.WarnContext(context.Background(), message,
+					"region", region,
+					"known_regions", awsutils.GetKnownRegions(),
 				)
 			}
 		}
@@ -1750,6 +1626,12 @@ kubernetes matchers are present`)
 			tMatcher.AWS = append(tMatcher.AWS, &types.AccessGraphAWSSync{
 				Regions:    regions,
 				AssumeRole: assumeRole,
+			})
+		}
+		for _, azureMatcher := range fc.Discovery.AccessGraph.Azure {
+			subscriptionID := azureMatcher.SubscriptionID
+			tMatcher.Azure = append(tMatcher.Azure, &types.AccessGraphAzureSync{
+				SubscriptionID: subscriptionID,
 			})
 		}
 		if fc.Discovery.AccessGraph.PollInterval > 0 {
@@ -1969,10 +1851,10 @@ func readCACert(database *Database) ([]byte, error) {
 	if database.CACertFile != "" {
 		if database.TLS.CACertFile != "" {
 			// New and old fields are set. Ignore the old field.
-			log.Warnf("Ignoring deprecated ca_cert_file in %s configuration; using tls.ca_cert_file.", database.Name)
+			slog.WarnContext(context.Background(), "Ignoring deprecated ca_cert_file database in configuration; using tls.ca_cert_file", "database", database.Name)
 		} else {
 			// Only old field is set, inform about deprecation.
-			log.Warnf("ca_cert_file is deprecated, please use tls.ca_cert_file instead for %s.", database.Name)
+			slog.WarnContext(context.Background(), "ca_cert_file is deprecated, please use tls.ca_cert_file instead for databases", "database", database.Name)
 
 			caBytes, err = os.ReadFile(database.CACertFile)
 			if err != nil {
@@ -2064,6 +1946,17 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				ExternalID: application.AWS.ExternalID,
 			}
 		}
+
+		if len(application.TCPPorts) != 0 {
+			app.TCPPorts = make([]servicecfg.PortRange, 0, len(application.TCPPorts))
+			for _, portRange := range application.TCPPorts {
+				app.TCPPorts = append(app.TCPPorts, servicecfg.PortRange{
+					Port:    portRange.Port,
+					EndPort: portRange.EndPort,
+				})
+			}
+		}
+
 		if err := app.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
@@ -2183,10 +2076,10 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 	cfg.WindowsDesktop.ShowDesktopWallpaper = fc.WindowsDesktop.ShowDesktopWallpaper
 	if len(fc.WindowsDesktop.ADHosts) > 0 {
-		log.Warnln("hosts field is deprecated, prefer static_hosts instead")
+		slog.WarnContext(context.Background(), "hosts field is deprecated, prefer static_hosts instead")
 	}
 	if len(fc.WindowsDesktop.NonADHosts) > 0 {
-		log.Warnln("non_ad_hosts field is deprecated, prefer static_hosts instead")
+		slog.WarnContext(context.Background(), "non_ad_hosts field is deprecated, prefer static_hosts instead")
 	}
 	cfg.WindowsDesktop.StaticHosts, err = staticHostsWithAddress(fc.WindowsDesktop)
 	if err != nil {
@@ -2617,7 +2510,6 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 
 	// apply --debug flag to config:
 	if clf.Debug {
-		cfg.Console = io.Discard
 		cfg.Debug = clf.Debug
 	}
 
@@ -2636,7 +2528,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 	// apply --auth-server flag:
 	if len(clf.AuthServerAddr) > 0 {
 		if cfg.Auth.Enabled {
-			log.Warnf("not starting the local auth service. --auth-server flag tells to connect to another auth server")
+			slog.WarnContext(context.Background(), "not starting the local auth service. --auth-server flag tells to connect to another auth server")
 			cfg.Auth.Enabled = false
 		}
 
@@ -2730,9 +2622,16 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		cfg.DebugService.Enabled = false
 	}
 
-	// TODO(espadolini): allow this when the implementation is merged
-	if false && os.Getenv("TELEPORT_UNSTABLE_QUIC_PROXY_PEERING") == "yes" {
+	if os.Getenv("TELEPORT_UNSTABLE_QUIC_PROXY_PEERING") == "yes" {
 		cfg.Proxy.QUICProxyPeering = true
+	}
+
+	if rawPeriod := os.Getenv("TELEPORT_UNSTABLE_AGENT_ROLLOUT_SYNC_PERIOD"); rawPeriod != "" {
+		period, err := time.ParseDuration(rawPeriod)
+		if err != nil {
+			return trace.Wrap(err, "invalid agent rollout period %q", rawPeriod)
+		}
+		cfg.Auth.AgentRolloutControllerSyncPeriod = period
 	}
 
 	return nil
@@ -2754,7 +2653,7 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 		cfg.SetToken(clf.AuthToken)
 	}
 
-	log.Debugf("Disabling all services, only the Teleport OpenSSH service can run during the `teleport join openssh` command")
+	slog.DebugContext(context.Background(), "Disabling all services, only the Teleport OpenSSH service can run during the `teleport join openssh` command")
 	servicecfg.DisableLongRunningServices(cfg)
 
 	cfg.DataDir = clf.DataDir
@@ -2886,14 +2785,15 @@ func isCmdLabelSpec(spec string) (types.CommandLabel, error) {
 func applyListenIP(ip net.IP, cfg *servicecfg.Config) {
 	listeningAddresses := []*utils.NetAddr{
 		&cfg.Auth.ListenAddr,
-		&cfg.Auth.ListenAddr,
 		&cfg.Proxy.SSHAddr,
 		&cfg.Proxy.WebAddr,
 		&cfg.SSH.Addr,
 		&cfg.Proxy.ReverseTunnelListenAddr,
 	}
 	for _, addr := range listeningAddresses {
-		replaceHost(addr, ip.String())
+		if !addr.IsEmpty() {
+			replaceHost(addr, ip.String())
+		}
 	}
 }
 
@@ -2902,7 +2802,7 @@ func applyListenIP(ip net.IP, cfg *servicecfg.Config) {
 func replaceHost(addr *utils.NetAddr, newHost string) {
 	_, port, err := net.SplitHostPort(addr.Addr)
 	if err != nil {
-		log.Errorf("failed parsing address: '%v'", addr.Addr)
+		slog.ErrorContext(context.Background(), "failed parsing address", "address", addr.Addr, "error", err)
 	}
 	addr.Addr = net.JoinHostPort(newHost, port)
 }

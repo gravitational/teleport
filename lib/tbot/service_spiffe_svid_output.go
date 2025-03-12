@@ -19,6 +19,7 @@
 package tbot
 
 import (
+	"cmp"
 	"context"
 	"crypto"
 	"crypto/x509"
@@ -38,7 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/teleport/lib/tbot/spiffe"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
 const (
@@ -60,7 +61,7 @@ type SPIFFESVIDOutputService struct {
 	resolver       reversetunnelclient.Resolver
 	// trustBundleCache is the cache of trust bundles. It only needs to be
 	// provided when running in daemon mode.
-	trustBundleCache *spiffe.TrustBundleCache
+	trustBundleCache *workloadidentity.TrustBundleCache
 }
 
 func (s *SPIFFESVIDOutputService) String() string {
@@ -72,7 +73,7 @@ func (s *SPIFFESVIDOutputService) OneShot(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err, "requesting SVID")
 	}
-	bundleSet, err := spiffe.FetchInitialBundleSet(
+	bundleSet, err := workloadidentity.FetchInitialBundleSet(
 		ctx,
 		s.log,
 		s.botAuthClient.SPIFFEFederationServiceClient(),
@@ -134,7 +135,7 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 				privateKey = nil
 			}
 			bundleSet = newBundleSet
-		case <-time.After(s.botCfg.RenewalInterval):
+		case <-time.After(cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval):
 			s.log.InfoContext(ctx, "Renewal interval reached, renewing SVIDs")
 			res = nil
 			privateKey = nil
@@ -183,7 +184,7 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateTTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		nil,
 	)
 	if err != nil {
@@ -202,7 +203,7 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 		ctx,
 		impersonatedClient,
 		[]config.SVIDRequest{s.cfg.SVID},
-		s.botCfg.CertificateTTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 	)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err, "generating X509 SVID")
@@ -213,7 +214,7 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 		impersonatedClient,
 		s.cfg.SVID,
 		s.cfg.JWTs,
-		s.botCfg.CertificateTTL)
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err, "generating JWT SVIDs")
 	}
@@ -223,7 +224,7 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 
 func (s *SPIFFESVIDOutputService) render(
 	ctx context.Context,
-	bundleSet *spiffe.BundleSet,
+	bundleSet *workloadidentity.BundleSet,
 	res *machineidv1pb.SignX509SVIDsResponse,
 	privateKey crypto.Signer,
 	jwtSVIDs map[string]string,

@@ -25,7 +25,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
-	"math/rand"
+	mathrandv1 "math/rand" //nolint:depguard // only used for deterministic output
 	"net"
 	"strings"
 	"sync"
@@ -206,7 +206,7 @@ func (f *fakeGCPKMSServer) AsymmetricSign(ctx context.Context, req *kmspb.Asymme
 		return nil, trace.BadParameter("unsupported digest type %T", typedDigest)
 	}
 
-	testRand := rand.New(rand.NewSource(0))
+	testRand := mathrandv1.New(mathrandv1.NewSource(0))
 	sig, err := signer.Sign(testRand, digest, alg)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -517,7 +517,7 @@ func TestGCPKMSKeystore(t *testing.T) {
 					Key:             clientPrivKey.SSHPublicKey(),
 					CertType:        ssh.HostCert,
 				}
-				err = cert.SignCert(rand.New(rand.NewSource(0)), sshSigner)
+				err = cert.SignCert(mathrandv1.New(mathrandv1.NewSource(0)), sshSigner)
 				if tc.expectSignError {
 					require.Error(t, err, "expected to get error signing SSH cert")
 					return
@@ -545,7 +545,7 @@ func TestGCPKMSKeystore(t *testing.T) {
 					},
 				}
 				_, err = x509.CreateCertificate(
-					rand.New(rand.NewSource(0)),
+					mathrandv1.New(mathrandv1.NewSource(0)),
 					template,
 					tlsCA.Cert,
 					clientPrivKey.Public(),

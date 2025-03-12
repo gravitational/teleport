@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -43,13 +44,52 @@ func WriteFile(dataDir string, id string) error {
 	return nil
 }
 
-// ReadOrCreateFile looks for a hostid file in the data dir. If present,
-// returns the UUID from it, otherwise generates one
-func ReadOrCreateFile(dataDir string) (string, error) {
-	hostUUIDFileLock := GetPath(dataDir) + ".lock"
-	const iterationLimit = 3
+type options struct {
+	retryConfig    retryutils.RetryV2Config
+	iterationLimit int
+}
 
-	for i := 0; i < iterationLimit; i++ {
+// WithBackoff overrides the default backoff configuration of
+// [ReadOrCreateFile].
+func WithBackoff(cfg retryutils.RetryV2Config) func(*options) {
+	return func(o *options) {
+		o.retryConfig = cfg
+	}
+}
+
+// WithIterationLimit overrides the default number of time
+// [ReadOrCreateFile] will attempt to produce a hostid.
+func WithIterationLimit(limit int) func(*options) {
+	return func(o *options) {
+		o.iterationLimit = limit
+	}
+}
+
+// ReadOrCreateFile looks for a hostid file in the data dir. If present,
+// returns the UUID from it, otherwise generates one.
+func ReadOrCreateFile(dataDir string, opts ...func(*options)) (string, error) {
+	o := options{
+		retryConfig: retryutils.RetryV2Config{
+			First:  100 * time.Millisecond,
+			Driver: retryutils.NewLinearDriver(100 * time.Millisecond),
+			Max:    time.Second,
+			Jitter: retryutils.FullJitter,
+		},
+		iterationLimit: 3,
+	}
+
+	for _, opt := range opts {
+		opt(&o)
+	}
+
+	hostUUIDFileLock := GetPath(dataDir) + ".lock"
+
+	backoff, err := retryutils.NewRetryV2(o.retryConfig)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	for i := 0; i < o.iterationLimit; i++ {
 		if read, err := ReadFile(dataDir); err == nil {
 			return read, nil
 		} else if !trace.IsNotFound(err) {
@@ -57,7 +97,7 @@ func ReadOrCreateFile(dataDir string) (string, error) {
 		}
 
 		// Checking error instead of the usual uuid.New() in case uuid generation
-		// fails due to not enough randomness. It's been known to happen happen when
+		// fails due to not enough randomness. It's been known to happen when
 		// Teleport starts very early in the node initialization cycle and /dev/urandom
 		// isn't ready yet.
 		rawID, err := uuid.NewRandom()
@@ -91,12 +131,14 @@ func ReadOrCreateFile(dataDir string) (string, error) {
 		id, err := writeFile(rawID.String())
 		if err != nil {
 			if errors.Is(err, utils.ErrUnsuccessfulLockTry) {
-				time.Sleep(10 * time.Millisecond)
+				backoff.Inc()
+				<-backoff.After()
 				continue
 			}
 
 			return "", trace.Wrap(err)
 		}
+		backoff.Reset()
 
 		return id, nil
 	}

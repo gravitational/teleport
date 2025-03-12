@@ -17,34 +17,34 @@
  */
 
 import { useEffect, useRef } from 'react';
+
 import { useAsync } from 'shared/hooks/useAsync';
 import { runOnce } from 'shared/utils/highbar';
 
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { IAppContext } from 'teleterm/ui/types';
-import {
-  DocumentsService,
-  isDocumentTshNodeWithLoginHost,
-  canDocChangeShell,
-} from 'teleterm/ui/services/workspacesService';
-import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
-import { useWorkspaceContext } from 'teleterm/ui/Documents';
-import { routing } from 'teleterm/ui/uri';
+import Logger from 'teleterm/logger';
+import type { Shell } from 'teleterm/mainProcess/shell';
 import {
   PtyCommand,
   PtyProcessCreationStatus,
   WindowsPty,
 } from 'teleterm/services/pty';
-import { AmbiguousHostnameError } from 'teleterm/ui/services/resources';
-import { retryWithRelogin } from 'teleterm/ui/utils';
-import Logger from 'teleterm/logger';
-import { ClustersService } from 'teleterm/ui/services/clusters';
 import * as tshdGateway from 'teleterm/services/tshd/gateway';
-
-import type { Shell } from 'teleterm/mainProcess/shell';
-import type * as types from 'teleterm/ui/services/workspacesService';
-import type * as uri from 'teleterm/ui/uri';
 import type * as tsh from 'teleterm/services/tshd/types';
+import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import { ClustersService } from 'teleterm/ui/services/clusters';
+import { AmbiguousHostnameError } from 'teleterm/ui/services/resources';
+import {
+  canDocChangeShell,
+  DocumentsService,
+  isDocumentTshNodeWithLoginHost,
+} from 'teleterm/ui/services/workspacesService';
+import type * as types from 'teleterm/ui/services/workspacesService';
+import { IAppContext } from 'teleterm/ui/types';
+import { routing } from 'teleterm/ui/uri';
+import type * as uri from 'teleterm/ui/uri';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 export function useDocumentTerminal(doc: types.DocumentTerminal) {
   const logger = useRef(new Logger('useDocumentTerminal'));
@@ -416,10 +416,10 @@ function createCmd(
   }
 
   if (doc.kind === 'doc.gateway_cli_client') {
-    const gateway = clustersService.findGatewayByConnectionParams(
-      doc.targetUri,
-      doc.targetUser
-    );
+    const gateway = clustersService.findGatewayByConnectionParams({
+      targetUri: doc.targetUri,
+      targetUser: doc.targetUser,
+    });
     if (!gateway) {
       // This shouldn't happen as DocumentGatewayCliClient doesn't render DocumentTerminal before
       // the gateway is found. In any case, if it does happen for some reason, the user will see
@@ -449,10 +449,9 @@ function createCmd(
   }
 
   if (doc.kind === 'doc.gateway_kube') {
-    const gateway = clustersService.findGatewayByConnectionParams(
-      doc.targetUri,
-      ''
-    );
+    const gateway = clustersService.findGatewayByConnectionParams({
+      targetUri: doc.targetUri,
+    });
     if (!gateway) {
       throw new Error(`No gateway found for ${doc.targetUri}`);
     }

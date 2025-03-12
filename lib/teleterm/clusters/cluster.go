@@ -20,10 +20,10 @@ package clusters
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -35,6 +35,7 @@ import (
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
@@ -48,8 +49,8 @@ type Cluster struct {
 	Name string
 	// ProfileName is the name of the tsh profile
 	ProfileName string
-	// Log is a component logger
-	Log *logrus.Entry
+	// Logger is a component logger
+	Logger *slog.Logger
 	// dir is the directory where cluster certificates are stored
 	dir string
 	// Status is the cluster status
@@ -85,6 +86,8 @@ type ClusterWithDetails struct {
 	ProxyVersion string
 	// ShowResources tells if the cluster can show requestable resources on the resources page.
 	ShowResources constants.ShowResources
+	// TrustedDeviceRequirement indicates whether access may be hindered by the lack of a trusted device.
+	TrustedDeviceRequirement types.TrustedDeviceRequirement
 }
 
 // Connected indicates if connection to the cluster can be established
@@ -96,31 +99,25 @@ func (c *Cluster) Connected() bool {
 // Cluster that cannot be found on the disk only, including details about the user
 // and enabled enterprise features. This method requires a valid cert.
 func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.ClientI, clusterIDCache *clusteridcache.Cache) (*ClusterWithDetails, error) {
-	var (
-		clusterPingResponse *webclient.PingResponse
-		webConfig           *webclient.WebConfig
-		authPingResponse    proto.PingResponse
-		caps                *types.AccessCapabilities
-		authClusterID       string
-		acl                 *api.ACL
-		user                types.User
-		roles               []types.Role
-	)
-
 	group, groupCtx := errgroup.WithContext(ctx)
+	const groupLimit = 8 // Arbitrary. No need to increase for every new goroutine.
+	group.SetLimit(groupLimit)
 
+	var webConfig *webclient.WebConfig
 	group.Go(func() error {
 		res, err := c.clusterClient.GetWebConfig(groupCtx)
 		webConfig = res
 		return trace.Wrap(err)
 	})
 
+	var clusterPingResponse *webclient.PingResponse
 	group.Go(func() error {
 		res, err := c.clusterClient.Ping(groupCtx)
 		clusterPingResponse = res
 		return trace.Wrap(err)
 	})
 
+	var authPingResponse proto.PingResponse
 	group.Go(func() error {
 		err := AddMetadataToRetryableError(groupCtx, func() error {
 			res, err := authClient.Ping(groupCtx)
@@ -130,6 +127,17 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 		return trace.Wrap(err)
 	})
 
+	var authPreference types.AuthPreference
+	group.Go(func() error {
+		err := AddMetadataToRetryableError(groupCtx, func() error {
+			res, err := authClient.GetAuthPreference(groupCtx)
+			authPreference = res
+			return trace.Wrap(err)
+		})
+		return trace.Wrap(err)
+	})
+
+	var caps *types.AccessCapabilities
 	group.Go(func() error {
 		err := AddMetadataToRetryableError(groupCtx, func() error {
 			res, err := authClient.GetAccessCapabilities(groupCtx, types.AccessCapabilitiesRequest{
@@ -142,6 +150,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 		return trace.Wrap(err)
 	})
 
+	var authClusterID string
 	group.Go(func() error {
 		err := AddMetadataToRetryableError(groupCtx, func() error {
 			clusterName, err := authClient.GetClusterName()
@@ -155,6 +164,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 		return trace.Wrap(err)
 	})
 
+	var user types.User
 	group.Go(func() error {
 		err := AddMetadataToRetryableError(groupCtx, func() error {
 			res, err := authClient.GetCurrentUser(groupCtx)
@@ -164,6 +174,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 		return trace.Wrap(err)
 	})
 
+	var roles []types.Role
 	group.Go(func() error {
 		err := AddMetadataToRetryableError(groupCtx, func() error {
 			res, err := authClient.GetCurrentUserRoles(groupCtx)
@@ -177,10 +188,16 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 		return nil, trace.Wrap(err)
 	}
 
+	trustedDeviceRequirement, err := dtauthz.CalculateTrustedDeviceRequirement(authPreference.GetDeviceTrust(), func() ([]types.Role, error) {
+		return roles, nil
+	})
+	if err != nil {
+		c.Logger.WarnContext(ctx, "Failed to calculate trusted device requirement", "error", err)
+	}
+
 	roleSet := services.NewRoleSet(roles...)
 	userACL := services.NewUserACL(user, roleSet, *authPingResponse.ServerFeatures, false, false)
-
-	acl = &api.ACL{
+	acl := &api.ACL{
 		RecordedSessions: convertToAPIResourceAccess(userACL.RecordedSessions),
 		ActiveSessions:   convertToAPIResourceAccess(userACL.ActiveSessions),
 		AuthConnectors:   convertToAPIResourceAccess(userACL.AuthConnectors),
@@ -194,18 +211,20 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 		Dbs:              convertToAPIResourceAccess(userACL.DBServers),
 		Kubeservers:      convertToAPIResourceAccess(userACL.KubeServers),
 		AccessRequests:   convertToAPIResourceAccess(userACL.AccessRequests),
+		ReviewRequests:   userACL.ReviewRequests,
 	}
 
 	withDetails := &ClusterWithDetails{
-		Cluster:            c,
-		SuggestedReviewers: caps.SuggestedReviewers,
-		RequestableRoles:   caps.RequestableRoles,
-		Features:           authPingResponse.ServerFeatures,
-		AuthClusterID:      authClusterID,
-		ACL:                acl,
-		UserType:           user.GetUserType(),
-		ProxyVersion:       clusterPingResponse.ServerVersion,
-		ShowResources:      webConfig.UI.ShowResources,
+		Cluster:                  c,
+		SuggestedReviewers:       caps.SuggestedReviewers,
+		RequestableRoles:         caps.RequestableRoles,
+		Features:                 authPingResponse.ServerFeatures,
+		AuthClusterID:            authClusterID,
+		ACL:                      acl,
+		UserType:                 user.GetUserType(),
+		ProxyVersion:             clusterPingResponse.ServerVersion,
+		ShowResources:            webConfig.UI.ShowResources,
+		TrustedDeviceRequirement: trustedDeviceRequirement,
 	}
 
 	return withDetails, nil
@@ -290,7 +309,7 @@ func (c *Cluster) GetLoggedInUser() LoggedInUser {
 		Name:           c.status.Username,
 		SSHLogins:      c.status.Logins,
 		Roles:          c.status.Roles,
-		ActiveRequests: c.status.ActiveRequests.AccessRequests,
+		ActiveRequests: c.status.ActiveRequests,
 	}
 }
 
@@ -303,6 +322,12 @@ func (c *Cluster) GetProfileStatusError() error {
 // Cluster that represents a leaf cluster.
 func (c *Cluster) GetProxyHost() string {
 	return c.status.ProxyURL.Host
+}
+
+// HasDeviceTrustExtensions indicates if the cert contains all required
+// device trust extensions.
+func (c *Cluster) HasDeviceTrustExtensions() bool {
+	return dtauthz.HasDeviceTrustExtensions(c.status.Extensions)
 }
 
 // GetProxyHostname returns just the hostname part of the proxy address of the root cluster (without

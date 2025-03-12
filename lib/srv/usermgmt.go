@@ -485,6 +485,8 @@ func (u *HostUserManagement) UpsertUser(name string, ui services.HostUsersInfo) 
 	return closer, nil
 }
 
+const userLeaseDuration = time.Second * 20
+
 func (u *HostUserManagement) doWithUserLock(f func(types.SemaphoreLease) error) error {
 	lock, err := services.AcquireSemaphoreWithRetry(u.ctx,
 		services.AcquireSemaphoreWithRetryConfig{
@@ -493,7 +495,7 @@ func (u *HostUserManagement) doWithUserLock(f func(types.SemaphoreLease) error) 
 				SemaphoreKind: types.SemaphoreKindHostUserModification,
 				SemaphoreName: "host_user_modification",
 				MaxLeases:     1,
-				Expires:       time.Now().Add(time.Second * 20),
+				Expires:       time.Now().Add(userLeaseDuration),
 			},
 			Retry: retryutils.LinearConfig{
 				Step: time.Second * 5,
@@ -540,9 +542,9 @@ func isUnknownGroupError(err error, groupName string) bool {
 		strings.HasSuffix(err.Error(), syscall.ESRCH.Error())
 }
 
-// DeleteAllUsers deletes all host users in the teleport service group.
+// DeleteAllUsers removes all temporary users in the [types.TeleportDropGroup]
+// without any active sessions.
 func (u *HostUserManagement) DeleteAllUsers() error {
-	u.log.InfoContext(u.ctx, "Attempting to delete all temporary host users")
 	users, err := u.backend.GetAllUsers()
 	if err != nil {
 		return trace.Wrap(err)
@@ -556,26 +558,35 @@ func (u *HostUserManagement) DeleteAllUsers() error {
 		return trace.Wrap(err)
 	}
 	var errs []error
-	for _, name := range users {
-		lt, err := u.storage.GetHostUserInteractionTime(u.ctx, name)
-		if err != nil {
-			u.log.DebugContext(u.ctx, "Failed to find user login time", "host_username", name, "error", err)
-			continue
-		}
-		u.doWithUserLock(func(l types.SemaphoreLease) error {
+	u.doWithUserLock(func(l types.SemaphoreLease) error {
+		for _, name := range users {
+			if time.Until(l.Expires) < userLeaseDuration/2 {
+				l.Expires = time.Now().Add(userLeaseDuration / 2)
+				if err := u.storage.KeepAliveSemaphoreLease(u.ctx, l); err != nil {
+					u.log.DebugContext(u.ctx, "Failed to keep alive host user lease", "error", err)
+				}
+			}
+
+			lt, err := u.storage.GetHostUserInteractionTime(u.ctx, name)
+			if err != nil {
+				u.log.DebugContext(u.ctx, "Failed to find user login time", "host_username", name, "error", err)
+				continue
+			}
+
 			if time.Since(lt) < u.userGrace {
 				// small grace period in order to avoid deleting users
 				// in-between them starting their SSH session and
 				// entering the shell
-				return nil
+				continue
 			}
-			errs = append(errs, u.DeleteUser(name, teleportGroup.Gid))
 
-			l.Expires = time.Now().Add(time.Second * 10)
-			u.storage.KeepAliveSemaphoreLease(u.ctx, l)
-			return nil
-		})
-	}
+			if err := u.DeleteUser(name, teleportGroup.Gid); err != nil {
+				errs = append(errs, err)
+			}
+		}
+
+		return nil
+	})
 	return trace.NewAggregate(errs...)
 }
 
@@ -584,7 +595,6 @@ func (u *HostUserManagement) DeleteAllUsers() error {
 func (u *HostUserManagement) DeleteUser(username string, gid string) error {
 	log := u.log.With("host_username", username, "gid", gid)
 
-	log.DebugContext(u.ctx, "Attempting to delete host user")
 	tempUser, err := u.backend.Lookup(username)
 	if err != nil {
 		return trace.Wrap(err)
@@ -598,32 +608,27 @@ func (u *HostUserManagement) DeleteUser(username string, gid string) error {
 			err := u.backend.DeleteUser(username)
 			if err != nil {
 				if errors.Is(err, ErrUserLoggedIn) {
-					u.log.DebugContext(u.ctx, "Not deleting user because user has another session or running process")
+					log.DebugContext(u.ctx, "Skipping deletion of temporary insecure-drop user with an active session")
 					return nil
 				}
 				return trace.Wrap(err)
 			}
 
+			log.DebugContext(u.ctx, "Deleted temporary insecure-drop user")
 			return nil
 		}
 	}
-	u.log.DebugContext(u.ctx, "User not deleted: not a temporary user")
 	return nil
 }
 
-// UserCleanup starts a periodic user deletion cleanup loop for
-// users that failed to delete
+// UserCleanup periodically removes temporary users created
+// when insecure-drop mode is enabled.
 func (u *HostUserManagement) UserCleanup() {
 	cleanupTicker := time.NewTicker(time.Minute * 5)
 	defer cleanupTicker.Stop()
 	for {
-		err := u.DeleteAllUsers()
-		switch {
-		case trace.IsNotFound(err):
-			u.log.DebugContext(u.ctx, "Error during temporary user cleanup, stopping cleanup job", "error", err)
-			return
-		case err != nil:
-			u.log.ErrorContext(u.ctx, "Error during temporary user cleanup", "error", err)
+		if err := u.DeleteAllUsers(); err != nil {
+			u.log.ErrorContext(u.ctx, "Error during temporary insecure-drop user cleanup", "error", err)
 		}
 
 		select {

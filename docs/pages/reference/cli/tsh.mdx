@@ -591,7 +591,6 @@ $ tsh proxy aws [<flags>]
 | - | - | - | - |
 | `--app` | Currently logged in AWS app | string | Optional name of the AWS application (as shown in `tsh apps ls`) to use if logged in to multiple |
 | `-p`, `--port` | none | port number | Specify the source port for the local proxy |
-| `-e`, `--endpoint-url` | HTTP Proxy | Endpoint URL | Run the local proxy to serve as an AWS endpoint URL. If not specified, the local proxy serves as an HTTPS proxy. |
 | `-f`, `--format` | unix | `text`, `unix`, `command-prompt`, or `powershell` | Optional format for printing environment variables for the AWS proxy |
 
 ### [Global Flags](#tsh-global-flags)
@@ -632,13 +631,13 @@ commands for environment variables required to connect:
 
 (!docs/pages/includes/application-access/azure-tsh-proxy-azure-sample.mdx!)
 
-<Notice type="tip">
+<Admonition type="tip">
 
 `tsh proxy azure` runs the local proxy in the foreground, so don't interrupt
 the process or exit the terminal where you ran the command until you're ready
 to close the local proxy.
 
-</Notice>
+</Admonition>
 
 Copy the `export` commands and paste them into a second terminal.
 
@@ -899,7 +898,7 @@ in their [storage backend](../../reference/backends.mdx).
 The following error can occur if a session recording file is not available or
 when employing multiple auth servers with directory storage backend for recorded
 sessions. When using a directory storage backend for audit logs and recorded sessions,
-only the auth server with that recorded session can retrieve it.
+only the Auth Service with that recorded session can retrieve it.
 
 ```code
 $ tsh play c8e1b2c5-322a-4095-89e3-391edfd2da9b
@@ -953,7 +952,7 @@ lifetime.
 
 ## tsh request drop
 
-Drop one or more access requests from current identity
+Drop one or more Access Requests from current identity
 
 ```code
 $ tsh request drop [<request-id>...]
@@ -1128,6 +1127,36 @@ $ tsh ssh -o ForwardAgent=yes root@grav-00
 $ tsh ssh -o AddKeysToAgent=yes root@grav-00
 # Run `hostname` on all nodes with the `env: aws` label
 $ tsh ssh root@env=aws hostname
+```
+
+## tsh sessions ls
+
+List active sessions. The resulting list includes only the sessions that the
+caller has permission to join, unless they have a role with explicit `list`
+access on the `session_tracker` resource.
+
+```code
+$ tsh sessions ls
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `-f, --format` | text | text, json, yaml | Format for output |
+| `--kind` | none | ssh, k8s, db, app, desktop | Optionally filter by session kind(s) |
+
+### Examples
+
+```code
+# list all active sessions
+$ tsh sessions ls
+
+# list all SSH and desktop sessions
+$ tsh sessions ls --kind=ssh --kind=desktop
+
+# list all Kubernetes sessions in JSON format
+$ tsh sessions ls --kind=k8s --format=json
 ```
 
 ## tsh status

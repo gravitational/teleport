@@ -1,5 +1,5 @@
 ---
-title: Teleport Access Requests with Email
+title: Access Requests with Email
 description: How to set up the Teleport email plugin to notify users when another user requests elevated privileges.
 ---
 
@@ -10,6 +10,34 @@ straightforward to integrate Access Requests into your existing workflows,
 letting you implement security best practices without compromising productivity.
 
 ![The email Access Request plugin](../../../../img/enterprise/plugins/email.png)
+
+<Details title="This integration is hosted on Teleport Enterprise (Cloud)" open={false}>
+
+(!docs/pages/includes/plugins/enroll.mdx name="the Email integration"!)
+
+![Enroll email plugin](../../../../img/enterprise/plugins/email/enroll-email.png)
+
+Configure and connect email integration by providing the following configuration
+values:
+
+**`Sender`**: Configures the sender address.
+
+**`Fallback Recipient`**: Configures the default recipient for Access Request
+notifications.
+
+**`Email Service`**: Selects the desired email service. Note: only `Mailgun` is
+supported for Teleport Enterprise (Cloud).
+
+![Configure Mailgun integration](../../../../img/enterprise/plugins/email/configure-mailgun.png)
+
+Complete Mailgun integration by providing the following Mailgun API
+configuration values:
+
+**`Domain`**: Configures the Mailgun sending domain.
+
+**`Mailgun Private Key`**: Configures the Mailgun API key.
+
+</Details>
 
 ## Prerequisites
 
@@ -153,13 +181,13 @@ the URL scheme and port. (If you're using a local SMTP server for testing, use
 If you are running the email plugin on a Linux host, fill in `username` and
 `password`.
 
-<Notice type="tip">
+<Admonition type="tip">
 
 You can also save your password to a separate file and assign `password_file` to
 the file's path. The plugin reads the file and uses the file's content as the
 password.
 
-</Notice>
+</Admonition>
 
 If you are deploying the email plugin on Kubernetes:
 

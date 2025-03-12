@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -2069,63 +2070,86 @@ func TestAutoRequest(t *testing.T) {
 	cases := []struct {
 		name      string
 		roles     []types.Role
-		assertion func(t *testing.T, validator *RequestValidator)
+		assertion func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities)
 	}{
 		{
 			name: "no roles",
-			assertion: func(t *testing.T, validator *RequestValidator) {
-				require.False(t, validator.requireReason)
+			assertion: func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities) {
+				require.False(t, validator.requireReasonForAllRoles)
 				require.False(t, validator.autoRequest)
 				require.Empty(t, validator.prompt)
+
+				require.False(t, accessCaps.RequireReason)
+				require.False(t, accessCaps.AutoRequest)
+				require.Empty(t, accessCaps.RequestPrompt)
 			},
 		},
 		{
 			name:  "with prompt",
 			roles: []types.Role{empty, optionalRole, promptRole},
-			assertion: func(t *testing.T, validator *RequestValidator) {
-				require.False(t, validator.requireReason)
+			assertion: func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities) {
+				require.False(t, validator.requireReasonForAllRoles)
 				require.False(t, validator.autoRequest)
 				require.Equal(t, "test prompt", validator.prompt)
+
+				require.False(t, accessCaps.RequireReason)
+				require.False(t, accessCaps.AutoRequest)
+				require.Equal(t, "test prompt", accessCaps.RequestPrompt)
 			},
 		},
 		{
 			name:  "with auto request",
 			roles: []types.Role{alwaysRole},
-			assertion: func(t *testing.T, validator *RequestValidator) {
-				require.False(t, validator.requireReason)
+			assertion: func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities) {
+				require.False(t, validator.requireReasonForAllRoles)
 				require.True(t, validator.autoRequest)
 				require.Empty(t, validator.prompt)
+
+				require.False(t, accessCaps.RequireReason)
+				require.True(t, accessCaps.AutoRequest)
+				require.Empty(t, accessCaps.RequestPrompt)
 			},
 		},
 		{
 			name:  "with prompt and auto request",
 			roles: []types.Role{promptRole, alwaysRole},
-			assertion: func(t *testing.T, validator *RequestValidator) {
-				require.False(t, validator.requireReason)
+			assertion: func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities) {
+				require.False(t, validator.requireReasonForAllRoles)
 				require.True(t, validator.autoRequest)
 				require.Equal(t, "test prompt", validator.prompt)
+
+				require.False(t, accessCaps.RequireReason)
+				require.True(t, accessCaps.AutoRequest)
+				require.Equal(t, "test prompt", accessCaps.RequestPrompt)
 			},
 		},
 		{
 			name:  "with reason and auto prompt",
 			roles: []types.Role{reasonRole},
-			assertion: func(t *testing.T, validator *RequestValidator) {
-				require.True(t, validator.requireReason)
+			assertion: func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities) {
+				require.True(t, validator.requireReasonForAllRoles)
 				require.True(t, validator.autoRequest)
 				require.Empty(t, validator.prompt)
+
+				require.True(t, accessCaps.RequireReason)
+				require.True(t, accessCaps.AutoRequest)
+				require.Empty(t, accessCaps.RequestPrompt)
 			},
 		},
 	}
 
 	for _, test := range cases {
+		ctx := context.Background()
+
 		uls, err := userloginstate.New(header.Metadata{
 			Name: "foo",
 		}, userloginstate.Spec{})
 		require.NoError(t, err)
 
 		getter := &mockGetter{
-			userStates: make(map[string]*userloginstate.UserLoginState),
-			roles:      make(map[string]types.Role),
+			userStates:  make(map[string]*userloginstate.UserLoginState),
+			roles:       make(map[string]types.Role),
+			clusterName: "test-cluster",
 		}
 
 		for _, r := range test.roles {
@@ -2135,11 +2159,315 @@ func TestAutoRequest(t *testing.T) {
 
 		getter.userStates[uls.GetName()] = uls
 
-		validator, err := NewRequestValidator(context.Background(), clock, getter, uls.GetName(), ExpandVars(true))
+		validator, err := NewRequestValidator(ctx, clock, getter, uls.GetName(), ExpandVars(true))
 		require.NoError(t, err)
-		test.assertion(t, &validator)
+
+		accessCapabilities, err := CalculateAccessCapabilities(ctx, clock, getter, tlsca.Identity{}, types.AccessCapabilitiesRequest{
+			User:             uls.GetName(),
+			RequestableRoles: true,
+		})
+		require.NoError(t, err)
+
+		test.assertion(t, &validator, accessCapabilities)
 	}
 
+}
+
+func TestReasonRequired(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	clusterName := "my-test-cluster"
+
+	g := &mockGetter{
+		roles:       make(map[string]types.Role),
+		userStates:  make(map[string]*userloginstate.UserLoginState),
+		users:       make(map[string]types.User),
+		nodes:       make(map[string]types.Server),
+		kubeServers: make(map[string]types.KubeServer),
+		dbServers:   make(map[string]types.DatabaseServer),
+		appServers:  make(map[string]types.AppServer),
+		desktops:    make(map[string]types.WindowsDesktop),
+		clusterName: clusterName,
+	}
+
+	nodeDesc := []struct {
+		name   string
+		labels map[string]string
+	}{
+		{
+			name: "fork-node",
+			labels: map[string]string{
+				"cutlery": "fork",
+			},
+		},
+		{
+			name: "spoon-node",
+			labels: map[string]string{
+				"cutlery": "spoon",
+			},
+		},
+	}
+	for _, desc := range nodeDesc {
+		node, err := types.NewServerWithLabels(desc.name, types.KindNode, types.ServerSpecV2{}, desc.labels)
+		require.NoError(t, err)
+		g.nodes[desc.name] = node
+	}
+
+	roleDesc := map[string]types.RoleSpecV6{
+		"cutlery-access": {
+			Allow: types.RoleConditions{
+				NodeLabels: types.Labels{
+					"cutlery": []string{types.Wildcard},
+				},
+			},
+		},
+		"fork-access": {
+			Allow: types.RoleConditions{
+				NodeLabels: types.Labels{
+					"cutlery": []string{"fork"},
+				},
+			},
+		},
+
+		"cutlery-access-requester": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles: []string{"cutlery-access"},
+					// "optional" is the default
+					// Reason: &types.AccessRequestConditionsReason{
+					// 	Mode: "optional",
+					// },
+				},
+			},
+		},
+		"cutlery-node-requester": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{"cutlery-access"},
+					// set "optional" explicitly
+					Reason: &types.AccessRequestConditionsReason{
+						Mode: "optional",
+					},
+				},
+			},
+		},
+
+		"fork-node-requester": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{"fork-access"},
+					// everything not-"required" is basically "optional"
+					Reason: &types.AccessRequestConditionsReason{
+						Mode: "not-recognized-is-optional",
+					},
+				},
+			},
+		},
+		"fork-node-requester-with-reason": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{"fork-access"},
+					Reason: &types.AccessRequestConditionsReason{
+						Mode: "required",
+					},
+				},
+			},
+		},
+		"fork-access-requester": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles: []string{"fork-access"},
+				},
+			},
+		},
+		"fork-access-requester-with-reason": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles: []string{"fork-access"},
+					Reason: &types.AccessRequestConditionsReason{
+						Mode: "required",
+					},
+				},
+			},
+		},
+	}
+	for name, spec := range roleDesc {
+		role, err := types.NewRole(name, spec)
+		require.NoError(t, err)
+		g.roles[name] = role
+	}
+
+	testCases := []struct {
+		name               string
+		currentRoles       []string
+		requestRoles       []string
+		requestResourceIDs []types.ResourceID
+		expectError        error
+	}{
+		{
+			name:         "role request: require reason when role has reason.required",
+			currentRoles: []string{"fork-access-requester-with-reason"},
+			requestRoles: []string{"fork-access"},
+			expectError:  trace.BadParameter(`request reason must be specified (required for role "fork-access")`),
+		},
+		{
+			name:         "resource request: require reason when role has reason.required",
+			currentRoles: []string{"fork-node-requester-with-reason"},
+			requestResourceIDs: []types.ResourceID{
+				{ClusterName: clusterName, Kind: types.KindNode, Name: "fork-node"},
+			},
+			expectError: trace.BadParameter(`request reason must be specified (required for role "fork-access")`),
+		},
+		{
+			name:         "role request: do not require reason when role does not have reason.required",
+			currentRoles: []string{"fork-access-requester"},
+			requestRoles: []string{"fork-access"},
+			expectError:  nil,
+		},
+		{
+			name:         "resource request: do not require reason when role does not have reason.required",
+			currentRoles: []string{"fork-node-requester"},
+			requestResourceIDs: []types.ResourceID{
+				{ClusterName: clusterName, Kind: types.KindNode, Name: "fork-node"},
+			},
+			expectError: nil,
+		},
+		{
+			name:         "resource request: but require reason when another role allowing _role_ access requires reason for the role",
+			currentRoles: []string{"fork-node-requester", "fork-access-requester-with-reason"},
+			requestResourceIDs: []types.ResourceID{
+				{ClusterName: clusterName, Kind: types.KindNode, Name: "fork-node"},
+			},
+			expectError: trace.BadParameter(`request reason must be specified (required for role "fork-access")`),
+		},
+		{
+			name:         "role request: require reason when _any_ role has reason.required",
+			currentRoles: []string{"fork-access-requester", "fork-access-requester-with-reason", "cutlery-access-requester"},
+			requestRoles: []string{"fork-access"},
+			expectError:  trace.BadParameter(`request reason must be specified (required for role "fork-access")`),
+		},
+		{
+			name:         "resource request: require reason when _any_ role has reason.required",
+			currentRoles: []string{"fork-node-requester", "fork-node-requester-with-reason", "cutlery-node-requester"},
+			requestResourceIDs: []types.ResourceID{
+				{ClusterName: clusterName, Kind: types.KindNode, Name: "fork-node"},
+			},
+			expectError: trace.BadParameter(`request reason must be specified (required for role "fork-access")`),
+		},
+		{
+			name:         "role request: do not require reason when all roles don't have reason.required",
+			currentRoles: []string{"fork-access-requester", "cutlery-access-requester"},
+			requestRoles: []string{"fork-access"},
+			expectError:  nil,
+		},
+		{
+			name:         "resource request: do not require reason when all roles don't have reason.required",
+			currentRoles: []string{"fork-node-requester", "cutlery-node-requester"},
+			requestResourceIDs: []types.ResourceID{
+				{ClusterName: clusterName, Kind: types.KindNode, Name: "fork-node"},
+			},
+			expectError: nil,
+		},
+		{
+			name:         "role request: require reason when _any_ role with reason.required matches _any_ roles",
+			currentRoles: []string{"fork-access-requester-with-reason", "cutlery-access-requester"},
+			requestRoles: []string{"fork-access", "cutlery-access"},
+			expectError:  trace.BadParameter(`request reason must be specified (required for role "fork-access")`),
+		},
+		{
+			name:         "resource request: require reason when _any_ role with reason.required matches _any_ resource",
+			currentRoles: []string{"fork-node-requester-with-reason", "cutlery-node-requester"},
+			requestResourceIDs: []types.ResourceID{
+				{ClusterName: clusterName, Kind: types.KindNode, Name: "fork-node"},
+				{ClusterName: clusterName, Kind: types.KindNode, Name: "spoon-node"},
+			},
+			expectError: trace.BadParameter(`request reason must be specified (required for role "fork-access")`),
+		},
+		{
+			name:         "role request: do not require reason when _all_ roles do not require reason for _all_ roles",
+			currentRoles: []string{"fork-access-requester", "cutlery-access-requester"},
+			requestRoles: []string{"fork-access", "cutlery-access"},
+			expectError:  nil,
+		},
+		{
+			name:         "role request: handle wildcard",
+			currentRoles: []string{"fork-access-requester-with-reason"},
+			requestRoles: []string{"*"},
+			expectError:  trace.BadParameter(`request reason must be specified (required for role "fork-access")`),
+		},
+		{
+			name:         "resource request: do not require reason when _all_ roles do not require reason for _all_ resources",
+			currentRoles: []string{"fork-node-requester", "cutlery-node-requester"},
+			requestResourceIDs: []types.ResourceID{
+				{ClusterName: clusterName, Kind: types.KindNode, Name: "fork-node"},
+				{ClusterName: clusterName, Kind: types.KindNode, Name: "spoon-node"},
+			},
+			expectError: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			uls, err := userloginstate.New(header.Metadata{
+				Name: "test-user",
+			}, userloginstate.Spec{
+				Roles: tc.currentRoles,
+				Traits: trait.Traits{
+					"logins": []string{"abcd"},
+				},
+			})
+			require.NoError(t, err)
+			g.userStates[uls.GetName()] = uls
+
+			clock := clockwork.NewFakeClock()
+			identity := tlsca.Identity{
+				Expires: clock.Now().UTC().Add(8 * time.Hour),
+			}
+
+			// test RequestValidator.Validate
+			{
+				validator, err := NewRequestValidator(ctx, clock, g, uls.GetName(), ExpandVars(true))
+				require.NoError(t, err)
+
+				req, err := types.NewAccessRequestWithResources(
+					"some-id", uls.GetName(), tc.requestRoles, tc.requestResourceIDs)
+				require.NoError(t, err)
+
+				// No reason in the request.
+				err = validator.Validate(ctx, req.Copy(), identity)
+				require.ErrorIs(t, err, tc.expectError)
+
+				// White-space reason should be treated as no reason.
+				req.SetRequestReason("  \t \n  ")
+				err = validator.Validate(ctx, req.Copy(), identity)
+				require.ErrorIs(t, err, tc.expectError)
+
+				// When non-empty reason is provided then validation should pass.
+				req.SetRequestReason("good reason")
+				err = validator.Validate(ctx, req.Copy(), identity)
+				require.NoError(t, err)
+			}
+
+			// test CalculateAccessCapabilities
+			{
+				req := types.AccessCapabilitiesRequest{
+					User:             uls.GetName(),
+					ResourceIDs:      tc.requestResourceIDs,
+					RequestableRoles: len(tc.requestResourceIDs) == 0,
+				}
+
+				res, err := CalculateAccessCapabilities(ctx, clock, g, identity, req)
+				require.NoError(t, err)
+				if tc.expectError != nil {
+					require.True(t, res.RequireReason)
+				} else {
+					require.False(t, res.RequireReason)
+				}
+			}
+		})
+	}
 }
 
 type mockClusterGetter struct {
@@ -2345,6 +2673,14 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 				},
 			},
 		},
+		"shortMaxDurationReqRole3": {
+			condition: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles:       []string{"requestedRole"},
+					MaxDuration: types.Duration(day),
+				},
+			},
+		},
 	}
 
 	// describes a collection of users with various roles
@@ -2353,6 +2689,7 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 		"bob":   {"defaultRole"},
 		"carol": {"shortMaxDurationReqRole", "shortMaxDurationReqRole2"},
 		"david": {"maxDurationReqRole"},
+		"erin":  {"shortMaxDurationReqRole", "shortMaxDurationReqRole3", "maxDurationReqRole"},
 	}
 
 	defaultSessionTTL := 8 * time.Hour
@@ -2395,14 +2732,6 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 			expectedPendingTTL:     3 * day,
 			expectedSessionTTL:     8 * time.Hour,
 			dryRun:                 true,
-		},
-		{
-			desc:                   "role max_duration is ignored when requestedMaxDuration is not set",
-			requestor:              "alice",
-			roles:                  []string{"requestedRole"}, // role max_duration capped to 3 days
-			expectedAccessDuration: 8 * time.Hour,             // caps to defaultSessionTTL since requestedMaxDuration was not set
-			expectedPendingTTL:     8 * time.Hour,
-			expectedSessionTTL:     8 * time.Hour,
 		},
 		{
 			desc:                   "when role max_duration is not set: default to defaultSessionTTL when requestedMaxDuration is not set",
@@ -2484,6 +2813,25 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 			expectedPendingTTL:     day,
 			expectedSessionTTL:     8 * time.Hour,
 		},
+		{
+			desc:                   "role max_duration is respected when requestedMaxDuration is not set",
+			requestor:              "alice",                   // has shortMaxDurationReqRole role assigned
+			roles:                  []string{"requestedRole"}, // caps max_duration to 3 days
+			expectedAccessDuration: 3 * day,
+			expectedPendingTTL:     3 * day,
+			expectedSessionTTL:     8 * time.Hour,
+		},
+		{
+			desc: "multiple roles with different max durations assigned",
+			// erin has the maxDurationReqRole (7 days) role assigned
+			// along with 2 other roles with shorter durations
+			// shortMaxDurationReqRole (3 days) and shortMaxDurationReqRole3 (1 day)
+			requestor:              "erin",
+			roles:                  []string{"requestedRole"}, // caps max_duration to 7 days
+			expectedAccessDuration: 7 * day,
+			expectedPendingTTL:     7 * day,
+			expectedSessionTTL:     8 * time.Hour,
+		},
 	}
 
 	for _, tt := range tts {
@@ -2504,7 +2852,9 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 			require.NoError(t, err)
 
 			req.SetCreationTime(now)
-			req.SetMaxDuration(now.Add(tt.requestedMaxDuration))
+			if tt.requestedMaxDuration != 0 {
+				req.SetMaxDuration(now.Add(tt.requestedMaxDuration))
+			}
 			req.SetDryRun(tt.dryRun)
 
 			require.NoError(t, validator.Validate(context.Background(), req, identity))

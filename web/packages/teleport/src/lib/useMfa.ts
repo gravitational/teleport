@@ -16,214 +16,232 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 
 import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
 import { TermEvent } from 'teleport/lib/term/enums';
 import {
-  makeMfaAuthenticateChallenge,
-  makeWebauthnAssertionResponse,
-  SSOChallenge,
+  CreateAuthenticateChallengeRequest,
+  parseMfaChallengeJson,
 } from 'teleport/services/auth';
+import auth from 'teleport/services/auth/auth';
+import {
+  DeviceType,
+  getMfaChallengeOptions,
+  MfaAuthenticateChallenge,
+  MfaChallengeResponse,
+  MfaOption,
+} from 'teleport/services/mfa';
 
-export function useMfa(emitterSender: EventEmitterMfaSender): MfaState {
-  const [state, setState] = useState<{
-    errorText: string;
-    addMfaToScpUrls: boolean;
-    webauthnPublicKey: PublicKeyCredentialRequestOptions;
-    ssoChallenge: SSOChallenge;
-    totpChallenge: boolean;
-  }>({
-    addMfaToScpUrls: false,
-    errorText: '',
-    webauthnPublicKey: null,
-    ssoChallenge: null,
-    totpChallenge: false,
-  });
+export type MfaProps = {
+  req?: CreateAuthenticateChallengeRequest;
+  // isMfaRequired is an initial state for isMfaRequired. Useful in cases
+  // where the mfa requirement is discovered and set indirectly by the caller.
+  isMfaRequired?: boolean;
+};
 
-  function clearChallenges() {
-    setState(prevState => ({
-      ...prevState,
-      totpChallenge: false,
-      webauthnPublicKey: null,
-      ssoChallenge: null,
-    }));
-  }
+type mfaResponsePromiseWithResolvers = {
+  promise: Promise<MfaChallengeResponse>;
+  resolve: (v: MfaChallengeResponse) => void;
+  reject: (err: Error) => void;
+};
 
-  function onSsoAuthenticate() {
-    if (!state.ssoChallenge) {
-      setState(prevState => ({
-        ...prevState,
-        errorText: 'Invalid or missing SSO challenge',
-      }));
-      return;
-    }
+/**
+ * Use the returned object to request MFA checks with a shared state.
+ * When MFA authentication is in progress, the object's properties can
+ * be used to display options to the user and prompt for them to complete
+ * the MFA check.
+ */
+export function useMfa(props?: MfaProps): MfaState {
+  const [mfaRequired, setMfaRequired] = useState<boolean>(props?.isMfaRequired);
+  const [options, setMfaOptions] = useState<MfaOption[]>();
+  const [challenge, setMfaChallenge] = useState<MfaAuthenticateChallenge>();
 
-    // try to center the screen
-    const width = 1045;
-    const height = 550;
-    const left = (screen.width - width) / 2;
-    const top = (screen.height - height) / 2;
+  // getResponse is used to initiate MFA authentication.
+  //   1. Check if MFA is required by getting a new MFA challenge
+  //   2. If MFA is required, set the challenge in the MFA state and wait for it to
+  //      be resolved by the caller.
+  //   3. The caller sees the mfa challenge set in state and submits an mfa response
+  //      request with arguments provided by the user (mfa type, otp code).
+  //   4. Receive the mfa response through the mfaResponsePromise ref and return it.
+  //
+  // The caller should also display errors seen in attempt.
+  const [attempt, getResponse, setMfaAttempt] = useAsync(
+    useCallback(
+      async (challenge?: MfaAuthenticateChallenge) => {
+        // If a challenge wasn't provided and we previously determined MFA is not
+        // required, this is a noop.
+        if (mfaRequired === false && !challenge) return;
 
-    // these params will open a tiny window.
-    const params = `width=${width},height=${height},left=${left},top=${top}`;
-    window.open(state.ssoChallenge.redirectUrl, '_blank', params);
-  }
-
-  function onWebauthnAuthenticate() {
-    if (!window.PublicKeyCredential) {
-      const errorText =
-        'This browser does not support WebAuthn required for hardware tokens, \
-      please try the latest version of Chrome, Firefox or Safari.';
-
-      setState({
-        ...state,
-        errorText,
-      });
-      return;
-    }
-
-    navigator.credentials
-      .get({ publicKey: state.webauthnPublicKey })
-      .then(res => {
-        setState(prevState => ({
-          ...prevState,
-          errorText: '',
-          webauthnPublicKey: null,
-        }));
-        const credential = makeWebauthnAssertionResponse(res);
-        emitterSender.sendWebAuthn(credential);
-      })
-      .catch((err: Error) => {
-        setErrorText(err.message);
-      });
-  }
-
-  const waitForSsoChallengeResponse = useCallback(
-    async (
-      ssoChallenge: SSOChallenge,
-      abortSignal: AbortSignal
-    ): Promise<void> => {
-      const channel = new BroadcastChannel(ssoChallenge.channelId);
-
-      try {
-        const event = await waitForMessage(channel, abortSignal);
-        emitterSender.sendChallengeResponse({
-          sso_response: {
-            requestId: ssoChallenge.requestId,
-            token: event.data.mfaToken,
-          },
-        });
-        clearChallenges();
-      } catch (error) {
-        if (error.name !== 'AbortError') {
-          throw error;
+        // If a challenge was provided, the client has determined mfa is required.
+        if (challenge) {
+          setMfaRequired(true);
+        } else if (mfaRequired === false) {
+          // Client previously determined MFA is not required, this is a noop.
+          return;
         }
-      } finally {
-        channel.close();
-      }
-    },
-    [emitterSender]
+
+        // Caller didn't pass a challenge and the mfa required is true or unknown.
+        if (!challenge && props?.req) {
+          // We already know MFA is required, skip the extra check.
+          if (mfaRequired === true) props.req.isMfaRequiredRequest = null;
+          challenge = await auth.getMfaChallenge(props.req);
+        }
+
+        // An empty challenge means either mfa is not required, or the user has no mfa devices.
+        if (!challenge) {
+          setMfaRequired(false);
+          return;
+        }
+
+        setMfaRequired(true);
+
+        // Prepare a new promise to collect the mfa response retrieved
+        // through the submit function.
+        let resolve: (value: MfaChallengeResponse) => void;
+        let reject: (err: Error) => void;
+        const promise = new Promise<MfaChallengeResponse>((res, rej) => {
+          resolve = res;
+          reject = rej;
+        });
+
+        mfaResponseRef.current = {
+          promise,
+          resolve,
+          reject,
+        };
+
+        setMfaOptions(getMfaChallengeOptions(challenge));
+        setMfaChallenge(challenge);
+        try {
+          return await promise;
+        } finally {
+          setMfaChallenge(null);
+        }
+      },
+      [props, mfaRequired]
+    )
   );
 
-  useEffect(() => {
-    let ssoChallengeAbortController: AbortController | undefined;
-    const challengeHandler = (challengeJson: string) => {
-      const { webauthnPublicKey, ssoChallenge, totpChallenge } =
-        makeMfaAuthenticateChallenge(challengeJson);
+  const mfaResponseRef = useRef<mfaResponsePromiseWithResolvers>();
 
-      setState(prevState => ({
-        ...prevState,
-        addMfaToScpUrls: true,
-        ssoChallenge,
-        webauthnPublicKey,
-        totpChallenge,
-      }));
+  const cancelAttempt = () => {
+    if (mfaResponseRef.current) {
+      mfaResponseRef.current.reject(new MfaCanceledError());
+    }
+  };
 
-      if (ssoChallenge) {
-        ssoChallengeAbortController?.abort();
-        ssoChallengeAbortController = new AbortController();
-        void waitForSsoChallengeResponse(
-          ssoChallenge,
-          ssoChallengeAbortController.signal
-        );
+  const getChallengeResponse = useCallback(
+    async (challenge?: MfaAuthenticateChallenge) => {
+      const [resp, err] = await getResponse(challenge);
+
+      if (err) throw err;
+
+      return resp;
+    },
+    [getResponse]
+  );
+
+  const submit = useCallback(
+    async (mfaType?: DeviceType, totpCode?: string) => {
+      if (!mfaResponseRef.current) {
+        throw new Error('submit called without an in flight MFA attempt');
       }
-    };
 
-    emitterSender?.on(TermEvent.MFA_CHALLENGE, challengeHandler);
-
-    return () => {
-      ssoChallengeAbortController?.abort();
-      emitterSender?.removeListener(TermEvent.MFA_CHALLENGE, challengeHandler);
-    };
-  }, [emitterSender, waitForSsoChallengeResponse]);
-
-  function setErrorText(newErrorText: string) {
-    setState(prevState => ({ ...prevState, errorText: newErrorText }));
-  }
-
-  // if any challenge exists, requested is true
-  const requested = !!(
-    state.webauthnPublicKey ||
-    state.totpChallenge ||
-    state.ssoChallenge
+      try {
+        await mfaResponseRef.current.resolve(
+          await auth.getMfaChallengeResponse(challenge, mfaType, totpCode)
+        );
+      } catch (err) {
+        setMfaAttempt({
+          data: null,
+          status: 'error',
+          statusText: err.message,
+          error: err,
+        });
+      }
+    },
+    [challenge, setMfaAttempt]
   );
 
   return {
-    requested,
-    onWebauthnAuthenticate,
-    onSsoAuthenticate,
-    addMfaToScpUrls: state.addMfaToScpUrls,
-    setErrorText,
-    errorText: state.errorText,
-    webauthnPublicKey: state.webauthnPublicKey,
-    ssoChallenge: state.ssoChallenge,
+    mfaRequired,
+    setMfaRequired,
+    options,
+    challenge,
+    getChallengeResponse,
+    submit,
+    attempt,
+    cancelAttempt,
   };
 }
 
+export function useMfaEmitter(
+  emitterSender: EventEmitterMfaSender,
+  mfaProps?: MfaProps
+): MfaState {
+  const mfa = useMfa(mfaProps);
+
+  useEffect(() => {
+    const challengeHandler = async (challengeJson: string) => {
+      const challenge = parseMfaChallengeJson(JSON.parse(challengeJson));
+      const resp = await mfa.getChallengeResponse(challenge);
+      emitterSender.sendChallengeResponse(resp);
+    };
+
+    emitterSender?.on(TermEvent.MFA_CHALLENGE, challengeHandler);
+    return () => {
+      emitterSender?.removeListener(TermEvent.MFA_CHALLENGE, challengeHandler);
+    };
+  }, [mfa, emitterSender]);
+
+  return mfa;
+}
+
 export type MfaState = {
-  onWebauthnAuthenticate: () => void;
-  onSsoAuthenticate: () => void;
-  setErrorText: (errorText: string) => void;
-  errorText: string;
-  requested: boolean;
-  addMfaToScpUrls: boolean;
-  webauthnPublicKey: PublicKeyCredentialRequestOptions;
-  ssoChallenge: SSOChallenge;
+  mfaRequired: boolean;
+  setMfaRequired: (r: boolean) => void;
+  options: MfaOption[];
+  challenge: MfaAuthenticateChallenge;
+  // Generally you wouldn't pass in a challenge, unless you already
+  // have one handy, e.g. from a terminal websocket message.
+  getChallengeResponse: (
+    challenge?: MfaAuthenticateChallenge
+  ) => Promise<MfaChallengeResponse>;
+  submit: (mfaType?: DeviceType, totpCode?: string) => Promise<void>;
+  attempt: Attempt<any>;
+  cancelAttempt: () => void;
 };
+
+/** Indicates if an MFA dialog should be visible. */
+export function shouldShowMfaPrompt(
+  mfa: Pick<MfaState, 'challenge' | 'attempt'>
+): boolean {
+  return (
+    !!mfa.challenge ||
+    (mfa.attempt.status === 'error' &&
+      !(mfa.attempt.error instanceof MfaCanceledError))
+  );
+}
 
 // used for testing
 export function makeDefaultMfaState(): MfaState {
   return {
-    onWebauthnAuthenticate: () => null,
-    onSsoAuthenticate: () => null,
-    setErrorText: () => null,
-    errorText: '',
-    requested: false,
-    addMfaToScpUrls: false,
-    webauthnPublicKey: null,
-    ssoChallenge: null,
+    mfaRequired: true,
+    setMfaRequired: () => null,
+    options: null,
+    challenge: null,
+    getChallengeResponse: async () => null,
+    submit: () => null,
+    attempt: makeEmptyAttempt(),
+    cancelAttempt: () => null,
   };
 }
 
-function waitForMessage(
-  channel: BroadcastChannel,
-  abortSignal: AbortSignal
-): Promise<MessageEvent> {
-  return new Promise((resolve, reject) => {
-    // Create the event listener
-    function eventHandler(e: MessageEvent) {
-      // Remove the event listener after it triggers
-      channel.removeEventListener('message', eventHandler);
-      // Resolve the promise with the event object
-      resolve(e);
-    }
-
-    // Add the event listener
-    channel.addEventListener('message', eventHandler);
-    abortSignal.onabort = e => {
-      channel.removeEventListener('message', eventHandler);
-      reject(e);
-    };
-  });
+export class MfaCanceledError extends Error {
+  constructor() {
+    super('User canceled MFA attempt');
+  }
 }

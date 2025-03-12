@@ -7,9 +7,11 @@ inputs:
       - api/proto/teleport/devicetrust/
       - api/proto/teleport/header/
       - api/proto/teleport/trait/
+      - api/proto/teleport/legacy/types/trusted_device_requirement.proto
       - api/proto/teleport/userpreferences/
       - proto/prehog/
       - proto/teleport/lib/teleterm/
+      - proto/teleport/lib/vnet/diag/
 
 plugins:
   - local:

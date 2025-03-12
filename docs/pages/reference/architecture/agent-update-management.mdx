@@ -1,6 +1,6 @@
 ---
-title: Agent Update Management 
-description: This chapter explains how Teleport agent automatic update is working.
+title: Managed Updates
+description: This chapter explains how Teleport Agent Managed Updates work.
 ---
 
 While many Teleport resources [support agentless
@@ -8,8 +8,13 @@ mode](../../faq.mdx), agent deployments
 are sometimes simpler and more convenient. However, large Teleport deployments
 can create an additional burden: updating all agents.
 
-Teleport supports automatic agent updates for systemd-based
-Linux distributions using `apt`, `yum` or `zypper` package managers, and Kubernetes clusters.
+There are two versions of Teleport Agent Managed Updates:
+- **Version 1:** Supports systemd-based
+  Linux distributions using `apt`, `yum` or `zypper` package managers,
+  as well as Kubernetes clusters.
+- **Version 2:** Removes the package manager dependency from v1, supports a
+  wider range of setups (e.g., Teleport Community Edition, Teleport Enterprise, FIPS, and multiple agents on a single
+  host) and offers more control over the update schedule.
 
 ## Update logic and failure modes
 
@@ -26,9 +31,24 @@ updates the agent to the target version. Because restarting the agent can
 disrupt currently open sessions, it will only update the agent in two cases:
 during a maintenance window or when the agent is unhealthy.
 
-When enrolled in a cluster with automatic updates, the agent will retrieve
-its maintenance schedule from the Teleport cluster and save it. When a
-maintenance schedule is available, the updater will honour it. However, if
+### Version 2 update logic
+
+In Managed Updates version 2, the Teleport cluster itself drives the updates by
+telling each agent if it should update or not. Centralizing the update decision
+offers more control over the rollout. As the Teleport cluster sees every agent,
+it can more complex decisions such as gradually rolling out an update, or
+detecting a faulty update.
+
+In version 2, the updater will monitor the agent after an update. If the agent
+fails to come back healthy, the updater will automatically initiate a rollback
+to the last working version in an attempt to restore connectivity.
+
+### Version 1 update logic
+
+In Managed Updates version 1, the updater drives the update, and Teleport is only
+responsible for providing it the version schedule.
+
+When a maintenance schedule is available, the updater will honor it. However, if
 the updater cannot find the maintenance schedule, it will consider the agent
 unhealthy and perform updates as soon as possible. Similarly, if the updater
 detects the agent is unhealthy, it immediately applies any pending update to
@@ -40,11 +60,26 @@ applied even if the updater is outside its regular maintenance window.
 
 ## Security
 
+### Version 2 security invariants
+
+The version 2 updater fetches binaries from its CDN over TLS and validates
+integrity via a shasum. The agent uses the official Teleport CDN by default.
+A custom CDN can be configured at the updater level. For security reasons,
+there are no way to remotely reconfigure the updater CDN and have it install
+arbitrary binaries.
+
+Binaries are currently not signed, this might change in the future.
+OCI artifacts (Docker images) are signed using [cosign's signature format
+](https://github.com/sigstore/cosign/blob/main/specs/SIGNATURE_SPEC.md).
+
+### Version 1 security invariants
+
 When updating the agent, the updater will ensure the new version's authenticity
 before deploying it. On Linux distributions using `apt`, `yum` or `zypper`, it relies on
 the existing package signature system. On Kubernetes-based environments, it
 validates the OCI image signature (using [cosign's signature
 ](https://github.com/sigstore/cosign/blob/main/specs/SIGNATURE_SPEC.md)).
+
 
 ## Version server and source of truth
 
@@ -54,45 +89,30 @@ The agent version is subject to the following constraints:
 - the agent must always be no more than one major version below the Proxy or Auth
   Service version.
 
-The best practice is to always align the agent version with the Proxy and Auth
-ones. To upgrade Auth and Proxy, follow [the Teleport Cluster upgrade guide
-](../../upgrading/upgrading.mdx).
+The best practice is to always align the agent version with the version of the
+Proxy Service and Auth Service. To upgrade the Auth Service and Proxy Service,
+follow [the Teleport Cluster upgrade guide](../../upgrading/upgrading.mdx).
 
-For this reason, all updaters must subscribe to a release channel targeting
-versions that are compatible with their Teleport cluster. Teleport Cloud users
-must use the Teleport Cloud version server with the `stable/cloud` release
-channel. Self-hosted Teleport users must host their own version server and
-either update their release channel each time they update their Auth and Proxy
-instances, or use the `stable/rolling` channel.
+Updaters are discovering the version they should run by querying the Teleport
+proxy.
 
 ### Teleport Cloud
 
-If you are using Teleport Cloud you can use Teleport Cloud's version server
-only if an instance is enrolled in automatic updates. This version server will always
-target the best version from a feature, compatibility, security and stability
-point of view.
-
-If your Teleport Cloud control plane is not automatically updated you must not use
-automatic agent updates. This is because your Teleport instance version might
-differ from the other Teleport Cloud instances and might not yet support the
-latest agent version.
+If you are using Teleport Cloud the target version is managed for you.
+In Managed Updates version 1, you can configure the maintenance window.
+In Managed Updates version 2, you can configure custom update schedules and
+control when and in which order agents are updated.
 
 ### Self-hosted Teleport
 
 If you are self-hosting Teleport Enterprise you can set up automatic agent updates.
-The updater uses a version channel to retrieve the targeted version for an agent.
-The Teleport Proxy Service provides a default version channel that matches to its current version.
-You can configure the default version and set additional channel versions.
-
-You are responsible for ensuring the version channels are compatible with the
-current Teleport Proxy Service and Teleport Auth Service versions. You must also
-monitor the agent's health and rollout status to ensure every agent is healthy
-and running the correct version.
+You are responsible for configuring the desired agent version. You must also
+monitor the agent's health and rollout status to ensure agents are healthy and
+updated properly.
 
 ## Next steps
 
-Self-hosted users must first [set up self-hosted automatic agent upgrades
-](../../upgrading/automatic-agent-updates.mdx).
+[Configure automatic updates v2](../../upgrading/agent-managed-updates.mdx).
 
 After that, you can set enroll agents in automatic updates as part of the
 [upgrading procedure](../../upgrading/upgrading.mdx).

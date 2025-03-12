@@ -59,6 +59,8 @@ type User struct {
 	Mail                     *string `json:"mail,omitempty"`
 	OnPremisesSAMAccountName *string `json:"onPremisesSamAccountName,omitempty"`
 	UserPrincipalName        *string `json:"userPrincipalName,omitempty"`
+	Surname                  *string `json:"surname,omitempty"`
+	GivenName                *string `json:"givenName,omitempty"`
 }
 
 func (g *User) isGroupMember() {}
@@ -109,9 +111,10 @@ type OptionalClaim struct {
 }
 
 // OptionalClaims represents optional claims in a token.
-// Currently, only SAML2 tokens are supported.
 type OptionalClaims struct {
-	SAML2Token []OptionalClaim `json:"saml2Token,omitempty"`
+	IDToken     []OptionalClaim `json:"idToken,omitempty"`
+	AccessToken []OptionalClaim `json:"accessToken,omitempty"`
+	SAML2Token  []OptionalClaim `json:"saml2Token,omitempty"`
 }
 
 type WebApplication struct {
@@ -120,9 +123,10 @@ type WebApplication struct {
 
 type ServicePrincipal struct {
 	DirectoryObject
-	AppRoleAssignmentRequired          *bool   `json:"appRoleAssignmentRequired,omitempty"`
-	PreferredSingleSignOnMode          *string `json:"preferredSingleSignOnMode,omitempty"`
-	PreferredTokenSigningKeyThumbprint *string `json:"preferredTokenSigningKeyThumbprint,omitempty"`
+	AppRoleAssignmentRequired          *bool      `json:"appRoleAssignmentRequired,omitempty"`
+	PreferredSingleSignOnMode          *string    `json:"preferredSingleSignOnMode,omitempty"`
+	PreferredTokenSigningKeyThumbprint *string    `json:"preferredTokenSigningKeyThumbprint,omitempty"`
+	AppRoles                           []*AppRole `json:"appRoles,omitempty"`
 }
 
 type ApplicationServicePrincipal struct {
@@ -139,6 +143,11 @@ type FederatedIdentityCredential struct {
 
 type SelfSignedCertificate struct {
 	Thumbprint *string `json:"thumbprint,omitempty"`
+}
+
+type AppRole struct {
+	ID    *string `json:"id,omitempty"`
+	Value *string `json:"value,omitempty"`
 }
 
 type AppRoleAssignment struct {

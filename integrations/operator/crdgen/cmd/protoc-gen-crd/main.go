@@ -21,20 +21,26 @@
 package main
 
 import (
+	"context"
+	"log/slog"
 	"os"
 
 	"github.com/gogo/protobuf/vanity/command"
-	log "github.com/sirupsen/logrus"
 
 	crdgen "github.com/gravitational/teleport/integrations/operator/crdgen"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func main() {
-	log.SetLevel(log.DebugLevel)
-	log.SetOutput(os.Stderr)
+	slog.SetDefault(slog.New(logutils.NewSlogTextHandler(os.Stderr,
+		logutils.SlogTextHandlerConfig{
+			Level: slog.LevelDebug,
+		},
+	)))
+
 	req := command.Read()
 	if err := crdgen.HandleCRDRequest(req); err != nil {
-		log.WithError(err).Error("Failed to generate schema")
+		slog.ErrorContext(context.Background(), "Failed to generate schema", "error", err)
 		os.Exit(-1)
 	}
 }

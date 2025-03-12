@@ -16,15 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import { BotUiFlow } from 'teleport/services/bot/types';
-
 import { ContextProvider } from 'teleport';
 import { createTeleportContext } from 'teleport/mocks/contexts';
+import { BotUiFlow } from 'teleport/services/bot/types';
 
-import { ViewBot } from './ViewBot';
 import { ViewBotProps } from './types';
+import { ViewBot } from './ViewBot';
 
 export default {
   title: 'Teleport/Bots/Add/ViewBot',

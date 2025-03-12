@@ -37,14 +37,18 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	awstypes "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/otel"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	awsmetrics "github.com/gravitational/teleport/lib/observability/metrics/aws"
+	s3metrics "github.com/gravitational/teleport/lib/observability/metrics/s3"
 	"github.com/gravitational/teleport/lib/session"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/aws/endpoint"
@@ -95,6 +99,14 @@ type Config struct {
 	Insecure bool
 	// DisableServerSideEncryption is an optional switch to opt out of SSE in case the provider does not support it
 	DisableServerSideEncryption bool
+
+	// UseVirtualStyleAddressing use a virtual-hosted–style URI.
+	// Path style e.g. https://s3.region-code.amazonaws.com/bucket-name/key-name
+	// Virtual hosted style e.g. https://bucket-name.s3.region-code.amazonaws.com/key-name
+	// Teleport defaults to path-style addressing for better interoperability
+	// with 3rd party S3-compatible services out of the box.
+	// See https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html for more details.
+	UseVirtualStyleAddressing bool
 }
 
 // SetFromURL sets values on the Config from the supplied URI
@@ -145,6 +157,17 @@ func (s *Config) SetFromURL(in *url.URL, inRegion string) error {
 		}
 	}
 
+	if val := in.Query().Get(teleport.S3UseVirtualStyleAddressing); val != "" {
+		useVirtualStyleAddressing, err := strconv.ParseBool(val)
+		if err != nil {
+			return trace.BadParameter(boolErrorTemplate, in.String(), teleport.S3UseVirtualStyleAddressing, val)
+		}
+		s.UseVirtualStyleAddressing = useVirtualStyleAddressing
+	} else {
+		// Default to false for backwards compatibility
+		s.UseVirtualStyleAddressing = false
+	}
+
 	s.Region = region
 	s.Bucket = in.Host
 	s.Path = in.Path
@@ -155,6 +178,10 @@ func (s *Config) SetFromURL(in *url.URL, inRegion string) error {
 func (s *Config) CheckAndSetDefaults() error {
 	if s.Bucket == "" {
 		return trace.BadParameter("missing parameter Bucket")
+	}
+
+	if s.Endpoint != "" {
+		s.Endpoint = endpoint.CreateURI(s.Endpoint, s.Insecure)
 	}
 
 	return nil
@@ -190,7 +217,10 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 		opts = append(opts, config.WithCredentialsProvider(cfg.CredentialsProvider))
 	}
 
-	opts = append(opts, config.WithAPIOptions(awsmetrics.MetricsMiddleware()))
+	opts = append(opts,
+		config.WithAPIOptions(awsmetrics.MetricsMiddleware()),
+		config.WithAPIOptions(s3metrics.MetricsMiddleware()),
+	)
 
 	resolver, err := endpoint.NewLoggingResolver(
 		s3.NewDefaultEndpointResolverV2(),
@@ -203,7 +233,12 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	s3Opts := []func(*s3.Options){s3.WithEndpointResolverV2(resolver)}
+	s3Opts := []func(*s3.Options){
+		s3.WithEndpointResolverV2(resolver),
+		func(o *s3.Options) {
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		},
+	}
 
 	if cfg.Endpoint != "" {
 		if _, err := url.Parse(cfg.Endpoint); err != nil {
@@ -213,7 +248,7 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 		opts = append(opts, config.WithBaseEndpoint(cfg.Endpoint))
 
 		s3Opts = append(s3Opts, func(options *s3.Options) {
-			options.UsePathStyle = true
+			options.UsePathStyle = !cfg.UseVirtualStyleAddressing
 		})
 	}
 
@@ -412,7 +447,11 @@ func (h *Handler) fromPath(p string) session.ID {
 
 // ensureBucket makes sure bucket exists, and if it does not, creates it
 func (h *Handler) ensureBucket(ctx context.Context) error {
-	_, err := h.client.HeadBucket(ctx, &s3.HeadBucketInput{
+	// Use a short timeout for the HeadBucket call in case it takes too long, in
+	// #50747 this call would hang.
+	shortCtx, cancel := context.WithTimeout(ctx, apidefaults.DefaultIOTimeout)
+	defer cancel()
+	_, err := h.client.HeadBucket(shortCtx, &s3.HeadBucketInput{
 		Bucket: aws.String(h.Bucket),
 	})
 	err = awsutils.ConvertS3Error(err)
@@ -423,7 +462,7 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 	case trace.IsBadParameter(err):
 		return trace.Wrap(err)
 	case !trace.IsNotFound(err):
-		h.logger.ErrorContext(ctx, "Failed to ensure that S3 bucket exists. S3 session uploads may fail. If you've set up the bucket already and gave Teleport write-only access, feel free to ignore this error.", "bucket", h.Bucket, "error", err)
+		h.logger.ErrorContext(ctx, "Failed to ensure that S3 bucket exists. This is expected if External Audit Storage is enabled or if Teleport has write-only access to the bucket, otherwise S3 session uploads may fail.", "bucket", h.Bucket, "error", err)
 		return nil
 	}
 
@@ -432,8 +471,7 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 		ACL:    awstypes.BucketCannedACLPrivate,
 	}
 	_, err = h.client.CreateBucket(ctx, input)
-	err = awsutils.ConvertS3Error(err, fmt.Sprintf("bucket %v already exists", aws.String(h.Bucket)))
-	if err != nil {
+	if err := awsutils.ConvertS3Error(err); err != nil {
 		if !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err)
 		}
@@ -449,9 +487,8 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 			Status: awstypes.BucketVersioningStatusEnabled,
 		},
 	})
-	err = awsutils.ConvertS3Error(err, fmt.Sprintf("failed to set versioning state for bucket %q", h.Bucket))
-	if err != nil {
-		return trace.Wrap(err)
+	if err := awsutils.ConvertS3Error(err); err != nil {
+		return trace.Wrap(err, "failed to set versioning state for bucket %q", h.Bucket)
 	}
 
 	// Turn on server-side encryption for the bucket.
@@ -468,9 +505,8 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 				},
 			},
 		})
-		err = awsutils.ConvertS3Error(err, fmt.Sprintf("failed to set encryption state for bucket %q", h.Bucket))
-		if err != nil {
-			return trace.Wrap(err)
+		if err := awsutils.ConvertS3Error(err); err != nil {
+			return trace.Wrap(err, "failed to set encryption state for bucket %q", h.Bucket)
 		}
 	}
 	return nil

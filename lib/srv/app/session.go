@@ -28,7 +28,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -85,8 +84,6 @@ type sessionChunk struct {
 	closeTimeout time.Duration
 
 	log *slog.Logger
-
-	legacyLogger *logrus.Entry
 }
 
 // sessionOpt defines an option function for creating sessionChunk.
@@ -103,7 +100,6 @@ func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsc
 		inflightCond: sync.NewCond(&sync.Mutex{}),
 		closeTimeout: sessionChunkCloseTimeout,
 		log:          c.log,
-		legacyLogger: c.legacyLogger,
 	}
 
 	sess.log.DebugContext(ctx, "Creating app session chunk", "session_id", sess.id)
@@ -202,7 +198,7 @@ func (c *ConnectionsHandler) withJWTTokenForwarder(ctx context.Context, sess *se
 	sess.handler, err = reverseproxy.New(
 		reverseproxy.WithFlushInterval(100*time.Millisecond),
 		reverseproxy.WithRoundTripper(transport),
-		reverseproxy.WithLogger(sess.legacyLogger),
+		reverseproxy.WithLogger(sess.log),
 		reverseproxy.WithRewriter(common.NewHeaderRewriter(delegate)),
 	)
 	if err != nil {

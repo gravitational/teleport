@@ -7,7 +7,7 @@ Teleport can import and grant access to resources from an Okta organizations,
 such as user profiles, groups and applications. Teleport can provision user
 accounts based Okta users, Okta applications can be accessed through Teleport's 
 application access UI, and access to these applications along with user groups
-can be managed by Teleport's RBAC along with access requests.
+can be managed by Teleport's RBAC along with Access Requests.
 
 This guide will help you set up the Okta Service as a Teleport hosted
 integration.
@@ -74,7 +74,7 @@ actions:
  1. Start the hosted Okta integration, including the synchronization of Okta
     users, apps and groups into Teleport.
 
-If Teleport Identity is enabled, the enrollment process will also guide you
+If Teleport Identity Governance is enabled, the enrollment process will also guide you
 through the process of enabling SCIM provisioning for the Okta SAML application.
 
 <Admonition type="note">
@@ -104,13 +104,13 @@ Select the Okta tile, and then Teleport will then ask for
  
 Click **Connect** to continue.
 
-Once the initial enrollment has completed, and if Teleport Identity
+Once the initial enrollment has completed, and if Teleport Identity Governance
 is enabled, the enrollment workflow will guide you through enabling SCIM
 provisioning as well.
 
 ## Configure Access List Synchronization
 
-If Teleport Identity is enabled, the enrollment workflow will also guide you to configure syncing of
+If Teleport Identity Governance is enabled, the enrollment workflow will also guide you to configure syncing of
 user groups and direct application assignments as Access Lists. This will ensure
 that permissions in Okta are modeled properly in Teleport, allowing Teleport users
 to see the same Okta applications that they would when viewing the Okta dashboard.
@@ -169,7 +169,7 @@ particular time.
 
 ## Configuring SCIM provisioning
 
-If Teleport Identity is enabled, the enrollment workflow will now show you a
+If Teleport Identity Governance is enabled, the enrollment workflow will now show you a
 guide to configuring SCIM. Enabling SCIM allowed Okta to push user (and other
 resource) updates to Teleport in near real time, without waiting for the Okta
 integration to run a synchronization.
@@ -247,7 +247,7 @@ are deleted by a Teleport Administrator. That is, they will *not* be deleted
 when the hosted integration is deleted.
 
 The easiest way to clean these up is through the use of `tctl`. A batch command
-like this will remove all Okta sourced access lists in a system:
+like this will remove all Okta-sourced Access Lists in a system:
 
 ```
 tctl get access_lists --format json | jq '.[] | select(.metadata.labels["teleport.dev/origin"] == "okta") | .metadata.name' -r | xargs -I{} tctl rm "access_list/{}"

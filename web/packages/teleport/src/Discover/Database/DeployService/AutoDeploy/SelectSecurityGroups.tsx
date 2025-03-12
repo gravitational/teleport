@@ -16,29 +16,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
-import { Text, Flex, Box, Indicator, ButtonSecondary, Subtitle3 } from 'design';
-import * as Icons from 'design/Icon';
+import { Box, ButtonSecondary, Flex, Indicator, Subtitle3, Text } from 'design';
 import { FetchStatus } from 'design/DataTable/types';
-import { HoverTooltip, ToolTipInfo } from 'shared/components/ToolTip';
+import * as Icons from 'design/Icon';
+import { P, P3 } from 'design/Text/Text';
+import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
 import { pluralize } from 'shared/utils/text';
-import { P, P3 } from 'design/Text/Text';
 
+import { DbMeta } from 'teleport/Discover/useDiscover';
 import {
   AwsRdsDatabase,
   integrationService,
   SecurityGroup,
   SecurityGroupRule,
 } from 'teleport/services/integrations';
-import { DbMeta } from 'teleport/Discover/useDiscover';
 
 import {
+  ButtonBlueText,
   SecurityGroupPicker,
   SecurityGroupWithRecommendation,
-  ButtonBlueText,
 } from '../../../Shared';
 
 type TableData = {
@@ -126,7 +126,7 @@ export const SelectSecurityGroups = ({
     <>
       <Flex alignItems="center" gap={1} mb={2}>
         <Subtitle3>Select ECS Security Groups</Subtitle3>
-        <ToolTipInfo>
+        <IconTooltip>
           <Text>
             Select ECS security group(s) based on the following requirements:
             <ul>
@@ -141,7 +141,7 @@ export const SelectSecurityGroups = ({
               </li>
             </ul>
           </Text>
-        </ToolTipInfo>
+        </IconTooltip>
       </Flex>
 
       <P mb={2}>

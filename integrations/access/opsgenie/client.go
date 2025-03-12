@@ -20,6 +20,7 @@ package opsgenie
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -27,7 +28,6 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/defaults"
 	"github.com/go-resty/resty/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -115,27 +115,42 @@ func (cfg *ClientConfig) CheckAndSetDefaults() error {
 
 // NewClient creates a new Opsgenie client for managing alerts.
 func NewClient(conf ClientConfig) (*Client, error) {
-	client := resty.NewWithClient(defaults.Config().HTTPClient)
-	client.SetTransport(&http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-	})
-	client.SetHeader("Authorization", "GenieKey "+conf.APIKey)
-	client.SetBaseURL(conf.APIEndpoint)
+	const (
+		maxConns      = 100
+		clientTimeout = 10 * time.Second
+	)
+
+	client := resty.NewWithClient(&http.Client{
+		Timeout: clientTimeout,
+		Transport: &http.Transport{
+			MaxConnsPerHost:     maxConns,
+			MaxIdleConnsPerHost: maxConns,
+			Proxy:               http.ProxyFromEnvironment,
+		}}).
+		SetHeader("Authorization", "GenieKey "+conf.APIKey).
+		SetBaseURL(conf.APIEndpoint)
+
+	client.OnAfterResponse(common.OnAfterResponse(types.PluginTypeOpsgenie, errWrapper, conf.StatusSink))
 	return &Client{
 		client:       client,
 		ClientConfig: conf,
 	}, nil
 }
 
-func errWrapper(statusCode int, body string) error {
+func errWrapper(statusCode int, body []byte) error {
+	defaultMessage := string(body)
+	errResponse := errorResult{}
+	if err := json.Unmarshal(body, &errResponse); err == nil {
+		defaultMessage = errResponse.Message
+	}
 	switch statusCode {
 	case http.StatusForbidden:
-		return trace.AccessDenied("opsgenie API access denied: status code %v: %q", statusCode, body)
+		return trace.AccessDenied("opsgenie API access denied: status code %v: %q", statusCode, defaultMessage)
 	case http.StatusRequestTimeout:
-		return trace.ConnectionProblem(trace.Errorf("status code %v: %q", statusCode, body),
+		return trace.ConnectionProblem(trace.Errorf("status code %v: %q", statusCode, defaultMessage),
 			"connecting to opsgenie API")
 	}
-	return trace.Errorf("connecting to opsgenie API status code %v: %q", statusCode, body)
+	return trace.Errorf("connecting to opsgenie API status code %v: %q", statusCode, defaultMessage)
 }
 
 // CreateAlert creates an opsgenie alert.
@@ -164,9 +179,6 @@ func (og Client) CreateAlert(ctx context.Context, reqID string, reqData RequestD
 		return OpsgenieData{}, trace.Wrap(err)
 	}
 	defer resp.RawResponse.Body.Close()
-	if resp.IsError() {
-		return OpsgenieData{}, errWrapper(resp.StatusCode(), string(resp.Body()))
-	}
 
 	// If this fails, Teleport request approval and auto-approval will still work,
 	// but incident in Opsgenie won't be auto-closed or updated as the alertID won't be available.
@@ -185,10 +197,10 @@ func (og Client) tryGetAlertRequestResult(ctx context.Context, reqID string) (Ge
 	for {
 		alertRequestResult, err := og.getAlertRequestResult(ctx, reqID)
 		if err == nil {
-			logger.Get(ctx).Debugf("Got alert request result: %+v", alertRequestResult)
+			logger.Get(ctx).DebugContext(ctx, "Got alert request result", "alert_id", alertRequestResult.Data.AlertID)
 			return alertRequestResult, nil
 		}
-		logger.Get(ctx).Debug("Failed to get alert request result:", err)
+		logger.Get(ctx).DebugContext(ctx, "Failed to get alert request result", "error", err)
 		if err := backoff.Do(ctx); err != nil {
 			return GetAlertRequestResult{}, trace.Wrap(err)
 		}
@@ -206,9 +218,6 @@ func (og Client) getAlertRequestResult(ctx context.Context, reqID string) (GetAl
 		return GetAlertRequestResult{}, trace.Wrap(err)
 	}
 	defer resp.RawResponse.Body.Close()
-	if resp.IsError() {
-		return GetAlertRequestResult{}, errWrapper(resp.StatusCode(), string(resp.Body()))
-	}
 	return result, nil
 }
 
@@ -265,9 +274,6 @@ func (og Client) PostReviewNote(ctx context.Context, alertID string, review type
 		return trace.Wrap(err)
 	}
 	defer resp.RawResponse.Body.Close()
-	if resp.IsError() {
-		return errWrapper(resp.StatusCode(), string(resp.Body()))
-	}
 	return nil
 }
 
@@ -290,9 +296,6 @@ func (og Client) ResolveAlert(ctx context.Context, alertID string, resolution Re
 		return trace.Wrap(err)
 	}
 	defer resp.RawResponse.Body.Close()
-	if resp.IsError() {
-		return errWrapper(resp.StatusCode(), string(resp.Body()))
-	}
 	return nil
 }
 
@@ -314,9 +317,6 @@ func (og Client) GetOnCall(ctx context.Context, scheduleName string) (Responders
 		return RespondersResult{}, trace.Wrap(err)
 	}
 	defer resp.RawResponse.Body.Close()
-	if resp.IsError() {
-		return RespondersResult{}, errWrapper(resp.StatusCode(), string(resp.Body()))
-	}
 	return result, nil
 }
 
@@ -332,26 +332,6 @@ func (og Client) CheckHealth(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	defer resp.RawResponse.Body.Close()
-
-	if og.StatusSink != nil {
-		var code types.PluginStatusCode
-		switch {
-		case resp.StatusCode() == http.StatusUnauthorized:
-			code = types.PluginStatusCode_UNAUTHORIZED
-		case resp.StatusCode() >= 200 && resp.StatusCode() < 400:
-			code = types.PluginStatusCode_RUNNING
-		default:
-			code = types.PluginStatusCode_OTHER_ERROR
-		}
-		if err := og.StatusSink.Emit(ctx, &types.PluginStatusV1{Code: code}); err != nil {
-			logger.Get(resp.Request.Context()).WithError(err).
-				WithField("code", resp.StatusCode()).Errorf("Error while emitting servicenow plugin status: %v", err)
-		}
-	}
-
-	if resp.IsError() {
-		return errWrapper(resp.StatusCode(), string(resp.Body()))
-	}
 	return nil
 }
 

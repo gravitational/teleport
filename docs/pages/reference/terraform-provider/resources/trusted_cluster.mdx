@@ -1,5 +1,6 @@
 ---
 title: Reference for the teleport_trusted_cluster Terraform resource
+sidebar_label: trusted_cluster
 description: This page describes the supported values of the teleport_trusted_cluster resource of the Teleport Terraform provider.
 ---
 
@@ -14,6 +15,7 @@ description: This page describes the supported values of the teleport_trusted_cl
 # Teleport trusted cluster
 
 resource "teleport_trusted_cluster" "cluster" {
+  version = "v2"
   metadata = {
     name = "primary"
     labels = {

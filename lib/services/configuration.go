@@ -21,16 +21,24 @@ package services
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 )
+
+// ClusterNameGetter is a service that gets the cluster name from the backend.
+type ClusterNameGetter interface {
+	// GetClusterName gets types.ClusterName from the backend.
+	GetClusterName(opts ...MarshalOption) (types.ClusterName, error)
+}
 
 // ClusterConfiguration stores the cluster configuration in the backend. All
 // the resources modified by this interface can only have a single instance
 // in the backend.
 type ClusterConfiguration interface {
-	// GetClusterName gets types.ClusterName from the backend.
-	GetClusterName(opts ...MarshalOption) (types.ClusterName, error)
+	ClusterNameGetter
 	// SetClusterName sets services.ClusterName on the backend.
 	SetClusterName(types.ClusterName) error
 	// UpsertClusterName upserts cluster name
@@ -127,4 +135,52 @@ type ClusterConfiguration interface {
 	UpsertAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error)
 	// DeleteAccessGraphSettings deletes the access graph settings from the backend.
 	DeleteAccessGraphSettings(context.Context) error
+}
+
+// ClusterConfigurationInternal extends [ClusterConfiguration] with
+// auth-specific methods.
+type ClusterConfigurationInternal interface {
+	ClusterConfiguration
+
+	// AppendCheckAuthPreferenceActions appends some atomic write actions to the
+	// given slice that will check that the currently stored cluster auth
+	// preference has the given revision when applied as part of a
+	// [backend.Backend.AtomicWrite]. The backend to which the actions are
+	// applied should be the same backend used by the
+	// ClusterConfigurationInternal.
+	AppendCheckAuthPreferenceActions(actions []backend.ConditionalAction, revision string) ([]backend.ConditionalAction, error)
+}
+
+// ValidateAuthPreference performs checks that should happen before persisting a
+// new version of the preference resource, typically only as part of Auth
+// service operations.
+func ValidateAuthPreference(ap types.AuthPreference) error {
+	// TODO(espadolini): the checks that are duplicated in
+	// {Set,Create,Update,Upsert}AuthPreference should be moved here
+
+	if err := ValidateStableUNIXUserConfig(ap.GetStableUNIXUserConfig()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// ValidateStableUNIXUserConfig checks if the configuration is suitable for
+// storage and use.
+func ValidateStableUNIXUserConfig(c *types.StableUNIXUserConfig) error {
+	if c == nil || !c.Enabled {
+		return nil
+	}
+
+	if c.FirstUid > c.LastUid {
+		return trace.BadParameter("stable UNIX user is enabled but UID range is empty")
+	}
+
+	// see https://github.com/systemd/systemd/blob/cc7300fc5868f6d47f3f47076100b574bf54e58d/docs/UIDS-GIDS.md
+	const firstUserUID = 1000
+	if c.FirstUid < firstUserUID {
+		return trace.BadParameter("stable UNIX user UID range includes negative or system UIDs; the configured range should be contained between 1000 and 2147483647")
+	}
+
+	return nil
 }

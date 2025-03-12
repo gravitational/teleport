@@ -240,6 +240,63 @@ func TestConvertUsageEvent(t *testing.T) {
 			}},
 		},
 		{
+			name: "integration enroll step success event",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiIntegrationEnrollStepEvent{
+				UiIntegrationEnrollStepEvent: &usageeventsv1.UIIntegrationEnrollStepEvent{
+					Metadata: &usageeventsv1.IntegrationEnrollMetadata{Id: "someid", Kind: usageeventsv1.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER},
+					Step:     usageeventsv1.IntegrationEnrollStep_INTEGRATION_ENROLL_STEP_AWSIC_CONNECT_OIDC,
+					Status: &usageeventsv1.IntegrationEnrollStepStatus{
+						Code: usageeventsv1.IntegrationEnrollStatusCode_INTEGRATION_ENROLL_STATUS_CODE_SUCCESS,
+					},
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_UiIntegrationEnrollStepEvent{
+				UiIntegrationEnrollStepEvent: &prehogv1a.UIIntegrationEnrollStepEvent{
+					Metadata: &prehogv1a.IntegrationEnrollMetadata{
+						Id:       "someid",
+						UserName: expectedAnonymizedUserString,
+						Kind:     prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER,
+					},
+					Step: prehogv1a.IntegrationEnrollStep_INTEGRATION_ENROLL_STEP_AWSIC_CONNECT_OIDC,
+					Status: &prehogv1a.IntegrationEnrollStepStatus{
+						Code:  prehogv1a.IntegrationEnrollStatusCode_INTEGRATION_ENROLL_STATUS_CODE_SUCCESS,
+						Error: "",
+					},
+				},
+			}},
+		},
+		{
+			name: "integration enroll step error event",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiIntegrationEnrollStepEvent{
+				UiIntegrationEnrollStepEvent: &usageeventsv1.UIIntegrationEnrollStepEvent{
+					Metadata: &usageeventsv1.IntegrationEnrollMetadata{Id: "someid", Kind: usageeventsv1.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER},
+					Step:     usageeventsv1.IntegrationEnrollStep_INTEGRATION_ENROLL_STEP_AWSIC_CONNECT_OIDC,
+					Status: &usageeventsv1.IntegrationEnrollStepStatus{
+						Code:  usageeventsv1.IntegrationEnrollStatusCode_INTEGRATION_ENROLL_STATUS_CODE_ERROR,
+						Error: "error",
+					},
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_UiIntegrationEnrollStepEvent{
+				UiIntegrationEnrollStepEvent: &prehogv1a.UIIntegrationEnrollStepEvent{
+					Metadata: &prehogv1a.IntegrationEnrollMetadata{
+						Id:       "someid",
+						UserName: expectedAnonymizedUserString,
+						Kind:     prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER,
+					},
+					Step: prehogv1a.IntegrationEnrollStep_INTEGRATION_ENROLL_STEP_AWSIC_CONNECT_OIDC,
+					Status: &prehogv1a.IntegrationEnrollStepStatus{
+						Code:  prehogv1a.IntegrationEnrollStatusCode_INTEGRATION_ENROLL_STATUS_CODE_ERROR,
+						Error: "error",
+					},
+				},
+			}},
+		},
+		{
 			name: "discover deploy service event",
 			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent{
 				UiDiscoverDeployServiceEvent: &usageeventsv1.UIDiscoverDeployServiceEvent{
@@ -523,6 +580,7 @@ func TestConvertUsageEvent(t *testing.T) {
 					CountTraitsGranted:          6,
 					CountInheritedRolesGranted:  0,
 					CountInheritedTraitsGranted: 0,
+					UserName:                    "myuser",
 				},
 			}},
 			identityUsername: "myuser",

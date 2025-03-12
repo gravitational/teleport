@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.integration.v1;
 
+import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
 import "teleport/legacy/types/types.proto";
 
@@ -44,6 +45,15 @@ service IntegrationService {
 
   // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
   rpc GenerateAWSOIDCToken(GenerateAWSOIDCTokenRequest) returns (GenerateAWSOIDCTokenResponse);
+
+  // GenerateAzureOIDCToken generates a token to be used when executing an Azure OIDC Integration action.
+  rpc GenerateAzureOIDCToken(GenerateAzureOIDCTokenRequest) returns (GenerateAzureOIDCTokenResponse);
+
+  // GenerateGitHubUserCert signs a SSH certificate for GitHub integration.
+  rpc GenerateGitHubUserCert(GenerateGitHubUserCertRequest) returns (GenerateGitHubUserCertResponse);
+
+  // ExportIntegrationCertAuthorities exports cert authorities for an integration.
+  rpc ExportIntegrationCertAuthorities(ExportIntegrationCertAuthoritiesRequest) returns (ExportIntegrationCertAuthoritiesResponse);
 }
 
 // ListIntegrationsRequest is a request for a paginated list of Integrations.
@@ -86,6 +96,9 @@ message UpdateIntegrationRequest {
 message DeleteIntegrationRequest {
   // Name is the name of the Integration to be deleted.
   string name = 1;
+  // DeleteAssociatedResources allows the request to search associated resources
+  // and attempt to delete them.
+  bool delete_associated_resources = 2;
 }
 
 // DeleteAllIntegrationsRequest is the request for deleting all integrations.
@@ -110,4 +123,53 @@ message GenerateAWSOIDCTokenRequest {
 message GenerateAWSOIDCTokenResponse {
   // Token is the signed JWT ready to be used
   string token = 1;
+}
+
+// GenerateAzureOIDCTokenRequest are the parameters used to request an Azure OIDC
+// Integration token.
+message GenerateAzureOIDCTokenRequest {
+  // Integration is the Azure OIDC Integration name.
+  // Required.
+  string integration = 1;
+}
+
+// GenerateAzureOIDCTokenResponse contains a signed Azure OIDC Integration token.
+message GenerateAzureOIDCTokenResponse {
+  // Token is the signed JWT ready to be used
+  string token = 1;
+}
+
+// GenerateGitHubUserCertRequest is a request to sign a client certificate used by
+// GitHub integration to authenticate with GitHub enterprise.
+message GenerateGitHubUserCertRequest {
+  // Integration is the name of the integration;
+  string integration = 1;
+  // PublicKey is the public key to be signed.
+  bytes public_key = 2;
+  // UserId is the GitHub user id.
+  string user_id = 3;
+  // KeyId is the certificate ID, usually the Teleport username.
+  string key_id = 4;
+  // Ttl is the duration the certificate will be valid for.
+  google.protobuf.Duration ttl = 5;
+}
+
+// GenerateGitHubUserCertResponse contains a signed certificate.
+message GenerateGitHubUserCertResponse {
+  // AuthorizedKey is the signed certificate.
+  bytes authorized_key = 1;
+}
+
+// ExportIntegrationCertAuthoritiesRequest is the request to export cert
+// authorities for an integration.
+message ExportIntegrationCertAuthoritiesRequest {
+  // Integration is the name of the integration;
+  string integration = 1;
+}
+
+// ExportIntegrationCertAuthoritiesResponse is the response to
+// ExportIntegrationCertAuthorities.
+message ExportIntegrationCertAuthoritiesResponse {
+  // CertAuthorities are the CA key sets used to sign any new certificates.
+  types.CAKeySet cert_authorities = 1;
 }

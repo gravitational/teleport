@@ -16,16 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
+
 import { Box } from 'design';
 
-export const ConnectionsIconStatusIndicator: React.FC<Props> = props => {
-  const { connected, ...styles } = props;
-  return <StyledStatus $connected={connected} {...styles} />;
-};
+export type Status = 'on' | 'off' | 'warning';
 
-const StyledStatus = styled(Box)<InternalProps>`
+export const ConnectionsIconStatusIndicator = styled(Box)<{
+  status: Status;
+}>`
   position: absolute;
   top: -4px;
   right: -4px;
@@ -35,9 +34,28 @@ const StyledStatus = styled(Box)<InternalProps>`
   border-radius: 50%;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   ${props => {
-    const { $connected, theme } = props;
-    const backgroundColor = $connected ? theme.colors.success.main : null;
-    const border = $connected
+    const { status, theme } = props;
+
+    if (status === 'warning') {
+      return css`
+        color: ${theme.colors.interactive.solid.alert.default};
+        &:after {
+          content: '⚠';
+          font-size: 12px;
+
+          position: absolute;
+          top: -8px;
+          left: -2px;
+        }
+      `;
+    }
+
+    const connected = status === 'on';
+
+    const backgroundColor = connected
+      ? theme.colors.interactive.solid.success.default
+      : null;
+    const border = connected
       ? null
       : `1px solid ${theme.colors.text.slightlyMuted}`;
     return {
@@ -46,11 +64,3 @@ const StyledStatus = styled(Box)<InternalProps>`
     };
   }}
 `;
-
-type Props = {
-  connected: boolean;
-};
-
-type InternalProps = {
-  $connected?: boolean;
-};

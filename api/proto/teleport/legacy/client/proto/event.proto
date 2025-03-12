@@ -34,6 +34,8 @@ import "teleport/secreports/v1/secreports.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 import "teleport/userprovisioning/v2/statichostuser.proto";
 import "teleport/usertasks/v1/user_tasks.proto";
+import "teleport/workloadidentity/v1/resource.proto";
+import "teleport/workloadidentity/v1/revocation_resource.proto";
 
 option go_package = "github.com/gravitational/teleport/api/client/proto";
 
@@ -206,5 +208,11 @@ message Event {
     // IdentityCenterAccountlAssignment is a resource representing a potential
     // Permission Set grant on a specific AWS account.
     teleport.identitycenter.v1.AccountAssignment IdentityCenterAccountAssignment = 74;
+    // PluginStaticCredentials is filled in PluginStaticCredentials related events
+    types.PluginStaticCredentialsV1 PluginStaticCredentials = 75;
+    // WorkloadIdentity is a resource for workload identity.
+    teleport.workloadidentity.v1.WorkloadIdentity WorkloadIdentity = 76;
+    // WorkloadIdentityX509Revocation is a resource for workload identity x509 revocation.
+    teleport.workloadidentity.v1.WorkloadIdentityX509Revocation WorkloadIdentityX509Revocation = 77;
   }
 }

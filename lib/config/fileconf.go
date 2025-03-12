@@ -20,12 +20,14 @@ package config
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"net"
 	"net/url"
 	"os"
@@ -34,7 +36,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v2"
@@ -895,6 +896,8 @@ type PKCS11 struct {
 	// Trailing newlines will be removed, other whitespace will be left. Set
 	// this or Pin to set the pin.
 	PINPath string `yaml:"pin_path,omitempty"`
+	// MaxSessions is the upper limit of sessions allowed by the HSM.
+	MaxSessions int `yaml:"max_sessions"`
 }
 
 // GoogleCloudKMS configures Google Cloud Key Management Service to to be used for
@@ -1049,6 +1052,9 @@ type AuthenticationConfig struct {
 
 	// SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster.
 	SignatureAlgorithmSuite types.SignatureAlgorithmSuite `yaml:"signature_algorithm_suite"`
+
+	// StableUNIXUserConfig is [types.AuthPreferenceSpecV2.StableUnixUserConfig].
+	StableUNIXUserConfig *StableUNIXUserConfig `yaml:"stable_unix_user_config,omitempty"`
 }
 
 // Parse returns valid types.AuthPreference instance.
@@ -1083,7 +1089,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	switch {
 	case a.HardwareKey != nil:
 		if a.PIVSlot != "" {
-			log.Warn(`Both "piv_slot" and "hardware_key" settings were populated, using "hardware_key" setting.`)
+			slog.WarnContext(context.Background(), `Both "piv_slot" and "hardware_key" settings were populated, using "hardware_key" setting`)
 		}
 		h, err = a.HardwareKey.Parse()
 		if err != nil {
@@ -1101,12 +1107,17 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	}
 
 	if a.SecondFactor != "" && a.SecondFactors != nil {
-		log.Warn(`` +
-			`second_factor and second_factors are both set. second_factors will take precedence. ` +
-			`second_factor should be unset to remove this warning.`)
+		const msg = `second_factor and second_factors are both set. second_factors will take precedence. ` +
+			`second_factor should be unset to remove this warning.`
+		slog.WarnContext(context.Background(), msg)
 	}
 
-	return types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
+	stableUNIXUserConfig, err := a.StableUNIXUserConfig.Parse()
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse stable_unix_user_config")
+	}
+
+	ap, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:                    a.Type,
 		SecondFactor:            a.SecondFactor,
 		SecondFactors:           a.SecondFactors,
@@ -1122,7 +1133,17 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		DefaultSessionTTL:       a.DefaultSessionTTL,
 		HardwareKey:             h,
 		SignatureAlgorithmSuite: a.SignatureAlgorithmSuite,
+		StableUnixUserConfig:    stableUNIXUserConfig,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := services.ValidateAuthPreference(ap); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ap, nil
 }
 
 type UniversalSecondFactor struct {
@@ -1163,10 +1184,10 @@ func (w *Webauthn) Parse() (*types.Webauthn, error) {
 		return nil, trace.BadParameter("webauthn.attestation_denied_cas: %v", err)
 	}
 	if w.Disabled {
-		log.Warnf(`` +
-			`The "webauthn.disabled" setting is marked for removal and currently has no effect. ` +
+		const msg = `The "webauthn.disabled" setting is marked for removal and currently has no effect. ` +
 			`Please update your configuration to use WebAuthn. ` +
-			`Refer to https://goteleport.com/docs/access-controls/guides/webauthn/`)
+			`Refer to https://goteleport.com/docs/admin-guides/access-controls/guides/webauthn/`
+		slog.WarnContext(context.Background(), msg)
 	}
 	return &types.Webauthn{
 		// Allow any RPID to go through, we rely on
@@ -1304,6 +1325,33 @@ func (h *HardwareKeySerialNumberValidation) Parse() (*types.HardwareKeySerialNum
 		Enabled:               enabled,
 		SerialNumberTraitName: h.SerialNumberTraitName,
 	}, nil
+}
+
+// StableUNIXUserConfig is [types.StableUNIXUserConfig].
+type StableUNIXUserConfig struct {
+	// Enabled is [types.StableUNIXUserConfig.Enabled].
+	Enabled bool `yaml:"enabled"`
+	// FirstUID is [types.StableUNIXUserConfig.FirstUid].
+	FirstUID int32 `yaml:"first_uid"`
+	// LastUID is [types.StableUNIXUserConfig.LastUid].
+	LastUID int32 `yaml:"last_uid"`
+}
+
+func (s *StableUNIXUserConfig) Parse() (*types.StableUNIXUserConfig, error) {
+	if s == nil {
+		return nil, nil
+	}
+
+	c := &types.StableUNIXUserConfig{
+		Enabled:  s.Enabled,
+		FirstUid: s.FirstUID,
+		LastUid:  s.LastUID,
+	}
+
+	if err := services.ValidateStableUNIXUserConfig(c); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return c, nil
 }
 
 // HostedPlugins defines 'auth_service/plugins' Enterprise extension
@@ -1523,6 +1571,8 @@ type GCPMatcher struct {
 type AccessGraphSync struct {
 	// AWS is the AWS configuration for the AccessGraph Sync service.
 	AWS []AccessGraphAWSSync `yaml:"aws,omitempty"`
+	// Azure is the Azure configuration for the AccessGraph Sync service.
+	Azure []AccessGraphAzureSync `yaml:"azure,omitempty"`
 	// PollInterval is the frequency at which to poll for AWS resources
 	PollInterval time.Duration `yaml:"poll_interval,omitempty"`
 }
@@ -1536,6 +1586,12 @@ type AccessGraphAWSSync struct {
 	// ExternalID is the AWS external ID to use when assuming a role for
 	// database discovery in an external AWS account.
 	ExternalID string `yaml:"external_id,omitempty"`
+}
+
+// AccessGraphAzureSync represents the configuration for the Azure AccessGraph Sync service.
+type AccessGraphAzureSync struct {
+	// SubscriptionID is the Azure subscription ID configured for syncing
+	SubscriptionID string `yaml:"subscription_id,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
@@ -2036,6 +2092,12 @@ type App struct {
 	// CORS defines the Cross-Origin Resource Sharing configuration for the app,
 	// controlling how resources are shared across different origins.
 	CORS *CORS `yaml:"cors,omitempty"`
+
+	// TCPPorts is a list of ports and port ranges that an app agent can forward connections to.
+	// Only applicable to TCP App Access.
+	// If this field is not empty, URI is expected to contain no port number and start with the tcp
+	// protocol.
+	TCPPorts []PortRange `yaml:"tcp_ports,omitempty"`
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
@@ -2080,6 +2142,18 @@ type Rewrite struct {
 type AppAWS struct {
 	// ExternalID is the AWS External ID used when assuming roles in this app.
 	ExternalID string `yaml:"external_id,omitempty"`
+}
+
+// PortRange describes a port range for TCP apps. The range starts with Port and ends with EndPort.
+// PortRange can be used to describe a single port in which case the Port field is the port and the
+// EndPort field is 0.
+type PortRange struct {
+	// Port describes the start of the range. It must be between 1 and 65535.
+	Port int `yaml:"port"`
+	// EndPort describes the end of the range, inclusive. When describing a port range, it must be
+	// greater than Port and less than or equal to 65535. When describing a single port, it must be
+	// set to 0.
+	EndPort int `yaml:"end_port,omitempty"`
 }
 
 // Proxy is a `proxy_service` section of the config file:

@@ -291,6 +291,13 @@ message UserCertsRequest {
   teleport.attestation.v1.AttestationStatement SSHPublicKeyAttestationStatement = 25 [(gogoproto.jsontag) = "ssh_public_key_attestation_statement,omitempty"];
   // TLSPublicKeyAttestationStatement is an attestation statement for TLSPublicKey.
   teleport.attestation.v1.AttestationStatement TLSPublicKeyAttestationStatement = 26 [(gogoproto.jsontag) = "tls_public_key_attestation_statement,omitempty"];
+
+  // ReissuableRoleImpersonation is a flag that indicates whether or not a
+  // role impersonation certificate can be reissued. If set to true, the
+  // generated certificate will be re-issuable, by default, it will not be
+  // re-issuable. This flag is only applicable when UseRoleRequests is set to
+  // true.
+  bool ReissuableRoleImpersonation = 27 [(gogoproto.jsontag) = "reissuable_role_impersonation"];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -333,7 +340,13 @@ message RouteToApp {
   // GCPServiceAccount is the GCP service account to assume when accessing GCP API.
   string GCPServiceAccount = 7 [(gogoproto.jsontag) = "gcp_service_account,omitempty"];
   // URI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
+  // Used merely for audit events and mirrors the URI from the app spec. Not used as a source of
+  // truth when routing connections.
   string URI = 8 [(gogoproto.jsontag) = "uri,omitempty"];
+  // TargetPort signifies that the cert grants access to a specific port in a multi-port TCP app, as
+  // long as the port is defined in the app spec. When specified, it must be between 1 and 65535.
+  // Used only for routing, should not be used in other contexts (e.g., access requests).
+  uint32 TargetPort = 9 [(gogoproto.jsontag) = "target_port,omitempty"];
 }
 
 // GetUserRequest specifies parameters for the GetUser method.
@@ -1934,6 +1947,60 @@ message CreateRegisterChallengeRequest {
   DeviceUsage DeviceUsage = 3 [(gogoproto.jsontag) = "device_usage,omitempty"];
 }
 
+// IdentityCenterAccount holds information about an Identity Center account
+// within an IdentityCenterAccountAssignment
+message IdentityCenterAccount {
+  // ID is the AWS-assigned account ID
+  string ID = 1;
+
+  // ARN is the full Amazon Resource Name for the AWS account
+  string ARN = 2;
+
+  // AccountName is the human-readable name of the account
+  string AccountName = 3;
+
+  // Description is a free text description of the account
+  string Description = 4;
+}
+
+// IdentityCenterPermissionSet holds information about an Identity Center
+// permission set within an IdentityCenterAccountAssignment
+message IdentityCenterPermissionSet {
+  // ARN is the full Amazon Resource Name for the Permission Set
+  string ARN = 1;
+
+  // Name is the human readable name for the Permission Set
+  string Name = 2;
+}
+
+// IdentityCenterAccountAssignment represents a requestable Identity Center
+// Account Assignment. This is strictly a wire-format object for use with the
+// Unfied resource cache, and the types defined in the `identitycenter` package
+// should be used for actual processing.
+message IdentityCenterAccountAssignment {
+  // Kind is the database server resource kind.
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // SubKind is an optional resource subkind.
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // Version is the resource version.
+  string Version = 3 [(gogoproto.jsontag) = "version"];
+  // Metadata is the account metadata.
+  types.Metadata Metadata = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "metadata"
+  ];
+
+  // DisplayName is a human-readable name for the Account assignment
+  string DisplayName = 5;
+
+  // Account is the Identity Center Account this assigment references
+  IdentityCenterAccount Account = 6;
+
+  // PermissionSet is the Identity Center Permission Set this assignment
+  // references
+  IdentityCenterPermissionSet PermissionSet = 7;
+}
+
 // PaginatedResource represents one of the supported resources.
 message PaginatedResource {
   // Resource is the resource itself.
@@ -1962,6 +2029,12 @@ message PaginatedResource {
     types.AppServerOrSAMLIdPServiceProviderV1 AppServerOrSAMLIdPServiceProvider = 11 [deprecated = true];
     // SAMLIdPServiceProvider represents a SAML IdP service provider resource.
     types.SAMLIdPServiceProviderV1 SAMLIdPServiceProvider = 12 [(gogoproto.jsontag) = "saml_idp_service_provider,omitempty"];
+    // GitServer represents a Git server resource.
+    types.ServerV2 git_server = 15;
+
+    // IdentityCenterAccountAssignment represents a requestable Identity Center
+    // Account Assignment
+    IdentityCenterAccountAssignment IdentityCenterAccountAssignment = 16 [(gogoproto.jsontag) = "identity_center_account_assignment,omitempty"];
   }
 
   // Logins allowed for the included resource. Only to be populated for SSH and Desktops.
@@ -2077,6 +2150,36 @@ message ListResourcesRequest {
   // IncludeLogins indicates that the response should include a users allowed logins
   // for all returned resources.
   bool IncludeLogins = 13 [(gogoproto.jsontag) = "include_logins,omitempty"];
+}
+
+// ResolveSSHTargetRequest provides details about a server to be resolved in
+// an equivalent manner to a ssh dial request.
+//
+// Resolution can happen in two modes:
+//  1) searching for hosts based on labels, a predicate expression, or keywords
+//  2) searching based on hostname
+//
+// If a Host is provided, resolution will only operate in the second mode and
+// will not perform any resolution based on labels. In order to resolve via
+// labels the Host must not be populated.
+message ResolveSSHTargetRequest {
+  // The target host as would be sent to the proxy during a dial request.
+  string host = 1;
+  // The ssh port. This value is optional, and both empty string and "0" are typically
+  // treated as meaning that any port should match.
+  string port = 2;
+  // If not empty, a label-based matcher.
+  map<string, string> labels = 3;
+  // Boolean conditions that will be matched against the resource.
+  string predicate_expression = 4;
+  // A list of search keywords to match against resource field values.
+  repeated string search_keywords = 5;
+}
+
+// GetSSHTargetsResponse holds ssh servers that match an ssh targets request.
+message ResolveSSHTargetResponse {
+  // The target matching the supplied request.
+  types.ServerV2 server = 1;
 }
 
 // GetSSHTargetsRequest gets all servers that might match an equivalent ssh dial request.
@@ -2349,16 +2452,21 @@ message DownstreamInventoryOneOf {
   }
 }
 
-// DownstreamInventoryPing is sent down the inventory control stream for testing/debug
-// purposes.
+// DownstreamInventoryPing is sent down the inventory control stream.
 message DownstreamInventoryPing {
   uint64 ID = 1;
 }
 
 // UpstreamInventoryPong is sent up the inventory control stream in response to a downstream
-// ping (used for testing/debug purposes).
+// ping including the system clock of the downstream.
 message UpstreamInventoryPong {
   uint64 ID = 1;
+  // SystemClock advertises the system clock of the upstream.
+  google.protobuf.Timestamp SystemClock = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "system_clock,omitempty"
+  ];
 }
 
 // UpstreamInventoryHello is the hello message sent up the inventory control stream.
@@ -2553,10 +2661,10 @@ message InventoryPingRequest {
   // ServerID is the ID of the instance to ping.
   string ServerID = 1;
 
-  // ControlLog forces the ping to use the standard "commit then act" model of control log synchronization
-  // for the ping. This significantly increases the amount of time it takes for the ping request to
-  // complete, but is useful for testing/debugging control log issues.
-  bool ControlLog = 2;
+  // ControlLog used to signal that the ping should use the control log synchronization.
+  //
+  // Deprecated: the control log is unsupported and unsound to use.
+  bool ControlLog = 2 [deprecated = true];
 }
 
 // InventoryPingResponse returns the result of an inventory ping initiated via an
@@ -3207,7 +3315,11 @@ service AuthService {
   // GetTrustedClusters gets all current Trusted Cluster resources.
   rpc GetTrustedClusters(google.protobuf.Empty) returns (types.TrustedClusterV2List);
   // UpsertTrustedCluster upserts a Trusted Cluster in a backend.
-  rpc UpsertTrustedCluster(types.TrustedClusterV2) returns (types.TrustedClusterV2);
+  //
+  // Deprecated: Use [teleport.trust.v1.UpsertTrustedCluster] instead.
+  rpc UpsertTrustedCluster(types.TrustedClusterV2) returns (types.TrustedClusterV2) {
+    option deprecated = true;
+  }
   // DeleteTrustedCluster deletes an existing Trusted Cluster in a backend by name.
   rpc DeleteTrustedCluster(types.ResourceRequest) returns (google.protobuf.Empty);
 
@@ -3481,6 +3593,9 @@ service AuthService {
   // which is what we want when handling things like ambiguous host errors and resource-based access requests,
   // but may result in confusing behavior if it is used outside of those contexts.
   rpc GetSSHTargets(GetSSHTargetsRequest) returns (GetSSHTargetsResponse);
+
+  // ResolveSSHTarget returns the server that would be resolved in an equivalent ssh dial request.
+  rpc ResolveSSHTarget(ResolveSSHTargetRequest) returns (ResolveSSHTargetResponse);
 
   // GetDomainName returns local auth domain of the current auth server
   rpc GetDomainName(google.protobuf.Empty) returns (GetDomainNameResponse);

@@ -15,21 +15,34 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+import { Meta } from '@storybook/react';
+
 import {
-  appUri,
+  makeApp,
   makeDatabaseGateway,
   makeKubeGateway,
 } from 'teleterm/services/tshd/testHelpers';
+import { routing } from 'teleterm/ui/uri';
 
-import { TestContainer, makeProps } from './storyHelpers';
 import { ClusterLoginPresentation } from './ClusterLogin';
+import {
+  compatibilityArgType,
+  makeProps,
+  StoryProps,
+  TestContainer,
+} from './storyHelpers';
 
-export default {
+const meta: Meta<StoryProps> = {
   title: 'Teleterm/ModalsHost/ClusterLogin/Reason',
+  argTypes: compatibilityArgType,
+  args: {
+    compatibility: 'compatible',
+  },
 };
+export default meta;
 
-export const GatewayCertExpiredWithDbGateway = () => {
-  const props = makeProps();
+export const GatewayCertExpiredWithDbGateway = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.initAttempt.data.allowPasswordless = false;
   props.reason = {
     kind: 'reason.gateway-cert-expired',
@@ -44,8 +57,8 @@ export const GatewayCertExpiredWithDbGateway = () => {
   );
 };
 
-export const GatewayCertExpiredWithKubeGateway = () => {
-  const props = makeProps();
+export const GatewayCertExpiredWithKubeGateway = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.initAttempt.data.allowPasswordless = false;
   props.reason = {
     kind: 'reason.gateway-cert-expired',
@@ -60,8 +73,8 @@ export const GatewayCertExpiredWithKubeGateway = () => {
   );
 };
 
-export const GatewayCertExpiredWithoutGateway = () => {
-  const props = makeProps();
+export const GatewayCertExpiredWithoutGateway = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
   props.initAttempt.data.allowPasswordless = false;
   props.reason = {
     kind: 'reason.gateway-cert-expired',
@@ -76,13 +89,46 @@ export const GatewayCertExpiredWithoutGateway = () => {
   );
 };
 
-export const VnetCertExpired = () => {
-  const props = makeProps();
+export const VnetCertExpired = (storyProps: StoryProps) => {
+  const app = makeApp();
+  const props = makeProps(storyProps);
   props.initAttempt.data.allowPasswordless = false;
   props.reason = {
     kind: 'reason.vnet-cert-expired',
-    targetUri: appUri,
-    publicAddr: 'tcp-app.teleport.example.com',
+    targetUri: app.uri,
+    routeToApp: {
+      name: 'tcp-app',
+      publicAddr: 'tcp-app.teleport.example.com',
+      clusterName: routing.parseAppUri(app.uri).params.rootClusterId,
+      uri: app.endpointUri,
+      targetPort: 0,
+    },
+  };
+
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
+
+export const VnetCertExpiredMultiPort = (storyProps: StoryProps) => {
+  const app = makeApp({
+    endpointUri: 'tcp://localhost',
+    tcpPorts: [{ port: 1337, endPort: 0 }],
+  });
+  const props = makeProps(storyProps);
+  props.initAttempt.data.allowPasswordless = false;
+  props.reason = {
+    kind: 'reason.vnet-cert-expired',
+    targetUri: app.uri,
+    routeToApp: {
+      name: 'tcp-app',
+      publicAddr: 'tcp-app.teleport.example.com',
+      clusterName: routing.parseAppUri(app.uri).params.rootClusterId,
+      uri: app.endpointUri,
+      targetPort: 1337,
+    },
   };
 
   return (

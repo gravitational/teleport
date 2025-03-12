@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -35,9 +36,12 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+var errNoBaseURL = errors.New("baseURL is not defined")
 
 // Dir returns the path to client tools in $TELEPORT_HOME/bin.
 func Dir() (string, error) {
@@ -116,6 +120,19 @@ func CheckToolVersion(toolsDir string) (string, error) {
 	return "", trace.BadParameter("unable to determine version")
 }
 
+// GetReExecFromVersion returns the version if current execution binary is re-executed from
+// another version.
+func GetReExecFromVersion(ctx context.Context) string {
+	reExecFromVersion := os.Getenv(teleportToolsVersionReExecEnv)
+	if reExecFromVersion != "" {
+		if _, err := semver.NewVersion(reExecFromVersion); err != nil {
+			slog.WarnContext(ctx, "Failed to parse teleport 'TELEPORT_TOOLS_VERSION_REEXEC'", "error", err)
+			return ""
+		}
+	}
+	return reExecFromVersion
+}
+
 // packageURL defines URLs to the archive and their archive sha256 hash file, and marks
 // if this package is optional, for such case download needs to be ignored if package
 // not found in CDN.
@@ -125,41 +142,42 @@ type packageURL struct {
 	Optional bool
 }
 
-// teleportPackageURLs returns the URL for the Teleport archive to download. The format is:
-// https://cdn.teleport.dev/teleport-{, ent-}v15.3.0-{linux, darwin, windows}-{amd64,arm64,arm,386}-{fips-}bin.tar.gz
-func teleportPackageURLs(baseURL, toolsVersion string) ([]packageURL, error) {
-	switch runtime.GOOS {
-	case "darwin":
-		tsh := baseURL + "/tsh-" + toolsVersion + ".pkg"
-		teleport := baseURL + "/teleport-" + toolsVersion + ".pkg"
-		return []packageURL{
-			{Archive: teleport, Hash: teleport + ".sha256"},
-			{Archive: tsh, Hash: tsh + ".sha256", Optional: true},
-		}, nil
-	case "windows":
-		archive := baseURL + "/teleport-v" + toolsVersion + "-windows-amd64-bin.zip"
-		return []packageURL{
-			{Archive: archive, Hash: archive + ".sha256"},
-		}, nil
-	case "linux":
-		m := modules.GetModules()
-		var b strings.Builder
-		b.WriteString(baseURL + "/teleport-")
-		if m.IsEnterpriseBuild() || m.IsBoringBinary() {
-			b.WriteString("ent-")
-		}
-		b.WriteString("v" + toolsVersion + "-" + runtime.GOOS + "-" + runtime.GOARCH + "-")
-		if m.IsBoringBinary() {
-			b.WriteString("fips-")
-		}
-		b.WriteString("bin.tar.gz")
-		archive := b.String()
-		return []packageURL{
-			{Archive: archive, Hash: archive + ".sha256"},
-		}, nil
-	default:
-		return nil, trace.BadParameter("unsupported runtime: %v", runtime.GOOS)
+// teleportPackageURLs returns URLs for the Teleport archives to download.
+func teleportPackageURLs(ctx context.Context, uriTmpl string, baseURL, version string) ([]packageURL, error) {
+	m := modules.GetModules()
+	envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar)
+	if m.BuildType() == modules.BuildOSS && envBaseURL == "" {
+		slog.WarnContext(ctx, "Client tools updates are disabled as they are licensed under AGPL. To use Community Edition builds or custom binaries, set the 'TELEPORT_CDN_BASE_URL' environment variable.")
+		return nil, errNoBaseURL
 	}
+
+	var flags autoupdate.InstallFlags
+	if m.IsBoringBinary() {
+		flags |= autoupdate.FlagFIPS
+	}
+	if m.IsEnterpriseBuild() || m.IsBoringBinary() {
+		flags |= autoupdate.FlagEnterprise
+	}
+
+	teleportURL, err := autoupdate.MakeURL(uriTmpl, baseURL, autoupdate.DefaultPackage, version, flags)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if runtime.GOOS == constants.DarwinOS {
+		tshURL, err := autoupdate.MakeURL(uriTmpl, baseURL, "tsh", version, flags)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return []packageURL{
+			{Archive: teleportURL, Hash: teleportURL + ".sha256"},
+			{Archive: tshURL, Hash: tshURL + ".sha256", Optional: true},
+		}, nil
+	}
+
+	return []packageURL{
+		{Archive: teleportURL, Hash: teleportURL + ".sha256"},
+	}, nil
 }
 
 // toolName returns the path to {tsh, tctl} for the executable that started

@@ -73,7 +73,7 @@ help: ## Display this help.
 ##@ Development
 
 .PHONY: crd ## Single command to generate anything CRD-related (manifests and docs)
-crd: crdgen crd-docs
+crd: crdgen crd-docs manifests
 
 .PHONY: crdgen
 crdgen: ## Generate CRDs
@@ -154,7 +154,7 @@ crdgen-test: ## Run crdgen tests.
 
 .PHONY: build
 build: generate fmt vet ## Build manager binary.
-	go build -trimpath -o bin/manager main.go namespace.go config.go
+	go build -trimpath -tags "kustomize_disable_go_plugin_support" -o bin/manager main.go namespace.go config.go
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.

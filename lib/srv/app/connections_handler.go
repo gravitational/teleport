@@ -26,6 +26,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"log"
 	"log/slog"
 	"net"
 	"net/http"
@@ -35,7 +36,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
@@ -90,8 +91,9 @@ type ConnectionsHandlerConfig struct {
 	// Cloud provides cloud provider access related functionality.
 	Cloud Cloud
 
-	// AWSSessionProvider is used to provide AWS Sessions.
-	AWSSessionProvider awsutils.AWSSessionProvider
+	// AWSConfigOptions is used to provide additional options when getting
+	// config.
+	AWSConfigOptions []awsconfig.OptionsFn
 
 	// TLSConfig is the *tls.Config for this server.
 	TLSConfig *tls.Config
@@ -139,13 +141,14 @@ func (c *ConnectionsHandlerConfig) CheckAndSetDefaults() error {
 	if c.TLSConfig == nil {
 		return trace.BadParameter("tls config missing")
 	}
-	if c.AWSSessionProvider == nil {
-		return trace.BadParameter("aws session provider missing")
+	if c.Logger == nil {
+		c.Logger = slog.Default().With(teleport.ComponentKey, teleport.Component(c.ServiceComponent))
 	}
 	if c.Cloud == nil {
 		cloud, err := NewCloud(CloudConfig{
-			Clock:         c.Clock,
-			SessionGetter: c.AWSSessionProvider,
+			Clock:            c.Clock,
+			AWSConfigOptions: c.AWSConfigOptions,
+			Logger:           c.Logger,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -158,9 +161,6 @@ func (c *ConnectionsHandlerConfig) CheckAndSetDefaults() error {
 	if c.ServiceComponent == "" {
 		return trace.BadParameter("service component missing")
 	}
-	if c.Logger == nil {
-		c.Logger = slog.Default().With(teleport.ComponentKey, teleport.Component(c.ServiceComponent))
-	}
 	return nil
 }
 
@@ -169,9 +169,6 @@ func (c *ConnectionsHandlerConfig) CheckAndSetDefaults() error {
 type ConnectionsHandler struct {
 	cfg *ConnectionsHandlerConfig
 	log *slog.Logger
-
-	// TODO(marco): convert everything to log/slog
-	legacyLogger *logrus.Entry
 
 	closeContext context.Context
 
@@ -209,16 +206,14 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		return nil, trace.Wrap(err)
 	}
 
-	awsSigner, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{
-		Clock:           cfg.Clock,
-		SessionProvider: cfg.AWSSessionProvider,
-	})
+	awsConfigProvider, err := awsconfig.NewCache(awsconfig.WithDefaults(cfg.AWSConfigOptions...))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	awsHandler, err := appaws.NewAWSSignerHandler(closeContext, appaws.SignerHandlerConfig{
-		SigningService: awsSigner,
-		Clock:          cfg.Clock,
+		AWSConfigProvider: awsConfigProvider,
+		Clock:             cfg.Clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -244,7 +239,6 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		gcpHandler:   gcpHandler,
 		connAuth:     make(map[net.Conn]error),
 		log:          slog.With(teleport.ComponentKey, cfg.ServiceComponent),
-		legacyLogger: logrus.WithFields(logrus.Fields{teleport.ComponentKey: cfg.ServiceComponent}),
 		getAppByPublicAddress: func(ctx context.Context, s string) (types.Application, error) {
 			return nil, trace.NotFound("no applications are being proxied")
 		},
@@ -281,7 +275,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 
 	// Make copy of server's TLS configuration and update it with the specific
 	// functionality this server needs, like requiring client certificates.
-	c.tlsConfig = CopyAndConfigureTLS(c.legacyLogger, c.cfg.AccessPoint, c.cfg.TLSConfig)
+	c.tlsConfig = CopyAndConfigureTLS(c.log, c.cfg.AccessPoint, c.cfg.TLSConfig)
 
 	// Figure out the port the proxy is running on.
 	c.proxyPort = c.getProxyPort()
@@ -665,7 +659,7 @@ func (c *ConnectionsHandler) newHTTPServer(clusterName string) *http.Server {
 		Handler:           httplib.MakeTracingHandler(c.authMiddleware, c.cfg.ServiceComponent),
 		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
 		IdleTimeout:       apidefaults.DefaultIdleTimeout,
-		ErrorLog:          utils.NewStdlogger(c.legacyLogger.Error, c.cfg.ServiceComponent),
+		ErrorLog:          log.Default(),
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
 			return context.WithValue(ctx, connContextKey, c)
 		},
@@ -696,7 +690,7 @@ func (c *ConnectionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// Return a nicer error message for device trust errors.
 			text = `Access to this app requires a trusted device.
 
-See https://goteleport.com/docs/access-controls/device-trust/device-management/#troubleshooting for help.
+See https://goteleport.com/docs/admin-guides/access-controls/device-trust/device-management/#troubleshooting for help.
 `
 		} else {
 			text = http.StatusText(code)
@@ -753,10 +747,10 @@ func (c *ConnectionsHandler) deleteConnAuth(conn net.Conn) {
 
 // CopyAndConfigureTLS can be used to copy and modify an existing *tls.Config
 // for Teleport application proxy servers.
-func CopyAndConfigureTLS(log logrus.FieldLogger, client authclient.AccessCache, config *tls.Config) *tls.Config {
+func CopyAndConfigureTLS(log *slog.Logger, client authclient.AccessCache, config *tls.Config) *tls.Config {
 	tlsConfig := config.Clone()
 	if log == nil {
-		log = logrus.StandardLogger()
+		log = slog.Default()
 	}
 
 	// Require clients to present a certificate
@@ -771,7 +765,7 @@ func CopyAndConfigureTLS(log logrus.FieldLogger, client authclient.AccessCache, 
 	return tlsConfig
 }
 
-func newGetConfigForClientFn(log logrus.FieldLogger, client authclient.AccessCache, tlsConfig *tls.Config) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+func newGetConfigForClientFn(log *slog.Logger, client authclient.AccessCache, tlsConfig *tls.Config) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		var clusterName string
 		var err error
@@ -781,18 +775,17 @@ func newGetConfigForClientFn(log logrus.FieldLogger, client authclient.AccessCac
 			clusterName, err = apiutils.DecodeClusterName(info.ServerName)
 			if err != nil {
 				if !trace.IsNotFound(err) {
-					log.Debugf("Ignoring unsupported cluster name %q.", info.ServerName)
+					log.DebugContext(info.Context(), "Ignoring unsupported cluster name", "cluster_name", info.ServerName)
 				}
 			}
 		}
 
 		// Fetch list of CAs that could have signed this certificate. If clusterName
 		// is empty, all CAs that this cluster knows about are returned.
-		pool, _, err := authclient.DefaultClientCertPool(info.Context(), client, clusterName)
+		pool, _, _, err := authclient.DefaultClientCertPool(info.Context(), client, clusterName)
 		if err != nil {
 			// If this request fails, return nil and fallback to the default ClientCAs.
-
-			log.Debugf("Failed to retrieve client pool: %v.", trace.DebugReport(err))
+			log.DebugContext(info.Context(), "Failed to retrieve client pool", "error", err)
 			return nil, nil
 		}
 

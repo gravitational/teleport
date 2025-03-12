@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/version"
@@ -34,21 +33,21 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestNewClusterDetails(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := logrus.New().WithContext(ctx)
 
-	getClusterDetailsConfig := func(c clockwork.FakeClock) (clusterDetailsConfig, *clusterDetailsClientSet) {
+	getClusterDetailsConfig := func(c *clockwork.FakeClock) (clusterDetailsConfig, *clusterDetailsClientSet) {
 		client := &clusterDetailsClientSet{}
 		return clusterDetailsConfig{
 			kubeCreds: &staticKubeCreds{
 				kubeClient: client,
 			},
 			cluster: &types.KubernetesClusterV3{},
-			log:     log,
+			log:     utils.NewSlogLoggerForTests(),
 			clock:   c,
 		}, client
 	}

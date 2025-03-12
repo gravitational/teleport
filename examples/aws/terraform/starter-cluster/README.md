@@ -6,7 +6,7 @@ Do not use this in production! This example should be used for demo, proof-of-co
 
 ## How does this work?
 
-Teleport AMIs are built so you only need to specify environment variables to bring a fully configured instance online. See `data.tpl` or our [documentation](https://goteleport.com/docs/deploy-a-cluster/deployments/aws-terraform/#set-up-variables) to learn more about supported environment variables.
+Teleport AMIs are built so you only need to specify environment variables to bring a fully configured instance online. See `data.tpl` or our [documentation](https://goteleport.com/docs/admin-guides/deploy-a-cluster/deployments/aws-starter-cluster-terraform/#set-up-variables) to learn more about supported environment variables.
 
 A series of systemd [units](https://github.com/gravitational/teleport/tree/master/assets/aws/files/system) bootstrap the instance, via several bash [scripts](https://github.com/gravitational/teleport/tree/master/assets/aws/files/bin).
 
@@ -29,7 +29,7 @@ It can optionally also configure the following AWS resources:
 
 ### Accompanying documentation
 
-- [Teleport Single-Instance Deployment on AWS](https://goteleport.com/docs/deploy-a-cluster/deployments/aws-starter-cluster-terraform/)
+- [Teleport Single-Instance Deployment on AWS](https://goteleport.com/docs/admin-guides/deploy-a-cluster/deployments/aws-starter-cluster-terraform/)
 
 ### Build Requirements
 
@@ -98,7 +98,7 @@ TF_VAR_license_path ?= "/path/to/license"
 # OSS: aws ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-oss-*'
 # Enterprise: aws ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-ent-*'
 # FIPS 140-2 images are also available for Enterprise customers, look for '-fips' on the end of the AMI's name
-TF_VAR_ami_name ?= "teleport-ent-16.4.7-arm64"
+TF_VAR_ami_name ?= "teleport-ent-17.3.3-arm64"
 
 # Route 53 hosted zone to use, must be a root zone registered in AWS, e.g. example.com
 TF_VAR_route53_zone ?= "example.com"

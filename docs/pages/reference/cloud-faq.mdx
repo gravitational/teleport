@@ -43,7 +43,7 @@ Password hashes are generated using [bcrypt](https://pkg.go.dev/golang.org/x/cry
 
 ### Do you encrypt data at rest?
 
-Each deployment is using at-rest encryption using AWS DynamoDB and S3 at-rest encryption
+Each deployment is using at-rest encryption using Amazon DynamoDB and S3 at-rest encryption
 for customer data including session recordings and user records.
 
 ### Can I get a list of IP addresses that my infrastructure will need to allow connections to?
@@ -95,7 +95,7 @@ $ tctl nodes add --ttl=5m --roles=node,proxy --token=$(uuid)
 
 ### How can I access the `tctl` admin tool?
 
-Find the appropriate download at [Installation](../installation.mdx). Use the Enterprise version of `tctl`.
+Find the appropriate download at [Installation](../installation.mdx).
 
 After downloading the tools, first log in to your cluster using `tsh`, then use `tctl` remotely:
 
@@ -197,10 +197,10 @@ Teleport Cloud version server for automatic agent updates. With automatic agent
 updates, agents periodically check the version server for new releases and
 update the software when new versions are found.
 
-If you enroll in automatic agent updates, Teleport agents are automatically
+If you enroll in automatic agent updates, Teleport Agents are automatically
 updated after your Teleport cluster is updated during your scheduled maintenance
 period. For more information, read the [Automatic Agent
-Updates](../upgrading/automatic-agent-updates.mdx) guide.
+Updates](../upgrading/agent-managed-updates.mdx) guide.
 
 ### How can I find version information on connected agents?
 
@@ -332,4 +332,12 @@ address traffic to any individual software instance within the cluster.
 
 ### How do I set up recovery codes for my account so I don't lose access?
 
-We have a [short step-by-step guide](https://github.com/gravitational/teleport/discussions/12379) on setting up recovery codes.
+When you sign up for a Teleport Enterprise (Cloud) account and set up your first
+user within the account, the Teleport Web UI displays a set of recovery codes:
+
+![Web UI view showing Teleport recovery
+codes](../../img/cloud/recovery-codes.png)
+
+Save the recovery codes into a safe location, such as your organization's
+password manager. You can use these codes to reset your account if you lose
+your password or multi-factor authentication credentials.

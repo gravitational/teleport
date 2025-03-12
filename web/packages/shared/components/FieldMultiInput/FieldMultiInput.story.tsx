@@ -16,10 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 import Box from 'design/Box';
+import { Button } from 'design/Button';
+import Validation from 'shared/components/Validation';
 
+import { arrayOf, requiredField } from '../Validation/rules';
 import { FieldMultiInput } from './FieldMultiInput';
 
 export default {
@@ -30,7 +33,24 @@ export function Story() {
   const [items, setItems] = useState([]);
   return (
     <Box width="500px">
-      <FieldMultiInput label="Some items" value={items} onChange={setItems} />
+      <Validation>
+        {({ validator }) => (
+          <>
+            <FieldMultiInput
+              label="Some items"
+              value={items}
+              onChange={setItems}
+              rule={arrayOf(requiredField('required'))}
+              required
+              tooltipContent="I'm a sticky tooltip."
+              tooltipSticky
+            />
+            <Button mt={3} onClick={() => validator.validate()}>
+              Validate
+            </Button>
+          </>
+        )}
+      </Validation>
     </Box>
   );
 }

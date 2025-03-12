@@ -16,26 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useRef } from 'react';
+import { useRef } from 'react';
 import { Transition } from 'react-transition-group';
 
 import {
   Box,
-  Flex,
+  ButtonIcon,
   ButtonPrimary,
   ButtonText,
-  Text,
-  ButtonIcon,
+  Flex,
   Label,
+  Text,
 } from 'design';
 import * as Icon from 'design/Icon';
-import { pluralize } from 'shared/utils/text';
-
 import { RequestCheckoutWithSlider } from 'shared/components/AccessRequests/NewRequest';
 import { isKubeClusterWithNamespaces } from 'shared/components/AccessRequests/NewRequest/kube';
+import { pluralize } from 'shared/utils/text';
 
 import useAccessRequestCheckout from './useAccessRequestCheckout';
-import { AssumedRolesBar } from './AssumedRolesBar';
 
 const MAX_RESOURCES_IN_BAR_TO_SHOW = 5;
 
@@ -90,7 +88,6 @@ export function AccessRequestCheckout() {
     shouldShowClusterNameColumn,
     selectedReviewers,
     setSelectedReviewers,
-    assumedRequests,
     requestedCount,
     goToRequestsList,
     setShowCheckout,
@@ -104,7 +101,7 @@ export function AccessRequestCheckout() {
     startTime,
     onStartTimeChange,
     fetchKubeNamespaces,
-    bulkToggleKubeResources,
+    updateNamespacesForKubeCluster,
   } = useAccessRequestCheckout();
 
   const isRoleRequest = pendingAccessRequests[0]?.kind === 'role';
@@ -170,6 +167,7 @@ export function AccessRequestCheckout() {
                       switch (c.kind) {
                         case 'app':
                         case 'saml_idp_service_provider':
+                        case 'aws_ic_account_assignment':
                           resource.Icon = Icon.Application;
                           break;
                         case 'node':
@@ -234,9 +232,6 @@ export function AccessRequestCheckout() {
             </Flex>
           </Box>
         )}
-      {assumedRequests.map(request => (
-        <AssumedRolesBar key={request.id} assumedRolesRequest={request} />
-      ))}
       <Transition
         in={showCheckout}
         nodeRef={transitionRef}
@@ -284,7 +279,7 @@ export function AccessRequestCheckout() {
             startTime={startTime}
             onStartTimeChange={onStartTimeChange}
             fetchKubeNamespaces={fetchKubeNamespaces}
-            bulkToggleKubeResources={bulkToggleKubeResources}
+            updateNamespacesForKubeCluster={updateNamespacesForKubeCluster}
           />
         )}
       </Transition>

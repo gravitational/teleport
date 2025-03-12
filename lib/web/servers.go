@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/ui"
 	webui "github.com/gravitational/teleport/lib/web/ui"
 )
@@ -125,13 +124,8 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
-	dbNames, dbUsers, err := getDatabaseUsersAndNames(accessChecker)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return listResourcesGetResponse{
-		Items:      webui.MakeDatabases(databases, dbUsers, dbNames),
+		Items:      webui.MakeDatabases(databases, accessChecker, h.cfg.DatabaseREPLRegistry),
 		StartKey:   page.NextKey,
 		TotalCount: page.Total,
 	}, nil
@@ -159,12 +153,7 @@ func (h *Handler) clusterDatabaseGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	dbNames, dbUsers, err := getDatabaseUsersAndNames(accessChecker)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return webui.MakeDatabase(database, dbUsers, dbNames, false /* requiresRequest */), nil
+	return webui.MakeDatabase(database, accessChecker, h.cfg.DatabaseREPLRegistry, false /* requiresRequest */), nil
 }
 
 // clusterDatabaseServicesList returns a list of DatabaseServices (database agents) in a form the UI can present.
@@ -331,25 +320,6 @@ func (h *Handler) desktopIsActive(w http.ResponseWriter, r *http.Request, p http
 	}
 
 	return desktopIsActive{false}, nil
-}
-
-func getDatabaseUsersAndNames(accessChecker services.AccessChecker) (dbNames []string, dbUsers []string, err error) {
-	dbNames, dbUsers, err = accessChecker.CheckDatabaseNamesAndUsers(0, true /* force ttl override*/)
-	if err != nil {
-		// if NotFound error:
-		// This user cannot request database access, has no assigned database names or users
-		//
-		// Every other error should be reported upstream.
-		if !trace.IsNotFound(err) {
-			return nil, nil, trace.Wrap(err)
-		}
-
-		// We proceed with an empty list of DBUsers and DBNames
-		dbUsers = []string{}
-		dbNames = []string{}
-	}
-
-	return dbNames, dbUsers, nil
 }
 
 type desktopIsActive struct {

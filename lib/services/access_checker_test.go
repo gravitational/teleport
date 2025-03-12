@@ -24,6 +24,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -565,10 +568,310 @@ func TestAccessCheckerHostUsersShell(t *testing.T) {
 	require.Equal(t, expectedShell, hui.Shell)
 }
 
+func TestSSHPortForwarding(t *testing.T) {
+	anyLabels := types.Labels{"*": {"*"}}
+	localCluster := "cluster"
+
+	allAllow := newRole(func(rv *types.RoleV6) {
+		rv.SetName("all-allow")
+		rv.SetOptions(types.RoleOptions{
+			PortForwarding: types.NewBoolOption(true),
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(true)},
+				Local:  &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(true)},
+			},
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	allDeny := newRole(func(rv *types.RoleV6) {
+		rv.SetName("all-deny")
+		rv.SetOptions(types.RoleOptions{
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(false)},
+				Local:  &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(false)},
+			},
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	allow := newRole(func(rv *types.RoleV6) {
+		rv.SetName("allow")
+		rv.SetOptions(types.RoleOptions{
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(true)},
+				Local:  &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(true)},
+			},
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	deny := newRole(func(rv *types.RoleV6) {
+		rv.SetName("deny")
+		rv.SetOptions(types.RoleOptions{
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(false)},
+				Local:  &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(false)},
+			},
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	legacyAllow := newRole(func(rv *types.RoleV6) {
+		rv.SetName("legacy-allow")
+		rv.SetOptions(types.RoleOptions{
+			PortForwarding: types.NewBoolOption(true),
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	legacyDeny := newRole(func(rv *types.RoleV6) {
+		rv.SetName("legacy-deny")
+		rv.SetOptions(types.RoleOptions{
+			PortForwarding: types.NewBoolOption(false),
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	remoteAllow := newRole(func(rv *types.RoleV6) {
+		rv.SetName("remote-allow")
+		rv.SetOptions(types.RoleOptions{
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(true)},
+			},
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	remoteDeny := newRole(func(rv *types.RoleV6) {
+		rv.SetName("remote-deny")
+		rv.SetOptions(types.RoleOptions{
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(false)},
+			},
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	localAllow := newRole(func(rv *types.RoleV6) {
+		rv.SetName("local-allow")
+		rv.SetOptions(types.RoleOptions{
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Local: &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(true)},
+			},
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	localDeny := newRole(func(rv *types.RoleV6) {
+		rv.SetName("local-deny")
+		rv.SetOptions(types.RoleOptions{
+			SSHPortForwarding: &types.SSHPortForwarding{
+				Local: &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(false)},
+			},
+		})
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	implicitAllow := newRole(func(rv *types.RoleV6) {
+		rv.SetName("implicit-allow")
+		rv.SetNodeLabels(types.Allow, anyLabels)
+	})
+
+	testCases := []struct {
+		name         string
+		roleSet      RoleSet
+		expectedMode decisionpb.SSHPortForwardMode
+	}{
+		{
+			name:         "allow all",
+			roleSet:      NewRoleSet(allAllow),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+		},
+		{
+			name:         "deny all",
+			roleSet:      NewRoleSet(allDeny),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF,
+		},
+		{
+			name:         "allow remote and local",
+			roleSet:      NewRoleSet(allow),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+		},
+		{
+			name:         "deny remote and local",
+			roleSet:      NewRoleSet(deny),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF,
+		},
+		{
+			name:         "legacy allow",
+			roleSet:      NewRoleSet(legacyAllow),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+		},
+		{
+			name:         "legacy deny",
+			roleSet:      NewRoleSet(legacyDeny),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF,
+		},
+		{
+			name:         "remote allow",
+			roleSet:      NewRoleSet(remoteAllow),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+		},
+		{
+			name:         "remote deny",
+			roleSet:      NewRoleSet(remoteDeny),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_LOCAL,
+		},
+		{
+			name:         "local allow",
+			roleSet:      NewRoleSet(localAllow),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+		},
+		{
+			name:         "local deny",
+			roleSet:      NewRoleSet(localDeny),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_REMOTE,
+		},
+		{
+			name:         "implicit allow",
+			roleSet:      NewRoleSet(implicitAllow),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+		},
+		{
+			name:         "conflicting roles: allow all with remote deny",
+			roleSet:      NewRoleSet(allow, remoteDeny),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_LOCAL,
+		},
+		{
+			name:         "conflicting roles: allow all with local deny",
+			roleSet:      NewRoleSet(allow, localDeny),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_REMOTE,
+		},
+		{
+			// legacy behavior prefers explicit allow, so make sure we respect that if one is given
+			name:         "conflicting roles: deny all with legacy allow",
+			roleSet:      NewRoleSet(deny, legacyAllow),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+		},
+		{
+			// legacy behavior prioritizes explicit allow, so make sure we respect that if another role would allow access
+			name:         "conflicting roles: allow all with legacy deny",
+			roleSet:      NewRoleSet(allow, legacyDeny),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+		},
+		{
+			name:         "conflicting roles implicit allow explicit deny",
+			roleSet:      NewRoleSet(implicitAllow, deny),
+			expectedMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF,
+		},
+	}
+
+	for _, c := range testCases {
+		t.Run(c.name, func(t *testing.T) {
+			accessChecker := NewAccessCheckerWithRoleSet(&AccessInfo{}, localCluster, c.roleSet)
+			require.Equal(t, c.expectedMode, accessChecker.SSHPortForwardMode())
+		})
+	}
+}
+
 type serverStub struct {
 	types.Server
 }
 
 func (serverStub) GetKind() string {
 	return types.KindNode
+}
+
+func TestAccessCheckerWorkloadIdentity(t *testing.T) {
+	localCluster := "cluster"
+
+	noLabelsWI := &workloadidentityv1pb.WorkloadIdentity{
+		Kind: types.KindWorkloadIdentity,
+		Metadata: &headerv1.Metadata{
+			Name: "no-labels",
+		},
+	}
+	fooLabeledWI := &workloadidentityv1pb.WorkloadIdentity{
+		Kind: types.KindWorkloadIdentity,
+		Metadata: &headerv1.Metadata{
+			Name: "foo-labeled",
+			Labels: map[string]string{
+				"foo": "bar",
+			},
+		},
+	}
+
+	roleNoLabels := newRole(func(rv *types.RoleV6) {})
+	roleWildcard := newRole(func(rv *types.RoleV6) {
+		rv.Spec.Allow.WorkloadIdentityLabels = types.Labels{types.Wildcard: []string{types.Wildcard}}
+	})
+	roleFooLabel := newRole(func(rv *types.RoleV6) {
+		rv.Spec.Allow.WorkloadIdentityLabels = types.Labels{"foo": {"bar"}}
+	})
+	tests := []struct {
+		name         string
+		roleSet      RoleSet
+		resource     *workloadidentityv1pb.WorkloadIdentity
+		requireError require.ErrorAssertionFunc
+	}{
+		{
+			name: "wildcard role, no labels wi",
+			roleSet: NewRoleSet(
+				roleWildcard,
+			),
+			resource:     noLabelsWI,
+			requireError: require.NoError,
+		},
+		{
+			name: "no labels role, no labels wi",
+			roleSet: NewRoleSet(
+				roleNoLabels,
+			),
+			resource:     noLabelsWI,
+			requireError: require.Error,
+		},
+		{
+			name: "labels role, no labels wi",
+			roleSet: NewRoleSet(
+				roleFooLabel,
+			),
+			resource:     noLabelsWI,
+			requireError: require.Error,
+		},
+		{
+			name: "wildcard role, labels wi",
+			roleSet: NewRoleSet(
+				roleWildcard,
+			),
+			resource:     fooLabeledWI,
+			requireError: require.NoError,
+		},
+		{
+			name: "no labels role, labels wi",
+			roleSet: NewRoleSet(
+				roleNoLabels,
+			),
+			resource:     fooLabeledWI,
+			requireError: require.Error,
+		},
+		{
+			name: "labels role, labels wi",
+			roleSet: NewRoleSet(
+				roleFooLabel,
+			),
+			resource:     fooLabeledWI,
+			requireError: require.NoError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			accessChecker := NewAccessCheckerWithRoleSet(&AccessInfo{}, localCluster, tt.roleSet)
+			err := accessChecker.CheckAccess(
+				types.Resource153ToResourceWithLabels(tt.resource),
+				AccessState{},
+			)
+			tt.requireError(t, err)
+		})
+	}
 }

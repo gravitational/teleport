@@ -16,77 +16,99 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import Dialog, { DialogContent } from 'design/Dialog';
+import { ButtonIcon, ButtonSecondary, Flex, H2, Text } from 'design';
 import { Danger } from 'design/Alert';
-import { FingerprintSimple, Cross } from 'design/Icon';
-
-import { Text, ButtonSecondary, Flex, ButtonIcon, H2 } from 'design';
-
+import Dialog, { DialogContent } from 'design/Dialog';
+import { Cross, FingerprintSimple } from 'design/Icon';
 import { guessProviderType } from 'shared/components/ButtonSso';
 import { SSOIcon } from 'shared/components/ButtonSso/ButtonSso';
 
-import { MfaState } from 'teleport/lib/useMfa';
+import { MfaState, shouldShowMfaPrompt } from 'teleport/lib/useMfa';
+import { MFA_OPTION_TOTP } from 'teleport/services/mfa';
 
-export default function AuthnDialog({ mfa, onCancel }: Props) {
-  let hasMultipleOptions = mfa.ssoChallenge && mfa.webauthnPublicKey;
+export type Props = {
+  mfaState: MfaState;
+  // onClose is an optional function to perform additional operations
+  // upon closing the dialog. e.g. close a shell session
+  onClose?: () => void;
+};
+
+export default function AuthnDialog({
+  mfaState: { options, challenge, submit, attempt, cancelAttempt },
+  onClose = () => {},
+}: Props) {
+  if (!shouldShowMfaPrompt({ challenge, attempt })) return;
+
+  // TODO(Joerger): TOTP should be pretty easy to support here with a small button -> form flow.
+  const onlyTotpAvailable =
+    options?.length === 1 && options[0] === MFA_OPTION_TOTP;
 
   return (
     <Dialog dialogCss={() => ({ width: '400px' })} open={true}>
       <Flex justifyContent="space-between" alignItems="center" mb={4}>
         <H2>Verify Your Identity</H2>
-        <ButtonIcon data-testid="close-dialog" onClick={onCancel}>
+        <ButtonIcon
+          data-testid="close-dialog"
+          onClick={() => {
+            cancelAttempt();
+            onClose();
+          }}
+        >
           <Cross color="text.slightlyMuted" />
         </ButtonIcon>
       </Flex>
       <DialogContent mb={5}>
-        {mfa.errorText && (
+        {onlyTotpAvailable && (
           <Danger data-testid="danger-alert" mt={2} width="100%">
-            {mfa.errorText}
+            {
+              'Authenticator app is not currently supported for this action, please register a passkey or a security key to continue.'
+            }
+          </Danger>
+        )}
+        {attempt.status === 'error' && (
+          <Danger data-testid="danger-alert" mt={2} width="100%">
+            {attempt.statusText}
           </Danger>
         )}
         <Text color="text.slightlyMuted">
-          {hasMultipleOptions
+          {options?.length > 1
             ? 'Select one of the following methods to verify your identity:'
             : 'Select the method below to verify your identity:'}
         </Text>
       </DialogContent>
-      <Flex textAlign="center" width="100%" flexDirection="column" gap={2}>
-        {mfa.ssoChallenge && (
-          <ButtonSecondary
-            size="extra-large"
-            onClick={mfa.onSsoAuthenticate}
-            gap={2}
-            block
-          >
-            <SSOIcon
-              type={guessProviderType(
-                mfa.ssoChallenge.device.displayName ||
-                  mfa.ssoChallenge.device.connectorId,
-                mfa.ssoChallenge.device.connectorType
-              )}
-            />
-            {mfa.ssoChallenge.device.displayName ||
-              mfa.ssoChallenge.device.connectorId}
-          </ButtonSecondary>
-        )}
-        {mfa.webauthnPublicKey && (
-          <ButtonSecondary
-            size="extra-large"
-            onClick={mfa.onWebauthnAuthenticate}
-            gap={2}
-            block
-          >
-            <FingerprintSimple />
-            Passkey or MFA Device
-          </ButtonSecondary>
-        )}
-      </Flex>
+      {challenge && (
+        <Flex textAlign="center" width="100%" flexDirection="column" gap={2}>
+          {challenge.ssoChallenge && (
+            <ButtonSecondary
+              size="extra-large"
+              onClick={() => submit('sso')}
+              gap={2}
+              block
+            >
+              <SSOIcon
+                type={guessProviderType(
+                  challenge.ssoChallenge.device.displayName ||
+                    challenge.ssoChallenge.device.connectorId,
+                  challenge.ssoChallenge.device.connectorType
+                )}
+              />
+              {challenge.ssoChallenge.device.displayName ||
+                challenge.ssoChallenge.device.connectorId}
+            </ButtonSecondary>
+          )}
+          {challenge.webauthnPublicKey && (
+            <ButtonSecondary
+              size="extra-large"
+              onClick={() => submit('webauthn')}
+              gap={2}
+              block
+            >
+              <FingerprintSimple />
+              Passkey or MFA Device
+            </ButtonSecondary>
+          )}
+        </Flex>
+      )}
     </Dialog>
   );
 }
-
-export type Props = {
-  mfa: MfaState;
-  onCancel: () => void;
-};

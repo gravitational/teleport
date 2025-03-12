@@ -16,24 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { ComponentType, PropsWithChildren } from 'react';
-import { bblpTheme, darkTheme, lightTheme } from '../packages/design/src/theme';
-import { ConfiguredThemeProvider } from '../packages/design/src/ThemeProvider';
+import { Preview } from '@storybook/react';
+import { initialize, mswLoader } from 'msw-storybook-addon';
+import { ComponentType, PropsWithChildren } from 'react';
+
 import Box from '../packages/design/src/Box';
+import { bblpTheme, darkTheme, lightTheme } from '../packages/design/src/theme';
+import { Theme } from '../packages/design/src/theme/themes/types';
+import { ConfiguredThemeProvider } from '../packages/design/src/ThemeProvider';
+import history from '../packages/teleport/src/services/history/history';
+import { UserContextProvider } from '../packages/teleport/src/User';
+import Logger, { ConsoleService } from '../packages/teleterm/src/logger';
 import { StaticThemeProvider as TeletermThemeProvider } from '../packages/teleterm/src/ui/ThemeProvider';
 import {
   darkTheme as teletermDarkTheme,
   lightTheme as teletermLightTheme,
 } from '../packages/teleterm/src/ui/ThemeProvider/theme';
-import history from '../packages/teleport/src/services/history/history';
-import { UserContextProvider } from '../packages/teleport/src/User';
-import { Preview } from '@storybook/react';
-import { Theme } from '../packages/design/src/theme/themes/types';
-import { initialize, mswLoader } from 'msw-storybook-addon';
 
 initialize();
 
 history.init();
+
+Logger.init(new ConsoleService());
 
 interface ThemeDecoratorProps {
   theme: string;
@@ -93,7 +97,9 @@ const preview: Preview = {
         order: ['Teleport', 'TeleportE', 'Teleterm', 'Design', 'Shared'],
       },
     },
+    controls: { expanded: true, disableSaveFromUI: true },
   },
+  argTypes: { userContext: { table: { disable: true } } },
   loaders: [mswLoader],
   decorators: [
     (Story, meta) => (

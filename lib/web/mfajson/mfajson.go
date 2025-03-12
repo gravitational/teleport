@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 )
 
-// TODO(Joerger): DELETE IN v18.0.0 and use client.MFAChallengeResponse instead.
+// TODO(Joerger): DELETE IN v19.0.0 and use client.MFAChallengeResponse instead.
 // Before v17, the WebUI sends a flattened webauthn response instead of a full
 // MFA challenge response. Newer WebUI versions v17+ will send both for
 // backwards compatibility.
@@ -45,33 +45,17 @@ func Decode(b []byte, typ string) (*authproto.MFAAuthenticateResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	switch {
-	case resp.CredentialAssertionResponse != nil:
-		return &authproto.MFAAuthenticateResponse{
-			Response: &authproto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: wantypes.CredentialAssertionResponseToProto(resp.CredentialAssertionResponse),
-			},
-		}, nil
-	case resp.WebauthnResponse != nil:
-		return &authproto.MFAAuthenticateResponse{
-			Response: &authproto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: wantypes.CredentialAssertionResponseToProto(resp.WebauthnResponse),
-			},
-		}, nil
-	case resp.SSOResponse != nil:
-		return &authproto.MFAAuthenticateResponse{
-			Response: &authproto.MFAAuthenticateResponse_SSO{
-				SSO: &authproto.SSOResponse{
-					RequestId: resp.SSOResponse.RequestID,
-					Token:     resp.SSOResponse.Token,
-				},
-			},
-		}, nil
-	case resp.TOTPCode != "":
-		// Note: we can support TOTP through the websocket if desired, we just need to add
-		// a TOTP prompt modal and flip the switch here.
-		return nil, trace.BadParameter("totp is not supported in the WebUI")
-	default:
+	// Move flattened webauthn response into resp.
+	resp.MFAChallengeResponse.WebauthnAssertionResponse = resp.CredentialAssertionResponse
+
+	protoResp, err := resp.GetOptionalMFAResponseProtoReq()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if protoResp == nil {
 		return nil, trace.BadParameter("invalid MFA response from web")
 	}
+
+	return protoResp, trace.Wrap(err)
 }

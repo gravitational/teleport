@@ -22,5 +22,12 @@
 	<string>/var/log/vnet.log</string>
 	<key>ThrottleInterval</key>
 	<integer>5</integer>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<!-- Auto-updates are disabled because $HOME isn't available,
+		but let's also disable them explicitly anyway. -->
+		<key>TELEPORT_TOOLS_VERSION</key>
+		<string>off</string>
+	</dict>
 </dict>
 </plist>

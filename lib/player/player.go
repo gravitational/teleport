@@ -24,13 +24,14 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"maps"
 	"math"
+	"slices"
 	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/metadata"
@@ -119,6 +120,7 @@ type Config struct {
 	SessionID    session.ID
 	Streamer     Streamer
 	SkipIdleTime bool
+	Context      context.Context
 }
 
 func New(cfg *Config) (*Player, error) {
@@ -140,6 +142,11 @@ func New(cfg *Config) (*Player, error) {
 		slog.With(teleport.ComponentKey, "player"),
 	)
 
+	ctx := context.Background()
+	if cfg.Context != nil {
+		ctx = cfg.Context
+	}
+
 	p := &Player{
 		clock:        clk,
 		log:          log,
@@ -158,7 +165,7 @@ func New(cfg *Config) (*Player, error) {
 	// start in a paused state
 	p.playPause <- make(chan struct{})
 
-	go p.stream()
+	go p.stream(ctx)
 
 	return p, nil
 }
@@ -186,8 +193,8 @@ func (p *Player) SetSpeed(s float64) error {
 	return nil
 }
 
-func (p *Player) stream() {
-	ctx, cancel := context.WithCancel(context.Background())
+func (p *Player) stream(baseContext context.Context) {
+	ctx, cancel := context.WithCancel(baseContext)
 	defer cancel()
 
 	eventsC, errC := p.streamer.StreamSessionEvents(metadata.WithSessionRecordingFormatContext(ctx, teleport.PTY), p.sessionID, 0)
@@ -232,7 +239,7 @@ func (p *Player) stream() {
 					// we rewind (by restarting the stream and seeking forward
 					// to the rewind point)
 					p.advanceTo.Store(int64(adv) * -1)
-					go p.stream()
+					go p.stream(baseContext)
 					return
 				default:
 					if adv != normalPlayback {
@@ -247,7 +254,7 @@ func (p *Player) stream() {
 					switch err := p.applyDelay(lastDelay, currentDelay); {
 					case errors.Is(err, errSeekWhilePaused):
 						p.log.DebugContext(ctx, "Seeked during pause, will restart stream")
-						go p.stream()
+						go p.stream(baseContext)
 						return
 					case err != nil:
 						close(p.emit)
@@ -496,7 +503,7 @@ var databaseTranslators = map[string]newSessionPrintTranslatorFunc{
 
 // SupportedDatabaseProtocols a list of database protocols supported by the
 // player.
-var SupportedDatabaseProtocols = maps.Keys(databaseTranslators)
+var SupportedDatabaseProtocols = slices.Collect(maps.Keys(databaseTranslators))
 
 func getDelay(e events.AuditEvent) time.Duration {
 	switch x := e.(type) {

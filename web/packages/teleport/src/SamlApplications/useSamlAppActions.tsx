@@ -17,12 +17,12 @@
  */
 
 import React, { createContext, useContext } from 'react';
+
 import { Attempt } from 'shared/hooks/useAsync';
 
-import { SamlMeta } from 'teleport/Discover/useDiscover';
-
-import type { SamlAppToDelete } from 'teleport/services/samlidp/types';
 import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
+import { SamlMeta } from 'teleport/Discover/useDiscover';
+import type { SamlAppToDelete } from 'teleport/services/samlidp/types';
 import type { Access } from 'teleport/services/user';
 
 /**
@@ -88,7 +88,15 @@ export interface SamlAppAction {
 export const SamlAppActionContext = createContext<SamlAppAction>(null);
 
 export function useSamlAppAction() {
-  return useContext(SamlAppActionContext);
+  const context = useContext(SamlAppActionContext);
+
+  if (!context) {
+    throw new Error(
+      'useSamlAppAction must be used within a SamlAppActionProvider'
+    );
+  }
+
+  return context;
 }
 
 /**
