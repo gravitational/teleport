@@ -63,6 +63,7 @@ func (t testSite) GetNodes(ctx context.Context, fn func(n readonly.Server) bool)
 
 	return out, nil
 }
+
 func (t testSite) GetGitServers(ctx context.Context, fn func(n readonly.Server) bool) ([]types.Server, error) {
 	var out []types.Server
 	for _, s := range t.gitServers {
@@ -167,7 +168,7 @@ func TestRouteScoring(t *testing.T) {
 	resolver := &mockHostResolver{
 		hosts: map[string][]string{
 			// register a hostname that only indirectly maps to a node
-			"red.example.com": []string{"2.3.4.5"},
+			"red.example.com": {"2.3.4.5"},
 		},
 	}
 
@@ -825,7 +826,8 @@ func TestRouter_DialHost(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			conn, err := tt.router.DialHost(ctx, &utils.NetAddr{}, &utils.NetAddr{}, "host", "0", "test", nil, agentGetter, createSigner)
+			const noLoginName = ""
+			conn, err := tt.router.DialHost(ctx, &utils.NetAddr{}, &utils.NetAddr{}, "host", "0", "test", noLoginName, nil, agentGetter, createSigner)
 
 			var params reversetunnelclient.DialParams
 			if tt.router.localSite != nil {
