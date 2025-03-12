@@ -278,7 +278,7 @@ var (
 	// ErrFilePresent is returned when a file is present.
 	ErrFilePresent = errors.New("file present")
 	// ErrNotInstalled is returned when Teleport is not installed.
-	ErrNotInstalled = trace.Errorf("not installed")
+	ErrNotInstalled = errors.New("not installed")
 )
 
 // Process provides an API for interacting with a running Teleport process.
