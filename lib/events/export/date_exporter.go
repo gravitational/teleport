@@ -49,7 +49,7 @@ type DateExporterConfig struct {
 	Date time.Time
 	// Export is the callback used to export events. Must be safe for concurrent use if
 	// the Concurrency parameter is greater than 1.
-	Export func(ctx context.Context, event *auditlogpb.ExportEventUnstructured) error
+	Export func(ctx context.Context, event *auditlogpb.ExportEventUnstructured, chunk string) error
 	// OnIdle is an optional callback that gets invoked periodically when the exporter is idle. Note that it is
 	// safe to close the exporter or inspect its state from within this callback, but waiting on the exporter's
 	// Done channel within this callback will deadlock.
@@ -437,7 +437,7 @@ Outer:
 			Cursor: entry.getCursor(),
 		})
 
-		if err := e.exportEvents(ctx, events, entry); err != nil {
+		if err := e.exportEvents(ctx, events, entry, chunk); err != nil {
 			failures++
 
 			if e.chunkLogLimiter.Allow() {
@@ -459,15 +459,16 @@ Outer:
 }
 
 // exportEvents exports all events from the provided stream, updating the supplied entry on each successful export.
-func (e *DateExporter) exportEvents(ctx context.Context, events stream.Stream[*auditlogpb.ExportEventUnstructured], entry *chunkEntry) error {
+func (e *DateExporter) exportEvents(ctx context.Context, events stream.Stream[*auditlogpb.ExportEventUnstructured], entry *chunkEntry, chunk string) error {
 	for events.Next() {
-		if err := e.cfg.Export(ctx, events.Item()); err != nil {
+		if err := e.cfg.Export(ctx, events.Item(), chunk); err != nil {
 			events.Done()
 			return trace.Wrap(err)
 		}
 
 		entry.setCursor(events.Item().Cursor)
 	}
+	// stream has closed / there was an error
 	return trace.Wrap(events.Done())
 }
 

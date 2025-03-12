@@ -63,9 +63,10 @@ type ExporterConfig struct {
 	Client Client
 	// StartDate is the date from which to start exporting events.
 	StartDate time.Time
+
 	// Export is the callback used to export events. Must be safe for concurrent use if
 	// the Concurrency parameter is greater than 1.
-	Export func(ctx context.Context, event *auditlogpb.ExportEventUnstructured) error
+	Export func(ctx context.Context, event *auditlogpb.ExportEventUnstructured, chunk string) error
 	// OnIdle is an optional callback that gets invoked periodically when the exporter is idle. Note that it is
 	// safe to close the exporter or inspect its state from within this callback, but waiting on the exporter's
 	// Done channel within this callback will deadlock. This callback is an asynchronous signal and additional
@@ -134,6 +135,7 @@ func NewExporter(cfg ExporterConfig) (*Exporter, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(juliaogris): should wire Context here from outside?
 	ctx, cancel := context.WithCancel(context.Background())
 
 	e := &Exporter{
@@ -175,7 +177,6 @@ func NewExporter(cfg ExporterConfig) (*Exporter, error) {
 		e.Close()
 		return nil, trace.Wrap(initError)
 	}
-
 	go e.run(ctx)
 	return e, nil
 
@@ -189,7 +190,7 @@ func (e *Exporter) Close() {
 
 // Done provides a channel that will be closed when the exporter has completed processing all inflight dates. When saving the
 // final state of the exporter for future resumption, this channel must be waited upon before state is loaded. Note that the date
-// exporter never termiantes unless Close is called, so waiting on Done is only meaningful after Close has been called.
+// exporter never terminates unless Close is called, so waiting on Done is only meaningful after Close has been called.
 func (e *Exporter) Done() <-chan struct{} {
 	return e.done
 }
