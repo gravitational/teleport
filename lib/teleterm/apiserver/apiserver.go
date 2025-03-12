@@ -46,6 +46,7 @@ func New(cfg Config) (*APIServer, error) {
 	serviceHandler, err := handler.New(
 		handler.Config{
 			DaemonService: cfg.Daemon,
+			Storage:       cfg.Storage,
 		},
 	)
 	if err != nil {

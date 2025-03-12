@@ -528,6 +528,18 @@ internal enum Teleport_Lib_Teleterm_V1_TerminalService {
                 method: "GetApp"
             )
         }
+        /// Namespace for "UpdateCurrentProfile" metadata.
+        internal enum UpdateCurrentProfile {
+            /// Request type for "UpdateCurrentProfile".
+            internal typealias Input = Teleport_Lib_Teleterm_V1_UpdateCurrentProfileRequest
+            /// Response type for "UpdateCurrentProfile".
+            internal typealias Output = Teleport_Lib_Teleterm_V1_UpdateCurrentProfileResponse
+            /// Descriptor for "UpdateCurrentProfile".
+            internal static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "teleport.lib.teleterm.v1.TerminalService"),
+                method: "UpdateCurrentProfile"
+            )
+        }
         /// Descriptors for all methods in the "teleport.lib.teleterm.v1.TerminalService" service.
         internal static let descriptors: [GRPCCore.MethodDescriptor] = [
             UpdateTshdEventsServerAddress.descriptor,
@@ -570,7 +582,8 @@ internal enum Teleport_Lib_Teleterm_V1_TerminalService {
             GetUserPreferences.descriptor,
             UpdateUserPreferences.descriptor,
             AuthenticateWebDevice.descriptor,
-            GetApp.descriptor
+            GetApp.descriptor,
+            UpdateCurrentProfile.descriptor
         ]
     }
 }
@@ -1582,6 +1595,29 @@ extension Teleport_Lib_Teleterm_V1_TerminalService {
             deserializer: some GRPCCore.MessageDeserializer<Teleport_Lib_Teleterm_V1_GetAppResponse>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Teleport_Lib_Teleterm_V1_GetAppResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "UpdateCurrentProfile" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > UpdateCurrentProfile changes the currently active profile, as understood by tsh.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Teleport_Lib_Teleterm_V1_UpdateCurrentProfileRequest` message.
+        ///   - serializer: A serializer for `Teleport_Lib_Teleterm_V1_UpdateCurrentProfileRequest` messages.
+        ///   - deserializer: A deserializer for `Teleport_Lib_Teleterm_V1_UpdateCurrentProfileResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        func updateCurrentProfile<Result>(
+            request: GRPCCore.ClientRequest<Teleport_Lib_Teleterm_V1_UpdateCurrentProfileRequest>,
+            serializer: some GRPCCore.MessageSerializer<Teleport_Lib_Teleterm_V1_UpdateCurrentProfileRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Teleport_Lib_Teleterm_V1_UpdateCurrentProfileResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Teleport_Lib_Teleterm_V1_UpdateCurrentProfileResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
     }
 
@@ -3043,6 +3079,40 @@ extension Teleport_Lib_Teleterm_V1_TerminalService {
                 onResponse: handleResponse
             )
         }
+
+        /// Call the "UpdateCurrentProfile" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > UpdateCurrentProfile changes the currently active profile, as understood by tsh.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Teleport_Lib_Teleterm_V1_UpdateCurrentProfileRequest` message.
+        ///   - serializer: A serializer for `Teleport_Lib_Teleterm_V1_UpdateCurrentProfileRequest` messages.
+        ///   - deserializer: A deserializer for `Teleport_Lib_Teleterm_V1_UpdateCurrentProfileResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        internal func updateCurrentProfile<Result>(
+            request: GRPCCore.ClientRequest<Teleport_Lib_Teleterm_V1_UpdateCurrentProfileRequest>,
+            serializer: some GRPCCore.MessageSerializer<Teleport_Lib_Teleterm_V1_UpdateCurrentProfileRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Teleport_Lib_Teleterm_V1_UpdateCurrentProfileResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Teleport_Lib_Teleterm_V1_UpdateCurrentProfileResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Teleport_Lib_Teleterm_V1_TerminalService.Method.UpdateCurrentProfile.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
     }
 }
 
@@ -4272,6 +4342,35 @@ extension Teleport_Lib_Teleterm_V1_TerminalService.ClientProtocol {
             request: request,
             serializer: GRPCProtobuf.ProtobufSerializer<Teleport_Lib_Teleterm_V1_GetAppRequest>(),
             deserializer: GRPCProtobuf.ProtobufDeserializer<Teleport_Lib_Teleterm_V1_GetAppResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "UpdateCurrentProfile" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > UpdateCurrentProfile changes the currently active profile, as understood by tsh.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Teleport_Lib_Teleterm_V1_UpdateCurrentProfileRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func updateCurrentProfile<Result>(
+        request: GRPCCore.ClientRequest<Teleport_Lib_Teleterm_V1_UpdateCurrentProfileRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Teleport_Lib_Teleterm_V1_UpdateCurrentProfileResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.updateCurrentProfile(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Teleport_Lib_Teleterm_V1_UpdateCurrentProfileRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Teleport_Lib_Teleterm_V1_UpdateCurrentProfileResponse>(),
             options: options,
             onResponse: handleResponse
         )
@@ -5668,6 +5767,39 @@ extension Teleport_Lib_Teleterm_V1_TerminalService.ClientProtocol {
             metadata: metadata
         )
         return try await self.getApp(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "UpdateCurrentProfile" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > UpdateCurrentProfile changes the currently active profile, as understood by tsh.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    internal func updateCurrentProfile<Result>(
+        _ message: Teleport_Lib_Teleterm_V1_UpdateCurrentProfileRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Teleport_Lib_Teleterm_V1_UpdateCurrentProfileResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Teleport_Lib_Teleterm_V1_UpdateCurrentProfileRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.updateCurrentProfile(
             request: request,
             options: options,
             onResponse: handleResponse

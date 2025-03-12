@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
@@ -90,6 +91,14 @@ func (s *Handler) GetCluster(ctx context.Context, req *api.GetClusterRequest) (*
 	apiRootClusterWithDetails, err := newAPIRootClusterWithDetails(cluster)
 
 	return apiRootClusterWithDetails, trace.Wrap(err)
+}
+
+// UpdateCurrentProfile changes the currently active profile, as understood by tsh.
+func (s *Handler) UpdateCurrentProfile(ctx context.Context, req *api.UpdateCurrentProfileRequest) (*api.UpdateCurrentProfileResponse, error) {
+	err := s.Config.Storage.UpdateCurrentProfile(
+		uri.New(req.RootClusterUri),
+	)
+	return &api.UpdateCurrentProfileResponse{}, trace.Wrap(err)
 }
 
 func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {

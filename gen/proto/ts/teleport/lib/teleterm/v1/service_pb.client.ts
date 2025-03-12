@@ -24,6 +24,8 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { TerminalService } from "./service_pb";
+import type { UpdateCurrentProfileResponse } from "./service_pb";
+import type { UpdateCurrentProfileRequest } from "./service_pb";
 import type { GetAppResponse } from "./service_pb";
 import type { GetAppRequest } from "./service_pb";
 import type { AuthenticateWebDeviceResponse } from "./service_pb";
@@ -403,6 +405,12 @@ export interface ITerminalServiceClient {
      * @generated from protobuf rpc: GetApp(teleport.lib.teleterm.v1.GetAppRequest) returns (teleport.lib.teleterm.v1.GetAppResponse);
      */
     getApp(input: GetAppRequest, options?: RpcOptions): UnaryCall<GetAppRequest, GetAppResponse>;
+    /**
+     * UpdateCurrentProfile changes the currently active profile, as understood by tsh.
+     *
+     * @generated from protobuf rpc: UpdateCurrentProfile(teleport.lib.teleterm.v1.UpdateCurrentProfileRequest) returns (teleport.lib.teleterm.v1.UpdateCurrentProfileResponse);
+     */
+    updateCurrentProfile(input: UpdateCurrentProfileRequest, options?: RpcOptions): UnaryCall<UpdateCurrentProfileRequest, UpdateCurrentProfileResponse>;
 }
 /**
  * TerminalService is used by the Electron app to communicate with the tsh daemon.
@@ -833,5 +841,14 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
     getApp(input: GetAppRequest, options?: RpcOptions): UnaryCall<GetAppRequest, GetAppResponse> {
         const method = this.methods[40], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetAppRequest, GetAppResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * UpdateCurrentProfile changes the currently active profile, as understood by tsh.
+     *
+     * @generated from protobuf rpc: UpdateCurrentProfile(teleport.lib.teleterm.v1.UpdateCurrentProfileRequest) returns (teleport.lib.teleterm.v1.UpdateCurrentProfileResponse);
+     */
+    updateCurrentProfile(input: UpdateCurrentProfileRequest, options?: RpcOptions): UnaryCall<UpdateCurrentProfileRequest, UpdateCurrentProfileResponse> {
+        const method = this.methods[41], opt = this._transport.mergeOptions(options);
+        return stackIntercept<UpdateCurrentProfileRequest, UpdateCurrentProfileResponse>("unary", this._transport, method, opt, input);
     }
 }

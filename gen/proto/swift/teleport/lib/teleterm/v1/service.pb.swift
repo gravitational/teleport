@@ -1559,6 +1559,28 @@ struct Teleport_Lib_Teleterm_V1_GetAppResponse: Sendable {
   fileprivate var _app: Teleport_Lib_Teleterm_V1_App? = nil
 }
 
+struct Teleport_Lib_Teleterm_V1_UpdateCurrentProfileRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var rootClusterUri: String = String()
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+struct Teleport_Lib_Teleterm_V1_UpdateCurrentProfileResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
 // MARK: - Code below here is support for the SwiftProtobuf runtime.
 
 fileprivate let _protobuf_package = "teleport.lib.teleterm.v1"
@@ -4611,6 +4633,57 @@ extension Teleport_Lib_Teleterm_V1_GetAppResponse: SwiftProtobuf.Message, SwiftP
 
   static func ==(lhs: Teleport_Lib_Teleterm_V1_GetAppResponse, rhs: Teleport_Lib_Teleterm_V1_GetAppResponse) -> Bool {
     if lhs._app != rhs._app {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension Teleport_Lib_Teleterm_V1_UpdateCurrentProfileRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".UpdateCurrentProfileRequest"
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    1: .standard(proto: "root_cluster_uri"),
+  ]
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.rootClusterUri) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.rootClusterUri.isEmpty {
+      try visitor.visitSingularStringField(value: self.rootClusterUri, fieldNumber: 1)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Teleport_Lib_Teleterm_V1_UpdateCurrentProfileRequest, rhs: Teleport_Lib_Teleterm_V1_UpdateCurrentProfileRequest) -> Bool {
+    if lhs.rootClusterUri != rhs.rootClusterUri {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension Teleport_Lib_Teleterm_V1_UpdateCurrentProfileResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = _protobuf_package + ".UpdateCurrentProfileResponse"
+  static let _protobuf_nameMap = SwiftProtobuf._NameMap()
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    // Load everything into unknown fields
+    while try decoder.nextFieldNumber() != nil {}
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Teleport_Lib_Teleterm_V1_UpdateCurrentProfileResponse, rhs: Teleport_Lib_Teleterm_V1_UpdateCurrentProfileResponse) -> Bool {
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

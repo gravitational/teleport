@@ -181,6 +181,9 @@ service TerminalService {
   // GetApp returns details of an app resource. It does not include information about AWS roles and
   // FQDN.
   rpc GetApp(GetAppRequest) returns (GetAppResponse);
+
+  // UpdateCurrentProfile changes the currently active profile, as understood by tsh.
+  rpc UpdateCurrentProfile(UpdateCurrentProfileRequest) returns (UpdateCurrentProfileResponse);
 }
 
 message EmptyResponse {}
@@ -675,3 +678,9 @@ message GetAppRequest {
 message GetAppResponse {
   App app = 1;
 }
+
+message UpdateCurrentProfileRequest {
+  string root_cluster_uri = 1;
+}
+
+message UpdateCurrentProfileResponse {}

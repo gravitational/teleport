@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
+	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -38,6 +39,7 @@ type Config struct {
 	InsecureSkipVerify bool
 	// Daemon is the terminal daemon service
 	Daemon         *daemon.Service
+	Storage        *clusters.Storage
 	ClusterIDCache *clusteridcache.Cache
 	InstallationID string
 	// Logger is a component logger
@@ -61,6 +63,10 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.Daemon == nil {
 		return trace.BadParameter("missing daemon service")
+	}
+
+	if c.Storage == nil {
+		return trace.BadParameter("missing storage")
 	}
 
 	if c.TshdServerCreds == nil {

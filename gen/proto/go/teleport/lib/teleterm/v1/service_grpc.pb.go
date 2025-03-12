@@ -77,6 +77,7 @@ const (
 	TerminalService_UpdateUserPreferences_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/UpdateUserPreferences"
 	TerminalService_AuthenticateWebDevice_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/AuthenticateWebDevice"
 	TerminalService_GetApp_FullMethodName                            = "/teleport.lib.teleterm.v1.TerminalService/GetApp"
+	TerminalService_UpdateCurrentProfile_FullMethodName              = "/teleport.lib.teleterm.v1.TerminalService/UpdateCurrentProfile"
 )
 
 // TerminalServiceClient is the client API for TerminalService service.
@@ -217,6 +218,8 @@ type TerminalServiceClient interface {
 	// GetApp returns details of an app resource. It does not include information about AWS roles and
 	// FQDN.
 	GetApp(ctx context.Context, in *GetAppRequest, opts ...grpc.CallOption) (*GetAppResponse, error)
+	// UpdateCurrentProfile changes the currently active profile, as understood by tsh.
+	UpdateCurrentProfile(ctx context.Context, in *UpdateCurrentProfileRequest, opts ...grpc.CallOption) (*UpdateCurrentProfileResponse, error)
 }
 
 type terminalServiceClient struct {
@@ -650,6 +653,16 @@ func (c *terminalServiceClient) GetApp(ctx context.Context, in *GetAppRequest, o
 	return out, nil
 }
 
+func (c *terminalServiceClient) UpdateCurrentProfile(ctx context.Context, in *UpdateCurrentProfileRequest, opts ...grpc.CallOption) (*UpdateCurrentProfileResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateCurrentProfileResponse)
+	err := c.cc.Invoke(ctx, TerminalService_UpdateCurrentProfile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TerminalServiceServer is the server API for TerminalService service.
 // All implementations must embed UnimplementedTerminalServiceServer
 // for forward compatibility.
@@ -788,6 +801,8 @@ type TerminalServiceServer interface {
 	// GetApp returns details of an app resource. It does not include information about AWS roles and
 	// FQDN.
 	GetApp(context.Context, *GetAppRequest) (*GetAppResponse, error)
+	// UpdateCurrentProfile changes the currently active profile, as understood by tsh.
+	UpdateCurrentProfile(context.Context, *UpdateCurrentProfileRequest) (*UpdateCurrentProfileResponse, error)
 	mustEmbedUnimplementedTerminalServiceServer()
 }
 
@@ -920,6 +935,9 @@ func (UnimplementedTerminalServiceServer) AuthenticateWebDevice(context.Context,
 }
 func (UnimplementedTerminalServiceServer) GetApp(context.Context, *GetAppRequest) (*GetAppResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetApp not implemented")
+}
+func (UnimplementedTerminalServiceServer) UpdateCurrentProfile(context.Context, *UpdateCurrentProfileRequest) (*UpdateCurrentProfileResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateCurrentProfile not implemented")
 }
 func (UnimplementedTerminalServiceServer) mustEmbedUnimplementedTerminalServiceServer() {}
 func (UnimplementedTerminalServiceServer) testEmbeddedByValue()                         {}
@@ -1662,6 +1680,24 @@ func _TerminalService_GetApp_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TerminalService_UpdateCurrentProfile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateCurrentProfileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).UpdateCurrentProfile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_UpdateCurrentProfile_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).UpdateCurrentProfile(ctx, req.(*UpdateCurrentProfileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TerminalService_ServiceDesc is the grpc.ServiceDesc for TerminalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1824,6 +1860,10 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetApp",
 			Handler:    _TerminalService_GetApp_Handler,
+		},
+		{
+			MethodName: "UpdateCurrentProfile",
+			Handler:    _TerminalService_UpdateCurrentProfile_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

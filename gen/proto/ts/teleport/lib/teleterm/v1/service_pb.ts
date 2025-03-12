@@ -1205,6 +1205,20 @@ export interface GetAppResponse {
     app?: App;
 }
 /**
+ * @generated from protobuf message teleport.lib.teleterm.v1.UpdateCurrentProfileRequest
+ */
+export interface UpdateCurrentProfileRequest {
+    /**
+     * @generated from protobuf field: string root_cluster_uri = 1;
+     */
+    rootClusterUri: string;
+}
+/**
+ * @generated from protobuf message teleport.lib.teleterm.v1.UpdateCurrentProfileResponse
+ */
+export interface UpdateCurrentProfileResponse {
+}
+/**
  * PasswordlessPrompt describes different prompts we need from users
  * during the passwordless login flow.
  *
@@ -5361,6 +5375,78 @@ class GetAppResponse$Type extends MessageType<GetAppResponse> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.GetAppResponse
  */
 export const GetAppResponse = new GetAppResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UpdateCurrentProfileRequest$Type extends MessageType<UpdateCurrentProfileRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.UpdateCurrentProfileRequest", [
+            { no: 1, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<UpdateCurrentProfileRequest>): UpdateCurrentProfileRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.rootClusterUri = "";
+        if (value !== undefined)
+            reflectionMergePartial<UpdateCurrentProfileRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UpdateCurrentProfileRequest): UpdateCurrentProfileRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string root_cluster_uri */ 1:
+                    message.rootClusterUri = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UpdateCurrentProfileRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string root_cluster_uri = 1; */
+        if (message.rootClusterUri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.rootClusterUri);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.UpdateCurrentProfileRequest
+ */
+export const UpdateCurrentProfileRequest = new UpdateCurrentProfileRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UpdateCurrentProfileResponse$Type extends MessageType<UpdateCurrentProfileResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.UpdateCurrentProfileResponse", []);
+    }
+    create(value?: PartialMessage<UpdateCurrentProfileResponse>): UpdateCurrentProfileResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<UpdateCurrentProfileResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UpdateCurrentProfileResponse): UpdateCurrentProfileResponse {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: UpdateCurrentProfileResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.UpdateCurrentProfileResponse
+ */
+export const UpdateCurrentProfileResponse = new UpdateCurrentProfileResponse$Type();
 /**
  * @generated ServiceType for protobuf service teleport.lib.teleterm.v1.TerminalService
  */
@@ -5405,5 +5491,6 @@ export const TerminalService = new ServiceType("teleport.lib.teleterm.v1.Termina
     { name: "GetUserPreferences", options: {}, I: GetUserPreferencesRequest, O: GetUserPreferencesResponse },
     { name: "UpdateUserPreferences", options: {}, I: UpdateUserPreferencesRequest, O: UpdateUserPreferencesResponse },
     { name: "AuthenticateWebDevice", options: {}, I: AuthenticateWebDeviceRequest, O: AuthenticateWebDeviceResponse },
-    { name: "GetApp", options: {}, I: GetAppRequest, O: GetAppResponse }
+    { name: "GetApp", options: {}, I: GetAppRequest, O: GetAppResponse },
+    { name: "UpdateCurrentProfile", options: {}, I: UpdateCurrentProfileRequest, O: UpdateCurrentProfileResponse }
 ]);

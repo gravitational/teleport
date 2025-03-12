@@ -88,6 +88,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		HostAddr:           cfg.Addr,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
 		Daemon:             daemonService,
+		Storage:            storage,
 		TshdServerCreds:    grpcCredentials.tshd,
 		ListeningC:         cfg.ListeningC,
 		ClusterIDCache:     clusterIDCache,

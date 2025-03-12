@@ -81,6 +81,22 @@ func (s *Storage) CurrentClusterURI() (uri.ResourceURI, error) {
 	return uri.NewClusterURI(proxyHost), nil
 }
 
+func (s *Storage) UpdateCurrentProfile(uri uri.ResourceURI) error {
+	name := uri.GetProfileName()
+	if name == "" {
+		return trace.BadParameter("malformed uri %q", uri.String())
+	}
+
+	profileStore := client.NewFSProfileStore(s.Dir)
+	profile, err := profileStore.GetProfile(name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = profileStore.SaveProfile(profile, true /* makeCurrent */)
+	return trace.Wrap(err)
+}
+
 // GetByURI returns a cluster by URI. Assumes the URI has been successfully parsed and is of a
 // cluster.
 //

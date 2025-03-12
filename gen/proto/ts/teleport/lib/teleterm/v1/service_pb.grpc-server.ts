@@ -21,6 +21,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
+import { UpdateCurrentProfileResponse } from "./service_pb";
+import { UpdateCurrentProfileRequest } from "./service_pb";
 import { GetAppResponse } from "./service_pb";
 import { GetAppRequest } from "./service_pb";
 import { AuthenticateWebDeviceResponse } from "./service_pb";
@@ -396,6 +398,12 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: GetApp(teleport.lib.teleterm.v1.GetAppRequest) returns (teleport.lib.teleterm.v1.GetAppResponse);
      */
     getApp: grpc.handleUnaryCall<GetAppRequest, GetAppResponse>;
+    /**
+     * UpdateCurrentProfile changes the currently active profile, as understood by tsh.
+     *
+     * @generated from protobuf rpc: UpdateCurrentProfile(teleport.lib.teleterm.v1.UpdateCurrentProfileRequest) returns (teleport.lib.teleterm.v1.UpdateCurrentProfileResponse);
+     */
+    updateCurrentProfile: grpc.handleUnaryCall<UpdateCurrentProfileRequest, UpdateCurrentProfileResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.lib.teleterm.v1.TerminalService.
@@ -818,5 +826,15 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         requestDeserialize: bytes => GetAppRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(GetAppResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(GetAppRequest.toBinary(value))
+    },
+    updateCurrentProfile: {
+        path: "/teleport.lib.teleterm.v1.TerminalService/UpdateCurrentProfile",
+        originalName: "UpdateCurrentProfile",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => UpdateCurrentProfileResponse.fromBinary(bytes),
+        requestDeserialize: bytes => UpdateCurrentProfileRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(UpdateCurrentProfileResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(UpdateCurrentProfileRequest.toBinary(value))
     }
 };

@@ -6,13 +6,16 @@
 //
 
 import SwiftUI
+import GRPCNIOTransportHTTP2
 
 struct MenuBar: Scene {
   @State var isVnetRunning: Bool = false
   var listRootClustersResponse: Teleport_Lib_Teleterm_V1_ListClustersResponse?
   var startVnet: () async -> Bool
   var stopVnet: () async -> Void
-
+  var listRootClusters: () async -> Void
+  var tshdClient: Teleport_Lib_Teleterm_V1_TerminalService.Client<HTTP2ClientTransport.Posix>
+  
   var body: some Scene {
     MenuBarExtra("Teleport Menu Bar App", systemImage: "gearshape.fill") {
       if let response = listRootClustersResponse {
@@ -31,7 +34,17 @@ struct MenuBar: Scene {
         } else {
           Menu(currentClusterLabel) {
             ForEach(otherClusters, id: \.uri) { rootCluster in
-              Button(getClusterLabel(rootCluster)) { }
+              Button(getClusterLabel(rootCluster)) {
+                Task {
+                  do {
+                    try await tshdClient.updateCurrentProfile(.with {$0.rootClusterUri = rootCluster.uri})
+
+                    await listRootClusters()
+                  } catch let error {
+                    print("Could not update profile: \(error)")
+                  }
+                }
+              }
             }
           }
         }
