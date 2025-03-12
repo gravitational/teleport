@@ -29,7 +29,7 @@ class AppModel: ObservableObject {
     runTshd()
 
     Task {
-      try await Task.sleep(nanoseconds: UInt64(250 * Double(NSEC_PER_MSEC)))
+      try await Task.sleep(nanoseconds: UInt64(400 * Double(NSEC_PER_MSEC)))
       do {
         try await client.runConnections()
       } catch let error {
