@@ -239,12 +239,17 @@ type CLIConf struct {
 
 	// DatabaseService specifies the database proxy server to log into.
 	DatabaseService string
+	// DatabaseServices specifies a list of database services.
+	DatabaseServices string
 	// DatabaseUser specifies database user to embed in the certificate.
 	DatabaseUser string
 	// DatabaseName specifies database name to embed in the certificate.
 	DatabaseName string
 	// DatabaseRoles specifies database roles to embed in the certificate.
 	DatabaseRoles string
+	// DatabaseQuery specifies the query to execute.
+	DatabaseQuery string
+
 	// AppName specifies proxied application name.
 	AppName string
 	// Interactive sessions will allocate a PTY and create interactive "shell"
@@ -536,9 +541,8 @@ type CLIConf struct {
 	// HeadlessAuthenticationID is the ID of a headless authentication.
 	HeadlessAuthenticationID string
 
-	// headlessSkipConfirm determines whether to provide a y/N
-	// confirmation prompt before prompting for MFA.
-	headlessSkipConfirm bool
+	// SkipConfirm determines whether to provide a y/N confirmation prompt.
+	SkipConfirm bool
 
 	// DTAuthnRunCeremony allows tests to override the default device
 	// authentication function.
@@ -577,6 +581,14 @@ type CLIConf struct {
 
 	// lookPathOverride overrides return of LookPath(). used in tests.
 	lookPathOverride string
+
+	// MaxConnections specifies the number of concurrent connections allowed.
+	MaxConnections int
+	// OutputDir specifies the directory for storing command outputs.
+	OutputDir string
+	// StopOnError specifies whether to stop immediately upon a failure when doing
+	// things in parallel.
+	StopOnError bool
 }
 
 // Stdout returns the stdout writer.
@@ -622,6 +634,23 @@ func (c *CLIConf) LookPath(file string) (string, error) {
 		return c.lookPathOverride, nil
 	}
 	return exec.LookPath(file)
+}
+
+// PromptConfirmation prompts the user for a yes/no confirmation for question.
+// The prompt is skipped if cf.SkipConfirm is set.
+func (c *CLIConf) PromptConfirmation(question string) error {
+	if c.SkipConfirm {
+		return nil
+	}
+
+	inReader := prompt.NewContextReader(c.Stdin())
+	ok, err := prompt.Confirmation(c.Context, c.Stdout(), inReader, question)
+	if err != nil {
+		return trace.Wrap(err)
+	} else if !ok {
+		return trace.Errorf("Canceled.")
+	}
+	return nil
 }
 
 func Main() {
@@ -1020,6 +1049,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbConnect.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
 	dbConnect.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&cf.disableAccessRequest)
 	dbConnect.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate").Hidden().BoolVar(&cf.LocalProxyTunnel)
+	dbExec := db.Command("exec", "Execute database queries on target database services.")
+	dbExec.Flag("db-user", "Database user to log in as.").Short('u').StringVar(&cf.DatabaseUser)
+	dbExec.Flag("db-name", "Database name to log in to.").Short('n').StringVar(&cf.DatabaseName)
+	dbExec.Flag("db-roles", "List of comma separate database roles to use for auto-provisioned user.").Short('r').StringVar(&cf.DatabaseRoles)
+	dbExec.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
+	dbExec.Flag("labels", labelHelp).StringVar(&cf.Labels)
+	dbExec.Flag("max-connections", "Run queries on target databases concurrently. Defaults to 1, and maximum allowed is 10.").Default("1").IntVar(&cf.MaxConnections)
+	dbExec.Flag("output-dir", "Directory to log command output per target database.").StringVar(&cf.OutputDir)
+	dbExec.Flag("dbs", "List of comma separated target databases. Mutually exclusive with --search or --labels.").StringVar(&cf.DatabaseServices)
+	dbExec.Flag("skip-confirm", "Skip confirmation on search results").BoolVar(&cf.SkipConfirm)
+	dbExec.Flag("--stop-on-error", "Stops immediately when encountered an error. By default, execution is attempted on all target databases.").BoolVar(&cf.StopOnError)
+	dbExec.Arg("query", "Execute this query on target database services").Required().StringVar(&cf.DatabaseQuery)
 
 	// join
 	join := app.Command("join", "Join the active SSH or Kubernetes session.")
@@ -1224,7 +1265,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	headless := app.Command("headless", "Headless authentication commands.").Interspersed(true)
 	headlessApprove := headless.Command("approve", "Approve a headless authentication request.").Interspersed(true)
 	headlessApprove.Arg("request id", "Headless authentication request ID").StringVar(&cf.HeadlessAuthenticationID)
-	headlessApprove.Flag("skip-confirm", "Skip confirmation and prompt for MFA immediately").Envar(headlessSkipConfirmEnvVar).BoolVar(&cf.headlessSkipConfirm)
+	headlessApprove.Flag("skip-confirm", "Skip confirmation and prompt for MFA immediately").Envar(headlessSkipConfirmEnvVar).BoolVar(&cf.SkipConfirm)
 
 	reqDrop := req.Command("drop", "Drop one more access requests from current identity.")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests)").Default("*").StringsVar(&cf.RequestIDs)
@@ -1581,6 +1622,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onDatabaseConfig(&cf)
 	case dbConnect.FullCommand():
 		err = onDatabaseConnect(&cf)
+	case dbExec.FullCommand():
+		err = onDatabaseExec(&cf)
 	case environment.FullCommand():
 		err = onEnvironment(&cf)
 	case mfa.ls.FullCommand():
@@ -5769,7 +5812,7 @@ func onHeadlessApprove(cf *CLIConf) error {
 
 	tc.Stdin = os.Stdin
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.HeadlessApprove(cf.Context, cf.HeadlessAuthenticationID, !cf.headlessSkipConfirm)
+		return tc.HeadlessApprove(cf.Context, cf.HeadlessAuthenticationID, !cf.SkipConfirm)
 	})
 	return trace.Wrap(err)
 }

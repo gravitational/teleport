@@ -25,6 +25,7 @@ import (
 	"reflect"
 	"regexp"
 	"slices"
+	"strings"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -79,9 +80,20 @@ type printDatabaseTableConfig struct {
 	rows                []databaseTableRow
 	showProxyAndCluster bool
 	verbose             bool
+	// includeColumns specifies a white list of columns to include. verbose and
+	// showProxyAndCluster are ignored when includeColumns is provided.
+	includeColumns []string
 }
 
-func (cfg printDatabaseTableConfig) excludeColumns() (out []string) {
+func (cfg printDatabaseTableConfig) excludeColumns(allColumns []string) (out []string) {
+	if len(cfg.includeColumns) > 0 {
+		for _, column := range allColumns {
+			if !slices.Contains(cfg.includeColumns, column) {
+				out = append(out, column)
+			}
+		}
+		return
+	}
 	if !cfg.showProxyAndCluster {
 		out = append(out, "Proxy", "Cluster")
 	}
@@ -94,7 +106,7 @@ func (cfg printDatabaseTableConfig) excludeColumns() (out []string) {
 func printDatabaseTable(cfg printDatabaseTableConfig) {
 	allColumns := makeTableColumnTitles(databaseTableRow{})
 	rowsWithAllColumns := makeTableRows(cfg.rows)
-	excludeColumns := cfg.excludeColumns()
+	excludeColumns := cfg.excludeColumns(allColumns)
 
 	var printColumns []string
 	printRows := make([][]string, len(cfg.rows))
@@ -164,6 +176,29 @@ func maybeShowListDatabasesHint(cf *CLIConf, w io.Writer, numRows int) {
 	}
 
 	fmt.Fprint(w, listDatabaseHint)
+}
+
+type dbPrefixWriter struct {
+	io.Writer
+	prefix string
+}
+
+func newDBPrefixWriter(w io.Writer, dbServiceName string) *dbPrefixWriter {
+	return &dbPrefixWriter{
+		Writer: w,
+		prefix: fmt.Sprintf("[%s]", dbServiceName),
+	}
+}
+
+func (w *dbPrefixWriter) Write(p []byte) (int, error) {
+	for _, line := range strings.Split(string(p), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		fmt.Fprintln(w.Writer, w.prefix, trimmed)
+	}
+	return len(p), nil
 }
 
 // minNumRowsToShowListDatabasesHint is an arbitrary number selected to show
