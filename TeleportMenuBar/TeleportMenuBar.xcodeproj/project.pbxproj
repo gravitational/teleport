@@ -102,6 +102,7 @@
 		452FB40E2D8085A800518BDC /* SwiftProtobuf in Frameworks */ = {isa = PBXBuildFile; productRef = 452FB40D2D8085A800518BDC /* SwiftProtobuf */; };
 		452FB4112D808A0700518BDC /* GRPCCore in Frameworks */ = {isa = PBXBuildFile; productRef = 452FB4102D808A0700518BDC /* GRPCCore */; };
 		452FB4142D808AE600518BDC /* GRPCProtobuf in Frameworks */ = {isa = PBXBuildFile; productRef = 452FB4132D808AE600518BDC /* GRPCProtobuf */; };
+		452FB8462D81884E00518BDC /* tsh in Resources */ = {isa = PBXBuildFile; fileRef = 452FB8452D81884E00518BDC /* tsh */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -214,6 +215,7 @@
 		452FB3A72D8083B500518BDC /* unified_resource_preferences.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = unified_resource_preferences.pb.swift; sourceTree = "<group>"; };
 		452FB3A82D8083B500518BDC /* userpreferences.grpc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = userpreferences.grpc.swift; sourceTree = "<group>"; };
 		452FB3A92D8083B500518BDC /* userpreferences.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = userpreferences.pb.swift; sourceTree = "<group>"; };
+		452FB8452D81884E00518BDC /* tsh */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = tsh; path = ../build/tsh; sourceTree = "<group>"; };
 		B2D0C2F22D803AA100C78620 /* TeleportMenuBar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TeleportMenuBar.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B2D0C3032D803AA200C78620 /* TeleportMenuBarTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TeleportMenuBarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B2D0C30D2D803AA200C78620 /* TeleportMenuBarUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TeleportMenuBarUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -552,6 +554,7 @@
 		B2D0C2E92D803AA100C78620 = {
 			isa = PBXGroup;
 			children = (
+				452FB8452D81884E00518BDC /* tsh */,
 				452FB3AD2D8083B500518BDC /* swift */,
 				B2D0C2F42D803AA100C78620 /* TeleportMenuBar */,
 				B2D0C3062D803AA200C78620 /* TeleportMenuBarTests */,
@@ -698,6 +701,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				452FB8462D81884E00518BDC /* tsh in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -972,7 +976,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = TeleportMenuBar/TeleportMenuBar.entitlements;
+				CODE_SIGN_ENTITLEMENTS = TeleportMenuBar/TeleportMenuBarDebug.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;

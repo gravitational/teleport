@@ -655,31 +655,7 @@ func (s *Service) GetRequestableRoles(ctx context.Context, req *api.GetRequestab
 
 // PromoteAccessRequest promotes an access request to an access list.
 func (s *Service) PromoteAccessRequest(ctx context.Context, rootClusterURI uri.ResourceURI, req *accesslistv1.AccessRequestPromoteRequest) (*clusters.AccessRequest, error) {
-	cluster, _, err := s.ResolveClusterURI(rootClusterURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var response *clusters.AccessRequest
-	err = clusters.AddMetadataToRetryableError(ctx, func() error {
-		promoteResponse, err := proxyClient.CurrentCluster().AccessListClient().AccessRequestPromote(ctx, req)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		accessRequest := promoteResponse.AccessRequest
-		response = &clusters.AccessRequest{
-			URI:           cluster.URI.AppendAccessRequest(accessRequest.GetName()),
-			AccessRequest: accessRequest,
-		}
-		return nil
-	})
-
-	return response, trace.Wrap(err)
+	return nil, trace.NotImplemented("temporarily removed")
 }
 
 // GetSuggestedAccessLists returns suggested access lists for an access request.
