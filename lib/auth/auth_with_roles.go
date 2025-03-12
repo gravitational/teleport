@@ -6053,6 +6053,7 @@ func (a *ServerWithRoles) DeleteMFADeviceSync(ctx context.Context, req *proto.De
 
 // IsMFARequired queries whether MFA is required for the specified target.
 func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+
 	// Check if MFA is required for admin actions. We don't currently have
 	// a reason to check the name of the admin action in question.
 	if _, ok := req.Target.(*proto.IsMFARequiredRequest_AdminAction); ok {

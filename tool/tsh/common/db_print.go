@@ -79,9 +79,15 @@ type printDatabaseTableConfig struct {
 	rows                []databaseTableRow
 	showProxyAndCluster bool
 	verbose             bool
+	// includeColumns specifies a white list of columns to include. verbose and
+	// showProxyAndCluster are ignored when includeColumns is provided.
+	includeColumns []string
 }
 
 func (cfg printDatabaseTableConfig) excludeColumns() (out []string) {
+	if len(cfg.includeColumns) > 0 {
+		return nil
+	}
 	if !cfg.showProxyAndCluster {
 		out = append(out, "Proxy", "Cluster")
 	}
@@ -99,6 +105,9 @@ func printDatabaseTable(cfg printDatabaseTableConfig) {
 	var printColumns []string
 	printRows := make([][]string, len(cfg.rows))
 	for columnIndex, column := range allColumns {
+		if len(cfg.includeColumns) > 0 && !slices.Contains(cfg.includeColumns, column) {
+			continue
+		}
 		if slices.Contains(excludeColumns, column) {
 			continue
 		}
