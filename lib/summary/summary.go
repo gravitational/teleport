@@ -23,13 +23,14 @@ package summary
 import (
 	"context"
 	"fmt"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
 	"os"
 )
 
-func GenerateSummary(sessionID session.ID) (string, error) {
+func GenerateSummary(sessionID session.ID, streamer events.SessionStreamer) (string, error) {
 	client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
 
 	prompt := fmt.Sprintf(
@@ -45,7 +46,7 @@ Please provide a concise summary of what commands were executed, their purpose, 
 If this session is a Kubernetes session, note the relevant pod/cluster/namespace if present.`,
 		sessionID,
 		sessionType(sessionID),
-		sessionContent(sessionID),
+		sessionContent(sessionID, streamer),
 	)
 
 	resp, err := client.CreateChatCompletion(
@@ -72,7 +73,8 @@ func sessionType(sessionID session.ID) string {
 	return "ssh"
 }
 
-func sessionContent(sessionID session.ID) string {
+func sessionContent(sessionID session.ID, streamer events.SessionStreamer) string {
+	
 	return `
 > echo 1
 1
