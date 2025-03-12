@@ -28,6 +28,8 @@ import "accessgraph/v1alpha/gitlab.proto";
 import "accessgraph/v1alpha/graph.proto";
 import "accessgraph/v1alpha/netiq.proto";
 import "accessgraph/v1alpha/resources.proto";
+import "google/protobuf/timestamp.proto";
+import "teleport/auditlog/v1/auditlog.proto";
 
 option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
 
@@ -61,6 +63,9 @@ service AccessGraphService {
   // This stream works the same way as EventsStream, but it returns a stream of events
   // instead of a single response.
   rpc EventsStreamV2(stream EventsStreamV2Request) returns (stream EventsStreamV2Response);
+
+  // AuditLogStream is a TODO(juliaogris).
+  rpc AuditLogStream(stream AuditLogStreamRequest) returns (stream AuditLogStreamResponse);
 
   // Register submits a new tenant representing this Teleport cluster to the TAG service,
   // identified by its HostCA certificate.
@@ -196,6 +201,85 @@ message AuditEvent {
     // access_path_changed is an event that should be logged when the access path changes.
     AccessPathChanged access_path_changed = 1;
   }
+}
+
+// AuditLogStreamRequest contains audit log events, encoded in
+// auditlog.EventUstructured. It also contains the necessary information to
+// update the legacy or bulk exports current state in order to resume exporting
+// in case of lost grpc connection. .
+message AuditLogStreamRequest {
+  oneof action {
+    // TODO(juliaogris): tweak naming, reads poorly in go: req.GetEvents().GetEvent(). Look for consistency with other proto naming.
+    AuditLogEvents searched_events = 1; // unstructured event list + cursor if updated queried via Search API
+    AuditLogBulkEvent bulk_event = 2; // unstructured event + bulk_state delta
+    AuditLogBulkStateSync bulk_state_sync = 3; // bulk_prune requests to prune old open dates.
+  }
+}
+
+// AuditLogEvents .
+message AuditLogEvents {
+  repeated teleport.auditlog.v1.EventUnstructured events = 1;
+  string start_key = 2; // legacy, only transmit if changed from last cursor.
+}
+
+// AuditLogBulkEvent .
+message AuditLogBulkEvent {
+  teleport.auditlog.v1.EventUnstructured event = 1;
+  string chunk = 2;
+  string cursor = 3; // empty cursor means we move chunk from chunk_cursors map to completed_chunks
+  google.protobuf.Timestamp date = 4; // used int exporter state and normalized to UTC 00:00:00.
+  // TODO: add normalized time here?
+}
+
+// AuditLogBulkDateSync is a request to sync the bulk export state and prune
+// days that are not active_days in the exporter state.
+message AuditLogBulkStateSync {
+  repeated AuditLogBulkDateSync active_dates = 1; // never delete dates more recent than the most recent date in active dates.
+}
+
+// AuditLogBulkDateSync represents the state of the bulk export for a given date
+// and its list of completed dates.
+message AuditLogBulkDateSync {
+  google.protobuf.Timestamp date = 1;
+  repeated string completd_chunks = 2;
+}
+
+//AuditLogStreamResponse is a TODO(juliaogris). If no resume state we start afresh from start date.
+message AuditLogStreamResponse {
+  google.protobuf.Timestamp start_date = 1;
+  oneof resume_state {
+    AuditLogExportState export_state = 2; // legacy
+    AuditLogBulkExportState bulk_export_state = 3; // bulk
+  }
+}
+
+// AuditLogExportState is the state of the non-performance-optimized, legacy
+// event exporting to resume exporting.
+message AuditLogExportState {
+  // start_date is the original start date for the export query
+  string start_key = 1; // never empty
+  string last_event_id = 2; // empty if no events have been processed for last_cursor
+  google.protobuf.Timestamp last_event_time = 3; // only needed if we upgrade to bulk exporting
+}
+
+// AuditLogBulkExportState is the state of the bulk export in process useful for resuming.
+message AuditLogBulkExportState {
+  // dates is the state of all dates with exports in progress.
+  // dates after start date but further in the past (older than now - backlog_size)
+  // are considered been completed.
+  repeated AuditLogBulkExportDateState dates = 1;
+}
+
+// AuditLogBulkExportDateState is the state of the export for a given date in
+// UTC used to resume exporting.
+message AuditLogBulkExportDateState {
+  // date is the date for which the export state is stored. It's normalized to UTC 00:00:00.
+  google.protobuf.Timestamp date = 1;
+  // completed_chunks is the list of completed chunks for the given date.
+  repeated string completed_chunks = 2;
+  // chunk_cursors is a map of chunk to cursor to resume the export for a given
+  // chunk.
+  map<string, string> chunk_cursors = 3;
 }
 
 // RegisterRequest is the request for Register.

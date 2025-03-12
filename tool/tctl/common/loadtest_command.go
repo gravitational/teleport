@@ -374,7 +374,7 @@ func (c *LoadtestCommand) AuditEvents(ctx context.Context, client *authclient.Cl
 		}
 	}()
 
-	exportFn := func(ctx context.Context, event *auditlogpb.ExportEventUnstructured) error {
+	exportFn := func(ctx context.Context, event *auditlogpb.ExportEventUnstructured, _ string, _ time.Time) error {
 		select {
 		case outch <- event:
 		case <-ctx.Done():

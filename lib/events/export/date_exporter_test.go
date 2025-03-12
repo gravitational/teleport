@@ -58,7 +58,7 @@ func testDateExporterBasics(t *testing.T, randomFlake bool) {
 	var exportedMu sync.Mutex
 	var exported []*auditlogpb.ExportEventUnstructured
 
-	exportFn := func(ctx context.Context, event *auditlogpb.ExportEventUnstructured) error {
+	exportFn := func(ctx context.Context, event *auditlogpb.ExportEventUnstructured, _ string) error {
 		exportedMu.Lock()
 		defer exportedMu.Unlock()
 		exported = append(exported, event)
@@ -214,7 +214,7 @@ func testDateExporterResume(t *testing.T, randomFlake bool) {
 	// the main test routine.
 	exportCH := make(chan *auditlogpb.ExportEventUnstructured)
 
-	exportFn := func(ctx context.Context, event *auditlogpb.ExportEventUnstructured) error {
+	exportFn := func(ctx context.Context, event *auditlogpb.ExportEventUnstructured, chunk string) error {
 		select {
 		case exportCH <- event:
 		case <-ctx.Done():

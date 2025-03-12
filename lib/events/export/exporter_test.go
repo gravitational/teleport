@@ -123,7 +123,7 @@ func testExportAll(t *testing.T, tc exportTestCase) {
 	var exportedMu sync.Mutex
 	var exported []*auditlogpb.ExportEventUnstructured
 
-	exportFn := func(ctx context.Context, event *auditlogpb.ExportEventUnstructured) error {
+	exportFn := func(ctx context.Context, event *auditlogpb.ExportEventUnstructured, chunk string) error {
 		exportedMu.Lock()
 		defer exportedMu.Unlock()
 		exported = append(exported, event)
