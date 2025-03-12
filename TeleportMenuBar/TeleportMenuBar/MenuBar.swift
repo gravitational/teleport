@@ -9,7 +9,7 @@ import SwiftUI
 import GRPCNIOTransportHTTP2
 
 struct MenuBar: Scene {
-  @State var isVnetRunning: Bool = false
+  @State private var isVnetRunning: Bool = false
   var listRootClustersResponse: Teleport_Lib_Teleterm_V1_ListClustersResponse?
   var startVnet: () async -> Bool
   var stopVnet: () async -> Void
@@ -56,29 +56,30 @@ struct MenuBar: Scene {
         }
       }
 
-      if isVnetRunning {
-        Button("Stop VNet") {
-          Task {
-            await stopVnet()
-            isVnetRunning = false
-          }
-        }
-      } else {
-        Button("Start VNet") {
-          Task {
-            let succces = await startVnet()
-            if succces {
-              isVnetRunning = true
+      let isVnetRunningBinding = Binding<Bool>(
+        get: { self.isVnetRunning },
+        set: {newIsVnetRunning in
+          if newIsVnetRunning {
+            Task {
+              let succces = await startVnet()
+              if succces {
+                self.isVnetRunning = true
+              }
+            }
+          } else {
+            Task {
+              await stopVnet()
+              self.isVnetRunning = false
             }
           }
         }
-      }
+      )
+      Toggle("VNet", isOn: isVnetRunningBinding).toggleStyle(.switch)
       Divider()
       Button("Quit") {
         NSApplication.shared.terminate(nil)
       }
     }
-
   }
 }
 
