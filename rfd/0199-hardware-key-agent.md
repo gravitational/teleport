@@ -236,6 +236,8 @@ Teleport clients will use a `hardwareKeyAgentService` interface to interact
 with hardware private keys, rather than interacting directly with the PIV
 interface.
 
+Note: `HardwarePrivateKeyRef` is marshalled to/from the PEM encoded file described above.
+
 ```go
 // Pseudo-code
 
@@ -243,18 +245,23 @@ interface.
 //  - direct implementation with piv-go, adapted slightly from our existing implementation
 //  - hardware key agent gRPC service implementation
 type hardwareKeyAgentService interface {
-  Sign(keyInfo hardwareKeyInfo, rand io.Reader, digest []byte, opts SignerOpts) (signature []byte, err error)
+  Sign(ref HardwarePrivateKeyRef, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error)
 }
 
-// hardwareKeyInfo contains information on a specific hardware private key.
-type hardwareKeyInfo struct {
-  serialNumber         uint32
-  pivSlot              uint32
-  version              string
-  publicKey            crypto.PublicKey
-  touchRequired        bool
-  pinRequired          bool
-  attestationStatement keys.AttestationStatement
+// HardwarePrivateKeyRef references a specific hardware private key.
+type HardwarePrivateKeyRef struct {
+  // SerialNumber is the hardware key's serial number.
+  SerialNumber uint32 `json:"serial_number"`
+  // SlotKey is the key name for the hardware key PIV slot, e.g. "9a".
+  SlotKey uint32 `json:"slot_key"`
+  // PublicKey is the public key.
+  PublicKey crypto.PublicKey `json:"-"` // below we use custom marshaling in PKIX, ASN.1 DER form
+  // PrivateKeyPolicy is the private key policy satisfied by the hardware private key.
+  PrivateKeyPolicy PrivateKeyPolicy `json:"private_key_policy"`
+  // AttestationStatement contains the hardware private key's attestation
+  // statement, which is used by the Teleport server to attest the touch
+  // and pin requirements for this hardware private key during login.
+  AttestationStatement *AttestationStatement `json:"attestation_statement"`
 }
 
 // Implements [crypto.Signer] and [keys.HardwareSigner].
@@ -263,19 +270,24 @@ type hardwareKeyAgentKey struct {
   keyInfo hardwareKeyInfo
 }
 
-// Implement [crypto.Signer]
-func (s *agentSigner) Public() crypto.PublicKey {
-  return s.keyInfo.publicKey
+// Implements [crypto.Signer].
+func (h *HardwarePrivateKey) Public() crypto.PublicKey {
+  return h.ref.PublicKey
 }
 
-// Implement [crypto.Signer]
-func (s *agentSigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
-  return s.agent.Sign(a.keyInfo, rand, digest, opts)
+// Implements [crypto.Signer].
+func (h *HardwarePrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+  return h.service.Sign(h.ref, rand, digest, opts)
 }
 
-// Implement [keys.HardwareSigner]
-func (s *agentSigner) GetAttestationStatement() *AttestationStatement {
-  return s.keyInfo.attestationStatement
+// Implements [crypto.HardwareSigner].
+func (h *HardwarePrivateKey) GetAttestationStatement() *AttestationStatement {
+  return h.ref.AttestationStatement
+}
+
+// Implements [crypto.HardwareSigner].
+func (h *HardwarePrivateKey) GetPrivateKeyPolicy() PrivateKeyPolicy {
+  return h.ref.PrivateKeyPolicy
 }
 ```
 
@@ -389,34 +401,26 @@ touch and PIN prompts.
 
 Teleport Connect:
 
-```text
-# normal touch prompt
-Verify your identity to on root.example.com
+```diff
+# touch prompt
+- Verify your identity on root.example.com
++Verify your identity to continue with command "tsh ssh server01"
  
-# agent touch prompt
-Verify your identity to continue with command "tsh ssh server01"
- 
-# normal pin prompt
-Unlock hardware key to access root.example.com
- 
-# agent pin prompt
-Unlock hardware key to continue with command "tsh ssh server01"
+# pin prompt
+- Unlock hardware key to access root.example.com
++ Unlock hardware key to continue with command "tsh ssh server01"
 ```
 
 `tsh agent`:
 
-```text
-# normal touch prompt
-Tap your YubiKey
+```diff
+# touch prompt
+- Tap your YubiKey
++ Tap your YubiKey to continue with command "tsh ssh server01"
  
-# agent touch prompt
-Tap your YubiKey to continue with command "tsh ssh server01"
- 
-# normal pin prompt
-Enter your YubiKey PIV PIN:
- 
-# agent pin prompt
-Enter your YubiKey PIV PIN to continue with command "tsh ssh server01":
+# pin prompt
+- Enter your YubiKey PIV PIN:
++ Enter your YubiKey PIV PIN to continue with command "tsh ssh server01":
 ```
 
 While the agent client prompts the user, the dependent client will hang until
@@ -441,11 +445,11 @@ provide no benefit if Teleport Connect is always foregrounding the prompts.
 ```proto
 // HardwareKeyAgentService provides an agent service for hardware key (PIV) signatures.
 // This allows multiple Teleport clients to share a PIV connection rather than blocking
-// each other, due to the exclusive nature of PIV connections. This also enables shared
+// each other, due to the exclusive nature of PIV connections. This also enabled shared
 // hardware key states, such as a custom PIN cache shared across Teleport clients.
 service HardwareKeyAgentService {
   // Ping the agent service to check if it is active.
-  rpc Ping(PingRequest) {PingResponse}
+  rpc Ping(PingRequest) returns (PingResponse) {}
   // Sign produces a signature with the provided options for the specified hardware private key
   //
   // This rpc implements Go's crypto.Signer interface.
@@ -458,40 +462,41 @@ message PingRequest {}
 // PingResponse is a response to Ping.
 message PingResponse {
   // PID is the PID of the client process running the agent.
-  PID uint32 = 1;
+  uint32 pid = 1;
 }
 
 // SignRequest is a request to perform a signature with a specific hardware private key.
 message SignRequest {
-  // KeyInfo is info for a specific hardware private key.
-  KeyInfo key_info = 1;
   // Digest is a hashed message to sign.
-  bytes digest = 2;
+  bytes digest = 1;
   // Hash is the hash function used to prepare the digest.
-  Hash hash = 3;
+  Hash hash = 2;
   // SaltLength specifies the length of the salt added to the digest before a signature.
   // This salt length is precomputed by the client, following the crypto/rsa implementation.
   // Only used, and required, for PSS RSA signatures.
-  uint32 salt_length = 4;
+  uint32 salt_length = 3;
+  // KeyRef references a specific hardware private key.
+  KeyRef key_ref = 4;
+  // KeyInfo contains additional, optional key info which generally will improve UX by
+  // giving the agent context about the key, such as whether PIN/touch prompts are
+  // expected, or what cluster login is trying to interface with the key.
+  KeyInfo key_info = 5;
   // CommandName is the name of the command or action requiring a signature.
-  // e.g. "tsh ssh server01". The agent can include this detail in PIN and touch
+  // e.g. "tsh ssh server01". The agent can include this detail in PIN/touch
   // prompts to show the origin of the signature request to the user.
-  string command_name = 5;
+  string command_name = 6;
 }
 
 // Signature is a private key signature.
 message Signature {
-  // For an (EC)DSA key, the default key algorithm for hardware private keys, this
-  // will be a DER-serialised, ASN.1 signature structure.
-  //
-  // When the client is using a manually generated RSA key, this can be either a
-  // PKCS #1 v1.5, or if the cluster is on the legacy signature algorithm suite,
-  // a PSS signature,
+  // For an RSA key, signature should be either a PKCS #1 v1.5 or PSS signature,
+  // depending on the hash and salt chosen. For an (EC)DSA key, it should be a
+  // DER-serialised, ASN.1 signature structure.
   bytes signature = 1;
 }
 
 // KeyRef references a specific hardware private key.
-message KeyInfo {
+message KeyRef {
   // SerialNumber is the serial number of the hardware key.
   uint32 serial_number = 1;
   // PivSlot is a specific PIV slot on the hardware key.
@@ -500,15 +505,28 @@ message KeyInfo {
   // not match the private key currently in the hardware key's PIV slot, the signature
   // will fail early.
   bytes public_key_der = 3;
+}
+
+// KeyInfo contains additional information about a hardware private key.
+message KeyInfo {
   // TouchRequired is a client hint as to whether the hardware private key requires touch.
   // The agent will use this to provide the ideal UX for the touch prompt. If this client
   // hint is incorrect, touch will still be prompted.
-  bool touch_required = 4;
+  bool touch_required = 1;
   // PinRequired is a client hint as to whether the hardware private key requires PIN.
   // The agent will use this to provide the ideal UX for the PIN prompt. If this client
   // hint is incorrect, PIN will still be prompted for YubiKey versions >= 4.3.0, and
   // failing with an auth error otherwise.
-  bool pin_required = 5;
+  bool pin_required = 2;
+  // ProxyHost is a Teleport proxy hostname that the key is associated with.
+  // May be used to add context to PIN/touch prompts.
+  string proxy_host = 3;
+  // Username is a Teleport username that the key is associated with.
+  // May be used to add context to PIN/touch prompts.
+  string username = 4;
+  // ClusterName is a Teleport cluster name that the key is associated with.
+  // May be used to add context to PIN/touch prompts.
+  string cluster_name = 5;
 }
 
 // PIVSlot is a specific PIV slot on a hardware key.
