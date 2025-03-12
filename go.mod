@@ -592,3 +592,10 @@ replace (
 	github.com/redis/go-redis/v9 => github.com/gravitational/redis/v9 v9.6.1-teleport.1
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.2
 )
+
+// stats/opentelemetry is provided by grpc-go since v1.69.0, v1.68.2 and v1.67.3.
+// Before that it was its own module. Until all of our dependencies use, at
+// least, one of the grpc-go versions above we need to exclude
+// stats/opentelemetry in order to avoid "ambiguous import" errors on build.
+// TODO(codingllama): Remove once no dependencies import stats/opentelemetry.
+exclude google.golang.org/grpc/stats/opentelemetry v0.0.0-20241028142157-ada6787961b3

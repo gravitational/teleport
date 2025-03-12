@@ -146,6 +146,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	secretsscannerproxy "github.com/gravitational/teleport/lib/secretsscanner/proxy"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/service/summarizer"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/expiry"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -2019,6 +2020,7 @@ func (process *TeleportProcess) initAuthService() error {
 	var streamer events.Streamer
 	var uploadHandler events.MultipartHandler
 	var externalAuditStorage *externalauditstorage.Configurator
+	var summarizingUploadHandler *summarizer.Summarizer = nil
 
 	// create the audit log, which will be consuming (and recording) all events
 	// and recording all sessions.
@@ -2056,6 +2058,8 @@ func (process *TeleportProcess) initAuthService() error {
 				return trace.Wrap(err)
 			}
 		}
+		summarizingUploadHandler = summarizer.WrapSessionHandler(uploadHandler, process.auditLog)
+		uploadHandler = summarizingUploadHandler
 		streamer, err = events.NewProtoStreamer(events.ProtoStreamerConfig{
 			Uploader: uploadHandler,
 		})
@@ -2088,6 +2092,8 @@ func (process *TeleportProcess) initAuthService() error {
 			return trace.Wrap(err)
 		}
 		process.auditLog = localLog
+		// This is most probably so, so, wrong. But it's a hackathon, and I don't care.
+		summarizingUploadHandler.Streamer = localLog
 		if externalLog != nil {
 			externalEmitter, ok := externalLog.(apievents.Emitter)
 			if !ok {
@@ -2209,6 +2215,9 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
+	if summarizingUploadHandler != nil {
+		summarizingUploadHandler.SessionRecordingMetadata = authServer.SessionRecordingMetadata
+	}
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentAuth,
