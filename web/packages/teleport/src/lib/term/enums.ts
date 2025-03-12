@@ -34,6 +34,7 @@ export enum TermEvent {
   CLOSE = 'terminal.close',
   RESET = 'terminal.reset',
   SESSION = 'terminal.new_session',
+  SESSION_STATUS = 'terminal.session_status',
   DATA = 'terminal.data',
   CONN_CLOSE = 'connection.close',
   MFA_CHALLENGE = 'terminal.webauthn',

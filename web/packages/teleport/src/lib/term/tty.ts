@@ -227,6 +227,9 @@ class Tty extends EventEmitterMfaSender {
         case MessageTypeEnum.SESSION_DATA:
           this.emit(TermEvent.SESSION, msg.payload);
           break;
+        case MessageTypeEnum.SESSION_STATUS:
+          this.emit(TermEvent.SESSION_STATUS, msg.payload);
+          break;
         case MessageTypeEnum.SESSION_END:
           this.emit(TermEvent.CLOSE, msg.payload);
           break;

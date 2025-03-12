@@ -34,6 +34,7 @@ export const MessageTypeEnum = {
   LATENCY: 'l',
   KUBE_EXEC: 'k',
   DB_CONNECT: 'd',
+  SESSION_STATUS: 'g',
 };
 
 export const messageFields = {

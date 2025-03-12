@@ -69,6 +69,11 @@ export default function useSshSession(doc: DocumentSsh) {
             handleTtyConnect(ctx, data.session, doc.id);
           });
 
+          tty.on(TermEvent.SESSION_STATUS, payload => {
+            const data = JSON.parse(payload);
+            console.log('SESSION_STATUS', data);
+          });
+
           tty.on(TermEvent.LATENCY, payload => {
             const stats = JSON.parse(payload);
             ctx.updateSshDocument(doc.id, {

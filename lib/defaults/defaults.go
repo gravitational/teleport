@@ -713,6 +713,8 @@ const (
 	// WebsocketSessionMetadata is sending the data for a ssh session.
 	WebsocketSessionMetadata = "s"
 
+	WebsocketSessionStatus = "g"
+
 	// WebsocketError is sending an error message.
 	WebsocketError = "e"
 

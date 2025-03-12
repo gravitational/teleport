@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/agentless"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
@@ -120,6 +121,10 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 	_, span := cfg.tracer.Start(ctx, "NewTerminal")
 	defer span.End()
 
+	accessChecker, err := cfg.SessionCtx.GetUserAccessChecker()
+	policySets := accessChecker.SessionPolicySets()
+	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, cfg.SessionCtx.GetUser())
+
 	return &TerminalHandler{
 		sshBaseHandler: sshBaseHandler{
 			logger: cfg.Logger.With(
@@ -140,6 +145,7 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 			sshDialTimeout:     cfg.SSHDialTimeout,
 		},
 		displayLogin:    cfg.DisplayLogin,
+		access:          accessEvaluator,
 		term:            cfg.Term,
 		proxySigner:     cfg.PROXYSigner,
 		participantMode: cfg.ParticipantMode,
@@ -314,6 +320,8 @@ type TerminalHandler struct {
 	displayLogin string
 
 	closeOnce sync.Once
+
+	access auth.SessionAccessEvaluator
 
 	// term is the initial PTY size.
 	term session.TerminalParams
@@ -807,6 +815,18 @@ func monitorSessionLatency(ctx context.Context, clock clockwork.Clock, stream *t
 	return nil
 }
 
+type RequiredPolicy struct {
+	Name     string            `json:"string"`
+	Count    int               `json:"count"`
+	Satifies types.Participant `json:"satisfies"`
+}
+
+type SessionStatusData struct {
+	State            types.SessionState  `json:"state"`
+	Parties          []types.Participant `json:"parties"`
+	RequiredPolicies []RequiredPolicy    `json:"requiredPolicies"`
+}
+
 // streamTerminal opens an SSH connection to the remote host and streams
 // events back to the web client.
 func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.TeleportClient) {
@@ -888,6 +908,56 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 			}
 		}()
 	}
+	// session status
+	sessionStatusCtx, sessionStatusCancel := context.WithCancel(ctx)
+	defer sessionStatusCancel()
+	go func() {
+		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-sessionStatusCtx.Done():
+				return
+			case <-ticker.C:
+				tracker, err := t.userAuthClient.GetSessionTracker(ctx, string(t.sessionData.ID))
+				if err != nil {
+					t.logger.WarnContext(ctx, "Failed to find session tracker", "error", err)
+					continue
+				}
+				envelope := &terminal.Envelope{
+					Version: defaults.WebsocketVersion,
+					Type:    defaults.WebsocketSessionStatus,
+				}
+
+				parties := tracker.GetParticipants()
+				var requiredPolicies []RequiredPolicy
+
+				sessionStatusData, err := json.Marshal(SessionStatusData{
+					State:   tracker.GetState(),
+					Parties: parties,
+				})
+				if err != nil {
+					// do something with this error
+					continue
+				}
+
+				envelope.Payload = string(sessionStatusData)
+				envelopeBytes, err := proto.Marshal(envelope)
+				if err != nil {
+					t.sendError(ctx, "unable to marshal session data event for web client", err, t.stream)
+					// do something with this error as well
+					continue
+				}
+				if err := t.stream.WriteMessage(websocket.BinaryMessage, envelopeBytes); err != nil {
+					t.sendError(ctx, "unable to write message to socket", err, t.stream)
+					// finally, this error
+					continue
+				}
+
+			}
+		}
+	}()
 
 	// Establish SSH connection to the server. This function will block until
 	// either an error occurs or it completes successfully.
