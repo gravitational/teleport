@@ -457,10 +457,12 @@ func (u *Updater) Remove(ctx context.Context, force bool) error {
 	if filepath.Clean(cfg.Spec.Path) != filepath.Clean(defaultPathDir) {
 		if u.TeleportServiceName == serviceName {
 			if !force {
-				u.Log.ErrorContext(ctx, "Default Teleport systemd service would be removed, and --force was not passed. Refusing to remove Teleport from this system.")
+				u.Log.ErrorContext(ctx, "Default Teleport systemd service would be removed, and --force was not passed.")
+				u.Log.ErrorContext(ctx, "Refusing to remove Teleport from this system.")
 				return trace.Errorf("unable to remove Teleport completely without --force")
 			} else {
-				u.Log.WarnContext(ctx, "Default Teleport systemd service will be removed since --force was passed. Teleport will be removed from this system.")
+				u.Log.WarnContext(ctx, "Default Teleport systemd service will be removed since --force was passed.")
+				u.Log.WarnContext(ctx, "Teleport will be removed from this system.")
 			}
 		}
 		return u.removeWithoutSystem(ctx, cfg)
@@ -468,10 +470,12 @@ func (u *Updater) Remove(ctx context.Context, force bool) error {
 	revert, err := u.Installer.LinkSystem(ctx)
 	if errors.Is(err, ErrNoBinaries) {
 		if !force {
-			u.Log.ErrorContext(ctx, "No packaged installation of Teleport was found, and --force was not passed. Refusing to remove Teleport from this system.")
+			u.Log.ErrorContext(ctx, "No packaged installation of Teleport was found, and --force was not passed.")
+			u.Log.ErrorContext(ctx, "Refusing to remove Teleport from this system.")
 			return trace.Errorf("unable to remove Teleport completely without --force")
 		} else {
-			u.Log.WarnContext(ctx, "No packaged installation of Teleport was found, and --force was passed. Teleport will be removed from this system.")
+			u.Log.WarnContext(ctx, "No packaged installation of Teleport was found, and --force was passed.")
+			u.Log.WarnContext(ctx, "Teleport will be removed from this system.")
 		}
 		return u.removeWithoutSystem(ctx, cfg)
 	}
@@ -479,7 +483,8 @@ func (u *Updater) Remove(ctx context.Context, force bool) error {
 		return trace.Wrap(err, "failed to link")
 	}
 
-	u.Log.InfoContext(ctx, "Updater-managed installation of Teleport detected. Restoring packaged version of Teleport before removing.")
+	u.Log.InfoContext(ctx, "Updater-managed installation of Teleport detected.")
+	u.Log.InfoContext(ctx, "Restoring packaged version of Teleport before removing.")
 
 	revertConfig := func(ctx context.Context) bool {
 		if ok := revert(ctx); !ok {
@@ -525,7 +530,8 @@ func (u *Updater) Remove(ctx context.Context, force bool) error {
 		u.Log.ErrorContext(ctx, "Reverting symlinks due to failed restart.")
 		if ok := revertConfig(ctx); ok {
 			if err := u.Process.Reload(ctx); err != nil && !errors.Is(err, ErrNotNeeded) {
-				u.Log.ErrorContext(ctx, "Failed to reload Teleport after reverting. Installation likely broken.", errorKey, err)
+				u.Log.ErrorContext(ctx, "Failed to reload Teleport after reverting.", errorKey, err)
+				u.Log.ErrorContext(ctx, "Installation likely broken.")
 			} else {
 				u.Log.WarnContext(ctx, "Teleport updater detected an error with the new installation and successfully reverted it.")
 			}
@@ -541,7 +547,8 @@ func (u *Updater) Remove(ctx context.Context, force bool) error {
 }
 
 func (u *Updater) removeWithoutSystem(ctx context.Context, cfg *UpdateConfig) error {
-	u.Log.InfoContext(ctx, "Updater-managed installation of Teleport detected. Attempting to unlink and remove.")
+	u.Log.InfoContext(ctx, "Updater-managed installation of Teleport detected.")
+	u.Log.InfoContext(ctx, "Attempting to unlink and remove.")
 	ok, err := u.Process.IsActive(ctx)
 	if err != nil && !errors.Is(err, ErrNotSupported) {
 		return trace.Wrap(err)
