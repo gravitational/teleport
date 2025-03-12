@@ -399,7 +399,6 @@
     "cond",
     "configmap",
     "connstring",
-    "connectionupgrade",
     "connectorname",
     "cprops",
     "cqlsh",
@@ -1042,6 +1041,7 @@
   "flagWords": ["hte"],
   "ignorePaths": [
     "**/reference/terraform-provider/**",
-    "**/reference/operator-resources/**"
+    "**/reference/operator-resources/**",
+    "**/includes/reference/code-blocks-no-cspell/**"
   ]
 }
