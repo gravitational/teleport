@@ -244,6 +244,8 @@ func NewServer(
 	s.cfg.PasswordCallback = ah.Password
 	s.cfg.NoClientAuth = ah.NoClient
 
+	s.GetPublicKeyCallbackForPermit = ah.GetPublicKeyCallbackForPermit
+
 	if s.fips {
 		s.cfg.PublicKeyAuthAlgorithms = defaults.FIPSPubKeyAuthAlgorithms
 	}
@@ -524,8 +526,12 @@ func (s *Server) handleConnection(conn net.Conn, permit *decisionpb.SSHAccessPer
 	if v := serverVersionOverrideFromConn(conn); v != "" && v != cfg.ServerVersion {
 		cfg.ServerVersion = v
 	}
+
 	if f := s.GetPublicKeyCallbackForPermit; f != nil && permit != nil {
+		fmt.Printf("\n---> public key callback will use permit from stapling!\n\n")
 		cfg.PublicKeyCallback = f(permit)
+	} else if permit != nil {
+		panic("unable to propagate permit to public key callback, GetPublicKeyCallbackForPermit is not set")
 	}
 
 	// apply idle read/write timeout to this connection.

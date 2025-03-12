@@ -851,8 +851,7 @@ func New(
 		addr, s,
 		getHostSigners,
 		sshutils.AuthMethods{
-			PublicKey: s.authHandlers.UserKeyAuth,
-
+			PublicKey:                     s.authHandlers.UserKeyAuth,
 			GetPublicKeyCallbackForPermit: s.authHandlers.GetPublicKeyCallbackForPermit,
 		},
 		sshutils.SetLimiter(s.limiter),

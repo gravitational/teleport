@@ -210,6 +210,7 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 		Metadata: &decisionpb.PermitMetadata{
 			PdpVersion: teleport.Version,
 		},
+		Logins:               []string{req.OsUser},
 		ForwardAgent:         accessChecker.CheckAgentForward(req.OsUser) == nil,
 		X11Forwarding:        accessChecker.PermitX11Forwarding(),
 		SshFileCopy:          accessChecker.CanCopyFiles(),

@@ -23,6 +23,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"os"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -295,6 +297,7 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, request
 }
 
 func (h *AuthHandlers) GetPublicKeyCallbackForPermit(permit *decisionpb.SSHAccessPermit) sshutils.PublicKeyFunc {
+	fmt.Fprintf(os.Stderr, "\n\n---> GetPublicKeyCallbackForPermit: %+v\n\n", permit)
 	return func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 		return h.userKeyAuth(conn, key, permit)
 	}
@@ -307,8 +310,10 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 	return h.userKeyAuth(conn, key, noPermit)
 }
 
-func (h *AuthHandlers) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey, permit *decisionpb.SSHAccessPermit) (ppms *ssh.Permissions, rerr error) {
+func (h *AuthHandlers) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey, stapledAccessPermit *decisionpb.SSHAccessPermit) (ppms *ssh.Permissions, rerr error) {
 	ctx := context.Background()
+
+	fmt.Fprintf(os.Stderr, "\n\n---> user key auth : %+v\n\n", stapledAccessPermit)
 
 	fingerprint := fmt.Sprintf("%v %v", key.Type(), sshutils.Fingerprint(key))
 
@@ -517,6 +522,16 @@ func (h *AuthHandlers) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey, per
 		return nil, trace.Wrap(err)
 	}
 
+	// ensure that mismatched stapled permits are ignored
+	if stapledAccessPermit != nil {
+		if !slices.Contains(stapledAccessPermit.Logins, conn.User()) {
+			panic("stapled access permit does not contain the os_user")
+		}
+
+		// XXX: this validation is insufficient for production usage. stapled permits
+		// do not currently contain all information necessary for proper validation.
+	}
+
 	var accessPermit *decisionpb.SSHAccessPermit
 	var proxyPermit *sshProxyingPermit
 	var diagnosticTracing bool
@@ -530,13 +545,23 @@ func (h *AuthHandlers) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey, per
 	case teleport.ComponentForwardingNode:
 		diagnosticTracing = true
 		if h.c.TargetServer != nil && h.c.TargetServer.IsOpenSSHNode() {
-			accessPermit, err = h.evaluateSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.TargetServer, conn.User())
+			if stapledAccessPermit == nil {
+				accessPermit, err = h.evaluateSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.TargetServer, conn.User())
+			} else {
+				fmt.Println("\n---> using stapled access permit!\n\n")
+				accessPermit = stapledAccessPermit
+			}
 		} else {
 			proxyPermit, err = h.evaluateSSHProxying(ident, ca, clusterName.GetClusterName(), conn.User())
 		}
 	case teleport.ComponentNode:
 		diagnosticTracing = true
-		accessPermit, err = h.evaluateSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.Server.GetInfo(), conn.User())
+		if stapledAccessPermit == nil {
+			accessPermit, err = h.evaluateSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.Server.GetInfo(), conn.User())
+		} else {
+			fmt.Printf("\n---> using stapled access permit!\n\n")
+			accessPermit = stapledAccessPermit
+		}
 	default:
 		return nil, trace.BadParameter("cannot determine appropriate authorization checks for unknown component %q (this is a bug)", h.c.Component)
 	}
