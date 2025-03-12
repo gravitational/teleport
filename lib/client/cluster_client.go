@@ -110,8 +110,8 @@ func (c *ClusterClient) Close() error {
 // attempts to resume the connection if it's supported by the remote server and
 // if it's not been disabled in the TeleportClient (with a command-line flag,
 // typically).
-func (c *ClusterClient) DialHostWithResumption(ctx context.Context, target, cluster string, keyring agent.ExtendedAgent) (net.Conn, proxyclient.ClusterDetails, error) {
-	conn, details, err := c.ProxyClient.DialHost(ctx, target, cluster, keyring)
+func (c *ClusterClient) DialHostWithResumption(ctx context.Context, target, cluster, loginName string, keyring agent.ExtendedAgent) (net.Conn, proxyclient.ClusterDetails, error) {
+	conn, details, err := c.ProxyClient.DialHost(ctx, target, cluster, loginName, keyring)
 	if err != nil {
 		return nil, proxyclient.ClusterDetails{}, trace.Wrap(err)
 	}
@@ -124,7 +124,8 @@ func (c *ClusterClient) DialHostWithResumption(ctx context.Context, target, clus
 		// if the connection is being resumed it means that we didn't need the
 		// agent in the first place
 		var noAgent agent.ExtendedAgent
-		conn, _, err := c.ProxyClient.DialHost(ctx, hostID+":0", cluster, noAgent)
+		const noLoginName = ""
+		conn, _, err := c.ProxyClient.DialHost(ctx, hostID+":0", cluster, noLoginName, noAgent)
 		return conn, err
 	})
 	if err != nil {

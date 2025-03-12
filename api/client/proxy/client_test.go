@@ -418,7 +418,8 @@ func TestClient_DialHost(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
-			conn, details, err := clt.DialHost(ctx, "test", "cluster", test.keyring)
+			const noLoginName = ""
+			conn, details, err := clt.DialHost(ctx, "test", "cluster", noLoginName, test.keyring)
 			test.assertion(t, conn, details, err)
 		})
 	}

@@ -7931,7 +7931,8 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 		require.NoError(t, modClusterClient.Close())
 	})
 
-	conn, details, err := modClusterClient.ProxyClient.DialHost(ctx, nodeDetails.Addr, nodeDetails.Cluster, modTC.LocalAgent().ExtendedAgent)
+	const noLoginName = ""
+	conn, details, err := modClusterClient.ProxyClient.DialHost(ctx, nodeDetails.Addr, nodeDetails.Cluster, noLoginName, modTC.LocalAgent().ExtendedAgent)
 	require.NoError(t, err)
 	sshConfig := modClusterClient.ProxyClient.SSHConfig(username)
 	modSSHConn, modSSHChans, modSSHReqs, err := tracessh.NewClientConn(ctx, conn, nodeDetails.ProxyFormat(), sshConfig)

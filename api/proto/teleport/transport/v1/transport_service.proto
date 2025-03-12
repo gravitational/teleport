@@ -114,6 +114,8 @@ message TargetHost {
   string host_port = 1;
   // The cluster the server is a member of
   string cluster = 2;
+
+  string login_name = 3;
 }
 
 // Request for GetClusterDetails.

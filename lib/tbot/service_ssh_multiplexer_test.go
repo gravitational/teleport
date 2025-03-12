@@ -54,7 +54,7 @@ type mockHostDialer struct {
 }
 
 func (m *mockHostDialer) DialHost(
-	_ context.Context, _ string, _ string, _ agent.ExtendedAgent,
+	_ context.Context, _, _, _ string, _ agent.ExtendedAgent,
 ) (net.Conn, proxyclient.ClusterDetails, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -119,7 +119,7 @@ func TestCyclingHostDialClient(t *testing.T) {
 
 	var conns []net.Conn
 	for i := 0; i < 10; i++ {
-		conn, _, err := cycler.DialHost(ctx, "", "", nil)
+		conn, _, err := cycler.DialHost(ctx, "", "", "", nil)
 		assert.NoError(t, err)
 		conns = append(conns, conn)
 	}
@@ -159,11 +159,11 @@ func TestCyclingHostDialClient(t *testing.T) {
 	// Now we want to validate a weirder case, let's create 4 connections,
 	// close them and then create a fifth.
 	for i := 0; i < 4; i++ {
-		conn, _, err := cycler.DialHost(ctx, "", "", nil)
+		conn, _, err := cycler.DialHost(ctx, "", "", "", nil)
 		assert.NoError(t, err)
 		_ = conn.Close()
 	}
-	conn, _, err := cycler.DialHost(ctx, "", "", nil)
+	conn, _, err := cycler.DialHost(ctx, "", "", "", nil)
 	assert.NoError(t, err)
 	assert.EventuallyWithT(t, func(t *assert.CollectT) {
 		openDialers, closedDialers = tracker.count()

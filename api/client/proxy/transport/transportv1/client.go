@@ -130,7 +130,7 @@ func (c clusterStream) Close() error {
 // DialHost establishes a connection to the instance in the provided cluster that matches
 // the hostport. If a keyring is provided then it will be forwarded to the remote instance.
 // The src address will be used as the LocalAddr of the returned [net.Conn].
-func (c *Client) DialHost(ctx context.Context, hostport, cluster string, src net.Addr, keyring agent.ExtendedAgent) (net.Conn, *transportv1pb.ClusterDetails, error) {
+func (c *Client) DialHost(ctx context.Context, hostport, cluster, loginName string, src net.Addr, keyring agent.ExtendedAgent) (net.Conn, *transportv1pb.ClusterDetails, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	stream, err := c.clt.ProxySSH(ctx)
 	if err != nil {
@@ -141,6 +141,8 @@ func (c *Client) DialHost(ctx context.Context, hostport, cluster string, src net
 	if err := stream.Send(&transportv1pb.ProxySSHRequest{DialTarget: &transportv1pb.TargetHost{
 		HostPort: hostport,
 		Cluster:  cluster,
+
+		LoginName: loginName,
 	}}); err != nil {
 		cancel()
 		return nil, nil, trace.Wrap(err, "failed to send dial target request")

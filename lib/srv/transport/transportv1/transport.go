@@ -235,6 +235,8 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		return trace.BadParameter("first frame must contain a dial target")
 	}
 
+	s.cfg.Logger.ErrorContext(ctx, "===== MAYBE GOT LOGIN NAME IN DIAL REQUEST =====", "login_name", req.GetDialTarget().GetLoginName())
+
 	host, port, err := net.SplitHostPort(req.DialTarget.HostPort)
 	if err != nil {
 		return trace.BadParameter("dial target contains an invalid hostport")

@@ -490,7 +490,8 @@ func TestClient_DialHost(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			conn, details, err := pack.Client.DialHost(context.Background(), test.target, test.cluster, nil, test.keyring)
+			const noLoginName = ""
+			conn, details, err := pack.Client.DialHost(context.Background(), test.target, test.cluster, noLoginName, nil, test.keyring)
 			test.assertion(t, conn, details, err)
 		})
 	}

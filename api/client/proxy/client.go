@@ -427,8 +427,8 @@ func (c *Client) ClientConfig(ctx context.Context, cluster string) (client.Confi
 
 // DialHost establishes a connection to the `target` in cluster named `cluster`. If a keyring
 // is provided it will only be forwarded if proxy recording mode is enabled in the cluster.
-func (c *Client) DialHost(ctx context.Context, target, cluster string, keyring agent.ExtendedAgent) (net.Conn, ClusterDetails, error) {
-	conn, details, err := c.transport.DialHost(ctx, target, cluster, nil, keyring)
+func (c *Client) DialHost(ctx context.Context, target, cluster, loginName string, keyring agent.ExtendedAgent) (net.Conn, ClusterDetails, error) {
+	conn, details, err := c.transport.DialHost(ctx, target, cluster, loginName, nil, keyring)
 	if err != nil {
 		return nil, ClusterDetails{}, trace.ConnectionProblem(err, "failed connecting to host %s: %v", target, err)
 	}

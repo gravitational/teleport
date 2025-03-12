@@ -692,7 +692,9 @@ func (s *SSHMultiplexerService) handleConn(
 	currentAgent := s.agent
 	s.agentMu.Unlock()
 
-	upstream, _, err := hostDialer.DialHost(ctx, target, clusterName, currentAgent)
+	// TODO(espadolini): extend the multiplexer connection protocol to also pass in a login name
+	const noLoginName = ""
+	upstream, _, err := hostDialer.DialHost(ctx, target, clusterName, noLoginName, currentAgent)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -708,8 +710,10 @@ func (s *SSHMultiplexerService) handleConn(
 				// we didn't need the agent in the first place as proxy
 				// recording mode does not require it.
 				var noAgent agent.ExtendedAgent
+				// deliberate, resuming connections don't need a login name
+				const noLoginName = ""
 				conn, _, err := hostDialer.DialHost(
-					ctx, net.JoinHostPort(hostID, "0"), clusterName, noAgent,
+					ctx, net.JoinHostPort(hostID, "0"), clusterName, noLoginName, noAgent,
 				)
 				return conn, err
 			})
@@ -784,7 +788,7 @@ func (s *SSHMultiplexerService) String() string {
 }
 
 type hostDialer interface {
-	DialHost(ctx context.Context, target string, cluster string, keyring agent.ExtendedAgent) (net.Conn, proxyclient.ClusterDetails, error)
+	DialHost(ctx context.Context, target, cluster, loginName string, keyring agent.ExtendedAgent) (net.Conn, proxyclient.ClusterDetails, error)
 	Close() error
 }
 
@@ -834,7 +838,7 @@ func newCyclingHostDialClient(max int32, config proxyclient.ClientConfig) *cycli
 	}
 }
 
-func (s *cyclingHostDialClient) DialHost(ctx context.Context, target string, cluster string, keyring agent.ExtendedAgent) (net.Conn, proxyclient.ClusterDetails, error) {
+func (s *cyclingHostDialClient) DialHost(ctx context.Context, target, cluster, loginName string, keyring agent.ExtendedAgent) (net.Conn, proxyclient.ClusterDetails, error) {
 	s.mu.Lock()
 	if s.currentClt == nil {
 		clt, err := s.hostDialerFn(ctx)
@@ -859,7 +863,7 @@ func (s *cyclingHostDialClient) DialHost(ctx context.Context, target string, clu
 	}
 	s.mu.Unlock()
 
-	innerConn, details, err := currentClt.clt.DialHost(ctx, target, cluster, keyring)
+	innerConn, details, err := currentClt.clt.DialHost(ctx, target, cluster, loginName, keyring)
 	if err != nil {
 		currentClt.release()
 		return nil, details, trace.Wrap(err)
