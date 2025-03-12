@@ -101,7 +101,6 @@ var oktaAPIScopes = []string{
 	ScopeAppsRead,
 	ScopeGroupsManage,
 	ScopeGroupsRead,
-	ScopeOrgsRead,
 }
 
 const (

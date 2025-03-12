@@ -435,7 +435,6 @@ func newWithClientCreator(ctx context.Context, config Config, creator api.OktaCl
 	scopes := []string{
 		api.ScopeUserRead,
 		api.ScopeUserManage,
-		api.ScopeOrgsRead,
 		api.ScopeAppsRead,
 		api.ScopeGroupsRead,
 	}

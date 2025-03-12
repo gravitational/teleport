@@ -52,7 +52,6 @@ func newMockOktaAPIClient() *mockOktaAPIClient {
 			api.ScopeAppsRead,
 			api.ScopeGroupsManage,
 			api.ScopeGroupsRead,
-			api.ScopeOrgsRead,
 		},
 	}
 	setOktaMockedAPIClient(m)

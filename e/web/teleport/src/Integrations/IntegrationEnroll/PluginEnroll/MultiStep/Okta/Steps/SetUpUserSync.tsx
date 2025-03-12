@@ -291,10 +291,6 @@ const requiredScopes = [
     'okta.users.read',
     "Required to read the existing users' profiles and credentials",
   ],
-  [
-    'okta.orgs.read',
-    'Required to read organization-specific details about your Okta organization',
-  ],
 ] as const;
 
 const requiredRolePermissions = [

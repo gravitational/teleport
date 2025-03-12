@@ -564,7 +564,6 @@ func (s *oktaShim) oktaClient(ctx context.Context) (*oktasdk.Client, error) {
 		oktaapi.ScopeAppsRead,
 		oktaapi.ScopeGroupsRead,
 		oktaapi.ScopeUserRead,
-		oktaapi.ScopeOrgsRead,
 	}
 
 	oktaOpts := append(
