@@ -132,8 +132,7 @@ A "dependent client" is a Teleport client process interfacing with the hardware 
 #### Signing interface
 
 The hardware key agent will provide the ability to sign with a hardware private
-key key, specified by hardware key serial number, PIV slot, and known public
-key.
+key, specified by hardware key serial number, PIV slot, and known public key.
 
 The agent will be served as a [gRPC](#hardwarekeyagentservice) service on a unix
 socket, `$TEMP/.Teleport-PIV/agent.sock`, with [basic TLS](#security).
@@ -178,52 +177,58 @@ below are needed.
 
 #### Enrich hardware private key PEM encoded file
 
-During hardware key login, the client queries the hardware key's PIV slot
-directly and either uses the existing key or generates a new key befitting the
-private key policy required by the cluster or role. The client then stores some
-basic information in a PEM encoded file so that subsequent clients can determine
-the correct hardware private key to use for the login session:
+During hardware key login, we store a [PEM encoded file](./0080-hardware-key-support.md#private-key-interface)
+to represent the hardware backed private key. Instead of holding the actual
+private key PEM, this file holds information necessary to retrieve the PIV
+handler for the hardware private key. Currently, this is just the YubiKey
+serial number and PIV slot.
 
-```text
+However, in order to use the key, the client must also know the public key,
+the private key policy to determine when to include touch/pin prompts, and the
+attestation statement to include in any re-login features (e.g. Per-session MFA).
+
+This additional information is retrieved directly from the hardware key by each
+call of the client process. This results in two problems:
+
+* Connecting to the hardware key and retrieving this information has some
+performance cost.
+  * In particular, re-attesting the key against the Yubico CA to derive the
+  private key policy takes upwards of 100ms.
+* Retrieving the information requires a mutually exclusive connection directly
+to the hardware key.
+  * The hardware key agent will hold open connections for at least 1 second in
+  order to improve performance for back-to-back signature requests, meaning
+  dependent clients could be locked out for this duration when trying to make
+  a direct connection.
+  * It would make more sense not to have dependent clients switching between
+  direct hardware key connections and the hardware key agent, especially from
+  an implementation perspective.
+
+Since all this information is known at time of login, we will instead store
+this information in the pem-encoded file:
+
+```diff
 -----BEGIN PIV YUBIKEY PRIVATE KEY-----
 ######## PEM encoded #########
 {
   "serial_number": "12345678",
-  "slot_key": "9a"
+  "slot_key": "9e"
++ "public_key_der": "...",
++ "private_key_policy": "hardware_key_pin",
++ "attestation_statement": {...}
 }
 ##############################
 -----END PIV YUBIKEY PRIVATE KEY-----
 ```
 
-However, each subsequent client call needs to retrieve additional information
-on the hardware private key to utilize it, including the public key, touch and
-pin policies, and the attestation statement used to derive/verify additional
-information.
-
-Hardware key agent dependent clients should not need to access the hardware key
-directly for this information. Since all of this information is known at time
-of login, we can add this information to the PEM encoded file:
-
-```text
------BEGIN PIV YUBIKEY PRIVATE KEY-----
-######## PEM encoded #########
-{
-  "serial_number": "12345678",
-  "slot_key": "9a",
-  "public_key_der": "...",
-  "touch_required": true,
-  "pin_required": true,
-  "attestation_statement": {...}
-}
-##############################
------END PIV YUBIKEY PRIVATE KEY-----
-```
+Note: expanding the PEM encoded file is the chosen solution as it also improves
+performance in the base, agentless case. For posterity, I originally planned on
+adding a hardware key agent rpc like `GetAdditionalInfo` for dependent clients
+to retrieve this info.
 
 Note: for backwards compatibility, clients will continue to retrieve this
 information directly from the hardware key if it is missing from the PEM
-encoded file. Rephrased for clarity, dependent clients will bypass the
-hardware key agent to retrieve this information directly from the hardware
-key, then continue to use the hardware key agent for signatures as normal.
+encoded file.
 
 #### `hardwareKeyAgentService` pseudo-code implementation
 
@@ -294,6 +299,9 @@ Teleport Connect is an ideal runner for the key agent because it:
 By default, if Teleport Connect detects a hardware key plugged in, it will automatically
 serve the hardware key agent service. This way, the agent will be served
 regardless of Teleport Connect's [login state](#running-the-agent-before-login).
+
+Note: the plugged in hardware key is detected by
+[listing smart cards available via the PC/SC interface](https://pkg.go.dev/github.com/go-piv/piv-go/piv#Cards).
 
 For example, if a user primarily wants to use `tsh`, but get PIN caching and
 PIN prompts in Teleport Connect, they could just launch Teleport Connect without
@@ -379,7 +387,7 @@ in order for the agent to relay to the user which dependent client is making
 the signature request. The agent will then include this command in the existing
 touch and PIN prompts.
 
-Teleport connect:
+Teleport Connect:
 
 ```text
 # normal touch prompt
@@ -558,6 +566,20 @@ security:
 * Basic TLS for end-to-end encryption. The agent service will generate a key in
 memory and a self-signed certificate next to the unix socket at `$TEMP/.Teleport-PIV/ca.pem`
 where local Teleport clients can access it.
+* The hardware key agent will not allow access to hardware private keys on PIV slots
+that were not generated for a Teleport client, which can be identified by the presence
+of a [self-signed metadata certificate](./0080-hardware-key-support.md#piv-slot-logic)
+on the PIV slot.
+  * When user hardware keys are externally managed, administrators are currently
+  only required to generate a key in the PIV slot befitting their requirements.
+  However, they don't currently need to generate the metadata certificate that
+  a Teleport client would usually create, leaving no way for the hardware key
+  agent to determine whether the key is meant for Teleport or some other PIV
+  application. Therefore, admins will need to create the metadata certificate
+  in order for their users to utilize the hardware key agent.
+  * Alternatively, we could add some cross-process validation so clients can
+  confirm the hardware key agent is being served by a legitimate, signed Teleport
+  client and vice versa.
 
 #### Hardware key agent forwarding
 
