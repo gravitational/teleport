@@ -71,8 +71,10 @@ func (s *Storage) ListRootClusters() ([]*Cluster, error) {
 func (s *Storage) CurrentClusterURI() (uri.ResourceURI, error) {
 	profileStore := client.NewFSProfileStore(s.Dir)
 	proxyHost, err := profileStore.CurrentProfile()
-
 	if err != nil {
+		if trace.IsNotFound(err) {
+			return uri.ResourceURI{}, nil
+		}
 		return uri.ResourceURI{}, trace.Wrap(err)
 	}
 
