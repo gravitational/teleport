@@ -3212,7 +3212,7 @@ func (process *TeleportProcess) initSSH() error {
 				return trace.Wrap(err)
 			}
 
-			var serverHandler reversetunnel.ServerHandler = s
+			var serverHandler reversetunnel.StapledServerHandler = s
 			if resumableServer != nil {
 				serverHandler = resumableServer
 			}
@@ -3229,6 +3229,7 @@ func (process *TeleportProcess) initSSH() error {
 					AuthMethods:          conn.ClientAuthMethods(),
 					Cluster:              conn.ClusterName(),
 					Server:               serverHandler,
+					StapledServer:        serverHandler,
 					FIPS:                 process.Config.FIPS,
 					ConnectedProxyGetter: proxyGetter,
 				})

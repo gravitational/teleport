@@ -71,6 +71,7 @@ type ServerHandler interface {
 }
 
 type StapledServerHandler interface {
+	ServerHandler
 	HandleStapledConnection(conn net.Conn, stapled []byte)
 }
 
