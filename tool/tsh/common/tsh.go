@@ -4578,7 +4578,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 }
 
 // setEnvVariables configures extra env variables to send in client config based on the requested options.
-// We match OpenSSH behaviour: if the requested env var is not set (os.LookupEnv return false), we won't send it.
+// We match OpenSSH behavior: if the requested env var is not set (os.LookupEnv return false), we won't send it.
 func setEnvVariables(c *client.Config, options Options) {
 	if c.ExtraEnvs == nil {
 		c.ExtraEnvs = map[string]string{}
