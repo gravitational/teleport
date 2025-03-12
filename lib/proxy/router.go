@@ -293,7 +293,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		IsAgentlessNode:       isAgentlessNode,
 		AgentlessSigner:       sshSigner,
 		Address:               host,
-		Principals:            principals,
+		Principals:            apiutils.Deduplicate(principals),
 		ServerID:              serverID,
 		ProxyIDs:              proxyIDs,
 		ConnType:              types.NodeTunnel,
