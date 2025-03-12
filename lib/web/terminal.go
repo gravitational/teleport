@@ -121,10 +121,6 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 	_, span := cfg.tracer.Start(ctx, "NewTerminal")
 	defer span.End()
 
-	accessChecker, err := cfg.SessionCtx.GetUserAccessChecker()
-	policySets := accessChecker.SessionPolicySets()
-	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, cfg.SessionCtx.GetUser())
-
 	return &TerminalHandler{
 		sshBaseHandler: sshBaseHandler{
 			logger: cfg.Logger.With(
@@ -145,7 +141,6 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 			sshDialTimeout:     cfg.SSHDialTimeout,
 		},
 		displayLogin:    cfg.DisplayLogin,
-		access:          accessEvaluator,
 		term:            cfg.Term,
 		proxySigner:     cfg.PROXYSigner,
 		participantMode: cfg.ParticipantMode,
@@ -320,8 +315,6 @@ type TerminalHandler struct {
 	displayLogin string
 
 	closeOnce sync.Once
-
-	access auth.SessionAccessEvaluator
 
 	// term is the initial PTY size.
 	term session.TerminalParams
@@ -816,6 +809,12 @@ func monitorSessionLatency(ctx context.Context, clock clockwork.Clock, stream *t
 	return nil
 }
 
+type PolicyFulfillmentStatus struct {
+	Name     string              `json:"string"`
+	Count    int32               `json:"count"`
+	Satifies []types.Participant `json:"satisfies"`
+}
+
 type SessionStatusData struct {
 	State                   types.SessionState             `json:"state"`
 	Parties                 []types.Participant            `json:"parties"`
@@ -842,11 +841,38 @@ func (t *TerminalHandler) streamSessionStatus(ctx context.Context) {
 			}
 
 			parties := tracker.GetParticipants()
-			// var requiredPolicies []RequiredPolicy
+			var sessionParticipants []auth.SessionAccessContext
+
+			for _, party := range parties {
+				user, err := t.localAccessPoint.GetUser(ctx, party.User, false)
+				if err != nil {
+					continue
+				}
+				var roles []types.Role
+				for _, r := range user.GetRoles() {
+					role, err := t.localAccessPoint.GetRole(ctx, r)
+					if err != nil {
+						continue
+					}
+					roles = append(roles, role)
+				}
+				if err != nil {
+					continue
+				}
+				sessionParticipants = append(sessionParticipants, auth.SessionAccessContext{
+					Username: party.User,
+					Mode:     types.SessionParticipantMode(party.Mode),
+					Roles:    roles,
+				})
+			}
+
+			accessEvaluator := auth.NewSessionAccessEvaluator(tracker.GetHostPolicySets(), types.SSHSessionKind, tracker.GetHostUser())
+			policyFulfillmentStatus := accessEvaluator.GetFulfilledStatusFor(sessionParticipants)
 
 			sessionStatusData, err := json.Marshal(SessionStatusData{
-				State:   tracker.GetState(),
-				Parties: parties,
+				State:                   tracker.GetState(),
+				Parties:                 parties,
+				PolicyFulfillmentStatus: policyFulfillmentStatus,
 			})
 			if err != nil {
 				// do something with this error

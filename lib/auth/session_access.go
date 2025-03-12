@@ -48,9 +48,9 @@ type SessionAccessEvaluator struct {
 }
 
 type PolicyFulfillmentStatus struct {
-	Name     string            `json:"string"`
-	Count    int               `json:"count"`
-	Satifies types.Participant `json:"satisfies"`
+	Name     string              `json:"string"`
+	Count    int32               `json:"count"`
+	Satifies []types.Participant `json:"satisfies"`
 }
 
 // NewSessionAccessEvaluator creates a new session access evaluator for a given session kind
@@ -270,23 +270,51 @@ func (e *SessionAccessEvaluator) extractApplicablePolicies(set *types.SessionTra
 	return policies
 }
 
-// func (e *SessionAccessEvaluator) GetFulfilledStatusFor(participants []SessionAccessContext) []PolicyFulfillmentStatus {
-// 	var policyFullmentStatuses []PolicyFulfillmentStatus
-//
-// 	for _, policySet := range e.policySets {
-// 		policies := e.extractApplicablePolicies(policySet)
-// 		if len(policies) == 0 {
-// 			continue
-// 		}
-//
-// 		for _, requirePolicy := range policies {
-// 			PolicyFulfillmentStatus{
-// 				Count: int(requirePolicy.Count),
-// 			}
-// 		}
-//
-// 	}
-// }
+func (e *SessionAccessEvaluator) GetFulfilledStatusFor(participants []SessionAccessContext) []PolicyFulfillmentStatus {
+	var policyFullmentStatuses []PolicyFulfillmentStatus
+
+	for _, policySet := range e.policySets {
+		policies := e.extractApplicablePolicies(policySet)
+		if len(policies) == 0 {
+			continue
+		}
+
+		for _, requirePolicy := range policies {
+			status := PolicyFulfillmentStatus{
+				Count: requirePolicy.Count,
+				Name:  requirePolicy.Name,
+			}
+
+			var requireModes []types.SessionParticipantMode
+			for _, mode := range requirePolicy.Modes {
+				requireModes = append(requireModes, types.SessionParticipantMode(mode))
+			}
+
+			for _, participant := range participants {
+				if !slices.Contains(requireModes, participant.Mode) {
+					continue
+				}
+
+				allowPolicies := getAllowPolicies(participant)
+				for _, allowPolicy := range allowPolicies {
+					matchesPredicate, err := e.matchesPredicate(&participant, requirePolicy, allowPolicy)
+					if err != nil {
+						// return false, options, trace.Wrap(err)
+					}
+
+					if matchesPredicate && e.matchesJoin(allowPolicy) {
+						status.Satifies = append(status.Satifies, types.Participant{User: participant.Username, Mode: string(participant.Mode)})
+					}
+				}
+			}
+			policyFullmentStatuses = append(policyFullmentStatuses, status)
+
+		}
+
+	}
+
+	return policyFullmentStatuses
+}
 
 // FulfilledFor checks if a given session may run with a list of participants.
 func (e *SessionAccessEvaluator) FulfilledFor(participants []SessionAccessContext) (bool, PolicyOptions, error) {
