@@ -576,7 +576,6 @@ The following preset Teleport roles will be updated to add new default resource 
 
 - `editor`: full read/write permissions on `health_check_config`
 - `terraform-provider`: full read/write permissions on `health_check_config`
-- `default-implicit-role`: read-only permissions on `health_check_config`
 
 We will enforce a minimum interval between health checks to prevent accidentally or intentionally dialing too often from agent to database.
 
