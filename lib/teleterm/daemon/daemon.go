@@ -165,10 +165,27 @@ func (s *Service) ListProfileNames() ([]string, error) {
 	return pfNames, trace.Wrap(err)
 }
 
+type RootClustersResult struct {
+	Clusters          []*clusters.Cluster
+	CurrentClusterURI uri.ResourceURI
+}
+
 // ListRootClusters returns a list of root clusters
-func (s *Service) ListRootClusters(ctx context.Context) ([]*clusters.Cluster, error) {
+func (s *Service) ListRootClusters(ctx context.Context) (*RootClustersResult, error) {
 	clusters, err := s.cfg.Storage.ListRootClusters()
-	return clusters, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	currentURI, err := s.cfg.Storage.CurrentClusterURI()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &RootClustersResult{
+		Clusters:          clusters,
+		CurrentClusterURI: currentURI,
+	}, nil
 }
 
 // ListLeafClusters returns a list of leaf clusters

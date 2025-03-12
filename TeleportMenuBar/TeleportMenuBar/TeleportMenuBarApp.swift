@@ -15,8 +15,7 @@ let addr = "\(FileManager.default.homeDirectoryForCurrentUser.path()).tsh/tsh.so
 
 @MainActor
 class AppModel: ObservableObject {
-  @Published var isClientInitialized: Bool = false
-  @Published var rootClusters: [Teleport_Lib_Teleterm_V1_Cluster] = []
+  @Published var listRootClustersResponse: Teleport_Lib_Teleterm_V1_ListClustersResponse?
 
   init() {
     runTshd()
@@ -42,9 +41,7 @@ class AppModel: ObservableObject {
 
     Task {
       do {
-
-        let reply = try await serviceClient.listRootClusters(.with {_ in })
-        self.rootClusters = reply.clusters
+        self.listRootClustersResponse = try await serviceClient.listRootClusters(.with {_ in })
         print("Fetched root clusters")
       } catch let error {
         print("Could not fetch root clusters: \(error)")
@@ -73,6 +70,6 @@ struct TeleportMenuBarApp: App {
   @StateObject private var model = AppModel()
 
   var body: some Scene {
-    MenuBar(rootClusters: model.rootClusters)
+    MenuBar(listRootClustersResponse: model.listRootClustersResponse)
   }
 }

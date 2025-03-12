@@ -9,11 +9,11 @@ import SwiftUI
 
 struct MenuBar: Scene {
   @State var isVnetRunning: Bool = false
-  var rootClusters: [Teleport_Lib_Teleterm_V1_Cluster] = []
+  var listRootClustersResponse: Teleport_Lib_Teleterm_V1_ListClustersResponse?
 
   var body: some Scene {
     MenuBarExtra("Teleport Menu Bar App", systemImage: "gearshape.fill") {
-      ForEach(rootClusters, id: \.uri) { rootCluster in
+      ForEach(listRootClustersResponse?.clusters ?? [], id: \.uri) { rootCluster in
         Text(rootCluster.name)
       }
       if isVnetRunning {

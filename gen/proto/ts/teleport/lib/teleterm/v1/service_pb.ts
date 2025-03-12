@@ -671,6 +671,13 @@ export interface ListClustersResponse {
      * @generated from protobuf field: repeated teleport.lib.teleterm.v1.Cluster clusters = 1;
      */
     clusters: Cluster[];
+    /**
+     * current_root_cluster_uri is the URI of the currently active cluster as understood by tsh. tsh
+     * commands executed against the tsh home dir will target this cluster by default.
+     *
+     * @generated from protobuf field: string current_root_cluster_uri = 2;
+     */
+    currentRootClusterUri: string;
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.ListLeafClustersRequest
@@ -3295,12 +3302,14 @@ export const ListClustersRequest = new ListClustersRequest$Type();
 class ListClustersResponse$Type extends MessageType<ListClustersResponse> {
     constructor() {
         super("teleport.lib.teleterm.v1.ListClustersResponse", [
-            { no: 1, name: "clusters", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Cluster }
+            { no: 1, name: "clusters", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Cluster },
+            { no: 2, name: "current_root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<ListClustersResponse>): ListClustersResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.clusters = [];
+        message.currentRootClusterUri = "";
         if (value !== undefined)
             reflectionMergePartial<ListClustersResponse>(this, message, value);
         return message;
@@ -3312,6 +3321,9 @@ class ListClustersResponse$Type extends MessageType<ListClustersResponse> {
             switch (fieldNo) {
                 case /* repeated teleport.lib.teleterm.v1.Cluster clusters */ 1:
                     message.clusters.push(Cluster.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string current_root_cluster_uri */ 2:
+                    message.currentRootClusterUri = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -3328,6 +3340,9 @@ class ListClustersResponse$Type extends MessageType<ListClustersResponse> {
         /* repeated teleport.lib.teleterm.v1.Cluster clusters = 1; */
         for (let i = 0; i < message.clusters.length; i++)
             Cluster.internalBinaryWrite(message.clusters[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* string current_root_cluster_uri = 2; */
+        if (message.currentRootClusterUri !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.currentRootClusterUri);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

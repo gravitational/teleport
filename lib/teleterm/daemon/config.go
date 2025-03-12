@@ -44,6 +44,7 @@ type Storage interface {
 	Add(ctx context.Context, webProxyAddress string) (*clusters.Cluster, *client.TeleportClient, error)
 	Remove(ctx context.Context, profileName string) error
 	GetByResourceURI(resourceURI uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error)
+	CurrentClusterURI() (uri.ResourceURI, error)
 }
 
 // Config is the cluster service config

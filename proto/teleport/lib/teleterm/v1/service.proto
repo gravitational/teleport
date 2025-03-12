@@ -456,6 +456,9 @@ message ListClustersRequest {}
 
 message ListClustersResponse {
   repeated Cluster clusters = 1;
+  // current_root_cluster_uri is the URI of the currently active cluster as understood by tsh. tsh
+  // commands executed against the tsh home dir will target this cluster by default.
+  string current_root_cluster_uri = 2;
 }
 
 message ListLeafClustersRequest {

@@ -875,6 +875,10 @@ struct Teleport_Lib_Teleterm_V1_ListClustersResponse: Sendable {
 
   var clusters: [Teleport_Lib_Teleterm_V1_Cluster] = []
 
+  /// current_root_cluster_uri is the URI of the currently active cluster as understood by tsh. tsh
+  /// commands executed against the tsh home dir will target this cluster by default.
+  var currentRootClusterUri: String = String()
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -3092,6 +3096,7 @@ extension Teleport_Lib_Teleterm_V1_ListClustersResponse: SwiftProtobuf.Message, 
   static let protoMessageName: String = _protobuf_package + ".ListClustersResponse"
   static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
     1: .same(proto: "clusters"),
+    2: .standard(proto: "current_root_cluster_uri"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -3101,6 +3106,7 @@ extension Teleport_Lib_Teleterm_V1_ListClustersResponse: SwiftProtobuf.Message, 
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
       case 1: try { try decoder.decodeRepeatedMessageField(value: &self.clusters) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.currentRootClusterUri) }()
       default: break
       }
     }
@@ -3110,11 +3116,15 @@ extension Teleport_Lib_Teleterm_V1_ListClustersResponse: SwiftProtobuf.Message, 
     if !self.clusters.isEmpty {
       try visitor.visitRepeatedMessageField(value: self.clusters, fieldNumber: 1)
     }
+    if !self.currentRootClusterUri.isEmpty {
+      try visitor.visitSingularStringField(value: self.currentRootClusterUri, fieldNumber: 2)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: Teleport_Lib_Teleterm_V1_ListClustersResponse, rhs: Teleport_Lib_Teleterm_V1_ListClustersResponse) -> Bool {
     if lhs.clusters != rhs.clusters {return false}
+    if lhs.currentRootClusterUri != rhs.currentRootClusterUri {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

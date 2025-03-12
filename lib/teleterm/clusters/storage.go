@@ -67,6 +67,18 @@ func (s *Storage) ListRootClusters() ([]*Cluster, error) {
 	return clusters, nil
 }
 
+// CurrentClusterURI returns the URI of the current root cluster, as understood by tsh.
+func (s *Storage) CurrentClusterURI() (uri.ResourceURI, error) {
+	profileStore := client.NewFSProfileStore(s.Dir)
+	proxyHost, err := profileStore.CurrentProfile()
+
+	if err != nil {
+		return uri.ResourceURI{}, trace.Wrap(err)
+	}
+
+	return uri.NewClusterURI(proxyHost), nil
+}
+
 // GetByURI returns a cluster by URI. Assumes the URI has been successfully parsed and is of a
 // cluster.
 //

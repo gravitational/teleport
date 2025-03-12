@@ -30,18 +30,19 @@ import (
 
 // ListRootClusters lists root clusters
 func (s *Handler) ListRootClusters(ctx context.Context, r *api.ListClustersRequest) (*api.ListClustersResponse, error) {
-	clusters, err := s.DaemonService.ListRootClusters(ctx)
+	result, err := s.DaemonService.ListRootClusters(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	result := []*api.Cluster{}
-	for _, cluster := range clusters {
-		result = append(result, newAPIRootCluster(cluster))
+	var apiClusters []*api.Cluster
+	for _, cluster := range result.Clusters {
+		apiClusters = append(apiClusters, newAPIRootCluster(cluster))
 	}
 
 	return &api.ListClustersResponse{
-		Clusters: result,
+		Clusters:              apiClusters,
+		CurrentRootClusterUri: result.CurrentClusterURI.String(),
 	}, nil
 }
 
