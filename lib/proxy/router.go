@@ -33,8 +33,10 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -282,6 +284,11 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		return nil, trace.ConnectionProblem(errors.New("connection problem"), "direct dialing to nodes not found in inventory is not supported")
 	}
 
+	// HACK(espadolini): this should not be unconditionally bob
+	permit, _ := proto.Marshal(&decisionpb.SSHAccessPermit{
+		Logins: []string{"bob"},
+	})
+
 	conn, err := site.Dial(reversetunnelclient.DialParams{
 		From:                  clientSrcAddr,
 		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: serverAddr},
@@ -295,6 +302,8 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		ProxyIDs:              proxyIDs,
 		ConnType:              types.NodeTunnel,
 		TargetServer:          target,
+
+		Permit: permit,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
