@@ -22,62 +22,52 @@ import (
 	"bytes"
 	"encoding/xml"
 
-	"github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil"
+	smithyxml "github.com/aws/smithy-go/encoding/xml"
+
 	"github.com/gravitational/trace"
 )
 
 // IsXMLOfLocalName returns true if the root XML has the provided (local) name.
 func IsXMLOfLocalName(data []byte, wantLocalName string) bool {
-	var name xml.Name
-	if err := xml.Unmarshal(data, &name); err == nil {
-		return wantLocalName == name.Local
+	st, err := smithyxml.FetchRootElement(xml.NewDecoder(bytes.NewReader(data)))
+	if err == nil && st.Name.Local == wantLocalName {
+		return true
 	}
+
 	return false
 }
 
 // UnmarshalXMLChildNode decodes the XML-encoded data and stores the child node
 // with the specified name to v, where v is a pointer to an AWS SDK v1 struct.
 func UnmarshalXMLChildNode(v interface{}, data []byte, childName string) error {
-	return trace.Wrap(xmlutil.UnmarshalXML(v, xml.NewDecoder(bytes.NewReader(data)), childName))
+	decoder := xml.NewDecoder(bytes.NewReader(data))
+	st, err := smithyxml.FetchRootElement(decoder)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	nodeDecoder := smithyxml.WrapNodeDecoder(decoder, st)
+	childElem, err := nodeDecoder.GetElement(childName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(decoder.DecodeElement(v, &childElem))
 }
 
 // MarshalXML marshals the provided root name and a map of children in XML with
 // default indent (prefix "", indent "  ").
-func MarshalXML(rootName xml.Name, children map[string]any) ([]byte, error) {
+func MarshalXML(root string, namespace string, v any) ([]byte, error) {
 	var buf bytes.Buffer
 	encoder := xml.NewEncoder(&buf)
 	encoder.Indent("", "  ")
-
-	err := encodeXMLNode(encoder, rootName, func() error {
-		for childName, childValue := range children {
-			if err := encodeXMLNodeAWSSDKV1(encoder, childName, childValue); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-		return nil
+	err := encoder.EncodeElement(v, xml.StartElement{
+		Name: xml.Name{Local: root},
+		Attr: []xml.Attr{
+			{Name: xml.Name{Local: "xmlns"}, Value: namespace},
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := trace.Wrap(encoder.Flush()); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return buf.Bytes(), nil
-}
-
-func encodeXMLNode(encoder *xml.Encoder, name xml.Name, encodeChildren func() error) error {
-	startElement := xml.StartElement{Name: name}
-	if err := encoder.EncodeToken(startElement); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := encodeChildren(); err != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(encoder.EncodeToken(startElement.End()))
-}
-
-func encodeXMLNodeAWSSDKV1(encoder *xml.Encoder, name string, v any) error {
-	return encodeXMLNode(encoder, xml.Name{Local: name}, func() error {
-		return trace.Wrap(xmlutil.BuildXML(v, encoder))
-	})
 }
