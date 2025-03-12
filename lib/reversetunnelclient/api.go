@@ -27,6 +27,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/proxy/peer"
@@ -37,6 +38,8 @@ import (
 
 // DialParams is a list of parameters used to Dial to a node within a cluster.
 type DialParams struct {
+	SSHAccessPermit *decisionpb.SSHAccessPermit
+
 	// From is the source address.
 	From net.Addr
 

@@ -115,6 +115,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/imds/azure"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	oracleimds "github.com/gravitational/teleport/lib/cloud/imds/oracle"
+	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/athena"
@@ -4739,11 +4740,20 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var proxyRouter *proxy.Router
 	if !process.Config.Proxy.DisableReverseTunnel {
+		pdp, err := decision.NewService(decision.Config{
+			AccessPoint:    accessPoint,
+			DisableDryRuns: true, /* proxy lacks necessary facilities to handle dry runs */
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		router, err := proxy.NewRouter(proxy.RouterConfig{
 			ClusterName:      clusterName,
 			LocalAccessPoint: accessPoint,
 			SiteGetter:       tsrv,
 			TracerProvider:   process.TracingProvider,
+			DecisionService:  pdp,
 		})
 		if err != nil {
 			return trace.Wrap(err)

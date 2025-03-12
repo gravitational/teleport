@@ -72,6 +72,9 @@ type Config struct {
 
 	// ULSGenerator is the user login state generator required for dry run identity generation.
 	ULSGenerator ULSGenerator
+
+	// DisableDryRuns is a flag that disables dry-run evaluation support.
+	DisableDryRuns bool
 }
 
 // CheckAndSetDefaults checks the config and sets default values where appropriate.
@@ -79,7 +82,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.AccessPoint == nil {
 		return trace.BadParameter("decision service config missing required parameter AccessPoint")
 	}
-	if c.ULSGenerator == nil {
+	if c.ULSGenerator == nil && !c.DisableDryRuns {
 		return trace.BadParameter("decision service config missing required parameter ULSGenerator")
 	}
 	return nil
@@ -112,6 +115,10 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 	}
 
 	if req.Metadata.DryRun {
+		if s.cfg.DisableDryRuns {
+			return nil, trace.BadParameter("dry-run evaluation is disabled")
+		}
+
 		if opts := req.Metadata.DryRunOptions; opts != nil {
 			// dry-run requests may omit a true caller identity in favor of specifying a user for which a
 			// hypothetical identity should be generated.

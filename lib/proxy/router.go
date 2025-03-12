@@ -43,10 +43,12 @@ import (
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -131,6 +133,8 @@ type RouterConfig struct {
 	SiteGetter SiteGetter
 	// TracerProvider allows tracers to be created
 	TracerProvider oteltrace.TracerProvider
+	// DecisionService evaluates access-control rules for target hosts.
+	DecisionService *decision.Service
 
 	// serverResolver is used to resolve hosts, used by tests
 	serverResolver serverResolverFn
@@ -154,6 +158,10 @@ func (c *RouterConfig) CheckAndSetDefaults() error {
 		c.TracerProvider = tracing.DefaultProvider()
 	}
 
+	if c.DecisionService == nil {
+		return trace.BadParameter("DecisionService must be provided")
+	}
+
 	if c.serverResolver == nil {
 		c.serverResolver = getServer
 	}
@@ -165,6 +173,7 @@ func (c *RouterConfig) CheckAndSetDefaults() error {
 // nodes and other clusters.
 type Router struct {
 	clusterName      string
+	pdp              *decision.Service
 	localAccessPoint LocalAccessPoint
 	localSite        reversetunnelclient.RemoteSite
 	siteGetter       SiteGetter
@@ -186,6 +195,7 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 
 	return &Router{
 		clusterName:      cfg.ClusterName,
+		pdp:              cfg.DecisionService,
 		localAccessPoint: cfg.LocalAccessPoint,
 		localSite:        localSite,
 		siteGetter:       cfg.SiteGetter,
@@ -197,7 +207,7 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 // DialHost dials the node that matches the provided host, port and cluster. If no matching node
 // is found an error is returned. If more than one matching node is found and the cluster networking
 // configuration is not set to route to the most recent an error is returned.
-func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, clusterName string, accessChecker services.AccessChecker, agentGetter teleagent.Getter, signer agentless.SignerCreator) (_ net.Conn, err error) {
+func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, clusterName string, identity *sshca.Identity, accessChecker services.AccessChecker, agentGetter teleagent.Getter, signer agentless.SignerCreator) (_ net.Conn, err error) {
 	ctx, span := r.tracer.Start(
 		ctx,
 		"router/DialHost",
@@ -284,12 +294,44 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		return nil, trace.ConnectionProblem(errors.New("connection problem"), "direct dialing to nodes not found in inventory is not supported")
 	}
 
-	// HACK(espadolini): this should not be unconditionally bob
-	permit, _ := proto.Marshal(&decisionpb.SSHAccessPermit{
-		Logins: []string{"bob"},
+	// XXX: prototype invocation. extremely problematic. relies on dry run features, does not properly handle
+	// remote users, does not obey cert state, etc. DO NOT MERGE.
+	decision, err := r.pdp.EvaluateSSHAccess(ctx, &decisionpb.EvaluateSSHAccessRequest{
+		Metadata: &decisionpb.RequestMetadata{
+			PepVersionHint: teleport.Version,
+		},
+		SshAuthority: &decisionpb.SSHAuthority{
+			ClusterName:   r.clusterName, // XXX: in real logic, this *must* be derived from signing CA of user identity
+			AuthorityType: string(types.UserCA),
+		},
+		SshIdentity: decision.SSHIdentityFromSSHCA(identity),
+		Node: &decisionpb.Resource{
+			Kind: target.GetKind(),
+			Name: target.GetName(),
+		},
+		OsUser: "root",
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if denial := decision.GetDenial(); denial != nil {
+		if denial.Metadata != nil && denial.Metadata.UserMessage != "" {
+			return nil, trace.AccessDenied("pdp: %s", denial.Metadata.UserMessage)
+		}
+		return nil, trace.AccessDenied("pdp: access denied")
+	}
+
+	permit := decision.GetPermit()
+	if permit == nil {
+		return nil, trace.AccessDenied("pdp: access denied (missing permit)")
+	}
+
+	// HACK(espadolini): this should not be unconditionally bob
+	permitBytes, _ := proto.Marshal(permit)
 
 	conn, err := site.Dial(reversetunnelclient.DialParams{
+		SSHAccessPermit:       permit,
 		From:                  clientSrcAddr,
 		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: serverAddr},
 		OriginalClientDstAddr: clientDstAddr,
@@ -303,7 +345,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		ConnType:              types.NodeTunnel,
 		TargetServer:          target,
 
-		Permit: permit,
+		Permit: permitBytes,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
