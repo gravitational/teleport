@@ -62,6 +62,9 @@ service AccessGraphService {
   // instead of a single response.
   rpc EventsStreamV2(stream EventsStreamV2Request) returns (stream EventsStreamV2Response);
 
+  // AuditLogStream is a TODO(juliaogris).
+  rpc AuditLogStream(stream AuditLogStreamRequest) returns (stream AuditLogStreamResponse);
+
   // Register submits a new tenant representing this Teleport cluster to the TAG service,
   // identified by its HostCA certificate.
   // The method is idempotent: it succeeds if the tenant has already registered and has the specific CA associated.
@@ -196,6 +199,17 @@ message AuditEvent {
     // access_path_changed is an event that should be logged when the access path changes.
     AccessPathChanged access_path_changed = 1;
   }
+}
+
+// AuditLogStreamRequest is a TODO(juliaogris).
+message AuditLogStreamRequest {
+  string event = 1; // TODO(juliaogris): should probably to be teleport.auditlog.v1.EventsUnstructured or teleport.auditlog.v1.ExportEventUnstructured
+}
+
+//AuditLogStreamResponse is a TODO(juliaogris).
+message AuditLogStreamResponse {
+  // cursor is a cursor to the audit log of the last processed log event, persisted by TAG.
+  string last_key = 1; // TODO(juliaogris): or maybe cursor?
 }
 
 // RegisterRequest is the request for Register.
