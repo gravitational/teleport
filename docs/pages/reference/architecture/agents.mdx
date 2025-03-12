@@ -116,7 +116,8 @@ uses the address of the destination resource to locate the appropriate agent,
 then proxies the user connection through the reverse tunnel associated with the
 agent.
 
-<Details title="Connecting to agents without reverse tunnels">
+<details>
+<summary>Connecting to agents without reverse tunnels</summary>
 
 It is possible to join Teleport Agents to a cluster [through the Teleport Auth
 Service](../../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
@@ -140,7 +141,7 @@ Teleport clusters. We recommend joining agents through the Teleport Proxy
 Service and the reverse tunnel system unless this is not possible for your
 self-hosted Teleport deployment.
 
-</Details>
+</details>
 
 ## Agents to infrastructure resources
 
@@ -241,7 +242,8 @@ traffic from local client tools like `psql` and `kubectl`. A user can then
 connect to the local proxy with their client tool as though they were connecting
 to a remote resource.
 
-<Details title="Available local proxies">
+<details>
+<summary>Available local proxies</summary>
 
 The following table summarizes the local proxies available through the `tsh`
 CLI:
@@ -256,7 +258,7 @@ CLI:
 |`tsh proxy db`|[Native database clients](../../connect-your-client/gui-clients.mdx)|
 |`tsh proxy kube`|[Kubernetes clusters behind L7 load balancers](tls-routing.mdx#kubernetes)|
 
-</Details>
+</details>
 
 `tsh` commands that connect to resources often spin up the same local proxies as
 `tsh proxy` commands. For example, depending on the database, `tsh db connect`

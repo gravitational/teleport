@@ -25,8 +25,8 @@ visualization and alerting.
 - A Linux host where you will run the Teleport Event Handler plugin and Splunk
   Universal Forwarder. The Universal Forwarder must be installed on the host.
 
-  <Details title="Running the Teleport Event Handler and Universal Forwarder on
-  separate hosts">
+  <details>
+  <summary>Running the Teleport Event Handler and Universal Forwarder on separate hosts</summary>
 
   If you run the Teleport Event Handler and Universal Forwarder on the same
   host, there is no need to open a port on the host for ingesting logs. However,
@@ -35,7 +35,7 @@ visualization and alerting.
   traffic from the Teleport Event Handler. This guide assumes that the Universal
   Forwarder is listening on port `9061`.
 
-  </Details>
+  </details>
 
 - On Splunk Enterprise, port `8088` should be open to traffic from the host
   running the Teleport Event Handler and Universal Forwarder.
@@ -106,7 +106,8 @@ Handler sends audit logs as HTTP POST requests with the content type
 We will assume that you assigned `$SPLUNK_HOME` to `/opt/splunkforwarder` when
 installing the Universal Forwarder.
 
-<Details title="Finding your $SPLUNK_HOME">
+<details>
+<summary>Finding your $SPLUNK_HOME</summary>
 
 To find your `$SPLUNK_HOME`, run the following command to see the location of
 your Universal Forwarder service definition, which the init system systemd uses
@@ -133,7 +134,7 @@ will include the filepath segments in `ExecStart` before `/bin`. In this case,
 ExecStart=/opt/splunkforwarder/bin/splunk _internal_launch_under_systemd
 ```
 
-</Details>
+</details>
 
 ### Create an index for your audit logs
 

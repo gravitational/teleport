@@ -68,9 +68,10 @@ node and <Var name="example-node" /> with the node name:
 $ ssh <Var name="user" />@<Var name="example-node" description="An SSH node in your Teleport cluster"/>.<Var name="teleport.example.com"/>
 ```
 
-<Details scopeOnly={true} scope={["cloud"]} title="Teleport Cloud">
+<details>
+<summary>Teleport Cloud</summary>
 The SSH config you generated earlier instructs your SSH client to run `tsh proxy ssh` to access a Node in your Teleport cluster. However, running an `ssh` command against the Teleport Proxy Service at `yourtenant.teleport.sh` will result in an error.
-</Details>
+</details>
 
 <Admonition type="note">
 Teleport's certificates expire fairly quickly, after which SSH
