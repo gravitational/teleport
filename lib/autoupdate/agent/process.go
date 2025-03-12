@@ -394,7 +394,7 @@ func (s SystemdService) Disable(ctx context.Context, now bool) error {
 		return trace.Wrap(err)
 	}
 	// The --now flag is not supported in systemd versions older than 220,
-	// so perform enable + start commands instead.
+	// so perform disable + stop commands instead.
 	code := s.systemctl(ctx, slog.LevelInfo, "disable", s.ServiceName)
 	if code != 0 {
 		return trace.Errorf("unable to disable systemd service")
