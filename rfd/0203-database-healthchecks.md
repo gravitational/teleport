@@ -675,7 +675,7 @@ We will add new audit events for Create/Update/Delete of the `health_check_confi
 
 ### Observability
 
-When a health check fails we will emit a log at TRACE level including the error message.
+When a health check fails we will emit a log at DEBUG level including the error message.
 When status transitions to `healthy` we will emit a log at INFO.
 When status transitions to `unhealthy` we will emit a log at WARN level.
 
