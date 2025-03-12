@@ -240,7 +240,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 
 	principals := []string{
 		host,
-		fmt.Sprintf("%s.%s", host, clusterName),
+		host + "." + clusterName,
 	}
 
 	var (
