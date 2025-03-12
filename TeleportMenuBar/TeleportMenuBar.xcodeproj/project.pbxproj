@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		B2D0C4D62D80795C00C78620 /* Connect in Frameworks */ = {isa = PBXBuildFile; productRef = B2D0C4D52D80795C00C78620 /* Connect */; };
 		B2D0C4D82D80795C00C78620 /* ConnectNIO in Frameworks */ = {isa = PBXBuildFile; productRef = B2D0C4D72D80795C00C78620 /* ConnectNIO */; };
+		B2D0C4FC2D817EBF00C78620 /* tsh in Resources */ = {isa = PBXBuildFile; fileRef = B2D0C4FB2D817EBF00C78620 /* tsh */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -32,6 +33,7 @@
 		B2D0C2F22D803AA100C78620 /* TeleportMenuBar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TeleportMenuBar.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B2D0C3032D803AA200C78620 /* TeleportMenuBarTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TeleportMenuBarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B2D0C30D2D803AA200C78620 /* TeleportMenuBarUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TeleportMenuBarUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B2D0C4FB2D817EBF00C78620 /* tsh */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = tsh; path = ../build/tsh; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -82,6 +84,7 @@
 		B2D0C2E92D803AA100C78620 = {
 			isa = PBXGroup;
 			children = (
+				B2D0C4FB2D817EBF00C78620 /* tsh */,
 				B2D0C2F42D803AA100C78620 /* TeleportMenuBar */,
 				B2D0C3062D803AA200C78620 /* TeleportMenuBarTests */,
 				B2D0C3102D803AA200C78620 /* TeleportMenuBarUITests */,
@@ -224,6 +227,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B2D0C4FC2D817EBF00C78620 /* tsh in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -406,7 +410,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = TeleportMenuBar/TeleportMenuBar.entitlements;
+				CODE_SIGN_ENTITLEMENTS = TeleportMenuBar/TeleportMenuBarDebug.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
