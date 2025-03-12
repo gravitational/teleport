@@ -47,6 +47,12 @@ type SessionAccessEvaluator struct {
 	owner       string
 }
 
+type PolicyFulfillmentStatus struct {
+	Name     string            `json:"string"`
+	Count    int               `json:"count"`
+	Satifies types.Participant `json:"satisfies"`
+}
+
 // NewSessionAccessEvaluator creates a new session access evaluator for a given session kind
 // and a set of roles attached to the host user.
 func NewSessionAccessEvaluator(policySets []*types.SessionTrackerPolicySet, kind types.SessionKind, owner string) SessionAccessEvaluator {
@@ -263,6 +269,24 @@ func (e *SessionAccessEvaluator) extractApplicablePolicies(set *types.SessionTra
 
 	return policies
 }
+
+// func (e *SessionAccessEvaluator) GetFulfilledStatusFor(participants []SessionAccessContext) []PolicyFulfillmentStatus {
+// 	var policyFullmentStatuses []PolicyFulfillmentStatus
+//
+// 	for _, policySet := range e.policySets {
+// 		policies := e.extractApplicablePolicies(policySet)
+// 		if len(policies) == 0 {
+// 			continue
+// 		}
+//
+// 		for _, requirePolicy := range policies {
+// 			PolicyFulfillmentStatus{
+// 				Count: int(requirePolicy.Count),
+// 			}
+// 		}
+//
+// 	}
+// }
 
 // FulfilledFor checks if a given session may run with a list of participants.
 func (e *SessionAccessEvaluator) FulfilledFor(participants []SessionAccessContext) (bool, PolicyOptions, error) {

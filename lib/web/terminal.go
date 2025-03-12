@@ -488,6 +488,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 
 	// Pump raw terminal in/out and audit events into the websocket.
 	go t.streamEvents(ctx, tc)
+	go t.streamSessionStatus(ctx)
 
 	// Block until the terminal session is complete.
 	t.streamTerminal(ctx, tc)
@@ -815,16 +816,58 @@ func monitorSessionLatency(ctx context.Context, clock clockwork.Clock, stream *t
 	return nil
 }
 
-type RequiredPolicy struct {
-	Name     string            `json:"string"`
-	Count    int               `json:"count"`
-	Satifies types.Participant `json:"satisfies"`
+type SessionStatusData struct {
+	State                   types.SessionState             `json:"state"`
+	Parties                 []types.Participant            `json:"parties"`
+	PolicyFulfillmentStatus []auth.PolicyFulfillmentStatus `json:"policyFulfillmentStatus"`
 }
 
-type SessionStatusData struct {
-	State            types.SessionState  `json:"state"`
-	Parties          []types.Participant `json:"parties"`
-	RequiredPolicies []RequiredPolicy    `json:"requiredPolicies"`
+func (t *TerminalHandler) streamSessionStatus(ctx context.Context) {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			tracker, err := t.userAuthClient.GetSessionTracker(ctx, string(t.sessionData.ID))
+			if err != nil {
+				t.logger.WarnContext(ctx, "Failed to find session tracker", "error", err)
+				continue
+			}
+			envelope := &terminal.Envelope{
+				Version: defaults.WebsocketVersion,
+				Type:    defaults.WebsocketSessionStatus,
+			}
+
+			parties := tracker.GetParticipants()
+			// var requiredPolicies []RequiredPolicy
+
+			sessionStatusData, err := json.Marshal(SessionStatusData{
+				State:   tracker.GetState(),
+				Parties: parties,
+			})
+			if err != nil {
+				// do something with this error
+				continue
+			}
+
+			envelope.Payload = string(sessionStatusData)
+			envelopeBytes, err := proto.Marshal(envelope)
+			if err != nil {
+				t.sendError(ctx, "unable to marshal session data event for web client", err, t.stream)
+				// do something with this error as well
+				continue
+			}
+			if err := t.stream.WriteMessage(websocket.BinaryMessage, envelopeBytes); err != nil {
+				t.sendError(ctx, "unable to write message to socket", err, t.stream)
+				// finally, this error
+				continue
+			}
+
+		}
+	}
 }
 
 // streamTerminal opens an SSH connection to the remote host and streams
@@ -908,56 +951,6 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 			}
 		}()
 	}
-	// session status
-	sessionStatusCtx, sessionStatusCancel := context.WithCancel(ctx)
-	defer sessionStatusCancel()
-	go func() {
-		ticker := time.NewTicker(1 * time.Second)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-sessionStatusCtx.Done():
-				return
-			case <-ticker.C:
-				tracker, err := t.userAuthClient.GetSessionTracker(ctx, string(t.sessionData.ID))
-				if err != nil {
-					t.logger.WarnContext(ctx, "Failed to find session tracker", "error", err)
-					continue
-				}
-				envelope := &terminal.Envelope{
-					Version: defaults.WebsocketVersion,
-					Type:    defaults.WebsocketSessionStatus,
-				}
-
-				parties := tracker.GetParticipants()
-				var requiredPolicies []RequiredPolicy
-
-				sessionStatusData, err := json.Marshal(SessionStatusData{
-					State:   tracker.GetState(),
-					Parties: parties,
-				})
-				if err != nil {
-					// do something with this error
-					continue
-				}
-
-				envelope.Payload = string(sessionStatusData)
-				envelopeBytes, err := proto.Marshal(envelope)
-				if err != nil {
-					t.sendError(ctx, "unable to marshal session data event for web client", err, t.stream)
-					// do something with this error as well
-					continue
-				}
-				if err := t.stream.WriteMessage(websocket.BinaryMessage, envelopeBytes); err != nil {
-					t.sendError(ctx, "unable to write message to socket", err, t.stream)
-					// finally, this error
-					continue
-				}
-
-			}
-		}
-	}()
 
 	// Establish SSH connection to the server. This function will block until
 	// either an error occurs or it completes successfully.
