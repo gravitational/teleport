@@ -330,7 +330,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			cmd: []string{"mongo",
 				"--ssl",
 				"--sslPEMKeyFile", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
-				"mongodb://localhost:12345/mydb?serverSelectionTimeoutMS=5000",
+				"mongodb://localhost:12345/mydb?directConnection=true&serverSelectionTimeoutMS=5000",
 			},
 			wantErr: false,
 		},
@@ -345,7 +345,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				},
 			},
 			cmd: []string{"mongo",
-				"mongodb://localhost:12345/mydb?serverSelectionTimeoutMS=5000",
+				"mongodb://localhost:12345/mydb?directConnection=true&serverSelectionTimeoutMS=5000",
 			},
 			wantErr: false,
 		},
@@ -362,7 +362,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				"--tls",
 				"--tlsCertificateKeyFile", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
 				"--tlsUseSystemCA",
-				"mongodb://localhost:12345/mydb?serverSelectionTimeoutMS=5000",
+				"mongodb://localhost:12345/mydb?directConnection=true&serverSelectionTimeoutMS=5000",
 			},
 		},
 		{
@@ -380,7 +380,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				"--tls",
 				"--tlsCertificateKeyFile", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
 				"--tlsCAFile", "/tmp/keys/example.com/cas/example.com.pem",
-				"mongodb://localhost:12345/mydb?serverSelectionTimeoutMS=5000",
+				"mongodb://localhost:12345/mydb?directConnection=true&serverSelectionTimeoutMS=5000",
 			},
 		},
 		{
@@ -394,7 +394,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				},
 			},
 			cmd: []string{"mongosh",
-				"mongodb://localhost:12345/mydb?serverSelectionTimeoutMS=5000",
+				"mongodb://localhost:12345/mydb?directConnection=true&serverSelectionTimeoutMS=5000",
 			},
 		},
 		{
@@ -406,7 +406,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				execOutput: map[string][]byte{}, // Cannot find either bin.
 			},
 			cmd: []string{"mongosh",
-				"mongodb://localhost:12345/mydb?serverSelectionTimeoutMS=5000",
+				"mongodb://localhost:12345/mydb?directConnection=true&serverSelectionTimeoutMS=5000",
 			},
 		},
 		{
