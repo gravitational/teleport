@@ -46,6 +46,7 @@ func TestAccessMonitoringRule(t *testing.T) {
 		Backend: backend,
 		Events:  events,
 	})
+	require.NoError(t, err)
 
 	ruleHandler := newMockEventHandler()
 	monitor.AddAccessMonitoringRuleHandler(ruleHandler.handleEvent)
@@ -147,6 +148,7 @@ func TestAccessRequest(t *testing.T) {
 		Backend: backend,
 		Events:  events,
 	})
+	require.NoError(t, err)
 
 	requestHandler := newMockEventHandler()
 	monitor.AddAccessRequestHandler(requestHandler.handleEvent)

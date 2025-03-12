@@ -163,7 +163,7 @@ func (s *AccessMonitor) run(ctx context.Context) error {
 	}()
 
 	// Watcher is open, expect init event.
-	// Not inspecting WatchStatus becuase ParitalSuccess is not allowed.
+	// Not inspecting WatchStatus because ParitalSuccess is not allowed.
 	select {
 	case initEvent := <-watcher.Events():
 		if initEvent.Type != types.OpInit {

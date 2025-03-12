@@ -22,9 +22,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	"github.com/stretchr/testify/require"
 )
 
 func TestCache(t *testing.T) {
@@ -62,7 +63,7 @@ func TestCache(t *testing.T) {
 	for _, rule := range rules {
 		cache.Delete(rule.GetMetadata().GetName())
 	}
-	require.Len(t, cache.Get(), 0)
+	require.Empty(t, cache.Get())
 }
 
 func TestInitializeCache(t *testing.T) {

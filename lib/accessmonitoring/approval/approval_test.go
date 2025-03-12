@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -33,7 +34,6 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/accessmonitoring"
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -111,7 +111,7 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 		Type:     types.OpDelete,
 		Resource: types.Resource153ToResourceWithLabels(rule),
 	}))
-	require.Len(t, cache.Get(), 0)
+	require.Empty(t, cache.Get())
 
 	// Test rule does not apply with invalid automatic approval name.
 	rule = newApprovalRule("test-rule", `condition`)
@@ -120,7 +120,7 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 		Type:     types.OpPut,
 		Resource: types.Resource153ToResourceWithLabels(rule),
 	}))
-	require.Len(t, cache.Get(), 0)
+	require.Empty(t, cache.Get())
 
 	// Test rule does not apply with invalid state.
 	rule = newApprovalRule("test-rule", `condition`)
@@ -129,7 +129,7 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 		Type:     types.OpPut,
 		Resource: types.Resource153ToResourceWithLabels(rule),
 	}))
-	require.Len(t, cache.Get(), 0)
+	require.Empty(t, cache.Get())
 
 	// Test rule does not apply with invalid subject.
 	rule = newApprovalRule("test-rule", `condition`)
@@ -138,7 +138,7 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 		Type:     types.OpPut,
 		Resource: types.Resource153ToResourceWithLabels(rule),
 	}))
-	require.Len(t, cache.Get(), 0)
+	require.Empty(t, cache.Get())
 }
 
 func TestHandleAccessRequest(t *testing.T) {
