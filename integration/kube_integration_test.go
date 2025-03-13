@@ -34,7 +34,6 @@ import (
 	"os/user"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -1555,12 +1554,18 @@ func testKubeEphemeralContainers(t *testing.T, suite *KubeSuite) {
 			return trace.Wrap(err)
 		}
 
-		stream, err := kubeJoin(kube.ProxyConfig{
-			T:          teleport,
-			Username:   moderatorUser,
-			KubeUsers:  kubeUsers,
-			KubeGroups: kubeGroups,
-		}, tc, session, types.SessionModeratorMode)
+		stream, err := kubeJoin(
+			ctx,
+			kube.ProxyConfig{
+				T:          teleport,
+				Username:   moderatorUser,
+				KubeUsers:  kubeUsers,
+				KubeGroups: kubeGroups,
+			},
+			tc,
+			session,
+			types.SessionModeratorMode,
+		)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2092,13 +2097,13 @@ func kubeExec(kubeConfig *rest.Config, mode execMode, args kubeExecArgs) error {
 	return executor.StreamWithContext(context.Background(), opts)
 }
 
-func kubeJoin(kubeConfig kube.ProxyConfig, tc *client.TeleportClient, meta types.SessionTracker, mode types.SessionParticipantMode) (*client.KubeSession, error) {
+func kubeJoin(ctx context.Context, kubeConfig kube.ProxyConfig, tc *client.TeleportClient, meta types.SessionTracker, mode types.SessionParticipantMode) (*client.KubeSession, error) {
 	tlsConfig, err := kubeProxyTLSConfig(kubeConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := client.NewKubeSession(context.TODO(), tc, meta, tc.KubeProxyAddr, "", mode, tlsConfig)
+	sess, err := client.NewKubeSession(ctx, tc, meta, "", mode, tlsConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2121,7 +2126,9 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 
 	// fooey
 	hostUsername := suite.me.Username
-	participantUsername := suite.me.Username + "-participant"
+	peerUsername := suite.me.Username + "-peer"
+	observer1Username := suite.me.Username + "-observer1"
+	observer2Username := suite.me.Username + "-observer2"
 	kubeGroups := []string{kube.TestImpersonationGroup}
 	kubeUsers := []string{"alice@example.com"}
 	role, err := types.NewRole("kubemaster", types.RoleSpecV6{
@@ -2152,7 +2159,9 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 	})
 	require.NoError(t, err)
 	teleport.AddUserWithRole(hostUsername, role)
-	teleport.AddUserWithRole(participantUsername, joinRole)
+	teleport.AddUserWithRole(peerUsername, joinRole)
+	teleport.AddUserWithRole(observer1Username, joinRole)
+	teleport.AddUserWithRole(observer2Username, joinRole)
 
 	err = teleport.CreateEx(t, nil, tconf)
 	require.NoError(t, err)
@@ -2161,7 +2170,8 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 	require.NoError(t, err)
 	defer teleport.StopAll()
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// set up kube configuration using proxy
 	proxyClient, proxyClientConfig, err := kube.ProxyClient(kube.ProxyConfig{
@@ -2200,30 +2210,32 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 	// We need to wait for the exec request to be handled here for the session to be
 	// created. Sadly though the k8s API doesn't give us much indication of when that is.
 	var session types.SessionTracker
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// We need to wait for the session to be created here. We can't use the
 		// session manager's WaitUntilExists method because it doesn't work for
 		// kubernetes sessions.
-		sessions, err := teleport.Process.GetAuthServer().GetActiveSessionTrackers(context.Background())
-		if err != nil || len(sessions) == 0 {
-			return false
+		sessions, err := teleport.Process.GetAuthServer().GetActiveSessionTrackers(ctx)
+		assert.NoError(t, err)
+		if assert.Len(t, sessions, 1) {
+			session = sessions[0]
 		}
-
-		session = sessions[0]
-		return true
 	}, 10*time.Second, time.Second)
 
 	participantStdinR, participantStdinW, err := os.Pipe()
 	require.NoError(t, err)
 	participantStdoutR, participantStdoutW, err := os.Pipe()
 	require.NoError(t, err)
-	streamsMu := &sync.Mutex{}
-	streams := make([]*client.KubeSession, 0, 3)
-	observerCaptures := make([]*bytes.Buffer, 0, 2)
+
+	observerCaptures := make([]*bytes.Buffer, 2)
 	albProxy := helpers.MustStartMockALBProxy(t, teleport.Config.Proxy.WebAddr.Addr)
 
 	// join peer by KubeProxyAddr
 	group.Go(func() error {
+		defer func() {
+			// close participant stdout so that we can read it after till EOF
+			participantStdoutW.Close()
+		}()
+
 		tc, err := teleport.NewClient(helpers.ClientConfig{
 			Login:   hostUsername,
 			Cluster: helpers.Site,
@@ -2236,52 +2248,62 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 		tc.Stdin = participantStdinR
 		tc.Stdout = participantStdoutW
 
-		stream, err := kubeJoin(kube.ProxyConfig{
-			T:          teleport,
-			Username:   participantUsername,
-			KubeUsers:  kubeUsers,
-			KubeGroups: kubeGroups,
-		}, tc, session, types.SessionPeerMode)
+		stream, err := kubeJoin(
+			ctx,
+			kube.ProxyConfig{
+				T:          teleport,
+				Username:   peerUsername,
+				KubeUsers:  kubeUsers,
+				KubeGroups: kubeGroups,
+			},
+			tc,
+			session,
+			types.SessionPeerMode,
+		)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		streamsMu.Lock()
-		streams = append(streams, stream)
-		streamsMu.Unlock()
+
+		t.Cleanup(func() {
+			_ = stream.Close()
+		})
 		stream.Wait()
-		// close participant stdout so that we can read it after till EOF
-		participantStdoutW.Close()
+
 		return nil
 	})
 
 	// join observer by WebProxyAddr
 	group.Go(func() error {
-		stream, capture := kubeJoinByWebAddr(t, teleport, participantUsername, kubeUsers, kubeGroups)
-		streamsMu.Lock()
-		streams = append(streams, stream)
-		observerCaptures = append(observerCaptures, capture)
-		streamsMu.Unlock()
+		stream, capture := kubeJoinByWebAddr(ctx, t, teleport, observer1Username, kubeUsers, kubeGroups)
+		t.Cleanup(func() {
+			_ = stream.Close()
+		})
+
+		observerCaptures[0] = capture
 		stream.Wait()
 		return nil
 	})
 
 	// join observer with ALPN conn upgrade
 	group.Go(func() error {
-		stream, capture := kubeJoinByALBAddr(t, teleport, participantUsername, kubeUsers, kubeGroups, albProxy.Addr().String())
-		streamsMu.Lock()
-		streams = append(streams, stream)
-		observerCaptures = append(observerCaptures, capture)
-		streamsMu.Unlock()
+		stream, capture := kubeJoinByALBAddr(ctx, t, teleport, observer2Username, kubeUsers, kubeGroups, albProxy.Addr().String())
+		t.Cleanup(func() {
+			_ = stream.Close()
+		})
+
+		observerCaptures[1] = capture
 		stream.Wait()
 		return nil
 	})
 
-	// We wait again for the second user to finish joining the session.
-	// We allow a bit of time to pass here to give the session manager time to recognize the
-	// new IO streams of the second client.
-	time.Sleep(time.Second * 5)
+	// Wait for all users to finish joining the session.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		session, err := teleport.Process.GetAuthServer().GetSessionTracker(ctx, session.GetName())
+		assert.NoError(t, err)
+		assert.Len(t, session.GetParticipants(), 4)
+	}, 30*time.Second, 500*time.Millisecond)
 
-	// sent a test message from the participant
+	// send a test message from the participant
 	participantStdinW.Write([]byte("\ahi from peer\n\r"))
 
 	// lets type "echo hi" followed by "enter" and then "exit" + "enter":
@@ -2306,12 +2328,12 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 
 	// Verify observers.
 	for _, capture := range observerCaptures {
-		require.Contains(t, capture.String(), "hi from peer")
-		require.Contains(t, capture.String(), "hi from term")
+		assert.Contains(t, capture.String(), "hi from peer")
+		assert.Contains(t, capture.String(), "hi from term")
 	}
 }
 
-func kubeJoinByWebAddr(t *testing.T, teleport *helpers.TeleInstance, username string, kubeUsers, kubeGroups []string) (*client.KubeSession, *bytes.Buffer) {
+func kubeJoinByWebAddr(ctx context.Context, t *testing.T, teleport *helpers.TeleInstance, username string, kubeUsers, kubeGroups []string) (*client.KubeSession, *bytes.Buffer) {
 	t.Helper()
 
 	tc, err := teleport.NewClient(helpers.ClientConfig{
@@ -2325,12 +2347,20 @@ func kubeJoinByWebAddr(t *testing.T, teleport *helpers.TeleInstance, username st
 	})
 	require.NoError(t, err)
 
-	buffer := new(bytes.Buffer)
-	tc.Stdout = buffer
-	return kubeJoinObserverWithSNISet(t, tc, teleport, kubeUsers, kubeGroups), buffer
+	stdinR, stdinW, err := os.Pipe()
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		_ = stdinW.Close()
+	})
+
+	var out bytes.Buffer
+	tc.Stdout = &out
+	tc.Stdin = stdinR
+	return kubeJoinObserverWithSNISet(ctx, t, tc, teleport, kubeUsers, kubeGroups), &out
 }
 
-func kubeJoinByALBAddr(t *testing.T, teleport *helpers.TeleInstance, username string, kubeUsers, kubeGroups []string, albAddr string) (*client.KubeSession, *bytes.Buffer) {
+func kubeJoinByALBAddr(ctx context.Context, t *testing.T, teleport *helpers.TeleInstance, username string, kubeUsers, kubeGroups []string, albAddr string) (*client.KubeSession, *bytes.Buffer) {
 	t.Helper()
 
 	tc, err := teleport.NewClient(helpers.ClientConfig{
@@ -2341,25 +2371,39 @@ func kubeJoinByALBAddr(t *testing.T, teleport *helpers.TeleInstance, username st
 	})
 	require.NoError(t, err)
 
-	buffer := new(bytes.Buffer)
-	tc.Stdout = buffer
-	return kubeJoinObserverWithSNISet(t, tc, teleport, kubeUsers, kubeGroups), buffer
+	stdinR, stdinW, err := os.Pipe()
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		_ = stdinW.Close()
+	})
+
+	var out bytes.Buffer
+	tc.Stdout = &out
+	tc.Stdin = stdinR
+	return kubeJoinObserverWithSNISet(ctx, t, tc, teleport, kubeUsers, kubeGroups), &out
 }
 
-func kubeJoinObserverWithSNISet(t *testing.T, tc *client.TeleportClient, teleport *helpers.TeleInstance, kubeUsers, kubeGroups []string) *client.KubeSession {
+func kubeJoinObserverWithSNISet(ctx context.Context, t *testing.T, tc *client.TeleportClient, teleport *helpers.TeleInstance, kubeUsers, kubeGroups []string) *client.KubeSession {
 	t.Helper()
 
-	sessions, err := teleport.Process.GetAuthServer().GetActiveSessionTrackers(context.Background())
+	sessions, err := teleport.Process.GetAuthServer().GetActiveSessionTrackers(ctx)
 	require.NoError(t, err)
 	require.NotEmpty(t, sessions)
 
-	stream, err := kubeJoin(kube.ProxyConfig{
-		T:                   teleport,
-		Username:            tc.Username,
-		KubeUsers:           kubeUsers,
-		KubeGroups:          kubeGroups,
-		CustomTLSServerName: constants.KubeTeleportProxyALPNPrefix + Host,
-	}, tc, sessions[0], types.SessionObserverMode)
+	stream, err := kubeJoin(
+		ctx,
+		kube.ProxyConfig{
+			T:                   teleport,
+			Username:            tc.Username,
+			KubeUsers:           kubeUsers,
+			KubeGroups:          kubeGroups,
+			CustomTLSServerName: constants.KubeTeleportProxyALPNPrefix + Host,
+		},
+		tc,
+		sessions[0],
+		types.SessionObserverMode,
+	)
 	require.NoError(t, err)
 	return stream
 }
