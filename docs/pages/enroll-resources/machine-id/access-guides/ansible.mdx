@@ -164,11 +164,12 @@ $ eval "$( tsh env )"
 $ tsh ls --format=json | jq --arg cluster $TELEPORT_CLUSTER -r '.[].spec.hostname + "." + $cluster' > hosts
 ```
 
-<Details title="Not seeing Nodes?">
+<details>
+<summary>Not seeing Nodes?</summary>
 
 (!docs/pages/includes/node-logins.mdx!)
 
-</Details>
+</details>
 
 ## Step 4/4. Run a playbook
 
