@@ -218,7 +218,7 @@ func (p *PluginsCommand) InstallAWSIC(ctx context.Context, args installPluginArg
 		settings.Credentials = &types.AWSICCredentials{
 			Source: &types.AWSICCredentials_System{
 				System: &types.AWSICCredentialSourceSystem{
-					AwsRoleArn: "",
+					AssumeRoleArn: "",
 				},
 			},
 		}

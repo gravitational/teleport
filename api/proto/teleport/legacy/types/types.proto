@@ -6941,7 +6941,7 @@ message AWSICCredentialSourceSystem {
 
   // AwsRoleArn is an optional AWS role for the IC client to assume, overriding
   // any roles
-  string aws_role_arn = 1 [(gogoproto.jsontag) = "aws_role_arn,omitempty"];
+  string assume_role_arn = 1 [(gogoproto.jsontag) = "assume_role_arn,omitempty"];
 }
 
 // AWSICCredentialSourceSystem holds AWSIC credentials drawn from a Teleport
