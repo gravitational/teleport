@@ -146,7 +146,7 @@ func TestAutoUpdateAgentStatusCommand(t *testing.T) {
 			name:           "no rollout",
 			fixture:        nil,
 			fixtureErr:     trace.NotFound("no rollout found"),
-			expectedOutput: "No active agent rollout (autoupdate_agent_rollout).\n",
+			expectedOutput: "No active agent rollout (autoupdate_agent_rollout).\n\n",
 		},
 		{
 			name: "rollout immediate schedule",
@@ -162,6 +162,7 @@ func TestAutoUpdateAgentStatusCommand(t *testing.T) {
 Start version: 1.2.3
 Target version: 1.2.4
 Schedule is immediate. Every group immediately updates to the target version.
+
 `,
 		},
 		{
