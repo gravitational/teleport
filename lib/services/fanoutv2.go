@@ -26,7 +26,10 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	fb "github.com/gravitational/teleport/lib/utils/fanoutbuffer"
@@ -362,8 +365,26 @@ type fanoutV2Entry struct {
 }
 
 func newFanoutV2Entry(event types.Event) fanoutV2Entry {
+	if e, err := client.EventToGRPC(event); err == nil {
+		if b, err := proto.Marshal(e); err == nil {
+			if f := protoreflect.RawFields(b); f.IsValid() {
+				event.PreEncodedEventToGRPC = f
+			}
+		}
+	}
+	eventWithoutSecrets := filterEventSecrets(event)
+	if len(eventWithoutSecrets.PreEncodedEventToGRPC) < 1 {
+		if e, err := client.EventToGRPC(eventWithoutSecrets); err == nil {
+			if b, err := proto.Marshal(e); err == nil {
+				if f := protoreflect.RawFields(b); f.IsValid() {
+					eventWithoutSecrets.PreEncodedEventToGRPC = f
+				}
+			}
+		}
+	}
+
 	return fanoutV2Entry{
-		Event:            filterEventSecrets(event),
+		Event:            eventWithoutSecrets,
 		EventWithSecrets: event,
 	}
 }
@@ -371,11 +392,13 @@ func newFanoutV2Entry(event types.Event) fanoutV2Entry {
 func filterEventSecrets(event types.Event) types.Event {
 	if r, ok := event.Resource.(types.ResourceWithSecrets); ok {
 		event.Resource = r.WithoutSecrets()
+		event.PreEncodedEventToGRPC = nil
 	}
 
 	// WebSessions do not implement the ResourceWithSecrets interface.
 	if r, ok := event.Resource.(types.WebSession); ok {
 		event.Resource = r.WithoutSecrets()
+		event.PreEncodedEventToGRPC = nil
 	}
 
 	return event

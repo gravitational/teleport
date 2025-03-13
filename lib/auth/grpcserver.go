@@ -574,10 +574,20 @@ func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, a
 				return trace.Wrap(err)
 			}
 			event.Resource = downgraded
+			event.PreEncodedEventToGRPC = nil
 		}
-		out, err := client.EventToGRPC(event)
-		if err != nil {
-			return trace.Wrap(err)
+
+		var out *authpb.Event
+		if len(event.PreEncodedEventToGRPC) < 1 {
+			o, err := client.EventToGRPC(event)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			out = o
+		} else {
+			out := new(authpb.Event)
+			// we do a lil tomfoolery
+			out.ProtoReflect().SetUnknown(event.PreEncodedEventToGRPC)
 		}
 
 		size := float64(proto.Size(out))

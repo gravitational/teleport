@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 // String returns text description of this event
@@ -39,6 +40,10 @@ type Event struct {
 	// in case of deleted resources, only resource header
 	// will be provided
 	Resource Resource
+
+	// PreEncodedEventToGRPC, if not empty, is the wire encoding of the event
+	// message returned by [client.EventToGRPC].
+	PreEncodedEventToGRPC protoreflect.RawFields
 }
 
 // OpType specifies operation type
