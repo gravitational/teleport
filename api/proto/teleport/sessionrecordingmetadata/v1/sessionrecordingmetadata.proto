@@ -39,4 +39,5 @@ message SessionRecordingMetadataSpec {
   string user = 3;
   string kind = 4;
   google.protobuf.Duration duration = 5;
+  string batch_id = 6;
 }

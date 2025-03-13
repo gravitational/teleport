@@ -22,6 +22,8 @@ package local
 
 import (
 	"context"
+	"slices"
+
 	sessionrecordingmetatadav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionrecordingmetatada/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -29,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/trace"
-	"slices"
 )
 
 // SessionRecordingMetadataService manages session recording metadata resources in the backend.
@@ -53,9 +54,11 @@ func (s SessionRecordingMetadataService) DeleteSessionRecordingMetadata(ctx cont
 	return s.service.DeleteResource(ctx, sessionID)
 }
 
-func (s SessionRecordingMetadataService) ListSessionRecordingMetadata(ctx context.Context, pageSize int, nextToken string, sessionIDs []string, withSummary bool) ([]*sessionrecordingmetatadav1.SessionRecordingMetadata, string, error) {
-	return s.service.ListResourcesWithFilter(ctx, pageSize, nextToken, func(metadata *sessionrecordingmetatadav1.SessionRecordingMetadata) bool {
-		return (len(sessionIDs) == 0 || slices.Contains(sessionIDs, metadata.Metadata.Name)) && (!withSummary || len(metadata.Spec.GetSummary()) > 0)
+func (s SessionRecordingMetadataService) ListSessionRecordingMetadata(ctx context.Context, req *sessionrecordingmetatadav1.ListSessionRecordingMetadataRequest) ([]*sessionrecordingmetatadav1.SessionRecordingMetadata, string, error) {
+	return s.service.ListResourcesWithFilter(ctx, int(req.PageSize), req.PageToken, func(metadata *sessionrecordingmetatadav1.SessionRecordingMetadata) bool {
+		return (len(req.SessionIds) == 0 || slices.Contains(req.SessionIds, metadata.Metadata.Name)) &&
+			(!req.WithSummary || len(metadata.Spec.GetSummary()) > 0) &&
+			(!req.WithBatchId || metadata.Spec.BatchId != "")
 	})
 }
 

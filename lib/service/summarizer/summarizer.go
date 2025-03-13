@@ -3,10 +3,11 @@ package summarizer
 import (
 	"context"
 	"fmt"
-	"github.com/sashabaranov/go-openai"
 	"io"
 	"os"
 	"strings"
+
+	"github.com/sashabaranov/go-openai"
 
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	sessionrecordingmetatadav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionrecordingmetatada/v1"
@@ -64,10 +65,21 @@ reader:
 			return trace.Wrap(err)
 		}
 	}
-	summary, err := generateSummary("ssh", sb.String())
 	srm := &sessionrecordingmetatadav1.SessionRecordingMetadata{
 		Metadata: &v1.Metadata{Name: string(upload.SessionID)},
-		Spec:     &sessionrecordingmetatadav1.SessionRecordingMetadataSpec{Summary: summary},
+		Spec:     &sessionrecordingmetatadav1.SessionRecordingMetadataSpec{},
+	}
+	useBatchMode := os.Getenv("SUMMARIZATION_BATCH_MODE") != ""
+	if useBatchMode {
+		srm.Spec.BatchId, err = sendBatch(ctx, "ssh", sb.String())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		srm.Spec.Summary, err = generateSummary(ctx, "ssh", sb.String())
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	_, err = s.SessionRecordingMetadata.CreateSessionRecordingMetadata(ctx, srm)
 	return trace.Wrap(err)
@@ -93,24 +105,47 @@ func (s *Summarizer) GetUploadMetadata(sessionID session.ID) events.UploadMetada
 	return s.wrapped.GetUploadMetadata(sessionID)
 }
 
-func generateSummary(sessionType string, sessionContent string) (string, error) {
+func sendBatch(ctx context.Context, sessionType string, sessionContent string) (string, error) {
 	client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+	prompt := summarizationPrompt(sessionType, sessionContent)
 
-	prompt := fmt.Sprintf(
-		`Summarize this Teleport session recording:
-Type: %s
+	response, err := client.CreateBatchWithUploadFile(ctx, openai.CreateBatchWithUploadFileRequest{
+		Endpoint:         openai.BatchEndpointChatCompletions,
+		CompletionWindow: "24h",
+		UploadBatchFileRequest: openai.UploadBatchFileRequest{
+			Lines: []openai.BatchLineItem{
+				openai.BatchChatCompletionRequest{
+					CustomID: "request",
+					Method:   "POST",
+					URL:      openai.BatchEndpointChatCompletions,
+					Body: openai.ChatCompletionRequest{
+						Model: openai.GPT4o,
+						Messages: []openai.ChatCompletionMessage{
+							{
+								Role:    openai.ChatMessageRoleUser,
+								Content: prompt,
+							},
+						},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
 
-Session Content:
-%s
+	return response.ID, nil
+}
 
-Please provide a concise summary of what commands were executed, their purpose, and any notable details in 3-5 sentences.
-If this session is a Kubernetes session, note the relevant pod/cluster/namespace if present.`,
-		sessionType,
-		sessionContent,
-	)
+// func
+
+func generateSummary(ctx context.Context, sessionType string, sessionContent string) (string, error) {
+	client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+	prompt := summarizationPrompt(sessionType, sessionContent)
 
 	resp, err := client.CreateChatCompletion(
-		context.Background(),
+		ctx,
 		openai.ChatCompletionRequest{
 			Model: openai.GPT4o,
 			Messages: []openai.ChatCompletionMessage{
@@ -127,4 +162,19 @@ If this session is a Kubernetes session, note the relevant pod/cluster/namespace
 	}
 
 	return resp.Choices[0].Message.Content, nil
+}
+
+func summarizationPrompt(sessionType string, sessionContent string) string {
+	return fmt.Sprintf(
+		`Summarize this Teleport session recording:
+Type: %s
+
+Session Content:
+%s
+
+Please provide a concise summary of what commands were executed, their purpose, and any notable details in 3-5 sentences.
+If this session is a Kubernetes session, note the relevant pod/cluster/namespace if present.`,
+		sessionType,
+		sessionContent,
+	)
 }

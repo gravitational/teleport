@@ -4135,7 +4135,11 @@ func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 	srmClt := userClt.SessionRecordingMetadataClient()
-	recordingMetadata, _, err := srmClt.ListSessionRecordingMetadata(ctx, len(sessionIDs), "", sessionIDs, true)
+	recordingMetadata, _, err := srmClt.ListSessionRecordingMetadata(ctx, &sessionrecordingmetatadav1.ListSessionRecordingMetadataRequest{
+		PageSize:    int32(len(sessionIDs)),
+		SessionIds:  sessionIDs,
+		WithSummary: true,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

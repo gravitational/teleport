@@ -32,6 +32,7 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -55,6 +56,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sashabaranov/go-openai"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
@@ -71,6 +73,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	sessionrecordingmetatadav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionrecordingmetatada/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
@@ -1377,6 +1380,7 @@ const (
 	upgradeWindowCheckKey
 	roleCountKey
 	accessListReminderNotificationsKey
+	sessionSummarizerKey
 )
 
 // runPeriodicOperations runs some periodic bookkeeping operations
@@ -1465,6 +1469,12 @@ func (a *Server) runPeriodicOperations() {
 			Duration:      10 * time.Minute,
 			FirstDuration: retryutils.HalfJitter(10 * time.Second),
 			Jitter:        retryutils.HalfJitter,
+		})
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:           sessionSummarizerKey,
+			Duration:      1 * time.Minute,
+			FirstDuration: 5 * time.Second,
+			Jitter:        retryutils.SeventhJitter,
 		})
 	}
 
@@ -1590,9 +1600,97 @@ func (a *Server) runPeriodicOperations() {
 				go a.tallyRoles(a.closeCtx)
 			case accessListReminderNotificationsKey:
 				go a.CreateAccessListReminderNotifications(a.closeCtx)
+			case sessionSummarizerKey:
+				go a.fetchSessionSummaries(a.closeCtx)
 			}
 		}
 	}
+}
+
+func (a *Server) fetchSessionSummaries(ctx context.Context) error {
+	client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+	metadataList, _, err := a.SessionRecordingMetadata.ListSessionRecordingMetadata(ctx, &sessionrecordingmetatadav1.ListSessionRecordingMetadataRequest{
+		PageSize:    100,
+		WithBatchId: true,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	a.logger.DebugContext(ctx, "Fetching session summaries", "n_recordings", len(metadataList))
+	for _, metadata := range metadataList {
+		resp, err := client.RetrieveBatch(ctx, metadata.Spec.BatchId)
+		if err != nil {
+			a.logger.WarnContext(ctx, "Error while retrieving session summary batch", "batch_id", metadata.Spec.BatchId, "error", err)
+			continue
+		}
+
+		switch resp.Status {
+		case "completed":
+			a.logger.WarnContext(ctx, "Session summary batch completed", "batch_id", metadata.Spec.BatchId)
+			content, err := client.GetFileContent(ctx, *resp.OutputFileID)
+			if err != nil {
+				a.logger.WarnContext(ctx, "Error while getting file contents", "file_id", *resp.OutputFileID, "error", err)
+				continue
+			}
+			bytes, err := io.ReadAll(content)
+			if err != nil {
+				a.logger.WarnContext(ctx, "Error while reading file content", "file_id", *resp.OutputFileID, "error", err)
+				continue
+			}
+
+			// We assume only one response per batch
+			line := strings.Split(string(bytes), "\n")[0]
+			var batchOutput BatchRequestChatCompletionOutput
+			err = json.Unmarshal([]byte(line), &batchOutput)
+			if err != nil {
+				a.logger.WarnContext(ctx, "Unable to parse batch resonse", "file_id", *resp.OutputFileID, "error", err)
+				continue
+			}
+			metadata.Spec.Summary = batchOutput.Response.Body.Choices[0].Message.Content
+			metadata.Spec.BatchId = ""
+			_, err = a.SessionRecordingMetadata.UpdateSessionRecordingMetadata(ctx, metadata)
+			if err != nil {
+				a.logger.WarnContext(ctx, "Error while updating metadata", "file_id", *resp.OutputFileID, "error", err)
+				continue
+			}
+
+		case "failed":
+		case "expired":
+		case "cancelled":
+			a.logger.WarnContext(ctx, "Abandoning session summary batch", "batch_id", metadata.Spec.BatchId, "status", resp.Status)
+			metadata.Spec.BatchId = ""
+			_, err = a.SessionRecordingMetadata.UpdateSessionRecordingMetadata(ctx, metadata)
+			if err != nil {
+				a.logger.WarnContext(ctx, "Error while updating metadata", "file_id", *resp.OutputFileID, "error", err)
+				continue
+			}
+
+		default:
+			a.logger.DebugContext(ctx, "Session summary batch pending", "batch_id", metadata.Spec.BatchId, "status", resp.Status)
+			continue
+		}
+	}
+	return nil
+}
+
+// OpenAI client is missing these definitions; I took them from
+// https://github.com/sashabaranov/go-openai/issues/951.
+type BatchRequestOutputError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+type BatchRequestChatCompletionResponse struct {
+	StatusCode int                           `json:"status_code"`
+	RequestId  string                        `json:"request_id"`
+	Body       openai.ChatCompletionResponse `json:"body"`
+}
+
+type BatchRequestChatCompletionOutput struct {
+	Id       string                              `json:"id"`
+	CustomId string                              `json:"custom_id"`
+	Response *BatchRequestChatCompletionResponse `json:"response"`
+	Error    *BatchRequestOutputError            `json:"error"`
 }
 
 func (a *Server) tallyRoles(ctx context.Context) {

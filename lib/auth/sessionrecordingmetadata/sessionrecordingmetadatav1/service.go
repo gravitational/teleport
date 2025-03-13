@@ -37,7 +37,7 @@ type Backend interface {
 	UpdateSessionRecordingMetadata(ctx context.Context, metadata *sessionrecordingmetadatapb.SessionRecordingMetadata) (*sessionrecordingmetadatapb.SessionRecordingMetadata, error)
 	GetSessionRecordingMetadata(ctx context.Context, sessionID string) (*sessionrecordingmetadatapb.SessionRecordingMetadata, error)
 	DeleteSessionRecordingMetadata(ctx context.Context, sessionID string) error
-	ListSessionRecordingMetadata(ctx context.Context, pageSize int, nextToken string, sessionIDs []string, withSummary bool) ([]*sessionrecordingmetadatapb.SessionRecordingMetadata, string, error)
+	ListSessionRecordingMetadata(ctx context.Context, req *sessionrecordingmetadatapb.ListSessionRecordingMetadataRequest) ([]*sessionrecordingmetadatapb.SessionRecordingMetadata, string, error)
 }
 
 type ServiceConfig struct {
@@ -131,7 +131,7 @@ func (s *Service) ListSessionRecordingMetadata(ctx context.Context, req *session
 	if err := auth.CheckAccessToKind(types.KindSessionRecordingMetadata, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	metadata, nextToken, err := s.backend.ListSessionRecordingMetadata(ctx, int(req.GetPageSize()), req.PageToken, req.SessionIds, req.WithSummary)
+	metadata, nextToken, err := s.backend.ListSessionRecordingMetadata(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

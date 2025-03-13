@@ -22,6 +22,7 @@ package sessionrecordingmetadata
 
 import (
 	"context"
+
 	sessionrecordingmetatadav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionrecordingmetatada/v1"
 	"github.com/gravitational/trace"
 )
@@ -77,13 +78,8 @@ func (c *Client) DeleteSessionRecordingMetadata(ctx context.Context, sessionID s
 }
 
 // ListSessionRecordingMetadata returns a paginated list of session recording metadata
-func (c *Client) ListSessionRecordingMetadata(ctx context.Context, pageSize int, nextToken string, sessionIDs []string, withSummary bool) ([]*sessionrecordingmetatadav1.SessionRecordingMetadata, string, error) {
-	resp, err := c.grpcClient.ListSessionRecordingMetadata(ctx, &sessionrecordingmetatadav1.ListSessionRecordingMetadataRequest{
-		PageSize:    int32(pageSize),
-		PageToken:   nextToken,
-		SessionIds:  sessionIDs,
-		WithSummary: withSummary,
-	})
+func (c *Client) ListSessionRecordingMetadata(ctx context.Context, req *sessionrecordingmetatadav1.ListSessionRecordingMetadataRequest) ([]*sessionrecordingmetatadav1.SessionRecordingMetadata, string, error) {
+	resp, err := c.grpcClient.ListSessionRecordingMetadata(ctx, req)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}

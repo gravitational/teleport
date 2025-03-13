@@ -20,7 +20,7 @@ import { useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import styled from 'styled-components';
 
-import { ButtonIcon, ButtonPrimary, Mark } from 'design';
+import { ButtonIcon, ButtonPrimary, Mark, P2 } from 'design';
 import Table, { Cell, TextCell } from 'design/DataTable';
 import * as Icons from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
@@ -172,7 +172,7 @@ const renderSummarizeCell = (
       {summary && (
         <HoverTooltip
           tipContent={
-            <ReactMarkdown components={{ code: MarkInverse }}>
+            <ReactMarkdown components={{ code: MarkInverse, p: P2 }}>
               {summary}
             </ReactMarkdown>
           }

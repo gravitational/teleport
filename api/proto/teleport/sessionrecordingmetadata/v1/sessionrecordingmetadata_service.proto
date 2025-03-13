@@ -70,6 +70,8 @@ message ListSessionRecordingMetadataRequest {
   repeated string session_ids = 3;
   // If we should return only SessionRecordingMetadata with summary
   bool with_summary = 4;
+  // If we should return only SessionRecordingMetadata with the batch_id field set
+  bool with_batch_id = 5;
 }
 
 // ListSessionRecordingMetadataResponse is response from ListSessionRecordingMetadata
