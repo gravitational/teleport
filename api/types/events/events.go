@@ -184,19 +184,21 @@ func (m *Struct) nonEmptyStrs() int {
 }
 
 func (m *Struct) trimToMaxSize(maxSize int) *Struct {
-	var out Struct
+	if len(m.Fields) == 0 {
+		return m
+	}
+
+	out := Struct{
+		Struct: types.Struct{
+			Fields: make(map[string]*types.Value),
+		},
+	}
 	for k, v := range m.Fields {
-		delete(out.Fields, k)
 		trimmedKey := trimStr(k, maxSize)
 
 		if v != nil {
 			if strVal := v.GetStringValue(); strVal != "" {
 				trimmedVal := trimStr(strVal, maxSize)
-
-				if out.Fields == nil {
-					out.Fields = make(map[string]*types.Value)
-				}
-
 				out.Fields[trimmedKey] = &types.Value{
 					Kind: &types.Value_StringValue{
 						StringValue: trimmedVal,
