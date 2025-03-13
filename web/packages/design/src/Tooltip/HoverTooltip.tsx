@@ -40,11 +40,6 @@ import Flex from 'design/Flex';
 import { FlexBasisProps, JustifyContentProps } from 'design/system';
 import Text from 'design/Text';
 
-type Origin = {
-  vertical: 'top' | 'center' | 'bottom';
-  horizontal: 'left' | 'center' | 'right';
-};
-
 type HoverTooltipProps = {
   tipContent?: React.ReactNode;
   showOnlyOnOverflow?: boolean;
@@ -54,18 +49,6 @@ type HoverTooltipProps = {
    * anchor nor transform origins are specified.
    */
   placement?: Placement;
-  /**
-   * @deprecated - Prefer specifying `placement`
-   */
-  position?: Placement;
-  /**
-   * @deprecated - Prefer specifying `placement`
-   */
-  anchorOrigin?: Origin;
-  /**
-   * @deprecated - Prefer specifying `placement`
-   */
-  transformOrigin?: Origin;
   justifyContentProps?: JustifyContentProps;
   flexBasisProps?: FlexBasisProps;
   // Optional additional props for FloatingUI
@@ -75,78 +58,12 @@ type HoverTooltipProps = {
   disableTransitions?: boolean;
 };
 
-// For backwards compatibility w/ existing usage, convert origin types to FloatingUI Placement
-// TODO(kiosion): Remove usages of Origin props / remove this util
-const originToPlacement = (
-  anchorOrigin?: Origin,
-  transformOrigin?: Origin
-): Placement => {
-  const primaryMap: Record<string, string> = {
-    bottom: 'top',
-    top: 'bottom',
-    right: 'left',
-    left: 'right',
-  };
-
-  let primary: string,
-    alignment: string | null = null;
-
-  if (transformOrigin && transformOrigin.vertical !== 'center') {
-    primary = primaryMap[transformOrigin.vertical];
-  } else if (transformOrigin && transformOrigin.horizontal !== 'center') {
-    primary = primaryMap[transformOrigin.horizontal];
-  } else {
-    primary = 'top';
-  }
-
-  if (primary === 'top' || primary === 'bottom') {
-    if (
-      transformOrigin &&
-      transformOrigin.horizontal === 'left' &&
-      anchorOrigin &&
-      anchorOrigin.horizontal !== 'left'
-    ) {
-      alignment = 'start';
-    } else if (
-      transformOrigin &&
-      transformOrigin.horizontal === 'right' &&
-      anchorOrigin &&
-      anchorOrigin.horizontal !== 'right'
-    ) {
-      alignment = 'end';
-    }
-  } else {
-    if (
-      transformOrigin &&
-      transformOrigin.vertical === 'top' &&
-      anchorOrigin &&
-      anchorOrigin.vertical !== 'top'
-    ) {
-      alignment = 'start';
-    } else if (
-      transformOrigin &&
-      transformOrigin.vertical === 'bottom' &&
-      anchorOrigin &&
-      anchorOrigin.vertical !== 'bottom'
-    ) {
-      alignment = 'end';
-    }
-  }
-
-  return alignment
-    ? (`${primary}-${alignment}` as Placement)
-    : (primary as Placement);
-};
-
 export const HoverTooltip = ({
   tipContent,
   children,
   showOnlyOnOverflow = false,
   className,
   placement = 'top',
-  position,
-  anchorOrigin,
-  transformOrigin,
   justifyContentProps = {},
   flexBasisProps = {},
   offset: offsetDistance = 8,
@@ -158,13 +75,6 @@ export const HoverTooltip = ({
   const [open, setOpen] = useState(false);
   const arrowRef = useRef(null);
   const contentRef = useRef<HTMLElement | null>(null);
-
-  // Determine position based on either anchorOrigin/transformOrigin if present
-  if (anchorOrigin || transformOrigin) {
-    placement = originToPlacement(anchorOrigin, transformOrigin);
-  } else if (position) {
-    placement = position;
-  }
 
   const { x, y, strategy, refs, context } = useFloating({
     placement,
