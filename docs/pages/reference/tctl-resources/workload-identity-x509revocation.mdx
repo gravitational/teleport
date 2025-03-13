@@ -1,0 +1,44 @@
+---
+title: Workload Identity X509Revocation Reference
+description: Provides a reference of fields within the Workload Identity X509Revocation resource, which you can manage with tctl.
+sidebar_title: Workload Identity X509Revocation
+---
+{/* Automatically generated from: gen/proto/go/teleport/workloadidentity/v1/revocation_resource.pb.go */}
+{/* DO NOT EDIT */}
+
+Represents the revocation of a single X509 workload identity credential. Creating or deleting these resources triggers the regeneration of the trust domain CRL.  The name of a WorkloadIdentityX509Revocation must be the base16, lower case, encoded serial number of the revoked X509 certificate. Therefore, only a single revocation entry can exist for a given certificate.
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # See description
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|The version of the resource being represented.|string|
+|sub_kind|Differentiates variations of the same kind. All resources should contain one, even if it is never populated.|string|
+|spec|The configured properties of the WorkloadIdentityX509Revocation|[Workload Identity X509Revocation Spec](#workload-identity-x509revocation-spec)|
+|metadata|Common metadata that all resources share.||
+|kind|The kind of resource represented. For WorkloadIdentityX509Revocation resources, this is always `workload_identity_x509_revocation`.|string|
+
+## Workload Identity X509Revocation Spec
+
+Configuration specific to WorkloadIdentityX509Revocation.
+
+
+Example:
+
+```yaml
+reason: "string"
+revoked_at: # See description
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revoked_at|The time at which the revocation entry was created. Required.||
+|reason|Describes why this revocation entry was created. Required.|string|
+
