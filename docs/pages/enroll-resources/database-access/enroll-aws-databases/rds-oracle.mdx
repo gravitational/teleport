@@ -248,15 +248,12 @@ KVNO Principal
   Active Directory domain as the Oracle instance.
 </Admonition>
 
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-
 Configure the Teleport Database Service. Make sure to update `--proxy` to
 point to your Teleport Proxy Service address and `--uri` to the Oracle
 endpoint.
 
-  ```code
-  $ sudo teleport db configure create \
+```code
+$ sudo teleport db configure create \
     -o file \
     --token=/tmp/token \
     --proxy=teleport.example.com:443 \
@@ -266,31 +263,7 @@ endpoint.
     --ad-keytab-file=/etc/teleport/teleport.keytab \
     --ad-domain=EXAMPLE.COM \
     --labels=env=dev
-  ```
-  
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-
-Configure the Teleport Database Service. Make sure to update `--proxy` to
-point to your Teleport Cloud tenant address and `--uri` to the Oracle
-endpoint.
-
-  ```code
-  $ sudo teleport db configure create \
-    -o file \
-    --token=/tmp/token \
-    --proxy=mytenant.teleport.sh:443 \
-    --name=oracle \
-    --protocol=oracle \
-    --uri=oracle-instance.aabbccddeegg.eu-central-1.rds.amazonaws.com:2484 \
-    --ad-keytab-file=/etc/teleport/teleport.keytab \
-    --ad-domain=EXAMPLE.COM \
-    --labels=env=dev
-  ```
-
-</TabItem>
-
-</Tabs>
+```
 
 Provide Active Directory parameters:
 
@@ -363,9 +336,6 @@ Make sure to configure an Oracle Audit Trail cleanup policy to avoid running out
 Log in to your Teleport cluster. Your Oracle database should appear in the
 list of available databases:
 
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
 $ tsh db ls
@@ -373,20 +343,6 @@ $ tsh db ls
 # --------- ------------------- -------
 # oracle                     env=dev
 ```
-
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-
-```code
-$ tsh login --proxy=mytenant.teleport.sh --user=alice
-$ tsh db ls
-# Name   Description Allowed Users Labels  Connect
-# ------ ----------- ------------- ------- -------
-# oracle             [*]           env=dev
-```
-
-</TabItem>
-</Tabs>
 
 Connect to the database:
 
