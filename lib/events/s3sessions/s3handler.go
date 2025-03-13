@@ -467,8 +467,9 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 	}
 
 	input := &s3.CreateBucketInput{
-		Bucket: aws.String(h.Bucket),
-		ACL:    awstypes.BucketCannedACLPrivate,
+		Bucket:                    aws.String(h.Bucket),
+		ACL:                       awstypes.BucketCannedACLPrivate,
+		CreateBucketConfiguration: awsutils.CreateBucketConfiguration(h.Region),
 	}
 	_, err = h.client.CreateBucket(ctx, input)
 	if err := awsutils.ConvertS3Error(err); err != nil {
