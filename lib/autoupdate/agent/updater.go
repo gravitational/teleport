@@ -268,6 +268,8 @@ var (
 	ErrNotNeeded = errors.New("not needed")
 	// ErrNotSupported is returned when the operation is not supported on the platform.
 	ErrNotSupported = errors.New("not supported on this platform")
+	// ErrNotAvailable is returned when the operation is not available at the current version of the platform.
+	ErrNotAvailable = errors.New("not available at this version")
 	// ErrNoBinaries is returned when no binaries are available to be linked.
 	ErrNoBinaries = errors.New("no binaries available to link")
 	// ErrFilePresent is returned when a file is present.
@@ -525,7 +527,7 @@ func (u *Updater) removeWithoutSystem(ctx context.Context, cfg *UpdateConfig, fo
 		u.Log.WarnContext(ctx, "No packaged installation of Teleport was found, and --force was passed. Teleport will be removed from this system.")
 	}
 	u.Log.InfoContext(ctx, "Updater-managed installation of Teleport detected. Attempting to unlink and remove.")
-	ok, err := isActiveOrEnabled(ctx, u.Process)
+	ok, err := u.Process.IsActive(ctx)
 	if err != nil && !errors.Is(err, ErrNotSupported) {
 		return trace.Wrap(err)
 	}
@@ -541,25 +543,6 @@ func (u *Updater) removeWithoutSystem(ctx context.Context, cfg *UpdateConfig, fo
 	}
 	u.Log.InfoContext(ctx, "Automatic update configuration for Teleport successfully uninstalled.")
 	return nil
-}
-
-// isActiveOrEnabled returns true if the service is active or enabled.
-func isActiveOrEnabled(ctx context.Context, s Process) (bool, error) {
-	enabled, err := s.IsEnabled(ctx)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	if enabled {
-		return true, nil
-	}
-	active, err := s.IsActive(ctx)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	if active {
-		return true, nil
-	}
-	return false, nil
 }
 
 // Status returns all available local and remote fields related to agent auto-updates.
@@ -914,10 +897,11 @@ func (u *Updater) Setup(ctx context.Context, path string, restart bool) error {
 		u.Log.WarnContext(ctx, "Skipping all systemd setup because systemd is not running.")
 		return nil
 	}
-	if err != nil {
+	if errors.Is(err, ErrNotAvailable) {
+		u.Log.DebugContext(ctx, "Systemd version is outdated. Skipping SELinux verification.")
+	} else if err != nil {
 		return trace.Wrap(err, "failed to determine if new version of Teleport has an installed systemd service")
-	}
-	if !present {
+	} else if !present {
 		return trace.Errorf("cannot find systemd service for new version of Teleport, check SELinux settings")
 	}
 
@@ -942,6 +926,10 @@ func (u *Updater) notices(ctx context.Context) error {
 	if errors.Is(err, ErrNotSupported) {
 		u.Log.WarnContext(ctx, "Teleport is installed, but systemd is not present to start it.")
 		u.Log.WarnContext(ctx, "After configuring teleport.yaml, your system must also be configured to start Teleport.")
+		return nil
+	}
+	if errors.Is(err, ErrNotAvailable) {
+		u.Log.WarnContext(ctx, "Remember to use systemctl to enable and start Teleport.")
 		return nil
 	}
 	if err != nil {
@@ -1035,10 +1023,11 @@ func (u *Updater) LinkPackage(ctx context.Context) error {
 		return trace.Wrap(err, "failed to sync systemd configuration")
 	} else {
 		present, err := u.Process.IsPresent(ctx)
-		if err != nil {
+		if errors.Is(err, ErrNotAvailable) {
+			u.Log.DebugContext(ctx, "Systemd version is outdated. Skipping SELinux verification.")
+		} else if err != nil {
 			return trace.Wrap(err, "failed to determine if Teleport has an installed systemd service")
-		}
-		if !present {
+		} else if !present {
 			return trace.Errorf("cannot find systemd service for Teleport, check SELinux settings")
 		}
 	}
