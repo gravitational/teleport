@@ -40,9 +40,13 @@ export default function DocumentKubeExec({ doc, visible }: Props) {
     useKubeExecSession(doc);
   const mfa = useMfaEmitter(tty);
   useEffect(() => {
-    // when switching tabs or closing tabs, focus on visible terminal
-    terminalRef.current?.focus();
-  }, [visible, mfa.challenge]);
+    // when switching tabs, closing tabs, or
+    // when the pod information modal is dismissed
+    // focus the terminal
+    if (status === 'initialized') {
+      terminalRef.current?.focus();
+    }
+  }, [visible, mfa.challenge, status]);
   const theme = useTheme();
 
   const terminal = (
@@ -52,6 +56,7 @@ export default function DocumentKubeExec({ doc, visible }: Props) {
       fontFamily={theme.fonts.mono}
       theme={theme.colors.terminal}
       convertEol
+      disableAutoFocus={true}
     />
   );
 
