@@ -103,7 +103,10 @@ func (r resourceTeleportClusterNetworkingConfig) Create(ctx context.Context, req
 			resp.Diagnostics.Append(diagFromWrappedErr("Error reading ClusterNetworkingConfig", trace.Wrap(err), "cluster_networking_config"))
 			return
 		}
-		if clusterNetworkingConfigBefore.GetMetadata().Revision != clusterNetworkingConfigI.GetMetadata().Revision || false {
+
+		previousMetadata := clusterNetworkingConfigBefore.GetMetadata()
+		currentMetadata := clusterNetworkingConfigI.GetMetadata()
+		if previousMetadata.GetRevision() != currentMetadata.GetRevision() || false {
 			break
 		}
 		if bErr := backoff.Do(ctx); bErr != nil {

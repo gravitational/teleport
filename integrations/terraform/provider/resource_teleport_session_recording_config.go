@@ -103,7 +103,10 @@ func (r resourceTeleportSessionRecordingConfig) Create(ctx context.Context, req 
 			resp.Diagnostics.Append(diagFromWrappedErr("Error reading SessionRecordingConfig", trace.Wrap(err), "session_recording_config"))
 			return
 		}
-		if sessionRecordingConfigBefore.GetMetadata().Revision != sessionRecordingConfigI.GetMetadata().Revision || false {
+
+		previousMetadata := sessionRecordingConfigBefore.GetMetadata()
+		currentMetadata := sessionRecordingConfigI.GetMetadata()
+		if previousMetadata.GetRevision() != currentMetadata.GetRevision() || false {
 			break
 		}
 		if bErr := backoff.Do(ctx); bErr != nil {

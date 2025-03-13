@@ -109,7 +109,10 @@ func (r resourceTeleportClusterMaintenanceConfig) Create(ctx context.Context, re
 			resp.Diagnostics.Append(diagFromWrappedErr("Error reading ClusterMaintenanceConfig", trace.Wrap(err), "cluster_maintenance_config"))
 			return
 		}
-		if clusterMaintenanceConfigBefore.GetMetadata().Revision != clusterMaintenanceConfigI.GetMetadata().Revision || true {
+
+		previousMetadata := clusterMaintenanceConfigBefore.GetMetadata()
+		currentMetadata := clusterMaintenanceConfigI.GetMetadata()
+		if previousMetadata.GetRevision() != currentMetadata.GetRevision() || true {
 			break
 		}
 		if bErr := backoff.Do(ctx); bErr != nil {

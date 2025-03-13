@@ -101,6 +101,8 @@ type payload struct {
 	ForceSetKind string
 	// GetCanReturnNil is used to check for nil returned value when doing a Get<Resource>.
 	GetCanReturnNil bool
+	// DefaultName is the default singleton resource name. This is currently only supported for 153 resources.
+	DefaultName string
 }
 
 func (p *payload) CheckAndSetDefaults() error {
