@@ -2596,14 +2596,17 @@ func TestPluginResourceWrapper(t *testing.T) {
 				Spec: types.PluginSpecV1{
 					Settings: &types.PluginSpecV1_AwsIc{
 						AwsIc: &types.PluginAWSICSettings{
-							IntegrationName: apicommon.OriginAWSIdentityCenter,
-							Region:          "ap-south-2",
-							Arn:             "some:arn",
+							Credentials: &types.AWSICCredentials{
+								Source: &types.AWSICCredentials_System{
+									System: &types.AWSICCredentialSourceSystem{},
+								},
+							},
+							Region: "ap-south-2",
+							Arn:    "some:arn",
 							ProvisioningSpec: &types.AWSICProvisioningSpec{
 								BaseUrl: "https://scim.example.com/v2",
 							},
 							AccessListDefaultOwners: []string{"root"},
-							CredentialsSource:       types.AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_SYSTEM,
 							UserSyncFilters: []*types.AWSICUserSyncFilter{
 								{Labels: map[string]string{types.OriginLabel: types.OriginOkta}},
 								{Labels: map[string]string{types.OriginLabel: types.OriginEntraID}},
