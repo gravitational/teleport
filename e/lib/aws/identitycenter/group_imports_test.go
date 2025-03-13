@@ -422,10 +422,7 @@ func TestReimportRequestTriggersImport(t *testing.T) {
 		}))
 
 	// WHEN I create and start the IC integration service...
-	svcCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	svc := newTestService(t, fixture)
-	go svc.Run(svcCtx)
+	_, stopService := runTestService(t, ctx, fixture)
 
 	// EXPECT that a resource event was issued indicating that 1 group was imported
 	expectResourceSyncEvent(t, fixture.Emitter, func(e *apievents.AWSICResourceSync) {
@@ -441,9 +438,9 @@ func TestReimportRequestTriggersImport(t *testing.T) {
 
 	// Stop the service so the sub-tests can start new ones, mimicking what the
 	// plugin manager would do on a plugin update.
-	cancel()
+	stopService()
 
-	t.Run("Non import triggering update", func(t *testing.T) {
+	t.Run("non import-triggering update", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
@@ -457,9 +454,8 @@ func TestReimportRequestTriggersImport(t *testing.T) {
 		_, err := fixture.PluginService.UpdatePlugin(ctx, p)
 		require.NoError(t, err)
 
-		// WHEN then restart the IC service
-		svc := newTestService(t, fixture)
-		go svc.Run(ctx)
+		// WHEN we start the IC service again
+		runTestService(t, ctx, fixture)
 
 		// EXPECT that we will eventually get a Resource Sync Event indicating
 		// that no groups were imported. This shows that the group import
@@ -469,7 +465,7 @@ func TestReimportRequestTriggersImport(t *testing.T) {
 		})
 	})
 
-	t.Run("import triggering update", func(t *testing.T) {
+	t.Run("import-triggering update", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
@@ -483,9 +479,8 @@ func TestReimportRequestTriggersImport(t *testing.T) {
 		_, err := fixture.PluginService.UpdatePlugin(ctx, p)
 		require.NoError(t, err)
 
-		// WHEN then restart the IC service
-		svc := newTestService(t, fixture)
-		go svc.Run(ctx)
+		// WHEN we start the IC service again
+		runTestService(t, ctx, fixture)
 
 		// EXPECT that we will eventually get a Resource Sync Event showing that
 		// a group was imported, indicating that the group import process ran.

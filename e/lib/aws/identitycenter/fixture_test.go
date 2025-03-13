@@ -1,6 +1,7 @@
 package identitycenter
 
 import (
+	"context"
 	"log/slog"
 	"testing"
 
@@ -11,6 +12,28 @@ import (
 	ictest "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 )
+
+// runService starts a new IC service instance using resources in the supplied
+// test fixture, returning a function that will stop the service and wait until the
+// service exits. The service will be automatically stopped when the test
+// completes.
+func runTestService(t *testing.T, ctx context.Context, fixture *ictest.Fixture) (*Service, context.CancelFunc) {
+	waitCh := make(chan struct{})
+	svcCtx, cancel := context.WithCancel(ctx)
+	svc := newTestService(t, fixture)
+	go func() {
+		svc.Run(svcCtx)
+		close(waitCh)
+	}()
+
+	stopAndWait := func() {
+		cancel()
+		<-waitCh
+	}
+	t.Cleanup(stopAndWait)
+
+	return svc, stopAndWait
+}
 
 // newTestService creates a new test instance from the supplied fixture.
 func newTestService(t *testing.T, fixture *ictest.Fixture) *Service {
