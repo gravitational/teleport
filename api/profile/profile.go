@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 )
 
@@ -107,7 +108,7 @@ type Profile struct {
 	PrivateKeyPolicy keys.PrivateKeyPolicy `yaml:"private_key_policy"`
 
 	// PIVSlot is a specific piv slot that Teleport clients should use for hardware key support.
-	PIVSlot keys.PIVSlot `yaml:"piv_slot"`
+	PIVSlot hardwarekey.PIVSlot `yaml:"piv_slot"`
 
 	// MissingClusterDetails means this profile was created with limited cluster details.
 	// Missing cluster details should be loaded into the profile by pinging the proxy.

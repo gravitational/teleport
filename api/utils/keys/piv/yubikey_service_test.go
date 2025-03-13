@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package keys_test
+package piv_test
 
 import (
 	"context"
@@ -22,11 +22,13 @@ import (
 	"os"
 	"testing"
 
-	"github.com/go-piv/piv-go/piv"
+	pivgo "github.com/go-piv/piv-go/piv"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/api/utils/prompt"
 )
 
@@ -45,9 +47,9 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	s := keys.NewYubiKeyPIVService(ctx, &keys.CLIPrompt{})
+	s := piv.NewYubiKeyService(ctx, &hardwarekey.CLIPrompt{})
 
-	y, err := keys.FindYubiKey(0)
+	y, err := piv.FindYubiKey(0)
 	require.NoError(t, err)
 
 	resetYubikey(t, y)
@@ -55,7 +57,7 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 
 	// Warmup the hardware key to prompt touch at the start of the test,
 	// rather than having this interaction later.
-	priv, err := keys.NewHardwarePrivateKey(ctx, s, "", keys.PrivateKeyPolicyHardwareKeyTouch, keys.KeyInfo{})
+	priv, err := keys.NewHardwarePrivateKey(ctx, s, "", keys.PrivateKeyPolicyHardwareKeyTouch, hardwarekey.PrivateKeyInfo{})
 	require.NoError(t, err)
 	require.Nil(t, priv.WarmupHardwareKey(ctx))
 
@@ -71,13 +73,13 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 					resetYubikey(t, y)
 					setupPINPrompt(t, y)
 
-					var slot keys.PIVSlot = ""
+					var slot hardwarekey.PIVSlot = ""
 					if customSlot {
 						slot = "9a"
 					}
 
 					// NewHardwarePrivateKey should generate a new hardware private key.
-					priv, err := keys.NewHardwarePrivateKey(ctx, s, slot, policy, keys.KeyInfo{})
+					priv, err := keys.NewHardwarePrivateKey(ctx, s, slot, policy, hardwarekey.PrivateKeyInfo{})
 					require.NoError(t, err)
 
 					// test HardwareSigner methods
@@ -89,7 +91,7 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 					require.Nil(t, priv.WarmupHardwareKey(ctx))
 
 					// Another call to NewHardwarePrivateKey should retrieve the previously generated key.
-					retrievePriv, err := keys.NewHardwarePrivateKey(ctx, s, slot, policy, keys.KeyInfo{})
+					retrievePriv, err := keys.NewHardwarePrivateKey(ctx, s, slot, policy, hardwarekey.PrivateKeyInfo{})
 					require.NoError(t, err)
 					require.Equal(t, priv.Public(), retrievePriv.Public())
 
@@ -110,27 +112,26 @@ func TestOverwritePrompt(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	s := keys.NewYubiKeyPIVService(ctx, &keys.CLIPrompt{})
+	s := piv.NewYubiKeyService(ctx, &hardwarekey.CLIPrompt{})
 
-	y, err := keys.FindYubiKey(0)
+	y, err := piv.FindYubiKey(0)
 	require.NoError(t, err)
 
 	resetYubikey(t, y)
 	t.Cleanup(func() { resetYubikey(t, y) })
 
-	// Use a custom slot.
-	pivSlot, err := keys.GetDefaultKeySlot(keys.PrivateKeyPolicyHardwareKeyTouch)
-	require.NoError(t, err)
+	// Get the default slot used for hardware_key_touch.
+	touchSlot := pivgo.SlotSignature
 
 	testOverwritePrompt := func(t *testing.T) {
 		// Fail to overwrite slot when user denies
 		prompt.SetStdin(prompt.NewFakeReader().AddString("n"))
-		_, err := keys.NewHardwarePrivateKey(ctx, s, "" /*slot*/, keys.PrivateKeyPolicyHardwareKeyTouch, keys.KeyInfo{})
+		_, err := keys.NewHardwarePrivateKey(ctx, s, "" /*slot*/, keys.PrivateKeyPolicyHardwareKeyTouch, hardwarekey.PrivateKeyInfo{})
 		require.True(t, trace.IsCompareFailed(err), "Expected compare failed error but got %v", err)
 
 		// Successfully overwrite slot when user accepts
 		prompt.SetStdin(prompt.NewFakeReader().AddString("y"))
-		_, err = keys.NewHardwarePrivateKey(ctx, s, "" /*slot*/, keys.PrivateKeyPolicyHardwareKeyTouch, keys.KeyInfo{})
+		_, err = keys.NewHardwarePrivateKey(ctx, s, "" /*slot*/, keys.PrivateKeyPolicyHardwareKeyTouch, hardwarekey.PrivateKeyInfo{})
 		require.NoError(t, err)
 	}
 
@@ -138,7 +139,7 @@ func TestOverwritePrompt(t *testing.T) {
 		resetYubikey(t, y)
 
 		// Set a non-teleport certificate in the slot.
-		err = y.SetMetadataCertificate(pivSlot, pkix.Name{Organization: []string{"not-teleport"}})
+		err = y.SetMetadataCertificate(touchSlot, pkix.Name{Organization: []string{"not-teleport"}})
 		require.NoError(t, err)
 
 		testOverwritePrompt(t)
@@ -148,7 +149,7 @@ func TestOverwritePrompt(t *testing.T) {
 		resetYubikey(t, y)
 
 		// Generate a key that does not require touch in the slot that Teleport expects to require touch.
-		_, err := keys.NewHardwarePrivateKey(ctx, s, keys.PIVSlot(pivSlot.String()), keys.PrivateKeyPolicyHardwareKey, keys.KeyInfo{})
+		_, err := keys.NewHardwarePrivateKey(ctx, s, hardwarekey.PIVSlot(touchSlot.String()), keys.PrivateKeyPolicyHardwareKey, hardwarekey.PrivateKeyInfo{})
 		require.NoError(t, err)
 
 		testOverwritePrompt(t)
@@ -156,17 +157,17 @@ func TestOverwritePrompt(t *testing.T) {
 }
 
 // resetYubikey connects to the first yubiKey and resets it to defaults.
-func resetYubikey(t *testing.T, y *keys.YubiKey) {
+func resetYubikey(t *testing.T, y *piv.YubiKey) {
 	t.Helper()
 	require.NoError(t, y.Reset())
 }
 
-func setupPINPrompt(t *testing.T, y *keys.YubiKey) {
+func setupPINPrompt(t *testing.T, y *piv.YubiKey) {
 	t.Helper()
 
 	// Set pin for tests.
 	const testPIN = "123123"
-	require.NoError(t, y.SetPIN(piv.DefaultPIN, testPIN))
+	require.NoError(t, y.SetPIN(pivgo.DefaultPIN, testPIN))
 
 	// Handle PIN prompt.
 	oldStdin := prompt.Stdin()

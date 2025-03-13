@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 )
 
@@ -134,7 +135,7 @@ type AuthPreference interface {
 	// GetHardwareKey returns the hardware key settings configured for the cluster.
 	GetHardwareKey() (*HardwareKey, error)
 	// GetPIVSlot returns the configured piv slot for the cluster.
-	GetPIVSlot() keys.PIVSlot
+	GetPIVSlot() hardwarekey.PIVSlot
 	// GetHardwareKeySerialNumberValidation returns the cluster's hardware key
 	// serial number validation settings.
 	GetHardwareKeySerialNumberValidation() (*HardwareKeySerialNumberValidation, error)
@@ -491,9 +492,9 @@ func (c *AuthPreferenceV2) GetHardwareKey() (*HardwareKey, error) {
 }
 
 // GetPIVSlot returns the configured piv slot for the cluster.
-func (c *AuthPreferenceV2) GetPIVSlot() keys.PIVSlot {
+func (c *AuthPreferenceV2) GetPIVSlot() hardwarekey.PIVSlot {
 	if hk, err := c.GetHardwareKey(); err == nil {
-		return keys.PIVSlot(hk.PIVSlot)
+		return hardwarekey.PIVSlot(hk.PIVSlot)
 	}
 	return ""
 }
@@ -840,7 +841,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	}
 
 	if hk, err := c.GetHardwareKey(); err == nil && hk.PIVSlot != "" {
-		if err := keys.PIVSlot(hk.PIVSlot).Validate(); err != nil {
+		if err := hardwarekey.PIVSlot(hk.PIVSlot).Validate(); err != nil {
 			return trace.Wrap(err)
 		}
 	}

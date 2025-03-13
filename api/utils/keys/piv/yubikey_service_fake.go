@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package keys
+package piv
 
 import (
 	"context"
@@ -24,6 +24,8 @@ import (
 	"io"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 )
 
 type fakeYubiKeyPIVService struct {
@@ -33,13 +35,13 @@ type fakeYubiKeyPIVService struct {
 	keys map[crypto.PublicKey]crypto.Signer
 }
 
-func NewYubiKeyPIVService(ctx context.Context, _ HardwareKeyPrompt) HardwareKeyService {
+func NewYubiKeyPIVService(ctx context.Context, _ hardwarekey.HardwareKeyPrompt) *fakeYubiKeyPIVService {
 	return &fakeYubiKeyPIVService{
 		keys: map[crypto.PublicKey]crypto.Signer{},
 	}
 }
 
-func (s *fakeYubiKeyPIVService) NewPrivateKey(ctx context.Context, customSlot PIVSlot, requiredPolicy PrivateKeyPolicy) (*HardwarePrivateKeyRef, error) {
+func (s *fakeYubiKeyPIVService) NewPrivateKey(ctx context.Context, customSlot hardwarekey.PIVSlot, requiredPolicy hardwarekey.PromptPolicy) (*hardwarekey.PrivateKeyRef, error) {
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -47,19 +49,19 @@ func (s *fakeYubiKeyPIVService) NewPrivateKey(ctx context.Context, customSlot PI
 
 	s.keys[string(pub)] = priv
 
-	return &HardwarePrivateKeyRef{
-		PrivateKeyPolicy: requiredPolicy,
-		PublicKey:        pub,
+	return &hardwarekey.PrivateKeyRef{
+		Policy:    requiredPolicy,
+		PublicKey: pub,
 		// Since this is only used in tests, we will ignore the attestation statement in the end.
 		// We just need it to be non-nil so that it goes through the test modules implementation
 		// of AttestHardwareKey.
-		AttestationStatement: &AttestationStatement{},
+		AttestationStatement: &hardwarekey.AttestationStatement{},
 	}, nil
 }
 
 // Sign performs a cryptographic signature using the specified hardware
 // private key and provided signature parameters.
-func (s *fakeYubiKeyPIVService) Sign(ctx context.Context, ref HardwarePrivateKeyRef, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
+func (s *fakeYubiKeyPIVService) Sign(ctx context.Context, ref hardwarekey.PrivateKeyRef, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
 	ed25519Pub, ok := ref.PublicKey.(ed25519.PublicKey)
 	if !ok {
 		return nil, trace.BadParameter("expected public key of type %T", ed25519.PublicKey{})
@@ -72,8 +74,4 @@ func (s *fakeYubiKeyPIVService) Sign(ctx context.Context, ref HardwarePrivateKey
 	return priv.Sign(rand, digest, opts)
 }
 
-func (s *fakeYubiKeyPIVService) SetPrompt(prompt HardwareKeyPrompt) {}
-
-func (s PIVSlot) validate() error {
-	return trace.Wrap(errPIVUnavailable)
-}
+func (s *fakeYubiKeyPIVService) SetPrompt(prompt hardwarekey.HardwareKeyPrompt) {}

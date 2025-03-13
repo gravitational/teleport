@@ -27,7 +27,8 @@ import (
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
 	"github.com/gravitational/teleport/lib/vnet/daemon"
@@ -60,7 +61,7 @@ func newProfileOSConfigProvider(tunName, ipv6Prefix, dnsAddr, homePath string, d
 		return nil, trace.Wrap(err)
 	}
 
-	hwKeyService := keys.NewYubiKeyPIVService(context.TODO(), &keys.CLIPrompt{})
+	hwKeyService := piv.NewYubiKeyService(context.TODO(), &hardwarekey.CLIPrompt{})
 
 	p := &profileOSConfigProvider{
 		clientStore:        client.NewFSClientStore(homePath, hwKeyService),

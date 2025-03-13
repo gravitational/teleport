@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 )
 
@@ -95,23 +96,21 @@ func NewSoftwarePrivateKey(signer crypto.Signer) (*PrivateKey, error) {
 // NewHardwarePrivateKey creates or retrieves a hardware private key from from the given hardware key
 // service that matches the given PIV slot and private key policy, returning the hardware private key
 // as a [PrivateKey].
-func NewHardwarePrivateKey(ctx context.Context, s HardwareKeyService, customSlot PIVSlot, requiredPolicy PrivateKeyPolicy, keyInfo KeyInfo) (*PrivateKey, error) {
+func NewHardwarePrivateKey(ctx context.Context, s hardwarekey.Service, customSlot hardwarekey.PIVSlot, requiredPolicy PrivateKeyPolicy, keyInfo hardwarekey.PrivateKeyInfo) (*PrivateKey, error) {
 	if s == nil {
 		return nil, trace.BadParameter("cannot create a new hardware private key without a hardware key service provided")
 	}
 
-	keyRef, err := s.NewPrivateKey(ctx, customSlot, requiredPolicy)
+	keyRef, err := s.NewPrivateKey(ctx, customSlot, hardwarekey.PromptPolicy{
+		TouchRequired: requiredPolicy.IsHardwareKeyTouchVerified(),
+		PINRequired:   requiredPolicy.IsHardwareKeyPINVerified(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	hwPrivateKey := &HardwarePrivateKey{
-		service: s,
-		ref:     keyRef,
-		keyInfo: keyInfo,
-	}
-
-	encodedKeyRef, err := encodeHardwarePrivateKeyRef(keyRef)
+	hwPrivateKey := hardwarekey.NewPrivateKey(s, keyRef, keyInfo)
+	encodedKeyRef, err := hardwarekey.EncodeHardwarePrivateKeyRef(keyRef)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -226,9 +225,9 @@ func (k *PrivateKey) SoftwarePrivateKeyPEM() ([]byte, error) {
 }
 
 // GetAttestationStatement returns this key's AttestationStatement. If the key is
-// not a [HardwarePrivateKey], this method returns nil.
-func (k *PrivateKey) GetAttestationStatement() *AttestationStatement {
-	if hwpk, ok := k.Signer.(*HardwarePrivateKey); ok {
+// not a [hardwarekey.PrivateKey], this method returns nil.
+func (k *PrivateKey) GetAttestationStatement() *hardwarekey.AttestationStatement {
+	if hwpk, ok := k.Signer.(*hardwarekey.PrivateKey); ok {
 		return hwpk.GetAttestationStatement()
 	}
 	// Just return a nil attestation statement and let this key fail any attestation checks.
@@ -237,21 +236,33 @@ func (k *PrivateKey) GetAttestationStatement() *AttestationStatement {
 
 // GetPrivateKeyPolicy returns this key's PrivateKeyPolicy.
 func (k *PrivateKey) GetPrivateKeyPolicy() PrivateKeyPolicy {
-	if hwpk, ok := k.Signer.(*HardwarePrivateKey); ok {
-		return hwpk.GetPrivateKeyPolicy()
+	if hwpk, ok := k.Signer.(*hardwarekey.PrivateKey); ok {
+		switch hwpk.GetPromptPolicy() {
+		case hardwarekey.PromptPolicy{TouchRequired: false, PINRequired: false}:
+			return PrivateKeyPolicyHardwareKey
+
+		case hardwarekey.PromptPolicy{TouchRequired: true, PINRequired: false}:
+			return PrivateKeyPolicyHardwareKeyTouch
+
+		case hardwarekey.PromptPolicy{TouchRequired: true, PINRequired: true}:
+			return PrivateKeyPolicyHardwareKeyTouchAndPIN
+
+		case hardwarekey.PromptPolicy{TouchRequired: false, PINRequired: true}:
+			return PrivateKeyPolicyHardwareKeyPIN
+		}
 	}
 	return PrivateKeyPolicyNone
 }
 
-// IsHardware returns true if [k] is a [HardwarePrivateKey].
+// IsHardware returns true if [k] is a [hardwarekey.PrivateKey].
 func (k *PrivateKey) IsHardware() bool {
-	_, ok := k.Signer.(*HardwarePrivateKey)
+	_, ok := k.Signer.(*hardwarekey.PrivateKey)
 	return ok
 }
 
-// WarmupHardwareKey checks if this is a [HardwarePrivateKey] and warms it up if it is.
+// WarmupHardwareKey checks if this is a [hardwarekey.PrivateKey] and warms it up if it is.
 func (k *PrivateKey) WarmupHardwareKey(ctx context.Context) error {
-	if hwpk, ok := k.Signer.(*HardwarePrivateKey); ok {
+	if hwpk, ok := k.Signer.(*hardwarekey.PrivateKey); ok {
 		return hwpk.WarmupHardwareKey(ctx)
 	}
 	return nil
@@ -273,31 +284,24 @@ func LoadPrivateKey(keyFile string) (*PrivateKey, error) {
 
 // ParsePrivateKeyOptions contains config options for ParsePrivateKey.
 type ParsePrivateKeyOptions struct {
-	HardwareKeyService HardwareKeyService
-	KeyInfo            KeyInfo
+	HardwareKeyService hardwarekey.Service
+	KeyInfo            hardwarekey.PrivateKeyInfo
 }
 
 // ParsePrivateKeyOpt applies configuration options.
 type ParsePrivateKeyOpt func(o *ParsePrivateKeyOptions)
 
 // WithHardwareKeyService sets the hardware key service.
-func WithHardwareKeyService(hwKeyService HardwareKeyService) ParsePrivateKeyOpt {
+func WithHardwareKeyService(hwKeyService hardwarekey.Service) ParsePrivateKeyOpt {
 	return func(o *ParsePrivateKeyOptions) {
 		o.HardwareKeyService = hwKeyService
 	}
 }
 
-// KeyInfo includes info relevant to the key being parsed. Useful for adding context
-// to hardware key pin/touch prompts when performing signatures.
-type KeyInfo struct {
-	// ProxyHost is the root proxy hostname that a key is associated with.
-	ProxyHost string
-}
-
 // WithKeyInfo adds contextual key info to the parsed private key.
 func WithKeyInfo(proxyHost string) ParsePrivateKeyOpt {
 	return func(o *ParsePrivateKeyOptions) {
-		o.KeyInfo = KeyInfo{ProxyHost: proxyHost}
+		o.KeyInfo = hardwarekey.PrivateKeyInfo{ProxyHost: proxyHost}
 	}
 }
 
@@ -320,16 +324,13 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 			return nil, trace.BadParameter("cannot parse hardware private key without an initialized hardware key service")
 		}
 
-		keyRef, err := decodeHardwarePrivateKeyRef(block.Bytes)
+		keyRef, err := hardwarekey.DecodeHardwarePrivateKeyRef(block.Bytes)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse hardware private key")
 		}
 
-		return NewPrivateKey(&HardwarePrivateKey{
-			service: appliedOpts.HardwareKeyService,
-			ref:     keyRef,
-			keyInfo: appliedOpts.KeyInfo,
-		}, keyPEM)
+		hwPrivateKey := hardwarekey.NewPrivateKey(appliedOpts.HardwareKeyService, keyRef, appliedOpts.KeyInfo)
+		return NewPrivateKey(hwPrivateKey, keyPEM)
 	case OpenSSHPrivateKeyType:
 		priv, err := ssh.ParseRawPrivateKey(keyPEM)
 		if err != nil {

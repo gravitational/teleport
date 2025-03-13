@@ -25,7 +25,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/client"
 )
 
@@ -45,7 +45,7 @@ type Config struct {
 	// AddKeysToAgent is passed to [client.Config].
 	AddKeysToAgent string
 	// HardwareKeyService is a service for interfacing with hardware keys.
-	HardwareKeyService keys.HardwareKeyService
+	HardwareKeyService hardwarekey.Service
 }
 
 // CheckAndSetDefaults checks the configuration for its validity and sets default values if needed

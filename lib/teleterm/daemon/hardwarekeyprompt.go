@@ -23,7 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 )
 
@@ -44,7 +44,7 @@ import (
 // Because the code in yubikey.go assumes you use a single key, we don't have any mutex here.
 // (unlike other modals triggered by tshd).
 // We don't expect receiving prompts from different hardware keys.
-func (s *Service) NewHardwareKeyPrompt() keys.HardwareKeyPrompt {
+func (s *Service) NewHardwareKeyPrompt() hardwarekey.Prompt {
 	return &hardwareKeyPrompter{s: s}
 }
 
@@ -53,7 +53,7 @@ type hardwareKeyPrompter struct {
 }
 
 // Touch prompts the user to touch the hardware key.
-func (h *hardwareKeyPrompter) Touch(ctx context.Context, keyInfo keys.KeyInfo) error {
+func (h *hardwareKeyPrompter) Touch(ctx context.Context, keyInfo hardwarekey.PrivateKeyInfo) error {
 	_, err := h.s.tshdEventsClient.PromptHardwareKeyTouch(ctx, &api.PromptHardwareKeyTouchRequest{
 		RootClusterUri: keyInfo.ProxyHost,
 	})
@@ -64,10 +64,10 @@ func (h *hardwareKeyPrompter) Touch(ctx context.Context, keyInfo keys.KeyInfo) e
 }
 
 // AskPIN prompts the user for a PIN.
-func (h *hardwareKeyPrompter) AskPIN(ctx context.Context, requirement keys.PINPromptRequirement, keyInfo keys.KeyInfo) (string, error) {
+func (h *hardwareKeyPrompter) AskPIN(ctx context.Context, requirement hardwarekey.PINPromptRequirement, keyInfo hardwarekey.PrivateKeyInfo) (string, error) {
 	res, err := h.s.tshdEventsClient.PromptHardwareKeyPIN(ctx, &api.PromptHardwareKeyPINRequest{
 		RootClusterUri: keyInfo.ProxyHost,
-		PinOptional:    requirement == keys.PINOptional,
+		PinOptional:    requirement == hardwarekey.PINOptional,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -78,14 +78,14 @@ func (h *hardwareKeyPrompter) AskPIN(ctx context.Context, requirement keys.PINPr
 // ChangePIN asks for a new PIN.
 // The Electron app prompt must handle default values for PIN and PUK,
 // preventing the user from submitting empty/default values.
-func (h *hardwareKeyPrompter) ChangePIN(ctx context.Context, keyInfo keys.KeyInfo) (*keys.PINAndPUK, error) {
+func (h *hardwareKeyPrompter) ChangePIN(ctx context.Context, keyInfo hardwarekey.PrivateKeyInfo) (*hardwarekey.PINAndPUK, error) {
 	res, err := h.s.tshdEventsClient.PromptHardwareKeyPINChange(ctx, &api.PromptHardwareKeyPINChangeRequest{
 		RootClusterUri: keyInfo.ProxyHost,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &keys.PINAndPUK{
+	return &hardwarekey.PINAndPUK{
 		PIN:        res.Pin,
 		PUK:        res.Puk,
 		PUKChanged: res.PukChanged,
@@ -93,7 +93,7 @@ func (h *hardwareKeyPrompter) ChangePIN(ctx context.Context, keyInfo keys.KeyInf
 }
 
 // ConfirmSlotOverwrite asks the user if the slot's private key and certificate can be overridden.
-func (h *hardwareKeyPrompter) ConfirmSlotOverwrite(ctx context.Context, message string, keyInfo keys.KeyInfo) (bool, error) {
+func (h *hardwareKeyPrompter) ConfirmSlotOverwrite(ctx context.Context, message string, keyInfo hardwarekey.PrivateKeyInfo) (bool, error) {
 	res, err := h.s.tshdEventsClient.ConfirmHardwareKeySlotOverwrite(ctx, &api.ConfirmHardwareKeySlotOverwriteRequest{
 		RootClusterUri: keyInfo.ProxyHost,
 		Message:        message,
