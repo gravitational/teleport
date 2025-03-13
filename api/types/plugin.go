@@ -763,6 +763,7 @@ func (c *PluginDatadogAccessSettings) CheckAndSetDefaults() error {
 func (c *PluginAWSICSettings) CheckAndSetDefaults() error {
 
 	// Handle legacy records that pre-date the polymorphic Credentials settings
+	// TODO(tcsc): remove this check in v19
 	if c.Credentials == nil {
 		// Migrate the legacy, enum-based settings to the new polymorphic
 		// credential block
