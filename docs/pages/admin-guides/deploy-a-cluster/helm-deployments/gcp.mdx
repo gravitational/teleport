@@ -243,7 +243,8 @@ $ kubectl --namespace teleport create -f gcp-issuer.yaml
 
 ## Step 4/6. Set values to configure the cluster
 
-<Details title="License Secret" scopeOnly={false} scope={"enterprise"} opened={true}>
+<details>
+<summary>License Secret</summary>
 
 Before you can install Teleport Enterprise in your Kubernetes cluster, you will need to
 create a secret that contains your Teleport license information.
@@ -257,7 +258,7 @@ this secret as long as your file is named `license.pem`.
 $ kubectl -n teleport create secret generic license --from-file=license.pem
 ```
 
-</Details>
+</details>
 
 <Admonition type="note">
   If you are installing Teleport in a brand new GCP project, make sure you have enabled the
@@ -361,9 +362,12 @@ replicaset.apps/teleport-proxy-c6bf55cfc   2         2         2       22h
 
 You'll need to set up a DNS `A` record for `teleport.example.com`.
 
-<Details title="Using Application Access?">
+<details>
+<summary>Using Application Access?</summary>
+
 (!docs/pages/includes/dns-app-access.mdx!)
-</Details>
+
+</details>
 
 Here's how to do this using Google Cloud DNS:
 
