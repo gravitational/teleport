@@ -3444,8 +3444,8 @@ func onSummarizeSession(cf *CLIConf) error {
 	switch cf.Format {
 	case teleport.Text:
 		fmt.Println("Session:", cf.SessionID)
-		fmt.Println("User:", "TODO")
-		fmt.Println("Kind:", "TODO")
+		fmt.Println("User:", recording.Spec.User)
+		fmt.Println("Kind:", recording.Spec.Kind)
 		fmt.Println()
 		if summary := recording.GetSpec().GetSummary(); summary != "" {
 			fmt.Println(summary)

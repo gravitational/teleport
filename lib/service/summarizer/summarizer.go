@@ -48,6 +48,8 @@ func (s *Summarizer) CompleteUpload(ctx context.Context, upload events.StreamUpl
 	}
 	eventsCh, errCh := s.Streamer.StreamSessionEvents(ctx, upload.SessionID, 0)
 	sb := strings.Builder{}
+	var proto string
+	var user string
 reader:
 	for {
 		select {
@@ -55,11 +57,12 @@ reader:
 			if event == nil {
 				break reader
 			}
-			if event.GetType() == events.SessionPrintEvent {
-				printEvent, ok := event.(*apiEvents.SessionPrint)
-				if ok {
-					sb.Write(printEvent.Data)
-				}
+			switch e := event.(type) {
+			case *apiEvents.SessionStart:
+				proto = e.Protocol
+				user = e.User
+			case *apiEvents.SessionPrint:
+				sb.Write(e.Data)
 			}
 		case err := <-errCh:
 			return trace.Wrap(err)
@@ -67,7 +70,10 @@ reader:
 	}
 	srm := &sessionrecordingmetatadav1.SessionRecordingMetadata{
 		Metadata: &v1.Metadata{Name: string(upload.SessionID)},
-		Spec:     &sessionrecordingmetatadav1.SessionRecordingMetadataSpec{},
+		Spec: &sessionrecordingmetatadav1.SessionRecordingMetadataSpec{
+			User: user,
+			Kind: proto,
+		},
 	}
 	useBatchMode := os.Getenv("SUMMARIZATION_BATCH_MODE") != ""
 	if useBatchMode {
