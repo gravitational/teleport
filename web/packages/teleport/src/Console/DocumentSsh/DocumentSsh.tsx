@@ -22,7 +22,11 @@ import { useTheme } from 'styled-components';
 import {
   Box,
   Button,
+  ButtonLink,
   ButtonPrimary,
+  ButtonSecondary,
+  ButtonText,
+  ButtonWarning,
   Flex,
   H3,
   H4,
@@ -231,6 +235,9 @@ function WaitingRoomDialog({
   const ctx = useConsoleContext();
 
   const [joining, setJoining] = useState(false);
+  const isInSession = sessionStatus.parties.some(
+    party => party.user === ctx.storeUser.getUsername()
+  );
 
   return (
     <Dialog disableEscapeKeyDown={true} open={true}>
@@ -303,17 +310,19 @@ function WaitingRoomDialog({
         </Flex>
       ))}
 
-      <ButtonPrimary
-        disabled={joining}
-        onClick={() => {
-          setJoining(true);
-          handleReadyToJoin();
-        }}
-        mt={4}
-        width="180px"
-      >
-        {joining ? 'Joining...' : 'Join this session'}
-      </ButtonPrimary>
+      {!isInSession && (
+        <ButtonPrimary
+          disabled={joining}
+          onClick={() => {
+            setJoining(true);
+            handleReadyToJoin();
+          }}
+          mt={4}
+          width="180px"
+        >
+          {joining ? 'Joining...' : 'Join this session'}
+        </ButtonPrimary>
+      )}
     </Dialog>
   );
 }
@@ -346,61 +355,62 @@ function PartiesList({
         border-left: ${props => props.theme.borders[2]}
           ${props => props.theme.colors.interactive.tonal.neutral[1]};
       `}
-      flexDirection={'column'}
+      flexDirection="column"
       p={3}
       justifyContent="space-between"
     >
-      <Flex flexDirection="column" gap={1}>
-        <H2 mb={2}>Participants</H2>
-        {peers.length > 0 && (
-          <Box>
-            <H3>Peers</H3>
-            <Flex flexDirection="column">
-              {peers.map(p => (
-                <Flex key={p.user} flexDirection="row" alignItems="center">
-                  <StatusLight status={ItemStatus.Success} />{' '}
-                  <P>
-                    {p.user} {username === p.user ? <b>(me)</b> : ''}
-                  </P>
-                </Flex>
-              ))}
-            </Flex>
-          </Box>
-        )}
-        {moderators.length > 0 && (
-          <Box>
-            <H3>Moderators</H3>
-            <Flex flexDirection="column">
-              {moderators.map(p => (
-                <Flex key={p.user} flexDirection="row" alignItems="center">
-                  <StatusLight status={ItemStatus.Success} />{' '}
-                  <P>
-                    {p.user} {username === p.user ? '(me)' : ''}
-                  </P>
-                </Flex>
-              ))}
-            </Flex>
-          </Box>
-        )}
-        {observers.length > 0 && (
-          <Box>
-            <H3>Observers</H3>
-            <Flex flexDirection="column">
-              {observers.map(p => (
-                <Flex key={p.user} flexDirection="row" alignItems="center">
-                  <StatusLight status={ItemStatus.Success} />{' '}
-                  <P>
-                    {p.user} {username === p.user ? '(me)' : ''}
-                  </P>
-                </Flex>
-              ))}
-            </Flex>
-          </Box>
-        )}
+      <Flex>
+        <Flex flexDirection="column" gap={1}>
+          <H2 mb={2}>Participants</H2>
+          {peers.length > 0 && (
+            <Box>
+              <H3>Peers</H3>
+              <Flex flexDirection="column">
+                {peers.map(p => (
+                  <Flex key={p.user} flexDirection="row" alignItems="center">
+                    <StatusLight status={ItemStatus.Success} />{' '}
+                    <P>
+                      {p.user} {username === p.user ? <b>(me)</b> : ''}
+                    </P>
+                  </Flex>
+                ))}
+              </Flex>
+            </Box>
+          )}
+          {moderators.length > 0 && (
+            <Box>
+              <H3>Moderators</H3>
+              <Flex flexDirection="column">
+                {moderators.map(p => (
+                  <Flex key={p.user} flexDirection="row" alignItems="center">
+                    <StatusLight status={ItemStatus.Success} />{' '}
+                    <P>
+                      {p.user} {username === p.user ? '(me)' : ''}
+                    </P>
+                  </Flex>
+                ))}
+              </Flex>
+            </Box>
+          )}
+          {observers.length > 0 && (
+            <Box>
+              <H3>Observers</H3>
+              <Flex flexDirection="column">
+                {observers.map(p => (
+                  <Flex key={p.user} flexDirection="row" alignItems="center">
+                    <StatusLight status={ItemStatus.Success} />{' '}
+                    <P>
+                      {p.user} {username === p.user ? '(me)' : ''}
+                    </P>
+                  </Flex>
+                ))}
+              </Flex>
+            </Box>
+          )}
+        </Flex>
       </Flex>
-
       <Flex flexDirection="column">
-        <H2 mt={3}>Chatroom</H2>
+        <H2 mt={3}>Session chat</H2>
         <Flex
           width="100%"
           height="300px"
@@ -460,21 +470,21 @@ function PartiesList({
             `}
           />
         </form>
-      </Flex>
-
-      <Flex flexDirection="column" mb={1}>
-        {isModerator && (
-          <Button
-            intent="danger"
-            mb={2}
-            onClick={() => tty.terminateModeratedSession()}
-          >
-            <BroadcastSlash size="small" mr={2} /> Terminate
-          </Button>
-        )}
-        <Button onClick={() => tty.disconnect()}>
-          <Logout size="small" mr={2} /> Disconnect
-        </Button>
+        <Flex flexDirection="column" mt={4} gap={2}>
+          <ButtonSecondary onClick={() => tty.disconnect()}>
+            <Logout size="small" mr={2} /> Disconnect
+          </ButtonSecondary>
+          {isModerator && (
+            <ButtonWarning
+              width="100%"
+              intent="danger"
+              mb={2}
+              onClick={() => tty.terminateModeratedSession()}
+            >
+              <BroadcastSlash size="small" mr={2} /> Terminate
+            </ButtonWarning>
+          )}
+        </Flex>
       </Flex>
     </Flex>
   );
@@ -485,51 +495,3 @@ interface PropTypes {
   visible: boolean;
   mode: ParticipantMode;
 }
-
-const mockSessionStatus: SessionStatus = {
-  state: SessionState.Pending,
-  parties: [
-    {
-      user: 'joe',
-      mode: 'moderator',
-    },
-    {
-      user: 'bob',
-      mode: 'moderator',
-    },
-    {
-      user: 'moderated',
-      mode: 'peer',
-    },
-    {
-      user: 'michael',
-      mode: 'observer',
-    },
-  ],
-  policyFulfillmentStatus: [
-    {
-      name: 'Require 2 moderators',
-      count: 2,
-      satisfies: [
-        {
-          user: 'joe',
-          mode: 'moderator',
-        },
-      ],
-    },
-    {
-      name: 'Require 4 moderators',
-      count: 4,
-      satisfies: [
-        {
-          user: 'joe',
-          mode: 'moderator',
-        },
-        {
-          user: 'bob',
-          mode: 'moderator',
-        },
-      ],
-    },
-  ],
-};
