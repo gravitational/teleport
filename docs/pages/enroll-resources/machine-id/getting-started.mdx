@@ -82,7 +82,7 @@ editor                                                            user:list,crea
 
 The `internal.logins` trait is replaced with values from the Teleport local user
 database. For full details on how traits work in Teleport roles, see the
-[Teleport Access Controls
+[Access Controls
 Reference](../../reference/access-controls/roles.mdx).
 
 Assuming that you are using the default `access` role, ensure that you use the 
@@ -209,7 +209,7 @@ $ tsh ssh --proxy=mytenant.teleport.sh -i /opt/machine-id/identity root@node-nam
 
 Now you can replace any invocations of `ssh` with the above command to provide
 your applications and tools a machine identity that can be rotated, audited,
-and controlled with all the familiar Teleport access controls.
+and controlled with access controls.
 
 ## Next Steps
 

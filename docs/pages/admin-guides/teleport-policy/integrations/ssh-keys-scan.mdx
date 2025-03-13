@@ -1,10 +1,10 @@
 ---
-title: Discover Insecure SSH Access with Teleport Policy
-description: Describes how to enable SSH Key Scanning using Teleport Policy and Access Graph.
+title: Discover Insecure SSH Access with Teleport Identity Security
+description: Describes how to enable SSH Key Scanning using Identity Security and Access Graph.
 ---
 
-With Teleport Policy's Access Graph, you can gain insights on how SSH keys are used within your environment. By scanning
-all SSH authorized keys present on your servers and SSH private keys present on company managed laptops, Teleport Policy can
+Using Identity Security with Access Graph, you can gain insights on how SSH keys are used within your environment. By scanning
+all SSH authorized keys present on your servers and SSH private keys present on company managed laptops, Identity Security can
 provide a visual representation of the access patterns and help you enhance the security of your environment.
 
 This functionality gives you insights into the following areas:
@@ -17,7 +17,7 @@ This functionality gives you insights into the following areas:
 
 ## How it works
 
-Teleport and Teleport Policy's Access Graph synchronize various resources, including SSH authorized keys and private keys.
+Access Graph synchronizes various resources, including SSH authorized keys and private keys.
 
 These resources are then visualized using the graph representation detailed in the
 [Access Graph page](../teleport-policy.mdx).
@@ -66,14 +66,14 @@ It also never sends the private key path or any other sensitive information.
 ## Prerequisites
 
 - A running Teleport Enterprise cluster v15.4.16/v16.2.0 or later.
-- Teleport Policy enabled for your account.
+- Identity Security enabled for your account.
 - A Linux/macOS server running the Teleport SSH Service.
 - Devices enrolled in the [Teleport Device Trust feature](../../access-controls/device-trust/device-trust.mdx).
 - For Jamf Pro integration, devices must be enrolled in Jamf Pro and have the signed `tsh` binary installed.
 - For self-hosted clusters:
   - Ensure that an up-to-date `license.pem` is used in the Auth Service configuration.
   - A running Access Graph node v1.22.0 or later.
-Check the [Teleport Policy page](../teleport-policy.mdx) for details on
+Check the [Identity Security page](../teleport-policy.mdx) for details on
 how to set up Access Graph.
   - The node running the Access Graph service must be reachable from the Teleport Auth Service.
 
@@ -81,7 +81,7 @@ how to set up Access Graph.
 
 To enable SSH Key Scanning, you need to configure the Teleport cluster to scan for SSH authorized keys.
 
-To enable the SSH Key Scanning feature, edit the Teleport Access Graph configuration file:
+To enable the SSH Key Scanning feature, edit the Teleport Identity Security Access Graph configuration file:
 
 ```code
 $ tctl edit access_graph_settings
