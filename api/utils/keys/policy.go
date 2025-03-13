@@ -189,3 +189,13 @@ func IsPrivateKeyPolicyError(err error) bool {
 	}
 	return privateKeyPolicyErrRegex.MatchString(err.Error())
 }
+
+// AttestationData is attested information about the hardware private key matching the public key.
+type AttestationData struct {
+	// PublicKeyDER is the public key in PKIX, ASN.1 DER form.
+	PublicKeyDER []byte `json:"public_key"`
+	// PrivateKeyPolicy specifies the private key policy supported by the associated private key.
+	PrivateKeyPolicy PrivateKeyPolicy `json:"private_key_policy"`
+	// SerialNumber is the serial number of the Attested hardware key.
+	SerialNumber uint32 `json:"serial_number"`
+}

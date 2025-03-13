@@ -48,7 +48,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
@@ -3447,9 +3447,9 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		return nil, trace.Wrap(err)
 	}
 	sshAttestationStatement, tlsAttestationStatement := authclient.UserAttestationStatements(
-		keys.AttestationStatementFromProto(req.AttestationStatement), //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
-		keys.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement),
-		keys.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement),
+		hardwarekey.AttestationStatementFromProto(req.AttestationStatement), //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
+		hardwarekey.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement),
+		hardwarekey.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement),
 	)
 
 	// Generate certificate, note that the roles TTL will be ignored because

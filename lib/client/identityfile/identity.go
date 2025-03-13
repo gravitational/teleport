@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
@@ -838,7 +839,7 @@ func KeyRingFromIdentityFile(identityPath, proxyHost, clusterName string) (*clie
 // This is necessary because identity files do not store the proxy address.
 // Additionally, the [clusterName] argument can ve used to target a leaf cluster
 // rather than the default root cluster.
-func NewClientStoreFromIdentityFile(identityFile, proxyAddr, clusterName string, hwKeyService keys.HardwareKeyService) (*client.Store, error) {
+func NewClientStoreFromIdentityFile(identityFile, proxyAddr, clusterName string, hwKeyService hardwarekey.Service) (*client.Store, error) {
 	clientStore := client.NewMemClientStore(hwKeyService)
 	if err := LoadIdentityFileIntoClientStore(clientStore, identityFile, proxyAddr, clusterName); err != nil {
 		return nil, trace.Wrap(err)

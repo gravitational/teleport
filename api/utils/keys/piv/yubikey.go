@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package keys
+package piv
 
 import (
 	"context"
@@ -27,7 +27,6 @@ import (
 	"io"
 	"math/big"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -37,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport/api"
 	attestationv1 "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
@@ -54,6 +54,55 @@ type YubiKey struct {
 	serialNumber uint32
 	// version is the YubiKey's version.
 	version piv.Version
+}
+
+// FindYubiKey finds a YubiKey PIV card by serial number. If no serial
+// number is provided, the first YubiKey found will be returned.
+func FindYubiKey(serialNumber uint32) (*YubiKey, error) {
+	yubiKeyCards, err := findYubiKeyCards()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(yubiKeyCards) == 0 {
+		if serialNumber != 0 {
+			return nil, trace.ConnectionProblem(nil, "no YubiKey device connected with serial number %d", serialNumber)
+		}
+		return nil, trace.ConnectionProblem(nil, "no YubiKey device connected")
+	}
+
+	for _, card := range yubiKeyCards {
+		y, err := newYubiKey(card)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if serialNumber == 0 || y.serialNumber == serialNumber {
+			return y, nil
+		}
+	}
+
+	return nil, trace.ConnectionProblem(nil, "no YubiKey device connected with serial number %d", serialNumber)
+}
+
+// pivCardTypeYubiKey is the PIV card type assigned to yubiKeys.
+const pivCardTypeYubiKey = "yubikey"
+
+// findYubiKeyCards returns a list of connected yubiKey PIV card names.
+func findYubiKeyCards() ([]string, error) {
+	cards, err := piv.Cards()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var yubiKeyCards []string
+	for _, card := range cards {
+		if strings.Contains(strings.ToLower(card), pivCardTypeYubiKey) {
+			yubiKeyCards = append(yubiKeyCards, card)
+		}
+	}
+
+	return yubiKeyCards, nil
 }
 
 func newYubiKey(card string) (*YubiKey, error) {
@@ -91,7 +140,7 @@ const (
 	signTouchPromptDelay = time.Millisecond * 200
 )
 
-func (y *YubiKey) sign(ctx context.Context, ref *HardwarePrivateKeyRef, prompt HardwareKeyPrompt, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, prompt hardwarekey.Prompt, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 
@@ -106,7 +155,7 @@ func (y *YubiKey) sign(ctx context.Context, ref *HardwarePrivateKeyRef, prompt H
 	defer release()
 
 	var touchPromptDelayTimer *time.Timer
-	if ref.PrivateKeyPolicy.IsHardwareKeyTouchVerified() {
+	if ref.Policy.TouchRequired {
 		touchPromptDelayTimer = time.NewTimer(signTouchPromptDelay)
 		defer touchPromptDelayTimer.Stop()
 
@@ -114,7 +163,7 @@ func (y *YubiKey) sign(ctx context.Context, ref *HardwarePrivateKeyRef, prompt H
 			select {
 			case <-touchPromptDelayTimer.C:
 				// Prompt for touch after a delay, in case the function succeeds without touch due to a cached touch.
-				err := prompt.Touch(ctx, KeyInfo{})
+				err := prompt.Touch(ctx, hardwarekey.PrivateKeyInfo{})
 				if err != nil {
 					// Cancel the entire function when an error occurs.
 					// This is typically used for aborting the prompt.
@@ -136,12 +185,12 @@ func (y *YubiKey) sign(ctx context.Context, ref *HardwarePrivateKeyRef, prompt H
 				defer touchPromptDelayTimer.Reset(signTouchPromptDelay)
 			}
 		}
-		pass, err := prompt.AskPIN(ctx, PINRequired, KeyInfo{})
+		pass, err := prompt.AskPIN(ctx, hardwarekey.PINRequired, hardwarekey.PrivateKeyInfo{})
 		return pass, trace.Wrap(err)
 	}
 
 	pinPolicy := piv.PINPolicyNever
-	if ref.PrivateKeyPolicy.IsHardwareKeyPINVerified() {
+	if ref.Policy.PINRequired {
 		pinPolicy = piv.PINPolicyOnce
 	}
 
@@ -241,14 +290,14 @@ func (y *YubiKey) Reset() error {
 }
 
 // generatePrivateKey generates a new private key in the given PIV slot.
-func (y *YubiKey) generatePrivateKey(slot piv.Slot, requiredKeyPolicy PrivateKeyPolicy) (*HardwarePrivateKeyRef, error) {
+func (y *YubiKey) generatePrivateKey(slot piv.Slot, policy hardwarekey.PromptPolicy) (*hardwarekey.PrivateKeyRef, error) {
 	touchPolicy := piv.TouchPolicyNever
-	if requiredKeyPolicy.IsHardwareKeyTouchVerified() {
+	if policy.TouchRequired {
 		touchPolicy = piv.TouchPolicyCached
 	}
 
 	pinPolicy := piv.PINPolicyNever
-	if requiredKeyPolicy.IsHardwareKeyPINVerified() {
+	if policy.PINRequired {
 		pinPolicy = piv.PINPolicyOnce
 	}
 
@@ -280,12 +329,12 @@ func (y *YubiKey) generatePrivateKey(slot piv.Slot, requiredKeyPolicy PrivateKey
 		return nil, trace.Wrap(err)
 	}
 
-	return &HardwarePrivateKeyRef{
-		SerialNumber:     y.serialNumber,
-		SlotKey:          slot.Key,
-		PublicKey:        pub,
-		PrivateKeyPolicy: requiredKeyPolicy,
-		AttestationStatement: &AttestationStatement{
+	return &hardwarekey.PrivateKeyRef{
+		SerialNumber: y.serialNumber,
+		SlotKey:      slot.Key,
+		PublicKey:    pub,
+		Policy:       policy,
+		AttestationStatement: &hardwarekey.AttestationStatement{
 			AttestationStatement: &attestationv1.AttestationStatement_YubikeyAttestationStatement{
 				YubikeyAttestationStatement: &attestationv1.YubiKeyAttestationStatement{
 					SlotCert:        slotCert.Raw,
@@ -346,8 +395,8 @@ func (y *YubiKey) SetPIN(oldPin, newPin string) error {
 // checkOrSetPIN prompts the user for PIN and verifies it with the YubiKey.
 // If the user provides the default PIN, they will be prompted to set a
 // non-default PIN and PUK before continuing.
-func (y *YubiKey) checkOrSetPIN(ctx context.Context, prompt HardwareKeyPrompt) error {
-	pin, err := prompt.AskPIN(ctx, PINOptional, KeyInfo{})
+func (y *YubiKey) checkOrSetPIN(ctx context.Context, prompt hardwarekey.Prompt) error {
+	pin, err := prompt.AskPIN(ctx, hardwarekey.PINOptional, hardwarekey.PrivateKeyInfo{})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -569,20 +618,20 @@ func (c *sharedPIVConnection) verifyPIN(pin string) error {
 	return trace.Wrap(c.conn.VerifyPIN(pin))
 }
 
-func (c *sharedPIVConnection) setPINAndPUKFromDefault(ctx context.Context, prompt HardwareKeyPrompt) (string, error) {
-	pinAndPUK, err := prompt.ChangePIN(ctx, KeyInfo{})
+func (c *sharedPIVConnection) setPINAndPUKFromDefault(ctx context.Context, prompt hardwarekey.Prompt) (string, error) {
+	pinAndPUK, err := prompt.ChangePIN(ctx, hardwarekey.PrivateKeyInfo{})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 	// YubiKey requires that PIN and PUK be 6-8 characters.
 	// Verify that we get valid values from the prompt.
-	if !isPINLengthValid(pinAndPUK.PIN) {
+	if !hardwarekey.IsPINLengthValid(pinAndPUK.PIN) {
 		return "", trace.BadParameter("PIN must be 6-8 characters long")
 	}
 	if pinAndPUK.PIN == piv.DefaultPIN {
 		return "", trace.BadParameter("The default PIN is not supported")
 	}
-	if !isPINLengthValid(pinAndPUK.PUK) {
+	if !hardwarekey.IsPINLengthValid(pinAndPUK.PUK) {
 		return "", trace.BadParameter("PUK must be 6-8 characters long")
 	}
 	if pinAndPUK.PUK == piv.DefaultPUK {
@@ -607,20 +656,6 @@ func isRetryError(err error) bool {
 	return strings.Contains(err.Error(), retryError)
 }
 
-func (s PIVSlot) validate() error {
-	_, err := s.parse()
-	return trace.Wrap(err)
-}
-
-func (s PIVSlot) parse() (piv.Slot, error) {
-	slotKey, err := strconv.ParseUint(string(s), 16, 32)
-	if err != nil {
-		return piv.Slot{}, trace.Wrap(err)
-	}
-
-	return parsePIVSlot(uint32(slotKey))
-}
-
 func parsePIVSlot(slotKey uint32) (piv.Slot, error) {
 	switch slotKey {
 	case piv.SlotAuthentication.Key:
@@ -632,11 +667,7 @@ func parsePIVSlot(slotKey uint32) (piv.Slot, error) {
 	case piv.SlotCardAuthentication.Key:
 		return piv.SlotCardAuthentication, nil
 	default:
-		retiredSlot, ok := piv.RetiredKeyManagementSlot(slotKey)
-		if !ok {
-			return piv.Slot{}, trace.BadParameter("slot %X does not exist", slotKey)
-		}
-		return retiredSlot, nil
+		return piv.Slot{}, trace.BadParameter("invalid slot %X", slotKey)
 	}
 }
 

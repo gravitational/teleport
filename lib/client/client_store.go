@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -44,7 +45,7 @@ import (
 // key store and an FS (~/.tsh) profile and trusted certs store.
 type Store struct {
 	log          *slog.Logger
-	hwKeyService keys.HardwareKeyService
+	hwKeyService hardwarekey.Service
 
 	KeyStore
 	TrustedCertsStore
@@ -52,7 +53,7 @@ type Store struct {
 }
 
 // NewMemClientStore initializes an FS backed client store with the given base dir.
-func NewFSClientStore(dirPath string, hwKeyService keys.HardwareKeyService) *Store {
+func NewFSClientStore(dirPath string, hwKeyService hardwarekey.Service) *Store {
 	dirPath = profile.FullProfilePath(dirPath)
 	return &Store{
 		log:               slog.With(teleport.ComponentKey, teleport.ComponentKeyStore),
@@ -63,12 +64,12 @@ func NewFSClientStore(dirPath string, hwKeyService keys.HardwareKeyService) *Sto
 	}
 }
 
-func (s *Store) NewHardwarePrivateKey(ctx context.Context, customSlot keys.PIVSlot, requiredPolicy keys.PrivateKeyPolicy, keyInfo keys.KeyInfo) (*keys.PrivateKey, error) {
+func (s *Store) NewHardwarePrivateKey(ctx context.Context, customSlot hardwarekey.PIVSlot, requiredPolicy keys.PrivateKeyPolicy, keyInfo hardwarekey.PrivateKeyInfo) (*keys.PrivateKey, error) {
 	return keys.NewHardwarePrivateKey(ctx, s.hwKeyService, customSlot, requiredPolicy, keyInfo)
 }
 
 // NewMemClientStore initializes a new in-memory client store.
-func NewMemClientStore(hwKeyService keys.HardwareKeyService) *Store {
+func NewMemClientStore(hwKeyService hardwarekey.Service) *Store {
 	return &Store{
 		log:               slog.With(teleport.ComponentKey, teleport.ComponentKeyStore),
 		hwKeyService:      hwKeyService,

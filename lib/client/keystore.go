@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -73,7 +74,7 @@ type KeyStore interface {
 	// GetKeyRing returns the user's key ring including the specified certs. The
 	// key's TrustedCerts will be nil and should be filled in using a
 	// TrustedCertsStore.
-	GetKeyRing(idx KeyRingIndex, hwks keys.HardwareKeyService, opts ...CertOption) (*KeyRing, error)
+	GetKeyRing(idx KeyRingIndex, hwks hardwarekey.Service, opts ...CertOption) (*KeyRing, error)
 
 	// DeleteKeyRing deletes the user's key with all its certs.
 	DeleteKeyRing(idx KeyRingIndex) error
@@ -524,7 +525,7 @@ func (e *LegacyCertPathError) Unwrap() error {
 
 // GetKeyRing returns the user's key including the specified certs.
 // If the key is not found, returns trace.NotFound error.
-func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, hwks keys.HardwareKeyService, opts ...CertOption) (*KeyRing, error) {
+func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, hwks hardwarekey.Service, opts ...CertOption) (*KeyRing, error) {
 	if len(opts) > 0 {
 		if err := idx.Check(); err != nil {
 			return nil, trace.Wrap(err, "GetKeyRing with CertOptions requires a fully specified KeyRingIndex")
@@ -568,7 +569,7 @@ func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, hwks keys.HardwareKeyService,
 	return keyRing, nil
 }
 
-func (fs *FSKeyStore) updateKeyRingWithCerts(o CertOption, hwks keys.HardwareKeyService, keyRing *KeyRing) error {
+func (fs *FSKeyStore) updateKeyRingWithCerts(o CertOption, hwks hardwarekey.Service, keyRing *KeyRing) error {
 	return trace.Wrap(o.updateKeyRing(fs.KeyDir, keyRing.KeyRingIndex, keyRing, keys.WithHardwareKeyService(hwks), keys.WithKeyInfo(keyRing.ProxyHost)))
 }
 
@@ -806,7 +807,7 @@ func (ms *MemKeyStore) AddKeyRing(keyRing *KeyRing) error {
 }
 
 // GetKeyRing returns the user's key ring including the specified certs.
-func (ms *MemKeyStore) GetKeyRing(idx KeyRingIndex, _ keys.HardwareKeyService, opts ...CertOption) (*KeyRing, error) {
+func (ms *MemKeyStore) GetKeyRing(idx KeyRingIndex, _ hardwarekey.Service, opts ...CertOption) (*KeyRing, error) {
 	if len(opts) > 0 {
 		if err := idx.Check(); err != nil {
 			return nil, trace.Wrap(err, "GetKeyRing with CertOptions requires a fully specified KeyRingIndex")

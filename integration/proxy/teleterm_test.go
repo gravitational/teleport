@@ -40,7 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/piv"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/integration/appaccess"
 	dbhelpers "github.com/gravitational/teleport/integration/db"
@@ -248,7 +248,7 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 		// db cert has expired.
 		Clock:              fakeClock,
 		WebauthnLogin:      webauthnLogin,
-		HardwareKeyService: keys.NewYubiKeyPIVService(ctx, nil /*prompt*/),
+		HardwareKeyService: piv.NewYubiKeyService(ctx, nil /*prompt*/),
 	})
 	require.NoError(t, err)
 
@@ -880,7 +880,7 @@ func testTeletermAppGatewayTargetPortValidation(t *testing.T, pack *appaccess.Pa
 		storage, err := clusters.NewStorage(clusters.Config{
 			Dir:                tc.KeysDir,
 			InsecureSkipVerify: tc.InsecureSkipVerify,
-			HardwareKeyService: keys.NewYubiKeyPIVService(context.TODO(), nil /*prompt*/),
+			HardwareKeyService: piv.NewYubiKeyService(context.TODO(), nil /*prompt*/),
 		})
 		require.NoError(t, err)
 		daemonService, err := daemon.New(daemon.Config{

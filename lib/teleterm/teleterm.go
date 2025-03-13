@@ -32,7 +32,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver"
 	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -43,7 +43,7 @@ import (
 func Serve(ctx context.Context, cfg Config) error {
 	// TODO(gzdunek): Move tshdEventsClient out of daemonService so that we can
 	// set the prompt before creating Storage.
-	hardwareKeyService := keys.NewYubiKeyPIVService(ctx, nil /*prompt*/)
+	hardwareKeyService := piv.NewYubiKeyService(ctx, nil /*prompt*/)
 
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
