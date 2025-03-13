@@ -28,7 +28,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/mod/semver"
+	"golang.org/x/mod/semver" //nolint:depguard
 
 	"github.com/gravitational/teleport"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
