@@ -158,6 +158,12 @@ class Tty extends EventEmitterMfaSender {
     this.socket.send(bytearray);
   }
 
+  readyToJoin() {
+    const encoded = this._proto.encodeReadyToJoin();
+    const bytearray = new Uint8Array(encoded);
+    this.socket.send(bytearray);
+  }
+
   // part of the flow control
   pauseFlow() {}
 

@@ -344,6 +344,9 @@ type TerminalHandler struct {
 
 	// websocketConn is the active websocket connection
 	websocketConn *websocket.Conn
+
+	readyToConnectToNodeC chan struct{}
+	reacyToConnectOnce    sync.Once
 }
 
 // ServeHTTP builds a connection to the remote node and then pumps back two types of
@@ -449,7 +452,8 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	tctx := oteltrace.ContextWithRemoteSpanContext(context.Background(), oteltrace.SpanContextFromContext(r.Context()))
 	ctx, cancel := context.WithCancel(tctx)
 	defer cancel()
-	t.stream = terminal.NewStream(ctx, terminal.StreamConfig{WS: ws, Logger: t.logger})
+	readyToConnectToNodeC := make(chan struct{})
+	t.stream = terminal.NewStream(ctx, terminal.StreamConfig{WS: ws, Logger: t.logger, ReadyToConnectToNodeC: readyToConnectToNodeC})
 
 	// Create a Teleport client, if not able to, show the reason to the user in
 	// the terminal.
@@ -483,6 +487,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	go t.streamEvents(ctx, tc)
 	go t.streamSessionStatus(ctx)
 
+	<-readyToConnectToNodeC
 	// Block until the terminal session is complete.
 	t.streamTerminal(ctx, tc)
 	t.logger.DebugContext(ctx, "Closing websocket stream")
@@ -826,72 +831,71 @@ func (t *TerminalHandler) streamSessionStatus(ctx context.Context) {
 	defer ticker.Stop()
 
 	for {
-		tracker, err := t.userAuthClient.GetSessionTracker(ctx, string(t.sessionData.ID))
-		if err != nil {
-			t.logger.WarnContext(ctx, "Failed to find session tracker", "error", err)
-			continue
-		}
-		envelope := &terminal.Envelope{
-			Version: defaults.WebsocketVersion,
-			Type:    defaults.WebsocketSessionStatus,
-		}
-
-		parties := tracker.GetParticipants()
-		var sessionParticipants []auth.SessionAccessContext
-
-		for _, party := range parties {
-			user, err := t.localAccessPoint.GetUser(ctx, party.User, false)
-			if err != nil {
-				continue
-			}
-			var roles []types.Role
-			for _, r := range user.GetRoles() {
-				role, err := t.localAccessPoint.GetRole(ctx, r)
-				if err != nil {
-					continue
-				}
-				roles = append(roles, role)
-			}
-			if err != nil {
-				continue
-			}
-			sessionParticipants = append(sessionParticipants, auth.SessionAccessContext{
-				Username: party.User,
-				Mode:     types.SessionParticipantMode(party.Mode),
-				Roles:    roles,
-			})
-		}
-
-		accessEvaluator := auth.NewSessionAccessEvaluator(tracker.GetHostPolicySets(), types.SSHSessionKind, tracker.GetHostUser())
-		policyFulfillmentStatus := accessEvaluator.GetFulfilledStatusFor(sessionParticipants)
-
-		sessionStatusData, err := json.Marshal(SessionStatusData{
-			State:                   tracker.GetState(),
-			Parties:                 parties,
-			PolicyFulfillmentStatus: policyFulfillmentStatus,
-		})
-		if err != nil {
-			// do something with this error
-			continue
-		}
-
-		envelope.Payload = string(sessionStatusData)
-		envelopeBytes, err := proto.Marshal(envelope)
-		if err != nil {
-			t.sendError(ctx, "unable to marshal session data event for web client", err, t.stream)
-			// do something with this error as well
-			continue
-		}
-		if err := t.stream.WriteMessage(websocket.BinaryMessage, envelopeBytes); err != nil {
-			t.sendError(ctx, "unable to write message to socket", err, t.stream)
-			// finally, this error
-			continue
-		}
-
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			tracker, err := t.userAuthClient.GetSessionTracker(ctx, string(t.sessionData.ID))
+			if err != nil {
+				continue
+			}
+			envelope := &terminal.Envelope{
+				Version: defaults.WebsocketVersion,
+				Type:    defaults.WebsocketSessionStatus,
+			}
+
+			parties := tracker.GetParticipants()
+			var sessionParticipants []auth.SessionAccessContext
+
+			for _, party := range parties {
+				user, err := t.localAccessPoint.GetUser(ctx, party.User, false)
+				if err != nil {
+					continue
+				}
+				var roles []types.Role
+				for _, r := range user.GetRoles() {
+					role, err := t.localAccessPoint.GetRole(ctx, r)
+					if err != nil {
+						continue
+					}
+					roles = append(roles, role)
+				}
+				if err != nil {
+					continue
+				}
+				sessionParticipants = append(sessionParticipants, auth.SessionAccessContext{
+					Username: party.User,
+					Mode:     types.SessionParticipantMode(party.Mode),
+					Roles:    roles,
+				})
+			}
+
+			accessEvaluator := auth.NewSessionAccessEvaluator(tracker.GetHostPolicySets(), types.SSHSessionKind, tracker.GetHostUser())
+			policyFulfillmentStatus := accessEvaluator.GetFulfilledStatusFor(sessionParticipants)
+
+			sessionStatusData, err := json.Marshal(SessionStatusData{
+				State:                   tracker.GetState(),
+				Parties:                 parties,
+				PolicyFulfillmentStatus: policyFulfillmentStatus,
+			})
+			if err != nil {
+				// do something with this error
+				continue
+			}
+
+			envelope.Payload = string(sessionStatusData)
+			envelopeBytes, err := proto.Marshal(envelope)
+			if err != nil {
+				t.sendError(ctx, "unable to marshal session data event for web client", err, t.stream)
+				// do something with this error as well
+				continue
+			}
+			if err := t.stream.WriteMessage(websocket.BinaryMessage, envelopeBytes); err != nil {
+				t.sendError(ctx, "unable to write message to socket", err, t.stream)
+				// finally, this error
+				continue
+			}
+
 		}
 	}
 }

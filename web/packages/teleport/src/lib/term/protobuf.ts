@@ -30,6 +30,7 @@ export const MessageTypeEnum = {
   FILE_TRANSFER_REQUEST: 'f',
   FILE_TRANSFER_DECISION: 't',
   MFA_CHALLENGE: 'n',
+  READY_TO_JOIN: 'j',
   ERROR: 'e',
   LATENCY: 'l',
   KUBE_EXEC: 'k',
@@ -58,6 +59,7 @@ export const messageFields = {
       fileTransferRequest: MessageTypeEnum.FILE_TRANSFER_REQUEST.charCodeAt(0),
       fileTransferDecision:
         MessageTypeEnum.FILE_TRANSFER_DECISION.charCodeAt(0),
+      readyToJoin: MessageTypeEnum.READY_TO_JOIN.charCodeAt(0),
       data: MessageTypeEnum.RAW.charCodeAt(0),
       event: MessageTypeEnum.AUDIT.charCodeAt(0),
       close: MessageTypeEnum.SESSION_END.charCodeAt(0),
@@ -92,6 +94,10 @@ export class Protobuf {
 
   encodeFileTransferDecision(message) {
     return this.encode(messageFields.type.values.fileTransferDecision, message);
+  }
+
+  encodeReadyToJoin() {
+    return this.encode(messageFields.type.values.readyToJoin, '');
   }
 
   encodeKubeExecData(message) {

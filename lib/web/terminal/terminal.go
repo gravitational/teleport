@@ -84,6 +84,8 @@ type WSStream struct {
 	challengeC chan Envelope
 	rawC       chan Envelope
 
+	readyToJoinOnce sync.Once
+
 	// buffer is a buffer used to store the remaining payload data if it did not
 	// fit into the buffer provided by the callee to Read method
 	buffer []byte
@@ -425,6 +427,7 @@ type Stream struct {
 	// sshSession holds the "shell" SSH channel to the node.
 	sshSession    *tracessh.Session
 	sessionReadyC chan struct{}
+	readyToJoinC  chan struct{}
 }
 
 // StreamConfig contains dependencies of a TerminalStream.
@@ -436,6 +439,9 @@ type StreamConfig struct {
 	// A custom set of handlers to process messages received
 	// over the websocket. Optional.
 	Handlers map[string]WSHandlerFunc
+
+	ReadyToConnectToNodeC    chan struct{}
+	ReadyToConnectToNodeOnce sync.Once
 }
 
 func NewWStream(ctx context.Context, ws WSConn, log *slog.Logger, handlers map[string]WSHandlerFunc) *WSStream {
@@ -475,6 +481,14 @@ func NewStream(ctx context.Context, cfg StreamConfig) *Stream {
 
 	if _, ok := cfg.Handlers[defaults.WebsocketFileTransferDecision]; !ok {
 		cfg.Handlers[defaults.WebsocketFileTransferDecision] = t.handleFileTransferDecision
+	}
+
+	if _, ok := cfg.Handlers[defaults.WebsocketReadyToJoin]; !ok {
+		cfg.Handlers[defaults.WebsocketReadyToJoin] = func(ctx context.Context, e Envelope) {
+			t.readyToJoinOnce.Do(func() {
+				close(cfg.ReadyToConnectToNodeC)
+			})
+		}
 	}
 
 	if cfg.Logger == nil {

@@ -185,7 +185,7 @@ function DocumentSsh({ doc, visible, mode }: PropTypes) {
       {sessionStatus?.state === SessionState.Pending ? (
         <WaitingRoomDialog
           sessionStatus={sessionStatus}
-          mode={mode}
+          handleReadyToJoin={() => tty.readyToJoin()}
           mfa={mfa}
         />
       ) : (
@@ -205,16 +205,17 @@ function DocumentSsh({ doc, visible, mode }: PropTypes) {
 }
 
 function WaitingRoomDialog({
+  handleReadyToJoin,
   sessionStatus,
-  mode,
   mfa,
 }: {
+  handleReadyToJoin(): void;
   sessionStatus: SessionStatus;
-  mode: ParticipantMode;
   mfa: MfaState;
 }) {
   const ctx = useConsoleContext();
 
+  const [joining, setJoining] = useState(false);
   const [showMfaDialog, setShowMfaDialog] = useState(false);
 
   return (
@@ -290,11 +291,15 @@ function WaitingRoomDialog({
 
       {shouldShowMfaPrompt(mfa) && (
         <ButtonPrimary
-          onClick={() => setShowMfaDialog(true)}
+          disabled={joining}
+          onClick={() => {
+            setJoining(true);
+            handleReadyToJoin();
+          }}
           mt={4}
           width="180px"
         >
-          Join this session
+          {joining ? 'Joining...' : 'Join this session'}
         </ButtonPrimary>
       )}
 
