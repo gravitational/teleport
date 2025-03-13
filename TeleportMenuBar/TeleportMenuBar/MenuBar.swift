@@ -15,7 +15,7 @@ struct MenuBar: Scene {
   var stopVnet: () async -> Void
   var listRootClusters: () async -> Void
   var tshdClient: Teleport_Lib_Teleterm_V1_TerminalService.Client<HTTP2ClientTransport.Posix>
-  
+
   var body: some Scene {
     MenuBarExtra("Teleport Menu Bar App", systemImage: "gearshape.fill") {
       if let response = listRootClustersResponse {
@@ -29,22 +29,28 @@ struct MenuBar: Scene {
           "No active cluster"
         }
 
+        let rootClusterAdapter = Binding<String>(
+          get: {
+            currentRootCluster?.uri ?? ""
+          }, set: { newClusterUri in
+              Task {
+                do {
+
+                  try await tshdClient.updateCurrentProfile(.with {$0.rootClusterUri = newClusterUri})
+
+                  await listRootClusters()
+                } catch let error {
+                  print("Could not update profile: \(error)")
+                }
+              }
+          })
+
         if otherClusters.isEmpty {
           Text(currentClusterLabel)
         } else {
-          Menu(currentClusterLabel) {
-            ForEach(otherClusters, id: \.uri) { rootCluster in
-              Button(getClusterLabel(rootCluster)) {
-                Task {
-                  do {
-                    try await tshdClient.updateCurrentProfile(.with {$0.rootClusterUri = rootCluster.uri})
-
-                    await listRootClusters()
-                  } catch let error {
-                    print("Could not update profile: \(error)")
-                  }
-                }
-              }
+          Picker(currentClusterLabel, selection: rootClusterAdapter) {
+            ForEach(response.clusters, id: \.uri) {
+              rootCluster in Text(getClusterLabel(rootCluster))
             }
           }
         }
