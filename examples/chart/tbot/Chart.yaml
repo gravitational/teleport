@@ -1,4 +1,4 @@
-.version: &version "17.3.3-dev.tigrato.2"
+.version: &version "17.3.3-dev.tigrato.3"
 
 name: tbot
 apiVersion: v2
