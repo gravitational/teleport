@@ -344,9 +344,6 @@ type TerminalHandler struct {
 
 	// websocketConn is the active websocket connection
 	websocketConn *websocket.Conn
-
-	readyToConnectToNodeC chan struct{}
-	reacyToConnectOnce    sync.Once
 }
 
 // ServeHTTP builds a connection to the remote node and then pumps back two types of
@@ -452,8 +449,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	tctx := oteltrace.ContextWithRemoteSpanContext(context.Background(), oteltrace.SpanContextFromContext(r.Context()))
 	ctx, cancel := context.WithCancel(tctx)
 	defer cancel()
-	readyToConnectToNodeC := make(chan struct{})
-	t.stream = terminal.NewStream(ctx, terminal.StreamConfig{WS: ws, Logger: t.logger, ReadyToConnectToNodeC: readyToConnectToNodeC})
+	t.stream = terminal.NewStream(ctx, terminal.StreamConfig{WS: ws, Logger: t.logger})
 
 	// Create a Teleport client, if not able to, show the reason to the user in
 	// the terminal.
@@ -487,7 +483,6 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	go t.streamEvents(ctx, tc)
 	go t.streamSessionStatus(ctx)
 
-	<-readyToConnectToNodeC
 	// Block until the terminal session is complete.
 	t.streamTerminal(ctx, tc)
 	t.logger.DebugContext(ctx, "Closing websocket stream")
@@ -907,6 +902,11 @@ func (t *TerminalHandler) streamSessionStatus(ctx context.Context) {
 func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.TeleportClient) {
 	ctx, span := t.tracer.Start(ctx, "terminal/streamTerminal")
 	defer span.End()
+
+	// if session exists, wait for
+	if t.sessionData.Moderated && t.sessionData.Owner != tc.Username {
+		<-t.stream.ReadyToConnectToNodeC
+	}
 
 	nc, err := t.connectToHost(ctx, t.stream, tc, t.connectToNodeWithMFA)
 	if err != nil {

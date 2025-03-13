@@ -312,19 +312,17 @@ function WaitingRoomDialog({
         </Flex>
       ))}
 
-      {shouldShowMfaPrompt(mfa) && (
-        <ButtonPrimary
-          disabled={joining}
-          onClick={() => {
-            setJoining(true);
-            handleReadyToJoin();
-          }}
-          mt={4}
-          width="180px"
-        >
-          {joining ? 'Joining...' : 'Join this session'}
-        </ButtonPrimary>
-      )}
+      <ButtonPrimary
+        disabled={joining}
+        onClick={() => {
+          setJoining(true);
+          handleReadyToJoin();
+        }}
+        mt={4}
+        width="180px"
+      >
+        {joining ? 'Joining...' : 'Join this session'}
+      </ButtonPrimary>
 
       {showMfaDialog && (
         <AuthnDialog

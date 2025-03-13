@@ -178,6 +178,7 @@ class Tty extends EventEmitterMfaSender {
   }
 
   readyToJoin() {
+    console.log('im ready to join');
     const encoded = this._proto.encodeReadyToJoin();
     const bytearray = new Uint8Array(encoded);
     this.socket.send(bytearray);
@@ -244,6 +245,7 @@ class Tty extends EventEmitterMfaSender {
 
       switch (msg.type) {
         case MessageTypeEnum.MFA_CHALLENGE:
+          console.log('MFA_CHALLENGE', msg.payload);
           this.emit(TermEvent.MFA_CHALLENGE, msg.payload);
           break;
         case MessageTypeEnum.AUDIT:

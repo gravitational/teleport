@@ -425,9 +425,9 @@ type Stream struct {
 	// closed is set to true after the stream is closed.
 	closed bool
 	// sshSession holds the "shell" SSH channel to the node.
-	sshSession    *tracessh.Session
-	sessionReadyC chan struct{}
-	readyToJoinC  chan struct{}
+	sshSession            *tracessh.Session
+	sessionReadyC         chan struct{}
+	ReadyToConnectToNodeC chan struct{}
 }
 
 // StreamConfig contains dependencies of a TerminalStream.
@@ -439,9 +439,6 @@ type StreamConfig struct {
 	// A custom set of handlers to process messages received
 	// over the websocket. Optional.
 	Handlers map[string]WSHandlerFunc
-
-	ReadyToConnectToNodeC    chan struct{}
-	ReadyToConnectToNodeOnce sync.Once
 }
 
 func NewWStream(ctx context.Context, ws WSConn, log *slog.Logger, handlers map[string]WSHandlerFunc) *WSStream {
@@ -464,7 +461,8 @@ func NewWStream(ctx context.Context, ws WSConn, log *slog.Logger, handlers map[s
 // data over the provided [websocket.Conn]
 func NewStream(ctx context.Context, cfg StreamConfig) *Stream {
 	t := &Stream{
-		sessionReadyC: make(chan struct{}),
+		sessionReadyC:         make(chan struct{}),
+		ReadyToConnectToNodeC: make(chan struct{}),
 	}
 
 	if cfg.Handlers == nil {
@@ -490,7 +488,7 @@ func NewStream(ctx context.Context, cfg StreamConfig) *Stream {
 	if _, ok := cfg.Handlers[defaults.WebsocketReadyToJoin]; !ok {
 		cfg.Handlers[defaults.WebsocketReadyToJoin] = func(ctx context.Context, e Envelope) {
 			t.readyToJoinOnce.Do(func() {
-				close(cfg.ReadyToConnectToNodeC)
+				close(t.ReadyToConnectToNodeC)
 			})
 		}
 	}
