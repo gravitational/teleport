@@ -247,6 +247,7 @@ func (c *ClientConn) Dial(nodeID string, src net.Addr, dst net.Addr, tunnelType 
 		},
 		Timestamp: timestamppb.Now(),
 		Nonce:     nonce,
+		Permit:    permit,
 	}
 	sizedReqBuf, err := marshalSized(req)
 	if err != nil {

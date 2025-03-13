@@ -53,6 +53,8 @@ message DialRequest {
   // ignored, although nonce and timestamp should still be set so they can be
   // logged.
   bool ping = 7;
+
+  bytes permit = 8;
 }
 
 // A stringy Go net.Addr. Can be converted to and from a lib/utils.NetAddr.
