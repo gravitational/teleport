@@ -103,7 +103,10 @@ func (r resourceTeleportClusterNetworkingConfig) Create(ctx context.Context, req
 			resp.Diagnostics.Append(diagFromWrappedErr("Error reading ClusterNetworkingConfig", trace.Wrap(err), "cluster_networking_config"))
 			return
 		}
-		if clusterNetworkingConfigBefore.GetMetadata().Revision != clusterNetworkingConfigI.GetMetadata().Revision || false {
+
+		previousMetadata := clusterNetworkingConfigBefore.GetMetadata()
+		currentMetadata := clusterNetworkingConfigI.GetMetadata()
+		if previousMetadata.GetRevision() != currentMetadata.GetRevision() || false {
 			break
 		}
 		if bErr := backoff.Do(ctx); bErr != nil {
@@ -159,6 +162,7 @@ func (r resourceTeleportClusterNetworkingConfig) Read(ctx context.Context, req t
 		return
 	}
 
+	
 	clusterNetworkingConfig := clusterNetworkingConfigI.(*apitypes.ClusterNetworkingConfigV2)
 	diags = tfschema.CopyClusterNetworkingConfigV2ToTerraform(ctx, clusterNetworkingConfig, &state)
 	resp.Diagnostics.Append(diags...)
@@ -211,7 +215,6 @@ func (r resourceTeleportClusterNetworkingConfig) Update(ctx context.Context, req
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating ClusterNetworkingConfig", trace.Wrap(err), "cluster_networking_config"))
 		return
 	}
-
 	var clusterNetworkingConfigI apitypes.ClusterNetworkingConfig
 
 	tries := 0
@@ -241,6 +244,7 @@ func (r resourceTeleportClusterNetworkingConfig) Update(ctx context.Context, req
 		return
 	}
 
+	
 	clusterNetworkingConfig = clusterNetworkingConfigI.(*apitypes.ClusterNetworkingConfigV2)
 	diags = tfschema.CopyClusterNetworkingConfigV2ToTerraform(ctx, clusterNetworkingConfig, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -273,7 +277,6 @@ func (r resourceTeleportClusterNetworkingConfig) ImportState(ctx context.Context
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating ClusterNetworkingConfig", trace.Wrap(err), "cluster_networking_config"))
 		return
 	}
-
 	clusterNetworkingConfig := clusterNetworkingConfigI.(*apitypes.ClusterNetworkingConfigV2)
 
 	var state types.Object
@@ -289,8 +292,9 @@ func (r resourceTeleportClusterNetworkingConfig) ImportState(ctx context.Context
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	id := clusterNetworkingConfig.GetName()
 
-	state.Attrs["id"] = types.String{Value: clusterNetworkingConfig.Metadata.Name}
+	state.Attrs["id"] = types.String{Value: id}
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)

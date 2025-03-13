@@ -1050,14 +1050,15 @@ func TestUpdater_Remove(t *testing.T) {
 	const version = "active-version"
 
 	tests := []struct {
-		name           string
-		cfg            *UpdateConfig // nil -> file not present
-		linkSystemErr  error
-		isEnabledErr   error
-		syncErr        error
-		reloadErr      error
-		processEnabled bool
-		force          bool
+		name          string
+		cfg           *UpdateConfig // nil -> file not present
+		linkSystemErr error
+		isActiveErr   error
+		syncErr       error
+		reloadErr     error
+		processActive bool
+		force         bool
+		serviceName   string
 
 		unlinkedVersion string
 		teardownCalls   int
@@ -1093,7 +1094,7 @@ func TestUpdater_Remove(t *testing.T) {
 			force:           true,
 		},
 		{
-			name: "no system links, process enabled, force",
+			name: "no system links, process active, force",
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
@@ -1106,7 +1107,7 @@ func TestUpdater_Remove(t *testing.T) {
 			},
 			linkSystemErr:   ErrNoBinaries,
 			linkSystemCalls: 1,
-			processEnabled:  true,
+			processActive:   true,
 			force:           true,
 			errMatch:        "refusing to remove",
 		},
@@ -1158,7 +1159,54 @@ func TestUpdater_Remove(t *testing.T) {
 			},
 			linkSystemErr:   ErrNoBinaries,
 			linkSystemCalls: 1,
-			isEnabledErr:    ErrNotSupported,
+			isActiveErr:     ErrNotSupported,
+			unlinkedVersion: version,
+			teardownCalls:   1,
+			force:           true,
+		},
+		{
+			name: "no system links, process disabled, custom path, force",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Path: "custom",
+				},
+				Status: UpdateStatus{
+					Active: NewRevision(version, 0),
+				},
+			},
+			unlinkedVersion: version,
+			teardownCalls:   1,
+			force:           true,
+		},
+		{
+			name: "no system links, process disabled, custom path, no force",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Path: "custom",
+				},
+				Status: UpdateStatus{
+					Active: NewRevision(version, 0),
+				},
+			},
+			errMatch: "unable to remove",
+		},
+		{
+			name: "no system links, process disabled, custom path, no force, custom service",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Path: "custom",
+				},
+				Status: UpdateStatus{
+					Active: NewRevision(version, 0),
+				},
+			},
+			serviceName:     "custom",
 			unlinkedVersion: version,
 			teardownCalls:   1,
 			force:           true,
@@ -1268,6 +1316,10 @@ func TestUpdater_Remove(t *testing.T) {
 				InsecureSkipVerify: true,
 			}, ns)
 			require.NoError(t, err)
+			updater.TeleportServiceName = serviceName
+			if tt.serviceName != "" {
+				updater.TeleportServiceName = tt.serviceName
+			}
 
 			// Create config file only if provided in test case
 			if tt.cfg != nil {
@@ -1307,11 +1359,8 @@ func TestUpdater_Remove(t *testing.T) {
 					reloadCalls++
 					return tt.reloadErr
 				},
-				FuncIsEnabled: func(_ context.Context) (bool, error) {
-					return tt.processEnabled, tt.isEnabledErr
-				},
 				FuncIsActive: func(_ context.Context) (bool, error) {
-					return false, nil
+					return tt.processActive, tt.isActiveErr
 				},
 			}
 			updater.TeardownNamespace = func(_ context.Context) error {

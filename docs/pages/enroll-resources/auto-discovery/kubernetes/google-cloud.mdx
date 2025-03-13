@@ -123,8 +123,8 @@ $ gcloud projects add-iam-policy-binding ${PROJECT_ID?} \
    --role="projects/${PROJECT_ID?}/roles/GKEAccessManager"
 ```
 
-<Details title="Deploying the Kubernetes Service and Discovery Service
-separately?">
+<details>
+<summary>Deploying the Kubernetes Service and Discovery Service separately?</summary>
 
 Create a service account for each service:
 
@@ -149,7 +149,7 @@ $ gcloud projects add-iam-policy-binding ${PROJECT_ID?} \
    --member="serviceAccount:teleport-kubernetes-service@${PROJECT_ID?}.iam.gserviceaccount.com" \
    --role="projects/${PROJECT_ID?}/roles/GKEAccessManager"
 ```
-</Details>
+</details>
 
 ### Retrieve credentials for your Teleport services
 
@@ -180,7 +180,8 @@ $ gcloud compute instances set-service-account <Var name="vm-name" /> \
    --scopes=cloud-platform
 ```
 
-<Details title="Running the Kubernetes and Discovery Services separately?">
+<details>
+<summary>Running the Kubernetes and Discovery Services separately?</summary>
 
 Stop each VM you plan to use to run the Teleport Kubernetes Service and
 Discovery Service.
@@ -205,7 +206,7 @@ $ gcloud compute instances set-service-account ${VM2_NAME?} \
    --scopes=cloud-platform
 ```
 
-</Details>
+</details>
 
 <Admonition type="warning">
 
@@ -237,8 +238,8 @@ and Kubernetes Service the path
 `/var/lib/teleport/google-cloud-credentials.json`. We will use this credentials
 file when running this service later in this guide.
 
-<Details title="Deploying the Kubernetes Service and Discovery Service
-separately?">
+<details>
+<summary>Deploying the Kubernetes Service and Discovery Service separately?</summary>
 
 Download separate credentials files for each service:
 
@@ -260,7 +261,7 @@ Kubernetes Service at the path
 We will use these credentials files when running this services later in this
 guide.
 
-</Details>
+</details>
 
 </TabItem>
 </Tabs>
@@ -298,7 +299,8 @@ $ echo (=presets.tokens.first=) | sudo tee /tmp/token
 # (=presets.tokens.first=)
 ```
 
-<Details title="Running the Kubernetes and Discovery Services separately?">
+<details>
+<summary>Running the Kubernetes and Discovery Services separately?</summary>
 
 Generate separate tokens for the Kubernetes Service and Discovery Service by
 running the following `tctl` commands:
@@ -314,7 +316,7 @@ Copy each token (e.g., `(=presets.tokens.second=)` and
 `(=presets.tokens.third=)` above) and save it in `/tmp/token` on the machine
 that will run the appropriate service.
 
-</Details>
+</details>
 
 ### Configure the Kubernetes Service and Discovery Service
 
@@ -352,8 +354,8 @@ kubernetes_service:
       "*": "*"
 ```
 
-<Details title="Running the Kubernetes Service and Discovery Service on
-separate hosts?">
+<details>
+<summary>Running the Kubernetes Service and Discovery Service on separate hosts?</summary>
 
 Follow the instructions in this section with two configuration files. The
 configuration file you will save at `/etc/teleport.yaml` on the Kubernetes
@@ -405,7 +407,7 @@ discovery_service:
         "*" : "*"
 ```
 
-</Details>
+</details>
 
 Edit this configuration for your environment as explained below.
 
@@ -494,22 +496,20 @@ command, depending on:
 - Whether you are running the Discovery and Kubernetes Service on Google Cloud
   or another platform
 
-<Tabs dropdownCaption="How your host is running:"
-dropdownSelected="Google Cloud">
-<TabItem options="Google Cloud" label="Package Manager ">
+<Tabs>
+<TabItem label="Google Cloud">
 
-On the host where you will run the Teleport Kubernetes Service and Discovery
-Service, start the Teleport service:
+If you installed Teleport with a package manager, on the host where you will run
+the Teleport Kubernetes Service and Discovery Service, start the Teleport
+service:
 
 ```code
 $ sudo systemctl start teleport
 ```
-</TabItem>
-<TabItem options="Google Cloud" label="TAR Archive ">
 
-On the host where you will run the Teleport Kubernetes Service and Discovery
-Service, create a systemd service configuration for Teleport, enable the
-Teleport service, and start Teleport:
+If you installed Teleport with a TAR archive, the host where you will run the
+Teleport Kubernetes Service and Discovery Service, create a systemd service
+configuration for Teleport, enable the Teleport service, and start Teleport:
 
 ```code
 $ sudo teleport install systemd -o /etc/systemd/system/teleport.service
@@ -517,57 +517,55 @@ $ sudo systemctl enable teleport
 $ sudo systemctl start teleport
 ```
 </TabItem>
-<TabItem options="Other Platform" label="Package Manager">
+<TabItem label="Other platform">
 
-When you installed Teleport via package manager, the installation process
-created a configuration for the init system `systemd` to run Teleport as a
-daemon.
-
-This service reads environment variables from a file at the path
+If you installed Teleport via package manager, the installation process created
+a configuration for the init system `systemd` to run Teleport as a daemon. This
+service reads environment variables from a file at the path
 `/etc/default/teleport`. Teleport's built-in Google Cloud client reads the
 credentials file at the location given by the `GOOGLE_APPLICATION_CREDENTIALS`
-variable.
+variable. In this case:
 
-Ensure that `/etc/default/teleport` has the following content:
+1. Ensure that `/etc/default/teleport` has the following content:
 
-```
-GOOGLE_APPLICATION_CREDENTIALS="/var/lib/teleport/google-cloud-credentials.json"
-```
+   ```
+   GOOGLE_APPLICATION_CREDENTIALS="/var/lib/teleport/google-cloud-credentials.json"
+   ```
 
-Start the Teleport service:
+1. Start the Teleport service:
 
-```code
-$ sudo systemctl enable teleport
-$ sudo systemctl start teleport
-```
-</TabItem>
-<TabItem options="Other Platform" label="TAR Archive">
+   ```code
+   $ sudo systemctl enable teleport
+   $ sudo systemctl start teleport
+   ```
 
-On the host where you are running the Teleport Discovery Service and Kubernetes
-Service, create a systemd configuration that you can use to run Teleport in the
-background:
+If you installed Teleport using a TAR archive:
 
-```code
-$ sudo teleport install systemd -o /etc/systemd/system/teleport.service
-$ sudo systemctl enable teleport
-```
+1. On the host where you are running the Teleport Discovery Service and
+   Kubernetes Service, create a systemd configuration that you can use to run
+   Teleport in the background:
 
-This service reads environment variables from a file at the path
-`/etc/default/teleport`. Teleport's built-in Google Cloud client reads the
-credentials file at the location given by the `GOOGLE_APPLICATION_CREDENTIALS`
-variable.
+   ```code
+   $ sudo teleport install systemd -o /etc/systemd/system/teleport.service
+   $ sudo systemctl enable teleport
+   ```
 
-Ensure that `/etc/default/teleport` has the following content:
+   This service reads environment variables from a file at the path
+   `/etc/default/teleport`. Teleport's built-in Google Cloud client reads the
+   credentials file at the location given by the
+   `GOOGLE_APPLICATION_CREDENTIALS` variable.
 
-```
-GOOGLE_APPLICATION_CREDENTIALS="/var/lib/teleport/google-cloud-credentials.json"
-```
+1. Ensure that `/etc/default/teleport` has the following content:
 
-Start the Discovery Service and Kubernetes Service:
+   ```
+   GOOGLE_APPLICATION_CREDENTIALS="/var/lib/teleport/google-cloud-credentials.json"
+   ```
 
-```code
-$ sudo systemctl start teleport
-```
+1. Start the Discovery Service and Kubernetes Service:
+
+   ```code
+   $ sudo systemctl start teleport
+   ```
 
 </TabItem>
 </Tabs>
@@ -583,7 +581,8 @@ like to enable access to:
 $ kubectl config current-context
 ```
 
-<Details title="Using the wrong context?">
+<details>
+<summary>Using the wrong context?</summary>
 
 Retrieve all available contexts:
 
@@ -599,7 +598,7 @@ $ kubectl config use-context CONTEXT_NAME
 Switched to context CONTEXT_NAME
 ```
 
-</Details>
+</details>
 
 (!docs/pages/includes/kubernetes-access/rbac.mdx!)
 

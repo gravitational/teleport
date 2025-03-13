@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"cmp"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -29,7 +30,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// MTLSCerts is the result for mTLS struct generator
+// MTLSCerts is the result for mTLS certificate generator.
 type MTLSCerts struct {
 	// caCert is a CA certificate struct used to generate mTLS CA cert and private key
 	caCert x509.Certificate
@@ -47,26 +48,18 @@ type MTLSCerts struct {
 
 // keyPair is the pair of certificate and private key
 type keyPair struct {
-	// PrivateKey represents certificate private key
-	PrivateKey *rsa.PrivateKey
-	// Certificate represents certificate
+	PrivateKey  *rsa.PrivateKey
 	Certificate []byte
 }
 
-// GenerateMTLSCerts creates new MTLS certificate generator
+// GenerateMTLSCerts generates server and client TLS certificates.
 func GenerateMTLSCerts(dnsNames []string, ips []string, ttl time.Duration, length int) (*MTLSCerts, error) {
 	notBefore := time.Now()
 	notAfter := notBefore.Add(ttl)
 
-	caDistinguishedName := pkix.Name{
-		CommonName: "CA",
-	}
-	serverDistinguishedName := pkix.Name{
-		CommonName: "Server",
-	}
-	clientDistinguishedName := pkix.Name{
-		CommonName: "Client",
-	}
+	caDistinguishedName := pkix.Name{CommonName: "CA"}
+	serverDistinguishedName := pkix.Name{CommonName: "Server"}
+	clientDistinguishedName := pkix.Name{CommonName: "Client"}
 
 	c := &MTLSCerts{
 		caCert: x509.Certificate{
@@ -98,66 +91,33 @@ func GenerateMTLSCerts(dnsNames []string, ips []string, ttl time.Duration, lengt
 	}
 
 	// Generate and assign serial numbers
-	sn, err := rand.Int(rand.Reader, maxBigInt)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	for _, cert := range []*x509.Certificate{&c.caCert, &c.clientCert, &c.serverCert} {
+		sn, err := rand.Int(rand.Reader, maxBigInt)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cert.SerialNumber = sn
 	}
-
-	c.caCert.SerialNumber = sn
-
-	sn, err = rand.Int(rand.Reader, maxBigInt)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	c.clientCert.SerialNumber = sn
-
-	sn, err = rand.Int(rand.Reader, maxBigInt)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	c.serverCert.SerialNumber = sn
 
 	// Append SANs and IPs to Server and Client certs
-	if err := c.appendSANs(&c.serverCert, dnsNames, ips); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := c.appendSANs(&c.clientCert, dnsNames, ips); err != nil {
-		return nil, trace.Wrap(err)
-	}
+	c.appendSANs(&c.serverCert, dnsNames, ips)
+	c.appendSANs(&c.clientCert, dnsNames, ips)
 
 	// Run the generator
-	err = c.generate(length)
-	if err != nil {
-		return c, err
+	if err := c.generate(length); err != nil {
+		return c, trace.Wrap(err)
 	}
 
 	return c, nil
 }
 
 // appendSANs appends subjectAltName hosts and IPs
-func (c MTLSCerts) appendSANs(cert *x509.Certificate, dnsNames []string, ips []string) error {
+func (MTLSCerts) appendSANs(cert *x509.Certificate, dnsNames []string, ips []string) {
 	cert.DNSNames = dnsNames
 
-	if len(ips) == 0 {
-		for _, name := range dnsNames {
-			ips, err := net.LookupIP(name)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			if ips != nil {
-				cert.IPAddresses = append(cert.IPAddresses, ips...)
-			}
-		}
-	} else {
-		for _, ip := range ips {
-			cert.IPAddresses = append(cert.IPAddresses, net.ParseIP(ip))
-		}
+	for _, ip := range ips {
+		cert.IPAddresses = append(cert.IPAddresses, net.ParseIP(ip))
 	}
-
-	return nil
 }
 
 // Generate generates CA, server and client certificates
@@ -193,16 +153,8 @@ func (c *MTLSCerts) genCertAndPK(length int, cert *x509.Certificate, parent *x50
 	}
 
 	// Check if it's self-signed, assign signer and parent to self
-	s := signer
-	p := parent
-
-	if s == nil {
-		s = pk
-	}
-
-	if p == nil {
-		p = cert
-	}
+	s := cmp.Or(signer, pk)
+	p := cmp.Or(parent, cert)
 
 	// Generate and sign cert
 	certBytes, err := x509.CreateCertificate(rand.Reader, cert, p, &pk.PublicKey, s)
