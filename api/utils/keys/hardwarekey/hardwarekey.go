@@ -30,15 +30,8 @@ import (
 
 // Service for interfacing with hardware private keys.
 type Service interface {
-	// NewPrivateKey creates or retrieves a hardware private key from the given PIV slot matching
-	// the given policy and returns the details required to perform signatures with that key.
-	//
-	// If a customSlot is not provided, the service uses the default slot for the given policy:
-	//   - !touch & !pin -> 9a
-	//   - !touch & pin  -> 9c
-	//   - touch & pin   -> 9d
-	//   - touch & !pin  -> 9e
-	NewPrivateKey(ctx context.Context, customSlot PIVSlot, policy PromptPolicy) (*PrivateKeyRef, error)
+	// NewPrivateKey creates or retrieves a hardware private key for the given config.
+	NewPrivateKey(ctx context.Context, config PrivateKeyConfig) (*PrivateKey, error)
 	// Sign performs a cryptographic signature using the specified hardware
 	// private key and provided signature parameters.
 	Sign(ctx context.Context, ref *PrivateKeyRef, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error)
@@ -52,9 +45,6 @@ type Service interface {
 type PrivateKey struct {
 	service Service
 	ref     *PrivateKeyRef
-	// keyInfo contains additional key info which may be used to add context to prompts,
-	// such as the name of the Teleport user using the key.
-	keyInfo PrivateKeyInfo
 }
 
 // PrivateKeyRef references a specific hardware private key.
@@ -70,11 +60,16 @@ type PrivateKeyRef struct {
 	// AttestationStatement contains the hardware private key's attestation statement, which is
 	// to attest the touch and pin requirements for this hardware private key during login.
 	AttestationStatement *AttestationStatement `json:"attestation_statement"`
+	// ContextualKeyInfo contains contextual key info which may be used to add context to prompts,
+	// such as the name of the Teleport user using the key. This information is not saved encoded
+	// in JSON as this info may depend on the context in which the client is using the key.
+	ContextualKeyInfo ContextualKeyInfo
 }
 
-// PrivateKeyInfo includes info relevant to the key being parsed. Useful for adding context
-// to hardware key pin/touch prompts when performing signatures.
-type PrivateKeyInfo struct {
+// ContextualKeyInfo contains contextual information associated with a hardware [PrivateKey].
+// TODO(Joerger): This is not hardware key specific, so it may be better placed in a more general package
+// if it is used more broadly, though moving this to the keys package would cause an import cycle.
+type ContextualKeyInfo struct {
 	// ProxyHost is the root proxy hostname that a key is associated with.
 	ProxyHost string
 }
@@ -88,11 +83,11 @@ type PromptPolicy struct {
 }
 
 // NewPrivateKey returns a [PrivateKey] for the given service and ref.
-func NewPrivateKey(s Service, ref *PrivateKeyRef, keyInfo PrivateKeyInfo) *PrivateKey {
+// keyInfo is an optional argument to supply additional contextual info.
+func NewPrivateKey(s Service, ref *PrivateKeyRef) *PrivateKey {
 	return &PrivateKey{
 		service: s,
 		ref:     ref,
-		keyInfo: keyInfo,
 	}
 }
 
@@ -131,17 +126,17 @@ func (h *PrivateKey) WarmupHardwareKey(ctx context.Context) error {
 	return trace.Wrap(err, "failed to perform warmup signature with hardware private key")
 }
 
-// encodeHardwarePrivateKeyRef encodes a [PrivateKeyRef] to JSON.
-func EncodeHardwarePrivateKeyRef(ref *PrivateKeyRef) ([]byte, error) {
-	keyRefBytes, err := json.Marshal(ref)
+// Encode encodes [h]'s [PrivateKeyRef] to JSON.
+func (h *PrivateKey) EncodeKeyRef() ([]byte, error) {
+	keyRefBytes, err := json.Marshal(h.ref)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return keyRefBytes, nil
 }
 
-// decodeHardwarePrivateKeyRef decodes a [PrivateKeyRef] from JSON.
-func DecodeHardwarePrivateKeyRef(encodedKeyRef []byte) (*PrivateKeyRef, error) {
+// DecodeKeyRef decodes a [PrivateKeyRef] from JSON.
+func DecodeKeyRef(encodedKeyRef []byte) (*PrivateKeyRef, error) {
 	// TODO: old clients would only have SerialNumber and SlotKey, gather missing information directly for backwards compatibility.
 	keyRef := &PrivateKeyRef{}
 	if err := json.Unmarshal(encodedKeyRef, keyRef); err != nil {
@@ -187,6 +182,21 @@ func (r *PrivateKeyRef) UnmarshalJSON(b []byte) error {
 
 	*r = PrivateKeyRef(ref.refAlias)
 	return nil
+}
+
+// PrivateKeyConfig contains config for creating a new hardware private key.
+type PrivateKeyConfig struct {
+	// Policy is a prompt policy to require for the hardware private key.
+	Policy PromptPolicy
+	// CustomSlot is a specific PIV slot to generate the hardware private key in.
+	// If unset, the default slot for the given policy will be used.
+	//   - !touch & !pin -> 9a
+	//   - !touch & pin  -> 9c
+	//   - touch & pin   -> 9d
+	//   - touch & !pin  -> 9e
+	CustomSlot PIVSlot
+	// ContextualKeyInfo contains additional info to associate with the key.
+	ContextualKeyInfo ContextualKeyInfo
 }
 
 // PIVSlot is the string representation of a PIV slot. e.g. "9a".

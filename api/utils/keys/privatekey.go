@@ -96,21 +96,17 @@ func NewSoftwarePrivateKey(signer crypto.Signer) (*PrivateKey, error) {
 // NewHardwarePrivateKey creates or retrieves a hardware private key from from the given hardware key
 // service that matches the given PIV slot and private key policy, returning the hardware private key
 // as a [PrivateKey].
-func NewHardwarePrivateKey(ctx context.Context, s hardwarekey.Service, customSlot hardwarekey.PIVSlot, requiredPolicy PrivateKeyPolicy, keyInfo hardwarekey.PrivateKeyInfo) (*PrivateKey, error) {
+func NewHardwarePrivateKey(ctx context.Context, s hardwarekey.Service, keyConfig hardwarekey.PrivateKeyConfig) (*PrivateKey, error) {
 	if s == nil {
 		return nil, trace.BadParameter("cannot create a new hardware private key without a hardware key service provided")
 	}
 
-	keyRef, err := s.NewPrivateKey(ctx, customSlot, hardwarekey.PromptPolicy{
-		TouchRequired: requiredPolicy.IsHardwareKeyTouchVerified(),
-		PINRequired:   requiredPolicy.IsHardwareKeyPINVerified(),
-	})
+	hwPrivateKey, err := s.NewPrivateKey(ctx, keyConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	hwPrivateKey := hardwarekey.NewPrivateKey(s, keyRef, keyInfo)
-	encodedKeyRef, err := hardwarekey.EncodeHardwarePrivateKeyRef(keyRef)
+	encodedKeyRef, err := hwPrivateKey.EncodeKeyRef()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -284,8 +280,10 @@ func LoadPrivateKey(keyFile string) (*PrivateKey, error) {
 
 // ParsePrivateKeyOptions contains config options for ParsePrivateKey.
 type ParsePrivateKeyOptions struct {
+	// HardwareKeyService is the hardware key service to use with parsed hardware private keys.
 	HardwareKeyService hardwarekey.Service
-	KeyInfo            hardwarekey.PrivateKeyInfo
+	// ContextualKeyInfo is contextual information associated with the key.
+	ContextualKeyInfo hardwarekey.ContextualKeyInfo
 }
 
 // ParsePrivateKeyOpt applies configuration options.
@@ -298,10 +296,10 @@ func WithHardwareKeyService(hwKeyService hardwarekey.Service) ParsePrivateKeyOpt
 	}
 }
 
-// WithKeyInfo adds contextual key info to the parsed private key.
-func WithKeyInfo(proxyHost string) ParsePrivateKeyOpt {
+// WithContextualKeyInfo adds contextual key info to the parsed private key.
+func WithContextualKeyInfo(proxyHost string) ParsePrivateKeyOpt {
 	return func(o *ParsePrivateKeyOptions) {
-		o.KeyInfo = hardwarekey.PrivateKeyInfo{ProxyHost: proxyHost}
+		o.ContextualKeyInfo = hardwarekey.ContextualKeyInfo{ProxyHost: proxyHost}
 	}
 }
 
@@ -324,12 +322,13 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 			return nil, trace.BadParameter("cannot parse hardware private key without an initialized hardware key service")
 		}
 
-		keyRef, err := hardwarekey.DecodeHardwarePrivateKeyRef(block.Bytes)
+		keyRef, err := hardwarekey.DecodeKeyRef(block.Bytes)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse hardware private key")
 		}
 
-		hwPrivateKey := hardwarekey.NewPrivateKey(appliedOpts.HardwareKeyService, keyRef, appliedOpts.KeyInfo)
+		keyRef.ContextualKeyInfo = appliedOpts.ContextualKeyInfo
+		hwPrivateKey := hardwarekey.NewPrivateKey(appliedOpts.HardwareKeyService, keyRef)
 		return NewPrivateKey(hwPrivateKey, keyPEM)
 	case OpenSSHPrivateKeyType:
 		priv, err := ssh.ParseRawPrivateKey(keyPEM)

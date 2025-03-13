@@ -536,7 +536,7 @@ func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, hwks hardwarekey.Service, opt
 		return nil, trace.Wrap(err, "no session keys for %+v", idx)
 	}
 
-	tlsCred, err := readTLSCredential(fs.userTLSKeyPath(idx), fs.tlsCertPath(idx), keys.WithHardwareKeyService(hwks), keys.WithKeyInfo(idx.ProxyHost))
+	tlsCred, err := readTLSCredential(fs.userTLSKeyPath(idx), fs.tlsCertPath(idx), keys.WithHardwareKeyService(hwks), keys.WithContextualKeyInfo(idx.ProxyHost))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			if _, statErr := os.Stat(fs.tlsCertPathLegacy(idx)); statErr == nil {
@@ -547,7 +547,7 @@ func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, hwks hardwarekey.Service, opt
 		return nil, trace.Wrap(err)
 	}
 
-	sshPriv, err := keys.LoadKeyPair(fs.userSSHKeyPath(idx), fs.publicKeyPath(idx), keys.WithHardwareKeyService(hwks), keys.WithKeyInfo(idx.ProxyHost))
+	sshPriv, err := keys.LoadKeyPair(fs.userSSHKeyPath(idx), fs.publicKeyPath(idx), keys.WithHardwareKeyService(hwks), keys.WithContextualKeyInfo(idx.ProxyHost))
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -570,7 +570,7 @@ func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, hwks hardwarekey.Service, opt
 }
 
 func (fs *FSKeyStore) updateKeyRingWithCerts(o CertOption, hwks hardwarekey.Service, keyRing *KeyRing) error {
-	return trace.Wrap(o.updateKeyRing(fs.KeyDir, keyRing.KeyRingIndex, keyRing, keys.WithHardwareKeyService(hwks), keys.WithKeyInfo(keyRing.ProxyHost)))
+	return trace.Wrap(o.updateKeyRing(fs.KeyDir, keyRing.KeyRingIndex, keyRing, keys.WithHardwareKeyService(hwks), keys.WithContextualKeyInfo(keyRing.ProxyHost)))
 }
 
 // GetSSHCertificates gets all certificates signed for the given user and proxy.

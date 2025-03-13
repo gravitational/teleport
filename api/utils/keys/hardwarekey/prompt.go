@@ -16,23 +16,25 @@ package hardwarekey
 
 import (
 	"context"
+
+	"github.com/gravitational/trace"
 )
 
 // Prompt provides methods to interact with a hardware [PrivateKey].
 type Prompt interface {
 	// AskPIN prompts the user for a PIN.
 	// The requirement tells if the PIN is required or optional.
-	AskPIN(ctx context.Context, requirement PINPromptRequirement, keyInfo PrivateKeyInfo) (string, error)
+	AskPIN(ctx context.Context, requirement PINPromptRequirement, keyInfo ContextualKeyInfo) (string, error)
 	// Touch prompts the user to touch the hardware key.
-	Touch(ctx context.Context, keyInfo PrivateKeyInfo) error
+	Touch(ctx context.Context, keyInfo ContextualKeyInfo) error
 	// ChangePIN asks for a new PIN.
 	// If the PUK has a default value, it should ask for the new value for it.
 	// It is up to the implementer how the validation is handled.
 	// For example, CLI prompt can ask for a valid PIN/PUK in a loop, a GUI
 	// prompt can use the frontend validation.
-	ChangePIN(ctx context.Context, keyInfo PrivateKeyInfo) (*PINAndPUK, error)
+	ChangePIN(ctx context.Context, keyInfo ContextualKeyInfo) (*PINAndPUK, error)
 	// ConfirmSlotOverwrite asks the user if the slot's private key and certificate can be overridden.
-	ConfirmSlotOverwrite(ctx context.Context, message string, keyInfo PrivateKeyInfo) (bool, error)
+	ConfirmSlotOverwrite(ctx context.Context, message string, keyInfo ContextualKeyInfo) (bool, error)
 }
 
 // PINPromptRequirement specifies whether a PIN is required.
@@ -54,6 +56,23 @@ type PINAndPUK struct {
 	PUK string
 	// PUKChanged is true if the user changed the default PUK.
 	PUKChanged bool
+}
+
+// Validate [p].
+func (p PINAndPUK) Validate() error {
+	if !IsPINLengthValid(p.PIN) {
+		return trace.BadParameter("PIN must be 6-8 characters long")
+	}
+	if p.PIN == defaultPIN {
+		return trace.BadParameter("The default PIN is not supported")
+	}
+	if !IsPINLengthValid(p.PUK) {
+		return trace.BadParameter("PUK must be 6-8 characters long")
+	}
+	if p.PUK == defaultPUK {
+		return trace.BadParameter("The default PUK is not supported")
+	}
+	return nil
 }
 
 // IsPINLengthValid returns whether the given PIV PIN, or PUK, is of valid length (6-8 characters).
