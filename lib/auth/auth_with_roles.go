@@ -1855,7 +1855,8 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		types.KindUserGroup,
 		types.KindSAMLIdPServiceProvider,
 		types.KindIdentityCenterAccount,
-		types.KindIdentityCenterAccountAssignment:
+		types.KindIdentityCenterAccountAssignment,
+		types.KindGitServer:
 
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -2026,7 +2027,8 @@ func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAcc
 		types.KindUnifiedResource,
 		types.KindSAMLIdPServiceProvider,
 		types.KindIdentityCenterAccount,
-		types.KindIdentityCenterAccountAssignment:
+		types.KindIdentityCenterAccountAssignment,
+		types.KindGitServer:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
 	default:
 		return nil, trace.BadParameter("could not check access to resource type %s", resource)
@@ -3451,6 +3453,14 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		keys.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement),
 		keys.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement),
 	)
+
+	// Get GitHub identities from login state if available.
+	if len(user.GetGithubIdentities()) == 0 {
+		loginState, err := a.authServer.GetUserLoginState(ctx, user.GetName())
+		if err == nil {
+			user.SetGithubIdentities(loginState.GetGithubIdentities())
+		}
+	}
 
 	// Generate certificate, note that the roles TTL will be ignored because
 	// the request is coming from "tctl auth sign" itself.

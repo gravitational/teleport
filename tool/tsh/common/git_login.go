@@ -117,8 +117,28 @@ func doGitHubOAuthFlow(cf *CLIConf, org string) error {
 		return trace.Wrap(err)
 	}
 
+	profile, err := cf.ProfileStatus()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
 		return tc.ReissueWithGitHubOAuth(cf.Context, org)
 	})
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Ideally active requests should be handled during the above oauth flow in
+	// one shot but that complicates the flow by a lot. For now, we work around
+	// this by manually reissuing the request IDs after the oauth flow. The
+	// oauth flow is usually only a one time login anyway so we don't expect
+	// this happen often.
+	if len(profile.ActiveRequests) > 0 {
+		fmt.Fprintln(cf.Stdout(), "Reissuing certificates for access requests ...")
+		if err := reissueWithRequests(cf, tc, profile.ActiveRequests, nil /*dropRequests*/); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }

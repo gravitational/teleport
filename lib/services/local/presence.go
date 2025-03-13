@@ -1308,6 +1308,9 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindIdentityCenterAccountAssignment:
 		keyPrefix = []string{awsResourcePrefix, awsAccountAssignmentPrefix}
 		unmarshalItemFunc = backendItemToIdentityCenterAccountAssignment
+	case types.KindGitServer:
+		keyPrefix = []string{gitServerPrefix}
+		unmarshalItemFunc = backendItemToServer(types.KindGitServer)
 	default:
 		return nil, trace.NotImplemented("%s not implemented at ListResources", req.ResourceType)
 	}
