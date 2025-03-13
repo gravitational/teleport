@@ -231,6 +231,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 
 	principals := []string{
 		host,
+		// Add in principal for when nodes are on leaf clusters.
 		host + "." + clusterName,
 	}
 
