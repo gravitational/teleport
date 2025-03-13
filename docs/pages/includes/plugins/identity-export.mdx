@@ -20,9 +20,8 @@ establishes a reverse tunnel connection to the Auth Service. The {{ client }}
 uses this reverse tunnel, along with your TLS credentials, to connect to the
 Auth Service's gRPC endpoint.
 
-<Details
-  title="Certificate Lifetime"
->
+<details>
+<summary>Certificate Lifetime</summary>
 
   By default, `tctl auth sign` produces certificates with a relatively short
   lifetime. For production deployments, we suggest using [Machine
@@ -40,7 +39,7 @@ Auth Service's gRPC endpoint.
   $ tsh login --proxy=teleport.example.com --ttl=60060
   ```
 
-</Details>
+</details>
 
 If you are running the {{ client }} on a Linux server, create a data directory
 to hold certificate files for the {{ client }}:

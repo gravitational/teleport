@@ -32,12 +32,13 @@ The Database Service assumes an IAM role in one of following situations:
 - The `assume_role_arn` field is specified for the database resources or
   dynamic resource matchers.
 
-<Details title="What if both situations apply? (role chaining)">
+<details>
+<summary>What if both situations apply? (role chaining)</summary>
 When both of the above conditions are true for a database connection, the
 Database Service performs a role chaining by assuming the IAM role specified
 in `assume_role_arn` first, then using that IAM role to assume the IAM role for
 the database user.
-</Details>
+</details>
 
 You may encounter the following error if the trust relationship is not
 configured properly between the IAM roles:
@@ -45,11 +46,12 @@ configured properly between the IAM roles:
 AccessDenied: User: arn:aws:sts::111111111111:assumed-role/teleport-db-service-role/i-* is not authorized to perform: sts:AssumeRole on resource: arn:aws:iam::111111111111:role/db-user-role
 ```
 
-<Details title="how to properly configure the trust relationship?">
+<details>
+<summary>how to properly configure the trust relationship?</summary>
 
 (!docs/pages/includes/database-access/iam_role_trust_relationship.mdx role1="teleport-db-service-role" role2="db-user-role" !)
 
-</Details>
+</details>
 
 You can test the trust relationship by running this AWS CLI command as `teleport-db-service-role`:
 ```code
