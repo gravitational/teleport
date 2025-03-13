@@ -179,11 +179,12 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 	start := srv.AuthServer.Clock().Now()
 
 	for _, test := range []struct {
-		desc         string
-		renewable    bool
-		roleRequests bool
-		reqTTL       time.Duration
-		expiresIn    time.Duration
+		desc           string
+		renewable      bool
+		roleRequests   bool
+		reqTTL         time.Duration
+		expiresIn      time.Duration
+		githubIdentity *types.ExternalIdentity
 	}{
 		{
 			desc:      "not-renewable",
@@ -228,6 +229,17 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 			reqTTL:       2 * defaults.MaxRenewableCertTTL,
 			expiresIn:    defaults.MaxRenewableCertTTL,
 		},
+		{
+			desc:         "github-identity-from-login-state-preserved",
+			renewable:    false,
+			roleRequests: true,
+			reqTTL:       4 * time.Hour,
+			expiresIn:    4 * time.Hour,
+			githubIdentity: &types.ExternalIdentity{
+				UserID:   "1024025",
+				Username: "torvalds",
+			},
+		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			ctx := context.Background()
@@ -252,6 +264,14 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 				require.NoError(t, err)
 			} else {
 				id = TestUser(user.GetName())
+			}
+
+			// Simulate authenticated GitHub OAuth flow where GitHub identity is
+			// saved in login state.
+			if test.githubIdentity != nil {
+				user.SetGithubIdentities([]types.ExternalIdentity{*test.githubIdentity})
+				_, err := srv.Auth().ulsGenerator.Refresh(ctx, user, srv.Auth().UserLoginStates)
+				require.NoError(t, err)
 			}
 
 			client, err := srv.NewClient(id)
@@ -284,8 +304,16 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 			sshCert, err := sshutils.ParseCertificate(certs.SSH)
 			require.NoError(t, err)
 
+			sshIdentity, err := sshca.DecodeIdentity(sshCert)
+			require.NoError(t, err)
+
 			require.WithinDuration(t, start.Add(test.expiresIn), x509.NotAfter, 1*time.Second)
 			require.WithinDuration(t, start.Add(test.expiresIn), time.Unix(int64(sshCert.ValidBefore), 0), 1*time.Second)
+
+			if test.githubIdentity != nil {
+				require.Equal(t, test.githubIdentity.UserID, sshIdentity.GitHubUserID)
+				require.Equal(t, test.githubIdentity.Username, sshIdentity.GitHubUsername)
+			}
 		})
 	}
 }
