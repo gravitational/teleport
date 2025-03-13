@@ -5,10 +5,10 @@ resource "teleport_autoupdate_version" "test" {
       target_version = "1.2.3"
     }
     agents = {
-      start_version = "1.2.3"
+      start_version  = "1.2.3"
       target_version = "1.2.4"
-      schedule = "regular"
-      mode = "enabled"
+      schedule       = "regular"
+      mode           = "enabled"
     }
   }
 }
