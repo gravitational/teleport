@@ -10,6 +10,7 @@ import GRPCNIOTransportHTTP2
 import GRPCProtobuf
 import Foundation
 import SwiftUI
+import UserNotifications
 
 let addr = "\(FileManager.default.homeDirectoryForCurrentUser.path()).tsh/tsh.socket";
 
@@ -105,4 +106,34 @@ struct TeleportMenuBarApp: App {
       tshdClient: model.tshdClient
     )
   }
+}
+
+func sendNotification() {
+    // 1. Request permission to display alerts and play sounds.
+    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
+        if granted {
+            print("Permission granted")
+        } else if let error = error {
+            print(error.localizedDescription)
+        }
+    }
+
+  let action = UNNotificationAction(identifier: "SEE_REPORT", title: "See Report", options: [])
+
+    // 2. Create the content for the notification
+    let content = UNMutableNotificationContent()
+    content.body = "Other software on your device might interfere with VNet."
+    content.sound = UNNotificationSound.default
+
+    // 4. Create the request
+    let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+
+    // 5. Add the request to the notification center
+    UNUserNotificationCenter.current().add(request) { error in
+        if let error = error {
+            print(error.localizedDescription)
+        } else {
+            print("Notification scheduled")
+        }
+    }
 }
