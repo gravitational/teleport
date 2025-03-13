@@ -23,6 +23,9 @@ import (
 {{- if .WithNonce}}
 	 "math"
 {{- end}}
+{{- range $i, $a := .ExtraImports }}
+	{{$a}}
+{{- end }}
 
 	{{.ProtoPackage}} "{{.ProtoPackagePath}}"
 	"github.com/gravitational/teleport/integrations/lib/backoff"
@@ -75,11 +78,18 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 		return
 	}
 
+{{- if .ForceSetKind }}
+	{{.VarName}}.Kind = {{.ForceSetKind}}
+{{- end}}
+
+{{- if .HasCheckAndSetDefaults }}
+
 	err := {{.VarName}}.CheckAndSetDefaults()
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error setting {{.Name}} defaults", trace.Wrap(err), "{{.Kind}}"))
 		return
 	}
+{{- end}}
 
 	{{if .DefaultVersion -}}
 	if {{.VarName}}.Version == "" {
@@ -105,7 +115,7 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	{{.VarName}} = {{.VarName}}.WithNonce(math.MaxUint64).(*{{.ProtoPackage}}.{{.TypeName}})
 	{{- end}}
 
-	err = r.p.Client.{{.CreateMethod}}(ctx, {{.VarName}})
+	{{if eq .UpsertMethodArity 2}}_, {{end}}err = r.p.Client.{{.CreateMethod}}(ctx, {{.VarName}})
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
 		return
@@ -187,7 +197,11 @@ func (r resourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadResou
 		return
 	}
 
+	{{if .IsPlainStruct -}}
+	{{.VarName}} := {{.VarName}}I
+	{{ else }}
 	{{.VarName}} := {{.VarName}}I.(*{{.ProtoPackage}}.{{.TypeName}})
+	{{end -}}
 	diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -222,11 +236,14 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 		return
 	}
 
+{{- if .HasCheckAndSetDefaults }}
+
 	err := {{.VarName}}.CheckAndSetDefaults()
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
 		return
 	}
+{{- end}}
 
 	{{.VarName}}Before, err := r.p.Client.Get{{.Name}}(ctx)
 	if err != nil {
@@ -242,13 +259,17 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 	{{.VarName}} = {{.VarName}}.WithNonce(math.MaxUint64).(*{{.ProtoPackage}}.{{.TypeName}})
 	{{- end}}
 
-	err = r.p.Client.{{.UpdateMethod}}(ctx, {{.VarName}})
+	{{if eq .UpsertMethodArity 2}}_, {{end}}err = r.p.Client.{{.UpdateMethod}}(ctx, {{.VarName}})
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
 		return
 	}
 
+	{{- if .IsPlainStruct }}
+	var {{.VarName}}I *{{.ProtoPackage}}.{{.Name}}
+	{{- else }}
 	var {{.VarName}}I {{.ProtoPackage}}.{{ if ne .IfaceName ""}}{{.IfaceName}}{{else}}{{.Name}}{{end}}
+	{{- end}}
 
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
@@ -277,12 +298,16 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 		return
 	}
 
+	{{if .IsPlainStruct -}}
+	{{.VarName}} = {{.VarName}}I
+	{{- else}}
 	{{.VarName}} = {{.VarName}}I.(*{{.ProtoPackage}}.{{.TypeName}})
 	diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	{{- end}}
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -310,7 +335,11 @@ func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.Im
 		return
 	}
 
+	{{- if .IsPlainStruct }}
+	{{.VarName}} := {{.VarName}}I
+	{{- else}}
 	{{.VarName}} := {{.VarName}}I.(*{{.ProtoPackage}}.{{.TypeName}})
+	{{- end}}
 
 	var state types.Object
 
@@ -326,7 +355,13 @@ func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.Im
 		return
 	}
 
-	state.Attrs["id"] = types.String{Value: {{.VarName}}.Metadata.Name}
+{{- if .IsPlainStruct}}
+	id := {{.VarName}}.Metadata.Name
+{{- else }}
+	id := {{.VarName}}.GetName()
+{{- end}}
+
+	state.Attrs["id"] = types.String{Value: id}
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
