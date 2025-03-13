@@ -196,7 +196,7 @@ func TestStructTrimToMaxSize(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			got := tc.in.trimToMaxSize(tc.maxSize)
-			require.Equal(t, got, tc.want)
+			require.Equal(t, tc.want, got)
 		})
 	}
 }
