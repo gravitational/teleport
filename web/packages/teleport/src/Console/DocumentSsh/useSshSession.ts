@@ -146,7 +146,7 @@ function makeSessionStatus(json): SessionStatus {
     state: json.state,
     parties: json.parties || [],
     policyFulfillmentStatus,
-    chatLog: json.chatLog || [],
+    chatLog: json?.chatLog?.reverse() || [],
   };
 }
 
