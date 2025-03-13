@@ -461,7 +461,8 @@ $ tctl auth rotate --type=<Var name="type" />
 The command triggers a rotation process for hosts with a default grace period of
 48 hours.
 
-<Details title="Configuring the grace period">
+<details>
+<summary>Configuring the grace period</summary>
 
 You can customize grace period and CA type with additional flags:
 
@@ -480,7 +481,7 @@ instances in a cluster to request a new certificate. If some hosts go offline
 during the rotation and come back only after the grace period has ended, they
 will be forced to leave the cluster.
 
-</Details>
+</details>
 
 During semi-automatic rotations, Teleport attempts to divide the grace period so
 that it spends an equal amount of time in each phase before transitioning to the

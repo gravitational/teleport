@@ -162,7 +162,8 @@ version: v3
 
 </Tabs>
 
-<Details title="Mapping multiple roles">
+<details>
+<summary>Mapping multiple roles</summary>
 You can add multiple instances of the `--teams-to-roles` flag or edit the connector
 file to define multiple mappings. For example:
 
@@ -194,9 +195,10 @@ spec.
       team: developers
 ```
 
-</Details>
+</details>
 
-<Details title="Self-hosting GitHub Enterprise?" scope={["enterprise", "cloud"]} opened>
+<details>
+<summary>Self-hosting GitHub Enterprise?</summary>
 
 For self-hosted GitHub Enterprise servers, you can specify the server instance
 endpoints with the `--endpoint-url`, `--api-endpoint-url` parameters, replacing
@@ -222,7 +224,7 @@ spec:
   ...
 ```
 
-</Details>
+</details>
 
 You can test the connector configuration before applying it to your cluster.
 This is strongly encouraged to avoid interruption to active clusters:
@@ -432,7 +434,8 @@ When you save and close the temporary file, `tctl` will update the resource:
 #cluster auth preference has been updated
 ```
 
-<Details scope={["enterprise", "oss"]} opened title="Static configuration file">
+<details>
+<summary>Static configuration file</summary>
 
 You can also edit your Teleport configuration file to include the following:
 
@@ -443,7 +446,7 @@ auth_service:
     type: github
 ```
 
-</Details>
+</details>
 
 After logging out of `tsh`, you can log back in without specifying
 `--auth=github`. You will automatically be redirected to the GitHub auth flow.
