@@ -103,7 +103,10 @@ func (r resourceTeleportAuthPreference) Create(ctx context.Context, req tfsdk.Cr
 			resp.Diagnostics.Append(diagFromWrappedErr("Error reading AuthPreference", trace.Wrap(err), "cluster_auth_preference"))
 			return
 		}
-		if authPreferenceBefore.GetMetadata().Revision != authPreferenceI.GetMetadata().Revision || false {
+
+		previousMetadata := authPreferenceBefore.GetMetadata()
+		currentMetadata := authPreferenceI.GetMetadata()
+		if previousMetadata.GetRevision() != currentMetadata.GetRevision() || false {
 			break
 		}
 		if bErr := backoff.Do(ctx); bErr != nil {
