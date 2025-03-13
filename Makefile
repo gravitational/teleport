@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=17.3.3-dev.tigrato.1
+VERSION=17.3.3-dev.tigrato.2
 
 DOCKER_IMAGE ?= teleport
 
