@@ -57,7 +57,8 @@ We'll re-purpose the files generated for Fluentd in our Logstash configuration.
 
 (!docs/pages/includes/plugins/event-handler-role-user.mdx!)
 
-<Details title="Using tctl on the Logstash host?">
+<details>
+<summary>Using tctl on the Logstash host?</summary>
 
 If you are running Teleport on your Elastic Stack host, e.g., you are exposing
 Kibana's HTTP endpoint via the Teleport Application Service, running the `tctl
@@ -71,7 +72,7 @@ To avoid this error, create the `teleport-event-handler-role.yaml` file on your
 workstation, then sign in to your Teleport cluster and run the `tctl` command
 locally.
 
-</Details>
+</details>
 
 ### Enable issuing of credentials for the Event Handler role
 
@@ -353,7 +354,8 @@ and installed a new index template:
 Sep 12 19:49:06 myhost logstash[33762]: [2022-09-12T19:49:06,309][INFO ][logstash.outputs.elasticsearch][main] Elasticsearch version determined (8.4.1) {:es_version=>8}
 Sep 12 19:50:00 myhost logstash[33762]: [2022-09-12T19:50:00,993][INFO ][logstash.outputs.elasticsearch][main] Installing Elasticsearch template {:name=>"audit-events"}
 ```
-<Details title="Pipeline not starting?">
+<details>
+<summary>Pipeline not starting?</summary>
 
 If Logstash fails to initialize the pipeline, it may continue to attempt to
 contact Elasticsearch. In that case, you will see repeated logs like the one below:
@@ -386,7 +388,7 @@ Logstash and Elasticsearch.
 Edit the file `/etc/elasticsearch/elasticsearch.yml` to set
 `xpack.security.http.ssl.enabled` to `false`, then restart Elasticsearch.
 
-</Details>
+</details>
 
 ## Step 3/4. Run the Event Handler plugin
 
