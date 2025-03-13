@@ -217,7 +217,7 @@ func (c *ClientConn) Shutdown(ctx context.Context) {
 }
 
 // Dial implements [internal.ClientConn].
-func (c *ClientConn) Dial(nodeID string, src net.Addr, dst net.Addr, tunnelType types.TunnelType) (_ net.Conn, err error) {
+func (c *ClientConn) Dial(nodeID string, src net.Addr, dst net.Addr, tunnelType types.TunnelType, permit []byte) (_ net.Conn, err error) {
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()

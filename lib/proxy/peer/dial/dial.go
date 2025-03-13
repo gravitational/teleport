@@ -34,4 +34,5 @@ type DialParams struct {
 	To       *utils.NetAddr
 	ServerID string
 	ConnType types.TunnelType
+	Permit   []byte
 }

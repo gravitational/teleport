@@ -262,6 +262,7 @@ func (c *grpcClientConn) Dial(
 	src net.Addr,
 	dst net.Addr,
 	tunnelType types.TunnelType,
+	permit []byte,
 ) (net.Conn, error) {
 	release := c.maybeAcquire()
 	if release == nil {
@@ -292,6 +293,7 @@ func (c *grpcClientConn) Dial(
 					Addr:    dst.String(),
 					Network: dst.Network(),
 				},
+				Permit: permit,
 			},
 		},
 	})
@@ -596,6 +598,7 @@ func (c *Client) DialNode(
 	src net.Addr,
 	dst net.Addr,
 	tunnelType types.TunnelType,
+	permit []byte,
 ) (net.Conn, error) {
 	conn, _, err := c.dial(
 		proxyIDs,
@@ -603,6 +606,7 @@ func (c *Client) DialNode(
 		src,
 		dst,
 		tunnelType,
+		permit,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -622,6 +626,7 @@ func (c *Client) dial(
 	src net.Addr,
 	dst net.Addr,
 	tunnelType types.TunnelType,
+	permit []byte,
 ) (net.Conn, bool, error) {
 	conns, existing, err := c.getConnections(proxyIDs)
 	if err != nil {
@@ -630,7 +635,7 @@ func (c *Client) dial(
 
 	var errs []error
 	for _, clientConn := range conns {
-		conn, err := clientConn.Dial(nodeID, src, dst, tunnelType)
+		conn, err := clientConn.Dial(nodeID, src, dst, tunnelType, permit)
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))
 			continue

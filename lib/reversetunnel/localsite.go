@@ -686,7 +686,7 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 	if peeringEnabled {
 		s.logger.InfoContext(s.srv.ctx, "Dialing over peer proxy")
 		conn, peerErr = s.peerClient.DialNode(
-			params.ProxyIDs, params.ServerID, params.From, params.To, params.ConnType,
+			params.ProxyIDs, params.ServerID, params.From, params.To, params.ConnType, params.Permit,
 		)
 		if peerErr == nil {
 			return newMetricConn(conn, dialTypePeer, dialStart, s.srv.Clock), true, nil

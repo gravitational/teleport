@@ -38,6 +38,7 @@ type ClientConn interface {
 		src net.Addr,
 		dst net.Addr,
 		tunnelType types.TunnelType,
+		permit []byte,
 	) (net.Conn, error)
 
 	// Ping checks if the peer is reachable and responsive.

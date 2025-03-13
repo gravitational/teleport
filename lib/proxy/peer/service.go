@@ -80,6 +80,7 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 		To:       destination,
 		ServerID: dial.NodeID,
 		ConnType: dial.TunnelType,
+		Permit:   dial.GetPermit(),
 	})
 	if err != nil {
 		return trace.Wrap(err)

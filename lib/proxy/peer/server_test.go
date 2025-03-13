@@ -38,7 +38,8 @@ func TestServerTLS(t *testing.T) {
 	_, serverDef1 := setupServer(t, "s1", ca1, ca1, types.RoleProxy)
 	err := client1.updateConnections([]types.Server{serverDef1})
 	require.NoError(t, err)
-	stream, _, err := client1.dial([]string{"s1"}, "", &utils.NetAddr{}, &utils.NetAddr{}, "")
+	var noPermit []byte
+	stream, _, err := client1.dial([]string{"s1"}, "", &utils.NetAddr{}, &utils.NetAddr{}, "", noPermit)
 	require.NoError(t, err)
 	require.NotNil(t, stream)
 	stream.Close()
@@ -48,7 +49,7 @@ func TestServerTLS(t *testing.T) {
 	_, serverDef2 := setupServer(t, "s2", ca1, ca1, types.RoleProxy)
 	err = client2.updateConnections([]types.Server{serverDef2})
 	require.NoError(t, err) // connection succeeds but is in transient failure state
-	_, _, err = client2.dial([]string{"s2"}, "", &utils.NetAddr{}, &utils.NetAddr{}, "")
+	_, _, err = client2.dial([]string{"s2"}, "", &utils.NetAddr{}, &utils.NetAddr{}, "", noPermit)
 	require.Error(t, err)
 
 	// certificates with correct role from different CAs
@@ -56,7 +57,7 @@ func TestServerTLS(t *testing.T) {
 	_, serverDef3 := setupServer(t, "s3", ca2, ca1, types.RoleProxy)
 	err = client3.updateConnections([]types.Server{serverDef3})
 	require.NoError(t, err)
-	stream, _, err = client3.dial([]string{"s3"}, "", &utils.NetAddr{}, &utils.NetAddr{}, "")
+	stream, _, err = client3.dial([]string{"s3"}, "", &utils.NetAddr{}, &utils.NetAddr{}, "", noPermit)
 	require.NoError(t, err)
 	require.NotNil(t, stream)
 	stream.Close()

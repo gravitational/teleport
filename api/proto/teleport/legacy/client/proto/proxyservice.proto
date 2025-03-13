@@ -49,6 +49,8 @@ message DialRequest {
   NetAddr Source = 3;
   // Destination is the destination address to connect to over the reverse tunnel.
   NetAddr Destination = 4;
+
+  bytes permit = 5;
 }
 
 // Addr is a network address.
