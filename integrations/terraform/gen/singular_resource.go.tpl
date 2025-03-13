@@ -28,6 +28,9 @@ import (
 {{- end }}
 
 	{{.ProtoPackage}} "{{.ProtoPackagePath}}"
+{{- if .DefaultName }}
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+{{- end}}
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -97,6 +100,15 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	}
 	{{- end}}
 
+	{{- if .DefaultName }}
+	if {{.VarName}}.GetMetadata() == nil {
+		{{.VarName}}.Metadata = &headerv1.Metadata{}
+	}
+	if {{ .VarName }}.GetMetadata().GetName() == "" {
+		{{ .VarName }}.Metadata.Name = {{ .DefaultName }}
+	}
+	{{- end}}
+
 	{{.VarName}}Before, err := r.p.Client.Get{{.Name}}(ctx)
 	if err != nil && !trace.IsNotFound(err) {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
@@ -137,7 +149,10 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 			resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
 			return
 		}
-		if {{.VarName}}Before.GetMetadata().Revision != {{.VarName}}I.GetMetadata().Revision || {{.HasStaticID}} {
+
+		previousMetadata := {{.VarName}}Before.GetMetadata()
+		currentMetadata := {{.VarName}}I.GetMetadata()
+		if previousMetadata.GetRevision() != currentMetadata.GetRevision() || {{.HasStaticID}} {
 			break
 		}
 		if bErr := backoff.Do(ctx); bErr != nil {
