@@ -21,7 +21,6 @@ package events_test
 import (
 	"context"
 	"errors"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -29,6 +28,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/sessionrecording"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -175,12 +175,12 @@ func TestProtoStreamLargeEvent(t *testing.T) {
 	}{
 		{
 			name:         "large trimmable event is trimmed",
-			event:        makeQueryEvent("1", strings.Repeat("A", events.MaxProtoMessageSizeBytes)),
+			event:        makeQueryEvent("1", strings.Repeat("A", sessionrecording.MaxProtoMessageSizeBytes)),
 			errAssertion: require.NoError,
 		},
 		{
 			name:         "large untrimmable event returns error",
-			event:        makeAccessRequestEvent("1", strings.Repeat("A", events.MaxProtoMessageSizeBytes)),
+			event:        makeAccessRequestEvent("1", strings.Repeat("A", sessionrecording.MaxProtoMessageSizeBytes)),
 			errAssertion: require.Error,
 		},
 	}
@@ -201,26 +201,6 @@ func TestProtoStreamLargeEvent(t *testing.T) {
 		})
 	}
 	require.NoError(t, stream.Complete(ctx))
-}
-
-// TestReadCorruptedRecording tests that the streamer can successfully decode the kind of corrupted
-// recordings that some older bugged versions of teleport might end up producing when under heavy load/throttling.
-func TestReadCorruptedRecording(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	f, err := os.Open("testdata/corrupted-session")
-	require.NoError(t, err)
-	defer f.Close()
-
-	reader := events.NewProtoReader(f)
-	defer reader.Close()
-
-	events, err := reader.ReadAll(ctx)
-	require.NoError(t, err)
-
-	// verify that the expected number of events are extracted
-	require.Len(t, events, 12)
 }
 
 func makeQueryEvent(id string, query string) *apievents.DatabaseSessionQuery {
