@@ -34,17 +34,17 @@ Before configuring Teleport, ensure your Oracle RDS instance has Kerberos authen
 2. Enable TLS on your Oracle RDS instance by following the [AWS RDS Oracle SSL Setup documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.Oracle.Options.SSL.html). Ensure `SQLNET.SSL_VERSION` is set to `1.2` for optimal security.
 
 <Admonition type="note">
-  Verify connectivity between your Teleport database service host and the Oracle RDS instance before proceeding.
+  Verify connectivity between your Teleport Database Service host and the Oracle RDS instance before proceeding.
 </Admonition>
 
 ## Step 2/9. Create Oracle AD users
 
 <Admonition type="note">
   You can skip this step if you already have Active Directory logins in your
-  Oracle.
+  Oracle database.
 </Admonition>
 
-Connect to your Oracle as an administrative account (e.g. `admin`) and create
+Connect to your Oracle database as an administrative account (e.g. `admin`) and create
 users that will use Active Directory authentication:
 
 ```sql
@@ -129,7 +129,7 @@ example.com
 
 ## Step 4/9. Create keytab file
 
-Teleport requires a keytab file to obtain Kerberos service tickets from your
+Teleport requires a keytab file to obtain Kerberos service tickets from
 Active Directory for authentication with SQL Server. The easiest way to generate
 it is to use the `adutil` Linux CLI utility.
 
