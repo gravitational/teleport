@@ -371,7 +371,8 @@ the map, assigning the corresponding `types.AppServer` as its value.
 
 In the next section, we will show you how to generate the second map.
 
-<Details title="Other ways to get resources">
+<details>
+<summary>Other ways to get resources</summary>
 
 `ListResources` is a general-purpose method for fetching resources, and supports
 sorting and filtering results. Depending on the needs of your client
@@ -393,7 +394,7 @@ In general, `*Client` methods following the pattern `Get[A-Za-z]+` retrieve
 dynamically registered resources, while methods following the pattern
 `Get[A-Za-z]+(Servers|Services)` retrieve records of Teleport services.
 
-</Details>
+</details>
 
 ### Get the management endpoint URLs of application containers
 
@@ -503,7 +504,8 @@ Teleport service running already (e.g., the Application Service), it is simpler
 to join the resource to the cluster dynamically using a method similar to
 `*client.Client.CreateApp`.
 
-<Details title="Registering applications dynamically">
+<details>
+<summary>Registering applications dynamically</summary>
 
 To register applications dynamically, rather than start a new Application
 Service instance to proxy an application, use the `*clientClient.CreateApp`
@@ -537,7 +539,7 @@ corresponding role permissions with the `create` verb:
 Since a server must run an instance of the Teleport Service in order to join
 a Teleport cluster, API clients can only register servers by using tokens.
 
-</Details>
+</details>
 
 `cryptoRandomHex` is a copy of a function that Teleport defines internally. It
 uses the `crypto/rand` package to generate random bytes, then converts them to a
@@ -557,7 +559,8 @@ an Application Service instance.
 return the token to the caller of `*tokenDemoApp.createAppToken` so it can run a
 new Application Service instance with the token. 
 
-<Details title="Looking up tokens">
+<details>
+<summary>Looking up tokens</summary>
 
 Client applications can look up tokens they have created by calling the
 following function:
@@ -580,7 +583,7 @@ spec:
 In the application we are demonstrating in this guide, there is no need to look
 up tokens, since the application already knows the token it created.
 
-</Details>
+</details>
 
 ### Start an Application Service container
 

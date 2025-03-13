@@ -123,7 +123,8 @@ or manual mode:
   </TabItem>
 </Tabs>
 
-<Details title="Bootstrapping with assume_role_arn in config">
+<details>
+<summary>Bootstrapping with assume_role_arn in config</summary>
 When `assume_role_arn` is configured for AWS matchers, `teleport discovery
 bootstrap` command determines the permissions required for the bootstrap target
 AWS IAM identity using the following logic:
@@ -139,7 +140,7 @@ AWS IAM identity using the following logic:
 You will need to run the bootstrap command once with the Teleport Discovery
 Service's IAM identity as the policy attachment target, and once for each AWS
 IAM role that is used for `assume_role_arn`.
-</Details>
+</details>
 
 ## Step 4/4. Use the Discovery Service
 

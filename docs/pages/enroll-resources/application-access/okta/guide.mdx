@@ -19,11 +19,12 @@ with user groups can be managed by Teleport's RBAC along with access requests.
 This guide will help you set up the Okta Service and provide some basic
 configurations to enable it.
 
-<Details title="This integration is hosted on Teleport Cloud" open={false}>
+<details>
+<summary>This integration is hosted on Teleport Cloud</summary>
 
 (!docs/pages/includes/plugins/enroll.mdx name="the Okta integration"!)
 
-</Details>
+</details>
 
 ## Prerequisites
 
@@ -35,7 +36,8 @@ configurations to enable it.
   with outbound access to Okta and must be running Linux.
 - An Okta organization with an [Okta API token](https://developer.okta.com/docs/guides/create-an-api-token) created.
 
-<Details title="Okta API token permissions">
+<details>
+<summary>Okta API token permissions</summary>
 
 Okta API tokens inherit the permissions of the user who created them. These can
 be controlled by using [custom admin roles](https://help.okta.com/en-us/Content/Topics/Security/custom-admin-role/about-creating-custom-admin-roles.htm)
@@ -68,7 +70,7 @@ custom role. However, the Okta built in role "Group Membership Admin" has permis
 to create an API token. See more information about built in roles
 [here](https://help.okta.com/en-us/Content/Topics/Security/administrators-admin-comparison.htm).
 
-</Details>
+</details>
 
 ## Step 1/3. Create Okta import rules
 
