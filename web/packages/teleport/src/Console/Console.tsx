@@ -19,16 +19,12 @@
 import { Fragment, useEffect, useMemo } from 'react';
 import styled from 'styled-components';
 
-import { Box, Button, Flex, H2, H3, Indicator } from 'design';
+import { Box, Flex, Indicator } from 'design';
 import { Danger } from 'design/Alert';
-import { BroadcastSlash, Logout } from 'design/Icon';
-import { P } from 'design/Text/Text';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import AjaxPoller from 'teleport/components/AjaxPoller';
-import { ItemStatus, StatusLight } from 'teleport/Discover/Shared';
-import Tty from 'teleport/lib/term/tty';
-import { Participant, ParticipantMode } from 'teleport/services/session';
+import { ParticipantMode } from 'teleport/services/session';
 
 import ActionBar from './ActionBar';
 import { useConsoleContext, useStoreDocs } from './consoleContextProvider';
@@ -51,7 +47,6 @@ export default function Console() {
   const { verifyAndConfirm } = useOnExitConfirmation(consoleCtx);
   const { clusterId, activeDocId } = useTabRouting(consoleCtx);
 
-  const storeParties = consoleCtx.storeParties;
   const storeDocs = consoleCtx.storeDocs;
   const documents = storeDocs.getDocuments();
   const activeDoc = documents.find(d => d.id === activeDocId);
@@ -90,21 +85,12 @@ export default function Console() {
   const $docs = documents.map(doc => (
     <Fragment key={doc.id}>
       {doc.id === activeDocId && (
-        <Flex height="100%">
-          <MemoizedDocument
-            doc={doc}
-            visible={doc.id === activeDocId}
-            key={doc.id}
-            mode={doc.kind === 'terminal' ? doc.mode : null}
-          />
-          {/* {doc.kind === 'terminal' && (
-            <PartiesList
-              parties={storeParties.bySid(doc.sid)}
-              username={consoleCtx.getStoreUser()?.username}
-              tty={consoleCtx.getTtyForDoc(doc)}
-            />
-          )} */}
-        </Flex>
+        <MemoizedDocument
+          doc={doc}
+          visible={doc.id === activeDocId}
+          key={doc.id}
+          mode={doc.kind === 'terminal' ? doc.mode : null}
+        />
       )}
     </Fragment>
   ));
@@ -178,100 +164,6 @@ function MemoizedDocument(props: {
   }, [visible, doc]);
 }
 
-function PartiesList({
-  parties,
-  username,
-  tty,
-}: {
-  parties: Participant[];
-  username: string;
-  tty: Tty;
-}) {
-  const observers = parties.filter(p => p.mode === 'observer');
-  const peers = parties.filter(p => p.mode === 'peer');
-  const moderators = parties.filter(p => p.mode === 'moderator');
-
-  const isModerator = !!moderators.find(m => m.user === username);
-
-  return (
-    <Flex
-      backgroundColor="levels.surface"
-      width="220px"
-      height="100%"
-      css={`
-        border-left: ${props => props.theme.borders[2]}
-          ${props => props.theme.colors.interactive.tonal.neutral[1]};
-      `}
-      flexDirection={'column'}
-      p={3}
-      justifyContent="space-between"
-    >
-      <Flex flexDirection="column" gap={1}>
-        <H2 mb={2}>Participants</H2>
-        {peers.length > 0 && (
-          <Box>
-            <H3>Peers</H3>
-            <Flex flexDirection="column">
-              {peers.map(p => (
-                <Flex key={p.user} flexDirection="row" alignItems="center">
-                  <StatusLight status={ItemStatus.Success} />{' '}
-                  <P>
-                    {p.user} {username === p.user ? <b>(me)</b> : ''}
-                  </P>
-                </Flex>
-              ))}
-            </Flex>
-          </Box>
-        )}
-        {moderators.length > 0 && (
-          <Box>
-            <H3>Moderators</H3>
-            <Flex flexDirection="column">
-              {moderators.map(p => (
-                <Flex key={p.user} flexDirection="row" alignItems="center">
-                  <StatusLight status={ItemStatus.Success} />{' '}
-                  <P>
-                    {p.user} {username === p.user ? '(me)' : ''}
-                  </P>
-                </Flex>
-              ))}
-            </Flex>
-          </Box>
-        )}
-        {observers.length > 0 && (
-          <Box>
-            <H3>Observers</H3>
-            <Flex flexDirection="column">
-              {observers.map(p => (
-                <Flex key={p.user} flexDirection="row" alignItems="center">
-                  <StatusLight status={ItemStatus.Success} />{' '}
-                  <P>
-                    {p.user} {username === p.user ? '(me)' : ''}
-                  </P>
-                </Flex>
-              ))}
-            </Flex>
-          </Box>
-        )}
-      </Flex>
-      <Flex flexDirection="column" mb={1}>
-        {isModerator && (
-          <Button
-            intent="danger"
-            mb={2}
-            onClick={() => tty.terminateModeratedSession()}
-          >
-            <BroadcastSlash size="small" mr={2} /> Terminate
-          </Button>
-        )}
-        <Button onClick={() => tty.disconnect()}>
-          <Logout size="small" mr={2} /> Disconnect
-        </Button>
-      </Flex>
-    </Flex>
-  );
-}
-
 const StyledConsole = styled.div`
   background-color: ${props => props.theme.colors.levels.sunken};
   bottom: 0;
@@ -281,4 +173,5 @@ const StyledConsole = styled.div`
   top: 0;
   display: flex;
   flex-direction: column;
+  max-height: 100%;
 `;

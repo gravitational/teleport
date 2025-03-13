@@ -44,13 +44,9 @@ import { TerminalSearch } from 'shared/components/TerminalSearch';
 
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import * as stores from 'teleport/Console/stores';
-import { ItemStatus, StatusLight, TextBox } from 'teleport/Discover/Shared';
+import { ItemStatus, StatusLight } from 'teleport/Discover/Shared';
 import Tty from 'teleport/lib/term/tty';
-import {
-  MfaState,
-  shouldShowMfaPrompt,
-  useMfaEmitter,
-} from 'teleport/lib/useMfa';
+import { useMfaEmitter } from 'teleport/lib/useMfa';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
 import {
   Participant,
@@ -196,23 +192,21 @@ function DocumentSsh({ doc, visible, mode }: PropTypes) {
             <Indicator />
           </Box>
         )}
-        {sessionStatus?.state === SessionState.Pending ? (
+        {sessionStatus?.state === SessionState.Pending && (
           <WaitingRoomDialog
             sessionStatus={sessionStatus}
-            mfa={mfa}
             handleReadyToJoin={() => tty.readyToJoin()}
           />
-        ) : (
-          <AuthnDialog
-            mfaState={mfa}
-            onClose={() => {
-              // Don't close the ssh doc if this is just a file transfer request.
-              if (!ftOpenedDialog) {
-                closeDocument();
-              }
-            }}
-          />
         )}
+        <AuthnDialog
+          mfaState={mfa}
+          onClose={() => {
+            // Don't close the ssh doc if this is just a file transfer request.
+            if (!ftOpenedDialog) {
+              closeDocument();
+            }
+          }}
+        />
         {status === 'initialized' && terminal}
       </Document>
       {sessionStatus?.state === SessionState.Running && (
@@ -230,16 +224,13 @@ function DocumentSsh({ doc, visible, mode }: PropTypes) {
 function WaitingRoomDialog({
   handleReadyToJoin,
   sessionStatus,
-  mfa,
 }: {
   handleReadyToJoin(): void;
   sessionStatus: SessionStatus;
-  mfa: MfaState;
 }) {
   const ctx = useConsoleContext();
 
   const [joining, setJoining] = useState(false);
-  const [showMfaDialog, setShowMfaDialog] = useState(false);
 
   return (
     <Dialog disableEscapeKeyDown={true} open={true}>
@@ -323,15 +314,6 @@ function WaitingRoomDialog({
       >
         {joining ? 'Joining...' : 'Join this session'}
       </ButtonPrimary>
-
-      {showMfaDialog && (
-        <AuthnDialog
-          mfaState={mfa}
-          onClose={() => {
-            setShowMfaDialog(false);
-          }}
-        />
-      )}
     </Dialog>
   );
 }
