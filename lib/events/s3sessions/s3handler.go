@@ -466,8 +466,9 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 	}
 
 	input := &s3.CreateBucketInput{
-		Bucket: aws.String(h.Bucket),
-		ACL:    awstypes.BucketCannedACLPrivate,
+		Bucket:                    aws.String(h.Bucket),
+		ACL:                       awstypes.BucketCannedACLPrivate,
+		CreateBucketConfiguration: awsutils.CreateBucketConfiguration(h.Region),
 	}
 	_, err = h.client.CreateBucket(ctx, input)
 	err = awsutils.ConvertS3Error(err, fmt.Sprintf("bucket %v already exists", aws.String(h.Bucket)))
