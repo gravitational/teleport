@@ -123,8 +123,8 @@ $ gcloud projects add-iam-policy-binding ${PROJECT_ID?} \
    --role="projects/${PROJECT_ID?}/roles/GKEAccessManager"
 ```
 
-<Details title="Deploying the Kubernetes Service and Discovery Service
-separately?">
+<details>
+<summary>Deploying the Kubernetes Service and Discovery Service separately?</summary>
 
 Create a service account for each service:
 
@@ -149,7 +149,7 @@ $ gcloud projects add-iam-policy-binding ${PROJECT_ID?} \
    --member="serviceAccount:teleport-kubernetes-service@${PROJECT_ID?}.iam.gserviceaccount.com" \
    --role="projects/${PROJECT_ID?}/roles/GKEAccessManager"
 ```
-</Details>
+</details>
 
 ### Retrieve credentials for your Teleport services
 
@@ -180,7 +180,8 @@ $ gcloud compute instances set-service-account <Var name="vm-name" /> \
    --scopes=cloud-platform
 ```
 
-<Details title="Running the Kubernetes and Discovery Services separately?">
+<details>
+<summary>Running the Kubernetes and Discovery Services separately?</summary>
 
 Stop each VM you plan to use to run the Teleport Kubernetes Service and
 Discovery Service.
@@ -205,7 +206,7 @@ $ gcloud compute instances set-service-account ${VM2_NAME?} \
    --scopes=cloud-platform
 ```
 
-</Details>
+</details>
 
 <Admonition type="warning">
 
@@ -237,8 +238,8 @@ and Kubernetes Service the path
 `/var/lib/teleport/google-cloud-credentials.json`. We will use this credentials
 file when running this service later in this guide.
 
-<Details title="Deploying the Kubernetes Service and Discovery Service
-separately?">
+<details>
+<summary>Deploying the Kubernetes Service and Discovery Service separately?</summary>
 
 Download separate credentials files for each service:
 
@@ -260,7 +261,7 @@ Kubernetes Service at the path
 We will use these credentials files when running this services later in this
 guide.
 
-</Details>
+</details>
 
 </TabItem>
 </Tabs>
@@ -298,7 +299,8 @@ $ echo (=presets.tokens.first=) | sudo tee /tmp/token
 # (=presets.tokens.first=)
 ```
 
-<Details title="Running the Kubernetes and Discovery Services separately?">
+<details>
+<summary>Running the Kubernetes and Discovery Services separately?</summary>
 
 Generate separate tokens for the Kubernetes Service and Discovery Service by
 running the following `tctl` commands:
@@ -314,7 +316,7 @@ Copy each token (e.g., `(=presets.tokens.second=)` and
 `(=presets.tokens.third=)` above) and save it in `/tmp/token` on the machine
 that will run the appropriate service.
 
-</Details>
+</details>
 
 ### Configure the Kubernetes Service and Discovery Service
 
@@ -352,8 +354,8 @@ kubernetes_service:
       "*": "*"
 ```
 
-<Details title="Running the Kubernetes Service and Discovery Service on
-separate hosts?">
+<details>
+<summary>Running the Kubernetes Service and Discovery Service on separate hosts?</summary>
 
 Follow the instructions in this section with two configuration files. The
 configuration file you will save at `/etc/teleport.yaml` on the Kubernetes
@@ -405,7 +407,7 @@ discovery_service:
         "*" : "*"
 ```
 
-</Details>
+</details>
 
 Edit this configuration for your environment as explained below.
 
@@ -583,7 +585,8 @@ like to enable access to:
 $ kubectl config current-context
 ```
 
-<Details title="Using the wrong context?">
+<details>
+<summary>Using the wrong context?</summary>
 
 Retrieve all available contexts:
 
@@ -599,7 +602,7 @@ $ kubectl config use-context CONTEXT_NAME
 Switched to context CONTEXT_NAME
 ```
 
-</Details>
+</details>
 
 (!docs/pages/includes/kubernetes-access/rbac.mdx!)
 

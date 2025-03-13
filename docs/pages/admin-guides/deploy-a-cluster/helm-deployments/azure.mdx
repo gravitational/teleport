@@ -110,7 +110,8 @@ $ az identity federated-credential create --resource-group <Var name="teleport-r
 
 ## Step 3/5. Set values to configure the cluster
 
-<Details title="License Secret" scopeOnly={false} scope={"enterprise"} opened={true}>
+<details>
+<summary>License Secret</summary>
 
 Before you can install Teleport Enterprise in your Kubernetes cluster, you will need to
 create a secret that contains your Teleport license information.
@@ -125,7 +126,7 @@ $ kubectl create namespace <Var name="teleport-ns" />
 $ kubectl -n <Var name="teleport-ns" /> create secret generic license --from-file=license.pem
 ```
 
-</Details>
+</details>
 
 Now we'll configure the `teleport-cluster` Helm chart to use the `azure` mode.
 

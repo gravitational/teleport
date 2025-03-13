@@ -133,7 +133,8 @@ Users created within the database will:
 
 (!docs/pages/includes/database-access/auto-user-provisioning/username-hash.mdx database="MariaDB" limit="80" !)
 
-<Details title="Tracking the name mapping">
+<details>
+<summary>Tracking the name mapping</summary>
 The original Teleport username will be saved as user attributes in the
 `user_attributes` table in the default database.
 
@@ -145,7 +146,7 @@ SELECT * FROM teleport.user_attributes WHERE JSON_VALUE(Attributes,"$.user") = "
 In addition, the "hashed" in-database name will be set as `db_user` for
 database queries in the Teleport Audit Logs, when the Teleport username is over
 80 characters.
-</Details>
+</details>
 
 (!docs/pages/includes/database-access/auto-user-provisioning/username-conflict.mdx!)
 

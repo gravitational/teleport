@@ -44,7 +44,8 @@ db.getSiblingDB("admin").runCommand({
 })
 ```
 
-<Details title="Limit the grantRole action to specific databases">
+<details>
+<summary>Limit the grantRole action to specific databases</summary>
 In the above example, the `grantRole` privilege is granted to the admin user
 for all databases in order for the admin user to assign roles from all
 databases, including the `admin` database.
@@ -67,7 +68,7 @@ db.getSiblingDB("admin").runCommand({
     roles: [],
 })
 ```
-</Details>
+</details>
 
 Now create the admin user with this role:
 

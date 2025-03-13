@@ -1,6 +1,7 @@
 Starting with 16.2, Teleport comes with a built-in role for the Terraform provider: `terraform-provider`.
 
-<Details title="RBAC for versions before v16.2">
+<details>
+<summary>RBAC for versions before v16.2</summary>
     On older version you will need to create the Terraform role yourself.
     Write the following `role.yaml` manifest:
 
@@ -40,4 +41,4 @@ Starting with 16.2, Teleport comes with a built-in role for the Terraform provid
     ```
 
     Use `tctl create -f ./role.yaml` to create the role.
-</Details>
+</details>
