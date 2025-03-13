@@ -162,6 +162,7 @@ func (r resourceTeleportAuthPreference) Read(ctx context.Context, req tfsdk.Read
 		return
 	}
 
+	
 	authPreference := authPreferenceI.(*apitypes.AuthPreferenceV2)
 	diags = tfschema.CopyAuthPreferenceV2ToTerraform(ctx, authPreference, &state)
 	resp.Diagnostics.Append(diags...)
@@ -214,7 +215,6 @@ func (r resourceTeleportAuthPreference) Update(ctx context.Context, req tfsdk.Up
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating AuthPreference", trace.Wrap(err), "cluster_auth_preference"))
 		return
 	}
-
 	var authPreferenceI apitypes.AuthPreference
 
 	tries := 0
@@ -244,6 +244,7 @@ func (r resourceTeleportAuthPreference) Update(ctx context.Context, req tfsdk.Up
 		return
 	}
 
+	
 	authPreference = authPreferenceI.(*apitypes.AuthPreferenceV2)
 	diags = tfschema.CopyAuthPreferenceV2ToTerraform(ctx, authPreference, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -276,7 +277,6 @@ func (r resourceTeleportAuthPreference) ImportState(ctx context.Context, req tfs
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating AuthPreference", trace.Wrap(err), "cluster_auth_preference"))
 		return
 	}
-
 	authPreference := authPreferenceI.(*apitypes.AuthPreferenceV2)
 
 	var state types.Object
@@ -292,8 +292,9 @@ func (r resourceTeleportAuthPreference) ImportState(ctx context.Context, req tfs
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	id := authPreference.GetName()
 
-	state.Attrs["id"] = types.String{Value: authPreference.Metadata.Name}
+	state.Attrs["id"] = types.String{Value: id}
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
