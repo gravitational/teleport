@@ -53,6 +53,7 @@ const (
 	OktaService_UpdateIntegration_FullMethodName          = "/teleport.okta.v1.OktaService/UpdateIntegration"
 	OktaService_GetApps_FullMethodName                    = "/teleport.okta.v1.OktaService/GetApps"
 	OktaService_GetGroups_FullMethodName                  = "/teleport.okta.v1.OktaService/GetGroups"
+	OktaService_AppSystemLog_FullMethodName               = "/teleport.okta.v1.OktaService/AppSystemLog"
 )
 
 // OktaServiceClient is the client API for OktaService service.
@@ -97,6 +98,8 @@ type OktaServiceClient interface {
 	GetApps(ctx context.Context, in *GetAppsRequest, opts ...grpc.CallOption) (*GetAppsResponse, error)
 	// GetGroups retrieves a list of apps from Okta based on specified filter criteria.
 	GetGroups(ctx context.Context, in *GetGroupsRequest, opts ...grpc.CallOption) (*GetGroupsResponse, error)
+	// AppSystemLog TODO add a comment
+	AppSystemLog(ctx context.Context, in *AppSystemLogRequest, opts ...grpc.CallOption) (*AppSystemLogResponse, error)
 }
 
 type oktaServiceClient struct {
@@ -287,6 +290,16 @@ func (c *oktaServiceClient) GetGroups(ctx context.Context, in *GetGroupsRequest,
 	return out, nil
 }
 
+func (c *oktaServiceClient) AppSystemLog(ctx context.Context, in *AppSystemLogRequest, opts ...grpc.CallOption) (*AppSystemLogResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AppSystemLogResponse)
+	err := c.cc.Invoke(ctx, OktaService_AppSystemLog_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // OktaServiceServer is the server API for OktaService service.
 // All implementations must embed UnimplementedOktaServiceServer
 // for forward compatibility.
@@ -329,6 +342,8 @@ type OktaServiceServer interface {
 	GetApps(context.Context, *GetAppsRequest) (*GetAppsResponse, error)
 	// GetGroups retrieves a list of apps from Okta based on specified filter criteria.
 	GetGroups(context.Context, *GetGroupsRequest) (*GetGroupsResponse, error)
+	// AppSystemLog TODO add a comment
+	AppSystemLog(context.Context, *AppSystemLogRequest) (*AppSystemLogResponse, error)
 	mustEmbedUnimplementedOktaServiceServer()
 }
 
@@ -392,6 +407,9 @@ func (UnimplementedOktaServiceServer) GetApps(context.Context, *GetAppsRequest) 
 }
 func (UnimplementedOktaServiceServer) GetGroups(context.Context, *GetGroupsRequest) (*GetGroupsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetGroups not implemented")
+}
+func (UnimplementedOktaServiceServer) AppSystemLog(context.Context, *AppSystemLogRequest) (*AppSystemLogResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AppSystemLog not implemented")
 }
 func (UnimplementedOktaServiceServer) mustEmbedUnimplementedOktaServiceServer() {}
 func (UnimplementedOktaServiceServer) testEmbeddedByValue()                     {}
@@ -738,6 +756,24 @@ func _OktaService_GetGroups_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _OktaService_AppSystemLog_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AppSystemLogRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OktaServiceServer).AppSystemLog(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OktaService_AppSystemLog_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OktaServiceServer).AppSystemLog(ctx, req.(*AppSystemLogRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // OktaService_ServiceDesc is the grpc.ServiceDesc for OktaService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -816,6 +852,10 @@ var OktaService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetGroups",
 			Handler:    _OktaService_GetGroups_Handler,
+		},
+		{
+			MethodName: "AppSystemLog",
+			Handler:    _OktaService_AppSystemLog_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
