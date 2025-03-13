@@ -27,6 +27,8 @@ export enum EventType {
   FILE_TRANSFER_DECISION = 'file_transfer_decision',
   FILE_TRANSFER_REQUEST_APPROVE = 'file_transfer_request_approve',
   FILE_TRANSFER_REQUEST_DENY = 'file_transfer_request_deny',
+
+  CHAT_MESSAGE = 'chat_message',
 }
 
 export enum TermEvent {

@@ -6071,6 +6071,8 @@ message SessionTrackerSpecV1 {
 
   // InitialCommand is the command that was executed to start this session.
   repeated string InitialCommand = 23 [(gogoproto.jsontag) = "initial_command,omitempty"];
+
+  repeated string ChatLog = 24 [(gogoproto.jsontag) = "chatlog,omitempty"];
 }
 
 // SessionTrackerPolicySet is a set of RBAC policies held by the session tracker

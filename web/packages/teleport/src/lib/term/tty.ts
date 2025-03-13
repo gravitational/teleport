@@ -135,6 +135,25 @@ class Tty extends EventEmitterMfaSender {
     this._sendFileTransferRequest(message);
   }
 
+  sendChatMessage(content: string) {
+    if (!this.socket) {
+      return;
+    }
+
+    const message = JSON.stringify({
+      event: EventType.CHAT_MESSAGE,
+      message: content,
+    });
+
+    this._sendChatMessage(message);
+  }
+
+  _sendChatMessage(message: string) {
+    const encoded = this._proto.encodeChatMessage(message);
+    const bytearray = new Uint8Array(encoded);
+    this.socket.send(bytearray);
+  }
+
   sendFileUploadRequest(location: string, file: File) {
     const locationAndName = location + file.name;
     this._pendingUploads[locationAndName] = file;

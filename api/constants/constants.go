@@ -464,6 +464,8 @@ const (
 	// FileTransferDecision is a request that will approve or deny an active file transfer.
 	// Multiple decisions can be sent for the same request if the policy requires it.
 	FileTransferDecision string = "file-transfer-decision@goteleport.com"
+
+	ChatMessage string = "chat-message"
 )
 
 // Terraform provider environment variable names.

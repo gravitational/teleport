@@ -31,6 +31,7 @@ export interface SessionStatus {
   state: SessionState;
   parties: Participant[];
   policyFulfillmentStatus: PolicyFulfillmentStatus[];
+  chatLog: string[];
 }
 
 export interface PolicyFulfillmentStatus {

@@ -138,6 +138,10 @@ type SessionTracker interface {
 
 	// GetCommand returns the command that initiated the session.
 	GetCommand() []string
+
+	SetChatLog([]string) []string
+
+	GetChatLog() []string
 }
 
 func NewSessionTracker(spec SessionTrackerSpecV1) (SessionTracker, error) {
@@ -185,6 +189,15 @@ func (s *SessionTrackerV1) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+func (s *SessionTrackerV1) SetChatLog(chatlog []string) []string {
+	s.Spec.ChatLog = chatlog
+	return s.Spec.ChatLog
+}
+
+func (s *SessionTrackerV1) GetChatLog() []string {
+	return s.Spec.ChatLog
 }
 
 // GetSessionID returns the ID of the session.

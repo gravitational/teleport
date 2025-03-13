@@ -236,6 +236,8 @@ func (s *sessionTracker) UpdateSessionTracker(ctx context.Context, req *proto.Up
 				}
 			case *proto.UpdateSessionTrackerRequest_AddParticipant:
 				session.AddParticipant(*update.AddParticipant.Participant)
+			case *proto.UpdateSessionTrackerRequest_UpdateChatlog:
+				session.SetChatLog(update.UpdateChatlog.ChatLog)
 			case *proto.UpdateSessionTrackerRequest_RemoveParticipant:
 				if err := session.RemoveParticipant(update.RemoveParticipant.ParticipantID); err != nil {
 					return trace.Wrap(err)

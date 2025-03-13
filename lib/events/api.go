@@ -297,6 +297,8 @@ const (
 	ResizeEvent  = "resize"
 	TerminalSize = "size" // expressed as 'W:H'
 
+	ChatMessagEvent = "chat_message"
+
 	// SessionUploadIndex is a very large number of the event index
 	// to indicate that this is the last event in the chain
 	// used for the last event of the sesion - session upload

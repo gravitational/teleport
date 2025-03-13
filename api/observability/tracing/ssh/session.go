@@ -372,3 +372,8 @@ func (s *Session) RequestFileTransfer(ctx context.Context, req FileTransferReq) 
 	_, err := s.SendRequest(ctx, constants.InitiateFileTransfer, true, ssh.Marshal(req))
 	return trace.Wrap(err)
 }
+
+func (s *Session) AddChatMessage(ctx context.Context, req ChatMessageReq) error {
+	_, err := s.SendRequest(ctx, constants.ChatMessage, true, ssh.Marshal(req))
+	return trace.Wrap(err)
+}

@@ -20,6 +20,7 @@ package srv
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -206,6 +207,30 @@ func (s *SessionTracker) AddParticipant(ctx context.Context, p *types.Participan
 	return nil
 }
 
+func (s *SessionTracker) UpdateChatlog(ctx context.Context, chatlog []string) error {
+	s.trackerCond.L.Lock()
+	defer s.trackerCond.L.Unlock()
+	s.tracker.SetChatLog(chatlog)
+	s.trackerCond.Broadcast()
+
+	fmt.Printf("\n\n\n\nUPDATED CHATLOG 2: %v\n\n\n\n", chatlog)
+
+	if s.service != nil {
+		err := s.service.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
+			SessionID: s.tracker.GetSessionID(),
+			Update: &proto.UpdateSessionTrackerRequest_UpdateChatlog{
+				UpdateChatlog: &proto.SessionTrackerUpdateChatlog{
+					ChatLog: chatlog,
+				},
+			},
+		})
+
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 func (s *SessionTracker) RemoveParticipant(ctx context.Context, participantID string) error {
 	s.trackerCond.L.Lock()
 	defer s.trackerCond.L.Unlock()
@@ -299,4 +324,10 @@ func (s *SessionTracker) GetParticipants() []types.Participant {
 	s.trackerCond.L.Lock()
 	defer s.trackerCond.L.Unlock()
 	return s.tracker.GetParticipants()
+}
+
+func (s *SessionTracker) GetChatLog() []string {
+	s.trackerCond.L.Lock()
+	defer s.trackerCond.L.Unlock()
+	return s.tracker.GetChatLog()
 }

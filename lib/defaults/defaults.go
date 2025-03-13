@@ -729,6 +729,8 @@ const (
 	// WebsocketDatabaseSessionRequest is received when a new database session
 	// is requested.
 	WebsocketDatabaseSessionRequest = "d"
+
+	WebSocketChatMessageRequest = "h"
 )
 
 // The following are cryptographic primitives Teleport does not support in

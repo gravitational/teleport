@@ -19,10 +19,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTheme } from 'styled-components';
 
-import { Box, ButtonPrimary, Flex, H3, H4, Indicator, P2 } from 'design';
+import {
+  Box,
+  Button,
+  ButtonPrimary,
+  Flex,
+  H3,
+  H4,
+  Indicator,
+  Input,
+  P2,
+} from 'design';
 import Dialog, { DialogHeader, DialogTitle } from 'design/Dialog';
-import { ShieldCheck } from 'design/Icon';
-import { P } from 'design/Text/Text';
+import { BroadcastSlash, Logout, ShieldCheck } from 'design/Icon';
+import { H2, P } from 'design/Text/Text';
 import {
   FileTransfer,
   FileTransferActionBar,
@@ -34,7 +44,8 @@ import { TerminalSearch } from 'shared/components/TerminalSearch';
 
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import * as stores from 'teleport/Console/stores';
-import { ItemStatus, StatusLight } from 'teleport/Discover/Shared';
+import { ItemStatus, StatusLight, TextBox } from 'teleport/Discover/Shared';
+import Tty from 'teleport/lib/term/tty';
 import {
   MfaState,
   shouldShowMfaPrompt,
@@ -42,6 +53,7 @@ import {
 } from 'teleport/lib/useMfa';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
 import {
+  Participant,
   ParticipantMode,
   SessionState,
   SessionStatus,
@@ -68,7 +80,6 @@ function DocumentSsh({ doc, visible, mode }: PropTypes) {
   const { tty, status, closeDocument, session, sessionStatus } =
     useSshSession(doc);
   const [showSearch, setShowSearch] = useState(false);
-  const [showMfaDialog, setShowMfaDialog] = useState(true);
 
   const mfa = useMfaEmitter(tty, {
     // The MFA requirement will be determined by whether we do/don't get
@@ -148,59 +159,71 @@ function DocumentSsh({ doc, visible, mode }: PropTypes) {
   );
 
   return (
-    <Document visible={visible} flexDirection="column">
-      {mode !== 'peer' && !!mode && (
-        <Box
-          width="100%"
-          css={`
-            background-color: ${theme.colors.interactive.tonal.primary[1]};
-            border-bottom: ${theme.borders[1]}
-              ${theme.colors.interactive.tonal.primary[2]};
-          `}
-          p={1}
-        >
-          {mode === 'moderator' && (
-            <P2>
-              You have joined this session as a <b>moderator</b>. You can watch
-              and terminate the session, but cannot type.
-            </P2>
+    <Flex width="100%" height="100%">
+      <Document visible={visible} flexDirection="column">
+        {mode !== 'peer' &&
+          !!mode &&
+          sessionStatus?.state === SessionState.Running && (
+            <Box
+              width="100%"
+              css={`
+                background-color: ${theme.colors.interactive.tonal.primary[1]};
+                border-bottom: ${theme.borders[1]}
+                  ${theme.colors.interactive.tonal.primary[2]};
+              `}
+              p={1}
+            >
+              {mode === 'moderator' && (
+                <P2>
+                  You have joined this session as a <b>moderator</b>. You can
+                  watch and terminate the session, but cannot type.
+                </P2>
+              )}
+              {mode === 'observer' && (
+                <P2>
+                  You have joined this session as a <b>moderator</b>. You can
+                  watch this session, but not interact.
+                </P2>
+              )}
+            </Box>
           )}
-          {mode === 'observer' && (
-            <P2>
-              You have joined this session as a <b>moderator</b>. You can watch
-              this session, but not interact.
-            </P2>
-          )}
-        </Box>
-      )}
-      <FileTransferActionBar
-        hasAccess={hasFileTransferAccess}
-        isConnected={doc.status === 'connected'}
-      />
-      {status === 'loading' && (
-        <Box textAlign="center" m={10}>
-          <Indicator />
-        </Box>
-      )}
-      {sessionStatus?.state === SessionState.Pending ? (
-        <WaitingRoomDialog
+        <FileTransferActionBar
+          hasAccess={hasFileTransferAccess}
+          isConnected={doc.status === 'connected'}
+        />
+        {status === 'loading' && (
+          <Box textAlign="center" m={10}>
+            <Indicator />
+          </Box>
+        )}
+        {sessionStatus?.state === SessionState.Pending ? (
+          <WaitingRoomDialog
+            sessionStatus={sessionStatus}
+            mfa={mfa}
+            handleReadyToJoin={() => tty.readyToJoin()}
+          />
+        ) : (
+          <AuthnDialog
+            mfaState={mfa}
+            onClose={() => {
+              // Don't close the ssh doc if this is just a file transfer request.
+              if (!ftOpenedDialog) {
+                closeDocument();
+              }
+            }}
+          />
+        )}
+        {status === 'initialized' && terminal}
+      </Document>
+      {sessionStatus?.state === SessionState.Running && (
+        <PartiesList
+          parties={sessionStatus?.parties || []}
+          tty={tty}
+          username={ctx.getStoreUser().username}
           sessionStatus={sessionStatus}
-          handleReadyToJoin={() => tty.readyToJoin()}
-          mfa={mfa}
-        />
-      ) : (
-        <AuthnDialog
-          mfaState={mfa}
-          onClose={() => {
-            // Don't close the ssh doc if this is just a file transfer request.
-            if (!ftOpenedDialog) {
-              closeDocument();
-            }
-          }}
         />
       )}
-      {status === 'initialized' && terminal}
-    </Document>
+    </Flex>
   );
 }
 
@@ -312,6 +335,168 @@ function WaitingRoomDialog({
         />
       )}
     </Dialog>
+  );
+}
+
+function PartiesList({
+  parties,
+  username,
+  tty,
+  sessionStatus,
+}: {
+  parties: Participant[];
+  username: string;
+  tty: Tty;
+  sessionStatus: SessionStatus;
+}) {
+  const observers = parties.filter(p => p.mode === 'observer');
+  const peers = parties.filter(p => p.mode === 'peer');
+  const moderators = parties.filter(p => p.mode === 'moderator');
+
+  const isModerator = !!moderators.find(m => m.user === username);
+
+  const [chatText, setChatText] = useState('');
+
+  return (
+    <Flex
+      backgroundColor="levels.surface"
+      width="300px"
+      height="100%"
+      css={`
+        border-left: ${props => props.theme.borders[2]}
+          ${props => props.theme.colors.interactive.tonal.neutral[1]};
+      `}
+      flexDirection={'column'}
+      p={3}
+      justifyContent="space-between"
+    >
+      <Flex flexDirection="column" gap={1}>
+        <H2 mb={2}>Participants</H2>
+        {peers.length > 0 && (
+          <Box>
+            <H3>Peers</H3>
+            <Flex flexDirection="column">
+              {peers.map(p => (
+                <Flex key={p.user} flexDirection="row" alignItems="center">
+                  <StatusLight status={ItemStatus.Success} />{' '}
+                  <P>
+                    {p.user} {username === p.user ? <b>(me)</b> : ''}
+                  </P>
+                </Flex>
+              ))}
+            </Flex>
+          </Box>
+        )}
+        {moderators.length > 0 && (
+          <Box>
+            <H3>Moderators</H3>
+            <Flex flexDirection="column">
+              {moderators.map(p => (
+                <Flex key={p.user} flexDirection="row" alignItems="center">
+                  <StatusLight status={ItemStatus.Success} />{' '}
+                  <P>
+                    {p.user} {username === p.user ? '(me)' : ''}
+                  </P>
+                </Flex>
+              ))}
+            </Flex>
+          </Box>
+        )}
+        {observers.length > 0 && (
+          <Box>
+            <H3>Observers</H3>
+            <Flex flexDirection="column">
+              {observers.map(p => (
+                <Flex key={p.user} flexDirection="row" alignItems="center">
+                  <StatusLight status={ItemStatus.Success} />{' '}
+                  <P>
+                    {p.user} {username === p.user ? '(me)' : ''}
+                  </P>
+                </Flex>
+              ))}
+            </Flex>
+          </Box>
+        )}
+      </Flex>
+
+      <Flex flexDirection="column">
+        <H2 mt={3}>Chatroom</H2>
+        <Flex
+          width="100%"
+          height="300px"
+          mt={1}
+          css={`
+            background-color: ${props =>
+              props.theme.colors.interactive.tonal.neutral[1]};
+            border: ${props => props.theme.borders[2]}
+              ${props => props.theme.colors.interactive.tonal.neutral[2]};
+            border-radius: ${props => props.theme.radii[2]}px;
+
+            border-bottom: none;
+            border-bottom-right-radius: 0px;
+            border-bottom-left-radius: 0px;
+
+            overflow-y: auto;
+            scrollbar-color: ${p => p.theme.colors.spotBackground[2]}
+              transparent;
+          `}
+          justifyContent="space-between"
+          flexDirection="column"
+        >
+          <Flex
+            px={2}
+            py={1}
+            pb={2}
+            flexDirection="column-reverse"
+            height="100%"
+          >
+            {sessionStatus?.chatLog.map((message, i) => (
+              <Box key={i}>
+                <P>{message}</P>
+              </Box>
+            ))}
+          </Flex>
+        </Flex>
+        <form
+          onSubmit={e => {
+            e.preventDefault();
+            tty.sendChatMessage(`[${username}]: ${chatText}`);
+            setChatText('');
+          }}
+        >
+          <Input
+            value={chatText}
+            onChange={e => setChatText(e.target.value)}
+            placeholder="Type a message..."
+            width="100%"
+            css={`
+              background-color: ${props =>
+                props.theme.colors.interactive.tonal.neutral[0]};
+
+              input {
+                border-top-right-radius: 0px;
+                border-top-left-radius: 0px;
+              }
+            `}
+          />
+        </form>
+      </Flex>
+
+      <Flex flexDirection="column" mb={1}>
+        {isModerator && (
+          <Button
+            intent="danger"
+            mb={2}
+            onClick={() => tty.terminateModeratedSession()}
+          >
+            <BroadcastSlash size="small" mr={2} /> Terminate
+          </Button>
+        )}
+        <Button onClick={() => tty.disconnect()}>
+          <Logout size="small" mr={2} /> Disconnect
+        </Button>
+      </Flex>
+    </Flex>
   );
 }
 

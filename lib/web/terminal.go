@@ -824,6 +824,7 @@ type SessionStatusData struct {
 	State                   types.SessionState             `json:"state"`
 	Parties                 []types.Participant            `json:"parties"`
 	PolicyFulfillmentStatus []auth.PolicyFulfillmentStatus `json:"policyFulfillmentStatus"`
+	ChatLog                 []string                       `json:"chatLog"`
 }
 
 func (t *TerminalHandler) streamSessionStatus(ctx context.Context) {
@@ -877,6 +878,7 @@ func (t *TerminalHandler) streamSessionStatus(ctx context.Context) {
 				State:                   tracker.GetState(),
 				Parties:                 parties,
 				PolicyFulfillmentStatus: policyFulfillmentStatus,
+				ChatLog:                 tracker.GetChatLog(),
 			})
 			if err != nil {
 				// do something with this error

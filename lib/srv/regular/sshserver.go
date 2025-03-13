@@ -1720,6 +1720,8 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			return s.termHandlers.HandleWinChange(ctx, ch, req, serverContext)
 		case teleport.ForceTerminateRequest:
 			return s.termHandlers.HandleForceTerminate(ch, req, serverContext)
+		case constants.ChatMessage:
+			return s.termHandlers.HandleChatMessage(ctx, ch, req, serverContext)
 		case sshutils.EnvRequest, tracessh.EnvsRequest:
 		case constants.FileTransferDecision:
 			return s.termHandlers.HandleFileTransferDecision(ctx, ch, req, serverContext)
@@ -1764,6 +1766,8 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		return s.termHandlers.HandleWinChange(ctx, ch, req, serverContext)
 	case teleport.ForceTerminateRequest:
 		return s.termHandlers.HandleForceTerminate(ch, req, serverContext)
+	case constants.ChatMessage:
+		return s.termHandlers.HandleChatMessage(ctx, ch, req, serverContext)
 	case sshutils.EnvRequest:
 		return s.handleEnv(ctx, ch, req, serverContext)
 	case tracessh.EnvsRequest:

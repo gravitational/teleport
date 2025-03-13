@@ -36,6 +36,7 @@ export const MessageTypeEnum = {
   KUBE_EXEC: 'k',
   DB_CONNECT: 'd',
   SESSION_STATUS: 'g',
+  CHAT_MESSAGE: 'h',
 };
 
 export const messageFields = {
@@ -67,6 +68,7 @@ export const messageFields = {
       kubeExec: MessageTypeEnum.KUBE_EXEC.charCodeAt(0),
       error: MessageTypeEnum.ERROR.charCodeAt(0),
       dbConnect: MessageTypeEnum.DB_CONNECT.charCodeAt(0),
+      chatMessage: MessageTypeEnum.CHAT_MESSAGE.charCodeAt(0),
     },
   },
 };
@@ -90,6 +92,10 @@ export class Protobuf {
 
   encodeFileTransferRequest(message) {
     return this.encode(messageFields.type.values.fileTransferRequest, message);
+  }
+
+  encodeChatMessage(message) {
+    return this.encode(messageFields.type.values.chatMessage, message);
   }
 
   encodeFileTransferDecision(message) {

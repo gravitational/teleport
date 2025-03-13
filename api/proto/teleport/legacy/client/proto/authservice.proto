@@ -2255,6 +2255,10 @@ message SessionTrackerUpdateExpiry {
   ];
 }
 
+message SessionTrackerUpdateChatlog {
+  repeated string ChatLog = 1 [(gogoproto.jsontag) = "chatLog,omitempty"];
+}
+
 // UpdateSessionTrackerRequest is a request to update some state of a session.
 message UpdateSessionTrackerRequest {
   // SessionID is unique identifier of this session.
@@ -2265,6 +2269,7 @@ message UpdateSessionTrackerRequest {
     SessionTrackerAddParticipant AddParticipant = 3 [(gogoproto.jsontag) = "add_participant,omitempty"];
     SessionTrackerRemoveParticipant RemoveParticipant = 4 [(gogoproto.jsontag) = "remove_participant,omitempty"];
     SessionTrackerUpdateExpiry UpdateExpiry = 5 [(gogoproto.jsontag) = "update_expiry,omitempty"];
+    SessionTrackerUpdateChatlog UpdateChatlog = 6 [(gogoproto.jsontag) = "update_chatlog,omitempty"];
   }
 }
 

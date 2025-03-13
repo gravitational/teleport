@@ -1926,6 +1926,19 @@ func (s *session) addFileTransferRequest(params *rsession.FileTransferRequestPar
 	return trace.Wrap(err)
 }
 
+func (s *session) addChatMessage(chatMessage string, scx *ServerContext) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	existingChatLog := s.tracker.GetChatLog()
+
+	newChatLog := append(existingChatLog, chatMessage)
+
+	fmt.Println("\n\n\nNEW CHATLOG1: %v\n\n\n", newChatLog)
+
+	return trace.Wrap(s.tracker.UpdateChatlog(s.serverCtx, newChatLog))
+}
+
 // approveFileTransferRequest will add the approver to the approvers map of a file transfer request and notify the members
 // of the session if the updated approvers map would fulfill the moderated policy.
 func (s *session) approveFileTransferRequest(params *rsession.FileTransferDecisionParams, scx *ServerContext) error {

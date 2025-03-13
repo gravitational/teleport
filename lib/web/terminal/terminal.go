@@ -479,6 +479,10 @@ func NewStream(ctx context.Context, cfg StreamConfig) *Stream {
 		cfg.Handlers[defaults.WebsocketFileTransferRequest] = t.handleFileTransferRequest
 	}
 
+	if _, ok := cfg.Handlers[defaults.WebSocketChatMessageRequest]; !ok {
+		cfg.Handlers[defaults.WebSocketChatMessageRequest] = t.handleChatMessage
+	}
+
 	if _, ok := cfg.Handlers[defaults.WebsocketFileTransferDecision]; !ok {
 		cfg.Handlers[defaults.WebsocketFileTransferDecision] = t.handleFileTransferDecision
 	}
@@ -559,6 +563,24 @@ func (t *Stream) handleFileTransferDecision(ctx context.Context, envelope Envelo
 	}
 	if err != nil {
 		t.log.ErrorContext(ctx, "Unable to respond to file transfer request", "error", err)
+	}
+}
+
+func (t *Stream) handleChatMessage(ctx context.Context, envelope Envelope) {
+	sshSession, err := t.waitForSSHSession(ctx)
+	if err != nil {
+		return
+	}
+
+	var e utils.Fields
+	if err := json.Unmarshal([]byte(envelope.Payload), &e); err != nil {
+		return
+	}
+
+	if err := sshSession.AddChatMessage(ctx, tracessh.ChatMessageReq{
+		Message: e.GetString("message"),
+	}); err != nil {
+		t.log.ErrorContext(ctx, "Unable to send chat message", "error", err)
 	}
 }
 

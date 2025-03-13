@@ -68,6 +68,11 @@ type FileTransferDecisionReq struct {
 	Approved bool
 }
 
+type ChatMessageReq struct {
+	// RequestID is the ID of the file transfer request being responded to
+	Message string
+}
+
 // ContextFromRequest extracts any tracing data provided via an Envelope
 // in the ssh.Request payload. If the payload contains an Envelope, then
 // the context returned will have tracing data populated from the remote

@@ -132,6 +132,10 @@ type FileTransferRequestParams struct {
 	Approvers []Party `json:"approvers"`
 }
 
+type ChatMessageParams struct {
+	Message string `json:"message"`
+}
+
 // FileTransferDecisionParams contains parameters for approving or denying a file transfer request
 type FileTransferDecisionParams struct {
 	// RequestID is the ID of the request being responded to

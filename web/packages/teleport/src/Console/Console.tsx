@@ -97,13 +97,13 @@ export default function Console() {
             key={doc.id}
             mode={doc.kind === 'terminal' ? doc.mode : null}
           />
-          {doc.kind === 'terminal' && (
+          {/* {doc.kind === 'terminal' && (
             <PartiesList
               parties={storeParties.bySid(doc.sid)}
               username={consoleCtx.getStoreUser()?.username}
               tty={consoleCtx.getTtyForDoc(doc)}
             />
-          )}
+          )} */}
         </Flex>
       )}
     </Fragment>

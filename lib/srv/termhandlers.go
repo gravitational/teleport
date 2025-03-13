@@ -21,6 +21,7 @@ package srv
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -171,6 +172,23 @@ func (t *TermHandlers) HandleFileTransferRequest(ctx context.Context, ch ssh.Cha
 	return trace.Wrap(session.addFileTransferRequest(params, scx))
 }
 
+func (t *TermHandlers) HandleChatMessage(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *ServerContext) error {
+	params, err := parseChatMessageRqeuest(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("\n\n\n\nRECEIVED MESSAGE: %s\n\n\n\n", params.Message)
+
+	session := scx.getSession()
+	if session == nil {
+		t.SessionRegistry.logger.DebugContext(ctx, "Unable to create file transfer Request, no session found in context.")
+		return nil
+	}
+
+	return trace.Wrap(session.addChatMessage(params.Message, scx))
+}
+
 // HandleWinChange handles requests of type "window-change" which update the
 // size of the PTY running on the server and update any other members in the
 // party.
@@ -265,6 +283,18 @@ func parseFileTransferRequest(req *ssh.Request) (*rsession.FileTransferRequestPa
 		Location: r.Location,
 		Filename: r.Filename,
 		Download: r.Download,
+	}
+	return params, nil
+}
+
+func parseChatMessageRqeuest(req *ssh.Request) (*rsession.ChatMessageParams, error) {
+	var r tracingssh.ChatMessageReq
+	if err := ssh.Unmarshal(req.Payload, &r); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	params := &rsession.ChatMessageParams{
+		Message: r.Message,
 	}
 	return params, nil
 }
