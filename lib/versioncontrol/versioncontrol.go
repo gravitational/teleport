@@ -21,7 +21,7 @@ package versioncontrol
 import (
 	"fmt"
 
-	"golang.org/x/mod/semver"
+	"golang.org/x/mod/semver" //nolint:depguard
 )
 
 // Normalize attaches the expected `v` prefix to a version string if the supplied

@@ -23,7 +23,7 @@ import (
 	"slices"
 	"strings"
 
-	"golang.org/x/mod/semver"
+	"golang.org/x/mod/semver" //nolint:depguard
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
