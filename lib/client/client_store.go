@@ -64,10 +64,6 @@ func NewFSClientStore(dirPath string, hwKeyService hardwarekey.Service) *Store {
 	}
 }
 
-func (s *Store) NewHardwarePrivateKey(ctx context.Context, customSlot hardwarekey.PIVSlot, requiredPolicy keys.PrivateKeyPolicy, keyInfo hardwarekey.PrivateKeyInfo) (*keys.PrivateKey, error) {
-	return keys.NewHardwarePrivateKey(ctx, s.hwKeyService, customSlot, requiredPolicy, keyInfo)
-}
-
 // NewMemClientStore initializes a new in-memory client store.
 func NewMemClientStore(hwKeyService hardwarekey.Service) *Store {
 	return &Store{
@@ -77,6 +73,11 @@ func NewMemClientStore(hwKeyService hardwarekey.Service) *Store {
 		TrustedCertsStore: NewMemTrustedCertsStore(),
 		ProfileStore:      NewMemProfileStore(),
 	}
+}
+
+// NewHardwarePrivateKey create a new hardware private key with the given configuration in this client store.
+func (s *Store) NewHardwarePrivateKey(ctx context.Context, config hardwarekey.PrivateKeyConfig) (*keys.PrivateKey, error) {
+	return keys.NewHardwarePrivateKey(ctx, s.hwKeyService, config)
 }
 
 // AddKeyRing adds the given key ring to the key store. The key's trusted certificates are

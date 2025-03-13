@@ -53,7 +53,7 @@ type hardwareKeyPrompter struct {
 }
 
 // Touch prompts the user to touch the hardware key.
-func (h *hardwareKeyPrompter) Touch(ctx context.Context, keyInfo hardwarekey.PrivateKeyInfo) error {
+func (h *hardwareKeyPrompter) Touch(ctx context.Context, keyInfo hardwarekey.ContextualKeyInfo) error {
 	_, err := h.s.tshdEventsClient.PromptHardwareKeyTouch(ctx, &api.PromptHardwareKeyTouchRequest{
 		RootClusterUri: keyInfo.ProxyHost,
 	})
@@ -64,7 +64,7 @@ func (h *hardwareKeyPrompter) Touch(ctx context.Context, keyInfo hardwarekey.Pri
 }
 
 // AskPIN prompts the user for a PIN.
-func (h *hardwareKeyPrompter) AskPIN(ctx context.Context, requirement hardwarekey.PINPromptRequirement, keyInfo hardwarekey.PrivateKeyInfo) (string, error) {
+func (h *hardwareKeyPrompter) AskPIN(ctx context.Context, requirement hardwarekey.PINPromptRequirement, keyInfo hardwarekey.ContextualKeyInfo) (string, error) {
 	res, err := h.s.tshdEventsClient.PromptHardwareKeyPIN(ctx, &api.PromptHardwareKeyPINRequest{
 		RootClusterUri: keyInfo.ProxyHost,
 		PinOptional:    requirement == hardwarekey.PINOptional,
@@ -78,7 +78,7 @@ func (h *hardwareKeyPrompter) AskPIN(ctx context.Context, requirement hardwareke
 // ChangePIN asks for a new PIN.
 // The Electron app prompt must handle default values for PIN and PUK,
 // preventing the user from submitting empty/default values.
-func (h *hardwareKeyPrompter) ChangePIN(ctx context.Context, keyInfo hardwarekey.PrivateKeyInfo) (*hardwarekey.PINAndPUK, error) {
+func (h *hardwareKeyPrompter) ChangePIN(ctx context.Context, keyInfo hardwarekey.ContextualKeyInfo) (*hardwarekey.PINAndPUK, error) {
 	res, err := h.s.tshdEventsClient.PromptHardwareKeyPINChange(ctx, &api.PromptHardwareKeyPINChangeRequest{
 		RootClusterUri: keyInfo.ProxyHost,
 	})
@@ -93,7 +93,7 @@ func (h *hardwareKeyPrompter) ChangePIN(ctx context.Context, keyInfo hardwarekey
 }
 
 // ConfirmSlotOverwrite asks the user if the slot's private key and certificate can be overridden.
-func (h *hardwareKeyPrompter) ConfirmSlotOverwrite(ctx context.Context, message string, keyInfo hardwarekey.PrivateKeyInfo) (bool, error) {
+func (h *hardwareKeyPrompter) ConfirmSlotOverwrite(ctx context.Context, message string, keyInfo hardwarekey.ContextualKeyInfo) (bool, error) {
 	res, err := h.s.tshdEventsClient.ConfirmHardwareKeySlotOverwrite(ctx, &api.ConfirmHardwareKeySlotOverwriteRequest{
 		RootClusterUri: keyInfo.ProxyHost,
 		Message:        message,

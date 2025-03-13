@@ -28,19 +28,19 @@ import (
 
 var errPIVUnavailable = errors.New("PIV is unavailable in current build")
 
-func NewYubiKeyPIVService(ctx context.Context, _ hardwarekey.PrivateKeyRef) *unavailableYubiKeyPIVService {
+func NewYubiKeyService(ctx context.Context, _ hardwarekey.Prompt) *unavailableYubiKeyPIVService {
 	return &unavailableYubiKeyPIVService{}
 }
 
 type unavailableYubiKeyPIVService struct{}
 
-func (s *unavailableYubiKeyPIVService) NewPrivateKey(_ context.Context, _ hardwarekey.PIVSlot, _ hardwarekey.PromptPolicy) (*hardwarekey.PrivateKeyRef, error) {
+func (s *unavailableYubiKeyPIVService) NewPrivateKey(_ context.Context, _ hardwarekey.PrivateKeyConfig) (*hardwarekey.PrivateKey, error) {
 	return nil, trace.Wrap(errPIVUnavailable)
 }
 
 // Sign performs a cryptographic signature using the specified hardware
 // private key and provided signature parameters.
-func (s *unavailableYubiKeyPIVService) Sign(_ context.Context, _ hardwarekey.PrivateKeyRef, _ io.Reader, _ []byte, _ crypto.SignerOpts) ([]byte, error) {
+func (s *unavailableYubiKeyPIVService) Sign(_ context.Context, _ *hardwarekey.PrivateKeyRef, _ io.Reader, _ []byte, _ crypto.SignerOpts) ([]byte, error) {
 	return nil, trace.Wrap(errPIVUnavailable)
 }
 

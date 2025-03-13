@@ -3999,8 +3999,15 @@ func (tc *TeleportClient) GetNewLoginKeyRing(ctx context.Context) (keyRing *KeyR
 		if tc.PIVSlot != "" {
 			log.DebugContext(ctx, "Using PIV slot specified by client or server settings", "piv_slot", tc.PIVSlot)
 		}
-		priv, err := tc.ClientStore.NewHardwarePrivateKey(ctx, tc.PIVSlot, tc.PrivateKeyPolicy, hardwarekey.PrivateKeyInfo{
-			ProxyHost: tc.WebProxyHost(),
+		priv, err := tc.ClientStore.NewHardwarePrivateKey(ctx, hardwarekey.PrivateKeyConfig{
+			CustomSlot: tc.PIVSlot,
+			Policy: hardwarekey.PromptPolicy{
+				TouchRequired: tc.PrivateKeyPolicy.IsHardwareKeyTouchVerified(),
+				PINRequired:   tc.PrivateKeyPolicy.IsHardwareKeyPINVerified(),
+			},
+			ContextualKeyInfo: hardwarekey.ContextualKeyInfo{
+				ProxyHost: tc.WebProxyHost(),
+			},
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

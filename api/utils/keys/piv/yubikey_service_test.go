@@ -57,7 +57,9 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 
 	// Warmup the hardware key to prompt touch at the start of the test,
 	// rather than having this interaction later.
-	priv, err := keys.NewHardwarePrivateKey(ctx, s, "", keys.PrivateKeyPolicyHardwareKeyTouch, hardwarekey.PrivateKeyInfo{})
+	priv, err := keys.NewHardwarePrivateKey(ctx, s, hardwarekey.PrivateKeyConfig{
+		Policy: hardwarekey.PromptPolicy{TouchRequired: true},
+	})
 	require.NoError(t, err)
 	require.Nil(t, priv.WarmupHardwareKey(ctx))
 
@@ -79,7 +81,12 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 					}
 
 					// NewHardwarePrivateKey should generate a new hardware private key.
-					priv, err := keys.NewHardwarePrivateKey(ctx, s, slot, policy, hardwarekey.PrivateKeyInfo{})
+					priv, err := keys.NewHardwarePrivateKey(ctx, s, hardwarekey.PrivateKeyConfig{
+						Policy: hardwarekey.PromptPolicy{
+							TouchRequired: policy.IsHardwareKeyTouchVerified(),
+							PINRequired:   policy.IsHardwareKeyPINVerified(),
+						},
+					})
 					require.NoError(t, err)
 
 					// test HardwareSigner methods
@@ -91,7 +98,13 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 					require.Nil(t, priv.WarmupHardwareKey(ctx))
 
 					// Another call to NewHardwarePrivateKey should retrieve the previously generated key.
-					retrievePriv, err := keys.NewHardwarePrivateKey(ctx, s, slot, policy, hardwarekey.PrivateKeyInfo{})
+					retrievePriv, err := keys.NewHardwarePrivateKey(ctx, s, hardwarekey.PrivateKeyConfig{
+						CustomSlot: slot,
+						Policy: hardwarekey.PromptPolicy{
+							TouchRequired: policy.IsHardwareKeyTouchVerified(),
+							PINRequired:   policy.IsHardwareKeyPINVerified(),
+						},
+					})
 					require.NoError(t, err)
 					require.Equal(t, priv.Public(), retrievePriv.Public())
 
@@ -126,12 +139,16 @@ func TestOverwritePrompt(t *testing.T) {
 	testOverwritePrompt := func(t *testing.T) {
 		// Fail to overwrite slot when user denies
 		prompt.SetStdin(prompt.NewFakeReader().AddString("n"))
-		_, err := keys.NewHardwarePrivateKey(ctx, s, "" /*slot*/, keys.PrivateKeyPolicyHardwareKeyTouch, hardwarekey.PrivateKeyInfo{})
+		_, err := keys.NewHardwarePrivateKey(ctx, s, hardwarekey.PrivateKeyConfig{
+			Policy: hardwarekey.PromptPolicy{TouchRequired: true},
+		})
 		require.True(t, trace.IsCompareFailed(err), "Expected compare failed error but got %v", err)
 
 		// Successfully overwrite slot when user accepts
 		prompt.SetStdin(prompt.NewFakeReader().AddString("y"))
-		_, err = keys.NewHardwarePrivateKey(ctx, s, "" /*slot*/, keys.PrivateKeyPolicyHardwareKeyTouch, hardwarekey.PrivateKeyInfo{})
+		_, err = keys.NewHardwarePrivateKey(ctx, s, hardwarekey.PrivateKeyConfig{
+			Policy: hardwarekey.PromptPolicy{TouchRequired: true},
+		})
 		require.NoError(t, err)
 	}
 
@@ -149,7 +166,10 @@ func TestOverwritePrompt(t *testing.T) {
 		resetYubikey(t, y)
 
 		// Generate a key that does not require touch in the slot that Teleport expects to require touch.
-		_, err := keys.NewHardwarePrivateKey(ctx, s, hardwarekey.PIVSlot(touchSlot.String()), keys.PrivateKeyPolicyHardwareKey, hardwarekey.PrivateKeyInfo{})
+		_, err := keys.NewHardwarePrivateKey(ctx, s, hardwarekey.PrivateKeyConfig{
+			CustomSlot: hardwarekey.PIVSlot(touchSlot.String()),
+			Policy:     hardwarekey.PromptPolicy{TouchRequired: false},
+		})
 		require.NoError(t, err)
 
 		testOverwritePrompt(t)
