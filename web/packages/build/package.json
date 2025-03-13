@@ -10,7 +10,7 @@
     "directory": "packages/build"
   },
   "dependencies": {
-    "@babel/core": "^7.25.2",
+    "@babel/core": "^7.26.10",
     "@babel/preset-env": "^7.25.4",
     "@babel/preset-react": "^7.24.7",
     "@babel/preset-typescript": "^7.24.7",
