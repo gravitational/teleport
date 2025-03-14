@@ -327,9 +327,9 @@ type Config struct {
 	// SessionID is a session ID to use when opening a new session.
 	SessionID string
 
-	// extraEnvs contains additional environment variables that will be added
+	// ExtraEnvs contains additional environment variables that will be added
 	// to SSH session.
-	extraEnvs map[string]string
+	ExtraEnvs map[string]string
 
 	// InteractiveCommand tells tsh to launch a remote exec command in interactive mode,
 	// i.e. attaching the terminal to it.
@@ -3039,7 +3039,7 @@ func (tc *TeleportClient) newSessionEnv() map[string]string {
 		env[sshutils.SessionEnvVar] = tc.SessionID
 	}
 
-	for key, val := range tc.extraEnvs {
+	for key, val := range tc.ExtraEnvs {
 		env[key] = val
 	}
 	return env

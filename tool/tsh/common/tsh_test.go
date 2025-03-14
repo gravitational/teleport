@@ -7174,3 +7174,46 @@ func TestSCP(t *testing.T) {
 		})
 	}
 }
+
+func TestSetEnvVariables(t *testing.T) {
+	testCases := []struct {
+		name              string
+		envVars           map[string]string
+		sendEnvVariables  []string
+		expectedExtraEnvs map[string]string
+	}{
+		{
+			name: "Skip unset var",
+			envVars: map[string]string{
+				"TEST_VAR1": "value1",
+				"TEST_VAR2": "value2",
+			},
+			sendEnvVariables: []string{"TEST_VAR1", "TEST_VAR2", "UNSET_VAR"},
+			expectedExtraEnvs: map[string]string{
+				"TEST_VAR1": "value1",
+				"TEST_VAR2": "value2",
+			},
+		},
+		{
+			name:              "Sending empty var",
+			envVars:           map[string]string{"EMPTY_VAR": ""},
+			sendEnvVariables:  []string{"EMPTY_VAR"},
+			expectedExtraEnvs: map[string]string{"EMPTY_VAR": ""},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			for k, v := range tc.envVars {
+				t.Setenv(k, v)
+			}
+
+			c := &client.Config{}
+			options := Options{SendEnvVariables: tc.sendEnvVariables}
+
+			setEnvVariables(c, options)
+
+			require.Equal(t, tc.expectedExtraEnvs, c.ExtraEnvs)
+		})
+	}
+}
