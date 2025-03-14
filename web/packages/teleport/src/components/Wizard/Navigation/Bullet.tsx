@@ -49,7 +49,7 @@ export const BulletContainer = styled.span`
   height: 14px;
   width: 14px;
   border: 1px solid ${p => p.theme.colors.text.disabled};
-  font-size: ${p => p.theme.fontSizes[1]}px;
+  font-size: ${p => p.theme.fontSizes[0]}px;
   border-radius: 50%;
   margin-right: ${p => p.theme.space[2]}px;
   display: flex;
