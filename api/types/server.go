@@ -649,17 +649,23 @@ func (s *ServerV2) githubCheckAndSetDefaults() error {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (s *ServerV2) MatchSearch(values []string) bool {
-	if s.GetKind() != KindNode {
+	switch s.Kind {
+	case KindNode:
+		var custom func(val string) bool
+		if s.GetUseTunnel() {
+			custom = func(val string) bool {
+				return strings.EqualFold(val, "tunnel")
+			}
+		}
+		return MatchSearch(s.makeCommonSearchFields(), values, custom)
+	case KindGitServer:
+		return MatchSearch(s.makeCommonSearchFields(), values, nil)
+	default:
 		return false
 	}
+}
 
-	var custom func(val string) bool
-	if s.GetUseTunnel() {
-		custom = func(val string) bool {
-			return strings.EqualFold(val, "tunnel")
-		}
-	}
-
+func (s *ServerV2) makeCommonSearchFields() []string {
 	fieldVals := make([]string, 0, (len(s.Metadata.Labels)*2)+(len(s.Spec.CmdLabels)*2)+len(s.Spec.PublicAddrs)+3)
 
 	labels := CombineLabels(s.Metadata.Labels, s.Spec.CmdLabels)
@@ -669,8 +675,7 @@ func (s *ServerV2) MatchSearch(values []string) bool {
 
 	fieldVals = append(fieldVals, s.Metadata.Name, s.Spec.Hostname, s.Spec.Addr)
 	fieldVals = append(fieldVals, s.Spec.PublicAddrs...)
-
-	return MatchSearch(fieldVals, values, custom)
+	return fieldVals
 }
 
 // DeepCopy creates a clone of this server value
