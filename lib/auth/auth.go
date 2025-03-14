@@ -416,6 +416,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			Backend: cfg.Backend,
 		}
 	}
+	if cfg.AuthInfo == nil {
+		cfg.AuthInfo, err = local.NewAuthInfoService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating AuthInfo service")
+		}
+	}
 
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
@@ -518,6 +524,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		WorkloadIdentities:              cfg.WorkloadIdentity,
 		StableUNIXUsersInternal:         cfg.StableUNIXUsers,
 		WorkloadIdentityX509Revocations: cfg.WorkloadIdentityX509Revocations,
+		AuthInfoService:                 cfg.AuthInfo,
 	}
 
 	as := Server{
@@ -750,6 +757,7 @@ type Services struct {
 	services.WorkloadIdentities
 	services.StableUNIXUsersInternal
 	services.WorkloadIdentityX509Revocations
+	services.AuthInfoService
 }
 
 // GetWebSession returns existing web session described by req.
