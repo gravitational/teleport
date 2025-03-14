@@ -140,7 +140,7 @@ export function EnrollRdsDatabase() {
   };
 
   return (
-    <Box maxWidth="800px">
+    <>
       <Header>Enroll RDS Database</Header>
       {fetchAttempt.status === 'failed' && !hasIamPermError && (
         <Danger mt={3}>{fetchAttempt.statusText}</Danger>
@@ -200,6 +200,6 @@ export function EnrollRdsDatabase() {
           key={mainContentProps.vpc?.id}
         />
       )}
-    </Box>
+    </>
   );
 }
