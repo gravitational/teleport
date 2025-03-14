@@ -156,10 +156,8 @@ and copy the `Object (principal) ID`. Paste this value into `<Var name="Principa
 After obtaining the Principal ID, open the [Azure Cloud Shell](https://portal.azure.com/#cloudshell/)
 in PowerShell mode and run the following script to assign the required permissions to `<Var name="Principal ID" />`.
 
-<Details
-title="Assign required permissions to Azure Identity"
-opened
->
+<details>
+<summary>Assign required permissions to Azure Identity</summary>
 
 ```powershell
 
@@ -203,7 +201,7 @@ foreach ($appRole in $appRoles) {
 
 ```
 
-</Details>
+</details>
 
 Your identity principal `<Var name="Principal ID" />` now has the necessary permissions to list Applications,
 Directories, and Policies.
@@ -260,10 +258,8 @@ and copy the `Object (principal) ID`. Paste this value into `<Var name="Principa
 After obtaining the Principal ID, open the [Azure Cloud Shell](https://portal.azure.com/#cloudshell/)
 in PowerShell mode and run the following script to assign the required permissions to `<Var name="Principal ID" />`.
 
-<Details
-title="Assign required permissions to Azure Identity"
-opened
->
+<details>
+<summary>Assign required permissions to Azure Identity</summary>
 
 ```powershell
 
@@ -307,7 +303,7 @@ foreach ($appRole in $appRoles) {
 
 ```
 
-</Details>
+</details>
 
 Your identity principal `<Var name="Principal ID" />` now has the necessary permissions to list Applications,
 Directories, and Policies.
@@ -328,10 +324,8 @@ To proceed, you need to define the following parameters:
 Once these parameters are defined, open the [Azure Cloud Shell](https://portal.azure.com/#cloudshell/) in 
 PowerShell mode, or use the session created in the previous step.
 
-<Details
-title="Create the Entra ID application"
-opened
->
+<details>
+<summary>Create the Entra ID application</summary>
 
 ```powershell
 # Connect to Microsoft Graph with required scopes for application creation and app role assignment permissions.
@@ -415,7 +409,7 @@ Write-Output "-------------------------------------------------------" "Copy and
 
 ```
 
-</Details>
+</details>
 
 If your cluster is publicly accessible from the internet and you prefer or need to use OIDC rather
 than Auth Service system credentials, you can configure Teleport as an OIDC provider for the Entra
@@ -425,10 +419,8 @@ Identity, you may skip the following section.
 To configure Federated credentials for your application, run the following script in the same 
 Azure Cloud Shell terminal used previously.
 
-<Details
-title="Create Federated Credentials for Entra ID Application"
-opened
->
+<details>
+<summary>Create Federated Credentials for Entra ID Application"</summary>
 
 ```powershell
 
@@ -488,7 +480,7 @@ foreach ($appRole in $appRoles) {
 
 ```
 
-</Details>
+</details>
 
 ### Set up Teleport resources
 

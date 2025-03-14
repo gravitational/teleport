@@ -754,7 +754,8 @@ desired target host and port, terminated with a null byte. The multiplexer will
 then begin to forward traffic to the target host and port. The client can then
 make an SSH connection.
 
-<Details title="Example in Python (Paramiko)" closed>
+<details>
+<summary>Example in Python (Paramiko)" close</summary>
 ```python
 import os
 import paramiko
@@ -794,9 +795,10 @@ ssh_client.connect(
 stdin, stdout, stderr = ssh_client.exec_command("hostname")
 print(stdout.read().decode())
 ```
-</Details>
+</details>
 
-<Details title="Example in Go" closed>
+<details>
+<summary>Example in Go" close</summary>
 ```go
 package main
 
@@ -879,7 +881,7 @@ func main() {
     fmt.Println(string(out))
 }
 ```
-</Details>
+</details>
 
 ## Destinations
 
