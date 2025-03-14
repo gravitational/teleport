@@ -20,6 +20,10 @@
           "title": "Installation",
           "slug": "/installation/"
         },
+	{
+          "title": "Teleport Feature Matrix",
+          "slug": "/feature-matrix/"
+	},
         {
           "title": "Upgrading",
           "slug": "/upgrading/upgrading/",
