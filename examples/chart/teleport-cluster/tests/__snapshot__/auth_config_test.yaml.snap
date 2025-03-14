@@ -1848,8 +1848,8 @@ sets clusterDomain on Configmap:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-cluster
-        app.kubernetes.io/version: 17.3.3-sailpoint.scim
-        helm.sh/chart: teleport-cluster-17.3.3-sailpoint.scim
+        app.kubernetes.io/version: 17.3.3-dev-sailpoint.scim
+        helm.sh/chart: teleport-cluster-17.3.3-dev-sailpoint.scim
         teleport.dev/majorVersion: "17"
       name: RELEASE-NAME-auth
       namespace: NAMESPACE

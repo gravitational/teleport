@@ -1,4 +1,4 @@
-.version: &version "17.3.3-sailpoint.scim"
+.version: &version "17.3.3-dev-sailpoint.scim"
 
 name: teleport-operator
 apiVersion: v2
