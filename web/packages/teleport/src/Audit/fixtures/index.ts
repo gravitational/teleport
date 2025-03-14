@@ -3754,7 +3754,7 @@ export const events = [
     time: '2025-03-04T15:41:24.433Z',
     uid: '3d677d2f-91d0-4b5a-966d-183a59cec888',
     updated_by:
-        'b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io',
+      'b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io',
     user: 'b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io',
     user_kind: 1,
   },
@@ -3770,7 +3770,7 @@ export const events = [
     time: '2025-03-04T15:27:36.039Z',
     uid: 'b7f9dde2-2899-46f1-bd4e-699d7b630e33',
     updated_by:
-        'b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io',
+      'b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io',
     user: 'b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io',
     user_kind: 1,
   },
@@ -3786,7 +3786,7 @@ export const events = [
     time: '2025-03-04T15:25:44.805Z',
     uid: 'c4d0d165-3a17-46ac-baa7-c7f521629997',
     updated_by:
-        'b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io',
+      'b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io',
     user: 'b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io',
     user_kind: 1,
   },
@@ -3802,7 +3802,7 @@ export const events = [
     time: '2025-03-04T15:49:31.946Z',
     uid: '6fcbf7ed-b44c-4b83-bb70-02a574564e0b',
     updated_by:
-        'b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io',
+      'b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io',
     user: 'b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io',
     user_kind: 1,
   },
@@ -3818,7 +3818,7 @@ export const events = [
     time: '2025-03-04T15:49:37.633Z',
     uid: '94c580a9-6f87-4a23-9fe5-f93de4390cff',
     updated_by:
-        'b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io',
+      'b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io',
     user: 'b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io',
     user_kind: 1,
   },
@@ -3834,7 +3834,7 @@ export const events = [
     time: '2025-03-04T15:49:21.869Z',
     uid: 'af17ab4a-d5a2-44a3-93ce-89390b50d52f',
     updated_by:
-        'b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io',
+      'b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io',
     user: 'b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io',
     user_kind: 1,
   },
