@@ -201,7 +201,7 @@ func (h *Handler) createDesktopConnection(
 		clientSrcAddr: clientSrcAddr,
 		clientDstAddr: clientDstAddr,
 	}
-	serviceConn, _, err := c.connectToWindowsService(ctx, clusterName, validServiceIDs)
+	serviceConn, version, err := c.connectToWindowsService(ctx, clusterName, validServiceIDs)
 	if err != nil {
 		return sendTDPError(trace.Wrap(err, "cannot connect to Windows Desktop Service"))
 	}
@@ -240,7 +240,7 @@ func (h *Handler) createDesktopConnection(
 	// proxyWebsocketConn hangs here until connection is closed
 	handleProxyWebsocketConnErr(
 		ctx,
-		proxyWebsocketConn(ws, serviceConnTLS, log),
+		proxyWebsocketConn(ws, serviceConnTLS, log, version),
 		log,
 	)
 
@@ -598,7 +598,7 @@ func monitorDesktopLatency(ctx context.Context, ch chan<- tdp.Message, clock clo
 // proxyWebsocketConn does a bidrectional copy between the websocket
 // connection to the browser (ws) and the mTLS connection to Windows
 // Desktop Serivce (wds)
-func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn, log *slog.Logger) error {
+func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn, log *slog.Logger, version string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	var closeOnce sync.Once
 	close := func() {
