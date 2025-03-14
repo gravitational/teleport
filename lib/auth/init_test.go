@@ -35,6 +35,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -1855,6 +1856,57 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 			lastKnownVersion, err := authCfg.VersionStorage.GetTeleportVersion(ctx)
 			require.NoError(t, err)
 			require.Equal(t, test.expectedVersion, lastKnownVersion.String())
+		})
+	}
+}
+
+// TestInitWithAutoUpdateResources verifies that auth init support bootstrapping and apply
+// `AutoUpdateConfig` and `AutoUpdateVersion` resources as well as unmarshalling them from
+// yaml configuration.
+func TestInitWithAutoUpdateResources(t *testing.T) {
+	t.Parallel()
+
+	const autoUpdateConfigYAML = `kind: autoupdate_config
+metadata:
+  name: autoupdate-config
+spec:
+  tools:
+    mode: enabled
+version: v1`
+	const autoUpdateVersionYAML = `kind: autoupdate_version
+metadata:
+  name: autoupdate-version
+spec:
+  tools:
+    target_version: 1.2.3
+version: v1`
+
+	ctx := context.Background()
+	resources := []types.Resource{
+		resourceFromYAML(t, autoUpdateConfigYAML),
+		resourceFromYAML(t, autoUpdateVersionYAML),
+	}
+
+	for _, test := range []struct {
+		name string
+		fn   func(cfg *InitConfig)
+	}{
+		{name: "bootstrap", fn: func(cfg *InitConfig) { cfg.BootstrapResources = resources }},
+		{name: "apply", fn: func(cfg *InitConfig) { cfg.ApplyOnStartupResources = resources }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := setupConfig(t)
+			test.fn(&cfg)
+			auth, err := Init(ctx, cfg)
+			require.NoError(t, err)
+
+			config, err := auth.GetAutoUpdateConfig(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, "enabled", config.GetSpec().GetTools().GetMode())
+
+			version, err := auth.GetAutoUpdateVersion(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, "1.2.3", version.GetSpec().GetTools().GetTargetVersion())
 		})
 	}
 }
