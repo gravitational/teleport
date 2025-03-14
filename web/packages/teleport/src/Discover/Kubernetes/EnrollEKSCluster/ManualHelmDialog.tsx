@@ -17,7 +17,6 @@
  */
 
 import React, { Suspense, useEffect, useState } from 'react';
-import styled from 'styled-components';
 
 import {
   Box,
@@ -34,7 +33,7 @@ import { P } from 'design/Text/Text';
 
 import { CatchError } from 'teleport/components/CatchError';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
-import { ResourceKind, TextIcon } from 'teleport/Discover/Shared';
+import { ResourceKind, StyledBox, TextIcon } from 'teleport/Discover/Shared';
 import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 import {
   clearCachedJoinTokenResult,
@@ -175,10 +174,3 @@ export function ManualHelmDialog({
     </DialogWrapper>
   );
 }
-
-const StyledBox = styled(Box)`
-  max-width: 1000px;
-  background-color: ${props => props.theme.colors.spotBackground[0]};
-  padding: ${props => `${props.theme.space[3]}px`};
-  border-radius: ${props => `${props.theme.space[2]}px`};
-`;

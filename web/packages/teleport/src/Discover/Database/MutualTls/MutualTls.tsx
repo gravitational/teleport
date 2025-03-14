@@ -52,7 +52,7 @@ export function MutualTlsView({
   const [caCert, setCaCert] = useState('');
 
   return (
-    <Box maxWidth="800px">
+    <>
       <Header>Configure Mutual TLS</Header>
       <HeaderSubtitle>
         Self-hosted databases must be configured with Teleport's certificate
@@ -112,7 +112,6 @@ export function MutualTlsView({
                 autoFocus
                 textAreaCss={`
                 height: 100px;
-                width: 800px;
                 `}
               />
             </Validation>
@@ -123,7 +122,7 @@ export function MutualTlsView({
         onProceed={() => onNextStep(caCert)}
         disableProceed={attempt.status === 'processing'}
       />
-    </Box>
+    </>
   );
 }
 

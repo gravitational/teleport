@@ -22,14 +22,15 @@ import { MemoryRouter } from 'react-router';
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
+import {
+  RequiredDiscoverProviders,
+  resourceSpecAwsEks,
+} from 'teleport/Discover/Fixtures/fixtures';
 import { generateCmd } from 'teleport/Discover/Kubernetes/SelfHosted';
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
 import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
-import {
-  DiscoverContextState,
-  DiscoverProvider,
-} from 'teleport/Discover/useDiscover';
+import { AgentMeta } from 'teleport/Discover/useDiscover';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
   IntegrationKind,
@@ -39,7 +40,6 @@ import {
   INTERNAL_RESOURCE_ID_LABEL_KEY,
   JoinToken,
 } from 'teleport/services/joinToken';
-import { DiscoverEventResource } from 'teleport/services/userEvent';
 
 import { AgentWaitingDialog } from './AgentWaitingDialog';
 import { EnrollmentDialog } from './EnrollmentDialog';
@@ -139,49 +139,29 @@ const helmCommandProps = {
   ],
 };
 
-export const ManualHelmDialogStory = () => {
-  const discoverCtx: DiscoverContextState = {
-    agentMeta: {
-      resourceName: 'kube-name',
-      agentMatcherLabels: [],
-      kube: {
-        kind: 'kube_cluster',
-        name: '',
-        labels: [],
-      },
-      awsIntegration: {
-        kind: IntegrationKind.AwsOidc,
-        name: 'test-oidc',
-        resourceType: 'integration',
-        spec: {
-          roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
-          issuerS3Bucket: '',
-          issuerS3Prefix: '',
-        },
-        statusCode: IntegrationStatusCode.Running,
-      },
+const agentMeta: AgentMeta = {
+  resourceName: 'kube-name',
+  agentMatcherLabels: [],
+  kube: {
+    kind: 'kube_cluster',
+    name: '',
+    labels: [],
+  },
+  awsIntegration: {
+    kind: IntegrationKind.AwsOidc,
+    name: 'test-oidc',
+    resourceType: 'integration',
+    spec: {
+      roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
+      issuerS3Bucket: '',
+      issuerS3Prefix: '',
     },
-    currentStep: 0,
-    nextStep: () => null,
-    prevStep: () => null,
-    onSelectResource: () => null,
-    resourceSpec: {
-      name: 'Eks',
-      kind: ResourceKind.Kubernetes,
-      icon: 'eks',
-      keywords: [],
-      event: DiscoverEventResource.KubernetesEks,
-    },
-    exitFlow: () => null,
-    viewConfig: null,
-    indexedViews: [],
-    setResourceSpec: () => null,
-    updateAgentMeta: () => null,
-    emitErrorEvent: () => null,
-    emitEvent: () => null,
-    eventState: null,
-  };
+    statusCode: IntegrationStatusCode.Running,
+  },
+};
 
+export const ManualHelmDialogStory = () => {
+  const [, setToken] = useState<JoinToken>();
   useEffect(() => {
     return () => {
       clearCachedJoinTokenResult([
@@ -192,29 +172,22 @@ export const ManualHelmDialogStory = () => {
     };
   }, []);
 
-  const [, setToken] = useState<JoinToken>();
-
   return (
-    <MemoryRouter
-      initialEntries={[
-        { pathname: cfg.routes.discover, state: { entity: 'eks' } },
-      ]}
+    <RequiredDiscoverProviders
+      agentMeta={agentMeta}
+      resourceSpec={resourceSpecAwsEks}
     >
-      <ContextProvider ctx={createTeleportContext()}>
-        <DiscoverProvider mockCtx={discoverCtx}>
-          <ManualHelmDialog
-            setJoinTokenAndGetCommand={token => {
-              // Emulate real usage of ManualHelmDialog where setJoinTokenAndGetCommand updates the
-              // state of a parent.
-              setToken(token);
-              return generateCmd(helmCommandProps);
-            }}
-            confirmedCommands={() => {}}
-            cancel={() => {}}
-          />
-        </DiscoverProvider>
-      </ContextProvider>
-    </MemoryRouter>
+      <ManualHelmDialog
+        setJoinTokenAndGetCommand={token => {
+          // Emulate real usage of ManualHelmDialog where setJoinTokenAndGetCommand updates the
+          // state of a parent.
+          setToken(token);
+          return generateCmd(helmCommandProps);
+        }}
+        confirmedCommands={() => {}}
+        cancel={() => {}}
+      />
+    </RequiredDiscoverProviders>
   );
 };
 ManualHelmDialogStory.storyName = 'ManualHelmDialog';

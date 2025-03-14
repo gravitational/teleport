@@ -16,12 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MemoryRouter } from 'react-router';
+import { TeleportProviderBasic } from 'teleport/mocks/providers';
 
 import { Users } from './Users';
 
 export default {
   title: 'Teleport/Users',
+};
+
+export const Loaded = () => {
+  return (
+    <TeleportProviderBasic>
+      <Users {...sample} />
+    </TeleportProviderBasic>
+  );
+};
+
+export const UsersNotEqualMauNotice = () => {
+  return (
+    <TeleportProviderBasic>
+      <Users {...sample} showMauInfo={true} />
+    </TeleportProviderBasic>
+  );
 };
 
 export const Processing = () => {
@@ -32,25 +48,9 @@ export const Processing = () => {
     message: '',
   };
   return (
-    <MemoryRouter>
+    <TeleportProviderBasic>
       <Users {...sample} attempt={attempt} />
-    </MemoryRouter>
-  );
-};
-
-export const Loaded = () => {
-  return (
-    <MemoryRouter>
-      <Users {...sample} />
-    </MemoryRouter>
-  );
-};
-
-export const UsersNotEqualMauNotice = () => {
-  return (
-    <MemoryRouter>
-      <Users {...sample} showMauInfo={true} />
-    </MemoryRouter>
+    </TeleportProviderBasic>
   );
 };
 
@@ -62,9 +62,9 @@ export const Failed = () => {
     message: 'some error message',
   };
   return (
-    <MemoryRouter>
+    <TeleportProviderBasic>
       <Users {...sample} attempt={attempt} />
-    </MemoryRouter>
+    </TeleportProviderBasic>
   );
 };
 
