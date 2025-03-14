@@ -381,6 +381,9 @@ func (h *Handler) performSessionMFACeremony(
 			return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 				codec := tdpMFACodec{}
 
+				if chal.WebauthnChallenge == nil {
+					return nil, trace.AccessDenied("Desktop access requires WebAuthn MFA, please register a WebAuthn device to connect")
+				}
 				// Send the challenge over the socket.
 				msg, err := codec.Encode(
 					&client.MFAAuthenticateChallenge{
