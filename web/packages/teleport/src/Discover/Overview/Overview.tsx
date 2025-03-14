@@ -1,3 +1,21 @@
+/**
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 import { Link as InternalLink } from 'react-router-dom';
 
 import { Mark } from 'design';
@@ -18,6 +36,12 @@ import { SelectResourceSpec } from '../SelectResource/resources';
 const requiredAwsAccount =
   'AWS account with permissions to create and attach IAM policies.';
 
+/**
+ * Returns info guide content to be rendered inside the InfoGuideSidePanel
+ * component.
+ *
+ * Content will depend on the "resourceSpec" id.
+ */
 export function getOverview({
   resourceSpec,
 }: {
@@ -180,7 +204,7 @@ export function getOverview({
             <InfoExternalTextLink href={links.ssmAgent.href}>
               SSM Agent
             </InfoExternalTextLink>{' '}
-            running in target EC2 instances, and have the
+            running in target EC2 instances, and have the{' '}
             <InfoExternalTextLink
               href={links.amazonSSMManagedInstanceCore.href}
             >
