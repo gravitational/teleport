@@ -142,8 +142,7 @@ export function RequestView({
         <Box mt={4}>
           <HoverTooltip
             tipContent={getAssumeStartTimeTooltipText(request.assumeStartTime)}
-            anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
-            transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+            placement="top-start"
           >
             <ButtonPrimary disabled={true}>Assume Roles</ButtonPrimary>
           </HoverTooltip>
