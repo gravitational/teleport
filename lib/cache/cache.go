@@ -190,6 +190,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindUserTask},
 		{Kind: types.KindAutoUpdateVersion},
 		{Kind: types.KindAutoUpdateConfig},
+		{Kind: types.KindAutoUpdateAgentRollout},
 		{Kind: types.KindWorkloadIdentity},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
@@ -246,6 +247,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindUserTask},
 		{Kind: types.KindAutoUpdateConfig},
 		{Kind: types.KindAutoUpdateVersion},
+		{Kind: types.KindAutoUpdateAgentRollout},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -1972,6 +1974,29 @@ func (c *Cache) GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdat
 		return protobuf.Clone(cachedVersion).(*autoupdate.AutoUpdateVersion), nil
 	}
 	return rg.reader.GetAutoUpdateVersion(ctx)
+}
+
+// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout from the backend.
+func (c *Cache) GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateAgentRollout")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.autoUpdateAgentRollouts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	if !rg.IsCacheRead() {
+		cachedAgentRollout, err := utils.FnCacheGet(ctx, c.fnCache, autoUpdateCacheKey{"rollout"}, func(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error) {
+			version, err := rg.reader.GetAutoUpdateAgentRollout(ctx)
+			return version, err
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return protobuf.Clone(cachedAgentRollout).(*autoupdate.AutoUpdateAgentRollout), nil
+	}
+	return rg.reader.GetAutoUpdateAgentRollout(ctx)
 }
 
 func (c *Cache) GetUIConfig(ctx context.Context) (types.UIConfig, error) {

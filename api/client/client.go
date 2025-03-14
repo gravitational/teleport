@@ -3107,6 +3107,59 @@ func (c *Client) DeleteAutoUpdateVersion(ctx context.Context) error {
 	return trace.Wrap(err)
 }
 
+// CreateAutoUpdateAgentRollout creates AutoUpdateAgentRollout resource.
+func (c *Client) CreateAutoUpdateAgentRollout(ctx context.Context, rollout *autoupdatev1pb.AutoUpdateAgentRollout) (*autoupdatev1pb.AutoUpdateAgentRollout, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.CreateAutoUpdateAgentRollout(ctx, &autoupdatev1pb.CreateAutoUpdateAgentRolloutRequest{
+		Rollout: rollout,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// GetAutoUpdateAgentRollout gets AutoUpdateAgentRollout resource.
+func (c *Client) GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdatev1pb.AutoUpdateAgentRollout, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.GetAutoUpdateAgentRollout(ctx, &autoupdatev1pb.GetAutoUpdateAgentRolloutRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpdateAutoUpdateAgentRollout updates AutoUpdateAgentRollout resource.
+func (c *Client) UpdateAutoUpdateAgentRollout(ctx context.Context, rollout *autoupdatev1pb.AutoUpdateAgentRollout) (*autoupdatev1pb.AutoUpdateAgentRollout, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.UpdateAutoUpdateAgentRollout(ctx, &autoupdatev1pb.UpdateAutoUpdateAgentRolloutRequest{
+		Rollout: rollout,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpsertAutoUpdateAgentRollout updates or creates AutoUpdateAgentRollout resource.
+func (c *Client) UpsertAutoUpdateAgentRollout(ctx context.Context, rollout *autoupdatev1pb.AutoUpdateAgentRollout) (*autoupdatev1pb.AutoUpdateAgentRollout, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.UpsertAutoUpdateAgentRollout(ctx, &autoupdatev1pb.UpsertAutoUpdateAgentRolloutRequest{
+		Rollout: rollout,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// DeleteAutoUpdateAgentRollout deletes AutoUpdateAgentRollout resource.
+func (c *Client) DeleteAutoUpdateAgentRollout(ctx context.Context) error {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	_, err := client.DeleteAutoUpdateAgentRollout(ctx, &autoupdatev1pb.DeleteAutoUpdateAgentRolloutRequest{})
+	return trace.Wrap(err)
+}
+
 // GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
 func (c *Client) GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error) {
 	rsp, err := c.ClusterConfigClient().GetClusterAccessGraphConfig(ctx, &clusterconfigpb.GetClusterAccessGraphConfigRequest{})

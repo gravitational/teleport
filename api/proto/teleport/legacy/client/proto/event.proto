@@ -53,8 +53,10 @@ message Event {
   reserved 7;
   reserved 49;
   reserved 63;
+  reserved 68;
   reserved "ExternalCloudAudit";
   reserved "StaticHostUser";
+  reserved "AutoUpdateAgentPlan";
 
   // Operation identifies operation
   Operation Type = 1;
@@ -187,8 +189,10 @@ message Event {
     teleport.autoupdate.v1.AutoUpdateVersion AutoUpdateVersion = 65;
     // StaticHostUserV2 is a resource for static host users.
     teleport.userprovisioning.v2.StaticHostUser StaticHostUserV2 = 66;
-    // UsernTask is a resource for user task.
+    // UserTask is a resource for user task.
     teleport.usertasks.v1.UserTask UserTask = 67;
+    // AutoUpdateVersion is a resource for controlling the autoupdate agent rollout.
+    teleport.autoupdate.v1.AutoUpdateAgentRollout AutoUpdateAgentRollout = 71;
     // WorkloadIdentity is a resource for workload identity.
     teleport.workloadidentity.v1.WorkloadIdentity WorkloadIdentity = 76;
     // WorkloadIdentityX509Revocation is a resource for workload identity x509 revocation.

@@ -4475,6 +4475,8 @@ message PluginMetadata {
 // OneOf is a union of one of audit events submitted to the auth service
 message OneOf {
   // Event is one of the audit events
+  reserved 185, 186, 187;
+  reserved "AutoUpdateAgentPlanCreate", "AutoUpdateAgentPlanUpdate", "AutoUpdateAgentPlanDelete";
   oneof Event {
     events.UserLogin UserLogin = 1;
     events.UserCreate UserCreate = 2;

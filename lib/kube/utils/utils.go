@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
@@ -227,7 +226,7 @@ type Pinger interface {
 
 // GetKubeAgentVersion returns a version of the Kube agent appropriate for this Teleport cluster. Used for example when deciding version
 // for enrolling EKS clusters.
-func GetKubeAgentVersion(ctx context.Context, pinger Pinger, clusterFeatures proto.Features, releaseChannels automaticupgrades.Channels) (string, error) {
+func GetKubeAgentVersion(ctx context.Context, pinger Pinger, clusterFeatures proto.Features, versionGetter version.Getter) (string, error) {
 	pingResponse, err := pinger.Ping(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -235,7 +234,7 @@ func GetKubeAgentVersion(ctx context.Context, pinger Pinger, clusterFeatures pro
 	agentVersion := pingResponse.ServerVersion
 
 	if clusterFeatures.GetAutomaticUpgrades() && clusterFeatures.GetCloud() {
-		defaultVersion, err := releaseChannels.DefaultVersion(ctx)
+		defaultVersion, err := versionGetter.GetVersion(ctx)
 		if err == nil {
 			agentVersion = defaultVersion
 		} else if !errors.Is(err, &version.NoNewVersionError{}) {
