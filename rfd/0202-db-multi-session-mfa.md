@@ -6,7 +6,7 @@ state: draft
 RFD 202 - Database Multi-session MFA
 
 Required Approvers:
-- Engineering: @r0mant && @codingllama
+- Engineering: @r0mant && (@codingllama || @Joerger)
 
 ## What
 
@@ -29,44 +29,10 @@ single CLI command.
 
 ## Details
 
-### UX
-
-#### UX - role option
-
-I want to execute a database query on multiple database services without being
-prompted by MFA for every database service. The Teleport role that grants
-database access can be updated as below:
-```diff
-kind: role
-version: v7
-metadata:
-  name: example-role-with-mfa
-spec:
-  options:
-    require_session_mfa: true
-+
-+   # Specifies the MFA response retention policy when session MFA is required.
-+   # Defaults to "per_session". Possible values are:
-+   #
-+   # "per_session": per-session MFA requires multi-factor authentication for
-+   # every session.
-+   #
-+   # "multi_session": allows reuse of the MFA response where applicable and
-+   # fallbacks to per-session MFA where multi-session MFA is not supported.
-+   # Currently multi-session MFA is supported by WebAuthn as second-factor
-+   # authentication, and here is a list of supported sessions:
-+   # - "tsh db exec" for database sessions
-+   #
-+   session_mfa_retention_policy: "multi_session"
-  allow:
-    db_labels:
-      'env': 'dev'
-    db_users: ["mysql"]
-```
-
 #### UX - basic "tsh db exec"
 
-To execute the same query on multiple databases:
+I want to execute a database query on multiple database services without being
+prompted by MFA for every database service:
 ```bash
 $ tsh db exec "select @@hostname" --db-user mysql --dbs mysql-db1,mysql-db2
 MFA is required to execute database sessions
@@ -91,7 +57,7 @@ a new MFA challenge is expected when running another `tsh db exec` command.
 
 I would like to search databases by labels, and run the sql script in parallel:
 ```bash
-$ tsh db exec "source my_script.sql" --labels env=dev --db-user mysql --log-dir exec-logs --max-connections 3
+$ tsh db exec "source my_script.sql" --labels env=dev --db-user mysql --output-dir exec-logs --max-connections 3
 Found 5 databases:
 
 Name      Protocol Description Labels
@@ -117,36 +83,6 @@ Executing command for 'mysql-db5'. Logs will be saved at 'exec-logs/mysql-db5.lo
 Where you can expect the first 3 connections happen right away, and the other 2
 connections happen after the previous ones finish.
 
-#### UX - mixed MFA retention policy
-
-Some of my databases require per-session MFA while others require multi-session
-MFA or have no MFA requirements:
-
-```bash
-$ tsh db exec "source my_script.sql" --search mysql --db-user mysql --log-dir exec-logs
-Found 5 databases:
-...
-
-Executing command for 'mysql-no-mfa-1'. Logs will be saved at 'exec-logs/mysql-no-mfa-1.log'.
-Executing command for 'mysql-no-mfa-2'. Logs will be saved at 'exec-logs/mysql-no-mfa-2.log'.
-
-MFA is required to access Database "mysql-per-session-mfa-1"
-Tap any security key
-Detected security key tap
-
-Executing command for 'mysql-per-session-mfa-1'. Logs will be saved at 'exec-logs/mysql-per-session-mfa-1.log'.
-
-MFA is required to execute database sessions
-Tap any security key
-Detected security key tap
-
-Executing command for 'mysql-multi-session-mfa-1'. Logs will be saved at 'exec-logs/mysql-multi-session-mfa-1.log'.
-Executing command for 'mysql-multi-session-mfa-2'. Logs will be saved at 'exec-logs/mysql-multi-session-mfa-2.log'.
-```
-Where databases with no MFA requirement are executed without MFA prompt,
-databases with per-session MFA are prompted per database, and databases with
-multi-session MFA share a single MFA prompt.
-
 #### UX - long sessions with multi-session MFA
 
 I need to execute a query on a large number databases and total sessions can
@@ -154,7 +90,7 @@ last longer than 5 minutes (the validity period of the cached WebAuthn
 response):
 
 ```bash
-$ tsh db exec "source my_script.sql" --labels env=staging --db-user mysql --log-dir exec-logs
+$ tsh db exec "source my_script.sql" --labels env=staging --db-user mysql --output-dir exec-logs
 Found 9 databases:
 ...
 
@@ -194,17 +130,8 @@ sequenceDiagram
         alt IsMFARequired MFA not required
             tsh ->> Teleport: GenerateUserCerts with no MFA response
             Teleport ->> tsh: User cert with database route
-        else IsMFARequired per-session MFA
-            tsh ->> Teleport: CreateAuthenticateChallengeRequest<br/>Scope: CHALLENGE_SCOPE_USER_SESSION<br/>Reuse: false
-            Teleport ->> tsh: challenge
-            tsh ->> user: prompt
-            user ->> tsh: tap
-            tsh ->> Teleport: WebAuthn login
-            Teleport ->> tsh: MFA Response
-            tsh ->> Teleport: GenerateUserCerts with MFA response
-            Teleport ->> tsh: User cert with database route
         else IsMFARequired multi-session MFA 1st time or expired
-            tsh ->> Teleport: CreateAuthenticateChallengeRequest<br/>Scope: CHALLENGE_SCOPE_USER_SESSION<br/>Reuse: true
+            tsh ->> Teleport: CreateAuthenticateChallengeRequest<br/>Scope: CHALLENGE_SCOPE_DB_MULTI_SESSION<br/>Reuse: true
             Teleport ->> tsh: challenge
             tsh ->> user: prompt
             user ->> tsh: tap
@@ -222,82 +149,47 @@ sequenceDiagram
     end
 ```
 
-A new MFA toggle is added to decide the retention policy for session MFA:
-```diff
-kind: cluster_auth_preference
-version: v2
-spec:
-    require_session_mfa: true
-+
-+   # Specifies the MFA response retention policy when session MFA is required.
-+   # Defaults to "per_session". Possible values are:
-+   #
-+   # "per_session": per-session MFA requires multi-factor authentication for
-+   # every session.
-+   #
-+   # "multi_session": allows reuse of the MFA response where applicable and
-+   # fallbacks to per-session MFA where multi-session MFA is not supported.
-+   # Currently multi-session MFA is supported by WebAuthn as second-factor
-+   # authentication, and here is a list of supported sessions:
-+   # - "tsh db exec" for database sessions
-+   #
-+   session_mfa_retention_policy: "multi_session"
-
-kind: role
-version: v7
-spec:
-  options:
-    require_session_mfa: true
-+   session_mfa_retention_policy: "multi_session"
-```
-
-Defaults to per-session MFA if not set. If a resource matches a role set with
-per-session but others on multi-session, or when the role option conflicts with
-cluster-level settings, the stricter mode should always be applied.
+In favor of better UX, no new role option is introduced for multi-session MFA.
 
 The multi-session MFA extends [RFD 155 Scoped Webauthn
-Credentials](https://github.com/gravitational/teleport/blob/master/rfd/0155-scoped-webauthn-credentials.md)
-to allow reuse for `CHALLENGE_SCOPE_USER_SESSION`:
+Credentials](https://github.com/gravitational/teleport/blob/master/rfd/0155-scoped-webauthn-credentials.md) by introducing a new challenge scope:
 ```diff
 // mfa.proto
 enum ChallengeScope {
 ...
-- // Used for per-session MFA and moderated session presence checks.
-+ // Used for user sessions and moderated session presence checks. 
-+ // This scope can be requested with reuse and the resuable response will be
-+ // allowed when generating user certificates if retention policy is set to
-+ // "multi_session".
-  CHALLENGE_SCOPE_USER_SESSION = 6;
+  // Used for changing user's password.
+  CHALLENGE_SCOPE_CHANGE_PASSWORD = 8;
++ // Used for database sessions. This scope allows reuse and the TTL of
++ // the generated certificates cannot exceed the single use cert TTL of one
++ // minute.
++ CHALLENGE_SCOPE_DB_MULTI_SESSION = 9;
 }
 ```
 
-Similar to `SCOPE_ADMIN_ACTION`, `CHALLENGE_SCOPE_USER_SESSION` will allow reuse
-of the MFA session data until it expires, for multi-session MFA. Clients must go
-through MFA ceremony again if it expires. Currently, reuse of the session data
-is allowed within 5 minutes. This duration is hard-coded and controlled on the
-server side. We could introduce a new option to override the period but leaving
-it out of scope for this RFD for now.
+Similar to `SCOPE_ADMIN_ACTION`, `CHALLENGE_SCOPE_DB_MULTI_SESSION` will allow
+reuse of the MFA session data until it expires, for multi-session MFA. Clients
+must go through MFA ceremony again if it expires. Currently, reuse of the
+session data is allowed within 5 minutes. This duration is hard-coded and
+controlled on the server side. We could introduce a new option to override the
+period but leaving it out of scope for this RFD for now.
 
 The MFA response will be checked upon auth call of `GenerateUserCerts` where
 user requests a TLS user cert with database route. New logic is added to
 `GenerateUserCerts` where the new scope with reuse is allowed only if the role
 set matching the requested database has retention policy set to `multi_session`.
 
-For now, reuse for `CHALLENGE_SCOPE_USER_SESSION` will only be allowed for
-database targets when calling  `GenerateUserCerts`.
+Reuse for `CHALLENGE_SCOPE_DB_MULTI_SESSION` will only be allowed for database
+targets for single use when calling `GenerateUserCerts`. And the generated
+certificates will only have one minute TTL regardless of the requester name.
 
-Here is a quick matrix:
+Here is a matrix of different modes that `tsh` can request when session MFA is
+required:
 
-| Retention policy | Reuse requested for scope | Requested Target | Access |
-|------------------|---------------------------|------------------|--------|
-| `multi_session`  | Non-reusable              | Database         | Allow  |
-| `multi_session`  | Non-reusable              | Non-Database     | Allow  |
-| `multi_session`  | Reusable                  | Database         | Allow  |
-| `multi_session`  | Reusable                  | Non-Database     | Denied |
-| `per_session`    | Non-reusable              | Database         | Allow  |
-| `per_session`    | Non-reusable              | Non-Database     | Allow  |
-| `per_session`    | Reusable                  | Database         | Denied |
-| `per_session`    | Reusable                  | Non-Database     | Denied |
+| Command          | Request scope                      | MFA Reusable | Cert TTL                                                        |
+|------------------|------------------------------------|--------------|-----------------------------------------------------------------|
+| `tsh db connect` | `CHALLENGE_SCOPE_USER_SESSION`     | false        | 1 minute                                                        |
+| `tsh proxy db`   | `CHALLENGE_SCOPE_USER_SESSION`     | false        | min(identity.expires, `role.options.mfa_verification_interval`) |
+| `tsh db exec`    | `CHALLENGE_SCOPE_DB_MULTI_SESSION` | 5 minutes    | 1 minute                                                        |
 
 MFA requirement check is also updated to indicate whether the client can get
 away with reusing the MFA response.
@@ -329,14 +221,6 @@ message IsMFARequiredResponse {
 +}
 ```
 
-#### Compatibility
-
-No special handling is necessary for backwards compatability. The feature will
-be functional when the control plane and tsh are upgraded. The control plane
-will assume existing behavior (e.g.`per_session`) when retention policy is not
-set. Older agents and clients will not interpret the new fields and will assume
-existing MFA requirement without reuse.
-
 ### The `tsh db exec` command
 
 General flow of the command:
@@ -351,7 +235,7 @@ General flow of the command:
   - Starts a local proxy in tunnel mode for this database (regardless of cluster
     proxy listener mode).
   - Craft a command for `os.exec`.
-    - Outputs are printed to `stdout` unless `--log-dir` is specified
+    - Outputs are printed to `stdout` unless `--output-dir` is specified
     - Outputs to `stdout` are prefixed with `[db-service-name] ` when
       `--max-connections` is greater than 1. The prefix behavior can be overridden
       with `--output-prefix/--no-output-prefix`.
@@ -391,14 +275,8 @@ backend.
 
 ### Security
 
-There is no change regarding security for existing users, unless their Teleport
-admins enables `multi_session` for the retention policy.
-
-When role options and cluster-level auth preference has conflict, the stricter
-mode (e.g. `per_session`) will always be applied.
-
-The negative implications of the `multi_session` is the same as outlined in [RFD
-155 Scoped Webauthn
+Negative implications of the reusable `CHALLENGE_SCOPE_DB_MULTI_SESSION` scope
+is the same as outlined in [RFD 155 Scoped Webauthn
 Credentials](https://github.com/gravitational/teleport/blob/master/rfd/0155-scoped-webauthn-credentials.md):
 
 1. The webauthn credential's scope is provided by the client
@@ -406,6 +284,12 @@ Credentials](https://github.com/gravitational/teleport/blob/master/rfd/0155-scop
 3. Reuse is permitted for the action - server enforced
 4. The expiration of the credentials - server enforced (5 minutes)
 
+To limit this impact, the new scope will be only allowed for single use purpose
+and cert TTLs will be limited to 1 minute. [RFD
+090](https://github.com/gravitational/teleport/blob/master/rfd/0090-db-mfa-sessions.md)
+introduced long-TTL single-use certificate and that will stay the same. The new
+reusable scope and long-TTL cert will be mutually exclusive guarded by auth so
+you cannot have both.
 
 The `--max-connections` flag from `tsh db exec` has a max limit of 10, but it
 will not prevent bad actors who attempts to flood the backend. However, this is
