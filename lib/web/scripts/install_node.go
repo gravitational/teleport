@@ -114,6 +114,10 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 	// Computing service configuration-related values
 	labelsList := []string{}
 	for labelKey, labelValues := range opts.Labels {
+		labelKey = shsprintf.EscapeDefaultContext(labelKey)
+		for i := range labelValues {
+			labelValues[i] = shsprintf.EscapeDefaultContext(labelValues[i])
+		}
 		labels := strings.Join(labelValues, " ")
 		labelsList = append(labelsList, fmt.Sprintf("%s=%s", labelKey, labels))
 	}
