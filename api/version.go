@@ -3,6 +3,6 @@ package api
 
 import "github.com/coreos/go-semver/semver"
 
-const Version = "17.3.3"
+const Version = "17.3.3-sailpoint.scim"
 
 var SemVersion = semver.New(Version)

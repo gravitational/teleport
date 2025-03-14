@@ -1,4 +1,4 @@
-.version: &version "17.3.3"
+.version: &version "17.3.3-sailpoint.scim"
 
 apiVersion: v2
 name: teleport-plugin-event-handler
