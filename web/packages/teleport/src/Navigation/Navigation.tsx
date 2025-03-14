@@ -16,6 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import {
+  useFloating,
+  useFocus,
+  useHover,
+  useInteractions,
+} from '@floating-ui/react';
 import type * as history from 'history';
 import React, {
   ReactNode,
@@ -273,6 +279,38 @@ function useDebounceClose<T>(
 
   return debouncedValue;
 }
+
+// TODO(kiosion): Once nav is reworked to use a single RightPanel,
+// can utilize `safePolygon` w/ `requireIntent` for `handleClose` here instead of `restMs`,
+// for less jank-y selection of nav items.
+/**
+ * useFloatingUiWithRestMs creates a new floating-ui ctx for toggling right nav panel on focus/hover,
+ * with restMs set to avoid sporadic selections while moving cursor to right panel
+ */
+export const useFloatingUiWithRestMs = ({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (newOpen: boolean) => void;
+}) => {
+  const { context, refs } = useFloating({
+    open,
+    onOpenChange,
+  });
+  const { getReferenceProps, getFloatingProps } = useInteractions([
+    useHover(context, {
+      restMs: 25,
+    }),
+    useFocus(context),
+  ]);
+
+  return {
+    refs,
+    getReferenceProps,
+    getFloatingProps,
+  };
+};
 
 export function Navigation() {
   const features = useFeatures();

@@ -196,7 +196,7 @@ export function Roles(props: State & RolesProps) {
         <FeatureHeaderTitle>Roles</FeatureHeaderTitle>
         <InfoGuideWrapper guide={<InfoGuide />}>
           <HoverTooltip
-            position="bottom"
+            placement="bottom"
             tipContent={
               !canCreate ? (
                 <MissingPermissionsTooltip
