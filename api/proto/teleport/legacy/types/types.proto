@@ -6845,7 +6845,10 @@ message PluginDatadogAccessSettings {
 }
 
 // AWSICCredentialsSource indicates where the AWS Identity Center plugin will
-// draw its AWS credentials from
+// draw its AWS credentials from.
+//
+// DEPRECATED: Superceded by individual message types.
+// TODO(tcsc): Remove in Teleport 19+
 enum AWSICCredentialsSource {
   // AWSIC_CREDENTIALS_SOURCE_UNKNOWN is used when the credentials source is not
   // specified. For backwards compatability, UNKNOWN is handled as OIDC.
@@ -6865,7 +6868,8 @@ message PluginAWSICSettings {
 
   // IntegrationName is the Teleport OIDC integration used to gain access to the
   // AWS account. May be empty if [CredentialsSource] is `SYSTEM`.
-  string integration_name = 1;
+  // DEPRECATED: Use [Credentials] instead. DELETE in Teleport 19+
+  string integration_name = 1 [deprecated = true];
 
   // Region is the AWS region the target Identity Center instance is configured in
   string region = 2;
@@ -6885,8 +6889,9 @@ message PluginAWSICSettings {
   string saml_idp_service_provider_name = 6;
 
   // CredentialsSource indicates how the Identity Center plugin should source
-  // its AWS login credentials
-  AWSICCredentialsSource credentials_source = 7;
+  // its AWS login credentials.
+  // DEPRECATED: Use [Credentials] instead. DELETE in Teleport 19+
+  AWSICCredentialsSource credentials_source = 7 [deprecated = true];
 
   // UserSyncLabelsFilter specifies a map of key-value pairs used to filter users
   // based on their metadata labels. These filtered users will be provisioned
@@ -6914,6 +6919,39 @@ message PluginAWSICSettings {
   // GroupSyncLabelsFilter is used to specify filters that determine which AWS groups
   // should be included during synchronization.
   repeated AWSICResourceFilter group_sync_filters = 10 [(gogoproto.jsontag) = "group_sync_filters,omitempty"];
+
+  // Credentials represents the AWS credentials used by the Identity Center
+  // integration
+  AWSICCredentials credentials = 11 [(gogoproto.jsontag) = "credentials,omitempty"];
+}
+
+// AWSICCredentials holds the credentials for authenticating with AWS
+message AWSICCredentials {
+  option (gogoproto.equal) = true;
+  oneof source {
+    AWSICCredentialSourceSystem system = 1;
+    AWSICCredentialSourceOIDC oidc = 2;
+  }
+}
+
+// AWSICCredentialSourceSystem holds AWSIC credentials drawn from the ambient
+// system configuration
+message AWSICCredentialSourceSystem {
+  option (gogoproto.equal) = true;
+
+  // AwsRoleArn is an optional AWS role for the IC client to assume, overriding
+  // any roles
+  string assume_role_arn = 1 [(gogoproto.jsontag) = "assume_role_arn,omitempty"];
+}
+
+// AWSICCredentialSourceSystem holds AWSIC credentials drawn from a Teleport
+// OIDC integration
+message AWSICCredentialSourceOIDC {
+  option (gogoproto.equal) = true;
+
+  // IntegrationName is the name of the Teleport OIDC integration used by the
+  // Identity Center integration to authenticate with AWS.
+  string integration_name = 1 [(gogoproto.jsontag) = "integration_name,omitempty"];
 }
 
 // AWSICResourceFilter is an entry in the AWS IC plugin settings' allow-list of
@@ -6978,6 +7016,9 @@ enum AWSICGroupImportStatusCode {
   DONE = 1;
   // FAILED denotes that the group and group members import met with an error.
   FAILED = 2;
+  // REIMPORT_REQUESTED denotes that the user has requested that the import
+  // process be re-run.
+  REIMPORT_REQUESTED = 3;
 }
 
 // PluginEmailSettings holds the settings for an Email Access Request plugin.

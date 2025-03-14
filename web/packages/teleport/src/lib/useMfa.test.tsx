@@ -118,6 +118,15 @@ describe('useMfa', () => {
     await waitFor(() => expect(mfa.current.mfaRequired).toEqual(false));
   });
 
+  test('returns empty challenge response when mfa challenge and request are absent', async () => {
+    const { result: mfa } = renderHook(() => useMfa());
+
+    const resp = await act(() => mfa.current.getChallengeResponse());
+
+    expect(resp).toBeUndefined();
+    expect(mfa.current.mfaRequired).toEqual(false);
+  });
+
   test('adaptable mfa requirement', async () => {
     jest.spyOn(auth, 'getMfaChallenge').mockResolvedValueOnce(mockChallenge);
     jest
@@ -175,7 +184,7 @@ describe('useMfa', () => {
       throw err;
     });
 
-    const { result: mfa } = renderHook(() => useMfa({}));
+    const { result: mfa } = renderHook(() => useMfa({ req: mockChallengeReq }));
 
     await act(async () => {
       await expect(mfa.current.getChallengeResponse()).rejects.toThrow(err);

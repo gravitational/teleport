@@ -149,12 +149,13 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 	// and will fail to generate certs if the cluster doesn't exist or is
 	// offline.
 
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
 	routedIdentity, err := generateIdentity(
 		ctx,
 		s.botAuthClient,
 		id,
 		roles,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		effectiveLifetime.TTL,
 		func(req *proto.UserCertsRequest) {
 			req.KubernetesCluster = kubeClusterName
 		},
@@ -162,6 +163,8 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, effectiveLifetime)
 
 	s.log.InfoContext(
 		ctx,

@@ -11,7 +11,8 @@ compromising productivity.
 
 ![The Microsoft Teams Access Request plugin](../../../../img/enterprise/plugins/msteams.png)
 
-<Details title="This integration is hosted on Teleport Enterprise (Cloud)" open={false}>
+<details>
+<summary>This integration is hosted on Teleport Enterprise (Cloud)</summary>
 
 (!docs/pages/includes/plugins/enroll.mdx name="the Microsoft Teams integration"!)
 
@@ -21,7 +22,7 @@ Once enrolled you can download the required `app.zip` file from the integrations
 
 ![Download app.zip](../../../../img/enterprise/plugins/msteams/app-zip.png)
 
-</Details>
+</details>
 
 ## Prerequisites
 
@@ -315,7 +316,8 @@ The `role_to_recipients` map must also include an entry for `"*"`, which the
 plugin looks up if no other entry matches a given role name. In the example
 above, requests for roles aside from `dev` and `dba` will notify `alice@example.com`.
 
-<Details title="Suggested reviewers">
+<details>
+<summary>Suggested reviewers</summary>
 
 Users can suggest reviewers when they create an Access Request, e.g.,:
 
@@ -328,7 +330,7 @@ these to the list of channels to notify. If a suggested reviewer is an email
 address, the plugin will look up the direct message channel for that
 address and post a message in that channel.
 
-</Details>
+</details>
 
 Configure the Microsoft Teams plugin to notify you when a user requests the `editor` role
 by adding the following to your `role_to_recipients` config (replace

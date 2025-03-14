@@ -294,6 +294,58 @@ kubernetes_cluster: my-cluster
 (!docs/pages/includes/machine-id/common-output-config.yaml!)
 ```
 
+### `kubernetes/v2`
+
+The `kubernetes/v2` output type can be used to access many Kubernetes clusters
+as individual contexts within the same `kubeconfig.yaml`.
+
+```yaml
+type: kubernetes/v2
+
+# selectors include one or more matching Kubernetes clusters. Each match will be
+# included in the resulting `kubeconfig.yaml`, assuming the bot has permission
+# to access the cluster.
+selectors:
+  # name includes an exact match by name. Note that wildcards are not currently
+  # supported. Multiple name selectors can be specified if desired.
+  - name: foo
+  # labels include all clusters matching all of these labels. Multiple label
+  # selectors can be provided if needed.
+  - labels:
+      env: dev
+
+# The following configuration fields are available across most output types.
+# Note that `roles` are not supported for this output type.
+
+destination:
+  type: directory
+  path: /opt/machine-id
+
+# credential_ttl and renewal_interval override the credential TTL and renewal
+# interval for this specific output, so that you can make its certificates valid
+# for shorter than `tbot`'s internal certificates.
+#
+# This is particularly useful when using `tbot` in one-shot as part of a cron job
+# where you need `tbot`'s internal certificate to live long enough to be renewed
+# on the next invocation, but don't want long-lived workload certificates on-disk.
+credential_ttl: 30m
+renewal_interval: 15m
+```
+
+Each Kubernetes cluster matching a selector will result in a new context in the
+generated `kubeconfig.yaml`. This can be consumed like so:
+
+```code
+$ kubectl --kubeconfig /opt/machine-id/kubeconfig.yaml --context=example.teleport.sh-foo get pods
+```
+
+The context name is `[Teleport cluster name]-[Kubernetes cluster name]`, so the
+command above runs `kubectl get pods` on the `foo` cluster.
+
+If clusters are added or removed over time, the `kubeconfig.yaml` will be
+updated at the bot's normal renewal interval. You can trigger an early renewal
+by restarting `tbot`, or signaling it with `pkill -usr1 tbot`.
+
 ### `ssh_host`
 
 The `ssh_host` output is used to generate the artifacts required to configure
@@ -475,6 +527,18 @@ listen: unix:///opt/machine-id/workload.sock
 # attestors allows Workload Attestation to be configured for this Workload
 # API.
 attestors:
+  # docker is configuration for the Docker Workload Attestor. See the Workload
+  # Identity API & Workload Attestation reference for more information.
+  docker:
+    # enabled specifies whether the workload's identity should be attested with
+    # information about its Docker container. If unspecified, this defaults to
+    # false.
+    enabled: true
+    # addr is the address at which the Docker Engine daemon can be reached. It
+    # must be in the form `unix://path/to/socket`, as connecting via TCP is not
+    # currently supported. If unspecified, this defaults to the standard socket
+    # location for "rootful" Docker installations: `unix:///var/run/docker.sock`.
+    addr: unix:///var/run/docker.sock
   # kubernetes is configuration for the Kubernetes Workload Attestor. See
   # the Kubernetes Workload Attestor section for more information.
   kubernetes:
@@ -513,6 +577,18 @@ attestors:
       # unspecified, this defaults to false. If set, the token_path field is
       # ignored.
       anonymous: false
+  # podman is configuration for the Podman Workload Attestor. See the Workload
+  # Identity API & Workload Attestation reference for more information.
+  podman:
+    # enabled specifies whether the workload's identity should be attested with
+    # information about its Podman container and pod. If unspecified, this
+    # defaults to false.
+    enabled: true
+    # addr is the address at which the Podman API Service can be reached. It
+    # must be in the form `unix://path/to/socket`, as connecting via TCP is not
+    # supported. This field is required and there is no default value. See the
+    # Workload Identity API & Workload Attestation reference for more information.
+    addr: unix:///run/podman/podman.sock
 # svids specifies the SPIFFE SVIDs that the Workload API should provide.
 svids:
     # path specifies what the path element should be requested for the SPIFFE
@@ -839,7 +915,8 @@ desired target host and port, terminated with a null byte. The multiplexer will
 then begin to forward traffic to the target host and port. The client can then
 make an SSH connection.
 
-<Details title="Example in Python (Paramiko)" closed>
+<details>
+<summary>Example in Python (Paramiko)" close</summary>
 ```python
 import os
 import paramiko
@@ -879,9 +956,10 @@ ssh_client.connect(
 stdin, stdout, stderr = ssh_client.exec_command("hostname")
 print(stdout.read().decode())
 ```
-</Details>
+</details>
 
-<Details title="Example in Go" closed>
+<details>
+<summary>Example in Go" close</summary>
 ```go
 package main
 
@@ -964,7 +1042,7 @@ func main() {
     fmt.Println(string(out))
 }
 ```
-</Details>
+</details>
 
 ## Destinations
 
