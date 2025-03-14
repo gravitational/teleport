@@ -34,7 +34,7 @@ case. A good tip is to use your newly added linter file to set values appropriat
 3) Add any new values at the correct location in the `values.schema.json` file for the appropriate chart. This
 will ensure that Helm is able to validate values at install-time and can prevent users from making easy mistakes.
 
-4) Document any new values or changes to existing behaviour in the [chart reference](../../docs/pages/kubernetes-access/helm/reference).
+4) Document any new values or changes to existing behaviour in the [chart reference](../../docs/pages/reference/helm-reference).
 
 5) Run `make lint-helm test-helm` from the root of the repo before raising your PR.
 You will need `yamllint`, `helm` and [helm-unittest](https://github.com/quintush/helm-unittest) installed locally.
