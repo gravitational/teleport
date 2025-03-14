@@ -41,6 +41,7 @@ import { TeleportFeature } from 'teleport/types';
 import {
   APPLICATIONS,
   KUBERNETES,
+  SAML_APPLICATIONS,
   SelectResourceSpec,
   SERVERS,
 } from '../SelectResource/resources';
@@ -162,4 +163,8 @@ export const resourceSpecConnectMyComputer = SERVERS.find(
 
 export const resourceSpecAppAwsCliConsole = APPLICATIONS.find(
   a => a.id === DiscoverGuideId.ApplicationAwsCliConsole
+);
+
+export const resourceSpecSamlGcp = SAML_APPLICATIONS.find(
+  s => s.id === DiscoverGuideId.ApplicationSamlWorkforceIdentityFederation
 );

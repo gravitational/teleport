@@ -180,7 +180,7 @@ export function getOverview({
             <InfoExternalTextLink href={links.ssmAgent.href}>
               SSM Agent
             </InfoExternalTextLink>{' '}
-            running in target EC2 instances, and have the
+            running in target EC2 instances, and have the{' '}
             <InfoExternalTextLink
               href={links.amazonSSMManagedInstanceCore.href}
             >
