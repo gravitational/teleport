@@ -115,13 +115,14 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 	validator := Validator{Log: cfg.Log}
 	debugClient := debug.NewClient(filepath.Join(ns.dataDir, debugSocketFileName))
 	return &Updater{
-		Log:                cfg.Log,
-		Pool:               certPool,
-		InsecureSkipVerify: cfg.InsecureSkipVerify,
-		UpdateConfigFile:   filepath.Join(ns.Dir(), updateConfigName),
-		TeleportConfigFile: ns.configFile,
-		DefaultProxyAddr:   ns.defaultProxyAddr,
-		DefaultPathDir:     ns.defaultPathDir,
+		Log:                 cfg.Log,
+		Pool:                certPool,
+		InsecureSkipVerify:  cfg.InsecureSkipVerify,
+		UpdateConfigFile:    filepath.Join(ns.Dir(), updateConfigName),
+		TeleportConfigFile:  ns.configFile,
+		TeleportServiceName: filepath.Base(ns.serviceFile),
+		DefaultProxyAddr:    ns.defaultProxyAddr,
+		DefaultPathDir:      ns.defaultPathDir,
 		Installer: &LocalInstaller{
 			InstallDir:              filepath.Join(ns.Dir(), versionsDirName),
 			TargetServiceFile:       ns.serviceFile,
@@ -204,6 +205,8 @@ type Updater struct {
 	UpdateConfigFile string
 	// TeleportConfigFile contains the path to Teleport's configuration.
 	TeleportConfigFile string
+	// TeleportServiceName contains the full name of the systemd service for Teleport
+	TeleportServiceName string
 	// DefaultProxyAddr contains Teleport's proxy address. This may differ from the updater's.
 	DefaultProxyAddr string
 	// DefaultPathDir contains the default path that Teleport binaries should be installed into.
@@ -274,6 +277,8 @@ var (
 	ErrNoBinaries = errors.New("no binaries available to link")
 	// ErrFilePresent is returned when a file is present.
 	ErrFilePresent = errors.New("file present")
+	// ErrNotInstalled is returned when Teleport is not installed.
+	ErrNotInstalled = errors.New("not installed")
 )
 
 // Process provides an API for interacting with a running Teleport process.
@@ -446,19 +451,40 @@ func (u *Updater) Remove(ctx context.Context, force bool) error {
 	}
 
 	// Do not link system package installation if the installation we are removing
-	// is not installed into /usr/local/bin.
+	// is not installed into /usr/local/bin. In this case, we also need to make sure
+	// it is clear we are not going to recover the package's systemd service if it
+	// was overwritten.
 	if filepath.Clean(cfg.Spec.Path) != filepath.Clean(defaultPathDir) {
-		return u.removeWithoutSystem(ctx, cfg, force)
+		if u.TeleportServiceName == serviceName {
+			if !force {
+				u.Log.ErrorContext(ctx, "Default Teleport systemd service would be removed, and --force was not passed.")
+				u.Log.ErrorContext(ctx, "Refusing to remove Teleport from this system.")
+				return trace.Errorf("unable to remove Teleport completely without --force")
+			} else {
+				u.Log.WarnContext(ctx, "Default Teleport systemd service will be removed since --force was passed.")
+				u.Log.WarnContext(ctx, "Teleport will be removed from this system.")
+			}
+		}
+		return u.removeWithoutSystem(ctx, cfg)
 	}
 	revert, err := u.Installer.LinkSystem(ctx)
 	if errors.Is(err, ErrNoBinaries) {
-		return u.removeWithoutSystem(ctx, cfg, force)
+		if !force {
+			u.Log.ErrorContext(ctx, "No packaged installation of Teleport was found, and --force was not passed.")
+			u.Log.ErrorContext(ctx, "Refusing to remove Teleport from this system.")
+			return trace.Errorf("unable to remove Teleport completely without --force")
+		} else {
+			u.Log.WarnContext(ctx, "No packaged installation of Teleport was found, and --force was passed.")
+			u.Log.WarnContext(ctx, "Teleport will be removed from this system.")
+		}
+		return u.removeWithoutSystem(ctx, cfg)
 	}
 	if err != nil {
 		return trace.Wrap(err, "failed to link")
 	}
 
-	u.Log.InfoContext(ctx, "Updater-managed installation of Teleport detected. Restoring packaged version of Teleport before removing.")
+	u.Log.InfoContext(ctx, "Updater-managed installation of Teleport detected.")
+	u.Log.InfoContext(ctx, "Restoring packaged version of Teleport before removing.")
 
 	revertConfig := func(ctx context.Context) bool {
 		if ok := revert(ctx); !ok {
@@ -504,7 +530,8 @@ func (u *Updater) Remove(ctx context.Context, force bool) error {
 		u.Log.ErrorContext(ctx, "Reverting symlinks due to failed restart.")
 		if ok := revertConfig(ctx); ok {
 			if err := u.Process.Reload(ctx); err != nil && !errors.Is(err, ErrNotNeeded) {
-				u.Log.ErrorContext(ctx, "Failed to reload Teleport after reverting. Installation likely broken.", errorKey, err)
+				u.Log.ErrorContext(ctx, "Failed to reload Teleport after reverting.", errorKey, err)
+				u.Log.ErrorContext(ctx, "Installation likely broken.")
 			} else {
 				u.Log.WarnContext(ctx, "Teleport updater detected an error with the new installation and successfully reverted it.")
 			}
@@ -519,14 +546,9 @@ func (u *Updater) Remove(ctx context.Context, force bool) error {
 	return nil
 }
 
-func (u *Updater) removeWithoutSystem(ctx context.Context, cfg *UpdateConfig, force bool) error {
-	if !force {
-		u.Log.ErrorContext(ctx, "No packaged installation of Teleport was found, and --force was not passed. Refusing to remove Teleport from this system.")
-		return trace.Errorf("unable to remove Teleport completely without --force")
-	} else {
-		u.Log.WarnContext(ctx, "No packaged installation of Teleport was found, and --force was passed. Teleport will be removed from this system.")
-	}
-	u.Log.InfoContext(ctx, "Updater-managed installation of Teleport detected. Attempting to unlink and remove.")
+func (u *Updater) removeWithoutSystem(ctx context.Context, cfg *UpdateConfig) error {
+	u.Log.InfoContext(ctx, "Updater-managed installation of Teleport detected.")
+	u.Log.InfoContext(ctx, "Attempting to unlink and remove.")
 	ok, err := u.Process.IsActive(ctx)
 	if err != nil && !errors.Is(err, ErrNotSupported) {
 		return trace.Wrap(err)
@@ -557,6 +579,9 @@ func (u *Updater) Status(ctx context.Context) (Status, error) {
 	}
 	if err := validateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return out, trace.Wrap(err)
+	}
+	if cfg.Spec.Proxy == "" {
+		return out, ErrNotInstalled
 	}
 	out.UpdateSpec = cfg.Spec
 	out.UpdateStatus = cfg.Status
@@ -689,7 +714,11 @@ func (u *Updater) Update(ctx context.Context, now bool) error {
 		u.Log.InfoContext(ctx, "Update available. Initiating update.", targetKey, target, activeKey, active)
 	}
 	if !now {
-		time.Sleep(resp.Jitter)
+		select {
+		case <-time.After(resp.Jitter):
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		}
 	}
 
 	updateErr := u.update(ctx, cfg, target, false, resp.AGPL)
@@ -941,15 +970,18 @@ func (u *Updater) notices(ctx context.Context) error {
 	}
 	if !enabled && active {
 		u.Log.WarnContext(ctx, "Teleport is installed and started, but not configured to start on boot.")
-		u.Log.WarnContext(ctx, "After configuring teleport.yaml, you can enable it with: systemctl enable teleport")
+		u.Log.WarnContext(ctx, "After configuring teleport.yaml, you must enable it.",
+			"command", "systemctl enable "+u.TeleportServiceName)
 	}
 	if !active && enabled {
 		u.Log.WarnContext(ctx, "Teleport is installed and enabled at boot, but not running.")
-		u.Log.WarnContext(ctx, "After configuring teleport.yaml, you can start it with: systemctl start teleport")
+		u.Log.WarnContext(ctx, "After configuring teleport.yaml, you must start it.",
+			"command", "systemctl start "+u.TeleportServiceName)
 	}
 	if !active && !enabled {
 		u.Log.WarnContext(ctx, "Teleport is installed, but not running or enabled at boot.")
-		u.Log.WarnContext(ctx, "After configuring teleport.yaml, you can enable and start it with: systemctl enable teleport --now")
+		u.Log.WarnContext(ctx, "After configuring teleport.yaml, you must enable and start.",
+			"command", "systemctl enable --now "+u.TeleportServiceName)
 	}
 
 	return nil
