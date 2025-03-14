@@ -242,6 +242,17 @@ To add agents to groups, run `teleport-update enable --group group-name`.
 You may execute `teleport-update enable` repeatedly to change the group
 (or other Managed Update settings).
 
+If no agent update group is configured, or if the group name does not match a
+group defined in `autoupdate_config`, the agent will be part of the last
+`autoupdate_config` group.
+
+Except for `autoupdate_config.agents.mode`, changes to `autoupdate_config` fields
+take effect during the next version rollout. A new rollout happens when
+`autoupdate_version` is changed and targets a new version.
+Version is automatically updated for Cloud-hosted Teleport clusters; for
+self-hosted ones you have to update the version manually, see
+[the dedicated guide section](#setting-the-version-self-hosted-only).
+
 <Admonition type="info" title="Cloud-hosting schedule constraints">
 For cloud-hosted Teleport Enterprise, the `days` are not configurable for most
 customers, and the `start_hour` is defaulted to your selected maintenance window.
@@ -294,6 +305,26 @@ Run the following command to create or update the resource:
 ```code
 $ tctl create autoupdate_version.yaml
 ```
+
+Changes to `autoupdate_version` can take up to a minute to create a new rollout.
+You can observe the current rollout state with the command:
+
+```code
+$ tctl autoupdate agents status
+Agent autoupdate mode: enabled
+Rollout creation date: 2025-03-10 15:01:45
+Start version: 1.2.3
+Target version: 1.2.4
+Rollout state: Active
+Strategy: halt-on-error
+
+Group Name State     Start Time          State Reason
+---------- --------- ------------------- ------------------------
+dev        Active    2025-03-11 12:00:10 can_start
+stage      Unstarted                     previous_groups_not_done
+prod       Unstarted                     previous_groups_not_done
+```
+
 ## Migrating agents on Linux servers to Managed Updates
 
 ### Finding unmanaged agents
