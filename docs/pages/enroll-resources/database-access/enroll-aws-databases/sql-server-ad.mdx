@@ -129,23 +129,37 @@ domain:
 <Tabs>
   <TabItem label="Ubuntu 18.04">
     ```code
-    $ curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
-    $ sudo curl https://packages.microsoft.com/config/ubuntu/18.04/prod.list | sudo tee /etc/apt/sources.list.d/msprod.list
+    $ curl https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc
+    $ curl https://packages.microsoft.com/config/ubuntu/18.04/prod.list | sudo tee /etc/apt/sources.list.d/msprod.list
     $ sudo apt-get update
     $ sudo ACCEPT_EULA=Y apt-get install -y adutil
     ```
   </TabItem>
   <TabItem label="Ubuntu 20.04">
     ```code
-    $ sudo wget -qO /etc/apt/trusted.gpg.d/microsoft.asc https://packages.microsoft.com/keys/microsoft.asc
-    $ sudo curl https://packages.microsoft.com/config/ubuntu/20.04/prod.list | sudo tee /etc/apt/sources.list.d/msprod.list
+    $ curl https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc
+    $ curl https://packages.microsoft.com/config/ubuntu/20.04/prod.list | sudo tee /etc/apt/sources.list.d/msprod.list
     $ sudo apt-get update
     $ sudo ACCEPT_EULA=Y apt-get install -y adutil
     ```
   </TabItem>
-  <TabItem label="RHEL / CentOS 7">
+  <TabItem label="Ubuntu 22.04">
+    ```code
+    $ curl https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc
+    $ curl https://packages.microsoft.com/config/ubuntu/22.04/prod.list | sudo tee /etc/apt/sources.list.d/msprod.list
+    $ sudo apt-get update
+    $ sudo ACCEPT_EULA=Y apt-get install -y adutil
+    ```
+  </TabItem>
+  <TabItem label="RHEL 8">
     ```code
     $ sudo curl -o /etc/yum.repos.d/msprod.repo https://packages.microsoft.com/config/rhel/8/prod.repo
+    $ sudo ACCEPT_EULA=Y yum install -y adutil
+    ```
+  </TabItem>
+  <TabItem label="RHEL 9">
+    ```code
+    $ sudo curl -o /etc/yum.repos.d/msprod.repo https://packages.microsoft.com/config/rhel/9/prod.repo
     $ sudo ACCEPT_EULA=Y yum install -y adutil
     ```
   </TabItem>
