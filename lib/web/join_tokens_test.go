@@ -611,7 +611,6 @@ func toHex(s string) string { return hex.EncodeToString([]byte(s)) }
 
 func TestGetNodeJoinScript(t *testing.T) {
 	validToken := "f18da1c9f6630a51e8daf121e7451daa"
-	validTokenWithLabelsWithSpecialChars := "f18da1c9f6630a51e8daf121e7451dbb"
 	invalidToken := "f18da1c9f6630a51e8daf121e7451dab"
 	validIAMToken := "valid-iam-token"
 	internalResourceID := "967d38ff-7a61-4f42-bd2d-c61965b44db0"
@@ -733,14 +732,16 @@ func TestGetNodeJoinScript(t *testing.T) {
 		},
 		{
 			desc:     "attempt to shell injection using suggested labels",
-			settings: scriptSettings{token: validTokenWithLabelsWithSpecialChars},
+			settings: scriptSettings{token: validToken},
 			token: &types.ProvisionTokenV2{
 				Metadata: types.Metadata{
 					Name: validToken,
 				},
 				Spec: types.ProvisionTokenSpecV2{
 					SuggestedLabels: types.Labels{
-						types.InternalResourceIDLabel: apiutils.Strings{internalResourceID},
+						types.InternalResourceIDLabel:   apiutils.Strings{internalResourceID},
+						"env":                           []string{"bad label value | ; & $ > < ' !"},
+						"bad label key | ; & $ > < ' !": []string{"env"},
 					},
 				},
 			},
