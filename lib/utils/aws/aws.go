@@ -19,9 +19,9 @@
 package aws
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"log/slog"
@@ -33,14 +33,12 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/gravitational/trace"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/aws/migration"
 )
 
 const (
@@ -76,6 +74,11 @@ const (
 	// used by the AssumeRole call.
 	// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html
 	MaxRoleSessionNameLength = 64
+
+	// EmptyPayloadHash is the SHA-256 for an empty element (as in echo -n | sha256sum).
+	// PresignHTTP requires the hash of the body, but when there is no body we hash the empty string.
+	// https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html
+	EmptyPayloadHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
 	iamServiceName = "iam"
 )
@@ -195,7 +198,8 @@ func VerifyAWSSignature(req *http.Request, credProvider aws.CredentialsProvider)
 		return trace.Wrap(err)
 	}
 
-	reqCopy := req.Clone(context.Background())
+	ctx := context.Background()
+	reqCopy := req.Clone(ctx)
 
 	// Remove all the headers that are not present in awsCred.SignedHeaders.
 	filterHeaders(reqCopy, sigV4.SignedHeaders)
@@ -207,8 +211,13 @@ func VerifyAWSSignature(req *http.Request, credProvider aws.CredentialsProvider)
 		return trace.BadParameter("%s", err)
 	}
 
-	signer := NewSignerV2(credProvider, sigV4.Service)
-	_, err = signer.Sign(reqCopy, bytes.NewReader(payload), sigV4.Service, sigV4.Region, t)
+	creds, err := credProvider.Retrieve(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	signer := NewSigner(sigV4.Service)
+	err = signer.SignHTTP(ctx, creds, reqCopy, GetV4PayloadHash(payload), sigV4.Service, sigV4.Region, t)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -226,23 +235,28 @@ func VerifyAWSSignature(req *http.Request, credProvider aws.CredentialsProvider)
 	return nil
 }
 
-// NewSignerV2 is a temporary AWS SDK migration helper.
-func NewSignerV2(provider aws.CredentialsProvider, signingServiceName string) *v4.Signer {
-	return NewSigner(migration.NewCredentialsAdapter(provider), signingServiceName)
-}
-
 // NewSigner creates a new V4 signer.
-func NewSigner(credentials *credentials.Credentials, signingServiceName string) *v4.Signer {
-	options := func(s *v4.Signer) {
+func NewSigner(signingServiceName string) *v4.Signer {
+	return v4.NewSigner(func(opts *v4.SignerOptions) {
 		// s3 and s3control requests are signed with URL unescaped (found by
 		// searching "DisableURIPathEscaping" in "aws-sdk-go/service"). Both
 		// services use "s3" as signing name. See description of
 		// "DisableURIPathEscaping" for more details.
 		if signingServiceName == "s3" {
-			s.DisableURIPathEscaping = true
+			opts.DisableURIPathEscaping = true
 		}
+	})
+}
+
+// GetV4PayloadHash returns the V4 signing payload hash.
+func GetV4PayloadHash(payload []byte) string {
+	if len(payload) == 0 {
+		return EmptyPayloadHash
 	}
-	return v4.NewSigner(credentials, options)
+
+	hash := sha256.New()
+	hash.Write(payload)
+	return hex.EncodeToString(hash.Sum(nil))
 }
 
 // filterHeaders removes request headers that are not in the headers list and returns the removed header keys.
