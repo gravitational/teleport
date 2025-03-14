@@ -18,6 +18,7 @@ package teleport.okta.v1;
 
 import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
 import "teleport/legacy/types/types.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1;oktav1";
@@ -62,6 +63,9 @@ service OktaService {
   rpc GetApps(GetAppsRequest) returns (GetAppsResponse);
   // GetGroups retrieves a list of apps from Okta based on specified filter criteria.
   rpc GetGroups(GetGroupsRequest) returns (GetGroupsResponse);
+
+  // AppSystemLog TODO add a comment
+  rpc AppSystemLog(AppSystemLogRequest) returns (AppSystemLogResponse);
 }
 
 // GetAppsRequest is the request message for filtering apps.
@@ -108,6 +112,25 @@ message GetGroupsResponse {
   }
   // List of groups that match the filter criteria.
   repeated Group groups = 1;
+}
+
+// AppSystemLogRequest is a request message for AppSystemLog RPC.
+message AppSystemLogRequest {
+  string access_list_id = 1;
+}
+
+// AppSystemLogResponse is a response message for AppSystemLog RPC.
+message AppSystemLogResponse {
+  repeated AppLoginEvent login_events = 1;
+}
+
+// AppLoginEvent represents an Okta app login event fetched from Okta system logs.
+message AppLoginEvent {
+  string okta_app_id = 1;
+  string okta_app_label = 2;
+  string okta_user_id = 3;
+  string okta_user_name = 4;
+  google.protobuf.Timestamp time = 5;
 }
 
 // CreateIntegrationRequest is the request message for enrolling a new Okta integration.
