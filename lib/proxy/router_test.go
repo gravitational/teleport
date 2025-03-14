@@ -787,6 +787,8 @@ func TestRouter_DialHost(t *testing.T) {
 				require.NotNil(t, params.GetUserAgent)
 				require.Nil(t, params.AgentlessSigner)
 				require.NotNil(t, conn)
+				require.Contains(t, params.Principals, "host")
+				require.Contains(t, params.Principals, "host.test")
 			},
 		},
 		{
@@ -806,6 +808,8 @@ func TestRouter_DialHost(t *testing.T) {
 				require.NotNil(t, params.AgentlessSigner)
 				require.True(t, params.IsAgentlessNode)
 				require.NotNil(t, conn)
+				require.Contains(t, params.Principals, "host")
+				require.Contains(t, params.Principals, "host.test")
 			},
 		},
 		{
