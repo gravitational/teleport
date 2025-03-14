@@ -18,7 +18,6 @@ Database Service forwards user traffic to the database.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- An AWS account with the necessary permissions to create RDS instances and AWS Directory Service directories.
 - An Amazon RDS for Oracle database instance.
 - An AWS Directory Service Managed Microsoft AD.
 - A Linux node joined to the same Active Directory domain as the database. This
@@ -31,7 +30,7 @@ Before configuring Teleport, ensure your Oracle RDS instance has Kerberos authen
 
 1. Follow the [AWS RDS Oracle Kerberos Setup guide](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/oracle-kerberos-setting-up.html) to enable Kerberos authentication on your instance.
 
-2. Enable TLS on your Oracle RDS instance by following the [AWS RDS Oracle SSL Setup documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.Oracle.Options.SSL.html). Ensure `SQLNET.SSL_VERSION` is set to `1.2` for optimal security.
+2. Enable TLS on your Oracle RDS instance by following the [AWS RDS Oracle SSL Setup documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.Oracle.Options.SSL.html). Ensure `SQLNET.SSL_VERSION` is set to `1.2` for optimal security. Make note of the SSL port choice; in the rest of the guide we will assume it is 2484.
 
 <Admonition type="note">
   Verify connectivity between your Teleport Database Service host and the Oracle RDS instance before proceeding.
@@ -207,7 +206,11 @@ be merged into the same `teleport.keytab` file.
   assigned a Service Principal Name, otherwise the command will not be able
   to determine its `kvno` (key version number).
 
-  To check if the user has any SPNs assigned, run the following command on the
+  To check if the user has any SPNs assigned, go to the user's page in AWS Console and locate the "Account settings - optional" section.
+
+  ![AWS AD Set SPN](../../../../img/database-access/guides/aws_ad_set_spn.png)
+
+  Alternatively, run the following command on the
   Windows machine joined to your Active Directory domain:
 
   ```code
@@ -250,7 +253,7 @@ KVNO Principal
 
 Configure the Teleport Database Service. Make sure to update `--proxy` to
 point to your Teleport Proxy Service address and `--uri` to the Oracle
-endpoint.
+endpoint. Note the specified port must be one configured as part of SSL configuration, which defaults to 2484.
 
 ```code
 $ sudo teleport db configure create \
