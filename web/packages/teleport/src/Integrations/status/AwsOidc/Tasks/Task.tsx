@@ -127,7 +127,7 @@ export function Task({
   return (
     <SidePanel
       onClose={() => close(false)}
-      header={<H2>{taskAttempt.data.issueType}</H2>}
+      header={<H2>{taskAttempt.data.title}</H2>}
       footer={
         <ButtonBorder
           intent="success"

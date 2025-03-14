@@ -69,6 +69,7 @@ function makeResourceTypeSummary(
         -Math.floor(Math.random() * 100)
       ),
       ecsDatabaseServiceCount: Math.floor(Math.random() * 100),
+      unresolvedUserTasks: Math.floor(Math.random() * 100),
     },
     overrides
   );
