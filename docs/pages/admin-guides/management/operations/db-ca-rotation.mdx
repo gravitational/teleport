@@ -94,7 +94,8 @@ restore connectivity.
 ## Step 1/4. Start the rotation
 
 Initiate manual rotation of the `db` or `db_client` certificate authority:
-<Details title="Want to rotate both CAs?">
+<details>
+<summary>Want to rotate both CAs?</summary>
 You should not rotate the `db` or `db_client` CA in parallel with other CA
 rotations.
 Rotating in parallel with other CA types, especially the `host` CA, is more
@@ -108,7 +109,7 @@ You can rotate both `db` and `db_client` certificate authorities in parallel
 by transitioning both CAs through each phase step.
 Just use the `tctl auth rotate` command for each step with `--type=db` and
 then `--type=db-client`.
-</Details>
+</details>
 
 ```code
 $ tctl auth rotate --manual --type=<Var name="type" description="Certificate authority to rotate"/> --phase=init 

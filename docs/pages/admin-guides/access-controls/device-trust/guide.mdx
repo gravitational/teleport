@@ -67,7 +67,8 @@ For this guide, we will use the preset `require-trusted-device` role to update c
   from Teleport version 13.3.6 and above. For older Teleport cluster, you will need to update
   a role with `device_trust_mode: required`.
 
-  <Details title="Update a role to enforce Device Trust" closed>
+  <details>
+  <summary>Update a role to enforce Device Trust</summary>
     For simplicity, the example below updates the preset `access` role but you can update
     any existing access granting role which the user is assigned with to enforce Device Trust.
 
@@ -101,7 +102,7 @@ For this guide, we will use the preset `require-trusted-device` role to update c
 
     Now that the `access` role is configured with device mode "required", users with
     this role will be enforced with Device Trust.
-  </Details>
+  </details>
 </Admonition>
 
 First, let's fetch the user profile locally so we can update it with the preset `require-trusted-device` role.

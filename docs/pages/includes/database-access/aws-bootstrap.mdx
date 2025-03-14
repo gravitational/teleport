@@ -30,7 +30,8 @@ this command in automatic or manual mode:
   </TabItem>
 </Tabs>
 
-<Details title="Bootstrapping with assume_role_arn in config">
+<details>
+<summary>Bootstrapping with assume_role_arn in config</summary>
 When `assume_role_arn` is configured for databases or AWS matchers,
 `teleport db configure bootstrap` will determine permissions required for the
 bootstrap target AWS IAM identity using the following logic:
@@ -45,4 +46,4 @@ bootstrap target AWS IAM identity using the following logic:
 You will need to run the bootstrap command once with the Teleport Database
 Service's IAM identity as the policy attachment target, and once for each AWS
 IAM role that is used for `assume_role_arn`.
-</Details>
+</details>
