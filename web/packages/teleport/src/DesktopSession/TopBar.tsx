@@ -66,11 +66,11 @@ export default function TopBar(props: Props) {
               canShareDirectory,
               isSharingDirectory
             )}
-            position="bottom"
+            placement="bottom"
           >
             <FolderShared style={primaryOnTrue(isSharingDirectory)} pr={3} />
           </HoverTooltip>
-          <HoverTooltip tipContent={clipboardSharingMessage} position="bottom">
+          <HoverTooltip tipContent={clipboardSharingMessage} placement="bottom">
             <Clipboard style={primaryOnTrue(isSharingClipboard)} pr={3} />
           </HoverTooltip>
           <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />

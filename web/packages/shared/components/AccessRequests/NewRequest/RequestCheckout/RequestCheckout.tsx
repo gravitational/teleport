@@ -287,7 +287,7 @@ export function RequestCheckout<T extends PendingListItem>({
           {hasUnsupporteKubeResourceKinds && (
             <Alert kind="danger">
               <HoverTooltip
-                position="left"
+                placement="left"
                 tipContent={
                   fetchResourceRequestRolesAttempt.statusText.length > 248
                     ? fetchResourceRequestRolesAttempt.statusText

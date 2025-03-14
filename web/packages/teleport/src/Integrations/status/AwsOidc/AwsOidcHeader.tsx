@@ -53,7 +53,7 @@ export function AwsOidcHeader({
       my={2}
       data-testid="aws-oidc-header"
     >
-      <HoverTooltip position="bottom" tipContent="Back to Integrations">
+      <HoverTooltip placement="bottom" tipContent="Back to Integrations">
         <ButtonText
           size="small"
           as={InternalLink}

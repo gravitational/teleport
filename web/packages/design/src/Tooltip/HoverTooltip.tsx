@@ -37,24 +37,40 @@ import React, { PropsWithChildren, useRef, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 
 import Flex from 'design/Flex';
-import { FlexBasisProps, JustifyContentProps } from 'design/system';
 import Text from 'design/Text';
 
 type HoverTooltipProps = {
-  tipContent?: React.ReactNode;
-  showOnlyOnOverflow?: boolean;
-  className?: string;
   /**
-   * Specifies the position of tooltip relative to content. Used if neither
-   * anchor nor transform origins are specified.
+   * String or ReactNode to display in tooltip.
+   */
+  tipContent?: React.ReactNode;
+  /**
+   * Only show tooltip if trigger content is overflowing its container.
+   */
+  showOnlyOnOverflow?: boolean;
+  /**
+   * Specifies the position of tooltip relative to trigger content.
    */
   placement?: Placement;
-  justifyContentProps?: JustifyContentProps;
-  flexBasisProps?: FlexBasisProps;
-  // Optional additional props for FloatingUI
+  /**
+   * @deprecated – Prefer specifying `placement` instead.
+   */
+  position?: Placement;
+  /**
+   * Offset the tooltip relative to trigger content. Defaults to `8`.
+   */
   offset?: number;
+  /**
+   * Delay opening and/or closing of the tooltip.
+   */
   delay?: number | { open: number; close: number };
+  /**
+   * Don't flip the tooltip's placement when tooltip runs out of the viewport.
+   */
   disableFlip?: boolean;
+  /**
+   * Don't transition the tooltip in/out on mount/unmount.
+   */
   disableTransitions?: boolean;
 };
 
@@ -62,10 +78,8 @@ export const HoverTooltip = ({
   tipContent,
   children,
   showOnlyOnOverflow = false,
-  className,
   placement = 'top',
-  justifyContentProps = {},
-  flexBasisProps = {},
+  position,
   offset: offsetDistance = 8,
   delay = 0,
   disableFlip = false,
@@ -75,6 +89,10 @@ export const HoverTooltip = ({
   const [open, setOpen] = useState(false);
   const arrowRef = useRef(null);
   const contentRef = useRef<HTMLElement | null>(null);
+
+  if (position) {
+    placement = position;
+  }
 
   const { x, y, strategy, refs, context } = useFloating({
     placement,
@@ -144,17 +162,14 @@ export const HoverTooltip = ({
   return (
     <Flex
       ref={refs.setReference}
-      className={className}
       {...getReferenceProps({
         onMouseEnter: handleMouseEnter,
         onMouseLeave: () => setOpen(false),
       })}
-      {...justifyContentProps}
-      {...flexBasisProps}
     >
       {children}
-      <FloatingPortal>
-        {isMounted && (
+      {isMounted && (
+        <FloatingPortal>
           <StyledTooltip
             ref={refs.setFloating}
             style={{
@@ -171,14 +186,17 @@ export const HoverTooltip = ({
             <FloatingArrow
               ref={arrowRef}
               context={context}
-              style={{ fill: theme.colors.tooltip.background }}
+              style={{
+                fill: theme.colors.tooltip.background,
+                backdropFilter: 'blur(2px)',
+              }}
             />
             <StyledContent px={3} py={2}>
               {tipContent}
             </StyledContent>
           </StyledTooltip>
-        )}
-      </FloatingPortal>
+        </FloatingPortal>
+      )}
     </Flex>
   );
 };

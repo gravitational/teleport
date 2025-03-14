@@ -179,7 +179,7 @@ export const SelectSecurityGroups = ({
           <Flex alignItems="center" gap={3} mt={2}>
             <HoverTooltip
               tipContent="Refreshing security groups will reset selections"
-              anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
+              placement="top-start"
             >
               <ButtonSecondary
                 onClick={() => fetchSecurityGroups({ refresh: true })}
