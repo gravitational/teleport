@@ -55,6 +55,11 @@ type ServiceConfig struct {
 	Emitter apievents.Emitter
 }
 
+// Backend interface for manipulating AutoUpdate resources.
+type Backend interface {
+	services.AutoUpdateService
+}
+
 // Service implements the gRPC API layer for the AutoUpdate.
 type Service struct {
 	autoupdate.UnimplementedAutoUpdateServiceServer
@@ -210,6 +215,18 @@ func (s *Service) UpsertAutoUpdateConfig(ctx context.Context, req *autoupdate.Up
 		},
 	})
 	return config, trace.Wrap(err)
+}
+
+// UpsertAutoUpdateConfig creates a new AutoUpdateConfig or forcefully updates an existing AutoUpdateConfig.
+// This is a function rather than a method so that it can be used by the gRPC service
+// and the auth server init code when dealing with resources to be applied at startup.
+func UpsertAutoUpdateConfig(
+	ctx context.Context,
+	backend Backend,
+	config *autoupdate.AutoUpdateConfig,
+) (*autoupdate.AutoUpdateConfig, error) {
+	out, err := backend.UpsertAutoUpdateConfig(ctx, config)
+	return out, trace.Wrap(err)
 }
 
 // DeleteAutoUpdateConfig deletes AutoUpdateConfig singleton.
@@ -388,6 +405,18 @@ func (s *Service) UpsertAutoUpdateVersion(ctx context.Context, req *autoupdate.U
 	})
 
 	return autoUpdateVersion, trace.Wrap(err)
+}
+
+// UpsertAutoUpdateVersion creates a new AutoUpdateVersion or forcefully updates an existing AutoUpdateVersion.
+// This is a function rather than a method so that it can be used by the gRPC service
+// and the auth server init code when dealing with resources to be applied at startup.
+func UpsertAutoUpdateVersion(
+	ctx context.Context,
+	backend Backend,
+	version *autoupdate.AutoUpdateVersion,
+) (*autoupdate.AutoUpdateVersion, error) {
+	out, err := backend.UpsertAutoUpdateVersion(ctx, version)
+	return out, trace.Wrap(err)
 }
 
 // DeleteAutoUpdateVersion deletes AutoUpdateVersion singleton.
