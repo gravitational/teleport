@@ -16,114 +16,115 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useTheme } from 'styled-components';
+import {useTheme} from 'styled-components';
 
-import { Flex, Text, TopNav } from 'design';
-import { Clipboard, FolderShared } from 'design/Icon';
-import { HoverTooltip } from 'design/Tooltip';
-import type { NotificationItem } from 'shared/components/Notification';
-import { LatencyDiagnostic } from 'shared/components/LatencyDiagnostic';
+import {Flex, Text, TopNav} from 'design';
+import {Clipboard, FolderShared} from 'design/Icon';
+import {HoverTooltip} from 'design/Tooltip';
+import type {NotificationItem} from 'shared/components/Notification';
+import {LatencyDiagnostic} from 'shared/components/LatencyDiagnostic';
 
 import ActionMenu from './ActionMenu';
-import { AlertDropdown } from './AlertDropdown';
+import {AlertDropdown} from './AlertDropdown';
 
 export default function TopBar(props: Props) {
-  const {
-    userHost,
-    isSharingClipboard,
-    clipboardSharingMessage,
-    onDisconnect,
-    canShareDirectory,
-    isSharingDirectory,
-    onShareDirectory,
-    onCtrlAltDel,
-    alerts,
-    onRemoveAlert,
-    latency
-  } = props;
-  const theme = useTheme();
+    const {
+        userHost,
+        isSharingClipboard,
+        clipboardSharingMessage,
+        onDisconnect,
+        canShareDirectory,
+        isSharingDirectory,
+        onShareDirectory,
+        onCtrlAltDel,
+        alerts,
+        onRemoveAlert,
+        latency
+    } = props;
+    const theme = useTheme();
 
-  const primaryOnTrue = (b: boolean): any => {
-    return {
-      color: b ? theme.colors.text.main : theme.colors.text.disabled,
+    const primaryOnTrue = (b: boolean): any => {
+        return {
+            color: b ? theme.colors.text.main : theme.colors.text.disabled,
+        };
     };
-  };
 
-  return (
-    <TopNav
-      height={`${TopBarHeight}px`}
-      bg="levels.deep"
-      style={{
-        justifyContent: 'space-between',
-      }}
-    >
-      <Text px={3} style={{ color: theme.colors.text.slightlyMuted }}>
-        {userHost}
-      </Text>
+    return (
+        <TopNav
+            height={`${TopBarHeight}px`}
+            bg="levels.deep"
+            style={{
+                justifyContent: 'space-between',
+            }}
+        >
+            <Text px={3} style={{color: theme.colors.text.slightlyMuted}}>
+                {userHost}
+            </Text>
 
-      <Flex px={3}>
-        <Flex alignItems="center">
-          <HoverTooltip
-            tipContent={'Network Connection'}
-            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-            transformOrigin={{ vertical: 'top', horizontal: 'center' }}
-          >
-            <LatencyDiagnostic latency={latency} />
-          </HoverTooltip>
+            <Flex px={3}>
+                <Flex alignItems="center">
+                    {latency && <HoverTooltip
+                        tipContent={'Network Connection'}
+                        anchorOrigin={{vertical: 'bottom', horizontal: 'center'}}
+                        transformOrigin={{vertical: 'top', horizontal: 'center'}}
+                    >
+                        <LatencyDiagnostic latency={latency}/>
+                    </HoverTooltip>
+                    }
 
-          <HoverTooltip
-            tipContent={directorySharingToolTip(
-              canShareDirectory,
-              isSharingDirectory
-            )}
-            position="bottom"
-          >
-            <FolderShared style={primaryOnTrue(isSharingDirectory)} pr={3} />
-          </HoverTooltip>
-          <HoverTooltip tipContent={clipboardSharingMessage} position="bottom">
-            <Clipboard style={primaryOnTrue(isSharingClipboard)} pr={3} />
-          </HoverTooltip>
-          <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />
-        </Flex>
-        <ActionMenu
-          onDisconnect={onDisconnect}
-          showShareDirectory={canShareDirectory && !isSharingDirectory}
-          onShareDirectory={onShareDirectory}
-          onCtrlAltDel={onCtrlAltDel}
-        />
-      </Flex>
-    </TopNav>
-  );
+                    <HoverTooltip
+                        tipContent={directorySharingToolTip(
+                            canShareDirectory,
+                            isSharingDirectory
+                        )}
+                        position="bottom"
+                    >
+                        <FolderShared style={primaryOnTrue(isSharingDirectory)} pr={3}/>
+                    </HoverTooltip>
+                    <HoverTooltip tipContent={clipboardSharingMessage} position="bottom">
+                        <Clipboard style={primaryOnTrue(isSharingClipboard)} pr={3}/>
+                    </HoverTooltip>
+                    <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert}/>
+                </Flex>
+                <ActionMenu
+                    onDisconnect={onDisconnect}
+                    showShareDirectory={canShareDirectory && !isSharingDirectory}
+                    onShareDirectory={onShareDirectory}
+                    onCtrlAltDel={onCtrlAltDel}
+                />
+            </Flex>
+        </TopNav>
+    );
 }
 
 function directorySharingToolTip(
-  canShare: boolean,
-  isSharing: boolean
+    canShare: boolean,
+    isSharing: boolean
 ): string {
-  if (!canShare) {
-    return 'Directory Sharing Disabled';
-  }
-  if (!isSharing) {
-    return 'Directory Sharing Inactive';
-  }
-  return 'Directory Sharing Enabled';
+    if (!canShare) {
+        return 'Directory Sharing Disabled';
+    }
+    if (!isSharing) {
+        return 'Directory Sharing Inactive';
+    }
+    return 'Directory Sharing Enabled';
 }
 
 export const TopBarHeight = 40;
 
 type Props = {
-  userHost: string;
-  isSharingClipboard: boolean;
-  clipboardSharingMessage: string;
-  canShareDirectory: boolean;
-  isSharingDirectory: boolean;
-  onDisconnect: VoidFunction;
-  onShareDirectory: VoidFunction;
-  onCtrlAltDel: VoidFunction;
-  alerts: NotificationItem[];
-  onRemoveAlert(id: string): void;
-  latency: {
-      client: number;
-      server: number;
-  };
+    userHost: string;
+    isSharingClipboard: boolean;
+    clipboardSharingMessage: string;
+    canShareDirectory: boolean;
+    isSharingDirectory: boolean;
+    onDisconnect: VoidFunction;
+    onShareDirectory: VoidFunction;
+    onCtrlAltDel: VoidFunction;
+    alerts: NotificationItem[];
+    onRemoveAlert(id: string): void;
+    latency: {
+        client: number;
+        server: number;
+    };
 };

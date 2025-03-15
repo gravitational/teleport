@@ -610,14 +610,21 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn, log *slog.Logger, vers
 	tdpMessagesToSend := make(chan tdp.Message)
 	errs := make(chan error, 3)
 
-	pings := make(chan tdp.Ping)
-
-	pinger := desktopPinger{
-		wds: wds,
-		ch:  pings,
+	latencySupported, err := utils.MinVerWithoutPreRelease(version, "18.0.0")
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	go monitorDesktopLatency(ctx, tdpMessagesToSend, clockwork.NewRealClock(), ws, pinger)
+	pings := make(chan tdp.Ping)
+
+	if latencySupported {
+		pinger := desktopPinger{
+			wds: wds,
+			ch:  pings,
+		}
+
+		go monitorDesktopLatency(ctx, tdpMessagesToSend, clockwork.NewRealClock(), ws, pinger)
+	}
 
 	// run a goroutine to pick TDP messages up from a channel and send
 	// them to the browser

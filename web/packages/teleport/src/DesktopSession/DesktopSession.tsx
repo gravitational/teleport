@@ -180,7 +180,7 @@ export function DesktopSession(props: State) {
         }
     }, [client, shouldConnect]);
 
-    const [latencyStats, setLatencyStats] = useState({client: 0, server: 0});
+    const [latencyStats, setLatencyStats] = useState(undefined);
     useEffect(() => {
         if (!client) {
             return;
