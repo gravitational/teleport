@@ -6,7 +6,7 @@
 apiVersion: policy/v1beta1
 kind: PodSecurityPolicy
 metadata:
-  name: {{ .Release.Name }}
+  name: {{ include "teleport-kube-agent.fullname" . }}
 {{- if .Values.extraLabels.podSecurityPolicy }}
   labels:
   {{- toYaml .Values.extraLabels.podSecurityPolicy | nindent 4 }}
@@ -45,7 +45,7 @@ spec:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: {{ .Release.Name }}-psp
+  name: {{ include "teleport-kube-agent.fullname" . }}-psp
 rules:
 - apiGroups:
   - policy
@@ -54,16 +54,16 @@ rules:
   verbs:
   - use
   resourceNames:
-  - {{ .Release.Name }}
+  - {{ include "teleport-kube-agent.fullname" . }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: {{ .Release.Name }}-psp
+  name: {{ include "teleport-kube-agent.fullname" . }}-psp
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: {{ .Release.Name }}-psp
+  name: {{ include "teleport-kube-agent.fullname" . }}-psp
 subjects:
 - kind: ServiceAccount
   name: {{ template "teleport-kube-agent.serviceAccountName" . }}

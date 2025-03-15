@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Release.Name }}
+  name: {{ include "teleport-kube-agent.fullname" . }}
   namespace: {{ .Release.Namespace }}
 {{- if .Values.extraLabels.config }}
   labels:
