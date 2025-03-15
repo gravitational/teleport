@@ -37,7 +37,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/mod/semver"
+	"golang.org/x/mod/semver" //nolint:depguard
 
 	"github.com/gravitational/teleport/build.assets/tooling/lib/github"
 )

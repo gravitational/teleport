@@ -24,7 +24,7 @@ import (
 	"strconv"
 	"strings"
 
-	"golang.org/x/mod/semver"
+	"golang.org/x/mod/semver" //nolint:depguard
 )
 
 // NOTE: the contents of this file might be moving to the 'api' package in the future.
