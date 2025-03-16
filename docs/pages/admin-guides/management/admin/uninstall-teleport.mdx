@@ -164,6 +164,34 @@ Follow the instructions for your Linux distribution:
   $ sudo rm -f /usr/local/bin/teleport
   $ sudo rm -f /usr/local/bin/tsh
   $ sudo rm -f /usr/local/bin/fdpass-teleport
+  $ sudo rm -f /usr/local/bin/teleport-update
+  ```
+
+  </TabItem>
+  <TabItem label="Managed Updates v2">
+
+  If you are leveraging the Managed Updates v2 introduced in v17.3 Teleport binaries are symbolically 
+  linked under `/opt/teleport`. Multiple versions of Teleport and associated Teleport data may be under this directory.
+
+  Remove the Teleport binary symbolic links from the machine:
+
+  ```code
+  $ sudo rm -f /usr/local/bin/tbot
+  $ sudo rm -f /usr/local/bin/tctl
+  $ sudo rm -f /usr/local/bin/teleport
+  $ sudo rm -f /usr/local/bin/tsh
+  $ sudo rm -f /usr/local/bin/fdpass-teleport
+  $ sudo rm -f /usr/local/bin/teleport-update
+  ```
+
+  Remove the Teleport directory to remove versions of the Teleport binary and files.
+
+  <Admonition type="note">
+  Deleting this directory assumes that no other usage besides Teleport binary versiona and associated Teleport data is stored here.
+  </Admonition>
+
+  ```code
+  $ sudo rm -rf /opt/teleport
   ```
 
   </TabItem>
