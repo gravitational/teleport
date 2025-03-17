@@ -53,6 +53,7 @@ export function StepSlider<T>(props: Props<T>) {
     onSwitchFlow,
     newFlow,
     tDuration = 500,
+    wrapping = false,
     // stepProps are the props required by our step components defined in our flows.
     ...stepProps
   } = props;
@@ -149,13 +150,23 @@ export function StepSlider<T>(props: Props<T>) {
         key={step}
         refCallback={refCallbackFn}
         next={() => {
-          preMountState.current.step = step + 1;
+          const flow = preMountState.current.flow ?? currFlow;
+          if (wrapping && step === flows[flow].length - 1) {
+            preMountState.current.step = 0;
+          } else {
+            preMountState.current.step = step + 1;
+          }
           setPreMount(true);
           startTransitionInDirection('next');
           rootRef.current.style.height = `${height}px`;
         }}
         prev={() => {
-          preMountState.current.step = step - 1;
+          if (wrapping && step === 0) {
+            const flow = preMountState.current.flow ?? currFlow;
+            preMountState.current.step = flows[flow].length - 1;
+          } else {
+            preMountState.current.step = step - 1;
+          }
           setPreMount(true);
           startTransitionInDirection('prev');
           rootRef.current.style.height = `${height}px`;
@@ -317,6 +328,11 @@ type Props<T> = {
   // E.g, toggling between "passwordless" or "local" login flow.
   // Optional if there is only one flow.
   onSwitchFlow?(flow: keyof T): void;
+  /**
+   * If set to `true`, allows going forwards the last slide to the first
+   * one and backwards from the first one to the last one.
+   */
+  wrapping?: boolean;
   // remainingProps are the rest of the props that needs to be passed
   // down to the flows StepComponent's.
   [remainingProps: string]: any;
