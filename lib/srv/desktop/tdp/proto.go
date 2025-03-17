@@ -1636,6 +1636,7 @@ func decodeSharedDirectoryTruncateResponse(in io.Reader) (SharedDirectoryTruncat
 	return res, err
 }
 
+// LatencyStats is used to report the latency of the connection(s) to the web UI.
 type LatencyStats struct {
 	BrowserLatency uint32
 	DesktopLatency uint32
@@ -1649,7 +1650,11 @@ func (l LatencyStats) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// Ping is used to measure the latency of the connection(s) between proxy and desktop (includes
+// latency between proxy and Windows Desktop Service and between WDS and desktop).
 type Ping struct {
+
+	// UUID is used to correlate message send by proxy and received from the Windows Desktop Service
 	UUID uuid.UUID
 }
 

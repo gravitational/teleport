@@ -539,6 +539,8 @@ func (c *connector) tryConnect(ctx context.Context, clusterName, desktopServiceI
 	return conn, ver, trace.Wrap(err)
 }
 
+// desktopPinger measures latency between proxy and the desktop by sending tdp.Ping messages
+// Windows Desktop Service and measuring the time it takes to receive message with the same UUID back.
 type desktopPinger struct {
 	wds net.Conn
 	ch  <-chan tdp.Ping
