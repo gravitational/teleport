@@ -171,7 +171,7 @@ Follow the instructions for your Linux distribution:
   <TabItem label="Managed Updates v2">
 
   The `teleport-update uninstall --force` will remove all Teleport binaries regardless if there is a previous repository install to fall back to.
-  Note that this will not execute the uninstall if the previous step of disabling a `teleport` systemd is not completed.
+  Note that this will not execute the uninstall if Teleport is currently running.
 
   ```code
   $ sudo teleport-update uninstall --force
