@@ -24,7 +24,6 @@ import (
 	"crypto"
 	"crypto/tls"
 	"errors"
-	"github.com/google/uuid"
 	"io"
 	"log/slog"
 	"math/rand/v2"
@@ -32,6 +31,7 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -640,7 +640,7 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn, log *slog.Logger, vers
 				continue
 			}
 			if ls, ok := msg.(tdp.LatencyStats); ok {
-				log.InfoContext(ctx, "sending latency stats: %v / %v", ls.BrowserLatency, ls.DesktopLatency)
+				log.InfoContext(ctx, "sending latency stats", "browser", ls.BrowserLatency, "desktop", ls.DesktopLatency)
 			}
 			encoded, err := msg.Encode()
 			if err != nil {

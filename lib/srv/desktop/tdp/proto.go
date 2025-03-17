@@ -29,11 +29,11 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
-	"github.com/google/uuid"
 	"image"
 	"image/png"
 	"io"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
