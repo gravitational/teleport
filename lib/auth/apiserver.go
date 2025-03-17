@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -60,6 +61,9 @@ type APIConfig struct {
 	MetadataGetter events.UploadMetadataGetter
 	// AccessGraph contains the configuration about the access graph service
 	AccessGraph AccessGraphConfig
+	// MutateRevocationsServiceConfig is a function that allows to mutate
+	// the revocation service configuration for testing.
+	MutateRevocationsServiceConfig func(config *workloadidentityv1.RevocationServiceConfig)
 }
 
 // CheckAndSetDefaults checks and sets default values
