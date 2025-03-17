@@ -158,35 +158,39 @@ function DocumentSsh({ doc, visible, mode }: PropTypes) {
     />
   );
 
+  const showBanner =
+    mode !== 'peer' && !!mode && sessionStatus?.state === SessionState.Running;
+
   return (
     <Flex width="100%" height="100%">
       <Document visible={visible} flexDirection="column">
-        {mode !== 'peer' &&
-          !!mode &&
-          sessionStatus?.state === SessionState.Running && (
-            <Box
-              width="100%"
-              css={`
-                background-color: ${theme.colors.interactive.tonal.primary[1]};
-                border-bottom: ${theme.borders[1]}
-                  ${theme.colors.interactive.tonal.primary[2]};
-              `}
-              p={1}
-            >
-              {mode === 'moderator' && (
-                <P2>
-                  You have joined this session as a <b>moderator</b>. You can
-                  watch and terminate the session, but cannot type.
-                </P2>
-              )}
-              {mode === 'observer' && (
-                <P2>
-                  You have joined this session as a <b>moderator</b>. You can
-                  watch this session, but not interact.
-                </P2>
-              )}
-            </Box>
-          )}
+        {showBanner && (
+          <Box
+            width="100%"
+            css={`
+              background-color: ${theme.colors.interactive.tonal.primary[1]};
+              border-bottom: ${theme.borders[1]}
+                ${theme.colors.interactive.tonal.primary[2]};
+              text-overflow: ellipsis;
+              white-space: nowrap;
+              height: 33px;
+            `}
+            p={1}
+          >
+            {mode === 'moderator' && (
+              <P2>
+                You have joined this session as a <b>moderator</b>. You can
+                watch and terminate the session, but cannot type.
+              </P2>
+            )}
+            {mode === 'observer' && (
+              <P2>
+                You have joined this session as a <b>moderator</b>. You can
+                watch this session, but not interact.
+              </P2>
+            )}
+          </Box>
+        )}
         <FileTransferActionBar
           hasAccess={hasFileTransferAccess}
           isConnected={doc.status === 'connected'}
@@ -212,6 +216,9 @@ function DocumentSsh({ doc, visible, mode }: PropTypes) {
           }}
         />
         {status === 'initialized' && terminal}
+        {!showBanner && sessionStatus?.state !== SessionState.Running && (
+          <Box height="34px"></Box>
+        )}
       </Document>
       {sessionStatus?.state === SessionState.Running && (
         <PartiesList
@@ -346,6 +353,21 @@ function PartiesList({
 
   const [chatText, setChatText] = useState('');
 
+  const messagesEndRef = useRef<null | HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const [clientSideChat, setClientSideChat] = useState<string[]>([]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [sessionStatus?.chatLog.length]);
+
+  useEffect(() => {
+    setClientSideChat(sessionStatus?.chatLog || []);
+  }, [sessionStatus?.chatLog]);
   return (
     <Flex
       backgroundColor="levels.surface"
@@ -425,10 +447,6 @@ function PartiesList({
             border-bottom: none;
             border-bottom-right-radius: 0px;
             border-bottom-left-radius: 0px;
-
-            overflow-y: auto;
-            scrollbar-color: ${p => p.theme.colors.spotBackground[2]}
-              transparent;
           `}
           justifyContent="space-between"
           flexDirection="column"
@@ -439,8 +457,14 @@ function PartiesList({
             pb={2}
             flexDirection="column-reverse"
             height="100%"
+            css={`
+              overflow-y: auto;
+              scrollbar-color: ${p => p.theme.colors.spotBackground[2]}
+                transparent;
+            `}
           >
-            {sessionStatus?.chatLog.map((message, i) => (
+            <div ref={messagesEndRef} />
+            {clientSideChat.map((message, i) => (
               <Box key={i}>
                 <P>{message}</P>
               </Box>
@@ -450,6 +474,10 @@ function PartiesList({
         <form
           onSubmit={e => {
             e.preventDefault();
+            setClientSideChat([
+              `[${username}]: ${chatText}`,
+              ...clientSideChat,
+            ]);
             tty.sendChatMessage(`[${username}]: ${chatText}`);
             setChatText('');
           }}
