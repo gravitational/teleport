@@ -658,6 +658,7 @@ func (u *HostUserManagement) getHostUser(username string) (*HostUser, error) {
 		group, err := u.backend.LookupGroupByID(gid)
 		if err != nil {
 			groupErrs = append(groupErrs, err)
+			continue
 		}
 
 		groups[group.Name] = struct{}{}
