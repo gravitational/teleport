@@ -137,11 +137,11 @@ func (h *PrivateKey) EncodeKeyRef() ([]byte, error) {
 
 // DecodeKeyRef decodes a [PrivateKeyRef] from JSON.
 func DecodeKeyRef(encodedKeyRef []byte) (*PrivateKeyRef, error) {
-	// TODO: old clients would only have SerialNumber and SlotKey, gather missing information directly for backwards compatibility.
 	keyRef := &PrivateKeyRef{}
 	if err := json.Unmarshal(encodedKeyRef, keyRef); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return keyRef, nil
 }
 

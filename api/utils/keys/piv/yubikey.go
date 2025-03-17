@@ -667,3 +667,38 @@ func SelfSignedMetadataCertificate(subject pkix.Name) (*x509.Certificate, error)
 	}
 	return cert, nil
 }
+
+// UpdateKeyRef updates the key ref with missing information by querying the hardware key.
+// Used for backwards compatibility with old logins.
+// TODO(Joerger): DELETE IN v19.0.0
+func UpdateKeyRef(ref *hardwarekey.PrivateKeyRef) error {
+	y, err := FindYubiKey(ref.SerialNumber)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	pivSlot, err := parsePIVSlot(ref.SlotKey)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	slotCert, attCert, att, err := y.attestKey(pivSlot)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	ref.PublicKey = slotCert.PublicKey
+	ref.Policy = hardwarekey.PromptPolicy{
+		TouchRequired: att.TouchPolicy != piv.TouchPolicyNever,
+		PINRequired:   att.PINPolicy != piv.PINPolicyNever,
+	}
+	ref.AttestationStatement = &hardwarekey.AttestationStatement{
+		AttestationStatement: &attestationv1.AttestationStatement_YubikeyAttestationStatement{
+			YubikeyAttestationStatement: &attestationv1.YubiKeyAttestationStatement{
+				SlotCert:        slotCert.Raw,
+				AttestationCert: attCert.Raw,
+			},
+		},
+	}
+	return nil
+}
