@@ -571,6 +571,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 						events.SPIFFESVIDIssued{},
 						"ConnectionMetadata",
 						"JTI",
+						"Attributes",
 					),
 				))
 			},
@@ -686,6 +687,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 						events.SPIFFESVIDIssued{},
 						"ConnectionMetadata",
 						"SerialNumber",
+						"Attributes",
 					),
 				))
 			},
@@ -799,6 +801,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 						events.SPIFFESVIDIssued{},
 						"ConnectionMetadata",
 						"SerialNumber",
+						"Attributes",
 					),
 				))
 			},
