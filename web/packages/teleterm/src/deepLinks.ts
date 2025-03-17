@@ -95,7 +95,8 @@ export function parseDeepLink(rawUrl: string): DeepLinkParseResult {
     username: decodeURIComponent(username),
   };
 
-  switch (pathname as Path) {
+  const pathnameAsPath = pathname as Path;
+  switch (pathnameAsPath) {
     case '/connect_my_computer': {
       const url: ConnectMyComputerDeepURL = {
         ...baseUrl,
@@ -130,6 +131,7 @@ export function parseDeepLink(rawUrl: string): DeepLinkParseResult {
       return { status: 'success', url };
     }
     default:
+      pathnameAsPath satisfies never;
       return { status: 'error', reason: 'unsupported-url' };
   }
 }
