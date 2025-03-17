@@ -1,9 +1,12 @@
 package summarizer
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"strings"
 
@@ -75,17 +78,27 @@ reader:
 			Kind: proto,
 		},
 	}
-	useBatchMode := os.Getenv("SUMMARIZATION_BATCH_MODE") != ""
-	if useBatchMode {
-		srm.Spec.BatchId, err = sendBatch(ctx, "ssh", sb.String())
+	mode := os.Getenv("SUMMARIZATION_MODE")
+	switch mode {
+	case "openapi-batch":
+		srm.Spec.BatchId, err = sendBatch(ctx, proto, sb.String())
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	} else {
-		srm.Spec.Summary, err = generateSummary(ctx, "ssh", sb.String())
+
+	case "openai":
+		srm.Spec.Summary, err = generateSummaryUsingOpenAI(ctx, proto, sb.String())
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+	case "ollama":
+	default:
+		srm.Spec.Summary, err = generateSummaryUsingOllama(ctx, proto, sb.String())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 	}
 	_, err = s.SessionRecordingMetadata.CreateSessionRecordingMetadata(ctx, srm)
 	return trace.Wrap(err)
@@ -144,9 +157,7 @@ func sendBatch(ctx context.Context, sessionType string, sessionContent string) (
 	return response.ID, nil
 }
 
-// func
-
-func generateSummary(ctx context.Context, sessionType string, sessionContent string) (string, error) {
+func generateSummaryUsingOpenAI(ctx context.Context, sessionType string, sessionContent string) (string, error) {
 	client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
 	prompt := summarizationPrompt(sessionType, sessionContent)
 
@@ -168,6 +179,62 @@ func generateSummary(ctx context.Context, sessionType string, sessionContent str
 	}
 
 	return resp.Choices[0].Message.Content, nil
+}
+
+func generateSummaryUsingOllama(ctx context.Context, sessionType string, sessionContent string) (string, error) {
+	ollamaURL := os.Getenv("OLLAMA_URL")
+	if ollamaURL == "" {
+		ollamaURL = "http://localhost:11434/api/generate"
+	}
+
+	prompt := summarizationPrompt(sessionType, sessionContent)
+
+	requestBody := OllamaRequest{
+		Model:       "deepseek-coder",
+		Prompt:      prompt,
+		Stream:      false,
+		Temperature: 0.2,
+	}
+	jsonBody, err := json.Marshal(requestBody)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// Send request to Ollama
+	resp, err := http.Post(ollamaURL, "application/json", bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	// Read response
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// Parse response
+	var ollamaResp OllamaResponse
+	if err := json.Unmarshal(body, &ollamaResp); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return ollamaResp.Response, nil
+}
+
+// OllamaRequest represents the request body for Ollama API
+type OllamaRequest struct {
+	Model       string  `json:"model"`
+	Prompt      string  `json:"prompt"`
+	Stream      bool    `json:"stream"`
+	Temperature float64 `json:"temperature"`
+}
+
+// OllamaResponse represents the response from Ollama API
+type OllamaResponse struct {
+	Model    string `json:"model"`
+	Response string `json:"response"`
+	Done     bool   `json:"done"`
 }
 
 func summarizationPrompt(sessionType string, sessionContent string) string {
