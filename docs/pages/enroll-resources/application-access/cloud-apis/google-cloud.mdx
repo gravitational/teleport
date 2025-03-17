@@ -305,8 +305,13 @@ claims.
 
 </Admonition>
 
-<Tabs dropdownCaption="Approach">
-<TabItem options="Dynamic Identities" label="Local Users">
+### Dynamic identities
+
+If you are using dynamic identities, the approach you choose depends on whether
+you use local or SSO Teleport users:
+
+<Tabs>
+<TabItem label="Local Users">
 
 Create a file called `google-cloud-cli-access.yaml` with the following content:
 
@@ -351,7 +356,7 @@ $ tctl create -f google-cloud-cli-access.yaml
 (!docs/pages/includes/create-role-using-web.mdx!)
 
 </TabItem>
-<TabItem options="Dynamic Identities" label="SAML/OIDC Connectors">
+<TabItem label="SAML/OIDC Connectors">
 
 In your identity provider, define a custom SAML attribute or OIDC claim called
 `gcp_service_accounts`. Each user's `gcp_service_accounts` attribute or claim
@@ -398,7 +403,11 @@ $ tctl create -f google-cloud-cli-access
 (!docs/pages/includes/create-role-using-web.mdx!)
 
 </TabItem>
-<TabItem options="Static Identities" label="All Authentication Methods">
+</Tabs>
+
+### Static identities
+
+If you are using static identities, complete the following instructions.
 
 Define a role with access to specific Google Cloud service accounts, which means
 that Teleport users who assume this role can use those (and only those)
@@ -431,10 +440,8 @@ Create the role:
 $ tctl create -f google-cloud-cli-access.yaml
 ```
 
-</TabItem>
-</Tabs>
-
-<Details title="Denying access to Google Cloud service accounts">
+<details>
+<summary>Denying access to Google Cloud service accounts</summary>
 
 You can define a Teleport role that denies a user access to one or more Google
 Cloud service accounts. To do so, assign values to the `gcp_service_accounts`
@@ -468,7 +475,7 @@ URIs of specific Google Cloud service accounts.
 The Teleport Auth Service gives `deny` rules precedence over `allow` rules when
 evaluating a user's roles.
 
-</Details>
+</details>
 
 (!docs/pages/includes/add-role-to-user.mdx role="google-cloud-cli-access"!)
 

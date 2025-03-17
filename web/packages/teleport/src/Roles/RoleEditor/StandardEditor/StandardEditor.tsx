@@ -134,6 +134,32 @@ export const StandardEditor = ({
 
   return (
     <>
+      <Box mb={3} mx={3}>
+        <SlideTabs
+          appearance="round"
+          hideStatusIconOnActiveTab
+          tabs={[
+            tabSpec(
+              StandardEditorTab.Overview,
+              validator.state.validating && !validationResult.metadata.valid
+            ),
+            tabSpec(
+              StandardEditorTab.Resources,
+              validator.state.validating &&
+                validationResult.resources.some(s => !s.valid)
+            ),
+            tabSpec(
+              StandardEditorTab.AdminRules,
+              validator.state.validating &&
+                validationResult.rules.some(s => !s.valid)
+            ),
+            tabSpec(StandardEditorTab.Options, false),
+          ]}
+          activeIndex={currentTab}
+          onChange={setCurrentTab}
+        />
+      </Box>
+
       {roleModel.conversionErrors.length > 0 && (
         <Box mx={3}>
           <RequiresResetToStandard
@@ -142,99 +168,70 @@ export const StandardEditor = ({
           />
         </Box>
       )}
+
       <EditorWrapper
         mute={standardEditorModel.roleModel.requiresReset}
-        data-testid="standard-editor"
+        flex="1 1 0"
+        flexDirection="column"
+        px={3}
+        pb={3}
+        css={`
+          overflow-y: auto;
+        `}
       >
-        <Box mb={3} mx={3}>
-          <SlideTabs
-            appearance="round"
-            hideStatusIconOnActiveTab
-            tabs={[
-              tabSpec(
-                StandardEditorTab.Overview,
-                validator.state.validating && !validationResult.metadata.valid
-              ),
-              tabSpec(
-                StandardEditorTab.Resources,
-                validator.state.validating &&
-                  validationResult.resources.some(s => !s.valid)
-              ),
-              tabSpec(
-                StandardEditorTab.AdminRules,
-                validator.state.validating &&
-                  validationResult.rules.some(s => !s.valid)
-              ),
-              tabSpec(StandardEditorTab.Options, false),
-            ]}
-            activeIndex={currentTab}
-            onChange={setCurrentTab}
+        <Box
+          id={tabElementIDs[StandardEditorTab.Overview]}
+          style={{
+            display: currentTab === StandardEditorTab.Overview ? '' : 'none',
+          }}
+        >
+          <MetadataSection
+            value={roleModel.metadata}
+            isProcessing={isProcessing}
+            validation={validationResult.metadata}
+            onChange={metadata =>
+              dispatch({ type: 'set-metadata', payload: metadata })
+            }
           />
         </Box>
-        <Flex
-          flex="1 1 0"
-          flexDirection="column"
-          px={3}
-          pb={3}
-          css={`
-            overflow-y: auto;
-          `}
+        <Box
+          id={tabElementIDs[StandardEditorTab.Resources]}
+          style={{
+            display: currentTab === StandardEditorTab.Resources ? '' : 'none',
+          }}
         >
-          <Box
-            id={tabElementIDs[StandardEditorTab.Overview]}
-            style={{
-              display: currentTab === StandardEditorTab.Overview ? '' : 'none',
-            }}
-          >
-            <MetadataSection
-              value={roleModel.metadata}
-              isProcessing={isProcessing}
-              validation={validationResult.metadata}
-              onChange={metadata =>
-                dispatch({ type: 'set-metadata', payload: metadata })
-              }
-            />
-          </Box>
-          <Box
-            id={tabElementIDs[StandardEditorTab.Resources]}
-            style={{
-              display: currentTab === StandardEditorTab.Resources ? '' : 'none',
-            }}
-          >
-            <ResourcesTab
-              value={roleModel.resources}
-              isProcessing={isProcessing}
-              validation={validationResult.resources}
-              dispatch={dispatch}
-            />
-          </Box>
-          <Box
-            id={tabElementIDs[StandardEditorTab.AdminRules]}
-            style={{
-              display:
-                currentTab === StandardEditorTab.AdminRules ? '' : 'none',
-            }}
-          >
-            <AdminRules
-              isProcessing={isProcessing}
-              value={roleModel.rules}
-              dispatch={dispatch}
-              validation={validationResult.rules}
-            />
-          </Box>
-          <Box
-            id={tabElementIDs[StandardEditorTab.Options]}
-            style={{
-              display: currentTab === StandardEditorTab.Options ? '' : 'none',
-            }}
-          >
-            <Options
-              isProcessing={isProcessing}
-              value={roleModel.options}
-              onChange={setOptions}
-            />
-          </Box>
-        </Flex>
+          <ResourcesTab
+            value={roleModel.resources}
+            isProcessing={isProcessing}
+            validation={validationResult.resources}
+            dispatch={dispatch}
+          />
+        </Box>
+        <Box
+          id={tabElementIDs[StandardEditorTab.AdminRules]}
+          style={{
+            display: currentTab === StandardEditorTab.AdminRules ? '' : 'none',
+          }}
+        >
+          <AdminRules
+            isProcessing={isProcessing}
+            value={roleModel.rules}
+            dispatch={dispatch}
+            validation={validationResult.rules}
+          />
+        </Box>
+        <Box
+          id={tabElementIDs[StandardEditorTab.Options]}
+          style={{
+            display: currentTab === StandardEditorTab.Options ? '' : 'none',
+          }}
+        >
+          <Options
+            isProcessing={isProcessing}
+            value={roleModel.options}
+            onChange={setOptions}
+          />
+        </Box>
       </EditorWrapper>
       <ActionButtonsContainer>
         {isEditing || currentTab === StandardEditorTab.Options ? (
@@ -277,8 +274,7 @@ const validationErrorTabStatus = {
 } as const;
 
 export const EditorWrapper = styled(Flex)<{ mute?: boolean }>`
-  flex-direction: column;
-  flex: 1;
   opacity: ${p => (p.mute ? 0.4 : 1)};
   pointer-events: ${p => (p.mute ? 'none' : '')};
+  overflow-y: auto;
 `;

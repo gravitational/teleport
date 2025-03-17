@@ -20,7 +20,8 @@ service account, the pod and the namespace in which `tbot` is running. The
 Teleport Auth Service checks the signature of the JWT against the Kubernetes
 cluster's public signing key.
 
-<Details title="Using another join method">
+<details>
+<summary>Using another join method</summary>
 
 When deploying `tbot` to a Teleport cluster, it is generally recommended to use
 the `kubernetes` join method. This will work with most Kubernetes clusters.
@@ -41,7 +42,7 @@ a single join token. These services are:
   is configured for the cluster, it is possible to use the `iam` join method.
   See the [AWS Platform Guide](./aws.mdx) for further information.
 
-</Details>
+</details>
 
 ## Prerequisites
 

@@ -17,11 +17,12 @@ automatically running the corresponding `tctl devices add` commands.
 See the [Device Trust guide](device-trust.mdx) for fundamental Device Trust concepts
 and behavior.
 
-<Details title="This integration is hosted on Teleport Cloud" open={false}>
+<details>
+<summary>This integration is hosted on Teleport Cloud"</summary>
 
 (!docs/pages/includes/plugins/enroll.mdx name="the Jamf Pro integration"!)
 
-</Details>
+</details>
 
 ## Prerequisites
 
@@ -78,12 +79,13 @@ try to recreate your API client.
 <Admonition type="tip" title="Hosted Jamf plugin">
   Teleport Cloud users can quickly get started with Jamf integration by using
   the hosted Jamf plugin in the Web UI.
-  <Details title="Configure Jamf hosted plugin" min="13.2" closed>
+  <details>
+  <summary>Configure Jamf hosted plugin" min="13.2" close</summary>
     Select the Jamf plugin:
     ![Select Jamf plugin](../../../../img/access-controls/device-trust/select-jamf.png)
     Fill in the required information and click "Connect Jamf" button:
     ![Configure Jamf plugin](../../../../img/access-controls/device-trust/hosted-jamf.png)
-  </Details>
+  </details>
 </Admonition>
 
 Jamf inventory sync is performed by a separate `teleport` process, configured
