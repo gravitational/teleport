@@ -143,3 +143,13 @@ Controls the public address for the Teleport app we create if needed.
 annotations:
   teleport.dev/public-addr: "custom.teleport.dev"
 ```
+
+### `teleport.dev/path`
+
+The path is appended to the URI generated for the Teleport app for cases where
+an application is served on a sub-path of an HTTP service.
+
+```yaml
+annotations:
+  teleport.dev/path: "foo/bar"
+```
