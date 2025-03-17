@@ -101,7 +101,7 @@ const StepsWithoutToken = ({ tshLoginCmd, host }: StepsWithoutTokenProps) => (
       <Text bold as="span">
         Step 2
       </Text>
-      {' - Login to Teleport'}
+      {' - Log in to Teleport'}
       <TextSelectCopy mt="2" text={tshLoginCmd} />
     </Box>
     <Box mb={4}>

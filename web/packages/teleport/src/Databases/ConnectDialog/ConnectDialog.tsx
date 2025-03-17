@@ -137,7 +137,7 @@ export default function ConnectDialog({
           <Text bold as="span">
             Step 1
           </Text>
-          {' - Login to Teleport'}
+          {' - Log in to Teleport'}
           <TextSelectCopy
             mt="2"
             text={generateTshLoginCommand({
