@@ -611,6 +611,10 @@ const (
 	// resource.
 	KindWorkloadIdentityX509Revocation = "workload_identity_x509_revocation"
 
+	// KindWorkloadIdentityX509IssuerOverride is the kind of
+	// teleport.workloadidentity.v1.X509IssuerOverride.
+	KindWorkloadIdentityX509IssuerOverride = "workload_identity_x509_issuer_override"
+
 	// KindGitServer represents a Git server that can proxy git commands.
 	KindGitServer = "git_server"
 	// SubKindGitHub specifies the GitHub subkind of a Git server.
