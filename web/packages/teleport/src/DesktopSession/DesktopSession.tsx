@@ -26,13 +26,14 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
+import { Attempt as AsyncAttempt } from 'shared/hooks/useAsync';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 import { TdpClientCanvasRef } from 'teleport/components/TdpClientCanvas/TdpClientCanvas';
 import { useListener } from 'teleport/lib/tdp/client';
-import type { MfaState } from 'teleport/lib/useMfa';
+import { MfaState, shouldShowMfaPrompt } from 'teleport/lib/useMfa';
 
 import TopBar from './TopBar';
 import useDesktopSession, {
@@ -257,7 +258,7 @@ export function DesktopSession(props: State) {
       {screenState.screen === 'anotherSessionActive' && (
         <AnotherSessionActiveDialog {...props} />
       )}
-      {screenState.screen === 'mfa' && <MfaDialog mfa={mfa} />}
+      {screenState.screen === 'mfa' && <AuthnDialog mfaState={mfa} />}
       {screenState.screen === 'alert dialog' && (
         <AlertDialog screenState={screenState} />
       )}
@@ -282,17 +283,6 @@ export function DesktopSession(props: State) {
   );
 }
 
-const MfaDialog = ({ mfa }: { mfa: MfaState }) => {
-  return (
-    <AuthnDialog
-      mfaState={mfa}
-      replaceErrorText={
-        'This session requires multi factor authentication to continue. Please hit try again and follow the prompts given by your browser to complete authentication.'
-      }
-    />
-  );
-};
-
 const AlertDialog = ({ screenState }: { screenState: ScreenState }) => (
   <Dialog dialogCss={() => ({ width: '484px' })} open={true}>
     <DialogHeader style={{ flexDirection: 'column' }}>
@@ -300,9 +290,13 @@ const AlertDialog = ({ screenState }: { screenState: ScreenState }) => (
     </DialogHeader>
     <DialogContent>
       <>
-        <Info
-          children={<>{screenState.alertMessage || invalidStateMessage}</>}
-        />
+        {typeof screenState.alertMessage === 'object' ? (
+          <Info details={screenState.alertMessage.message}>
+            {screenState.alertMessage.title}
+          </Info>
+        ) : (
+          <Info>{screenState.alertMessage}</Info>
+        )}
         Refresh the page to reconnect.
       </>
     </DialogContent>
@@ -376,7 +370,7 @@ const nextScreenState = (
   tdpConnection: Attempt,
   wsConnection: WebsocketAttempt,
   showAnotherSessionActiveDialog: boolean,
-  webauthn: MfaState
+  mfa: MfaState
 ): ScreenState => {
   // We always want to show the user the first alert that caused the session to fail/end,
   // so if we're already showing an alert, don't change the screen.
@@ -393,10 +387,11 @@ const nextScreenState = (
 
   // Otherwise, calculate a new screen state.
   const showAnotherSessionActive = showAnotherSessionActiveDialog;
-  const showMfa = webauthn.challenge;
+  const showMfa = shouldShowMfaPrompt(mfa);
   const showAlert =
     fetchAttempt.status === 'failed' || // Fetch attempt failed
     tdpConnection.status === 'failed' || // TDP connection closed by the remote side.
+    mfa.attempt.status === 'error' || // MFA was canceled
     wsConnection.status === 'closed'; // Websocket closed, means unexpected close.
 
   const atLeastOneAttemptProcessing =
@@ -431,6 +426,7 @@ const nextScreenState = (
         tdpConnection,
         wsConnection,
         showAnotherSessionActiveDialog,
+        mfa.attempt,
         prevState
       ),
       canvasState: { shouldConnect: false, shouldDisplay: false },
@@ -461,9 +457,17 @@ const calculateAlertMessage = (
   tdpConnection: Attempt,
   wsConnection: WebsocketAttempt,
   showAnotherSessionActiveDialog: boolean,
+  mfaAttempt: AsyncAttempt<unknown>,
   prevState: ScreenState
-): string => {
+) => {
   let message = '';
+  // Errors, except for dialog cancellations, are handled within the MFA dialog.
+  if (mfaAttempt.status === 'error') {
+    return {
+      title: 'This session requires multi factor authentication',
+      message: mfaAttempt.statusText,
+    };
+  }
   if (fetchAttempt.status === 'failed') {
     message = fetchAttempt.statusText || 'fetch attempt failed';
   } else if (tdpConnection.status === 'failed') {
@@ -494,7 +498,7 @@ type ScreenState = {
     | 'processing'
     | 'canvas';
 
-  alertMessage?: string;
+  alertMessage?: string | { title: string; message: string };
   canvasState: {
     shouldConnect: boolean;
     shouldDisplay: boolean;
