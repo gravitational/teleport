@@ -48,14 +48,7 @@ without invalidating the certificates, so any system can validate the certificat
 X.509 certificates are the same certificates you use when accessing websites with a browser. They bind
 identity to the public key with a certificate authority's signature.
 
-<Figure
-  align="center"
-  caption="Example of x.509 short-lived certs"
->
-
 ![x.509 certs](../../../img/architecture/x509-cert@2x.svg)
-
-</Figure>
 
 Teleport uses x.509 certificates for Kubernetes, databases, web services and its own internal
 components - proxies, auth services to establish mutually authenticated TLS connections - mTLS.
@@ -65,14 +58,7 @@ components - proxies, auth services to establish mutually authenticated TLS conn
 OpenSSH certificates are similar to X.509 (web) certificates and also bind identity of the user or a server
 to the public key with a certificate authority's signature.
 
-<Figure
-  align="center"
-  caption="Example of SSH short-lived certs"
->
-
 ![SSH certs](../../../img/architecture/ssh-cert@2x.svg)
-
-</Figure>
 
 OpenSSH certificate contain metadata used to authenticate users and hosts:
 
@@ -87,14 +73,7 @@ Expiry is a feature of certificates that makes time work in favor of security.
 SSH and X.509 certificates include an optional expiry date that is verified by
 servers in addition to a signature.
 
-<Figure
-  align="center"
-  caption="Example of SSH short-lived certs"
->
-
 ![Short lived certs](../../../img/architecture/ssh-cert-short-lived@1.5x.svg)
-
-</Figure>
 
 In the diagram above, Alice gets a short lived SSH certificate, but the same rules apply to
 X.509 certificates issued by Teleport and used for Kubernetes, Databases, Web Apps and Desktops.
@@ -114,14 +93,7 @@ To issue a certificate to a user, Teleport opens login screen, issues a cert and
 
 We recommend using SSO with GitHub, Okta or any other identity provider and get a cert.
 
-<Figure
-  align="center"
-  bordered="true"
-  caption="SSO exchange with short-lived certs"
-  >
-  
 ![SSO exchange for short-lived certs](../../../img/architecture/idp-sso-traits@1.5x.svg)
-</Figure>
 
 ### Short-lived Certs for Services
 
@@ -129,14 +101,7 @@ Deployment automation services, such as Jenkins, can use Teleport's Machine ID
 service to receive and renew certificates. Teleport Machine ID's bot runs alongside
 services and rotates SSH and X.509 certificates.
 
-<Figure
-  align="center"
-  bordered="true"
-  caption="Machine-ID certs"
-  >
-  
 ![Certificates for services](../../../img/architecture/certs-machine-id@1.8x.svg)
-</Figure>
 
 ### Internal certificates
 
