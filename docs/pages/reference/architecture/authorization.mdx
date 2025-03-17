@@ -68,14 +68,7 @@ Non-interactive users have to use Teleport's machine ID product to receive and r
 Teleport Machine ID's bot runs alongside services and rotates SSH and X.509 certificates on behalf
 of non-interactive users:
 
-<Figure
-  align="center"
-  bordered="true"
-  caption="Machine-ID certs"
-  >
-
 ![Certificates for services](../../../img/architecture/certs-machine-id@1.8x.svg)
-</Figure>
 
 #### External non-interactive users
 
@@ -247,7 +240,7 @@ You can use predicate language function calls in templates, e.g. `{{email.local(
 `"-foo"`, it will be omitted in `logins: ["{{external.foo}}"]`.
 
 For full details on how variable expansion works in Teleport roles, see the
-[Teleport Access Controls
+[Access Controls
 Reference](../access-controls/roles.mdx).
 
 **How role templates are evaluated**

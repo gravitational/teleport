@@ -137,6 +137,7 @@ type PluginStatus interface {
 	GetOkta() *PluginOktaStatusV1
 	GetAwsIc() *PluginAWSICStatusV1
 	GetNetIq() *PluginNetIQStatusV1
+	SetDetails(isPluginStatusV1_Details)
 }
 
 // NewPluginV1 creates a new PluginV1 resource.
@@ -760,14 +761,33 @@ func (c *PluginDatadogAccessSettings) CheckAndSetDefaults() error {
 }
 
 func (c *PluginAWSICSettings) CheckAndSetDefaults() error {
-	// Promote "unknown" credential source values to OIDC for backwards
-	// compatibility with old plugin records
-	if c.CredentialsSource == AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_UNKNOWN {
-		c.CredentialsSource = AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_OIDC
-	}
 
-	if c.CredentialsSource == AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_OIDC && c.IntegrationName == "" {
-		return trace.BadParameter("AWS OIDC integration name must be set")
+	// Handle legacy records that pre-date the polymorphic Credentials settings
+	// TODO(tcsc): remove this check in v19
+	if c.Credentials == nil {
+		// Migrate the legacy, enum-based settings to the new polymorphic
+		// credential block
+
+		// Promote "unknown" credential source values to OIDC for backwards
+		// compatibility with old plugin records
+		if c.CredentialsSource == AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_UNKNOWN {
+			c.CredentialsSource = AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_OIDC
+		}
+
+		switch c.CredentialsSource {
+		case AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_OIDC:
+			c.Credentials = &AWSICCredentials{
+				Source: &AWSICCredentials_Oidc{
+					Oidc: &AWSICCredentialSourceOIDC{IntegrationName: c.IntegrationName},
+				},
+			}
+		case AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_SYSTEM:
+			c.Credentials = &AWSICCredentials{
+				Source: &AWSICCredentials_System{
+					System: &AWSICCredentialSourceSystem{},
+				},
+			}
+		}
 	}
 
 	if c.Arn == "" {
@@ -786,7 +806,36 @@ func (c *PluginAWSICSettings) CheckAndSetDefaults() error {
 		return trace.Wrap(err, "checking provisioning config")
 	}
 
+	switch source := c.Credentials.GetSource().(type) {
+	case *AWSICCredentials_Oidc:
+		if source.Oidc.IntegrationName == "" {
+			return trace.BadParameter("AWS OIDC integration name must be set")
+		}
+	}
+
 	return nil
+}
+
+// UnmarshalJSON implements [json.Unmarshaler] for the AWSICCredentialsSource,
+// forcing it to use the `jsonpb` unmarshaler, which understands how to unpack
+// values generated from a protobuf `oneof` directive.
+func (s *AWSICCredentials) UnmarshalJSON(b []byte) error {
+	if err := jsonpb.Unmarshal(bytes.NewReader(b), s); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// MarshalJSON implements [json.Marshaler] for the AWSICCredentials, forcing
+// it to use the `jsonpb` marshaler, which understands how to pack values
+// generated from a protobuf `oneof` directive.
+func (s *AWSICCredentials) MarshalJSON() ([]byte, error) {
+	m := jsonpb.Marshaler{}
+	var buf bytes.Buffer
+	if err := m.Marshal(&buf, s); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf.Bytes(), nil
 }
 
 func (c *AWSICProvisioningSpec) CheckAndSetDefaults() error {
@@ -881,6 +930,10 @@ func (c PluginStatusV1) GetErrorMessage() string {
 // GetLastSyncTime returns the last run of the plugin.
 func (c PluginStatusV1) GetLastSyncTime() time.Time {
 	return c.LastSyncTime
+}
+
+func (c *PluginStatusV1) SetDetails(settings isPluginStatusV1_Details) {
+	c.Details = settings
 }
 
 // CheckAndSetDefaults checks that the required fields for the Gitlab plugin are set.

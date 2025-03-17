@@ -21,6 +21,7 @@ import { MemoryRouter } from 'react-router';
 import { fireEvent, render, screen, userEvent } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
+import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { Access } from 'teleport/services/user';
 
@@ -75,9 +76,11 @@ describe('invite collaborators integration', () => {
   test('displays the Create New User button when not configured', async () => {
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Users {...props} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Users {...props} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -97,9 +100,11 @@ describe('invite collaborators integration', () => {
 
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Users {...props} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Users {...props} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -155,9 +160,11 @@ test('Users not equal to MAU Notice', async () => {
 
   render(
     <MemoryRouter>
-      <ContextProvider ctx={ctx}>
-        <Users {...props} />
-      </ContextProvider>
+      <InfoGuidePanelProvider>
+        <ContextProvider ctx={ctx}>
+          <Users {...props} />
+        </ContextProvider>
+      </InfoGuidePanelProvider>
     </MemoryRouter>
   );
 
@@ -210,9 +217,11 @@ describe('email password reset integration', () => {
   test('displays the traditional reset UI when not configured', async () => {
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Users {...props} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Users {...props} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -230,9 +239,11 @@ describe('email password reset integration', () => {
 
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Users {...props} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Users {...props} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -301,9 +312,11 @@ describe('permission handling', () => {
     };
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Users {...testProps} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Users {...testProps} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -320,9 +333,11 @@ describe('permission handling', () => {
     };
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Users {...testProps} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Users {...testProps} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -348,9 +363,11 @@ describe('permission handling', () => {
     };
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Users {...testProps} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Users {...testProps} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -383,9 +400,11 @@ describe('permission handling', () => {
     };
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Users {...testProps} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Users {...testProps} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 

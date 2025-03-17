@@ -73,7 +73,9 @@ function PredicateDocumentation() {
       <P>
         Label Matching:{' '}
         <Text ml={1} as="span" bold>
-          <code>labels["key"] == "value" && labels["key2"] != "value2"</code>{' '}
+          <code>
+            labels["key"] == "value" && labels["key2"] != "value2"
+          </code>{' '}
         </Text>{' '}
       </P>
       <P>

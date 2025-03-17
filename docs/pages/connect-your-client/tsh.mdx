@@ -455,11 +455,12 @@ $ tsh ls os=osx
 
 [CLI Docs -tsh ls](../reference/cli/tsh.mdx#tsh-ls)
 
-<Details title="Not seeing Nodes?">
+<details>
+<summary>Not seeing Nodes?</summary>
 
 (!docs/pages/includes/node-logins.mdx!)
 
-</Details>
+</details>
 
 ## Interactive shell
 
@@ -685,6 +686,8 @@ $ tsh join <session_ID>
   Joining sessions requires special permissions that need to be set up by your cluster administrator.
   Refer them to the [Moderated Sessions guide](../admin-guides/access-controls/guides/joining-sessions.mdx) for more information on configuring join permissions.
 </Admonition>
+
+You can also list active sessions with the `tsh sessions ls` command.
 
 <Admonition type="note" scope={["oss", "enterprise"]}>
   Joining sessions is not supported in recording proxy mode (where `session_recording` is set to `proxy`).

@@ -133,12 +133,13 @@ func (s *DatabaseOutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
 	routedIdentity, err := generateIdentity(
 		ctx,
 		s.botAuthClient,
 		id,
 		roles,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		effectiveLifetime.TTL,
 		func(req *proto.UserCertsRequest) {
 			req.RouteToDatabase = route
 		},
@@ -146,6 +147,8 @@ func (s *DatabaseOutputService) generate(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, effectiveLifetime)
 
 	s.log.InfoContext(
 		ctx,
