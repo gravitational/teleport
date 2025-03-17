@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 
 import Box from 'design/Box';
@@ -47,6 +47,26 @@ export type SectionPropsWithDispatch<Model, ValidationResult> = {
   dispatch: StandardModelDispatcher;
 };
 
+enum ExpansionState {
+  /** The section is fully collapsed. */
+  Collapsed,
+  /**
+   * The section is open, but the expander itself has a zero height. In this
+   * state, the content's height can be measured, but the expander still
+   * doesn't allow it to be shown. This intermediary step is necessary to allow
+   * transition animation to run on Safari.
+   */
+  Measuring,
+  /** The section is fully expanded. */
+  Expanded,
+  /**
+   * The section is still expanded, but it's showing a collapsing animation.
+   * In this state, the <details> element is still open to make all its
+   * children visible.
+   */
+  Collapsing,
+}
+
 /**
  * A wrapper for editor section. Its responsibility is rendering a header,
  * expanding, collapsing, and removing the section.
@@ -67,19 +87,6 @@ export const SectionBox = ({
   validation?: ValidationResult;
   onRemove?(): void;
 }>) => {
-  enum ExpansionState {
-    /** The section is fully collapsed. */
-    Collapsed,
-    /** The section is fully expanded. */
-    Expanded,
-    /**
-     * The section is still expanded, but it's showing a collapsing animation.
-     * In this state, the <details> element is still open to make all its
-     * children visible.
-     */
-    Collapsing,
-  }
-
   const theme = useTheme();
   const [expansionState, setExpansionState] = useState(ExpansionState.Expanded);
   const expandTooltip =
@@ -98,6 +105,14 @@ export const SectionBox = ({
     { enabled: true }
   );
 
+  useEffect(() => {
+    // After the content is rendered and measured, immediately transition to
+    // the Expanded state.
+    if (expansionState === ExpansionState.Measuring) {
+      setExpansionState(ExpansionState.Expanded);
+    }
+  }, [expansionState]);
+
   // Handles expand/collapse clicks.
   const handleExpand = (e: React.MouseEvent) => {
     // Don't let <summary> handle the event, we'll do it ourselves to keep
@@ -107,7 +122,7 @@ export const SectionBox = ({
     setExpansionState(
       expansionState === ExpansionState.Expanded
         ? ExpansionState.Collapsing
-        : ExpansionState.Expanded
+        : ExpansionState.Measuring
     );
   };
 
