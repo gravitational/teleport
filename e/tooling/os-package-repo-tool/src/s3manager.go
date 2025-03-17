@@ -313,7 +313,7 @@ func (s *S3manager) UploadBuiltRepoWithRedirects(extensionToMatch, relativeRedir
 	}
 
 	if len(errs) > 0 {
-		return trace.Wrap(trace.NewAggregate(errs...), "one or more erros occurred while uploading built repo %q", s.bucketLocalPath)
+		return trace.Wrap(trace.NewAggregate(errs...), "one or more errors occurred while uploading built repo %q", s.bucketLocalPath)
 	}
 
 	return nil
