@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useEffect } from 'react';
+
 import Logger from 'shared/libs/logger';
 
 import init, {
@@ -30,6 +32,7 @@ import { MfaChallengeResponse } from 'teleport/services/mfa';
 import Codec, {
   FileType,
   MessageType,
+  PointerData,
   Severity,
   SharedDirectoryErrCode,
   type ButtonState,
@@ -152,6 +155,71 @@ export default class Client extends EventEmitterMfaSender {
       this.emit(TdpClientEvent.WS_CLOSE, message);
     };
   }
+
+  onClientError = (listener: (error: Error) => void) => {
+    this.on(TdpClientEvent.CLIENT_ERROR, listener);
+    return () => this.off(TdpClientEvent.CLIENT_ERROR, listener);
+  };
+
+  onClientWarning = (listener: (warningMessage: string) => void) => {
+    this.on(TdpClientEvent.CLIENT_WARNING, listener);
+    return () => this.off(TdpClientEvent.CLIENT_WARNING, listener);
+  };
+
+  onError = (listener: (error: Error) => void) => {
+    this.on(TdpClientEvent.TDP_ERROR, listener);
+    return () => this.off(TdpClientEvent.TDP_ERROR, listener);
+  };
+
+  onInfo = (listener: (info: string) => void) => {
+    this.on(TdpClientEvent.TDP_INFO, listener);
+    return () => this.off(TdpClientEvent.TDP_INFO, listener);
+  };
+
+  onReset = (listener: () => void) => {
+    this.on(TdpClientEvent.RESET, listener);
+    return () => this.off(TdpClientEvent.RESET, listener);
+  };
+
+  onBmpFrame = (listener: (bmpFrame: BitmapFrame) => void) => {
+    this.on(TdpClientEvent.TDP_BMP_FRAME, listener);
+    return () => this.off(TdpClientEvent.TDP_BMP_FRAME, listener);
+  };
+
+  onPngFrame = (listener: (pngFrame: PngFrame) => void) => {
+    this.on(TdpClientEvent.TDP_PNG_FRAME, listener);
+    return () => this.off(TdpClientEvent.TDP_PNG_FRAME, listener);
+  };
+
+  onPointer = (listener: (pointerData: PointerData) => void) => {
+    this.on(TdpClientEvent.POINTER, listener);
+    return () => this.off(TdpClientEvent.POINTER, listener);
+  };
+
+  onWarning = (listener: (warningMessage: string) => void) => {
+    this.on(TdpClientEvent.TDP_WARNING, listener);
+    return () => this.off(TdpClientEvent.TDP_WARNING, listener);
+  };
+
+  onWsClose = (listener: (message: string) => void) => {
+    this.on(TdpClientEvent.WS_CLOSE, listener);
+    return () => this.off(TdpClientEvent.WS_CLOSE, listener);
+  };
+
+  onWsOpen = (listener: () => void) => {
+    this.on(TdpClientEvent.WS_OPEN, listener);
+    return () => this.off(TdpClientEvent.WS_OPEN, listener);
+  };
+
+  onClipboardData = (listener: (clipboardData: ClipboardData) => void) => {
+    this.on(TdpClientEvent.TDP_CLIPBOARD_DATA, listener);
+    return () => this.off(TdpClientEvent.TDP_CLIPBOARD_DATA, listener);
+  };
+
+  onScreenSpec = (listener: (spec: ClientScreenSpec) => void) => {
+    this.on(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, listener);
+    return () => this.off(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, listener);
+  };
 
   private async initWasm() {
     // select the wasm log level
@@ -713,7 +781,13 @@ export default class Client extends EventEmitterMfaSender {
   ) {
     this.logger.error(err);
     this.emit(errType, err);
-    this.socket?.close();
+    // All errors are fatal, meaning that we are closing the connection after they happen.
+    // To prevent overwriting such error with our close handler, remove it before
+    // closing the connection.
+    if (this.socket) {
+      this.socket.onclose = null;
+      this.socket.close();
+    }
   }
 
   // Emits a warning event, but keeps the socket open.
@@ -730,13 +804,9 @@ export default class Client extends EventEmitterMfaSender {
     this.emit(TdpClientEvent.TDP_INFO, info);
   }
 
-  // Ensures full cleanup of this object.
-  // Note that it removes all listeners first and then cleans up the socket,
-  // so don't call this if your calling object is relying on listeners.
   // It's safe to call this multiple times, calls subsequent to the first call
   // will simply do nothing.
   shutdown(closeCode = WebsocketCloseCode.NORMAL) {
-    this.removeAllListeners();
     this.socket?.close(closeCode);
   }
 }
@@ -747,3 +817,18 @@ export type BitmapFrame = {
   left: number;
   image_data: ImageData;
 };
+
+export function useListener<T extends any[]>(
+  emitter: (callback: (...args: T) => void) => () => void | undefined,
+  listener: ((...args: T) => void) | undefined
+) {
+  useEffect(() => {
+    if (!emitter) {
+      return;
+    }
+    const unregister = emitter((...args) => listener?.(...args));
+    return () => {
+      unregister();
+    };
+  }, [emitter, listener]);
+}

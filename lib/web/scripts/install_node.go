@@ -114,6 +114,10 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 	// Computing service configuration-related values
 	labelsList := []string{}
 	for labelKey, labelValues := range opts.Labels {
+		labelKey = shsprintf.EscapeDefaultContext(labelKey)
+		for i := range labelValues {
+			labelValues[i] = shsprintf.EscapeDefaultContext(labelValues[i])
+		}
 		labels := strings.Join(labelValues, " ")
 		labelsList = append(labelsList, fmt.Sprintf("%s=%s", labelKey, labels))
 	}
@@ -155,7 +159,7 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 	// This section relies on Go's default zero values to make sure that the settings
 	// are correct when not installing an app.
 	err = installNodeBashScript.Execute(&buf, map[string]interface{}{
-		"token":    opts.Token,
+		"token":    shsprintf.EscapeDefaultContext(opts.Token),
 		"hostname": hostname,
 		"port":     portStr,
 		// The install.sh script has some manually generated configs and some

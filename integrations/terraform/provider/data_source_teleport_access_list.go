@@ -65,7 +65,21 @@ func (r dataSourceTeleportAccessList) Read(ctx context.Context, req tfsdk.ReadDa
 		return
 	}
 
-    var state types.Object
+	var state types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Todo: Remove after updating terraform-plugin to >=v1.5.0.
+	// terraform-plugin-testing version <1.5.0 requires data resources to
+	// implement the 'id' attribute.
+	// https://developer.hashicorp.com/terraform/plugin/framework/acctests#no-id-found-in-attributes
+	v, ok := state.Attrs["id"]
+	if !ok || v.IsNull() {
+		state.Attrs["id"] = id
+	}
+
 	accessList := convert.ToProto(accessListI)
 	
 	diags = schemav1.CopyAccessListToTerraform(ctx, accessList, &state)

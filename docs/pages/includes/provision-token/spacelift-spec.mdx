@@ -1,0 +1,29 @@
+```yaml
+kind: token
+version: v2
+metadata:
+  name: spacelift
+spec:
+  roles: [Bot]
+  join_method: spacelift
+
+  # This must match a bot name, created either with `tctl bots add` or by
+  # creating a `bot` resource.
+  bot_name: spacelift
+
+  spacelift:
+    # hostname should be the hostname of your Spacelift tenant.
+    hostname: example.app.spacelift.io
+    # allow specifies rules that control which Spacelift executions will be
+    # granted access. Those not matching any allow rule will be denied.
+    allow:
+      # space_id identifies the space that the module or stack resides within.
+    - space_id: root
+      # caller_type is the type of caller_id. This must be `stack` or `module`.
+      caller_type: stack
+      # caller_id is the id of the caller. e.g the name of the stack or module.
+      caller_id: my-stack
+      # scope is the scope of the token - either `read` or `write`.
+      # See https://docs.spacelift.io/integrations/cloud-providers/oidc/#about-scopes
+      scope: read
+```

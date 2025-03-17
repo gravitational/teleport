@@ -21,16 +21,19 @@ import { Alert } from 'design';
 import { ArrowForward, BellRinging } from 'design/Icon';
 
 import cfg from 'teleport/config';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import { IntegrationKind } from 'teleport/services/integrations';
 
 export function TaskAlert({
   name,
   pendingTasksCount,
   kind = IntegrationKind.AwsOidc,
+  taskType,
 }: {
   name: string;
   pendingTasksCount: number;
   kind?: IntegrationKind;
+  taskType?: AwsResource;
 }) {
   const history = useHistory();
   if (pendingTasksCount == 0) {
@@ -52,7 +55,8 @@ export function TaskAlert({
         onClick: () => history.push(cfg.getIntegrationTasksRoute(kind, name)),
       }}
     >
-      {pendingTasksCount} Pending Tasks
+      {pendingTasksCount} Pending {taskType && `${taskType.toUpperCase()} `}
+      Tasks
     </Alert>
   );
 }

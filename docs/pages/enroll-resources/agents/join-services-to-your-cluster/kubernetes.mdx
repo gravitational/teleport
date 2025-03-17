@@ -13,12 +13,12 @@ Kubernetes issues signed proof to each pod describing which Kubernetes
 ServiceAccount they can assume. When using the Kubernetes join
 method, Teleport uses this Kubernetes proof to become part of the cluster.
 
-<Notice type="warning">
+<Admonition type="warning">
 
 The Kubernetes join method is not available in Teleport Enterprise Cloud as it requires the
 joining service to run in the same Kubernetes cluster as the Auth Service.
 
-</Notice>
+</Admonition>
 
 The Kubernetes join method is available in self-hosted versions of Teleport.
 It supports joining any Teleport service running in the same Kubernetes cluster
