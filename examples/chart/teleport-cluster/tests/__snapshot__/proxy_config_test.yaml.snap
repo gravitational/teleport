@@ -567,8 +567,8 @@ sets clusterDomain on Configmap:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-cluster
-        app.kubernetes.io/version: 16.4.17
-        helm.sh/chart: teleport-cluster-16.4.17
+        app.kubernetes.io/version: 16.5.0-dev.hugoau.1
+        helm.sh/chart: teleport-cluster-16.5.0-dev.hugoau.1
         teleport.dev/majorVersion: "16"
       name: RELEASE-NAME-proxy
       namespace: NAMESPACE

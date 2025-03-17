@@ -1,4 +1,4 @@
-.version: &version "16.4.17"
+.version: &version "16.5.0-dev.hugoau.1"
 
 name: teleport-cluster
 apiVersion: v2
