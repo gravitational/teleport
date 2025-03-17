@@ -19,13 +19,10 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/net/http2"
-	"google.golang.org/protobuf/encoding/protojson"
-	googleproto "google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/e/api/cloud"
 	samlidp "github.com/gravitational/teleport/e/lib/idp/saml"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
@@ -33,8 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/services"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -359,56 +354,6 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.DELETE("/webapi/sites/:site/integration/externalauditstorage/cluster", h.WithClusterAuth(p.externalAuditStorageDeleteCluster))
 	h.DELETE("/webapi/sites/:site/integration/externalauditstorage/draft", h.WithClusterAuth(p.externalAuditStorageDeleteDraft))
 
-	// the billing summary API is available for cloud users
-	// as well as self-hosted dashboards for usage-based customers
-	features := p.h.GetClusterFeatures()
-	isDashboard := services.IsDashboard(features)
-	isUsageBased := features.IsUsageBased
-	isStripeManaged := features.IsStripeManaged
-
-	if features.GetCloud() || (isDashboard && isUsageBased && !isStripeManaged) {
-		h.GET("/enterprise/cloud/billing-summary", p.withCloudAuth(p.getBillingSummaryInformationHandle))
-	}
-
-	if features.GetCloud() {
-		h.GET("/enterprise/cloud/billing", p.withCloudAuth(p.getBillingInformationHandle))
-		h.GET("/enterprise/cloud/nonbillable-summary", p.withCloudAuth(p.getNonBillableUsageSummaryHandle))
-
-		// Upgrade window related endpoints.
-		// TODO(mcbattirola): remove on v18, since the endpoints are deprecated in favor of `enterprise/sites/:site/upgradewindowstart`.
-		// Keeping it for now to ensure compatibility between proxies within the same major.
-		h.GET("/enterprise/cloud/upgradewindowstart", p.withCloudAuth(p.getUpgradeWindowStartHourHandle))
-		h.POST("/enterprise/cloud/upgradewindowstart", p.withCloudAuth(p.updateUpgradeWindowStartHourHandle))
-
-		// surveyCompanyResponsesHandler gets survey company name responses for the account, no specific to the current user
-		h.GET("/enterprise/cloud/survey/company", p.withCloud(p.surveyCompanyResponsesHandler))
-		// surveyResultsHandler sends survey responses to sales center for persistence
-		h.POST("/enterprise/cloud/survey", p.withCloudAuth(p.surveyResultsHandler))
-
-		h.POST("/enterprise/cloud/teleportinvite", p.withCloudAuth(p.sendTeleportInviteHandle))
-		h.POST("/enterprise/cloud/teleportcredentialreset", p.withCloudAuth(p.sendTeleportCredentialResetHandle))
-	}
-
-	// upgrade window endpoints with cluster param
-	h.GET("/enterprise/sites/:site/upgradewindowstart", p.withClusterCloudAuth(p.getClusterUpgradeWindowStartHourHandle))
-	h.POST("/enterprise/sites/:site/upgradewindowstart", p.withClusterCloudAuth(p.updateClusterUpgradeWindowStartHourHandle))
-
-	// contact endpoints
-	h.GET("/enterprise/sites/:site/contact", p.withClusterCloudAuth(p.getClusterContactHandle))
-	h.POST("/enterprise/sites/:site/contact", p.withClusterCloudAuth(p.createClusterContactHandle))
-	h.DELETE("/enterprise/sites/:site/contact", p.withClusterCloudAuth(p.deleteClusterContactHandle))
-
-	// Recovery related endpoints.
-	if features.GetRecoveryCodes() {
-		p.Logger.InfoContext(context.Background(), "enabling recovery endpoints")
-		h.POST("/enterprise/cloud/recovery/start", p.withCloud(p.startAccountRecoveryHandle))
-		h.POST("/enterprise/cloud/recovery/verify", p.withCloud(p.verifyAccountRecoveryHandle))
-		h.POST("/enterprise/cloud/recovery/newcredentials", p.withCloud(p.completeAccountRecoveryHandle))
-		h.GET("/enterprise/cloud/recovery/token/:token", p.withCloud(p.getAccountRecoveryTokenHandle))
-		h.POST("/enterprise/cloud/recovery/codes", p.withCloud(p.createAccountRecoveryCodesHandle))
-		h.GET("/enterprise/cloud/recovery/codes", h.WithAuth(p.getAccountRecoveryCodesMetadataHandle))
-	}
-
 	// Access graph
 	h.GET("/enterprise/accessgraph/*path", p.accessGraphHandler(h))
 	h.POST("/enterprise/accessgraph/*path", p.accessGraphHandler(h))
@@ -423,106 +368,10 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.GET(fmt.Sprintf("%s/*unused", samlidp.IdPRoute), p.withSAMLAuth())
 	h.POST(fmt.Sprintf("%s/*unused", samlidp.IdPRoute), p.withSAMLAuth())
 
+	p.registerAccountRecoveryHandlers()
+	p.registerTeleportInviteHandlers()
+	p.registerCloudHandlers()
 	p.registerSCIMHandlers()
-
-	return nil
-}
-
-// CloudHandler is a authenticated handler that is used to provide an initialized instance of the cloud client API
-type CloudHandler func(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error)
-
-type cloudPublicHandler func(w http.ResponseWriter, r *http.Request, params httprouter.Params, client cloud.Client) (interface{}, error)
-
-// withCloudAuth authenticates and request and initializes an instance of the cloud client API
-func (p *Plugin) withCloudAuth(fn CloudHandler) httprouter.Handle {
-	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
-		ctx, err := p.h.AuthenticateRequest(w, r, true)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		cloudClient, err := cloud.NewClientFromConnection(ctx.GetClientConnection())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		res, err := fn(w, r, ctx, cloudClient)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// if the handler being called as fn returns a protobuf type,
-		// encode it using protojson.
-		// Otherwise, return the response directly and let our middleware
-		// encode it with encoding/json.
-		pm, ok := res.(googleproto.Message)
-		if ok {
-			if err := writeProtoJsonResponse(w, pm); err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return nil, nil
-		}
-
-		return res, trace.Wrap(err)
-	})
-}
-
-// ClusterCloudHandler is an authenticated handler that contains
-// a cloudClient authenticated against a remoteSite as specified by the ":site" url parameter.
-type ClusterCloudHandler func(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, site reversetunnelclient.RemoteSite, cloudClient cloud.Client) (interface{}, error)
-
-// withClusterCloudAuth wraps a handler to ensure that a request is  authenticated
-// to the remoteSite as specified by the ":site" url parameter (the same as WithClusterAuth),
-// and creates a cloud Client to be able to make requests to the cloud API form the remote site.
-func (plugin *Plugin) withClusterCloudAuth(fn ClusterCloudHandler) httprouter.Handle {
-	return plugin.h.WithClusterAuth(func(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
-		clt, err := sctx.GetUserClient(r.Context(), site)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		client, ok := clt.(*authclient.Client)
-		if !ok {
-			return nil, trace.BadParameter("unexpected underlying type for auth client")
-		}
-
-		cloudClient, err := cloud.NewClientFromConnection(client.GetConnection())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		res, err := fn(w, r, sctx, site, cloudClient)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// if the handler being called as fn returns a protobuf type,
-		// encode it using protojson.
-		// Otherwise, return the response directly and let our middleware
-		// encode it with encoding/json.
-		pm, ok := res.(googleproto.Message)
-		if ok {
-			if err := writeProtoJsonResponse(w, pm); err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return nil, nil
-		}
-
-		return res, trace.Wrap(err)
-	})
-}
-
-// writeProtoJsonResponse marshals `pm` into JSON using protojson and writes the result
-// to the response writer `w`. If marshaling fails, it doesn't write anything to `w`.
-func writeProtoJsonResponse(w http.ResponseWriter, pm googleproto.Message) error {
-	result, err := protojson.Marshal(pm)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write(result)
 
 	return nil
 }
@@ -622,33 +471,6 @@ func (p *Plugin) withSAMLAuth() httprouter.Handle {
 
 		samlIdP.ServeHTTP(w, r.WithContext(newCtx))
 		return nil, nil
-	})
-}
-
-// withCloud provides an initialized instance of the cloud client API for public requests.
-func (p *Plugin) withCloud(fn cloudPublicHandler) httprouter.Handle {
-	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
-		client, err := p.getAuthClient()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		cloudClient, err := cloud.NewClientFromConnection(client.GetConnection())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		res, err := fn(w, r, params, cloudClient)
-		if err != nil {
-			// Hide 429 error.
-			if trace.IsLimitExceeded(err) {
-				p.Logger.WarnContext(r.Context(), "rate limit exceeded", "error", err)
-				return nil, trace.AccessDenied("unable to process your request")
-			}
-			return nil, trace.Wrap(err)
-		}
-
-		return res, nil
 	})
 }
 

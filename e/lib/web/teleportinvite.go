@@ -50,6 +50,17 @@ type cloudAPIGetter interface {
 	SendTeleportInvite(ctx context.Context, in *cloudapi.SendTeleportInviteRequest, opts ...grpc.CallOption) (*cloudapi.EmptyResponse, error)
 }
 
+func (p *Plugin) registerTeleportInviteHandlers() {
+	features := p.h.GetClusterFeatures()
+	// the following endpoints are only available to cloud-hosted customers (not dashboard customers)
+	if !features.GetCloud() {
+		return
+	}
+
+	p.h.POST("/enterprise/cloud/teleportinvite", p.withCloudAuth(p.sendTeleportInviteHandle))
+	p.h.POST("/enterprise/cloud/teleportcredentialreset", p.withCloudAuth(p.sendTeleportCredentialResetHandle))
+}
+
 func createAndInviteUsers(r *http.Request, authClt userAPIGetter, cloudClt cloudAPIGetter, createdBy string) ([]*ui.User, error) {
 	var req sendTeleportInviteReq
 	if err := httplib.ReadJSON(r, &req); err != nil {

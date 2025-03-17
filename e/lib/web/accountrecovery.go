@@ -21,6 +21,21 @@ import (
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
+func (p *Plugin) registerAccountRecoveryHandlers() {
+	features := p.h.GetClusterFeatures()
+	if !features.GetRecoveryCodes() {
+		return
+	}
+
+	p.Logger.InfoContext(context.Background(), "enabling recovery endpoints")
+	p.h.POST("/enterprise/cloud/recovery/start", p.withCloud(p.startAccountRecoveryHandle))
+	p.h.POST("/enterprise/cloud/recovery/verify", p.withCloud(p.verifyAccountRecoveryHandle))
+	p.h.POST("/enterprise/cloud/recovery/newcredentials", p.withCloud(p.completeAccountRecoveryHandle))
+	p.h.GET("/enterprise/cloud/recovery/token/:token", p.withCloud(p.getAccountRecoveryTokenHandle))
+	p.h.POST("/enterprise/cloud/recovery/codes", p.withCloud(p.createAccountRecoveryCodesHandle))
+	p.h.GET("/enterprise/cloud/recovery/codes", p.h.WithAuth(p.getAccountRecoveryCodesMetadataHandle))
+}
+
 // getAccountRecoveryTokenHandle retrieves a recovery token.
 // If the recovery token type is approved, also returns a new qr code per retrieval.
 func (p *Plugin) getAccountRecoveryTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, client cloud.Client) (interface{}, error) {

@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,13 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/julienschmidt/httprouter"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/e/api/cloud"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/web"
 )
 
@@ -128,7 +129,7 @@ func TestPlugin_surveyCompanyResponsesHandler(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/enterprise/cloud/survey/company", nil)
 	r = r.WithContext(authz.ContextWithUser(context.Background(), authz.LocalUser{}))
-	p := httprouter.Params{}
+	wCtx := &web.SessionContext{}
 
 	pass := &cloudapi.SurveyCompanyResponse{
 		MarketingParams: &cloudapi.MarketingParamData{
@@ -147,10 +148,9 @@ func TestPlugin_surveyCompanyResponsesHandler(t *testing.T) {
 		},
 	}
 
-	actual, err := s.webPlugin.surveyCompanyResponsesHandler(w, r, p, client)
+	actual, err := s.webPlugin.surveyCompanyResponsesHandler(w, r, wCtx, client)
 	require.NoError(t, err)
 	require.Equal(t, pass, actual)
-
 }
 
 func TestPlugin_surveyResultsHandler(t *testing.T) {
@@ -282,4 +282,94 @@ func TestPlugin_deleteClusterContactHandle(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "tokenid", calledWith.VerifyToken)
 	require.Equal(t, int32(2), calledWith.ContactType)
+}
+
+func TestPlugin_withCloudCache(t *testing.T) {
+	t.Parallel()
+	counter := 0
+	webPlugin, err := NewPlugin(Config{})
+	require.NoError(t, err)
+	r := httptest.NewRequest(http.MethodGet, "/foo/bar", nil)
+	fn := func(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, client cloud.Client) (interface{}, error) {
+		counter++
+		if counter == 1 {
+			return nil, errors.New("error")
+		}
+		if counter == 2 {
+			return "ok", nil
+		}
+		if counter == 3 {
+			return nil, errors.New("error")
+		}
+		if counter == 4 {
+			return "ok2", nil
+		}
+
+		return nil, nil
+	}
+
+	// error when cache is empty returns error
+	handler := webPlugin.withCloudCache(fn)
+	_, err = handler(httptest.NewRecorder(), r, nil, nil)
+	require.Error(t, err)
+
+	// successful response returns
+	res2, err := handler(httptest.NewRecorder(), r, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, "ok", res2)
+
+	// error when cache is populated returns cache
+	res3, err := handler(httptest.NewRecorder(), r, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, "ok", res3)
+
+	// successful response returns when cache is populated
+	res4, err := handler(httptest.NewRecorder(), r, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, "ok2", res4)
+}
+
+func TestPlugin_withCloudClusterCache(t *testing.T) {
+	t.Parallel()
+	counter := 0
+	webPlugin, err := NewPlugin(Config{})
+	require.NoError(t, err)
+	r := httptest.NewRequest(http.MethodGet, "/foo/bar", nil)
+	fn := func(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, site reversetunnelclient.RemoteSite, cloudClient cloud.Client) (interface{}, error) {
+		counter++
+		if counter == 1 {
+			return nil, errors.New("error")
+		}
+		if counter == 2 {
+			return "ok", nil
+		}
+		if counter == 3 {
+			return nil, errors.New("error")
+		}
+		if counter == 4 {
+			return "ok2", nil
+		}
+
+		return nil, nil
+	}
+
+	// error when cache is empty returns error
+	handler := webPlugin.withCloudClusterCache(fn)
+	_, err = handler(httptest.NewRecorder(), r, nil, &mockSite{name: "localhost"}, nil)
+	require.Error(t, err)
+
+	// successful response returns
+	res2, err := handler(httptest.NewRecorder(), r, nil, &mockSite{name: "localhost"}, nil)
+	require.NoError(t, err)
+	require.Equal(t, "ok", res2)
+
+	// error when cache is populated returns cache
+	res3, err := handler(httptest.NewRecorder(), r, nil, &mockSite{name: "localhost"}, nil)
+	require.NoError(t, err)
+	require.Equal(t, "ok", res3)
+
+	// successful response returns when cache is populated
+	res4, err := handler(httptest.NewRecorder(), r, nil, &mockSite{name: "localhost"}, nil)
+	require.NoError(t, err)
+	require.Equal(t, "ok2", res4)
 }
