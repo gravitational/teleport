@@ -98,7 +98,9 @@
     "styled-components": "^6.1.15",
     "tslib": "^2.8.1",
     "use-immer": "^0.11.0",
-    "whatwg-fetch": "^3.6.20"
+    "whatwg-fetch": "^3.6.20",
+    "@uiw/react-heat-map": "2.3.2",
+    "@uiw/react-tooltip": "4.22.3"
   },
   "msw": {
     "workerDirectory": [

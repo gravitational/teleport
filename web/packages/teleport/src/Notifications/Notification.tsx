@@ -250,7 +250,7 @@ export function Notification({
 }
 
 // formatDate returns how long ago the provided date is in a readable and concise format, ie. "2h ago"
-function formatDate(date: Date) {
+export function formatDate(date: Date) {
   let distance = formatDistanceToNowStrict(date);
 
   distance = distance

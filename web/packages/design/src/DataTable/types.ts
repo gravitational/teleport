@@ -203,7 +203,7 @@ export type CustomSort = SortType & {
 export type BasicTableProps<T> = {
   data: T[];
   renderHeaders: () => JSX.Element;
-  renderBody: (data: T[]) => JSX.Element;
+  renderBody: (data: T[], rowOnClick?: (d: any) => void) => JSX.Element;
   className?: string;
   style?: React.CSSProperties;
 };

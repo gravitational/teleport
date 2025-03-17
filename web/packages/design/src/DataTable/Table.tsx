@@ -101,7 +101,7 @@ export default function Table<T>(props: TableProps<T>) {
     );
   };
 
-  const renderBody = (data: T[]) => {
+  const renderBody = (data: T[], rowOnClick: (d: any) => void) => {
     const rows: ReactNode[] = [];
 
     if (fetching?.fetchStatus === 'loading') {
@@ -111,7 +111,7 @@ export default function Table<T>(props: TableProps<T>) {
       const TableRow: React.FC<PropsWithChildren> = ({ children }) => (
         <tr
           key={rowIdx}
-          onClick={() => row?.onClick?.(item)}
+          onClick={() => (rowOnClick ? rowOnClick(item) : row?.onClick?.(item))}
           style={row?.getStyle?.(item)}
         >
           {children}
