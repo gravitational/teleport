@@ -1030,9 +1030,6 @@ func TestGetAppJoinScript(t *testing.T) {
 
 func TestGetDatabaseJoinScript(t *testing.T) {
 	validToken := "f18da1c9f6630a51e8daf121e7451daa"
-	emptySuggestedAgentMatcherLabelsToken := "f18da1c9f6630a51e8daf121e7451000"
-	wildcardLabelMatcherToken := "f18da1c9f6630a51e8daf121e7451001"
-	tokenWithSpecialChars := "f18da1c9f6630a51e8daf121e7451002"
 	internalResourceID := "967d38ff-7a61-4f42-bd2d-c61965b44db0"
 	hostname := "test.example.com"
 	port := 1234
@@ -1055,7 +1052,7 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 
 	noMatcherToken := &types.ProvisionTokenV2{
 		Metadata: types.Metadata{
-			Name: emptySuggestedAgentMatcherLabelsToken,
+			Name: validToken,
 		},
 		Spec: types.ProvisionTokenSpecV2{
 			SuggestedLabels: types.Labels{
@@ -1110,12 +1107,26 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 			desc: "discover flow with wildcard label matcher",
 			settings: scriptSettings{
 				databaseInstallMode: true,
-				token:               wildcardLabelMatcherToken,
+				token:               validToken,
+			},
+			token: &types.ProvisionTokenV2{
+				Metadata: types.Metadata{
+					Name: validToken,
+				},
+				Spec: types.ProvisionTokenSpecV2{
+					SuggestedLabels: types.Labels{
+						types.InternalResourceIDLabel: apiutils.Strings{internalResourceID},
+					},
+					SuggestedAgentMatcherLabels: types.Labels{
+						"*": apiutils.Strings{"*"},
+					},
+				},
 			},
 			errAssert: require.NoError,
 			extraAssertions: func(t *testing.T, script string) {
-				require.Contains(t, script, wildcardLabelMatcherToken)
-				require.Contains(t, script, "test-host")
+				require.Contains(t, script, validToken)
+				require.Contains(t, script, hostname)
+				require.Contains(t, script, strconv.Itoa(port))
 				require.Contains(t, script, "sha256:")
 				require.Contains(t, script, "--labels ")
 				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
@@ -1127,14 +1138,34 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 		},
 		{
 			desc: "discover flow with shell injection attempt in resource matcher labels",
+			token: &types.ProvisionTokenV2{
+				Metadata: types.Metadata{
+					Name: validToken,
+				},
+				Spec: types.ProvisionTokenSpecV2{
+					SuggestedLabels: types.Labels{
+						types.InternalResourceIDLabel: apiutils.Strings{internalResourceID},
+					},
+					SuggestedAgentMatcherLabels: types.Labels{
+						"*":                             apiutils.Strings{"*"},
+						"spa ces":                       apiutils.Strings{"spa ces"},
+						"EOF":                           apiutils.Strings{"test heredoc"},
+						`"EOF"`:                         apiutils.Strings{"test quoted heredoc"},
+						"#'; <>\\#":                     apiutils.Strings{"try to escape yaml"},
+						"&<>'\"$A,./;'BCD ${ABCD}":      apiutils.Strings{"key with special characters"},
+						"value with special characters": apiutils.Strings{"&<>'\"$A,./;'BCD ${ABCD}", "#&<>'\"$A,./;'BCD ${ABCD}"},
+					},
+				},
+			},
 			settings: scriptSettings{
 				databaseInstallMode: true,
-				token:               tokenWithSpecialChars,
+				token:               validToken,
 			},
 			errAssert: require.NoError,
 			extraAssertions: func(t *testing.T, script string) {
-				require.Contains(t, script, tokenWithSpecialChars)
-				require.Contains(t, script, "test-host")
+				require.Contains(t, script, validToken)
+				require.Contains(t, script, hostname)
+				require.Contains(t, script, strconv.Itoa(port))
 				require.Contains(t, script, "sha256:")
 				require.Contains(t, script, "--labels ")
 				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
@@ -1157,11 +1188,11 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 			token: noMatcherToken,
 			settings: scriptSettings{
 				databaseInstallMode: true,
-				token:               emptySuggestedAgentMatcherLabelsToken,
+				token:               validToken,
 			},
 			errAssert: require.NoError,
 			extraAssertions: func(t *testing.T, script string) {
-				require.Contains(t, script, emptySuggestedAgentMatcherLabelsToken)
+				require.Contains(t, script, validToken)
 				require.Contains(t, script, hostname)
 				require.Contains(t, script, strconv.Itoa(port))
 				require.Contains(t, script, "sha256:")
