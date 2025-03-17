@@ -39,6 +39,10 @@ type Service interface {
 	// This is used by Teleport Connect which sets the prompt later than the hardware key service,
 	// due to process initialization constraints.
 	SetPrompt(prompt Prompt)
+	// TODO(Joerger): DELETE IN v19.0.0
+	// GetMissingKeyRefDetails updates the key ref with missing details from the hardware key.
+	// Used to fill in details from old client logins that only saved serial number and piv slot.
+	GetMissingKeyRefDetails(ref *PrivateKeyRef) error
 }
 
 // PrivateKey is a hardware private key.
@@ -137,11 +141,11 @@ func (h *PrivateKey) EncodeKeyRef() ([]byte, error) {
 
 // DecodeKeyRef decodes a [PrivateKeyRef] from JSON.
 func DecodeKeyRef(encodedKeyRef []byte) (*PrivateKeyRef, error) {
-	// TODO: old clients would only have SerialNumber and SlotKey, gather missing information directly for backwards compatibility.
 	keyRef := &PrivateKeyRef{}
 	if err := json.Unmarshal(encodedKeyRef, keyRef); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return keyRef, nil
 }
 

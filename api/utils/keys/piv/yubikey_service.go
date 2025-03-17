@@ -219,6 +219,41 @@ func (s *YubiKeyService) SetPrompt(prompt hardwarekey.Prompt) {
 	s.prompt = prompt
 }
 
+// GetMissingKeyRefDetails updates the key ref with missing information by querying the hardware key.
+// Used for backwards compatibility with old logins.
+// TODO(Joerger): DELETE IN v19.0.0
+func (s *YubiKeyService) GetMissingKeyRefDetails(ref *hardwarekey.PrivateKeyRef) error {
+	y, err := s.getYubiKey(ref.SerialNumber)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	pivSlot, err := parsePIVSlot(ref.SlotKey)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	slotCert, attCert, att, err := y.attestKey(pivSlot)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	ref.PublicKey = slotCert.PublicKey
+	ref.Policy = hardwarekey.PromptPolicy{
+		TouchRequired: att.TouchPolicy != piv.TouchPolicyNever,
+		PINRequired:   att.PINPolicy != piv.PINPolicyNever,
+	}
+	ref.AttestationStatement = &hardwarekey.AttestationStatement{
+		AttestationStatement: &attestationv1.AttestationStatement_YubikeyAttestationStatement{
+			YubikeyAttestationStatement: &attestationv1.YubiKeyAttestationStatement{
+				SlotCert:        slotCert.Raw,
+				AttestationCert: attCert.Raw,
+			},
+		},
+	}
+	return nil
+}
+
 // Get the given YubiKey with the serial number. If the provided serialNumber is "0",
 // return the first YubiKey found in the smart card list.
 func (s *YubiKeyService) getYubiKey(serialNumber uint32) (*YubiKey, error) {

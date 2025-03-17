@@ -45,3 +45,8 @@ func (s *unavailableYubiKeyPIVService) Sign(_ context.Context, _ *hardwarekey.Pr
 }
 
 func (s *unavailableYubiKeyPIVService) SetPrompt(_ hardwarekey.Prompt) {}
+
+// TODO(Joerger): DELETE IN v19.0.0
+func (s *unavailableYubiKeyPIVService) GetMissingKeyRefDetails(ref *hardwarekey.PrivateKeyRef) error {
+	return trace.Wrap(errPIVUnavailable)
+}

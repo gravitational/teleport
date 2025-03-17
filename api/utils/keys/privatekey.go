@@ -327,6 +327,16 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 			return nil, trace.Wrap(err, "failed to parse hardware private key")
 		}
 
+		// If the public key is missing, this is likely an old login key with only
+		// the serial number and slot. Fetch missing data from the hardware key.
+		// This data will be saved to the login key on next login
+		// TODO(Joerger): DELETE IN v19.0.0
+		if keyRef.PublicKey == nil {
+			if err := appliedOpts.HardwareKeyService.GetMissingKeyRefDetails(keyRef); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
 		keyRef.ContextualKeyInfo = appliedOpts.ContextualKeyInfo
 		hwPrivateKey := hardwarekey.NewPrivateKey(appliedOpts.HardwareKeyService, keyRef)
 		return NewPrivateKey(hwPrivateKey, keyPEM)

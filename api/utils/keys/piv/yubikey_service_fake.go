@@ -86,3 +86,8 @@ func (s *fakeYubiKeyPIVService) Sign(ctx context.Context, ref *hardwarekey.Priva
 }
 
 func (s *fakeYubiKeyPIVService) SetPrompt(prompt hardwarekey.Prompt) {}
+
+// TODO(Joerger): DELETE IN v19.0.0
+func GetMissingKeyRefDetails(ref *hardwarekey.PrivateKeyRef) error {
+	return nil
+}
