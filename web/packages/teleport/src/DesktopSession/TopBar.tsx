@@ -21,8 +21,8 @@ import { useTheme } from 'styled-components';
 import { Flex, Text, TopNav } from 'design';
 import { Clipboard, FolderShared } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
+import { LatencyDiagnostic } from 'shared/components/LatencyDiagnostic';
 import type { NotificationItem } from 'shared/components/Notification';
-import {LatencyDiagnostic} from 'shared/components/LatencyDiagnostic';
 
 import ActionMenu from './ActionMenu';
 import { AlertDropdown } from './AlertDropdown';
@@ -63,15 +63,15 @@ export default function TopBar(props: Props) {
 
       <Flex px={3}>
         <Flex alignItems="center">
-          {
-            latency && <HoverTooltip
+          {latency && (
+            <HoverTooltip
               tipContent={'Network Connection'}
-              anchorOrigin={{vertical: 'bottom', horizontal: 'center'}}
-              transformOrigin={{vertical: 'top', horizontal: 'center'}}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'center' }}
             >
-              <LatencyDiagnostic latency={latency}/>
+              <LatencyDiagnostic latency={latency} />
             </HoverTooltip>
-          }
+          )}
           <HoverTooltip
             tipContent={directorySharingToolTip(
               canShareDirectory,

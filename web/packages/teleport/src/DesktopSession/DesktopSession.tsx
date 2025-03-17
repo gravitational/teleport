@@ -32,7 +32,7 @@ import { Attempt } from 'shared/hooks/useAttemptNext';
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 import { TdpClientCanvasRef } from 'teleport/components/TdpClientCanvas/TdpClientCanvas';
-import {TdpClientEvent, useListener} from 'teleport/lib/tdp/client';
+import { TdpClientEvent, useListener } from 'teleport/lib/tdp/client';
 import { MfaState, shouldShowMfaPrompt } from 'teleport/lib/useMfa';
 
 import TopBar from './TopBar';
@@ -110,20 +110,20 @@ export function DesktopSession(props: State) {
 
   const [latencyStats, setLatencyStats] = useState(undefined);
   useEffect(() => {
-      if (!client) {
-          return;
-      }
-      const setStats = stats => {
-          console.log('got latency', stats);
-          setLatencyStats({
-              client: stats.browserLatency,
-              server: stats.desktopLatency,
-          });
-      };
-      client.on(TdpClientEvent.LATENCY_STATS, setStats);
-      return () => {
-          client.removeListener(TdpClientEvent.LATENCY_STATS, setStats);
-      };
+    if (!client) {
+      return;
+    }
+    const setStats = stats => {
+      console.log('got latency', stats);
+      setLatencyStats({
+        client: stats.browserLatency,
+        server: stats.desktopLatency,
+      });
+    };
+    client.on(TdpClientEvent.LATENCY_STATS, setStats);
+    return () => {
+      client.removeListener(TdpClientEvent.LATENCY_STATS, setStats);
+    };
   }, [client]);
 
   // Calculate the next `ScreenState` whenever any of the constituent pieces of state change.
