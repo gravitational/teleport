@@ -70,7 +70,15 @@ export type AuthenticateWebDeviceDeepURL = BaseDeepURL & {
   searchParams: { id: string; token: string; redirect_uri?: string };
 };
 
-export type DeepURL = ConnectMyComputerDeepURL | AuthenticateWebDeviceDeepURL;
+export type VnetDeepURL = BaseDeepURL & {
+  pathname: '/vnet';
+  searchParams: Record<string, never>;
+};
+
+export type DeepURL =
+  | ConnectMyComputerDeepURL
+  | AuthenticateWebDeviceDeepURL
+  | VnetDeepURL;
 
 export const CUSTOM_PROTOCOL = 'teleport' as const;
 

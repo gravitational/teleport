@@ -24,6 +24,7 @@ import {
   CUSTOM_PROTOCOL,
   DeepURL,
   Path,
+  VnetDeepURL,
 } from 'shared/deepLinks';
 
 export type DeepLinkParseResult =
@@ -127,6 +128,14 @@ export function parseDeepLink(rawUrl: string): DeepLinkParseResult {
           token,
           redirect_uri,
         },
+      };
+      return { status: 'success', url };
+    }
+    case '/vnet': {
+      const url: VnetDeepURL = {
+        ...baseUrl,
+        pathname: '/vnet',
+        searchParams: {},
       };
       return { status: 'success', url };
     }
