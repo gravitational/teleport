@@ -6805,7 +6805,8 @@ message SPIFFESVIDIssued {
   // The revision of the WorkloadIdentity resource that was used to issue the
   // SVID. This will be empty if the legacy RPCs were used.
   string WorkloadIdentityRevision = 13 [(gogoproto.jsontag) = "workload_identity_revision,omitempty"];
-  // Attributes is a map of attributes received from the join method provider.
+  // Attributes is the collection of data that was used to make the decision on
+  // whether to issue the workload identity credential & to perform templating.
   google.protobuf.Struct Attributes = 14 [
     (gogoproto.jsontag) = "attributes,omitempty",
     (gogoproto.casttype) = "Struct"

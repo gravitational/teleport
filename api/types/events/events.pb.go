@@ -13993,7 +13993,8 @@ type SPIFFESVIDIssued struct {
 	// The revision of the WorkloadIdentity resource that was used to issue the
 	// SVID. This will be empty if the legacy RPCs were used.
 	WorkloadIdentityRevision string `protobuf:"bytes,13,opt,name=WorkloadIdentityRevision,proto3" json:"workload_identity_revision,omitempty"`
-	// Attributes is a map of attributes received from the join method provider.
+	// Attributes is the collection of data that was used to make the decision on
+	// whether to issue the workload identity credential & to perform templating.
 	Attributes           *Struct  `protobuf:"bytes,14,opt,name=Attributes,proto3,casttype=Struct" json:"attributes,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
