@@ -19,6 +19,8 @@
 package alpnproxy
 
 import (
+	"bytes"
+	"encoding/xml"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -26,10 +28,12 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	ststypes "github.com/aws/aws-sdk-go-v2/service/sts/types"
 	"github.com/stretchr/testify/require"
 
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/trace"
 )
 
 func TestAWSAccessMiddleware(t *testing.T) {
@@ -95,6 +99,47 @@ func TestAWSAccessMiddleware(t *testing.T) {
 	})
 }
 
+func TestUnmarshalAssumeRoleResponse(t *testing.T) {
+	want := &sts.AssumeRoleOutput{
+		AssumedRoleUser: &ststypes.AssumedRoleUser{
+			Arn: aws.String("some-arn"),
+		},
+		Credentials: &ststypes.Credentials{
+			AccessKeyId:     aws.String("some-access-key-id"),
+			SecretAccessKey: aws.String("some-secret-access-key"),
+			SessionToken:    aws.String("some-session-token"),
+			Expiration:      aws.Time(time.Unix(1234567890, 0).UTC()),
+		},
+	}
+
+	body := []byte(`<AssumeRoleResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
+  <AssumeRoleResult>
+    <Credentials>
+      <SecretAccessKey>some-secret-access-key</SecretAccessKey>
+      <SessionToken>some-session-token</SessionToken>
+      <AccessKeyId>some-access-key-id</AccessKeyId>
+      <Expiration>2009-02-13T23:31:30Z</Expiration>
+    </Credentials>
+    <AssumedRoleUser>
+      <Arn>some-arn</Arn>
+    </AssumedRoleUser>
+  </AssumeRoleResult>
+  <ResponseMetadata>
+    <StatusCode>200</StatusCode>
+    <RequestID>some-request-id</RequestID>
+  </ResponseMetadata>
+</AssumeRoleResponse>`)
+
+	actual, err := unmarshalAssumeRoleResponse(body)
+	require.NoError(t, err)
+	require.Equal(t, want, actual)
+
+	t.Run("invalid xml", func(t *testing.T) {
+		_, err := unmarshalAssumeRoleResponse([]byte(""))
+		require.Error(t, err)
+	})
+}
+
 // IdentityResult represents the identitiy result of an AWS response.
 type IdentityResult struct {
 	ARN string `xml:"Arn"`
@@ -133,7 +178,7 @@ type GetCallerIdentityResponse struct {
 func assumeRoleResponse(t *testing.T, roleARN string, creds aws.Credentials) *http.Response {
 	t.Helper()
 
-	body, err := awsutils.MarshalXML("AssumeRoleResponse", "https://sts.amazonaws.com/doc/2011-06-15/", AssumeRoleResponse{
+	body, err := marshalXML("AssumeRoleResponse", "https://sts.amazonaws.com/doc/2011-06-15/", AssumeRoleResponse{
 		AssumeRoleResult: AssumeRoleResult{
 			AssumedRoleUser: IdentityResult{
 				ARN: roleARN,
@@ -156,7 +201,7 @@ func assumeRoleResponse(t *testing.T, roleARN string, creds aws.Credentials) *ht
 func getCallerIdentityResponse(t *testing.T, roleARN string) *http.Response {
 	t.Helper()
 
-	body, err := awsutils.MarshalXML("GetCallerIdentityResponse", "https://sts.amazonaws.com/doc/2011-06-15/", GetCallerIdentityResponse{
+	body, err := marshalXML("GetCallerIdentityResponse", "https://sts.amazonaws.com/doc/2011-06-15/", GetCallerIdentityResponse{
 		GetCallerIdentityResult: IdentityResult{
 			ARN: roleARN,
 		},
@@ -174,4 +219,22 @@ func fakeHTTPResponse(code int, body []byte) *http.Response {
 	recorder.Write(body)
 	recorder.WriteHeader(code)
 	return recorder.Result()
+}
+
+// marshalXML marshals the provided root name and a map of children in XML with
+// default indent (prefix "", indent "  ").
+func marshalXML(root string, namespace string, v any) ([]byte, error) {
+	var buf bytes.Buffer
+	encoder := xml.NewEncoder(&buf)
+	encoder.Indent("", "  ")
+	err := encoder.EncodeElement(v, xml.StartElement{
+		Name: xml.Name{Local: root},
+		Attr: []xml.Attr{
+			{Name: xml.Name{Local: "xmlns"}, Value: namespace},
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf.Bytes(), nil
 }
