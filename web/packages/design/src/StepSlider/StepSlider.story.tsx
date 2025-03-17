@@ -349,7 +349,9 @@ function Body3({
 }: StepComponentProps & { testProp: string }) {
   return (
     <Box p={6} ref={refCallback} data-testid="single-body3">
-      <H2 mb={3}>Step 3</H2>
+      <Text typography="h2" mb={3}>
+        Step 3
+      </Text>
       <Text mb={3}>
         Aenean et fringilla orci. Suspendisse ipsum arcu, molestie in quam eu,
         euismod euismod nibh. Cras scelerisque vulputate mattis. Mauris eget
