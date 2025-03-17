@@ -16,17 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { produce } from 'immer';
 import { useCallback, useId, useState } from 'react';
 import styled from 'styled-components';
 
-import { Box, Flex } from 'design';
+import { Box, ButtonPrimary, ButtonSecondary, Flex } from 'design';
 import { SlideTabs } from 'design/SlideTabs';
+import { TabSpec } from 'design/SlideTabs/SlideTabs';
 import { useValidation } from 'shared/components/Validation';
 
 import { Role, RoleWithYaml } from 'teleport/services/resources';
 
-import { EditorSaveCancelButton } from '../Shared';
-import { AccessRules } from './AccessRules';
+import { ActionButtonsContainer, SaveButton } from '../Shared';
+import { AdminRules } from './AdminRules';
 import { MetadataSection } from './MetadataSection';
 import { Options } from './Options';
 import { RequiresResetToStandard } from './RequiresResetToStandard';
@@ -39,11 +41,10 @@ import {
 import { StandardModelDispatcher } from './useStandardModel';
 
 export type StandardEditorProps = {
-  originalRole: RoleWithYaml;
+  originalRole?: RoleWithYaml;
   standardEditorModel: StandardEditorModel;
   isProcessing?: boolean;
   onSave?(r: Role): void;
-  onCancel?(): void;
   dispatch: StandardModelDispatcher;
 };
 
@@ -56,7 +57,6 @@ export const StandardEditor = ({
   standardEditorModel,
   isProcessing,
   onSave,
-  onCancel,
   dispatch,
 }: StandardEditorProps) => {
   const isEditing = !!originalRole;
@@ -65,16 +65,15 @@ export const StandardEditor = ({
   enum StandardEditorTab {
     Overview,
     Resources,
-    AccessRules,
+    AdminRules,
     Options,
   }
 
   const [currentTab, setCurrentTab] = useState(StandardEditorTab.Overview);
+  const [disabledTabs, setDisabledTabs] = useState(
+    isEditing ? [false, false, false, false] : [false, true, true, true]
+  );
   const idPrefix = useId();
-  const overviewTabId = `${idPrefix}-overview`;
-  const resourcesTabId = `${idPrefix}-resources`;
-  const accessRulesTabId = `${idPrefix}-access-rules`;
-  const optionsTabId = `${idPrefix}-options`;
 
   const validator = useValidation();
 
@@ -95,6 +94,44 @@ export const StandardEditor = ({
     [dispatch]
   );
 
+  const validateAndGoToNextTab = useCallback(() => {
+    const nextTabIndex = currentTab + 1;
+    const valid = validator.validate();
+    if (!valid) {
+      return;
+    }
+    validator.reset();
+    setCurrentTab(nextTabIndex);
+    setDisabledTabs(prevEnabledTabs =>
+      produce(prevEnabledTabs, et => {
+        et[nextTabIndex] = false;
+      })
+    );
+  }, [currentTab, setCurrentTab, setDisabledTabs, validator]);
+
+  const goToPreviousTab = useCallback(
+    () => setCurrentTab(currentTab - 1),
+    [setCurrentTab, currentTab]
+  );
+
+  const tabTitles = ['Overview', 'Resources', 'Admin Rules', 'Options'];
+  const tabElementIDs = [
+    `${idPrefix}-overview`,
+    `${idPrefix}-resources`,
+    `${idPrefix}-access-rules`,
+    `${idPrefix}-options`,
+  ];
+
+  function tabSpec(tab: StandardEditorTab, error: boolean): TabSpec {
+    return {
+      key: tab,
+      title: tabTitles[tab],
+      disabled: disabledTabs[tab],
+      controls: tabElementIDs[tab],
+      status: error ? validationErrorTabStatus : undefined,
+    };
+  }
+
   return (
     <>
       {roleModel.conversionErrors.length > 0 && (
@@ -114,40 +151,21 @@ export const StandardEditor = ({
             appearance="round"
             hideStatusIconOnActiveTab
             tabs={[
-              {
-                key: StandardEditorTab.Overview,
-                title: 'Overview',
-                controls: overviewTabId,
-                status:
-                  validator.state.validating && !validationResult.metadata.valid
-                    ? validationErrorTabStatus
-                    : undefined,
-              },
-              {
-                key: StandardEditorTab.Resources,
-                title: 'Resources',
-                controls: resourcesTabId,
-                status:
-                  validator.state.validating &&
+              tabSpec(
+                StandardEditorTab.Overview,
+                validator.state.validating && !validationResult.metadata.valid
+              ),
+              tabSpec(
+                StandardEditorTab.Resources,
+                validator.state.validating &&
                   validationResult.resources.some(s => !s.valid)
-                    ? validationErrorTabStatus
-                    : undefined,
-              },
-              {
-                key: StandardEditorTab.AccessRules,
-                title: 'Access Rules',
-                controls: accessRulesTabId,
-                status:
-                  validator.state.validating &&
+              ),
+              tabSpec(
+                StandardEditorTab.AdminRules,
+                validator.state.validating &&
                   validationResult.rules.some(s => !s.valid)
-                    ? validationErrorTabStatus
-                    : undefined,
-              },
-              {
-                key: StandardEditorTab.Options,
-                title: 'Options',
-                controls: optionsTabId,
-              },
+              ),
+              tabSpec(StandardEditorTab.Options, false),
             ]}
             activeIndex={currentTab}
             onChange={setCurrentTab}
@@ -163,7 +181,7 @@ export const StandardEditor = ({
           `}
         >
           <Box
-            id={overviewTabId}
+            id={tabElementIDs[StandardEditorTab.Overview]}
             style={{
               display: currentTab === StandardEditorTab.Overview ? '' : 'none',
             }}
@@ -178,7 +196,7 @@ export const StandardEditor = ({
             />
           </Box>
           <Box
-            id={resourcesTabId}
+            id={tabElementIDs[StandardEditorTab.Resources]}
             style={{
               display: currentTab === StandardEditorTab.Resources ? '' : 'none',
             }}
@@ -191,13 +209,13 @@ export const StandardEditor = ({
             />
           </Box>
           <Box
-            id={accessRulesTabId}
+            id={tabElementIDs[StandardEditorTab.AdminRules]}
             style={{
               display:
-                currentTab === StandardEditorTab.AccessRules ? '' : 'none',
+                currentTab === StandardEditorTab.AdminRules ? '' : 'none',
             }}
           >
-            <AccessRules
+            <AdminRules
               isProcessing={isProcessing}
               value={roleModel.rules}
               dispatch={dispatch}
@@ -205,7 +223,7 @@ export const StandardEditor = ({
             />
           </Box>
           <Box
-            id={optionsTabId}
+            id={tabElementIDs[StandardEditorTab.Options]}
             style={{
               display: currentTab === StandardEditorTab.Options ? '' : 'none',
             }}
@@ -218,16 +236,37 @@ export const StandardEditor = ({
           </Box>
         </Flex>
       </EditorWrapper>
-      <EditorSaveCancelButton
-        onSave={() => handleSave()}
-        onCancel={onCancel}
-        saveDisabled={
-          isProcessing ||
-          standardEditorModel.roleModel.requiresReset ||
-          !standardEditorModel.isDirty
-        }
-        isEditing={isEditing}
-      />
+      <ActionButtonsContainer>
+        {isEditing || currentTab === StandardEditorTab.Options ? (
+          <SaveButton
+            onClick={() => handleSave()}
+            disabled={
+              isProcessing ||
+              standardEditorModel.roleModel.requiresReset ||
+              !standardEditorModel.isDirty
+            }
+            isEditing={isEditing}
+          />
+        ) : (
+          <ButtonPrimary
+            size="large"
+            width="50%"
+            onClick={validateAndGoToNextTab}
+          >
+            Next: {tabTitles[currentTab + 1]}
+          </ButtonPrimary>
+        )}
+        {!isEditing && (
+          <ButtonSecondary
+            size="large"
+            width="50%"
+            disabled={currentTab === StandardEditorTab.Overview}
+            onClick={goToPreviousTab}
+          >
+            Back
+          </ButtonSecondary>
+        )}
+      </ActionButtonsContainer>
     </>
   );
 };

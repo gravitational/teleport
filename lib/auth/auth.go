@@ -94,6 +94,7 @@ import (
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
 	"github.com/gravitational/teleport/lib/events"
@@ -559,6 +560,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			}
 		}),
 	)
+
 	for _, o := range opts {
 		if err := o(&as); err != nil {
 			return nil, trace.Wrap(err)
@@ -674,6 +676,14 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	as.RegisterLoginHook(as.ulsGenerator.LoginHook(services.UserLoginStates))
+
+	as.pdp, err = decision.NewService(decision.Config{
+		AccessPoint:  as.Cache,
+		ULSGenerator: as.ulsGenerator,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	if _, ok := as.getCache(); !ok {
 		as.logger.WarnContext(closeCtx, "Auth server starting without cache (may have negative performance implications)")
@@ -1018,6 +1028,8 @@ type Server struct {
 	GlobalNotificationCache *services.GlobalNotificationCache
 
 	inventory *inventory.Controller
+
+	pdp *decision.Service
 
 	// githubOrgSSOCache is used to cache whether Github organizations use
 	// external SSO or not.
@@ -6213,7 +6225,7 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 		for _, al := range response {
 			daysDiff := int(al.Spec.Audit.NextAuditDate.Sub(now).Hours() / 24)
 			// Only keep access lists that fall within our thresholds in memory
-			if daysDiff <= 15 && daysDiff >= -8 {
+			if daysDiff <= 15 {
 				accessLists = append(accessLists, al)
 			}
 		}

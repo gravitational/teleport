@@ -38,7 +38,8 @@ For example:
 A Teleport cluster capable of WebAuthn is automatically capable of
 Headless WebAuthn without any additional configuration.
 
-<Details title="Optional: make Headless WebAuthn the default auth connector">
+<details>
+<summary>Optional: make Headless WebAuthn the default auth connector</summary>
 
 To make Headless WebAuthn the default authentication method for your Teleport
 Cluster, add `connector_name: headless` to your cluster configuration.
@@ -65,9 +66,10 @@ Update the configuration:
 $ tctl create -f cap.yaml
 # cluster auth preference has been updated
 ```
-</Details>
+</details>
 
-<Details title="Alternative: disable Headless WebAuthn">
+<details>
+<summary>Alternative: disable Headless WebAuthn</summary>
 
 Headless WebAuthn is enabled automatically when WebAuthn is configured. If you
 want to forbid Headless WebAuthn in your cluster, add `headless: false` to your
@@ -96,7 +98,7 @@ $ tctl create -f cap.yaml
 # cluster auth preference has been updated
 ```
 
-</Details>
+</details>
 
 ## Step 2/3. Initiate Headless WebAuthn
 
@@ -155,7 +157,7 @@ $ tsh ssh --headless --proxy=proxy.example.com --user=alice alice@server01
 alice@server01 $
 ```
 
-<Notice type="note">
+<Admonition type="note">
   The Teleport user, `--user` parameter, is the Teleport user requesting Headless WebAuthn activity.
   If no `--user` parameter or environment variables set the OS user in the machine terminal is used.
 
@@ -165,7 +167,7 @@ alice@server01 $
   an access denied message. The user could receive an access denied message after being approved
   for their Headless WebAuthn activity since the same access rights are granted or denied as if running from
   your local terminal.
-</Notice>
+</Admonition>
 
 ## Optional: Teleport Connect
 
@@ -173,15 +175,11 @@ Teleport Connect can also be used to approve Headless WebAuthn logins.  Teleport
 Connect will automatically detect the Headless WebAuthn login attempt and allow
 you to approve or cancel the request.
 
-<Figure width="700">
 ![Headless Confirmation](../../../../img/headless/confirmation.png)
-</Figure>
 
 You will be prompted to tap your MFA key to complete the approval process.
 
-<Figure width="700">
 ![Headless WebAuthn Approval](../../../../img/headless/approval.png)
-</Figure>
 
 ## Troubleshooting
 

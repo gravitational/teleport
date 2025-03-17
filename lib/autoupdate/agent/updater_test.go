@@ -19,9 +19,12 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -39,6 +42,40 @@ import (
 	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
+
+func TestWarnUmask(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		old  int
+		warn bool
+	}{
+		{old: 0o000, warn: false},
+		{old: 0o001, warn: true},
+		{old: 0o011, warn: true},
+		{old: 0o111, warn: true},
+		{old: 0o002, warn: false},
+		{old: 0o020, warn: false},
+		{old: 0o022, warn: false},
+		{old: 0o220, warn: true},
+		{old: 0o200, warn: true},
+		{old: 0o222, warn: true},
+		{old: 0o333, warn: true},
+		{old: 0o444, warn: true},
+		{old: 0o555, warn: true},
+		{old: 0o666, warn: true},
+		{old: 0o777, warn: true},
+	} {
+		t.Run(fmt.Sprintf("old umask %o", tt.old), func(t *testing.T) {
+			ctx := context.Background()
+			out := &bytes.Buffer{}
+			warnUmask(ctx, slog.New(slog.NewTextHandler(out,
+				&slog.HandlerOptions{ReplaceAttr: msgOnly},
+			)), tt.old)
+			assert.Equal(t, tt.warn, strings.Contains(out.String(), "detected"))
+		})
+	}
+}
 
 func TestUpdater_Disable(t *testing.T) {
 	t.Parallel()
@@ -1013,14 +1050,15 @@ func TestUpdater_Remove(t *testing.T) {
 	const version = "active-version"
 
 	tests := []struct {
-		name           string
-		cfg            *UpdateConfig // nil -> file not present
-		linkSystemErr  error
-		isEnabledErr   error
-		syncErr        error
-		reloadErr      error
-		processEnabled bool
-		force          bool
+		name          string
+		cfg           *UpdateConfig // nil -> file not present
+		linkSystemErr error
+		isActiveErr   error
+		syncErr       error
+		reloadErr     error
+		processActive bool
+		force         bool
+		serviceName   string
 
 		unlinkedVersion string
 		teardownCalls   int
@@ -1056,7 +1094,7 @@ func TestUpdater_Remove(t *testing.T) {
 			force:           true,
 		},
 		{
-			name: "no system links, process enabled, force",
+			name: "no system links, process active, force",
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
@@ -1069,7 +1107,7 @@ func TestUpdater_Remove(t *testing.T) {
 			},
 			linkSystemErr:   ErrNoBinaries,
 			linkSystemCalls: 1,
-			processEnabled:  true,
+			processActive:   true,
 			force:           true,
 			errMatch:        "refusing to remove",
 		},
@@ -1121,7 +1159,54 @@ func TestUpdater_Remove(t *testing.T) {
 			},
 			linkSystemErr:   ErrNoBinaries,
 			linkSystemCalls: 1,
-			isEnabledErr:    ErrNotSupported,
+			isActiveErr:     ErrNotSupported,
+			unlinkedVersion: version,
+			teardownCalls:   1,
+			force:           true,
+		},
+		{
+			name: "no system links, process disabled, custom path, force",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Path: "custom",
+				},
+				Status: UpdateStatus{
+					Active: NewRevision(version, 0),
+				},
+			},
+			unlinkedVersion: version,
+			teardownCalls:   1,
+			force:           true,
+		},
+		{
+			name: "no system links, process disabled, custom path, no force",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Path: "custom",
+				},
+				Status: UpdateStatus{
+					Active: NewRevision(version, 0),
+				},
+			},
+			errMatch: "unable to remove",
+		},
+		{
+			name: "no system links, process disabled, custom path, no force, custom service",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Path: "custom",
+				},
+				Status: UpdateStatus{
+					Active: NewRevision(version, 0),
+				},
+			},
+			serviceName:     "custom",
 			unlinkedVersion: version,
 			teardownCalls:   1,
 			force:           true,
@@ -1231,6 +1316,10 @@ func TestUpdater_Remove(t *testing.T) {
 				InsecureSkipVerify: true,
 			}, ns)
 			require.NoError(t, err)
+			updater.TeleportServiceName = serviceName
+			if tt.serviceName != "" {
+				updater.TeleportServiceName = tt.serviceName
+			}
 
 			// Create config file only if provided in test case
 			if tt.cfg != nil {
@@ -1270,11 +1359,8 @@ func TestUpdater_Remove(t *testing.T) {
 					reloadCalls++
 					return tt.reloadErr
 				},
-				FuncIsEnabled: func(_ context.Context) (bool, error) {
-					return tt.processEnabled, tt.isEnabledErr
-				},
 				FuncIsActive: func(_ context.Context) (bool, error) {
-					return false, nil
+					return tt.processActive, tt.isActiveErr
 				},
 			}
 			updater.TeardownNamespace = func(_ context.Context) error {

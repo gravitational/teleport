@@ -29,15 +29,19 @@
               "slug": "/upgrading/overview/"
             },
             {
-              "title": "Set up Automatic Agent Updates",
-              "slug": "/upgrading/automatic-agent-updates/"
+              "title": "Cluster Upgrading Reference",
+              "slug": "/upgrading/upgrading-reference/"
             },
             {
-              "title": "Upgrading Reference",
-              "slug": "/upgrading/upgrading-reference/"
-	        },
+              "title": "Managed Updates for Agents (v1)",
+              "slug": "/upgrading/agent-managed-updates-v1/"
+            },
             {
-              "title": "Client Tool Automatic Updates",
+              "title": "Managed Updates for Agents (v2)",
+              "slug": "/upgrading/agent-managed-updates/"
+            },
+            {
+              "title": "Managed Updates for Client Tools",
               "slug": "/upgrading/client-tools-autoupdate/"
             }
           ]
@@ -140,7 +144,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "17.2.7",
+      "version": "17.3.3",
       "major_version": "17",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -377,6 +381,21 @@
     {
       "source": "/access-controls/access-request-plugins/",
       "destination": "/admin-guides/access-controls/access-request-plugins/",
+      "permanent": true
+    },
+    {
+      "source": "/upgrading/automatic-agent-updates/",
+      "destination": "/upgrading/agent-managed-updates-v1/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/compliance-frameworks/fedramp/",
+      "destination": "/admin-guides/access-controls/compliance-frameworks/fedramp/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/introduction/",
+      "destination": "/enroll-resources/server-access/",
       "permanent": true
     }
   ]

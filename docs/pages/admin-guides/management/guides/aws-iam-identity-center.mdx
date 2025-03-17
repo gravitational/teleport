@@ -7,9 +7,7 @@ Teleport's integration with [AWS IAM Identity Center](https://aws.amazon.com/iam
 allows you to organize and manage your users' short- and long-term access to AWS
 accounts and their permissions.
 
-With the Identity Center integration you can grant or revoke persistent access
-to AWS accounts and resources using Teleport Access Lists, or use Teleport
-Access Requests for scenarios requiring temporary elevated AWS privileges.
+With the AWS Identity Center integration, you can manage AWS access by granting short term or long term access with Identity Governance.
 
 ## How it works
 
@@ -81,7 +79,8 @@ your AWS account and create an AWS role with the permissions required for the
 integration to function, such as fetching Identity Center accounts, users,
 groups, permission set assignments, and so on.
 
-<Details title="Full list of IAM permissions required by Identity Center integration">
+<details>
+<summary>Full list of IAM permissions required by Identity Center integration</summary>
 ```
 // ListAccounts
 organizations:ListAccounts
@@ -116,7 +115,7 @@ iam:GetSAMLProvider
 // ListProvisionedRoles
 iam:ListRoles
 ```
-</Details>
+</details>
 
 ![Configure AWS integration](../../../../img/identity-center/ic-step1.1.png)
 
@@ -266,8 +265,7 @@ regardless of when the user assumes the associated role(s).
 
 ### Just-in-time access with role Access Requests
 
-For short-term privilege elevation, Identity Center integration works with
-Teleport Access Requests.
+The Identity Center integration allows Teleport users to submit Access Requests for short-term privilege elevation.
 
 When an Access Request for a role granting Identity Center privileges is
 approved, Teleport creates an individual assignment for that user in the
