@@ -27,6 +27,11 @@ export type RequestState =
   | 'PROMOTED'
   | '';
 
+export interface LongTermResourceGrouping {
+  optimalGrouping: ResourceId[];
+  groupedByAccessList: { [key: string]: ResourceId[] };
+}
+
 export interface AccessRequest {
   id: string;
   state: RequestState;
@@ -51,6 +56,8 @@ export interface AccessRequest {
   promotedAccessListTitle?: string;
   assumeStartTime?: Date;
   assumeStartTimeDuration?: string;
+  longTermResourceGrouping?: LongTermResourceGrouping;
+  longTerm?: boolean;
 }
 
 export interface AccessRequestReview {
