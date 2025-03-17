@@ -27,9 +27,11 @@ export default {
   title: 'Design/StepSlider',
 };
 
-const singleFlow = { default: [Body1, Body2] };
+const singleFlow = { default: [Body1, Body2, Body3] };
 export const SingleFlowInPlaceSlider = (props: {
   defaultStepIndex?: number;
+  wrapping?: boolean;
+  tDuration?: number;
 }) => {
   return (
     <Card my="5" mx="auto" width={464}>
@@ -41,6 +43,8 @@ export const SingleFlowInPlaceSlider = (props: {
         currFlow={'default'}
         testProp="I'm that test prop"
         defaultStepIndex={props.defaultStepIndex}
+        wrapping={props.wrapping}
+        tDuration={props.tDuration}
       />
     </Card>
   );
@@ -48,6 +52,10 @@ export const SingleFlowInPlaceSlider = (props: {
 
 export const SingleFlowWithDefaultStepIndex = () => {
   return <SingleFlowInPlaceSlider defaultStepIndex={1} />;
+};
+
+export const SingleFlowWithWrapping = () => {
+  return <SingleFlowInPlaceSlider wrapping />;
 };
 
 type MultiFlow = 'primary' | 'secondary';
@@ -58,7 +66,10 @@ const multiflows = {
   primary: [MainStep1, MainStep2, FinalStep],
   secondary: [OtherStep1, FinalStep],
 };
-export const MultiFlowWheelSlider = (props: { defaultStepIndex?: number }) => {
+export const MultiFlowWheelSlider = (props: {
+  defaultStepIndex?: number;
+  tDuration?: number;
+}) => {
   const [flow, setFlow] = useState<MultiFlow>('primary');
   const [newFlow, setNewFlow] = useState<NewFlow<MultiFlow>>();
 
@@ -78,6 +89,7 @@ export const MultiFlowWheelSlider = (props: { defaultStepIndex?: number }) => {
       newFlow={newFlow}
       changeFlow={onNewFlow}
       defaultStepIndex={props.defaultStepIndex}
+      tDuration={props.tDuration}
     />
   );
 };
@@ -310,19 +322,63 @@ function Body2({
         size="large"
         onClick={e => {
           e.preventDefault();
-          onPrev();
+          onNext();
         }}
       >
-        Back2
+        Next2
       </ButtonPrimary>
       <Box mt={5}>
         <ButtonLink
           onClick={e => {
             e.preventDefault();
-            onNext();
+            onPrev();
           }}
         >
-          Next2
+          Back2
+        </ButtonLink>
+      </Box>
+    </Box>
+  );
+}
+
+function Body3({
+  prev: onPrev,
+  next: onNext,
+  refCallback,
+  testProp,
+}: StepComponentProps & { testProp: string }) {
+  return (
+    <Box p={6} ref={refCallback} data-testid="single-body3">
+      <H2 mb={3}>Step 3</H2>
+      <Text mb={3}>
+        Aenean et fringilla orci. Suspendisse ipsum arcu, molestie in quam eu,
+        euismod euismod nibh. Cras scelerisque vulputate mattis. Mauris eget
+        elit imperdiet diam volutpat egestas id non odio. Morbi sit amet
+        malesuada justo.
+      </Text>
+      <Text mb={3}>
+        Proin ipsum orci, imperdiet ac iaculis eget, mattis eu dolor. Maecenas
+        porta porta dolor ac vestibulum.
+      </Text>
+      <Text mb={6}>{testProp}</Text>
+      <ButtonPrimary
+        width="100%"
+        size="large"
+        onClick={e => {
+          e.preventDefault();
+          onNext();
+        }}
+      >
+        Next3
+      </ButtonPrimary>
+      <Box mt={5}>
+        <ButtonLink
+          onClick={e => {
+            e.preventDefault();
+            onPrev();
+          }}
+        >
+          Back3
         </ButtonLink>
       </Box>
     </Box>
