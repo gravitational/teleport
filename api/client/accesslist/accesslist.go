@@ -339,6 +339,15 @@ func (c *Client) AccessRequestPromote(ctx context.Context, req *accesslistv1.Acc
 	return resp, nil
 }
 
+// AccessRequestLongTermApprove approves a long-term Access Request and adds the requester to the relevant Access List.
+func (c *Client) AccessRequestLongTermApprove(ctx context.Context, req *accesslistv1.AccessRequestLongTermApproveRequest) (*accesslistv1.AccessRequestLongTermApproveResponse, error) {
+	resp, err := c.grpcClient.AccessRequestLongTermApprove(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
 // ListAccessListReviews will list access list reviews for a particular access list.
 func (c *Client) ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error) {
 	resp, err := c.grpcClient.ListAccessListReviews(ctx, &accesslistv1.ListAccessListReviewsRequest{

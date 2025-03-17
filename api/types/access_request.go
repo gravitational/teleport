@@ -99,16 +99,16 @@ type AccessRequest interface {
 	// SetReviews sets the list of currently applied access reviews (internal use only).
 	SetReviews([]AccessReview)
 	// GetPromotedAccessListName returns the access list name that this access request
-	// was promoted to.
+	// was promoted to, or, if a long-term request, created for.
 	GetPromotedAccessListName() string
 	// SetPromotedAccessListName sets the access list name that this access request
-	// was promoted to.
+	// was promoted to, or, if a long-term request, created for.
 	SetPromotedAccessListName(name string)
 	// GetPromotedAccessListTitle returns the access list title that this access request
-	// was promoted to.
+	// was promoted to, or, if a long-term request, created for.
 	GetPromotedAccessListTitle() string
 	// SetPromotedAccessListTitle sets the access list title that this access request
-	// was promoted to.
+	// was promoted to, or, if a long-term request, created for.
 	SetPromotedAccessListTitle(string)
 	// GetSuggestedReviewers gets the suggested reviewer list.
 	GetSuggestedReviewers() []string
@@ -131,6 +131,10 @@ type AccessRequest interface {
 	GetDryRun() bool
 	// SetDryRun sets the dry run flag on the request.
 	SetDryRun(bool)
+	// GetLongTerm returns true if this request is for long-term access.
+	GetLongTerm() bool
+	// SetLongTerm sets the long-term flag on the request.
+	SetLongTerm(bool)
 	// Copy returns a copy of the access request resource.
 	Copy() AccessRequest
 }
@@ -405,6 +409,9 @@ func (r *AccessRequestV3) CheckAndSetDefaults() error {
 	if len(r.GetRoles()) == 0 && len(r.GetRequestedResourceIDs()) == 0 {
 		return trace.BadParameter("access request does not specify any roles or resources")
 	}
+	if len(r.GetRoles()) > 0 && r.GetLongTerm() {
+		return trace.BadParameter("long-term requests may not specify roles")
+	}
 
 	// dedupe and sort roles to simplify comparing role lists
 	r.Spec.Roles = utils.Deduplicate(r.Spec.Roles)
@@ -512,6 +519,16 @@ func (r *AccessRequestV3) SetMaxDuration(t time.Time) {
 // SetDryRun sets the dry run flag on the request.
 func (r *AccessRequestV3) SetDryRun(dryRun bool) {
 	r.Spec.DryRun = dryRun
+}
+
+// GetLongTerm returns true if this request is for long-term access.
+func (r *AccessRequestV3) GetLongTerm() bool {
+	return r.Spec.LongTerm
+}
+
+// SetLongTerm sets the long-term flag on the request.
+func (r *AccessRequestV3) SetLongTerm(longTerm bool) {
+	r.Spec.LongTerm = longTerm
 }
 
 // Copy returns a copy of the access request resource.

@@ -87,6 +87,13 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 	if l := len(ar.GetRequestedResourceIDs()); l > maxResourcesPerRequest {
 		return trace.BadParameter("access request contains too many resources (%v), max %v", l, maxResourcesPerRequest)
 	}
+
+	if ar.GetLongTerm() {
+		if aclName, resourceLen := ar.GetPromotedAccessListName(), len(ar.GetRequestedResourceIDs()); aclName == "" || resourceLen < 1 {
+			return trace.BadParameter("access request is long-term but does not contain an access list name or requested resources")
+		}
+	}
+
 	return nil
 }
 
@@ -1135,8 +1142,8 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 		return trace.BadParameter("request validator configured for different user (this is a bug)")
 	}
 
-	if !req.GetState().IsPromoted() && req.GetPromotedAccessListTitle() != "" {
-		return trace.BadParameter("only promoted requests can set the promoted access list title")
+	if req.GetPromotedAccessListTitle() != "" && !(req.GetState().IsPromoted() || req.GetLongTerm()) {
+		return trace.BadParameter("only promoted or long-term requests can set the promoted access list title")
 	}
 
 	// check for "wildcard request" (`roles=*`).  wildcard requests

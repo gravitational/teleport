@@ -22,6 +22,8 @@ import { GetInheritedGrantsResponse } from "./accesslist_service_pb";
 import { GetInheritedGrantsRequest } from "./accesslist_service_pb";
 import { GetSuggestedAccessListsResponse } from "./accesslist_service_pb";
 import { GetSuggestedAccessListsRequest } from "./accesslist_service_pb";
+import { AccessRequestLongTermApproveResponse } from "./accesslist_service_pb";
+import { AccessRequestLongTermApproveRequest } from "./accesslist_service_pb";
 import { AccessRequestPromoteResponse } from "./accesslist_service_pb";
 import { AccessRequestPromoteRequest } from "./accesslist_service_pb";
 import { DeleteAccessListReviewRequest } from "./accesslist_service_pb";
@@ -223,6 +225,12 @@ export interface IAccessListService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: AccessRequestPromote(teleport.accesslist.v1.AccessRequestPromoteRequest) returns (teleport.accesslist.v1.AccessRequestPromoteResponse);
      */
     accessRequestPromote: grpc.handleUnaryCall<AccessRequestPromoteRequest, AccessRequestPromoteResponse>;
+    /**
+     * AccessRequestLongTermApprove approves a long-term Access Request and adds the requester to the relevant Access List.
+     *
+     * @generated from protobuf rpc: AccessRequestLongTermApprove(teleport.accesslist.v1.AccessRequestLongTermApproveRequest) returns (teleport.accesslist.v1.AccessRequestLongTermApproveResponse);
+     */
+    accessRequestLongTermApprove: grpc.handleUnaryCall<AccessRequestLongTermApproveRequest, AccessRequestLongTermApproveResponse>;
     /**
      * GetSuggestedAccessLists returns suggested access lists for an access
      * request.
@@ -488,6 +496,16 @@ export const accessListServiceDefinition: grpc.ServiceDefinition<IAccessListServ
         requestDeserialize: bytes => AccessRequestPromoteRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(AccessRequestPromoteResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(AccessRequestPromoteRequest.toBinary(value))
+    },
+    accessRequestLongTermApprove: {
+        path: "/teleport.accesslist.v1.AccessListService/AccessRequestLongTermApprove",
+        originalName: "AccessRequestLongTermApprove",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => AccessRequestLongTermApproveResponse.fromBinary(bytes),
+        requestDeserialize: bytes => AccessRequestLongTermApproveRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(AccessRequestLongTermApproveResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(AccessRequestLongTermApproveRequest.toBinary(value))
     },
     getSuggestedAccessLists: {
         path: "/teleport.accesslist.v1.AccessListService/GetSuggestedAccessLists",
