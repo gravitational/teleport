@@ -99,6 +99,9 @@ export class DeepLinksService {
         await this.askAuthorizeDeviceTrust(result.url);
         break;
       }
+      default: {
+        result.url satisfies never;
+      }
     }
   }
 
