@@ -17,6 +17,7 @@ import FieldInput from 'shared/components/FieldInput';
 import { FieldSelect } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import Validation, { type Validator } from 'shared/components/Validation';
+import { requiredField } from 'shared/components/Validation/rules';
 import { Attempt, useAsync } from 'shared/hooks/useAsync';
 import { getErrMessage } from 'shared/utils/errorType';
 
@@ -237,17 +238,7 @@ const MetadataURLForm = ({
                 label="Metadata URL"
                 name={FormDataField.MetadataURL}
                 value={metadataUrl}
-                rule={() => () => {
-                  const valid =
-                    metadataUrl?.length &&
-                    metadataUrl?.match(/^(?:https:\/\/)?.*$/i);
-                  return {
-                    valid,
-                    message: valid
-                      ? ''
-                      : 'Please enter a valid Okta Metadata URL',
-                  };
-                }}
+                rule={requiredField('Please enter a valid Okta Metadata URL')}
                 onChange={e => setMetadataUrl(e.target.value)}
                 placeholder="https://your_okta_domain.okta.com/app/your_app_ID/sso/saml/metadata"
                 disabled={attempt.status === 'processing'}
