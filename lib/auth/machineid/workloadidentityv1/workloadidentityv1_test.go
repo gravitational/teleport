@@ -3025,6 +3025,8 @@ func TestRevocationService_CRL(t *testing.T) {
 	require.NoError(t, err)
 	revocationsClient := authorizedClient.WorkloadIdentityRevocationServiceClient()
 
+	// Touch this test to trigger it.
+
 	// Fetch the SPIFFE CA so we can validate CRL signature.
 	ca, err := srv.Auth().GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.SPIFFECA,
