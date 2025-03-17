@@ -85,7 +85,7 @@ function ConnectDialog(props: Props) {
           <Text bold as="span">
             Step 1
           </Text>
-          {' - Login to Teleport'}
+          {' - Log in to Teleport'}
           <TextSelectCopy
             mt="2"
             text={generateTshLoginCommand({
