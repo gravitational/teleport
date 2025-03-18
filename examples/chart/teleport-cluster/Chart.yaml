@@ -1,4 +1,4 @@
-.version: &version "17.3.3"
+.version: &version "17.3.3-dev.disableicshb.1"
 
 name: teleport-cluster
 apiVersion: v2
