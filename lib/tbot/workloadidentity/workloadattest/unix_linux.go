@@ -27,7 +27,6 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/gravitational/trace"
 	"github.com/shirou/gopsutil/v4/process"
 )
 
@@ -36,15 +35,6 @@ var unixOS UnixOS = linux{}
 type linux struct{}
 
 func (l linux) ExePath(ctx context.Context, proc *process.Process) (string, error) {
-	// If the workload process is in a different mount namespace (e.g. running
-	// in a container) the path we see will likely be wrong.
-	sameNS, err := l.sameMountNS(proc.Pid)
-	if err != nil {
-		return "", err
-	}
-	if !sameNS {
-		return "", trace.NotFound("unable to find executables in a different mount namespace")
-	}
 	return proc.ExeWithContext(ctx)
 }
 
@@ -60,18 +50,6 @@ func (l linux) OpenExe(ctx context.Context, proc *process.Process) (io.ReadClose
 	// inode stability, so if the process' binary is on a network mount, it's
 	// possible the hash won't match the binary the process is actually running.
 	return os.Open(l.procPath(strconv.Itoa(int(proc.Pid)), "exe"))
-}
-
-func (l linux) sameMountNS(pid int32) (bool, error) {
-	tbotNS, err := os.Readlink(l.procPath("self", "ns", "mnt"))
-	if err != nil {
-		return false, trace.Wrap(err, "reading tbot mount namespace")
-	}
-	procNS, err := os.Readlink(l.procPath(strconv.Itoa(int(pid)), "ns", "mnt"))
-	if err != nil {
-		return false, trace.Wrap(err, "reading the workload process mount namespace")
-	}
-	return tbotNS == procNS, nil
 }
 
 func (l linux) procPath(parts ...string) string {
