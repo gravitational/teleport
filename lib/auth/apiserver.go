@@ -142,7 +142,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/reversetunnels/:domain", srv.WithAuth(srv.deleteReverseTunnel))
 
 	// trusted clusters
-	// TODO(noah): REMOVE IN V19.0.0 - this method is now gRPC.
 	srv.POST("/:version/trustedclusters/validate", srv.WithAuth(srv.validateTrustedCluster))
 
 	// Tokens
