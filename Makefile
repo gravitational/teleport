@@ -1627,11 +1627,18 @@ terraform-resources-up-to-date: must-start-clean/host
 		exit 1; \
 	fi
 
-# update-aws-regions-go-definition updates the AWS regions definition used by
-# golang based on the AWS SDK.
-update-aws-regions-go-definition:
-	@go generate ./lib/utils/aws/generate.go 
-	@echo "AWS regions definition updated!"
+# go-generate will execute `go generate` and generate go code.
+.PHONY: go-generate
+go-generate:
+	go generate ./lib/...
+
+# go-generate-up-to-date checks if the generated code is up to date.
+.PHONY: go-generate-up-to-date
+go-generate-up-to-date: must-start-clean/host go-generate-lib
+	@if ! git diff --quiet; then \
+		./build.assets/please-run.sh "go generate lib" "make go-generate-lib"; \
+		exit 1; \
+	fi
 
 print/env:
 	env
