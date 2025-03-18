@@ -398,7 +398,8 @@ Agents enrolled into Managed Updates v2 can be queried with the
    </TabItem>
    </Tabs>
 
-<Details title="Running the agent as a non-root user">
+<details>
+<summary>Running the agent as a non-root user</summary>
 
 If you changed the agent user to run as non-root, create
 `/etc/teleport-upgrade.d/schedule` and grant ownership to your Teleport user:
@@ -412,7 +413,7 @@ $ sudo chown your-teleport-user /etc/teleport-upgrade.d/schedule
 While `teleport-update` does not read this file, `teleport` will warn if it
 cannot disable the Managed Update v1 updater using this file.
 
-</Details>
+</details>
 
 ## Enroll Kubernetes agents in Managed Updates
 
