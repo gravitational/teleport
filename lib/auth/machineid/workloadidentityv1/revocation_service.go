@@ -74,6 +74,11 @@ type RevocationServiceConfig struct {
 	// KeyStore is the key storer used to store and retrieve keys for the
 	// signing of the CRL.
 	KeyStore KeyStorer
+
+	// RevocationsEventProcessedCh is a channel that will be emitted to when
+	// a revocation event has been processed. Used for syncing in tests to avoid
+	// flakiness.
+	RevocationsEventProcessedCh chan struct{}
 }
 
 // RevocationService is the gRPC service for managing workload identity
@@ -102,6 +107,8 @@ type RevocationService struct {
 	// notifyNewCRL will be closed when a new CRL is available. It is protected
 	// by mu.
 	notifyNewSignedCRL chan struct{}
+
+	revocationsEventProcessedCh chan struct{}
 }
 
 // NewRevocationService returns a new instance of the RevocationService.
@@ -128,18 +135,19 @@ func NewRevocationService(cfg *RevocationServiceConfig) (*RevocationService, err
 		cfg.Clock = clockwork.NewRealClock()
 	}
 	return &RevocationService{
-		authorizer:          cfg.Authorizer,
-		store:               cfg.Store,
-		clock:               cfg.Clock,
-		emitter:             cfg.Emitter,
-		logger:              cfg.Logger,
-		clusterName:         cfg.ClusterName,
-		certAuthorityGetter: cfg.CertAuthorityGetter,
-		keyStore:            cfg.KeyStore,
-		eventsWatcher:       cfg.EventsWatcher,
-		crlSigningDebounce:  5 * time.Second,
-		crlFailureBackoff:   30 * time.Second,
-		crlPeriodicRenewal:  10 * time.Minute,
+		authorizer:                  cfg.Authorizer,
+		store:                       cfg.Store,
+		clock:                       cfg.Clock,
+		emitter:                     cfg.Emitter,
+		logger:                      cfg.Logger,
+		clusterName:                 cfg.ClusterName,
+		certAuthorityGetter:         cfg.CertAuthorityGetter,
+		keyStore:                    cfg.KeyStore,
+		eventsWatcher:               cfg.EventsWatcher,
+		crlSigningDebounce:          5 * time.Second,
+		crlFailureBackoff:           30 * time.Second,
+		crlPeriodicRenewal:          10 * time.Minute,
+		revocationsEventProcessedCh: cfg.RevocationsEventProcessedCh,
 
 		notifyNewSignedCRL: make(chan struct{}),
 	}, nil
@@ -536,6 +544,9 @@ func (s *RevocationService) watchAndSign(ctx context.Context) error {
 					s.logger.DebugContext(ctx, "Starting debounce timer for signing of new CRL")
 					debounceCh = s.clock.After(s.crlSigningDebounce)
 				}
+			}
+			if s.revocationsEventProcessedCh != nil {
+				s.revocationsEventProcessedCh <- struct{}{}
 			}
 			continue
 		case <-w.Done():
