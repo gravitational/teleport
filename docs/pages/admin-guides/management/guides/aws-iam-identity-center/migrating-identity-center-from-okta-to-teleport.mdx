@@ -6,7 +6,7 @@ tocDepth: 3
 
 By default, the Teleport AWS IAM Identity Center integration:
 - Controls user and group provisioning into Identity Center,
-- Controls AWS account permission assignment provisioning into Identity Center, and
+- Controls AWS account assignment provisioning into Identity Center, and
 - Authenticates user access to AWS console via Teleport SAML IdP.
 
 This is fine for most deployments, but can cause difficulties when integrating Teleport with
@@ -15,7 +15,7 @@ an existing Okta-managed AWS IAM Identity Center configuration.
 This guide introduces a hybrid setup and a migration path to integrate Teleport in
 such an existing Okta-managed AWS IAM Identity Center configuration where Okta will
 continue working as an SSO provider to AWS console while Teleport manages user, group
-and AWS account permission assignment provisioning.
+and AWS account assignment provisioning.
 
 ### Migration Path
 
@@ -50,7 +50,7 @@ retired, leaving Okta only providing SSO login.
 ## Prerequisites
 
  - A working Teleport cluster.
- - An AWS role configured as per the [Identity Center guide](./aws-iam-identity-center.mdx#step-16-configure-aws-integration)
+ - An AWS role configured as per the [AWS IAM Identity Center guide](./guide.mdx#step-16-configure-aws-integration)
    for the integration to use.
  - AWS credentials configured for the Teleport auth process to pick up and use
    (e.g. as environment vars, system profiles, etc).
@@ -200,30 +200,30 @@ excluding all local Teleport users.
 
 ### AWS account import control
 
-By default, Teleport will take control of Account Assignments for all AWS Accounts
+By default, Teleport will take control of account assignments for all AWS Accounts
 managed by Identity Center. You can create an allow-list of AWS Accounts to
 import with the  `--account-name` and `--account-id` install options.
 
 The `--account-name` filters work like the `--group-name` filters above. The
 `--account-id` filters specify a literal AWS Account ID.
 
-Teleport will not create or delete Account Assignments on AWS accounts outside
+Teleport will not create or delete account assignments on AWS accounts outside
 of its allow-list.
 
-## Step 5/7. Migrate AWS account permission assignments
+## Step 5/7. Migrate AWS account assignments
 
-We're now at the midway point, and ready to migrate Account Assignments from the
+We're now at the midway point, and ready to migrate account assignments from the
 Okta-managed groups into new Teleport-managed Access Lists. To migrate groups,
 create a new Access List in Teleport (taking care not to use the same name as
 the existing Okta-managed Group) and create the appropriate memberships and
-Account Assignments.
+account assignments.
 
-Account Assignments can be created on an Access List by assigning it the Account
+account assignments can be created on an Access List by assigning it the Account
 Assignment roles created by the Identity Center integration, assigning it a
 custom Teleport role that specifies a specific combination of access, or a
 combination of each.
 
-For more information, see the [Identity Center integration guide](./aws-iam-identity-center.mdx).
+For more information, see the [Identity Center integration guide](./guide.mdx).
 
 ## Step 6/7. Expanding Teleport integration scope
 
@@ -318,3 +318,15 @@ result in user access disruptions while the integration is offline.
 Once you are satisfied that an AWS IAM Identity Center group has been migrated to 
 Teleport control, you can remove the corresponding push Group from the Okta
 Identity Center integration.
+
+## Deleting the AWS IAM Identity Center integration
+
+Deleting the integration automatically removes all Teleport resources it used to manage its state.
+
+The impact of plugin deletion and general consideration is explained in the [AWS IAM Identity Center guide](./guide.mdx#how-do-i-uninstall-the-integration).
+
+Delete AWS IAM Identity Center plugin with `tctl`.
+
+```
+$ tctl plugins delete aws-identity-center
+```

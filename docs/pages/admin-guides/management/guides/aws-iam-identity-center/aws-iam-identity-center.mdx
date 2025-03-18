@@ -9,6 +9,46 @@ accounts and their permissions.
 
 With the AWS Identity Center integration, you can manage AWS access by granting short term or long term access with Identity Governance.
 
+## How it works
+
+The Identity Center integration builds on top of Teleport's [role-based access controls](../../../access-controls/guides/guides.mdx),
+[just-in-time Access Requests](../../../access-controls/access-requests/access-requests.mdx)
+and [Access Lists](../../../access-controls/access-lists/access-lists.mdx) to manage
+the creation and deletion of Identity Center _Account Assignments_. 
+
+An _account assignment_ is the combination of a specific AWS Permission Set on a 
+specific AWS account - for example "*AdminAccess on Production*" (where *Production* is 
+an AWS account managed by Identity Center). All possible Account Assignments are
+represented as resources within Teleport. When a user has access to an Account
+Assignment in Teleport, that access is mirrored in AWS Identity Center.
+
+When a Teleport user loses access to an Account Assignment in Teleport, that access
+is similarly deleted in AWS. 
+
+Access to Account Assignments can be granted via Teleport roles, either directly
+to users or through Access Lists, or by Account Assignment resources included in
+an approved Access Request.
+
+When the integration is enabled, Teleport takes ownership over Identity Center 
+users, groups, and permission set assignments:
+
+- All Identity Center groups, along with their members, account and permission
+  assignments, are imported into Teleport as Access Lists.
+- Identity Center account and permission assignments are expressed as Teleport
+  role policies.
+- Changes made to Teleport users or Access Lists with Identity Center assigned
+  permissions are reflected in the Identity Center.
+
+For managing long-term access, Teleport cluster administrators can designate
+Identity Center-synced Access Lists owners who will be responsible for adding
+or removing users and performing periodic access reviews. Users added to or
+removed from such Access Lists will be added to or removed from corresponding
+Identity Center groups.
+
+For short-term access, users can go through Teleport's standard Access Request
+flow in which case Teleport will assign requested privileges to a particular
+user and automatically unassign once the Access Request expires.
+
 ## Guides
 - [Getting Started with AWS IAM Identity Center integration](guide.mdx)
 - [Migrating Okta-managed AWS IAM Identity Center integration to Teleport](migrating-identity-center-from-okta-to-teleport.mdx)
