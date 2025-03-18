@@ -302,6 +302,9 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.AUTOUPDATE_VERSION_CREATE]: Icons.Info,
   [eventCodes.AUTOUPDATE_VERSION_UPDATE]: Icons.Info,
   [eventCodes.AUTOUPDATE_VERSION_DELETE]: Icons.Info,
+  [eventCodes.HEALTH_CHECK_CONFIG_CREATE]: Icons.Info,
+  [eventCodes.HEALTH_CHECK_CONFIG_UPDATE]: Icons.Info,
+  [eventCodes.HEALTH_CHECK_CONFIG_DELETE]: Icons.Info,
 };
 
 export default function renderTypeCell(event: Event) {
