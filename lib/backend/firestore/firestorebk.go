@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
@@ -627,149 +628,64 @@ func (b *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 // TODO(tross|tigrato): DELETE IN V19.0.0 with the background migration
 func (b *Backend) documentSnapshots(ctx context.Context, startKey, endKey string, limit int, sort firestore.Direction) iter.Seq2[*firestore.DocumentSnapshot, error] {
 	return func(yield func(*firestore.DocumentSnapshot, error) bool) {
-		docsIter := newDocIter(b.svc.Collection(b.CollectionName).
+		snaps := snapshots(b.svc.Collection(b.CollectionName).
 			Where(keyDocProperty, ">=", []byte(startKey)).
 			Where(keyDocProperty, "<=", []byte(endKey)).
 			Limit(limit).
 			OrderBy(keyDocProperty, sort).
 			Documents(ctx))
 
-		legacyDocsIter := newDocIter(b.svc.Collection(b.CollectionName).
+		legacySnaps := snapshots(b.svc.Collection(b.CollectionName).
 			Where(keyDocProperty, ">=", startKey).
 			Where(keyDocProperty, "<=", endKey).
 			Limit(limit).
 			OrderBy(keyDocProperty, sort).
 			Documents(ctx))
 
-		brokenDocsIter := newDocIter(b.svc.Collection(b.CollectionName).
+		brokenSnaps := snapshots(b.svc.Collection(b.CollectionName).
 			Where(keyDocProperty, ">=", brokenKey(startKey)).
 			Where(keyDocProperty, "<=", brokenKey(endKey)).
 			Limit(limit).
 			OrderBy(keyDocProperty, sort).
 			Documents(ctx))
 
-		defer func() {
-			docsIter.stop()
-			legacyDocsIter.stop()
-			brokenDocsIter.stop()
-		}()
-
-		for {
-			docSnap, docSnapErr := docsIter.next()
-			legacySnap, legacySnapErr := legacyDocsIter.next()
-			brokenSnap, brokenSnapErr := brokenDocsIter.next()
-
-			// All items have been exhausted.
-			if errors.Is(docSnapErr, iterator.Done) &&
-				errors.Is(legacySnapErr, iterator.Done) &&
-				errors.Is(brokenSnapErr, iterator.Done) {
-				return
+		less := func(a, b *firestore.DocumentSnapshot) bool {
+			ar, errA := newRecordFromDoc(a)
+			if errA != nil {
+				return false
 			}
 
-			// All iterators failed.
-			if docSnapErr != nil && legacySnapErr != nil && brokenSnapErr != nil {
-				yield(nil, trace.NewAggregate(docSnapErr, legacySnapErr, brokenSnapErr))
-				return
+			br, errB := newRecordFromDoc(b)
+			if errB != nil {
+				return true
 			}
 
-			// Find the iterator with the next key in the sequence.
-			var docKey, legacyKey, brokenKey []byte
-			if docSnap != nil {
-				r, err := newRecordFromDoc(docSnap)
-				if err != nil {
-					yield(nil, err)
-					return
-				}
-				docKey = r.Key
-			}
+			return bytes.Compare(ar.Key, br.Key) < 0
+		}
 
-			if legacySnap != nil {
-				r, err := newRecordFromDoc(legacySnap)
-				if err != nil {
-					yield(nil, err)
-					return
-				}
-				legacyKey = r.Key
-			}
-
-			if brokenSnap != nil {
-				r, err := newRecordFromDoc(brokenSnap)
-				if err != nil {
-					yield(nil, err)
-					return
-				}
-				brokenKey = r.Key
-			}
-
-			compareKeys := func(key, other1, other2 []byte) bool {
-				expected := -1
-				if sort == firestore.Desc {
-					expected = 1
-				}
-
-				switch {
-				case len(key) == 0:
-					return false
-				case len(other1) == 0 && len(other2) == 0:
-					return true
-				case len(other1) == 0:
-					return bytes.Compare(key, other2) == expected
-				case len(other2) == 0:
-					return bytes.Compare(key, other1) == expected
-				default:
-					return bytes.Compare(key, other1) == expected && bytes.Compare(key, other2) == expected
-				}
-			}
-
-			switch {
-			case compareKeys(docKey, legacyKey, brokenKey):
-				docsIter.consume()
-				if !yield(docSnap, nil) {
-					return
-				}
-			case compareKeys(legacyKey, docKey, brokenKey):
-				legacyDocsIter.consume()
-				if !yield(legacySnap, nil) {
-					return
-				}
-			case compareKeys(brokenKey, legacyKey, docKey):
-				brokenDocsIter.consume()
-				if !yield(brokenSnap, nil) {
-					return
-				}
-			default:
-				yield(nil, errors.New("no valid snapshots found"))
+		for snap, err := range stream.MergeStreams(stream.MergeStreams(snaps, legacySnaps, less), brokenSnaps, less) {
+			if !yield(snap, err) || err != nil {
 				return
 			}
 		}
 	}
 }
 
-type docIter struct {
-	iter *firestore.DocumentIterator
-	snap *firestore.DocumentSnapshot
-	err  error
-}
+func snapshots(iter *firestore.DocumentIterator) iter.Seq2[*firestore.DocumentSnapshot, error] {
+	return func(yield func(*firestore.DocumentSnapshot, error) bool) {
+		defer iter.Stop()
 
-func newDocIter(iter *firestore.DocumentIterator) *docIter {
-	return &docIter{iter: iter}
-}
+		for {
+			snapshot, err := iter.Next()
+			if errors.Is(err, iterator.Done) {
+				return
+			}
 
-func (d *docIter) next() (*firestore.DocumentSnapshot, error) {
-	if d.snap == nil && d.err == nil {
-		d.snap, d.err = d.iter.Next()
+			if !yield(snapshot, err) || err != nil {
+				return
+			}
+		}
 	}
-
-	return d.snap, d.err
-}
-
-func (d *docIter) consume() {
-	d.snap, d.err = nil, nil
-}
-
-func (d *docIter) stop() {
-	d.snap, d.err = nil, nil
-	d.iter.Stop()
 }
 
 // GetRange returns range of elements
