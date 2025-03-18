@@ -1,4 +1,4 @@
-.version: &version "18.0.0-dev.multiad.1"
+.version: &version "18.0.0-dev.multiad.2"
 
 name: teleport-cluster
 apiVersion: v2
