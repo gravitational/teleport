@@ -850,3 +850,15 @@ From what I can tell from the [documentation](https://docs.github.com/en/apps/oa
 you can only do the basic github 2fa login flow. There is no support for MFA
 acr values like okta, or customized web flows with MFA like Auth0. Therefore
 Github connectors will be left out of the initial implementation.
+
+#### Headless
+
+Originally, Webauthn was the only supported MFA type for Headless, as legacy
+OTP is especially at risk to phishing attacks. However, a securely configured
+SSO MFA connector with Webauthn enforced by the provider is also sufficiently
+phishing proof. Therefore, SSO MFA will be supported as an MFA method for
+headless approvals.
+
+Note: as stated elsewhere in this RFD, it is the onus the administrator to
+head warnings in the documentation and ensure the secure setup of SSO MFA.
+Admins should not enable headless authentication with insecure SSO MFA setups.
