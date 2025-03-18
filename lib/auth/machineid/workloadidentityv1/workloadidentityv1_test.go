@@ -55,7 +55,11 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join"
+<<<<<<< HEAD
 	"github.com/gravitational/teleport/lib/auth/native"
+=======
+	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
+>>>>>>> 3ba99bc4fa (Fix flaky test in Revocations service. (#53071))
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	libevents "github.com/gravitational/teleport/lib/events"
@@ -72,7 +76,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func newTestTLSServer(t testing.TB) (*auth.TestTLSServer, *eventstest.MockRecorderEmitter) {
+func newTestTLSServer(t testing.TB, opts ...auth.TestTLSServerOption) (*auth.TestTLSServer, *eventstest.MockRecorderEmitter) {
 	as, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
@@ -80,9 +84,10 @@ func newTestTLSServer(t testing.TB) (*auth.TestTLSServer, *eventstest.MockRecord
 	require.NoError(t, err)
 
 	emitter := &eventstest.MockRecorderEmitter{}
-	srv, err := as.NewTestTLSServer(func(config *auth.TestTLSServerConfig) {
+	opts = append(opts, func(config *auth.TestTLSServerConfig) {
 		config.APIConfig.Emitter = emitter
 	})
+	srv, err := as.NewTestTLSServer(opts...)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -3001,9 +3006,15 @@ func TestRevocationService_UpsertWorkloadIdentityX509Revocation(t *testing.T) {
 
 func TestRevocationService_CRL(t *testing.T) {
 	t.Parallel()
-	srv, _ := newTestTLSServer(t)
+	revocationsEventCh := make(chan struct{})
+	fakeClock := clockwork.NewFakeClock()
+	srv, _ := newTestTLSServer(t, func(config *auth.TestTLSServerConfig) {
+		config.APIConfig.MutateRevocationsServiceConfig = func(config *workloadidentityv1.RevocationServiceConfig) {
+			config.RevocationsEventProcessedCh = revocationsEventCh
+			config.Clock = fakeClock
+		}
+	})
 	ctx := context.Background()
-	fakeClock := srv.Clock().(clockwork.FakeClock)
 
 	authorizedUser, _, err := auth.CreateUserAndRole(
 		srv.Auth(),
@@ -3083,6 +3094,12 @@ func TestRevocationService_CRL(t *testing.T) {
 			},
 		)
 		require.NoError(t, err)
+		// Wait for the revocation event to be processed.
+		select {
+		case <-time.After(5 * time.Second):
+			t.Fatalf("timed out waiting for revocation event to be processed")
+		case <-revocationsEventCh:
+		}
 	}
 	deleteRevocation := func(t *testing.T, name string) {
 		_, err = revocationsClient.DeleteWorkloadIdentityX509Revocation(
@@ -3092,6 +3109,12 @@ func TestRevocationService_CRL(t *testing.T) {
 			},
 		)
 		require.NoError(t, err)
+		// Wait for the revocation event to be processed.
+		select {
+		case <-time.After(5 * time.Second):
+			t.Fatalf("timed out waiting for revocation event to be processed")
+		case <-revocationsEventCh:
+		}
 	}
 
 	// Fetch the initial, empty, CRL
