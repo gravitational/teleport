@@ -1000,12 +1000,3 @@ const (
 	// OktaReviewerRoleContext  is the context used to name Okta Reviewer role created by Okta Access List sync
 	OktaReviewerRoleContext = "reviewer-okta-acl-role"
 )
-
-const (
-	// User-visible feature name for Teleport Identity Security (formerly
-	// Teleport Policy)
-	FeatureNameIdentitySecurity = "Teleport Identity Security"
-	// User-visible feature name for Teleport Identity Governance (formerly
-	// Teleport Identity)
-	FeatureNameIdentityGovernance = "Teleport Identity Governance"
-)
