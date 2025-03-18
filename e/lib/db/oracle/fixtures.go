@@ -1,6 +1,10 @@
 package oracle
 
 import (
+	"fmt"
+	"regexp"
+	"strings"
+
 	"github.com/gravitational/teleport/e/lib/db/oracle/protocol"
 )
 
@@ -46,20 +50,29 @@ var servicesRequestKerberos = decodeHexDumpOrPanic(`
 00000090  03 00 02 00 00 00 00 00  04 00 05 0b 20 02 00 00  |............ ...|
 000000a0  06 00 01 00 01 03 04 05  06                       |.........|`)
 
-// servicesResponseKerberosExpected is the expected server response to the servicesRequestKerberos payload.
+// servicesResponseKerberosExpected19 is the expected Oracle server ver 19 response to the servicesRequestKerberos payload.
 // We will use that for comparison and warn if there is mismatch.
-var servicesResponseKerberosExpected = decodeHexDumpOrPanic(`
+var servicesResponseKerberosExpected19 = decodeHexDumpOrPanic(`
 00000000  de ad be ef 00 9f 00 00  00 00 00 04 00 00 04 00  |................|
-00000010  03 00 00 00 00 00 04 00  05 15 00 00 00 00 02 00  |................|
+00000010  03 00 00 00 00 00 04 00  05 13 00 00 00 00 02 00  |................|
 00000020  06 00 1f 00 0e 00 01 de  ad be ef 00 03 00 00 00  |................|
 00000030  02 00 04 00 01 00 01 00  07 00 00 00 00 00 04 00  |................|
-00000040  05 15 00 10 00 00 02 00  06 fa ff 00 01 00 02 01  |................|
+00000040  05 13 00 10 00 00 02 00  06 fa ff 00 01 00 02 01  |................|
 00000050  00 09 00 00 4b 45 52 42  45 52 4f 53 35 00 04 00  |....KERBEROS5...|
-00000060  05 15 00 00 00 00 04 00  04 00 00 00 09 00 04 00  |................|
+00000060  05 13 00 00 00 00 04 00  04 00 00 00 09 00 04 00  |................|
 00000070  04 00 00 00 02 00 02 00  02 00 00 00 00 00 04 00  |................|
-00000080  05 15 00 10 00 00 01 00  02 00 00 03 00 02 00 00  |................|
-00000090  00 00 00 04 00 05 15 00  10 00 00 01 00 02 00     |...............|
+00000080  05 13 00 10 00 00 01 00  02 00 00 03 00 02 00 00  |................|
+00000090  00 00 00 04 00 05 13 00  10 00 00 01 00 02 00     |...............|
 `)
+
+// matchServicesResponseKerberosRegexp is version independent check for packets similar to servicesResponseKerberosExpected19. It replaces version-specific 0513 with 05.. regexp.
+// Values seen so far, corresponding to the major server version: 0x13=19, 0x15=21, 0x17=23.
+var matchServicesResponseKerberosRegexp = regexp.MustCompile(strings.ReplaceAll(fmt.Sprintf("%x", servicesResponseKerberosExpected19), "0513", "05.."))
+
+func matchServicesResponseKerberosExpected(payload []byte) bool {
+	formatted := fmt.Sprintf("%x", payload)
+	return matchServicesResponseKerberosRegexp.MatchString(formatted)
+}
 
 // acknowledgeServicesKerberos is a payload to acknowledge the receipt of services and move to the next phase.
 var acknowledgeServicesKerberos = decodeHexDumpOrPanic(`

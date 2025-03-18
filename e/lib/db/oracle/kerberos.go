@@ -1,9 +1,9 @@
 package oracle
 
 import (
-	"bytes"
 	"context"
 	"log/slog"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/jcmturner/gokrb5/v8/gssapi"
@@ -45,16 +45,24 @@ func (e *Engine) authenticateKerberos(username string, params protocol.KerberosA
 	return token.APReq.Marshal()
 }
 
-func verifyExpectedKerberosServices(incomingPacket *protocol.DataPacket) error {
+func verifyExpectedKerberosServices(ctx context.Context, log *slog.Logger, incomingPacket *protocol.DataPacket) error {
 	actualBytes, err := incomingPacket.DataPayload()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if !bytes.Equal(servicesResponseKerberosExpected, actualBytes) {
-		return trace.BadParameter("expected payload bytes mismatch, got %x", actualBytes)
+	switch {
+	case matchServicesResponseKerberosExpected(actualBytes):
+		return nil
+	case incomingPacket.HasSecureNetworkServices() && strings.Contains(string(actualBytes), "KERBEROS5"):
+		// this is a loose match; make a debug note about this fact.
+		log.DebugContext(ctx, "Found loose Kerberos service match.")
+		return nil
+	default:
+		// without KERBEROS5 in the message server will not accept Kerberos auth.
+		log.DebugContext(ctx, "Kerberos service request: unexpected server reply")
+		return trace.BadParameter("Kerberos service request: unexpected server reply")
 	}
-	return nil
 }
 
 // performKerberosAuth performs the Kerberos authentication flow against Oracle server.
@@ -73,7 +81,7 @@ func performKerberosAuth(ctx context.Context, log *slog.Logger, username string,
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = verifyExpectedKerberosServices(incomingPacket)
+	err = verifyExpectedKerberosServices(ctx, log, incomingPacket)
 	if err != nil {
 		return trace.Wrap(err)
 	}
