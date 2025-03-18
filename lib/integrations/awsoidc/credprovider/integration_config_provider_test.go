@@ -93,7 +93,7 @@ func (d *depsMock) GetProxies() ([]types.Server, error) {
 	return d.proxies, nil
 }
 
-func (d *depsMock) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
+func (d *depsMock) GetClusterName(_ context.Context) (types.ClusterName, error) {
 	return types.NewClusterName(types.ClusterNameSpecV2{ClusterName: "teleport.example.com", ClusterID: "cluster-id"})
 }
 

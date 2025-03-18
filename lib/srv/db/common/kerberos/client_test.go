@@ -110,7 +110,7 @@ func (m *mockAuth) GetCertAuthority(ctx context.Context, id types.CertAuthID, lo
 	return nil, nil
 }
 
-func (m *mockAuth) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
+func (m *mockAuth) GetClusterName(_ context.Context) (types.ClusterName, error) {
 	return types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: "TestCluster",
 		ClusterID:   "TestClusterID",

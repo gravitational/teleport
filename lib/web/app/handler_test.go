@@ -566,7 +566,7 @@ func (c *mockAuthClient) DeleteAppSession(ctx context.Context, r types.DeleteApp
 	return nil
 }
 
-func (c *mockAuthClient) GetClusterName(_ ...services.MarshalOption) (types.ClusterName, error) {
+func (c *mockAuthClient) GetClusterName(_ context.Context) (types.ClusterName, error) {
 	return mockClusterName{name: c.clusterName}, nil
 }
 

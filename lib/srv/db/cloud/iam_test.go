@@ -406,7 +406,7 @@ type mockAccessPoint struct {
 	authclient.DatabaseAccessPoint
 }
 
-func (m *mockAccessPoint) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
+func (m *mockAccessPoint) GetClusterName(_ context.Context) (types.ClusterName, error) {
 	return types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: "cluster.local",
 		ClusterID:   "cluster-id",

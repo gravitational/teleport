@@ -38,7 +38,7 @@ type fakeClient struct {
 	decisionClient decisionpb.DecisionServiceClient
 }
 
-func (c fakeClient) GetClusterName(_ ...services.MarshalOption) (types.ClusterName, error) {
+func (c fakeClient) GetClusterName(_ context.Context) (types.ClusterName, error) {
 	return types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: c.clusterName,
 		ClusterID:   c.clusterName,
