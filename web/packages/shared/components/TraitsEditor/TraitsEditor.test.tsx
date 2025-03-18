@@ -21,7 +21,12 @@ import Validation from 'shared/components/Validation';
 
 import { AllUserTraits } from 'teleport/services/user';
 
-import { traitsToTraitsOption, emptyTrait, TraitsEditor, type TraitsOption } from './TraitsEditor';
+import {
+  emptyTrait,
+  TraitsEditor,
+  traitsToTraitsOption,
+  type TraitsOption,
+} from './TraitsEditor';
 
 test('Available traits are rendered', async () => {
   const setConfiguredTraits = jest.fn();

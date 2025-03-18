@@ -18,9 +18,10 @@
 
 import { useState } from 'react';
 
+import type { TraitsOption } from 'shared/components/TraitsEditor';
+
 import { AllUserTraits } from 'teleport/services/user';
 
-import type { TraitsOption } from 'shared/components/TraitsEditor';
 import { UserAddEdit } from './UserAddEdit';
 
 export default {

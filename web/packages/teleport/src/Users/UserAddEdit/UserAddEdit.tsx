@@ -26,11 +26,11 @@ import Dialog, {
 import FieldInput from 'shared/components/FieldInput';
 import { FieldSelectAsync } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
+import { TraitsEditor } from 'shared/components/TraitsEditor';
 import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
 import UserTokenLink from './../UserTokenLink';
-import { TraitsEditor } from 'shared/components/TraitsEditor';
 import useDialog, { Props } from './useDialog';
 
 export default function Container(props: Props) {

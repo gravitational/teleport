@@ -19,11 +19,13 @@
 import { useState } from 'react';
 
 import { Option } from 'shared/components/Select';
+import {
+  traitsToTraitsOption,
+  type TraitsOption,
+} from 'shared/components/TraitsEditor';
 import { useAttemptNext } from 'shared/hooks';
 
 import { ResetToken, User } from 'teleport/services/user';
-
-import { traitsToTraitsOption, type TraitsOption } from 'shared/components/TraitsEditor';
 
 export default function useUserDialog(props: Props) {
   const { attempt, setAttempt } = useAttemptNext('');

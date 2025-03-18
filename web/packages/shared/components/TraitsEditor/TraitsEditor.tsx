@@ -24,6 +24,7 @@ import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { requiredAll, requiredField } from 'shared/components/Validation/rules';
 import { Attempt } from 'shared/hooks/useAttemptNext';
+
 import { AllUserTraits } from 'teleport/services/user';
 
 /**
@@ -273,4 +274,4 @@ export function traitsToTraitsOption(allTraits: AllUserTraits): TraitsOption[] {
     }
   }
   return newTrait;
-};
+}
