@@ -526,7 +526,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 
 		// If the cluster name has already been set, log a warning if the user
 		// is trying to change the name.
-		cn, err = asrv.Services.GetClusterName()
+		cn, err = asrv.Services.GetClusterName(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1413,7 +1413,7 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 	migrationStart(ctx, "remote_clusters", asrv.logger)
 	defer migrationEnd(ctx, "remote_clusters", asrv.logger)
 
-	clusterName, err := asrv.Services.GetClusterName()
+	clusterName, err := asrv.Services.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

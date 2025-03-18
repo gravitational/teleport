@@ -417,7 +417,7 @@ type mockAccessPoint struct {
 	services.GitServers
 }
 
-func (m mockAccessPoint) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
+func (m mockAccessPoint) GetClusterName(ctx context.Context) (types.ClusterName, error) {
 	return types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: "git.test",
 		ClusterID:   "git.test",

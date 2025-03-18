@@ -280,7 +280,7 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 
 	if c.CloudUsers == nil {
-		clusterName, err := c.AuthClient.GetClusterName()
+		clusterName, err := c.AuthClient.GetClusterName(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -443,7 +443,7 @@ func New(ctx context.Context, config Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clustername, err := config.AccessPoint.GetClusterName()
+	clustername, err := config.AccessPoint.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

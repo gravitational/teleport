@@ -1325,6 +1325,7 @@ func CollectOptions(opts ...Option) Options {
 
 // ClusterName tests cluster name.
 func (s *ServicesTestSuite) ClusterName(t *testing.T, opts ...Option) {
+	ctx := context.Background()
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "example.com",
 	})
@@ -1332,20 +1333,20 @@ func (s *ServicesTestSuite) ClusterName(t *testing.T, opts ...Option) {
 	err = s.LocalConfigS.SetClusterName(clusterName)
 	require.NoError(t, err)
 
-	gotName, err := s.ConfigS.GetClusterName()
+	gotName, err := s.ConfigS.GetClusterName(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(clusterName, gotName, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	err = s.LocalConfigS.DeleteClusterName()
 	require.NoError(t, err)
 
-	_, err = s.ConfigS.GetClusterName()
+	_, err = s.ConfigS.GetClusterName(ctx)
 	require.True(t, trace.IsNotFound(err))
 
 	err = s.LocalConfigS.UpsertClusterName(clusterName)
 	require.NoError(t, err)
 
-	gotName, err = s.ConfigS.GetClusterName()
+	gotName, err = s.ConfigS.GetClusterName(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(clusterName, gotName, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
@@ -1909,7 +1910,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(t *testing.T) {
 			kind: types.WatchKind{
 				Kind: types.KindClusterName,
 			},
-			crud: func(context.Context) types.Resource {
+			crud: func(ctx context.Context) types.Resource {
 				clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 					ClusterName: "example.com",
 				})
@@ -1918,7 +1919,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(t *testing.T) {
 				err = s.LocalConfigS.UpsertClusterName(clusterName)
 				require.NoError(t, err)
 
-				out, err := s.ConfigS.GetClusterName()
+				out, err := s.ConfigS.GetClusterName(ctx)
 				require.NoError(t, err)
 
 				err = s.LocalConfigS.DeleteClusterName()

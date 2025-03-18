@@ -360,7 +360,7 @@ func (s *ForwardServer) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*
 }
 
 func (s *ForwardServer) checkUserAccess(ident *sshca.Identity) error {
-	clusterName, err := s.cfg.AccessPoint.GetClusterName()
+	clusterName, err := s.cfg.AccessPoint.GetClusterName(s.Context())
 	if err != nil {
 		return trace.Wrap(err)
 	}

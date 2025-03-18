@@ -258,7 +258,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 	}
 	go c.expireSessions()
 
-	clustername, err := c.cfg.AccessPoint.GetClusterName()
+	clustername, err := c.cfg.AccessPoint.GetClusterName(closeContext)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

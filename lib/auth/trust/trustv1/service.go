@@ -34,7 +34,7 @@ import (
 
 type authServer interface {
 	// GetClusterName returns cluster name
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 
 	// GenerateHostCert uses the private key of the CA to sign the public key of
 	// the host (along with metadata like host ID, node name, roles, and ttl)
@@ -326,7 +326,7 @@ func (s *Service) RotateExternalCertAuthority(ctx context.Context, req *trustpb.
 		}
 	}
 
-	clusterName, err := s.authServer.GetClusterName()
+	clusterName, err := s.authServer.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

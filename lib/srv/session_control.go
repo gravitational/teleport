@@ -202,7 +202,7 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 		return ctx, trace.Wrap(err)
 	}
 
-	clusterName, err := s.cfg.AccessPoint.GetClusterName()
+	clusterName, err := s.cfg.AccessPoint.GetClusterName(ctx)
 	if err != nil {
 		return ctx, trace.Wrap(err)
 	}

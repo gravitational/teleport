@@ -881,7 +881,7 @@ func (m *mockCache) UpsertToken(ctx context.Context, token types.ProvisionToken)
 }
 
 // GetClusterName returns local auth domain of the current auth server
-func (m *mockCache) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
+func (m *mockCache) GetClusterName(_ context.Context) (types.ClusterName, error) {
 	return &types.ClusterNameV2{
 		Spec: types.ClusterNameSpecV2{
 			ClusterName: m.domainName,

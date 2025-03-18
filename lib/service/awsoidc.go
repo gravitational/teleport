@@ -73,7 +73,7 @@ func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater(channels automat
 		return trace.Wrap(err)
 	}
 
-	clusterNameConfig, err := authClient.GetClusterName()
+	clusterNameConfig, err := authClient.GetClusterName(process.GracefulExitContext())
 	if err != nil {
 		return trace.Wrap(err)
 	}

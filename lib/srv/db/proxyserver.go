@@ -158,7 +158,7 @@ func NewProxyServer(ctx context.Context, config ProxyServerConfig) (*ProxyServer
 		return nil, trace.Wrap(err)
 	}
 
-	clustername, err := config.AccessPoint.GetClusterName()
+	clustername, err := config.AccessPoint.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

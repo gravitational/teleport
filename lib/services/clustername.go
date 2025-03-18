@@ -73,7 +73,7 @@ func MarshalClusterName(clusterName types.ClusterName, opts ...MarshalOption) ([
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	
 	switch clusterName := clusterName.(type) {
 	case *types.ClusterNameV2:
 		if err := clusterName.CheckAndSetDefaults(); err != nil {

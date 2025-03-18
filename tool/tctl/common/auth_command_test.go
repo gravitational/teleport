@@ -399,7 +399,7 @@ type mockClient struct {
 	crl            []byte
 }
 
-func (c *mockClient) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
+func (c *mockClient) GetClusterName(_ context.Context) (types.ClusterName, error) {
 	return c.clusterName, nil
 }
 

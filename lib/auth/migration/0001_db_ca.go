@@ -72,7 +72,7 @@ func (d createDBAuthority) Up(ctx context.Context, b backend.Backend) error {
 		return trace.Wrap(err)
 	}
 
-	localClusterName, err := configSvc.GetClusterName()
+	localClusterName, err := configSvc.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

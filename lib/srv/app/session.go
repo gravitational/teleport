@@ -308,7 +308,7 @@ func (c *ConnectionsHandler) newSessionRecorder(ctx context.Context, startTime t
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := c.cfg.AccessPoint.GetClusterName()
+	clusterName, err := c.cfg.AccessPoint.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

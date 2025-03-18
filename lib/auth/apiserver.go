@@ -149,6 +149,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.GET("/:version/namespaces/:namespace", srv.WithAuth(srv.getNamespace))
 
 	// cluster configuration
+	// TODO(noah): DELETE IN v19.0.0 - from v18 we switched to a gRPC equiv.
 	srv.GET("/:version/configuration/name", srv.WithAuth(srv.getClusterName))
 
 	// SSO validation handlers
@@ -583,7 +584,7 @@ func (*APIServer) getNamespace(_ *ServerWithRoles, _ http.ResponseWriter, _ *htt
 }
 
 func (s *APIServer) getClusterName(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	cn, err := auth.GetClusterName()
+	cn, err := auth.GetClusterName(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

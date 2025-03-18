@@ -778,8 +778,8 @@ func (c *HTTPClient) ValidateGithubAuthCallback(ctx context.Context, q url.Value
 }
 
 // GetClusterName returns a cluster name
-func (c *HTTPClient) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("configuration", "name"), url.Values{})
+func (c *HTTPClient) GetClusterName(ctx context.Context) (types.ClusterName, error) {
+	out, err := c.Get(ctx, c.Endpoint("configuration", "name"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

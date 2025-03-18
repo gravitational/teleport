@@ -29,11 +29,10 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 type clusterNameGetter interface {
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
 type IDTokenValidatorConfig struct {
@@ -90,7 +89,7 @@ func (id *IDTokenValidator) Validate(
 		return nil, trace.Wrap(err)
 	}
 
-	clusterNameResource, err := id.ClusterNameGetter.GetClusterName()
+	clusterNameResource, err := id.ClusterNameGetter.GetClusterName(ctx)
 	if err != nil {
 		return nil, err
 	}
