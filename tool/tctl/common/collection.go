@@ -68,6 +68,24 @@ type ResourceCollection interface {
 	resources() []types.Resource
 }
 
+// namedResourceCollection is an implementation of [ResourceCollection] that
+// displays resources in a table as a list of names and nothing else.
+type namedResourceCollection []types.Resource
+
+// resources implements [ResourceCollection].
+func (c namedResourceCollection) resources() []types.Resource {
+	return c
+}
+
+// writeText implements [ResourceCollection].
+func (c namedResourceCollection) writeText(w io.Writer, verbose bool) error {
+	t := asciitable.MakeTable([]string{"Name"})
+	for _, override := range c {
+		t.AddRow([]string{override.GetName()})
+	}
+	return trace.Wrap(t.WriteTo(w))
+}
+
 type roleCollection struct {
 	roles []types.Role
 }
