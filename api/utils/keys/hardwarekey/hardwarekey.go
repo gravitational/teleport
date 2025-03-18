@@ -70,7 +70,8 @@ type PrivateKeyRef struct {
 // if it is used more broadly, though moving this to the keys package would cause an import cycle.
 type ContextualKeyInfo struct {
 	// ProxyHost is the root proxy hostname that a key is associated with.
-	ProxyHost string
+	ProxyHost    string
+	AgentCommand string
 }
 
 // NewPrivateKey returns a [PrivateKey] for the given service and ref.
