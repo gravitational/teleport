@@ -4805,6 +4805,12 @@ func (a *Server) GetSystemRoleAssertions(ctx context.Context, serverID string, a
 	return set, trace.Wrap(err)
 }
 
+var (
+	unstableDisableICSAppHeartbeats  = os.Getenv("TELEPORT_UNSTABLE_DISABLE_ICS_APP_HEARTBEATS") == "yes"
+	unstableDisableICSDBHeartbeats   = os.Getenv("TELEPORT_UNSTABLE_DISABLE_ICS_DB_HEARTBEATS") == "yes"
+	unstableDisableICSKubeHeartbeats = os.Getenv("TELEPORT_UNSTABLE_DISABLE_ICS_KUBE_HEARTBEATS") == "yes"
+)
+
 func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello) error {
 	// upstream hello is pulled and checked at rbac layer. we wait to send the downstream hello until we get here
 	// in order to simplify creation of in-memory streams when dealing with local auth (note: in theory we could
@@ -4815,12 +4821,12 @@ func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryCont
 		ServerID: a.ServerID,
 		Capabilities: &proto.DownstreamInventoryHello_SupportedCapabilities{
 			NodeHeartbeats:       true,
-			AppHeartbeats:        true,
-			AppCleanup:           true,
-			DatabaseHeartbeats:   true,
-			DatabaseCleanup:      true,
-			KubernetesHeartbeats: true,
-			KubernetesCleanup:    true,
+			AppHeartbeats:        !unstableDisableICSAppHeartbeats,
+			AppCleanup:           !unstableDisableICSAppHeartbeats,
+			DatabaseHeartbeats:   !unstableDisableICSDBHeartbeats,
+			DatabaseCleanup:      !unstableDisableICSDBHeartbeats,
+			KubernetesHeartbeats: !unstableDisableICSKubeHeartbeats,
+			KubernetesCleanup:    !unstableDisableICSKubeHeartbeats,
 		},
 	}
 	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {
