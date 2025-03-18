@@ -23,6 +23,6 @@ time = { version = "0.3", features = ["wasm-bindgen"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["time"] }
 tracing-web = "0.1.2"
-uuid = { version = "1.15.1", features = ["js"] }
+uuid = { version = "1.16.0", features = ["js"] }
 wasm-bindgen = "0.2.95"
 web-sys = { version = "0.3.76", features = ["ImageData"] }
