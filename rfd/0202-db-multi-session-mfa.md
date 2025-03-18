@@ -6,7 +6,7 @@ state: draft
 RFD 202 - Database Multi-session MFA
 
 Required Approvers:
-- Engineering: @r0mant && (@codingllama || @Joerger)
+- Engineering: @r0mant && (@rosstimothy || @Joerger)
 
 ## What
 
