@@ -219,9 +219,7 @@ const auth = {
   },
 
   headlessSSOGet(transactionId: string) {
-    return auth
-      .checkWebauthnSupport()
-      .then(() => api.get(cfg.getHeadlessSsoPath(transactionId)))
+    return api.get(cfg.getHeadlessSsoPath(transactionId))
       .then((json: any) => {
         json = json || {};
 
@@ -234,10 +232,12 @@ const auth = {
   headlessSSOAccept(transactionId: string) {
     return auth
       .getMfaChallenge({ scope: MfaChallengeScope.HEADLESS_LOGIN })
-      .then(challenge => auth.getMfaChallengeResponse(challenge, 'webauthn'))
+      .then(challenge => auth.getMfaChallengeResponse(challenge))
       .then(res => {
         const request = {
           action: 'accept',
+          mfaResponse: res,
+          // TODO(Joerger): DELETE IN v19.0.0, new clients send mfaResponse.
           webauthnAssertionResponse: res.webauthn_response,
         };
 
