@@ -38,7 +38,8 @@ For example:
 A Teleport cluster capable of WebAuthn is automatically capable of
 Headless WebAuthn without any additional configuration.
 
-<Details title="Optional: make Headless WebAuthn the default auth connector">
+<details>
+<summary>Optional: make Headless WebAuthn the default auth connector</summary>
 
 To make Headless WebAuthn the default authentication method for your Teleport
 Cluster, add `connector_name: headless` to your cluster configuration.
@@ -65,9 +66,10 @@ Update the configuration:
 $ tctl create -f cap.yaml
 # cluster auth preference has been updated
 ```
-</Details>
+</details>
 
-<Details title="Alternative: disable Headless WebAuthn">
+<details>
+<summary>Alternative: disable Headless WebAuthn</summary>
 
 Headless WebAuthn is enabled automatically when WebAuthn is configured. If you
 want to forbid Headless WebAuthn in your cluster, add `headless: false` to your
@@ -96,7 +98,7 @@ $ tctl create -f cap.yaml
 # cluster auth preference has been updated
 ```
 
-</Details>
+</details>
 
 ## Step 2/3. Initiate Headless WebAuthn
 

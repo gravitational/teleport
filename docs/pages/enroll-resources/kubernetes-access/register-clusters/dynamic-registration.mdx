@@ -96,7 +96,8 @@ Kubernetes clusters you register with your Teleport cluster. This is because the
 allows this Kubernetes Service instance to connect to Kubernetes cluster
 resources with any label key or value.
 
-<Details title="Selectively watching Kubernetes clusters">
+<details>
+<summary>Selectively watching Kubernetes clusters</summary>
 
 You can configure a Kubernetes Service instance to watch for a subset of
 Kubernetes clusters by including specific label keys and values instead of
@@ -129,7 +130,7 @@ When you create dynamic Kubernetes cluster resources later in this guide, you
 can assign them labels to ensure that only specific Kubernetes Service instances
 will watch for them.
 
-</Details>
+</details>
 
 ### Run the Teleport Kubernetes Service
 
@@ -285,7 +286,8 @@ definition using the following command:
 $ printf "    %s" $(cat kubeconfig | base64) >> kube_cluster.yaml
 ```
 
-<Details title="Add labels to your kube_cluster">
+<details>
+<summary>Add labels to your kube_cluster</summary>
 
 You can add labels to the `kube_cluster` resource, allowing you to manage access
 to specific clusters from your Teleport roles or Kubernetes Service instances.
@@ -339,7 +341,7 @@ element indicates an argument.
 Supported units are `ns`, `us` (or `µs`), `ms`, `s`, `m`, and `h`. The example
 above configures the Kubernetes Service to run the command every day.
 
-</Details>
+</details>
 
 To create the `kube_cluster` resource, run the following command:
 

@@ -41,7 +41,8 @@ is 12 hours).
 In the Teleport audit log, you will see an event of type `user.create` with
 information about the temporary user.
 
-<Details title="How can I inspect a temporary user resource?">
+<details>
+<summary>How can I inspect a temporary user resource?</summary>
 
 You can inspect a temporary `user` resource created via your SSO integration
 by using the `tctl` command:
@@ -94,7 +95,7 @@ spec:
 version: v2
 ```
 
-</Details>
+</details>
 
 ### Certificates for SSO users
 
@@ -120,7 +121,8 @@ The user belongs to the GitHub team `my-team`, which this Teleport cluster maps
 to the `access`, `editor`, and `auditor` roles in Teleport. (Read the guide for
 your SSO provider to determine how to configure role mapping.)
 
-<Details title="Inspecting your certificate subject">
+<details>
+<summary>Inspecting your certificate subject</summary>
 
 To inspect the contents of an X.509 certificate issued for your user after you
 sign in to Teleport via SSO, run the following commands:
@@ -138,7 +140,7 @@ following command:
 $ ssh-keygen -L -f ~/.tsh/keys/${TELEPORT_CLUSTER}/${SSO_USER}-ssh/${TELEPORT_CLUSTER}-cert.pub
 ```
 
-</Details>
+</details>
 
 ### Multiple SSO providers
 

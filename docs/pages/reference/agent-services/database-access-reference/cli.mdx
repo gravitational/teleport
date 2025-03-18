@@ -199,7 +199,8 @@ database running on the same host as Teleport.
 | `--out` | Name prefix for output files. |
 | `--ttl` | Certificate validity period. |
 
-<Details title="Setting up RBAC for signing database certificates">
+<details>
+<summary>Setting up RBAC for signing database certificates</summary>
 
 The `tctl` user must have permissions to impersonate the Teleport Database
 Service role, `Db`, in order to generate a signed database certificate. To add
@@ -253,7 +254,7 @@ Update your user by saving and closing the file in your editor.
 Log out of your Teleport cluster and log in again. You will now be able to run
 `tctl auth sign` for database-specific certificate formats.
 
-</Details>
+</details>
 
 (!docs/pages/includes/database-access/ttl-note.mdx!)
 
