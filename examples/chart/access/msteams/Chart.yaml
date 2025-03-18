@@ -1,4 +1,4 @@
-.version: &version "15.4.30-dev.vapopov.2"
+.version: &version "15.4.30-dev.vapopov.3"
 
 apiVersion: v2
 name: teleport-plugin-msteams
