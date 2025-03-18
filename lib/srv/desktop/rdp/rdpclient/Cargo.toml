@@ -38,7 +38,7 @@ tokio-boring = { git = "https://github.com/gravitational/boring", rev = "9989730
 utf16string = "0.2.0"
 uuid = { version = "1.15.1", features = ["v4"] }
 url = "2.5.4"
-picky = { version = "7.0.0-rc.11", default-features = false }
+picky = { version = "7.0.0-rc.13", default-features = false }
 picky-asn1-der = "0.5.2"
 picky-asn1-x509 = "0.14.3"
 picky-krb = "0.9.4"
