@@ -108,7 +108,7 @@ type Profile struct {
 	PrivateKeyPolicy keys.PrivateKeyPolicy `yaml:"private_key_policy"`
 
 	// PIVSlot is a specific piv slot that Teleport clients should use for hardware key support.
-	PIVSlot hardwarekey.PIVSlot `yaml:"piv_slot"`
+	PIVSlot hardwarekey.PIVSlotKeyString `yaml:"piv_slot"`
 
 	// MissingClusterDetails means this profile was created with limited cluster details.
 	// Missing cluster details should be loaded into the profile by pinging the proxy.

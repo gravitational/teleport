@@ -20,6 +20,25 @@ import (
 	"github.com/gravitational/trace"
 )
 
+var (
+	// PromptPolicyNone is default the PromptPolicy for private key policy HardwareKey.
+	PromptPolicyNone = PromptPolicy{TouchRequired: false, PINRequired: false}
+	// PromptPolicyTouch is default the PromptPolicy for private key policy HardwareKeyTouch.
+	PromptPolicyTouch = PromptPolicy{TouchRequired: true, PINRequired: false}
+	// PromptPolicyPIN is default the PromptPolicy for private key policy HardwareKeyPIN.
+	PromptPolicyPIN = PromptPolicy{TouchRequired: false, PINRequired: true}
+	// PromptPolicyTouchAndPIN is default the PromptPolicy for private key policy HardwareKeyTouchAndPIN.
+	PromptPolicyTouchAndPIN = PromptPolicy{TouchRequired: true, PINRequired: true}
+)
+
+// PromptPolicy specifies a hardware private key's PIN/touch policies.
+type PromptPolicy struct {
+	// TouchRequired means that touch is required for signatures.
+	TouchRequired bool
+	// PINRequired means that PIN is required for signatures.
+	PINRequired bool
+}
+
 // Prompt provides methods to interact with a hardware [PrivateKey].
 type Prompt interface {
 	// AskPIN prompts the user for a PIN.

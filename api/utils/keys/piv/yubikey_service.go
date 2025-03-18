@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 	"sync"
 
 	"github.com/go-piv/piv-go/piv"
@@ -95,16 +94,17 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 	}
 
 	// Get the requested or default PIV slot.
-	var pivSlot piv.Slot
+	var slotKey hardwarekey.PIVSlotKey
 	if config.CustomSlot != "" {
-		slotKey, err := strconv.ParseUint(string(config.CustomSlot), 16, 32)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		pivSlot, err = parsePIVSlot(uint32(slotKey))
+		slotKey, err = config.CustomSlot.Parse()
 	} else {
-		pivSlot, err = getDefaultKeySlot(config.Policy)
+		slotKey, err = hardwarekey.GetDefaultSlotKey(config.Policy)
 	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pivSlot, err := parsePIVSlot(slotKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -172,7 +172,7 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 
 	return hardwarekey.NewPrivateKey(s, &hardwarekey.PrivateKeyRef{
 		SerialNumber: y.serialNumber,
-		SlotKey:      pivSlot.Key,
+		SlotKey:      slotKey,
 		PublicKey:    slotCert.PublicKey,
 		Policy: hardwarekey.PromptPolicy{
 			TouchRequired: att.TouchPolicy != piv.TouchPolicyNever,
@@ -275,21 +275,6 @@ func (s *YubiKeyService) promptOverwriteSlot(ctx context.Context, msg string, ke
 		return trace.Wrap(trace.CompareFailed(msg), "user declined to overwrite slot")
 	}
 	return nil
-}
-
-func getDefaultKeySlot(policy hardwarekey.PromptPolicy) (piv.Slot, error) {
-	switch policy {
-	case hardwarekey.PromptPolicy{TouchRequired: false, PINRequired: false}:
-		return piv.SlotAuthentication, nil
-	case hardwarekey.PromptPolicy{TouchRequired: true, PINRequired: false}:
-		return piv.SlotSignature, nil
-	case hardwarekey.PromptPolicy{TouchRequired: true, PINRequired: true}:
-		return piv.SlotKeyManagement, nil
-	case hardwarekey.PromptPolicy{TouchRequired: false, PINRequired: false}:
-		return piv.SlotCardAuthentication, nil
-	default:
-		return piv.Slot{}, trace.BadParameter("unexpected private key policy %v", policy)
-	}
 }
 
 func nonTeleportCertificateMessage(slot piv.Slot, cert *x509.Certificate) string {

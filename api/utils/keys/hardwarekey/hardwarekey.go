@@ -23,7 +23,6 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"io"
-	"strconv"
 
 	"github.com/gravitational/trace"
 )
@@ -52,7 +51,7 @@ type PrivateKeyRef struct {
 	// SerialNumber is the hardware key's serial number.
 	SerialNumber uint32 `json:"serial_number"`
 	// SlotKey is the key name for the hardware key PIV slot, e.g. "9a".
-	SlotKey uint32 `json:"slot_key"`
+	SlotKey PIVSlotKey `json:"slot_key"`
 	// PublicKey is the public key paired with the hardware private key.
 	PublicKey crypto.PublicKey `json:"-"` // uses custom JSON marshaling in PKIX, ASN.1 DER form
 	// Policy specifies the hardware private key's PIN/touch prompt policies.
@@ -72,14 +71,6 @@ type PrivateKeyRef struct {
 type ContextualKeyInfo struct {
 	// ProxyHost is the root proxy hostname that a key is associated with.
 	ProxyHost string
-}
-
-// PromptPolicy specifies a hardware private key's PIN/touch policies.
-type PromptPolicy struct {
-	// TouchRequired means that touch is required for signatures.
-	TouchRequired bool
-	// PINRequired means that PIN is required for signatures.
-	PINRequired bool
 }
 
 // NewPrivateKey returns a [PrivateKey] for the given service and ref.
@@ -156,9 +147,12 @@ type hardwarePrivateKeyRefJSON struct {
 
 // UnmarshalJSON marshals [PrivateKeyRef] with custom logic for the public key.
 func (r PrivateKeyRef) MarshalJSON() ([]byte, error) {
-	pubDER, err := x509.MarshalPKIXPublicKey(r.PublicKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var pubDER []byte
+	if r.PublicKey != nil {
+		var err error
+		if pubDER, err = x509.MarshalPKIXPublicKey(r.PublicKey); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return json.Marshal(&hardwarePrivateKeyRefJSON{
@@ -175,9 +169,11 @@ func (r *PrivateKeyRef) UnmarshalJSON(b []byte) error {
 		return trace.Wrap(err)
 	}
 
-	ref.refAlias.PublicKey, err = x509.ParsePKIXPublicKey(ref.PublicKeyDER)
-	if err != nil {
-		return trace.Wrap(err)
+	if len(ref.PublicKeyDER) > 0 {
+		ref.refAlias.PublicKey, err = x509.ParsePKIXPublicKey(ref.PublicKeyDER)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	*r = PrivateKeyRef(ref.refAlias)
@@ -194,25 +190,7 @@ type PrivateKeyConfig struct {
 	//   - !touch & pin  -> 9c
 	//   - touch & pin   -> 9d
 	//   - touch & !pin  -> 9e
-	CustomSlot PIVSlot
+	CustomSlot PIVSlotKeyString
 	// ContextualKeyInfo contains additional info to associate with the key.
 	ContextualKeyInfo ContextualKeyInfo
-}
-
-// PIVSlot is the string representation of a PIV slot. e.g. "9a".
-type PIVSlot string
-
-// Validate that the PIV slot is a valid value.
-func (s PIVSlot) Validate() error {
-	slotKey, err := strconv.ParseUint(string(s), 16, 32)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	switch slotKey {
-	case 0x9a, 0x9c, 0x9d, 0x9e:
-		return nil
-	default:
-		return trace.BadParameter("invalid PIV slot %q", s)
-	}
 }

@@ -135,7 +135,7 @@ type AuthPreference interface {
 	// GetHardwareKey returns the hardware key settings configured for the cluster.
 	GetHardwareKey() (*HardwareKey, error)
 	// GetPIVSlot returns the configured piv slot for the cluster.
-	GetPIVSlot() hardwarekey.PIVSlot
+	GetPIVSlot() hardwarekey.PIVSlotKeyString
 	// GetHardwareKeySerialNumberValidation returns the cluster's hardware key
 	// serial number validation settings.
 	GetHardwareKeySerialNumberValidation() (*HardwareKeySerialNumberValidation, error)
@@ -492,9 +492,9 @@ func (c *AuthPreferenceV2) GetHardwareKey() (*HardwareKey, error) {
 }
 
 // GetPIVSlot returns the configured piv slot for the cluster.
-func (c *AuthPreferenceV2) GetPIVSlot() hardwarekey.PIVSlot {
+func (c *AuthPreferenceV2) GetPIVSlot() hardwarekey.PIVSlotKeyString {
 	if hk, err := c.GetHardwareKey(); err == nil {
-		return hardwarekey.PIVSlot(hk.PIVSlot)
+		return hardwarekey.PIVSlotKeyString(hk.PIVSlot)
 	}
 	return ""
 }
@@ -841,7 +841,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	}
 
 	if hk, err := c.GetHardwareKey(); err == nil && hk.PIVSlot != "" {
-		if err := hardwarekey.PIVSlot(hk.PIVSlot).Validate(); err != nil {
+		if err := hardwarekey.PIVSlotKeyString(hk.PIVSlot).Validate(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
