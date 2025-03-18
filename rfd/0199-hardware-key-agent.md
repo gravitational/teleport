@@ -161,8 +161,9 @@ makes a `Sign` request through the agent, the agent client will prompt for
 PIN or touch if required.
 
 As a result, when PIN/touch is required, the dependent client will hang until
-it is prompted and handled by the agent client. Therefore, Teleport Connect
-will foreground these prompts to maintain seamless UX.
+it is prompted and handled by the agent client. When Teleport Connect acts as
+the agent client, it will automatically foreground itself to present these prompts
+to the user.
 
 Note: touch is cached for 15 seconds on the hardware key itself and PIN is
 optionally cached when [Hardware Key pin caching](#hardware-key-pin-caching)
