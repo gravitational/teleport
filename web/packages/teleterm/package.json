@@ -23,7 +23,7 @@
   "private": true,
   "homepage": "https://goteleport.com",
   "dependencies": {
-    "@grpc/grpc-js": "1.12.6",
+    "@grpc/grpc-js": "1.13.0",
     "@types/which": "^3.0.4",
     "node-forge": "^1.3.1",
     "node-pty": "1.1.0-beta14",
@@ -39,7 +39,7 @@
     "@gravitational/build": "workspace:*",
     "@gravitational/design": "workspace:*",
     "@gravitational/shared": "workspace:*",
-    "@protobuf-ts/grpc-transport": "^2.9.4",
+    "@protobuf-ts/grpc-transport": "^2.9.5",
     "@types/node-forge": "^1.3.11",
     "@types/tar-fs": "^2.0.4",
     "@types/whatwg-url": "^13.0.0",
@@ -52,9 +52,9 @@
     "jest-canvas-mock": "^2.5.2",
     "react-dnd": "^14.0.4",
     "react-dnd-html5-backend": "^14.0.2",
-    "whatwg-url": "^14.1.1",
+    "whatwg-url": "^14.2.0",
     "zod": "^3.24.2",
-    "zod-to-json-schema": "^3.24.3"
+    "zod-to-json-schema": "^3.24.4"
   },
   "productName": "Teleport Connect"
 }
