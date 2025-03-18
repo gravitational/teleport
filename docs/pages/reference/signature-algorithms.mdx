@@ -63,6 +63,8 @@ compiled with does not yet support Ed25519.
 For these reasons, the `fips-v1` suite is based on the `balanced-v1` suite but
 replaces all uses of Ed25519 with ECDSA.
 
+Using the `fips-v1` suite with an HSM or KMS configured is fully supported.
+
 ### `hsm-v1`
 
 The `hsm-v1` suite is designed for Cloud customers and self-hosted users that
@@ -76,6 +78,12 @@ Ed25519.
 For this reason, the `hsm-v1` suite is based on the `balanced-v1` suite but uses
 ECDSA in place of Ed25519 for all Certificate Authority keys.
 User and host SSH keys still use Ed25519.
+
+If you deploy Teleport in FIPS mode the `hsm-v1` suite is not compatible, you
+should use the `fips-v1` suite instead.
+The main difference between the two suites is that the `hsm-v1` suite still uses
+Ed25519 for user and host SSH keys, while the `fips-v1` suite does not use
+Ed25519 at all.
 
 ## Configuration
 
@@ -275,3 +283,9 @@ Created session 1
 Update `auth_service.ca_key_params.pkcs11.pin` or the file referenced by
 `auth_service.ca_key_params.pkcs11.pin_path` to use the ID of the new
 authentication key, then restart the Auth Service.
+
+### What if I use an HSM and FIPS mode?
+
+If you use Teleport in FIPS mode and you use an HSM or KMS for CA key storage,
+the supported signature algorithms suites are `fips-v1` and legacy.
+We recommend using the `fips-v1` suite.
