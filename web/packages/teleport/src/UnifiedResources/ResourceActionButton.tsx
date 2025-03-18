@@ -439,7 +439,6 @@ function makeSamlAppLoginWithMenuButton(
           buttonText="Log In"
           size="small"
           disableSearchAndFilter={true}
-          launchExternalUrl={true}
           placeholder="Select URL to log in"
         >
           {SamlActionMenu}
@@ -504,7 +503,6 @@ function makeSamlAppLoginButton(
           style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
           buttonText="Log In"
           disableSearchAndFilter={true}
-          launchExternalUrl={true}
           placeholder="Select URL to log in"
         />
       );
@@ -535,6 +533,7 @@ const makeSamlAppLoginOptions = (
     return {
       login: u.friendlyName ? u.friendlyName : u.url,
       url: u.url,
+      isExternalUrl: true,
     };
   });
 };

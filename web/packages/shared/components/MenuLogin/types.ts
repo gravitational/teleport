@@ -23,6 +23,8 @@ import { ButtonBorder } from 'design/Button';
 export type LoginItem = {
   url: string;
   login: string;
+  /** indicates url to be launched with an href attribute and in a new tab. */
+  isExternalUrl?: boolean;
 };
 
 // MenuInputType determines how the input present in the MenuLogin
@@ -53,8 +55,6 @@ export type MenuLoginProps = {
    * is shown if this value is set to true.
    */
   disableSearchAndFilter?: boolean;
-  /* launchExternalUrl specifies that the login URL points to an external URL. */
-  launchExternalUrl?: boolean;
   style?: CSSProperties;
 };
 

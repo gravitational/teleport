@@ -49,7 +49,6 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
       required = true,
       width,
       disableSearchAndFilter,
-      launchExternalUrl,
       style,
     } = props;
     const [filter, setFilter] = useState('');
@@ -159,7 +158,6 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
             placeholder={placeholder}
             width={width}
             disableSearchAndFilter={disableSearchAndFilter}
-            launchExternalUrl={launchExternalUrl}
           />
         </Menu>
       </React.Fragment>
@@ -176,7 +174,6 @@ const LoginItemList = ({
   placeholder,
   width,
   disableSearchAndFilter,
-  launchExternalUrl,
 }: {
   getLoginItemsAttempt: Attempt<LoginItem[]>;
   items: LoginItem[];
@@ -186,14 +183,8 @@ const LoginItemList = ({
   placeholder: string;
   width?: string;
   disableSearchAndFilter: boolean;
-  launchExternalUrl: boolean;
 }) => {
-  const content = getLoginItemListContent(
-    items,
-    getLoginItemsAttempt,
-    onClick,
-    launchExternalUrl
-  );
+  const content = getLoginItemListContent(items, getLoginItemsAttempt, onClick);
 
   return (
     <Flex flexDirection="column" minWidth={width}>
@@ -237,8 +228,7 @@ const LoginItemList = ({
 function getLoginItemListContent(
   items: LoginItem[],
   getLoginItemsAttempt: Attempt<LoginItem[]>,
-  onClick: (e: React.MouseEvent<HTMLAnchorElement>, login: string) => void,
-  launchExternalUrl: boolean
+  onClick: (e: React.MouseEvent<HTMLAnchorElement>, login: string) => void
 ) {
   switch (getLoginItemsAttempt.status) {
     case '':
@@ -258,8 +248,8 @@ function getLoginItemListContent(
       return null;
     case 'success':
       return items.map((item, key) => {
-        const { login, url } = item;
-        if (launchExternalUrl) {
+        const { login, url, isExternalUrl } = item;
+        if (isExternalUrl) {
           return (
             <StyledMenuItem
               key={key}
