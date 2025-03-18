@@ -22,10 +22,9 @@ import (
 	"context"
 	"testing"
 
-	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
@@ -58,16 +57,16 @@ func (m *mockEC2Client) DescribeInstances(ctx context.Context, input *ec2.Descri
 func instanceMatches(inst ec2types.Instance, filters []ec2types.Filter) bool {
 	allMatched := true
 	for _, filter := range filters {
-		name := awsv2.ToString(filter.Name)
+		name := aws.ToString(filter.Name)
 		val := filter.Values[0]
 		if name == AWSInstanceStateName && inst.State.Name != ec2types.InstanceStateNameRunning {
 			return false
 		}
 		for _, tag := range inst.Tags {
-			if awsv2.ToString(tag.Key) != name[4:] {
+			if aws.ToString(tag.Key) != name[4:] {
 				continue
 			}
-			allMatched = allMatched && awsv2.ToString(tag.Value) != val
+			allMatched = allMatched && aws.ToString(tag.Value) != val
 		}
 	}
 
@@ -91,7 +90,7 @@ func TestNewEC2InstanceFetcherTags(t *testing.T) {
 			},
 			expectedFilters: []ec2types.Filter{
 				{
-					Name:   awsv2.String(AWSInstanceStateName),
+					Name:   aws.String(AWSInstanceStateName),
 					Values: []string{string(ec2types.InstanceStateNameRunning)},
 				},
 			},
@@ -105,11 +104,11 @@ func TestNewEC2InstanceFetcherTags(t *testing.T) {
 			},
 			expectedFilters: []ec2types.Filter{
 				{
-					Name:   awsv2.String(AWSInstanceStateName),
+					Name:   aws.String(AWSInstanceStateName),
 					Values: []string{string(ec2types.InstanceStateNameRunning)},
 				},
 				{
-					Name:   awsv2.String("tag:hello"),
+					Name:   aws.String("tag:hello"),
 					Values: []string{"other"},
 				},
 			},
@@ -156,15 +155,15 @@ func TestEC2Watcher(t *testing.T) {
 	ctx := context.Background()
 
 	present := ec2types.Instance{
-		InstanceId: awsv2.String("instance-present"),
+		InstanceId: aws.String("instance-present"),
 		Tags: []ec2types.Tag{
 			{
-				Key:   awsv2.String("teleport"),
-				Value: awsv2.String("yes"),
+				Key:   aws.String("teleport"),
+				Value: aws.String("yes"),
 			},
 			{
-				Key:   awsv2.String("Name"),
-				Value: awsv2.String("Present"),
+				Key:   aws.String("Name"),
+				Value: aws.String("Present"),
 			},
 		},
 		State: &ec2types.InstanceState{
@@ -172,20 +171,20 @@ func TestEC2Watcher(t *testing.T) {
 		},
 	}
 	presentOther := ec2types.Instance{
-		InstanceId: awsv2.String("instance-present-2"),
+		InstanceId: aws.String("instance-present-2"),
 		Tags: []ec2types.Tag{{
-			Key:   awsv2.String("env"),
-			Value: awsv2.String("dev"),
+			Key:   aws.String("env"),
+			Value: aws.String("dev"),
 		}},
 		State: &ec2types.InstanceState{
 			Name: ec2types.InstanceStateNameRunning,
 		},
 	}
 	presentForEICE := ec2types.Instance{
-		InstanceId: awsv2.String("instance-present-3"),
+		InstanceId: aws.String("instance-present-3"),
 		Tags: []ec2types.Tag{{
-			Key:   awsv2.String("with-eice"),
-			Value: awsv2.String("please"),
+			Key:   aws.String("with-eice"),
+			Value: aws.String("please"),
 		}},
 		State: &ec2types.InstanceState{
 			Name: ec2types.InstanceStateNameRunning,
@@ -199,23 +198,23 @@ func TestEC2Watcher(t *testing.T) {
 				presentOther,
 				presentForEICE,
 				{
-					InstanceId: awsv2.String("instance-absent"),
+					InstanceId: aws.String("instance-absent"),
 					Tags: []ec2types.Tag{{
-						Key:   awsv2.String("env"),
-						Value: awsv2.String("prod"),
+						Key:   aws.String("env"),
+						Value: aws.String("prod"),
 					}},
 					State: &ec2types.InstanceState{
 						Name: ec2types.InstanceStateNameRunning,
 					},
 				},
 				{
-					InstanceId: awsv2.String("instance-absent-3"),
+					InstanceId: aws.String("instance-absent-3"),
 					Tags: []ec2types.Tag{{
-						Key:   awsv2.String("env"),
-						Value: awsv2.String("prod"),
+						Key:   aws.String("env"),
+						Value: aws.String("prod"),
 					}, {
-						Key:   awsv2.String("teleport"),
-						Value: awsv2.String("yes"),
+						Key:   aws.String("teleport"),
+						Value: aws.String("yes"),
 					}},
 					State: &ec2types.InstanceState{
 						Name: ec2types.InstanceStateNamePending,
