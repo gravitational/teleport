@@ -18,6 +18,7 @@
 
 import { MenuItem } from 'design';
 import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
+import { MenuInputType } from 'shared/components/MenuLogin';
 
 import { MenuLoginWithActionMenu } from './MenuLoginWithActionMenu';
 
@@ -76,7 +77,7 @@ test('disableSearchAndFilter should show static menu item laabel', async () => {
       ]}
       onSelect={() => null}
       placeholder="search me"
-      disableSearchAndFilter={true}
+      inputType={MenuInputType.NONE}
     >
       <MenuItem>Menu item</MenuItem>
     </MenuLoginWithActionMenu>

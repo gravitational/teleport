@@ -438,7 +438,7 @@ function makeSamlAppLoginWithMenuButton(
           onSelect={() => {}} // login item rendered as <a> link for saml apps.
           buttonText="Log In"
           size="small"
-          disableSearchAndFilter={true}
+          inputType={MenuInputType.NONE}
           placeholder="Select URL to log in"
         >
           {SamlActionMenu}
@@ -487,7 +487,7 @@ function makeSamlAppLoginButton(
       return (
         <MenuLogin
           width="100px"
-          inputType={MenuInputType.FILTER}
+          inputType={MenuInputType.NONE}
           onSelect={() => {}} // login item rendered as <a> link for saml apps.
           textTransform="none"
           alignButtonWidthToMenu
@@ -502,7 +502,6 @@ function makeSamlAppLoginButton(
           }}
           style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
           buttonText="Log In"
-          disableSearchAndFilter={true}
           placeholder="Select URL to log in"
         />
       );

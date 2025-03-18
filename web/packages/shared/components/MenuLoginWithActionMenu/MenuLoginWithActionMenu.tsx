@@ -51,7 +51,7 @@ export const MenuLoginWithActionMenu = ({
   width,
   size = 'medium',
   placeholder,
-  disableSearchAndFilter,
+  inputType,
 }: {
   /** button text for main menu button. */
   buttonText: string;
@@ -65,11 +65,8 @@ export const MenuLoginWithActionMenu = ({
   size?: ButtonSize;
   /** text for action menu search box or static label.  */
   placeholder?: string;
-  /**
-   * instructs underlying MenuLogin component to display static
-   * label text instead of default search box.
-   */
-  disableSearchAndFilter?: boolean;
+  /** input type for menu item filter input. */
+  inputType?: MenuInputType;
 }) => {
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -77,7 +74,7 @@ export const MenuLoginWithActionMenu = ({
     <Flex>
       <MenuLogin
         width={width}
-        inputType={MenuInputType.FILTER}
+        inputType={inputType}
         onSelect={onSelect}
         textTransform="none"
         alignButtonWidthToMenu
@@ -92,7 +89,6 @@ export const MenuLoginWithActionMenu = ({
         }}
         style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
         buttonText={buttonText}
-        disableSearchAndFilter={disableSearchAndFilter}
         placeholder={placeholder}
       />
       <ButtonBorder
