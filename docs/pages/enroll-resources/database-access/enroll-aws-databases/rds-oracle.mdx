@@ -51,6 +51,11 @@ CREATE USER "ALICE@EXAMPLE.COM" IDENTIFIED EXTERNALLY;
 GRANT CREATE SESSION TO "ALICE@EXAMPLE.COM";
 ```
 
+<Admonition type="note">
+  The username expected by Oracle RDS will be in uppercase followed by the realm name.
+  Alternative spellings are likely to cause issues.
+</Admonition>
+
 ## Step 3/9. Join the Linux node to Active Directory
 
 <Admonition type="note">
@@ -174,6 +179,9 @@ domain:
   </TabItem>
   <TabItem label="Other">
   If `adutil` is not available for your distribution, you can use `ktutil` instead. It should be available as a standard Kerberos utility.
+
+  Adjust usage based on the username and `kvno` for the given user.
+  
   ```code
   $ ktutil
 ktutil: addent -password -p alice@EXAMPLE.COM -k 1 -e aes256-cts-hmac-sha1-96
