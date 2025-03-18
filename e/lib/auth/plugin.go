@@ -8,11 +8,9 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"time"
 
 	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
@@ -51,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/release"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -674,24 +671,10 @@ func (p *Plugin) RegisterAuthWebHandlers(handler interface{}) error {
 		return trace.BadParameter("unsupported auth web handler type %T", handler)
 	}
 
-	apiServer.GET("/:version/license/status", httplib.MakeHandler(p.getLicenseCheckResult))
 	apiServer.POST("/:version/saml/requests/validate", apiServer.WithAuth(validateSAMLResponseWeb))
 	apiServer.POST("/:version/oidc/requests/validate", apiServer.WithAuth(validateOIDCAuthCallbackWeb))
 
 	return nil
-}
-
-// TODO(espadolini): delete once we're sure that the proxy doesn't use this
-func (p *Plugin) getLicenseCheckResult(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
-	return map[string]any{
-		"kind":    "heartbeat",
-		"version": "v2",
-		"metadata": map[string]any{
-			"name":    "heartbeat",
-			"created": time.Now().UTC(),
-		},
-		"spec": map[string]any{},
-	}, nil
 }
 
 // getUpgradeWindowStartHour is passed to the oss auth server to let it pull the start

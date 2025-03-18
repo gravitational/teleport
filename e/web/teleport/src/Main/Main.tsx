@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 
 import SwitchBack from 'e-teleport/Banner/Switchback';
-import { useBanner } from 'e-teleport/Banner/useBanner';
 import cfg from 'e-teleport/config';
 import { getEnterpriseFeatures } from 'e-teleport/features';
 import {
@@ -22,28 +21,6 @@ import { BblpLogo } from './bblpLogo';
 
 export function MainE() {
   const ctx = useTeleport();
-  const { license } = useBanner();
-
-  // TODO(hatch): In the near future the license warning will come over the same cluster
-  //              alerts endpoint and this check along with the `useBanner` call can be
-  //              removed.
-  const initialAlerts = [];
-  if (license) {
-    initialAlerts.push({
-      kind: 'license-warning',
-      version: 'v1',
-      metadata: {
-        name: 'license-warning',
-        labels: {},
-      },
-      expires: '',
-      spec: {
-        severity: 10,
-        message: license.text,
-        created: '',
-      },
-    });
-  }
 
   const customBanners = [];
   if (ctx.storeAccessRequests.getSessionExpiry()) {
@@ -72,7 +49,6 @@ export function MainE() {
   return (
     <Main
       features={getEnterpriseFeatures()}
-      initialAlerts={initialAlerts}
       customBanners={customBanners}
       inviteCollaboratorsFeedback={inviteCollaboratorsFeedback}
       topBarProps={
