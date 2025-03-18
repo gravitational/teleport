@@ -60,8 +60,6 @@ It will be compatible with all AWS tooling by providing a [configuration profile
 **Revoking certificates** is supported by IAM Roles Anywhere by using [`rolesanywhere.ImportCrl`](https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_ImportCrl.html) API), but it is not feature we are considering for this RFD.
 See related issue: [#51178](https://github.com/gravitational/teleport/issues/51178).
 
-**Access to Web Console** is not considered to narrow the focus to CLI/SDK UX, which is where we see more issues with using existing flows.
-
 **Auditing** API calls to AWS is not considered, only new sessions are audited.
 This is because API calls will not go through Teleport.
 This can be improved later on by pulling logs from AWS CloudTrail.
@@ -116,7 +114,7 @@ After adding them, a new Application appears in Teleport which can be given acce
 
 ## User experience
 
-### Enroll New Resource/Integration screens
+### Flow for: Enroll New Resource / AWS Access
 We have the following AWS Integrations in Enroll New Integration screen:
 - AWS External Audit Storage
 - AWS Identity Center
@@ -126,34 +124,19 @@ Adding another tile for "AWS Roles Anywhere" would create too many integrations 
 
 Instead, the AWS OIDC Identity Provider should be removed, and only accessible from the Enroll New Resource tiles.
 
-Given our focus to enable AWS CLI access, the existing Enroll New Resource/AWS CLI/Web Console tile must be split into:
-- AWS CLI Access
-- AWS Web Console Access
-
-The former will only use the new AWS Roles Anywhere integration, while the latter will rely on AWS OIDC integrations.
+The Enroll New Resource/ AWS CLI/Web Console tile will only accept AWS Roles Anywhere integrations.
 
 Other AWS related tiles (eg EC2 Auto Enrollment with SSM) will only be accessible using AWS OIDC integrations.
 
 In the future we might add support for AWS Roles Anywhere for the remaining AWS related flows.
 
-### Integration Dashboard
-Teleport has a status page for viewing the AWS OIDC Integration status.
+After clicking on adding a new AWS CLI/Web Console access, users can create a new AWS Roles Anywhere Integration.
 
-The dashboard must also support this new Integration.
-
-The stats page will report the number of synced IAM Profiles.
-
-User Tasks might also be created by the sync process and the following issue types will be reported:
-- IAM Roles Anywhere Trust Anchor was removed
-- Sync process has an invalid Roles Anywhere Profile and/or Role
-- IAM Role used for the sync process does not have the valid permissions
-- IAM Role associated with a profile does not accept the Trust Anchor ARN defined in the integration
-
-### Integration setup flow
+#### Create new Roles Anywhere Integration screen
 
 Setting up this integration consists on configuring AWS to trust Teleport.
 
-Administrator goes into "Enroll new resource" page and selects the "AWS CLI Access" tile.
+Administrator goes into "Enroll new resource" page and selects the "AWS CLI/Web Console Access" tile.
 
 A [summary of what IAM Roles Anywhere is](https://docs.aws.amazon.com/rolesanywhere/latest/userguide/introduction.html#first-time-user) and how Teleport uses it is displayed.
 
@@ -216,7 +199,7 @@ A [summary of what IAM Roles Anywhere is](https://docs.aws.amazon.com/rolesanywh
 └────────────────────────────────────────────┘ └─────────────────────┘  
 ```
 
-#### How IAM Roles Anywhere work with Teleport
+##### How IAM Roles Anywhere work with Teleport
 
 Teleport syncs IAM Roles Anywhere Profiles as an Application resource into Teleport, which allows you to define RBAC policies on them.
 
@@ -256,6 +239,40 @@ After accepting the names, they are asked to run a set up script in CloudShell.
 Users must now copy the resources ARN into teleport and test the connection (ie is teleport able to list profiles?).
 
 After this point, Teleport is now syncing IAM Roles Anywhere Profiles as Teleport AWS Application Access resources.
+
+If the first sync process fails, then users are required to fix the issue and try again.
+
+#### Set Up Access screen
+
+In this screen users are asked to configure access to their own user using traits.
+
+This includes two rules:
+- which Profiles they can access, which relies on `app_labels` Role rule
+- which IAM Roles they can assume, which relies on `aws_role_arn` Role rule and User traits
+
+Similar to existing flows, users are asked to enter the Role ARNs they want to access.
+
+This selection should be guided with the list of Role ARNs gathered from the synchronization process.
+
+#### Test Connection
+
+After completing the Set Up Access step, users land in the Test Connection step.
+
+This step allows them to test the access they've just created: by logging in into AWS using one of the IAM Roles which was configured in the previous step.
+
+
+### Integration Dashboard
+Teleport has a status page for viewing the AWS OIDC Integration status.
+
+The dashboard must also support this new Integration.
+
+The stats page will report the number of synced IAM Profiles.
+
+User Tasks might also be created by the sync process and the following issue types will be reported:
+- IAM Roles Anywhere Trust Anchor was removed
+- Sync process has an invalid Roles Anywhere Profile and/or Role
+- IAM Role used for the sync process does not have the valid permissions
+- IAM Role associated with a profile does not accept the Trust Anchor ARN defined in the integration
 
 ## Implementation
 
