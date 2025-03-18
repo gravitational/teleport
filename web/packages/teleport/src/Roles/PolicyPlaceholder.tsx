@@ -52,11 +52,11 @@ export function PolicyPlaceholder({
   const theme = useTheme();
   return (
     <Box maxWidth={promoImageWidth + 2 * 2} minWidth={300}>
-      <H1 mb={2}>{FeatureNames.identitySecurity} saves you from mistakes.</H1>
+      <H1 mb={2}>{FeatureNames.IdentitySecurity} saves you from mistakes.</H1>
       <Flex mb={4} gap={6} flexWrap="wrap" justifyContent="space-between">
         <Box flex="1" minWidth="30ch">
           <P>
-            {FeatureNames.identitySecurity} will visualize resource access paths
+            {FeatureNames.IdentitySecurity} will visualize resource access paths
             as you create and edit roles so you can always see what you are
             granting before you push a role into production.
           </P>
@@ -109,7 +109,7 @@ function VisualizeAccessPathsPanel(props: StepComponentProps) {
       content={
         <>
           See what you’re granting before pushing to prod.{' '}
-          {FeatureNames.identitySecurity} will show resource access paths
+          {FeatureNames.IdentitySecurity} will show resource access paths
           granted by your role before you save changes.
         </>
       }
@@ -124,7 +124,7 @@ function VisualizeDiffPanel(props: StepComponentProps) {
       heading="Visualize the diff in permissions as you edit roles"
       content={
         <>
-          Prevent mistakes. {FeatureNames.identitySecurity} shows you what
+          Prevent mistakes. {FeatureNames.IdentitySecurity} shows you what
           access is removed and what is added as you make edits to a role—all
           before you save your changes.
         </>
