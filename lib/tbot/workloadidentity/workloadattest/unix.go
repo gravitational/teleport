@@ -32,8 +32,9 @@ import (
 )
 
 // binaryHashMaxBytes is the maximum number of bytes we'll read from a process'
-// binary to calculate its SHA256 checksum.
-const binaryHashMaxBytes = 1024 * 1024 * 100
+// binary to calculate its SHA256 checksum. If the binary is larger than this we
+// will return an error (to prevent DoS attacks).
+const binaryHashMaxBytes = 1 << 30 // 1GiB
 
 // UnixAttestor attests a process id to a Unix process.
 type UnixAttestor struct {
