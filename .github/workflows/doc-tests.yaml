@@ -155,25 +155,3 @@ jobs:
 
       - name: Test the docs build
         run: cd $GITHUB_WORKSPACE/docs && yarn install && yarn build
-
-  stylecheck:
-    name: Lint docs prose style
-    runs-on: ubuntu-latest
-    needs: changes
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.new_docs_content == 'true' && github.event_name == 'pull_request' }}
-    permissions:
-      pull-requests: read
-    steps:
-      - name: Check out the teleport repo
-        uses: actions/checkout@v4
-        with:
-          repository: "gravitational/teleport"
-
-      - name: Run the linter
-        uses: errata-ai/vale-action@c99f2dfd2aeaedb3d4bb16f385841830b9164d31 # reviewdog
-        with:
-          version: 2.30.0
-          separator: ","
-          files: ${{ needs.changes.outputs.new_docs_content_files }}
-          fail_on_error: true
-
