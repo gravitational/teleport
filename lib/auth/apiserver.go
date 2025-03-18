@@ -111,9 +111,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.Router = *httprouter.New()
 	srv.Router.UseRawPath = true
 
-	// Kubernetes extensions
-	srv.POST("/:version/kube/csr", srv.WithAuth(srv.processKubeCSR))
-
 	// Passwords and sessions
 	srv.POST("/:version/users/:user/web/sessions", srv.WithAuth(srv.createWebSession))
 	srv.POST("/:version/users/:user/web/authenticate", srv.WithAuth(srv.authenticateWebUser))
@@ -818,21 +815,6 @@ func (s *APIServer) deleteAllTunnelConnections(auth *ServerWithRoles, w http.Res
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
-}
-
-func (s *APIServer) processKubeCSR(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req authclient.KubeCSR
-
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	re, err := auth.ProcessKubeCSR(req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return re, nil
 }
 
 func message(msg string) map[string]interface{} {
