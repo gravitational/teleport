@@ -84,6 +84,9 @@ func IsValidRegion(region string) error {
 	if matchRegion.MatchString(region) {
 		return nil
 	}
+	if matchGlobalRegion.MatchString(region) {
+		return nil
+	}
 	return trace.BadParameter("region %q is invalid", region)
 }
 
@@ -167,7 +170,19 @@ var (
 	//
 	// Reference:
 	// https://github.com/aws/aws-sdk-go-v2/blob/main/codegen/smithy-aws-go-codegen/src/main/resources/software/amazon/smithy/aws/go/codegen/endpoints.json
-	matchRegion = regexp.MustCompile(`^[a-z]{2}(-gov|-iso|-isob|-isoe)?-\w+-\d+$`)
+	matchRegion = regexp.MustCompile(`^[a-z]{2}(-gov|-global|-iso|-isob|-iso-b|-isoe|-iso-e|-isof|-iso-f)?-\w+-\d+$`)
+
+	// matchGlobalRegion is a regex that defines the format of AWS global regions.
+	// Those regions are usually used for endpoint resolution.
+	//
+	// The regex matches the following from left to right:
+	// - `aws` prefix.
+	// - optional -us-gov, -cn, -iso, -iso-b for corresponding partitions
+	// - `global` suffix.
+	//
+	// Reference:
+	// https://github.com/aws/aws-sdk-go-v2/blob/main/codegen/smithy-aws-go-codegen/src/main/resources/software/amazon/smithy/aws/go/codegen/endpoints.json
+	matchGlobalRegion = regexp.MustCompile(`^aws(-us-gov|-cn|-iso|-iso-b|-iso-e|-iso-f)?-global$`)
 
 	// https://docs.aws.amazon.com/athena/latest/APIReference/API_CreateWorkGroup.html
 	matchAthenaWorkgroupName = regexp.MustCompile(`^[a-zA-Z0-9._-]{1,128}$`).MatchString

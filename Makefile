@@ -1627,6 +1627,12 @@ terraform-resources-up-to-date: must-start-clean/host
 		exit 1; \
 	fi
 
+# update-aws-regions-go-definition updates the AWS regions definition used by
+# golang based on the AWS SDK.
+update-aws-regions-go-definition:
+	@go generate ./lib/utils/aws/generate.go 
+	@echo "AWS regions definition updated!"
+
 print/env:
 	env
 
