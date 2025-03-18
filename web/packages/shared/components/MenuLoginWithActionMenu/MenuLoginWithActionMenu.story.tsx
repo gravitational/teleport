@@ -39,47 +39,60 @@ export const MenuLoginWithActionMenu = () => {
         <H3>No logins</H3>
         <MenuLoginWithActionMenuComponent
           getLoginItems={() => []}
-          width="100px"
           onSelect={() => null}
-          buttonText="click me"
+          buttonText="Connect"
+          size="small"
         >
-          {MenuItems}
+          {menuItems}
         </MenuLoginWithActionMenuComponent>
       </Example>
       <Example>
         <H3>Processing state</H3>
         <MenuLoginWithActionMenuComponent
-          width="100px"
           getLoginItems={() => new Promise(() => {})}
           onSelect={() => null}
-          buttonText="click me"
+          buttonText="Connect"
+          size="small"
         >
-          {MenuItems}
+          {menuItems}
         </MenuLoginWithActionMenuComponent>
       </Example>
       <Example>
         <H3>With logins</H3>
         <MenuLoginWithActionMenuComponent
-          width="100px"
-          buttonText="click me"
+          size="small"
+          buttonText="Connect"
           getLoginItems={() => urlItems}
           onSelect={() => null}
           placeholder="Select item to log in..."
+          disableSearchAndFilter={true}
         >
-          {MenuItems}
+          {menuItems}
         </MenuLoginWithActionMenuComponent>
       </Example>
       <Example>
         <H3>With logins and search input</H3>
         <MenuLoginWithActionMenuComponent
-          width="100px"
-          buttonText="click me"
+          buttonText="Connect"
+          size="small"
           getLoginItems={() => loginItems}
           onSelect={() => null}
           placeholder="search login"
-          disableSearchAndFilter={true}
         >
-          {MenuItems}
+          {menuItems}
+        </MenuLoginWithActionMenuComponent>
+      </Example>
+      <Example>
+        <H3>Large button with custom width</H3>
+        <MenuLoginWithActionMenuComponent
+          size="large"
+          width="150px"
+          buttonText="Connect"
+          getLoginItems={() => urlItems}
+          onSelect={() => null}
+          placeholder="Select item to log in..."
+        >
+          {menuItems}
         </MenuLoginWithActionMenuComponent>
       </Example>
     </Flex>
@@ -102,7 +115,7 @@ const urlItems = [
 
 const loginItems = ['alice', 'bob', 'hector'].map(makeLoginItem);
 
-const MenuItems = (
+const menuItems = (
   <>
     <MenuItem onClick={() => alert('Foo')}>Foo</MenuItem>
     <MenuItem as="a" href="https://example.com" target="_blank">

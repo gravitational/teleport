@@ -300,6 +300,7 @@ const StyledMenuItem = styled(MenuItem)(
   border-bottom: 1px solid ${theme.colors.spotBackground[0]};
   min-height: 32px;
   display: inline-block;
+  text-align: left;
   max-width: 450px;
   overflow: hidden;
   white-space: nowrap;
