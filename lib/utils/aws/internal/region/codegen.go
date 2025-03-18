@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"text/template"
 
 	"github.com/gravitational/trace"
@@ -130,19 +131,14 @@ func main() {
 	}
 }
 
-// ListModule is the struct representation of the `go list` module output.
-// Only the necessary fields are included.
-type ListModule struct {
-	// Version is module version
-	Version string
-	// Dir is directory holding local copy of files, if any
-	Dir string
-}
-
 func convertToTemplateData(partitionsContents []byte) (*TemplateData, error) {
 	var awsPartitions AWSPartitions
 	if err := json.Unmarshal(partitionsContents, &awsPartitions); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if len(awsPartitions.Partitions) == 0 {
+		return nil, trace.BadParameter("generated an empty regions list. check if the partitions JSON file format has changed")
 	}
 
 	data := &TemplateData{
@@ -166,18 +162,13 @@ func convertToTemplateData(partitionsContents []byte) (*TemplateData, error) {
 
 // loadSDKPartitionsFile loads the partitions JSON file from AWS SDK.
 func loadSDKPartitionsFile() ([]byte, error) {
-	cmd := exec.Command("go", "list", "-m", "-json", awsPackageName)
-	listOutput, err := cmd.Output()
+	cmd := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", awsPackageName)
+	awsPackageDir, err := cmd.Output()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var module ListModule
-	if err := json.Unmarshal(listOutput, &module); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	contents, err := os.ReadFile(filepath.Join(module.Dir, awsPartitionsFilePath))
+	contents, err := os.ReadFile(filepath.Join(strings.TrimSpace(string(awsPackageDir)), awsPartitionsFilePath))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

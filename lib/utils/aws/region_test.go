@@ -52,6 +52,22 @@ func TestGetKnownRegions(t *testing.T) {
 	})
 
 }
+
+func TestGetKnownGlobalRegions(t *testing.T) {
+	// Picked a few regions just to make sure GetKnownGlobalRegions is returning
+	// something that includes these.
+	t.Run("hand picked", func(t *testing.T) {
+		for _, region := range []string{
+			"aws-global",
+			"aws-cn-global",
+			"aws-iso-b-global",
+		} {
+			require.Contains(t, GetKnownGlobalRegions(), region)
+		}
+	})
+
+}
+
 func TestIsKnownRegion(t *testing.T) {
 	for _, region := range GetKnownRegions() {
 		require.True(t, IsKnownRegion(region))
