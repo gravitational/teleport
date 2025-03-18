@@ -277,7 +277,7 @@ spec:
 
       # Initial joining must take place before this timestamp. May be
       # modified if bot has not yet joined.
-      expires: "2025-03-01T21:45:40.104524Z"
+      must_join_before: "2025-03-01T21:45:40.104524Z"
 
     # Parameters to tune rejoining behavior when the regular bot identity has
     # expired
@@ -293,8 +293,9 @@ spec:
       total_rejoins: 10
 
       # If set, rejoining is only valid before this timestamp; may be
-      # incremented to extend bot lifespan.
-      expires: ""
+      # incremented or reset to the empty string to allow rejoining once
+      # expired.
+      must_rejoin_before: "2026-03-01T21:45:40.104524Z"
 
 status:
   bound_keypair:
@@ -316,7 +317,9 @@ status:
 
     # A count of remaining rejoins; if `.spec.bound_keypair.rejoining.total_rejoins`
     # is incremented, this value will be incremented by the same amount. If
-    # decremented, this value cannot fall below zero.
+    # decremented, this value cannot fall below zero. If
+    # `.spec.bound_keypair.rejoining.unlimited` is set, this value will always
+    # be 0 but rejoin attempts will be succeed.
     remaining_rejoins: 10
 ```
 
@@ -496,11 +499,11 @@ We should take steps to improve visibility of bots at or near expiry, including:
 
 #### Outstanding Issue: Soft Bot Expiration
 
-The `spec.rejoining.expires` field can be used to prevent rejoining after a
-certain time, in tandem with the rejoin count limit. This has the - likely
-confusing - downside that bots will still be able to renew their certificates
-indefinitely past the expiration date, assuming their certs were valid at the
-time of expiration.
+The `spec.rejoining.must_rejoin_before` field can be used to prevent rejoining
+after a certain time, in tandem with the rejoin count limit. This has the -
+likely confusing - downside that bots will still be able to renew their
+certificates indefinitely past the expiration date, assuming their certs were
+valid at the time of expiration.
 
 Also, as with all Teleport resources, the `metadata.expires` field can also
 remove the token resource after a set time. Bots will also continue to renew
@@ -520,8 +523,7 @@ We would like to solve two expiration use cases:
 
 2. We should be able to prevent bot rejoins after a certain date, to control
    rejoining conditions in tandem with the rejoin counter. The
-   `spec.rejoining.expires` field accomplishes this, but does have a naming
-   collision with `metadata.expires`.
+   `spec.rejoining.must_rejoin_before` field may accomplish this.
 
 TODO: Ensure this is solved and not confusing.
 
