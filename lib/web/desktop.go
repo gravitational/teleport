@@ -292,7 +292,7 @@ func (h *Handler) prepareForCertIssuance(
 	desktopName, username string,
 ) (mfaRequired bool, certsReq *proto.UserCertsRequest, err error) {
 	// Check if MFA is required for this user/desktop combination.
-	mfaRequired, err = h.checkMFARequired(ctx, &isMFARequiredRequest{
+	mfaRequired, err = h.checkMFARequired(ctx, &IsMFARequiredRequest{
 		WindowsDesktop: &isMFARequiredWindowsDesktop{
 			DesktopName: desktopName,
 			Login:       username,
@@ -381,6 +381,9 @@ func (h *Handler) performSessionMFACeremony(
 			return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 				codec := tdpMFACodec{}
 
+				if chal.WebauthnChallenge == nil {
+					return nil, trace.AccessDenied("Desktop access requires WebAuthn MFA, please register a WebAuthn device to connect")
+				}
 				// Send the challenge over the socket.
 				msg, err := codec.Encode(
 					&client.MFAAuthenticateChallenge{

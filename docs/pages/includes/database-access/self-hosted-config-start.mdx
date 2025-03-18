@@ -17,7 +17,7 @@ Service:
 $ sudo teleport db configure create \
    -o file \
    --token=/tmp/token \
-   --proxy=<Var name="example.teleport.sh" /> \
+   --proxy=<Var name="example.teleport.sh" />:443 \
    --name={{ dbName }} \
    --protocol={{ dbProtocol }} \
    --uri={{ databaseAddress }} \
@@ -37,7 +37,7 @@ To configure the Teleport Database Service to trust a custom CA:
    $ sudo teleport db configure create \
       -o file \
       --token=/tmp/token \
-      --proxy=<Var name="example.teleport.sh:443" /> \
+      --proxy=<Var name="example.teleport.sh" />:443 \
       --name={{ dbName }} \
       --protocol={{ dbProtocol }} \
       --uri={{ databaseAddress }} \
@@ -53,7 +53,7 @@ without exporting the CA:
 $ sudo teleport db configure create \
    -o file \
    --token=/tmp/token \
-   --proxy=<Var name="example.teleport.sh:443" /> \
+   --proxy=<Var name="example.teleport.sh" />:443 \
    --name={{ dbName }} \
    --protocol={{ dbProtocol }} \
    --uri={{ databaseAddress }} \

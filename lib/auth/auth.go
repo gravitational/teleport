@@ -367,6 +367,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 		cfg.WorkloadIdentity = workloadIdentity
 	}
+	if cfg.WorkloadIdentityX509Revocations == nil {
+		cfg.WorkloadIdentityX509Revocations, err = local.NewWorkloadIdentityX509RevocationService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating WorkloadIdentityX509Revocation service")
+		}
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -423,47 +429,48 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
-		TrustInternal:             cfg.Trust,
-		PresenceInternal:          cfg.Presence,
-		Provisioner:               cfg.Provisioner,
-		Identity:                  cfg.Identity,
-		Access:                    cfg.Access,
-		DynamicAccessExt:          cfg.DynamicAccessExt,
-		ClusterConfiguration:      cfg.ClusterConfiguration,
-		AutoUpdateService:         cfg.AutoUpdateService,
-		Restrictions:              cfg.Restrictions,
-		Apps:                      cfg.Apps,
-		Kubernetes:                cfg.Kubernetes,
-		Databases:                 cfg.Databases,
-		DatabaseServices:          cfg.DatabaseServices,
-		AuditLogSessionStreamer:   cfg.AuditLog,
-		Events:                    cfg.Events,
-		WindowsDesktops:           cfg.WindowsDesktops,
-		SAMLIdPServiceProviders:   cfg.SAMLIdPServiceProviders,
-		UserGroups:                cfg.UserGroups,
-		SessionTrackerService:     cfg.SessionTrackerService,
-		ConnectionsDiagnostic:     cfg.ConnectionsDiagnostic,
-		Integrations:              cfg.Integrations,
-		UserTasks:                 cfg.UserTasks,
-		DiscoveryConfigs:          cfg.DiscoveryConfigs,
-		Okta:                      cfg.Okta,
-		AccessLists:               cfg.AccessLists,
-		DatabaseObjectImportRules: cfg.DatabaseObjectImportRules,
-		DatabaseObjects:           cfg.DatabaseObjects,
-		SecReports:                cfg.SecReports,
-		UserLoginStates:           cfg.UserLoginState,
-		StatusInternal:            cfg.Status,
-		UsageReporter:             cfg.UsageReporter,
-		UserPreferences:           cfg.UserPreferences,
-		PluginData:                cfg.PluginData,
-		KubeWaitingContainer:      cfg.KubeWaitingContainers,
-		Notifications:             cfg.Notifications,
-		AccessMonitoringRules:     cfg.AccessMonitoringRules,
-		CrownJewels:               cfg.CrownJewels,
-		BotInstance:               cfg.BotInstance,
-		SPIFFEFederations:         cfg.SPIFFEFederations,
-		StaticHostUser:            cfg.StaticHostUsers,
-		WorkloadIdentities:        cfg.WorkloadIdentity,
+		TrustInternal:                   cfg.Trust,
+		PresenceInternal:                cfg.Presence,
+		Provisioner:                     cfg.Provisioner,
+		Identity:                        cfg.Identity,
+		Access:                          cfg.Access,
+		DynamicAccessExt:                cfg.DynamicAccessExt,
+		ClusterConfiguration:            cfg.ClusterConfiguration,
+		AutoUpdateService:               cfg.AutoUpdateService,
+		Restrictions:                    cfg.Restrictions,
+		Apps:                            cfg.Apps,
+		Kubernetes:                      cfg.Kubernetes,
+		Databases:                       cfg.Databases,
+		DatabaseServices:                cfg.DatabaseServices,
+		AuditLogSessionStreamer:         cfg.AuditLog,
+		Events:                          cfg.Events,
+		WindowsDesktops:                 cfg.WindowsDesktops,
+		SAMLIdPServiceProviders:         cfg.SAMLIdPServiceProviders,
+		UserGroups:                      cfg.UserGroups,
+		SessionTrackerService:           cfg.SessionTrackerService,
+		ConnectionsDiagnostic:           cfg.ConnectionsDiagnostic,
+		Integrations:                    cfg.Integrations,
+		UserTasks:                       cfg.UserTasks,
+		DiscoveryConfigs:                cfg.DiscoveryConfigs,
+		Okta:                            cfg.Okta,
+		AccessLists:                     cfg.AccessLists,
+		DatabaseObjectImportRules:       cfg.DatabaseObjectImportRules,
+		DatabaseObjects:                 cfg.DatabaseObjects,
+		SecReports:                      cfg.SecReports,
+		UserLoginStates:                 cfg.UserLoginState,
+		StatusInternal:                  cfg.Status,
+		UsageReporter:                   cfg.UsageReporter,
+		UserPreferences:                 cfg.UserPreferences,
+		PluginData:                      cfg.PluginData,
+		KubeWaitingContainer:            cfg.KubeWaitingContainers,
+		Notifications:                   cfg.Notifications,
+		AccessMonitoringRules:           cfg.AccessMonitoringRules,
+		CrownJewels:                     cfg.CrownJewels,
+		BotInstance:                     cfg.BotInstance,
+		SPIFFEFederations:               cfg.SPIFFEFederations,
+		StaticHostUser:                  cfg.StaticHostUsers,
+		WorkloadIdentities:              cfg.WorkloadIdentity,
+		WorkloadIdentityX509Revocations: cfg.WorkloadIdentityX509Revocations,
 	}
 
 	as := Server{
@@ -679,6 +686,7 @@ type Services struct {
 	services.StaticHostUser
 	services.AutoUpdateService
 	services.WorkloadIdentities
+	services.WorkloadIdentityX509Revocations
 }
 
 // GetWebSession returns existing web session described by req.
@@ -2025,20 +2033,22 @@ func (a *Server) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hos
 	}
 
 	// create and sign!
-	return a.generateHostCert(ctx, services.HostCertParams{
+	return a.generateHostCert(ctx, sshca.HostCertificateRequest{
 		CASigner:      caSigner,
 		PublicHostKey: hostPublicKey,
 		HostID:        hostID,
 		NodeName:      nodeName,
-		Principals:    principals,
-		ClusterName:   clusterName,
-		Role:          role,
 		TTL:           ttl,
+		Identity: sshca.Identity{
+			Principals:  principals,
+			ClusterName: clusterName,
+			SystemRole:  role,
+		},
 	})
 }
 
 func (a *Server) generateHostCert(
-	ctx context.Context, p services.HostCertParams,
+	ctx context.Context, req sshca.HostCertificateRequest,
 ) ([]byte, error) {
 
 	readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
@@ -2047,7 +2057,7 @@ func (a *Server) generateHostCert(
 	}
 
 	var locks []types.LockTarget
-	switch p.Role {
+	switch req.Identity.SystemRole {
 	case types.RoleNode:
 		// Node role is a special case because it was previously suported as a
 		// lock target that only locked the `ssh_service`. If the same Teleport server
@@ -2060,9 +2070,9 @@ func (a *Server) generateHostCert(
 		// and `Node` fields if the role is `Node` so that the previous behavior
 		// is preserved.
 		// This is a legacy behavior that we need to support for backwards compatibility.
-		locks = []types.LockTarget{{ServerID: p.HostID, Node: p.HostID}, {ServerID: HostFQDN(p.HostID, p.ClusterName), Node: HostFQDN(p.HostID, p.ClusterName)}}
+		locks = []types.LockTarget{{ServerID: req.HostID, Node: req.HostID}, {ServerID: HostFQDN(req.HostID, req.Identity.ClusterName), Node: HostFQDN(req.HostID, req.Identity.ClusterName)}}
 	default:
-		locks = []types.LockTarget{{ServerID: p.HostID}, {ServerID: HostFQDN(p.HostID, p.ClusterName)}}
+		locks = []types.LockTarget{{ServerID: req.HostID}, {ServerID: HostFQDN(req.HostID, req.Identity.ClusterName)}}
 	}
 	if lockErr := a.checkLockInForce(readOnlyAuthPref.GetLockingMode(),
 		locks,
@@ -2070,7 +2080,7 @@ func (a *Server) generateHostCert(
 		return nil, trace.Wrap(lockErr)
 	}
 
-	return a.Authority.GenerateHostCert(p)
+	return a.Authority.GenerateHostCert(req)
 }
 
 // GetKeyStore returns the KeyStore used by the auth server
@@ -2112,7 +2122,7 @@ type certRequest struct {
 	traits wrappers.Traits
 	// activeRequests tracks privilege escalation requests applied
 	// during the construction of the certificate.
-	activeRequests services.RequestIDs
+	activeRequests []string
 	// appSessionID is the session ID of the application session.
 	appSessionID string
 	// appPublicAddr is the public address of the application.
@@ -2612,7 +2622,7 @@ func (a *Server) AugmentWebSessionCertificates(ctx context.Context, opts *Augmen
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromLocalIdentity(*x509Identity, a)
+	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(*x509Identity, a)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2901,6 +2911,7 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest, params sshca.Use
 		UsageKubernetes:  kubernetes,
 		UsageDesktop:     desktop,
 		PrivateKeyPolicy: string(params.Identity.PrivateKeyPolicy),
+		BotInstanceId:    req.botInstanceID,
 	})
 }
 
@@ -2934,7 +2945,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		defaultMode:          readOnlyAuthPref.GetLockingMode(),
 		username:             req.user.GetName(),
 		mfaVerified:          req.mfaVerified,
-		activeAccessRequests: req.activeRequests.AccessRequests,
+		activeAccessRequests: req.activeRequests,
 		deviceID:             req.deviceExtensions.DeviceID,
 	}); err != nil {
 		return nil, trace.Wrap(err)
@@ -3077,11 +3088,6 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	// All users have access to this and join RBAC rules are checked after the connection is established.
 	allowedLogins = append(allowedLogins, teleport.SSHSessionJoinPrincipal)
 
-	requestedResourcesStr, err := types.ResourceIDsToString(req.checker.GetAllowedResourceIDs())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	pinnedIP := ""
 	if caType == types.UserCA && (req.checker.PinSourceIP() || req.pinIP) {
 		if req.loginIP == "" {
@@ -3111,7 +3117,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		Identity: sshca.Identity{
 			Username:                req.user.GetName(),
 			Impersonator:            req.impersonator,
-			AllowedLogins:           allowedLogins,
+			Principals:              allowedLogins,
 			Roles:                   req.checker.RoleNames(),
 			PermitPortForwarding:    req.checker.CanPortForward(),
 			PermitAgentForwarding:   req.checker.CanForwardAgents(),
@@ -3129,7 +3135,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			BotName:                 req.botName,
 			BotInstanceID:           req.botInstanceID,
 			CertificateExtensions:   req.checker.CertificateExtensions(),
-			AllowedResourceIDs:      requestedResourcesStr,
+			AllowedResourceIDs:      req.checker.GetAllowedResourceIDs(),
 			ConnectionDiagnosticID:  req.connectionDiagnosticID,
 			PrivateKeyPolicy:        attestedKeyPolicy,
 			DeviceID:                req.deviceExtensions.DeviceID,
@@ -3220,7 +3226,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		AWSRoleARNs:             roleARNs,
 		AzureIdentities:         azureIdentities,
 		GCPServiceAccounts:      gcpAccounts,
-		ActiveRequests:          req.activeRequests.AccessRequests,
+		ActiveRequests:          req.activeRequests,
 		DisallowReissue:         req.disallowReissue,
 		Renewable:               req.renewable,
 		Generation:              req.generation,
@@ -4158,7 +4164,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		return nil, trace.NotFound("web session has expired")
 	}
 
-	accessInfo, err := services.AccessInfoFromLocalIdentity(identity, a)
+	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(identity, a)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4522,14 +4528,16 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		return nil, trace.Wrap(err)
 	}
 	// generate host SSH certificate
-	hostSSHCert, err := a.generateHostCert(ctx, services.HostCertParams{
+	hostSSHCert, err := a.generateHostCert(ctx, sshca.HostCertificateRequest{
 		CASigner:      caSigner,
 		PublicHostKey: req.PublicSSHKey,
 		HostID:        req.HostID,
 		NodeName:      req.NodeName,
-		ClusterName:   clusterName.GetClusterName(),
-		Role:          req.Role,
-		Principals:    req.AdditionalPrincipals,
+		Identity: sshca.Identity{
+			ClusterName: clusterName.GetClusterName(),
+			SystemRole:  req.Role,
+			Principals:  req.AdditionalPrincipals,
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -19,16 +19,9 @@
 package sshutils
 
 import (
-	"context"
-	"io"
-	"net"
-
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // DirectTCPIPReq represents the payload of an SSH "direct-tcpip" or
@@ -71,65 +64,4 @@ func ParseTCPIPForwardReq(data []byte) (*TCPIPForwardReq, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &r, nil
-}
-
-type channelOpener interface {
-	OpenChannel(name string, data []byte) (ssh.Channel, <-chan *ssh.Request, error)
-}
-
-// StartRemoteListener listens on the given listener and forwards any accepted
-// connections over a new "forwarded-tcpip" channel.
-func StartRemoteListener(ctx context.Context, sshConn channelOpener, srcAddr string, listener net.Listener) error {
-	srcHost, srcPort, err := SplitHostPort(srcAddr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	go func() {
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				if !utils.IsOKNetworkError(err) {
-					log.WithError(err).Warn("failed to accept connection")
-				}
-				return
-			}
-			logger := log.WithFields(log.Fields{
-				"srcAddr":    srcAddr,
-				"remoteAddr": conn.RemoteAddr().String(),
-			})
-
-			dstHost, dstPort, err := SplitHostPort(conn.RemoteAddr().String())
-			if err != nil {
-				conn.Close()
-				logger.WithError(err).Warn("failed to parse addr")
-				return
-			}
-
-			req := ForwardedTCPIPRequest{
-				Addr:     srcHost,
-				Port:     srcPort,
-				OrigAddr: dstHost,
-				OrigPort: dstPort,
-			}
-			if err := req.CheckAndSetDefaults(); err != nil {
-				conn.Close()
-				logger.WithError(err).Warn("failed to create forwarded tcpip request")
-				return
-			}
-			reqBytes := ssh.Marshal(req)
-
-			ch, rch, err := sshConn.OpenChannel(teleport.ChanForwardedTCPIP, reqBytes)
-			if err != nil {
-				conn.Close()
-				logger.WithError(err).Warn("failed to open channel")
-				continue
-			}
-			go ssh.DiscardRequests(rch)
-			go io.Copy(io.Discard, ch.Stderr())
-			go utils.ProxyConn(ctx, conn, ch)
-		}
-	}()
-
-	return nil
 }

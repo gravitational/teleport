@@ -15,10 +15,8 @@ You can also get started right away with a production-ready Teleport cluster by
 signing up for a [free trial of Teleport Enterprise
 Cloud](https://goteleport.com/signup/).
 
-<Figure width="700">
 ![Architecture of the setup you will complete in this
 guide](../../../img/linux-server-diagram.png)
-</Figure>
 
 We will run the following Teleport services:
 
@@ -155,7 +153,8 @@ one-time passwords (OTP) and multi-factor authenticators (WebAuthn). In this
 guide, you will need to enroll an OTP authenticator application using the QR
 code on the Teleport welcome screen.
 
-<Details title="Logging in via the CLI">
+<details>
+<summary>Logging in via the CLI</summary>
 
 In addition to Teleport's Web UI, you can access resources in your
 infrastructure via the `tsh` client tool.
@@ -164,10 +163,11 @@ Install `tsh` on your local workstation:
 
 (!docs/pages/includes/install-tsh.mdx!)
 
-Log in to receive short-lived certificates from Teleport:
+Log in to receive short-lived certificates from Teleport. Replace 
+<Var name="teleport.example.com" /> with your Teleport cluster's public address
+as configured above:
 
 ```code
-# Replace teleport.example.com with your Teleport cluster's public address as configured above.
 $ tsh login --proxy=<Var name="teleport.example.com" /> --user=teleport-admin
 > Profile URL:        https://teleport.example.com:443
   Logged in as:       teleport-admin
@@ -179,7 +179,7 @@ $ tsh login --proxy=<Var name="teleport.example.com" /> --user=teleport-admin
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-</Details>
+</details>
 
 ## Step 4/4. Enroll your infrastructure
 

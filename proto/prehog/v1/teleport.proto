@@ -77,6 +77,24 @@ enum UserKind {
   USER_KIND_BOT = 2;
 }
 
+// UserOrigin is the origin of a user account.
+// Keep the values in sync with UserOrigin enum defined in
+// API events and prehogv1alpha.
+enum UserOrigin {
+  // Indicates a legacy cluster emitting events without a defined user origin.
+  USER_ORIGIN_UNSPECIFIED = 0;
+  // Indicates a local user.
+  USER_ORIGIN_LOCAL = 1;
+  // Indicates an SSO user originated from the SAML or OIDC connector.
+  USER_ORIGIN_SSO = 2;
+  // Indicates a user originated from the Okta integration.
+  USER_ORIGIN_OKTA = 3;
+  // Indicates a user originated from the SCIM integration.
+  USER_ORIGIN_SCIM = 4;
+  // Indicates a user originated from the EntraID integration.
+  USER_ORIGIN_ENTRAID = 5;
+}
+
 // a set of activity counters for a single user; some old versions report
 // "ssh_port_sessions", counting both SSH port forwards and kubectl port-forward
 // connections in a single counter
@@ -122,6 +140,22 @@ message UserActivityRecord {
   uint64 bot_joins = 16;
   // counter of certificates issued for this user
   uint64 certificates_issued = 17;
+  // counter of SVIDs issued for each SPIFFE ID.
+  repeated SPIFFEIDRecord spiffe_ids_issued = 18;
+  // Indicates origin of this user account. Only
+  // recorded for the user login event.
+  UserOrigin user_origin = 19;
+  // counter of Access Requests created by this user.
+  uint64 access_requests_created = 20;
+  // counter of Access Requests reviewed by this user.
+  uint64 access_requests_reviewed = 21;
+  // counter of Access Lists reviewed by this user.
+  uint64 access_lists_reviewed = 22;
+  // counter of roles or traits granted to this user based on
+  // the Access List membership.
+  uint64 access_lists_grants = 23;
+  // counter of successful SAML IdP authentication by this user.
+  uint64 saml_idp_sessions = 24;
 }
 
 // the kind of a "resource" (e.g. a node, a database, a desktop, etc.)
@@ -182,6 +216,65 @@ message ResourceKindPresenceReport {
   repeated fixed64 resource_ids = 2;
 }
 
+// counters for bot instance activity coming from a specific auth server from a
+// specific cluster.
+//
+// PostHog event: tp.bot_instance.activity
+message BotInstanceActivityReport {
+  // randomly generated UUID for this specific report, 16 bytes (in string order)
+  //
+  // PostHog property: tp.report_uuid (in 8-4-4-4-12 string form)
+  bytes report_uuid = 1;
+
+  // cluster name, anonymized, 32 bytes (HMAC-SHA-256)
+  //
+  // PostHog property: tp.cluster_name (in base64)
+  bytes cluster_name = 2;
+
+  // hostid of the auth that collected this report, anonymized, 32 bytes (HMAC-SHA-256)
+  //
+  // PostHog property: tp.reporter_hostid (in base64)
+  bytes reporter_hostid = 3;
+
+  // beginning of the time window for this data; ending is not specified but is
+  // intended to be at most 15 minutes
+  //
+  // PostHog timestamp (not a property, the ingest time is tp.report_time instead)
+  google.protobuf.Timestamp start_time = 4;
+
+  // one set of counters for each bot instance
+  //
+  // PostHog property: tp.records (encoded as a map keyed by anonymized bot
+  // instance id, not as a list)
+  repeated BotInstanceActivityRecord records = 5;
+}
+
+// Records the activity for a single bot instance against a specific auth server
+// from a specific cluster.
+message BotInstanceActivityRecord {
+  // The UUID of the BotInstance, anonymized using HMAC-SHA-256.
+  bytes bot_instance_id = 1;
+  // The name of the user associated with the BotInstance,
+  // anonymized using HMAC-SHA-256.
+  // Enables correlation with the UserActivityRecord for the Bot.
+  bytes bot_user_name = 2;
+
+  // counter of bot joins
+  uint64 bot_joins = 3;
+  // counter of SPIFFE SVIDs issued
+  uint64 spiffe_svids_issued = 4;
+  // counter of certificates issued for this user
+  uint64 certificates_issued = 5;
+}
+
+// Used to record the issuance of a specific SPIFFE ID.
+message SPIFFEIDRecord {
+  // The anonymized SPIFFE ID - HMAC-SHA-256 (32 bytes)
+  bytes spiffe_id = 1;
+  // Number of SVIDs issued for the given spiffe_id.
+  uint32 svids_issued = 2;
+}
+
 message SubmitUsageReportsRequest {
   // at most 10 reports of all kinds in a single RPC, each shouldn't exceed 128KiB or so
   //
@@ -189,6 +282,8 @@ message SubmitUsageReportsRequest {
   repeated UserActivityReport user_activity = 1;
   // encoded as a separate tp.resource.counts PostHog event
   repeated ResourcePresenceReport resource_presence = 2;
+  // encoded as a seperate tp.bot_instance.activity PostHog event
+  repeated BotInstanceActivityReport bot_instance_activity = 3;
 }
 message SubmitUsageReportsResponse {
   // randomly generated UUID for this specific batch, 16 bytes (in string order)

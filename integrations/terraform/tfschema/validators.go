@@ -107,7 +107,7 @@ func (v VersionValidator) Validate(_ context.Context, req tfsdk.ValidateAttribut
 	fmt.Sscan(value.Value[1:], &version) // strip leading v<xx>
 
 	if version == 0 {
-		resp.Diagnostics.AddError("Version validation error", fmt.Sprintf("Attribute %v (%v) is not a vaild version (vXX)", req.AttributePath.String(), value.Value))
+		resp.Diagnostics.AddError("Version validation error", fmt.Sprintf("Attribute %v (%v) is not a valid version (vXX)", req.AttributePath.String(), value.Value))
 		return
 	}
 

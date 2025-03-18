@@ -75,7 +75,8 @@ Optional:
 
 Optional:
 
-- `conditions` (Attributes List) The conditions that must be met for this rule to be considered passed. (see [below for nested schema](#nested-schema-for-specrulesallowconditions))
+- `conditions` (Attributes List) The conditions that must be met for this rule to be considered passed.  Mutually exclusive with expression. (see [below for nested schema](#nested-schema-for-specrulesallowconditions))
+- `expression` (String) An expression written in Teleport's predicate language that must evaluate to true for this rule to be considered passed.  Mutually exclusive with conditions.
 
 ### Nested Schema for `spec.rules.allow.conditions`
 
@@ -131,4 +132,13 @@ Optional:
 Optional:
 
 - `dns_sans` (List of String) The DNS Subject Alternative Names (SANs) that should be included in an X509-SVID issued using this WorkloadIdentity.  Each entry in this list supports templating using attributes.
+- `subject_template` (Attributes) Used to configure the Subject Distinguished Name (DN) of the X509-SVID.  In most circumstances, it is recommended to prefer relying on the SPIFFE ID encoded in the URI SAN. However, the Subject DN may be needed to support legacy systems designed for X509 and not SPIFFE/WIMSE.  If not provided, the X509-SVID will be issued with an empty Subject DN. (see [below for nested schema](#nested-schema-for-specspiffex509subject_template))
+
+### Nested Schema for `spec.spiffe.x509.subject_template`
+
+Optional:
+
+- `common_name` (String) Common Name (CN) - 2.5.4.3 If empty, the RDN will be omitted from the DN.
+- `organization` (String) Organization (O) - 2.5.4.10 If empty, the RDN will be omitted from the DN.
+- `organizational_unit` (String) Organizational Unit (OU) - 2.5.4.11 If empty, the RDN will be omitted from the DN.
 

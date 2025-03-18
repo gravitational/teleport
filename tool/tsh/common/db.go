@@ -319,7 +319,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 					Database:    dbInfo.Database,
 					Roles:       dbInfo.Roles,
 				},
-				AccessRequests: profile.ActiveRequests.AccessRequests,
+				AccessRequests: profile.ActiveRequests,
 			})
 			return trace.Wrap(err)
 		}); err != nil {

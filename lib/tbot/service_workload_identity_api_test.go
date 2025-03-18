@@ -18,6 +18,7 @@ package tbot
 
 import (
 	"context"
+	"crypto/x509"
 	"fmt"
 	"net/url"
 	"os"
@@ -25,26 +26,26 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/experiment"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestBotWorkloadIdentityAPI(t *testing.T) {
-	experimentStatus := experiment.Enabled()
-	defer experiment.SetEnabled(experimentStatus)
-	experiment.SetEnabled(true)
+	t.Parallel()
 
 	ctx := context.Background()
 	log := utils.NewSlogLoggerForTests()
@@ -169,4 +170,27 @@ func TestBotWorkloadIdentityAPI(t *testing.T) {
 	require.NoError(t, err)
 	_, err = jwtsvid.ParseAndValidate(jwtSVID.Marshal(), jwtBundles, []string{"example.com"})
 	require.NoError(t, err)
+
+	// Check CRL is delivered - we have to manually craft the client for this
+	// since the current go-spiffe SDK doesn't support this.
+	// TODO(noah): I'll raise some changes upstream to add CRL field support to
+	// the go-spiffe SDK, and then we can remove this code.
+	conn, err := grpc.NewClient(
+		listenAddr.String(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	require.NoError(t, err)
+	spiffeWorkloadAPI := workload.NewSpiffeWorkloadAPIClient(conn)
+	stream, err := spiffeWorkloadAPI.FetchX509SVID(ctx, &workload.X509SVIDRequest{})
+	require.NoError(t, err)
+
+	resp, err := stream.Recv()
+	require.NoError(t, err)
+	require.Len(t, resp.Crl, 1)
+	crl, err := x509.ParseRevocationList(resp.Crl[0])
+	require.NoError(t, err)
+	require.Empty(t, crl.RevokedCertificateEntries)
+	tb, ok := set.Get(svid.ID.TrustDomain())
+	require.True(t, ok)
+	require.NoError(t, crl.CheckSignatureFrom(tb.X509Authorities()[0]))
 }

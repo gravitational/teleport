@@ -40,11 +40,17 @@ To prepare a Windows computer:
 1. Open a Command Prompt (`cmd.exe`) window on the Windows computer you want to enroll.
 
 {/*lint ignore ordered-list-marker-value*/}
-2. Export the Teleport user certificate authority by running the following command using your Teleport cluster address:
+2. Export the Teleport user certificate authority by running the following
+   command, assigning <Var name="teleport.example.com"/> to your
+   Teleport cluster address:
 
    ```code
-   $ curl.exe -fo teleport.cer <Var name="https://teleport.example.com"/>/webapi/auth/export?type=windows
+   $ curl.exe -fo teleport.cer https://<Var name="teleport.example.com"/>/webapi/auth/export?type=windows
    ```
+
+   If you are using Teleport's support for HSM-backed keys, then your Teleport cluster
+   has multiple user CAs (one for each Auth Service instance). You can download a bundle
+   containing all CAs by appending `&format=zip` to the URL.
 
 3. Download the Teleport Windows Auth setup program:
 
@@ -53,7 +59,11 @@ $ curl.exe -fo teleport-windows-auth-setup-v(=teleport.version=)-amd64.exe https
 ```
 
 4. Double-click the executable you downloaded to run the Teleport Windows Auth Setup program
-interactively and select the Teleport certificate that you exported when prompted.
+   interactively and select the Teleport certificate that you exported when prompted.
+
+   If you are using Teleport's support for HSM-backed keys and you downloaded a zip file in step 2,
+   then you should extract the zip file and repeat the process below for each CA certificate.
+   You can defer the reboot until you have installed all of the certificates.
 
    The setup program:
 
@@ -126,8 +136,8 @@ following for the Windows Desktop Service:
    version: v3
    teleport:
      nodename: <Var name="windows.teleport.example.com" />
-     proxy_server: <Var name="teleport.example.com:443" />
-     auth_token: <Var name="/tmp/token" />
+     proxy_server: <Var name="teleport.example.com" />:443
+     auth_token: "/tmp/token"
    windows_desktop_service:
      enabled: yes
      static_hosts:
@@ -164,7 +174,7 @@ following for the Windows Desktop Service:
    ```diff
    version: v3
    teleport:
-     nodename: windows.teleport.example.com
+     nodename: <Var name="windows.teleport.example.com" />
      proxy_server: teleport.example.com:443
      auth_token: /tmp/token
    windows_desktop_service:
@@ -184,7 +194,7 @@ following for the Windows Desktop Service:
    ```diff
    version: v3
    teleport:
-     nodename: windows.teleport.example.com
+     nodename: <Var name="windows.teleport.example.com" />
      proxy_server: teleport-proxy.example.com:443
    windows_desktop_service:
      enabled: yes

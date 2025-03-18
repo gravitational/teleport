@@ -32,7 +32,9 @@ to use.
 
 1. Wait for the newly created cluster to enter the "Uninitialized" state.
 
-1. Add an HSM to the new cluster, using the AWS Console or the AWS CLI:
+1. Add an HSM to the new cluster, using the AWS Console or the AWS CLI,
+   assigning <Var name="region"/> to your AWS region and <Var name="availability zone"/>
+   to your availability zone:
 
    ```code
    $ aws --region <Var name="region"/> cloudhsmv2 create-hsm --cluster-id <Var name="cluster ID"/> --availability-zone <Var name="availability zone"/>
@@ -282,6 +284,11 @@ auth_service:
       pin: "<CU_username>:<CU_password>"
       # pin_path can optionally be used to read the pin from a file
       # pin_path: /path/to/pin_file
+
+      # max_sessions configures the maximum number of open sessions for the HSM.
+      # If not set, it will default to the minimum of 1024 or the MaxRWSessionCount
+      # reported by the PKCS#11 module for the token. If set, must be greater than 1.
+      max_sessions: 10
 ```
   </TabItem>
 
@@ -306,6 +313,10 @@ auth_service:
       pin: "85cfpassword"
       # pin_path can optionally be used to read the pin from a file
       # pin_path: /path/to/pin_file
+
+      # Optionally specify the maximum number of open sessions for the HSM.
+      # If not set, it will default to 1024. If set, must be greater than 1.
+      max_sessions: 10
 ```
   </TabItem>
 </Tabs>

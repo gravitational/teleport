@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.workloadidentity.v1;
 
+import "teleport/trait/v1/trait.proto";
 import "teleport/workloadidentity/v1/join_attrs.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1";
@@ -48,6 +49,52 @@ message WorkloadAttrsUnix {
   uint32 uid = 4;
 }
 
+// Attributes sourced from the Podman workload attestor.
+message WorkloadAttrsPodman {
+  // Whether the workload passed Podman attestation.
+  bool attested = 1;
+  // Attributes of the container.
+  WorkloadAttrsPodmanContainer container = 2;
+  // Attributes of the pod, if the container is in one.
+  optional WorkloadAttrsPodmanPod pod = 3;
+}
+
+// Attributes of the container sourced from the Podman workload attestation.
+message WorkloadAttrsPodmanContainer {
+  // The name of the container.
+  string name = 1;
+  // The image the container is running.
+  string image = 2;
+  // The labels attached to the container.
+  map<string, string> labels = 3;
+}
+
+// Attributes of the pod sourced from the Podman workload attestation.
+message WorkloadAttrsPodmanPod {
+  // The name of the pod.
+  string name = 1;
+  // The labels attached to the pod.
+  map<string, string> labels = 2;
+}
+
+// Attributes sourced from the Docker workload attestor.
+message WorkloadAttrsDocker {
+  // Whether the workload passed Docker attestation.
+  bool attested = 1;
+  // Attributes of the container.
+  WorkloadAttrsDockerContainer container = 2;
+}
+
+// Attributes of the container sourced from the Docker workload attestation.
+message WorkloadAttrsDockerContainer {
+  // The name of the container.
+  string name = 1;
+  // The image the container is running.
+  string image = 2;
+  // The labels attached to the container.
+  map<string, string> labels = 3;
+}
+
 // The attributes provided by `tbot` regarding the workload's attestation.
 // This will be mostly unset if the workload has not requested credentials via
 // the SPIFFE Workload API.
@@ -56,6 +103,10 @@ message WorkloadAttrs {
   WorkloadAttrsUnix unix = 1;
   // The Kubernetes-specific attributes.
   WorkloadAttrsKubernetes kubernetes = 2;
+  // The Podman-specific attributes.
+  WorkloadAttrsPodman podman = 3;
+  // The Docker-specific attributes.
+  WorkloadAttrsDocker docker = 4;
 }
 
 // Attributes related to the user/bot making the request for a workload
@@ -71,6 +122,8 @@ message UserAttrs {
   string bot_instance_id = 4;
   // Labels of the user.
   map<string, string> labels = 5;
+  // Traits of the user.
+  repeated teleport.trait.v1.Trait traits = 6;
 }
 
 // The attributes of a principal requesting a workload identity. These

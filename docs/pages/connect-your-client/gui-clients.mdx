@@ -21,7 +21,7 @@ work with Teleport.
 - To check that you can connect to your Teleport cluster, sign in with `tsh login`. For example:
 
   ```code
-  $ tsh login --proxy=<Var name="teleport.example.com" /> --user=<Var name="email@example.com" />
+  $ tsh login --proxy=teleport.example.com --user=myuser@example.com
   ```
 
 - The Teleport Database Service configured to access a database. See one of our
@@ -508,12 +508,12 @@ The Oracle integration works only in the authenticated proxy mode. Start a local
 tsh proxy db --tunnel --port 1521 --db-user=<user> --db-name=<db-name> oracle
 ```
 
-<Notice type="tip">
+<Admonition type="tip">
 This command uses the local port 1521, but you can choose any port, or let
 `tsh` pick a local port at random if you omit the `--port` flag.
 You should specify a port to avoid the need to reconfigure your GUI client again
 later.
-</Notice>
+</Admonition>
 
 In "Connections" click the "+" button for a new database connection:
 

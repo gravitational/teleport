@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"os"
 	"strconv"
 	"time"
 
@@ -111,8 +112,10 @@ type CertAuthority struct {
 }
 
 // Identity is an identity of the user or service, e.g. Proxy or Node
+// Must be kept in sync with teleport.decision.v1alpha1.TLSIdentity.
 type Identity struct {
-	// Username is a username or name of the node connection
+	// Username is the name of the user (for end-users/bots) or the Host ID (for
+	// Teleport processes).
 	Username string
 	// Impersonator is a username of a user impersonating this user
 	Impersonator string
@@ -885,7 +888,7 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		)
 	}
 
-	if id.JoinAttributes != nil {
+	if id.JoinAttributes != nil && shouldPersistJoinAttrs() {
 		encoded, err := protojson.MarshalOptions{
 			// Use the proto field names as this is what we use in the
 			// templating engine and this being consistent for any user who
@@ -1317,4 +1320,11 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 	}
 
 	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certBytes}), nil
+}
+
+// shouldPersistJoinAttrs returns true if the join attributes should be persisted
+// into the X509 identity. This provides an emergency "off" handle for this
+// new behavior until we are confident it is working as expected.
+func shouldPersistJoinAttrs() bool {
+	return os.Getenv("TELEPORT_UNSTABLE_DISABLE_JOIN_ATTRS") != "yes"
 }

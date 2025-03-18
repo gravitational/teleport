@@ -37,11 +37,12 @@ After a user completes an SSO authentication flow, Teleport creates a temporary
 When a user signs in to Teleport with `tsh login`, they can configure the TTL of
 the `user` Teleport creates. Teleport enforces a limit of 30 hours (the default
 is 12 hours).
-  
+
 In the Teleport audit log, you will see an event of type `user.create` with
 information about the temporary user.
 
-<Details title="How can I inspect a temporary user resource?">
+<details>
+<summary>How can I inspect a temporary user resource?</summary>
 
 You can inspect a temporary `user` resource created via your SSO integration
 by using the `tctl` command:
@@ -94,7 +95,7 @@ spec:
 version: v2
 ```
 
-</Details>
+</details>
 
 ### Certificates for SSO users
 
@@ -120,7 +121,8 @@ The user belongs to the GitHub team `my-team`, which this Teleport cluster maps
 to the `access`, `editor`, and `auditor` roles in Teleport. (Read the guide for
 your SSO provider to determine how to configure role mapping.)
 
-<Details title="Inspecting your certificate subject">
+<details>
+<summary>Inspecting your certificate subject</summary>
 
 To inspect the contents of an X.509 certificate issued for your user after you
 sign in to Teleport via SSO, run the following commands:
@@ -138,14 +140,14 @@ following command:
 $ ssh-keygen -L -f ~/.tsh/keys/${TELEPORT_CLUSTER}/${SSO_USER}-ssh/${TELEPORT_CLUSTER}-cert.pub
 ```
 
-</Details>
+</details>
 
 ### Multiple SSO providers
 
 Since Teleport creates temporary users and issues short-lived certificates when
 a user authenticates via SSO, it is straightforward to integrate Teleport with
 multiple SSO providers. Besides the temporary `user` resource, no persistent
-backend data in Teleport is tied to a user's account with the SSO provider. 
+backend data in Teleport is tied to a user's account with the SSO provider.
 
 This also means that if one SSO provider becomes unavailable, the end user only
 needs to choose another SSO provider when signing in to Teleport. While the
@@ -187,7 +189,7 @@ The callback address can be changed if calling back to a remote machine
 instead of the local machine is required:
 
 ```code
-# --bind-addr sets the host and port tsh will listen on, and --callback changes 
+# --bind-addr sets the host and port tsh will listen on, and --callback changes
 # what link is displayed to the user
 $ tsh login --proxy=proxy.example.com --auth=github --bind-addr=localhost:1234 --callback https://remote.machine:1234
 ```
@@ -294,7 +296,7 @@ GitHub as an SSO option.
 (!docs/pages/includes/sso/saml-slo.mdx!)
 
 You may use `entity_descriptor_url` in lieu of `entity_descriptor` to fetch
-the entity descriptor from your IDP. 
+the entity descriptor from your IDP.
 
 We recommend "pinning" the entity descriptor by including the XML rather than
 fetching from a URL.
@@ -307,7 +309,7 @@ fetching from a URL.
 ```
 
 You may use `entity_descriptor_url`, in lieu of `entity_descriptor`, to fetch
-the entity descriptor from your IDP. 
+the entity descriptor from your IDP.
 
 We recommend "pinning" the entity descriptor by including the XML rather than
 fetching from a URL.
@@ -334,7 +336,7 @@ fetching from a URL.
 ```
 
 You may use `entity_descriptor_url`, in lieu of `entity_descriptor`, to fetch
-the entity descriptor from your IDP. 
+the entity descriptor from your IDP.
 
 We recommend "pinning" the entity descriptor by including the XML rather than
 fetching from a URL.
@@ -351,7 +353,7 @@ fetching from a URL.
 (!docs/pages/includes/sso/saml-slo.mdx!)
 
 You may use `entity_descriptor_url`, in lieu of `entity_descriptor`, to fetch
-the entity descriptor from your IDP. 
+the entity descriptor from your IDP.
 
 We recommend "pinning" the entity descriptor by including the XML rather than
 fetching from a URL.
@@ -366,7 +368,7 @@ fetching from a URL.
 </TabItem>
 </Tabs>
 
-Create the connector: 
+Create the connector:
 
 ```code
 $ tctl create -f connector.yaml
@@ -415,7 +417,7 @@ At this time, the `spec.provider` field should not be set for any other identity
 
 Along with sending groups, an SSO provider will also provide a user's email address.
 In many organizations, the username that a person uses to log in to a system is the
-same as the first part of their email address, the "local" part. 
+same as the first part of their email address, the "local" part.
 
 For example, `dave.smith@example.com` might log in with the username `dave.smith`.
 Teleport provides an easy way to extract the first part of an email address so
@@ -562,4 +564,3 @@ which Teleport replaces with values from the single sign-on provider that the
 user used to authenticate with Teleport. For full details on how variable
 expansion works in Teleport roles, see the  [Teleport Access Controls
 Reference](../../../reference/access-controls/roles.mdx).
-

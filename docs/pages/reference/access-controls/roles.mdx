@@ -29,7 +29,7 @@ following commands:
 
 ```code
 # Log in to your cluster with tsh so you can use tctl from your local machine.
-$ tsh login --user=myuser --proxy=<Var name="mytenant.teleport.sh" />
+$ tsh login --user=myuser --proxy=example.teleport.sh
 $ tctl get roles
 ```
 
@@ -86,7 +86,7 @@ There are currently five supported role versions: `v3`, `v4`, `v5`, `v6`, and `v
 
 `v4` and higher roles are completely backwards compatible with `v3`. The only difference
 lies in the default values which will be applied to the role if they are not explicitly set.
-Additionally, roles with version `v5` or higher are required to use [Moderated Sessions](../../admin-guides/access-controls/guides/moderated-sessions.mdx).
+Additionally, roles with version `v5` or higher are required to use [Moderated Sessions](../../admin-guides/access-controls/guides/joining-sessions.mdx).
 
 Label              | `v3` Default   | `v4` and higher Default
 ------------------ | -------------- | ---------------

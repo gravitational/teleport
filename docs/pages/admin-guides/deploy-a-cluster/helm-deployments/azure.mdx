@@ -53,6 +53,7 @@ $ az aks update --resource-group <Var name="aks-rg" /> --name <Var name="aks-nam
 
 For convenience, we'll create all the resources necessary in a brand new
 resource group; if you want to use an existing one, you can skip this step.
+Assign <Var name="region" /> to your Azure region:
 
 ```code
 $ az group create --name <Var name="teleport-rg" /> --location <Var name="region" />
@@ -90,7 +91,7 @@ access can be restricted to just the AKS outbound address, or the account can be
 made part of the virtual network that the AKS cluster is using.
 
 ```code
-$ az storage account create --resource-group <Var name="teleport-rg" /> --name <Var name="teleport-blob" /> \
+$ az storage account create --resource-group <Var name="teleport-rg" /> --name "teleport-blob" \
     --allow-blob-public-access false
 $ az role assignment create --role "Storage Blob Data Owner" --assignee-principal-type ServicePrincipal \
     --assignee-object-id "$(az identity show --resource-group <Var name="teleport-rg" /> --name teleport-id --query principalId -o tsv)" \
@@ -109,7 +110,8 @@ $ az identity federated-credential create --resource-group <Var name="teleport-r
 
 ## Step 3/5. Set values to configure the cluster
 
-<Details title="License Secret" scopeOnly={false} scope={"enterprise"} opened={true}>
+<details>
+<summary>License Secret</summary>
 
 Before you can install Teleport Enterprise in your Kubernetes cluster, you will need to
 create a secret that contains your Teleport license information.
@@ -124,7 +126,7 @@ $ kubectl create namespace <Var name="teleport-ns" />
 $ kubectl -n <Var name="teleport-ns" /> create secret generic license --from-file=license.pem
 ```
 
-</Details>
+</details>
 
 Now we'll configure the `teleport-cluster` Helm chart to use the `azure` mode.
 

@@ -567,6 +567,10 @@ const (
 	// KindWorkloadIdentity is the WorkloadIdentity resource.
 	KindWorkloadIdentity = "workload_identity"
 
+	// KindWorkloadIdentityX509Revocation is the WorkloadIdentityX509Revocation
+	// resource.
+	KindWorkloadIdentityX509Revocation = "workload_identity_x509_revocation"
+
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"
@@ -796,6 +800,8 @@ const (
 	DiscoveryAppInsecureSkipVerify = TeleportNamespace + "/insecure-skip-verify"
 	// DiscoveryAppIgnore specifies if a Kubernetes service should be ignored by discovery service.
 	DiscoveryAppIgnore = TeleportNamespace + "/ignore"
+	// DiscoveryPublicAddr specifies the public address for a discovered app created from a Kubernetes service.
+	DiscoveryPublicAddr = TeleportNamespace + "/public-addr"
 
 	// ReqAnnotationApproveSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationApproveSchedulesLabel = "/schedules"

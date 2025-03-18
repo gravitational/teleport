@@ -56,6 +56,7 @@ import (
 	crownjewelv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	discoveryconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	integrationv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -104,6 +105,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/vnetconfig/vnetconfigv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/decision/decisionv1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -5262,6 +5264,22 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	workloadidentityv1pb.RegisterWorkloadIdentityIssuanceServiceServer(server, workloadIdentityIssuanceService)
 
+	workloadIdentityRevocationService, err := workloadidentityv1.NewRevocationService(&workloadidentityv1.RevocationServiceConfig{
+		Authorizer:          cfg.Authorizer,
+		Emitter:             cfg.Emitter,
+		Clock:               cfg.AuthServer.GetClock(),
+		Store:               cfg.AuthServer.Services.WorkloadIdentityX509Revocations,
+		KeyStore:            cfg.AuthServer.keyStore,
+		CertAuthorityGetter: cfg.AuthServer.Cache,
+		EventsWatcher:       cfg.AuthServer.Services,
+		ClusterName:         clusterName.GetClusterName(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating workload identity revocation service")
+	}
+	workloadidentityv1pb.RegisterWorkloadIdentityRevocationServiceServer(server, workloadIdentityRevocationService)
+	go workloadIdentityRevocationService.RunCRLSigner(cfg.AuthServer.CloseContext())
+
 	dbObjectImportRuleService, err := dbobjectimportrulev1.NewDatabaseObjectImportRuleService(dbobjectimportrulev1.DatabaseObjectImportRuleServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,
@@ -5517,6 +5535,14 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if cfg.PluginRegistry == nil || !cfg.PluginRegistry.IsRegistered("auth.enterprise") {
 		loginrulev1pb.RegisterLoginRuleServiceServer(server, loginrulev1.NotImplementedService{})
 	}
+
+	decisionService, err := decisionv1.NewService(decisionv1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	decisionpb.RegisterDecisionServiceServer(server, decisionService)
 
 	return authServer, nil
 }

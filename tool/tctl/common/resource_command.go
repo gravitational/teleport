@@ -71,7 +71,9 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	clusterconfigrec "github.com/gravitational/teleport/tool/tctl/common/clusterconfig"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
@@ -127,7 +129,7 @@ Same as above, but using JSON output:
 `
 
 // Initialize allows ResourceCommand to plug itself into the CLI parser
-func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	rc.CreateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                     rc.createUser,
 		types.KindRole:                     rc.createRole,
@@ -238,23 +240,31 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
 // or returns match=false if 'cmd' does not belong to it
-func (rc *ResourceCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (rc *ResourceCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	// tctl get
 	case rc.getCmd.FullCommand():
-		err = rc.Get(ctx, client)
+		commandFunc = rc.Get
 		// tctl create
 	case rc.createCmd.FullCommand():
-		err = rc.Create(ctx, client)
+		commandFunc = rc.Create
 		// tctl rm
 	case rc.deleteCmd.FullCommand():
-		err = rc.Delete(ctx, client)
+		commandFunc = rc.Delete
 		// tctl update
 	case rc.updateCmd.FullCommand():
-		err = rc.UpdateFields(ctx, client)
+		commandFunc = rc.UpdateFields
 	default:
 		return false, nil
 	}
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	closeFn(ctx)
+
 	return true, trace.Wrap(err)
 }
 
@@ -962,17 +972,17 @@ func (rc *ResourceCommand) createKubeCluster(ctx context.Context, client *authcl
 	if err := client.CreateKubernetesCluster(ctx, cluster); err != nil {
 		if trace.IsAlreadyExists(err) {
 			if !rc.force {
-				return trace.AlreadyExists("kubernetes cluster %q already exists", cluster.GetName())
+				return trace.AlreadyExists("Kubernetes cluster %q already exists", cluster.GetName())
 			}
 			if err := client.UpdateKubernetesCluster(ctx, cluster); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("kubernetes cluster %q has been updated\n", cluster.GetName())
+			fmt.Printf("Kubernetes cluster %q has been updated\n", cluster.GetName())
 			return nil
 		}
 		return trace.Wrap(err)
 	}
-	fmt.Printf("kubernetes cluster %q has been created\n", cluster.GetName())
+	fmt.Printf("Kubernetes cluster %q has been created\n", cluster.GetName())
 	return nil
 }
 
@@ -1722,7 +1732,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		resDesc := "kubernetes cluster"
+		resDesc := "Kubernetes cluster"
 		clusters = filterByNameOrDiscoveredName(clusters, rc.ref.Name)
 		name, err := getOneResourceNameToDelete(clusters, rc.ref, resDesc)
 		if err != nil {
@@ -1793,7 +1803,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		resDesc := "kubernetes server"
+		resDesc := "Kubernetes server"
 		servers = filterByNameOrDiscoveredName(servers, rc.ref.Name)
 		name, err := getOneResourceNameToDelete(servers, rc.ref, resDesc)
 		if err != nil {
@@ -1959,6 +1969,14 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Workload identity %q has been deleted\n", rc.ref.Name)
+	case types.KindWorkloadIdentityX509Revocation:
+		if _, err := client.WorkloadIdentityRevocationServiceClient().DeleteWorkloadIdentityX509Revocation(
+			ctx, &workloadidentityv1pb.DeleteWorkloadIdentityX509RevocationRequest{
+				Name: rc.ref.Name,
+			}); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Workload identity X509 revocation %q has been deleted\n", rc.ref.Name)
 	case types.KindStaticHostUser:
 		if err := client.StaticHostUserClient().DeleteStaticHostUser(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -2409,7 +2427,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		servers = filterByNameOrDiscoveredName(servers, rc.ref.Name, altNameFn)
 		if len(servers) == 0 {
-			return nil, trace.NotFound("kubernetes server %q not found", rc.ref.Name)
+			return nil, trace.NotFound("Kubernetes server %q not found", rc.ref.Name)
 		}
 		return &kubeServerCollection{servers: servers}, nil
 
@@ -2474,7 +2492,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		clusters = filterByNameOrDiscoveredName(clusters, rc.ref.Name)
 		if len(clusters) == 0 {
-			return nil, trace.NotFound("kubernetes cluster %q not found", rc.ref.Name)
+			return nil, trace.NotFound("Kubernetes cluster %q not found", rc.ref.Name)
 		}
 		return &kubeClusterCollection{clusters: clusters}, nil
 	case types.KindCrownJewel:
@@ -3146,6 +3164,40 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &workloadIdentityCollection{items: resources}, nil
+	case types.KindWorkloadIdentityX509Revocation:
+		if rc.ref.Name != "" {
+			resource, err := client.
+				WorkloadIdentityRevocationServiceClient().
+				GetWorkloadIdentityX509Revocation(ctx, &workloadidentityv1pb.GetWorkloadIdentityX509RevocationRequest{
+					Name: rc.ref.Name,
+				})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &workloadIdentityX509RevocationCollection{items: []*workloadidentityv1pb.WorkloadIdentityX509Revocation{resource}}, nil
+		}
+
+		var resources []*workloadidentityv1pb.WorkloadIdentityX509Revocation
+		pageToken := ""
+		for {
+			resp, err := client.
+				WorkloadIdentityRevocationServiceClient().
+				ListWorkloadIdentityX509Revocations(ctx, &workloadidentityv1pb.ListWorkloadIdentityX509RevocationsRequest{
+					PageToken: pageToken,
+				})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			resources = append(resources, resp.WorkloadIdentityX509Revocations...)
+
+			if resp.NextPageToken == "" {
+				break
+			}
+			pageToken = resp.NextPageToken
+		}
+
+		return &workloadIdentityX509RevocationCollection{items: resources}, nil
 	case types.KindStaticHostUser:
 		hostUserClient := client.StaticHostUserClient()
 		if rc.ref.Name != "" {

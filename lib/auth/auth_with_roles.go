@@ -42,6 +42,7 @@ import (
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -193,7 +194,7 @@ func (a *ServerWithRoles) actionWithExtendedContext(namespace, kind, verb string
 }
 
 // actionForKindSession is a special checker that grants access to session
-// recordings.  It can allow access to a specific recording based on the
+// recordings. It can allow access to a specific recording based on the
 // `where` section of the user's access rule for kind `session`.
 func (a *ServerWithRoles) actionForKindSession(namespace string, sid session.ID) error {
 	extendContext := func(ctx *services.Context) error {
@@ -201,6 +202,7 @@ func (a *ServerWithRoles) actionForKindSession(namespace string, sid session.ID)
 		ctx.Session = sessionEnd
 		return trace.Wrap(err)
 	}
+
 	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSession, types.VerbRead, extendContext))
 }
 
@@ -2968,7 +2970,7 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 	// considering new or dropped access requests. This will include roles from
 	// currently assumed role access requests, and allowed resources from
 	// currently assumed resource access requests.
-	accessInfo, err := services.AccessInfoFromLocalIdentity(currentIdentity, a.authServer)
+	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(currentIdentity, a.authServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3119,8 +3121,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			return nil, trace.AccessDenied("access denied: impersonated user can not request new roles")
 		}
 		if isRoleImpersonation(req) {
-			// Note: technically this should never be needed as all role
-			// impersonated certs should have the DisallowReissue set.
+			// Disallow role impersonated certs from performing further role
+			// impersonation, to reduce the risk of privilege escalation.
 			return nil, trace.AccessDenied("access denied: impersonated roles can not request other roles")
 		}
 		if req.Username != a.context.User.GetName() {
@@ -3374,11 +3376,9 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		checker:           checker,
 		// Copy IP from current identity to the generated certificate, if present,
 		// to avoid generateUserCerts() being used to drop IP pinning in the new certificates.
-		loginIP: a.context.Identity.GetIdentity().LoginIP,
-		traits:  accessInfo.Traits,
-		activeRequests: services.RequestIDs{
-			AccessRequests: req.AccessRequests,
-		},
+		loginIP:                a.context.Identity.GetIdentity().LoginIP,
+		traits:                 accessInfo.Traits,
+		activeRequests:         req.AccessRequests,
 		connectionDiagnosticID: req.ConnectionDiagnosticID,
 		attestationStatement:   keys.AttestationStatementFromProto(req.AttestationStatement),
 		botName:                getBotName(user),
@@ -3399,8 +3399,16 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		// Role impersonation uses the user's own name as the impersonator value.
 		certReq.impersonator = a.context.User.GetName()
 
-		// Deny reissuing certs to prevent privilege re-escalation.
+		// By default, deny reissuing certs to prevent privilege re-escalation.
+		// (E.g a cert generated intended for use for Kubernetes Access against
+		// a specific cluster could be reissued with a different cluster name.)
+		// This can be overridden by the user if they acknowledge the risk and
+		// require a certificate which can be reissued (e.g dynamic app access
+		// use-case).
 		certReq.disallowReissue = true
+		if req.ReissuableRoleImpersonation {
+			certReq.disallowReissue = false
+		}
 	} else if a.context.Identity != nil && a.context.Identity.GetIdentity().Impersonator != "" {
 		// impersonating users can receive new certs
 		certReq.impersonator = a.context.Identity.GetIdentity().Impersonator
@@ -3787,7 +3795,14 @@ func (a *ServerWithRoles) CreateOIDCAuthRequest(ctx context.Context, req types.O
 
 	oidcReq, err := a.authServer.CreateOIDCAuthRequest(ctx, req)
 	if err != nil {
-		emitSSOLoginFailureEvent(a.CloseContext(), a.authServer.emitter, events.LoginMethodOIDC, err, req.SSOTestFlow)
+		if trace.IsNotFound(err) {
+			// This flow is triggered via an unauthenticated endpoint, so it's not unusual to see
+			// attempts to hit this API with an invalid connector ID. These are not legitimate SSO
+			// attempts, so avoid cluttering the audit log with them.
+			log.WithField("connector", req.ConnectorID).Infoln("rejecting invalid OIDC auth request")
+		} else {
+			emitSSOLoginFailureEvent(a.CloseContext(), a.authServer.emitter, events.LoginMethodOIDC, err, req.SSOTestFlow)
+		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -3945,7 +3960,14 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.S
 
 	samlReq, err := a.authServer.CreateSAMLAuthRequest(ctx, req)
 	if err != nil {
-		emitSSOLoginFailureEvent(a.CloseContext(), a.authServer.emitter, events.LoginMethodSAML, err, req.SSOTestFlow)
+		if trace.IsNotFound(err) {
+			// This flow is triggered via an unauthenticated endpoint, so it's not unusual to see
+			// attempts to hit this API with an invalid connector ID. These are not legitimate SSO
+			// attempts, so avoid cluttering the audit log with them.
+			log.WithField("connector", req.ConnectorID).Infoln("rejecting invalid SAML auth request")
+		} else {
+			emitSSOLoginFailureEvent(a.CloseContext(), a.authServer.emitter, events.LoginMethodSAML, err, req.SSOTestFlow)
+		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -4159,7 +4181,14 @@ func (a *ServerWithRoles) CreateGithubAuthRequest(ctx context.Context, req types
 
 	githubReq, err := a.authServer.CreateGithubAuthRequest(ctx, req)
 	if err != nil {
-		emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodGithub, err, req.SSOTestFlow)
+		if trace.IsNotFound(err) {
+			// This flow is triggered via an unauthenticated endpoint, so it's not unusual to see
+			// attempts to hit this API with an invalid connector ID. These are not legitimate SSO
+			// attempts, so avoid cluttering the audit log with them.
+			log.Infof("rejecting invalid GitHub auth request for connector %v", req.ConnectorID)
+		} else {
+			emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodGithub, err, req.SSOTestFlow)
+		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -6221,26 +6250,25 @@ func (a *ServerWithRoles) ReplaceRemoteLocks(ctx context.Context, clusterName st
 // channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
 func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	createErrorChannel := func(err error) (chan apievents.AuditEvent, chan error) {
-		e := make(chan error, 1)
-		e <- trace.Wrap(err)
-		return nil, e
-	}
-
 	err := a.localServerAction()
 	isTeleportServer := err == nil
 
-	if !isTeleportServer {
-		if err := a.actionForKindSession(apidefaults.Namespace, sessionID); err != nil {
-			c, e := make(chan apievents.AuditEvent), make(chan error, 1)
-			e <- trace.Wrap(err)
-			return c, e
-		}
+	// StreamSessionEvents can be called internally, and when that
+	// happens we don't want to emit an event or check for permissions.
+	if isTeleportServer {
+		return a.alog.StreamSessionEvents(ctx, sessionID, startIndex)
 	}
 
-	// StreamSessionEvents can be called internally, and when that happens we don't want to emit an event.
-	shouldEmitAuditEvent := !isTeleportServer
-	if shouldEmitAuditEvent {
+	if err := a.actionForKindSession(apidefaults.Namespace, sessionID); err != nil {
+		c, e := make(chan apievents.AuditEvent), make(chan error, 1)
+		e <- trace.Wrap(err)
+		return c, e
+	}
+
+	// We can only determine the session type after the streaming started. For
+	// this reason, we delay the emit audit event until the first event or if
+	// the streaming returns an error.
+	cb := func(evt apievents.AuditEvent, _ error) {
 		if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SessionRecordingAccess{
 			Metadata: apievents.Metadata{
 				Type: events.SessionRecordingAccessEvent,
@@ -6248,12 +6276,34 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 			},
 			SessionID:    sessionID.String(),
 			UserMetadata: a.context.Identity.GetIdentity().GetUserMetadata(),
+			SessionType:  string(sessionTypeFromStartEvent(evt)),
+			Format:       metadata.SessionRecordingFormatFromContext(ctx),
 		}); err != nil {
-			return createErrorChannel(err)
+			log.WithError(err).Errorf("Failed to emit stream session event audit event")
 		}
 	}
 
-	return a.alog.StreamSessionEvents(ctx, sessionID, startIndex)
+	return a.alog.StreamSessionEvents(events.ContextWithSessionStartCallback(ctx, cb), sessionID, startIndex)
+}
+
+// sessionTypeFromStartEvent determines the session type given the session start
+// event.
+func sessionTypeFromStartEvent(sessionStart apievents.AuditEvent) types.SessionKind {
+	switch e := sessionStart.(type) {
+	case *apievents.SessionStart:
+		if e.KubernetesCluster != "" {
+			return types.KubernetesSessionKind
+		}
+		return types.SSHSessionKind
+	case *apievents.DatabaseSessionStart:
+		return types.DatabaseSessionKind
+	case *apievents.AppSessionStart:
+		return types.AppSessionKind
+	case *apievents.WindowsDesktopSessionStart:
+		return types.WindowsDesktopSessionKind
+	default:
+		return types.UnknownSessionKind
+	}
 }
 
 // CreateApp creates a new application resource.

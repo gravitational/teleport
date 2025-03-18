@@ -82,6 +82,7 @@ func (s *IdentityOutputService) Run(ctx context.Context) error {
 	defer unsubscribe()
 
 	err := runOnInterval(ctx, runOnIntervalConfig{
+		service:    s.String(),
 		name:       "output-renewal",
 		f:          s.generate,
 		interval:   s.botCfg.RenewalInterval,
@@ -127,7 +128,9 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 		s.getBotIdentity(),
 		roles,
 		s.botCfg.CertificateTTL,
-		nil,
+		func(req *proto.UserCertsRequest) {
+			req.ReissuableRoleImpersonation = s.cfg.AllowReissue
+		},
 	)
 	if err != nil {
 		return trace.Wrap(err, "generating identity")
@@ -150,6 +153,7 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 			s.botCfg.CertificateTTL,
 			func(req *proto.UserCertsRequest) {
 				req.RouteToCluster = s.cfg.Cluster
+				req.ReissuableRoleImpersonation = s.cfg.AllowReissue
 			},
 		)
 		if err != nil {
@@ -266,11 +270,10 @@ func renderSSHConfig(
 	)
 	defer span.End()
 
-	proxyAddr, err := proxyPing.proxyWebAddr()
+	proxyAddr, err := proxyPing.proxySSHAddr()
 	if err != nil {
-		return trace.Wrap(err, "determining proxy web addr")
+		return trace.Wrap(err, "determining proxy ssh addr")
 	}
-
 	proxyHost, proxyPort, err := utils.SplitHostPort(proxyAddr)
 	if err != nil {
 		return trace.BadParameter(

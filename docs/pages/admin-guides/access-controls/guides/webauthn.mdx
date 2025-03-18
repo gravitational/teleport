@@ -6,14 +6,14 @@ videoBanner: vQgKkD4ZRDU
 
 This guide aims to help you fortify your identity infrastructure and mitigate the risks associated with IdP weaknesses.
 
-An IdP compromise occurs when an attacker gains unauthorized access to your identity management 
-system, potentially allowing them to impersonate legitimate users, escalate privileges, or access 
-sensitive information. This can happen through various means, such as exploiting software vulnerabilities, 
+An IdP compromise occurs when an attacker gains unauthorized access to your identity management
+system, potentially allowing them to impersonate legitimate users, escalate privileges, or access
+sensitive information. This can happen through various means, such as exploiting software vulnerabilities,
 stealing credentials, or social engineering attacks.
 
-While many organizations have implemented basic security measures like single sign-on (SSO) and multi-factor authentication (MFA), 
-these alone may not be sufficient to protect against sophisticated attacks targeting your IdP. 
-Attackers are constantly evolving their techniques, and traditional security measures may have limitations 
+While many organizations have implemented basic security measures like single sign-on (SSO) and multi-factor authentication (MFA),
+these alone may not be sufficient to protect against sophisticated attacks targeting your IdP.
+Attackers are constantly evolving their techniques, and traditional security measures may have limitations
 or vulnerabilities that can be exploited.
 
 ![IdP threat vector tree](../../../../img/access-controls/idp-graph.png)
@@ -21,15 +21,15 @@ or vulnerabilities that can be exploited.
 To enhance your defense against IdP compromises, we recommend implementing the following comprehensive security measures.
 
 ## Set up cluster-wide WebAuthn
-Implement strong, phishing-resistant authentication across 
-your entire infrastructure using WebAuthn standards. WebAuthn, a W3C standard and part of FIDO2, 
-enables public-key cryptography for web authentication. Teleport supports WebAuthn as a multi-factor 
-for logging into Teleport (via tsh login or Web UI) and accessing SSH nodes or Kubernetes clusters. 
+Implement strong, phishing-resistant authentication across
+your entire infrastructure using WebAuthn standards. WebAuthn, a W3C standard and part of FIDO2,
+enables public-key cryptography for web authentication. Teleport supports WebAuthn as a multi-factor
+for logging into Teleport (via tsh login or Web UI) and accessing SSH nodes or Kubernetes clusters.
 It's compatible with hardware keys (e.g., YubiKeys, SoloKeys) and biometric authenticators like Touch ID and Windows Hello.
 
 ### Prerequisites
 
-- A running Teleport cluster or Teleport Cloud, version 16 or later. If you want to get started with Teleport, 
+- A running Teleport cluster or Teleport Cloud, version 16 or later. If you want to get started with Teleport,
 [sign up](https://goteleport.com/signup) for a free trial.
 
 - The `tctl` admin tool and `tsh` client tool.
@@ -159,8 +159,8 @@ $ tsh login --proxy=example.teleport.sh
 </Admonition>
 
 ## Configure per-session MFA
-Ensure that multi-factor authentication is required for each session, not just at initial login, 
-to maintain continuous security. Teleport's per-session MFA enhances security by protecting 
+Ensure that multi-factor authentication is required for each session, not just at initial login,
+to maintain continuous security. Teleport's per-session MFA enhances security by protecting
 against compromised on-disk certificates. It requires additional MFA checks when initiating new SSH, Kubernetes, database, or desktop sessions.
 
 Teleport supports requiring additional multi-factor authentication checks
@@ -172,12 +172,12 @@ when starting new:
 - Application sessions
 - Desktop sessions
 
-<Notice type="note">
+<Admonition type="note">
   In addition to per-session MFA, enable login MFA in your SSO provider and/or
   for all [local Teleport
   users](../../../reference/access-controls/authentication.mdx)
   to improve security.
-</Notice>
+</Admonition>
 
 To enforce MFA checks for all roles, edit your cluster authentication
 configuration:
@@ -222,19 +222,19 @@ spec:
 ```
 
 ## Implement cluster-wide Device Trust
-Develop a system to verify and manage trusted devices across your organization, reducing the risk 
-of unauthorized access from unknown or compromised devices. Device Trust adds an extra layer of security by requiring the use of trusted devices 
-for accessing protected resources, complementing user identity and role enforcement. This can be 
-configured cluster-wide or via RBAC. Supported resources include apps (role-based only), SSH nodes, 
+Develop a system to verify and manage trusted devices across your organization, reducing the risk
+of unauthorized access from unknown or compromised devices. Device Trust adds an extra layer of security by requiring the use of trusted devices
+for accessing protected resources, complementing user identity and role enforcement. This can be
+configured cluster-wide or via RBAC. Supported resources include apps (role-based only), SSH nodes,
 databases, Kubernetes clusters, and first MFA device enrollment. The latter helps prevent auto-provisioning of new users through compromised IdPs.
 
 <Admonition type="warning" title="Machine ID and Device Trust">
 
-  We do not currently support Machine ID and Device Trust. Requiring Device Trust 
-  cluster-wide or for roles impersonated by Machine ID will prevent credentials 
+  We do not currently support Machine ID and Device Trust. Requiring Device Trust
+  cluster-wide or for roles impersonated by Machine ID will prevent credentials
   produced by Machine ID from being used to connect to resources.
 
-  As a work-around, configure Device Trust enforcement on a role-by-role basis and 
+  As a work-around, configure Device Trust enforcement on a role-by-role basis and
   ensure that it is not required for roles that you will impersonate using Machine ID.
 </Admonition>
 
@@ -247,7 +247,7 @@ responsible for managing devices, adding new devices to the inventory and
 removing devices that are no longer in use.
 
 <Admonition type="tip" title="Self enrollment">
-  Users with the preset `editor` or `device-admin` role 
+  Users with the preset `editor` or `device-admin` role
   can register and enroll their device in a single step with the following command:
   ```code
   $ tsh device enroll --current-device
@@ -264,7 +264,8 @@ Retrieve device serial number with `tsh` (must be run on the device you want to 
 $ tsh device asset-tag
 (=devicetrust.asset_tag=)
 ```
-<Details title="Manually retrieving device serial" closed>
+<details>
+<summary>Manually retrieving device serial</summary>
   <Tabs>
   <TabItem label="macOS">
     The serial number is visible under Apple menu -> "About This Mac" -> "Serial number".
@@ -287,7 +288,7 @@ $ tsh device asset-tag
     ```
   </TabItem>
 </Tabs>
-</Details>
+</details>
 
 Replace <Var name="(=devicetrust.asset_tag=)" description="The serial number to
 be registered"/> with the serial number of the device you wish to enroll and run
@@ -409,25 +410,25 @@ successfully enrolled and authenticated.
 
 ## Require MFA for administrative actions
 
-Add an extra layer of security for sensitive administrative operations by requiring multi-factor authentication 
-for these high-privilege actions. Teleport enforces additional MFA verification for administrative 
-actions across all clients (tctl, tsh, Web UI, and Connect). This feature adds an extra security 
+Add an extra layer of security for sensitive administrative operations by requiring multi-factor authentication
+for these high-privilege actions. Teleport enforces additional MFA verification for administrative
+actions across all clients (tctl, tsh, Web UI, and Connect). This feature adds an extra security
 layer by re-verifying user identity immediately before any admin action, mitigating risks from compromised admin accounts.
 
-By adopting these advanced security measures, you can create a robust defense against IdP compromises and significantly reduce your organization's attack surface. 
+By adopting these advanced security measures, you can create a robust defense against IdP compromises and significantly reduce your organization's attack surface.
 In the following sections, we'll dive deeper into each of these recommendations, providing step-by-step guidance on implementation and best practices.
 
-<Notice type="warning">
+<Admonition type="warning">
   When MFA for administrative actions is enabled, user certificates produced
   with `tctl auth sign` will no longer be suitable for automation due to the
   additional MFA checks.
 
-  We recommend using Machine ID to issue certificates for automated workflows, 
+  We recommend using Machine ID to issue certificates for automated workflows,
   which uses role impersonation that is not subject to MFA checks.
 
-  Certificates produced with `tctl auth sign` directly on an Auth Service instance using the super-admin 
+  Certificates produced with `tctl auth sign` directly on an Auth Service instance using the super-admin
   role are not subject to MFA checks to support legacy self-hosted setups.
-</Notice>
+</Admonition>
 
 ### Prerequisites
 
@@ -439,10 +440,10 @@ In the following sections, we'll dive deeper into each of these recommendations,
 
 MFA for administrative actions is automatically enforced for clusters where WebAuthn is the only form of multi-factor allowed.
 
-<Notice type="note">
+<Admonition type="note">
   In a future major version, Teleport may enforce MFA for administrative actions
   for a wider range of cluster configurations.
-</Notice>
+</Admonition>
 
 Examples of administrative actions include, but are not limited to:
 
@@ -482,7 +483,7 @@ Update the `cluster_auth_preference` definition to include the following content
   ```
 
   ### Step 2/2. Save and exit the file
-  
+
   The command `tctl` will update the remote definition:
 
   ```text
@@ -494,5 +495,5 @@ For additional cluster hardening measures, see:
 
 - [Passwordless Authentication](./passwordless.mdx): Provides passwordless and usernameless authentication.
 - [Locking](./locking.mdx): Lock access to active user sessions or hosts.
-- [Moderated Sessions](./moderated-sessions.mdx): Require session auditors and allow fine-grained live session access.
+- [Moderated Sessions](./joining-sessions.mdx): Require session auditors and allow fine-grained live session access.
 - [Hardware Key Support](./hardware-key-support.mdx): Enforce the use of hardware-based private keys.

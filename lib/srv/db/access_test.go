@@ -82,6 +82,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb/protocol"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
+	"github.com/gravitational/teleport/lib/srv/db/objects"
 	"github.com/gravitational/teleport/lib/srv/db/opensearch"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
@@ -2218,7 +2219,7 @@ func (c *testContext) makeTLSConfig(t testing.TB) *tls.Config {
 	conf := utils.TLSConfig(nil)
 	conf.Certificates = append(conf.Certificates, cert)
 	conf.ClientAuth = tls.VerifyClientCertIfGiven
-	conf.ClientCAs, _, err = authclient.DefaultClientCertPool(context.Background(), c.authServer, c.clusterName)
+	conf.ClientCAs, _, _, err = authclient.DefaultClientCertPool(context.Background(), c.authServer, c.clusterName)
 	require.NoError(t, err)
 	return conf
 }
@@ -2434,6 +2435,8 @@ type agentParams struct {
 	DiscoveryResourceChecker cloud.DiscoveryResourceChecker
 	// Recorder is the recorder used on sessions.
 	Recorder libevents.SessionRecorder
+	// DatabaseObjects is used to override the db object importer in tests.
+	DatabaseObjects objects.Objects
 }
 
 func (p *agentParams) setDefaults(c *testContext) {
@@ -2479,6 +2482,11 @@ func (p *agentParams) setDefaults(c *testContext) {
 
 	if p.DiscoveryResourceChecker == nil {
 		p.DiscoveryResourceChecker = &fakeDiscoveryResourceChecker{}
+	}
+	if p.DatabaseObjects == nil {
+		// disables the real object importer by default, to avoid unexpected
+		// db admin connection attempts during tests.
+		p.DatabaseObjects = fakeObjectsImporter{}
 	}
 }
 
@@ -2566,6 +2574,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		},
 		CADownloader:             p.CADownloader,
 		OnReconcile:              p.OnReconcile,
+		DatabaseObjects:          p.DatabaseObjects,
 		ConnectionMonitor:        connMonitor,
 		CloudClients:             p.CloudClients,
 		AWSMatchers:              p.AWSMatchers,
@@ -3379,3 +3388,13 @@ var dynamicLabels = types.LabelsToV2(map[string]types.CommandLabel{
 
 // testAWSRegion is the AWS region used in tests.
 const testAWSRegion = "us-east-1"
+
+type fakeObjectsImporter struct{}
+
+func (fakeObjectsImporter) StartImporter(ctx context.Context, database types.Database) error {
+	return objects.NewErrFetcherDisabled("importer is disabled in fake object importer for test")
+}
+
+func (fakeObjectsImporter) StopImporter(databaseName string) error {
+	return objects.NewErrFetcherDisabled("importer is disabled in fake object importer for test")
+}

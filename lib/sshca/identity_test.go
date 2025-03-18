@@ -24,33 +24,33 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 func TestIdentityConversion(t *testing.T) {
 	ident := &Identity{
-		ValidAfter:            1,
-		ValidBefore:           2,
-		Username:              "user",
-		Impersonator:          "impersonator",
-		AllowedLogins:         []string{"login1", "login2"},
-		PermitX11Forwarding:   true,
-		PermitAgentForwarding: true,
-		PermitPortForwarding:  true,
-		Roles:                 []string{"role1", "role2"},
-		RouteToCluster:        "cluster",
-		Traits:                wrappers.Traits{"trait1": []string{"value1"}, "trait2": []string{"value2"}},
-		ActiveRequests: services.RequestIDs{
-			AccessRequests: []string{uuid.NewString()},
-		},
+		ValidAfter:              1,
+		ValidBefore:             2,
+		CertType:                ssh.UserCert,
+		ClusterName:             "some-cluster",
+		SystemRole:              types.RoleNode,
+		Username:                "user",
+		Impersonator:            "impersonator",
+		Principals:              []string{"login1", "login2"},
+		PermitX11Forwarding:     true,
+		PermitAgentForwarding:   true,
+		PermitPortForwarding:    true,
+		Roles:                   []string{"role1", "role2"},
+		RouteToCluster:          "cluster",
+		Traits:                  wrappers.Traits{"trait1": []string{"value1"}, "trait2": []string{"value2"}},
+		ActiveRequests:          []string{"some-request"},
 		MFAVerified:             "mfa",
 		PreviousIdentityExpires: time.Unix(12345, 0),
 		LoginIP:                 "127.0.0.1",
@@ -62,11 +62,16 @@ func TestIdentityConversion(t *testing.T) {
 			Type:  types.CertExtensionType_SSH,
 			Mode:  types.CertExtensionMode_EXTENSION,
 		}},
-		Renewable:              true,
-		Generation:             3,
-		BotName:                "bot",
-		BotInstanceID:          "instance",
-		AllowedResourceIDs:     "resource",
+		Renewable:     true,
+		Generation:    3,
+		BotName:       "bot",
+		BotInstanceID: "instance",
+		AllowedResourceIDs: []types.ResourceID{{
+			ClusterName:     "cluster",
+			Kind:            types.KindKubePod, // must use a kube resource kind for parsing of sub-resource to work correctly
+			Name:            "name",
+			SubResourceName: "sub/sub",
+		}},
 		ConnectionDiagnosticID: "diag",
 		PrivateKeyPolicy:       keys.PrivateKeyPolicy("policy"),
 		DeviceID:               "device",
@@ -81,6 +86,9 @@ func TestIdentityConversion(t *testing.T) {
 		"CertExtension.XXX_NoUnkeyedLiteral",
 		"CertExtension.XXX_unrecognized",
 		"CertExtension.XXX_sizecache",
+		"ResourceID.XXX_NoUnkeyedLiteral",
+		"ResourceID.XXX_unrecognized",
+		"ResourceID.XXX_sizecache",
 	}
 
 	require.True(t, testutils.ExhaustiveNonEmpty(ident, ignores...), "empty=%+v", testutils.FindAllEmpty(ident, ignores...))

@@ -93,7 +93,7 @@ func runPortForwardingWebSocket(req portForwardRequest) error {
 		},
 	})
 
-	conn.SetIdleTimeout(req.idleTimeout)
+	conn.SetIdleTimeout(adjustIdleTimeoutForConn(req.idleTimeout))
 
 	// Upgrade the request and create the virtual streams.
 	_, streams, err := conn.Open(
@@ -355,7 +355,7 @@ func runPortForwardingTunneledHTTPStreams(req portForwardRequest) error {
 	defer h.Close()
 
 	h.Debugf("Setting port forwarding streaming connection idle timeout to %s.", req.idleTimeout)
-	spdyConn.SetIdleTimeout(req.idleTimeout)
+	spdyConn.SetIdleTimeout(adjustIdleTimeoutForConn(req.idleTimeout))
 
 	h.run()
 	return nil

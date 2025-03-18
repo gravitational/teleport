@@ -696,6 +696,12 @@ func handleRemotePortForward(ctx context.Context, addr string, file *os.File) er
 // runForward reads in the command to run from the parent process (over a
 // pipe) then port forwards.
 func runForward(handler forwardHandler) (errw io.Writer, code int, err error) {
+	// SIGQUIT is used by teleport to initiate graceful shutdown, waiting for
+	// existing exec sessions to close before ending the process. For this to
+	// work when closing the entire teleport process group, exec sessions must
+	// ignore SIGQUIT signals.
+	signal.Ignore(syscall.SIGQUIT)
+
 	// errorWriter is used to return any error message back to the client.
 	// Use stderr so that it's not forwarded to the remote client.
 	errorWriter := os.Stderr
@@ -859,7 +865,7 @@ func RunAndExit(commandType string) {
 // IsReexec determines if the current process is a teleport reexec command.
 // Used by tests to reroute the execution to RunAndExit.
 func IsReexec() bool {
-	if len(os.Args) == 2 {
+	if len(os.Args) >= 2 {
 		switch os.Args[1] {
 		case teleport.ExecSubCommand, teleport.LocalForwardSubCommand, teleport.RemoteForwardSubCommand,
 			teleport.CheckHomeDirSubCommand, teleport.ParkSubCommand, teleport.SFTPSubCommand:
@@ -868,6 +874,59 @@ func IsReexec() bool {
 	}
 
 	return false
+}
+
+// openFileAsUser opens a file as the given user to ensure proper access checks. This is unsafe and should not be used outside of
+// bootstrapping reexec commands.
+func openFileAsUser(localUser *user.User, path string) (file *os.File, err error) {
+	if os.Args[1] != teleport.ExecSubCommand {
+		return nil, trace.Errorf("opening files as a user is only possible in a reexec context")
+	}
+
+	uid, err := strconv.Atoi(localUser.Uid)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	gid, err := strconv.Atoi(localUser.Gid)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	prevUID := os.Geteuid()
+	prevGID := os.Getegid()
+
+	defer func() {
+		gidErr := syscall.Setegid(prevGID)
+		uidErr := syscall.Seteuid(prevUID)
+		if uidErr != nil || gidErr != nil {
+			file.Close()
+			slog.ErrorContext(context.Background(), "cannot proceed with invalid effective credentials", "uid_err", uidErr, "gid_err", gidErr, "error", err)
+			os.Exit(teleport.UnexpectedCredentials)
+		}
+	}()
+
+	if err := syscall.Setegid(gid); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := syscall.Seteuid(uid); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	file, err = utils.OpenFileNoUnsafeLinks(path)
+	return file, trace.Wrap(err)
+}
+
+func readUserEnv(localUser *user.User, path string) ([]string, error) {
+	file, err := openFileAsUser(localUser, path)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer file.Close()
+
+	envs, err := envutils.ReadEnvironment(context.Background(), file)
+	return envs, trace.Wrap(err)
 }
 
 // buildCommand constructs a command that will execute the users shell. This
@@ -938,12 +997,13 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 	// and pass environment variables along to new session.
 	// User controlled values are added last to ensure administrator controlled sources take priority (duplicates ignored)
 	if c.PermitUserEnvironment {
-		filename := filepath.Join(localUser.HomeDir, ".tsh", "environment")
-		userEnvs, err := envutils.ReadEnvironmentFile(filename)
+		path := filepath.Join(localUser.HomeDir, ".tsh", "environment")
+		userEnvs, err := readUserEnv(localUser, path)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			slog.WarnContext(context.Background(), "Could not read user environment", "error", err)
+		} else {
+			env.AddFullUnique(userEnvs...)
 		}
-		env.AddFullUnique(userEnvs...)
 	}
 
 	// after environment is fully built, set it to cmd

@@ -4478,6 +4478,10 @@ var authnWsUpgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin:     func(r *http.Request) bool { return true },
+	// We’re disabling the error handler here since error handling is managed within the handler itself.
+	// Allowing the WS error handler to operate would result in it writing to the response writer,
+	// which conflicts with our custom error handler and leads to unintended errors.
+	Error: func(http.ResponseWriter, *http.Request, int, error) {},
 }
 
 // WithClusterAuthWebSocket wraps a ClusterWebsocketHandler to ensure that a request is authenticated
@@ -4540,15 +4544,6 @@ func (h *Handler) authenticateRequestWithCluster(w http.ResponseWriter, r *http.
 // remote trusted cluster) as specified by the ":site" url parameter.
 func (h *Handler) getSiteByParams(sctx *SessionContext, p httprouter.Params) (reversetunnelclient.RemoteSite, error) {
 	clusterName := p.ByName("site")
-	if clusterName == currentSiteShortcut {
-		res, err := h.cfg.ProxyClient.GetClusterName()
-		if err != nil {
-			h.log.WithError(err).Warn("Failed to query cluster name.")
-			return nil, trace.Wrap(err)
-		}
-		clusterName = res.GetClusterName()
-	}
-
 	site, err := h.getSiteByClusterName(sctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4558,6 +4553,15 @@ func (h *Handler) getSiteByParams(sctx *SessionContext, p httprouter.Params) (re
 }
 
 func (h *Handler) getSiteByClusterName(ctx *SessionContext, clusterName string) (reversetunnelclient.RemoteSite, error) {
+	if clusterName == currentSiteShortcut {
+		res, err := h.cfg.ProxyClient.GetClusterName()
+		if err != nil {
+			h.log.WithError(err).Warn("Failed to get proxy with roles.")
+			return nil, trace.Wrap(err)
+		}
+		clusterName = res.GetClusterName()
+	}
+
 	proxy, err := h.ProxyWithRoles(ctx)
 	if err != nil {
 		h.log.WithError(err).Warn("Failed to get proxy with roles.")
@@ -5195,36 +5199,6 @@ func SSOSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, resp
 	response.ClientRedirectURL = parsedRedirectURL
 
 	return nil
-}
-
-// authExportPublic returns the CA Certs that can be used to set up a chain of trust which includes the current Teleport Cluster
-//
-// GET /webapi/sites/:site/auth/export?type=<auth type>
-// GET /webapi/auth/export?type=<auth type>
-func (h *Handler) authExportPublic(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	err := rateLimitRequest(r, h.limiter)
-	if err != nil {
-		http.Error(w, err.Error(), trace.ErrorToCode(err))
-		return
-	}
-	authorities, err := client.ExportAuthorities(
-		r.Context(),
-		h.GetProxyClient(),
-		client.ExportAuthoritiesRequest{
-			AuthType: r.URL.Query().Get("type"),
-		},
-	)
-	if err != nil {
-		h.log.WithError(err).Debug("Failed to generate CA Certs.")
-		http.Error(w, err.Error(), trace.ErrorToCode(err))
-		return
-	}
-
-	reader := strings.NewReader(authorities)
-
-	// ServeContent sets the correct headers: Content-Type, Content-Length and Accept-Ranges.
-	// It also handles the Range negotiation
-	http.ServeContent(w, r, "authorized_hosts.txt", time.Now(), reader)
 }
 
 const robots = `User-agent: *

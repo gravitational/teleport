@@ -171,7 +171,8 @@ $ cockroach cert create-client node \
   --ca-key=ca-secrets/ca-client.key
 ```
 
-<Details title="Seeing an error message about TLS key mismatch?">
+<details>
+<summary>Seeing an error message about TLS key mismatch?</summary>
 If you see an error message like: `tls: private key does not match public key`,
 it likely means you did not prepend your CockroachDB CA cert to `ca-client.crt`
 earlier.
@@ -180,7 +181,7 @@ earlier.
 (in the `--certs-dir` specified) to be the certificate signed by `--ca-key`.
 Ensure that your CockroachDB CA certificate is the first certificate in
 `ca-client.crt`.
-</Details>
+</details>
 
 Now copy `<Var name="/path/to/cockroachdb/certs/dir" />` to the CockroachDB
 node and repeat these steps for all of your other CockroachDB nodes.

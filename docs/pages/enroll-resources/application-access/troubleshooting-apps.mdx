@@ -169,7 +169,7 @@ manually set the `SSL_CERT_FILE` or `SSL_CERT_DIR` environment variable on the
 command line. For example:
 
 ```code
-sudo SSL_CERT_FILE=<Var name="path-to-rootCA-pem" /> teleport start --config=/etc/teleport.yaml
+sudo SSL_CERT_FILE="path/to/rootCA-pem" teleport start --config=/etc/teleport.yaml
 ```
 
 You should specify the `SSL_CERT_FILE` and `SSL_CERT_DIR` environment variables as command-line

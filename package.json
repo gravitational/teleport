@@ -31,6 +31,7 @@
       "minimist": "^1.2.8",
       "trim": "0.0.3",
       "webpack": "^5.88.2",
+      "electron-vite@^3.0.0>esbuild@0.24.2": "^0.25.0",
       "x-default-browser": "^0.5.2"
     }
   },
@@ -89,5 +90,5 @@
     "tslib": "^2.6.3",
     "whatwg-fetch": "^3.6.20"
   },
-  "packageManager": "pnpm@9.8.0"
+  "packageManager": "pnpm@9.8.0+sha512.8e4c3550fb500e808dbc30bb0ce4dd1eb614e30b1c55245f211591ec2cdf9c611cabd34e1364b42f564bd54b3945ed0f49d61d1bbf2ec9bd74b866fcdc723276"
 }

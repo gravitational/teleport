@@ -35,6 +35,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/request"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/applicationautoscaling"
@@ -56,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws/dynamodbutils"
 )
 
 const (
@@ -294,12 +296,18 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	useFIPSEndpoint := endpoints.FIPSEndpointStateUnset
+	if dynamodbutils.IsFIPSEnabled() &&
+		events.FIPSProtoStateToAWSState(cfg.UseFIPSEndpoint) == endpoints.FIPSEndpointStateEnabled {
+		useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
+	}
+
 	// Create DynamoDB service.
 	svc, err := dynamometrics.NewAPIMetrics(dynamometrics.Events, dynamodb.New(b.session, &aws.Config{
 		// Setting this on the individual service instead of the session, as DynamoDB Streams
 		// and Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
 		// See also: https://aws.amazon.com/compliance/fips/#FIPS_Endpoints_by_Service
-		UseFIPSEndpoint: events.FIPSProtoStateToAWSState(cfg.UseFIPSEndpoint),
+		UseFIPSEndpoint: useFIPSEndpoint,
 	}))
 	if err != nil {
 		return nil, trace.Wrap(err)

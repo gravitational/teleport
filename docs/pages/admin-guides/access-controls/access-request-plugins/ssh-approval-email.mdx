@@ -40,7 +40,8 @@ Before you set up the email plugin, enable Role Access Requests in your Teleport
 
 ## Step 2/7. Install the Teleport email plugin
 
-<Details title="Using a local SMTP server?">
+<details>
+<summary>Using a local SMTP server?</summary>
 
 If you are using a local SMTP server to test the plugin, you should install the
 plugin on your local machine to ensure the plugin can connect to the SMTP server 
@@ -49,7 +50,7 @@ and perform any necessary DNS lookups to send email.
 Your Teleport cluster does *not* need to perform DNS lookups for your plugin
 because the plugin dials out to the Teleport Proxy Service or Teleport Auth Service. 
 
-</Details>
+</details>
 
 (!docs/pages/includes/plugins/install-access-request.mdx name="email"!)
 
@@ -153,13 +154,13 @@ the URL scheme and port. (If you're using a local SMTP server for testing, use
 If you are running the email plugin on a Linux host, fill in `username` and
 `password`.
 
-<Notice type="tip">
+<Admonition type="tip">
 
 You can also save your password to a separate file and assign `password_file` to
 the file's path. The plugin reads the file and uses the file's content as the
 password.
 
-</Notice>
+</Admonition>
 
 If you are deploying the email plugin on Kubernetes:
 
@@ -172,7 +173,8 @@ If you are deploying the email plugin on Kubernetes:
 
 1. Assign `smtp.passwordFromSecret` to `smtp-password`.
 
-<Details title="Disabling TLS for testing">
+<details>
+<summary>Disabling TLS for testing</summary>
 
 If you are testing the email plugin against a trusted internal SMTP server where
 you would rather not use TLS—e.g., a local SMTP server on your development
@@ -185,7 +187,7 @@ the risks.
 For Kubernetes deployments, `starttls_policy` is called `smtp.starttlsPolicy` in
 the Helm values file for the email plugin.
 
-</Details>
+</details>
 
 </TabItem>
 </Tabs>
@@ -241,7 +243,8 @@ plugin looks up if no other entry matches a given role name. In the example
 above, requests for roles aside from `dev` and `dba` will notify
 `security@example.com` and `executive-team@example.com`.
 
-<Details title="Suggested reviewers">
+<details>
+<summary>Suggested reviewers</summary>
 
 Users can suggest reviewers when they create an Access Request, e.g.,:
 
@@ -254,7 +257,7 @@ these to the list of recipients to notify. If a suggested reviewer is an email
 address, the plugin will send a message to that recipient in addition to those
 configured in `role_to_recipients`.
 
-</Details>
+</details>
 
 Configure the email plugin to notify you when a user requests the `editor` role
 by adding the following to your `role_to_recipients` config, replacing
@@ -277,7 +280,8 @@ roleToRecipients:
 </TabItem>
 </Tabs>
 
-<Details title="Configuring recipients without role mapping">
+<details>
+<summary>Configuring recipients without role mapping</summary>
 
 If you do not plan to use role-to-recipient mapping, you can configure the
 Teleport email plugin to notify a static list of recipients for every Access
@@ -302,7 +306,7 @@ If you use `delivery.recipients`, you must remove the `role_to_recipients`
 configuration section. Behind the scenes, `delivery.recipients` assigns the
 recipient list to a `role_to_recipients` mapping under the wildcard value `"*"`.
 
-</Details>
+</details>
 
 You configuration should resemble the following:
 

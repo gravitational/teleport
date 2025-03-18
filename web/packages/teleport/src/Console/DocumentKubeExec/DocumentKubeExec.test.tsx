@@ -105,6 +105,7 @@ describe('DocumentKubeExec', () => {
     setup('waiting-for-exec-data');
 
     expect(screen.getByText('Exec into a pod')).toBeInTheDocument();
+    expect(screen.getByLabelText('Namespace')).toHaveFocus();
   });
 
   test('does not render data dialog when status is initialized', () => {

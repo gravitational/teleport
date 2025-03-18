@@ -166,7 +166,9 @@ To set up and test access:
    Kubernetes cluster and verify access through Teleport. Alternatively, run the
    commands shown below:
 
-   Authenticate to your Teleport cluster:
+   Authenticate to your Teleport cluster, assigning 
+   <Var name="teleport.example.com"/> to your cluster domain and 
+   <Var name="admin@example.com"/> to your Teleport username:
 
    ```code
    $ tsh login --proxy=<Var name="teleport.example.com"/>:443 --auth=local --user=<Var name="admin@example.com"/> <Var name="teleport.example.com"/>
@@ -178,7 +180,8 @@ To set up and test access:
    $ tsh kube ls
    ```
 
-   Retrieve credentials to access your Kubernetes cluster:
+   Retrieve credentials to access your Kubernetes cluster, replacing 
+   <Var name="Kubernetes-cluster-name"/> with your Kubernetes cluster name:
 
    ```code
    $ tsh kube login <Var name="Kubernetes-cluster-name"/>

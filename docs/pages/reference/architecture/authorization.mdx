@@ -33,12 +33,12 @@ with Teleport:
 
 ![Role mapping](../../../img/architecture/role-mapping@1.5x.svg)
 
-<Notice type="tip">
+<Admonition type="tip">
 Every time SSO user logs in, Teleport creates a temporary user account record
 that automatically expires with SSO session and logs audit log entries.
 
 Teleport creates this record to avoid name collisions with local users.
-</Notice>
+</Admonition>
 
 #### External users from other clusters
 
@@ -68,14 +68,7 @@ Non-interactive users have to use Teleport's machine ID product to receive and r
 Teleport Machine ID's bot runs alongside services and rotates SSH and X.509 certificates on behalf
 of non-interactive users:
 
-<Figure
-  align="center"
-  bordered="true"
-  caption="Machine-ID certs"
-  >
-
 ![Certificates for services](../../../img/architecture/certs-machine-id@1.8x.svg)
-</Figure>
 
 #### External non-interactive users
 
@@ -228,10 +221,10 @@ spec:
     kubernetes_groups: ['{{external.groups}}']
 ```
 
-<Notice type="tip">
+<Admonition type="tip">
 Any role that uses variable interpolation is treated as a role template.
 You can add interpolation to any role spec.
-</Notice>
+</Admonition>
 
 **Variable interpolation rules*
 
@@ -321,9 +314,9 @@ spec:
       where: contains(session.participants, user.metadata.name)
 ```
 
-<Notice type="tip">
+<Admonition type="tip">
 You can use `where` fields in all resource rules. Check out [the full role reference](../access-controls/roles.mdx) contains full role spec for details.
-</Notice>
+</Admonition>
 
 ### Role options
 
@@ -355,12 +348,12 @@ options, Teleport will choose `strict` option.
 
 ### Just in Time Access Requests
 
-<Notice type="tip">
+<Admonition type="tip">
 
   The full version of Just In Time Access Requests is available only in Teleport
   Enterprise (including Enterprise Cloud).
 
-</Notice>
+</Admonition>
 
 Roles allow requesting elevated privileges - other roles or individual resources.
 

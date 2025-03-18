@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 )
 
@@ -68,8 +67,8 @@ func (n *Keygen) GenerateKeyPair() (priv []byte, pub []byte, err error) {
 	return native.GenerateKeyPair()
 }
 
-func (n *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
-	return n.GenerateHostCertWithoutValidation(c)
+func (n *Keygen) GenerateHostCert(req sshca.HostCertificateRequest) ([]byte, error) {
+	return n.GenerateHostCertWithoutValidation(req)
 }
 
 func (n *Keygen) GenerateUserCert(c sshca.UserCertificateRequest) ([]byte, error) {

@@ -21,7 +21,7 @@ Examples of administrative actions include, but are not limited to:
 This is an advanced security feature that protects users against compromises of
 their on-disk Teleport certificates.
 
-<Notice type="warning">
+<Admonition type="warning">
   When MFA for administrative actions is enabled, user certificates produced
   with `tctl auth sign` will no longer be suitable for automation due to the
   additional MFA checks.
@@ -33,7 +33,7 @@ their on-disk Teleport certificates.
   Certificates produced with `tctl auth sign` directly on an Auth Service
   instance using the super-admin role are not subject to MFA checks to support
   legacy self-hosted setups.
-</Notice>
+</Admonition>
 
 ## Prerequisites
 
@@ -51,10 +51,10 @@ their on-disk Teleport certificates.
 MFA for administrative actions is automatically enforced for clusters where
 WebAuthn is the only form of second factor allowed.
 
-<Notice type="note">
+<Admonition type="note">
   In a future major version, Teleport may enforce MFA for administrative actions
   for a wider range of cluster configurations.
-</Notice>
+</Admonition>
 
 Edit the `cluster_auth_preference` resource:
 

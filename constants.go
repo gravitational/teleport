@@ -144,6 +144,10 @@ const (
 	// ComponentDiagnostic is a diagnostic service
 	ComponentDiagnostic = "diag"
 
+	// ComponentDiagnosticHealth is the health monitor used by the diagnostic
+	// and debug services.
+	ComponentDiagnosticHealth = "diag:health"
+
 	// ComponentDebug is the debug service, which exposes debugging
 	// configuration over a Unix socket.
 	ComponentDebug = "debug"
@@ -378,6 +382,9 @@ const (
 	// SSEKMSKey is an optional switch to use an KMS CMK key for S3 SSE.
 	SSEKMSKey = "sse_kms_key"
 
+	// S3UseVirtualStyleAddressing is an optional switch to use use a virtual-hosted–style URI.
+	S3UseVirtualStyleAddressing = "use_s3_virtual_style_addressing"
+
 	// SchemeFile configures local disk-based file storage for audit events
 	SchemeFile = "file"
 
@@ -542,13 +549,16 @@ const (
 	// RemoteCommandFailure is returned when a command has failed to execute and
 	// we don't have another status code for it.
 	RemoteCommandFailure = 255
-	// HomeDirNotFound is returned when a the "teleport checkhomedir" command cannot
+	// HomeDirNotFound is returned when the "teleport checkhomedir" command cannot
 	// find the user's home directory.
 	HomeDirNotFound = 254
-	// HomeDirNotAccessible is returned when a the "teleport checkhomedir" command has
+	// HomeDirNotAccessible is returned when the "teleport checkhomedir" command has
 	// found the user's home directory, but the user does NOT have permissions to
 	// access it.
 	HomeDirNotAccessible = 253
+	// UnexpectedCredentials is returned when a command is no longer running with the expected
+	// credentials.
+	UnexpectedCredentials = 252
 )
 
 // MaxEnvironmentFileLines is the maximum number of lines in a environment file.
@@ -703,6 +713,12 @@ const (
 	// access to Okta resources. This will be used by the Okta requester role to
 	// search for Okta resources.
 	SystemOktaAccessRoleName = "okta-access"
+
+	// PresetWildcardWorkloadIdentityIssuerRoleName is a name of a preset role
+	// that includes the permissions necessary to issue workload identity
+	// credentials using any workload_identity resource. This exists to simplify
+	// Day 0 UX experience with workload identity.
+	PresetWildcardWorkloadIdentityIssuerRoleName = "wildcard-workload-identity-issuer"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}

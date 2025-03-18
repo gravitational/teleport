@@ -1688,27 +1688,17 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 		return
 	}
 
+	startEvent := scx.GetPortForwardEvent(events.PortForwardLocalEvent, events.PortForwardCode, scx.DstAddr)
+	s.emitAuditEventWithLog(ctx, &startEvent)
+
 	if err := utils.ProxyConn(ctx, conn, channel); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
-		s.Logger.Warnf("Connection problem in direct-tcpip channel: %v %T.", trace.DebugReport(err), err)
+		errEvent := scx.GetPortForwardEvent(events.PortForwardLocalEvent, events.PortForwardFailureCode, scx.DstAddr)
+		s.emitAuditEventWithLog(ctx, &errEvent)
+		slog.WarnContext(ctx, "Connection problem in direct-tcpip channel", "error", err)
 	}
 
-	if err := s.EmitAuditEvent(s.ctx, &apievents.PortForward{
-		Metadata: apievents.Metadata{
-			Type: events.PortForwardEvent,
-			Code: events.PortForwardCode,
-		},
-		UserMetadata: scx.Identity.GetUserMetadata(),
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			LocalAddr:  scx.ServerConn.LocalAddr().String(),
-			RemoteAddr: scx.ServerConn.RemoteAddr().String(),
-		},
-		Addr: scx.DstAddr,
-		Status: apievents.Status{
-			Success: true,
-		},
-	}); err != nil {
-		s.Logger.WithError(err).Warn("Failed to emit port forward event.")
-	}
+	stopEvent := scx.GetPortForwardEvent(events.PortForwardLocalEvent, events.PortForwardStopCode, scx.DstAddr)
+	s.emitAuditEventWithLog(ctx, &stopEvent)
 }
 
 // handleSessionRequests handles out of band session requests once the session
@@ -2042,9 +2032,7 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 			s.replyError(ch, req, err)
 			err = nil
 		}
-		if err := s.EmitAuditEvent(s.ctx, event); err != nil {
-			s.Logger.WithError(err).Warn("Failed to emit x11-forward event.")
-		}
+		s.emitAuditEventWithLog(s.ctx, event)
 	}()
 
 	// check if X11 forwarding is disabled, or if xauth can't be handled.
@@ -2321,6 +2309,7 @@ func (s *Server) createForwardingContext(ctx context.Context, ccx *sshutils.Conn
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
 	listenAddr := sshutils.JoinHostPort(req.Addr, req.Port)
 	scx.IsTestStub = s.isTestStub
 	scx.ExecType = teleport.TCPIPForwardRequest
@@ -2359,13 +2348,72 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 	}
 	scx.SrcAddr = sshutils.JoinHostPort(srcHost, listenPort)
 
-	event := scx.GetPortForwardEvent()
-	if err := s.EmitAuditEvent(ctx, &event); err != nil {
-		s.Logger.WithError(err).Warn("Failed to emit audit event.")
-	}
-	if err := sshutils.StartRemoteListener(ctx, scx.ConnectionContext.ServerConn, scx.SrcAddr, listener); err != nil {
-		return trace.Wrap(err)
-	}
+	event := scx.GetPortForwardEvent(events.PortForwardRemoteEvent, events.PortForwardCode, scx.SrcAddr)
+	s.emitAuditEventWithLog(ctx, &event)
+
+	// spawn remote forwarding handler to multiplex connections to the forwarded port
+	go func() {
+		stopEvent := scx.GetPortForwardEvent(events.PortForwardRemoteEvent, events.PortForwardStopCode, scx.SrcAddr)
+		defer s.emitAuditEventWithLog(ctx, &stopEvent)
+
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				if !utils.IsOKNetworkError(err) {
+					slog.WarnContext(ctx, "failed to accept connection", "error", err)
+				}
+				return
+			}
+			logger := slog.With(
+				"src_addr", scx.SrcAddr,
+				"remote_addr", conn.RemoteAddr().String(),
+			)
+
+			dstHost, dstPort, err := sshutils.SplitHostPort(conn.RemoteAddr().String())
+			if err != nil {
+				conn.Close()
+				logger.WarnContext(ctx, "failed to parse addr", "error", err)
+				return
+			}
+
+			req := sshutils.ForwardedTCPIPRequest{
+				Addr:     srcHost,
+				Port:     listenPort,
+				OrigAddr: dstHost,
+				OrigPort: dstPort,
+			}
+			if err := req.CheckAndSetDefaults(); err != nil {
+				conn.Close()
+				logger.WarnContext(ctx, "failed to create forwarded tcpip request", "error", err)
+				return
+			}
+			reqBytes := ssh.Marshal(req)
+
+			ch, rch, err := scx.ConnectionContext.ServerConn.OpenChannel(teleport.ChanForwardedTCPIP, reqBytes)
+			if err != nil {
+				conn.Close()
+				logger.WarnContext(ctx, "failed to open channel", "error", err)
+				continue
+			}
+			go ssh.DiscardRequests(rch)
+			go io.Copy(io.Discard, ch.Stderr())
+			go func() {
+				startEvent := scx.GetPortForwardEvent(events.PortForwardRemoteConnEvent, events.PortForwardCode, scx.SrcAddr)
+				startEvent.RemoteAddr = conn.RemoteAddr().String()
+				s.emitAuditEventWithLog(ctx, &startEvent)
+
+				if err := utils.ProxyConn(ctx, conn, ch); err != nil {
+					errEvent := scx.GetPortForwardEvent(events.PortForwardRemoteConnEvent, events.PortForwardFailureCode, scx.SrcAddr)
+					errEvent.RemoteAddr = conn.RemoteAddr().String()
+					s.emitAuditEventWithLog(ctx, &errEvent)
+				}
+
+				stopEvent := scx.GetPortForwardEvent(events.PortForwardRemoteConnEvent, events.PortForwardStopCode, scx.SrcAddr)
+				stopEvent.RemoteAddr = conn.RemoteAddr().String()
+				s.emitAuditEventWithLog(ctx, &stopEvent)
+			}()
+		}
+	}()
 
 	// Report addr back to the client.
 	if r.WantReply {
@@ -2397,7 +2445,6 @@ func (s *Server) handleCancelTCPIPForwardRequest(ctx context.Context, ccx *sshut
 		return trace.Wrap(err)
 	}
 	defer scx.Close()
-
 	listener, ok := s.remoteForwardingMap.LoadAndDelete(scx.SrcAddr)
 	if !ok {
 		return trace.NotFound("no remote forwarding listener at %v", scx.SrcAddr)
@@ -2405,6 +2452,7 @@ func (s *Server) handleCancelTCPIPForwardRequest(ctx context.Context, ccx *sshut
 	if err := r.Reply(true, nil); err != nil {
 		s.Logger.Warnf("Failed to reply to %q request: %v", r.Type, err)
 	}
+
 	return trace.Wrap(listener.Close())
 }
 
@@ -2447,7 +2495,7 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext)
 	case r.Name == teleport.SFTPSubsystem:
 		err := ctx.CheckSFTPAllowed(s.reg)
 		if err != nil {
-			s.EmitAuditEvent(context.Background(), &apievents.SFTP{
+			s.emitAuditEventWithLog(context.Background(), &apievents.SFTP{
 				Metadata: apievents.Metadata{
 					Code: events.SFTPDisallowedCode,
 					Type: events.SFTPEvent,
@@ -2493,4 +2541,10 @@ func (s *Server) handlePuTTYWinadj(ch ssh.Channel, req *ssh.Request) error {
 	// of leaving handleSessionRequests to do it) so set the WantReply flag to false here.
 	req.WantReply = false
 	return nil
+}
+
+func (s *Server) emitAuditEventWithLog(ctx context.Context, event apievents.AuditEvent) {
+	if err := s.EmitAuditEvent(ctx, event); err != nil {
+		slog.WarnContext(ctx, "Failed to emit event", "type", event.GetType(), "code", event.GetCode())
+	}
 }

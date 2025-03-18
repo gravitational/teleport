@@ -27,7 +27,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -39,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 const (
@@ -112,7 +112,7 @@ func (o *Options) setDefaults(ctx context.Context, region string) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		o.stsClient = sts.NewFromConfig(cfg)
+		o.stsClient = stsutils.NewFromConfig(cfg)
 	}
 	return nil
 }

@@ -84,7 +84,8 @@ to reflect data held by the Auth Service. This internal data includes the status
 of the `host` CA rotation if one is in progress.
 
 To check the rotation status of an agent or Proxy Service instance, run a
-variation of the following command:
+variation of the following command, assigning <Var name="resource" /> to the
+name of an agent or Proxy Service instance:
 
 ```code
 $ tctl get <Var name="resource" /> --format=json | jq '.[] | {hostname: .spec.hostname, rotation: .spec.rotation.state, phase: .spec.rotation.phase}'
@@ -440,7 +441,8 @@ $ tctl auth rotate --type=<Var name="type" />
 The command triggers a rotation process for hosts with a default grace period of
 48 hours.
 
-<Details title="Configuring the grace period">
+<details>
+<summary>Configuring the grace period</summary>
 
 You can customize grace period and CA type with additional flags:
 
@@ -459,7 +461,7 @@ instances in a cluster to request a new certificate. If some hosts go offline
 during the rotation and come back only after the grace period has ended, they
 will be forced to leave the cluster.
 
-</Details>
+</details>
 
 During semi-automatic rotations, Teleport attempts to divide the grace period so
 that it spends an equal amount of time in each phase before transitioning to the

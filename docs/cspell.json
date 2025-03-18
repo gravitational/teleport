@@ -186,7 +186,9 @@
     "Passwordless",
     "Pbbd",
     "Pluggable",
+    "PKCS",
     "Println",
+    "Pyroscope",
     "Quickstart",
     "Quicktime's",
     "REDISCLI",
@@ -324,6 +326,7 @@
     "automations",
     "automount",
     "autoscale",
+    "autoupdate",
     "awly",
     "awsapp",
     "awsathena",
@@ -815,6 +818,7 @@
     "redisinsight",
     "rediss",
     "regexes",
+    "reissuance",
     "relogged",
     "remask",
     "remotefx",
@@ -1041,7 +1045,9 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": ["hte"],
+  "flagWords": [
+    "hte"
+  ],
   "ignorePaths": [
     "**/reference/terraform-provider/**",
     "**/reference/operator-resources/**"

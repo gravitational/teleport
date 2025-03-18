@@ -83,7 +83,15 @@ message WorkloadIdentityCondition {
 // An individual rule that is evaluated during the issuance of a WorkloadIdentity.
 message WorkloadIdentityRule {
   // The conditions that must be met for this rule to be considered passed.
+  //
+  // Mutually exclusive with expression.
   repeated WorkloadIdentityCondition conditions = 1;
+
+  // An expression written in Teleport's predicate language that must evaluate
+  // to true for this rule to be considered passed.
+  //
+  // Mutually exclusive with conditions.
+  string expression = 2;
 }
 
 // The rules which are evaluated before the WorkloadIdentity can be issued.
@@ -94,6 +102,20 @@ message WorkloadIdentityRules {
   repeated WorkloadIdentityRule allow = 1;
 }
 
+// Template for an X509 Distinguished Name (DN).
+// Each field is optional, and, if provided, supports templating using attributes.
+message X509DistinguishedNameTemplate {
+  // Common Name (CN) - 2.5.4.3
+  // If empty, the RDN will be omitted from the DN.
+  string common_name = 1;
+  // Organization (O) - 2.5.4.10
+  // If empty, the RDN will be omitted from the DN.
+  string organization = 2;
+  // Organizational Unit (OU) - 2.5.4.11
+  // If empty, the RDN will be omitted from the DN.
+  string organizational_unit = 3;
+}
+
 // Configuration specific to the issuance of X509-SVIDs.
 message WorkloadIdentitySPIFFEX509 {
   // The DNS Subject Alternative Names (SANs) that should be included in an
@@ -101,6 +123,15 @@ message WorkloadIdentitySPIFFEX509 {
   //
   // Each entry in this list supports templating using attributes.
   repeated string dns_sans = 1;
+
+  // Used to configure the Subject Distinguished Name (DN) of the X509-SVID.
+  //
+  // In most circumstances, it is recommended to prefer relying on the SPIFFE ID
+  // encoded in the URI SAN. However, the Subject DN may be needed to support
+  // legacy systems designed for X509 and not SPIFFE/WIMSE.
+  //
+  // If not provided, the X509-SVID will be issued with an empty Subject DN.
+  X509DistinguishedNameTemplate subject_template = 2;
 }
 
 // Configuration pertaining to the issuance of SPIFFE-compatible workload

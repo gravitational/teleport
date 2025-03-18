@@ -187,6 +187,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindWorkloadIdentity, RW()),
 					types.NewRule(types.KindAutoUpdateVersion, RW()),
 					types.NewRule(types.KindAutoUpdateConfig, RW()),
+					types.NewRule(types.KindWorkloadIdentityX509Revocation, RW()),
 				},
 			},
 		},
@@ -501,6 +502,34 @@ func NewPresetRequireTrustedDeviceRole() types.Role {
 	}
 }
 
+// NewPresetWildcardWorkloadIdentityIssuerRole returns a new pre-defined role
+// for issuing workload identities.
+func NewPresetWildcardWorkloadIdentityIssuerRole() types.Role {
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V7,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetWildcardWorkloadIdentityIssuerRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Issue workload identities",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				WorkloadIdentityLabels: types.Labels{
+					types.Wildcard: []string{types.Wildcard},
+				},
+				Rules: []types.Rule{
+					types.NewRule(types.KindWorkloadIdentity, RO()),
+				},
+			},
+		},
+	}
+	return role
+}
+
 // SystemOktaAccessRoleName is the name of the system role that allows
 // access to Okta resources. This will be used by the Okta requester role to
 // search for Okta resources.
@@ -591,34 +620,31 @@ func NewPresetTerraformProviderRole() types.Role {
 				NodeLabels:     map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 				// Every resource currently supported by the Terraform provider.
 				Rules: []types.Rule{
-					{
-						Resources: []string{
-							types.KindAccessList,
-							types.KindApp,
-							types.KindClusterAuthPreference,
-							types.KindClusterMaintenanceConfig,
-							types.KindClusterNetworkingConfig,
-							types.KindDatabase,
-							types.KindDevice,
-							types.KindGithub,
-							types.KindLoginRule,
-							types.KindNode,
-							types.KindOIDC,
-							types.KindOktaImportRule,
-							types.KindRole,
-							types.KindSAML,
-							types.KindSessionRecordingConfig,
-							types.KindToken,
-							types.KindTrustedCluster,
-							types.KindUser,
-							types.KindBot,
-							types.KindInstaller,
-							types.KindAccessMonitoringRule,
-							types.KindStaticHostUser,
-							types.KindWorkloadIdentity,
-						},
-						Verbs: RW(),
-					},
+					// You must add new resources as separate rules for the
+					// default rule addition logic to work properly.
+					types.NewRule(types.KindAccessList, RW()),
+					types.NewRule(types.KindApp, RW()),
+					types.NewRule(types.KindClusterAuthPreference, RW()),
+					types.NewRule(types.KindClusterMaintenanceConfig, RW()),
+					types.NewRule(types.KindClusterNetworkingConfig, RW()),
+					types.NewRule(types.KindDatabase, RW()),
+					types.NewRule(types.KindDevice, RW()),
+					types.NewRule(types.KindGithub, RW()),
+					types.NewRule(types.KindLoginRule, RW()),
+					types.NewRule(types.KindNode, RW()),
+					types.NewRule(types.KindOIDC, RW()),
+					types.NewRule(types.KindOktaImportRule, RW()),
+					types.NewRule(types.KindRole, RW()),
+					types.NewRule(types.KindSAML, RW()),
+					types.NewRule(types.KindSessionRecordingConfig, RW()),
+					types.NewRule(types.KindToken, RW()),
+					types.NewRule(types.KindTrustedCluster, RW()),
+					types.NewRule(types.KindUser, RW()),
+					types.NewRule(types.KindBot, RW()),
+					types.NewRule(types.KindInstaller, RW()),
+					types.NewRule(types.KindAccessMonitoringRule, RW()),
+					types.NewRule(types.KindStaticHostUser, RW()),
+					types.NewRule(types.KindWorkloadIdentity, RW()),
 				},
 			},
 		},
@@ -649,9 +675,10 @@ func bootstrapRoleMetadataLabels() map[string]map[string]string {
 }
 
 var defaultAllowRulesMap = map[string][]types.Rule{
-	teleport.PresetAuditorRoleName: NewPresetAuditorRole().GetRules(types.Allow),
-	teleport.PresetEditorRoleName:  NewPresetEditorRole().GetRules(types.Allow),
-	teleport.PresetAccessRoleName:  NewPresetAccessRole().GetRules(types.Allow),
+	teleport.PresetAuditorRoleName:           NewPresetAuditorRole().GetRules(types.Allow),
+	teleport.PresetEditorRoleName:            NewPresetEditorRole().GetRules(types.Allow),
+	teleport.PresetAccessRoleName:            NewPresetAccessRole().GetRules(types.Allow),
+	teleport.PresetTerraformProviderRoleName: NewPresetTerraformProviderRole().GetRules(types.Allow),
 }
 
 // defaultAllowRules has the Allow rules that should be set as default when

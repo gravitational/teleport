@@ -930,7 +930,7 @@ func (s *Server) handleForwardedTCPIPRequest(ctx context.Context, nch ssh.NewCha
 	go io.Copy(io.Discard, ch.Stderr())
 	ch = scx.TrackActivity(ch)
 
-	event := scx.GetPortForwardEvent()
+	event := scx.GetPortForwardEvent(events.PortForwardEvent, events.PortForwardCode, scx.DstAddr)
 	if err := s.EmitAuditEvent(ctx, &event); err != nil {
 		s.log.WithError(err).Error("Failed to emit audit event.")
 	}
@@ -1095,7 +1095,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 	}
 	defer conn.Close()
 
-	event := scx.GetPortForwardEvent()
+	event := scx.GetPortForwardEvent(events.PortForwardEvent, events.PortForwardFailureCode, scx.DstAddr)
 	if err := s.EmitAuditEvent(s.closeContext, &event); err != nil {
 		scx.WithError(err).Warn("Failed to emit port forward event.")
 	}

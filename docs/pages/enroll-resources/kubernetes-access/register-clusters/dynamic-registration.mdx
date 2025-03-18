@@ -21,12 +21,12 @@ registration, then create, list, update, and delete Kubernetes clusters via
 
 - A Linux host where you will install the Teleport Kubernetes Service.
 
-  <Notice type="tip">
+  <Admonition type="tip">
 
   Our `teleport-kube-agent` Helm chart does not support dynamic Kubernetes
   cluster registration.
 
-  </Notice>
+  </Admonition>
 
 - A Kubernetes cluster to join to your Teleport cluster. You must have
   permissions to create namespaces, secrets, service accounts, cluster roles,
@@ -68,18 +68,15 @@ Install the Teleport Kubernetes Service on your Linux host:
 
 On the host where you will run the Teleport Kubernetes Service, run the
 following command to create a base configuration for your Teleport instance,
-assigning `PROXY_SERVICE` to the host and port of your Teleport Proxy Service or
-Teleport Cloud tenant and `TOKEN` to the join token we created earlier:
+assigning <Var name="example.teleport.sh:443" /> to the host and port of your
+Teleport Proxy Service or Teleport Cloud tenant and <Var name="join-token" /> to
+the join token we created earlier:
 
 ```code
-# e.g., teleport.example.com:443
-$ PROXY_SERVICE=<Var name="proxy-addr"/>
-# e.g., (=presets.tokens.first=);
-$ TOKEN=<Var name="join-token"/>;
 $ sudo teleport configure \
---proxy=${PROXY_SERVICE?} \
+--proxy=<Var name="example.teleport.sh:443" /> \
 --roles=kube \
---token=${TOKEN?} \
+--token=<Var name="join-token" /> \
 -o file
 ```
 
@@ -99,7 +96,8 @@ Kubernetes clusters you register with your Teleport cluster. This is because the
 allows this Kubernetes Service instance to connect to Kubernetes cluster
 resources with any label key or value.
 
-<Details title="Selectively watching Kubernetes clusters">
+<details>
+<summary>Selectively watching Kubernetes clusters</summary>
 
 You can configure a Kubernetes Service instance to watch for a subset of
 Kubernetes clusters by including specific label keys and values instead of
@@ -132,7 +130,7 @@ When you create dynamic Kubernetes cluster resources later in this guide, you
 can assign them labels to ensure that only specific Kubernetes Service instances
 will watch for them.
 
-</Details>
+</details>
 
 ### Run the Teleport Kubernetes Service
 
@@ -288,7 +286,8 @@ definition using the following command:
 $ printf "    %s" $(cat kubeconfig | base64) >> kube_cluster.yaml
 ```
 
-<Details title="Add labels to your kube_cluster">
+<details>
+<summary>Add labels to your kube_cluster</summary>
 
 You can add labels to the `kube_cluster` resource, allowing you to manage access
 to specific clusters from your Teleport roles or Kubernetes Service instances.
@@ -342,7 +341,7 @@ element indicates an argument.
 Supported units are `ns`, `us` (or `µs`), `ms`, `s`, `m`, and `h`. The example
 above configures the Kubernetes Service to run the command every day.
 
-</Details>
+</details>
 
 To create the `kube_cluster` resource, run the following command:
 
@@ -425,13 +424,13 @@ $ tsh kube ls
  mycluster         env=test teleport.dev/origin=dynamic *
 ```
 
-<Notice type="warning">
+<Admonition type="warning">
 
 If the updated `kube_cluster` resource's labels no longer match the ones a Teleport
 Kubernetes Service instance is configured to watch, the instance will unregister
 and stop proxying the Kubernetes cluster.  
 
-</Notice>
+</Admonition>
 
 ### Delete Kubernetes cluster resources
 

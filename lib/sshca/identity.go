@@ -34,23 +34,39 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Identity is a user identity. All identity fields map directly to an ssh certificate field.
 type Identity struct {
+
+	// --- common identity fields ---
+
 	// ValidAfter is the unix timestamp that marks the start time for when the certificate should
 	// be considered valid.
 	ValidAfter uint64
 	// ValidBefore is the unix timestamp that marks the end time for when the certificate should
 	// be considered valid.
 	ValidBefore uint64
+	// CertType indicates what type of cert this is (user or host).
+	CertType uint32
+	// Principals is the list of SSH principals associated with the certificate (this means the
+	// list of allowed unix logins in the case of user certs).
+	Principals []string
+
+	// --- host identity fields ---
+
+	// ClusterName is the name of the cluster within which a node lives
+	ClusterName string
+	// SystemRole identifies the system role of a Teleport instance
+	SystemRole types.SystemRole
+
+	// -- user identity fields ---
+
 	// Username is teleport username
 	Username string
 	// Impersonator is set when a user requests certificate for another user
 	Impersonator string
-	// AllowedLogins is a list of SSH principals
-	AllowedLogins []string
 	// PermitX11Forwarding permits X11 forwarding for this cert
 	PermitX11Forwarding bool
 	// PermitAgentForwarding permits agent forwarding for this cert
@@ -67,7 +83,7 @@ type Identity struct {
 	Traits wrappers.Traits
 	// ActiveRequests tracks privilege escalation requests applied during
 	// certificate construction.
-	ActiveRequests services.RequestIDs
+	ActiveRequests []string
 	// MFAVerified is the UUID of an MFA device when this Identity was
 	// confirmed immediately after an MFA check.
 	MFAVerified string
@@ -100,7 +116,7 @@ type Identity struct {
 	// Machine ID bot. It is empty for human users.
 	BotInstanceID string
 	// AllowedResourceIDs lists the resources the user should be able to access.
-	AllowedResourceIDs string
+	AllowedResourceIDs []types.ResourceID
 	// ConnectionDiagnosticID references the ConnectionDiagnostic that we should use to append traces when testing a Connection.
 	ConnectionDiagnosticID string
 	// PrivateKeyPolicy is the private key policy supported by this certificate.
@@ -114,15 +130,6 @@ type Identity struct {
 	DeviceCredentialID string
 }
 
-// Check performs validation of certain fields in the identity.
-func (i *Identity) Check() error {
-	if len(i.AllowedLogins) == 0 {
-		return trace.BadParameter("ssh user identity missing allowed logins")
-	}
-
-	return nil
-}
-
 // Encode encodes the identity into an ssh certificate. Note that the returned certificate is incomplete
 // and must be have its public key set before signing.
 func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
@@ -134,17 +141,37 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 	if validAfter == 0 {
 		validAfter = uint64(time.Now().UTC().Add(-1 * time.Minute).Unix())
 	}
+
+	if i.CertType == 0 {
+		return nil, trace.BadParameter("cannot encode ssh identity missing required field CertType")
+	}
+
 	cert := &ssh.Certificate{
 		// we have to use key id to identify teleport user
 		KeyId:           i.Username,
-		ValidPrincipals: i.AllowedLogins,
+		ValidPrincipals: i.Principals,
 		ValidAfter:      validAfter,
 		ValidBefore:     validBefore,
-		CertType:        ssh.UserCert,
+		CertType:        i.CertType,
 	}
-	cert.Permissions.Extensions = map[string]string{
-		teleport.CertExtensionPermitPTY: "",
+
+	cert.Permissions.Extensions = make(map[string]string)
+
+	if i.CertType == ssh.UserCert {
+		cert.Permissions.Extensions[teleport.CertExtensionPermitPTY] = ""
 	}
+
+	// --- host extensions ---
+
+	if sr := i.SystemRole.String(); sr != "" {
+		cert.Permissions.Extensions[utils.CertExtensionRole] = sr
+	}
+
+	if i.ClusterName != "" {
+		cert.Permissions.Extensions[utils.CertExtensionAuthority] = i.ClusterName
+	}
+
+	// --- user extensions ---
 
 	if i.PermitX11Forwarding {
 		cert.Permissions.Extensions[teleport.CertExtensionPermitX11Forwarding] = ""
@@ -182,8 +209,12 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 	if i.BotInstanceID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionBotInstanceID] = i.BotInstanceID
 	}
-	if i.AllowedResourceIDs != "" {
-		cert.Permissions.Extensions[teleport.CertExtensionAllowedResources] = i.AllowedResourceIDs
+	if len(i.AllowedResourceIDs) != 0 {
+		requestedResourcesStr, err := types.ResourceIDsToString(i.AllowedResourceIDs)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cert.Permissions.Extensions[teleport.CertExtensionAllowedResources] = requestedResourcesStr
 	}
 	if i.ConnectionDiagnosticID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionConnectionDiagnosticID] = i.ConnectionDiagnosticID
@@ -236,21 +267,27 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 			cert.Permissions.Extensions[teleport.CertExtensionTeleportTraits] = string(traits)
 		}
 		if len(i.Roles) != 0 {
-			roles, err := services.MarshalCertRoles(i.Roles)
+			roles := certRoles{
+				Roles: i.Roles,
+			}
+			rolesExt, err := roles.Marshal()
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			cert.Permissions.Extensions[teleport.CertExtensionTeleportRoles] = roles
+			cert.Permissions.Extensions[teleport.CertExtensionTeleportRoles] = string(rolesExt)
 		}
 		if i.RouteToCluster != "" {
 			cert.Permissions.Extensions[teleport.CertExtensionTeleportRouteToCluster] = i.RouteToCluster
 		}
-		if !i.ActiveRequests.IsEmpty() {
-			requests, err := i.ActiveRequests.Marshal()
+		if len(i.ActiveRequests) != 0 {
+			reqs := requestIDs{
+				AccessRequests: i.ActiveRequests,
+			}
+			reqsExt, err := reqs.Marshal()
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			cert.Permissions.Extensions[teleport.CertExtensionTeleportActiveRequests] = string(requests)
+			cert.Permissions.Extensions[teleport.CertExtensionTeleportActiveRequests] = string(reqsExt)
 		}
 	}
 
@@ -259,14 +296,12 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 
 // DecodeIdentity decodes an ssh certificate into an identity.
 func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
-	if cert.CertType != ssh.UserCert {
-		return nil, trace.BadParameter("DecodeIdentity intended for use with user certs, got %v", cert.CertType)
-	}
 	ident := &Identity{
-		Username:      cert.KeyId,
-		AllowedLogins: cert.ValidPrincipals,
-		ValidAfter:    cert.ValidAfter,
-		ValidBefore:   cert.ValidBefore,
+		Username:    cert.KeyId,
+		Principals:  cert.ValidPrincipals,
+		ValidAfter:  cert.ValidAfter,
+		ValidBefore: cert.ValidBefore,
+		CertType:    cert.CertType,
 	}
 
 	// clone the extension map and remove entries from the clone as they are processed so
@@ -292,8 +327,18 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 		return ok
 	}
 
-	// ignore the permit pty extension, it's always set
+	// ignore the permit pty extension, teleport considers this permission implied for all users
 	_, _ = takeExtension(teleport.CertExtensionPermitPTY)
+
+	// --- host extensions ---
+
+	if v, ok := takeExtension(utils.CertExtensionRole); ok {
+		ident.SystemRole = types.SystemRole(v)
+	}
+
+	ident.ClusterName = takeValue(utils.CertExtensionAuthority)
+
+	// --- user extensions ---
 
 	ident.PermitX11Forwarding = takeBool(teleport.CertExtensionPermitX11Forwarding)
 	ident.PermitAgentForwarding = takeBool(teleport.CertExtensionPermitAgentForwarding)
@@ -323,7 +368,15 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 
 	ident.BotName = takeValue(teleport.CertExtensionBotName)
 	ident.BotInstanceID = takeValue(teleport.CertExtensionBotInstanceID)
-	ident.AllowedResourceIDs = takeValue(teleport.CertExtensionAllowedResources)
+
+	if v, ok := takeExtension(teleport.CertExtensionAllowedResources); ok {
+		resourceIDs, err := types.ResourceIDsFromString(v)
+		if err != nil {
+			return nil, trace.BadParameter("failed to parse value %q for extension %q as resource IDs: %v", v, teleport.CertExtensionAllowedResources, err)
+		}
+		ident.AllowedResourceIDs = resourceIDs
+	}
+
 	ident.ConnectionDiagnosticID = takeValue(teleport.CertExtensionConnectionDiagnosticID)
 	ident.PrivateKeyPolicy = keys.PrivateKeyPolicy(takeValue(teleport.CertExtensionPrivateKeyPolicy))
 	ident.DeviceID = takeValue(teleport.CertExtensionDeviceID)
@@ -347,21 +400,21 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	}
 
 	if v, ok := takeExtension(teleport.CertExtensionTeleportRoles); ok {
-		roles, err := services.UnmarshalCertRoles(v)
-		if err != nil {
+		var roles certRoles
+		if err := roles.Unmarshal([]byte(v)); err != nil {
 			return nil, trace.BadParameter("failed to unmarshal value %q for extension %q as roles: %v", v, teleport.CertExtensionTeleportRoles, err)
 		}
-		ident.Roles = roles
+		ident.Roles = roles.Roles
 	}
 
 	ident.RouteToCluster = takeValue(teleport.CertExtensionTeleportRouteToCluster)
 
 	if v, ok := takeExtension(teleport.CertExtensionTeleportActiveRequests); ok {
-		var requests services.RequestIDs
-		if err := requests.Unmarshal([]byte(v)); err != nil {
+		var reqs requestIDs
+		if err := reqs.Unmarshal([]byte(v)); err != nil {
 			return nil, trace.BadParameter("failed to unmarshal value %q for extension %q as active requests: %v", v, teleport.CertExtensionTeleportActiveRequests, err)
 		}
-		ident.ActiveRequests = requests
+		ident.ActiveRequests = reqs.AccessRequests
 	}
 
 	// aggregate all remaining extensions into the CertificateExtensions field

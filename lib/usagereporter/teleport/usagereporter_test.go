@@ -507,6 +507,7 @@ func TestConvertUsageEvent(t *testing.T) {
 				AccessListGrantsToUser: &usageeventsv1.AccessListGrantsToUser{
 					CountRolesGranted:  5,
 					CountTraitsGranted: 6,
+					UserName:           "myuser",
 				},
 			}},
 			identityUsername: "myuser",

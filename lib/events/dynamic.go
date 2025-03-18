@@ -107,6 +107,12 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.X11Forward{}
 	case PortForwardEvent:
 		e = &events.PortForward{}
+	case PortForwardLocalEvent:
+		e = &events.PortForward{}
+	case PortForwardRemoteEvent:
+		e = &events.PortForward{}
+	case PortForwardRemoteConnEvent:
+		e = &events.PortForward{}
 	case AuthAttemptEvent:
 		e = &events.AuthAttempt{}
 	case SCPEvent:
@@ -472,6 +478,14 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.ContactCreate{}
 	case ContactDeleteEvent:
 		e = &events.ContactDelete{}
+
+	case WorkloadIdentityX509RevocationCreateEvent:
+		e = &events.WorkloadIdentityX509RevocationCreate{}
+	case WorkloadIdentityX509RevocationUpdateEvent:
+		e = &events.WorkloadIdentityX509RevocationUpdate{}
+	case WorkloadIdentityX509RevocationDeleteEvent:
+		e = &events.WorkloadIdentityX509RevocationDelete{}
+
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type %q into protobuf event.", eventType)
 		unknown := &events.Unknown{}

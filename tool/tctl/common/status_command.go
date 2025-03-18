@@ -31,6 +31,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // StatusCommand implements `tctl token` group of commands.
@@ -42,19 +44,27 @@ type StatusCommand struct {
 }
 
 // Initialize allows StatusCommand to plug itself into the CLI parser.
-func (c *StatusCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *StatusCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
 	c.status = app.Command("status", "Report cluster status.")
 }
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
-func (c *StatusCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (c *StatusCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.status.FullCommand():
-		err = c.Status(ctx, client)
+		commandFunc = c.Status
 	default:
 		return false, nil
 	}
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	closeFn(ctx)
+
 	return true, trace.Wrap(err)
 }
 

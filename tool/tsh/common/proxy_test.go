@@ -574,9 +574,6 @@ func TestProxySSH(t *testing.T) {
 func TestProxySSHJumpHost(t *testing.T) {
 	ctx := context.Background()
 
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
-
 	createAgent(t)
 
 	listenerModes := []types.ProxyListenerMode{
@@ -816,7 +813,7 @@ func TestEnvVarCommand(t *testing.T) {
 			inputFormat:  envVarFormatUnix,
 			inputKey:     "key",
 			inputValue:   "value",
-			expectOutput: "export key=value",
+			expectOutput: `export key="value"`,
 		},
 		{
 			inputFormat:  envVarFormatWindowsCommandPrompt,
@@ -828,7 +825,7 @@ func TestEnvVarCommand(t *testing.T) {
 			inputFormat:  envVarFormatWindowsPowershell,
 			inputKey:     "key",
 			inputValue:   "value",
-			expectOutput: "$Env:key=\"value\"",
+			expectOutput: `$Env:key="value"`,
 		},
 		{
 			inputFormat: "unknown",
@@ -1461,19 +1458,11 @@ func TestProxyAppWithIdentity(t *testing.T) {
 		userName    = "admin"
 	)
 
-	appURI := startDummyHTTPServer(t, appName)
-
 	rootServerOpts := []testserver.TestServerOptFunc{
 		testserver.WithClusterName(t, clusterName),
+		testserver.WithTestApp(t, appName),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-			cfg.Apps = servicecfg.AppsConfig{
-				Enabled: true,
-				Apps: []servicecfg.App{{
-					Name: appName,
-					URI:  appURI,
-				}},
-			}
 		}),
 	}
 	process := testserver.MakeTestServer(t, rootServerOpts...)

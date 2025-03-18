@@ -13,11 +13,12 @@ Access Request within Teleport, the plugin updates the board. And when you
 update the status of an Access Request on the board, the plugin notifies a Jira
 webhook run by the plugin, which modifies the Access Request in Teleport.
 
-<Details title="This integration is hosted on Teleport Cloud" open={false}>
+<details>
+<summary>This integration is hosted on Teleport Cloud</summary>
 
 (!docs/pages/includes/plugins/enroll.mdx name="the Mattermost integration"!)
 
-</Details>
+</details>
 
 ## Prerequisites
 
@@ -127,13 +128,13 @@ following:
 
 ![Jira board setup](../../../../img/enterprise/plugins/jira/board-setup.png)
 
-<Notice type="warning">
+<Admonition type="warning">
 
 If your project board does not contain these (and only these) columns, each with
 a status of the same name, the Jira Access Request plugin will behave in
 unexpected ways. Remove all other columns and statuses.
 
-</Notice>
+</Admonition>
 
 Click **Back to board** to review your changes.
 
@@ -409,12 +410,12 @@ Request Reviewed` in the Teleport Web UI.
 
 ## Step 7/7. Set up systemd
 
-<Notice type="tip">
+<Admonition type="tip">
 
 This step is only applicable if you are running the Teleport Jira plugin on a
 Linux machine.
 
-</Notice>
+</Admonition>
 
 In production, we recommend starting the Teleport plugin daemon via an init
 system like systemd. Here's the recommended Teleport plugin service unit file

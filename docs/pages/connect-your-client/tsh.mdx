@@ -455,11 +455,12 @@ $ tsh ls os=osx
 
 [CLI Docs -tsh ls](../reference/cli/tsh.mdx#tsh-ls)
 
-<Details title="Not seeing Nodes?">
+<details>
+<summary>Not seeing Nodes?</summary>
 
 (!docs/pages/includes/node-logins.mdx!)
 
-</Details>
+</details>
 
 ## Interactive shell
 
@@ -683,12 +684,14 @@ $ tsh join <session_ID>
   title="Lacking permission?"
 >
   Joining sessions requires special permissions that need to be set up by your cluster administrator.
-  Refer them to the [Moderated Sessions guide](../admin-guides/access-controls/guides/moderated-sessions.mdx) for more information on configuring join permissions.
+  Refer them to the [Moderated Sessions guide](../admin-guides/access-controls/guides/joining-sessions.mdx) for more information on configuring join permissions.
 </Admonition>
 
-<Notice type="note" scope={["oss", "enterprise"]}>
+You can also list active sessions with the `tsh sessions ls` command.
+
+<Admonition type="note" scope={["oss", "enterprise"]}>
   Joining sessions is not supported in recording proxy mode (where `session_recording` is set to `proxy`).
-</Notice>
+</Admonition>
 
 ## Connecting to SSH clusters behind firewalls
 
@@ -699,9 +702,9 @@ tunnels from behind-firewall environments into a Teleport Proxy Service you have
 To learn more about setting up a trust relationship between clusters behind firewalls, see
 [Configure Trusted Clusters](../admin-guides/management/admin/trustedclusters.mdx).
 
-<Notice type="note" >
+<Admonition type="note" >
   Trusted clusters are only available for self-hosted Teleport clusters.
-</Notice>
+</Admonition>
 
 Assuming the Teleport Proxy Server called `work` is configured with a few trusted
 clusters, you can use the `tsh clusters` command to see a list of all the trusted clusters on the server:
@@ -752,13 +755,13 @@ $ tsh ssh -X node01
 X11 forwarding provides the server with secure access to your local X Server
 so that it can communicate directly with your local display and I/O devices.
 
-<Notice type="note">
+<Admonition type="note">
   The `-Y` flag can be used to start Trusted X11 forwarding. This is needed
   in order to enable more "unsafe" features, such as running clipboard or
   screenshot utilities like `xclip`. However, it provides the server with
   unmitigated access to your local X Server and puts your local machine at
   risk of X11 attacks, so it should only be used with extreme caution.
-</Notice>
+</Admonition>
 
 In order to use X11 forwarding, you'll need to enable it on the Teleport Node.
 You'll also need to ensure that your user has the `permit_x11_forwarding` role option:

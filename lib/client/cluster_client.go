@@ -340,7 +340,7 @@ func (c *ClusterClient) prepareUserCertsRequest(params ReissueParams, key *Key) 
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
-		params.AccessRequests = activeRequests.AccessRequests
+		params.AccessRequests = activeRequests
 	}
 
 	expires := tlsCert.NotAfter

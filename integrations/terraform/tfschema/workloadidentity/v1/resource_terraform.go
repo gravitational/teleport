@@ -100,53 +100,60 @@ func GenSchemaWorkloadIdentity(ctx context.Context) (github_com_hashicorp_terraf
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"rules": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"allow": {
-						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"conditions": {
-							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-								"attribute": {
-									Description: "The name of the attribute to evaluate the condition against.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-								},
-								"eq": {
-									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"value": {
-										Description: "The value to compare the attribute against.",
+						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							"conditions": {
+								Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									"attribute": {
+										Description: "The name of the attribute to evaluate the condition against.",
 										Optional:    true,
 										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-									}}),
-									Description: "The attribute casted to a string must be equal to the value.",
-									Optional:    true,
-								},
-								"in": {
-									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"values": {
-										Description: "The list of values to compare the attribute against.",
+									},
+									"eq": {
+										Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"value": {
+											Description: "The value to compare the attribute against.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										}}),
+										Description: "The attribute casted to a string must be equal to the value.",
 										Optional:    true,
-										Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
-									}}),
-									Description: "The attribute casted to a string must be in the list of values.",
-									Optional:    true,
-								},
-								"not_eq": {
-									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"value": {
-										Description: "The value to compare the attribute against.",
+									},
+									"in": {
+										Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"values": {
+											Description: "The list of values to compare the attribute against.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+										}}),
+										Description: "The attribute casted to a string must be in the list of values.",
 										Optional:    true,
-										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-									}}),
-									Description: "The attribute casted to a string must not be equal to the value.",
-									Optional:    true,
-								},
-								"not_in": {
-									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"values": {
-										Description: "The list of values to compare the attribute against.",
+									},
+									"not_eq": {
+										Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"value": {
+											Description: "The value to compare the attribute against.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										}}),
+										Description: "The attribute casted to a string must not be equal to the value.",
 										Optional:    true,
-										Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
-									}}),
-									Description: "The attribute casted to a string must not be in the list of values.",
-									Optional:    true,
-								},
-							}),
-							Description: "The conditions that must be met for this rule to be considered passed.",
-							Optional:    true,
-						}}),
+									},
+									"not_in": {
+										Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"values": {
+											Description: "The list of values to compare the attribute against.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+										}}),
+										Description: "The attribute casted to a string must not be in the list of values.",
+										Optional:    true,
+									},
+								}),
+								Description: "The conditions that must be met for this rule to be considered passed.  Mutually exclusive with expression.",
+								Optional:    true,
+							},
+							"expression": {
+								Description: "An expression written in Teleport's predicate language that must evaluate to true for this rule to be considered passed.  Mutually exclusive with conditions.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+						}),
 						Description: "A list of rules used to determine if a WorkloadIdentity can be issued. If none are provided, it will be considered a pass. If any are provided, then at least one must pass for the rules to be considered passed.",
 						Optional:    true,
 					}}),
@@ -166,11 +173,34 @@ func GenSchemaWorkloadIdentity(ctx context.Context) (github_com_hashicorp_terraf
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"x509": {
-							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"dns_sans": {
-								Description: "The DNS Subject Alternative Names (SANs) that should be included in an X509-SVID issued using this WorkloadIdentity.  Each entry in this list supports templating using attributes.",
-								Optional:    true,
-								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
-							}}),
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"dns_sans": {
+									Description: "The DNS Subject Alternative Names (SANs) that should be included in an X509-SVID issued using this WorkloadIdentity.  Each entry in this list supports templating using attributes.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"subject_template": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"common_name": {
+											Description: "Common Name (CN) - 2.5.4.3 If empty, the RDN will be omitted from the DN.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"organization": {
+											Description: "Organization (O) - 2.5.4.10 If empty, the RDN will be omitted from the DN.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"organizational_unit": {
+											Description: "Organizational Unit (OU) - 2.5.4.11 If empty, the RDN will be omitted from the DN.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+									}),
+									Description: "Used to configure the Subject Distinguished Name (DN) of the X509-SVID.  In most circumstances, it is recommended to prefer relying on the SPIFFE ID encoded in the URI SAN. However, the Subject DN may be needed to support legacy systems designed for X509 and not SPIFFE/WIMSE.  If not provided, the X509-SVID will be issued with an empty Subject DN.",
+									Optional:    true,
+								},
+							}),
 							Description: "Configuration specific to X509-SVIDs.",
 							Optional:    true,
 						},
@@ -625,6 +655,23 @@ func CopyWorkloadIdentityFromTerraform(_ context.Context, tf github_com_hashicor
 																		}
 																	}
 																}
+																{
+																	a, ok := tf.Attrs["expression"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"WorkloadIdentity.spec.rules.allow.expression"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.expression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.Expression = t
+																		}
+																	}
+																}
 															}
 															obj.Allow[k] = t
 														}
@@ -720,6 +767,75 @@ func CopyWorkloadIdentityFromTerraform(_ context.Context, tf github_com_hashicor
 																				t = string(v.Value)
 																			}
 																			obj.DnsSans[k] = t
+																		}
+																	}
+																}
+															}
+														}
+													}
+													{
+														a, ok := tf.Attrs["subject_template"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"WorkloadIdentity.spec.spiffe.x509.subject_template"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"WorkloadIdentity.spec.spiffe.x509.subject_template", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+															} else {
+																obj.SubjectTemplate = nil
+																if !v.Null && !v.Unknown {
+																	tf := v
+																	obj.SubjectTemplate = &github_com_gravitational_teleport_api_gen_proto_go_teleport_workloadidentity_v1.X509DistinguishedNameTemplate{}
+																	obj := obj.SubjectTemplate
+																	{
+																		a, ok := tf.Attrs["common_name"]
+																		if !ok {
+																			diags.Append(attrReadMissingDiag{"WorkloadIdentity.spec.spiffe.x509.subject_template.common_name"})
+																		} else {
+																			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																			if !ok {
+																				diags.Append(attrReadConversionFailureDiag{"WorkloadIdentity.spec.spiffe.x509.subject_template.common_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			} else {
+																				var t string
+																				if !v.Null && !v.Unknown {
+																					t = string(v.Value)
+																				}
+																				obj.CommonName = t
+																			}
+																		}
+																	}
+																	{
+																		a, ok := tf.Attrs["organization"]
+																		if !ok {
+																			diags.Append(attrReadMissingDiag{"WorkloadIdentity.spec.spiffe.x509.subject_template.organization"})
+																		} else {
+																			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																			if !ok {
+																				diags.Append(attrReadConversionFailureDiag{"WorkloadIdentity.spec.spiffe.x509.subject_template.organization", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			} else {
+																				var t string
+																				if !v.Null && !v.Unknown {
+																					t = string(v.Value)
+																				}
+																				obj.Organization = t
+																			}
+																		}
+																	}
+																	{
+																		a, ok := tf.Attrs["organizational_unit"]
+																		if !ok {
+																			diags.Append(attrReadMissingDiag{"WorkloadIdentity.spec.spiffe.x509.subject_template.organizational_unit"})
+																		} else {
+																			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																			if !ok {
+																				diags.Append(attrReadConversionFailureDiag{"WorkloadIdentity.spec.spiffe.x509.subject_template.organizational_unit", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			} else {
+																				var t string
+																				if !v.Null && !v.Unknown {
+																					t = string(v.Value)
+																				}
+																				obj.OrganizationalUnit = t
+																			}
 																		}
 																	}
 																}
@@ -1465,6 +1581,28 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																	}
 																}
 															}
+															{
+																t, ok := tf.AttrTypes["expression"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"WorkloadIdentity.spec.rules.allow.expression"})
+																} else {
+																	v, ok := tf.Attrs["expression"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"WorkloadIdentity.spec.rules.allow.expression", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.expression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.Expression) == ""
+																	}
+																	v.Value = string(obj.Expression)
+																	v.Unknown = false
+																	tf.Attrs["expression"] = v
+																}
+															}
 														}
 														v.Unknown = false
 														c.Elems[k] = v
@@ -1630,6 +1768,104 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																}
 																c.Unknown = false
 																tf.Attrs["dns_sans"] = c
+															}
+														}
+													}
+													{
+														a, ok := tf.AttrTypes["subject_template"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"WorkloadIdentity.spec.spiffe.x509.subject_template"})
+														} else {
+															o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.spiffe.x509.subject_template", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+															} else {
+																v, ok := tf.Attrs["subject_template"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																if !ok {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+																		AttrTypes: o.AttrTypes,
+																		Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+																	}
+																} else {
+																	if v.Attrs == nil {
+																		v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+																	}
+																}
+																if obj.SubjectTemplate == nil {
+																	v.Null = true
+																} else {
+																	obj := obj.SubjectTemplate
+																	tf := &v
+																	{
+																		t, ok := tf.AttrTypes["common_name"]
+																		if !ok {
+																			diags.Append(attrWriteMissingDiag{"WorkloadIdentity.spec.spiffe.x509.subject_template.common_name"})
+																		} else {
+																			v, ok := tf.Attrs["common_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																			if !ok {
+																				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																				if err != nil {
+																					diags.Append(attrWriteGeneralError{"WorkloadIdentity.spec.spiffe.x509.subject_template.common_name", err})
+																				}
+																				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																				if !ok {
+																					diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.spiffe.x509.subject_template.common_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																				}
+																				v.Null = string(obj.CommonName) == ""
+																			}
+																			v.Value = string(obj.CommonName)
+																			v.Unknown = false
+																			tf.Attrs["common_name"] = v
+																		}
+																	}
+																	{
+																		t, ok := tf.AttrTypes["organization"]
+																		if !ok {
+																			diags.Append(attrWriteMissingDiag{"WorkloadIdentity.spec.spiffe.x509.subject_template.organization"})
+																		} else {
+																			v, ok := tf.Attrs["organization"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																			if !ok {
+																				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																				if err != nil {
+																					diags.Append(attrWriteGeneralError{"WorkloadIdentity.spec.spiffe.x509.subject_template.organization", err})
+																				}
+																				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																				if !ok {
+																					diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.spiffe.x509.subject_template.organization", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																				}
+																				v.Null = string(obj.Organization) == ""
+																			}
+																			v.Value = string(obj.Organization)
+																			v.Unknown = false
+																			tf.Attrs["organization"] = v
+																		}
+																	}
+																	{
+																		t, ok := tf.AttrTypes["organizational_unit"]
+																		if !ok {
+																			diags.Append(attrWriteMissingDiag{"WorkloadIdentity.spec.spiffe.x509.subject_template.organizational_unit"})
+																		} else {
+																			v, ok := tf.Attrs["organizational_unit"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																			if !ok {
+																				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																				if err != nil {
+																					diags.Append(attrWriteGeneralError{"WorkloadIdentity.spec.spiffe.x509.subject_template.organizational_unit", err})
+																				}
+																				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																				if !ok {
+																					diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.spiffe.x509.subject_template.organizational_unit", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																				}
+																				v.Null = string(obj.OrganizationalUnit) == ""
+																			}
+																			v.Value = string(obj.OrganizationalUnit)
+																			v.Unknown = false
+																			tf.Attrs["organizational_unit"] = v
+																		}
+																	}
+																}
+																v.Unknown = false
+																tf.Attrs["subject_template"] = v
 															}
 														}
 													}

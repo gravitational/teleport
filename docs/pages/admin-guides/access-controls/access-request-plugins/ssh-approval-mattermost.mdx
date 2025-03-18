@@ -3,7 +3,9 @@ title: Run the Mattermost Access Request plugin
 description: How to set up Teleport's Mattermost plugin for privilege elevation approvals.
 ---
 
-This guide explains how to integrate Teleport access requests with Mattermost, an open 
+import BotLogo from "/static/avatar_logo.png";
+
+This guide explains how to integrate Teleport Access Requests with Mattermost, an open 
 source messaging platform. The Teleport Mattermost plugin notifies individuals of
 access requests. Users can then approve and deny access requests by following the
 message link, making it easier to implement security best practices without
@@ -11,11 +13,12 @@ compromising productivity.
 
 ![The Mattermost Access Request plugin](../../../../img/enterprise/plugins/mattermost/diagram.png)
 
-<Details title="This integration is hosted on Teleport Cloud" open={false}>
+<details>
+<summary>This integration is hosted on Teleport Cloud</summary>
 
 (!docs/pages/includes/plugins/enroll.mdx name="the Mattermost integration"!)
 
-</Details>
+</details>
 
 ## Prerequisites
 
@@ -101,8 +104,9 @@ Set the "Username", "Display Name", and "Description" fields according to how
 you would like the Mattermost plugin bot to appear in your workspace. Set "Role"
 to "Member".
 
-You can <a href="../../../../img/enterprise/plugins/teleport_bot@2x.png"
-download>download</a> our avatar to set as your Bot Icon.
+{/* lint ignore absolute-docs-links */}
+You can <a href={BotLogo} download>download</a> our avatar to set as your Bot
+Icon.
 
 Set "post:all" to "Enabled".
 
@@ -200,7 +204,8 @@ navigate to each channel you want to invite the plugin to, and enter `/invite
 
 ![Invite the bot](../../../../img/enterprise/plugins/mattermost/add-bot.png)
 
-<Details title="Suggested reviewers">
+<details>
+<summary>Suggested reviewers</summary>
 
 Users can also suggest reviewers when they create an Access Request, e.g.,:
 
@@ -217,7 +222,7 @@ If `recipients` is empty, and the user requesting elevated privileges has not
 suggested any reviewers, the plugin will skip forwarding the Access Request to
 Mattermost.
 
-</Details>
+</details>
 
 The final configuration should look similar to this:
 
@@ -317,7 +322,7 @@ the Teleport Web UI and either approve or deny the request.
 
 (!docs/pages/includes/plugins/resolve-request.mdx!)
 
-<Admonition title="Auditing Access Requests">
+<Admonition type="info" title="Auditing Access Requests">
 
 When the Mattermost plugin posts an Access Request notification to a channel,
 anyone with access to the channel can view the notification and follow the link.

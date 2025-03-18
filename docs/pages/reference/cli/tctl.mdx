@@ -268,6 +268,7 @@ $ tctl auth export [<flags>]
 | `--fingerprint` | none | **string** e.g. `SHA256:<fingerprint>` | filter authority by fingerprint |
 | `--compat` | none | version number | export certificates compatible with specific version of Teleport |
 | `--type` | none | `user`, `host`, `tls-host`, `tls-user`, `tls-user-der`, `windows`, `db`, `openssh`, `saml-idp` | certificate type |
+| `--out` | none | filepath | if set writes exported authorities to files with the given path prefix |
 
 ### Global flags
 
@@ -779,7 +780,7 @@ $ tctl inventory list [<flags>]
 | `--older-than` | none | string | Filter for older teleport versions |
 | `--exact-version` | none | string | Filter output by teleport version |
 | `--services` | none | string | Filter output by service (node,kube,proxy,etc) |
-| `--upgrader` | none | `none`, `kube`, or `unit` | Filter output by upgrader (kube,unit,none) |   
+| `--upgrader` | none | `none`, `kube`, or `unit` | Filter output by upgrader (kube,unit,none) |
 
 ### Global flags
 
@@ -791,7 +792,7 @@ These flags are available for all commands `--debug, --config` . Run
 List inventory
 
 ```code
-$ tctl inventory ls 
+$ tctl inventory ls
 Server ID                            Hostname                        Services                   Agent Version Upgrader Upgrader Version
 ------------------------------------ ------------------------------- -------------------------- ------------- -------- ----------------
 00c3a1f7-5f24-47f9-b866-14401fbb5685 teleport-proxy-77df88c69        Proxy                      (=teleport.version=)       none     none
@@ -825,8 +826,8 @@ $ tctl inventory status [<flags>]
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
 | `--format` | `text` | `yaml, json` or `text` | Output format |
-| `--[no-]connected` | `--no-connected` | none | Show locally connected instances summary |  
-        
+| `--[no-]connected` | `--no-connected` | none | Show locally connected instances summary |
+
 ### Global flags
 
 These are available for all commands `--debug, --config` . Run
@@ -863,10 +864,10 @@ allows seeing connected instances on a specific Auth service.
 
 ```code
 $ tctl inventory status --connected
-Server ID                            Services               Version Upgrader 
------------------------------------- ---------------------- ------- -------- 
-b48e6e81-63e0-498f-834b-1a8adea09d95 Auth                   (=teleport.version=)  none     
-178d9301-2873-4020-895a-014edf067204 Node                   (=teleport.version=)  unit     
+Server ID                            Services               Version Upgrader
+------------------------------------ ---------------------- ------- --------
+b48e6e81-63e0-498f-834b-1a8adea09d95 Auth                   (=teleport.version=)  none
+178d9301-2873-4020-895a-014edf067204 Node                   (=teleport.version=)  unit
 ```
 
  </TabItem>
@@ -1712,6 +1713,91 @@ Set the user `priya`'s Azure identities to `developer` and `dba`:
 $ tctl users update priya --set-azure-identities \
  `/subscriptions/${SUBSCRIPTION_ID?}/resourceGroups/${MY_RESOURCE_GROUP?}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/developer,\
  `/subscriptions/${SUBSCRIPTION_ID?}/resourceGroups/${MY_RESOURCE_GROUP?}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/dba
+```
+
+## tctl autoupdate client-tools status
+
+```code
+$ tctl autoupdate client-tools status [<flags>]
+```
+
+Requests the current status of client tool managed updates, indicating whether managed updates are enabled and displaying the target version for the update.
+If the `--proxy` flag is defined, tctl sends a request to an unauthenticated endpoint to retrieve the data.
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--proxy` | none | none | Address of the Teleport Proxy Service. When defined this address will be used to retrieve client tool auto update configuration. |
+| `--format` | yaml | `json`, `yaml` | Output format: 'yaml' or 'json'. |
+
+### Examples
+
+```code
+$ tctl autoupdate client-tools status
+mode: enabled
+target_version: 17.2.7
+
+$ tctl autoupdate client-tools status --format json
+{
+    "mode": "enabled",
+    "target_version": "17.2.7"
+}
+
+# Request to an unauthenticated endpoint.
+$ tctl autoupdate client-tools status --proxy proxy.example.com
+mode: enabled
+target_version: 17.2.7
+```
+
+## tctl autoupdate client-tools enable
+
+Enables managed updates for client tools in the cluster. If the target version is not set, the proxy version will be advertised.
+
+### Examples
+
+```code
+$ tctl autoupdate client-tools enable
+client tools auto update mode has been changed
+```
+
+## tctl autoupdate client-tools disable
+
+Disables managed updates for client tools in the cluster.
+
+### Examples
+
+```code
+$ tctl autoupdate client-tools disable
+client tools auto update mode has been changed
+```
+
+## tctl autoupdate client-tools target
+
+```code
+$ tctl autoupdate client-tools target [<flags>] <target-version>
+```
+
+Sets the target version for client tools in the cluster. After login, client tools will be advertised to this version and initiate the update process.
+
+### Arguments
+
+- `<target-version>` - Client tools target version. Clients will be told to update to this version.
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--clear` | none | none | Removes the target version, Teleport will default to its current proxy version. |
+
+### Examples
+
+```code
+$ tctl autoupdate client-tools target 17.2.7
+client tools auto update target version has been set
+
+$ tctl autoupdate client-tools target --clear
+client tools auto update target version has been cleared
 ```
 
 ## tctl version

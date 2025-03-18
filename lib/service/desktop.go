@@ -185,7 +185,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 				logger.DebugContext(process.ExitContext(), "Ignoring unsupported cluster name.", "cluster_name", info.ServerName)
 			}
 		}
-		pool, _, err := authclient.DefaultClientCertPool(info.Context(), accessPoint, clusterName)
+		pool, _, _, err := authclient.DefaultClientCertPool(info.Context(), accessPoint, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -212,6 +212,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 
 	srv, err := desktop.NewWindowsService(desktop.WindowsServiceConfig{
 		DataDir:      process.Config.DataDir,
+		LicenseStore: process.storage,
 		Logger:       process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
 		Clock:        process.Clock,
 		Authorizer:   authorizer,

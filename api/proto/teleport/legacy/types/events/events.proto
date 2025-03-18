@@ -78,6 +78,24 @@ enum UserKind {
   USER_KIND_BOT = 2;
 }
 
+// UserOrigin is the origin of a user account.
+// Keep the values in sync with UserOrigin enum defined in
+// prehogv1 and prehogv1alpha.
+enum UserOrigin {
+  // Indicates a legacy cluster emitting events without a defined user origin.
+  USER_ORIGIN_UNSPECIFIED = 0;
+  // Indicates a local user.
+  USER_ORIGIN_LOCAL = 1;
+  // Indicates an SSO user originated from the SAML or OIDC connector.
+  USER_ORIGIN_SSO = 2;
+  // Indicates a user originated from the Okta integration.
+  USER_ORIGIN_OKTA = 3;
+  // Indicates a user originated from the SCIM integration.
+  USER_ORIGIN_SCIM = 4;
+  // Indicates a user originated from the EntraID integration.
+  USER_ORIGIN_ENTRAID = 5;
+}
+
 // UserMetadata is a common user event metadata
 message UserMetadata {
   // User is teleport user name
@@ -118,6 +136,9 @@ message UserMetadata {
   // BotInstanceID is the ID of the Bot Instance if this action is associated
   // with one.
   string BotInstanceID = 12 [(gogoproto.jsontag) = "bot_instance_id,omitempty"];
+
+  // UserOrigin specifies the origin of this user account.
+  UserOrigin UserOrigin = 13 [(gogoproto.jsontag) = "user_origin,omitempty"];
 }
 
 // Server is a server metadata
@@ -4647,6 +4668,9 @@ message OneOf {
     events.WorkloadIdentityUpdate WorkloadIdentityUpdate = 195;
     events.WorkloadIdentityDelete WorkloadIdentityDelete = 196;
     events.UserLoginAccessListInvalid UserLoginAccessListInvalid = 198;
+    events.WorkloadIdentityX509RevocationCreate WorkloadIdentityX509RevocationCreate = 201;
+    events.WorkloadIdentityX509RevocationDelete WorkloadIdentityX509RevocationDelete = 202;
+    events.WorkloadIdentityX509RevocationUpdate WorkloadIdentityX509RevocationUpdate = 203;
   }
 }
 
@@ -5637,6 +5661,10 @@ message SessionRecordingAccess {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  // SessionType is type of the session.
+  string SessionType = 4 [(gogoproto.jsontag) = "session_type,omitempty"];
+  // Format is the format the session recording was accessed.
+  string Format = 5 [(gogoproto.jsontag) = "format,omitempty"];
 }
 
 // KubeClusterMetadata contains common kubernetes cluster information.
@@ -7774,4 +7802,106 @@ enum ContactType {
   CONTACT_TYPE_UNSPECIFIED = 0;
   CONTACT_TYPE_BUSINESS = 1;
   CONTACT_TYPE_SECURITY = 2;
+}
+
+// WorkloadIdentityX509RevocationCreate is emitted when a
+// WorkloadIdentityX509Revocation is created.
+message WorkloadIdentityX509RevocationCreate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Reason is the specified reason for the revocation.
+  string Reason = 5 [(gogoproto.jsontag) = "reason"];
+}
+
+// WorkloadIdentityX509RevocationUpdate is emitted when a
+// WorkloadIdentityX509Revocation is updated.
+message WorkloadIdentityX509RevocationUpdate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Reason is the specified reason for the revocation.
+  string Reason = 5 [(gogoproto.jsontag) = "reason"];
+}
+
+// WorkloadIdentityX509RevocationDelete is emitted when a
+// WorkloadIdentityX509Revocation is deleted.
+message WorkloadIdentityX509RevocationDelete {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }

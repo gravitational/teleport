@@ -3,489 +3,34 @@
 exports[`kube connect dialogue local 1`] = `
 .c4 {
   box-sizing: border-box;
-  margin-bottom: 16px;
+  margin-bottom: 24px;
   min-height: 32px;
 }
 
 .c7 {
   box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-}
-
-.c9 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-}
-
-.c12 {
-  box-sizing: border-box;
-  margin-top: 8px;
-  padding: 8px;
-  color: #FFFFFF;
-  background-color: #010B1C;
-  border-radius: 4px;
-}
-
-.c14 {
-  box-sizing: border-box;
-  margin-right: 8px;
-}
-
-.c16 {
-  box-sizing: border-box;
-  margin-right: 4px;
-}
-
-.c18 {
-  box-sizing: border-box;
-  margin-bottom: 4px;
-}
-
-.c19 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-  margin-top: 24px;
-  border-top: 1px solid;
-}
-
-.c20 {
-  box-sizing: border-box;
-  margin-top: 24px;
-}
-
-.c23 {
-  box-sizing: border-box;
-}
-
-.c17 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-}
-
-.c17:hover,
-.c17:focus {
-  background: #B29DFF;
-}
-
-.c17:active {
-  background: #C5B6FF;
-}
-
-.c17:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-  cursor: auto;
-}
-
-.c24 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-}
-
-.c24:hover,
-.c24:focus {
-  background: rgba(255,255,255,0.13);
-}
-
-.c24:active {
-  background: rgba(255,255,255,0.18);
-}
-
-.c24:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-  cursor: auto;
-}
-
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  margin: 0px;
-  color: #FFFFFF;
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-  margin-bottom: 8px;
-  margin-top: 4px;
 }
 
 .c11 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-}
-
-.c22 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-  margin-top: 4px;
-}
-
-.c5 {
-  display: flex;
-  align-items: center;
-}
-
-.c8 {
-  display: flex;
-  flex-direction: column;
+  box-sizing: border-box;
+  margin-bottom: 32px;
+  min-height: 240px;
+  flex: 0 0 auto;
 }
 
 .c13 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.c15 {
-  display: flex;
-}
-
-.c21 {
-  display: flex;
-  justify-content: space-between;
-}
-
-.c1 {
-  z-index: -1;
-  position: fixed;
-  right: 0;
-  bottom: 0;
-  top: 0;
-  left: 0;
-  background-color: rgba(0,0,0,0.5);
-  opacity: 1;
-  touch-action: none;
-}
-
-.c0 {
-  position: fixed;
-  z-index: 1200;
-  right: 0;
-  bottom: 0;
-  top: 0;
-  left: 0;
-}
-
-.c2 {
-  height: 100%;
-  outline: none;
-  color: black;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 1;
-  will-change: opacity;
-  transition: opacity 225ms cubic-bezier(0.4,0,0.2,1) 0ms;
-}
-
-.c3 {
-  padding: 32px;
-  padding-top: 24px;
-  background: #222C59;
-  color: #FFFFFF;
-  border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  overflow-y: auto;
-  max-height: calc(100% - 96px);
-  min-height: 400px;
-  max-width: 600px;
-  width: 100%;
-}
-
-<body>
-  <div />
-  <div
-    class="c0"
-    data-testid="Modal"
-  >
-    <div
-      aria-hidden="true"
-      class="c1"
-      data-testid="backdrop"
-    />
-    <div
-      class="c2"
-    >
-      <div
-        class="c3"
-        data-testid="dialogbox"
-      >
-        <div
-          class="c4 c5"
-        >
-          <div
-            class="c6"
-            color="text.main"
-          >
-            connect to kubernetes cluster
-          </div>
-        </div>
-        <div
-          class="c7 c8"
-        >
-          <div
-            class="c9"
-          >
-            <div
-              class="c10"
-            >
-              Connect in the CLI using tsh and kubectl
-            </div>
-            <span
-              class="c11"
-            >
-              Step 1
-            </span>
-             - Login to Teleport
-            <div
-              class="c12 c13"
-              color="light"
-            >
-              <div
-                class="c14 c15"
-                style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
-              >
-                <div
-                  class="c16"
-                  style="user-select: none;"
-                >
-                  $
-                </div>
-                <div>
-                  tsh login --proxy=localhost:443 --auth=local --user=sam some-cluster-name
-                </div>
-              </div>
-              <button
-                class="c17"
-                kind="primary"
-                style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
-              >
-                Copy
-              </button>
-            </div>
-          </div>
-          <div
-            class="c9"
-          >
-            <span
-              class="c11"
-            >
-              Optional
-            </span>
-             
-            - To write kubectl configuration to a separate file instead of having your global kubectl configuration modified, run the following command:
-            <div
-              class="c12 c13"
-              color="light"
-            >
-              <div
-                class="c14 c15"
-                style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
-              >
-                <div
-                  class="c16"
-                  style="user-select: none;"
-                >
-                  $
-                </div>
-                <div>
-                  export KUBECONFIG=\${HOME?}/teleport-kubeconfig.yaml
-                </div>
-              </div>
-              <button
-                class="c17"
-                kind="primary"
-                style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
-              >
-                Copy
-              </button>
-            </div>
-          </div>
-          <div
-            class="c9"
-          >
-            <span
-              class="c11"
-            >
-              Step 2
-            </span>
-             - Select the Kubernetes cluster
-            <div
-              class="c12 c13"
-              color="light"
-            >
-              <div
-                class="c14 c15"
-                style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
-              >
-                <div
-                  class="c16"
-                  style="user-select: none;"
-                >
-                  $
-                </div>
-                <div>
-                  tsh kube login tele.logicoma.dev-prod
-                </div>
-              </div>
-              <button
-                class="c17"
-                kind="primary"
-                style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
-              >
-                Copy
-              </button>
-            </div>
-          </div>
-          <div
-            class="c18"
-          >
-            <span
-              class="c11"
-            >
-              Step 3
-            </span>
-             - Connect to the Kubernetes cluster
-            <div
-              class="c12 c13"
-              color="light"
-            >
-              <div
-                class="c14 c15"
-                style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
-              >
-                <div
-                  class="c16"
-                  style="user-select: none;"
-                >
-                  $
-                </div>
-                <div>
-                  kubectl get pods
-                </div>
-              </div>
-              <button
-                class="c17"
-                kind="primary"
-                style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
-              >
-                Copy
-              </button>
-            </div>
-          </div>
-          <div
-            class="c19"
-          >
-            <div
-              class="c20 c21"
-            >
-              <div
-                class="c22"
-              >
-                Or exec into a pod on this Kubernetes cluster in Web UI
-              </div>
-              <button
-                class="c17"
-                kind="primary"
-              >
-                Exec
-              </button>
-            </div>
-          </div>
-        </div>
-        <div
-          class="c23"
-        >
-          <button
-            class="c24"
-            kind="secondary"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-</body>
-`;
-
-exports[`kube connect dialogue local with requestId 1`] = `
-.c4 {
   box-sizing: border-box;
-  margin-bottom: 16px;
-  min-height: 32px;
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid;
 }
 
-.c7 {
-  box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-}
-
-.c9 {
+.c17 {
   box-sizing: border-box;
   margin-bottom: 24px;
 }
 
-.c12 {
+.c20 {
   box-sizing: border-box;
   margin-top: 8px;
   padding: 8px;
@@ -494,44 +39,22 @@ exports[`kube connect dialogue local with requestId 1`] = `
   border-radius: 4px;
 }
 
-.c14 {
+.c22 {
   box-sizing: border-box;
   margin-right: 8px;
 }
 
-.c16 {
+.c24 {
   box-sizing: border-box;
   margin-right: 4px;
 }
 
-.c18 {
+.c26 {
   box-sizing: border-box;
   margin-bottom: 4px;
 }
 
-.c19 {
-  box-sizing: border-box;
-  margin-bottom: 4px;
-  margin-top: 16px;
-}
-
-.c20 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-  margin-top: 24px;
-  border-top: 1px solid;
-}
-
-.c21 {
-  box-sizing: border-box;
-  margin-top: 24px;
-}
-
-.c24 {
-  box-sizing: border-box;
-}
-
-.c17 {
+.c15 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -552,21 +75,22 @@ exports[`kube connect dialogue local with requestId 1`] = `
   -webkit-font-smoothing: antialiased;
   color: #000000;
   background: #9F85FF;
-  min-height: 32px;
+  min-height: 40px;
   font-size: 12px;
-  padding: 0px 24px;
+  padding: 0px 40px;
+  gap: 8px;
 }
 
-.c17:hover,
-.c17:focus {
+.c15:hover,
+.c15:focus {
   background: #B29DFF;
 }
 
-.c17:active {
+.c15:active {
   background: #C5B6FF;
 }
 
-.c17:disabled {
+.c15:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
@@ -591,8 +115,8 @@ exports[`kube connect dialogue local with requestId 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
@@ -600,17 +124,64 @@ exports[`kube connect dialogue local with requestId 1`] = `
 
 .c25:hover,
 .c25:focus {
-  background: rgba(255,255,255,0.13);
+  background: #B29DFF;
 }
 
 .c25:active {
-  background: rgba(255,255,255,0.18);
+  background: #C5B6FF;
 }
 
 .c25:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
+}
+
+.c27 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  color: #FFFFFF;
+  background: rgba(255,255,255,0.07);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c27:hover,
+.c27:focus {
+  background: rgba(255,255,255,0.13);
+}
+
+.c27:active {
+  background: rgba(255,255,255,0.18);
+}
+
+.c27:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+  cursor: auto;
+}
+
+.c16 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .c6 {
@@ -624,28 +195,30 @@ exports[`kube connect dialogue local with requestId 1`] = `
   color: #FFFFFF;
 }
 
-.c10 {
+.c14 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
+  margin: 0px;
+  margin-bottom: 16px;
+}
+
+.c18 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 20px;
   margin: 0px;
   margin-bottom: 8px;
   margin-top: 4px;
 }
 
-.c11 {
+.c19 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
   margin: 0px;
-}
-
-.c23 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-  margin-top: 4px;
 }
 
 .c5 {
@@ -655,22 +228,34 @@ exports[`kube connect dialogue local with requestId 1`] = `
 
 .c8 {
   display: flex;
+  gap: 8px;
+}
+
+.c9 {
+  display: flex;
+  gap: 4px;
+}
+
+.c12 {
+  display: flex;
   flex-direction: column;
 }
 
-.c13 {
+.c21 {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.c15 {
+.c23 {
   display: flex;
 }
 
-.c22 {
-  display: flex;
-  justify-content: space-between;
+.c10 {
+  display: block;
+  outline: none;
+  width: 24px;
+  height: 24px;
 }
 
 .c1 {
@@ -748,46 +333,93 @@ exports[`kube connect dialogue local with requestId 1`] = `
             class="c6"
             color="text.main"
           >
-            connect to kubernetes cluster
+            <div
+              class="c7 c8"
+            >
+              Connect to:
+              <div
+                class="c7 c9"
+              >
+                <img
+                  class="c10"
+                  data-testid="res-icon-kube"
+                  height="24px"
+                  src="file_stub"
+                  width="24px"
+                />
+                tele.logicoma.dev-prod
+              </div>
+            </div>
           </div>
         </div>
         <div
-          class="c7 c8"
+          class="c11 c12"
         >
           <div
-            class="c9"
+            class="c13"
           >
             <div
-              class="c10"
+              class="c14"
             >
-              Connect in the CLI using tsh and kubectl
+              Open Teleport-authenticated session in the browser:
             </div>
+            <button
+              class="c15"
+              kind="primary"
+            >
+              Exec in the browser
+              <span
+                class="c16 icon icon-newtab"
+              >
+                <svg
+                  fill="currentColor"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  width="24"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M13.5 3.74988C13.5001 3.33567 13.8359 2.99994 14.2501 3L20.2125 3.00093C20.4167 2.99077 20.6243 3.06369 20.7803 3.21967C20.9363 3.37565 21.0092 3.58324 20.9991 3.78747L21 9.74988C21.0001 10.1641 20.6643 10.4999 20.2501 10.5C19.8359 10.5001 19.5001 10.1643 19.5 9.75012L19.4993 5.56132L13.2803 11.7803C12.9874 12.0732 12.5126 12.0732 12.2197 11.7803C11.9268 11.4874 11.9268 11.0126 12.2197 10.7197L18.4387 4.50065L14.2499 4.5C13.8357 4.49994 13.4999 4.1641 13.5 3.74988ZM4.5 6C4.10217 6 3.72064 6.15804 3.43934 6.43934C3.15804 6.72064 3 7.10217 3 7.5V19.5C3 19.8978 3.15804 20.2794 3.43934 20.5607C3.72065 20.842 4.10218 21 4.5 21H16.5C16.8978 21 17.2794 20.842 17.5607 20.5607C17.842 20.2794 18 19.8978 18 19.5V12.75C18 12.3358 17.6642 12 17.25 12C16.8358 12 16.5 12.3358 16.5 12.75V19.5H4.5L4.5 7.5H11.25C11.6642 7.5 12 7.16421 12 6.75C12 6.33579 11.6642 6 11.25 6H4.5Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </div>
+          <div
+            class="c17"
+          >
+            <h3
+              class="c18"
+            >
+              Or connect in the CLI using tsh and kubectl:
+            </h3>
             <span
-              class="c11"
+              class="c19"
             >
               Step 1
             </span>
              - Login to Teleport
             <div
-              class="c12 c13"
+              class="c20 c21"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c22 c23"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
-                  class="c16"
+                  class="c24"
                   style="user-select: none;"
                 >
                   $
                 </div>
                 <div>
-                  tsh login --proxy=localhost:443 --auth=local --user=sam some-cluster-name --request-id=8289cdb1-385c-5b02-85f1-fa2a934b749f
+                  tsh login --proxy=localhost:443 --auth=local --user=sam some-cluster-name
                 </div>
               </div>
               <button
-                class="c17"
+                class="c25"
                 kind="primary"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
@@ -796,25 +428,25 @@ exports[`kube connect dialogue local with requestId 1`] = `
             </div>
           </div>
           <div
-            class="c9"
+            class="c17"
           >
             <span
-              class="c11"
+              class="c19"
             >
               Optional
             </span>
              
             - To write kubectl configuration to a separate file instead of having your global kubectl configuration modified, run the following command:
             <div
-              class="c12 c13"
+              class="c20 c21"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c22 c23"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
-                  class="c16"
+                  class="c24"
                   style="user-select: none;"
                 >
                   $
@@ -824,7 +456,7 @@ exports[`kube connect dialogue local with requestId 1`] = `
                 </div>
               </div>
               <button
-                class="c17"
+                class="c25"
                 kind="primary"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
@@ -833,24 +465,24 @@ exports[`kube connect dialogue local with requestId 1`] = `
             </div>
           </div>
           <div
-            class="c9"
+            class="c17"
           >
             <span
-              class="c11"
+              class="c19"
             >
               Step 2
             </span>
              - Select the Kubernetes cluster
             <div
-              class="c12 c13"
+              class="c20 c21"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c22 c23"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
-                  class="c16"
+                  class="c24"
                   style="user-select: none;"
                 >
                   $
@@ -860,7 +492,7 @@ exports[`kube connect dialogue local with requestId 1`] = `
                 </div>
               </div>
               <button
-                class="c17"
+                class="c25"
                 kind="primary"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
@@ -869,24 +501,24 @@ exports[`kube connect dialogue local with requestId 1`] = `
             </div>
           </div>
           <div
-            class="c18"
+            class="c26"
           >
             <span
-              class="c11"
+              class="c19"
             >
               Step 3
             </span>
              - Connect to the Kubernetes cluster
             <div
-              class="c12 c13"
+              class="c20 c21"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c22 c23"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
-                  class="c16"
+                  class="c24"
                   style="user-select: none;"
                 >
                   $
@@ -896,75 +528,20 @@ exports[`kube connect dialogue local with requestId 1`] = `
                 </div>
               </div>
               <button
-                class="c17"
+                class="c25"
                 kind="primary"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
                 Copy
-              </button>
-            </div>
-          </div>
-          <div
-            class="c19"
-          >
-            <span
-              class="c11"
-            >
-              Step 4 (Optional)
-            </span>
-             - When finished, drop the assumed role
-            <div
-              class="c12 c13"
-              color="light"
-            >
-              <div
-                class="c14 c15"
-                style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
-              >
-                <div
-                  class="c16"
-                  style="user-select: none;"
-                >
-                  $
-                </div>
-                <div>
-                  tsh request drop
-                </div>
-              </div>
-              <button
-                class="c17"
-                kind="primary"
-                style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
-              >
-                Copy
-              </button>
-            </div>
-          </div>
-          <div
-            class="c20"
-          >
-            <div
-              class="c21 c22"
-            >
-              <div
-                class="c23"
-              >
-                Or exec into a pod on this Kubernetes cluster in Web UI
-              </div>
-              <button
-                class="c17"
-                kind="primary"
-              >
-                Exec
               </button>
             </div>
           </div>
         </div>
         <div
-          class="c24"
+          class="c7"
         >
           <button
-            class="c25"
+            class="c27"
             kind="secondary"
           >
             Close
@@ -976,25 +553,37 @@ exports[`kube connect dialogue local with requestId 1`] = `
 </body>
 `;
 
-exports[`kube connect dialogue sso 1`] = `
+exports[`kube connect dialogue local with requestId 1`] = `
 .c4 {
   box-sizing: border-box;
-  margin-bottom: 16px;
+  margin-bottom: 24px;
   min-height: 32px;
 }
 
 .c7 {
   box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
 }
 
-.c9 {
+.c11 {
+  box-sizing: border-box;
+  margin-bottom: 32px;
+  min-height: 240px;
+  flex: 0 0 auto;
+}
+
+.c13 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid;
+}
+
+.c17 {
   box-sizing: border-box;
   margin-bottom: 24px;
 }
 
-.c12 {
+.c20 {
   box-sizing: border-box;
   margin-top: 8px;
   padding: 8px;
@@ -1003,38 +592,70 @@ exports[`kube connect dialogue sso 1`] = `
   border-radius: 4px;
 }
 
-.c14 {
+.c22 {
   box-sizing: border-box;
   margin-right: 8px;
 }
 
-.c16 {
+.c24 {
   box-sizing: border-box;
   margin-right: 4px;
 }
 
-.c18 {
+.c26 {
   box-sizing: border-box;
   margin-bottom: 4px;
 }
 
-.c19 {
+.c27 {
   box-sizing: border-box;
-  margin-bottom: 24px;
-  margin-top: 24px;
-  border-top: 1px solid;
+  margin-bottom: 4px;
+  margin-top: 16px;
 }
 
-.c20 {
+.c15 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
   box-sizing: border-box;
-  margin-top: 24px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  color: #000000;
+  background: #9F85FF;
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  gap: 8px;
 }
 
-.c23 {
-  box-sizing: border-box;
+.c15:hover,
+.c15:focus {
+  background: #B29DFF;
 }
 
-.c17 {
+.c15:active {
+  background: #C5B6FF;
+}
+
+.c15:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+  cursor: auto;
+}
+
+.c25 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1060,22 +681,22 @@ exports[`kube connect dialogue sso 1`] = `
   padding: 0px 24px;
 }
 
-.c17:hover,
-.c17:focus {
+.c25:hover,
+.c25:focus {
   background: #B29DFF;
 }
 
-.c17:active {
+.c25:active {
   background: #C5B6FF;
 }
 
-.c17:disabled {
+.c25:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c24 {
+.c28 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1101,19 +722,25 @@ exports[`kube connect dialogue sso 1`] = `
   padding: 0px 24px;
 }
 
-.c24:hover,
-.c24:focus {
+.c28:hover,
+.c28:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c24:active {
+.c28:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c24:disabled {
+.c28:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
+}
+
+.c16 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .c6 {
@@ -1127,28 +754,30 @@ exports[`kube connect dialogue sso 1`] = `
   color: #FFFFFF;
 }
 
-.c10 {
+.c14 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
+  margin: 0px;
+  margin-bottom: 16px;
+}
+
+.c18 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 20px;
   margin: 0px;
   margin-bottom: 8px;
   margin-top: 4px;
 }
 
-.c11 {
+.c19 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
   margin: 0px;
-}
-
-.c22 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  margin: 0px;
-  margin-top: 4px;
 }
 
 .c5 {
@@ -1158,22 +787,34 @@ exports[`kube connect dialogue sso 1`] = `
 
 .c8 {
   display: flex;
+  gap: 8px;
+}
+
+.c9 {
+  display: flex;
+  gap: 4px;
+}
+
+.c12 {
+  display: flex;
   flex-direction: column;
 }
 
-.c13 {
+.c21 {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.c15 {
+.c23 {
   display: flex;
 }
 
-.c21 {
-  display: flex;
-  justify-content: space-between;
+.c10 {
+  display: block;
+  outline: none;
+  width: 24px;
+  height: 24px;
 }
 
 .c1 {
@@ -1251,46 +892,93 @@ exports[`kube connect dialogue sso 1`] = `
             class="c6"
             color="text.main"
           >
-            connect to kubernetes cluster
+            <div
+              class="c7 c8"
+            >
+              Connect to:
+              <div
+                class="c7 c9"
+              >
+                <img
+                  class="c10"
+                  data-testid="res-icon-kube"
+                  height="24px"
+                  src="file_stub"
+                  width="24px"
+                />
+                tele.logicoma.dev-prod
+              </div>
+            </div>
           </div>
         </div>
         <div
-          class="c7 c8"
+          class="c11 c12"
         >
           <div
-            class="c9"
+            class="c13"
           >
             <div
-              class="c10"
+              class="c14"
             >
-              Connect in the CLI using tsh and kubectl
+              Open Teleport-authenticated session in the browser:
             </div>
+            <button
+              class="c15"
+              kind="primary"
+            >
+              Exec in the browser
+              <span
+                class="c16 icon icon-newtab"
+              >
+                <svg
+                  fill="currentColor"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  width="24"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M13.5 3.74988C13.5001 3.33567 13.8359 2.99994 14.2501 3L20.2125 3.00093C20.4167 2.99077 20.6243 3.06369 20.7803 3.21967C20.9363 3.37565 21.0092 3.58324 20.9991 3.78747L21 9.74988C21.0001 10.1641 20.6643 10.4999 20.2501 10.5C19.8359 10.5001 19.5001 10.1643 19.5 9.75012L19.4993 5.56132L13.2803 11.7803C12.9874 12.0732 12.5126 12.0732 12.2197 11.7803C11.9268 11.4874 11.9268 11.0126 12.2197 10.7197L18.4387 4.50065L14.2499 4.5C13.8357 4.49994 13.4999 4.1641 13.5 3.74988ZM4.5 6C4.10217 6 3.72064 6.15804 3.43934 6.43934C3.15804 6.72064 3 7.10217 3 7.5V19.5C3 19.8978 3.15804 20.2794 3.43934 20.5607C3.72065 20.842 4.10218 21 4.5 21H16.5C16.8978 21 17.2794 20.842 17.5607 20.5607C17.842 20.2794 18 19.8978 18 19.5V12.75C18 12.3358 17.6642 12 17.25 12C16.8358 12 16.5 12.3358 16.5 12.75V19.5H4.5L4.5 7.5H11.25C11.6642 7.5 12 7.16421 12 6.75C12 6.33579 11.6642 6 11.25 6H4.5Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </div>
+          <div
+            class="c17"
+          >
+            <h3
+              class="c18"
+            >
+              Or connect in the CLI using tsh and kubectl:
+            </h3>
             <span
-              class="c11"
+              class="c19"
             >
               Step 1
             </span>
              - Login to Teleport
             <div
-              class="c12 c13"
+              class="c20 c21"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c22 c23"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
-                  class="c16"
+                  class="c24"
                   style="user-select: none;"
                 >
                   $
                 </div>
                 <div>
-                  tsh login --proxy=localhost:443 some-cluster-name
+                  tsh login --proxy=localhost:443 --auth=local --user=sam some-cluster-name --request-id=8289cdb1-385c-5b02-85f1-fa2a934b749f
                 </div>
               </div>
               <button
-                class="c17"
+                class="c25"
                 kind="primary"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
@@ -1299,25 +987,25 @@ exports[`kube connect dialogue sso 1`] = `
             </div>
           </div>
           <div
-            class="c9"
+            class="c17"
           >
             <span
-              class="c11"
+              class="c19"
             >
               Optional
             </span>
              
             - To write kubectl configuration to a separate file instead of having your global kubectl configuration modified, run the following command:
             <div
-              class="c12 c13"
+              class="c20 c21"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c22 c23"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
-                  class="c16"
+                  class="c24"
                   style="user-select: none;"
                 >
                   $
@@ -1327,7 +1015,7 @@ exports[`kube connect dialogue sso 1`] = `
                 </div>
               </div>
               <button
-                class="c17"
+                class="c25"
                 kind="primary"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
@@ -1336,24 +1024,24 @@ exports[`kube connect dialogue sso 1`] = `
             </div>
           </div>
           <div
-            class="c9"
+            class="c17"
           >
             <span
-              class="c11"
+              class="c19"
             >
               Step 2
             </span>
              - Select the Kubernetes cluster
             <div
-              class="c12 c13"
+              class="c20 c21"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c22 c23"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
-                  class="c16"
+                  class="c24"
                   style="user-select: none;"
                 >
                   $
@@ -1363,7 +1051,7 @@ exports[`kube connect dialogue sso 1`] = `
                 </div>
               </div>
               <button
-                class="c17"
+                class="c25"
                 kind="primary"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
@@ -1372,24 +1060,24 @@ exports[`kube connect dialogue sso 1`] = `
             </div>
           </div>
           <div
-            class="c18"
+            class="c26"
           >
             <span
-              class="c11"
+              class="c19"
             >
               Step 3
             </span>
              - Connect to the Kubernetes cluster
             <div
-              class="c12 c13"
+              class="c20 c21"
               color="light"
             >
               <div
-                class="c14 c15"
+                class="c22 c23"
                 style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
                 <div
-                  class="c16"
+                  class="c24"
                   style="user-select: none;"
                 >
                   $
@@ -1399,7 +1087,7 @@ exports[`kube connect dialogue sso 1`] = `
                 </div>
               </div>
               <button
-                class="c17"
+                class="c25"
                 kind="primary"
                 style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
@@ -1408,30 +1096,600 @@ exports[`kube connect dialogue sso 1`] = `
             </div>
           </div>
           <div
-            class="c19"
+            class="c27"
           >
+            <span
+              class="c19"
+            >
+              Step 4 (Optional)
+            </span>
+             - When finished, drop the assumed role
             <div
               class="c20 c21"
+              color="light"
             >
               <div
-                class="c22"
+                class="c22 c23"
+                style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
               >
-                Or exec into a pod on this Kubernetes cluster in Web UI
+                <div
+                  class="c24"
+                  style="user-select: none;"
+                >
+                  $
+                </div>
+                <div>
+                  tsh request drop
+                </div>
               </div>
               <button
-                class="c17"
+                class="c25"
                 kind="primary"
+                style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
               >
-                Exec
+                Copy
               </button>
             </div>
           </div>
         </div>
         <div
-          class="c23"
+          class="c7"
         >
           <button
-            class="c24"
+            class="c28"
+            kind="secondary"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+`;
+
+exports[`kube connect dialogue sso 1`] = `
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  min-height: 32px;
+}
+
+.c7 {
+  box-sizing: border-box;
+}
+
+.c11 {
+  box-sizing: border-box;
+  margin-bottom: 32px;
+  min-height: 240px;
+  flex: 0 0 auto;
+}
+
+.c13 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid;
+}
+
+.c17 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+}
+
+.c20 {
+  box-sizing: border-box;
+  margin-top: 8px;
+  padding: 8px;
+  color: #FFFFFF;
+  background-color: #010B1C;
+  border-radius: 4px;
+}
+
+.c22 {
+  box-sizing: border-box;
+  margin-right: 8px;
+}
+
+.c24 {
+  box-sizing: border-box;
+  margin-right: 4px;
+}
+
+.c26 {
+  box-sizing: border-box;
+  margin-bottom: 4px;
+}
+
+.c15 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  color: #000000;
+  background: #9F85FF;
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  gap: 8px;
+}
+
+.c15:hover,
+.c15:focus {
+  background: #B29DFF;
+}
+
+.c15:active {
+  background: #C5B6FF;
+}
+
+.c15:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+  cursor: auto;
+}
+
+.c25 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  color: #000000;
+  background: #9F85FF;
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c25:hover,
+.c25:focus {
+  background: #B29DFF;
+}
+
+.c25:active {
+  background: #C5B6FF;
+}
+
+.c25:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+  cursor: auto;
+}
+
+.c27 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  color: #FFFFFF;
+  background: rgba(255,255,255,0.07);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c27:hover,
+.c27:focus {
+  background: rgba(255,255,255,0.13);
+}
+
+.c27:active {
+  background: rgba(255,255,255,0.18);
+}
+
+.c27:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+  cursor: auto;
+}
+
+.c16 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  text-transform: uppercase;
+  margin: 0px;
+  color: #FFFFFF;
+}
+
+.c14 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+  margin-bottom: 16px;
+}
+
+.c18 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 20px;
+  margin: 0px;
+  margin-bottom: 8px;
+  margin-top: 4px;
+}
+
+.c19 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+}
+
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
+.c8 {
+  display: flex;
+  gap: 8px;
+}
+
+.c9 {
+  display: flex;
+  gap: 4px;
+}
+
+.c12 {
+  display: flex;
+  flex-direction: column;
+}
+
+.c21 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c23 {
+  display: flex;
+}
+
+.c10 {
+  display: block;
+  outline: none;
+  width: 24px;
+  height: 24px;
+}
+
+.c1 {
+  z-index: -1;
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+  background-color: rgba(0,0,0,0.5);
+  opacity: 1;
+  touch-action: none;
+}
+
+.c0 {
+  position: fixed;
+  z-index: 1200;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+}
+
+.c2 {
+  height: 100%;
+  outline: none;
+  color: black;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  will-change: opacity;
+  transition: opacity 225ms cubic-bezier(0.4,0,0.2,1) 0ms;
+}
+
+.c3 {
+  padding: 32px;
+  padding-top: 24px;
+  background: #222C59;
+  color: #FFFFFF;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow-y: auto;
+  max-height: calc(100% - 96px);
+  min-height: 400px;
+  max-width: 600px;
+  width: 100%;
+}
+
+<body>
+  <div />
+  <div
+    class="c0"
+    data-testid="Modal"
+  >
+    <div
+      aria-hidden="true"
+      class="c1"
+      data-testid="backdrop"
+    />
+    <div
+      class="c2"
+    >
+      <div
+        class="c3"
+        data-testid="dialogbox"
+      >
+        <div
+          class="c4 c5"
+        >
+          <div
+            class="c6"
+            color="text.main"
+          >
+            <div
+              class="c7 c8"
+            >
+              Connect to:
+              <div
+                class="c7 c9"
+              >
+                <img
+                  class="c10"
+                  data-testid="res-icon-kube"
+                  height="24px"
+                  src="file_stub"
+                  width="24px"
+                />
+                tele.logicoma.dev-prod
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="c11 c12"
+        >
+          <div
+            class="c13"
+          >
+            <div
+              class="c14"
+            >
+              Open Teleport-authenticated session in the browser:
+            </div>
+            <button
+              class="c15"
+              kind="primary"
+            >
+              Exec in the browser
+              <span
+                class="c16 icon icon-newtab"
+              >
+                <svg
+                  fill="currentColor"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  width="24"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M13.5 3.74988C13.5001 3.33567 13.8359 2.99994 14.2501 3L20.2125 3.00093C20.4167 2.99077 20.6243 3.06369 20.7803 3.21967C20.9363 3.37565 21.0092 3.58324 20.9991 3.78747L21 9.74988C21.0001 10.1641 20.6643 10.4999 20.2501 10.5C19.8359 10.5001 19.5001 10.1643 19.5 9.75012L19.4993 5.56132L13.2803 11.7803C12.9874 12.0732 12.5126 12.0732 12.2197 11.7803C11.9268 11.4874 11.9268 11.0126 12.2197 10.7197L18.4387 4.50065L14.2499 4.5C13.8357 4.49994 13.4999 4.1641 13.5 3.74988ZM4.5 6C4.10217 6 3.72064 6.15804 3.43934 6.43934C3.15804 6.72064 3 7.10217 3 7.5V19.5C3 19.8978 3.15804 20.2794 3.43934 20.5607C3.72065 20.842 4.10218 21 4.5 21H16.5C16.8978 21 17.2794 20.842 17.5607 20.5607C17.842 20.2794 18 19.8978 18 19.5V12.75C18 12.3358 17.6642 12 17.25 12C16.8358 12 16.5 12.3358 16.5 12.75V19.5H4.5L4.5 7.5H11.25C11.6642 7.5 12 7.16421 12 6.75C12 6.33579 11.6642 6 11.25 6H4.5Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </div>
+          <div
+            class="c17"
+          >
+            <h3
+              class="c18"
+            >
+              Or connect in the CLI using tsh and kubectl:
+            </h3>
+            <span
+              class="c19"
+            >
+              Step 1
+            </span>
+             - Login to Teleport
+            <div
+              class="c20 c21"
+              color="light"
+            >
+              <div
+                class="c22 c23"
+                style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
+              >
+                <div
+                  class="c24"
+                  style="user-select: none;"
+                >
+                  $
+                </div>
+                <div>
+                  tsh login --proxy=localhost:443 some-cluster-name
+                </div>
+              </div>
+              <button
+                class="c25"
+                kind="primary"
+                style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
+              >
+                Copy
+              </button>
+            </div>
+          </div>
+          <div
+            class="c17"
+          >
+            <span
+              class="c19"
+            >
+              Optional
+            </span>
+             
+            - To write kubectl configuration to a separate file instead of having your global kubectl configuration modified, run the following command:
+            <div
+              class="c20 c21"
+              color="light"
+            >
+              <div
+                class="c22 c23"
+                style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
+              >
+                <div
+                  class="c24"
+                  style="user-select: none;"
+                >
+                  $
+                </div>
+                <div>
+                  export KUBECONFIG=\${HOME?}/teleport-kubeconfig.yaml
+                </div>
+              </div>
+              <button
+                class="c25"
+                kind="primary"
+                style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
+              >
+                Copy
+              </button>
+            </div>
+          </div>
+          <div
+            class="c17"
+          >
+            <span
+              class="c19"
+            >
+              Step 2
+            </span>
+             - Select the Kubernetes cluster
+            <div
+              class="c20 c21"
+              color="light"
+            >
+              <div
+                class="c22 c23"
+                style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
+              >
+                <div
+                  class="c24"
+                  style="user-select: none;"
+                >
+                  $
+                </div>
+                <div>
+                  tsh kube login tele.logicoma.dev-prod
+                </div>
+              </div>
+              <button
+                class="c25"
+                kind="primary"
+                style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
+              >
+                Copy
+              </button>
+            </div>
+          </div>
+          <div
+            class="c26"
+          >
+            <span
+              class="c19"
+            >
+              Step 3
+            </span>
+             - Connect to the Kubernetes cluster
+            <div
+              class="c20 c21"
+              color="light"
+            >
+              <div
+                class="c22 c23"
+                style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
+              >
+                <div
+                  class="c24"
+                  style="user-select: none;"
+                >
+                  $
+                </div>
+                <div>
+                  kubectl get pods
+                </div>
+              </div>
+              <button
+                class="c25"
+                kind="primary"
+                style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
+              >
+                Copy
+              </button>
+            </div>
+          </div>
+        </div>
+        <div
+          class="c7"
+        >
+          <button
+            class="c27"
             kind="secondary"
           >
             Close

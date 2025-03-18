@@ -27,13 +27,13 @@ There are two components of the audit log:
 </TabItem>
 </Tabs>
 
-<Notice type="tip">
+<Admonition type="tip">
 
 You can use
 [Enhanced Session Recording with BPF](../../enroll-resources/server-access/guides/bpf-session-recording.mdx)
 to get even more comprehensive audit logs with advanced security.
 
-</Notice>
+</Admonition>
 
 ## Events
 
@@ -58,17 +58,19 @@ more information on how to configure the audit log, refer to the `storage`
 section of the example configuration file in the
 [Teleport Configuration Reference](../config.mdx).
 
-Let's examine the Teleport audit log using the `dir` backend. The event log is
-stored in Teleport's data dir under the `log` directory. This is usually
-`/var/lib/teleport/log`. Each day is represented as a file:
+Let's examine the Teleport audit log using the `dir` backend. Teleport Auth
+Service instances write their logs to a subdirectory of Teleport's configured
+data directory that is named based on the service's UUID.
+
+Each day is represented as a file:
 
 ```code
-$ ls -l /var/lib/teleport/log/
+$ ls -l /var/lib/teleport/log/bbdfe5be-fb97-43af-bf3b-29ef2e302941
 
 # total 104
-# -rw-r----- 1 root root  31638 Jan 22 20:00 2017-01-23.00:00:00.log
-# -rw-r----- 1 root root  91256 Jan 31 21:00 2017-02-01.00:00:00.log
-# -rw-r----- 1 root root  15815 Feb 32 22:54 2017-02-03.00:00:00.log
+# -rw-r----- 1 root root  31638 Jan 22 20:00 2022-01-23.00:00:00.log
+# -rw-r----- 1 root root  91256 Jan 31 21:00 2022-02-01.00:00:00.log
+# -rw-r----- 1 root root  15815 Feb 32 22:54 2022-02-03.00:00:00.log
 ```
 
 </TabItem>
@@ -122,14 +124,14 @@ format:
 
 Below are some possible types of audit events.
 
-<Notice type="tip">
+<Admonition type="tip">
 
 This list is not comprehensive. We recommend exporting audit events to a
 platform that automatically parses event payloads so you can group and filter
 them by their `event` key and discover trends. To set up audit event exporting,
 read [Exporting Teleport Audit Events](../../admin-guides/management/export-audit-events/export-audit-events.mdx).
 
-</Notice>
+</Admonition>
 
 | Event Type | Description |
 | - | - |
@@ -205,10 +207,10 @@ $ tsh play 4c146ec8-eab6-11e6-b1b3-40167e68e931 --format=json
 
 ### Modes
 
-<Notice type="note">
+<Admonition type="note">
 Available only for SSH sessions and when Teleport is configured with
 `auth_service.session_recording: node`.
-</Notice>
+</Admonition>
 
 Modes define how Teleport deals with recording failures, such as a full disk
 error. They are configured per-service at the role level, where the strictest

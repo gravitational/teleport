@@ -21,13 +21,16 @@ package aggregating
 import (
 	"bytes"
 	"context"
+	"slices"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/types"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1"
@@ -93,7 +96,8 @@ func TestReporter(t *testing.T) {
 		}
 	}
 	r.AnonymizeAndSubmit(&usagereporter.UserLoginEvent{
-		UserName: "alice",
+		UserName:   "alice",
+		UserOrigin: prehogv1a.UserOrigin_USER_ORIGIN_LOCAL,
 	})
 	r.AnonymizeAndSubmit(&usagereporter.SessionStartEvent{
 		UserName:    "alice",
@@ -106,6 +110,32 @@ func TestReporter(t *testing.T) {
 	r.AnonymizeAndSubmit(&usagereporter.SPIFFESVIDIssuedEvent{
 		UserName: "alice",
 	})
+	r.AnonymizeAndSubmit(&usagereporter.UserLoginEvent{
+		UserName:   "alice",
+		UserOrigin: prehogv1a.UserOrigin_USER_ORIGIN_UNSPECIFIED,
+	})
+	r.AnonymizeAndSubmit(&usagereporter.AccessRequestCreateEvent{
+		UserName: "alice",
+	})
+	r.AnonymizeAndSubmit(&usagereporter.AccessRequestReviewEvent{
+		UserName: "alice",
+	})
+	r.AnonymizeAndSubmit(&usagereporter.AccessListReviewCreateEvent{
+		UserName: "alice",
+	})
+	r.AnonymizeAndSubmit(&usagereporter.AccessListGrantsToUserEvent{
+		UserName: "alice",
+	})
+	r.AnonymizeAndSubmit(&usagereporter.SessionStartEvent{
+		UserName:    "alice",
+		SessionType: types.KindSAMLIdPSession,
+	})
+	recvIngested()
+	recvIngested()
+	recvIngested()
+	recvIngested()
+	recvIngested()
+	recvIngested()
 	recvIngested()
 	recvIngested()
 	recvIngested()
@@ -121,9 +151,14 @@ func TestReporter(t *testing.T) {
 	require.Len(t, reports, 1)
 	require.Len(t, reports[0].Records, 1)
 	record := reports[0].Records[0]
-	require.Equal(t, uint64(1), record.Logins)
+	require.Equal(t, uint64(2), record.Logins)
+	require.Equal(t, prehogv1.UserOrigin_USER_ORIGIN_LOCAL, record.GetUserOrigin())
 	require.Equal(t, uint64(2), record.SshSessions)
 	require.Equal(t, uint64(1), record.SpiffeSvidsIssued)
+	require.Equal(t, uint64(1), record.GetAccessRequestsCreated())
+	require.Equal(t, uint64(1), record.GetAccessRequestsReviewed())
+	require.Equal(t, uint64(1), record.GetAccessListsReviewed())
+	require.Equal(t, uint64(1), record.GetAccessListsGrants())
 
 	r.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
 		Name:   "srv01",
@@ -182,4 +217,178 @@ func TestReporter(t *testing.T) {
 	require.Equal(t, uint64(1), rec2.Logins)
 	require.Equal(t, uint64(0), rec1.KubeSessions)
 	require.Equal(t, uint64(1), rec2.KubeSessions)
+}
+
+func TestReporterMachineWorkloadIdentityActivity(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	clk := clockwork.NewFakeClock()
+	bk, err := memory.New(memory.Config{
+		Clock: clk,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, bk.Close()) })
+	// we set up a watcher to not have to poll the backend for newly added items
+	// we expect
+	w, err := bk.NewWatcher(ctx, backend.Watch{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, w.Close()) })
+	recvBackendEvent := func() backend.Event {
+		select {
+		case e := <-w.Events():
+			return e
+		case <-time.After(time.Second):
+			t.Fatal("failed to get backend event")
+			return backend.Event{}
+		}
+	}
+	require.Equal(t, types.OpInit, recvBackendEvent().Type)
+
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "clustername",
+	})
+	require.NoError(t, err)
+
+	anonymizer, err := utils.NewHMACAnonymizer("0123456789abcdef")
+	require.NoError(t, err)
+
+	r, err := NewReporter(ctx, ReporterConfig{
+		Backend:     bk,
+		Clock:       clk,
+		Log:         logrus.StandardLogger(),
+		ClusterName: clusterName,
+		HostID:      uuid.NewString(),
+		Anonymizer:  anonymizer,
+	})
+	require.NoError(t, err)
+
+	svc := reportService{bk}
+
+	r.ingested = make(chan usagereporter.Anonymizable, 4)
+	recvIngested := func() {
+		select {
+		case <-r.ingested:
+		case <-time.After(time.Second):
+			t.Fatal("failed to receive ingested event")
+		}
+	}
+
+	r.AnonymizeAndSubmit(&usagereporter.UserCertificateIssuedEvent{
+		UserName:      "bot-bob",
+		BotInstanceId: "0000-01",
+		IsBot:         true,
+	})
+	r.AnonymizeAndSubmit(&usagereporter.BotJoinEvent{
+		BotName:       "bob",
+		BotInstanceId: "0000-01",
+	})
+	r.AnonymizeAndSubmit(&usagereporter.SPIFFESVIDIssuedEvent{
+		UserName: "jen",
+		UserKind: prehogv1a.UserKind_USER_KIND_HUMAN,
+		SpiffeId: "spiffe://clustername/jen",
+	})
+	// Submit for two different bot instances, we expect a useractivity record
+	// with a value of two, and two bot instance activity records with a single
+	// value of 1.
+	r.AnonymizeAndSubmit(&usagereporter.SPIFFESVIDIssuedEvent{
+		UserName:      "bot-bob",
+		BotInstanceId: "0000-01",
+		UserKind:      prehogv1a.UserKind_USER_KIND_BOT,
+		SpiffeId:      "spiffe://clustername/bot/bob",
+	})
+	r.AnonymizeAndSubmit(&usagereporter.SPIFFESVIDIssuedEvent{
+		UserName:      "bot-bob",
+		BotInstanceId: "0000-01",
+		UserKind:      prehogv1a.UserKind_USER_KIND_BOT,
+		SpiffeId:      "spiffe://clustername/bot/bob-2",
+	})
+	r.AnonymizeAndSubmit(&usagereporter.SPIFFESVIDIssuedEvent{
+		UserName:      "bot-bob",
+		BotInstanceId: "0000-02",
+		UserKind:      prehogv1a.UserKind_USER_KIND_BOT,
+		SpiffeId:      "spiffe://clustername/bot/bob",
+	})
+	recvIngested()
+	recvIngested()
+	recvIngested()
+	recvIngested()
+	recvIngested()
+	recvIngested()
+
+	clk.BlockUntil(1)
+	clk.Advance(botInstanceActivityReportGranularity)
+
+	require.Equal(t, types.OpPut, recvBackendEvent().Type)
+	require.Equal(t, types.OpPut, recvBackendEvent().Type)
+
+	userActivityReports, err := svc.listUserActivityReports(ctx, 10)
+	require.NoError(t, err)
+	require.Len(t, userActivityReports, 1)
+	slices.SortFunc(userActivityReports[0].Records, func(a, b *prehogv1.UserActivityRecord) int {
+		return bytes.Compare(a.GetUserName(), b.GetUserName())
+	})
+	want := []*prehogv1.UserActivityRecord{
+		{
+			UserName:           anonymizer.AnonymizeNonEmpty("bot-bob"),
+			UserKind:           prehogv1.UserKind_USER_KIND_BOT,
+			BotJoins:           1,
+			SpiffeSvidsIssued:  3,
+			CertificatesIssued: 1,
+			SpiffeIdsIssued: []*prehogv1.SPIFFEIDRecord{
+				{
+					SpiffeId:    anonymizer.AnonymizeNonEmpty("spiffe://clustername/bot/bob"),
+					SvidsIssued: 2,
+				},
+				{
+					SpiffeId:    anonymizer.AnonymizeNonEmpty("spiffe://clustername/bot/bob-2"),
+					SvidsIssued: 1,
+				},
+			},
+		},
+		{
+			UserName:          anonymizer.AnonymizeNonEmpty("jen"),
+			UserKind:          prehogv1.UserKind_USER_KIND_HUMAN,
+			SpiffeSvidsIssued: 1,
+			SpiffeIdsIssued: []*prehogv1.SPIFFEIDRecord{
+				{
+					SpiffeId:    anonymizer.AnonymizeNonEmpty("spiffe://clustername/jen"),
+					SvidsIssued: 1,
+				},
+			},
+		},
+	}
+	slices.SortFunc(want, func(a, b *prehogv1.UserActivityRecord) int {
+		return bytes.Compare(a.GetUserName(), b.GetUserName())
+	})
+	diff := cmp.Diff(
+		userActivityReports[0].Records,
+		want,
+		protocmp.Transform(),
+		protocmp.SortRepeated(func(u1, u2 *prehogv1.SPIFFEIDRecord) bool {
+			return bytes.Compare(u1.GetSpiffeId(), u2.GetSpiffeId()) == -1
+		}),
+	)
+	if diff != "" {
+		t.Errorf("UserActivityRecords mismatch (-want +got):\n%s", diff)
+	}
+
+	botUserRecordIndex := slices.IndexFunc(userActivityReports[0].Records, func(record *prehogv1.UserActivityRecord) bool {
+		return bytes.Equal(record.UserName, anonymizer.AnonymizeNonEmpty("bot-bob"))
+	})
+	require.GreaterOrEqual(t, botUserRecordIndex, 0)
+	botUserRecord := userActivityReports[0].Records[botUserRecordIndex]
+
+	botInstanceActivityReports, err := svc.listBotInstanceActivityReports(ctx, 10)
+	require.NoError(t, err)
+	require.Len(t, botInstanceActivityReports, 1)
+	require.Len(t, botInstanceActivityReports[0].Records, 2)
+	for _, record := range botInstanceActivityReports[0].Records {
+		require.Equal(t, botUserRecord.UserName, record.BotUserName)
+	}
+	require.True(t, slices.ContainsFunc(botInstanceActivityReports[0].Records, func(record *prehogv1.BotInstanceActivityRecord) bool {
+		return record.BotJoins == 1 && record.CertificatesIssued == 1 && record.SpiffeSvidsIssued == 2
+	}))
+	require.True(t, slices.ContainsFunc(botInstanceActivityReports[0].Records, func(record *prehogv1.BotInstanceActivityRecord) bool {
+		return record.BotJoins == 0 && record.CertificatesIssued == 0 && record.SpiffeSvidsIssued == 1
+	}))
 }

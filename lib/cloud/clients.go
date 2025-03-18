@@ -44,7 +44,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
-	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
@@ -64,7 +63,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
-	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -82,6 +80,8 @@ import (
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 // Clients provides interface for obtaining cloud provider clients.
@@ -585,7 +585,7 @@ func (c *cloudClients) GetAWSIAMClient(ctx context.Context, region string, opts 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return iam.New(session), nil
+	return iamutils.NewV1(session), nil
 }
 
 // GetAWSS3Client returns AWS S3 client.
@@ -603,7 +603,7 @@ func (c *cloudClients) GetAWSSTSClient(ctx context.Context, region string, opts 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sts.New(session), nil
+	return stsutils.NewV1(session), nil
 }
 
 // GetAWSEC2Client returns AWS EC2 client for the specified region.
@@ -866,7 +866,7 @@ func (c *cloudClients) getAWSSessionForRole(ctx context.Context, region string, 
 	}
 
 	createSession := func(ctx context.Context) (*awssession.Session, error) {
-		stsClient := sts.New(options.baseSession)
+		stsClient := stsutils.NewV1(options.baseSession)
 		return newSessionWithRole(ctx, stsClient, region, options.assumeRoleARN, options.assumeRoleExternalID)
 	}
 

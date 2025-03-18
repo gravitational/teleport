@@ -55,6 +55,10 @@ const (
 	// tshAzureDirName is the name of the directory containing the
 	// az cli app-specific profiles.
 	tshAzureDirName = "azure"
+
+	// tshBin is the name of the directory containing the
+	// updated binaries of client tools.
+	tshBin = "bin"
 )
 
 // KeyStore is a storage interface for client session keys and certificates.
@@ -303,13 +307,11 @@ func (fs *FSKeyStore) DeleteKeys() error {
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
+	ignoreDirs := map[string]struct{}{tshConfigFileName: {}, tshAzureDirName: {}, tshBin: {}}
 	for _, file := range files {
-		// Don't delete 'config' and 'azure' directories.
+		// Don't delete 'config', 'azure' and 'bin' directories.
 		// TODO: this is hackish and really shouldn't be needed, but fs.KeyDir is `~/.tsh` while it probably should be `~/.tsh/keys` instead.
-		if file.IsDir() && file.Name() == tshConfigFileName {
-			continue
-		}
-		if file.IsDir() && file.Name() == tshAzureDirName {
+		if _, ok := ignoreDirs[file.Name()]; ok && file.IsDir() {
 			continue
 		}
 		if file.IsDir() {

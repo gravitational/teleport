@@ -38,13 +38,13 @@ For the rest of the guide we will assume that the `requester` role has been
 granted to a user named `alice` and the `reviewer` role has been granted to a
 user named `bob`.
 
-<Notice type="tip">
+<Admonition type="tip">
 
 Consider defining custom roles to limit the scope of a requester or reviewer's
 permissions. Read the [Access Request
 Configuration](./access-request-configuration.mdx) guide for available options.
 
-</Notice>
+</Admonition>
 
 ## Step 2/6. Search for resources
 
@@ -79,7 +79,8 @@ You can search for resources of kind `node`, `kube_cluster`, `db`, `app`, and
 `windows_desktop`. Teleport also supports searching and requesting access to
 resources within Kubernetes clusters.
 
-<Details title="List of supported Kubernetes resources">
+<details>
+<summary>List of supported Kubernetes resources</summary>
 
 Teleport supports searching and requesting access to the following Kubernetes resources:
 
@@ -117,7 +118,7 @@ However, it prevents you from access any resources belonging to another namespac
 - `ingress`
 
 
-</Details>
+</details>
 
 Advanced filters and queries are supported. See our
 [filtering reference](../../../reference/cli/cli.mdx) for more information.
@@ -193,11 +194,11 @@ $ tsh request review --approve f406f5d8-3c2a-428f-8547-a1d091a4ddab
 Successfully submitted review.  Request state: APPROVED
 ```
 
-<Notice type="tip">
+<Admonition type="tip">
 Check out our
 [Access Request Integrations](#integrating-with-an-external-tool)
 to notify the right people about new Access Requests.
-</Notice>
+</Admonition>
 
 ## Step 5/6. Access the requested resource
 

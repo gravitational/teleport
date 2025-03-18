@@ -21,7 +21,6 @@ package helpers
 import (
 	"bytes"
 	"context"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"encoding/json"
@@ -48,6 +47,7 @@ import (
 	clientproto "github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -101,11 +102,15 @@ type InstanceSecrets struct {
 	// PrivKey is instance private key
 	PrivKey []byte `json:"priv"`
 	// Cert is SSH host certificate
-	Cert []byte `json:"cert"`
-	// TLSCACert is the certificate of the trusted certificate authority
-	TLSCACert []byte `json:"tls_ca_cert"`
-	// TLSCert is client TLS X509 certificate
-	TLSCert []byte `json:"tls_cert"`
+	SSHHostCert []byte `json:"cert"`
+	// TLSHostCACert is the certificate of the trusted host certificate authority
+	TLSHostCACert []byte `json:"tls_host_ca_cert"`
+	// TLSCert is client TLS host X509 certificate
+	TLSHostCert []byte `json:"tls_host_cert"`
+	// TLSUserCACert is the certificate of the trusted user certificate authority
+	TLSUserCACert []byte `json:"tls_user_ca_cert"`
+	// TLSUserCert is client TLS user X509 certificate
+	TLSUserCert []byte `json:"tls_user_cert"`
 	// TunnelAddr is a reverse tunnel listening port, allowing
 	// other sites to connect to i instance. Set to empty
 	// string if i instance is not allowing incoming tunnels
@@ -136,9 +141,7 @@ func (s *InstanceSecrets) GetRoles(t *testing.T) []types.Role {
 	return roles
 }
 
-// GetCAs return an array of CAs stored by the secrets object. In i
-// case we always return hard-coded userCA + hostCA (and they share keys
-// for simplicity)
+// GetCAs return an array of CAs stored by the secrets object
 func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 	hostCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.HostCA,
@@ -152,7 +155,7 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 			TLS: []*types.TLSKeyPair{{
 				Key:     s.PrivKey,
 				KeyType: types.PrivateKeyType_RAW,
-				Cert:    s.TLSCACert,
+				Cert:    s.TLSHostCACert,
 			}},
 		},
 	})
@@ -172,7 +175,7 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 			TLS: []*types.TLSKeyPair{{
 				Key:     s.PrivKey,
 				KeyType: types.PrivateKeyType_RAW,
-				Cert:    s.TLSCACert,
+				Cert:    s.TLSUserCACert,
 			}},
 		},
 		Roles: []string{services.RoleNameForCertAuthority(s.SiteName)},
@@ -188,7 +191,7 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 			TLS: []*types.TLSKeyPair{{
 				Key:     s.PrivKey,
 				KeyType: types.PrivateKeyType_RAW,
-				Cert:    s.TLSCACert,
+				Cert:    s.TLSHostCACert,
 			}},
 		},
 	})
@@ -203,7 +206,7 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 			TLS: []*types.TLSKeyPair{{
 				Key:     s.PrivKey,
 				KeyType: types.PrivateKeyType_RAW,
-				Cert:    s.TLSCACert,
+				Cert:    s.TLSHostCACert,
 			}},
 		},
 	})
@@ -260,9 +263,9 @@ func (s *InstanceSecrets) AsSlice() []*InstanceSecrets {
 
 func (s *InstanceSecrets) GetIdentity() *state.Identity {
 	i, err := state.ReadIdentityFromKeyPair(s.PrivKey, &clientproto.Certs{
-		SSH:        s.Cert,
-		TLS:        s.TLSCert,
-		TLSCACerts: [][]byte{s.TLSCACert},
+		SSH:        s.SSHHostCert,
+		TLS:        s.TLSHostCert,
+		TLSCACerts: [][]byte{s.TLSHostCACert},
 	})
 	fatalIf(err)
 	return i
@@ -349,45 +352,67 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	if cfg.Priv == nil || cfg.Pub == nil {
 		cfg.Priv, cfg.Pub, _ = keygen.GenerateKeyPair()
 	}
-	rsaKey, err := ssh.ParseRawPrivateKey(cfg.Priv)
-	fatalIf(err)
-
-	tlsCACert, err := tlsca.GenerateSelfSignedCAWithSigner(rsaKey.(*rsa.PrivateKey), pkix.Name{
-		CommonName:   cfg.ClusterName,
-		Organization: []string{cfg.ClusterName},
-	}, nil, defaults.CATTL)
-	fatalIf(err)
 
 	signer, err := ssh.ParsePrivateKey(cfg.Priv)
 	fatalIf(err)
 
-	cert, err := keygen.GenerateHostCert(services.HostCertParams{
+	hostCert, err := keygen.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      signer,
 		PublicHostKey: cfg.Pub,
 		HostID:        cfg.HostID,
 		NodeName:      cfg.NodeName,
-		ClusterName:   cfg.ClusterName,
-		Role:          types.RoleAdmin,
 		TTL:           24 * time.Hour,
+		Identity: sshca.Identity{
+			ClusterName: cfg.ClusterName,
+			SystemRole:  types.RoleAdmin,
+		},
 	})
 	fatalIf(err)
-	tlsCA, err := tlsca.FromKeys(tlsCACert, cfg.Priv)
-	fatalIf(err)
-	cryptoPubKey, err := sshutils.CryptoPublicKey(cfg.Pub)
-	fatalIf(err)
-	identity := tlsca.Identity{
-		Username: fmt.Sprintf("%v.%v", cfg.HostID, cfg.ClusterName),
-		Groups:   []string{string(types.RoleAdmin)},
-	}
+
 	clock := cfg.Clock
 	if clock == nil {
 		clock = clockwork.NewRealClock()
 	}
+
+	key, err := keys.ParsePrivateKey(cfg.Priv)
+	fatalIf(err)
+
+	identity := tlsca.Identity{
+		Username: fmt.Sprintf("%v.%v", cfg.HostID, cfg.ClusterName),
+		Groups:   []string{string(types.RoleAdmin)},
+	}
 	subject, err := identity.Subject()
 	fatalIf(err)
-	tlsCert, err := tlsCA.GenerateCertificate(tlsca.CertificateRequest{
+
+	tlsCAHostCert, err := tlsca.GenerateSelfSignedCAWithSigner(key, pkix.Name{
+		CommonName:   cfg.ClusterName,
+		Organization: []string{cfg.ClusterName},
+	}, nil, defaults.CATTL)
+	fatalIf(err)
+	tlsHostCA, err := tlsca.FromKeys(tlsCAHostCert, cfg.Priv)
+	fatalIf(err)
+	hostCryptoPubKey, err := sshutils.CryptoPublicKey(cfg.Pub)
+	fatalIf(err)
+	tlsHostCert, err := tlsHostCA.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
-		PublicKey: cryptoPubKey,
+		PublicKey: hostCryptoPubKey,
+		Subject:   subject,
+		NotAfter:  clock.Now().UTC().Add(time.Hour * 24),
+	})
+	fatalIf(err)
+
+	tlsCAUserCert, err := tlsca.GenerateSelfSignedCAWithSigner(key, pkix.Name{
+		CommonName:   cfg.ClusterName,
+		Organization: []string{cfg.ClusterName},
+	}, nil, defaults.CATTL)
+	fatalIf(err)
+	tlsUserCA, err := tlsca.FromKeys(tlsCAHostCert, cfg.Priv)
+	fatalIf(err)
+	userCryptoPubKey, err := sshutils.CryptoPublicKey(cfg.Pub)
+	fatalIf(err)
+	tlsUserCert, err := tlsUserCA.GenerateCertificate(tlsca.CertificateRequest{
+		Clock:     clock,
+		PublicKey: userCryptoPubKey,
 		Subject:   subject,
 		NotAfter:  clock.Now().UTC().Add(time.Hour * 24),
 	})
@@ -402,14 +427,16 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	}
 
 	secrets := InstanceSecrets{
-		SiteName:   cfg.ClusterName,
-		PrivKey:    cfg.Priv,
-		PubKey:     cfg.Pub,
-		Cert:       cert,
-		TLSCACert:  tlsCACert,
-		TLSCert:    tlsCert,
-		TunnelAddr: i.ReverseTunnel,
-		Users:      make(map[string]*User),
+		SiteName:      cfg.ClusterName,
+		PrivKey:       cfg.Priv,
+		PubKey:        cfg.Pub,
+		SSHHostCert:   hostCert,
+		TLSHostCACert: tlsCAHostCert,
+		TLSHostCert:   tlsHostCert,
+		TLSUserCACert: tlsCAUserCert,
+		TLSUserCert:   tlsUserCert,
+		TunnelAddr:    i.ReverseTunnel,
+		Users:         make(map[string]*User),
 	}
 
 	i.Secrets = secrets

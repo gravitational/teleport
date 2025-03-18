@@ -57,7 +57,9 @@ by adding the `kube`, `app`, and `discovery` to roles as shown below.
 <TabItem label="Install a new agent">
 
 Deploy a new Teleport Agent running your configured services by installing the
-`teleport-kube-agent` Helm chart:
+`teleport-kube-agent` Helm chart, assigning <Var name="proxy-address" /> to the
+host and port of your Teleport Proxy Service and <Var name="token" /> to the
+join token you created earlier:
 
 ```code
 $ helm install teleport-agent teleport/teleport-kube-agent \

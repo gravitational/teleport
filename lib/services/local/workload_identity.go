@@ -116,3 +116,31 @@ func (b *WorkloadIdentityService) UpdateWorkloadIdentity(
 	updated, err := b.service.ConditionalUpdateResource(ctx, resource)
 	return updated, trace.Wrap(err)
 }
+
+func newWorkloadIdentityParser() *workloadIdentityParser {
+	return &workloadIdentityParser{
+		baseParser: newBaseParser(backend.ExactKey(workloadIdentityPrefix)),
+	}
+}
+
+type workloadIdentityParser struct {
+	baseParser
+}
+
+func (p *workloadIdentityParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindWorkloadIdentity, types.V1, 0)
+	case types.OpPut:
+		resource, err := services.UnmarshalWorkloadIdentity(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision))
+		if err != nil {
+			return nil, trace.Wrap(err, "unmarshalling resource from event")
+		}
+		return types.Resource153ToLegacy(resource), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}

@@ -35,6 +35,10 @@
             {
               "title": "Upgrading Reference",
               "slug": "/upgrading/upgrading-reference/"
+            },
+            {
+              "title": "Client Tool Automatic Updates",
+              "slug": "/upgrading/client-tools-autoupdate/"
             }
           ]
         },
@@ -135,8 +139,8 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "16.4.11",
-      "major_version": "16",
+      "version": "17.2.3",
+      "major_version": "17",
       "sla": {
         "monthly_percentage": "99.9%",
         "monthly_downtime": "44 minutes"
@@ -185,18 +189,18 @@
     "teleport": {
       "git": "api/14.0.0-gd1e081e",
       "major_version": "16",
-      "version": "16.4.13",
+      "version": "16.4.17",
       "url": "teleport.example.com",
-      "golang": "1.22.10",
+      "golang": "1.23.7",
       "plugin": {
-        "version": "16.4.13"
+        "version": "16.4.17"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:16.4.13",
-      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:16.4.13",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:16.4.13",
-      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:16.4.13",
-      "teleport_install_script_url": "https://cdn.teleport.dev/install-v16.4.13.sh"
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:16.4.17",
+      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:16.4.17",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:16.4.17",
+      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:16.4.17",
+      "teleport_install_script_url": "https://cdn.teleport.dev/install-v16.4.17.sh"
     },
     "terraform": {
       "version": "1.0.0"
@@ -216,6 +220,11 @@
     {
       "source": "/application-access/introduction/",
       "destination": "/enroll-resources/application-access/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/moderated-sessions/",
+      "destination": "/admin-guides/access-controls/guides/joining-sessions/",
       "permanent": true
     },
     {
@@ -1645,7 +1654,7 @@
     },
     {
       "source": "/access-controls/guides/moderated-sessions/",
-      "destination": "/admin-guides/access-controls/guides/moderated-sessions/",
+      "destination": "/admin-guides/access-controls/guides/joining-sessions/",
       "permanent": true
     },
     {
@@ -2986,6 +2995,101 @@
     {
       "source": "/reference/operator-resources/resources.teleport.dev_users/",
       "destination": "/reference/operator-resources/resources-teleport-dev-users/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/open-source/",
+      "destination": "/admin-guides/deploy-a-cluster/linux-demo/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/admin/",
+      "destination": "/admin-guides/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/operations/scaling/",
+      "destination": "/admin-guides/management/operations/scaling/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/introduction/",
+      "destination": "/admin-guides/deploy-a-cluster/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/reference/authentication/",
+      "destination": "/reference/access-controls/authentication/",
+      "permanent": true
+    },
+    {
+      "source": "/application-access/guides/aws-console/",
+      "destination": "/enroll-resources/application-access/cloud-apis/aws-console/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/getting-started/agent/",
+      "destination": "/enroll-resources/kubernetes-access/register-clusters/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/getting-started/cluster/",
+      "destination": "/enroll-resources/kubernetes-access/register-clusters/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/manage-access/rbac/",
+      "destination": "/enroll-resources/kubernetes-access/controls/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-ssh/",
+      "destination": "/enroll-resources/kubernetes-access/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/guides/github-actions/",
+      "destination": "/enroll-resources/machine-id/deployment/github-actions/",
+      "permanent": true
+    },
+    {
+      "source": "/management/guides/docker/",
+      "destination": "/installation/",
+      "permanent": true
+    },
+    {
+      "source": "/try-out-teleport/linux-server/",
+      "destination": "/admin-guides/deploy-a-cluster/linux-demo/",
+      "permanent": true
+    },
+    {
+      "source": "/try-out-teleport/local-kubernetes/",
+      "destination": "/get-started/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/postgres-self-hosted/",
+      "destination": "/enroll-resources/database-access/enroll-self-hosted-databases/postgres-self-hosted/",
+      "permanent": true
+    },
+    {
+      "source": "/install/",
+      "destination": "/installation/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/aws/",
+      "destination": "/admin-guides/deploy-a-cluster/helm-deployments/aws/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/introduction/",
+      "destination": "/reference/",
       "permanent": true
     }
   ]
