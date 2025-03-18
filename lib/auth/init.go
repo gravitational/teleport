@@ -613,6 +613,12 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 			asrv.logger.WarnContext(ctx, "error creating preset database object import rules", "error", err)
 		}
 		span.AddEvent("completed creating database object import rules")
+
+		span.AddEvent("creating preset health check config")
+		if err := createPresetHealthCheckConfig(ctx, asrv); err != nil {
+			return trace.Wrap(err)
+		}
+		span.AddEvent("completed creating preset health check config")
 	} else {
 		asrv.logger.InfoContext(ctx, "skipping preset role and user creation")
 	}
@@ -1266,6 +1272,20 @@ func createPresetDatabaseObjectImportRule(ctx context.Context, rules services.Da
 		return trace.Wrap(err, "failed to create default database object import rule")
 	}
 
+	return nil
+}
+
+// createPresetHealthCheckConfig creates a default preset health check config
+// resource that enables health checks on all resources.
+func createPresetHealthCheckConfig(ctx context.Context, svc services.HealthCheckConfig) error {
+	preset := services.NewPresetHealthCheckConfig()
+	_, err := svc.CreateHealthCheckConfig(ctx, preset)
+	if err != nil && !trace.IsAlreadyExists(err) {
+		return trace.Wrap(err,
+			"failed creating preset health_check_config %s",
+			preset.GetMetadata().GetName(),
+		)
+	}
 	return nil
 }
 
