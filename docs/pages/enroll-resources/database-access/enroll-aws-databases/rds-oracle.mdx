@@ -134,7 +134,7 @@ example.com
 ## Step 4/9. Create keytab file
 
 Teleport requires a keytab file to obtain Kerberos service tickets from
-Active Directory for authentication with SQL Server. The easiest way to generate
+Active Directory for authentication with Oracle database. The easiest way to generate
 it is to use the `adutil` Linux CLI utility.
 
 Install `adutil` on the Linux node you have joined to your Active Directory
@@ -199,7 +199,7 @@ $ kinit admin@EXAMPLE.COM
 ```
 
 Use the `adutil keytab create` command to generate keytab entries for each
-Active Directory user that will be connecting to the SQL Server database:
+Active Directory user that will be connecting to the Oracle database:
 
 ```code
 $ adutil keytab create teleport.keytab alice
