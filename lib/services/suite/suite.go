@@ -202,7 +202,7 @@ type ServicesTestSuite struct {
 	PresenceS      services.Presence
 	ProvisioningS  services.Provisioner
 	WebS           services.Identity
-	ConfigS        services.ClusterConfiguration
+	ConfigS        services.ClusterConfigurationInternal
 	// LocalConfigS is used for local config which can only be
 	// managed by the Auth service directly (static tokens).
 	// Used by some tests to differentiate between a server
