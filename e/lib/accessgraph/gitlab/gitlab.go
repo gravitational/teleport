@@ -27,7 +27,7 @@ func newGitlabFetcher(url, token string) (*gitlabFetcher, error) {
 	}
 
 	// check if the credentials are valid
-	_, err = client.getProjects()
+	err = client.testTokenPermissions()
 	if isUnauthorized(err) {
 		return nil, trace.NewAggregate(ErrGitlabInvalidCredentials, err)
 	} else if err != nil {
@@ -321,7 +321,8 @@ func GitlabInstanceConnectionTest(ctx context.Context, gitlabURL string, token s
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = client.getProjects()
+	// check if the credentials are valid by fetching a single page of projects
+	err = client.testTokenPermissions()
 	if isUnauthorized(err) {
 		return trace.NewAggregate(ErrGitlabInvalidCredentials, err)
 	} else if err != nil {

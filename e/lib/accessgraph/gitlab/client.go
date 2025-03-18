@@ -48,13 +48,20 @@ func (g gitlabClient) getGroups() ([]*gitlab.Group, error) {
 	return groups, nil
 }
 
+func (g gitlabClient) getMembershipFilter() *bool {
+	if !g.isPrivateInstance {
+		return gitlab.Ptr(true)
+	}
+	return nil
+}
+
 // getProjects returns a list of Gitlab projects
 // it uses the Gitlab API to fetch the projects
 // across all pages.
 func (g gitlabClient) getProjects() ([]*gitlab.Project, error) {
 	opt := &gitlab.ListProjectsOptions{
 		ListOptions: getListOptions(),
-		Membership:  gitlab.Ptr(true),
+		Membership:  g.getMembershipFilter(),
 	}
 	var projects []*gitlab.Project
 	for {
@@ -70,6 +77,16 @@ func (g gitlabClient) getProjects() ([]*gitlab.Project, error) {
 
 	}
 	return projects, nil
+}
+
+func (g gitlabClient) testTokenPermissions() error {
+	_, _, err := g.client.Projects.ListProjects(
+		&gitlab.ListProjectsOptions{
+			ListOptions: getListOptions(),
+			Membership:  g.getMembershipFilter(),
+		})
+
+	return trace.Wrap(err)
 }
 
 // getProjectMembers returns a list of Gitlab project members
