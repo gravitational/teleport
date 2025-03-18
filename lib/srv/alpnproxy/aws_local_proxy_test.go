@@ -30,10 +30,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	ststypes "github.com/aws/aws-sdk-go-v2/service/sts/types"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
-	"github.com/gravitational/trace"
 )
 
 func TestAWSAccessMiddleware(t *testing.T) {
