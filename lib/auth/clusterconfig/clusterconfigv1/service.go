@@ -41,6 +41,7 @@ type Cache interface {
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
 // ReadOnlyCache abstracts over the required methods of [readonly.Cache].
@@ -1174,4 +1175,25 @@ func (s *Service) ResetAccessGraphSettings(ctx context.Context, _ *clusterconfig
 	}
 
 	return rsp, nil
+}
+
+func (s *Service) GetClusterName(ctx context.Context, _ *clusterconfigpb.GetClusterNameRequest) (*types.ClusterNameV2, error) {
+	authzCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authzCtx.CheckAccessToKind(types.KindAccessGraphSettings, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cn, err := s.cache.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cast, ok := cn.(*types.ClusterNameV2)
+	if !ok {
+		return nil, trace.BadParameter("unexpected cluster name type %T (expected %T)", cn, cast)
+	}
+	return cast, nil
 }
