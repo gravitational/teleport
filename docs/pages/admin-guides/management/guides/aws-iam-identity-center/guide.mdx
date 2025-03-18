@@ -1,5 +1,5 @@
 ---
-title: AWS IAM Identity Center (Preview)
+title: Getting Started with AWS IAM Identity Center integration
 description: How to set up and use Teleport AWS IAM Identity Center integration
 ---
 
@@ -11,12 +11,12 @@ With the AWS Identity Center integration, you can manage AWS access by granting 
 
 ## How it works
 
-The Identity Center integration builds on top of Teleport's [role-based access controls](../../access-controls/guides/guides.mdx),
-[just-in-time Access Requests](../../access-controls/access-requests/access-requests.mdx)
-and [Access Lists](../../access-controls/access-lists/access-lists.mdx) to manage
+The Identity Center integration builds on top of Teleport's [role-based access controls](../../../access-controls/guides/guides.mdx),
+[just-in-time Access Requests](../../../access-controls/access-requests/access-requests.mdx)
+and [Access Lists](../../../access-controls/access-lists/access-lists.mdx) to manage
 the creation and deletion of Identity Center _Account Assignments_. 
 
-An _Account Assignment_ is the combination of a specific AWS Permission Set on a 
+An _account assignment_ is the combination of a specific AWS Permission Set on a 
 specific AWS account - for example "*AdminAccess on Production*" (where *Production* is 
 an AWS account managed by Identity Center). All possible Account Assignments are
 represented as resources within Teleport. When a user has access to an Account
@@ -61,9 +61,9 @@ identity source.
 As such, we recommend ensuring that all Identity Center users have access to
 your Teleport cluster before turning the integration on to avoid access
 interruption. If your Identity Center already uses external identity source,
-you can configure corresponding [SSO connector](../../access-controls/sso/sso.mdx)
+you can configure corresponding [SSO connector](../../../access-controls/sso/sso.mdx)
 in Teleport or, if you're using Okta, turn on
-[Okta integration](../../../enroll-resources/application-access/okta/hosted-guide.mdx).
+[Okta integration](../../../../enroll-resources/application-access/okta/hosted-guide.mdx).
 </Admonition>
 
 ## Step 1/6. Configure AWS integration
@@ -72,7 +72,7 @@ Teleport provides a guided web UI based configuration flow for the Identity
 Center integration. To get started, navigate to the "Add new integration" page
 in your Teleport cluster control panel and select "AWS Identity Center".
 
-![Pick Identity Center integration](../../../../img/identity-center/ic-pick-integration.png)
+![Pick Identity Center integration](../../../../../img/identity-center/ic-pick-integration.png)
 
 During this step, you will set up Teleport as an OIDC identity provider for
 your AWS account and create an AWS role with the permissions required for the
@@ -117,21 +117,21 @@ iam:ListRoles
 ```
 </details>
 
-![Configure AWS integration](../../../../img/identity-center/ic-step1.1.png)
+![Configure AWS integration](../../../../../img/identity-center/ic-step1.1.png)
 
 Enter required information such as Identity Center region, ARN and integration
 name, and execute the generated command in the Cloud Shell.
 
 After the script has run, fill out the ARN for the role created by the script.
 
-![Run script for AWS integration](../../../../img/identity-center/ic-step1.2.png)
+![Run script for AWS integration](../../../../../img/identity-center/ic-step1.2.png)
 
 ## Step 2/6. Preview AWS resources
 
 On the next step, you are presented with the list of AWS accounts, groups, and
 permission sets that Teleport was able to find in your Identity Center.
 
-![Preview AWS resources](../../../../img/identity-center/ic-step2.png)
+![Preview AWS resources](../../../../../img/identity-center/ic-step2.png)
 
 Pick the default owners that should be assigned to the Access Lists in Teleport.
 These resources will be imported into Teleport once the plugin is installed.
@@ -143,21 +143,21 @@ After this step, Teleport will become your Identity Center's identity provider.
 
 To avoid access interruptions, we recommend making sure that all existing
 Identity Center users have access to your Teleport cluster by, for example, using
-the same [IdP](../../access-controls/sso/sso.mdx) as your current Identity Center
+the same [IdP](../../../access-controls/sso/sso.mdx) as your current Identity Center
 external identity source.
 </Admonition>
 
 Follow the instructions to change your Identity Center's identity source to
 Teleport.
 
-![Configure identity source](../../../../img/identity-center/ic-step3.png)
+![Configure identity source](../../../../../img/identity-center/ic-step3.png)
 
 ## Step 4/6. Enable SCIM
 
 The final step is to enable the SCIM endpoint in your Identity Center to
 allow Teleport to push user and group changes.
 
-![Enable SCIM](../../../../img/identity-center/ic-step4.png)
+![Enable SCIM](../../../../../img/identity-center/ic-step4.png)
 
 Make sure to test SCIM connection after enabling it.
 
@@ -170,7 +170,7 @@ your Identity Center groups have been imported.
 It may take a few minutes for the initial sync to complete.
 </Admonition>
 
-![Access Lists view](../../../../img/identity-center/ic-lists.png)
+![Access Lists view](../../../../../img/identity-center/ic-lists.png)
 
 Imported Access Lists should show the same members as their corresponding
 Identity Center groups.
@@ -180,7 +180,7 @@ Identity Center groups.
 Once the integration is up and running, you will see an application named
 `aws-identity-center` among your resources:
 
-![Connect to AWS SSO portal](../../../../img/identity-center/ic-app.png)
+![Connect to AWS SSO portal](../../../../../img/identity-center/ic-app.png)
 
 Clicking the "Log In" button for this app takes you to your Identity Center
 SSO start page which you can use to pick a role and connect to your AWS account
@@ -244,7 +244,7 @@ selecting from the Permission Sets available to each AWS Account. Users
 can mix Permission Sets from multiple AWS Accounts, and even include other 
 Teleport-managed resources if necessary.
 
-![Selecting Identity Center resources](../../../../img/identity-center/ic-select-ps.png)
+![Selecting Identity Center resources](../../../../../img/identity-center/ic-select-ps.png)
 
 Once the used has selected their desired Account Assignments, the Access Request
 submission and review process is the same as for any other Teleport-managed
@@ -256,7 +256,7 @@ Access Request expires.
 The user can access their temporary AWS Accounts and Roles from within Teleport
 by assuming the Access Request roles. 
 
-![Assumed Role granting Identity Center Account Assignments](../../../../img/identity-center/ic-role-assumed.png)
+![Assumed Role granting Identity Center Account Assignments](../../../../../img/identity-center/ic-role-assumed.png)
 
 <Admonition type="warning">
 The AWS Account Assignments will exist for the lifetime of the Access Request,
@@ -277,7 +277,7 @@ If a user requests access to Account Assignments that can also be granted via an
 existing Access List, Teleport will offer the reviewer the option of *promoting*
 the Access Request to long-term access.
 
-![Promoting Access Request](../../../../img/identity-center/ic-promote.png)
+![Promoting Access Request](../../../../../img/identity-center/ic-promote.png)
 
 When an Access Request is promoted to long-term access, the requesting user is
 added to the targeted Access List. This membership change is propagated to the
@@ -318,7 +318,7 @@ among their role grants to Identity Center.
 ### How does it work with nested Access Lists?
 
 Identity Center does not support nested groups. As such, Teleport recursively 
-flattens any [nested Access Lists](../../access-controls/access-lists/nested-access-lists.mdx)
+flattens any [nested Access Lists](../../../access-controls/access-lists/nested-access-lists.mdx)
 into a single Identity Center group containing all members reachable from the 
 top-level Access List.
 
@@ -343,9 +343,9 @@ Provider and its role from your AWS IAM console as well.
 ## Next steps
 
 - Take a deeper dive into fundamental Teleport concepts used in Identity Center
-  integration such as [RBAC](../../access-controls/guides/guides.mdx),
-  [JIT Access Requests](../../access-controls/access-requests/access-requests.mdx)
-  and [Access Lists](../../access-controls/access-lists/access-lists.mdx).
-- Learn how to enable [Okta integration](../../../enroll-resources/application-access/okta/hosted-guide.mdx)
+  integration such as [RBAC](../../../access-controls/guides/guides.mdx),
+  [JIT Access Requests](../../../access-controls/access-requests/access-requests.mdx)
+  and [Access Lists](../../../access-controls/access-lists/access-lists.mdx).
+- Learn how to enable [Okta integration](../../../../enroll-resources/application-access/okta/hosted-guide.mdx)
   to sync apps, users and groups from Okta in conjunction with Identity Center
   integration.

@@ -23,7 +23,7 @@ and AWS account permission assignment provisioning.
 
 This is our starting configuration: Okta as sole Identity Source for Identity Center.
 
-![Migration Starting Point](../../../../img/identity-center/ic-migrate-start.png)
+![Migration Starting Point](../../../../../img/identity-center/ic-migrate-start.png)
 
 #### Midway
 
@@ -37,7 +37,7 @@ Okta to Teleport. At this stage:
  - Teleport controls Identity Center group account assignments for the Identity Center groups under its control.
  - Teleport controls direct Identity Center user account assignments for the Identity Center users under its control.
 
-![Migration Mid Point](../../../../img/identity-center/ic-migrate-mid.png)
+![Migration Mid Point](../../../../../img/identity-center/ic-migrate-mid.png)
 
 #### Ending point
 
@@ -45,7 +45,7 @@ Once Teleport is in control of all the users and groups you want to provision
 into Identity Center, the Okta Provisioning and Push Groups functions can be
 retired, leaving Okta only providing SSO login.
 
-![Migration End Point](../../../../img/identity-center/ic-migrate-end.png)
+![Migration End Point](../../../../../img/identity-center/ic-migrate-end.png)
 
 ## Prerequisites
 
@@ -63,7 +63,7 @@ retired, leaving Okta only providing SSO login.
 ## Step 1/7. Install Okta SAML connector
 
 Install Okta SAML connector into Teleport as per the Teleport
-[Okta as an SSO provider](../../access-controls/sso/okta.mdx) guide.
+[Okta as an SSO provider](../../../access-controls/sso/okta.mdx) guide.
 
 <Admonition type="note">
  For the integration to function properly, both AWS IAM Identity Center and Teleport must view the
