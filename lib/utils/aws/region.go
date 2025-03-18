@@ -21,7 +21,12 @@ package aws
 import (
 	"maps"
 	"slices"
+	"sync"
 )
+
+var sortedRegions = sync.OnceValue(func() []string {
+	return slices.Sorted(maps.Keys(regions))
+})
 
 // IsKnownRegion returns true if provided region is one of the "well-known"
 // AWS regions.
@@ -32,5 +37,5 @@ func IsKnownRegion(region string) bool {
 
 // GetKnownRegions returns a list of "well-known" AWS regions.
 func GetKnownRegions() []string {
-	return slices.Sorted(maps.Keys(regions))
+	return sortedRegions()
 }
