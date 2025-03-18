@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"text/template"
 
@@ -74,11 +75,23 @@ var regions = map[string]Region{
 	},
 	{{- end }}
 }
+
+// globalRegions is the set of available AWS global regions based on the AWS SDK
+// definition.
+var globalRegions = map[string]Region{
+	{{- range $name, $desc := $.GlobalRegions }}
+	{{ quote $name }}: Region{
+		Name: {{ quote $name }},
+		Description: {{ quote $desc }},
+	},
+	{{- end }}
+}
 `))
 
 // TemplateData is the data passed to the template.
 type TemplateData struct {
-	Regions map[string]string
+	Regions       map[string]string
+	GlobalRegions map[string]string
 }
 
 // AWSPartitions contains the struct representation of the AWS SDK patitions
@@ -133,11 +146,17 @@ func convertToTemplateData(partitionsContents []byte) (*TemplateData, error) {
 	}
 
 	data := &TemplateData{
-		Regions: make(map[string]string),
+		Regions:       make(map[string]string),
+		GlobalRegions: make(map[string]string),
 	}
 
 	for _, partition := range awsPartitions.Partitions {
 		for name, region := range partition.Regions {
+			if matchGlobalRegion.MatchString(name) {
+				data.GlobalRegions[name] = region.Description
+				continue
+			}
+
 			data.Regions[name] = region.Description
 		}
 	}
@@ -173,4 +192,18 @@ const (
 	awsPackageName = "github.com/aws/aws-sdk-go-v2"
 	// awsPartitionsFilePath is the patitions JSON file path inside the package.
 	awsPartitionsFilePath = "internal/endpoints/awsrulesfn/partitions.json"
+)
+
+var (
+	// matchGlobalRegion is a regex that defines the format of AWS global regions.
+	// Those regions are usually used for endpoint resolution.
+	//
+	// The regex matches the following from left to right:
+	// - `aws` prefix.
+	// - optional -us-gov, -cn, -iso, -iso-b for corresponding partitions
+	// - `global` suffix.
+	//
+	// Reference:
+	// https://github.com/aws/aws-sdk-go-v2/blob/main/codegen/smithy-aws-go-codegen/src/main/resources/software/amazon/smithy/aws/go/codegen/endpoints.json
+	matchGlobalRegion = regexp.MustCompile(`^aws(-us-gov|-cn|-iso|-iso-b|-iso-e|-iso-f)?-global$`)
 )

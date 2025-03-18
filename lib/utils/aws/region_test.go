@@ -31,7 +31,6 @@ func TestGetKnownRegions(t *testing.T) {
 	// something that includes these.
 	t.Run("hand picked", func(t *testing.T) {
 		for _, region := range []string{
-			"aws-global",
 			"cn-north-1",
 			"eu-isoe-west-1",
 			"il-central-1",
