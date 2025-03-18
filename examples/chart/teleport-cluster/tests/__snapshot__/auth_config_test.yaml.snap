@@ -1848,8 +1848,8 @@ sets clusterDomain on Configmap:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-cluster
-        app.kubernetes.io/version: 16.4.17
-        helm.sh/chart: teleport-cluster-16.4.17
+        app.kubernetes.io/version: 16.4.18
+        helm.sh/chart: teleport-cluster-16.4.18
         teleport.dev/majorVersion: "16"
       name: RELEASE-NAME-auth
       namespace: NAMESPACE

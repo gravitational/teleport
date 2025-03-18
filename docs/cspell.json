@@ -186,6 +186,7 @@
     "Passwordless",
     "Pbbd",
     "Pluggable",
+    "PKCS",
     "Println",
     "Pyroscope",
     "Quickstart",
@@ -1044,7 +1045,9 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": ["hte"],
+  "flagWords": [
+    "hte"
+  ],
   "ignorePaths": [
     "**/reference/terraform-provider/**",
     "**/reference/operator-resources/**"
