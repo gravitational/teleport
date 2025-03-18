@@ -1907,6 +1907,10 @@ message CreateAuthenticateChallengeRequest {
   // SSOClientRedirectURL should be supplied If the client supports SSO MFA checks.
   // If unset, the server will only return non-SSO challenges.
   string SSOClientRedirectURL = 7 [(gogoproto.jsontag) = "sso_client_redirect_url,omitempty"];
+  // ProxyAddress is the proxy address that the user is using to connect to the Proxy.
+  // When using SSO MFA, this address is required to determine which URL to redirect the
+  // user to when there are multiple options.
+  string ProxyAddress = 8 [(gogoproto.jsontag) = "proxy_address,omitempty"];
 }
 
 // CreatePrivilegeTokenRequest defines a request to obtain a privilege token.
