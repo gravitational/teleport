@@ -25,13 +25,11 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
-	"net"
 	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -42,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
-	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 )
@@ -107,22 +104,6 @@ func (a *Server) checkTokenJoinRequestCommon(ctx context.Context, req *types.Reg
 	}
 
 	return provisionToken, nil
-}
-
-func setRemoteAddrFromContext(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
-	var addr string
-	if clientIP, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
-		addr = clientIP.String()
-	} else if p, ok := peer.FromContext(ctx); ok {
-		addr = p.Addr.String()
-	}
-	ip, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	req.RemoteAddr = ip
-
-	return nil
 }
 
 // handleJoinFailure logs and audits the failure of a join. It is intentionally

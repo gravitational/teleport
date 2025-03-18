@@ -19,7 +19,6 @@
 package auth
 
 import (
-	"cmp"
 	"context"
 	"fmt"
 	"net/url"
@@ -577,53 +576,6 @@ func (a *ServerWithRoles) GetClusterCACert(
 ) (*proto.GetClusterCACertResponse, error) {
 	// Allow all roles to get the CA certs.
 	return a.authServer.GetClusterCACert(ctx)
-}
-
-// Deprecated: This method only exists to service the RegisterUsingToken HTTP
-// RPC, which has been replaced by an RPC on the JoinServiceServer.
-// JoinServiceServer directly invokes auth.Server and performs its own checks
-// on metadata.
-// TODO(strideynet): DELETE IN V18.0.0
-func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
-	isProxy := a.hasBuiltinRole(types.RoleProxy)
-
-	// We do not trust remote addr in the request unless it's coming from the Proxy.
-	if !isProxy || req.RemoteAddr == "" {
-		if err := setRemoteAddrFromContext(ctx, req); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	// Similarly, do not trust bot instance IDs or generation values in the
-	// request unless from a component with the proxy role (e.g. the join
-	// service). They will be derived from the client certificate otherwise.
-	if !isProxy {
-		if req.BotInstanceID != "" {
-			a.authServer.logger.WarnContext(ctx, "Untrusted client attempted to provide a bot instance ID, this will be ignored",
-				"bot_instance_id", req.BotInstanceID,
-			)
-
-			req.BotInstanceID = ""
-		}
-
-		if req.BotGeneration > 0 {
-			a.authServer.logger.WarnContext(ctx, "Untrusted client attempted to provide a bot generation, this will be ignored",
-				"bot_generation", req.BotGeneration,
-			)
-
-			req.BotGeneration = 0
-		}
-	}
-
-	// If the identity has a BotInstanceID or BotGeneration included, copy it
-	// onto the request - but only if one wasn't already passed along via the
-	// proxy.
-	ident := a.context.Identity.GetIdentity()
-	req.BotInstanceID = cmp.Or(req.BotInstanceID, ident.BotInstanceID)
-	req.BotGeneration = cmp.Or(req.BotGeneration, int32(ident.Generation))
-
-	// tokens have authz mechanism  on their own, no need to check
-	return a.authServer.RegisterUsingToken(ctx, req)
 }
 
 // GenerateHostCerts generates new host certificates (signed

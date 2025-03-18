@@ -26,7 +26,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -126,42 +125,4 @@ func (c *Client) deleteReverseTunnelLegacy(ctx context.Context, domainName strin
 	}
 	_, err := c.Delete(ctx, c.Endpoint("reversetunnels", domainName))
 	return trace.Wrap(err)
-}
-
-// RegisterUsingToken calls the auth service API to register a new node using a
-// registration token which was previously issued via CreateToken/UpsertToken.
-func (c *Client) RegisterUsingToken(
-	ctx context.Context, req *types.RegisterUsingTokenRequest,
-) (*proto.Certs, error) {
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	certs, err := c.APIClient.RegisterUsingToken(ctx, req)
-	if err == nil {
-		return certs, nil
-	}
-	if !trace.IsNotImplemented(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	return c.registerUsingTokenLegacy(ctx, req)
-}
-
-func (c *HTTPClient) registerUsingTokenLegacy(
-	ctx context.Context, req *types.RegisterUsingTokenRequest,
-) (*proto.Certs, error) {
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := c.PostJSON(ctx, c.Endpoint("tokens", "register"), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var certs proto.Certs
-	if err := json.Unmarshal(out.Bytes(), &certs); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &certs, nil
 }

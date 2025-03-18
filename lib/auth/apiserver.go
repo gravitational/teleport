@@ -142,10 +142,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// trusted clusters
 	srv.POST("/:version/trustedclusters/validate", srv.WithAuth(srv.validateTrustedCluster))
 
-	// Tokens
-	// TODO(strideynet): REMOVE IN 18.0.0 - this method is now gRPC
-	srv.POST("/:version/tokens/register", srv.WithAuth(srv.registerUsingToken))
-
 	// these endpoints are still in use by v17 agents since they cache
 	// KindNamespace
 	//
@@ -491,20 +487,6 @@ func rawMessage(data []byte, err error) (interface{}, error) {
 	}
 	m := json.RawMessage(data)
 	return &m, nil
-}
-
-// TODO(strideynet): REMOVE IN v18.0.0
-func (s *APIServer) registerUsingToken(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
-	var req types.RegisterUsingTokenRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	certs, err := auth.RegisterUsingToken(r.Context(), &req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return certs, nil
 }
 
 // validateGithubAuthCallbackReq is a request to validate Github OAuth2 callback
