@@ -247,6 +247,10 @@ type RouteToApp struct {
 	// apps. It is appended to the hostname from the URI in the app spec, since the URI from
 	// RouteToApp is not used as the source of truth for routing.
 	TargetPort int
+
+	// AWSCredentialProcessCredentials contains the credentials to access AWS APIs.
+	// This is a JSON string that conforms with credential_process format.
+	AWSCredentialProcessCredentials string
 }
 
 // RouteToDatabase contains routing information for databases.
@@ -316,15 +320,16 @@ func (id *Identity) GetEventIdentity() events.Identity {
 	var routeToApp *events.RouteToApp
 	if id.RouteToApp != (RouteToApp{}) {
 		routeToApp = &events.RouteToApp{
-			Name:              id.RouteToApp.Name,
-			SessionID:         id.RouteToApp.SessionID,
-			PublicAddr:        id.RouteToApp.PublicAddr,
-			ClusterName:       id.RouteToApp.ClusterName,
-			AWSRoleARN:        id.RouteToApp.AWSRoleARN,
-			AzureIdentity:     id.RouteToApp.AzureIdentity,
-			GCPServiceAccount: id.RouteToApp.GCPServiceAccount,
-			URI:               id.RouteToApp.URI,
-			TargetPort:        uint32(id.RouteToApp.TargetPort),
+			Name:                            id.RouteToApp.Name,
+			SessionID:                       id.RouteToApp.SessionID,
+			PublicAddr:                      id.RouteToApp.PublicAddr,
+			ClusterName:                     id.RouteToApp.ClusterName,
+			AWSRoleARN:                      id.RouteToApp.AWSRoleARN,
+			AzureIdentity:                   id.RouteToApp.AzureIdentity,
+			GCPServiceAccount:               id.RouteToApp.GCPServiceAccount,
+			URI:                             id.RouteToApp.URI,
+			TargetPort:                      uint32(id.RouteToApp.TargetPort),
+			AWSCredentialProcessCredentials: id.RouteToApp.AWSCredentialProcessCredentials,
 		}
 	}
 	var routeToDatabase *events.RouteToDatabase
@@ -481,6 +486,10 @@ var (
 	// AppTargetPortASN1ExtensionOID is an extension ID used to encode the application
 	// target port into a certificate.
 	AppTargetPortASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 21}
+
+	// AWSCredentialProcessCredentials contains the credentials to access AWS APIs.
+	// This is a JSON string that conforms with credential_process format.
+	AppAWSCredentialProcessCredentialsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 22}
 
 	// DatabaseServiceNameASN1ExtensionOID is an extension ID used when encoding/decoding
 	// database service name into certificates.
@@ -692,6 +701,13 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  AWSRoleARNsASN1ExtensionOID,
 				Value: id.AWSRoleARNs[i],
+			})
+	}
+	if id.RouteToApp.AWSCredentialProcessCredentials != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AppAWSCredentialProcessCredentialsASN1ExtensionOID,
+				Value: id.RouteToApp.AWSCredentialProcessCredentials,
 			})
 	}
 	if id.RouteToApp.AzureIdentity != "" {
@@ -1030,6 +1046,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			val, ok := attr.Value.(string)
 			if ok {
 				id.AWSRoleARNs = append(id.AWSRoleARNs, val)
+			}
+		case attr.Type.Equal(AppAWSCredentialProcessCredentialsASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.RouteToApp.AWSCredentialProcessCredentials = val
 			}
 		case attr.Type.Equal(AppAzureIdentityASN1ExtensionOID):
 			val, ok := attr.Value.(string)

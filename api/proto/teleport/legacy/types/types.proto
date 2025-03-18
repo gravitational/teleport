@@ -1136,6 +1136,16 @@ message CommandLabelV2 {
 message AppAWS {
   // ExternalID is the AWS External ID used when assuming roles in this app.
   string ExternalID = 1 [(gogoproto.jsontag) = "external_id,omitempty"];
+  // RolesAnywhere contains the IAM Roles Anywhere fields associated with this Application.
+  AppAWSRolesAnywhere RolesAnywhere = 2 [(gogoproto.jsontag) = "roles_anywhere,omitempty"];
+}
+
+// AppAWSRolesAnywhere contains the fields that represent an AWS Roles Anywhere Profile.
+message AppAWSRolesAnywhere {
+  // ProfileARN is the IAM Roles Anywhere Profile ARN that originated this AWS App.
+  string ProfileARN = 1 [(gogoproto.jsontag) = "profile_arn,omitempty"];
+  // The list of allowed Role ARNs associated with the Profile.
+  repeated string AllowedRolesARN = 2 [(gogoproto.jsontag) = "allowed_roles_arn,omitempty"];
 }
 
 // PrivateKeyType is the storage type of a private key.
@@ -7791,6 +7801,8 @@ message IntegrationSpecV1 {
     AzureOIDCIntegrationSpecV1 AzureOIDC = 2 [(gogoproto.jsontag) = "azure_oidc,omitempty"];
     // GitHub contains the specific fields to handle the GitHub integration subkind.
     GitHubIntegrationSpecV1 GitHub = 3 [(gogoproto.jsontag) = "github,omitempty"];
+    // AWSRA contains the specific fields to handle the AWS Roles Anywhere Integration subkind
+    AWSRAIntegrationSpecV1 AWSRA = 5 [(gogoproto.jsontag) = "aws_ra,omitempty"];
   }
 
   // Credentials contains credentials for the integration.
@@ -7843,6 +7855,12 @@ message AzureOIDCIntegrationSpecV1 {
 message GitHubIntegrationSpecV1 {
   // Organization specifies the name of the organization for the GitHub integration.
   string Organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
+}
+
+// AWSRAIntegrationSpecV1 contains the spec properties for the AWS RA SubKind Integration.
+message AWSRAIntegrationSpecV1 {
+  // TrustAnchorARN contains the AWS IAM Roles Anywhere Trust Anchor ARN used to set up the Integration.
+  string TrustAnchorARN = 1 [(gogoproto.jsontag) = "trust_anchor_arn,omitempty"];
 }
 
 // HeadlessAuthentication holds data for an ongoing headless authentication attempt.

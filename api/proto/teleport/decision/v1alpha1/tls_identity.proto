@@ -187,6 +187,10 @@ message RouteToApp {
   // app spec, since the URI from RouteToApp is not used as the source of truth
   // for routing.
   int32 target_port = 9;
+
+  // AWSCredentialProcessCredentials contains the credentials to access AWS APIs.
+  // This is a JSON string that conforms with credential_process format.
+  string aws_credentialprocess_credentials = 10;
 }
 
 // RouteToDatabase contains routing information for databases.

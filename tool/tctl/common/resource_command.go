@@ -1520,6 +1520,8 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authcl
 			existingIntegration.SetAWSOIDCIntegrationSpec(integration.GetAWSOIDCIntegrationSpec())
 		case types.IntegrationSubKindGitHub:
 			existingIntegration.SetGitHubIntegrationSpec(integration.GetGitHubIntegrationSpec())
+		case types.IntegrationSubKindAWSRA:
+			existingIntegration.SetAWSRAIntegrationSpec(integration.GetAWSRAIntegrationSpec())
 		default:
 			return trace.BadParameter("subkind %q is not supported", integration.GetSubKind())
 		}

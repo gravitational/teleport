@@ -32,6 +32,7 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -101,6 +102,7 @@ import (
 	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
+	"github.com/gravitational/teleport/lib/integrations/awsra"
 	"github.com/gravitational/teleport/lib/inventory"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -3352,6 +3354,12 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		return nil, trace.Wrap(err)
 	}
 
+	// Generate AWS credential process credentials if the user is trying to access an App with an AWS Roles Anywhere Integration.
+	awsCredentialProcessCredentials, err := generateAWSConfigCredentialProcessCredentials(ctx, a, req, clusterName, notAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	identity := tlsca.Identity{
 		Username:          req.user.GetName(),
 		Impersonator:      req.impersonator,
@@ -3364,15 +3372,16 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		KubernetesGroups:  kubeGroups,
 		KubernetesUsers:   kubeUsers,
 		RouteToApp: tlsca.RouteToApp{
-			SessionID:         req.appSessionID,
-			URI:               req.appURI,
-			TargetPort:        req.appTargetPort,
-			PublicAddr:        req.appPublicAddr,
-			ClusterName:       req.appClusterName,
-			Name:              req.appName,
-			AWSRoleARN:        req.awsRoleARN,
-			AzureIdentity:     req.azureIdentity,
-			GCPServiceAccount: req.gcpServiceAccount,
+			SessionID:                       req.appSessionID,
+			URI:                             req.appURI,
+			TargetPort:                      req.appTargetPort,
+			PublicAddr:                      req.appPublicAddr,
+			ClusterName:                     req.appClusterName,
+			Name:                            req.appName,
+			AWSRoleARN:                      req.awsRoleARN,
+			AzureIdentity:                   req.azureIdentity,
+			GCPServiceAccount:               req.gcpServiceAccount,
+			AWSCredentialProcessCredentials: awsCredentialProcessCredentials,
 		},
 		TeleportCluster: clusterName,
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -3471,6 +3480,113 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	userCertificatesGeneratedMetric.WithLabelValues(string(attestedKeyPolicy)).Inc()
 
 	return certs, nil
+}
+
+// trustAnchorAndProfileARNsForApplication returns the AWS Roles Anywhere and Trust Anchor ARNs from an application.
+func trustAnchorAndProfileARNsForApplication(ctx context.Context, a *Server, appName string) (string, string, error) {
+	appServers, err := a.GetApplicationServers(ctx, "default")
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+	for _, appServer := range appServers {
+		if appServer.GetName() == appName {
+			awsProfileARN := appServer.GetApp().GetAWSRolesAnywhereProfileARN()
+			if awsProfileARN == "" {
+				return "", "", nil
+			}
+
+			integrationName := appServer.GetApp().GetIntegration()
+			if integrationName == "" {
+				return "", "", trace.BadParameter("application %q has no associated integration", appName)
+			}
+
+			integration, err := a.GetIntegration(ctx, integrationName)
+			if err != nil {
+				return "", "", trace.Wrap(err)
+			}
+
+			if integration.GetAWSRAIntegrationSpec() == nil {
+				return "", "", trace.BadParameter("integration %q is not an AWS Roles Anywhere integration", integrationName)
+			}
+
+			awsTrustAnchorARN := integration.GetAWSRAIntegrationSpec().TrustAnchorARN
+
+			return awsTrustAnchorARN, awsProfileARN, nil
+		}
+	}
+
+	return "", "", trace.NotFound("application %q not found", appName)
+}
+
+func generateAWSConfigCredentialProcessCredentials(ctx context.Context,
+	a *Server,
+	req certRequest,
+	clusterName string,
+	notAfter time.Time,
+) (string, error) {
+	appName := req.appName
+	userName := req.user.GetName()
+	awsRoleARN := req.awsRoleARN
+
+	if appName == "" || awsRoleARN == "" {
+		return "", nil
+	}
+
+	// Collect Trust Anchor ARN and Profile ARN
+	awsTrustAnchorARN, awsProfileARN, err := trustAnchorAndProfileARNsForApplication(ctx, a, appName)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if awsTrustAnchorARN == "" || awsProfileARN == "" {
+		return "", nil
+	}
+
+	awsRACA, err := a.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.AWSRACA,
+		DomainName: clusterName,
+	}, true)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	tlsCert, tlsSigner, err := a.keyStore.GetTLSCertAndSigner(ctx, awsRACA)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	tlsCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	slog.DebugContext(ctx, "Generating ~/.aws/config credential_process credentials",
+		"app_name", appName,
+		"user_name", userName,
+		"aws_trust_anchor_arn", awsTrustAnchorARN,
+		"aws_profile_arn", awsProfileARN,
+		"aws_role_arn", awsRoleARN,
+	)
+
+	awsCredentials, err := awsra.GenerateAWSRACredentials(ctx, awsra.GenerateAWSRACredentialsRequest{
+		Clock:                a.clock,
+		TrustAnchorARN:       awsTrustAnchorARN,
+		ProfileARN:           awsProfileARN,
+		RoleARN:              awsRoleARN,
+		SubjectCommonName:    userName,
+		NotAfter:             notAfter,
+		CertificateGenerator: tlsCA,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	bs, err := json.Marshal(awsCredentials)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return string(bs), nil
 }
 
 type attestHardwareKeyParams struct {
@@ -7559,7 +7675,7 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 
 	// Add TLS keys if necessary.
 	switch caID.Type {
-	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
+	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA, types.AWSRACA:
 		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName, tlsCAKeyPurpose(caID.Type))
 		if err != nil {
 			return keySet, trace.Wrap(err)
@@ -7606,6 +7722,8 @@ func tlsCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
 		return cryptosuites.SAMLIdPCATLS
 	case types.SPIFFECA:
 		return cryptosuites.SPIFFECATLS
+	case types.AWSRACA:
+		return cryptosuites.AWSRACATLS
 	}
 	return cryptosuites.KeyPurposeUnspecified
 }

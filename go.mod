@@ -80,6 +80,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.30.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.16
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v1.1.0
+	github.com/aws/rolesanywhere-credential-helper v1.4.0
 	github.com/aws/smithy-go v1.22.3
 	github.com/aws/smithy-go/tracing/smithyoteltracing v1.0.4
 	github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.9.1
@@ -516,6 +517,7 @@ require (
 	github.com/spf13/cast v1.7.0 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/spf13/viper v1.19.0 // indirect
+	github.com/stefanberger/go-pkcs11uri v0.0.0-20230803200340-78284954bff6 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/syndtr/goleveldb v1.0.1-0.20220721030215-126854af5e6d // indirect
@@ -581,6 +583,7 @@ require (
 // update "ignore" in .github/dependabot.yml.
 replace (
 	github.com/alecthomas/kingpin/v2 => github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33
+	github.com/aws/rolesanywhere-credential-helper => ../rolesanywhere-credential-helper
 	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.1.1
 	github.com/crewjam/saml => github.com/gravitational/saml v0.4.15-teleport.2
 	github.com/datastax/go-cassandra-native-protocol => github.com/gravitational/go-cassandra-native-protocol v0.0.0-teleport.1
