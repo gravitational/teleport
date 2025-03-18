@@ -21,6 +21,7 @@ import { MemoryRouter } from 'react-router';
 import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
+import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { yamlService } from 'teleport/services/yaml';
 
@@ -66,9 +67,11 @@ describe('Roles list', () => {
     const ctx = createTeleportContext();
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Roles {...defaultState} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Roles {...defaultState} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -89,9 +92,11 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Roles {...testState} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Roles {...testState} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -105,9 +110,11 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Roles {...defaultState} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Roles {...defaultState} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -134,9 +141,11 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Roles {...testState} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Roles {...testState} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -169,9 +178,11 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Roles {...testState} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Roles {...testState} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -204,9 +215,11 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Roles {...testState} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Roles {...testState} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -233,9 +246,11 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Roles {...testState} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Roles {...testState} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -280,21 +295,23 @@ test('renders the role diff component', async () => {
 
   render(
     <MemoryRouter>
-      <ContextProvider ctx={ctx}>
-        <Roles
-          {...defaultState()}
-          roleDiffProps={{
-            roleDiffElement,
-            updateRoleDiff: () => null,
-            roleDiffAttempt: {
-              status: 'error',
-              statusText: 'there is an error here',
-              data: null,
-              error: null,
-            },
-          }}
-        />
-      </ContextProvider>
+      <InfoGuidePanelProvider>
+        <ContextProvider ctx={ctx}>
+          <Roles
+            {...defaultState()}
+            roleDiffProps={{
+              roleDiffElement,
+              updateRoleDiff: () => null,
+              roleDiffAttempt: {
+                status: 'error',
+                statusText: 'there is an error here',
+                data: null,
+                error: null,
+              },
+            }}
+          />
+        </ContextProvider>
+      </InfoGuidePanelProvider>
     </MemoryRouter>
   );
   await openEditor();

@@ -21,6 +21,7 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/x509"
+	"encoding/json"
 	"log/slog"
 	"math/big"
 	"net/url"
@@ -204,6 +205,7 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 			decision.templatedWorkloadIdentity,
 			v.X509SvidParams,
 			req.RequestedTtl.AsDuration(),
+			attrs,
 		)
 		if err != nil {
 			return nil, trace.Wrap(err, "issuing X509 SVID")
@@ -220,6 +222,7 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 			decision.templatedWorkloadIdentity,
 			v.JwtSvidParams,
 			req.RequestedTtl.AsDuration(),
+			attrs,
 		)
 		if err != nil {
 			return nil, trace.Wrap(err, "issuing JWT SVID")
@@ -304,6 +307,7 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 				wi,
 				v.X509SvidParams,
 				req.RequestedTtl.AsDuration(),
+				attrs,
 			)
 			if err != nil {
 				return nil, trace.Wrap(
@@ -327,6 +331,7 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 				wi,
 				v.JwtSvidParams,
 				req.RequestedTtl.AsDuration(),
+				attrs,
 			)
 			if err != nil {
 				return nil, trace.Wrap(
@@ -424,11 +429,31 @@ func (s *IssuanceService) getX509CA(
 	return tlsCA, nil
 }
 
+func rawAttrsToStruct(in *workloadidentityv1pb.Attrs) (*apievents.Struct, error) {
+	if in == nil {
+		return nil, nil
+	}
+	attrBytes, err := json.Marshal(in)
+	if err != nil {
+		return nil, trace.Wrap(err, "marshaling join attributes")
+	}
+	out := &apievents.Struct{}
+	if err := out.UnmarshalJSON(attrBytes); err != nil {
+		return nil, trace.Wrap(err, "unmarshaling join attributes")
+	}
+	return out, nil
+}
+
 func baseEvent(
 	ctx context.Context,
 	wi *workloadidentityv1pb.WorkloadIdentity,
 	spiffeID spiffeid.ID,
-) *apievents.SPIFFESVIDIssued {
+	attrs *workloadidentityv1pb.Attrs,
+) (*apievents.SPIFFESVIDIssued, error) {
+	structAttrs, err := rawAttrsToStruct(attrs)
+	if err != nil {
+		return nil, trace.Wrap(err, "marshaling attributes")
+	}
 	return &apievents.SPIFFESVIDIssued{
 		Metadata: apievents.Metadata{
 			Type: events.SPIFFESVIDIssuedEvent,
@@ -440,7 +465,8 @@ func baseEvent(
 		Hint:                     wi.GetSpec().GetSpiffe().GetHint(),
 		WorkloadIdentity:         wi.GetMetadata().GetName(),
 		WorkloadIdentityRevision: wi.GetMetadata().GetRevision(),
-	}
+		Attributes:               structAttrs,
+	}, nil
 }
 
 func calculateTTL(
@@ -466,6 +492,7 @@ func (s *IssuanceService) issueX509SVID(
 	wid *workloadidentityv1pb.WorkloadIdentity,
 	params *workloadidentityv1pb.X509SVIDParams,
 	requestedTTL time.Duration,
+	attrs *workloadidentityv1pb.Attrs,
 ) (_ *workloadidentityv1pb.Credential, err error) {
 	ctx, span := tracer.Start(ctx, "IssuanceService/issueX509SVID")
 	defer func() { tracing.EndSpan(span, err) }()
@@ -516,7 +543,10 @@ func (s *IssuanceService) issueX509SVID(
 		return nil, trace.Wrap(err)
 	}
 
-	evt := baseEvent(ctx, wid, spiffeID)
+	evt, err := baseEvent(ctx, wid, spiffeID, attrs)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating base event")
+	}
 	evt.SVIDType = "x509"
 	evt.SerialNumber = serialString
 	evt.DNSSANs = wid.GetSpec().GetSpiffe().GetX509().GetDnsSans()
@@ -593,6 +623,7 @@ func (s *IssuanceService) issueJWTSVID(
 	wid *workloadidentityv1pb.WorkloadIdentity,
 	params *workloadidentityv1pb.JWTSVIDParams,
 	requestedTTL time.Duration,
+	attrs *workloadidentityv1pb.Attrs,
 ) (_ *workloadidentityv1pb.Credential, err error) {
 	ctx, span := tracer.Start(ctx, "IssuanceService/issueJWTSVID")
 	defer func() { tracing.EndSpan(span, err) }()
@@ -632,7 +663,10 @@ func (s *IssuanceService) issueJWTSVID(
 		return nil, trace.Wrap(err, "signing jwt")
 	}
 
-	evt := baseEvent(ctx, wid, spiffeID)
+	evt, err := baseEvent(ctx, wid, spiffeID, attrs)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating base event")
+	}
 	evt.SVIDType = "jwt"
 	evt.JTI = jti
 	if err := s.emitter.EmitAuditEvent(ctx, evt); err != nil {

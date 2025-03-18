@@ -44,7 +44,7 @@ type KubeWaitingContainerService struct {
 // container service.
 func NewKubeWaitingContainerService(b backend.Backend) (*KubeWaitingContainerService, error) {
 	svc, err := generic.NewServiceWrapper(
-		generic.ServiceWrapperConfig[*kubewaitingcontainerpb.KubernetesWaitingContainer]{
+		generic.ServiceConfig[*kubewaitingcontainerpb.KubernetesWaitingContainer]{
 			Backend:       b,
 			ResourceKind:  types.KindKubeWaitingContainer,
 			BackendPrefix: backend.NewKey(kubeWaitingContPrefix),

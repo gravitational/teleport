@@ -573,6 +573,18 @@ func (c *CLICommandBuilder) getMongoAddress() string {
 		serverSelectionTimeoutMS = envValue
 	}
 	query.Set("serverSelectionTimeoutMS", serverSelectionTimeoutMS)
+	// If directConnection is false (default for many clients), the client
+	// attempts to discover all servers in the replica set, and sends operations
+	// to the primary member.
+	// https://www.mongodb.com/docs/manual/reference/connection-string-options/#mongodb-urioption-urioption.directConnection
+	//
+	// Since Teleport is a proxy that appears only as a single server,
+	// directConnection should always be used.
+	//
+	// mongosh automatically adds the directConnection=true parameter. However,
+	// here we explicitly set it for other clients like MongoDB compass.
+	// https://www.mongodb.com/docs/mongodb-shell/connect/
+	query.Set("directConnection", "true")
 
 	address := url.URL{
 		Scheme:   connstring.SchemeMongoDB,

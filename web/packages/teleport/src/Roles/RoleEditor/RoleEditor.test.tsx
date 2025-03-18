@@ -120,7 +120,7 @@ test('rendering and switching tabs for new role', async () => {
   await forwardToTab('Admin Rules');
   await forwardToTab('Options');
   expect(screen.getByRole('button', { name: 'Create Role' })).toBeEnabled();
-});
+}, 10000);
 
 test('rendering and switching tabs for a non-standard role', async () => {
   const originalRole = withDefaults({

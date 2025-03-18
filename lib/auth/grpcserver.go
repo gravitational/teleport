@@ -663,6 +663,12 @@ func validateUserCertsRequest(actx *grpcContext, req *authpb.UserCertsRequest) e
 		return nil
 	}
 
+	if req.MFAResponse != nil {
+		if req.MFAResponse.GetTOTP() != nil {
+			return trace.BadParameter("per-session MFA is not satisfied by OTP devices")
+		}
+	}
+
 	// Single-use certs require current user.
 	if err := actx.currentUserAction(req.Username); err != nil {
 		return trace.Wrap(err)
@@ -5308,7 +5314,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	workloadidentityv1pb.RegisterWorkloadIdentityIssuanceServiceServer(server, workloadIdentityIssuanceService)
 
-	workloadIdentityRevocationService, err := workloadidentityv1.NewRevocationService(&workloadidentityv1.RevocationServiceConfig{
+	revSvcConfig := &workloadidentityv1.RevocationServiceConfig{
 		Authorizer:          cfg.Authorizer,
 		Emitter:             cfg.Emitter,
 		Clock:               cfg.AuthServer.GetClock(),
@@ -5317,7 +5323,11 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		CertAuthorityGetter: cfg.AuthServer.Cache,
 		EventsWatcher:       cfg.AuthServer.Services,
 		ClusterName:         clusterName.GetClusterName(),
-	})
+	}
+	if cfg.MutateRevocationsServiceConfig != nil {
+		cfg.MutateRevocationsServiceConfig(revSvcConfig)
+	}
+	workloadIdentityRevocationService, err := workloadidentityv1.NewRevocationService(revSvcConfig)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating workload identity revocation service")
 	}
@@ -5628,7 +5638,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 
 	decisionService, err := decisionv1.NewService(decisionv1.ServiceConfig{
-		Authorizer: cfg.Authorizer,
+		DecisionService: cfg.AuthServer.pdp,
+		Authorizer:      cfg.Authorizer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -390,11 +390,12 @@ List cluster nodes:
 $ tsh ls [<flags>] [<label>]
 ```
 
-<Details title="Not seeing Nodes?">
+<details>
+<summary>Not seeing Nodes?</summary>
 
 (!docs/pages/includes/node-logins.mdx!)
 
-</Details>
+</details>
 
 ### Arguments
 
@@ -1127,6 +1128,36 @@ $ tsh ssh -o ForwardAgent=yes root@grav-00
 $ tsh ssh -o AddKeysToAgent=yes root@grav-00
 # Run `hostname` on all nodes with the `env: aws` label
 $ tsh ssh root@env=aws hostname
+```
+
+## tsh sessions ls
+
+List active sessions. The resulting list includes only the sessions that the
+caller has permission to join, unless they have a role with explicit `list`
+access on the `session_tracker` resource.
+
+```code
+$ tsh sessions ls
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `-f, --format` | text | text, json, yaml | Format for output |
+| `--kind` | none | ssh, k8s, db, app, desktop | Optionally filter by session kind(s) |
+
+### Examples
+
+```code
+# list all active sessions
+$ tsh sessions ls
+
+# list all SSH and desktop sessions
+$ tsh sessions ls --kind=ssh --kind=desktop
+
+# list all Kubernetes sessions in JSON format
+$ tsh sessions ls --kind=k8s --format=json
 ```
 
 ## tsh status

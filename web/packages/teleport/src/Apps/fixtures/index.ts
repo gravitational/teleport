@@ -18,6 +18,69 @@
 
 import makeApp from 'teleport/services/apps/makeApps';
 
+export const awsConsoleApp = makeApp({
+  name: 'aws-console-1',
+  uri: 'https://console.aws.amazon.com/ec2/v2/home',
+  publicAddr: 'awsconsole-1.teleport-proxy.com',
+  labels: [
+    { name: 'aws_account_id', value: 'A1234' },
+    { name: 'env', value: 'dev' },
+    { name: 'cluster', value: 'two' },
+  ],
+  description: 'This is an AWS Console app',
+  awsConsole: true,
+  awsRoles: [
+    {
+      name: 'role name',
+      arn: 'arn:aws:iam::joe123:role/EC2FullAccess',
+      display: 'EC2FullAccess',
+    },
+    {
+      name: 'other role name',
+      arn: 'arn:aws:iam::joe123:role/EC2FullAccess',
+      display: 'ReallyLonReallyLonggggggEC2FullAccess',
+    },
+    {
+      name: 'thisthing',
+      arn: 'arn:aws:iam::joe123:role/EC2ReadOnly',
+      display: 'EC2ReadOnly',
+    },
+    ...new Array(20).fill(undefined).map((_, index) => {
+      return {
+        name: `long-${index}`,
+        arc: `arn:aws:iam::${index}`,
+        display: `LONG${index}`,
+      };
+    }),
+  ],
+  clusterId: 'one',
+  fqdn: 'awsconsole-1.com',
+});
+
+export const awsIamIcAccountApp = makeApp({
+  name: 'aws-iam-ic-account-1',
+  uri: 'https://console.aws.amazon.com',
+  publicAddr: 'console.aws.amazon.com',
+  subKind: 'aws-ic-account',
+  labels: [{ name: 'teleport.dev/origin', value: 'aws-identity-center' }],
+  description: 'This is an AWS IAM Identity Center account',
+  awsConsole: false,
+  permissionSets: [
+    {
+      name: 'Admin perm set',
+      arn: 'arn:aws:sso:::permissionSet/Admin',
+      display: 'Admin',
+    },
+    {
+      name: 'ReadOnly perm set',
+      arn: 'arn:aws:sso:::permissionSet/ReadOnly',
+      display: 'ReadOnly',
+    },
+  ],
+  clusterId: 'one',
+  fqdn: 'https://console.aws.amazon.com',
+});
+
 export const apps = [
   {
     name: 'Jenkins',
@@ -160,44 +223,6 @@ export const apps = [
     clusterId: 'one',
   },
   {
-    name: 'aws-console-1',
-    uri: 'https://console.aws.amazon.com/ec2/v2/home',
-    publicAddr: 'awsconsole-1.teleport-proxy.com',
-    labels: [
-      { name: 'aws_account_id', value: 'A1234' },
-      { name: 'env', value: 'dev' },
-      { name: 'cluster', value: 'two' },
-    ],
-    description: 'This is an AWS Console app',
-    awsConsole: true,
-    awsRoles: [
-      {
-        name: 'role name',
-        arn: 'arn:aws:iam::joe123:role/EC2FullAccess',
-        display: 'EC2FullAccess',
-      },
-      {
-        name: 'other role name',
-        arn: 'arn:aws:iam::joe123:role/EC2FullAccess',
-        display: 'ReallyLonReallyLonggggggEC2FullAccess',
-      },
-      {
-        name: 'thisthing',
-        arn: 'arn:aws:iam::joe123:role/EC2ReadOnly',
-        display: 'EC2ReadOnly',
-      },
-      ...new Array(20).fill(undefined).map((_, index) => {
-        return {
-          name: `long-${index}`,
-          arc: `arn:aws:iam::${index}`,
-          display: `LONG${index}`,
-        };
-      }),
-    ],
-    clusterId: 'one',
-    fqdn: 'awsconsole-1.com',
-  },
-  {
     name: 'Cloud',
     uri: 'cloud://some-address',
     publicAddr: '',
@@ -207,29 +232,6 @@ export const apps = [
       { name: 'cluster', value: 'one' },
     ],
     clusterId: 'one',
-  },
-  {
-    name: 'aws-iam-ic-account-1',
-    uri: 'https://console.aws.amazon.com',
-    publicAddr: 'console.aws.amazon.com',
-    subKind: 'aws-ic-account',
-    labels: [{ name: 'teleport.dev/origin', value: 'aws-identity-center' }],
-    description: 'This is an AWS IAM Identity Center account',
-    awsConsole: false,
-    permissionSets: [
-      {
-        name: 'Admin perm set',
-        arn: 'arn:aws:sso:::permissionSet/Admin',
-        display: 'Admin',
-      },
-      {
-        name: 'ReadOnly perm set',
-        arn: 'arn:aws:sso:::permissionSet/ReadOnly',
-        display: 'ReadOnly',
-      },
-    ],
-    clusterId: 'one',
-    fqdn: 'https://console.aws.amazon.com',
   },
   {
     name: 'aws-iam-ic-account-2',
@@ -255,6 +257,15 @@ export const apps = [
     fqdn: 'https://console.aws.amazon.com',
   },
 ].map(makeApp);
+apps.push(awsConsoleApp, awsIamIcAccountApp);
+
+export const gcpCloudApp = makeApp({
+  name: 'cloud-app',
+  description: 'Cloud app (GCP)',
+  uri: 'cloud://GCP',
+  publicAddr: 'cloud-app.teleport.example.com',
+  fqdn: 'cloud-app.teleport.example.com',
+});
 
 export const moreApps = [
   {
@@ -426,3 +437,4 @@ export const moreApps = [
     clusterId: 'one',
   },
 ].map(makeApp);
+moreApps.push(gcpCloudApp);
