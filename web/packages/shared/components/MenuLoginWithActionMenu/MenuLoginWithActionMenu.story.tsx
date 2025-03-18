@@ -19,6 +19,7 @@
 import styled from 'styled-components';
 
 import { Flex, H3, MenuItem } from 'design';
+import { MenuInputType } from 'shared/components/MenuLogin';
 
 import { MenuLoginWithActionMenu as MenuLoginWithActionMenuComponent } from './MenuLoginWithActionMenu';
 
@@ -65,7 +66,7 @@ export const MenuLoginWithActionMenu = () => {
           getLoginItems={() => urlItems}
           onSelect={() => null}
           placeholder="Select item to log in..."
-          disableSearchAndFilter={true}
+          inputType={MenuInputType.NONE}
         >
           {menuItems}
         </MenuLoginWithActionMenuComponent>

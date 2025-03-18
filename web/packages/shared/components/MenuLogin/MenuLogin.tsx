@@ -48,7 +48,6 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
       inputType = MenuInputType.INPUT,
       required = true,
       width,
-      disableSearchAndFilter,
       style,
     } = props;
     const [filter, setFilter] = useState('');
@@ -157,7 +156,7 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
             onClick={onItemClick}
             placeholder={placeholder}
             width={width}
-            disableSearchAndFilter={disableSearchAndFilter}
+            inputType={inputType}
           />
         </Menu>
       </React.Fragment>
@@ -173,7 +172,7 @@ const LoginItemList = ({
   items,
   placeholder,
   width,
-  disableSearchAndFilter,
+  inputType,
 }: {
   getLoginItemsAttempt: Attempt<LoginItem[]>;
   items: LoginItem[];
@@ -182,13 +181,13 @@ const LoginItemList = ({
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   placeholder: string;
   width?: string;
-  disableSearchAndFilter: boolean;
+  inputType?: MenuInputType;
 }) => {
   const content = getLoginItemListContent(items, getLoginItemsAttempt, onClick);
 
   return (
     <Flex flexDirection="column" minWidth={width}>
-      {disableSearchAndFilter ? (
+      {inputType === MenuInputType.NONE ? (
         /* css and margin value matched with AWS Launch button <RoleItemList> */
         <Text
           px="2"
