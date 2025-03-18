@@ -31,13 +31,33 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
-// binaryHashMaxBytes is the maximum number of bytes we'll read from a process'
-// binary to calculate its SHA256 checksum. If the binary is larger than this we
-// will return an error (to prevent DoS attacks).
-const binaryHashMaxBytes = 1 << 30 // 1GiB
+// DefaultBinaryHashMaxBytes is default value for BinaryHashMaxSizeBytes.
+const DefaultBinaryHashMaxBytes = 1 << 30 // 1GiB
+
+// UnixAttestorConfig holds the configuration for the Unix workload attestor.
+type UnixAttestorConfig struct {
+	// BinaryHashMaxSize is the maximum number of bytes that will be read from
+	// a process' binary to calculate its SHA256 checksum. If the binary is
+	// larger than this, the `binary_hash` attribute will be empty (to prevent
+	// DoS attacks).
+	//
+	// Defaults to 1GiB. Set it to -1 to make it unlimited.
+	BinaryHashMaxSizeBytes int64 `yaml:"binary_hash_max_size_bytes,omitempty"`
+}
+
+func (u *UnixAttestorConfig) CheckAndSetDefaults() error {
+	if u.BinaryHashMaxSizeBytes == 0 {
+		u.BinaryHashMaxSizeBytes = DefaultBinaryHashMaxBytes
+	}
+	if u.BinaryHashMaxSizeBytes < -1 {
+		return trace.BadParameter("binary_hash_max_size_bytes must be -1 (unlimited), 0 (default), or greater")
+	}
+	return nil
+}
 
 // UnixAttestor attests a process id to a Unix process.
 type UnixAttestor struct {
+	cfg UnixAttestorConfig
 	log *slog.Logger
 	os  UnixOS
 }
@@ -57,8 +77,9 @@ type UnixOS interface {
 }
 
 // NewUnixAttestor returns a new UnixAttestor.
-func NewUnixAttestor(log *slog.Logger) *UnixAttestor {
+func NewUnixAttestor(cfg UnixAttestorConfig, log *slog.Logger) *UnixAttestor {
 	return &UnixAttestor{
+		cfg: cfg,
 		log: log,
 		os:  unixOS,
 	}
@@ -135,7 +156,7 @@ func (a *UnixAttestor) Attest(ctx context.Context, pid int) (*workloadidentityv1
 	defer func() { _ = exe.Close() }()
 
 	hash := sha256.New()
-	if _, err := copyAtMost(hash, exe, binaryHashMaxBytes); err != nil {
+	if _, err := copyAtMost(hash, exe, a.cfg.BinaryHashMaxSizeBytes); err != nil {
 		a.log.ErrorContext(ctx, "Failed to hash workload executable", "error", err)
 		return att, nil
 	}
@@ -148,6 +169,11 @@ func (a *UnixAttestor) Attest(ctx context.Context, pid int) (*workloadidentityv1
 // copyAtMost copies at most n bytes from src to dst. If src contains more than
 // n bytes, a LimitExceeded error will be returned.
 func copyAtMost(dst io.Writer, src io.Reader, n int64) (int64, error) {
+	// -1 is unlimited.
+	if n == -1 {
+		return io.Copy(dst, src)
+	}
+
 	copied, err := io.CopyN(dst, src, n)
 	switch {
 	case err == io.EOF:

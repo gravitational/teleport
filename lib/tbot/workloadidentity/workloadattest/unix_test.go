@@ -46,7 +46,10 @@ func TestUnixAttestor_Attest(t *testing.T) {
 	uid := os.Getuid()
 	gid := os.Getgid()
 
-	attestor := NewUnixAttestor(utils.NewSlogLoggerForTests())
+	attestor := NewUnixAttestor(
+		UnixAttestorConfig{BinaryHashMaxSizeBytes: -1},
+		utils.NewSlogLoggerForTests(),
+	)
 	attestor.os = testOS{
 		exePath: func(context.Context, *process.Process) (string, error) {
 			return "/path/to/executable", nil
@@ -78,13 +81,16 @@ func TestUnixAttestor_BinaryTooLarge(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	attestor := NewUnixAttestor(utils.NewSlogLoggerForTests())
+	attestor := NewUnixAttestor(
+		UnixAttestorConfig{BinaryHashMaxSizeBytes: 1024},
+		utils.NewSlogLoggerForTests(),
+	)
 	attestor.os = testOS{
 		exePath: func(context.Context, *process.Process) (string, error) {
 			return "/path/to/executable", nil
 		},
 		openExe: func(context.Context, *process.Process) (io.ReadCloser, error) {
-			var exe [binaryHashMaxBytes + 1]byte
+			var exe [2048]byte
 			return io.NopCloser(bytes.NewReader(exe[:])), nil
 		},
 	}
