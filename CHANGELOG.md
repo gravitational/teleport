@@ -1,5 +1,23 @@
 # Changelog
 
+## 16.4.18 (03/18/25)
+
+* Fixed the Teleport process to crashing on group database errors when host user creation was enabled. [#53080](https://github.com/gravitational/teleport/pull/53080)
+* Workload ID: support for attesting Docker workloads. [#53070](https://github.com/gravitational/teleport/pull/53070)
+* The event handler can now generate certificates for DNS names that are not resolvable. [#53063](https://github.com/gravitational/teleport/pull/53063)
+* Added a `--join-method` flag to the `teleport configure` command. [#53060](https://github.com/gravitational/teleport/pull/53060)
+* Workload ID: support for attesting Podman workloads. [#52980](https://github.com/gravitational/teleport/pull/52980)
+* Web UI now correctly displays errors in desktop sessions when a required WebAuthn MFA device is missing. [#52917](https://github.com/gravitational/teleport/pull/52917)
+* Allow specifying the maximum number of PKCS#11 HSM connections. [#52880](https://github.com/gravitational/teleport/pull/52880)
+* Resolved an issue where desktop session recordings could have incorrect proportions. [#52868](https://github.com/gravitational/teleport/pull/52868)
+* Resolved an issue that could cause WebSocket errors to appear after the graceful shutdown of a desktop session. [#52868](https://github.com/gravitational/teleport/pull/52868)
+* Updated golang.org/x/net (addresses CVE-2025-22870). [#52847](https://github.com/gravitational/teleport/pull/52847)
+* Fix terraform provider data sources. [#52817](https://github.com/gravitational/teleport/pull/52817)
+* Machine ID: Added new Prometheus metrics to track success and failure of renewal loops. [#52729](https://github.com/gravitational/teleport/pull/52729)
+
+Enterprise:
+* Reduce resource consumption resolving Okta applications during login. [#6088](https://github.com/gravitational/teleport.e/pull/6088)
+
 ## 16.4.17 (03/05/25)
 
 * Escape user provided labels when creating the shell script that enrolls servers, applications and databases into Teleport. [#52705](https://github.com/gravitational/teleport/pull/52705)

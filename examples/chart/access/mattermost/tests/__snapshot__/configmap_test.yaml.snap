@@ -22,6 +22,6 @@ should match the snapshot:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-mattermost
-        app.kubernetes.io/version: 16.4.17
-        helm.sh/chart: teleport-plugin-mattermost-16.4.17
+        app.kubernetes.io/version: 16.4.18
+        helm.sh/chart: teleport-plugin-mattermost-16.4.18
       name: RELEASE-NAME-teleport-plugin-mattermost
