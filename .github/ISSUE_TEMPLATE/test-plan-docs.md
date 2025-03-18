@@ -70,9 +70,6 @@ version of Teleport.
   $ git checkout origin/branch/v<release_version> -- CHANGELOG.md
   ```
 
-- [ ] Update the supported versions table in the FAQ
-  (https://goteleport.com/docs/faq/#supported-versions).
-
 - [ ] Verify the accuracy of critical docs pages. Follow the docs guides below
   and verify their accuracy while using the newly released major version of
   Teleport.
