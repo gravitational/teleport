@@ -133,8 +133,8 @@ func TestAccessListSync(t *testing.T) {
 		resourceSuffix := testResourceSuffix(t, app.Id, appLinks)
 
 		// Ensure there is 1 Access List.
-		accessLists, err := sut.Teleport.Process.GetAuthServer().GetAccessLists(ctx)
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			accessLists, err := sut.Teleport.Process.GetAuthServer().GetAccessLists(ctx)
 			require.NoError(t, err)
 			require.Len(t, accessLists, 1)
 			require.Equal(t, resourceSuffix, accessLists[0].GetName())
