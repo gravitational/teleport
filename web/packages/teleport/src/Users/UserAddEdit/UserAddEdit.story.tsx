@@ -20,7 +20,7 @@ import { useState } from 'react';
 
 import { AllUserTraits } from 'teleport/services/user';
 
-import type { TraitsOption } from './TraitsEditor';
+import type { TraitsOption } from 'shared/components/TraitsEditor';
 import { UserAddEdit } from './UserAddEdit';
 
 export default {

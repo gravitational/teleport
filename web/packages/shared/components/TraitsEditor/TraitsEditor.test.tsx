@@ -21,8 +21,7 @@ import Validation from 'shared/components/Validation';
 
 import { AllUserTraits } from 'teleport/services/user';
 
-import { emptyTrait, TraitsEditor, type TraitsOption } from './TraitsEditor';
-import { traitsToTraitsOption } from './useDialog';
+import { traitsToTraitsOption, emptyTrait, TraitsEditor, type TraitsOption } from './TraitsEditor';
 
 test('Available traits are rendered', async () => {
   const setConfiguredTraits = jest.fn();
@@ -80,4 +79,20 @@ test('Add and remove Trait', async () => {
   );
   fireEvent.click(screen.getByTitle('Remove Trait'));
   expect(setConfiguredTraits).toHaveBeenCalledWith([]);
+});
+
+describe('Test traitsToTraitsOption', () => {
+  test.each`
+    name                                         | trait                | expected
+    ${'trait with values (valid)'}               | ${{ t: ['a', 'b'] }} | ${[{ traitKey: { label: 't', value: 't' }, traitValues: [{ label: 'a', value: 'a' }, { label: 'b', value: 'b' }] }]}
+    ${'empty trait (invalid)'}                   | ${{ t: [] }}         | ${[]}
+    ${'trait with empty string (invalid)'}       | ${{ t: [''] }}       | ${[]}
+    ${'trait with null value (invalid)'}         | ${{ t: null }}       | ${[]}
+    ${'trait with null array (invalid)'}         | ${{ t: [null] }}     | ${[]}
+    ${'trait with first empty string (invalid)'} | ${{ t: ['', 'a'] }}  | ${[{ traitKey: { label: 't', value: 't' }, traitValues: [{ label: '', value: '' }, { label: 'a', value: 'a' }] }]}
+    ${'trait with last empty element (valid)'}   | ${{ t: ['a', ''] }}  | ${[{ traitKey: { label: 't', value: 't' }, traitValues: [{ label: 'a', value: 'a' }, { label: '', value: '' }] }]}
+  `('$name', ({ trait, expected }) => {
+    const result = traitsToTraitsOption(trait);
+    expect(result).toEqual(expected);
+  });
 });

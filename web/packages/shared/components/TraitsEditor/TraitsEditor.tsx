@@ -24,6 +24,7 @@ import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { requiredAll, requiredField } from 'shared/components/Validation/rules';
 import { Attempt } from 'shared/hooks/useAttemptNext';
+import { AllUserTraits } from 'teleport/services/user';
 
 /**
  * traitsPreset is a list of system defined traits in Teleport.
@@ -139,9 +140,6 @@ export function TraitsEditor({
                     data-testid="trait-value"
                     mt={4}
                     ariaLabel="trait-values"
-                    css={`
-                      background: ${props => props.theme.colors.levels.surface};
-                    `}
                     placeholder="Type a trait value and press enter"
                     label="Value"
                     isMulti
@@ -253,4 +251,26 @@ export type TraitEditorProps = {
   setConfiguredTraits: Dispatch<SetStateAction<TraitsOption[]>>;
   configuredTraits: TraitsOption[];
   attempt: Attempt;
+};
+
+export function traitsToTraitsOption(allTraits: AllUserTraits): TraitsOption[] {
+  const newTrait = [];
+  for (let trait in allTraits) {
+    if (!allTraits[trait]) {
+      continue;
+    }
+    if (allTraits[trait].length === 1 && !allTraits[trait][0]) {
+      continue;
+    }
+    if (allTraits[trait].length > 0) {
+      newTrait.push({
+        traitKey: { value: trait, label: trait },
+        traitValues: allTraits[trait].map(t => ({
+          value: t,
+          label: t,
+        })),
+      });
+    }
+  }
+  return newTrait;
 };
