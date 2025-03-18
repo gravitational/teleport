@@ -1,4 +1,4 @@
-.version: &version "15.4.30"
+.version: &version "15.4.30-dev.vapopov.1"
 
 apiVersion: v2
 name: teleport-plugin-pagerduty
