@@ -20,6 +20,7 @@ import (
 	"context"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 type WorkloadIdentityX509Overrides interface {
@@ -45,4 +46,8 @@ type WorkloadIdentityX509Overrides interface {
 	// DeleteX509IssuerOverride deletes an existing override by name. If no
 	// override with such a name exists, a [*trace.NotFoundError] is returned.
 	DeleteX509IssuerOverride(ctx context.Context, name string) error
+}
+
+type WorkloadIdentityX509CAOverrideGetter interface {
+	GetWorkloadIdentityX509CAOverride(ctx context.Context, name string, ca *tlsca.CertAuthority) (*tlsca.CertAuthority, [][]byte, error)
 }
