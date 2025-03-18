@@ -19,9 +19,11 @@
 package windows
 
 import (
+	"context"
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 	"sync"
@@ -148,8 +150,8 @@ const searchPageSize = 1000
 // and provide a new client with [SetClient].
 type LDAPClient struct {
 	// Cfg is the LDAPConfig
-	Cfg LDAPConfig
-
+	Cfg               LDAPConfig
+	Logger            *slog.Logger
 	mu                sync.Mutex
 	client            ldap.Client
 	connectionCreator func(addr string) (*ldap.Conn, error)
@@ -280,10 +282,13 @@ func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([
 		return res.Entries, nil
 	}
 
+	ctx := context.Background()
+
 	var ldapErr *ldap.Error
 	if errors.As(err, &ldapErr) && ldapErr.ResultCode == ldap.LDAPResultReferral {
 		referrals := extractReferrals(ldapErr)
 		for i := 0; i < len(referrals); i++ {
+			c.Logger.DebugContext(ctx, "Trying connection to referral", "referral", referrals[i])
 			if conn, err := c.connectionCreator(referrals[i]); err == nil {
 				res, err := conn.SearchWithPaging(req, searchPageSize)
 				if err == nil {
@@ -291,7 +296,11 @@ func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([
 				} else if len(referrals) < 10 && errors.As(err, &ldapErr) {
 					newReferrals := extractReferrals(ldapErr)
 					referrals = append(referrals, newReferrals...)
+				} else {
+					c.Logger.DebugContext(ctx, "LDAP search failed", "referral", referrals[i], "error", err)
 				}
+			} else {
+				c.Logger.DebugContext(ctx, "Can't connect to referral", "referral", referrals[i], "error", err)
 			}
 		}
 		return nil, trace.BadParameter("no referral provided by LDAP server can execute the query, tried: %s", strings.Join(referrals, ","))
