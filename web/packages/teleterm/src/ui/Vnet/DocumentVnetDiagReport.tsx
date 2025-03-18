@@ -152,7 +152,7 @@ export function DocumentVnetDiagReport(props: {
   return (
     <Document visible={props.visible}>
       <Stack
-        gap={4}
+        gap={5}
         maxWidth="1360px"
         width="100%"
         mx="auto"
@@ -162,8 +162,8 @@ export function DocumentVnetDiagReport(props: {
         // content was displayed in the Stack.
         alignSelf="flex-start"
       >
-        <Flex width="100%" gap={5} flexWrap="wrap">
-          <Stack gap={3}>
+        <Flex width="100%" gap={6} flexWrap="wrap">
+          <Stack gap={4}>
             <H1 fontSize={32}>Teleport VNet</H1>
 
             <P1
@@ -196,7 +196,7 @@ export function DocumentVnetDiagReport(props: {
             // Make sure the text in the button doesn't ever break into two lines.
             minWidth="fit-content"
           >
-            <Stack gap={2} alignItems="center">
+            <Stack gap={3} alignItems="center">
               <Button size="extra-large">Start VNet</Button>
               <Button
                 fill="minimal"
@@ -212,13 +212,13 @@ export function DocumentVnetDiagReport(props: {
           </Flex>
         </Flex>
 
-        <Stack gap={5}>
+        <Stack gap={6}>
           {/* TCP APIs */}
           <Stack
-            pt={3}
-            pb={4}
-            px={4}
-            gap={3}
+            pt={4}
+            pb={5}
+            px={5}
+            gap={4}
             width="100%"
             borderRadius={3}
             backgroundColor="levels.surface"
@@ -235,8 +235,8 @@ export function DocumentVnetDiagReport(props: {
               Learn More
             </LearnMoreButton>
 
-            <Flex width="100%" gap={7} flexWrap="wrap">
-              <Stack flex={1} gap={2} width="100%">
+            <Flex width="100%" gap={8} flexWrap="wrap">
+              <Stack flex={1} gap={3} width="100%">
                 <Stack alignItems="center" width="100%">
                   <H2>With VNet</H2>
                   {/*
@@ -254,7 +254,7 @@ export function DocumentVnetDiagReport(props: {
                 />
               </Stack>
 
-              <Stack flex={1} gap={2} width="100%">
+              <Stack flex={1} gap={3} width="100%">
                 <Stack alignItems="center" width="100%">
                   <H2>Without VNet</H2>
                   <P1 textAlign="center">
@@ -276,10 +276,10 @@ export function DocumentVnetDiagReport(props: {
 
           {/* Web apps */}
           <Stack
-            pt={3}
-            pb={4}
-            px={4}
-            gap={3}
+            pt={4}
+            pb={5}
+            px={5}
+            gap={4}
             width="100%"
             borderRadius={3}
             backgroundColor="levels.surface"
@@ -308,8 +308,8 @@ export function DocumentVnetDiagReport(props: {
               </Button>
                 */}
 
-            <Flex width="100%" gap={7} flexWrap="wrap">
-              <Stack flex={1} gap={2} width="100%">
+            <Flex width="100%" gap={8} flexWrap="wrap">
+              <Stack flex={1} gap={3} width="100%">
                 <Stack alignItems="center" width="100%">
                   <H2>With VNet</H2>
                   <P1>
@@ -336,7 +336,7 @@ export function DocumentVnetDiagReport(props: {
                 </Box>
               </Stack>
 
-              <Stack flex={1} gap={2} width="100%">
+              <Stack flex={1} gap={3} width="100%">
                 <Stack alignItems="center" width="100%">
                   <H2>Without VNet</H2>
                   {/*
