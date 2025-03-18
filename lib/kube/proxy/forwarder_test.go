@@ -1132,8 +1132,6 @@ func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
 // stub response.
 type mockCAClient struct {
 	authclient.ClientI
-
-	clock           clockwork.Clock
 	leafClusterName string
 }
 
