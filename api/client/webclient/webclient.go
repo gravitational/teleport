@@ -529,7 +529,7 @@ type AuthenticationSettings struct {
 	// PrivateKeyPolicy contains the cluster-wide private key policy.
 	PrivateKeyPolicy keys.PrivateKeyPolicy `json:"private_key_policy"`
 	// PIVSlot specifies a specific PIV slot to use with hardware key support.
-	PIVSlot hardwarekey.PIVSlot `json:"piv_slot"`
+	PIVSlot hardwarekey.PIVSlotKeyString `json:"piv_slot"`
 	// DeviceTrust holds cluster-wide device trust settings.
 	DeviceTrust DeviceTrustSettings `json:"device_trust,omitempty"`
 	// HasMessageOfTheDay is a flag indicating that the cluster has MOTD

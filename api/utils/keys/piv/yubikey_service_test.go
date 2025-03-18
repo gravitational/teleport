@@ -75,13 +75,14 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 					resetYubikey(t, y)
 					setupPINPrompt(t, y)
 
-					var slot hardwarekey.PIVSlot = ""
+					var slot hardwarekey.PIVSlotKeyString = ""
 					if customSlot {
 						slot = "9a"
 					}
 
 					// NewHardwarePrivateKey should generate a new hardware private key.
 					priv, err := keys.NewHardwarePrivateKey(ctx, s, hardwarekey.PrivateKeyConfig{
+						CustomSlot: slot,
 						Policy: hardwarekey.PromptPolicy{
 							TouchRequired: policy.IsHardwareKeyTouchVerified(),
 							PINRequired:   policy.IsHardwareKeyPINVerified(),
@@ -167,7 +168,7 @@ func TestOverwritePrompt(t *testing.T) {
 
 		// Generate a key that does not require touch in the slot that Teleport expects to require touch.
 		_, err := keys.NewHardwarePrivateKey(ctx, s, hardwarekey.PrivateKeyConfig{
-			CustomSlot: hardwarekey.PIVSlot(touchSlot.String()),
+			CustomSlot: hardwarekey.PIVSlotKeyString(touchSlot.String()),
 			Policy:     hardwarekey.PromptPolicy{TouchRequired: false},
 		})
 		require.NoError(t, err)

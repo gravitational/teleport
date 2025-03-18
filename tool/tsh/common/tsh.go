@@ -4386,7 +4386,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	}
 
 	if cf.PIVSlot != "" {
-		c.PIVSlot = hardwarekey.PIVSlot(cf.PIVSlot)
+		c.PIVSlot = hardwarekey.PIVSlotKeyString(cf.PIVSlot)
 		if err = c.PIVSlot.Validate(); err != nil {
 			return nil, trace.Wrap(err)
 		}

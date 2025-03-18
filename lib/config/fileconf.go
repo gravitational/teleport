@@ -1044,7 +1044,7 @@ type AuthenticationConfig struct {
 	DefaultSessionTTL types.Duration `yaml:"default_session_ttl"`
 
 	// Deprecated. HardwareKey.PIVSlot should be used instead.
-	PIVSlot hardwarekey.PIVSlot `yaml:"piv_slot,omitempty"`
+	PIVSlot hardwarekey.PIVSlotKeyString `yaml:"piv_slot,omitempty"`
 
 	// HardwareKey holds settings related to hardware key support.
 	// Requires Teleport Enterprise.
@@ -1277,7 +1277,7 @@ func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
 type HardwareKey struct {
 	// PIVSlot is a PIV slot that Teleport clients should use instead of the
 	// default based on private key policy. For example, "9a" or "9e".
-	PIVSlot hardwarekey.PIVSlot `yaml:"piv_slot,omitempty"`
+	PIVSlot hardwarekey.PIVSlotKeyString `yaml:"piv_slot,omitempty"`
 
 	// SerialNumberValidation contains optional settings for hardware key
 	// serial number validation, including whether it is enabled.

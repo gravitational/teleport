@@ -329,7 +329,7 @@ func (y *YubiKey) generatePrivateKey(slot piv.Slot, policy hardwarekey.PromptPol
 
 	return &hardwarekey.PrivateKeyRef{
 		SerialNumber: y.serialNumber,
-		SlotKey:      slot.Key,
+		SlotKey:      hardwarekey.PIVSlotKey(slot.Key),
 		PublicKey:    pub,
 		Policy:       policy,
 		AttestationStatement: &hardwarekey.AttestationStatement{
@@ -627,8 +627,8 @@ func isRetryError(err error) bool {
 	return strings.Contains(err.Error(), retryError)
 }
 
-func parsePIVSlot(slotKey uint32) (piv.Slot, error) {
-	switch slotKey {
+func parsePIVSlot(slotKey hardwarekey.PIVSlotKey) (piv.Slot, error) {
+	switch uint32(slotKey) {
 	case piv.SlotAuthentication.Key:
 		return piv.SlotAuthentication, nil
 	case piv.SlotSignature.Key:
