@@ -141,7 +141,7 @@ type ClusterConfigurationInternal interface {
 	UpsertClusterName(types.ClusterName) error
 	// DeleteClusterName deletes cluster name resource
 	DeleteClusterName() error
-	
+
 	// AppendCheckAuthPreferenceActions appends some atomic write actions to the
 	// given slice that will check that the currently stored cluster auth
 	// preference has the given revision when applied as part of a
