@@ -20,7 +20,6 @@ package proxy
 
 import (
 	"context"
-	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -1107,7 +1106,7 @@ func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
 		Clock: clock,
 	})
 	require.NoError(t, err)
-	csrClient, err := newMockCSRClient(clock)
+	caClient, err := newMockCAClient()
 	require.NoError(t, err)
 
 	return &Forwarder{
@@ -1115,7 +1114,7 @@ func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
 		router: httprouter.New(),
 		cfg: ForwarderConfig{
 			Keygen:            testauthority.New(),
-			AuthClient:        csrClient,
+			AuthClient:        caClient,
 			CachingAuthClient: mockAccessPoint{},
 			Clock:             clock,
 			Context:           ctx,
@@ -1129,27 +1128,18 @@ func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
 	}
 }
 
-// mockCSRClient to intercept ProcessKubeCSR requests, record them and return a
+// mockCAClient to intercept GetCertAuthority requests, record them and return a
 // stub response.
-type mockCSRClient struct {
+type mockCAClient struct {
 	authclient.ClientI
-
-	clock           clockwork.Clock
-	ca              *tlsca.CertAuthority
-	gotCSR          authclient.KubeCSR
-	lastCert        *x509.Certificate
 	leafClusterName string
 }
 
-func newMockCSRClient(clock clockwork.Clock) (*mockCSRClient, error) {
-	ca, err := tlsca.FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
-	if err != nil {
-		return nil, err
-	}
-	return &mockCSRClient{ca: ca, clock: clock}, nil
+func newMockCAClient() (*mockCAClient, error) {
+	return &mockCAClient{}, nil
 }
 
-func (c *mockCSRClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+func (c *mockCAClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 	if id.DomainName == c.leafClusterName {
 		return &types.CertAuthorityV2{
 			Kind:    types.KindCertAuthority,
@@ -1167,36 +1157,6 @@ func (c *mockCSRClient) GetCertAuthority(ctx context.Context, id types.CertAuthI
 		}, nil
 	}
 	return nil, trace.NotFound("cluster not found")
-}
-
-func (c *mockCSRClient) ProcessKubeCSR(csr authclient.KubeCSR) (*authclient.KubeCSRResponse, error) {
-	c.gotCSR = csr
-
-	x509CSR, err := tlsca.ParseCertificateRequestPEM(csr.CSR)
-	if err != nil {
-		return nil, err
-	}
-	caCSR := tlsca.CertificateRequest{
-		Clock:     c.clock,
-		PublicKey: x509CSR.PublicKey.(crypto.PublicKey),
-		Subject:   x509CSR.Subject,
-		// getClientCreds requires sessions to be valid for at least 1 minute
-		NotAfter: c.clock.Now().Add(2 * time.Minute),
-		DNSNames: x509CSR.DNSNames,
-	}
-	cert, err := c.ca.GenerateCertificate(caCSR)
-	if err != nil {
-		return nil, err
-	}
-	c.lastCert, err = tlsca.ParseCertificatePEM(cert)
-	if err != nil {
-		return nil, err
-	}
-	return &authclient.KubeCSRResponse{
-		Cert:            cert,
-		CertAuthorities: [][]byte{[]byte(fixtures.TLSCACertPEM)},
-		TargetAddr:      "mock addr",
-	}, nil
 }
 
 // mockRemoteSite is a reversetunnelclient.RemoteSite implementation with hardcoded
@@ -1652,8 +1612,7 @@ func TestForwarderTLSConfigCAs(t *testing.T) {
 	certPool.AddCert(caCert)
 
 	// create the auth server mock client
-	clock := clockwork.NewFakeClock()
-	cl, err := newMockCSRClient(clock)
+	cl, err := newMockCAClient()
 	require.NoError(t, err)
 	cl.leafClusterName = clusterName
 

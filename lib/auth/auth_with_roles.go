@@ -64,7 +64,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -5318,51 +5317,6 @@ func (a *ServerWithRoles) DeleteSemaphore(ctx context.Context, filter types.Sema
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteSemaphore(ctx, filter)
-}
-
-// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
-// signed certificate if successful.
-// DEPRECATED
-// TODO(tigrato): DELETE IN 18.0
-func (a *ServerWithRoles) ProcessKubeCSR(req authclient.KubeCSR) (*authclient.KubeCSRResponse, error) {
-	// limits the requests types to proxies to make it harder to break
-	if !a.hasBuiltinRole(types.RoleProxy) {
-		return nil, trace.AccessDenied("this request can be only executed by a proxy")
-	}
-	clusterName, err := a.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	proxyClusterName := a.context.Identity.GetIdentity().TeleportCluster
-	identityClusterName, err := extractOriginalClusterNameFromCSR(req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if proxyClusterName != "" &&
-		proxyClusterName != clusterName.GetClusterName() &&
-		proxyClusterName != identityClusterName {
-		a.authServer.logger.WarnContext(a.CloseContext(), "KubeCSR request denied because the proxy and identity clusters didn't match",
-			"proxy_cluster_name", proxyClusterName,
-			"identity_cluster_name", identityClusterName,
-		)
-		return nil, trace.AccessDenied("can not sign certs for users via a different cluster proxy")
-	}
-	return a.authServer.ProcessKubeCSR(req)
-}
-
-func extractOriginalClusterNameFromCSR(req authclient.KubeCSR) (string, error) {
-	csr, err := tlsca.ParseCertificateRequestPEM(req.CSR)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	// Extract identity from the CSR. Pass zero time for id.Expiry, it won't be
-	// used here.
-	id, err := tlsca.FromSubject(csr.Subject, time.Time{})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return id.TeleportCluster, nil
 }
 
 // GetDatabaseServers returns all registered database servers.
