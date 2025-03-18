@@ -32,16 +32,6 @@ import {
  * <MenuLoginWithActionMenu> expects two children, a LoginItem for <MenuLogin> and <MenuItem>
  * for action memnu.
  *
- * @param buttonText - button text for main menu button.
- * @param onSelect - handles select or click in main menu items.
- * @param getLoginItems - fetches login items.
- * @param children - action menu items.
- * @param placeholder - text for action menu search box or static label.
- * @param size - button icon size.
- * @param width - button width.
- * @param disableSearchAndFilter - instructs underlying MenuLogin component to display static
- *                                 label text instead of default search box.
- *
  * @example
  * <MenuLoginWithActionMenu
  *   buttonText="Log In"
@@ -63,13 +53,22 @@ export const MenuLoginWithActionMenu = ({
   placeholder,
   disableSearchAndFilter,
 }: {
+  /** button text for main menu button. */
   buttonText: string;
+  /** handles select or click in main menu items. */
   onSelect: (e: React.SyntheticEvent, login: string) => void;
+  /** fetches login items. */
   getLoginItems: () => LoginItem[] | Promise<LoginItem[]>;
+  /** action menu items. */
   children: MenuItemComponent | MenuItemComponent[];
   width?: string;
   size?: ButtonSize;
+  /** text for action menu search box or static label.  */
   placeholder?: string;
+  /**
+   * instructs underlying MenuLogin component to display static
+   * label text instead of default search box.
+   */
   disableSearchAndFilter?: boolean;
 }) => {
   const moreButtonRef = useRef<HTMLButtonElement>(null);

@@ -50,7 +50,7 @@ export type MenuLoginProps = {
   width?: string;
   ButtonComponent?: ComponentType<ComponentPropsWithRef<typeof ButtonBorder>>;
   buttonText?: string;
-  /*
+  /**
    * Text label, instead of default search and filter input,
    * is shown if this value is set to true.
    */
