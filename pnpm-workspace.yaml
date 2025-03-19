@@ -1,3 +1,4 @@
 packages:
+  - 'web/packages/new/*'
   - 'web/packages/*'
   - 'e/web/*'

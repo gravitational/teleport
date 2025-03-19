@@ -1,0 +1,19 @@
+{
+  "name": "@gravitational/teleport-new",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "author": "Gravitational, Inc.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gravitational/webapps/webapps.git",
+    "directory": "packages/teleport"
+  },
+  "dependencies": {
+    "@gravitational/teleport": "workspace:*"
+  },
+  "devDependencies": {
+    "@gravitational/build": "workspace:*"
+  }
+}

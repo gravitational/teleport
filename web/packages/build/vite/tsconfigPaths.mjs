@@ -31,5 +31,6 @@ const rootDirectory = path.resolve(import.meta.dirname, '../../../..');
 export function tsconfigPathsPlugin() {
   return tsconfigPaths({
     root: rootDirectory,
+    configNames: ['tsconfig.base.json'],
   });
 }
