@@ -5355,3 +5355,12 @@ func (c *Client) IntegrationsClient() integrationpb.IntegrationServiceClient {
 func (c *Client) DecisionClient() decisionpb.DecisionServiceClient {
 	return decisionpb.NewDecisionServiceClient(c.conn)
 }
+
+// GetClusterName returns the name of the cluster.
+func (c *Client) GetClusterName(ctx context.Context) (types.ClusterName, error) {
+	cn, err := c.ClusterConfigClient().GetClusterName(ctx, &clusterconfigpb.GetClusterNameRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cn, nil
+}

@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -125,4 +126,51 @@ func (c *Client) deleteReverseTunnelLegacy(ctx context.Context, domainName strin
 	}
 	_, err := c.Delete(ctx, c.Endpoint("reversetunnels", domainName))
 	return trace.Wrap(err)
+}
+
+func (c *HTTPClient) registerUsingTokenLegacy(
+	ctx context.Context, req *types.RegisterUsingTokenRequest,
+) (*proto.Certs, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := c.PostJSON(ctx, c.Endpoint("tokens", "register"), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var certs proto.Certs
+	if err := json.Unmarshal(out.Bytes(), &certs); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &certs, nil
+}
+
+// GetClusterName returns a cluster name
+// TODO(noah): DELETE IN 19.0.0
+func (c *Client) GetClusterName(ctx context.Context) (types.ClusterName, error) {
+	cn, err := c.APIClient.GetClusterName(ctx)
+	if err == nil {
+		return cn, nil
+	}
+	if !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
+	}
+	return c.getClusterName(ctx)
+}
+
+// GetClusterName returns a cluster name
+func (c *HTTPClient) getClusterName(ctx context.Context) (types.ClusterName, error) {
+	out, err := c.Get(ctx, c.Endpoint("configuration", "name"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cn, err := services.UnmarshalClusterName(out.Bytes())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cn, err
 }
