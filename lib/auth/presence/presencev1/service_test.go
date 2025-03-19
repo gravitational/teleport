@@ -712,7 +712,7 @@ func TestListReverseTunnels(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		rc, err := types.NewReverseTunnel(fmt.Sprintf("rt-%d", i), []string{"example.com:443"})
 		require.NoError(t, err)
-		err = srv.Auth().Services.UpsertReverseTunnel(ctx, rc)
+		_, err = srv.Auth().Services.UpsertReverseTunnel(ctx, rc)
 		require.NoError(t, err)
 		created = append(created, rc.(*types.ReverseTunnelV2))
 	}
@@ -822,7 +822,7 @@ func TestDeleteReverseTunnel(t *testing.T) {
 
 	rt, err := types.NewReverseTunnel("example.com", []string{"example.com:443"})
 	require.NoError(t, err)
-	rt, err = srv.Auth().UpsertReverseTunnelV2(ctx, rt)
+	rt, err = srv.Auth().UpsertReverseTunnel(ctx, rt)
 	require.NoError(t, err)
 
 	tests := []struct {

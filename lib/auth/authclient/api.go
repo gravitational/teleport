@@ -215,8 +215,8 @@ type ReadProxyAccessPoint interface {
 	// GetAuthServers returns a list of auth servers registered in the cluster
 	GetAuthServers() ([]types.Server, error)
 
-	// GetReverseTunnels returns  a list of reverse tunnels
-	GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error)
+	// ListReverseTunnels returns a list of reverse tunnels with pagination.
+	ListReverseTunnels(ctx context.Context, pageSize int, nextToken string) ([]types.ReverseTunnel, string, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
 	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)
@@ -381,9 +381,6 @@ type ReadRemoteProxyAccessPoint interface {
 
 	// GetAuthServers returns a list of auth servers registered in the cluster
 	GetAuthServers() ([]types.Server, error)
-
-	// GetReverseTunnels returns  a list of reverse tunnels
-	GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
 	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)
@@ -931,9 +928,6 @@ type Cache interface {
 
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
-
-	// GetReverseTunnels returns  a list of reverse tunnels
-	GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error)
 
 	// ListReverseTunnels returns a paginated list of reverse tunnels.
 	ListReverseTunnels(ctx context.Context, pageSize int, pageToken string) ([]types.ReverseTunnel, string, error)

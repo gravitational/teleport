@@ -755,5 +755,6 @@ func (a *Server) createReverseTunnel(ctx context.Context, t types.TrustedCluster
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(a.UpsertReverseTunnel(ctx, reverseTunnel))
+	_, err = a.UpsertReverseTunnel(ctx, reverseTunnel)
+	return trace.Wrap(err)
 }

@@ -2275,9 +2275,21 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		if rc.ref.Name != "" {
 			return nil, trace.BadParameter("reverse tunnel cannot be searched by name")
 		}
-		tunnels, err := client.GetReverseTunnels(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		var tunnels []types.ReverseTunnel
+		var nextToken string
+		for {
+			var page []types.ReverseTunnel
+			var err error
+
+			const defaultPageSize = 0
+			page, nextToken, err = client.ListReverseTunnels(ctx, defaultPageSize, nextToken)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			tunnels = append(tunnels, page...)
+			if nextToken == "" {
+				break
+			}
 		}
 		return &reverseTunnelCollection{tunnels: tunnels}, nil
 	case types.KindCertAuthority:

@@ -93,7 +93,6 @@ func TestCRUD(t *testing.T) {
 	t.Run("TestUserCACRUD", tt.suite.CertAuthCRUD)
 	t.Run("TestServerCRUD", tt.suite.ServerCRUD)
 	t.Run("TestAppServerCRUD", tt.suite.AppServerCRUD)
-	t.Run("TestReverseTunnelsCRUD", tt.suite.ReverseTunnelsCRUD)
 	t.Run("TestUsersCRUD", tt.suite.UsersCRUD)
 	t.Run("TestUsersExpiry", tt.suite.UsersExpiry)
 	t.Run("TestLoginAttempts", tt.suite.LoginAttempts)

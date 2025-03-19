@@ -373,16 +373,7 @@ func (s *PresenceService) DeleteAllReverseTunnels(ctx context.Context) error {
 }
 
 // UpsertReverseTunnel upserts reverse tunnel entry
-func (s *PresenceService) UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) error {
-	_, err := s.UpsertReverseTunnelV2(ctx, tunnel)
-	return trace.Wrap(err)
-}
-
-// UpsertReverseTunnelV2 upserts reverse tunnel entry and returns the upserted
-// value.
-// TODO(noah): In v18, we can rename this to UpsertReverseTunnel and remove the
-// version which does not return the upserted value.
-func (s *PresenceService) UpsertReverseTunnelV2(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error) {
+func (s *PresenceService) UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error) {
 	if err := services.ValidateReverseTunnel(tunnel); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -416,35 +407,6 @@ func (s *PresenceService) GetReverseTunnel(ctx context.Context, name string) (ty
 		services.WithExpires(item.Expires),
 		services.WithRevision(item.Revision),
 	)
-}
-
-// GetReverseTunnels returns a list of registered servers
-// Deprecated: use ListReverseTunnels
-// TODO(noah): REMOVE IN 18.0.0 - replace with calls to ListReverseTunnels
-func (s *PresenceService) GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error) {
-	startKey := backend.ExactKey(reverseTunnelsPrefix)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tunnels := make([]types.ReverseTunnel, len(result.Items))
-	if len(result.Items) == 0 {
-		return tunnels, nil
-	}
-	for i, item := range result.Items {
-		tunnel, err := services.UnmarshalReverseTunnel(
-			item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision),
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		tunnels[i] = tunnel
-	}
-	// sorting helps with tests and makes it all deterministic
-	sort.Sort(services.SortedReverseTunnels(tunnels))
-	return tunnels, nil
 }
 
 // DeleteReverseTunnel deletes reverse tunnel by its cluster name

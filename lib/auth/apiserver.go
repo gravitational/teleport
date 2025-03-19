@@ -133,12 +133,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/tunnelconnections/:cluster", srv.WithAuth(srv.deleteTunnelConnections))
 	srv.DELETE("/:version/tunnelconnections", srv.WithAuth(srv.deleteAllTunnelConnections))
 
-	// Reverse tunnels
-	// TODO(noah): DELETE IN 18.0.0 - all these methods are now gRPC.
-	srv.POST("/:version/reversetunnels", srv.WithAuth(srv.upsertReverseTunnel))
-	srv.GET("/:version/reversetunnels", srv.WithAuth(srv.getReverseTunnels))
-	srv.DELETE("/:version/reversetunnels/:domain", srv.WithAuth(srv.deleteReverseTunnel))
-
 	// trusted clusters
 	srv.POST("/:version/trustedclusters/validate", srv.WithAuth(srv.validateTrustedCluster))
 
@@ -333,63 +327,6 @@ func marshalServers(servers []types.Server, version string) (interface{}, error)
 		items[i] = data
 	}
 	return items, nil
-}
-
-type upsertReverseTunnelRawReq struct {
-	ReverseTunnel json.RawMessage `json:"reverse_tunnel"`
-	TTL           time.Duration   `json:"ttl"`
-}
-
-// upsertReverseTunnel is called by admin to create a reverse tunnel to remote proxy
-// TODO(noah): DELETE IN 18.0.0 - all these methods are now gRPC.
-func (s *APIServer) upsertReverseTunnel(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req upsertReverseTunnelRawReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tun, err := services.UnmarshalReverseTunnel(req.ReverseTunnel)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := services.ValidateReverseTunnel(tun); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if req.TTL != 0 {
-		tun.SetExpiry(s.Now().UTC().Add(req.TTL))
-	}
-	if err := auth.UpsertReverseTunnel(r.Context(), tun); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-// getReverseTunnels returns a list of reverse tunnels
-// TODO(noah): DELETE IN 18.0.0 - all these methods are now gRPC.
-func (s *APIServer) getReverseTunnels(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	reverseTunnels, err := auth.GetReverseTunnels(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	items := make([]json.RawMessage, len(reverseTunnels))
-	for i, tunnel := range reverseTunnels {
-		data, err := services.MarshalReverseTunnel(tunnel, services.WithVersion(version), services.PreserveRevision())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		items[i] = data
-	}
-	return items, nil
-}
-
-// deleteReverseTunnel deletes reverse tunnel
-// TODO(noah): DELETE IN 18.0.0 - all these methods are now gRPC.
-func (s *APIServer) deleteReverseTunnel(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	domainName := p.ByName("domain")
-	err := auth.DeleteReverseTunnel(r.Context(), domainName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message(fmt.Sprintf("reverse tunnel %v deleted", domainName)), nil
 }
 
 func (s *APIServer) validateTrustedCluster(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {

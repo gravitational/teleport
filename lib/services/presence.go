@@ -108,14 +108,10 @@ type Presence interface {
 	DeleteAllProxies() error
 
 	// UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
-	UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) error
+	UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error)
 
 	// GetReverseTunnel returns reverse tunnel by name
 	GetReverseTunnel(ctx context.Context, name string) (types.ReverseTunnel, error)
-
-	// GetReverseTunnels returns a list of registered servers
-	// Deprecated: use ListReverseTunnels
-	GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error)
 
 	// DeleteReverseTunnel deletes reverse tunnel by its domain name
 	DeleteReverseTunnel(ctx context.Context, domainName string) error
@@ -196,6 +192,5 @@ type PresenceInternal interface {
 
 	UpsertHostUserInteractionTime(ctx context.Context, name string, loginTime time.Time) error
 	GetHostUserInteractionTime(ctx context.Context, name string) (time.Time, error)
-	UpsertReverseTunnelV2(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error)
 	UpdateNode(ctx context.Context, server types.Server) (types.Server, error)
 }
