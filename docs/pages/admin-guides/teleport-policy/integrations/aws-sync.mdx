@@ -1,12 +1,12 @@
 ---
-title: Discover AWS Access Patterns with Teleport Policy
-description: Describes how to import and visualize AWS accounts access patterns using Teleport Policy and Access Graph.
+title: Discover AWS Access Patterns with Teleport Identity Security
+description: Describes how to import and visualize AWS accounts access patterns using Identity Security and Access Graph.
 ---
 
-Teleport Policy streamlines and centralizes access management across your entire infrastructure. You can view access relationships in seconds,
+Identity Security streamlines and centralizes access management across your entire infrastructure. You can view access relationships in seconds,
 viewing unified, up-to-date relationships and policies between all users, groups, and computing resources.
 
-Teleport Policy with Access Graph offers insights into access patterns within your AWS account. By scanning IAM
+Identity Security with Access Graph offers insights into access patterns within your AWS account. By scanning IAM
 permissions, users, groups, resources, and identities, it provides a visual representation and aids in
 enhancing the permission model within your AWS environment. This functionality enables you to address queries such as:
 
@@ -24,7 +24,7 @@ service, a Discovery Service, and integration with your AWS account.
 Access Graph discovers AWS access patterns, synchronizes various AWS resources,
 including IAM Policies, Groups, Users, User Groups, EC2 instances, EKS clusters, and RDS databases.
 These resources are then visualized using the graph representation detailed in the
-[Teleport Policy usage page](../policy-how-to-use.mdx).
+[Identity Security usage page](../policy-how-to-use.mdx).
 
 The importing process involves two primary steps:
 
@@ -48,7 +48,7 @@ Access Graph, ensuring that it remains updated with the latest information from 
 
 ### Importing resources
 
-Teleport Policy’s Access Graph feature delves into the IAM policies, identities,
+Identity Security’s Access Graph feature delves into the IAM policies, identities,
 and resources retrieved from your AWS account, crafting a
 graphical representation thereof.
 
@@ -56,11 +56,11 @@ graphical representation thereof.
 ## Prerequisites
 
 - A running Teleport Enterprise cluster v14.3.9/v15.2.0 or later.
-- Teleport Policy enabled for your account.
+- Identity Security enabled for your account.
 - For self-hosted clusters:
   - Ensure that an up-to-date `license.pem` is used in the Auth Service configuration.
   - A running Access Graph node v1.17.0 or later.
-Check the [Teleport Policy page](../teleport-policy.mdx) for details on
+Check the [Identity Security page](../teleport-policy.mdx) for details on
 how to set up Access Graph.
   - The node running the Access Graph service must be reachable from the Teleport Auth Service.
 
@@ -103,7 +103,8 @@ Alternatively, you can opt for a previously established integration.
 Upon selecting or creating the integration, you'll be instructed to execute a
 bash script within your AWS Cloud Shell to configure the necessary permissions.
 
-<Details title="List of IAM Policies required for AWS Sync" closed>
+<details>
+<summary>List of IAM Policies required for AWS Sync</summary>
 
 The policy is designed with a set of read-only actions, enabling Teleport
 to access and retrieve information from resources within your AWS Account.
@@ -179,7 +180,7 @@ The IAM policy includes the following directives:
 }
 
 ```
-</Details>
+</details>
 
 
 Once the IAM Policy has been successfully linked to the IAM role

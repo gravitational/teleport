@@ -142,7 +142,7 @@ func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context
 		return trace.Wrap(err)
 	}
 
-	item, err := s.svc.MakeBackendItem(sp, sp.GetName())
+	item, err := s.svc.MakeBackendItem(sp)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -180,7 +180,7 @@ func (s *SAMLIdPServiceProviderService) UpdateSAMLIdPServiceProvider(ctx context
 		return trace.Wrap(err)
 	}
 
-	item, err := s.svc.MakeBackendItem(sp, sp.GetName())
+	item, err := s.svc.MakeBackendItem(sp)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -221,7 +221,6 @@ func (s *SAMLIdPServiceProviderService) ensureEntityIDIsUnique(ctx context.Conte
 		var listSps []types.SAMLIdPServiceProvider
 		var err error
 		listSps, nextToken, err = s.ListSAMLIdPServiceProviders(ctx, samlIDPServiceProviderMaxPageSize, nextToken)
-
 		if err != nil {
 			return trace.Wrap(err)
 		}
