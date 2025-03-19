@@ -1,0 +1,64 @@
+/**
+ * Teleport
+ * Copyright (C) 2025 Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import 'jest-canvas-mock';
+
+import { render, screen } from 'design/utils/testing';
+import { makeDeepLinkWithSafeInput } from 'shared/deepLinks';
+
+import { parseDeepLink } from 'teleterm/deepLinks';
+import Logger, { NullService } from 'teleterm/logger';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import { App } from 'teleterm/ui/App';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+
+beforeAll(() => {
+  Logger.init(new NullService());
+});
+
+test('queuing up a deep link launch before the app is rendered', async () => {
+  const ctx = new MockAppContext();
+  jest.spyOn(ctx.deepLinksService, 'launchDeepLink').mockResolvedValue();
+
+  ctx.configService.set('usageReporting.enabled', false);
+  const rootCluster = makeRootCluster();
+  const deepLinkParseResult = parseDeepLink(
+    makeDeepLinkWithSafeInput({
+      path: '/vnet',
+      proxyHost: rootCluster.proxyHost,
+      username: rootCluster.loggedInUser.name,
+      searchParams: {},
+    })
+  );
+  // Before the app is rendered, queue up a deep link launch to be sent after the UI is ready.
+  const deepLinkLaunchPromise = ctx.mainProcessClient
+    .whenFrontendAppIsReady()
+    .then(() => {
+      ctx.mainProcessClient.launchDeepLink(deepLinkParseResult);
+    });
+
+  render(<App ctx={ctx} />);
+
+  expect(await screen.findByText('Connect a Cluster')).toBeInTheDocument();
+
+  await expect(deepLinkLaunchPromise).resolves.toBeFalsy();
+  expect(ctx.deepLinksService.launchDeepLink).toHaveBeenCalledTimes(1);
+  expect(ctx.deepLinksService.launchDeepLink).toHaveBeenCalledWith(
+    deepLinkParseResult
+  );
+});

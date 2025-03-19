@@ -23,6 +23,7 @@ import {
   makeServer,
 } from 'teleterm/services/tshd/testHelpers';
 import { Cluster, LoggedInUser_UserType } from 'teleterm/services/tshd/types';
+import { MainProcessClient } from 'teleterm/types';
 import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -56,7 +57,7 @@ export function Success() {
     makeServer();
   // Report the agent as running so that the autostart behavior doesn't kick in and attempt to start
   // the agent over and over.
-  appContext.mainProcessClient.subscribeToAgentUpdate = (
+  (appContext.mainProcessClient as MainProcessClient).subscribeToAgentUpdate = (
     rootClusterUri,
     callback
   ) => {
