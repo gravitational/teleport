@@ -23,6 +23,7 @@ import {
 } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import type { TableColumn } from 'design/DataTable/types';
+import { DATE_FORMAT } from 'design/datetime/constants';
 import {
   ArrowRight,
   Magnifier,
@@ -579,7 +580,7 @@ const TableAuditNextDateCell = ({
     reviewDate: accessList.audit.nextDate,
   });
   const isOverdue = accessList.audit.nextDate < new Date();
-  const formatted = format(accessList.audit.nextDate, 'yyyy/MM/dd');
+  const formatted = format(accessList.audit.nextDate, DATE_FORMAT);
 
   if (!requiresReview && !isOverdue) {
     return (

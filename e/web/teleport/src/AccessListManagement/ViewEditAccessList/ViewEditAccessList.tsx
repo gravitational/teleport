@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useHistory, useLocation, useParams } from 'react-router';
 
 import { Alert, Box, ButtonSecondary, Flex, H1, Indicator, Text } from 'design';
+import { DATE_FORMAT } from 'design/datetime/constants';
 import {
   ArrowBack,
   ArrowForward,
@@ -405,7 +406,7 @@ const ReviewBanner = ({
     return (
       <Alert kind="neutral" icon={Info}>
         This Access List does not need review until{' '}
-        {format(accessList.audit.nextDate, 'MM/dd')}.
+        {format(accessList.audit.nextDate, DATE_FORMAT)}.
       </Alert>
     );
   }
@@ -427,7 +428,7 @@ const ReviewBanner = ({
         }}
       >
         This Access List needs review by{' '}
-        {format(accessList.audit.nextDate, 'MM/dd')}.
+        {format(accessList.audit.nextDate, DATE_FORMAT)}.
       </Alert>
     );
   }
