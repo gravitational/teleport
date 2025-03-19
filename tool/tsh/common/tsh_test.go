@@ -2562,7 +2562,7 @@ func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 func TestKubeCredentialsLock(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	t.Cleanup(cancel)
 	const kubeClusterName = "kube-cluster"
 
 	t.Run("failed client creation doesn't create lockfile", func(t *testing.T) {
