@@ -394,9 +394,9 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 
 	if err := u.update(ctx, cfg, target, override.AllowOverwrite, resp.AGPL); err != nil {
 		if errors.Is(err, ErrFilePresent) && !override.AllowOverwrite {
-			u.Log.ErrorContext(ctx, "An non-packaged installation of Teleport was detected. These installations cannot be reverted in case of failure.")
-			u.Log.ErrorContext(ctx, "Use --overwrite to force immediate removal of existing binaries installed manually or via script.")
-			u.Log.ErrorContext(ctx, "If a Teleport rpm or deb package is installed, upgrade it to the latest version and retry without --overwrite.")
+			u.Log.ErrorContext(ctx, "A non-packaged or outdated installation of Teleport was detected on this system.")
+			u.Log.ErrorContext(ctx, "Use --overwrite to force immediate removal of any existing binaries installed manually or via script.")
+			u.Log.ErrorContext(ctx, "Alternatively, if a Teleport RPM or DEB package is installed, upgrade it to the latest version and retry without --overwrite.")
 		}
 		return trace.Wrap(err)
 	}
