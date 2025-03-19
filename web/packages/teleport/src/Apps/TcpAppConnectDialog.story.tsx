@@ -63,7 +63,5 @@ const meta: Meta<StoryProps> = {
 export default meta;
 
 export function TcpAppConnectDialog() {
-  return (
-    <Component app={tcpApp} clusterId={tcpApp.clusterId} onClose={() => {}} />
-  );
+  return <Component app={tcpApp} onClose={() => {}} />;
 }
