@@ -751,7 +751,7 @@ func (s *Service) RollbackAutoUpdateAgentGroup(ctx context.Context, req *autoupd
 	}
 
 	if len(req.Groups) == 0 && !req.AllStartedGroups {
-		return nil, trace.AccessDenied("at least one group must be specified or the all_started_groups flag set")
+		return nil, trace.BadParameter("at least one group must be specified or the all_started_groups flag set")
 	}
 
 	const maxTries = 3
