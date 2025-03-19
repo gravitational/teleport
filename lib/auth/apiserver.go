@@ -154,6 +154,11 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.GET("/:version/events", srv.WithAuth(srv.searchEvents))
 	srv.GET("/:version/events/session", srv.WithAuth(srv.searchSessionEvents))
 
+	// Migrated/deleted endpoints with 501 Not Implemented handlers.
+	srv.POST("/:version/reversetunnels", httpMigratedHandler)
+	srv.GET("/:version/reversetunnels", httpMigratedHandler)
+	srv.DELETE("/:version/reversetunnels/:domain", httpMigratedHandler)
+
 	if config.PluginRegistry != nil {
 		if err := config.PluginRegistry.RegisterAuthWebHandlers(&srv); err != nil {
 			return nil, trace.Wrap(err)
@@ -166,6 +171,16 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 		httplib.Rewrite("/v1/sessions/([^/]+)/(.*)", "/v1/namespaces/default/sessions/$1/$2"),
 	), nil
 }
+
+// httpMigratedHandler returns a 501 Not Implemented error. This is used when
+// removing a HTTP handler that has been migrated to gRPC, where, a 404 NotFound
+// could be misinterpreted as the resource not existing, rather than the RPC
+// no longer existing.
+var httpMigratedHandler = httplib.MakeHandler(func(
+	w http.ResponseWriter, r *http.Request, p httprouter.Params,
+) (any, error) {
+	return nil, trace.NotImplemented("HTTP RPC migrated to gRPC, check client version")
+})
 
 // HandlerWithAuthFunc is http handler with passed auth context
 type HandlerWithAuthFunc func(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error)
