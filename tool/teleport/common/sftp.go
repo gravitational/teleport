@@ -135,6 +135,18 @@ func (s *sftpHandler) ensureReqIsAllowed(req *sftp.Request) error {
 	return nil
 }
 
+// OpenFile handles 'open' requests when opening a file for reading
+// and writing is desired.
+func (s *sftpHandler) OpenFile(req *sftp.Request) (_ sftp.WriterAtReaderAt, retErr error) {
+	defer s.sendSFTPEvent(req, retErr)
+
+	if req.Filepath == "" {
+		return nil, os.ErrInvalid
+	}
+
+	return s.openFile(req)
+}
+
 // Fileread handles 'open' requests when opening a file for reading
 // is desired.
 func (s *sftpHandler) Fileread(req *sftp.Request) (_ io.ReaderAt, retErr error) {

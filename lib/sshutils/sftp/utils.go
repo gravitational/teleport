@@ -120,6 +120,32 @@ func (t *TrackedFile) Close() error {
 	return t.File.Close()
 }
 
+func ParseFlags(req *sftp.Request) int {
+	var flags int
+	pflags := req.Pflags()
+	if pflags.Append {
+		flags |= os.O_APPEND
+	}
+	if pflags.Creat {
+		flags |= os.O_CREATE
+	}
+	if pflags.Excl {
+		flags |= os.O_EXCL
+	}
+	if pflags.Trunc {
+		flags |= os.O_TRUNC
+	}
+
+	if pflags.Read && pflags.Write {
+		flags |= os.O_RDWR
+	} else if pflags.Read {
+		flags |= os.O_RDONLY
+	} else if pflags.Write {
+		flags |= os.O_WRONLY
+	}
+	return flags
+}
+
 func ParseSFTPEvent(req *sftp.Request, reqErr error) (*apievents.SFTP, error) {
 	event := &apievents.SFTP{
 		Metadata: apievents.Metadata{

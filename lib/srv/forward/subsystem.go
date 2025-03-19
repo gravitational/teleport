@@ -80,8 +80,8 @@ func (r *remoteSubsystem) Start(ctx context.Context, channel ssh.Channel) error 
 			select {
 			case <-done:
 			case <-ctx.Done():
-				r.errorCh <- proxy.Close()
 			}
+			r.errorCh <- proxy.Close()
 		}()
 		return nil
 	}

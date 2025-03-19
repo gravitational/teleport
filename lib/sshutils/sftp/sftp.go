@@ -110,7 +110,7 @@ type FileSystem interface {
 	Chmod(ctx context.Context, path string, mode os.FileMode) error
 	// Chtimes sets file access and modification time
 	Chtimes(ctx context.Context, path string, atime, mtime time.Time) error
-
+	OpenFile(ctx context.Context, path string, flags int) (File, error)
 	Rename(ctx context.Context, oldpath, newpath string) error
 	Lstat(ctx context.Context, name string) (os.FileInfo, error)
 	RemoveAll(ctx context.Context, path string) error
