@@ -1708,6 +1708,7 @@ func TestUpdater_Install(t *testing.T) {
 			if tt.userCfg.Proxy == "" {
 				tt.userCfg.Proxy = strings.TrimPrefix(server.URL, "https://")
 			}
+			updater.DefaultProxyAddr = tt.userCfg.Proxy
 
 			var (
 				installedRevision Revision

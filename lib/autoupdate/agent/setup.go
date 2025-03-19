@@ -245,9 +245,12 @@ func (ns *Namespace) Setup(ctx context.Context, path string) error {
 		}
 		if present {
 			if err := oldTimer.Disable(ctx, true); err != nil {
-				ns.log.ErrorContext(ctx, "The deprecated teleport-ent-updater package is installed on this server, and it cannot be disabled due to an error. You must remove the teleport-ent-updater package after verifying that teleport-update is working.", errorKey, err)
+				ns.log.ErrorContext(ctx, "The deprecated teleport-ent-updater package is installed on this server, and it cannot be disabled due to an error.", errorKey, err)
+				ns.log.ErrorContext(ctx, "You must remove the teleport-ent-updater package after verifying that teleport-update is working.", errorKey, err)
 			} else {
-				ns.log.WarnContext(ctx, "The deprecated teleport-ent-updater package is installed on this server. This package has been disabled to prevent conflicts. Please remove the teleport-ent-updater package after verifying that teleport-update is working.")
+				ns.log.WarnContext(ctx, "The deprecated teleport-ent-updater package is installed on this server.")
+				ns.log.WarnContext(ctx, "The systemd timer included in this package has been disabled to prevent conflicts.", "timer", deprecatedTimerName)
+				ns.log.WarnContext(ctx, "Please remove the teleport-ent-updater package after verifying that teleport-update is working.")
 			}
 		}
 	}
@@ -269,7 +272,8 @@ func (ns *Namespace) Teardown(ctx context.Context) error {
 		Log:         ns.log,
 	}
 	if err := svc.Disable(ctx, true); err != nil {
-		ns.log.WarnContext(ctx, "Unable to disable teleport-update systemd timer before removing.", errorKey, err)
+		ns.log.WarnContext(ctx, "Unable to disable teleport-update systemd timer before removing.")
+		ns.log.DebugContext(ctx, "Error disabling teleport-update systemd timer.", errorKey, err)
 	}
 	for _, p := range []string{
 		ns.updaterServiceFile,
@@ -305,9 +309,12 @@ func (ns *Namespace) Teardown(ctx context.Context) error {
 		}
 		if present {
 			if err := oldTimer.Enable(ctx, true); err != nil {
-				ns.log.ErrorContext(ctx, "The deprecated teleport-ent-updater package is installed on this server, and it cannot be re-enabled due to an error. Please fix the teleport-ent-updater package if you intend to use the deprecated updater.", errorKey, err)
+				ns.log.ErrorContext(ctx, "The deprecated teleport-ent-updater package is installed on this server, and it cannot be re-enabled due to an error.", errorKey, err)
+				ns.log.ErrorContext(ctx, "Please fix the systemd timer included in the teleport-ent-updater package if you intend to use the deprecated updater.")
 			} else {
-				ns.log.WarnContext(ctx, "The deprecated teleport-ent-updater package is installed on this server. This package has been re-enabled to ensure continued updates. To disable automatic updates entirely, please remove the teleport-ent-updater package.")
+				ns.log.WarnContext(ctx, "The deprecated teleport-ent-updater package is installed on this server.")
+				ns.log.WarnContext(ctx, "The systemd timer included in this package has been re-enabled to ensure continued updates.", "timer", deprecatedTimerName)
+				ns.log.WarnContext(ctx, "To disable updates entirely, please remove the teleport-ent-updater package.")
 			}
 		}
 	}
