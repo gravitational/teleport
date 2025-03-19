@@ -25,20 +25,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-// GetReverseTunnels is a part of auth.Cache implementation
-// Deprecated: use ListReverseTunnels
-func (c *Cache) GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetReverseTunnels")
-	defer span.End()
-
-	rg, err := readCollectionCache(c, c.collections.reverseTunnels)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetReverseTunnels(ctx)
-}
-
 // ListReverseTunnels is a part of auth.Cache implementation
 func (c *Cache) ListReverseTunnels(ctx context.Context, pageSize int, pageToken string) ([]types.ReverseTunnel, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListReverseTunnels")
@@ -53,7 +39,6 @@ func (c *Cache) ListReverseTunnels(ctx context.Context, pageSize int, pageToken 
 }
 
 type reverseTunnelGetter interface {
-	GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error)
 	ListReverseTunnels(ctx context.Context, pageSize int, pageToken string) ([]types.ReverseTunnel, string, error)
 }
 
@@ -62,11 +47,28 @@ var _ executor[types.ReverseTunnel, reverseTunnelGetter] = reverseTunnelExecutor
 type reverseTunnelExecutor struct{}
 
 func (reverseTunnelExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.ReverseTunnel, error) {
-	return cache.Presence.GetReverseTunnels(ctx)
+	var out []types.ReverseTunnel
+	var nextToken string
+	for {
+		var page []types.ReverseTunnel
+		var err error
+
+		const defaultPageSize = 0
+		page, nextToken, err = cache.Presence.ListReverseTunnels(ctx, defaultPageSize, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, page...)
+		if nextToken == "" {
+			break
+		}
+	}
+	return out, nil
 }
 
 func (reverseTunnelExecutor) upsert(ctx context.Context, cache *Cache, resource types.ReverseTunnel) error {
-	return cache.presenceCache.UpsertReverseTunnel(ctx, resource)
+	_, err := cache.presenceCache.UpsertReverseTunnel(ctx, resource)
+	return err
 }
 
 func (reverseTunnelExecutor) deleteAll(ctx context.Context, cache *Cache) error {
