@@ -1316,7 +1316,7 @@ func TestResetSessionRecordingConfig(t *testing.T) {
 }
 
 type failingConfigService struct {
-	services.ClusterConfiguration
+	services.ClusterConfigurationInternal
 }
 
 func (failingConfigService) GetAuthPreference(context.Context) (types.AuthPreference, error) {
@@ -1680,7 +1680,7 @@ type envConfig struct {
 	defaultAuthPreference      types.AuthPreference
 	defaultNetworkingConfig    types.ClusterNetworkingConfig
 	defaultRecordingConfig     types.SessionRecordingConfig
-	service                    services.ClusterConfiguration
+	service                    services.ClusterConfigurationInternal
 	accessGraphConfig          clusterconfigv1.AccessGraphConfig
 	defaultAccessGraphSettings *clusterconfigpb.AccessGraphSettings
 	defaultClusterName         types.ClusterName
@@ -1712,7 +1712,7 @@ func withDefaultRecordingConfig(c types.SessionRecordingConfig) serviceOpt {
 	}
 }
 
-func withClusterConfigurationService(svc services.ClusterConfiguration) serviceOpt {
+func withClusterConfigurationService(svc services.ClusterConfigurationInternal) serviceOpt {
 	return func(config *envConfig) {
 		config.service = svc
 	}
@@ -1760,7 +1760,9 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 	emitter := eventstest.NewChannelEmitter(10)
 	cfg := envConfig{
 		emitter: emitter,
-		service: struct{ services.ClusterConfiguration }{ClusterConfiguration: storage},
+		service: struct {
+			services.ClusterConfigurationInternal
+		}{ClusterConfigurationInternal: storage},
 	}
 	for _, opt := range opts {
 		opt(&cfg)

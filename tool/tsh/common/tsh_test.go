@@ -2609,7 +2609,7 @@ func TestKubeCredentialsLock(t *testing.T) {
 		proxyAddr, err := proxyProcess.ProxyWebAddr()
 		require.NoError(t, err)
 
-		teleportClusterName, err := authServer.GetClusterName()
+		teleportClusterName, err := authServer.GetClusterName(ctx)
 		require.NoError(t, err)
 
 		kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{
@@ -3971,7 +3971,7 @@ func mockConnector(t *testing.T) types.OIDCConnector {
 func mockSSOLogin(authServer *auth.Server, user types.User) client.SSOLoginFunc {
 	return func(ctx context.Context, connectorID string, keyRing *client.KeyRing, protocol string) (*authclient.SSHLoginResponse, error) {
 		// generate certificates for our user
-		clusterName, err := authServer.GetClusterName()
+		clusterName, err := authServer.GetClusterName(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4016,7 +4016,7 @@ func mockSSOLogin(authServer *auth.Server, user types.User) client.SSOLoginFunc 
 func mockHeadlessLogin(t *testing.T, authServer *auth.Server, user types.User) client.SSHLoginFunc {
 	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
 		// generate certificates for our user
-		clusterName, err := authServer.GetClusterName()
+		clusterName, err := authServer.GetClusterName(ctx)
 		require.NoError(t, err)
 		tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
 		require.NoError(t, err)

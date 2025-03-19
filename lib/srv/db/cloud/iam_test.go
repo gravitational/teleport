@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestAWSIAM tests RDS, Aurora and Redshift IAM auto-configuration.
