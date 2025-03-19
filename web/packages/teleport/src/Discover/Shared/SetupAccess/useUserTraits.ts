@@ -379,7 +379,7 @@ export function useUserTraits() {
   let onPrev;
   if (
     resourceSpec.kind === ResourceKind.Database &&
-    (agentMeta as DbMeta).serviceDeployedMethod !== 'auto'
+    (agentMeta as DbMeta).serviceDeploy?.method !== 'auto'
   ) {
     onPrev = prevStep;
   }
