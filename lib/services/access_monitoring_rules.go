@@ -96,10 +96,10 @@ func ValidateAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.
 		if accessMonitoringRule.GetSpec().GetNotification() != nil {
 			return nil
 		}
-		if accessMonitoringRule.GetSpec().GetAutomaticApproval() != nil {
+		if slices.Contains(accessMonitoringRule.GetSpec().GetStates(), types.AccessRequestStateApproved) {
 			return nil
 		}
-		return trace.BadParameter("one of notification or automatic_approval must be configured if subjects contain %q",
+		return trace.BadParameter("a notification or automatic approval rule must be configured if subjects contain %q",
 			types.KindAccessRequest)
 	}
 

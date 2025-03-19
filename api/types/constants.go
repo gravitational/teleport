@@ -1546,3 +1546,13 @@ const (
 	// types.Server to indicate the GitHub organization of a Git server.
 	GitHubOrgServerDomain = "teleport-github-org"
 )
+
+// AccessRequestState specifies the desired state of an access request.
+type AccessRequestState string
+
+const (
+	// AccessRequestStateApproved is used within access monitoring rules. When
+	// this desired state is set, access monitors will attempt to automatically
+	// approve access requests that satisfy the rule condition.
+	AccessRequestStateApproved = "approved"
+)
