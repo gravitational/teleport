@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -155,10 +154,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 
 	// SSO validation handlers
 	srv.POST("/:version/github/requests/validate", srv.WithAuth(srv.validateGithubAuthCallback))
-
-	// Audit logs AKA events
-	srv.GET("/:version/events", srv.WithAuth(srv.searchEvents))
-	srv.GET("/:version/events/session", srv.WithAuth(srv.searchSessionEvents))
 
 	if config.PluginRegistry != nil {
 		if err := config.PluginRegistry.RegisterAuthWebHandlers(&srv); err != nil {
@@ -556,102 +551,6 @@ func (s *APIServer) validateGithubAuthCallback(auth *ServerWithRoles, w http.Res
 		raw.HostSigners[i] = data
 	}
 	return &raw, nil
-}
-
-// HTTP GET /:version/events?query
-//
-// Query fields:
-//
-//		'from'  : time filter in RFC3339 format
-//		'to'    : time filter in RFC3339 format
-//	 ...     : other fields are passed directly to the audit backend
-func (s *APIServer) searchEvents(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var err error
-	to := time.Now().In(time.UTC)
-	from := to.AddDate(0, -1, 0) // one month ago
-	query := r.URL.Query()
-	// parse 'to' and 'from' params:
-	fromStr := query.Get("from")
-	if fromStr != "" {
-		from, err = time.Parse(time.RFC3339, fromStr)
-		if err != nil {
-			return nil, trace.BadParameter("from")
-		}
-	}
-	toStr := query.Get("to")
-	if toStr != "" {
-		to, err = time.Parse(time.RFC3339, toStr)
-		if err != nil {
-			return nil, trace.BadParameter("to")
-		}
-	}
-	var limit int
-	limitStr := query.Get("limit")
-	if limitStr != "" {
-		limit, err = strconv.Atoi(limitStr)
-		if err != nil {
-			return nil, trace.BadParameter("failed to parse limit: %q", limit)
-		}
-	}
-
-	eventTypes := query[events.EventType]
-	eventsList, _, err := auth.SearchEvents(r.Context(), events.SearchEventsRequest{
-		From:       from,
-		To:         to,
-		EventTypes: eventTypes,
-		Limit:      limit,
-		Order:      types.EventOrderDescending,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return eventsList, nil
-}
-
-// searchSessionEvents only allows searching audit log for events related to session playback.
-func (s *APIServer) searchSessionEvents(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var err error
-
-	// default values for "to" and "from" fields
-	to := time.Now().In(time.UTC) // now
-	from := to.AddDate(0, -1, 0)  // one month ago
-
-	// parse query for "to" and "from"
-	query := r.URL.Query()
-	fromStr := query.Get("from")
-	if fromStr != "" {
-		from, err = time.Parse(time.RFC3339, fromStr)
-		if err != nil {
-			return nil, trace.BadParameter("from")
-		}
-	}
-	toStr := query.Get("to")
-	if toStr != "" {
-		to, err = time.Parse(time.RFC3339, toStr)
-		if err != nil {
-			return nil, trace.BadParameter("to")
-		}
-	}
-	var limit int
-	limitStr := query.Get("limit")
-	if limitStr != "" {
-		limit, err = strconv.Atoi(limitStr)
-		if err != nil {
-			return nil, trace.BadParameter("failed to parse limit: %q", limit)
-		}
-	}
-	// only pull back start and end events to build list of completed sessions
-	eventsList, _, err := auth.SearchSessionEvents(r.Context(), events.SearchSessionEventsRequest{
-		From:  from,
-		To:    to,
-		Limit: limit,
-		Order: types.EventOrderDescending,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return eventsList, nil
 }
 
 func (*APIServer) getNamespaces(*ServerWithRoles, http.ResponseWriter, *http.Request, httprouter.Params, string) (any, error) {
