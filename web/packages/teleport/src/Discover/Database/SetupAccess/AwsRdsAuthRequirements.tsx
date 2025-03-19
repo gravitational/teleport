@@ -357,9 +357,8 @@ export function AwsRdsAuthRequirementAlert({
           font-weight: normal;
         `}
       >
-        Your RDS and Aurora databases must have password and IAM authentication
-        enabled. You can set this up now, or later in the <b>Set Up Access</b>{' '}
-        step.
+        Your RDS databases must have password and IAM authentication enabled.
+        You can set this up now, or later in the <b>Set Up Access</b> step.
         <CollapsibleInfoSection
           size="small"
           mt={3}
