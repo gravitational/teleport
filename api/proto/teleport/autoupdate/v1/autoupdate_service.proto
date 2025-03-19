@@ -165,4 +165,8 @@ message ForceAutoUpdateAgentGroupRequest {
 message RollbackAutoUpdateAgentGroupRequest {
   // groups contains the agent update group name whose state should change to `rolledback`.
   repeated string groups = 1;
+  // all_started_groups instructs Teleport to rollback every started groups.
+  // When both groups and all_started_groups are set, both unstarted and specified groups
+  // are rolled-back.
+  bool all_started_groups = 2;
 }

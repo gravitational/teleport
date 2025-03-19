@@ -677,7 +677,7 @@ func (s *Service) TriggerAutoUpdateAgentGroup(ctx context.Context, req *autoupda
 			return nil, trace.Wrap(err)
 		}
 
-		err = rollout.TriggerGroups(existingRollout, req.Groups, req.DesiredState, s.clock.Now())
+		err = rollout.TriggerGroups(existingRollout, rollout.GroupListToGroupSet(req.Groups), req.DesiredState, s.clock.Now())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -718,7 +718,7 @@ func (s *Service) ForceAutoUpdateAgentGroup(ctx context.Context, req *autoupdate
 			return nil, trace.Wrap(err)
 		}
 
-		err = rollout.ForceGroupsDone(existingRollout, req.Groups, s.clock.Now())
+		err = rollout.ForceGroupsDone(existingRollout, rollout.GroupListToGroupSet(req.Groups), s.clock.Now())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -750,6 +750,10 @@ func (s *Service) RollbackAutoUpdateAgentGroup(ctx context.Context, req *autoupd
 		return nil, trace.Wrap(err)
 	}
 
+	if len(req.Groups) == 0 && !req.AllStartedGroups {
+		return nil, trace.AccessDenied("at least one group must be specified or the all_started_groups flag set")
+	}
+
 	const maxTries = 3
 
 	var existingRollout, newRollout *autoupdate.AutoUpdateAgentRollout
@@ -759,11 +763,19 @@ func (s *Service) RollbackAutoUpdateAgentGroup(ctx context.Context, req *autoupd
 			return nil, trace.Wrap(err)
 		}
 
-		if len(req.Groups) == 0 {
-			err = rollout.RollbackStartedGroups(existingRollout, s.clock.Now())
-		} else {
-			err = rollout.RollbackGroups(existingRollout, req.Groups, s.clock.Now())
+		groups := rollout.GroupListToGroupSet(req.Groups)
+		if req.AllStartedGroups {
+			startedGroups := rollout.GetStartedGroups(existingRollout)
+			for group := range startedGroups {
+				groups[group] = struct{}{}
+			}
 		}
+
+		if len(groups) == 0 {
+			return nil, trace.AlreadyExists("no groups to rollback")
+		}
+
+		err = rollout.RollbackGroups(existingRollout, groups, s.clock.Now())
 
 		if err != nil {
 			return nil, trace.Wrap(err)
