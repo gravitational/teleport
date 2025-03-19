@@ -24,6 +24,7 @@ import (
 	"context"
 	"crypto"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -769,7 +770,12 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 						sftpServer, err := sftp.NewServer(channel)
 						assert.NoError(t, err)
 						go sftpServer.Serve()
-						t.Cleanup(func() { assert.NoError(t, sftpServer.Close()) })
+						t.Cleanup(func() {
+							err := sftpServer.Close()
+							if err != nil {
+								assert.ErrorIs(t, err, io.EOF)
+							}
+						})
 						break outer
 					}
 				}

@@ -103,11 +103,14 @@ func (r *remoteFS) Open(ctx context.Context, path string) (File, error) {
 }
 
 func (r *remoteFS) Create(ctx context.Context, path string, _ int64) (File, error) {
+	return r.OpenFile(ctx, path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
+}
+
+func (r *remoteFS) OpenFile(ctx context.Context, path string, flags int) (File, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-
-	f, err := r.c.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
+	f, err := r.c.OpenFile(path, flags)
 	if err != nil {
 		return nil, err
 	}

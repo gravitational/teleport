@@ -46,7 +46,7 @@ func NewSFTPProxy(
 ) (*SFTPProxy, error) {
 	client, err := sftp.NewClient(scx.RemoteClient.Client)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 	h := &proxyHandlers{
 		scx:      scx,
@@ -68,9 +68,7 @@ func (p *SFTPProxy) Serve() error {
 }
 
 func (p *SFTPProxy) Close() error {
-	if err := p.srv.Close(); err != nil || !errors.Is(err, io.EOF) {
-		return trace.Wrap(err)
-	}
+	closeErr := p.srv.Close()
 	// Send a summary event last
 	scx := p.handlers.scx
 	summaryEvent := &apievents.SFTPSummary{
@@ -98,7 +96,7 @@ func (p *SFTPProxy) Close() error {
 	if err := scx.GetServer().EmitAuditEvent(scx.CancelContext(), summaryEvent); err != nil {
 		p.handlers.logger.WarnContext(scx.CancelContext(), "Failed to emit SFTP summary event", "error", err)
 	}
-	return nil
+	return trace.Wrap(closeErr)
 }
 
 type proxyHandlers struct {
@@ -120,7 +118,7 @@ func (h *proxyHandlers) Fileread(req *sftp.Request) (_ io.ReaderAt, err error) {
 	}
 	f, err := h.remoteFS.Open(req.Context(), req.Filepath)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 	return h.trackFile(f), nil
 }
@@ -135,9 +133,25 @@ func (h *proxyHandlers) Filewrite(req *sftp.Request) (_ io.WriterAt, err error) 
 	}
 	f, err := h.remoteFS.Create(req.Context(), req.Filepath, 0)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
-	return h.trackFile(f), trace.Wrap(err)
+	return h.trackFile(f), nil
+}
+
+// OpenFile handles 'open' requests when opening a file for reading
+// and writing is desired.
+func (h *proxyHandlers) OpenFile(req *sftp.Request) (_ sftp.WriterAtReaderAt, retErr error) {
+	defer h.sendSFTPEvent(req, retErr)
+
+	if req.Filepath == "" {
+		return nil, os.ErrInvalid
+	}
+
+	f, err := h.remoteFS.OpenFile(req.Context(), req.Filepath, sftputils.ParseFlags(req))
+	if err != nil {
+		return nil, err
+	}
+	return h.trackFile(f), nil
 }
 
 func (h *proxyHandlers) trackFile(f sftputils.File) sftp.WriterAtReaderAt {
@@ -155,7 +169,7 @@ func (h *proxyHandlers) Filecmd(req *sftp.Request) (err error) {
 		}
 		h.sendSFTPEvent(req, err)
 	}()
-	return trace.Wrap(sftputils.HandleFilecmd(req, h.remoteFS))
+	return sftputils.HandleFilecmd(req, h.remoteFS)
 }
 
 func (h *proxyHandlers) Filelist(req *sftp.Request) (_ sftp.ListerAt, err error) {
@@ -166,7 +180,7 @@ func (h *proxyHandlers) Filelist(req *sftp.Request) (_ sftp.ListerAt, err error)
 	}()
 	lister, err := sftputils.HandleFilelist(req, h.remoteFS)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 	return lister, nil
 }

@@ -125,6 +125,19 @@ func (h *httpFS) Create(ctx context.Context, p string, size int64) (File, error)
 	}, nil
 }
 
+func (h *httpFS) OpenFile(ctx context.Context, p string, flags int) (File, error) {
+	switch {
+	case flags|os.O_RDWR != 0:
+		return nil, trace.BadParameter("read-write files not supported for http")
+	case flags|os.O_RDONLY != 0:
+		return h.Open(ctx, p)
+	case flags|os.O_WRONLY != 0:
+		return h.Create(ctx, p, 0)
+	default:
+		return nil, trace.BadParameter("invalid flags")
+	}
+}
+
 func (h *httpFS) Mkdir(_ context.Context, _ string) error {
 	return errDirsNotSupported
 }

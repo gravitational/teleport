@@ -105,15 +105,17 @@ func (l localFS) Open(ctx context.Context, path string) (File, error) {
 }
 
 func (l localFS) Create(ctx context.Context, path string, _ int64) (File, error) {
+	return l.OpenFile(ctx, path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
+}
+
+func (l localFS) OpenFile(ctx context.Context, path string, flags int) (File, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, defaults.FilePermissions)
+	f, err := os.OpenFile(path, flags, defaults.FilePermissions)
 	if err != nil {
 		return nil, err
 	}
-
 	return f, nil
 }
 

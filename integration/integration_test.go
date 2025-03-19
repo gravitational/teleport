@@ -6279,7 +6279,7 @@ func testDataTransfer(t *testing.T, suite *integrationTestSuite) {
 	require.Len(t, output, MB)
 
 	// Make sure the session.data event was emitted to the audit log.
-	eventFields, err := findEventInLog(main, events.SessionDataEvent)
+	eventFields, err := findEventInLog(main, events.SessionDataEvent, time.Time{})
 	require.NoError(t, err)
 
 	// Make sure the audit event shows that 1 MB was written to the output.
@@ -6758,7 +6758,7 @@ func testBPFSessionDifferentiation(t *testing.T, suite *integrationTestSuite) {
 	for i := 0; i < 10; i++ {
 		sessionIDs := map[string]bool{}
 
-		eventFields, err := eventsInLog(main.Config.DataDir+"/log/events.log", events.SessionCommandEvent)
+		eventFields, err := eventsInLog(main.Config.DataDir+"/log/events.log", time.Time{})
 		if err != nil {
 			time.Sleep(1 * time.Second)
 			continue
@@ -7011,7 +7011,7 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 	require.NoError(t, err)
 
 	// Get session start event
-	sessionStart, err := findEventInLog(main, events.SessionStartEvent)
+	sessionStart, err := findEventInLog(main, events.SessionStartEvent, time.Time{})
 	require.NoError(t, err)
 	require.Equal(t, events.SessionStartCode, sessionStart.GetCode())
 	require.True(t, sessionStart.HasField(accessRequestsKey))
@@ -7043,9 +7043,9 @@ func WaitForResource(t *testing.T, watcher types.Watcher, kind, name string) {
 }
 
 // findEventInLog polls the event log looking for an event of a particular type.
-func findEventInLog(t *helpers.TeleInstance, eventName string) (events.EventFields, error) {
+func findEventInLog(t *helpers.TeleInstance, eventName string, after time.Time) (events.EventFields, error) {
 	for i := 0; i < 10; i++ {
-		eventFields, err := eventsInLog(t.Config.DataDir+"/log/events.log", eventName)
+		eventFields, err := eventsInLog(t.Config.DataDir+"/log/events.log", after)
 		if err != nil {
 			time.Sleep(1 * time.Second)
 			continue
@@ -7077,7 +7077,7 @@ func findCommandEventInLog(t *helpers.TeleInstance, eventName string, programNam
 
 func findMatchingEventInLog(t *helpers.TeleInstance, eventName string, match func(events.EventFields) bool) (events.EventFields, error) {
 	for i := 0; i < 10; i++ {
-		eventFields, err := eventsInLog(t.Config.DataDir+"/log/events.log", eventName)
+		eventFields, err := eventsInLog(t.Config.DataDir+"/log/events.log", time.Time{})
 		if err != nil {
 			time.Sleep(1 * time.Second)
 			continue
@@ -7095,7 +7095,7 @@ func findMatchingEventInLog(t *helpers.TeleInstance, eventName string, match fun
 }
 
 // eventsInLog returns all events in a log file.
-func eventsInLog(path string, eventName string) ([]events.EventFields, error) {
+func eventsInLog(path string, after time.Time) ([]events.EventFields, error) {
 	var ret []events.EventFields
 
 	file, err := os.Open(path)
@@ -7111,7 +7111,9 @@ func eventsInLog(path string, eventName string) ([]events.EventFields, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		ret = append(ret, fields)
+		if after.IsZero() || fields.GetTimestamp().After(after) {
+			ret = append(ret, fields)
+		}
 	}
 
 	if len(ret) == 0 {
@@ -8164,15 +8166,11 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 				suite.Me.Username,
 			)
 			require.NoError(t, err)
-			t.Cleanup(func() {
-				require.NoError(t, nodeClient.Close())
-			})
+			t.Cleanup(func() { _ = nodeClient.Close() })
 
 			sftpClient, err := sftp.NewClient(nodeClient.Client.Client)
 			require.NoError(t, err)
-			t.Cleanup(func() {
-				require.NoError(t, sftpClient.Close())
-			})
+			t.Cleanup(func() { _ = sftpClient.Close() })
 
 			// Create file that will be uploaded and downloaded.
 			tempDir := t.TempDir()
@@ -8199,6 +8197,7 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 
 			// Test downloading a file.
 			t.Run("download", func(t *testing.T) {
+				start := time.Now()
 				testFileDownload := testFilePath + "-download"
 				downloadFile, err := os.Create(testFileDownload)
 				require.NoError(t, err)
@@ -8220,10 +8219,18 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 				data, err := io.ReadAll(downloadFile)
 				require.NoError(t, err)
 				require.Equal(t, contents, data)
+
+				// Ensure SFTP audit events are present.
+				sftpEvent, err := findEventInLog(teleport, events.SFTPEvent, start)
+				if assert.NoError(t, err) {
+					assert.Equal(t, events.SFTPOpenCode, sftpEvent.GetCode())
+					assert.Equal(t, testFilePath, sftpEvent.GetString(events.SFTPPath))
+				}
 			})
 
 			// Test uploading a file.
 			t.Run("upload", func(t *testing.T) {
+				start := time.Now()
 				testFileUpload := testFilePath + "-upload"
 				remoteUploadFile, err := sftpClient.Create(testFileUpload)
 				require.NoError(t, err)
@@ -8239,20 +8246,36 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 				data, err := io.ReadAll(remoteUploadFile)
 				require.NoError(t, err)
 				require.Equal(t, contents, data)
+
+				// Ensure SFTP audit events are present.
+				sftpEvent, err := findEventInLog(teleport, events.SFTPEvent, start)
+				if assert.NoError(t, err) {
+					assert.Equal(t, events.SFTPOpenCode, sftpEvent.GetCode())
+					assert.Equal(t, testFileUpload, sftpEvent.GetString(events.SFTPPath))
+				}
 			})
 
 			// Test changing file permissions.
 			t.Run("chmod", func(t *testing.T) {
+				start := time.Now()
 				err := sftpClient.Chmod(testFilePath, 0o777)
 				require.NoError(t, err)
 
 				fi, err := os.Stat(testFilePath)
 				require.NoError(t, err)
 				require.Equal(t, fs.FileMode(0o777), fi.Mode().Perm())
+
+				// Ensure SFTP audit events are present.
+				sftpEvent, err := findEventInLog(teleport, events.SFTPEvent, start)
+				if assert.NoError(t, err) {
+					assert.Equal(t, events.SFTPSetstatCode, sftpEvent.GetCode())
+					assert.Equal(t, testFilePath, sftpEvent.GetString(events.SFTPPath))
+				}
 			})
 
 			// Test operations on a directory.
 			t.Run("mkdir", func(t *testing.T) {
+				start := time.Now()
 				dirPath := filepath.Join(tempDir, "dir")
 				require.NoError(t, sftpClient.Mkdir(dirPath))
 
@@ -8271,6 +8294,13 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 				require.NoError(t, err)
 				require.Len(t, fileInfos, 1)
 				require.Equal(t, "file", fileInfos[0].Name())
+
+				// Ensure SFTP audit events are present.
+				sftpEvent, err := findEventInLog(teleport, events.SFTPEvent, start)
+				if assert.NoError(t, err) {
+					assert.Equal(t, events.SFTPMkdirCode, sftpEvent.GetCode())
+					assert.Equal(t, dirPath, sftpEvent.GetString(events.SFTPPath))
+				}
 			})
 
 			// Test renaming a file.
@@ -8281,6 +8311,7 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 				require.NoError(t, f.Close())
 
 				newPath := path + "-done"
+				start := time.Now()
 				err = sftpClient.Rename(path, newPath)
 				require.NoError(t, err)
 
@@ -8288,6 +8319,14 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 				require.ErrorIs(t, err, os.ErrNotExist)
 				_, err = sftpClient.Stat(newPath)
 				require.NoError(t, err)
+
+				// Ensure SFTP audit events are present.
+				sftpEvent, err := findEventInLog(teleport, events.SFTPEvent, start)
+				if assert.NoError(t, err) {
+					assert.Equal(t, events.SFTPRenameCode, sftpEvent.GetCode())
+					assert.Equal(t, path, sftpEvent.GetString(events.SFTPPath))
+					assert.Equal(t, newPath, sftpEvent.GetString("target_path"))
+				}
 			})
 
 			// Test removing a file.
@@ -8297,17 +8336,27 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 				require.NoError(t, err)
 				require.NoError(t, f.Close())
 
+				start := time.Now()
 				err = sftpClient.Remove(path)
 				require.NoError(t, err)
 
 				_, err = sftpClient.Stat(path)
 				require.ErrorIs(t, err, os.ErrNotExist)
+
+				// Ensure SFTP audit events are present.
+				sftpEvent, err := findEventInLog(teleport, events.SFTPEvent, start)
+				if assert.NoError(t, err) {
+					assert.Equal(t, events.SFTPRemoveCode, sftpEvent.GetCode())
+					assert.Equal(t, path, sftpEvent.GetString(events.SFTPPath))
+				}
 			})
 
-			// Ensure SFTP audit events are present.
-			sftpEvent, err := findEventInLog(teleport, events.SFTPEvent)
+			// Check for summary audit event.
+			start := time.Now()
+			require.NoError(t, sftpClient.Close())
+			require.NoError(t, nodeClient.Close())
+			_, err = findEventInLog(teleport, events.SFTPSummaryEvent, start)
 			require.NoError(t, err)
-			require.Equal(t, testFilePath, sftpEvent.GetString(events.SFTPPath))
 		})
 	}
 }
