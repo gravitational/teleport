@@ -170,6 +170,7 @@
     "PGSSLCERT",
     "PGSSLKEY",
     "PGSSLROOTCERT",
+    "PKCS",
     "PKIX",
     "POSIX",
     "POSTALCODE",
