@@ -48,6 +48,7 @@ import (
 	"time"
 
 	awssession "github.com/aws/aws-sdk-go/aws/session"
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/renameio/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -171,7 +172,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/cert"
 	"github.com/gravitational/teleport/lib/utils/hostid"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	vc "github.com/gravitational/teleport/lib/versioncontrol"
 	"github.com/gravitational/teleport/lib/versioncontrol/endpoint"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
 	"github.com/gravitational/teleport/lib/web"
@@ -1275,12 +1275,13 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	// note: we must create the inventory handle *after* registerExpectedServices because that function determines
 	// the list of services (instance roles) to be included in the heartbeat.
 	process.inventoryHandle = inventory.NewDownstreamHandle(process.makeInventoryControlStreamWhenReady, proto.UpstreamInventoryHello{
-		ServerID:                cfg.HostUUID,
-		Version:                 teleport.Version,
-		Services:                process.getInstanceRoles(),
-		Hostname:                cfg.Hostname,
-		ExternalUpgrader:        externalUpgrader,
-		ExternalUpgraderVersion: vc.Normalize(upgraderVersion),
+		ServerID:         cfg.HostUUID,
+		Version:          teleport.Version,
+		Services:         process.getInstanceRoles(),
+		Hostname:         cfg.Hostname,
+		ExternalUpgrader: externalUpgrader,
+		// The UpstreamInventoryHello message wants versions with the leading "v".
+		ExternalUpgraderVersion: "v" + upgraderVersion.String(),
 	})
 
 	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping proto.DownstreamInventoryPing) {
@@ -1555,11 +1556,11 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 // Note that kind and externalName are usually the same.
 // However, some unregistered upgraders like the AWS ODIC upgrader are not valid kinds.
 // For these upgraders, kind is empty and externalName is set to a non-kind value.
-func (process *TeleportProcess) detectUpgrader() (kind, externalName, version string) {
+func (process *TeleportProcess) detectUpgrader() (kind, externalName string, version *semver.Version) {
 	// Check if the deprecated teleport-upgrader script is being used.
 	kind = os.Getenv(automaticupgrades.EnvUpgrader)
 	version = automaticupgrades.GetUpgraderVersion(process.GracefulExitContext())
-	if version == "" {
+	if version == nil {
 		kind = ""
 	}
 
@@ -1571,7 +1572,7 @@ func (process *TeleportProcess) detectUpgrader() (kind, externalName, version st
 		// If this is a teleport-update managed installation, the version
 		// managed by the timer will always match the installed version of teleport.
 		kind = types.UpgraderKindTeleportUpdate
-		version = "v" + teleport.Version
+		version = teleport.SemVer()
 	}
 
 	// Instances deployed using the AWS OIDC integration are automatically updated

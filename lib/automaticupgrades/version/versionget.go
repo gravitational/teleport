@@ -22,9 +22,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
-	"golang.org/x/mod/semver"
-	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // Getter gets the target image version for an external source. It should cache
@@ -33,7 +32,7 @@ import (
 // If the version source intentionally returns no version, a NoNewVersionError is
 // returned.
 type Getter interface {
-	GetVersion(context.Context) (string, error)
+	GetVersion(context.Context) (*semver.Version, error)
 }
 
 // FailoverGetter wraps multiple Getters and tries them sequentially.
@@ -45,7 +44,7 @@ type FailoverGetter []Getter
 // GetVersion implements Getter
 // Getters are evaluated sequentially, the result of the first getter not returning
 // trace.NotImplementedErr is used.
-func (f FailoverGetter) GetVersion(ctx context.Context) (string, error) {
+func (f FailoverGetter) GetVersion(ctx context.Context) (*semver.Version, error) {
 	for _, getter := range f {
 		version, err := getter.GetVersion(ctx)
 		switch {
@@ -54,27 +53,23 @@ func (f FailoverGetter) GetVersion(ctx context.Context) (string, error) {
 		case trace.IsNotImplemented(err):
 			continue
 		default:
-			return "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	}
-	return "", trace.NotFound("every versionGetter returned NotImplemented")
+	return nil, trace.NotFound("every versionGetter returned NotImplemented")
 }
 
 // ValidVersionChange receives the current version and the candidate next version
 // and evaluates if the version transition is valid.
-func ValidVersionChange(ctx context.Context, current, next string) bool {
-	log := ctrllog.FromContext(ctx).V(1)
-	// Cannot upgrade to a non-valid version
-	if !semver.IsValid(next) {
-		log.Error(
-			trace.BadParameter("next version is not following semver"),
-			"version change is invalid",
-			"current_version", current,
-			"next_version", next,
-		)
+func ValidVersionChange(ctx context.Context, current, next *semver.Version) bool {
+	if next == nil {
 		return false
 	}
-	switch semver.Compare(next, current) {
+	if current == nil {
+		return true
+	}
+
+	switch next.Compare(*current) {
 	// No need to upgrade if version is the same
 	case 0:
 		return false
@@ -85,12 +80,12 @@ func ValidVersionChange(ctx context.Context, current, next string) bool {
 
 // EnsureSemver adds the 'v' prefix if needed and ensures the provided version
 // is semver-compliant.
-func EnsureSemver(current string) (string, error) {
-	if !strings.HasPrefix(current, "v") {
-		current = "v" + current
+func EnsureSemver(current string) (*semver.Version, error) {
+	current = strings.TrimPrefix(strings.TrimSpace(current), "v")
+
+	version, err := semver.NewVersion(current)
+	if err != nil {
+		return nil, trace.BadParameter("version %s is not following semver", current)
 	}
-	if !semver.IsValid(current) {
-		return "", trace.BadParameter("tag %s is not following semver", current)
-	}
-	return current, nil
+	return version, nil
 }
