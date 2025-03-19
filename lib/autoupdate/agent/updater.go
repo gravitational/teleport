@@ -324,6 +324,8 @@ type OverrideConfig struct {
 	ForceFlags autoupdate.InstallFlags
 	// AllowOverwrite of installed binaries.
 	AllowOverwrite bool
+	// AllowProxyConflict when proxies in teleport.yaml and update.yaml are mismatched.
+	AllowProxyConflict bool
 }
 
 func deref[T any](ptr *T) T {
@@ -355,8 +357,10 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 	if cfg.Spec.Proxy == "" {
 		cfg.Spec.Proxy = u.DefaultProxyAddr
 	} else if u.DefaultProxyAddr != "" &&
-		!sameProxies(cfg.Spec.Proxy, u.DefaultProxyAddr) {
-		u.Log.WarnContext(ctx, "Proxy specified in update.yaml does not match teleport.yaml. Unexpected updates may occur.", "update_proxy", cfg.Spec.Proxy, "teleport_proxy", u.DefaultProxyAddr)
+		!sameProxies(cfg.Spec.Proxy, u.DefaultProxyAddr) &&
+		!override.AllowProxyConflict {
+		u.Log.ErrorContext(ctx, "Proxy specified in update.yaml does not match teleport.yaml.", "update_proxy", cfg.Spec.Proxy, "teleport_proxy", u.DefaultProxyAddr)
+		return trace.Errorf("refusing to install with conflicting proxy addresses, pass --allow-proxy-conflict to override")
 	}
 	if cfg.Spec.Path == "" {
 		cfg.Spec.Path = u.DefaultPathDir
@@ -471,11 +475,11 @@ func (u *Updater) Remove(ctx context.Context, force bool) error {
 	if errors.Is(err, ErrNoBinaries) {
 		if !force {
 			u.Log.ErrorContext(ctx, "No packaged installation of Teleport was found, and --force was not passed.")
-			u.Log.ErrorContext(ctx, "Refusing to remove Teleport from this system.")
+			u.Log.ErrorContext(ctx, "Refusing to remove Teleport from this system entirely without --force.")
 			return trace.Errorf("unable to remove Teleport completely without --force")
 		} else {
-			u.Log.WarnContext(ctx, "No packaged installation of Teleport was found, and --force was passed.")
-			u.Log.WarnContext(ctx, "Teleport will be removed from this system.")
+			u.Log.WarnContext(ctx, "No packaged installation of Teleport was found, but --force was passed.")
+			u.Log.WarnContext(ctx, "Teleport will be removed from this system entirely.")
 		}
 		return u.removeWithoutSystem(ctx, cfg)
 	}
@@ -645,16 +649,18 @@ func (u *Updater) Update(ctx context.Context, now bool) error {
 	if err := validateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return trace.Wrap(err)
 	}
-	if u.DefaultProxyAddr != "" &&
-		!sameProxies(cfg.Spec.Proxy, u.DefaultProxyAddr) {
-		u.Log.WarnContext(ctx, "Proxy specified in update.yaml does not match teleport.yaml. Unexpected updates may occur.", "update_proxy", cfg.Spec.Proxy, "teleport_proxy", u.DefaultProxyAddr)
-	}
 
 	active := cfg.Status.Active
 	skip := deref(cfg.Status.Skip)
 	if !cfg.Spec.Enabled {
 		u.Log.InfoContext(ctx, "Automatic updates disabled.", activeKey, active)
 		return nil
+	}
+
+	if u.DefaultProxyAddr != "" &&
+		!sameProxies(cfg.Spec.Proxy, u.DefaultProxyAddr) {
+		u.Log.WarnContext(ctx, "Proxy specified in update.yaml does not match teleport.yaml.", "update_proxy", cfg.Spec.Proxy, "teleport_proxy", u.DefaultProxyAddr)
+		u.Log.WarnContext(ctx, "Unexpected updates may occur.")
 	}
 
 	if cfg.Spec.Path == "" {
