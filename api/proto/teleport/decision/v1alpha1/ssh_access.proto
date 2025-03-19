@@ -31,11 +31,17 @@ message EvaluateSSHAccessRequest {
   // Metadata holds common authorization decision request fields.
   RequestMetadata metadata = 1;
 
-  // User describes the teleport user requesting access.
-  SSHIdentity ssh_identity = 2;
+  // SshAuthority identifies the authority that issued the below identity.
+  SSHAuthority ssh_authority = 2;
+
+  // SshIdentity describes the teleport user requesting access.
+  SSHIdentity ssh_identity = 3;
 
   // Node references the target node the user is attempting to access.
-  Resource node = 3;
+  Resource node = 4;
+
+  // OSUser is the user on the target node the user is attempting to access.
+  string os_user = 5;
 }
 
 // EvaluateSSHAccessResponse describes the result of an SSH access evaluation.
@@ -53,8 +59,8 @@ message SSHAccessPermit {
   repeated string logins = 2;
   bool forward_agent = 3;
   google.protobuf.Duration max_session_ttl = 4;
-  bool port_forwarding = 5;
-  int64 client_idle_timeout = 6;
+  SSHPortForwardMode port_forward_mode = 5;
+  google.protobuf.Duration client_idle_timeout = 6;
   bool disconnect_expired_cert = 7;
   repeated string bpf = 8;
   bool x11_forwarding = 9;
@@ -67,9 +73,21 @@ message SSHAccessPermit {
   string create_host_user_shell = 16;
   repeated string host_groups = 17;
   repeated string host_sudoers = 18;
+
+  string session_recording_mode = 19;
+  string locking_mode = 20;
 }
 
 // SSHAccessDenial describes an SSH access denial.
 message SSHAccessDenial {
   DenialMetadata metadata = 1;
+}
+
+// SSHPortForwardMode describes the mode of port forwarding permitted.
+enum SSHPortForwardMode {
+  SSH_PORT_FORWARD_MODE_UNSPECIFIED = 0;
+  SSH_PORT_FORWARD_MODE_OFF = 1;
+  SSH_PORT_FORWARD_MODE_ON = 2;
+  SSH_PORT_FORWARD_MODE_LOCAL = 3;
+  SSH_PORT_FORWARD_MODE_REMOTE = 4;
 }

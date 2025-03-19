@@ -76,7 +76,8 @@ func (r dataSourceTeleportAuthPreference) Read(ctx context.Context, req tfsdk.Re
 	// https://developer.hashicorp.com/terraform/plugin/framework/acctests#no-id-found-in-attributes
 	v, ok := state.Attrs["id"]
 	if !ok || v.IsNull() {
-		state.Attrs["id"] = types.String{Value: authPreference.GetName()}
+		id := authPreference.GetName()
+		state.Attrs["id"] = types.String{Value: id}
 	}
 
 	diags = resp.State.Set(ctx, &state)

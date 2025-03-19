@@ -500,7 +500,7 @@ type Cache struct {
 	fnCache *utils.FnCache
 
 	trustCache                   services.Trust
-	clusterConfigCache           services.ClusterConfiguration
+	clusterConfigCache           services.ClusterConfigurationInternal
 	autoUpdateCache              *local.AutoUpdateService
 	provisionerCache             services.Provisioner
 	usersCache                   services.UsersService
