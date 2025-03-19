@@ -18,10 +18,9 @@
 
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
-import { RuntimeSettings } from 'teleterm/types';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 
-import { DeepLinksService } from './deepLinksService';
+import { launchDeepLink } from './launchDeepLink';
 
 beforeEach(() => {
   jest.restoreAllMocks();
@@ -41,26 +40,14 @@ describe('parse errors', () => {
   test.each(tests)(
     '$reason causes a warning notification to be sent',
     async result => {
-      const {
-        clustersService,
-        workspacesService,
-        modalsService,
-        notificationsService,
-        runtimeSettings,
-      } = getMocks();
+      const appCtx = new MockAppContext();
+      const { workspacesService, modalsService, notificationsService } = appCtx;
 
       jest.spyOn(notificationsService, 'notifyWarning');
       jest.spyOn(modalsService, 'openRegularDialog');
       jest.spyOn(workspacesService, 'setActiveWorkspace');
 
-      const deepLinksService = new DeepLinksService(
-        runtimeSettings,
-        clustersService,
-        workspacesService,
-        modalsService,
-        notificationsService
-      );
-      await deepLinksService.launchDeepLink(result);
+      await launchDeepLink(appCtx, result);
 
       expect(notificationsService.notifyWarning).toHaveBeenCalledTimes(1);
       expect(notificationsService.notifyWarning).toHaveBeenCalledWith({
@@ -93,13 +80,8 @@ const successResult: DeepLinkParseResult = {
 };
 
 it('opens cluster connect dialog if the cluster is not added yet', async () => {
-  const {
-    clustersService,
-    workspacesService,
-    modalsService,
-    notificationsService,
-    runtimeSettings,
-  } = getMocks();
+  const appCtx = new MockAppContext();
+  const { clustersService, workspacesService, modalsService } = appCtx;
 
   jest.spyOn(modalsService, 'openRegularDialog').mockImplementation(dialog => {
     if (dialog.kind !== 'cluster-connect') {
@@ -116,15 +98,7 @@ it('opens cluster connect dialog if the cluster is not added yet', async () => {
     return { closeDialog: () => {} };
   });
 
-  const deepLinksService = new DeepLinksService(
-    runtimeSettings,
-    clustersService,
-    workspacesService,
-    modalsService,
-    notificationsService
-  );
-
-  await deepLinksService.launchDeepLink(successResult);
+  await launchDeepLink(appCtx, successResult);
 
   expect(workspacesService.getRootClusterUri()).toEqual(cluster.uri);
   const documentsService = workspacesService.getWorkspaceDocumentService(
@@ -135,27 +109,14 @@ it('opens cluster connect dialog if the cluster is not added yet', async () => {
 });
 
 it('switches to the workspace if the cluster already exists', async () => {
-  const {
-    clustersService,
-    workspacesService,
-    modalsService,
-    notificationsService,
-    runtimeSettings,
-  } = getMocks();
+  const appCtx = new MockAppContext();
+  const { clustersService, workspacesService } = appCtx;
 
   clustersService.setState(draft => {
     draft.clusters.set(cluster.uri, { ...cluster, connected: true });
   });
 
-  const deepLinksService = new DeepLinksService(
-    runtimeSettings,
-    clustersService,
-    workspacesService,
-    modalsService,
-    notificationsService
-  );
-
-  await deepLinksService.launchDeepLink(successResult);
+  await launchDeepLink(appCtx, successResult);
 
   expect(workspacesService.getRootClusterUri()).toEqual(cluster.uri);
   const documentsService = workspacesService.getWorkspaceDocumentService(
@@ -166,13 +127,8 @@ it('switches to the workspace if the cluster already exists', async () => {
 });
 
 it('does not switch workspaces if the user does not log in to the cluster when adding it', async () => {
-  const {
-    clustersService,
-    workspacesService,
-    modalsService,
-    notificationsService,
-    runtimeSettings,
-  } = getMocks();
+  const appCtx = new MockAppContext();
+  const { clustersService, workspacesService, modalsService } = appCtx;
   clustersService.setState(draft => {
     draft.clusters.set(cluster.uri, { ...cluster });
   });
@@ -188,43 +144,22 @@ it('does not switch workspaces if the user does not log in to the cluster when a
     return { closeDialog: () => {} };
   });
 
-  const deepLinksService = new DeepLinksService(
-    runtimeSettings,
-    clustersService,
-    workspacesService,
-    modalsService,
-    notificationsService
-  );
-
   expect(workspacesService.getRootClusterUri()).toBeUndefined();
 
-  await deepLinksService.launchDeepLink(successResult);
+  await launchDeepLink(appCtx, successResult);
 
   expect(workspacesService.getRootClusterUri()).toBeUndefined();
 });
 
 it('sends a notification and does not switch workspaces if the user is on Windows', async () => {
-  const {
-    clustersService,
-    workspacesService,
-    modalsService,
-    notificationsService,
-    runtimeSettings,
-  } = getMocks({ platform: 'win32' });
+  const appCtx = new MockAppContext({ platform: 'win32' });
+  const { workspacesService, notificationsService } = appCtx;
 
   jest.spyOn(notificationsService, 'notifyWarning');
 
-  const deepLinksService = new DeepLinksService(
-    runtimeSettings,
-    clustersService,
-    workspacesService,
-    modalsService,
-    notificationsService
-  );
-
   expect(workspacesService.getRootClusterUri()).toBeUndefined();
 
-  await deepLinksService.launchDeepLink(successResult);
+  await launchDeepLink(appCtx, successResult);
 
   expect(workspacesService.getRootClusterUri()).toBeUndefined();
   expect(notificationsService.notifyWarning).toHaveBeenCalledTimes(1);
@@ -232,22 +167,3 @@ it('sends a notification and does not switch workspaces if the user is on Window
     expect.stringContaining('not supported on Windows')
   );
 });
-
-function getMocks(partialRuntimeSettings?: Partial<RuntimeSettings>) {
-  const {
-    clustersService,
-    workspacesService,
-    modalsService,
-    notificationsService,
-    mainProcessClient,
-  } = new MockAppContext(partialRuntimeSettings);
-  const runtimeSettings = mainProcessClient.getRuntimeSettings();
-
-  return {
-    clustersService,
-    workspacesService,
-    modalsService,
-    notificationsService,
-    runtimeSettings,
-  };
-}

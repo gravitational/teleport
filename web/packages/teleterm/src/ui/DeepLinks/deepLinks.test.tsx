@@ -27,16 +27,21 @@ import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { App } from 'teleterm/ui/App';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 
+import { launchDeepLink } from './launchDeepLink';
+
+jest.mock<typeof import('./launchDeepLink')>('./launchDeepLink', () => ({
+  launchDeepLink: jest.fn().mockResolvedValue(undefined),
+}));
+
 beforeAll(() => {
   Logger.init(new NullService());
 });
 
 test('queuing up a deep link launch before the app is rendered', async () => {
   const ctx = new MockAppContext();
-  jest.spyOn(ctx.deepLinksService, 'launchDeepLink').mockResolvedValue();
-
   ctx.configService.set('usageReporting.enabled', false);
   const rootCluster = makeRootCluster();
+
   const deepLinkParseResult = parseDeepLink(
     makeDeepLinkWithSafeInput({
       path: '/vnet',
@@ -45,6 +50,7 @@ test('queuing up a deep link launch before the app is rendered', async () => {
       searchParams: {},
     })
   );
+  expect(deepLinkParseResult.status).toEqual('success');
   // Before the app is rendered, queue up a deep link launch to be sent after the UI is ready.
   const deepLinkLaunchPromise = ctx.mainProcessClient
     .whenFrontendAppIsReady()
@@ -56,9 +62,8 @@ test('queuing up a deep link launch before the app is rendered', async () => {
 
   expect(await screen.findByText('Connect a Cluster')).toBeInTheDocument();
 
-  await expect(deepLinkLaunchPromise).resolves.toBeFalsy();
-  expect(ctx.deepLinksService.launchDeepLink).toHaveBeenCalledTimes(1);
-  expect(ctx.deepLinksService.launchDeepLink).toHaveBeenCalledWith(
-    deepLinkParseResult
-  );
+  // Verify that once the UI is ready, launchDeepLink is called.
+  await expect(deepLinkLaunchPromise).resolves.toBe(undefined);
+  expect(launchDeepLink).toHaveBeenCalledTimes(1);
+  expect(launchDeepLink).toHaveBeenCalledWith(ctx, deepLinkParseResult);
 });

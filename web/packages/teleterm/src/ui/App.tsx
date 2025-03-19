@@ -26,6 +26,7 @@ import AppContext from './appContext';
 import AppContextProvider from './appContextProvider';
 import { StyledApp } from './components/App';
 import { CatchError } from './components/CatchError';
+import { DeepLinks } from './DeepLinks';
 import { ResourcesContextProvider } from './DocumentCluster/resourcesContext';
 import { ThemeProvider } from './ThemeProvider';
 import { ConnectionsContextProvider } from './TopBar/Connections/connectionsContext';
@@ -41,6 +42,8 @@ export const App: React.FC<{ ctx: AppContext }> = ({ ctx }) => {
               <ConnectionsContextProvider>
                 <VnetContextProvider>
                   <ThemeProvider>
+                    <DeepLinks />
+
                     <AppInitializer />
                   </ThemeProvider>
                 </VnetContextProvider>

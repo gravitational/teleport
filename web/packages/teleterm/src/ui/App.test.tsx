@@ -27,14 +27,9 @@ import { render } from 'design/utils/testing';
 import Logger, { NullService } from 'teleterm/logger';
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
-import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
-import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { App } from 'teleterm/ui/App';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 import { IAppContext } from 'teleterm/ui/types';
-import { VnetContextProvider } from 'teleterm/ui/Vnet';
-
-import { AppInitializer } from './AppInitializer';
 
 mockIntersectionObserver();
 beforeAll(() => {
@@ -99,17 +94,7 @@ test('activating a workspace via deep link overrides the previously active works
     })
   );
 
-  render(
-    <MockAppContextProvider appContext={appContext}>
-      <ConnectionsContextProvider>
-        <VnetContextProvider>
-          <ResourcesContextProvider>
-            <AppInitializer />
-          </ResourcesContextProvider>
-        </VnetContextProvider>
-      </ConnectionsContextProvider>
-    </MockAppContextProvider>
-  );
+  render(<App ctx={appContext} />);
 
   expect(
     await screen.findByText(`Connect to ${previouslyActiveCluster.uri}`)
@@ -117,7 +102,7 @@ test('activating a workspace via deep link overrides the previously active works
 
   // Launch a deep link and do not wait for the result.
   act(() => {
-    void appContext.deepLinksService.launchDeepLink({
+    void appContext.mainProcessClient.launchDeepLink({
       status: 'success',
       url: {
         host: deepLinkCluster.proxyHost,
@@ -219,17 +204,7 @@ test.each<{
     })
   );
 
-  render(
-    <MockAppContextProvider appContext={appContext}>
-      <ConnectionsContextProvider>
-        <VnetContextProvider>
-          <ResourcesContextProvider>
-            <AppInitializer />
-          </ResourcesContextProvider>
-        </VnetContextProvider>
-      </ConnectionsContextProvider>
-    </MockAppContextProvider>
-  );
+  render(<App ctx={appContext} />);
 
   expect(
     await screen.findByText(
