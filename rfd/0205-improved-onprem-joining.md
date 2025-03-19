@@ -140,15 +140,16 @@ one-time use shared secret to authenticate the exchange, much like today's
 `token` method.
 
 Once the public key has been shared, bots may then join by requesting a
-challenge from the Teleport Auth service and completing it by signing it with
-their private key. If successful, the bot is issued a renewable identity just as
-`token`-joined bots are today, and the bot will actively renew this identity for
-as long as possible, or until its backing token expires.
+challenge from the Teleport Auth service and complete it by signing it with
+their private key. If successful, the bot is issued a nonrenewable identity
+similar to our existing delegated join methods, and the bot will actively
+refresh this identity for as long as possible, or until its backing token
+expires.
 
-If the identity renewal fails at any point, bots may attempt to reauthenticate,
+If the identity refresh fails at any point, bots may attempt to rejoin,
 and the Auth service can use predefined per-bot rules to decide if this specific
 bot is allowed to rejoin, including a rejoin counter and expiration date. If a
-rejoin is rejected, the bot's identity does not necessarily remain invalid: if
+rejoin is rejected, the bot's keypair does not necessarily remain invalid: if
 server-side rules are adjusted, for example by increasing the token's rejoin
 limit, it can then rejoin without any client-side reconfiguration.
 
@@ -164,8 +165,7 @@ This has several important differences to existing join methods:
   rather than (necessarily) a hardware token.
 
 - When a bot's identity expires, assuming it has some rejoin allocations left,
-  it can simply repeat the joining process to receive a fresh renewable
-  certificate.
+  it can simply repeat the joining process to receive a fresh certificate.
 
 - If a bot exhausts its rejoining limit, it will not be able to fetch new
   certificates, similar to today's behavior. However, this bot can be restored
@@ -174,7 +174,8 @@ This has several important differences to existing join methods:
   The failed `tbot` instance can then retry the joining process, and it will
   succeed.
 
-It otherwise functions similarly to `token`-joined bots today:
+It otherwise functions similarly to `token`-joined bots today, despite being
+implemented as a delegated joining method:
 
 - It is still fully infrastructure agnostic and works across operating systems.
 
@@ -182,12 +183,63 @@ It otherwise functions similarly to `token`-joined bots today:
   work great for experimentation and documentation examples.
 
 - It proves its identity - either via an onboarding secret or public key - to
-  receive a renewable identity and renews it as usual for as long as possible.
+  receive a nonrenewable identity and refreshes it as usual for as long as
+  possible by repeating the joining challenge.
 
 - When the internal identity expires, the bot loses access to resources until it
   reauthenticates.
 
 - The generation counter is still used to detect identity reuse.
+
+#### Renewing and Rejoining
+
+> [!NOTE]
+> We use the term "renew" fairly loosely in various parts of Teleport and
+> especially Machine ID. For our purposes here, we'll try to stick to these
+> definitions:
+>
+> - **refreshing**: fetching new identities at a regular interval, regardless of
+>   method
+> - **renewing**: refreshing a renewable identity without completing a joining
+>   challenge, specific to token joining
+> - **rejoining**: in bound keypair joining, a rejoin occurs when attempting a
+>   refresh with no client certificates, or expired client certificates. This
+>   triggers additional verifications, and consumes a rejoin.
+
+Today, Machine ID has two broad categories of joining:
+
+- Delegated joining, where joining challenges are completed each time a bot
+  requests new certificates. Regardless of whether a bot is joining for the
+  first time or refreshing an existing valid identity, it must complete a
+  challenge to receive certificates. The two cases are functionally equivalent,
+  with only minor caveats (see below). This is all join methods except `token`.
+
+- Non-delegated joining, where bots complete an initial joining challenge once
+  and then use their existing valid identity as its own proof to fetch new
+  certificates. This is exclusively used with `token` joining.
+
+Bound keypair joining could be implemented using either of these strategies.
+However, we'll opt to implement this as a delegated join method. This provides
+several advantanges:
+
+- Standardized implementation, matching all other join methods - except `token`.
+
+- Regular verification checks. With true renewable certificates, bots could last
+  indefinitely without completing a challenge. This makes it harder to tell
+  which bots are still alive, and could leave bots alive if their join token is
+  deleted. When bots regularly interact with the join method, we can
+
+- If using hardware key storage backends, repeating the joining challenge helps
+  ensure the identity can't be effectively exfiltrated.
+
+For the purposes of differentiating a full rejoin from a regular refresh, we can
+take advantage of optional authenticated joining added in
+[RFD 0162](./0162-machine-id-token-join-method-bot-instance.md). This allows
+clients to present an existing valid identity to preserve certain identity
+parameters, like the bot instance UUID.
+
+Using this mechanism, we can ensure that join attempts with an existing client
+identity do not consume a rejoin; attempts without one will consume a rejoin.
 
 #### Joining UX Flows
 
@@ -214,7 +266,7 @@ This join method creates two new joining flows:
    ever copied.
 
    On startup, Auth issues a challenge to the bot which is solved with its
-   private key, and it receives a standard renewable identity.
+   private key, and it receives a standard bot identity.
 
 2. **Bind-on-join**: The `tbot` client is given a joining secret.
 
@@ -268,7 +320,10 @@ spec:
       # skipped and instance will directly prove its identity using its private
       # key. It is an error for a public key to be associated with more than one
       # token, and creation or update will fail if a public key is reused.
-      public_key: null
+      # May not be modified after resource creation. Note that public keys may
+      # be rotated, so refer to `.status.bound_keypair.bound_public_key` for the
+      # currently bound key information.
+      initial_public_key: null
 
       # If set, use an explicit initial joining secret; if both this and
       # `public_key` are unset, a value will be generated server-side and
@@ -295,12 +350,12 @@ spec:
       # If set, rejoining is only valid before this timestamp; may be
       # incremented or reset to the empty string to allow rejoining once
       # expired.
-      must_rejoin_before: "2026-03-01T21:45:40.104524Z"
+      may_rejoin_until: "2026-03-01T21:45:40.104524Z"
 
 status:
   bound_keypair:
-    # If `spec.onboarding.public_key` is unset, this value will be generated
-    # server-side and made available here. If
+    # If `spec.onboarding.initial_public_key` is unset, this value will be
+    # generated server-side and made available here. If
     # `spec.onboarding.initial_join_secret` is set, its value will be copied
     # here.
     initial_join_secret: <random>
@@ -319,8 +374,11 @@ status:
     # is incremented, this value will be incremented by the same amount. If
     # decremented, this value cannot fall below zero. If
     # `.spec.bound_keypair.rejoining.unlimited` is set, this value will always
-    # be 0 but rejoin attempts will be succeed.
+    # be 0 but rejoin attempts will succeed.
     remaining_rejoins: 10
+
+    # The timestamp of the last successful joining or rejoining attempt, if any.
+    last_joined_at: null
 ```
 
 #### Terraform Example
@@ -397,9 +455,9 @@ resource "aws_instance" "example" {
 }
 ```
 
-In this example, if node `bar` uses its 2 renewals, we can add a new entry for
+In this example, if node `bar` uses its 2 rejoins, we can add a new entry for
 it in `bot_rejoin_overrides` and its `ProvisionToken` will be updated to allow
-additional renewals.
+additional rejoins.
 
 #### Challenge Ceremony
 
@@ -409,7 +467,48 @@ challenge containing a nonce. To avoid completely implementing our own
 authentication ceremony, clients can use `go-jose` to marshal and sign a JWT
 which can then be verified easily on the server.
 
-TODO: This needs significant further elaboration and feedback.
+A rough outline of the joining procedure:
+
+```mermaid
+sequenceDiagram
+	participant keystore as Local Keystore
+	participant bot as Bot
+	participant auth as Auth Server
+
+	opt first join & has initial join token
+		bot->>+keystore: Generate new keypair
+		keystore-->>-bot: Public key
+
+		bot->>auth: Bind public key with token
+		auth->>auth: Verify token<br>& record public key
+	end
+
+	bot->>auth: Request joining challenge
+	auth-->>bot: Sends joining challenge
+	bot->>keystore: Request signed document
+	keystore-->>bot: Signed challenge document
+	bot->>auth: Signed challenge document
+	auth->>auth: Validate signed document<br>against bound public key
+
+	opt no valid client certificate
+		auth->>auth: decrement rejoin counter
+	end
+
+	auth-->>bot: Signed TLS certificates
+```
+
+To avoid use of traditional renewable certificates, this takes advantage of
+recent support for optionally authenticated joining added as part of
+[RFD 0162](./0162-machine-id-token-join-method-bot-instance.md). If a bot still
+has a valid client certificate from a previous authentication attempt, it uses
+it to open an mTLS session.
+
+When Auth validates the join attempt, clients that presented an existing valid
+identity are considered to be "renewals" and do not trigger a "rejoin", leaving
+the rejoin counter untouched. Clients that do not present a valid client
+certificate are considered to be rejoining and the token associated with this
+public key must have `.status.bound_keypair.remaining_rejoins` >= 1.
+
 
 #### Client-Side Changes in `tbot`
 
@@ -499,7 +598,7 @@ We should take steps to improve visibility of bots at or near expiry, including:
 
 #### Outstanding Issue: Soft Bot Expiration
 
-The `spec.rejoining.must_rejoin_before` field can be used to prevent rejoining
+The `spec.rejoining.may_rejoin_until` field can be used to prevent rejoining
 after a certain time, in tandem with the rejoin count limit. This has the -
 likely confusing - downside that bots will still be able to renew their
 certificates indefinitely past the expiration date, assuming their certs were
@@ -523,9 +622,12 @@ We would like to solve two expiration use cases:
 
 2. We should be able to prevent bot rejoins after a certain date, to control
    rejoining conditions in tandem with the rejoin counter. The
-   `spec.rejoining.must_rejoin_before` field may accomplish this.
+   `spec.rejoining.may_rejoin_until` field may accomplish this.
 
 TODO: Ensure this is solved and not confusing.
+
+TODO: Presumably solved by switching to delegated joining. Will remove this
+section after some reevaluation.
 
 #### Keypair Rotation
 
@@ -554,7 +656,7 @@ improve the usability of non-delegated joining.
 
 #### Longer-Lived Bots
 
-The renewable identity's 24 hour maximum TTL is too restrictive and should be
+The bot identity's 24 hour maximum TTL is too restrictive and should be
 lengthened. We propose raising this limit to 7 days, but keeping the default
 (1hr) the same.
 
@@ -644,6 +746,17 @@ key. There are several avenues for this, depending on storage backend:
 - Other HSM-stored keys may support various types of human presence
   verification. For example, YubiHSM has a touch sensor that can be required for
   access on a key-by-key basis.
+
+#### Additional Alerting Rules
+
+A non-exhaustive list of additional alerting rules that may be beneficial:
+
+- Configurable cluster alerts when a bot rejoins or has used its last attempt.
+  This should be opt-in as this type of alert may not scale well with lots of
+  bots.
+
+-
+
 
 #### Tightly Scoped Token RBAC
 
