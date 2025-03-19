@@ -1478,20 +1478,6 @@ func TestAppServerCRUD(t *testing.T) {
 	suite.AppServerCRUD(t)
 }
 
-func TestReverseTunnelsCRUD(t *testing.T) {
-	t.Parallel()
-
-	testSrv := newTestTLSServer(t)
-
-	clt, err := testSrv.NewClient(TestAdmin())
-	require.NoError(t, err)
-
-	suite := &suite.ServicesTestSuite{
-		PresenceS: clt,
-	}
-	suite.ReverseTunnelsCRUD(t)
-}
-
 func TestUsersCRUD(t *testing.T) {
 	t.Parallel()
 

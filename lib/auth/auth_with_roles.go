@@ -2247,30 +2247,6 @@ func (a *ServerWithRoles) DeleteProxy(ctx context.Context, name string) error {
 	return a.authServer.DeleteProxy(ctx, name)
 }
 
-// TODO(noah): DELETE IN 18.0.0 - all these methods are now gRPC.
-func (a *ServerWithRoles) UpsertReverseTunnel(ctx context.Context, r types.ReverseTunnel) error {
-	if err := a.action(types.KindReverseTunnel, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.UpsertReverseTunnel(ctx, r)
-}
-
-// TODO(noah): DELETE IN 18.0.0 - all these methods are now gRPC.
-func (a *ServerWithRoles) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
-	if err := a.action(types.KindReverseTunnel, types.VerbList, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.GetReverseTunnels(ctx)
-}
-
-// TODO(noah): DELETE IN 18.0.0 - all these methods are now gRPC.
-func (a *ServerWithRoles) DeleteReverseTunnel(ctx context.Context, domainName string) error {
-	if err := a.action(types.KindReverseTunnel, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteReverseTunnel(ctx, domainName)
-}
-
 func (a *ServerWithRoles) DeleteToken(ctx context.Context, token string) error {
 	if err := a.action(types.KindToken, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
