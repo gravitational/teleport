@@ -567,8 +567,7 @@ func TestConnectDatabaseInteractiveSession(t *testing.T) {
 		alpnHandler: func(ctx context.Context, conn net.Conn) error {
 			// mock repl will not send any actual data. just verify the incoming
 			// connection is TLS.
-			_, ok := conn.(utils.TLSConn)
-			if !ok {
+			if _, ok := conn.(utils.TLSConn); !ok {
 				return trace.BadParameter("expected TLSConn, got %T", conn)
 			}
 			return nil
