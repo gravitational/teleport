@@ -184,6 +184,9 @@ func (s *WorkloadIdentityJWTService) requestJWTSVID(
 	if err != nil {
 		return nil, trace.Wrap(err, "generating JWT SVID")
 	}
+
+	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, s.botCfg.CertificateTTL, s.botCfg.RenewalInterval)
+
 	var credential *workloadidentityv1pb.Credential
 	switch len(credentials) {
 	case 0:

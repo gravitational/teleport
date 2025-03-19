@@ -144,6 +144,8 @@ func (s *ApplicationOutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, s.botCfg.CertificateTTL, s.botCfg.RenewalInterval)
+
 	s.log.InfoContext(
 		ctx,
 		"Generated identity for app",

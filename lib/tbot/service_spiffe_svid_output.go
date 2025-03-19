@@ -189,6 +189,9 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err, "generating identity")
 	}
+
+	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, s.botCfg.CertificateTTL, s.botCfg.RenewalInterval)
+
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
 	facade := identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
