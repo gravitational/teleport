@@ -36,6 +36,7 @@
   },
   "devDependencies": {
     "@gravitational/build": "workspace:*",
+    "@ianvs/prettier-plugin-sort-imports": "^4.4.1",
     "@storybook/addon-actions": "^8.6.3",
     "@storybook/addon-controls": "^8.6.3",
     "@storybook/addon-toolbars": "^8.6.3",
