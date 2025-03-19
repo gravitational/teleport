@@ -36,9 +36,9 @@ import {
   STARTING_TRANSITION_DELAY,
 } from 'teleport/components/Dropdown';
 import { useFeatures } from 'teleport/FeaturesContext';
+import { getCurrentTheme, getNextTheme } from 'teleport/LegacyThemeProvider';
 import { focusOutsideTarget } from 'teleport/lib/util/eventTarget';
 import session from 'teleport/services/websession';
-import { getCurrentTheme, getNextTheme } from 'teleport/ThemeProvider';
 import { DeviceTrustStatus } from 'teleport/TopBar/DeviceTrustStatus';
 import { useUser } from 'teleport/User/UserContext';
 

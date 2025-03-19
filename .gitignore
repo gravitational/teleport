@@ -7,6 +7,9 @@ debug
 default.etcd
 /darwin
 
+gen/proto/ts/**/*.js
+gen/proto/ts/**/*.d.ts
+
 # web asset directory
 /lib/web/build
 

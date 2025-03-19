@@ -1,6 +1,6 @@
 {
   "extends": "../../../tsconfig.base.json",
-  "include": ["src", "@types", "../../../web/@types"],
+  "include": ["src", "@types", "../../../web/@types", "../new", "../../../gen"],
   "compilerOptions": {
     "composite": true,
     "outDir": "../../../build.assets/.cache/ts/design",
@@ -12,7 +12,10 @@
       "design/*": ["web/packages/design/src/*"],
       "design": ["web/packages/design/src/"],
       "gen-proto-ts/*": ["gen/proto/ts/*"],
-    }
 
+      "shared-new/*": ["web/packages/new/shared/src/*"],
+      "shared-new": ["web/packages/new/shared/src/"]
+    },
+    "rootDir": "../../..",
   }
 }

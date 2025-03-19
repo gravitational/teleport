@@ -31,8 +31,8 @@ import {
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 
 import cfg from 'teleport/config';
+import { getPrefersDark } from 'teleport/LegacyThemeProvider';
 import api from 'teleport/services/api';
-import { getPrefersDark } from 'teleport/ThemeProvider';
 
 interface BackendClusterUserPreferences {
   pinnedResources?: string[];

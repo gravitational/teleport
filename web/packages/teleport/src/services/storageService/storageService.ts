@@ -20,6 +20,7 @@ import { OnboardUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 
+import { getPrefersDark } from 'teleport/LegacyThemeProvider';
 import { RecentHistoryItem } from 'teleport/Navigation/RecentHistory';
 import { OnboardDiscover } from 'teleport/services/user';
 import {
@@ -28,7 +29,6 @@ import {
   isBackendUserPreferences,
 } from 'teleport/services/userPreferences/userPreferences';
 import { BearerToken } from 'teleport/services/websession';
-import { getPrefersDark } from 'teleport/ThemeProvider';
 import type { RecommendFeature } from 'teleport/types';
 
 import { CloudUserInvites, KeysEnum, LocalStorageSurvey } from './types';

@@ -1,36 +1,33 @@
 {
+  "extends": "../../../../tsconfig.base.json",
   "compilerOptions": {
-    "allowJs": true,
-    "allowSyntheticDefaultImports": true,
     "allowUnreachableCode": false,
-    "baseUrl": ".",
     "composite": true,
-    "esModuleInterop": true,
-    "experimentalDecorators": true,
-    "importHelpers": true,
-    "jsx": "react-jsx",
-    "lib": [
-      "dom",
-      "esnext"
-    ],
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "noEmitHelpers": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitOverride": true,
     "noUnusedLocals": true,
     "outDir": "../../../../build.assets/.cache/ts/teleport-new",
+    "paths": {
+      "design-new/*": ["web/packages/new/design/src/*"],
+      "design-new": ["web/packages/new/design/src/"],
+
+      "shared-new/*": ["web/packages/new/shared/src/*"],
+      "shared-new": ["web/packages/new/shared/src/"],
+
+      "teleport-new/*": ["web/packages/new/teleport/src/*"],
+      "teleport-new": ["web/packages/new/teleport/src/"],
+
+      "gen-proto-ts/*": ["gen/proto/ts/*"],
+    },
     "pretty": true,
-    "skipLibCheck": true,
-    "sourceMap": true,
-    "stripInternal": true,
+    "rootDir": "../../../..",
     "strict": true,
-    "target": "esnext",
-    "types": ["@testing-library/jest-dom"],
-    "verbatimModuleSyntax": true,
+    "verbatimModuleSyntax": true
   },
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",
+    "../",
+    "../../../../gen/proto/ts",
   ],
 }

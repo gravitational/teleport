@@ -29,7 +29,7 @@ const customThemes = {
   bblp: bblpTheme,
 };
 
-export const ThemeProvider = (props: { children?: ReactNode }) => {
+export const LegacyThemeProvider = (props: { children?: ReactNode }) => {
   const [themePreference, setThemePreference] = useState<ThemePreference>(
     storageService.getThemePreference()
   );

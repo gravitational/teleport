@@ -1,0 +1,25 @@
+{
+  "extends": "../../../../tsconfig.base.json",
+  "compilerOptions": {
+    "allowUnreachableCode": false,
+    "composite": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noUnusedLocals": true,
+    "outDir": "../../../../build.assets/.cache/ts/design-new",
+//    "paths": {
+//      "design-new/*": ["web/packages/new/design/src/*"],
+//      "design-new": ["web/packages/new/design/src/"],
+//      "gen-proto-ts/*": ["gen/proto/ts/*"],
+//    },
+    "pretty": true,
+    "rootDir": "../../../..",
+    "strict": true,
+    "verbatimModuleSyntax": true,
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "../../../../gen/proto/ts/**/*.ts",
+  ],
+}

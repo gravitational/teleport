@@ -1,0 +1,13 @@
+{
+  "name": "@gravitational/shared-new",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "author": "Gravitational, Inc.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gravitational/webapps/webapps.git",
+    "directory": "packages/teleport"
+  }
+}

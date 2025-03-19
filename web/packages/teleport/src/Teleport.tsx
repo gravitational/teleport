@@ -19,12 +19,18 @@
 import type { History } from 'history';
 import React, { Suspense, useEffect } from 'react';
 
+import { ThemeProvider } from 'design-new/provider';
+import { NewLogin } from 'teleport-new/routes/login/Login';
+
 import Authenticated from 'teleport/components/Authenticated';
 import { CatchError } from 'teleport/components/CatchError';
 import { Route, Router, Switch } from 'teleport/components/Router';
 import { getOSSFeatures } from 'teleport/features';
+import {
+  LegacyThemeProvider,
+  updateFavicon,
+} from 'teleport/LegacyThemeProvider';
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
-import { ThemeProvider, updateFavicon } from 'teleport/ThemeProvider';
 import { UserContextProvider } from 'teleport/User';
 import { NewCredentials } from 'teleport/Welcome/NewCredentials';
 
@@ -33,7 +39,6 @@ import cfg from './config';
 import { ConsoleWithContext as Console } from './Console';
 import { DesktopSessionContainer as DesktopSession } from './DesktopSession';
 import { HeadlessRequest } from './HeadlessRequest';
-import { Login } from './Login';
 import { LoginClose } from './Login/LoginClose';
 import { LoginFailedComponent as LoginFailed } from './Login/LoginFailed';
 import { LoginSuccess } from './Login/LoginSuccess';
@@ -77,30 +82,32 @@ const Teleport: React.FC<Props> = props => {
   return (
     <CatchError>
       <ThemeProvider>
-        <LayoutContextProvider>
-          <Router history={history}>
-            <Suspense fallback={null}>
-              <Switch>
-                {createPublicRoutes()}
-                <Route path={cfg.routes.root}>
-                  <Authenticated>
-                    <UserContextProvider>
-                      <TeleportContextProvider ctx={ctx}>
-                        <Switch>
-                          <Route
-                            path={cfg.routes.appLauncher}
-                            component={AppLauncher}
-                          />
-                          <Route>{createPrivateRoutes()}</Route>
-                        </Switch>
-                      </TeleportContextProvider>
-                    </UserContextProvider>
-                  </Authenticated>
-                </Route>
-              </Switch>
-            </Suspense>
-          </Router>
-        </LayoutContextProvider>
+        <LegacyThemeProvider>
+          <LayoutContextProvider>
+            <Router history={history}>
+              <Suspense fallback={null}>
+                <Switch>
+                  {createPublicRoutes()}
+                  <Route path={cfg.routes.root}>
+                    <Authenticated>
+                      <UserContextProvider>
+                        <TeleportContextProvider ctx={ctx}>
+                          <Switch>
+                            <Route
+                              path={cfg.routes.appLauncher}
+                              component={AppLauncher}
+                            />
+                            <Route>{createPrivateRoutes()}</Route>
+                          </Switch>
+                        </TeleportContextProvider>
+                      </UserContextProvider>
+                    </Authenticated>
+                  </Route>
+                </Switch>
+              </Suspense>
+            </Router>
+          </LayoutContextProvider>
+        </LegacyThemeProvider>
       </ThemeProvider>
     </CatchError>
   );
@@ -111,7 +118,7 @@ function publicOSSRoutes() {
     <Route
       title="Login"
       path={cfg.routes.login}
-      component={Login}
+      component={NewLogin}
       key="login"
     />,
     ...getSharedPublicRoutes(),

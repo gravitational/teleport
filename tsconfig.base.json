@@ -12,32 +12,13 @@
     "lib": ["dom", "dom.iterable", "esnext"],
     "module": "esnext",
     "moduleResolution": "bundler",
-    "noEmit": true,
     "noEmitHelpers": true,
     "outDir": "build.assets/.cache/ts",
-    "paths": {
-      "build/*": ["web/packages/build/src/*"],
-      "build": ["web/packages/build/src/"],
-      "shared/*": ["web/packages/shared/*"],
-      "design/*": ["web/packages/design/src/*"],
-      "design": ["web/packages/design/src/"],
-      "teleport/*": ["web/packages/teleport/src/*"],
-      "teleport": ["web/packages/teleport/src/"],
-      "teleport-new/*": ["web/packages/new/teleport/src/*"],
-      "teleport-new": ["web/packages/new/teleport/src/"],
-      "teleterm/*": ["web/packages/teleterm/src/*"],
-      "e-teleport/*": ["e/web/teleport/src/*"],
-      "gen-proto-ts/*": ["gen/proto/ts/*"]
-    },
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "sourceMap": false,
     "strictBindCallApply": true,
     "target": "esnext",
     "types": ["node", "@types/wicg-file-system-access"],
-  },
-  "exclude": [
-    "web/packages/new",
-    "**/vite*"
-  ]
+  }
 }

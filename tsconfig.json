@@ -14,7 +14,10 @@
   ],
   "references": [
     { "path": "./tsconfig.node.json" },
-    { "path": "./web/packages/design/tsconfig.json" }
+    { "path": "./web/packages/design/tsconfig.json" },
+    { "path": "./web/packages/new/design/tsconfig.json" },
+    { "path": "./web/packages/new/shared/tsconfig.json" },
+    { "path": "./web/packages/new/teleport/tsconfig.json" }
   ],
   "compilerOptions": {
     "outDir": "build.assets/.cache/ts",
@@ -26,15 +29,23 @@
       "shared/*": ["web/packages/shared/*"],
       "design/*": ["web/packages/design/src/*"],
       "design": ["web/packages/design/src/"],
+      "design-new": ["web/packages/new/design/src/"],
       "teleport/*": ["web/packages/teleport/src/*"],
       "teleport": ["web/packages/teleport/src/"],
       "teleterm/*": ["web/packages/teleterm/src/*"],
       "e-teleport/*": ["e/web/teleport/src/*"],
-      "gen-proto-ts/*": ["gen/proto/ts/*"]
+      "gen-proto-ts/*": ["gen/proto/ts/*"],
+
+      "shared-new/*": ["web/packages/new/shared/*"],
+      "design-new/*": ["web/packages/new/design/src/*"],
+      "teleport-new/*": ["web/packages/new/teleport/src/*"],
+      "teleport-new": ["web/packages/new/teleport/src/"],
+      "e-teleport-new/*": ["e/web/new/src/*"],
     }
   },
   "exclude": [
     "web/packages/design",
+    "web/packages/new",
     "node_modules",
     "**/node_modules/*",
     "**/build/app/**",

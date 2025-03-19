@@ -57,7 +57,6 @@ export default tseslint.config(
         '.prettierrc.js',
         '**/tshd/**/*_pb.js',
         // WASM generated files
-        'web/packages/new',
         'web/packages/teleport/src/ironrdp/pkg',
         'web/packages/teleterm/build',
       ],
@@ -172,36 +171,36 @@ export default tseslint.config(
   ],
   [
     {
-      files: ['**/web/packages/new/**/*.{ts,tsx}'],
+      files: ['**/new/teleport/**/*.{ts,tsx}'],
     },
     {
       ...eslint.configs.recommended,
-      files: ['**/web/packages/new/**/*.{ts,tsx}'],
+      files: ['**/new/teleport/**/*.{ts,tsx}'],
     },
     tseslint.configs.strictTypeChecked.map(config => ({
       ...config,
-      files: ['**/web/packages/new/**/*.{ts,tsx}'],
+      files: ['**/new/teleport/**/*.{ts,tsx}'],
     })),
     tseslint.configs.stylisticTypeChecked.map(config => ({
       ...config,
-      files: ['**/web/packages/new/**/*.{ts,tsx}'],
+      files: ['**/new/teleport/**/*.{ts,tsx}'],
     })),
     {
       ...reactPlugin.configs.flat.recommended,
-      files: ['**/web/packages/new/**/*.{ts,tsx}'],
+      files: ['**/new/teleport/**/*.{ts,tsx}'],
     },
     {
-      files: ['**/web/packages/new/**/*.{ts,tsx}'],
+      files: ['**/new/teleport/**/*.{ts,tsx}'],
       languageOptions: {
         parserOptions: {
           projectService: true,
           tsconfigRootDir: import.meta.dirname,
-          project: './web/packages/new/tsconfig.json',
+          project: './web/packages/new/teleport/tsconfig.json',
         },
       },
     },
     {
-      files: ['**/web/packages/new/**/*.{ts,tsx}'],
+      files: ['**/new/teleport/**/*.{ts,tsx}'],
       settings: {
         react: {
           version: 'detect',
@@ -277,7 +276,7 @@ export default tseslint.config(
       },
     },
     {
-      files: ['**/web/packages/new/**/*.test.{ts,tsx}'],
+      files: ['**/new/teleport/**/*.test.{ts,tsx}'],
       plugins: {
         // vitest,
         'testing-library': testingLibraryPlugin,
