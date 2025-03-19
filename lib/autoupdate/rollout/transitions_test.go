@@ -203,7 +203,7 @@ func TestTriggerGroups(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := TriggerGroups(tt.rollout, tt.groupNames, tt.desiredState, now)
+			err := TriggerGroups(tt.rollout, GroupListToGroupSet(tt.groupNames), tt.desiredState, now)
 			tt.expectErr(t, err)
 
 			if err == nil {
@@ -354,7 +354,7 @@ func TestForceGroupsDone(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ForceGroupsDone(tt.rollout, tt.groupNames, now)
+			err := ForceGroupsDone(tt.rollout, GroupListToGroupSet(tt.groupNames), now)
 			tt.expectErr(t, err)
 
 			if err == nil {
@@ -505,7 +505,7 @@ func TestRollbackGroups(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := RollbackGroups(tt.rollout, tt.groupNames, now)
+			err := RollbackGroups(tt.rollout, GroupListToGroupSet(tt.groupNames), now)
 			tt.expectErr(t, err)
 
 			if err == nil {
@@ -515,10 +515,7 @@ func TestRollbackGroups(t *testing.T) {
 	}
 }
 
-func TestRollbackStartedGroups(t *testing.T) {
-	now := time.Now()
-	nowPb := timestamppb.New(now)
-
+func TestStartedGroups(t *testing.T) {
 	rollout := &autoupdatev1pb.AutoUpdateAgentRollout{
 		Spec: &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
 			StartVersion:   "1.2.3",
@@ -553,37 +550,8 @@ func TestRollbackStartedGroups(t *testing.T) {
 		},
 	}
 
-	expectedGroups := []*autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup{
-		{
-			// Already rolledback group is not changed.
-			Name:  "blue",
-			State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
-		},
-		{
-			// Active and done groups are rolledback.
-			Name:             "dev",
-			State:            autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
-			LastUpdateTime:   nowPb,
-			LastUpdateReason: updateReasonManualRollback,
-		},
-		{
-			Name:             "stage",
-			State:            autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
-			LastUpdateTime:   nowPb,
-			LastUpdateReason: updateReasonManualRollback,
-		},
-		{
-			// Unstarted and unknown groups are not changed.
-			Name:  "prod",
-			State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
-		},
-		{
-			Name:  "backup",
-			State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED,
-		},
-	}
+	expectedGroups := GroupListToGroupSet([]string{"dev", "stage"})
+	result := GetStartedGroups(rollout)
 
-	require.NoError(t, RollbackStartedGroups(rollout, now))
-	require.Empty(t, cmp.Diff(expectedGroups, rollout.GetStatus().GetGroups(), protocmp.Transform()))
-
+	require.Equal(t, expectedGroups, result)
 }
