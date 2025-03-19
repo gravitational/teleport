@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -145,14 +144,9 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 
 	// cluster configuration
 	srv.GET("/:version/configuration/name", srv.WithAuth(srv.getClusterName))
-	srv.POST("/:version/configuration/name", srv.WithAuth(srv.setClusterName))
 
 	// SSO validation handlers
 	srv.POST("/:version/github/requests/validate", srv.WithAuth(srv.validateGithubAuthCallback))
-
-	// Audit logs AKA events
-	srv.GET("/:version/events", srv.WithAuth(srv.searchEvents))
-	srv.GET("/:version/events/session", srv.WithAuth(srv.searchSessionEvents))
 
 	// Migrated/deleted endpoints with 501 Not Implemented handlers.
 	srv.POST("/:version/reversetunnels", httpMigratedHandler)
@@ -510,102 +504,6 @@ func (s *APIServer) validateGithubAuthCallback(auth *ServerWithRoles, w http.Res
 	return &raw, nil
 }
 
-// HTTP GET /:version/events?query
-//
-// Query fields:
-//
-//		'from'  : time filter in RFC3339 format
-//		'to'    : time filter in RFC3339 format
-//	 ...     : other fields are passed directly to the audit backend
-func (s *APIServer) searchEvents(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var err error
-	to := time.Now().In(time.UTC)
-	from := to.AddDate(0, -1, 0) // one month ago
-	query := r.URL.Query()
-	// parse 'to' and 'from' params:
-	fromStr := query.Get("from")
-	if fromStr != "" {
-		from, err = time.Parse(time.RFC3339, fromStr)
-		if err != nil {
-			return nil, trace.BadParameter("from")
-		}
-	}
-	toStr := query.Get("to")
-	if toStr != "" {
-		to, err = time.Parse(time.RFC3339, toStr)
-		if err != nil {
-			return nil, trace.BadParameter("to")
-		}
-	}
-	var limit int
-	limitStr := query.Get("limit")
-	if limitStr != "" {
-		limit, err = strconv.Atoi(limitStr)
-		if err != nil {
-			return nil, trace.BadParameter("failed to parse limit: %q", limit)
-		}
-	}
-
-	eventTypes := query[events.EventType]
-	eventsList, _, err := auth.SearchEvents(r.Context(), events.SearchEventsRequest{
-		From:       from,
-		To:         to,
-		EventTypes: eventTypes,
-		Limit:      limit,
-		Order:      types.EventOrderDescending,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return eventsList, nil
-}
-
-// searchSessionEvents only allows searching audit log for events related to session playback.
-func (s *APIServer) searchSessionEvents(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var err error
-
-	// default values for "to" and "from" fields
-	to := time.Now().In(time.UTC) // now
-	from := to.AddDate(0, -1, 0)  // one month ago
-
-	// parse query for "to" and "from"
-	query := r.URL.Query()
-	fromStr := query.Get("from")
-	if fromStr != "" {
-		from, err = time.Parse(time.RFC3339, fromStr)
-		if err != nil {
-			return nil, trace.BadParameter("from")
-		}
-	}
-	toStr := query.Get("to")
-	if toStr != "" {
-		to, err = time.Parse(time.RFC3339, toStr)
-		if err != nil {
-			return nil, trace.BadParameter("to")
-		}
-	}
-	var limit int
-	limitStr := query.Get("limit")
-	if limitStr != "" {
-		limit, err = strconv.Atoi(limitStr)
-		if err != nil {
-			return nil, trace.BadParameter("failed to parse limit: %q", limit)
-		}
-	}
-	// only pull back start and end events to build list of completed sessions
-	eventsList, _, err := auth.SearchSessionEvents(r.Context(), events.SearchSessionEventsRequest{
-		From:  from,
-		To:    to,
-		Limit: limit,
-		Order: types.EventOrderDescending,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return eventsList, nil
-}
-
 func (*APIServer) getNamespaces(*ServerWithRoles, http.ResponseWriter, *http.Request, httprouter.Params, string) (any, error) {
 	return []types.Namespace{{
 		Kind:    types.KindNamespace,
@@ -643,31 +541,6 @@ func (s *APIServer) getClusterName(auth *ServerWithRoles, w http.ResponseWriter,
 	}
 
 	return rawMessage(services.MarshalClusterName(cn, services.WithVersion(version), services.PreserveRevision()))
-}
-
-type setClusterNameReq struct {
-	ClusterName json.RawMessage `json:"cluster_name"`
-}
-
-func (s *APIServer) setClusterName(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req setClusterNameReq
-
-	err := httplib.ReadJSON(r, &req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cn, err := services.UnmarshalClusterName(req.ClusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = auth.SetClusterName(cn)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return message(fmt.Sprintf("cluster name set: %+v", cn)), nil
 }
 
 type upsertTunnelConnectionRawReq struct {

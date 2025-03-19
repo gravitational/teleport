@@ -792,26 +792,6 @@ func (c *HTTPClient) GetClusterName(opts ...services.MarshalOption) (types.Clust
 	return cn, err
 }
 
-type setClusterNameReq struct {
-	ClusterName json.RawMessage `json:"cluster_name"`
-}
-
-// SetClusterName sets cluster name once, will
-// return Already Exists error if the name is already set
-func (c *HTTPClient) SetClusterName(cn types.ClusterName) error {
-	data, err := services.MarshalClusterName(cn)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = c.PostJSON(context.TODO(), c.Endpoint("configuration", "name"), &setClusterNameReq{ClusterName: data})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 func (c *HTTPClient) ValidateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
 	validateRequestRaw, err := validateRequest.ToRaw()
 	if err != nil {

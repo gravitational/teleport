@@ -104,7 +104,7 @@ type testPack struct {
 	eventsS        *proxyEvents
 	trustS         services.Trust
 	provisionerS   services.Provisioner
-	clusterConfigS services.ClusterConfiguration
+	clusterConfigS services.ClusterConfigurationInternal
 
 	usersS                  services.UsersService
 	accessS                 services.Access
