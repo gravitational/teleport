@@ -220,7 +220,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240903143218-8af14fe29dc1
 	google.golang.org/grpc v1.66.3
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.5.1
-	google.golang.org/protobuf v1.35.1
+	google.golang.org/protobuf v1.35.2
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/dnaeon/go-vcr.v3 v3.2.0
 	gopkg.in/ini.v1 v1.67.0
@@ -269,7 +269,6 @@ require (
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/semver/v3 v3.3.0 // indirect
 	github.com/Masterminds/squirrel v1.5.4 // indirect
-	github.com/Microsoft/hcsshim v0.11.5 // indirect
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137 // indirect
 	github.com/alicebob/gopher-json v0.0.0-20230218143504-906a9b012302 // indirect
 	github.com/apache/arrow/go/v15 v15.0.0 // indirect
@@ -304,9 +303,10 @@ require (
 	github.com/charmbracelet/x/term v0.2.0 // indirect
 	github.com/cloudflare/cfssl v1.6.4 // indirect
 	github.com/cncf/xds/go v0.0.0-20240822171458-6449f94b4d59 // indirect
-	github.com/containerd/containerd v1.7.18 // indirect
-	github.com/containerd/errdefs v0.1.0 // indirect
+	github.com/containerd/containerd v1.7.27 // indirect
+	github.com/containerd/errdefs v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
+	github.com/containerd/platforms v0.2.1 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.14.3 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/coreos/pkg v0.0.0-20220810130054-c7d1c02cb6cf // indirect
