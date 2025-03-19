@@ -128,25 +128,6 @@ func (c *Client) deleteReverseTunnelLegacy(ctx context.Context, domainName strin
 	return trace.Wrap(err)
 }
 
-func (c *HTTPClient) registerUsingTokenLegacy(
-	ctx context.Context, req *types.RegisterUsingTokenRequest,
-) (*proto.Certs, error) {
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := c.PostJSON(ctx, c.Endpoint("tokens", "register"), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var certs proto.Certs
-	if err := json.Unmarshal(out.Bytes(), &certs); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &certs, nil
-}
-
 // GetClusterName returns a cluster name
 // TODO(noah): DELETE IN 19.0.0
 func (c *Client) GetClusterName(ctx context.Context) (types.ClusterName, error) {
