@@ -18,6 +18,16 @@
 
 package authclient
 
+import (
+	"context"
+	"net/url"
+
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
+)
+
 // httpfallback.go holds endpoints that have been converted to gRPC
 // but still need http fallback logic in the old client.
 
