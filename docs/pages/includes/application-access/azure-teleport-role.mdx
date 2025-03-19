@@ -153,7 +153,8 @@ $ tctl create -f azure-cli-access.yaml
 
 (!docs/pages/includes/create-role-using-web.mdx!)
 
-<Details title="Denying access to Azure identities">
+<details>
+<summary>Denying access to Azure identities</summary>
 
 You can define a Teleport role that denies a user access to one or more Azure
 identities. To do so, assign values to the `azure_identities` field within the
@@ -187,6 +188,6 @@ identities.
 The Teleport Auth Service gives `deny` rules precedence over `allow` rules when
 evaluating a user's roles.
 
-</Details>
+</details>
 
 (!docs/pages/includes/add-role-to-user.mdx role="azure-cli-access"!)

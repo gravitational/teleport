@@ -24,8 +24,8 @@ jobs:
         id: generate_token
         uses: actions/create-github-app-token@v1
         with:
-          app-id: ${{ secrets.REVIEWERS_APP_ID }}
-          private-key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
+          app-id: ${{ secrets.BACKPORT_APP_ID }}
+          private-key: ${{ secrets.BACKPORT_PRIVATE_KEY }}
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -41,6 +41,6 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: 'stable'
-        # Run "check" subcommand on bot.
+        # Run "backport" subcommand on bot.
       - name: Backport PR
         run: ( cd .github/shared-workflows/bot && go build ) && .github/shared-workflows/bot/bot -workflow=backport -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ secrets.reviewers }}"

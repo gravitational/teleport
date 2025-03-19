@@ -39,13 +39,6 @@ type ClusterNameGetter interface {
 // in the backend.
 type ClusterConfiguration interface {
 	ClusterNameGetter
-	// SetClusterName sets services.ClusterName on the backend.
-	SetClusterName(types.ClusterName) error
-	// UpsertClusterName upserts cluster name
-	UpsertClusterName(types.ClusterName) error
-
-	// DeleteClusterName deletes cluster name resource
-	DeleteClusterName() error
 
 	// GetStaticTokens gets services.StaticTokens from the backend.
 	GetStaticTokens() (types.StaticTokens, error)
@@ -141,6 +134,13 @@ type ClusterConfiguration interface {
 // auth-specific methods.
 type ClusterConfigurationInternal interface {
 	ClusterConfiguration
+
+	// SetClusterName sets services.ClusterName on the backend.
+	SetClusterName(types.ClusterName) error
+	// UpsertClusterName upserts cluster name
+	UpsertClusterName(types.ClusterName) error
+	// DeleteClusterName deletes cluster name resource
+	DeleteClusterName() error
 
 	// AppendCheckAuthPreferenceActions appends some atomic write actions to the
 	// given slice that will check that the currently stored cluster auth

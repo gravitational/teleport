@@ -47,6 +47,8 @@ export interface FlexProps
    * Uses inline-flex instead of just flex as the display property.
    */
   inline?: boolean;
+  /** Makes the element and its immediate children have 100% width. */
+  fullWidth?: boolean;
 }
 
 const Flex = styled(Box)<FlexProps>`
@@ -57,6 +59,15 @@ const Flex = styled(Box)<FlexProps>`
   ${flexBasis}
   ${flexDirection}
   ${gap};
+
+  ${props =>
+    props.fullWidth &&
+    `
+    width: 100%;
+    & > * {
+      width: 100%;
+    }
+  `}
 `;
 
 Flex.displayName = 'Flex';
@@ -90,9 +101,9 @@ export default Flex;
 export const Stack = styled(Flex).attrs({
   flexDirection: 'column',
 })`
-  // Prevents children from shrinking, within a stack we pretty much never want that to happen.
-  // Individual children can override this.
   & > * {
+    // Prevents children from shrinking, within a stack we pretty much never want that to happen.
+    // Individual children can override this.
     flex-shrink: 0;
   }
 `;
