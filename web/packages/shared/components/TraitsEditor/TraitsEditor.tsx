@@ -26,6 +26,7 @@ import { requiredAll, requiredField } from 'shared/components/Validation/rules';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { AllUserTraits } from 'teleport/services/user';
+import { IconTooltip } from 'design/Tooltip';
 
 /**
  * traitsPreset is a list of system defined traits in Teleport.
@@ -57,6 +58,7 @@ export function TraitsEditor({
   attempt,
   configuredTraits,
   setConfiguredTraits,
+  toolTipContent,
 }: TraitEditorProps) {
   function handleInputChange(i: InputOption | InputOptionArray) {
     const newTraits = [...configuredTraits];
@@ -103,7 +105,10 @@ export function TraitsEditor({
 
   return (
     <Box>
-      <Text typography="body3">User Traits</Text>
+      <Flex gap={2} alignItems="center">
+        <Text typography="body3">User Traits</Text>
+        {toolTipContent && <IconTooltip>{toolTipContent}</IconTooltip>}
+      </Flex>
       <Box>
         {configuredTraits.map(({ traitKey, traitValues }, index) => {
           return (
@@ -252,6 +257,7 @@ export type TraitEditorProps = {
   setConfiguredTraits: Dispatch<SetStateAction<TraitsOption[]>>;
   configuredTraits: TraitsOption[];
   attempt: Attempt;
+  toolTipContent?: React.ReactNode;
 };
 
 export function traitsToTraitsOption(allTraits: AllUserTraits): TraitsOption[] {
