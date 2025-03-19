@@ -160,7 +160,7 @@ func (c *Client) GetClusterName(ctx context.Context) (types.ClusterName, error) 
 	return c.getClusterName(ctx)
 }
 
-// GetClusterName returns a cluster name
+// getClusterName returns a cluster name
 func (c *HTTPClient) getClusterName(ctx context.Context) (types.ClusterName, error) {
 	out, err := c.Get(ctx, c.Endpoint("configuration", "name"), url.Values{})
 	if err != nil {
