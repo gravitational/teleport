@@ -1683,7 +1683,9 @@ type envConfig struct {
 	service                    services.ClusterConfiguration
 	accessGraphConfig          clusterconfigv1.AccessGraphConfig
 	defaultAccessGraphSettings *clusterconfigpb.AccessGraphSettings
+	defaultClusterName         types.ClusterName
 }
+
 type serviceOpt = func(config *envConfig)
 
 func withAuthorizer(authz authz.Authorizer) serviceOpt {
@@ -1728,6 +1730,12 @@ func withAccessGraphSettings(cfg *clusterconfigpb.AccessGraphSettings) serviceOp
 	}
 }
 
+func withClusterName(cn types.ClusterName) serviceOpt {
+	return func(config *envConfig) {
+		config.defaultClusterName = cn
+	}
+}
+
 type env struct {
 	*clusterconfigv1.Service
 	emitter                    *eventstest.ChannelEmitter
@@ -1735,6 +1743,7 @@ type env struct {
 	defaultNetworkingConfig    types.ClusterNetworkingConfig
 	defaultRecordingConfig     types.SessionRecordingConfig
 	defaultAccessGraphSettings *clusterconfigpb.AccessGraphSettings
+	defaultClusterName         types.ClusterName
 }
 
 func newTestEnv(opts ...serviceOpt) (*env, error) {
@@ -1800,6 +1809,14 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 			return nil, trace.Wrap(err, "creating access graph settings")
 		}
 	}
+	var defaultClusterName types.ClusterName
+	if cfg.defaultClusterName != nil {
+		err = cfg.service.SetClusterName(cfg.defaultClusterName)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating cluster name")
+		}
+		defaultClusterName = cfg.defaultClusterName
+	}
 
 	return &env{
 		Service:                    svc,
@@ -1807,6 +1824,7 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 		defaultNetworkingConfig:    defaultNetworkingConfig,
 		defaultRecordingConfig:     defaultSessionRecordingConfig,
 		defaultAccessGraphSettings: defaultAccessGraphSettings,
+		defaultClusterName:         defaultClusterName,
 		emitter:                    emitter,
 	}, nil
 }
@@ -2323,6 +2341,62 @@ func TestResetAccessGraphSettings(t *testing.T) {
 
 			reset, err := env.ResetAccessGraphSettings(context.Background(), &clusterconfigpb.ResetAccessGraphSettingsRequest{})
 			test.assertion(t, reset, err)
+		})
+	}
+}
+
+func TestGetClusterName(t *testing.T) {
+	defaultCn, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterName: "my.example.com",
+		ClusterID:   "0000-0000-0000-0000",
+	})
+	require.NoError(t, err)
+	cases := []struct {
+		name       string
+		authorizer authz.Authorizer
+		testSetup  func(*testing.T)
+		assertion  func(t *testing.T, cn *types.ClusterNameV2, err error)
+	}{
+		{
+			name: "unauthorized",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{},
+				}, nil
+			}),
+			assertion: func(t *testing.T, cn *types.ClusterNameV2, err error) {
+				assert.Nil(t, cn)
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected unauthorized user to prevent resetting access graph settings", err)
+			},
+		},
+		{
+			name: "success",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindClusterName: {types.VerbRead}},
+					},
+				}, nil
+			}),
+			assertion: func(t *testing.T, cn *types.ClusterNameV2, err error) {
+				require.NoError(t, err)
+				require.Equal(t, defaultCn.GetClusterName(), cn.GetClusterName())
+				require.Equal(t, defaultCn.GetClusterID(), cn.GetClusterID())
+			},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			if test.testSetup != nil {
+				test.testSetup(t)
+			}
+
+			env, err := newTestEnv(withAuthorizer(test.authorizer), withClusterName(defaultCn))
+			require.NoError(t, err, "creating test service")
+
+			cn, err := env.GetClusterName(context.Background(), &clusterconfigpb.GetClusterNameRequest{})
+			test.assertion(t, cn, err)
 		})
 	}
 }

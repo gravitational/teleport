@@ -1183,7 +1183,7 @@ func (s *Service) GetClusterName(ctx context.Context, _ *clusterconfigpb.GetClus
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authzCtx.CheckAccessToKind(types.KindAccessGraphSettings, types.VerbUpdate); err != nil {
+	if err := authzCtx.CheckAccessToKind(types.KindClusterName, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
