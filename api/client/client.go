@@ -3204,9 +3204,9 @@ func (c *Client) ForceAutoUpdateAgentGroup(ctx context.Context, groups []string)
 	return rollout, nil
 }
 
-func (c *Client) RollbackAutoUpdateAgentGroup(ctx context.Context, groups []string) (*autoupdatev1pb.AutoUpdateAgentRollout, error) {
+func (c *Client) RollbackAutoUpdateAgentGroup(ctx context.Context, groups []string, allStartedGroups bool) (*autoupdatev1pb.AutoUpdateAgentRollout, error) {
 	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
-	rollout, err := client.RollbackAutoUpdateAgentGroup(ctx, &autoupdatev1pb.RollbackAutoUpdateAgentGroupRequest{Groups: groups})
+	rollout, err := client.RollbackAutoUpdateAgentGroup(ctx, &autoupdatev1pb.RollbackAutoUpdateAgentGroupRequest{Groups: groups, AllStartedGroups: allStartedGroups})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
