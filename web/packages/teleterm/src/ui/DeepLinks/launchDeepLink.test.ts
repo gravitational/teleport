@@ -20,11 +20,16 @@ import { DeepLinkParseResult } from 'teleterm/deepLinks';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 
-import { launchDeepLink } from './launchDeepLink';
+import { AuxContext, launchDeepLink } from './launchDeepLink';
 
 beforeEach(() => {
   jest.restoreAllMocks();
 });
+
+const auxCtx: AuxContext = {
+  vnet: { isSupported: true },
+  connections: { open: jest.fn() },
+};
 
 describe('parse errors', () => {
   const tests: Array<DeepLinkParseResult> = [
@@ -47,7 +52,7 @@ describe('parse errors', () => {
       jest.spyOn(modalsService, 'openRegularDialog');
       jest.spyOn(workspacesService, 'setActiveWorkspace');
 
-      await launchDeepLink(appCtx, result);
+      await launchDeepLink(appCtx, auxCtx, result);
 
       expect(notificationsService.notifyWarning).toHaveBeenCalledTimes(1);
       expect(notificationsService.notifyWarning).toHaveBeenCalledWith({
@@ -98,7 +103,7 @@ it('opens cluster connect dialog if the cluster is not added yet', async () => {
     return { closeDialog: () => {} };
   });
 
-  await launchDeepLink(appCtx, successResult);
+  await launchDeepLink(appCtx, auxCtx, successResult);
 
   expect(workspacesService.getRootClusterUri()).toEqual(cluster.uri);
   const documentsService = workspacesService.getWorkspaceDocumentService(
@@ -116,7 +121,7 @@ it('switches to the workspace if the cluster already exists', async () => {
     draft.clusters.set(cluster.uri, { ...cluster, connected: true });
   });
 
-  await launchDeepLink(appCtx, successResult);
+  await launchDeepLink(appCtx, auxCtx, successResult);
 
   expect(workspacesService.getRootClusterUri()).toEqual(cluster.uri);
   const documentsService = workspacesService.getWorkspaceDocumentService(
@@ -146,7 +151,7 @@ it('does not switch workspaces if the user does not log in to the cluster when a
 
   expect(workspacesService.getRootClusterUri()).toBeUndefined();
 
-  await launchDeepLink(appCtx, successResult);
+  await launchDeepLink(appCtx, auxCtx, successResult);
 
   expect(workspacesService.getRootClusterUri()).toBeUndefined();
 });
@@ -159,7 +164,7 @@ it('sends a notification and does not switch workspaces if the user is on Window
 
   expect(workspacesService.getRootClusterUri()).toBeUndefined();
 
-  await launchDeepLink(appCtx, successResult);
+  await launchDeepLink(appCtx, auxCtx, successResult);
 
   expect(workspacesService.getRootClusterUri()).toBeUndefined();
   expect(notificationsService.notifyWarning).toHaveBeenCalledTimes(1);

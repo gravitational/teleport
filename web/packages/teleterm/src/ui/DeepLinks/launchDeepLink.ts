@@ -20,11 +20,22 @@ import {
   AuthenticateWebDeviceDeepURL,
   ConnectMyComputerDeepURL,
   DeepURL,
+  VnetDeepURL,
 } from 'shared/deepLinks';
 
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
+import { ConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 import { IAppContext } from 'teleterm/ui/types';
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
+import { VnetContext } from 'teleterm/ui/Vnet';
+
+/**
+ * AuxContext holds all the extra things that launchDeepLink needs that come from React contexts.
+ */
+export type AuxContext = {
+  vnet: Pick<VnetContext, 'isSupported'>;
+  connections: Pick<ConnectionsContext, 'open'>;
+};
 
 /**
  * Performs the business logic associated with the given deep link.
@@ -34,6 +45,7 @@ import { RootClusterUri, routing } from 'teleterm/ui/uri';
  */
 export async function launchDeepLink(
   appCtx: IAppContext,
+  auxCtx: AuxContext,
   result: DeepLinkParseResult
 ): Promise<void> {
   const { notificationsService, modalsService } = appCtx;
@@ -93,6 +105,7 @@ export async function launchDeepLink(
       break;
     }
     case '/vnet': {
+      await openVnetPanel(appCtx, auxCtx, result.url);
       break;
     }
     default: {
@@ -231,4 +244,26 @@ async function loginAndSetActiveWorkspace(
 
   await reopenCurrentlyActiveWorkspace();
   return { isAtDesiredWorkspace: false };
+}
+
+async function openVnetPanel(
+  appCtx: IAppContext,
+  { vnet, connections }: AuxContext,
+  url: VnetDeepURL
+): Promise<void> {
+  const { notificationsService } = appCtx;
+  if (!vnet.isSupported) {
+    notificationsService.notifyWarning(
+      'VNet is not supported on this platform.'
+    );
+    return;
+  }
+
+  const result = await loginAndSetActiveWorkspace(appCtx, url);
+
+  if (!result.isAtDesiredWorkspace) {
+    return;
+  }
+
+  connections.open('vnet');
 }

@@ -15,22 +15,33 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 
 import { parseDeepLink } from 'teleterm/deepLinks';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useLogger } from 'teleterm/ui/hooks/useLogger';
+import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
+import { useVnetContext } from 'teleterm/ui/Vnet';
 
 import { launchDeepLink } from './launchDeepLink';
 
 export const DeepLinks = () => {
   const appCtx = useAppContext();
   const logger = useLogger('DeepLinks');
+  const connections = useConnectionsContext();
+  const vnet = useVnetContext();
+  const auxCtx = useMemo(
+    () => ({
+      vnet: { isSupported: vnet.isSupported },
+      connections: { open: connections.open },
+    }),
+    [vnet.isSupported, connections.open]
+  );
 
   useEffect(() => {
     const { cleanup } = appCtx.mainProcessClient.subscribeToDeepLinkLaunch(
       result => {
-        launchDeepLink(appCtx, result).catch(error => {
+        launchDeepLink(appCtx, auxCtx, result).catch(error => {
           logger.error('Error when launching a deep link', error);
         });
       }
@@ -39,14 +50,14 @@ export const DeepLinks = () => {
     if (process.env.NODE_ENV === 'development') {
       window['deepLinkLaunch'] = (url: string) => {
         const result = parseDeepLink(url);
-        launchDeepLink(appCtx, result).catch(error => {
+        launchDeepLink(appCtx, auxCtx, result).catch(error => {
           logger.error('Error when launching a deep link', error);
         });
       };
     }
 
     return cleanup;
-  }, [appCtx, logger]);
+  }, [appCtx, auxCtx, logger]);
 
   return null;
 };

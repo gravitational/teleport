@@ -65,5 +65,9 @@ test('queuing up a deep link launch before the app is rendered', async () => {
   // Verify that once the UI is ready, launchDeepLink is called.
   await expect(deepLinkLaunchPromise).resolves.toBe(undefined);
   expect(launchDeepLink).toHaveBeenCalledTimes(1);
-  expect(launchDeepLink).toHaveBeenCalledWith(ctx, deepLinkParseResult);
+  expect(launchDeepLink).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.anything(),
+    deepLinkParseResult
+  );
 });
