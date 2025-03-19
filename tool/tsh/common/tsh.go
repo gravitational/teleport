@@ -68,7 +68,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
-	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -4602,7 +4601,7 @@ func setEnvVariables(c *client.Config, options Options) {
 }
 
 func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
-	hwks := piv.NewYubiKeyService(nil /*prompt*/)
+	hwks := client.NewHardwareKeyService(cf.Context, nil /*prompt*/)
 
 	switch {
 	case cf.IdentityFileIn != "":

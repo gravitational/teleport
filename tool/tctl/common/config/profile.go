@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
@@ -46,7 +45,7 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 		proxyAddr = ccf.AuthServerAddr[0]
 	}
 
-	hwks := piv.NewYubiKeyService(nil /*prompt*/)
+	hwks := client.NewHardwareKeyService(ctx, nil /*prompt*/)
 	clientStore := client.NewFSClientStore(cfg.TeleportHome, client.WithHardwareKeyService(hwks))
 	if ccf.IdentityFilePath != "" {
 		var err error
