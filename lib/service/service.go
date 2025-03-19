@@ -47,7 +47,7 @@ import (
 	"testing"
 	"time"
 
-	awssession "github.com/aws/aws-sdk-go/aws/session"
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/renameio/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -127,7 +127,6 @@ import (
 	"github.com/gravitational/teleport/lib/events/pgevents"
 	"github.com/gravitational/teleport/lib/events/s3sessions"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/joinserver"
@@ -166,11 +165,9 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/cert"
 	"github.com/gravitational/teleport/lib/utils/hostid"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	vc "github.com/gravitational/teleport/lib/versioncontrol"
 	"github.com/gravitational/teleport/lib/versioncontrol/endpoint"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
 	"github.com/gravitational/teleport/lib/web"
@@ -1243,18 +1240,27 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	hello := proto.UpstreamInventoryHello{
+		ServerID: cfg.HostUUID,
+		Version:  teleport.Version,
+		Services: process.getInstanceRoles(),
+		Hostname: cfg.Hostname,
+	}
+
 	upgraderKind, externalUpgrader, upgraderVersion := process.detectUpgrader()
+	hello.ExternalUpgrader = externalUpgrader
+	if upgraderVersion != nil {
+		// The UpstreamInventoryHello message wants versions with the leading "v".
+		hello.ExternalUpgraderVersion = "v" + upgraderVersion.String()
+	}
 
 	// note: we must create the inventory handle *after* registerExpectedServices because that function determines
 	// the list of services (instance roles) to be included in the heartbeat.
-	process.inventoryHandle = inventory.NewDownstreamHandle(process.makeInventoryControlStreamWhenReady, proto.UpstreamInventoryHello{
-		ServerID:                cfg.HostUUID,
-		Version:                 teleport.Version,
-		Services:                process.getInstanceRoles(),
-		Hostname:                cfg.Hostname,
-		ExternalUpgrader:        externalUpgrader,
-		ExternalUpgraderVersion: vc.Normalize(upgraderVersion),
-	}, inventory.WithDownstreamClock(process.Clock))
+	process.inventoryHandle = inventory.NewDownstreamHandle(
+		process.makeInventoryControlStreamWhenReady,
+		hello,
+		inventory.WithDownstreamClock(process.Clock),
+	)
 
 	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping proto.DownstreamInventoryPing) {
 		systemClock := process.Clock.Now().UTC()
@@ -1548,11 +1554,11 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 // Note that kind and externalName are usually the same.
 // However, some unregistered upgraders like the AWS ODIC upgrader are not valid kinds.
 // For these upgraders, kind is empty and externalName is set to a non-kind value.
-func (process *TeleportProcess) detectUpgrader() (kind, externalName, version string) {
+func (process *TeleportProcess) detectUpgrader() (kind, externalName string, version *semver.Version) {
 	// Check if the deprecated teleport-upgrader script is being used.
 	kind = os.Getenv(automaticupgrades.EnvUpgrader)
 	version = automaticupgrades.GetUpgraderVersion(process.GracefulExitContext())
-	if version == "" {
+	if version == nil {
 		kind = ""
 	}
 
@@ -1564,7 +1570,7 @@ func (process *TeleportProcess) detectUpgrader() (kind, externalName, version st
 		// If this is a teleport-update managed installation, the version
 		// managed by the timer will always match the installed version of teleport.
 		kind = types.UpgraderKindTeleportUpdate
-		version = "v" + teleport.Version
+		version = teleport.SemVersion
 	}
 
 	// Instances deployed using the AWS OIDC integration are automatically updated
@@ -4862,34 +4868,21 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 
-		awsSessionGetter := func(ctx context.Context, region, integration string) (*awssession.Session, error) {
-			if integration == "" {
-				return awsutils.SessionProviderUsingAmbientCredentials()(ctx, region, integration)
-			}
-
-			return awsoidc.NewSessionV1(ctx, conn.Client, region, integration)
-		}
-		awsConfigProvider, err := awsconfig.NewCache(awsconfig.WithDefaults(
-			awsconfig.WithOIDCIntegrationClient(conn.Client),
-		))
-		if err != nil {
-			return trace.Wrap(err, "unable to create AWS config provider cache")
-		}
-
 		connectionsHandler, err := app.NewConnectionsHandler(process.GracefulExitContext(), &app.ConnectionsHandlerConfig{
-			Clock:              process.Clock,
-			DataDir:            cfg.DataDir,
-			Emitter:            asyncEmitter,
-			Authorizer:         authorizer,
-			HostID:             cfg.HostUUID,
-			AuthClient:         conn.Client,
-			AccessPoint:        accessPoint,
-			TLSConfig:          serverTLSConfig,
-			ConnectionMonitor:  connMonitor,
-			CipherSuites:       cfg.CipherSuites,
-			ServiceComponent:   teleport.ComponentWebProxy,
-			AWSSessionProvider: awsSessionGetter,
-			AWSConfigProvider:  awsConfigProvider,
+			Clock:             process.Clock,
+			DataDir:           cfg.DataDir,
+			Emitter:           asyncEmitter,
+			Authorizer:        authorizer,
+			HostID:            cfg.HostUUID,
+			AuthClient:        conn.Client,
+			AccessPoint:       accessPoint,
+			TLSConfig:         serverTLSConfig,
+			ConnectionMonitor: connMonitor,
+			CipherSuites:      cfg.CipherSuites,
+			ServiceComponent:  teleport.ComponentWebProxy,
+			AWSConfigOptions: []awsconfig.OptionsFn{
+				awsconfig.WithOIDCIntegrationClient(conn.Client),
+			},
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -6205,25 +6198,19 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
-		awsConfigProvider, err := awsconfig.NewCache()
-		if err != nil {
-			return trace.Wrap(err, "unable to create AWS config provider cache")
-		}
 		connectionsHandler, err := app.NewConnectionsHandler(process.ExitContext(), &app.ConnectionsHandlerConfig{
-			Clock:              process.Config.Clock,
-			DataDir:            process.Config.DataDir,
-			AuthClient:         conn.Client,
-			AccessPoint:        accessPoint,
-			Authorizer:         authorizer,
-			TLSConfig:          tlsConfig,
-			CipherSuites:       process.Config.CipherSuites,
-			HostID:             process.Config.HostUUID,
-			Emitter:            asyncEmitter,
-			ConnectionMonitor:  connMonitor,
-			ServiceComponent:   teleport.ComponentApp,
-			Logger:             logger,
-			AWSSessionProvider: awsutils.SessionProviderUsingAmbientCredentials(),
-			AWSConfigProvider:  awsConfigProvider,
+			Clock:             process.Config.Clock,
+			DataDir:           process.Config.DataDir,
+			AuthClient:        conn.Client,
+			AccessPoint:       accessPoint,
+			Authorizer:        authorizer,
+			TLSConfig:         tlsConfig,
+			CipherSuites:      process.Config.CipherSuites,
+			HostID:            process.Config.HostUUID,
+			Emitter:           asyncEmitter,
+			ConnectionMonitor: connMonitor,
+			ServiceComponent:  teleport.ComponentApp,
+			Logger:            logger,
 		})
 		if err != nil {
 			return trace.Wrap(err)

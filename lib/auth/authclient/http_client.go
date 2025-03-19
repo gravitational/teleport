@@ -315,25 +315,6 @@ func (c *HTTPClient) Delete(ctx context.Context, u string) (*roundtrip.Response,
 	return httplib.ConvertResponse(c.Client.Delete(ctx, u))
 }
 
-// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
-// signed certificate if successful.
-// DEPRECATED
-// TODO(tigrato): DELETE IN 18.0
-func (c *HTTPClient) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := c.PostJSON(context.TODO(), c.Endpoint("kube", "csr"), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var re KubeCSRResponse
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &re, nil
-}
-
 type upsertTunnelConnectionRawReq struct {
 	TunnelConnection json.RawMessage `json:"tunnel_connection"`
 }
@@ -809,26 +790,6 @@ func (c *HTTPClient) GetClusterName(opts ...services.MarshalOption) (types.Clust
 	}
 
 	return cn, err
-}
-
-type setClusterNameReq struct {
-	ClusterName json.RawMessage `json:"cluster_name"`
-}
-
-// SetClusterName sets cluster name once, will
-// return Already Exists error if the name is already set
-func (c *HTTPClient) SetClusterName(cn types.ClusterName) error {
-	data, err := services.MarshalClusterName(cn)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = c.PostJSON(context.TODO(), c.Endpoint("configuration", "name"), &setClusterNameReq{ClusterName: data})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
 }
 
 func (c *HTTPClient) ValidateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {

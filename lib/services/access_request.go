@@ -92,8 +92,7 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 
 // ClusterGetter provides access to the local cluster
 type ClusterGetter interface {
-	// GetClusterName returns the local cluster name
-	GetClusterName(opts ...MarshalOption) (types.ClusterName, error)
+	ClusterNameGetter
 	// GetRemoteCluster returns a remote cluster by name
 	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
 }

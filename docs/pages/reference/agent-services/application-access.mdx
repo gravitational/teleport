@@ -39,6 +39,14 @@ app_service:
     public_addr: "grafana.teleport.example.com"
     # Rewrites section.
     rewrite:
+      # Specify whether to include roles or traits in the JWT.
+      # Options:
+      # - roles-and-traits: include both roles and traits
+      # - roles: include only roles
+      # - traits: include only traits
+      # - none: exclude both roles and traits from the JWT token
+      # Default: roles-and-traits
+      jwt_claims: roles-and-traits
       # Rewrite the "Location" header on redirect responses replacing the
       # host with the public address of this application.
       redirect:

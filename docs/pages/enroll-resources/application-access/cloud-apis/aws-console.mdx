@@ -225,7 +225,8 @@ this role when proxying requests:
    `ExampleReadOnlyAccess` role. With the trust policy above, AWS authorizes
    this operation.
 
-   <Details title="Cross-account access">
+   <details>
+   <summary>Cross-account access</summary>
 
    If you are configuring the Application Service to proxy access to IAM roles
    in another AWS account, we recommend checking the external ID of the AWS
@@ -255,7 +256,7 @@ this role when proxying requests:
    See the [AWS
    documentation](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-user_externalid.html)
    for details on external IDs.
-   </Details>
+   </details>
 
 1. Run the following commands to create the `ExampleReadOnlyAccess` role:
 
@@ -492,7 +493,8 @@ following values in order to be recognized as an AWS console:
 | AWS GovCloud (US) regions | `https://console.amazonaws-us-gov.com` |
 | AWS China regions         | `https://console.amazonaws.cn` |
 
-<Details title="Multiple AWS accounts">
+<details>
+<summary>Multiple AWS accounts</summary>
 
 If you have multiple AWS accounts and would like to logically separate them
 in the UI, register an application entry for each and set `aws_account_id`
@@ -527,7 +529,7 @@ For AWS accounts that require external IDs for accessing their resources, set
 the `external_id` field, which the Application Service uses when assuming the
 AWS roles in these accounts.
 
-</Details>
+</details>
 
 ### Start the Teleport Application Service
 

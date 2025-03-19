@@ -518,6 +518,8 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_access_monitoring_rule":     resourceTeleportAccessMonitoringRuleType{},
 		"teleport_static_host_user":           resourceTeleportStaticHostUserType{},
 		"teleport_workload_identity":          resourceTeleportWorkloadIdentityType{},
+		"teleport_autoupdate_version":         resourceTeleportAutoUpdateVersionType{},
+		"teleport_autoupdate_config":          resourceTeleportAutoUpdateConfigType{},
 	}, nil
 }
 
@@ -546,6 +548,8 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_access_monitoring_rule":     dataSourceTeleportAccessMonitoringRuleType{},
 		"teleport_static_host_user":           dataSourceTeleportStaticHostUserType{},
 		"teleport_workload_identity":          dataSourceTeleportWorkloadIdentityType{},
+		"teleport_autoupdate_version":         dataSourceTeleportAutoUpdateVersionType{},
+		"teleport_autoupdate_config":          dataSourceTeleportAutoUpdateConfigType{},
 	}, nil
 }
 

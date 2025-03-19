@@ -87,9 +87,9 @@ type StandardModelAction =
   | AddResourceAccessAction
   | SetResourceAccessAction
   | RemoveResourceAccessAction
-  | AddAccessRuleAction
-  | SetAccessRuleAction
-  | RemoveAccessRuleAction
+  | AddAdminRuleAction
+  | SetAdminRuleAction
+  | RemoveAdminRuleAction
   | SetOptionsAction;
 
 /** Sets the entire model. */
@@ -108,9 +108,9 @@ type RemoveResourceAccessAction = {
   type: 'remove-resource-access';
   payload: { kind: ResourceAccessKind };
 };
-type AddAccessRuleAction = { type: 'add-access-rule'; payload?: never };
-type SetAccessRuleAction = { type: 'set-access-rule'; payload: RuleModel };
-type RemoveAccessRuleAction = {
+type AddAdminRuleAction = { type: 'add-access-rule'; payload?: never };
+type SetAdminRuleAction = { type: 'set-access-rule'; payload: RuleModel };
+type RemoveAdminRuleAction = {
   type: 'remove-access-rule';
   payload: { id: string };
 };

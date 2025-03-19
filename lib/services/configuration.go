@@ -28,19 +28,17 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 )
 
+// ClusterNameGetter is a service that gets the cluster name from the backend.
+type ClusterNameGetter interface {
+	// GetClusterName gets types.ClusterName from the backend.
+	GetClusterName(opts ...MarshalOption) (types.ClusterName, error)
+}
+
 // ClusterConfiguration stores the cluster configuration in the backend. All
 // the resources modified by this interface can only have a single instance
 // in the backend.
 type ClusterConfiguration interface {
-	// GetClusterName gets types.ClusterName from the backend.
-	GetClusterName(opts ...MarshalOption) (types.ClusterName, error)
-	// SetClusterName sets services.ClusterName on the backend.
-	SetClusterName(types.ClusterName) error
-	// UpsertClusterName upserts cluster name
-	UpsertClusterName(types.ClusterName) error
-
-	// DeleteClusterName deletes cluster name resource
-	DeleteClusterName() error
+	ClusterNameGetter
 
 	// GetStaticTokens gets services.StaticTokens from the backend.
 	GetStaticTokens() (types.StaticTokens, error)
@@ -136,6 +134,13 @@ type ClusterConfiguration interface {
 // auth-specific methods.
 type ClusterConfigurationInternal interface {
 	ClusterConfiguration
+
+	// SetClusterName sets services.ClusterName on the backend.
+	SetClusterName(types.ClusterName) error
+	// UpsertClusterName upserts cluster name
+	UpsertClusterName(types.ClusterName) error
+	// DeleteClusterName deletes cluster name resource
+	DeleteClusterName() error
 
 	// AppendCheckAuthPreferenceActions appends some atomic write actions to the
 	// given slice that will check that the currently stored cluster auth
