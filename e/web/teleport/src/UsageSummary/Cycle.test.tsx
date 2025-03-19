@@ -1,7 +1,6 @@
 import { within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 
-import { render, screen, waitFor } from 'design/utils/testing';
+import { render, screen } from 'design/utils/testing';
 
 import { Cycle, CycleProps } from 'e-teleport/UsageSummary/Cycle';
 import { makeUsageSummary } from 'e-teleport/UsageSummary/testHelpers';
@@ -29,6 +28,18 @@ describe('cycle', () => {
           perMau: 0,
           cycleCount: 0,
         },
+        mwi: {
+          maximum: 2,
+          free: 2,
+          perMau: 0,
+          cycleCount: 1,
+        },
+        igmau: {
+          maximum: 4,
+          free: 4,
+          perMau: 0,
+          cycleCount: 3,
+        },
       }),
     };
   });
@@ -46,80 +57,82 @@ describe('cycle', () => {
       perMau: 0,
       cycleCount: 0,
     };
+    props.summary.mwi = {
+      maximum: 0,
+      free: 0,
+      perMau: 0,
+      cycleCount: 0,
+    };
+    props.summary.igmau = {
+      maximum: 0,
+      free: 0,
+      perMau: 0,
+      cycleCount: 0,
+    };
 
     render(<Cycle {...props} />);
 
-    expect(screen.getByText(/Current Cycle:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Current Billing Cycle:/i)).toBeInTheDocument();
     expect(
       screen.getByText(/Jan 06, 2023 - May 02, 2023/i)
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Monthly usage will reset at the end of this cycle./i)
+      screen.getByText(/Monthly usage will reset at the end of this cycle/i)
     ).toBeInTheDocument();
 
-    const mau = screen.getByTestId(/Active Users/i);
+    const mau = screen.getAllByTestId(/Active Users/i)[0];
 
     expect(within(mau).getByText(/0 of 0/i)).toBeInTheDocument();
     expect(within(mau).getByText(/\(0%\)/i)).toBeInTheDocument();
 
-    const pr = screen.getByTestId(/Teleport Protected Resources/i);
+    const pr = screen.getAllByTestId(/Teleport Protected Resources/i)[0];
 
     expect(within(pr).getByText(/0 of 0/i)).toBeInTheDocument();
     expect(within(pr).getByText(/\(0%\)/i)).toBeInTheDocument();
-  });
 
-  test('info icon popovers', async () => {
-    props.summary.usageUpdatedAt = 1699538455; // 2023-11-09 14:00:55
-    render(<Cycle {...props} />);
+    const mwi = screen.getAllByTestId(/MWI/i)[0];
 
-    const mau = screen.getByTestId(/Active Users/i);
-    const mauIcon = within(mau).getByRole('icon');
-    await userEvent.hover(mauIcon);
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          'Any unique human or machine user, local or SSO username or email with recorded activity during a month.'
-        )
-      ).toBeVisible();
-    });
-    await userEvent.unhover(mauIcon);
+    expect(within(mwi).getByText(/0 of 0/i)).toBeInTheDocument();
+    expect(within(mwi).getByText(/\(0%\)/i)).toBeInTheDocument();
 
-    const tpr = screen.getByTestId(/Teleport Protected Resources/i);
-    const tprIcon = within(tpr).getByRole('icon');
-    await userEvent.hover(tprIcon);
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          'Any unique resource such as a Kubernetes cluster, SSH server, database instance or serverless endpoint, that has registered itself with the Teleport cluster and is protected by Teleport.'
-        )
-      ).toBeVisible();
-    });
-    await userEvent.unhover(tprIcon);
+    const igmau = screen.getAllByTestId(/Active Users/i)[1];
 
-    const updated = screen.getByTestId('updated-at-display');
-    const updatedIcon = within(updated).getByRole('icon');
-    await userEvent.hover(updatedIcon);
-    await waitFor(() => {
-      expect(screen.getByText('Updated every 12 hours.')).not.toBe(0);
-    });
-    await userEvent.unhover(updatedIcon);
+    expect(within(igmau).getByText(/0 of 0/i)).toBeInTheDocument();
+    expect(within(igmau).getByText(/\(0%\)/i)).toBeInTheDocument();
   });
 
   test('renders usage', () => {
     props.summary.mau.cycleCount = 0;
     props.summary.tpr.cycleCount = 80;
+    props.summary.mwi.cycleCount = 800;
+    props.summary.igmau.cycleCount = 4;
     props.summary.usageUpdatedAt = 0;
 
     render(<Cycle {...props} />);
-    const mau = screen.getByTestId(/Active Users/i);
+    const mau = screen.getAllByTestId(/Monthly Active Users \(MAU\)/i)[0];
 
     expect(within(mau).getByText(/0 of 2/i)).toBeInTheDocument();
     expect(within(mau).getByText(/\(0%\)/i)).toBeInTheDocument();
 
-    const pr = screen.getByTestId(/Teleport Protected Resources/i);
+    const pr = screen.getAllByTestId(/Teleport Protected Resources/i)[0];
 
     expect(within(pr).getByText(/80 of 20/i)).toBeInTheDocument();
     expect(within(pr).getByText(/\(400%\)/i)).toBeInTheDocument();
+
+    const mwi = screen.getByTestId(/MWI/i);
+
+    expect(within(mwi).getByText(/800 of 2/i)).toBeInTheDocument();
+    expect(within(mwi).getByText(/\(40000%\)/i)).toBeInTheDocument();
+
+    const igmau = screen.getAllByTestId(/Monthly Active Users \(MAU\)/i)[1];
+
+    expect(within(igmau).getByText(/4 of 4/i)).toBeInTheDocument();
+    expect(within(igmau).getByText(/\(100%\)/i)).toBeInTheDocument();
+
+    const ispr = screen.getAllByTestId(/Teleport Protected Resources/i)[1];
+
+    expect(within(ispr).getByText(/80 of 20/i)).toBeInTheDocument();
+    expect(within(ispr).getByText(/\(400%\)/i)).toBeInTheDocument();
   });
 
   test('renders usage updated at with no value', () => {
@@ -127,6 +140,7 @@ describe('cycle', () => {
     render(<Cycle {...props} />);
 
     expect(screen.getByText('Updated every 12 hours')).toBeInTheDocument();
+    expect(screen.queryByText(/Last updated/)).not.toBeInTheDocument();
   });
 
   test('renders usage updated at with value', () => {
@@ -135,6 +149,7 @@ describe('cycle', () => {
     render(<Cycle {...props} />);
 
     expect(screen.getByText('Last updated: Nov 09, 2023')).toBeInTheDocument();
+    expect(screen.getByText(/Updated every 12 hours/)).toBeInTheDocument();
   });
 });
 
@@ -156,11 +171,7 @@ describe('calibration period', () => {
 
     render(<Cycle {...props} />);
 
-    expect(screen.getAllByText('Calibrating...')).toHaveLength(2);
-    expect(
-      screen.getByText(
-        'A change to your account requires a calibration period in order to accurately count Active Users and Teleport Protected Resources. This should resolve itself with the start of your next billing cycle.'
-      )
-    ).toBeInTheDocument();
+    expect(screen.getAllByText('Calibrating')).toHaveLength(5);
+    expect(screen.getByText('Calibration In Progress')).toBeInTheDocument();
   });
 });

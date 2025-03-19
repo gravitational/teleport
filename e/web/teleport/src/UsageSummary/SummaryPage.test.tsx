@@ -29,17 +29,29 @@ test('renders cycle if cycle usage is present', () => {
           cycleCount: 2,
           perMau: 0,
         },
+        mwi: {
+          maximum: 2,
+          free: 2,
+          cycleCount: 2,
+          perMau: 0,
+        },
+        igmau: {
+          maximum: 2,
+          free: 2,
+          cycleCount: 2,
+          perMau: 0,
+        },
       })}
     />
   );
 
-  expect(screen.getByText(/Current Cycle:/i)).toBeInTheDocument();
+  expect(screen.getByText(/Current Billing Cycle:/i)).toBeInTheDocument();
 });
 
 test('does not render cycle if cycle usage is not present', () => {
   render(<SummaryPage summary={undefined} />);
 
-  expect(screen.queryByText(/Current Cycle/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/Current Billing Cycle/i)).not.toBeInTheDocument();
   expect(
     screen.getByText(/Usage data is being gathered./i)
   ).toBeInTheDocument();

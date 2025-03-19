@@ -7,6 +7,9 @@ import { UsageHistoryItem } from 'e-teleport/services/cloud/v1/tenants_pb';
 import { usageHistory } from './fixtures';
 import { UsageHistory } from './UsageHistory';
 
+const calibrationInfo =
+  /A change to your account required a calibration period in order to accurately count Active Users across trusted clusters/;
+
 test('shows empty state when there is no usage history', async () => {
   render(
     <UsageHistory
@@ -34,23 +37,24 @@ test('renders all elements', async () => {
 
   // column headers
   expect(screen.getByText('Billing Cycle')).toBeInTheDocument();
-  expect(screen.getByText('Monthly Active Users (MAU)')).toBeInTheDocument();
-  expect(
-    screen.getByText('Teleport Protected Resources (TPR)')
-  ).toBeInTheDocument();
+  expect(screen.getByText('ZTA MAU')).toBeInTheDocument();
+  expect(screen.getByText('ZTA TPR')).toBeInTheDocument();
+  expect(screen.getByText('MWI')).toBeInTheDocument();
+  expect(screen.getByText('IG MAU')).toBeInTheDocument();
+  expect(screen.getByText('IS TPR')).toBeInTheDocument();
 
   // rows
   expect(screen.getByText('Jan 15, 2023 - Feb 14, 2023')).toBeInTheDocument();
   expect(screen.getByText('100')).toBeInTheDocument();
-  expect(screen.getByText('1000')).toBeInTheDocument();
+  expect(screen.getAllByText('1000')).toHaveLength(2);
 
   expect(screen.getByText('Feb 15, 2023 - Mar 14, 2023')).toBeInTheDocument();
   expect(screen.getByText('101')).toBeInTheDocument();
-  expect(screen.getByText('1001')).toBeInTheDocument();
+  expect(screen.getAllByText('1001')).toHaveLength(2);
 
   expect(screen.getByText('Mar 15, 2023 - Apr 14, 2023')).toBeInTheDocument();
   expect(screen.getByText('102')).toBeInTheDocument();
-  expect(screen.getByText('1002')).toBeInTheDocument();
+  expect(screen.getAllByText('1000')).toHaveLength(2);
 });
 
 test('highlights the current cycle', async () => {
@@ -103,5 +107,19 @@ test('shows calibration periods', async () => {
 
   expect(screen.queryByText(usageHistory[1].mau)).not.toBeInTheDocument();
   expect(screen.queryByText(usageHistory[1].tpr)).not.toBeInTheDocument();
-  expect(screen.getAllByText('Calibration Period')).toHaveLength(2);
+  expect(screen.getAllByText('Calibration Period*')).toHaveLength(5);
+  expect(screen.getByText(calibrationInfo)).toBeInTheDocument();
+});
+
+test('omits calibration explanation if there is no calibration period on table', async () => {
+  render(
+    <UsageHistory
+      history={usageHistory}
+      hasCloudAnonymizationKey={true}
+      salesforceIdUpdatedAt={0}
+    />
+  );
+
+  expect(screen.queryByText('Calibration Period*')).not.toBeInTheDocument();
+  expect(screen.queryByText(calibrationInfo)).not.toBeInTheDocument();
 });

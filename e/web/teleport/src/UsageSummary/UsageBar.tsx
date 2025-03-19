@@ -1,23 +1,15 @@
 import styled, { useTheme } from 'styled-components';
 
 import { Box, Flex, Text } from 'design';
-import { IconTooltip } from 'design/Tooltip';
 
-import { CycleUsage } from 'e-teleport/UsageSummary/types';
+import { ProductUsage } from 'e-teleport/UsageSummary/types';
 
 export function UsageBar({
-  usage: {
-    name,
-    info,
-    percentageMax,
-    percentage,
-    hardMax,
-    hasFreeTier,
-    total,
-    calibrating,
-  },
+  productUsage,
+  calibrating,
 }: {
-  usage: CycleUsage;
+  productUsage: ProductUsage;
+  calibrating: boolean;
 }) {
   const theme = useTheme();
   const getColor = (
@@ -41,35 +33,39 @@ export function UsageBar({
     return theme.colors.success.main;
   };
 
-  return (
-    <BarContainer key={name} data-testid={name}>
-      <Flex flexDirection="row" alignItems="center" gap={2}>
-        <h3>{name}</h3>
-        <IconTooltip children={<Text>{info}</Text>} />
-      </Flex>
-      {calibrating ? (
-        <Text style={{ fontStyle: 'italic' }}>Calibrating...</Text>
-      ) : (
-        <>
-          {total} of {percentageMax}
-          {hasFreeTier && ' Included'} ({percentage}%)
-        </>
-      )}
-      <StyledBar
-        percent={Math.min(percentage, 100)}
-        color={getColor(total, hasFreeTier, percentageMax, hardMax)}
-        calibrating={calibrating}
-      />
-    </BarContainer>
+  return productUsage.usages.map(
+    ({ percentageMax, percentage, hardMax, total, name }, i) => (
+      <BarContainer
+        key={name}
+        data-testid={name}
+        mb={i == productUsage.usages.length - 1 ? '0' : '4'}
+      >
+        <Flex width="100%" justifyContent="space-between">
+          <Text>{name}</Text>
+          <Box>
+            {calibrating ? (
+              <Text style={{ fontStyle: 'italic' }}>Calibrating</Text>
+            ) : (
+              <>
+                {total || 0} of {percentageMax} ({percentage}%)
+              </>
+            )}
+          </Box>
+        </Flex>
+        <Box mt="3">
+          <StyledBar
+            percent={Math.min(percentage, 100)}
+            color={getColor(total, false, percentageMax, hardMax)}
+            calibrating={calibrating}
+          />
+        </Box>
+      </BarContainer>
+    )
   );
 }
 
 const BarContainer = styled(Box)`
-  width: 100%;
-  flex: 40% 0;
-  @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
-    width: 30%;
-  }
+  weight: 300;
 `;
 
 const StyledBar = styled.div<{
@@ -79,9 +75,7 @@ const StyledBar = styled.div<{
 }>`
   background: ${props => props.theme.colors.spotBackground[0]};
   border-radius: 13px;
-  height: 20px;
-  width: 80%;
-  padding: 3px;
+  height: 8px;
 
   &:after {
     content: '';

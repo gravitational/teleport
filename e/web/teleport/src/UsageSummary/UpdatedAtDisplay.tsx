@@ -1,5 +1,4 @@
 import { Box, Flex, Text } from 'design';
-import { IconTooltip } from 'design/Tooltip';
 
 export const UpdatedAtDisplay = ({
   theme,
@@ -18,8 +17,8 @@ export const UpdatedAtDisplay = ({
     >
       {usageUpdatedAt > 0 ? (
         <Flex alignItems="center">
-          <Box mr="2">Last updated: {usageUpdatedAtFormatted}</Box>
-          <IconTooltip children="Updated every 12 hours." />
+          <Box mr="2">Last updated: {usageUpdatedAtFormatted}</Box>| Updated
+          every 12 hours
         </Flex>
       ) : (
         'Updated every 12 hours'

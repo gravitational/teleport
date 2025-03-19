@@ -28,6 +28,18 @@ export const makeUsageSummary = (
         free: 0,
         perMau: 0,
       },
+      mwi: {
+        cycleCount: 0,
+        maximum: 0,
+        free: 0,
+        perMau: 0,
+      },
+      igmau: {
+        cycleCount: 0,
+        maximum: 0,
+        free: 0,
+        perMau: 0,
+      },
       usageHistory: [],
     },
     overrides

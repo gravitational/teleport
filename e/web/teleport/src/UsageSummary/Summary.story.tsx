@@ -31,6 +31,18 @@ export function SummaryPageViewWithUsage() {
       free: 0,
       perMau: 5,
     },
+    mwi: {
+      maximum: 500,
+      cycleCount: 49,
+      free: 0,
+      perMau: 0.5,
+    },
+    igmau: {
+      maximum: 20,
+      cycleCount: 16,
+      free: 0,
+      perMau: 0,
+    },
     usageHistory: [
       {
         cycleStart: 1727762400,
@@ -87,6 +99,18 @@ export function CalibratingSummaryPageView() {
       perMau: 0,
     },
     mau: {
+      cycleCount: 500,
+      maximum: 1000,
+      free: 0,
+      perMau: 0,
+    },
+    mwi: {
+      cycleCount: 500,
+      maximum: 1000,
+      free: 0,
+      perMau: 0,
+    },
+    igmau: {
       cycleCount: 500,
       maximum: 1000,
       free: 0,

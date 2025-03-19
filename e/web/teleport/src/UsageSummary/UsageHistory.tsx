@@ -20,9 +20,18 @@ export const UsageHistory = ({
   hasCloudAnonymizationKey,
   salesforceIdUpdatedAt,
 }: UsageHistoryProps) => {
+  const tableHasCalibrationPeriod =
+    history.length > 0 &&
+    isCalibrationPeriod(
+      history[history.length - 1].cycleStart,
+      history[0].cycleEnd,
+      hasCloudAnonymizationKey,
+      salesforceIdUpdatedAt
+    );
+
   return (
     <Flex flexDirection="column" gap="3">
-      <H2>Usage History</H2>
+      <H2 mb="4">Usage History</H2>
       <Table<UsageHistoryItem>
         disableFilter={true}
         emptyText="No cycle information available"
@@ -42,7 +51,7 @@ export const UsageHistory = ({
           {
             key: 'mau',
             isSortable: true,
-            headerText: 'Monthly Active Users (MAU)',
+            headerText: 'ZTA MAU',
             render: ({ mau, cycleStart, cycleEnd }) => {
               const isCalibration = isCalibrationPeriod(
                 cycleStart,
@@ -51,20 +60,18 @@ export const UsageHistory = ({
                 salesforceIdUpdatedAt
               );
               return (
-                <StyledCell $highlight={isCurrentCycle(cycleEnd)}>
-                  {isCalibration ? (
-                    <Text css="font-style: italic">Calibration Period</Text>
-                  ) : (
-                    mau
-                  )}
-                </StyledCell>
+                <MetricCell
+                  val={mau}
+                  cycleEnd={cycleEnd}
+                  isCalibration={isCalibration}
+                />
               );
             },
           },
           {
             key: 'tpr',
             isSortable: true,
-            headerText: 'Teleport Protected Resources (TPR)',
+            headerText: 'ZTA TPR',
             render: ({ tpr, cycleStart, cycleEnd }) => {
               const isCalibration = isCalibrationPeriod(
                 cycleStart,
@@ -73,18 +80,86 @@ export const UsageHistory = ({
                 salesforceIdUpdatedAt
               );
               return (
-                <StyledCell $highlight={isCurrentCycle(cycleEnd)}>
-                  {isCalibration ? (
-                    <Text css="font-style: italic">Calibration Period</Text>
-                  ) : (
-                    tpr
-                  )}
-                </StyledCell>
+                <MetricCell
+                  val={tpr}
+                  cycleEnd={cycleEnd}
+                  isCalibration={isCalibration}
+                />
+              );
+            },
+          },
+          {
+            key: 'mwi',
+            isSortable: true,
+            headerText: 'MWI',
+            render: ({ mwi, cycleStart, cycleEnd }) => {
+              const isCalibration = isCalibrationPeriod(
+                cycleStart,
+                cycleEnd,
+                hasCloudAnonymizationKey,
+                salesforceIdUpdatedAt
+              );
+              return (
+                <MetricCell
+                  val={mwi}
+                  cycleEnd={cycleEnd}
+                  isCalibration={isCalibration}
+                />
+              );
+            },
+          },
+          {
+            key: 'igmau',
+            isSortable: true,
+            headerText: 'IG MAU',
+            render: ({ igmau, cycleStart, cycleEnd }) => {
+              const isCalibration = isCalibrationPeriod(
+                cycleStart,
+                cycleEnd,
+                hasCloudAnonymizationKey,
+                salesforceIdUpdatedAt
+              );
+              return (
+                <MetricCell
+                  val={igmau}
+                  cycleEnd={cycleEnd}
+                  isCalibration={isCalibration}
+                />
+              );
+            },
+          },
+          {
+            altKey: 'is-tpr',
+            isSortable: true,
+            headerText: 'IS TPR',
+            render: ({ tpr, cycleStart, cycleEnd }) => {
+              const isCalibration = isCalibrationPeriod(
+                cycleStart,
+                cycleEnd,
+                hasCloudAnonymizationKey,
+                salesforceIdUpdatedAt
+              );
+              return (
+                <MetricCell
+                  val={tpr}
+                  cycleEnd={cycleEnd}
+                  isCalibration={isCalibration}
+                />
               );
             },
           },
         ]}
       />
+      {tableHasCalibrationPeriod && (
+        <Text
+          css="font-style: italic"
+          fontWeight={400}
+          color="text.slightlyMuted"
+        >
+          * A change to your account required a calibration period in order to
+          accurately count Active Users across trusted clusters.
+        </Text>
+      )}
     </Flex>
   );
 };
@@ -97,6 +172,26 @@ export const UsageHistory = ({
 const isCurrentCycle = (cycleEnd: number): boolean => {
   const now = new Date();
   return fromUnixTime(cycleEnd).getTime() > now.getTime();
+};
+
+const MetricCell = ({
+  val,
+  cycleEnd,
+  isCalibration,
+}: {
+  val: number;
+  cycleEnd: number;
+  isCalibration: boolean;
+}) => {
+  return (
+    <StyledCell $highlight={isCurrentCycle(cycleEnd)}>
+      {isCalibration ? (
+        <Text css="font-style: italic">Calibration Period*</Text>
+      ) : (
+        val
+      )}
+    </StyledCell>
+  );
 };
 
 const StyledCell = styled(Cell)<{ $highlight: boolean }>`

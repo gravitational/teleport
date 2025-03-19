@@ -15,7 +15,7 @@ export interface SummaryProps {
 export const SummaryPage = ({ summary }: SummaryProps) => (
   <>
     {summary ? (
-      <Flex gap="4" flexDirection="column">
+      <Flex gap="5" flexDirection="column">
         <Cycle summary={summary} />
         <UsageHistory
           history={summary.usageHistory}

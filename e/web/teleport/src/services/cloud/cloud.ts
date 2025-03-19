@@ -53,6 +53,8 @@ function makeBillingSummaryInformation(json: any): BillingSummaryInformation {
         ...u,
         mau: parseInt(u.mau) || 0,
         tpr: parseInt(u.tpr) || 0,
+        mwi: parseInt(u.mwi) || 0,
+        igmau: parseInt(u.ig_mau) || 0,
       })),
     },
   };

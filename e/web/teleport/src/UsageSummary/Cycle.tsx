@@ -1,11 +1,12 @@
 import styled, { useTheme } from 'styled-components';
 
-import { Box, Flex, Text } from 'design';
+import { Box, Flex, H2, H3, Text } from 'design';
+import { IconTooltip } from 'design/Tooltip';
 
 import { UsageSummary } from 'e-teleport/services/cloud/v1/tenants_pb';
-import { CycleUsage } from 'e-teleport/UsageSummary/types';
 
 import { isCalibrationPeriod } from './SummaryPage';
+import { ProductUsage } from './types';
 import { UpdatedAtDisplay } from './UpdatedAtDisplay';
 import { UsageBar } from './UsageBar';
 
@@ -21,6 +22,8 @@ export const Cycle = ({
     cycleStartFormatted,
     mau,
     tpr,
+    mwi,
+    igmau,
     hasCloudAnonymizationKey,
     salesforceIdUpdatedAt,
     usageUpdatedAt,
@@ -35,88 +38,149 @@ export const Cycle = ({
     salesforceIdUpdatedAt
   );
 
-  const usage: CycleUsage[] = [
+  const productUsages: ProductUsage[] = [
     {
-      name: 'Active Users',
-      total: mau.cycleCount,
-      percentage: calibrationPeriod
-        ? 100
-        : ~~Math.round((mau.cycleCount / mau.maximum) * 100),
-      percentageMax: mau.maximum,
-      hardMax: mau.maximum,
-      hasFreeTier: false,
-      info: 'Any unique human or machine user, local or SSO username or email with recorded activity during a month.',
-      calibrating: calibrationPeriod,
+      name: 'Zero Trust Access',
+      info: 'A secure, on-demand, least-privileged access to infrastructure using cryptographic identity and Zero Trust principles.',
+      usages: [
+        {
+          name: 'Monthly Active Users (MAU)',
+          total: mau.cycleCount,
+          percentage: calibrationPeriod
+            ? 100
+            : ~~Math.round((mau.cycleCount / mau.maximum) * 100),
+          percentageMax: mau.maximum,
+          hardMax: mau.maximum,
+        },
+        {
+          name: 'Teleport Protected Resources (TPR)',
+          total: tpr.cycleCount,
+          percentage: calibrationPeriod
+            ? 100
+            : ~~Math.round((tpr.cycleCount / tpr.maximum) * 100),
+          percentageMax: tpr.maximum,
+          hardMax: tpr.maximum,
+        },
+      ],
     },
     {
-      name: 'Teleport Protected Resources',
-      total: tpr.cycleCount,
-      percentage: calibrationPeriod
-        ? 100
-        : ~~Math.round((tpr.cycleCount / tpr.maximum) * 100),
-      percentageMax: tpr.maximum,
-      hardMax: tpr.maximum,
-      hasFreeTier: false,
-      info: 'Any unique resource such as a Kubernetes cluster, SSH server, database instance or serverless endpoint, that has registered itself with the Teleport cluster and is protected by Teleport.',
-      calibrating: calibrationPeriod,
+      name: 'Machine and Workload Identities',
+      info: 'Improve infrastructure resiliency by securing access to systems  and data between machines & workloads.',
+      usages: [
+        {
+          name: 'MWI',
+          total: mwi.cycleCount,
+          percentage: calibrationPeriod
+            ? 100
+            : ~~Math.round((mwi.cycleCount / mwi.maximum) * 100),
+          percentageMax: mwi.maximum,
+          hardMax: mwi.maximum,
+        },
+      ],
+      blurb:
+        'MWIs were previously counted as TPRs, but are now part of a new product. Billing will remain consistent with your current contract.',
+    },
+    {
+      name: 'Identity Governance',
+      info: 'Harden your infrastructure with identity governance and security.',
+      usages: [
+        {
+          name: 'Monthly Active Users (MAU)',
+          total: igmau.cycleCount,
+          percentage: calibrationPeriod
+            ? 100
+            : ~~Math.round((igmau.cycleCount / igmau.maximum) * 100),
+          percentageMax: igmau.maximum,
+          hardMax: igmau.maximum,
+        },
+      ],
+    },
+    {
+      name: 'Identity Security',
+      info: 'Secure identities and access policies across all of your infrastructure. Eliminate shadow access and blind spots.',
+      usages: [
+        {
+          name: 'Teleport Protected Resources (TPR)',
+          total: tpr.cycleCount,
+          percentage: calibrationPeriod
+            ? 100
+            : ~~Math.round((tpr.cycleCount / tpr.maximum) * 100),
+          percentageMax: tpr.maximum,
+          hardMax: tpr.maximum,
+        },
+      ],
     },
   ];
 
   return (
-    <UsageGroup pb={3}>
-      <TitleContainer>
-        <h2>
-          Current Cycle: {cycleStartFormatted} - {cycleEndFormatted}
-        </h2>
-        <UpdatedAtDisplay
-          theme={theme}
-          usageUpdatedAt={usageUpdatedAt}
-          usageUpdatedAtFormatted={usageUpdatedAtFormatted}
-        />
-      </TitleContainer>
-      <Text>Monthly usage will reset at the end of this cycle.</Text>
-      <CyclesContainer>
-        {usage.map(u => (
-          <UsageBar key={u.name} usage={u} />
+    <Box>
+      <Flex gap="3" alignItems="center">
+        <H2>
+          Current Billing Cycle: {cycleStartFormatted} - {cycleEndFormatted}
+        </H2>
+        {calibrationPeriod && (
+          <Flex
+            gap="1"
+            alignItems="center"
+            bg="interactive.tonal.neutral.0"
+            borderRadius="35px"
+            px="2"
+            py="1"
+          >
+            <IconTooltip>
+              A change to your account requires a calibration period in order to
+              accurately count Active Users and Teleport Protected Resources.
+              This should resolve itself with the start of your next billing
+              cycle.
+            </IconTooltip>
+            <CalibrationText>Calibration In Progress</CalibrationText>
+          </Flex>
+        )}
+      </Flex>
+      <Text color={theme.colors.text.slightlyMuted} mt="2">
+        Monthly usage will reset at the end of this cycle
+      </Text>
+      <Flex gap="3" flexWrap="wrap" my="3">
+        {productUsages.map(p => (
+          <CyclesContainer key={p.name}>
+            <H3>{p.name}</H3>
+            <Text color="text.slightlyMuted" mt="2" fontWeight={300}>
+              {p.info}
+            </Text>
+            <Box mt="4">
+              <UsageBar productUsage={p} calibrating={calibrationPeriod} />
+            </Box>
+            {p.blurb && (
+              <Text color="text.muted" mt="4" fontWeight={400}>
+                {p.blurb}
+              </Text>
+            )}
+          </CyclesContainer>
         ))}
-      </CyclesContainer>
-      {calibrationPeriod && (
-        <Text
-          typography="body2"
-          color={theme.colors.text.slightlyMuted}
-          style={{ fontStyle: 'italic' }}
-        >
-          A change to your account requires a calibration period in order to
-          accurately count Active Users and Teleport Protected Resources. This
-          should resolve itself with the start of your next billing cycle.
-        </Text>
-      )}
-    </UsageGroup>
+      </Flex>
+
+      <UpdatedAtDisplay
+        theme={theme}
+        usageUpdatedAt={usageUpdatedAt}
+        usageUpdatedAtFormatted={usageUpdatedAtFormatted}
+      />
+    </Box>
   );
 };
 
-const TitleContainer = styled(Flex)`
-  justify-content: space-between;
-  align-items: flex-start;
-  flex-direction: column;
-  margin-right: ${({ theme }) => theme.space[5]}px;
-  @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
-    align-items: center;
-    flex-direction: row;
-  }
-`;
-
-const UsageGroup = styled(Box)`
+const CyclesContainer = styled(Flex)`
+  flex: 1 1 33%;
+  min-width: 420px;
   background-color: ${({ theme }) => theme.colors.levels.surface};
   border-radius: 8px;
-  padding: 20px 0 40px 40px;
+  padding: ${({ theme }) => theme.space[4]}px;
+  flex-direction: column;
 `;
 
-const CyclesContainer = styled(Flex)`
-  flex-wrap: wrap;
-  margin-bottom: ${({ theme }) => theme.space[4]}px;
-  flex-direction: column;
+const CalibrationText = styled(Text)`
+  display: none;
+  font-size: ${p => p.theme.fontSizes[1]}px;
   @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
-    flex-direction: row;
+    display: inline;
   }
 `;

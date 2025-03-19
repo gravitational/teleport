@@ -41,7 +41,7 @@ export const SummaryLoader = (): React.ReactElement => {
         <FeatureBox>
           <Box>
             <FeatureHeader alignItems="center" justifyContent="space-between">
-              <FeatureHeaderTitle>Billing Summary</FeatureHeaderTitle>
+              <FeatureHeaderTitle>Usage Reporting</FeatureHeaderTitle>
               <InfoGuideWrapper guide={<InfoGuide />} />
             </FeatureHeader>
 
@@ -79,13 +79,13 @@ const StyledContainer = styled(Flex)`
 function InfoGuide() {
   return (
     <Box>
-      <InfoTitle>How are Monthly Active Users (MAU) calculated?</InfoTitle>
+      <InfoTitle>How Monthly Active Users (MAU) are Calculated</InfoTitle>
       <InfoParagraph>
         Monthly Active Users (MAU) is the aggregate number of unique active
         users accessing Teleport during each monthly billing cycle.
       </InfoParagraph>
       <InfoTitle>
-        How are Teleport Protected Resources (TPR) calculated?
+        How Teleport Protected Resources (TPR) are Calculated
       </InfoTitle>
       <InfoParagraph>
         Teleport Protected Resources (TPR) is an averaged aggregate number of
@@ -103,6 +103,19 @@ function InfoGuide() {
         during the span of each hour in the day, and averaging the hourly count
         to create a daily TPR. The daily TPRs are then averaged across each
         billing period.
+      </InfoParagraph>
+      <InfoTitle>
+        How Machine and Workload Identities (MWI) are Calculated
+      </InfoTitle>
+      <InfoParagraph>
+        Machine and Workload Identities is an aggregate number of bots, bot
+        instances, and SPIFFE IDs.
+      </InfoParagraph>
+      <InfoParagraph>
+        MWIs are calculated by counting the total number of bots, bot instances,
+        and unique SPIFFE IDs seen in an hour and averaging the hourly number to
+        create a daily average. The daily MWI numbers are then averaged across
+        each billing period.
       </InfoParagraph>
       <ReferenceLinks
         links={[
