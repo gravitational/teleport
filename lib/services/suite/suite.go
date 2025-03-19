@@ -207,7 +207,7 @@ type ServicesTestSuite struct {
 	// managed by the Auth service directly (static tokens).
 	// Used by some tests to differentiate between a server
 	// and client interface.
-	LocalConfigS  services.ClusterConfiguration
+	LocalConfigS  services.ClusterConfigurationInternal
 	EventsS       types.Events
 	UsersS        services.UsersService
 	RestrictionsS services.Restrictions
@@ -1329,20 +1329,20 @@ func (s *ServicesTestSuite) ClusterName(t *testing.T, opts ...Option) {
 		ClusterName: "example.com",
 	})
 	require.NoError(t, err)
-	err = s.ConfigS.SetClusterName(clusterName)
+	err = s.LocalConfigS.SetClusterName(clusterName)
 	require.NoError(t, err)
 
 	gotName, err := s.ConfigS.GetClusterName()
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(clusterName, gotName, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = s.ConfigS.DeleteClusterName()
+	err = s.LocalConfigS.DeleteClusterName()
 	require.NoError(t, err)
 
 	_, err = s.ConfigS.GetClusterName()
 	require.True(t, trace.IsNotFound(err))
 
-	err = s.ConfigS.UpsertClusterName(clusterName)
+	err = s.LocalConfigS.UpsertClusterName(clusterName)
 	require.NoError(t, err)
 
 	gotName, err = s.ConfigS.GetClusterName()
@@ -1915,13 +1915,13 @@ func (s *ServicesTestSuite) EventsClusterConfig(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				err = s.ConfigS.UpsertClusterName(clusterName)
+				err = s.LocalConfigS.UpsertClusterName(clusterName)
 				require.NoError(t, err)
 
 				out, err := s.ConfigS.GetClusterName()
 				require.NoError(t, err)
 
-				err = s.ConfigS.DeleteClusterName()
+				err = s.LocalConfigS.DeleteClusterName()
 				require.NoError(t, err)
 				return out
 			},

@@ -150,7 +150,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 
 	// cluster configuration
 	srv.GET("/:version/configuration/name", srv.WithAuth(srv.getClusterName))
-	srv.POST("/:version/configuration/name", srv.WithAuth(srv.setClusterName))
 
 	// SSO validation handlers
 	srv.POST("/:version/github/requests/validate", srv.WithAuth(srv.validateGithubAuthCallback))
@@ -590,31 +589,6 @@ func (s *APIServer) getClusterName(auth *ServerWithRoles, w http.ResponseWriter,
 	}
 
 	return rawMessage(services.MarshalClusterName(cn, services.WithVersion(version), services.PreserveRevision()))
-}
-
-type setClusterNameReq struct {
-	ClusterName json.RawMessage `json:"cluster_name"`
-}
-
-func (s *APIServer) setClusterName(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req setClusterNameReq
-
-	err := httplib.ReadJSON(r, &req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cn, err := services.UnmarshalClusterName(req.ClusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = auth.SetClusterName(cn)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return message(fmt.Sprintf("cluster name set: %+v", cn)), nil
 }
 
 type upsertTunnelConnectionRawReq struct {

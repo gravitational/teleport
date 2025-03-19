@@ -4629,36 +4629,12 @@ func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
 	return a.authServer.DeleteRole(ctx, name)
 }
 
-// DeleteClusterName deletes cluster name
-func (a *ServerWithRoles) DeleteClusterName() error {
-	if err := a.action(types.KindClusterName, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteClusterName()
-}
-
 // GetClusterName gets the name of the cluster.
 func (a *ServerWithRoles) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
 	if err := a.action(types.KindClusterName, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetClusterName()
-}
-
-// SetClusterName sets the name of the cluster. SetClusterName can only be called once.
-func (a *ServerWithRoles) SetClusterName(c types.ClusterName) error {
-	if err := a.action(types.KindClusterName, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.SetClusterName(c)
-}
-
-// UpsertClusterName sets the name of the cluster.
-func (a *ServerWithRoles) UpsertClusterName(c types.ClusterName) error {
-	if err := a.action(types.KindClusterName, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.UpsertClusterName(c)
 }
 
 // GetAuthPreference gets cluster auth preference.
