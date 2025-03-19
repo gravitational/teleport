@@ -1573,6 +1573,7 @@ func TestClusterAuditConfig(t *testing.T) {
 
 func TestClusterName(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
