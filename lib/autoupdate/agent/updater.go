@@ -394,8 +394,9 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 
 	if err := u.update(ctx, cfg, target, override.AllowOverwrite, resp.AGPL); err != nil {
 		if errors.Is(err, ErrFilePresent) && !override.AllowOverwrite {
-			u.Log.WarnContext(ctx, "Use --overwrite to force removal of existing binaries installed via script.")
-			u.Log.WarnContext(ctx, "If a teleport rpm or deb package is installed, upgrade it to the latest version and retry. DO NOT USE --overwrite.")
+			u.Log.ErrorContext(ctx, "Manual installation of Teleport was detected. Manual installations cannot be reverted in case of failure.")
+			u.Log.ErrorContext(ctx, "Use --overwrite to force immediate removal of existing binaries installed via script.")
+			u.Log.ErrorContext(ctx, "If a Teleport rpm or deb package is installed, upgrade it to the latest version and retry without --overwrite.")
 		}
 		return trace.Wrap(err)
 	}
