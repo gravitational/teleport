@@ -22,6 +22,7 @@ Database Service forwards user traffic to the database.
 - An AWS Directory Service Managed Microsoft AD.
 - A Linux node joined to the same Active Directory domain as the database. This
   guide will walk you through the joining steps if you don't have one.
+- Oracle client. The default option is [SQLcl](https://www.oracle.com/database/sqldeveloper/technologies/sqlcl/download/), but alternative clients are discussed below.
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/9. Prepare the Oracle RDS Instance
@@ -355,7 +356,7 @@ $ tsh db ls
 # oracle                     env=dev
 ```
 
-Connect to the database:
+Connect to the database. This requires [SQLcl](https://www.oracle.com/database/sqldeveloper/technologies/sqlcl/download/) client available in `PATH` as `sql`.
 
 ```code
 $ tsh db connect --db-user=alice --db-name ORCL oracle
@@ -369,6 +370,23 @@ $ tsh db logout oracle
 # Remove credentials for all database instances.
 $ tsh db logout
 ```
+
+As an alternative to SQLcl you can also use other clients together with the `tsh proxy db` command, which will open a tunnel for other clients to use.
+For example:
+
+```code
+$ tsh proxy db --db-user=alice --db-name ORCL oracle --port 12345 --tunnel
+Started authenticated tunnel for the Oracle database "oracle" in cluster "teleport.example.com" on 127.0.0.1:12345.
+
+Use the following command to connect to the Oracle database server using CLI:
+  $ sql -L /@localhost:12345/ORCL
+
+Other clients can use:
+  - a direct connection to 127.0.0.1:12345 without a username and password
+  - a custom JDBC connection string: 'jdbc:oracle:thin:@tcps://localhost:12345/ORCL?TNS_ADMIN=/home/alice/.tsh/keys/teleport.example.com/alice-db/teleport.example.com/oracle-wallet'
+```
+
+This method also enables use of various graphical clients, as explained in [Oracle graphical clients](../../../connect-your-client/gui-clients.mdx#oracle-graphical-clients) section.
 
 ## Next steps
 
