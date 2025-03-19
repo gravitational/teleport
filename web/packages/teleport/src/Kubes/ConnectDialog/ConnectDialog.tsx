@@ -25,8 +25,8 @@ import Dialog, {
 } from 'design/Dialog';
 import { NewTab as NewTabIcon } from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
+import { TextSelectCopy } from 'shared/components/TextSelectCopy';
 
-import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import cfg from 'teleport/config';
 import { generateTshLoginCommand, openNewTab } from 'teleport/lib/util';
 import { AuthType } from 'teleport/services/user';
@@ -85,7 +85,7 @@ function ConnectDialog(props: Props) {
           <Text bold as="span">
             Step 1
           </Text>
-          {' - Login to Teleport'}
+          {' - Log in to Teleport'}
           <TextSelectCopy
             mt="2"
             text={generateTshLoginCommand({
