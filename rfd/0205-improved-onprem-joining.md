@@ -133,11 +133,11 @@ making minimal security concessions:
 
 We believe a new join method, `bound-keypair`, can meet our needs and provide
 significantly more flexibility than today's `token` join method. This works by -
-in a sense - inverting the token joining procedure: bots generate an ED25519
-keypair, and the public key is copied to the server. The public key can be
-copied out-of-band, or bots can provide their public key on first join using a
-one-time use shared secret to authenticate the exchange, much like today's
-`token` method.
+in a sense - inverting the token joining procedure: bots generate a keypair,
+using the cluster signature algorithm (probably ED25519) and the public key is
+copied to the server. The public key can be copied out-of-band, or bots can
+provide their public key on first join using a one-time use shared secret to
+authenticate the exchange, much like today's `token` method.
 
 Once the public key has been shared, bots may then join by requesting a
 challenge from the Teleport Auth service and complete it by signing it with
@@ -504,11 +504,10 @@ has a valid client certificate from a previous authentication attempt, it uses
 it to open an mTLS session.
 
 When Auth validates the join attempt, clients that presented an existing valid
-identity are considered to be "renewals" and do not trigger a "rejoin", leaving
+identity are considered to be "refresh" and do not trigger a rejoin, leaving
 the rejoin counter untouched. Clients that do not present a valid client
 certificate are considered to be rejoining and the token associated with this
 public key must have `.status.bound_keypair.remaining_rejoins` >= 1.
-
 
 #### Client-Side Changes in `tbot`
 
