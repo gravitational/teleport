@@ -17,25 +17,22 @@
  */
 
 import { useState } from 'react';
-import { TraitsEditor, TraitsOption } from './TraitsEditor';
+
 import Validation from 'shared/components/Validation';
+
+import { TraitsEditor, TraitsOption } from './TraitsEditor';
 
 export default {
   title: 'Shared/TraitsEditor',
 };
 
-
 export const TraitsEditorWithoutToolTip = () => {
-  const [traits, setTraits] = useState<TraitsOption[]>(
-    [
-      {
-        traitKey: { label: "logins", value: "logins" },
-        traitValues: [
-          { label: "root", value: "root" },
-        ]
-      }
-    ]
-  );
+  const [traits, setTraits] = useState<TraitsOption[]>([
+    {
+      traitKey: { label: 'logins', value: 'logins' },
+      traitValues: [{ label: 'root', value: 'root' }],
+    },
+  ]);
 
   return (
     <Validation>
@@ -45,34 +42,28 @@ export const TraitsEditorWithoutToolTip = () => {
         setConfiguredTraits={setTraits}
       />
     </Validation>
-  )
+  );
 };
 
 export const TraitsEditorWithToolTip = () => {
-  const [traits, setTraits] = useState<TraitsOption[]>(
-    [
-      {
-        traitKey: { label: "level", value: "level" },
-        traitValues: [
-          { label: "L1", value: "L1" },
-        ]
-      },
-      {
-        traitKey: { label: "team", value: "team" },
-        traitValues: [
-          { label: "Cloud", value: "Cloud" },
-        ]
-      }
-    ]
-  );
+  const [traits, setTraits] = useState<TraitsOption[]>([
+    {
+      traitKey: { label: 'level', value: 'level' },
+      traitValues: [{ label: 'L1', value: 'L1' }],
+    },
+    {
+      traitKey: { label: 'team', value: 'team' },
+      traitValues: [{ label: 'Cloud', value: 'Cloud' }],
+    },
+  ]);
 
   const tooltip = (
     <>
-      If a Teleport user with the following user traits creates an Access Request
-      that triggers this Access Monitoring Rule, the Access Request is automatically
-      approved.
+      If a Teleport user with the following user traits creates an Access
+      Request that triggers this Access Monitoring Rule, the Access Request is
+      automatically approved.
     </>
-  )
+  );
 
   return (
     <Validation>
@@ -83,5 +74,5 @@ export const TraitsEditorWithToolTip = () => {
         toolTipContent={tooltip}
       />
     </Validation>
-  )
+  );
 };

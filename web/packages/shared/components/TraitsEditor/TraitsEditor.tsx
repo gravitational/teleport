@@ -20,13 +20,13 @@ import { Dispatch, SetStateAction } from 'react';
 
 import { Box, ButtonBorder, ButtonIcon, Flex, Text } from 'design';
 import { Add, Trash } from 'design/Icon';
+import { IconTooltip } from 'design/Tooltip';
 import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { requiredAll, requiredField } from 'shared/components/Validation/rules';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { AllUserTraits } from 'teleport/services/user';
-import { IconTooltip } from 'design/Tooltip';
 
 /**
  * traitsPreset is a list of system defined traits in Teleport.
