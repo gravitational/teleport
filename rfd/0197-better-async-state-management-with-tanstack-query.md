@@ -144,7 +144,7 @@ every component that fetches data dealing with the loading and error states.
 For example, instead of
 
 ```tsx
-// psuedo code
+// pseudo code
 
 const attempt = useAttempt();
 
