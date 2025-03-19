@@ -730,6 +730,8 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindStaticHostUser, RW()),
 					types.NewRule(types.KindWorkloadIdentity, RW()),
 					types.NewRule(types.KindGitServer, RW()),
+					types.NewRule(types.KindAutoUpdateConfig, RW()),
+					types.NewRule(types.KindAutoUpdateVersion, RW()),
 				},
 			},
 		},
