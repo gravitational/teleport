@@ -228,6 +228,11 @@
       "permanent": true
     },
     {
+      "source": "/admin-guides/management/guides/aws-iam-identity-center/",
+      "destination": "/admin-guides/management/guides/aws-iam-identity-center/guide/",
+      "permanent": true
+    },
+    {
       "source": "/reference/operator-resources/resources.teleport.dev_accesslists/",
       "destination": "/reference/operator-resources/resources-teleport-dev-accesslists/",
       "permanent": true
