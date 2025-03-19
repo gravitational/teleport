@@ -253,15 +253,19 @@ export function getOverview({
       prereqs = (
         <InfoUl>
           <li>{requiredAwsAccount}</li>
-          <li>
-            Ability to create database{' '}
-            <Mark>
-              <InfoExternalTextLink href={links.iamAuthn.href}>
-                IAM users
-              </InfoExternalTextLink>
-            </Mark>{' '}
-            and connect to target databases.
-          </li>
+          <div>
+            <li>
+              Ability to create database{' '}
+              <Mark>
+                <b>
+                  <InfoExternalTextLink href={links.iamAuthn.href}>
+                    IAM users
+                  </InfoExternalTextLink>
+                </b>
+              </Mark>{' '}
+              and connect to target databases.
+            </li>
+          </div>
           <li>The VPC of the RDS databases you want to enroll.</li>
           <li>
             At least one subnet in the VPC with a route to an internet gateway.
@@ -284,13 +288,13 @@ export function getOverview({
   );
 }
 
-const getRdsIamAuthnHref = (
-  id:
-    | DiscoverGuideId.DatabaseAwsRdsAuroraMysql
-    | DiscoverGuideId.DatabaseAwsRdsAuroraPostgres
-    | DiscoverGuideId.DatabaseAwsRdsPostgres
-    | DiscoverGuideId.DatabaseAwsRdsMysqlMariaDb
-) => {
+export type AwsRdsGuideIds =
+  | DiscoverGuideId.DatabaseAwsRdsAuroraMysql
+  | DiscoverGuideId.DatabaseAwsRdsAuroraPostgres
+  | DiscoverGuideId.DatabaseAwsRdsPostgres
+  | DiscoverGuideId.DatabaseAwsRdsMysqlMariaDb;
+
+export const getRdsIamAuthnHref = (id: AwsRdsGuideIds) => {
   if (id === DiscoverGuideId.DatabaseAwsRdsAuroraMysql) {
     return 'https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html#UsingWithRDS.IAMDBAuth.DBAccounts.MySQL';
   }

@@ -553,6 +553,22 @@ export type NodeMeta = BaseMeta & {
   node: Node;
 };
 
+export type DatabaseServiceDeploy = {
+  /**
+   * serviceDeployedMethod flag will be undefined if user skipped
+   * deploying service (service already existed).
+   */
+  method: ServiceDeployMethod;
+  /**
+   * this field is only defined for auto deployed services,
+   */
+  selectedSecurityGroups?: string[];
+  /**
+   * this field is only defined for auto deployed services
+   */
+  selectedSubnetIds?: string[];
+};
+
 // DbMeta describes the fields for a db resource
 // that needs to be preserved throughout the flow.
 export type DbMeta = BaseMeta & {
@@ -561,10 +577,9 @@ export type DbMeta = BaseMeta & {
   db?: Database;
   selectedAwsRdsDb?: AwsRdsDatabase;
   /**
-   * serviceDeployedMethod flag will be undefined if user skipped
-   * deploying service (service already existed).
+   * Only defined after the database service deploy step.
    */
-  serviceDeployedMethod?: ServiceDeployMethod;
+  serviceDeploy?: DatabaseServiceDeploy;
 };
 
 // KubeMeta describes the fields for a kube resource
