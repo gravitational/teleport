@@ -207,7 +207,7 @@ type WindowsCAAndKeyPair struct {
 
 // GetCertificateBytes returns a new cert/key pem and the DB CA bytes
 func (d *DBCertGetter) GetCertificateBytes(ctx context.Context) (*WindowsCAAndKeyPair, error) {
-	clusterName, err := d.Auth.GetClusterName()
+	clusterName, err := d.Auth.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

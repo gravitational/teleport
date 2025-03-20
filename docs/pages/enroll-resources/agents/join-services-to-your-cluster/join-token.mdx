@@ -23,7 +23,8 @@ relationship with the Teleport cluster.
   Proxy Service, Kubernetes Service, Database Service, and other services for
   accessing resources in your infrastructure.
 
-  <Details type="tip" title="Running multiple Proxy Service instances behind a
+  <details>
+  <summary>tip" title="Running multiple Proxy Service instances behind</summary>
   load balancer" >
 
   The join token method works if a cluster includes a single Proxy Service
@@ -36,7 +37,7 @@ relationship with the Teleport cluster.
   balancing algorithm. Do not use sticky load balancing algorithms (i.e.,
   "session affinity") with Teleport Proxy Service instances.
 
-  </Details>
+  </details>
 
   <Admonition type="tip" >
 
@@ -94,7 +95,8 @@ belong to an SSH Service instance.
 Copy the token so you can use it later in this guide. You can ignore the rest of
 the `tctl tokens add` output.
 
-<Details title="Supported token types">
+<details>
+<summary>Supported token types</summary>
 
 Here are all the values we support for `--type` flag when creating a join token:
 
@@ -110,7 +112,7 @@ Here are all the values we support for `--type` flag when creating a join token:
 | `proxy`          | Proxy Service           |
 | `windowsdesktop` | Windows Desktop Service |
 
-</Details>
+</details>
 
 Administrators can generate tokens as they are needed. A Teleport process can
 use a token multiple times until its time to live (TTL) expires, with the
@@ -125,7 +127,8 @@ Token                            Type Labels Expiry Time (UTC)
 (=presets.tokens.first=) Node        30 Mar 23 18:15 UTC (2m8s)
 ```
 
-<Details scope={["oss","enterprise"]} title="An insecure alternative: static tokens" scopeOnly={false} >
+<details>
+<summary>An insecure alternative: static tokens</summary>
 
 <Admonition type="Danger">
 Use short-lived tokens instead of long-lived static tokens.
@@ -147,7 +150,7 @@ auth_service:
     - 'auth:/path/to/tokenfile'
 ```
 
-</Details>
+</details>
 
 ### Start your Teleport process with the invite token
 
@@ -173,7 +176,8 @@ command.
 
 </Admonition>
 
-<Details title="Connecting directly to the Auth Service">
+<details>
+<summary>Connecting directly to the Auth Service</summary>
 
 So far, this guide has assumed that you are joining your new Teleport process to
 your cluster by connecting it to the Proxy Service. (This is the only
@@ -246,11 +250,12 @@ CA pin (the `teleport.ca_pin` field) to the one you copied earlier:
 $ sudo sed -i 's|  ca_pin: ""|  ca_pin: "<Var name="ca-pin"> />"|' /etc/teleport.yaml
 ```
 
-</Details>
+</details>
 
 (!docs/pages/includes/start-teleport.mdx!)
 
-<Details title="Using a local Docker container?">
+<details>
+<summary>Using a local Docker container?</summary>
 
 If you followed this guide with a local Docker container, execute the following
 command within your container to run your new Teleport process in the foreground:
@@ -259,7 +264,7 @@ command within your container to run your new Teleport process in the foreground
 $ teleport start
 ```
 
-</Details>
+</details>
 
 As new services come online, they start sending heartbeat requests every few
 seconds to the Auth Service. This allows users to explore cluster membership and

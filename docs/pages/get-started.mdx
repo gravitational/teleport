@@ -185,8 +185,10 @@ To access the server using commands in a terminal:
 
 1. Open a new terminal window.
 
-1. Sign in to your Teleport cluster by running the `tsh login` command  with the URL 
-of your cluster and the name of your Teleport user:
+1. Sign in to your Teleport cluster by running the `tsh login` command  with the
+   URL of your cluster and the name of your Teleport user, assigning 
+   <Var name="example" /> to your account subdomain and <Var name="username" /> to
+   your Teleport username:
    
    ```code
    $ tsh login --proxy=<Var name="example" />.teleport.sh --user=<Var name="username" />
@@ -220,7 +222,8 @@ of your cluster and the name of your Teleport user:
    b6c1072b5af5 ⟵ Tunnel  
    ```
 
-1. Access your server as the `root` user:
+1. Access your server as the `root` user, assigning <Var name="node-name" /> to
+   the name of the server as displayed by `tsh ls`:
 
    ```code
    $ tsh ssh root@<Var name="node-name" />

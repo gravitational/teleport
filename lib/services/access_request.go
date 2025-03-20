@@ -99,7 +99,8 @@ type ClusterGetter interface {
 
 // ValidateAccessRequestClusterNames checks that the clusters in the access request exist
 func ValidateAccessRequestClusterNames(cg ClusterGetter, ar types.AccessRequest) error {
-	localClusterName, err := cg.GetClusterName()
+	ctx := context.TODO()
+	localClusterName, err := cg.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -111,7 +112,7 @@ func ValidateAccessRequestClusterNames(cg ClusterGetter, ar types.AccessRequest)
 		if resourceID.ClusterName == localClusterName.GetClusterName() {
 			continue
 		}
-		_, err := cg.GetRemoteCluster(context.TODO(), resourceID.ClusterName)
+		_, err := cg.GetRemoteCluster(ctx, resourceID.ClusterName)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err, "failed to fetch remote cluster %q", resourceID.ClusterName)
 		}
@@ -186,7 +187,7 @@ func shouldFilterRequestableRolesByResource(a RequestValidatorGetter, req types.
 	if !req.FilterRequestableRolesByResource {
 		return false, nil
 	}
-	currentCluster, err := a.GetClusterName()
+	currentCluster, err := a.GetClusterName(context.TODO())
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -763,7 +764,7 @@ type RequestValidatorGetter interface {
 	RoleGetter
 	client.ListResourcesClient
 	GetRoles(ctx context.Context) ([]types.Role, error)
-	GetClusterName(opts ...MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
 // appendRoleMatchers constructs all role matchers for a given
@@ -1530,7 +1531,7 @@ func (m *RequestValidator) GetRequestableRoles(ctx context.Context, identity tls
 		return nil, trace.Wrap(err)
 	}
 
-	cluster, err := m.getter.GetClusterName()
+	cluster, err := m.getter.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2132,7 +2133,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		return nil, getInvalidKubeKindAccessRequestsError(mappedRequestedRolesToAllowedKinds, false /* requestedRoles */)
 	}
 
-	clusterNameResource, err := m.getter.GetClusterName()
+	clusterNameResource, err := m.getter.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

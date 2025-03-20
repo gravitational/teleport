@@ -161,9 +161,9 @@ export function AwsAccount() {
 
   if (!hasAccess) {
     return (
-      <Box maxWidth="700px">
+      <>
         <Heading />
-        <Box maxWidth="700px">
+        <Box>
           <Text mt={4}>
             You don’t have the permissions required to set up this integration.
             <br />
@@ -179,30 +179,30 @@ export function AwsAccount() {
           </Flex>
         </Box>
         <ActionButtons onPrev={prevStep} />
-      </Box>
+      </>
     );
   }
 
   if (attempt.status === '' || attempt.status === 'processing') {
     return (
-      <Box maxWidth="700px">
+      <>
         <Heading />
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
-      </Box>
+      </>
     );
   }
 
   if (attempt.status === 'error') {
     return (
-      <Box maxWidth="700px">
+      <>
         <Heading />
-        <Alert kind="danger" children={attempt.statusText} />
+        <Alert kind="danger">{attempt.statusText}</Alert>
         <ButtonPrimary mt={2} onClick={fetch}>
           Retry
         </ButtonPrimary>
-      </Box>
+      </>
     );
   }
 
@@ -267,7 +267,7 @@ export function AwsAccount() {
     } as DiscoverUrlLocationState,
   };
   return (
-    <Box maxWidth="700px">
+    <>
       <Heading />
       {healthCheckAttempt.status === 'error' && (
         <Alert
@@ -324,7 +324,7 @@ export function AwsAccount() {
           )}
         </Validation>
       </Box>
-    </Box>
+    </>
   );
 }
 

@@ -77,6 +77,7 @@ exceptions are the `db` and `db_client` CAs, which must be rotated together.
 |[`openssh`](#openssh)|OpenSSH servers enrolled in your Teleport cluster.|
 |[`jwt`](#jwt)|Teleport users accessing web applications.|
 |[`saml_idp`](#saml_idp)|The Teleport SAML IdP.|
+|[`spiffe`](#spiffe)|Workload Identity (SPIFFE) clients.|
 |[`oidc_idp`](#oidc_idp)|The Teleport OIDC IdP integration.|
 
 ### `host`
@@ -151,11 +152,11 @@ rotation.
 ### `db` and `db_client`
 
 The `db` and `db_client` CAs issue certificates that the Teleport Database
-Service uses to communicate with self-hosted databases. 
+Service uses to communicate with self-hosted databases.
 
 The Teleport Database Service presents a certificate signed by the `db_client`
 CA when communicating with a self-hosted database, which an admin configures to
-trust certificates issued by the CA. 
+trust certificates issued by the CA.
 
 Admins can configure self-hosted databases to present a certificate signed by
 the `db` CA, which the Database Service uses to verify that a database server is
@@ -179,7 +180,7 @@ rotation phase.
 At the `init` phase, the `tctl auth sign` command differs between the `db` and
 `db_client` CAs. If you rotate the `db_client` CA, the command outputs both the
 original and new certificate authorities in its trusted CA output. If you rotate
-the `db` CA, the command only issues the new database server certificates.  
+the `db` CA, the command only issues the new database server certificates.
 
 You do not need to reconfigure databases in the `init` phase if you are rotating
 only the `db` CA, although there is no harm in doing so. If you do not
@@ -250,12 +251,39 @@ the Teleport `saml_idp` CA. Follow the instructions in the [SAML IdP
 documentation](../../access-controls/idps/saml-guide.mdx) to export an XML
 metadata file and make it available to your service provider.
 
+### `spiffe`
+
+The `spiffe` CA signs X509 and JWT SVIDs for Workload Identity clients, often so
+other clients can mutually verify their identity with mTLS.
+
+When rotating this CA, before entering the final `standby` phase, ensure all
+clients that validate Teleport-issued SVIDs have been updated to trust the new
+CA:
+
+- Teleport Workload Identity clients should receive the updated CA certificates
+  automatically via the `tbot` client, and future SVIDs will be issued using the
+  new CA.
+
+  If using `tbot`'s `workload-identity-api` service, additional steps may be
+  needed for client applications to fetch new SVIDs. If generating credentials
+  with one of the `spiffe-svid` outputs, new SVIDs should be issued
+  automatically.
+
+- If using [SPIFFE federation](../../../enroll-resources/workload-identity/federation.mdx#federation-to-teleport-workload-identity),
+  other SPIFFE trust domains should periodically refresh Teleport's certificate
+  bundle. This interval is usually 5 minute, but you can examine the bundle
+  yourself to verify:
+
+  ```code
+  $ curl https://example.teleport.sh/webapi/spiffe/bundle.json | jq '.spiffe_refresh_hint'
+  ```
+
 ### `oidc_idp`
 
 The `oidc_idp` CA signs messages sent by the Teleport OIDC IdP integration.
 Relying parties (e.g., AWS) verify these messages to authenticate your Teleport
 account for features like External Audit Storage, Auto-Discovery, and AWS Sync
-for Access Graph. 
+for Access Graph.
 
 The Teleport Proxy Service serves the JSON Web Key Sets for the OIDC IdP
 integration from the `/.well-known/jwks-oidc` path of the Web API.
@@ -291,19 +319,19 @@ on to learn how to manually initiate each rotation phase.
 ### `init` phase
 
 In the `init` phase, the Teleport Auth Service issues a new certificate
-authority of the chosen type, but does not use it to sign certificates. 
+authority of the chosen type, but does not use it to sign certificates.
 
 1. Initiate the manual rotation of host certificate authorities:
 
    ```code
-   $ tctl auth rotate --manual --type=<Var name="type" description="Certificate authority to rotate"/> --phase=init 
+   $ tctl auth rotate --manual --type=<Var name="type" description="Certificate authority to rotate"/> --phase=init
    Updated rotation phase to "init". To check status use 'tctl status'
    ```
 
 1. Use `tctl` to confirm that there is an active rotation in progress. This
    command prints the rotation status of all CAs that the Teleport Auth Service
    maintains in your cluster:
-   
+
    ```code
    $ tctl status
    Cluster       teleport.example.com
@@ -368,7 +396,7 @@ affects the `host` CA.
    ```code
    $ tctl auth rotate --manual --type=<Var name="type" description="Certificate authority to rotate"/> --phase=update_servers
    # Updated rotation phase to "update_servers". To check status use 'tctl status'
-   
+
    $ tctl status
    Cluster       teleport.example.com
    Version       (=teleport.version=)
@@ -431,7 +459,7 @@ You can instruct Teleport to manage the CA rotation semi-automatically.
 Semi-automatic rotation transitions between the phases of a rotation for you,
 and there is no need to run a `tctl auth rotate` command each phase. After a
 **grace period** elapses, the Teleport Auth Service updates the phase of the CA
-rotation to the next step. 
+rotation to the next step.
 
 ### Determine whether to use a semi-automatic rotation
 
@@ -461,7 +489,8 @@ $ tctl auth rotate --type=<Var name="type" />
 The command triggers a rotation process for hosts with a default grace period of
 48 hours.
 
-<Details title="Configuring the grace period">
+<details>
+<summary>Configuring the grace period</summary>
 
 You can customize grace period and CA type with additional flags:
 
@@ -480,7 +509,7 @@ instances in a cluster to request a new certificate. If some hosts go offline
 during the rotation and come back only after the grace period has ended, they
 will be forced to leave the cluster.
 
-</Details>
+</details>
 
 During semi-automatic rotations, Teleport attempts to divide the grace period so
 that it spends an equal amount of time in each phase before transitioning to the

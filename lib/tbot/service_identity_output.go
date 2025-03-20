@@ -113,12 +113,13 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 		}
 	}
 
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
 	id, err := generateIdentity(
 		ctx,
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		effectiveLifetime.TTL,
 		func(req *proto.UserCertsRequest) {
 			req.ReissuableRoleImpersonation = s.cfg.AllowReissue
 		},
@@ -151,6 +152,8 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 	}
+
+	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, effectiveLifetime)
 
 	hostCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.HostCA, false)
 	if err != nil {

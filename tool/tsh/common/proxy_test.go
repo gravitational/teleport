@@ -377,7 +377,7 @@ func TestWithRsync(t *testing.T) {
 					require.NoError(t, err)
 
 					// generate certificates for our user
-					clusterName, err := asrv.GetClusterName()
+					clusterName, err := asrv.GetClusterName(ctx)
 					if !assert.NoError(t, err) {
 						return
 					}
