@@ -44,19 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
-// UnifiedResourceKinds is a list of all kinds that are stored in the unified resource cache.
-var UnifiedResourceKinds = []string{
-	types.KindNode,
-	types.KindKubeServer,
-	types.KindDatabaseServer,
-	types.KindAppServer,
-	types.KindWindowsDesktop,
-	types.KindSAMLIdPServiceProvider,
-	types.KindIdentityCenterAccount,
-	types.KindIdentityCenterAccountAssignment,
-	types.KindGitServer,
-}
-
 // UnifiedResourceCacheConfig is used to configure a UnifiedResourceCache
 type UnifiedResourceCacheConfig struct {
 	// BTreeDegree is a degree of B-Tree, 2 for example, will create a
@@ -997,12 +984,17 @@ func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context
 
 // resourceKinds returns a list of resources to be watched.
 func (c *UnifiedResourceCache) resourceKinds() []types.WatchKind {
-	watchKinds := make([]types.WatchKind, 0, len(UnifiedResourceKinds))
-	for _, kind := range UnifiedResourceKinds {
-		watchKinds = append(watchKinds, types.WatchKind{Kind: kind})
+	return []types.WatchKind{
+		{Kind: types.KindNode},
+		{Kind: types.KindKubeServer},
+		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindAppServer},
+		{Kind: types.KindWindowsDesktop},
+		{Kind: types.KindSAMLIdPServiceProvider},
+		{Kind: types.KindIdentityCenterAccount},
+		{Kind: types.KindIdentityCenterAccountAssignment},
+		{Kind: types.KindGitServer},
 	}
-
-	return watchKinds
 }
 
 func (c *UnifiedResourceCache) defineCollectorAsInitialized() {
