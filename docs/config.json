@@ -82,40 +82,8 @@
     {
       "icon": "connect",
       "title": "User Guides",
-      "entries": [
-        {
-          "title": "Introduction",
-          "slug": "/connect-your-client/introduction/"
-        },
-        {
-          "title": "Using tsh",
-          "slug": "/connect-your-client/tsh/"
-        },
-        {
-          "title": "Using the Web UI",
-          "slug": "/connect-your-client/web-ui/"
-        },
-        {
-          "title": "Using Teleport Connect",
-          "slug": "/connect-your-client/teleport-connect/"
-        },
-        {
-          "title": "Using VNet",
-          "slug": "/connect-your-client/vnet/"
-        },
-        {
-          "title": "Using PuTTY and WinSCP",
-          "slug": "/connect-your-client/putty-winscp/"
-        },
-        {
-          "title": "Database GUI Clients",
-          "slug": "/connect-your-client/gui-clients/"
-        },
-        {
-          "title": "Notifications",
-          "slug": "/connect-your-client/notifications/"
-        }
-      ]
+      "entries": [],
+      "generateFrom": "connect-your-client"
     },
     {
       "title": "Enroll Resources",
