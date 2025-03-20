@@ -37,7 +37,12 @@ import { precomputed } from 'shared/components/Validation/rules';
 
 import { LabelsInput } from 'teleport/components/LabelsInput';
 
-import { SectionBox, SectionProps, SectionPropsWithDispatch } from './sections';
+import {
+  SectionBox,
+  SectionPadding,
+  SectionProps,
+  SectionPropsWithDispatch,
+} from './sections';
 import {
   AppAccess,
   DatabaseAccess,
@@ -87,7 +92,9 @@ export const ResourcesTab = memo(function ResourcesTab({
 
   return (
     <Flex flexDirection="column" gap={3}>
-      Rules that allow connecting to resources controlled by Teleport
+      <SectionPadding>
+        Rules that allow connecting to resources controlled by Teleport
+      </SectionPadding>
       {value.map((res, i) => {
         return (
           <ResourceAccessSection

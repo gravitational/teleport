@@ -25,7 +25,7 @@ import { precomputed } from 'shared/components/Validation/rules';
 
 import { LabelsInput } from 'teleport/components/LabelsInput';
 
-import { SectionBox, SectionProps } from './sections';
+import { SectionBox, SectionPadding, SectionProps } from './sections';
 import { MetadataModel, roleVersionOptions } from './standardmodel';
 import { MetadataValidationResult } from './validation';
 
@@ -36,7 +36,7 @@ export const MetadataSection = ({
   onChange,
 }: SectionProps<MetadataModel, MetadataValidationResult>) => (
   <Flex flexDirection="column" gap={3}>
-    Basic information about this role
+    <SectionPadding>Basic information about this role</SectionPadding>
     <SectionBox
       titleSegments={['Role Information']}
       isProcessing={isProcessing}
