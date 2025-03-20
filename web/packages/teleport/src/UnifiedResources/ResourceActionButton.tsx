@@ -500,7 +500,6 @@ function makeSamlAppLoginButton(
             vertical: 'bottom',
             horizontal: 'right',
           }}
-          style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
           buttonText="Log In"
           placeholder="Select URL to log in"
         />

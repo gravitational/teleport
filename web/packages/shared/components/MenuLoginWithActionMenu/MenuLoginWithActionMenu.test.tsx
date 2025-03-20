@@ -34,17 +34,13 @@ test('clicking on primary menu and secondary menu opens respective menu items', 
   );
 
   fireEvent.click(screen.getByText('Click Me'));
-  await waitFor(() => {
-    expect(screen.getByText('alice')).toBeInTheDocument();
-  });
+  expect(await screen.findByText('alice')).toBeInTheDocument();
 
   fireEvent.click(screen.getByTitle('Open menu'));
-  await waitFor(() => {
-    expect(screen.getByText('Menu item')).toBeInTheDocument();
-  });
+  expect(await screen.findByText('Menu item')).toBeInTheDocument();
 });
 
-test('search and filter input field should be visible by default', async () => {
+test('filter input field should be visible by default', async () => {
   render(
     <MenuLoginWithActionMenu
       buttonText="Click Me"
@@ -60,14 +56,12 @@ test('search and filter input field should be visible by default', async () => {
   );
 
   fireEvent.click(screen.getByText('Click Me'));
-  await waitFor(() => {
-    expect(screen.getByText('alice')).toBeInTheDocument();
-  });
+  expect(await screen.findByText('alice')).toBeInTheDocument();
 
   expect(screen.getByPlaceholderText('search me')).toBeInTheDocument();
 });
 
-test('disableSearchAndFilter should show static menu item laabel', async () => {
+test('MenuInputType.NONE should show static menu item label', async () => {
   render(
     <MenuLoginWithActionMenu
       buttonText="Click Me"
@@ -84,10 +78,10 @@ test('disableSearchAndFilter should show static menu item laabel', async () => {
   );
 
   fireEvent.click(screen.getByText('Click Me'));
-  await waitFor(() => {
-    expect(screen.getByText('alice')).toBeInTheDocument();
-  });
+  expect(await screen.findByText('alice')).toBeInTheDocument();
 
+  // Verify that placeholder is used as a text label above menu and
+  // not as an actual placeholder.
   expect(screen.getByText('search me')).toBeInTheDocument();
   expect(screen.queryByPlaceholderText('search me')).not.toBeInTheDocument();
 });

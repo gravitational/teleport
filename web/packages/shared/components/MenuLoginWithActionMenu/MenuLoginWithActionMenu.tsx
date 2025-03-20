@@ -53,19 +53,25 @@ export const MenuLoginWithActionMenu = ({
   placeholder,
   inputType,
 }: {
-  /** button text for main menu button. */
+  /** Button text for main menu button. */
   buttonText: string;
-  /** handles select or click in main menu items. */
+  /**
+   * Handles select or click in main menu items.
+   * If isExternalUrl item returned by getLoginItems is true, a button with <a> tag is rendered
+   * and the value of url is passed for the login param. Since <a> tag with href
+   * attribute handles onClick by default, the caller may wish to
+   * pass an empty onSelect function value.
+   */
   onSelect: (e: React.SyntheticEvent, login: string) => void;
-  /** fetches login items. */
+  /** Fetches login items. */
   getLoginItems: () => LoginItem[] | Promise<LoginItem[]>;
-  /** action menu items. */
+  /** Action menu items. */
   children: MenuItemComponent | MenuItemComponent[];
   width?: string;
   size?: ButtonSize;
-  /** text for action menu search box or static label.  */
+  /** Text for action menu search box or static label.  */
   placeholder?: string;
-  /** input type for menu item filter input. */
+  /** Input type for menu item filter input. */
   inputType?: MenuInputType;
 }) => {
   const moreButtonRef = useRef<HTMLButtonElement>(null);
@@ -127,4 +133,7 @@ export const MenuLoginWithActionMenu = ({
   );
 };
 
+// TODO(ravicious,sshah): At the moment, this doesn't accomplish much – it only prevents MenuLoginWithActionMenu
+// from MenuLoginWithActionMenu strings as children. Once styled-components are typed, it should enforce that
+// MenuLoginWithActionMenu accepts only MenuItem as children.
 type MenuItemComponent = ReactElement<typeof MenuItem>;
