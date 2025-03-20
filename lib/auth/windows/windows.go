@@ -28,6 +28,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -229,6 +230,9 @@ func GenerateWindowsDesktopCredentials(ctx context.Context, req *GenerateCredent
 	}
 	certBlock, _ := pem.Decode(genResp.Cert)
 	certDER = certBlock.Bytes
+	if err := os.WriteFile(fmt.Sprintf("/tmp/%s-cert.der", req.Username), certDER, 0644); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 	keyDER = certReq.keyDER
 	return certDER, keyDER, nil
 }

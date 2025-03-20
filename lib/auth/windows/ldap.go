@@ -294,6 +294,7 @@ func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([
 				if err == nil {
 					return res.Entries, nil
 				} else if len(referrals) < 10 && errors.As(err, &ldapErr) {
+					c.Logger.DebugContext(ctx, "LDAP search failed, extracting referrals", "referral", referrals[i], "error", err)
 					newReferrals := extractReferrals(ldapErr)
 					referrals = append(referrals, newReferrals...)
 				} else {

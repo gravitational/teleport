@@ -1278,7 +1278,7 @@ func timer() func() int64 {
 // optionally querying LDAP for the user's Security Identifier.
 func (s *WindowsService) generateUserCert(ctx context.Context, username string, ttl time.Duration, desktop types.WindowsDesktop, createUsers bool, groups []string) (certDER, keyDER []byte, err error) {
 	var activeDirectorySID string
-	if !desktop.NonAD() && os.Getenv("SKIP_LDAP_SID") != "true" {
+	if !desktop.NonAD() {
 		domain := s.cfg.LDAPConfig.DomainDN()
 		username := username
 		if strings.Contains(username, "@") {
@@ -1303,18 +1303,23 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 			entries, err = s.lc.ReadWithFilter(domain, filter, []string{windows.AttrObjectSid})
 		}
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			if os.Getenv("SKIP_LDAP_SID") != "true" {
+				return nil, nil, trace.Wrap(err)
+			} else {
+				s.cfg.Logger.DebugContext(ctx, "objectSid lookup failed", "username", username, "error", err)
+			}
+		} else {
+			if len(entries) == 0 {
+				return nil, nil, trace.NotFound("could not find Windows account %q", username)
+			} else if len(entries) > 1 {
+				s.cfg.Logger.WarnContext(ctx, "found multiple entries for user, taking the first", "username", username)
+			}
+			activeDirectorySID, err = windows.ADSIDStringFromLDAPEntry(entries[0])
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+			s.cfg.Logger.DebugContext(ctx, "Found objectSid Windows user", "username", username)
 		}
-		if len(entries) == 0 {
-			return nil, nil, trace.NotFound("could not find Windows account %q", username)
-		} else if len(entries) > 1 {
-			s.cfg.Logger.WarnContext(ctx, "found multiple entries for user, taking the first", "username", username)
-		}
-		activeDirectorySID, err = windows.ADSIDStringFromLDAPEntry(entries[0])
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		s.cfg.Logger.DebugContext(ctx, "Found objectSid Windows user", "username", username)
 	}
 	return s.generateCredentials(ctx, generateCredentialsRequest{
 		username:           username,
