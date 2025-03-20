@@ -267,7 +267,11 @@ type Config struct {
 	PublicProxyAddr string
 
 	// ALPNHandler is the ALPN connection handler for handling upgraded ALPN
-	// connection through a HTTP upgrade call.
+	// connection through an HTTP upgrade call.
+	//
+	// It’s also used in scenarios where the Proxy needs to dial to itself (e.g.
+	// database access via ws), but the handler can directly forward the traffic
+	// to the ALPN router without initiating a new connection.
 	ALPNHandler ConnectionHandler
 
 	// TraceClient is used to forward spans to the upstream collector for the UI
