@@ -184,6 +184,7 @@ func TestKube(t *testing.T) {
 	t.Run("TrustedClustersSNI", suite.bind(testKubeTrustedClustersSNI))
 	t.Run("Disconnect", suite.bind(testKubeDisconnect))
 	t.Run("Join", suite.bind(testKubeJoin))
+	t.Run("JoinWeb", suite.bind(testKubeJoinWeb))
 	t.Run("IPPinning", suite.bind(testIPPinning))
 	// ExecWithNoAuth tests that a user can get the pod and exec into it when
 	// moderated session is not enforced.
@@ -2113,6 +2114,229 @@ func kubeJoin(ctx context.Context, kubeConfig kube.ProxyConfig, tc *client.Telep
 
 // testKubeJoin tests that that joining an interactive exec session works.
 func testKubeJoin(t *testing.T, suite *KubeSuite) {
+	tconf := suite.teleKubeConfig(Host)
+
+	teleport := helpers.NewInstance(t, helpers.InstanceConfig{
+		ClusterName: helpers.Site,
+		HostID:      helpers.HostID,
+		NodeName:    Host,
+		Priv:        suite.priv,
+		Pub:         suite.pub,
+		Logger:      suite.log,
+	})
+
+	// fooey
+	hostUsername := suite.me.Username
+	peerUsername := suite.me.Username + "-peer"
+	observer1Username := suite.me.Username + "-observer1"
+	observer2Username := suite.me.Username + "-observer2"
+	kubeGroups := []string{kube.TestImpersonationGroup}
+	kubeUsers := []string{"alice@example.com"}
+	role, err := types.NewRole("kubemaster", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{hostUsername},
+			KubeGroups: kubeGroups,
+			KubeUsers:  kubeUsers,
+			KubernetesLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	joinRole, err := types.NewRole("participant", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			JoinSessions: []*types.SessionJoinPolicy{{
+				Name:  "foo",
+				Roles: []string{"kubemaster"},
+				Kinds: []string{string(types.KubernetesSessionKind)},
+				Modes: []string{string(types.SessionPeerMode), string(types.SessionObserverMode)},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	teleport.AddUserWithRole(hostUsername, role)
+	teleport.AddUserWithRole(peerUsername, joinRole)
+	teleport.AddUserWithRole(observer1Username, joinRole)
+	teleport.AddUserWithRole(observer2Username, joinRole)
+
+	err = teleport.CreateEx(t, nil, tconf)
+	require.NoError(t, err)
+
+	err = teleport.Start()
+	require.NoError(t, err)
+	defer teleport.StopAll()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// set up kube configuration using proxy
+	proxyClient, proxyClientConfig, err := kube.ProxyClient(kube.ProxyConfig{
+		T:          teleport,
+		Username:   hostUsername,
+		KubeUsers:  kubeUsers,
+		KubeGroups: kubeGroups,
+	})
+	require.NoError(t, err)
+
+	// try get request to fetch available pods
+	pod, err := proxyClient.CoreV1().Pods(testNamespace).Get(ctx, testPod, metav1.GetOptions{})
+	require.NoError(t, err)
+
+	// interactive command, allocate pty
+	term := NewTerminal(250)
+
+	out := &bytes.Buffer{}
+
+	group := &errgroup.Group{}
+
+	// Start the main session.
+	group.Go(func() error {
+		err := kubeExec(proxyClientConfig, execInContainer, kubeExecArgs{
+			podName:      pod.Name,
+			podNamespace: pod.Namespace,
+			container:    pod.Spec.Containers[0].Name,
+			command:      []string{"/bin/sh"},
+			stdout:       out,
+			tty:          true,
+			stdin:        term,
+		})
+		return trace.Wrap(err)
+	})
+
+	// We need to wait for the exec request to be handled here for the session to be
+	// created. Sadly though the k8s API doesn't give us much indication of when that is.
+	var session types.SessionTracker
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		// We need to wait for the session to be created here. We can't use the
+		// session manager's WaitUntilExists method because it doesn't work for
+		// kubernetes sessions.
+		sessions, err := teleport.Process.GetAuthServer().GetActiveSessionTrackers(ctx)
+		assert.NoError(t, err)
+		if assert.Len(t, sessions, 1) {
+			session = sessions[0]
+		}
+	}, 10*time.Second, time.Second)
+
+	participantStdinR, participantStdinW, err := os.Pipe()
+	require.NoError(t, err)
+	participantStdoutR, participantStdoutW, err := os.Pipe()
+	require.NoError(t, err)
+
+	observerCaptures := make([]*bytes.Buffer, 2)
+	albProxy := helpers.MustStartMockALBProxy(t, teleport.Config.Proxy.WebAddr.Addr)
+
+	// join peer by KubeProxyAddr
+	group.Go(func() error {
+		defer func() {
+			// close participant stdout so that we can read it after till EOF
+			participantStdoutW.Close()
+		}()
+
+		tc, err := teleport.NewClient(helpers.ClientConfig{
+			Login:   hostUsername,
+			Cluster: helpers.Site,
+			Host:    Host,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		tc.Stdin = participantStdinR
+		tc.Stdout = participantStdoutW
+
+		stream, err := kubeJoin(
+			ctx,
+			kube.ProxyConfig{
+				T:          teleport,
+				Username:   peerUsername,
+				KubeUsers:  kubeUsers,
+				KubeGroups: kubeGroups,
+			},
+			tc,
+			session,
+			types.SessionPeerMode,
+		)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		t.Cleanup(func() {
+			_ = stream.Close()
+		})
+		stream.Wait()
+
+		return nil
+	})
+
+	// join observer by WebProxyAddr
+	group.Go(func() error {
+		stream, capture := kubeJoinByWebAddr(ctx, t, teleport, observer1Username, kubeUsers, kubeGroups)
+		t.Cleanup(func() {
+			_ = stream.Close()
+		})
+
+		observerCaptures[0] = capture
+		stream.Wait()
+		return nil
+	})
+
+	// join observer with ALPN conn upgrade
+	group.Go(func() error {
+		stream, capture := kubeJoinByALBAddr(ctx, t, teleport, observer2Username, kubeUsers, kubeGroups, albProxy.Addr().String())
+		t.Cleanup(func() {
+			_ = stream.Close()
+		})
+
+		observerCaptures[1] = capture
+		stream.Wait()
+		return nil
+	})
+
+	// Wait for all users to finish joining the session.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		session, err := teleport.Process.GetAuthServer().GetSessionTracker(ctx, session.GetName())
+		assert.NoError(t, err)
+		assert.Len(t, session.GetParticipants(), 4)
+	}, 30*time.Second, 500*time.Millisecond)
+
+	// send a test message from the participant
+	participantStdinW.Write([]byte("\ahi from peer\n\r"))
+
+	// lets type "echo hi" followed by "enter" and then "exit" + "enter":
+	term.Type("\ahi from term\n\r")
+
+	// Terminate the session after a moment to allow for the IO to reach the second client.
+	time.AfterFunc(5*time.Second, func() {
+		// send exit command to close the session
+		term.Type("exit 0\n\r\a")
+	})
+
+	// wait for all clients to finish
+	require.NoError(t, group.Wait())
+
+	// Verify peer.
+	participantOutput, err := io.ReadAll(participantStdoutR)
+	require.NoError(t, err)
+	require.Contains(t, string(participantOutput), "hi from term")
+
+	// Verify original session.
+	require.Contains(t, out.String(), "hi from peer")
+
+	// Verify observers.
+	for _, capture := range observerCaptures {
+		assert.Contains(t, capture.String(), "hi from peer")
+		assert.Contains(t, capture.String(), "hi from term")
+	}
+}
+
+// testKubeJoinWeb tests that that joining an interactive exec session
+// via the web ui works.
+func testKubeJoinWeb(t *testing.T, suite *KubeSuite) {
 	tconf := suite.teleKubeConfig(Host)
 
 	teleport := helpers.NewInstance(t, helpers.InstanceConfig{
