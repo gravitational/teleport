@@ -30,7 +30,6 @@ Database Service forwards user traffic to the database.
 Before configuring Teleport, ensure your Oracle RDS instance has Kerberos authentication and TLS properly configured:
 
 1. Follow the [AWS RDS Oracle Kerberos Setup guide](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/oracle-kerberos-setting-up.html) to enable Kerberos authentication on your instance.
-
 2. Enable TLS on your Oracle RDS instance by following the [AWS RDS Oracle SSL Setup documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.Oracle.Options.SSL.html). Ensure `SQLNET.SSL_VERSION` is set to `1.2` for optimal security. Make note of the SSL port choice; in the rest of the guide we will assume it is 2484. Also ensure `SQLNET.CIPHER_SUITE` parameter includes a supported value, for example `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`.
 
 <Admonition type="note">
