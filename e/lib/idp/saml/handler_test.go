@@ -213,7 +213,7 @@ func TestMetadataValues(t *testing.T) {
 
 	// test that certificate from metadata matches CA cert that is used to
 	// sign SAML assertion.
-	clusterName, err := env.testServices.ClusterService.GetClusterName()
+	clusterName, err := env.testServices.ClusterService.GetClusterName(ctx)
 	require.NoError(t, err)
 	ca, err := env.testServices.CAService.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.SAMLIDPCA,

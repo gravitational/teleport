@@ -812,7 +812,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 		if err != nil {
 			return nil, loginIP, trace.Wrap(err, "Failed to create session certificate.")
 		}
-		clusterName, err := sas.auth.GetClusterName()
+		clusterName, err := sas.auth.GetClusterName(ctx)
 		if err != nil {
 			return nil, loginIP, trace.Wrap(err, "Failed to obtain cluster name.")
 		}

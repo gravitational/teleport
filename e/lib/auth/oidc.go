@@ -732,7 +732,7 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 			return nil, req.ClientLoginIP, trace.Wrap(err, "Failed to create session certificate.")
 		}
 
-		clusterName, err := oas.auth.GetClusterName()
+		clusterName, err := oas.auth.GetClusterName(ctx)
 		if err != nil {
 			return nil, req.ClientLoginIP, trace.Wrap(err, "Failed to obtain cluster name.")
 		}

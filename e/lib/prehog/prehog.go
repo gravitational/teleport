@@ -61,7 +61,7 @@ func InitStreamingUsageReporting(
 		}
 	}
 
-	clusterName, err := process.GetAuthServer().GetClusterName()
+	clusterName, err := process.GetAuthServer().GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

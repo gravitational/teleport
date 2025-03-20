@@ -463,7 +463,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator api.OktaCl
 	s.client = client
 	s.orgURL = strings.TrimSuffix(client.OrgURL(), "/")
 
-	clusterName, err := s.accessPoint.GetClusterName()
+	clusterName, err := s.accessPoint.GetClusterName(ctx)
 	if err != nil {
 		s.serviceStatus.UpdateAppGroupSync(ctx, config.Clock.Now(), 0, 0, err)
 		return nil, trace.Wrap(err)
@@ -647,7 +647,7 @@ func selectCredsByPurposeLabel(staticCredentials []types.PluginStaticCredentials
 type authService interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 	// GetClusterName returns the name of the cluster.
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
 type caKeyStore interface {

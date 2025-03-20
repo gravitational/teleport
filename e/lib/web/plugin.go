@@ -183,7 +183,7 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	p.h = h
 	p.mu.Unlock()
 
-	clusterName, err := p.h.GetProxyClient().GetClusterName()
+	clusterName, err := p.h.GetProxyClient().GetClusterName(context.TODO())
 	if err != nil {
 		return trace.Wrap(err)
 	}

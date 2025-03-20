@@ -149,12 +149,12 @@ var _ oktapb.OktaServiceServer = (*Service)(nil)
 type authCache interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 	// GetClusterName returns the name of the cluster.
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
 type authServer interface {
 	Ping(ctx context.Context) (proto.PingResponse, error)
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 	sso.SAMLConnectorService
 }
 

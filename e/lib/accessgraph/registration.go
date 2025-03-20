@@ -10,7 +10,6 @@ import (
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // Registrator is a thin layer around methods of the same name in the accessgraphv1alpha service.
@@ -54,7 +53,7 @@ func (*registrator) ReplaceCAs(ctx context.Context, config ServiceClientConfig, 
 
 type authServer interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
 // Register registers the cluster as a tenant with the Access Graph server,
@@ -67,7 +66,7 @@ func Register(ctx context.Context, reg Registrator, config ServiceClientConfig, 
 		return trace.Wrap(err)
 	}
 
-	clusterName, err := auth.GetClusterName()
+	clusterName, err := auth.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

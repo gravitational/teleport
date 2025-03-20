@@ -23,7 +23,7 @@ func initSAMLIdP(ctx context.Context, cfg *servicecfg.Config, plugin *web.Plugin
 	accessPoint := plugin.GetAccessPoint()
 
 	// Create the authorizer.
-	clusterName, err := authClient.GetClusterName()
+	clusterName, err := authClient.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

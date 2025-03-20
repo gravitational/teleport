@@ -42,7 +42,7 @@ func StartServices(ctx context.Context, plugin *Plugin) (func(), error) {
 }
 
 func startOktaReconciler(ctx context.Context, plugin *Plugin, cleanupFuncs CleanupFuncs) (CleanupFuncs, error) {
-	clusterName, err := plugin.authServer.AuthServer.GetClusterName()
+	clusterName, err := plugin.authServer.AuthServer.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

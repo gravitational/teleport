@@ -12,7 +12,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // getResultAs extracts a value from a testify mock argument collection and
@@ -320,8 +319,8 @@ func (m *mockCertAuthority) GetCertAuthority(ctx context.Context, id types.CertA
 	result := m.Called(ctx, id, loadKeys)
 	return getResultAs[types.CertAuthority](result, 0), result.Error(1)
 }
-func (m *mockCertAuthority) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
-	result := m.Called(opts)
+func (m *mockCertAuthority) GetClusterName(ctx context.Context) (types.ClusterName, error) {
+	result := m.Called(ctx)
 	return getResultAs[types.ClusterName](result, 0), result.Error(1)
 }
 

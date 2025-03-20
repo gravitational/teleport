@@ -105,7 +105,7 @@ func InitAggregatingUsageReporting(
 		}
 	}
 
-	clusterName, err := process.GetAuthServer().GetClusterName()
+	clusterName, err := process.GetAuthServer().GetClusterName(process.ExitContext())
 	if err != nil {
 		return trace.Wrap(err)
 	}

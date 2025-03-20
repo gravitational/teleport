@@ -284,7 +284,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 		return trace.Wrap(err)
 	}
 
-	clusterName, err := p.authServer.AuthServer.GetClusterName()
+	clusterName, err := p.authServer.AuthServer.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

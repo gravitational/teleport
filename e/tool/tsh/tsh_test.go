@@ -412,7 +412,7 @@ func setMockSSOLogin(t *testing.T, authServer *auth.Server, user, connectorName 
 func mockSSOLogin(t *testing.T, authServer *auth.Server, user string) client.SSOLoginFunc {
 	return func(ctx context.Context, _ string, keyRing *client.KeyRing, protocol string) (*authclient.SSHLoginResponse, error) {
 		// generate certificates for our user
-		clusterName, err := authServer.GetClusterName()
+		clusterName, err := authServer.GetClusterName(ctx)
 		require.NoError(t, err)
 		tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
 		require.NoError(t, err)
@@ -457,7 +457,7 @@ func setMockHeadlessLogin(t *testing.T, authServer *auth.Server, user, proxy str
 func mockHeadlessLogin(t *testing.T, authServer *auth.Server, user string) client.SSHLoginFunc {
 	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
 		// generate certificates for our user
-		clusterName, err := authServer.GetClusterName()
+		clusterName, err := authServer.GetClusterName(ctx)
 		require.NoError(t, err)
 		tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
 		require.NoError(t, err)

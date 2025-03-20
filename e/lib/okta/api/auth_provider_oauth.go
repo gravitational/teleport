@@ -94,7 +94,7 @@ func (s OAuthProvider) Options() jose.SignerOptions {
 type authService interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 	// GetClusterName returns the name of the cluster.
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
 // authOktaCASigningKeys implements the keyGetter interface
@@ -107,7 +107,7 @@ type oktaCASigner struct {
 }
 
 func (o *oktaCASigner) Sign(ctx context.Context, payload []byte) (*jose.JSONWebSignature, error) {
-	name, err := o.authService.GetClusterName()
+	name, err := o.authService.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

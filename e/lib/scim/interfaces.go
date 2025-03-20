@@ -7,7 +7,6 @@ import (
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // UsersService is an abstraction over the lock used by the SCIM service to
@@ -110,7 +109,7 @@ type RolesService interface {
 // retrieve certificates for signing JWT tokens with [[jwtSigner]].
 type certAuthorityGetter interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
 // jwtSignerGetter is expected to be the KeyStore of the Auth Server. Used by the SCIM service to sign

@@ -28,7 +28,7 @@ type ProcessSAMLIdPRequestClient interface {
 	services.AuthorityGetter
 
 	// GetClusterName returns the local cluster name
-	GetClusterName(...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 
 	// ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
 	ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextToken string) ([]types.SAMLIdPServiceProvider, string, error)
@@ -169,7 +169,7 @@ func (s *SAMLIdPService) ProcessSAMLIdPRequest(ctx context.Context, req *samlidp
 	}
 
 	// Get the cert for signing the request.
-	clusterName, err := s.client.GetClusterName()
+	clusterName, err := s.client.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
