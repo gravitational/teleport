@@ -20,6 +20,7 @@ import { Dispatch, SetStateAction } from 'react';
 
 import { Box, ButtonBorder, ButtonIcon, Flex, Text } from 'design';
 import { Add, Trash } from 'design/Icon';
+import { IconTooltip } from 'design/Tooltip';
 import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { requiredAll, requiredField } from 'shared/components/Validation/rules';
@@ -57,6 +58,7 @@ export function TraitsEditor({
   attempt,
   configuredTraits,
   setConfiguredTraits,
+  tooltipContent,
 }: TraitEditorProps) {
   function handleInputChange(i: InputOption | InputOptionArray) {
     const newTraits = [...configuredTraits];
@@ -103,7 +105,10 @@ export function TraitsEditor({
 
   return (
     <Box>
-      <Text typography="body3">User Traits</Text>
+      <Flex gap={2} alignItems="center">
+        <Text typography="body3">User Traits</Text>
+        {tooltipContent && <IconTooltip>{tooltipContent}</IconTooltip>}
+      </Flex>
       <Box>
         {configuredTraits.map(({ traitKey, traitValues }, index) => {
           return (
@@ -252,6 +257,7 @@ export type TraitEditorProps = {
   setConfiguredTraits: Dispatch<SetStateAction<TraitsOption[]>>;
   configuredTraits: TraitsOption[];
   attempt: Attempt;
+  tooltipContent?: React.ReactNode;
 };
 
 export function traitsToTraitsOption(allTraits: AllUserTraits): TraitsOption[] {
