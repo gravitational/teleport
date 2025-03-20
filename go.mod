@@ -65,6 +65,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/iam v1.40.0
 	github.com/aws/aws-sdk-go-v2/service/identitystore v1.28.0
 	github.com/aws/aws-sdk-go-v2/service/kms v1.38.0
+	github.com/aws/aws-sdk-go-v2/service/lambda v1.70.1
 	github.com/aws/aws-sdk-go-v2/service/memorydb v1.26.0
 	github.com/aws/aws-sdk-go-v2/service/opensearch v1.46.0
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.38.0

@@ -389,7 +389,7 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			clusterName, err := auth.GetClusterName()
+			clusterName, err := auth.GetClusterName(auth.CloseContext())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -5297,7 +5297,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	workloadidentityv1pb.RegisterWorkloadIdentityResourceServiceServer(server, workloadIdentityResourceService)
 
-	clusterName, err := cfg.AuthServer.GetClusterName()
+	clusterName, err := cfg.AuthServer.GetClusterName(cfg.AuthServer.CloseContext())
 	if err != nil {
 		return nil, trace.Wrap(err, "getting cluster name")
 	}

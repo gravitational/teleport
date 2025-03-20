@@ -1716,7 +1716,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tmpHomePath := t.TempDir()
 
-			clusterName, err := tt.auth.GetClusterName()
+			clusterName, err := tt.auth.GetClusterName(ctx)
 			require.NoError(t, err)
 
 			user := alice
@@ -2562,7 +2562,7 @@ func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 func TestKubeCredentialsLock(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	t.Cleanup(cancel)
 	const kubeClusterName = "kube-cluster"
 
 	t.Run("failed client creation doesn't create lockfile", func(t *testing.T) {
@@ -2609,7 +2609,7 @@ func TestKubeCredentialsLock(t *testing.T) {
 		proxyAddr, err := proxyProcess.ProxyWebAddr()
 		require.NoError(t, err)
 
-		teleportClusterName, err := authServer.GetClusterName()
+		teleportClusterName, err := authServer.GetClusterName(ctx)
 		require.NoError(t, err)
 
 		kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{
@@ -3971,7 +3971,7 @@ func mockConnector(t *testing.T) types.OIDCConnector {
 func mockSSOLogin(authServer *auth.Server, user types.User) client.SSOLoginFunc {
 	return func(ctx context.Context, connectorID string, keyRing *client.KeyRing, protocol string) (*authclient.SSHLoginResponse, error) {
 		// generate certificates for our user
-		clusterName, err := authServer.GetClusterName()
+		clusterName, err := authServer.GetClusterName(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4016,7 +4016,7 @@ func mockSSOLogin(authServer *auth.Server, user types.User) client.SSOLoginFunc 
 func mockHeadlessLogin(t *testing.T, authServer *auth.Server, user types.User) client.SSHLoginFunc {
 	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
 		// generate certificates for our user
-		clusterName, err := authServer.GetClusterName()
+		clusterName, err := authServer.GetClusterName(ctx)
 		require.NoError(t, err)
 		tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
 		require.NoError(t, err)
@@ -7171,6 +7171,49 @@ func TestSCP(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, expected, got)
 			}
+		})
+	}
+}
+
+func TestSetEnvVariables(t *testing.T) {
+	testCases := []struct {
+		name              string
+		envVars           map[string]string
+		sendEnvVariables  []string
+		expectedExtraEnvs map[string]string
+	}{
+		{
+			name: "Skip unset var",
+			envVars: map[string]string{
+				"TEST_VAR1": "value1",
+				"TEST_VAR2": "value2",
+			},
+			sendEnvVariables: []string{"TEST_VAR1", "TEST_VAR2", "UNSET_VAR"},
+			expectedExtraEnvs: map[string]string{
+				"TEST_VAR1": "value1",
+				"TEST_VAR2": "value2",
+			},
+		},
+		{
+			name:              "Sending empty var",
+			envVars:           map[string]string{"EMPTY_VAR": ""},
+			sendEnvVariables:  []string{"EMPTY_VAR"},
+			expectedExtraEnvs: map[string]string{"EMPTY_VAR": ""},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			for k, v := range tc.envVars {
+				t.Setenv(k, v)
+			}
+
+			c := &client.Config{}
+			options := Options{SendEnvVariables: tc.sendEnvVariables}
+
+			setEnvVariables(c, options)
+
+			require.Equal(t, tc.expectedExtraEnvs, c.ExtraEnvs)
 		})
 	}
 }

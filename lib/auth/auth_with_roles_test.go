@@ -1543,7 +1543,7 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 	impersonatedClient := srv.NewClientWithCert(impersonatedTLSCert)
 
 	// Attempt a request.
-	_, err = impersonatedClient.GetClusterName()
+	_, err = impersonatedClient.GetClusterName(ctx)
 	require.NoError(t, err)
 
 	// Attempt to generate new certs for a different (allowed) role.

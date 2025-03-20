@@ -49,7 +49,7 @@ type Cache interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 	// GetClusterName returns local cluster name of the current auth server
-	GetClusterName(...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 
 	// GetProxies returns a list of registered proxies.
 	GetProxies() ([]types.Server, error)
@@ -57,7 +57,7 @@ type Cache interface {
 
 // GenerateEntraOIDCToken returns a JWT suitable for OIDC authentication to MS Graph API.
 func GenerateEntraOIDCToken(ctx context.Context, cache Cache, manager KeyStoreManager, clock clockwork.Clock) (string, error) {
-	clusterName, err := cache.GetClusterName()
+	clusterName, err := cache.GetClusterName(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
