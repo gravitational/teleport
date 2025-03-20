@@ -1,3 +1,12 @@
 packages:
-  - 'web/packages/*'
-  - 'e/web/*'
+  - web/packages/*
+  - e/web/*
+onlyBuiltDependencies:
+  - '@swc/core'
+  - core-js
+  - core-js-pure
+  - electron
+  - esbuild
+  - msw
+  - node-pty
+  - protobufjs
