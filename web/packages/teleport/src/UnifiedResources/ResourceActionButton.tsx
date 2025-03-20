@@ -31,7 +31,7 @@ import { AwsRole } from 'shared/services/apps';
 import { TcpAppConnectDialog } from 'teleport/Apps/TcpAppConnectDialog';
 import cfg from 'teleport/config';
 import DbConnectDialog from 'teleport/Databases/ConnectDialog';
-import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
+import { SelectResourceSpec } from 'teleport/Discover/SelectResource/resources';
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { ConnectDialog as GitServerConnectDialog } from 'teleport/GitServers';
 import KubeConnectDialog from 'teleport/Kubes/ConnectDialog';
@@ -43,7 +43,9 @@ import { Database } from 'teleport/services/databases';
 import { Desktop } from 'teleport/services/desktops';
 import { Kube } from 'teleport/services/kube';
 import { Node, sortNodeLogins } from 'teleport/services/nodes';
+import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 import { DiscoverEventResource } from 'teleport/services/userEvent';
+import { DiscoverGuideId } from 'teleport/services/userPreferences/discoverPreference';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import useTeleport from 'teleport/useTeleport';
 
@@ -227,7 +229,19 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
   }
   if (samlApp) {
     if (actions.showActions) {
-      const currentSamlAppSpec: ResourceSpec = {
+      let guideId: DiscoverGuideId;
+      switch (samlAppPreset) {
+        case SamlServiceProviderPreset.Grafana:
+          guideId = DiscoverGuideId.ApplicationSamlGrafana;
+          break;
+        case SamlServiceProviderPreset.GcpWorkforce:
+          guideId = DiscoverGuideId.ApplicationSamlWorkforceIdentityFederation;
+          break;
+        default:
+          guideId = DiscoverGuideId.ApplicationSamlGeneric;
+      }
+      const currentSamlAppSpec: SelectResourceSpec = {
+        id: guideId,
         name: name,
         event: DiscoverEventResource.SamlApplication,
         kind: ResourceKind.SamlApplication,
