@@ -353,7 +353,7 @@ PIN prompts in Teleport Connect, they could just launch Teleport Connect without
 logging in. Teleport Connect would just foreground itself with hardware key
 prompts for the user as needed without adding additional overhead.
 
-Alternative: By default, set `teleport.agent=false`. Once the user logs into
+Alternative: By default, set `hardwareKeyAgent.enabled: true`. Once the user logs into
 Connect with a hardware key requirement for the first time, flip the flag to
 true indefinitely. The benefit with this approach is that we won't run an
 unused agent by default for users not using hardware key support. On the other
@@ -364,7 +364,7 @@ If desired, the agent can be disabled manually with a config option:
 
 | Property | Default | Description |
 |----------|---------|-------------|
-| `hardwareKeyAgent.enabled` | `false` | Starts the hardware key agent automatically |
+| `hardwareKeyAgent.enabled` | `true` | Starts the hardware key agent automatically |
 
 ##### `tsh piv agent`
 
@@ -398,7 +398,7 @@ user already has `tsh piv agent` running or another instance of Teleport connect
 
 Note: with Teleport Connect, this error would be displayed when it attempts
 to start the agent, but Teleport Connect would not fail to start. The error
-would be shown in Teleport Connect's debug logs.
+would be shown in Teleport Connect's warn logs.
 
 ##### Running the agent before login
 
