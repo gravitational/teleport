@@ -295,6 +295,51 @@ Flow 2 is also mostly equivalent to `token` joining. Current users will already
 be conceptually familiar with the joining process, and documentation updates
 will be minimal.
 
+#### Bot Lifecycle
+
+Bots joined with bound-keypair tokens will have a meaningfully different
+lifecycle than other types of bots. To summarize some key differences:
+
+- The `Bot` and `ProvisionToken` resources are never expected expire
+  automatically. Users could put an expiration on the token resource, but we
+  will not recommend doing so.
+
+- The bot keypair has no defined lifespan of its own.
+
+- As long as a bot retains its keypair, it can always be recovered server-side.
+  If it runs out of rejoins, the backend token can be reconfigured to allow
+  more. If the backend token is deleted outright, it can be recreated with the
+  public key.
+
+- Each time a bot rejoins, it creates a new bot instance. The bot instance is
+  tied to the valid client certificate, and we won't change this behavior. The
+  new bot instance will contain a reference to the previous instance ID based on
+  the content of `.status.bound_keypair.bound_bot_instance_id` at rejoining
+  time.
+
+Bots may stop refreshing under several conditions, triggering a rejoin attempt:
+
+- The backing `ProvisionToken` resource has been deleted; in this case, the
+  rejoin attempt is unlikely to succeed
+
+- The bot has been offline for longer than its certificate TTL
+
+- A lock targeting the bot in any capacity (username, instance UUID, token name)
+  is in place
+
+Bots will be unable to rejoin under any of these conditions:
+
+- The `ProvisionToken` resource has been deleted
+
+- Loss of private key
+
+- A lock is in place
+
+- `.status.bound_keypair.remaining_rejoins` is zero (and not unlimited)
+
+- `.spec.bound_keypair.rejoining.may_rejoin_until` is set to a value before the
+  current time
+
 #### Token Resource Example
 
 `bound-keypair`-type tokens differ from other types in that they are intended to
@@ -361,9 +406,6 @@ status:
     initial_join_secret: <random>
 
     # The public key of the bot associated with this token, set on first join.
-    # The bound public key must be unique among all `bound-keypair` tokens;
-    # token resource creation/update or bot joining will fail if a public key is
-    # reused.
     bound_public_key: <data>
 
     # The current bot instance UUID. A new UUID is issued on rejoin; the previous
@@ -595,38 +637,9 @@ We should take steps to improve visibility of bots at or near expiry, including:
 - Exposing per-token renewal counts as Prometheus metrics, both on the Auth
   Service and via `tbot`'s metrics endpoint.
 
-#### Outstanding Issue: Soft Bot Expiration
-
-The `spec.rejoining.may_rejoin_until` field can be used to prevent rejoining
-after a certain time, in tandem with the rejoin count limit. This has the -
-likely confusing - downside that bots will still be able to renew their
-certificates indefinitely past the expiration date, assuming their certs were
-valid at the time of expiration.
-
-Also, as with all Teleport resources, the `metadata.expires` field can also
-remove the token resource after a set time. Bots will also continue to renew
-certs as long as possible until they are either locked or otherwise fail to
-renew their certs on time.
-
-These two expirations create some confusion, and do not allow for an obvious
-method to deny a bot access, aside from creating a lock.
-
-We would like to solve two expiration use cases:
-1. We should be able to prevent all bot resource access after a certain date,
-   including renewals, in a way that allows the bot to be resumed later if
-   desired. (I.e. the token resource must still exist.)
-
-   Locks may accomplish this, but some centralized management in the token
-   resource would be convenient.
-
-2. We should be able to prevent bot rejoins after a certain date, to control
-   rejoining conditions in tandem with the rejoin counter. The
-   `spec.rejoining.may_rejoin_until` field may accomplish this.
-
-TODO: Ensure this is solved and not confusing.
-
-TODO: Presumably solved by switching to delegated joining. Will remove this
-section after some reevaluation.
+In the future, we might also consider configurable cluster alerts when a bot
+rejoins or has used its last attempt. This should be opt-in as this type of
+alert may not scale well with lots of bots.
 
 #### Keypair Rotation
 
@@ -742,13 +755,13 @@ $ tbot start identity tbot+proxy+azure://bot-token:22222222-2222-2222-2222-22222
 
 ## Future Extensions and Alternatives
 
-### Agent Joining Support
+### Future: Agent Joining Support
 
 We should explore expanding this join method to cover regular Teleport agent
 joining as well as bots, as a more secure alternative to static or long-lived
 join tokens.
 
-### Additional Keypair Protections
+### Future: Additional Keypair Protections
 
 We should investigate supporting additional layers of protection for the private
 key. There are several avenues for this, depending on storage backend:
@@ -763,18 +776,13 @@ key. There are several avenues for this, depending on storage backend:
   verification. For example, YubiHSM has a touch sensor that can be required for
   access on a key-by-key basis.
 
-#### Additional Alerting Rules
+Note that as a consequence of implementing this as a delegated joining method,
+bots are expected to complete joining challenges at regular intervals. This
+could be varying levels of impractical depending on keystore backend. Keys
+stored encrypted at rest on the filesystem could be decrypted and kept in
+memory, but HSMs with presence requirements may not be practical.
 
-A non-exhaustive list of additional alerting rules that may be beneficial:
-
-- Configurable cluster alerts when a bot rejoins or has used its last attempt.
-  This should be opt-in as this type of alert may not scale well with lots of
-  bots.
-
--
-
-
-#### Tightly Scoped Token RBAC
+#### Future: Tightly Scoped Token RBAC
 
 To better support use cases where central administrators vend bot tokens for
 teams, we can add scoped RBAC support for `ProvisionToken` CRUD operations.
@@ -786,7 +794,7 @@ administrator.
 This is likely dependent on [Scoped RBAC](https://github.com/gravitational/teleport/pull/38078),
 which is still in the planning stage.
 
-### Explicitly Insecure Token Joining
+### Alternative/Future: Explicitly Insecure Token Joining
 
 There are perfectly valid use cases for allowing relatively insecure access to
 resources that do not have strict trust requirements, and Teleport's RBAC system
@@ -795,7 +803,7 @@ resources. It may be worthwhile to add an `insecure-shared-secret` join method
 that allows for arbitrary joining in use cases that still fall through the
 cracks, so long as end users understand the security implications.
 
-### Client-side multi-token support
+### Alternative: Client-side multi-token support
 
 A simpler variant of N-Token Resiliency, this would allow `tbot` clients to
 accept an ordered list of joining token strings which could be used
