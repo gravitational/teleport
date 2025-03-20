@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2024 Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,10 +16,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export const zIndexMap = {
-  topBar: 19,
-  sideNavButtons: 18,
-  sideNavContainer: 17,
-  sideNavExpandedPanel: 16,
-  infoGuideSidePanel: 15,
+import { Box } from 'design';
+
+import { DevInfo, LongContent, TopBar } from '../storyHelpers';
+import {
+  InfoGuideSidePanel as Component,
+  InfoGuideWrapper,
+} from './InfoGuideSidePanel';
+
+export default {
+  title: 'Teleport/SlidingSidePanel',
+};
+
+export const InfoGuideSidePanel = () => {
+  return (
+    <TopBar>
+      {/* this Box wrapper is just for demo purposes */}
+      <Box mt={10} ml={3}>
+        <DevInfo />
+        <InfoGuideWrapper guide={<LongContent />}>
+          Click on the info icon
+        </InfoGuideWrapper>
+      </Box>
+      <Component />
+    </TopBar>
+  );
 };
