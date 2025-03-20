@@ -90,6 +90,7 @@ describe('ServerAccessSection', () => {
         expect.objectContaining({ label: 'root', value: 'root' }),
         expect.objectContaining({ label: 'some-user', value: 'some-user' }),
       ],
+      hideValidationErrors: true,
     } as ServerAccess);
   });
 
@@ -193,6 +194,7 @@ describe('KubernetesAccessSection', () => {
         expect.objectContaining({ value: 'mary' }),
       ],
       roleVersion: 'v7',
+      hideValidationErrors: true,
     } as KubernetesAccess);
   });
 
@@ -280,13 +282,16 @@ describe('KubernetesAccessSection', () => {
 });
 
 describe('AppAccessSection', () => {
-  const setup = () => {
+  const setup = (model: Partial<AppAccess> = {}) => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
       <StatefulSection<AppAccess, ResourceAccessValidationResult>
         component={AppAccessSection}
-        defaultValue={newResourceAccess('app', defaultRoleVersion)}
+        defaultValue={{
+          ...newResourceAccess('app', defaultRoleVersion),
+          ...model,
+        }}
         onChange={onChange}
         validatorRef={v => {
           validator = v;
@@ -352,6 +357,7 @@ describe('AppAccessSection', () => {
         '{{internal.gcp_service_accounts}}',
         'admin@some-project.iam.gserviceaccount.com',
       ],
+      hideValidationErrors: true,
     } as AppAccess);
   });
 
@@ -447,6 +453,7 @@ describe('DatabaseAccessSection', () => {
         expect.objectContaining({ label: 'mary', value: 'mary' }),
       ],
       dbServiceLabels: [{ name: 'foo', value: 'bar' }],
+      hideValidationErrors: true,
     } as DatabaseAccess);
   });
 
@@ -509,6 +516,7 @@ describe('WindowsDesktopAccessSection', () => {
         expect.objectContaining({ value: '{{internal.windows_logins}}' }),
         expect.objectContaining({ label: 'julio', value: 'julio' }),
       ],
+      hideValidationErrors: true,
     } as WindowsDesktopAccess);
   });
 
@@ -558,6 +566,7 @@ describe('GitHubOrganizationAccessSection', () => {
         expect.objectContaining({ value: '{{internal.github_orgs}}' }),
         expect.objectContaining({ label: 'illuminati', value: 'illuminati' }),
       ],
+      hideValidationErrors: true,
     } as GitHubOrganizationAccess);
   });
 });
