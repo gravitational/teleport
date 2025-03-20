@@ -61,7 +61,9 @@ test('adding and removing sections', async () => {
   await user.click(getTabByName('Resources'));
   expect(getAllSectionNames()).toEqual([]);
 
-  await user.click(screen.getByRole('button', { name: 'Add Resource Access' }));
+  await user.click(
+    screen.getByRole('button', { name: 'Add Teleport Resource Access' })
+  );
   expect(getAllMenuItemNames()).toEqual([
     'Kubernetes',
     'Servers',
@@ -74,7 +76,9 @@ test('adding and removing sections', async () => {
   await user.click(screen.getByRole('menuitem', { name: 'Servers' }));
   expect(getAllSectionNames()).toEqual(['Servers']);
 
-  await user.click(screen.getByRole('button', { name: 'Add Resource Access' }));
+  await user.click(
+    screen.getByRole('button', { name: 'Add Teleport Resource Access' })
+  );
   expect(getAllMenuItemNames()).toEqual([
     'Kubernetes',
     'Applications',
@@ -209,7 +213,9 @@ test('edits resource access', async () => {
     />
   );
   await user.click(getTabByName('Resources'));
-  await user.click(screen.getByRole('button', { name: 'Add Resource Access' }));
+  await user.click(
+    screen.getByRole('button', { name: 'Add Teleport Resource Access' })
+  );
   await user.click(screen.getByRole('menuitem', { name: 'Servers' }));
   await selectEvent.create(screen.getByLabelText('Logins'), 'ec2-user', {
     createOptionText: 'Login: ec2-user',
@@ -228,16 +234,20 @@ test('triggers v6 validation for Kubernetes resources', async () => {
   );
   await selectEvent.select(screen.getByLabelText('Version'), 'v6');
   await user.click(getTabByName('Resources'));
-  await user.click(screen.getByRole('button', { name: 'Add Resource Access' }));
+  await user.click(
+    screen.getByRole('button', { name: 'Add Teleport Resource Access' })
+  );
   await user.click(screen.getByRole('menuitem', { name: 'Kubernetes' }));
-  await user.click(screen.getByRole('button', { name: 'Add a Resource' }));
+  await user.click(
+    screen.getByRole('button', { name: 'Add a Kubernetes Resource' })
+  );
   await selectEvent.select(screen.getByLabelText('Kind'), 'Job');
 
   // Adding a second resource to make sure that we don't run into attempting to
   // modify an immer-frozen object. This might happen if the reducer tried to
   // modify resources that were already there.
   await user.click(
-    screen.getByRole('button', { name: 'Add Another Resource' })
+    screen.getByRole('button', { name: 'Add Another Kubernetes Resource' })
   );
   await selectEvent.select(screen.getAllByLabelText('Kind')[1], 'Pod');
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
@@ -309,7 +319,9 @@ test('tab-level validation when creating a new role', async () => {
   expect(getTabByName('Resources')).toHaveAttribute('aria-selected', 'true');
 
   // Break the validation and attempt switching tabs.
-  await user.click(screen.getByRole('button', { name: 'Add Resource Access' }));
+  await user.click(
+    screen.getByRole('button', { name: 'Add Teleport Resource Access' })
+  );
   await user.click(screen.getByRole('menuitem', { name: 'Servers' }));
   await user.click(screen.getByRole('button', { name: 'Add a Label' }));
   // The form should not be validating until we try to switch to the next tab.
