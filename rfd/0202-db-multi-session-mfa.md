@@ -18,10 +18,11 @@ Teleport today supports per-session MFA for enhanced security. However, when a
 user needs to run queries on multiple database hosts simultaneously, they have
 to perform a tap for every connection.
 
-A relaxed mode of per-session MFA will be introduced so that an MFA challenge is
-still required for connecting to target databases but the MFA response can be
-reused for a short period of time without the need to prompt the user again in
-that period.
+
+User session MFA for this particular situation will be relaxed so that an MFA
+challenge is still required for connecting to target databases but the MFA
+response can be reused for a short period of time without the need to prompt the
+user again in that period.
 
 In addition to expanding MFA functionalities, a new `tsh` command will be
 introduced to assist executing queries on multiple database servers using a
@@ -157,7 +158,10 @@ by allowing reuse for `ChallengeScope_CHALLENGE_SCOPE_USER_SESSION`.
 Similar to `SCOPE_ADMIN_ACTION`, `ChallengeScope_CHALLENGE_SCOPE_USER_SESSION`
 now can be requested with `CHALLENGE_ALLOW_REUSE_YES`. The responded session data
 will be reusable until it expires. Clients must go through MFA ceremony again if
-it expires. Currently, reuse of the session data is allowed within 5 minutes.
+it expires, and expired session can be detected by expecting specific errors
+from `GenerateUserCerts`.
+
+Currently, reuse of the session data is allowed within 5 minutes.
 This duration is hard-coded and controlled on the server side. We could
 introduce a new option to override the period but leaving it out of scope for
 this RFD for now.
@@ -262,6 +266,9 @@ The logic for existing flows like `tsh db connect` or `tsh proxy db` [RFD
 090](https://github.com/gravitational/teleport/blob/master/rfd/0090-db-mfa-sessions.md)
 will stay the same where only non-reusable response is allowed when calling
 `GenerateUserCerts`.
+
+Regardless, the original goal of per-session MFA, to protect users against
+compromises of their on-disk Teleport certificates, is still preserved.
 
 The `--max-connections` flag from `tsh db exec` has a max limit of 10, but it
 will not prevent bad actors who attempt to flood the backend. However, this is
