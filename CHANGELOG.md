@@ -1,5 +1,29 @@
 # Changelog
 
+## 17.3.4 (03/19/25)
+
+* Improved clarity of error logs and address UX edge cases in teleport-update, part 2. [#53197](https://github.com/gravitational/teleport/pull/53197)
+* Fixed the `teleport-update` systemd service in CentOS 7 and distros with older systemd versions. [#53196](https://github.com/gravitational/teleport/pull/53196)
+* Fixed panic when trimming audit log entries. [#53195](https://github.com/gravitational/teleport/pull/53195)
+* Fixed an issue causing the teleport process to crash on group database errors when host user creation was enabled. [#53082](https://github.com/gravitational/teleport/pull/53082)
+* Workload ID: support for attesting Docker workloads. [#53069](https://github.com/gravitational/teleport/pull/53069)
+* Added a `--join-method` flag to the `teleport configure` command. [#53061](https://github.com/gravitational/teleport/pull/53061)
+* Improved clarity of error logs and address UX edge cases in `teleport-update`. [#53048](https://github.com/gravitational/teleport/pull/53048)
+* The event handler can now generate certificates for DNS names that are not resolvable. [#53026](https://github.com/gravitational/teleport/pull/53026)
+* Machine ID: Added warning when generated certificates will not last as long as expected. [#53019](https://github.com/gravitational/teleport/pull/53019)
+* Improve support for `teleport-update` on CentOS 7 and distros with older systemd versions. [#53017](https://github.com/gravitational/teleport/pull/53017)
+* You can now use `==` and `!=` operators with integer operands in Teleport predicate language. [#52991](https://github.com/gravitational/teleport/pull/52991)
+* Workload ID: support for attesting Podman workloads. [#52978](https://github.com/gravitational/teleport/pull/52978)
+* Web UI now properly shows per-session MFA errors in desktop sessions. [#52916](https://github.com/gravitational/teleport/pull/52916)
+* Allow specifying the maximum number of PKCS#11 HSM connections. [#52870](https://github.com/gravitational/teleport/pull/52870)
+* Resolved an issue where desktop session recordings could have incorrect proportions. [#52866](https://github.com/gravitational/teleport/pull/52866)
+* The audit log web UI now renders Teleport Autoupdate Config and Version events properly. [#52838](https://github.com/gravitational/teleport/pull/52838)
+* Fixed terraform provider data sources. [#52816](https://github.com/gravitational/teleport/pull/52816)
+
+Enterprise:
+* Fixed Slack plugin failing to enroll with "need auth" error in the web UI.
+* Added checks to opsgenie and servicenow plugin to cause enrollment to fail if the provided config is invalid.
+
 ## 17.3.3 (03/06/25)
 
 * Updated golang.org/x/net (addresses CVE-2025-22870). [#52846](https://github.com/gravitational/teleport/pull/52846)
