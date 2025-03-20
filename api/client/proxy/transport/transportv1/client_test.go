@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh/agent"
 	"google.golang.org/grpc"
@@ -36,7 +37,6 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
-	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 )

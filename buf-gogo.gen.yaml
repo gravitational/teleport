@@ -13,10 +13,7 @@ inputs:
       - api/proto/teleport/legacy/client/proto/event.proto
 
 plugins:
-  - local:
-      - go
-      - run
-      - github.com/gogo/protobuf/protoc-gen-gogofast
+  - local: protoc-gen-gogofast
     out: ./gogogen
     opt:
       - Mgoogle/protobuf/any.proto=github.com/gogo/protobuf/types

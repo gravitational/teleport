@@ -3778,17 +3778,6 @@ export const events = [
     ],
   },
   {
-    code: 'TAIC001I',
-    event: 'aws_identity_center.resource_sync.success',
-    message: 'Periodic account, permission set and account assignment sync',
-    success: true,
-    time: '2025-02-11T15:29:30.045Z',
-    total_account_assignments: 12,
-    total_accounts: 4,
-    total_permission_sets: 3,
-    total_user_groups: 5,
-  },
-  {
     'addr.remote': '127.0.0.1:41608',
     cluster_name: 'autest.cloud.gravitational.io',
     code: 'AUV001I',
@@ -3980,5 +3969,6 @@ export const eventsSample = [
     uid: '0cb8a020-46ee-4938-833a-69bc03a7a831',
     user: 'moe',
   },
+
   // Do not add new events to this array, add it to `events` list.
 ].map(makeEvent);

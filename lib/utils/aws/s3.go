@@ -37,7 +37,7 @@ import (
 
 // ConvertS3Error wraps S3 error and returns trace equivalent
 // It works on both sdk v1 and v2.
-func ConvertS3Error(err error) error {
+func ConvertS3Error(err error, args ...interface{}) error {
 	if err == nil {
 		return nil
 	}
@@ -45,50 +45,50 @@ func ConvertS3Error(err error) error {
 	// SDK v1 errors:
 	var rerr awserr.RequestFailure
 	if errors.As(err, &rerr) && rerr.StatusCode() == http.StatusForbidden {
-		return trace.AccessDenied("%s", rerr.Message())
+		return trace.AccessDenied(rerr.Message())
 	}
 
 	var aerr awserr.Error
 	if errors.As(err, &aerr) {
 		switch aerr.Code() {
 		case s3.ErrCodeNoSuchKey, s3.ErrCodeNoSuchBucket, s3.ErrCodeNoSuchUpload, "NotFound":
-			return trace.NotFound("%s", aerr)
+			return trace.NotFound(aerr.Error(), args...)
 		case s3.ErrCodeBucketAlreadyExists, s3.ErrCodeBucketAlreadyOwnedByYou:
-			return trace.AlreadyExists("%s", aerr)
+			return trace.AlreadyExists(aerr.Error(), args...)
 		default:
-			return trace.BadParameter("%s", aerr)
+			return trace.BadParameter(aerr.Error(), args...)
 		}
 	}
 
 	// SDK v2 errors:
 	var noSuchKey *s3types.NoSuchKey
 	if errors.As(err, &noSuchKey) {
-		return trace.NotFound("%s", noSuchKey)
+		return trace.NotFound(noSuchKey.Error(), args...)
 	}
 	var noSuchBucket *s3types.NoSuchBucket
 	if errors.As(err, &noSuchBucket) {
-		return trace.NotFound("%s", noSuchBucket)
+		return trace.NotFound(noSuchBucket.Error(), args...)
 	}
 	var noSuchUpload *s3types.NoSuchUpload
 	if errors.As(err, &noSuchUpload) {
-		return trace.NotFound("%s", noSuchUpload)
+		return trace.NotFound(noSuchUpload.Error(), args...)
 	}
 	var bucketAlreadyExists *s3types.BucketAlreadyExists
 	if errors.As(err, &bucketAlreadyExists) {
-		return trace.AlreadyExists("%s", bucketAlreadyExists.Error())
+		return trace.AlreadyExists(bucketAlreadyExists.Error(), args...)
 	}
 	var bucketAlreadyOwned *s3types.BucketAlreadyOwnedByYou
 	if errors.As(err, &bucketAlreadyOwned) {
-		return trace.AlreadyExists("%s", bucketAlreadyOwned.Error())
+		return trace.AlreadyExists(bucketAlreadyOwned.Error(), args...)
 	}
 	var notFound *s3types.NotFound
 	if errors.As(err, &notFound) {
-		return trace.NotFound("%s", notFound)
+		return trace.NotFound(notFound.Error(), args...)
 	}
 
 	var opError *smithy.OperationError
 	if errors.As(err, &opError) && strings.Contains(opError.Err.Error(), "FIPS") {
-		return trace.BadParameter("%s", opError)
+		return trace.BadParameter(opError.Error())
 	}
 
 	return err

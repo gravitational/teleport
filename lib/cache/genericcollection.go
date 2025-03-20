@@ -81,7 +81,7 @@ func (g *genericCollection[T, R, _]) processEvent(ctx context.Context, event typ
 	case types.OpDelete:
 		if err := g.exec.delete(ctx, g.cache, event.Resource); err != nil {
 			if !trace.IsNotFound(err) {
-				g.cache.Logger.WarnContext(ctx, "Failed to delete resource", "error", err)
+				g.cache.Logger.WithError(err).Warn("Failed to delete resource.")
 				return trace.Wrap(err)
 			}
 		}
@@ -107,7 +107,7 @@ func (g *genericCollection[T, R, _]) processEvent(ctx context.Context, event typ
 			return trace.Wrap(err)
 		}
 	default:
-		g.cache.Logger.WarnContext(ctx, "Skipping unsupported event type", "event", event.Type)
+		g.cache.Logger.WithField("event", event.Type).Warn("Skipping unsupported event type.")
 	}
 	return nil
 }

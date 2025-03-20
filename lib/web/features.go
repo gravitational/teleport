@@ -33,7 +33,7 @@ func (h *Handler) SetClusterFeatures(features proto.Features) {
 	defer h.Mutex.Unlock()
 
 	if !bytes.Equal(h.clusterFeatures.CloudAnonymizationKey, features.CloudAnonymizationKey) {
-		h.logger.InfoContext(h.cfg.Context, "Received new cloud anonymization key from server")
+		h.log.Info("Received new cloud anonymization key from server")
 	}
 
 	entitlements.BackfillFeatures(&features)
@@ -54,25 +54,25 @@ func (h *Handler) GetClusterFeatures() proto.Features {
 // The watcher doesn't ping the auth server immediately upon start because features are
 // already set by the config object in `NewHandler`.
 func (h *Handler) startFeatureWatcher() {
-	ctx := h.cfg.Context
 	ticker := h.clock.NewTicker(h.cfg.FeatureWatchInterval)
-	h.logger.InfoContext(ctx, "Proxy handler features watcher has started", "interval", h.cfg.FeatureWatchInterval)
+	h.log.WithField("interval", h.cfg.FeatureWatchInterval).Info("Proxy handler features watcher has started")
+	ctx := h.cfg.Context
 
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.Chan():
-			h.logger.InfoContext(ctx, "Pinging auth server for features")
+			h.log.Info("Pinging auth server for features")
 			pingResponse, err := h.GetProxyClient().Ping(ctx)
 			if err != nil {
-				h.logger.ErrorContext(ctx, "Auth server ping failed", "error", err)
+				h.log.WithError(err).Error("Auth server ping failed")
 				continue
 			}
 
 			h.SetClusterFeatures(*pingResponse.ServerFeatures)
-			h.logger.InfoContext(ctx, "Done updating proxy features", "features", pingResponse.ServerFeatures)
+			h.log.WithField("features", pingResponse.ServerFeatures).Info("Done updating proxy features")
 		case <-ctx.Done():
-			h.logger.InfoContext(ctx, "Feature service has stopped")
+			h.log.Info("Feature service has stopped")
 			return
 		}
 	}

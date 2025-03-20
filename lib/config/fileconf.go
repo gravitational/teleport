@@ -20,14 +20,12 @@ package config
 
 import (
 	"bytes"
-	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
-	"log/slog"
 	"net"
 	"net/url"
 	"os"
@@ -36,6 +34,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v2"
@@ -1089,7 +1088,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	switch {
 	case a.HardwareKey != nil:
 		if a.PIVSlot != "" {
-			slog.WarnContext(context.Background(), `Both "piv_slot" and "hardware_key" settings were populated, using "hardware_key" setting`)
+			log.Warn(`Both "piv_slot" and "hardware_key" settings were populated, using "hardware_key" setting.`)
 		}
 		h, err = a.HardwareKey.Parse()
 		if err != nil {
@@ -1107,9 +1106,9 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	}
 
 	if a.SecondFactor != "" && a.SecondFactors != nil {
-		const msg = `second_factor and second_factors are both set. second_factors will take precedence. ` +
-			`second_factor should be unset to remove this warning.`
-		slog.WarnContext(context.Background(), msg)
+		log.Warn(`` +
+			`second_factor and second_factors are both set. second_factors will take precedence. ` +
+			`second_factor should be unset to remove this warning.`)
 	}
 
 	stableUNIXUserConfig, err := a.StableUNIXUserConfig.Parse()
@@ -1184,10 +1183,10 @@ func (w *Webauthn) Parse() (*types.Webauthn, error) {
 		return nil, trace.BadParameter("webauthn.attestation_denied_cas: %v", err)
 	}
 	if w.Disabled {
-		const msg = `The "webauthn.disabled" setting is marked for removal and currently has no effect. ` +
+		log.Warnf(`` +
+			`The "webauthn.disabled" setting is marked for removal and currently has no effect. ` +
 			`Please update your configuration to use WebAuthn. ` +
-			`Refer to https://goteleport.com/docs/admin-guides/access-controls/guides/webauthn/`
-		slog.WarnContext(context.Background(), msg)
+			`Refer to https://goteleport.com/docs/admin-guides/access-controls/guides/webauthn/`)
 	}
 	return &types.Webauthn{
 		// Allow any RPID to go through, we rely on

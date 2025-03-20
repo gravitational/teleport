@@ -173,6 +173,18 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
   const { actions, userSamlIdPPerm } = useSamlAppAction();
 
   const isAwsIdentityCenterApp = subKind === AppSubKind.AwsIcAccount;
+  function getAwsLaunchUrl(arnOrPermSetName: string) {
+    if (isAwsIdentityCenterApp) {
+      return `${publicAddr}&role_name=${arnOrPermSetName}`;
+    } else {
+      return cfg.getAppLauncherRoute({
+        fqdn,
+        clusterId,
+        publicAddr,
+        arn: arnOrPermSetName,
+      });
+    }
+  }
   if (awsConsole || isAwsIdentityCenterApp) {
     let awsConsoleOrIdentityCenterRoles: AwsRole[] = awsRoles;
     if (isAwsIdentityCenterApp) {
@@ -184,18 +196,6 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
           accountId: name,
         })
       );
-    }
-    function getAwsLaunchUrl(arnOrPermSetName: string) {
-      if (isAwsIdentityCenterApp) {
-        return `${publicAddr}&role_name=${arnOrPermSetName}`;
-      } else {
-        return cfg.getAppLauncherRoute({
-          fqdn,
-          clusterId,
-          publicAddr,
-          arn: arnOrPermSetName,
-        });
-      }
     }
 
     return (

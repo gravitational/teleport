@@ -9,5 +9,3 @@ attestors:
     enabled: false
   docker:
     enabled: false
-  systemd:
-    enabled: false

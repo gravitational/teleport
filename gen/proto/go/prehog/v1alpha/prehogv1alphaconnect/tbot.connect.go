@@ -55,6 +55,12 @@ const (
 	TbotReportingServiceSubmitTbotEventProcedure = "/prehog.v1alpha.TbotReportingService/SubmitTbotEvent"
 )
 
+// These variables are the protoreflect.Descriptor objects for the RPCs defined in this package.
+var (
+	tbotReportingServiceServiceDescriptor               = v1alpha.File_prehog_v1alpha_tbot_proto.Services().ByName("TbotReportingService")
+	tbotReportingServiceSubmitTbotEventMethodDescriptor = tbotReportingServiceServiceDescriptor.Methods().ByName("SubmitTbotEvent")
+)
+
 // TbotReportingServiceClient is a client for the prehog.v1alpha.TbotReportingService service.
 type TbotReportingServiceClient interface {
 	SubmitTbotEvent(context.Context, *connect.Request[v1alpha.SubmitTbotEventRequest]) (*connect.Response[v1alpha.SubmitTbotEventResponse], error)
@@ -69,12 +75,11 @@ type TbotReportingServiceClient interface {
 // http://api.acme.com or https://acme.com/grpc).
 func NewTbotReportingServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) TbotReportingServiceClient {
 	baseURL = strings.TrimRight(baseURL, "/")
-	tbotReportingServiceMethods := v1alpha.File_prehog_v1alpha_tbot_proto.Services().ByName("TbotReportingService").Methods()
 	return &tbotReportingServiceClient{
 		submitTbotEvent: connect.NewClient[v1alpha.SubmitTbotEventRequest, v1alpha.SubmitTbotEventResponse](
 			httpClient,
 			baseURL+TbotReportingServiceSubmitTbotEventProcedure,
-			connect.WithSchema(tbotReportingServiceMethods.ByName("SubmitTbotEvent")),
+			connect.WithSchema(tbotReportingServiceSubmitTbotEventMethodDescriptor),
 			connect.WithClientOptions(opts...),
 		),
 	}
@@ -102,11 +107,10 @@ type TbotReportingServiceHandler interface {
 // By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
 // and JSON codecs. They also support gzip compression.
 func NewTbotReportingServiceHandler(svc TbotReportingServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
-	tbotReportingServiceMethods := v1alpha.File_prehog_v1alpha_tbot_proto.Services().ByName("TbotReportingService").Methods()
 	tbotReportingServiceSubmitTbotEventHandler := connect.NewUnaryHandler(
 		TbotReportingServiceSubmitTbotEventProcedure,
 		svc.SubmitTbotEvent,
-		connect.WithSchema(tbotReportingServiceMethods.ByName("SubmitTbotEvent")),
+		connect.WithSchema(tbotReportingServiceSubmitTbotEventMethodDescriptor),
 		connect.WithHandlerOptions(opts...),
 	)
 	return "/prehog.v1alpha.TbotReportingService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

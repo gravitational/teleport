@@ -73,7 +73,7 @@ help: ## Display this help.
 ##@ Development
 
 .PHONY: crd ## Single command to generate anything CRD-related (manifests and docs)
-crd: crdgen crd-docs manifests
+crd: crdgen crd-docs
 
 .PHONY: crdgen
 crdgen: ## Generate CRDs

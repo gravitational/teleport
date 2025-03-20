@@ -74,7 +74,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"log/slog"
 	"os"
 	"runtime/cgo"
 	"sync"
@@ -84,6 +83,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
@@ -95,20 +95,19 @@ func init() {
 	var rustLogLevel string
 
 	// initialize the Rust logger by setting $RUST_LOG based
-	// on the slog log level
+	// on the logrus log level
 	// (unless RUST_LOG is already explicitly set, then we
 	// assume the user knows what they want)
 	rl := os.Getenv("RUST_LOG")
 	if rl == "" {
-		ctx := context.Background()
-		switch {
-		case slog.Default().Enabled(ctx, logutils.TraceLevel):
+		switch l := logrus.GetLevel(); l {
+		case logrus.TraceLevel:
 			rustLogLevel = "trace"
-		case slog.Default().Enabled(ctx, slog.LevelDebug):
+		case logrus.DebugLevel:
 			rustLogLevel = "debug"
-		case slog.Default().Enabled(ctx, slog.LevelInfo):
+		case logrus.InfoLevel:
 			rustLogLevel = "info"
-		case slog.Default().Enabled(ctx, slog.LevelWarn):
+		case logrus.WarnLevel:
 			rustLogLevel = "warn"
 		default:
 			rustLogLevel = "error"

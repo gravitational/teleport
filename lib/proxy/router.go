@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
@@ -123,6 +124,8 @@ type LocalAccessPoint interface {
 type RouterConfig struct {
 	// ClusterName indicates which cluster the router is for
 	ClusterName string
+	// Log is the logger to use
+	Log *logrus.Entry
 	// LocalAccessPoint is the proxy cache
 	LocalAccessPoint LocalAccessPoint
 	// SiteGetter allows looking up sites
@@ -136,6 +139,10 @@ type RouterConfig struct {
 
 // CheckAndSetDefaults ensures the required items were populated
 func (c *RouterConfig) CheckAndSetDefaults() error {
+	if c.Log == nil {
+		c.Log = logrus.WithField(teleport.ComponentKey, "Router")
+	}
+
 	if c.ClusterName == "" {
 		return trace.BadParameter("ClusterName must be provided")
 	}
@@ -163,6 +170,7 @@ func (c *RouterConfig) CheckAndSetDefaults() error {
 // nodes and other clusters.
 type Router struct {
 	clusterName      string
+	log              *logrus.Entry
 	localAccessPoint LocalAccessPoint
 	localSite        reversetunnelclient.RemoteSite
 	siteGetter       SiteGetter
@@ -184,6 +192,7 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 
 	return &Router{
 		clusterName:      cfg.ClusterName,
+		log:              cfg.Log,
 		localAccessPoint: cfg.LocalAccessPoint,
 		localSite:        localSite,
 		siteGetter:       cfg.SiteGetter,
@@ -229,7 +238,11 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 	}
 	span.AddEvent("retrieved target server")
 
-	principals := []string{host}
+	principals := []string{
+		host,
+		// Add in principal for when nodes are on leaf clusters.
+		host + "." + clusterName,
+	}
 
 	var (
 		isAgentlessNode bool
@@ -290,7 +303,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		IsAgentlessNode:       isAgentlessNode,
 		AgentlessSigner:       sshSigner,
 		Address:               host,
-		Principals:            principals,
+		Principals:            apiutils.Deduplicate(principals),
 		ServerID:              serverID,
 		ProxyIDs:              proxyIDs,
 		ConnType:              types.NodeTunnel,

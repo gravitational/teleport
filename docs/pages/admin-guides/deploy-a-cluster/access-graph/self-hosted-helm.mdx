@@ -85,7 +85,8 @@ $ kubectl -n teleport-access-graph create secret tls teleport-access-graph-tls -
 
 The above commands assume that you have the TLS certificate and private key for the Access Graph server stored under the `./certs` directory.
 
-<Details title="Generating TLS certificates for development">
+<details>
+<summary>Generating TLS certificates for development</summary>
 The following script can be used to quickly generate a certificate authority and server TLS certificate for deploying Access Graph.
 
 ```sh
@@ -112,7 +113,7 @@ and finally once to use for signing the Access Graph server certificate.
 
 Please note that this script is only provided for proof-of-concept deployments,
 and may not follow the best security practices.
-</Details>
+</details>
 
 After provisioning the secrets, create the following file named `tag-values.yaml` file for the Access Graph deployment,
 replacing the value under the `clusterHostCAs` key with the Teleport Host CA certificate retrieved previously.

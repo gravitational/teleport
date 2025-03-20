@@ -34,7 +34,6 @@ import (
 
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -442,7 +441,7 @@ func TestPasswordlessFlow_BeginAndFinish(t *testing.T) {
 				AllowCredentials: [][]uint8{}, // aka unset
 				ResidentKey:      false,       // irrelevant for login
 				UserVerification: string(protocol.VerificationRequired),
-				ChallengeExtensions: &mfatypes.ChallengeExtensions{
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
 					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN,
 					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 				},

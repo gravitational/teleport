@@ -141,6 +141,7 @@ type cacheCollections struct {
 	staticHostUsers                    collectionReader[staticHostUserGetter]
 	kubeServers                        collectionReader[kubeServerGetter]
 	locks                              collectionReader[services.LockGetter]
+	namespaces                         collectionReader[namespaceGetter]
 	networkRestrictions                collectionReader[networkRestrictionGetter]
 	oktaAssignments                    collectionReader[oktaAssignmentGetter]
 	oktaImportRules                    collectionReader[oktaImportRuleGetter]
@@ -175,9 +176,9 @@ type cacheCollections struct {
 	identityCenterAccounts             collectionReader[identityCenterAccountGetter]
 	identityCenterPrincipalAssignments collectionReader[identityCenterPrincipalAssignmentGetter]
 	identityCenterAccountAssignments   collectionReader[identityCenterAccountAssignmentGetter]
+	workloadIdentity                   collectionReader[WorkloadIdentityReader]
 	pluginStaticCredentials            collectionReader[pluginStaticCredentialsGetter]
 	gitServers                         collectionReader[services.GitServerGetter]
-	workloadIdentity                   collectionReader[WorkloadIdentityReader]
 }
 
 // setupCollections returns a registry of collections.
@@ -300,6 +301,15 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.roles
+		case types.KindNamespace:
+			if c.Presence == nil {
+				return nil, trace.BadParameter("missing parameter Presence")
+			}
+			collections.namespaces = &genericCollection[*types.Namespace, namespaceGetter, namespaceExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.namespaces
 		case types.KindNode:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
@@ -932,7 +942,7 @@ func (remoteClusterExecutor) upsert(ctx context.Context, cache *Cache, resource 
 	err := cache.trustCache.DeleteRemoteCluster(ctx, resource.GetName())
 	if err != nil {
 		if !trace.IsNotFound(err) {
-			cache.Logger.WarnContext(ctx, "Failed to delete remote cluster", "cluster", resource.GetName(), "error", err)
+			cache.Logger.WithError(err).Warnf("Failed to delete remote cluster %v.", resource.GetName())
 			return trace.Wrap(err)
 		}
 	}
@@ -1061,6 +1071,50 @@ type nodeGetter interface {
 }
 
 var _ executor[types.Server, nodeGetter] = nodeExecutor{}
+
+type namespaceExecutor struct{}
+
+func (namespaceExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*types.Namespace, error) {
+	namespaces, err := cache.Presence.GetNamespaces()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	derefNamespaces := make([]*types.Namespace, len(namespaces))
+	for i := range namespaces {
+		ns := namespaces[i]
+		derefNamespaces[i] = &ns
+	}
+	return derefNamespaces, nil
+}
+
+func (namespaceExecutor) upsert(ctx context.Context, cache *Cache, resource *types.Namespace) error {
+	return cache.presenceCache.UpsertNamespace(*resource)
+}
+
+func (namespaceExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.presenceCache.DeleteAllNamespaces()
+}
+
+func (namespaceExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.presenceCache.DeleteNamespace(resource.GetName())
+}
+
+func (namespaceExecutor) isSingleton() bool { return false }
+
+func (namespaceExecutor) getReader(cache *Cache, cacheOK bool) namespaceGetter {
+	if cacheOK {
+		return cache.presenceCache
+	}
+	return cache.Config.Presence
+}
+
+type namespaceGetter interface {
+	GetNamespaces() ([]types.Namespace, error)
+	GetNamespace(name string) (*types.Namespace, error)
+}
+
+var _ executor[*types.Namespace, namespaceGetter] = namespaceExecutor{}
 
 type certAuthorityExecutor struct {
 	// extracted from watch.Filter, to avoid rebuilding on every event
@@ -3479,7 +3533,7 @@ func (accessMonitoringRulesExecutor) getReader(cache *Cache, cacheOK bool) acces
 type accessMonitoringRuleGetter interface {
 	GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrulesv1.AccessMonitoringRule, error)
 	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
-	ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
+	ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, nextToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
 }
 
 type accessGraphSettingsExecutor struct{}

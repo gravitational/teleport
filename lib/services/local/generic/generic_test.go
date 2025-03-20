@@ -109,7 +109,7 @@ func unmarshalResource(data []byte, opts ...services.MarshalOption) (*testResour
 
 	var r testResource
 	if err := utils.FastUnmarshal(data, &r); err != nil {
-		return nil, trace.BadParameter("%s", err)
+		return nil, trace.BadParameter(err.Error())
 	}
 	if err := r.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

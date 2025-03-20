@@ -16,39 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { action } from '@storybook/addon-actions';
-import { useArgs } from '@storybook/preview-api';
 import type { Meta, StoryFn, StoryObj } from '@storybook/react';
+import React, { useState } from 'react';
 
 import { Flex } from 'design';
 
 import { SortMenu } from './SortMenu';
-
-const STUB_FIELDS = ['name', 'created', 'updated', 'status'] as const;
 
 export default {
   title: 'Shared/Controls/SortMenu',
   component: SortMenu<any>,
   argTypes: {
     current: {
-      control: { type: 'select' },
-      options: STUB_FIELDS.reduce(
-        (acc, v) => [...acc, `${v} (Asc)`, `${v} (Desc)`],
-        []
-      ),
-      mapping: STUB_FIELDS.reduce(
-        (acc, v) => ({
-          ...acc,
-          [`${v} (Asc)`]: { fieldName: v, dir: 'ASC' },
-          [`${v} (Desc)`]: { fieldName: v, dir: 'DESC' },
-        }),
-        {}
-      ),
+      control: false,
       description: 'Current sort',
       table: {
         type: {
           summary:
-            "Array<{ fieldName: Exclude<keyof T, symbol | number>; dir: 'ASC' | 'DESC' }>",
+            "Array<{ fieldName: Exclude<keyof T, symbol | number>; dir: 'ASC' | 'DESC'>",
         },
       },
     },
@@ -58,7 +43,7 @@ export default {
       table: {
         type: {
           summary:
-            'Array<{ value: Exclude<keyof T, symbol | number>; label: string }>',
+            '{ value: Exclude<keyof T, symbol | number>; label: string }[]',
         },
       },
     },
@@ -74,28 +59,25 @@ export default {
     },
   },
   args: {
-    current: { fieldName: STUB_FIELDS[0], dir: 'ASC' },
-    fields: STUB_FIELDS.map(v => ({
-      value: v,
-      label: `${v.charAt(0).toUpperCase()}${v.slice(1)}`,
-    })),
-    onChange: action('onChange'),
+    current: { fieldName: 'name', dir: 'ASC' },
+    fields: [
+      { value: 'name', label: 'Name' },
+      { value: 'created', label: 'Created' },
+      { value: 'updated', label: 'Updated' },
+    ],
   },
-  render: (args => {
-    const [{ current }, updateArgs] =
-      useArgs<Meta<typeof SortMenu<any>>['args']>();
-    const onChange = (value: typeof current) => {
-      updateArgs({ current: value });
-      args.onChange?.(value);
-    };
+  parameters: { controls: { expanded: true, exclude: ['userContext'] } },
+} satisfies Meta<typeof SortMenu<any>>;
+
+const Default: StoryObj<typeof SortMenu> = {
+  render: (({ current, fields }) => {
+    const [sort, setSort] = useState(current);
     return (
       <Flex alignItems="center" minHeight="100px">
-        <SortMenu current={current} fields={args.fields} onChange={onChange} />
+        <SortMenu current={sort} fields={fields} onChange={setSort} />
       </Flex>
     );
   }) satisfies StoryFn<typeof SortMenu>,
-} satisfies Meta<typeof SortMenu<any>>;
-
-const Default: StoryObj<typeof SortMenu> = { args: {} };
+};
 
 export { Default as SortMenu };

@@ -93,17 +93,11 @@ describe('app launcher path is properly formed', () => {
     });
 
     delete window.location;
-    window.location = {
-      ...realLocation,
-      replace: assignMock,
-    } as unknown as string & Location;
+    window.location = { ...realLocation, replace: assignMock };
   });
 
   afterEach(() => {
-    window.location = {
-      ...realLocation,
-      replace: assignMock,
-    } as unknown as string & Location;
+    window.location = realLocation;
     assignMock.mockClear();
   });
 
@@ -268,17 +262,11 @@ describe('fqdn is matched', () => {
     jest.spyOn(api, 'post').mockResolvedValue({});
 
     delete window.location;
-    window.location = {
-      ...realLocation,
-      replace: assignMock,
-    } as unknown as string & Location;
+    window.location = { ...realLocation, replace: assignMock };
   });
 
   afterEach(() => {
-    window.location = {
-      ...realLocation,
-      replace: assignMock,
-    } as unknown as string & Location;
+    window.location = realLocation;
     assignMock.mockClear();
   });
 

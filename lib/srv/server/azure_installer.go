@@ -24,7 +24,8 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 
@@ -69,7 +70,7 @@ func (ai *AzureInstaller) Run(ctx context.Context, req AzureRunRequest) error {
 			runRequest := azure.RunCommandRequest{
 				Region:        req.Region,
 				ResourceGroup: req.ResourceGroup,
-				VMName:        azure.StringVal(inst.Name),
+				VMName:        aws.StringValue(inst.Name),
 				Parameters:    req.Params,
 				Script:        script,
 			}

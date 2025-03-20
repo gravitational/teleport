@@ -38,7 +38,7 @@ import {
   PluginKind,
   Regions,
 } from 'teleport/services/integrations';
-import type { KubeResourceKind } from 'teleport/services/kube/types';
+import { KubeResourceKind } from 'teleport/services/kube/types';
 import type { RecordingType } from 'teleport/services/recordings';
 import type { ParticipantMode } from 'teleport/services/session';
 import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
@@ -279,6 +279,7 @@ const cfg = {
     databasesPath: `/v1/webapi/sites/:clusterId/databases?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
 
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
+    desktopServicesPath: `/v1/webapi/sites/:clusterId/desktopservices?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
     desktopWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect/ws?username=:username',
@@ -389,6 +390,8 @@ const cfg = {
       '/v1/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn&awsAccountID=:accountID',
     awsConfigureIamScriptListDatabasesPath:
       '/v1/webapi/scripts/integrations/configure/listdatabases-iam.sh?awsRegion=:region&role=:iamRoleName&awsAccountID=:accountID',
+    awsConfigureIamScriptEc2InstanceConnectPath:
+      '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:iamRoleName&awsAccountID=:accountID',
     awsConfigureIamEksScriptPath:
       '/v1/webapi/scripts/integrations/configure/eks-iam.sh?awsRegion=:region&role=:iamRoleName&awsAccountID=:accountID',
 
@@ -429,6 +432,14 @@ const cfg = {
       enrollV2:
         '/v2/webapi/sites/:clusterId/integrations/aws-oidc/:name/enrolleksclusters',
     },
+
+    ec2InstancesListPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ec2',
+    ec2InstanceConnectEndpointsListPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ec2ice',
+    // Returns a script that configures the required IAM permissions to enable the usage of EC2 Instance Connect Endpoint to access EC2 instances.
+    ec2InstanceConnectDeployPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/deployec2ice',
 
     userGroupsListPath:
       '/v1/webapi/sites/:clusterId/user-groups?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
@@ -986,6 +997,13 @@ const cfg = {
     });
   },
 
+  getDesktopServicesUrl(clusterId: string, params: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.desktopServicesPath, {
+      clusterId,
+      ...params,
+    });
+  },
+
   getDesktopUrl(clusterId: string, desktopName: string) {
     return generatePath(cfg.api.desktopPath, { clusterId, desktopName });
   },
@@ -1311,6 +1329,33 @@ const cfg = {
     });
   },
 
+  getListEc2InstancesUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.ec2InstancesListPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getListEc2InstanceConnectEndpointsUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.ec2InstanceConnectEndpointsListPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getDeployEc2InstanceConnectEndpointUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.ec2InstanceConnectDeployPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
   getListSecurityGroupsUrl(integrationName: string) {
     const clusterId = cfg.proxyCluster;
 
@@ -1325,6 +1370,17 @@ const cfg = {
       clusterId,
       name: integrationName,
     });
+  },
+
+  getEc2InstanceConnectIAMConfigureScriptUrl(
+    params: UrlAwsConfigureIamScriptParams
+  ) {
+    return (
+      cfg.baseUrl +
+      generatePath(cfg.api.awsConfigureIamScriptEc2InstanceConnectPath, {
+        ...params,
+      })
+    );
   },
 
   getEksIamConfigureScriptUrl(params: UrlAwsConfigureIamScriptParams) {

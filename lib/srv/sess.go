@@ -40,6 +40,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/moby/term"
 	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
@@ -59,7 +60,6 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const sessionRecorderID = "session-recorder"
@@ -367,7 +367,7 @@ func (s *SessionRegistry) UpsertHostUser(identityContext IdentityContext, obtain
 func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *ServerContext) error {
 	session := scx.getSession()
 	if session != nil && !session.isStopped() {
-		scx.Logger.InfoContext(ctx, "Joining existing session", "session_id", session.id)
+		scx.Infof("Joining existing session %v.", session.id)
 		mode := types.SessionParticipantMode(scx.env[teleport.EnvSSHJoinMode])
 		if mode == "" {
 			mode = types.SessionPeerMode
@@ -402,9 +402,9 @@ func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	scx.setSession(ctx, sess, ch)
+	scx.setSession(sess, ch)
 	s.addSession(sess)
-	scx.Logger.InfoContext(ctx, "Creating interactive session", "session_id", sid)
+	scx.Infof("Creating (interactive) session %v.", sid)
 
 	// Start an interactive session (TTY attached). Close the session if an error
 	// occurs, otherwise it will be closed by the callee.
@@ -421,11 +421,11 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 
 	if sessionID.IsZero() {
 		sessionID = rsession.NewID()
-		scx.Logger.Log(ctx, logutils.TraceLevel, "Session not found, creating a new session", "session_id", sessionID)
+		scx.Tracef("Session not found, creating a new session %s", sessionID)
 	} else {
 		// Use passed session ID. Assist uses this "feature" to record
 		// the execution output.
-		scx.Logger.Log(ctx, logutils.TraceLevel, "Session found, reusing it", "session_id", sessionID)
+		scx.Tracef("Session found, reusing it %s", sessionID)
 	}
 
 	// This logic allows concurrent request to create a new session
@@ -434,7 +434,7 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	scx.Logger.InfoContext(ctx, "Creating exec session", "session_id", sessionID)
+	scx.Infof("Creating (exec) session %v.", sessionID)
 
 	approved, err := s.isApprovedFileTransfer(scx)
 	if err != nil {
@@ -456,7 +456,7 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 
 	// Start a non-interactive session (TTY attached). Close the session if an error
 	// occurs, otherwise it will be closed by the callee.
-	scx.setSession(ctx, sess, channel)
+	scx.setSession(sess, channel)
 
 	err = sess.startExec(ctx, channel, scx)
 	if err != nil {
@@ -1335,7 +1335,7 @@ func (s *session) launch() {
 
 		_, err := io.Copy(s.io, s.term.PTY())
 		s.logger.DebugContext(
-			s.serverCtx, "Copying from PTY to writer completed",
+			s.serverCtx, "Copying from PTY to writer completed with error.",
 			"error", err,
 		)
 	}()
@@ -1346,7 +1346,7 @@ func (s *session) launch() {
 
 		_, err := io.Copy(s.term.PTY(), s.io)
 		s.logger.DebugContext(
-			s.serverCtx, "Copying from reader to PTY completed",
+			s.serverCtx, "Copying from reader to PTY completed with error.",
 			"error", err,
 		)
 	}()
@@ -1576,7 +1576,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 			"request", execRequest,
 			"result", result,
 		)
-		scx.SendExecResult(ctx, *result)
+		scx.SendExecResult(*result)
 	}
 
 	// Open a BPF recording session. If BPF was not configured, not available,
@@ -1621,7 +1621,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	go func() {
 		result = execRequest.Wait()
 		if result != nil {
-			scx.SendExecResult(ctx, *result)
+			scx.SendExecResult(*result)
 		}
 
 		// Wait a little bit to let all events filter through before closing the
@@ -2202,7 +2202,7 @@ func (s *session) getParties() (parties []*party) {
 type party struct {
 	sync.Mutex
 
-	log        *slog.Logger
+	log        *log.Entry
 	login      string
 	user       string
 	serverID   string
@@ -2218,12 +2218,10 @@ type party struct {
 }
 
 func newParty(s *session, mode types.SessionParticipantMode, ch ssh.Channel, ctx *ServerContext) *party {
-	pid := rsession.NewID()
 	return &party{
-		log: slog.With(
-			teleport.ComponentKey, teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
-			"party_id", pid,
-		),
+		log: log.WithFields(log.Fields{
+			teleport.ComponentKey: teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
+		}),
 		user:     ctx.Identity.TeleportUser,
 		login:    ctx.Identity.Login,
 		serverID: s.registry.Srv.ID(),
@@ -2275,7 +2273,7 @@ func (p *party) Close() error {
 func (p *party) closeUnderSessionLock() error {
 	var err error
 	p.closeOnce.Do(func() {
-		p.log.InfoContext(p.ctx.cancelContext, "Closing party")
+		p.log.Infof("Closing party %v", p.id)
 		// Remove party from its session
 		err = trace.NewAggregate(p.s.removePartyUnderLock(p), p.ch.Close())
 	})

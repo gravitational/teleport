@@ -91,6 +91,8 @@ export default function useLogin() {
         history.replace(cfg.routes.root);
         return;
       }
+      history.replace(cfg.routes.root);
+      return;
     }
     setCheckingValidSession(false);
   }, []);

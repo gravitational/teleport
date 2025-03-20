@@ -41,7 +41,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/parse"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
@@ -92,7 +91,8 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 
 // ClusterGetter provides access to the local cluster
 type ClusterGetter interface {
-	ClusterNameGetter
+	// GetClusterName returns the local cluster name
+	GetClusterName(opts ...MarshalOption) (types.ClusterName, error)
 	// GetRemoteCluster returns a remote cluster by name
 	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
 }
@@ -1174,7 +1174,7 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 			return trace.Wrap(err)
 		}
 		if required {
-			return trace.BadParameter("%s", explanation)
+			return trace.BadParameter(explanation)
 		}
 	}
 
@@ -2140,9 +2140,10 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 
 	for _, resourceID := range resourceIDs {
 		if resourceID.ClusterName != localClusterName {
-			rbacLogger.LogAttrs(ctx, logutils.TraceLevel, `Requested resource is in a foreign cluster, unable to prune roles - All available "search_as_roles" will be requested`,
-				slog.Any("requested_resources", types.ResourceIDToString(resourceID)),
-			)
+			_, debugf := rbacDebugLogger()
+			debugf("Requested resource %q is in a foreign cluster, unable to prune roles. "+
+				`All available "search_as_roles" will be requested.`,
+				types.ResourceIDToString(resourceID))
 			return roles, nil
 		}
 	}

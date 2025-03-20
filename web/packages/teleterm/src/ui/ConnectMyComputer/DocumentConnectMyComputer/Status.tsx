@@ -79,7 +79,7 @@ export function Status(props: { closeDocument?: () => void }) {
   const downloadAndStartAgentAndIgnoreErrors = useCallback(async () => {
     try {
       await downloadAndStartAgent();
-    } catch {
+    } catch (error) {
       // Ignore the error, it'll be shown in the UI by inspecting the attempts.
     }
   }, [downloadAndStartAgent]);

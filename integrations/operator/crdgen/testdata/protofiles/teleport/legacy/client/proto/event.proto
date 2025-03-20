@@ -207,8 +207,6 @@ message Event {
     // IdentityCenterAccountlAssignment is a resource representing a potential
     // Permission Set grant on a specific AWS account.
     teleport.identitycenter.v1.AccountAssignment IdentityCenterAccountAssignment = 74;
-    // PluginStaticCredentials is filled in PluginStaticCredentials related events
-    types.PluginStaticCredentialsV1 PluginStaticCredentials = 75;
     // WorkloadIdentity is a resource for workload identity.
     teleport.workloadidentity.v1.WorkloadIdentity WorkloadIdentity = 76;
   }

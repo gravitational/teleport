@@ -244,6 +244,7 @@ func pingWithClient(cfg *Config, clt *http.Client) (*PingResponse, error) {
 			AgentUpdateGroupParameter: []string{cfg.UpdateGroup},
 		}.Encode()
 	}
+
 	if cfg.ConnectorName != "" {
 		endpoint = endpoint.JoinPath(cfg.ConnectorName)
 	}

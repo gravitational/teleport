@@ -336,10 +336,6 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		// Convert the service config into the actual service type.
 		switch svcCfg := svcCfg.(type) {
 		case *config.SPIFFEWorkloadAPIService:
-			b.log.WarnContext(
-				ctx,
-				"The 'spiffe-workload-api' service is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
-			)
 			clientCredential := &config.UnstableClientCredentialOutput{}
 			svcIdentity := &ClientCredentialOutputService{
 				botAuthClient:     b.botIdentitySvc.GetClient(),
@@ -434,10 +430,6 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			)
 			services = append(services, svc)
 		case *config.SPIFFESVIDOutput:
-			b.log.WarnContext(
-				ctx,
-				"The 'spiffe-svid' service is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
-			)
 			svc := &SPIFFESVIDOutputService{
 				botAuthClient:  b.botIdentitySvc.GetClient(),
 				botCfg:         b.cfg,

@@ -41,13 +41,9 @@ test('computeViewChildrenSize', async () => {
     },
     {
       title: 'Banana',
-      hide: true,
     },
   ];
-  expect(computeViewChildrenSize({ views: nestedViews })).toBe(3);
-  expect(
-    computeViewChildrenSize({ views: nestedViews, constrainToVisible: true })
-  ).toBe(2);
+  expect(computeViewChildrenSize(nestedViews)).toBe(3);
 
   const notNestedViews = [
     {
@@ -57,7 +53,7 @@ test('computeViewChildrenSize', async () => {
       title: 'Banana',
     },
   ];
-  expect(computeViewChildrenSize({ views: notNestedViews })).toBe(2);
+  expect(computeViewChildrenSize(notNestedViews)).toBe(2);
 });
 
 test('addIndexToViews and rendering correct steps', async () => {

@@ -359,7 +359,7 @@ func TestCreateOrJoinSession(t *testing.T) {
 				ctx.SetEnv(sshutils.SessionEnvVar, tt.sessionID)
 			}
 
-			err = ctx.CreateOrJoinSession(context.Background(), registry)
+			err = ctx.CreateOrJoinSession(registry)
 			require.NoError(t, err)
 			require.False(t, ctx.sessionID.IsZero())
 			if tt.wantSameSessionID {

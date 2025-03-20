@@ -379,7 +379,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = true
 	cfg.Proxy.Enabled = false
-	cfg.Logger = utils.NewSlogLoggerForTests()
+	cfg.Log = utils.NewLoggerForTests()
 
 	auth, err = service.NewTeleport(cfg)
 	require.NoError(t, err)
@@ -417,7 +417,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 		cfg.Proxy.WebAddr,
 	}
 	cfg.Proxy.DisableWebInterface = true
-	cfg.Logger = utils.NewSlogLoggerForTests()
+	cfg.Log = utils.NewLoggerForTests()
 
 	proxy, err = service.NewTeleport(cfg)
 	require.NoError(t, err)
@@ -454,7 +454,7 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 	cfg.Databases.Enabled = true
 	cfg.Databases.Databases = dbs
 	cfg.Databases.ResourceMatchers = resMatchers
-	cfg.Logger = utils.NewSlogLoggerForTests()
+	cfg.Log = utils.NewLoggerForTests()
 
 	db, err := service.NewTeleport(cfg)
 	require.NoError(t, err)
@@ -469,38 +469,6 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 	require.NoError(t, err, "database server didn't start after 10s")
 
 	return db
-}
-
-// MakeAgentServer creates SSH agent Service
-// It receives the Proxy Address, a Token (to join the cluster).
-func MakeAgentServer(t *testing.T, cfg *servicecfg.Config, proxyAddr utils.NetAddr, token string) *service.TeleportProcess {
-	// Proxy uses self-signed certificates in tests.
-	lib.SetInsecureDevMode(true)
-
-	cfg.Hostname = "localhost"
-	cfg.DataDir = t.TempDir()
-	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
-	cfg.SetAuthServerAddress(proxyAddr)
-	cfg.SetToken(token)
-	cfg.SSH.Enabled = true
-	cfg.Auth.Enabled = false
-	cfg.Proxy.Enabled = false
-	cfg.Databases.Enabled = false
-	cfg.Logger = utils.NewSlogLoggerForTests()
-
-	agent, err := service.NewTeleport(cfg)
-	require.NoError(t, err)
-	require.NoError(t, agent.Start())
-
-	t.Cleanup(func() {
-		assert.NoError(t, agent.Close())
-	})
-
-	_, err = agent.WaitForEventTimeout(30*time.Second, service.NodeSSHReady)
-	require.NoError(t, err, "agent server didn't start after 10s")
-
-	return agent
 }
 
 // MustCreateListener creates a tcp listener at 127.0.0.1 with random port.

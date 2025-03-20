@@ -20,11 +20,11 @@ package local
 
 import (
 	"context"
-	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -36,14 +36,14 @@ import (
 // AccessService manages roles
 type AccessService struct {
 	backend.Backend
-	logger *slog.Logger
+	log *logrus.Entry
 }
 
 // NewAccessService returns new access service instance
 func NewAccessService(backend backend.Backend) *AccessService {
 	return &AccessService{
 		Backend: backend,
-		logger:  slog.With(teleport.ComponentKey, "AccessService"),
+		log:     logrus.WithFields(logrus.Fields{teleport.ComponentKey: "AccessService"}),
 	}
 }
 
@@ -124,10 +124,7 @@ func (s *AccessService) ListRoles(ctx context.Context, req *proto.ListRolesReque
 				services.WithRevision(item.Revision),
 			)
 			if err != nil {
-				s.logger.WarnContext(ctx, "Failed to unmarshal role",
-					"key", item.Key,
-					"error", err,
-				)
+				s.log.Warnf("Failed to unmarshal role at %q: %v", item.Key, err)
 				continue
 			}
 

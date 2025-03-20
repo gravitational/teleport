@@ -20,11 +20,11 @@ package local
 
 import (
 	"context"
-	"log/slog"
 	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -38,14 +38,14 @@ import (
 // DynamicAccessService manages dynamic RBAC
 type DynamicAccessService struct {
 	backend.Backend
-	logger *slog.Logger
+	log *logrus.Entry
 }
 
 // NewDynamicAccessService returns new dynamic access service instance
 func NewDynamicAccessService(backend backend.Backend) *DynamicAccessService {
 	return &DynamicAccessService{
 		Backend: backend,
-		logger:  slog.With(teleport.ComponentKey, "DynamicAccess"),
+		log:     logrus.WithFields(logrus.Fields{teleport.ComponentKey: "DynamicAccess"}),
 	}
 }
 
@@ -348,10 +348,7 @@ func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *prot
 
 			accessRequest, err := itemToAccessRequest(item)
 			if err != nil {
-				s.logger.WarnContext(ctx, "Failed to unmarshal access request",
-					"key", item.Key,
-					"error", err,
-				)
+				s.log.Warnf("Failed to unmarshal access request at %q: %v", item.Key, err)
 				continue
 			}
 

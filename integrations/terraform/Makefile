@@ -1,7 +1,7 @@
 include install.mk
 
 LOCALDIR := $(dir $(CURDIR)/$(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_LIST)))
-PROTOC_GEN_TERRAFORM:= $(shell command -v protoc-gen-terraform)
+GENTERRAFORMPATH := $(shell go env GOPATH)/bin
 
 BUILDDIR ?= build
 TFDIR ?= example
@@ -48,7 +48,7 @@ $(BUILDDIR)/terraform-provider-teleport_%: terraform-provider-teleport-v$(VERSIO
 CUSTOM_IMPORTS_TMP_DIR ?= /tmp/protoc-gen-terraform/custom-imports
 # This version must match the version installed by .github/workflows/lint.yaml
 PROTOC_GEN_TERRAFORM_VERSION ?= v3.0.2
-PROTOC_GEN_TERRAFORM_EXISTS := $(shell $(PROTOC_GEN_TERRAFORM) version 2>&1 >/dev/null | grep 'protoc-gen-terraform $(PROTOC_GEN_TERRAFORM_VERSION)')
+PROTOC_GEN_TERRAFORM_EXISTS := $(shell protoc-gen-terraform version 2>&1 >/dev/null | grep 'protoc-gen-terraform $(PROTOC_GEN_TERRAFORM_VERSION)')
 
 .PHONY: gen-tfschema
 gen-tfschema:
@@ -64,7 +64,7 @@ endif
 	@protoc \
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
 		--terraform_out=config=protoc-gen-terraform-teleport.yaml:./tfschema \
 		teleport/legacy/types/types.proto
 
@@ -73,7 +73,7 @@ endif
 	@protoc \
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
 		--terraform_out=config=protoc-gen-terraform-teleport-token.yaml:./tfschema \
 		teleport/legacy/types/types.proto
 
@@ -83,35 +83,35 @@ endif
 	@protoc \
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
 		--terraform_out=config=protoc-gen-terraform-loginrule.yaml:./tfschema \
 		teleport/loginrule/v1/loginrule.proto
 
 	@protoc \
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
 		--terraform_out=config=protoc-gen-terraform-devicetrust.yaml:./tfschema \
 		teleport/legacy/types/device.proto
 
 	@protoc \
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
 		--terraform_out=config=protoc-gen-terraform-accesslist.yaml:./tfschema \
 		teleport/accesslist/v1/accesslist.proto
 
 	@protoc \
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
 		--terraform_out=config=protoc-gen-terraform-accessmonitoringrules.yaml:./tfschema \
 		teleport/accessmonitoringrules/v1/access_monitoring_rules.proto
 
 	@protoc \
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
 		--terraform_out=config=protoc-gen-terraform-statichostuser.yaml:./tfschema \
 		teleport/userprovisioning/v2/statichostuser.proto
 
@@ -194,5 +194,15 @@ lint:
 	golangci-lint run -c ../../.golangci.yml
 
 .PHONY: docs
-docs: gen-tfschema install
+docs: gen-tfschema install bin/tfplugindocs
 	./gen/docs.sh $(VERSION)
+
+## Location to install dependencies to
+LOCALBIN ?= $(shell pwd)/bin
+$(LOCALBIN):
+	mkdir -p $(LOCALBIN)
+
+bin/tfplugindocs: go.mod $(LOCALBIN)
+	mkdir -p bin
+# Turning off GOWORK to prevent missing package errors.
+	GOWORK=off GOBIN=$(LOCALBIN) go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs

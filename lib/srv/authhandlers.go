@@ -21,17 +21,16 @@ package srv
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -120,7 +119,7 @@ func (c *AuthHandlerConfig) CheckAndSetDefaults() error {
 type AuthHandlers struct {
 	loginChecker
 
-	log *slog.Logger
+	log *log.Entry
 
 	c *AuthHandlerConfig
 }
@@ -137,7 +136,7 @@ func NewAuthHandlers(config *AuthHandlerConfig) (*AuthHandlers, error) {
 
 	ah := &AuthHandlers{
 		c:   config,
-		log: slog.With(teleport.ComponentKey, config.Component),
+		log: log.WithField(teleport.ComponentKey, config.Component),
 	}
 	ah.loginChecker = &ahLoginChecker{
 		log: ah.log,
@@ -231,13 +230,13 @@ func (h *AuthHandlers) CheckFileCopying(ctx *ServerContext) error {
 }
 
 // CheckPortForward checks if port forwarding is allowed for the users RoleSet.
-func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, requestedMode decisionpb.SSHPortForwardMode) error {
+func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, requestedMode services.SSHPortForwardMode) error {
 	allowedMode := ctx.Identity.AccessChecker.SSHPortForwardMode()
-	if allowedMode == decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON {
+	if allowedMode == services.SSHPortForwardModeOn {
 		return nil
 	}
 
-	if allowedMode == decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF || allowedMode != requestedMode {
+	if allowedMode == services.SSHPortForwardModeOff || allowedMode != requestedMode {
 		systemErrorMessage := fmt.Sprintf("port forwarding not allowed by role set: %v", ctx.Identity.AccessChecker.RoleNames())
 		userErrorMessage := "port forwarding not allowed"
 
@@ -258,12 +257,12 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, request
 				Error:   systemErrorMessage,
 			},
 		}); err != nil {
-			h.log.WarnContext(h.c.Server.Context(), "Failed to emit port forward deny audit event", "error", err)
+			h.log.WithError(err).Warn("Failed to emit port forward deny audit event.")
 		}
 
-		h.log.WarnContext(h.c.Server.Context(), "Port forwarding request denied", "error", systemErrorMessage)
+		h.log.Warnf("Port forwarding request denied: %v.", systemErrorMessage)
 
-		return trace.AccessDenied("%s", userErrorMessage)
+		return trace.AccessDenied(userErrorMessage)
 	}
 
 	return nil
@@ -277,44 +276,34 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	fingerprint := fmt.Sprintf("%v %v", key.Type(), sshutils.Fingerprint(key))
 
 	// create a new logging entry with info specific to this login attempt
-	log := h.log.With(
-		"local_addr", conn.LocalAddr(),
-		"remote_addr", conn.RemoteAddr(),
-		"user", conn.User(),
-		"fingerprint", fingerprint,
-	)
+	log := h.log.WithField(teleport.ComponentFields, log.Fields{
+		"local":       conn.LocalAddr(),
+		"remote":      conn.RemoteAddr(),
+		"user":        conn.User(),
+		"fingerprint": fingerprint,
+	})
+
+	cid := fmt.Sprintf("conn(%v->%v, user=%v)", conn.RemoteAddr(), conn.LocalAddr(), conn.User())
+	log.Debugf("%v auth attempt", cid)
 
 	cert, ok := key.(*ssh.Certificate)
+	log.Debugf("%v auth attempt with key %v, %#v", cid, fingerprint, cert)
 	if !ok {
-		log.DebugContext(ctx, "rejecting auth attempt, unsupported key type")
+		log.Debugf("auth attempt, unsupported key type")
 		return nil, trace.BadParameter("unsupported key type: %v", fingerprint)
 	}
-
-	log.DebugContext(ctx, "processing auth attempt with key",
-		slog.Group("cert",
-			"serial", cert.Serial,
-			"type", cert.CertType,
-			"key_id", cert.KeyId,
-			"valid_principals", cert.ValidPrincipals,
-			"valid_after", cert.ValidAfter,
-			"valid_before", cert.ValidBefore,
-			"permissions", cert.Permissions,
-			"reserved", cert.Reserved,
-		),
-	)
-
 	if len(cert.ValidPrincipals) == 0 {
-		log.DebugContext(ctx, "rejecting auth attempt without valid principals")
+		log.Debugf("need a valid principal for key")
 		return nil, trace.BadParameter("need a valid principal for key %v", fingerprint)
 	}
 	if len(cert.KeyId) == 0 {
-		log.DebugContext(ctx, "rejecting auth attempt without valid key ID")
+		log.Debugf("need a valid key ID for key")
 		return nil, trace.BadParameter("need a valid key for key %v", fingerprint)
 	}
 
 	ident, err := sshca.DecodeIdentity(cert)
 	if err != nil {
-		log.WarnContext(ctx, "failed to decode ssh identity from cert", "error", err)
+		log.Warnf("failed to decode ssh identity from cert: %v", err)
 		return nil, trace.BadParameter("failed to decode ssh identity from cert: %v", fingerprint)
 	}
 
@@ -367,7 +356,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 			message,
 			err,
 		); err != nil {
-			h.log.WarnContext(ctx, "Failed to append Trace to ConnectionDiagnostic", "error", err)
+			h.log.WithError(err).Warn("Failed to append Trace to ConnectionDiagnostic.")
 		}
 
 		if err := h.c.Emitter.EmitAuditEvent(h.c.Server.Context(), &apievents.AuthAttempt{
@@ -389,7 +378,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 				Error:   err.Error(),
 			},
 		}); err != nil {
-			h.log.WarnContext(ctx, "Failed to emit failed login audit event", "error", err)
+			h.log.WithError(err).Warn("Failed to emit failed login audit event.")
 		}
 
 		auditdMsg := auditd.Message{
@@ -399,7 +388,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		}
 
 		if err := auditd.SendEvent(auditd.AuditUserErr, auditd.Failed, auditdMsg); err != nil {
-			log.WarnContext(ctx, "Failed to send an event to auditd", "error", err)
+			log.Warnf("Failed to send an event to auditd: %v", err)
 		}
 	}
 
@@ -420,19 +409,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		recordFailedLogin(err)
 		return nil, trace.Wrap(err)
 	}
-	log.DebugContext(ctx, "Successfully authenticated")
-
-	for ext := range permissions.Extensions {
-		if utils.IsInternalSSHExtension(ext) {
-			return nil, trace.BadParameter("internal extension %q is not permitted in cert permissions", ext)
-		}
-	}
-
-	for ext := range permissions.CriticalOptions {
-		if utils.IsInternalSSHExtension(ext) {
-			return nil, trace.BadParameter("internal extension %q is not permitted in cert critical options", ext)
-		}
-	}
+	log.Debugf("Successfully authenticated")
 
 	clusterName, err := h.c.AccessPoint.GetClusterName()
 	if err != nil {
@@ -451,7 +428,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	case ssh.HostCert:
 		permissions.Extensions[utils.ExtIntCertType] = utils.ExtIntCertTypeHost
 	default:
-		log.WarnContext(ctx, "Received unexpected cert type", "cert_type", cert.CertType)
+		log.Warnf("Unexpected cert type: %v", cert.CertType)
 	}
 
 	// the git forwarding component currently only supports an authorization model that makes sense
@@ -459,13 +436,13 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	if h.c.Component == teleport.ComponentForwardingGit {
 		ca, err := h.authorityForCert(types.UserCA, cert.SignatureKey)
 		if err != nil {
-			log.ErrorContext(ctx, "permission denied", "error", err)
+			log.Errorf("Permission denied: %+v", err)
 			recordFailedLogin(err)
 			return nil, trace.Wrap(err)
 		}
 
 		if clusterName.GetClusterName() != ca.GetClusterName() {
-			log.ErrorContext(ctx, "cross-cluster git forwarding is not supported", "local_cluster", clusterName.GetClusterName(), "remote_cluster", ca.GetClusterName())
+			log.Errorf("Cross-cluster git forwarding is not supported, local_cluster=%s remote_cluster=%s", clusterName.GetClusterName(), ca.GetClusterName())
 			recordFailedLogin(trace.AccessDenied("cross-cluster git forwarding is not supported"))
 			return nil, trace.AccessDenied("cross-cluster git forwarding is not supported")
 		}
@@ -482,7 +459,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	// client's certificate
 	ca, err := h.authorityForCert(types.UserCA, cert.SignatureKey)
 	if err != nil {
-		log.ErrorContext(ctx, "Permission denied", "error", err)
+		log.Errorf("Permission denied: %v", err)
 		recordFailedLogin(err)
 		return nil, trace.Wrap(err)
 	}
@@ -501,7 +478,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		err = h.canLoginWithRBAC(ident, ca, clusterName.GetClusterName(), h.c.Server.GetInfo(), conn.User())
 	}
 	if err != nil {
-		log.ErrorContext(ctx, "Permission denied", "error", err)
+		log.Errorf("Permission denied: %v", err)
 		recordFailedLogin(err)
 		return nil, trace.Wrap(err)
 	}
@@ -590,7 +567,7 @@ func (h *AuthHandlers) hostKeyCallback(hostname string, remote net.Addr, key ssh
 
 	// If strict host key checking is not enabled, log that Teleport trusted an
 	// insecure key, but allow the request to go through.
-	h.log.WarnContext(ctx, "Insecure configuration! Strict host key checking disabled, allowing login without checking host key", "key_type", key.Type())
+	h.log.Warnf("Insecure configuration! Strict host key checking disabled, allowing login without checking host key of type %v.", key.Type())
 	return nil
 }
 
@@ -609,7 +586,7 @@ func (h *AuthHandlers) IsUserAuthority(cert ssh.PublicKey) bool {
 // Teleport CA.
 func (h *AuthHandlers) IsHostAuthority(cert ssh.PublicKey, address string) bool {
 	if _, err := h.authorityForCert(types.HostCA, cert); err != nil {
-		h.log.DebugContext(h.c.Server.Context(), "Unable to find SSH host CA", "error", err)
+		h.log.Debugf("Unable to find SSH host CA: %v.", err)
 		return false
 	}
 	return true
@@ -625,7 +602,7 @@ type loginChecker interface {
 }
 
 type ahLoginChecker struct {
-	log *slog.Logger
+	log *log.Entry
 	c   *AuthHandlerConfig
 }
 
@@ -636,7 +613,7 @@ func (a *ahLoginChecker) canLoginWithRBAC(ident *sshca.Identity, ca types.CertAu
 	// Use the server's shutdown context.
 	ctx := a.c.Server.Context()
 
-	a.log.DebugContext(ctx, "Checking permissions to login to node with RBAC checks", "teleport_user", ident.Username, "os_user", osUser)
+	a.log.Debugf("Checking permissions for (%v,%v) to login to node with RBAC checks.", ident.Username, osUser)
 
 	// get roles assigned to this user
 	accessInfo, err := fetchAccessInfo(ident, ca, clusterName)
@@ -700,9 +677,9 @@ func fetchAccessInfo(ident *sshca.Identity, ca types.CertAuthority, clusterName 
 // Certificate Authority and returns it.
 func (h *AuthHandlers) authorityForCert(caType types.CertAuthType, key ssh.PublicKey) (types.CertAuthority, error) {
 	// get all certificate authorities for given type
-	cas, err := h.c.AccessPoint.GetCertAuthorities(h.c.Server.Context(), caType, false)
+	cas, err := h.c.AccessPoint.GetCertAuthorities(context.TODO(), caType, false)
 	if err != nil {
-		h.log.WarnContext(h.c.Server.Context(), "failed retrieving cert authority", "error", err)
+		h.log.Warnf("%v", trace.DebugReport(err))
 		return nil, trace.Wrap(err)
 	}
 
@@ -711,7 +688,7 @@ func (h *AuthHandlers) authorityForCert(caType types.CertAuthType, key ssh.Publi
 	for i := range cas {
 		checkers, err := sshutils.GetCheckers(cas[i])
 		if err != nil {
-			h.log.WarnContext(h.c.Server.Context(), "unable to get cert checker for ca", "ca", cas[i].GetName(), "error", err)
+			h.log.Warnf("%v", err)
 			return nil, trace.Wrap(err)
 		}
 		for _, checker := range checkers {

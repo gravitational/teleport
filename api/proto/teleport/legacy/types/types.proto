@@ -712,31 +712,6 @@ message InstanceSpecV1 {
 
   // ExternalUpgraderVersion identifies the external upgrader version. Empty if no upgrader is defined.
   string ExternalUpgraderVersion = 8 [(gogoproto.jsontag) = "ext_upgrader_version,omitempty"];
-
-  // LastMeasurement stores information about the latest measurement between services.
-  SystemClockMeasurement LastMeasurement = 9;
-}
-
-// SystemClockMeasurement represents the measurement state of the systems clock difference.
-message SystemClockMeasurement {
-  // ControllerSystemClock is the system clock of the inventory controller.
-  google.protobuf.Timestamp ControllerSystemClock = 1 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "controller_system_clock,omitempty"
-  ];
-  // SystemClock is the system clock of the upstream.
-  google.protobuf.Timestamp SystemClock = 2 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "system_clock,omitempty"
-  ];
-  // RequestDuration stores information about the request duration between auth and remote service.
-  google.protobuf.Duration RequestDuration = 3 [
-    (gogoproto.jsontag) = "request_duration",
-    (gogoproto.nullable) = false,
-    (gogoproto.stdduration) = true
-  ];
 }
 
 // InstanceControlLogEntry represents an entry in a given instance's control log. The control log of
@@ -6711,7 +6686,7 @@ message PluginOktaSyncSettings {
 
   // AppName is the Okta-assigned unique name of the Okta App that Teleport uses
   // as a gateway to interact with Okta for SAML login, SCIM provisioning and user
-  // sync.
+  // sync. May be missing for old Okta integration installs.
   string app_name = 8;
 
   // DisableSyncAppGroups disables syncing of app groups from Okta.
@@ -7192,9 +7167,7 @@ message PluginOktaStatusDetailsSSO {
   // SSO login.
   string app_id = 2;
 
-  // AppName is the Okta-assigned unique name of the Okta App that Teleport uses
-  // as a gateway to interact with Okta for SAML login, SCIM provisioning and user
-  // sync.
+  // AppName is the human-readable name of the Okta Applicaion used for SSO.
   string app_name = 3;
 }
 

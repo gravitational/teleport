@@ -23,7 +23,9 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/backend"
@@ -44,6 +46,7 @@ const (
 
 // AccessListService is a simple access list backend service for use specifically by the cache.
 type AccessListService struct {
+	log           logrus.FieldLogger
 	service       *generic.Service[*accesslist.AccessList]
 	memberService *generic.Service[*accesslist.AccessListMember]
 	reviewService *generic.Service[*accesslist.Review]
@@ -90,6 +93,7 @@ func NewAccessListService(b backend.Backend) (*AccessListService, error) {
 	}
 
 	return &AccessListService{
+		log:           logrus.WithFields(logrus.Fields{teleport.ComponentKey: "access-list:simple-service"}),
 		service:       service,
 		memberService: memberService,
 		reviewService: reviewService,

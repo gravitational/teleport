@@ -35,6 +35,8 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/httplib/csrf"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -67,7 +69,15 @@ func LoginWebClient(t *testing.T, host, username, password string) *WebClientPac
 	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewBuffer(csReq))
 	require.NoError(t, err)
 
+	// Attach CSRF token in cookie and header.
+	csrfToken, err := utils.CryptoRandomHex(32)
+	require.NoError(t, err)
+	req.AddCookie(&http.Cookie{
+		Name:  csrf.CookieName,
+		Value: csrfToken,
+	})
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	req.Header.Set(csrf.HeaderName, csrfToken)
 
 	// Issue request.
 	client := &http.Client{

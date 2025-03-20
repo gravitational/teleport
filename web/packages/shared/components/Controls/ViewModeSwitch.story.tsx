@@ -16,9 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { action } from '@storybook/addon-actions';
-import { useArgs } from '@storybook/preview-api';
 import type { Meta, StoryFn, StoryObj } from '@storybook/react';
+import React, { useState } from 'react';
 
 import { Flex } from 'design';
 import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
@@ -30,16 +29,9 @@ export default {
   component: ViewModeSwitch,
   argTypes: {
     currentViewMode: {
-      control: {
-        type: 'radio',
-        labels: { [ViewMode.CARD]: 'Card View', [ViewMode.LIST]: 'List View' },
-      },
-      options: [ViewMode.CARD, ViewMode.LIST],
+      control: { type: 'radio', options: [ViewMode.CARD, ViewMode.LIST] },
       description: 'Current view mode',
-      table: {
-        defaultValue: { summary: ViewMode.CARD.toString() },
-        type: { summary: 'ViewMode' },
-      },
+      table: { defaultValue: { summary: ViewMode.CARD.toString() } },
     },
     setCurrentViewMode: {
       control: false,
@@ -47,28 +39,22 @@ export default {
       table: { type: { summary: '(newViewMode: ViewMode) => void' } },
     },
   },
-  args: {
-    currentViewMode: ViewMode.CARD,
-    setCurrentViewMode: action('setCurrentViewMode'),
-  },
-  render: (args => {
-    const [{ currentViewMode }, updateArgs] =
-      useArgs<Meta<typeof ViewModeSwitch>['args']>();
-    const setCurrentViewMode = (value: ViewMode) => {
-      updateArgs({ currentViewMode: value });
-      args?.setCurrentViewMode(value);
-    };
+  args: { currentViewMode: ViewMode.CARD },
+  parameters: { controls: { expanded: true, exclude: ['userContext'] } },
+} satisfies Meta<typeof ViewModeSwitch>;
+
+const Default: StoryObj<typeof ViewModeSwitch> = {
+  render: (({ currentViewMode }) => {
+    const [viewMode, setViewMode] = useState(currentViewMode);
     return (
       <Flex alignItems="center" minHeight="100px">
         <ViewModeSwitch
-          currentViewMode={currentViewMode}
-          setCurrentViewMode={setCurrentViewMode}
+          currentViewMode={viewMode}
+          setCurrentViewMode={setViewMode}
         />
       </Flex>
     );
   }) satisfies StoryFn<typeof ViewModeSwitch>,
-} satisfies Meta<typeof ViewModeSwitch>;
-
-const Default: StoryObj<typeof ViewModeSwitch> = { args: {} };
+};
 
 export { Default as ViewModeSwitch };

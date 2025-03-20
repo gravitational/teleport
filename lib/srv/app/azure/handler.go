@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -50,6 +51,10 @@ const ComponentKey = "azure:fwd"
 type HandlerConfig struct {
 	// RoundTripper is the underlying transport given to an oxy Forwarder.
 	RoundTripper http.RoundTripper
+	// LegacyLogger is the old logger.
+	// Should be removed gradually.
+	// Deprecated: use Log instead.
+	LegacyLogger logrus.FieldLogger
 	// Log is a logger for the handler.
 	Log *slog.Logger
 	// Clock is used to override time in tests.
@@ -70,6 +75,9 @@ func (s *HandlerConfig) CheckAndSetDefaults(ctx context.Context) error {
 	}
 	if s.Clock == nil {
 		s.Clock = clockwork.NewRealClock()
+	}
+	if s.LegacyLogger == nil {
+		s.LegacyLogger = logrus.WithField(teleport.ComponentKey, ComponentKey)
 	}
 	if s.Log == nil {
 		s.Log = slog.With(teleport.ComponentKey, ComponentKey)
@@ -120,7 +128,7 @@ func newAzureHandler(ctx context.Context, config HandlerConfig) (*handler, error
 
 	svc.fwd, err = reverseproxy.New(
 		reverseproxy.WithRoundTripper(config.RoundTripper),
-		reverseproxy.WithLogger(config.Log),
+		reverseproxy.WithLogger(config.LegacyLogger),
 		reverseproxy.WithErrorHandler(svc.formatForwardResponseError),
 	)
 
@@ -172,7 +180,7 @@ func (s *handler) formatForwardResponseError(rw http.ResponseWriter, r *http.Req
 func (s *handler) prepareForwardRequest(r *http.Request, sessionCtx *common.SessionContext) (*http.Request, error) {
 	forwardedHost, err := utils.GetSingleHeader(r.Header, "X-Forwarded-Host")
 	if err != nil {
-		return nil, trace.AccessDenied("%s", err)
+		return nil, trace.AccessDenied(err.Error())
 	} else if !azure.IsAzureEndpoint(forwardedHost) {
 		return nil, trace.AccessDenied("%q is not an Azure endpoint", forwardedHost)
 	}

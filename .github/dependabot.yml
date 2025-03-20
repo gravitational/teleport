@@ -21,6 +21,8 @@ updates:
       - dependency-name: github.com/microsoft/go-mssqldb
       - dependency-name: github.com/redis/go-redis/v9
       - dependency-name: github.com/vulcand/predicate
+      # Ignore until kube libs are upgraded. See https://github.com/kubernetes-sigs/controller-runtime/issues/2788.
+      - dependency-name: k8s.io/*
     open-pull-requests-limit: 20
     groups:
       go:
@@ -28,10 +30,9 @@ updates:
           - "minor"
           - "patch"
     reviewers:
-      - codingllama
       - rosstimothy
       - zmb3
-      - hugoshaka
+      - hugoShaka
     labels:
       - "dependencies"
       - "go"
@@ -50,10 +51,9 @@ updates:
           - "minor"
           - "patch"
     reviewers:
-      - codingllama
       - rosstimothy
       - zmb3
-      - hugoshaka
+      - hugoShaka
     labels:
       - "dependencies"
       - "go"
@@ -75,7 +75,6 @@ updates:
           - "minor"
           - "patch"
     reviewers:
-      - codingllama
       - rosstimothy
       - tcsc
       - zmb3
@@ -97,7 +96,6 @@ updates:
           - "minor"
           - "patch"
     reviewers:
-      - codingllama
       - rosstimothy
       - zmb3
     labels:
@@ -121,7 +119,6 @@ updates:
           - "minor"
           - "patch"
     reviewers:
-      - codingllama
       - fheinecke
       - rosstimothy
       - zmb3
@@ -148,9 +145,8 @@ updates:
           - "minor"
           - "patch"
     reviewers:
-      - codingllama
       - rosstimothy
-      - hugoshaka
+      - hugoShaka
       - tigrato
       - marcoandredinis
     labels:
@@ -171,9 +167,8 @@ updates:
           - "minor"
           - "patch"
     reviewers:
-      - codingllama
       - rosstimothy
-      - hugoshaka
+      - hugoShaka
       - tigrato
       - marcoandredinis
     labels:
@@ -195,7 +190,6 @@ updates:
           - "minor"
           - "patch"
     reviewers:
-      - codingllama
       - rosstimothy
       - zmb3
     labels:
@@ -216,7 +210,6 @@ updates:
           - "minor"
           - "patch"
     reviewers:
-      - codingllama
       - rosstimothy
       - zmb3
     labels:

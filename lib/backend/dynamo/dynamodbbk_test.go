@@ -43,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 func TestMain(m *testing.M) {
@@ -75,7 +74,7 @@ func TestDynamoDB(t *testing.T) {
 		"poll_stream_period": 300 * time.Millisecond,
 	}
 
-	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clocki.FakeClock, error) {
+	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
 		testCfg, err := test.ApplyOptions(options)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)

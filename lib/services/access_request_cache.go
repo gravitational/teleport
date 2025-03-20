@@ -208,9 +208,9 @@ func (c *AccessRequestCache) ListMatchingAccessRequests(ctx context.Context, req
 		return nil, trace.Errorf("access request cache was not configured with sort index %q (this is a bug)", index)
 	}
 
-	accessRequests := cache.Ascend
+	traverse := cache.Ascend
 	if req.Descending {
-		accessRequests = cache.Descend
+		traverse = cache.Descend
 	}
 
 	limit := int(req.Limit)
@@ -219,30 +219,34 @@ func (c *AccessRequestCache) ListMatchingAccessRequests(ctx context.Context, req
 	var rsp proto.ListAccessRequestsResponse
 	now := time.Now()
 	var expired int
-	for r := range accessRequests(index, req.StartKey, "") {
-		if len(rsp.AccessRequests) == limit {
-			rsp.NextKey = cache.KeyOf(index, r)
-			break
-		}
-
+	traverse(index, req.StartKey, "", func(r *types.AccessRequestV3) (continueTraversal bool) {
 		if !r.Expiry().IsZero() && now.After(r.Expiry()) {
 			expired++
 			// skip requests that appear expired. some backends can take up to 48 hours to expired items
 			// and access requests showing up past their expiry time is particularly confusing.
-			continue
+			return true
 		}
 		if !req.Filter.Match(r) || !match(r) {
-			continue
+			return true
 		}
 
 		c := r.Copy()
 		cr, ok := c.(*types.AccessRequestV3)
 		if !ok {
 			slog.WarnContext(ctx, "clone returned unexpected type (this is a bug)", "expected", logutils.TypeAttr(r), "got", logutils.TypeAttr(c))
-			continue
+			return true
 		}
 
 		rsp.AccessRequests = append(rsp.AccessRequests, cr)
+
+		// halt when we have Limit+1 items so that we can create a
+		// correct 'NextKey'.
+		return len(rsp.AccessRequests) <= limit
+	})
+
+	if len(rsp.AccessRequests) > limit {
+		rsp.NextKey = cache.KeyOf(index, rsp.AccessRequests[limit])
+		rsp.AccessRequests = rsp.AccessRequests[:limit]
 	}
 
 	if expired > 0 {

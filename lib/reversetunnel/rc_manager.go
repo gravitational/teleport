@@ -20,12 +20,12 @@ package reversetunnel
 
 import (
 	"context"
-	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -81,8 +81,8 @@ type RemoteClusterTunnelManagerConfig struct {
 	KubeDialAddr utils.NetAddr
 	// FIPS indicates if Teleport was started in FIPS mode.
 	FIPS bool
-	// Logger is the logger
-	Logger *slog.Logger
+	// Log is the logger
+	Log logrus.FieldLogger
 	// LocalAuthAddresses is a list of auth servers to use when dialing back to
 	// the local cluster.
 	LocalAuthAddresses []string
@@ -109,8 +109,8 @@ func (c *RemoteClusterTunnelManagerConfig) CheckAndSetDefaults() error {
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
 	}
-	if c.Logger == nil {
-		c.Logger = slog.Default()
+	if c.Log == nil {
+		c.Log = logrus.New()
 	}
 
 	return nil
@@ -153,7 +153,7 @@ func (w *RemoteClusterTunnelManager) Run(ctx context.Context) {
 	w.mu.Unlock()
 
 	if err := w.Sync(ctx); err != nil {
-		w.cfg.Logger.WarnContext(ctx, "Failed to sync reverse tunnels", "error", err)
+		w.cfg.Log.Warningf("Failed to sync reverse tunnels: %v.", err)
 	}
 
 	ticker := time.NewTicker(defaults.ResyncInterval)
@@ -162,11 +162,11 @@ func (w *RemoteClusterTunnelManager) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			w.cfg.Logger.DebugContext(ctx, "Closing")
+			w.cfg.Log.Debugf("Closing.")
 			return
 		case <-ticker.C:
 			if err := w.Sync(ctx); err != nil {
-				w.cfg.Logger.WarnContext(ctx, "Failed to sync reverse tunnels", "error", err)
+				w.cfg.Log.Warningf("Failed to sync reverse tunnels: %v.", err)
 				continue
 			}
 		}
@@ -247,7 +247,7 @@ func realNewAgentPool(ctx context.Context, cfg RemoteClusterTunnelManagerConfig,
 	}
 
 	if err := pool.Start(); err != nil {
-		cfg.Logger.ErrorContext(ctx, "Failed to start agent pool", "error", err)
+		cfg.Log.WithError(err).Error("Failed to start agent pool")
 	}
 
 	return pool, nil

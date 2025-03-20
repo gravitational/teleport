@@ -19,7 +19,6 @@
 package services
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"testing"
@@ -765,7 +764,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				})
 			}
 
-			role, err := AddRoleDefaults(context.Background(), test.role)
+			role, err := AddRoleDefaults(test.role)
 			test.expectedErr(t, err)
 
 			require.Empty(t, cmp.Diff(role, test.expected))

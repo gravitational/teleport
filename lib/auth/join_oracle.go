@@ -58,7 +58,7 @@ func (a *Server) registerUsingOracleMethod(
 		// Emit a log message and audit event on join failure.
 		if err != nil {
 			a.handleJoinFailure(
-				ctx, err, provisionToken, claims, tokenReq,
+				err, provisionToken, claims, tokenReq,
 			)
 		}
 	}()

@@ -19,7 +19,6 @@
 package tlsca
 
 import (
-	"context"
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
@@ -37,6 +36,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gravitational/teleport"
@@ -46,10 +46,11 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentAuthority)
+var log = logrus.WithFields(logrus.Fields{
+	teleport.ComponentKey: teleport.ComponentAuthority,
+})
 
 // FromCertAndSigner returns a CertAuthority with the given raw certificate and signer.
 func FromCertAndSigner(certPEM []byte, signer crypto.Signer) (*CertAuthority, error) {
@@ -567,9 +568,6 @@ var (
 	// JoinAttributesASN1ExtensionOID is an extension that encodes the
 	// attributes that resulted from the Bot/Agent join process.
 	JoinAttributesASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 21}
-
-	// ADStatusOID is an extension OID used to indicate that we're connecting to AD-joined desktop.
-	ADStatusOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 22}
 )
 
 // Device Trust OIDs.
@@ -1318,12 +1316,12 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 		return nil, trace.Wrap(err)
 	}
 
-	logger.DebugContext(context.TODO(), "Generating TLS certificate",
-		"not_after", req.NotAfter,
-		"dns_names", req.DNSNames,
-		"key_usage", req.KeyUsage,
-		"common_name", req.Subject.CommonName,
-	)
+	log.WithFields(logrus.Fields{
+		"not_after":   req.NotAfter,
+		"dns_names":   req.DNSNames,
+		"key_usage":   req.KeyUsage,
+		"common_name": req.Subject.CommonName,
+	}).Debug("Generating TLS certificate")
 
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,

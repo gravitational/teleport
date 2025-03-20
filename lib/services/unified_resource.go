@@ -21,7 +21,6 @@ package services
 import (
 	"context"
 	"iter"
-	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +29,7 @@ import (
 	"github.com/google/btree"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -40,7 +40,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
@@ -72,9 +71,9 @@ type UnifiedResourceCacheConfig struct {
 
 // UnifiedResourceCache contains a representation of all resources that are displayable in the UI
 type UnifiedResourceCache struct {
-	rw     sync.RWMutex
-	logger *slog.Logger
-	cfg    UnifiedResourceCacheConfig
+	rw  sync.RWMutex
+	log *log.Entry
+	cfg UnifiedResourceCacheConfig
 	// nameTree is a BTree with items sorted by (hostname)/name/type
 	nameTree *btree.BTreeG[*item]
 	// typeTree is a BTree with items sorted by type/(hostname)/name
@@ -105,8 +104,10 @@ func NewUnifiedResourceCache(ctx context.Context, cfg UnifiedResourceCacheConfig
 	}
 
 	m := &UnifiedResourceCache{
-		logger: slog.With(teleport.ComponentKey, cfg.Component),
-		cfg:    cfg,
+		log: log.WithFields(log.Fields{
+			teleport.ComponentKey: cfg.Component,
+		}),
+		cfg: cfg,
 		nameTree: btree.NewG(cfg.BTreeDegree, func(a, b *item) bool {
 			return a.Less(b)
 		}),
@@ -557,8 +558,8 @@ type ResourceGetter interface {
 	KubernetesServerGetter
 	SAMLIdpServiceProviderGetter
 	IdentityCenterAccountGetter
-	IdentityCenterAccountAssignmentGetter
 	GitServerGetter
+	IdentityCenterAccountAssignmentGetter
 }
 
 // newWatcher starts and returns a new resource watcher for unified resources.
@@ -674,12 +675,12 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 		return trace.Wrap(err)
 	}
 
-	newICAccountAssignments, err := c.getIdentityCenterAccountAssignments(ctx)
+	newGitServers, err := c.getGitServers(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	newGitServers, err := c.getGitServers(ctx)
+	newICAccountAssignments, err := c.getIdentityCenterAccountAssignments(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -700,8 +701,8 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 	putResources[types.SAMLIdPServiceProvider](c, newSAMLApps)
 	putResources[types.WindowsDesktop](c, newDesktops)
 	putResources[resource](c, newICAccounts)
-	putResources[resource](c, newICAccountAssignments)
 	putResources[types.Server](c, newGitServers)
+	putResources[resource](c, newICAccountAssignments)
 	c.stale = false
 	c.defineCollectorAsInitialized()
 	return nil
@@ -949,11 +950,7 @@ func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context
 
 	for _, event := range events {
 		if event.Resource == nil {
-			c.logger.WarnContext(ctx, "Unexpected event",
-				"event_type", event.Type,
-				"resource_kind", event.Resource.GetKind(),
-				"resource_name", event.Resource.GetName(),
-			)
+			c.log.Warnf("Unexpected event: %v.", event)
 			continue
 		}
 
@@ -981,15 +978,15 @@ func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context
 					c.putLocked(types.Resource153ToUnifiedResource(unwrapped))
 
 				default:
-					c.logger.WarnContext(ctx, "unsupported Resource153 type", "resource_type", logutils.TypeAttr(unwrapped))
+					c.log.Warnf("unsupported Resource153 type %T.", unwrapped)
 				}
 
 			default:
-				c.logger.WarnContext(ctx, "unsupported Resource type", "resource_type", logutils.TypeAttr(r))
+				c.log.Warnf("unsupported Resource type %T.", r)
 			}
 
 		default:
-			c.logger.WarnContext(ctx, "unsupported event type", "event_type", event.Type)
+			c.log.Warnf("unsupported event type %s.", event.Type)
 			continue
 		}
 	}
@@ -1191,6 +1188,19 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 			return nil, trace.Wrap(err)
 		}
 
+	case types.KindGitServer:
+		server, ok := resource.(*types.ServerV2)
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+
+		protoResource = &proto.PaginatedResource{
+			Resource: &proto.PaginatedResource_GitServer{
+				GitServer: server,
+			},
+			RequiresRequest: requiresRequest,
+		}
+
 	case types.KindIdentityCenterAccountAssignment:
 		unwrapper, ok := resource.(types.Resource153Unwrapper)
 		if !ok {
@@ -1205,19 +1215,6 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 
 		protoResource = &proto.PaginatedResource{
 			Resource:        proto.PackICAccountAssignment(assignment.AccountAssignment),
-			RequiresRequest: requiresRequest,
-		}
-
-	case types.KindGitServer:
-		server, ok := resource.(*types.ServerV2)
-		if !ok {
-			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
-		}
-
-		protoResource = &proto.PaginatedResource{
-			Resource: &proto.PaginatedResource_GitServer{
-				GitServer: server,
-			},
 			RequiresRequest: requiresRequest,
 		}
 

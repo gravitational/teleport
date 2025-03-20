@@ -52,7 +52,7 @@ func (a *Server) ProcessKubeCSR(req authclient.KubeCSR) (*authclient.KubeCSRResp
 
 	// Certificate for remote cluster is a user certificate
 	// with special provisions.
-	a.logger.DebugContext(ctx, "Generating certificate to access remote Kubernetes clusters")
+	log.Debugf("Generating certificate to access remote Kubernetes clusters.")
 
 	hostCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,

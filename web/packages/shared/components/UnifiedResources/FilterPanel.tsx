@@ -24,11 +24,11 @@ import { ButtonBorder, ButtonSecondary } from 'design/Button';
 import { CheckboxInput } from 'design/Checkbox';
 import { ArrowsIn, ArrowsOut, ChevronDown, Refresh } from 'design/Icon';
 import Menu from 'design/Menu';
-import { HoverTooltip } from 'design/Tooltip';
 import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 import { MultiselectMenu } from 'shared/components/Controls/MultiselectMenu';
 import { SortMenu } from 'shared/components/Controls/SortMenu';
 import { ViewModeSwitch } from 'shared/components/Controls/ViewModeSwitch';
+import { HoverTooltip } from 'shared/components/ToolTip';
 
 import {
   IncludedResourceMode,

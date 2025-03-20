@@ -97,7 +97,12 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 					presence: svc,
 				},
 			}
+
+			sb.StartTimer() // restart timer for benchmark operations
+
 			benchmarkGetClusterDetails(ctx, sb, site, tt.nodes)
+
+			sb.StopTimer() // stop timer to exclude deferred cleanup
 		})
 	}
 }
@@ -143,7 +148,7 @@ func insertServers(ctx context.Context, b *testing.B, svc services.Presence, kin
 func benchmarkGetClusterDetails(ctx context.Context, b *testing.B, site reversetunnelclient.RemoteSite, nodes int, opts ...services.MarshalOption) {
 	var cluster *Cluster
 	var err error
-	for b.Loop() {
+	for i := 0; i < b.N; i++ {
 		cluster, err = GetClusterDetails(ctx, site, opts...)
 		require.NoError(b, err)
 	}

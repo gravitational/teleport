@@ -1356,6 +1356,17 @@ func TestPrintProxyAWSTemplate(t *testing.T) {
 			},
 		},
 		{
+			name: "endpoint URL mode",
+			inputCLIConf: &CLIConf{
+				Format:             envVarDefaultFormat(),
+				AWSEndpointURLMode: true,
+			},
+			inputAWSApp: fakeAWSAppInfo{},
+			wantSnippets: []string{
+				"AWS endpoint URL at https://127.0.0.1:12345",
+			},
+		},
+		{
 			name: "athena-odbc",
 			inputCLIConf: &CLIConf{
 				Format: awsProxyFormatAthenaODBC,
@@ -1411,12 +1422,12 @@ func TestCheckProxyAWSFormatCompatibility(t *testing.T) {
 			checkError: require.NoError,
 		},
 		{
-			name: "endpoint URL mode is not supported",
+			name: "default format is supported in endpoint URL mode",
 			input: &CLIConf{
 				Format:             envVarDefaultFormat(),
 				AWSEndpointURLMode: true,
 			},
-			checkError: require.Error,
+			checkError: require.NoError,
 		},
 		{
 			name: "athena-odbc is supported in HTTPS_PROXY mode",
@@ -1426,11 +1437,27 @@ func TestCheckProxyAWSFormatCompatibility(t *testing.T) {
 			checkError: require.NoError,
 		},
 		{
+			name: "athena-odbc is not supported in endpoint URL mode",
+			input: &CLIConf{
+				Format:             awsProxyFormatAthenaODBC,
+				AWSEndpointURLMode: true,
+			},
+			checkError: require.Error,
+		},
+		{
 			name: "athena-jdbc is supported in HTTPS_PROXY mode",
 			input: &CLIConf{
 				Format: awsProxyFormatAthenaJDBC,
 			},
 			checkError: require.NoError,
+		},
+		{
+			name: "athena-jdbc is not supported in endpoint URL mode",
+			input: &CLIConf{
+				Format:             awsProxyFormatAthenaJDBC,
+				AWSEndpointURLMode: true,
+			},
+			checkError: require.Error,
 		},
 	}
 
@@ -1711,10 +1738,11 @@ func mustDialLocalAppProxy(t *testing.T, port string, expectedName string) {
 	t.Helper()
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		r, err := http.Get(fmt.Sprintf("http://localhost:%s", port))
-		require.NoError(t, err)
-		defer r.Body.Close()
+		if assert.NoError(t, err) {
+			defer r.Body.Close()
 
-		require.Equal(t, 200, r.StatusCode)
-		require.Equal(t, expectedName, r.Header.Get("Server"), "the response header \"Server\" does not have the expected value")
+			assert.Equal(t, 200, r.StatusCode)
+			assert.Equal(t, expectedName, r.Header.Get("Server"), "the response header \"Server\" does not have the expected value")
+		}
 	}, 5*time.Second, 50*time.Millisecond)
 }

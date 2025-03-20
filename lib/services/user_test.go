@@ -303,7 +303,7 @@ func BenchmarkTraitToRoles(b *testing.B) {
 			traits := SAMLAssertionsToTraits(claimsToAttributes(input.claims))
 
 			b.Run(testCaseInputName, func(b *testing.B) {
-				for b.Loop() {
+				for i := 0; i < b.N; i++ {
 					TraitsToRoles(mappings, traits)
 				}
 			})

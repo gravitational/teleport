@@ -27,7 +27,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/lib/logger"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 var regexpStatusCAPin = regexp.MustCompile(`CA pin +(sha256:[a-zA-Z0-9]+)`)
@@ -60,14 +59,10 @@ func (tctl Tctl) Sign(ctx context.Context, username, format, outPath string) err
 		outPath,
 	)
 	cmd := exec.CommandContext(ctx, tctl.cmd(), args...)
-	log.DebugContext(ctx, "Running tctl auth sign", "command", logutils.StringerAttr(cmd))
+	log.Debugf("Running %s", cmd)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		log.DebugContext(ctx, "tctl auth sign failed",
-			"error", err,
-			"args", args,
-			"command_output", string(output),
-		)
+		log.WithError(err).WithField("args", args).Debug("tctl auth sign failed:", string(output))
 		return trace.Wrap(err, "tctl auth sign failed")
 	}
 	return nil
@@ -78,7 +73,7 @@ func (tctl Tctl) Create(ctx context.Context, resources []types.Resource) error {
 	log := logger.Get(ctx)
 	args := append(tctl.baseArgs(), "create")
 	cmd := exec.CommandContext(ctx, tctl.cmd(), args...)
-	log.DebugContext(ctx, "Running tctl create", "command", logutils.StringerAttr(cmd))
+	log.Debugf("Running %s", cmd)
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
 		return trace.Wrap(err, "failed to get stdin pipe")
@@ -86,19 +81,16 @@ func (tctl Tctl) Create(ctx context.Context, resources []types.Resource) error {
 	go func() {
 		defer func() {
 			if err := stdinPipe.Close(); err != nil {
-				log.ErrorContext(ctx, "Failed to close stdin pipe", "error", err)
+				log.WithError(trace.Wrap(err)).Error("Failed to close stdin pipe")
 			}
 		}()
 		if err := writeResourcesYAML(stdinPipe, resources); err != nil {
-			log.ErrorContext(ctx, "Failed to serialize resources stdin", "error", err)
+			log.WithError(trace.Wrap(err)).Error("Failed to serialize resources stdin")
 		}
 	}()
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		log.DebugContext(ctx, "tctl create failed",
-			"error", err,
-			"command_output", string(output),
-		)
+		log.WithError(err).Debug("tctl create failed:", string(output))
 		return trace.Wrap(err, "tctl create failed")
 	}
 	return nil
@@ -110,7 +102,7 @@ func (tctl Tctl) GetAll(ctx context.Context, query string) ([]types.Resource, er
 	args := append(tctl.baseArgs(), "get", query)
 	cmd := exec.CommandContext(ctx, tctl.cmd(), args...)
 
-	log.DebugContext(ctx, "Running tctl get", "command", logutils.StringerAttr(cmd))
+	log.Debugf("Running %s", cmd)
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to get stdout")
@@ -148,7 +140,7 @@ func (tctl Tctl) GetCAPin(ctx context.Context) (string, error) {
 	args := append(tctl.baseArgs(), "status")
 	cmd := exec.CommandContext(ctx, tctl.cmd(), args...)
 
-	log.DebugContext(ctx, "Running tctl status", "command", logutils.StringerAttr(cmd))
+	log.Debugf("Running %s", cmd)
 	output, err := cmd.Output()
 	if err != nil {
 		return "", trace.Wrap(err, "failed to get auth status")

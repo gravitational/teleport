@@ -82,13 +82,13 @@ func UnmarshalPluginStaticCredentials(data []byte, opts ...MarshalOption) (types
 	}
 	h, err := unmarshalHeaderWithProtoJSON(data)
 	if err != nil {
-		return nil, trace.BadParameter("%s", err)
+		return nil, trace.BadParameter(err.Error())
 	}
 	switch h.Version {
 	case types.V1:
 		var pluginStaticCredentials types.PluginStaticCredentialsV1
 		if err := protojson.Unmarshal(data, protoadapt.MessageV2Of(&pluginStaticCredentials)); err != nil {
-			return nil, trace.BadParameter("%s", err)
+			return nil, trace.BadParameter(err.Error())
 		}
 		if err := pluginStaticCredentials.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)

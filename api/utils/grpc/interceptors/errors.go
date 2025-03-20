@@ -20,9 +20,8 @@ import (
 	"io"
 
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"google.golang.org/grpc"
-
-	"github.com/gravitational/teleport/api/trail"
 )
 
 // grpcServerStreamWrapper wraps around the embedded grpc.ServerStream

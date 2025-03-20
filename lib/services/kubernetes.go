@@ -91,7 +91,7 @@ func UnmarshalKubeServer(data []byte, opts ...MarshalOption) (types.KubeServer, 
 	case types.V3:
 		var s types.KubernetesServerV3
 		if err := utils.FastUnmarshal(data, &s); err != nil {
-			return nil, trace.BadParameter("%s", err)
+			return nil, trace.BadParameter(err.Error())
 		}
 		if err := s.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
@@ -147,7 +147,7 @@ func UnmarshalKubeCluster(data []byte, opts ...MarshalOption) (types.KubeCluster
 	case types.V3:
 		var s types.KubernetesClusterV3
 		if err := utils.FastUnmarshal(data, &s); err != nil {
-			return nil, trace.BadParameter("%s", err)
+			return nil, trace.BadParameter(err.Error())
 		}
 		if err := s.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)

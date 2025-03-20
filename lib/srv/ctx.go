@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"os"
 	"strconv"
@@ -34,6 +33,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -265,7 +265,7 @@ type ServerContext struct {
 	// ConnectionContext is the parent context which manages connection-level
 	// resources.
 	*sshutils.ConnectionContext
-	Logger *slog.Logger
+	*log.Entry
 
 	mu sync.RWMutex
 
@@ -407,14 +407,14 @@ type ServerContext struct {
 // the ServerContext is closed.  The ctx parameter should be a child of the ctx
 // associated with the scope of the parent ConnectionContext to ensure that
 // cancellation of the ConnectionContext propagates to the ServerContext.
-func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, srv Server, identityContext IdentityContext, monitorOpts ...func(*MonitorConfig)) (*ServerContext, error) {
+func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, srv Server, identityContext IdentityContext, monitorOpts ...func(*MonitorConfig)) (context.Context, *ServerContext, error) {
 	netConfig, err := srv.GetAccessPoint().GetClusterNetworkingConfig(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	recConfig, err := srv.GetAccessPoint().GetSessionRecordingConfig(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	cancelContext, cancel := context.WithCancel(ctx)
@@ -434,14 +434,17 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		ServerSubKind:          srv.TargetMetadata().ServerSubKind,
 	}
 
-	child.Logger = slog.With(
-		teleport.ComponentKey, srv.Component(),
-		"local_addr", child.ServerConn.LocalAddr(),
-		"remote_addr", child.ServerConn.RemoteAddr(),
-		"login", child.Identity.Login,
-		"teleport_user", child.Identity.TeleportUser,
-		"id", child.id,
-	)
+	fields := log.Fields{
+		"local":        child.ServerConn.LocalAddr(),
+		"remote":       child.ServerConn.RemoteAddr(),
+		"login":        child.Identity.Login,
+		"teleportUser": child.Identity.TeleportUser,
+		"id":           child.id,
+	}
+	child.Entry = log.WithFields(log.Fields{
+		teleport.ComponentKey:    child.srv.Component(),
+		teleport.ComponentFields: fields,
+	})
 
 	if identityContext.Login == teleport.SSHSessionJoinPrincipal {
 		child.JoinOnly = true
@@ -450,7 +453,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	authPref, err := srv.GetAccessPoint().GetAuthPreference(ctx)
 	if err != nil {
 		childErr := child.Close()
-		return nil, trace.NewAggregate(err, childErr)
+		return nil, nil, trace.NewAggregate(err, childErr)
 	}
 
 	child.disconnectExpiredCert = getDisconnectExpiredCertFromIdentityContext(
@@ -459,16 +462,20 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 
 	// Update log entry fields.
 	if !child.disconnectExpiredCert.IsZero() {
-		child.Logger = child.Logger.With("cert", child.disconnectExpiredCert)
+		fields["cert"] = child.disconnectExpiredCert
 	}
 	if child.clientIdleTimeout != 0 {
-		child.Logger = child.Logger.With("idle", child.clientIdleTimeout)
+		fields["idle"] = child.clientIdleTimeout
 	}
+	child.Entry = log.WithFields(log.Fields{
+		teleport.ComponentKey:    srv.Component(),
+		teleport.ComponentFields: fields,
+	})
 
 	clusterName, err := srv.GetAccessPoint().GetClusterName()
 	if err != nil {
 		childErr := child.Close()
-		return nil, trace.NewAggregate(err, childErr)
+		return nil, nil, trace.NewAggregate(err, childErr)
 	}
 
 	monitorConfig := MonitorConfig{
@@ -484,7 +491,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		TeleportUser:          child.Identity.TeleportUser,
 		Login:                 child.Identity.Login,
 		ServerID:              child.srv.ID(),
-		Logger:                child.Logger,
+		Entry:                 child.Entry,
 		Emitter:               child.srv,
 		EmitterContext:        ctx,
 	}
@@ -494,14 +501,14 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	err = StartMonitor(monitorConfig)
 	if err != nil {
 		childErr := child.Close()
-		return nil, trace.NewAggregate(err, childErr)
+		return nil, nil, trace.NewAggregate(err, childErr)
 	}
 
 	// Create pipe used to send command to child process.
 	child.cmdr, child.cmdw, err = os.Pipe()
 	if err != nil {
 		childErr := child.Close()
-		return nil, trace.NewAggregate(err, childErr)
+		return nil, nil, trace.NewAggregate(err, childErr)
 	}
 	child.AddCloser(child.cmdr)
 	child.AddCloser(child.cmdw)
@@ -510,7 +517,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	child.contr, child.contw, err = os.Pipe()
 	if err != nil {
 		childErr := child.Close()
-		return nil, trace.NewAggregate(err, childErr)
+		return nil, nil, trace.NewAggregate(err, childErr)
 	}
 	child.AddCloser(child.contr)
 	child.AddCloser(child.contw)
@@ -519,7 +526,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	child.readyr, child.readyw, err = os.Pipe()
 	if err != nil {
 		childErr := child.Close()
-		return nil, trace.NewAggregate(err, childErr)
+		return nil, nil, trace.NewAggregate(err, childErr)
 	}
 	child.AddCloser(child.readyr)
 	child.AddCloser(child.readyw)
@@ -527,12 +534,12 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	child.killShellr, child.killShellw, err = os.Pipe()
 	if err != nil {
 		childErr := child.Close()
-		return nil, trace.NewAggregate(err, childErr)
+		return nil, nil, trace.NewAggregate(err, childErr)
 	}
 	child.AddCloser(child.killShellr)
 	child.AddCloser(child.killShellw)
 
-	return child, nil
+	return ctx, child, nil
 }
 
 // Parent grants access to the connection-level context of which this
@@ -564,7 +571,7 @@ func (c *ServerContext) GetServer() Server {
 
 // CreateOrJoinSession will look in the SessionRegistry for the session ID. If
 // no session is found, a new one is created. If one is found, it is returned.
-func (c *ServerContext) CreateOrJoinSession(ctx context.Context, reg *SessionRegistry) error {
+func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	// As SSH conversation progresses, at some point a session will be created and
@@ -572,7 +579,7 @@ func (c *ServerContext) CreateOrJoinSession(ctx context.Context, reg *SessionReg
 	ssid, found := c.getEnvLocked(sshutils.SessionEnvVar)
 	if !found {
 		c.sessionID = rsession.NewID()
-		c.Logger.DebugContext(ctx, "Will create new session for SSH connection")
+		c.Logger.Debugf("Will create new session for SSH connection %v.", c.ServerConn.RemoteAddr())
 		return nil
 	}
 
@@ -586,7 +593,7 @@ func (c *ServerContext) CreateOrJoinSession(ctx context.Context, reg *SessionReg
 	if sess, found := reg.findSession(*id); found {
 		c.sessionID = *id
 		c.session = sess
-		c.Logger.DebugContext(ctx, "Joining active SSH session", "session_id", c.session.id)
+		c.Logger.Debugf("Will join session %v for SSH connection %v.", c.session.id, c.ServerConn.RemoteAddr())
 	} else {
 		// TODO(capnspacehook): DELETE IN 17.0.0 - by then all supported
 		// clients should only set TELEPORT_SESSION when they want to
@@ -596,7 +603,7 @@ func (c *ServerContext) CreateOrJoinSession(ctx context.Context, reg *SessionReg
 		// to prevent the user from controlling the session ID, generate
 		// a new one
 		c.sessionID = rsession.NewID()
-		c.Logger.DebugContext(ctx, "Creating new SSH session")
+		c.Logger.Debugf("Will create new session for SSH connection %v.", c.ServerConn.RemoteAddr())
 	}
 
 	return nil
@@ -667,7 +674,7 @@ func (c *ServerContext) getEnvLocked(key string) (string, bool) {
 }
 
 // setSession sets the context's session
-func (c *ServerContext) setSession(ctx context.Context, sess *session, ch ssh.Channel) {
+func (c *ServerContext) setSession(sess *session, ch ssh.Channel) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.session = sess
@@ -675,10 +682,10 @@ func (c *ServerContext) setSession(ctx context.Context, sess *session, ch ssh.Ch
 	// inform the client of the session ID that is being used in a new
 	// goroutine to reduce latency
 	go func() {
-		c.Logger.DebugContext(ctx, "Sending current session ID")
+		c.Logger.Debug("Sending current session ID.")
 		_, err := ch.SendRequest(teleport.CurrentSessionIDRequest, false, []byte(sess.ID()))
 		if err != nil {
-			c.Logger.DebugContext(ctx, "Failed to send the current session ID", "error", err)
+			c.Logger.WithError(err).Debug("Failed to send the current session ID.")
 		}
 	}()
 }
@@ -745,7 +752,7 @@ func (c *ServerContext) CheckSFTPAllowed(registry *SessionRegistry) error {
 }
 
 // OpenXServerListener opens a new XServer unix listener.
-func (c *ServerContext) HandleX11Listener(ctx context.Context, l net.Listener, singleConnection bool) error {
+func (c *ServerContext) HandleX11Listener(l net.Listener, singleConnection bool) error {
 	display, err := x11.ParseDisplayFromUnixSocket(l.Addr().String())
 	if err != nil {
 		return trace.Wrap(err)
@@ -771,7 +778,7 @@ func (c *ServerContext) HandleX11Listener(ctx context.Context, l net.Listener, s
 			xconn, err := l.Accept()
 			if err != nil {
 				if !utils.IsOKNetworkError(err) {
-					c.Logger.DebugContext(ctx, "Encountered error accepting XServer connection", "error", err)
+					c.Logger.WithError(err).Debug("Encountered error accepting XServer connection")
 				}
 				return
 			}
@@ -781,7 +788,7 @@ func (c *ServerContext) HandleX11Listener(ctx context.Context, l net.Listener, s
 
 				xchan, sin, err := c.ServerConn.OpenChannel(x11.ChannelRequest, x11ChannelReqPayload)
 				if err != nil {
-					c.Logger.DebugContext(ctx, "Failed to open a new X11 channel", "error", err)
+					c.Logger.WithError(err).Debug("Failed to open a new X11 channel")
 					return
 				}
 				defer xchan.Close()
@@ -793,12 +800,12 @@ func (c *ServerContext) HandleX11Listener(ctx context.Context, l net.Listener, s
 				go func() {
 					err := sshutils.ForwardRequests(ctx, sin, c.RemoteSession)
 					if err != nil {
-						c.Logger.DebugContext(ctx, "Failed to forward ssh request from server during X11 forwarding", "error", err)
+						c.Logger.WithError(err).Debug("Failed to forward ssh request from server during X11 forwarding")
 					}
 				}()
 
 				if err := utils.ProxyConn(ctx, xconn, xchan); err != nil {
-					c.Logger.DebugContext(ctx, "Encountered error during X11 forwarding", "error", err)
+					c.Logger.WithError(err).Debug("Encountered error during X11 forwarding")
 				}
 			}()
 
@@ -877,7 +884,7 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 		sessionDataEvent.ConnectionMetadata.LocalAddr = c.ServerConn.LocalAddr().String()
 	}
 	if err := c.GetServer().EmitAuditEvent(c.GetServer().Context(), sessionDataEvent); err != nil {
-		c.Logger.WarnContext(c.GetServer().Context(), "Failed to emit session data event", "error", err)
+		c.WithError(err).Warn("Failed to emit session data event.")
 	}
 
 	// Emit TX and RX bytes to their respective Prometheus counters.
@@ -919,35 +926,26 @@ func (c *ServerContext) CancelFunc() context.CancelFunc {
 
 // SendExecResult sends the result of execution of the "exec" command over the
 // ExecResultCh.
-func (c *ServerContext) SendExecResult(ctx context.Context, r ExecResult) {
+func (c *ServerContext) SendExecResult(r ExecResult) {
 	select {
 	case c.ExecResultCh <- r:
 	default:
-		c.Logger.InfoContext(ctx, "Blocked on sending exec result", "code", r.Code, "command", r.Command)
+		c.Infof("Blocked on sending exec result %v.", r)
 	}
 }
 
 // SendSubsystemResult sends the result of running the subsystem over the
 // SubsystemResultCh.
-func (c *ServerContext) SendSubsystemResult(ctx context.Context, r SubsystemResult) {
+func (c *ServerContext) SendSubsystemResult(r SubsystemResult) {
 	select {
 	case c.SubsystemResultCh <- r:
 	default:
-		c.Logger.InfoContext(ctx, "Blocked on sending subsystem result")
+		c.Info("Blocked on sending subsystem result.")
 	}
 }
 
 func (c *ServerContext) String() string {
 	return fmt.Sprintf("ServerContext(%v->%v, user=%v, id=%v)", c.ServerConn.RemoteAddr(), c.ServerConn.LocalAddr(), c.ServerConn.User(), c.id)
-}
-
-func (c *ServerContext) LogValue() slog.Value {
-	return slog.GroupValue(
-		slog.String("remote_addr", c.ServerConn.RemoteAddr().String()),
-		slog.String("local_addr", c.ServerConn.LocalAddr().String()),
-		slog.String("user", c.ServerConn.User()),
-		slog.Int("id", c.id),
-	)
 }
 
 func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
@@ -993,11 +991,7 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 				// If the trait isn't passed by the IdP due to misconfiguration
 				// we fallback to setting a value which will indicate this.
 				if trace.IsNotFound(err) {
-					c.Logger.WarnContext(
-						c.CancelContext(),
-						"Attempted to interpolate custom PAM environment with external trait but received SAML response does not contain claim",
-						"error", err,
-					)
+					c.Logger.WithError(err).Warnf("Attempted to interpolate custom PAM environment with external trait but received SAML response does not contain claim")
 					continue
 				}
 
@@ -1093,11 +1087,11 @@ func buildEnvironment(ctx *ServerContext) []string {
 	// SSH_CONNECTION environment variables.
 	remoteHost, remotePort, err := net.SplitHostPort(ctx.ServerConn.RemoteAddr().String())
 	if err != nil {
-		ctx.Logger.DebugContext(ctx.CancelContext(), "Failed to split remote address", "error", err)
+		ctx.Logger.Debugf("Failed to split remote address: %v.", err)
 	} else {
 		localHost, localPort, err := net.SplitHostPort(ctx.ServerConn.LocalAddr().String())
 		if err != nil {
-			ctx.Logger.DebugContext(ctx.CancelContext(), "Failed to split local address", "error", err)
+			ctx.Logger.Debugf("Failed to split local address: %v.", err)
 		} else {
 			env.AddTrusted("SSH_CLIENT", fmt.Sprintf("%s %s %s", remoteHost, remotePort, localPort))
 			env.AddTrusted("SSH_CONNECTION", fmt.Sprintf("%s %s %s %s", remoteHost, remotePort, localHost, localPort))

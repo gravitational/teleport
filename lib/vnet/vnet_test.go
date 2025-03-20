@@ -79,7 +79,7 @@ type testPack struct {
 }
 
 type testPackConfig struct {
-	clock       *clockwork.FakeClock
+	clock       clockwork.FakeClock
 	appProvider appProvider
 }
 
@@ -1092,7 +1092,7 @@ func newLeafCert(t *testing.T, ca tls.Certificate, cn string, expires time.Time,
 	}
 }
 
-func mustStartFakeWebProxy(ctx context.Context, t *testing.T, ca tls.Certificate, clock *clockwork.FakeClock) *vnetv1.DialOptions {
+func mustStartFakeWebProxy(ctx context.Context, t *testing.T, ca tls.Certificate, clock clockwork.FakeClock) *vnetv1.DialOptions {
 	t.Helper()
 
 	roots := x509.NewCertPool()

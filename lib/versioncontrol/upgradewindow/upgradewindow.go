@@ -20,12 +20,12 @@ package upgradewindow
 
 import (
 	"context"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -235,7 +235,7 @@ Outer:
 			// if we lose connectivity with auth for too long, forcibly reset any existing schedule.
 			// this frees up the upgrader to attempt an upgrade at its discretion.
 			if err := e.cfg.Driver.Reset(ctx); err != nil {
-				slog.WarnContext(ctx, "Failed to perform maintenance window reset", "upgrader_kind", e.cfg.Driver.Kind(), "error", err)
+				log.Warnf("Failed to perform %q maintenance window reset: %v", e.cfg.Driver.Kind(), err)
 			}
 			e.event(resetFromRun)
 		case <-ctx.Done():
@@ -255,7 +255,7 @@ func (e *Exporter[C]) exportWithRetry(ctx context.Context) {
 			// failure state appears persistent. reset and yield back
 			// to outer loop to wait for our next scheduled attempt.
 			if err := e.cfg.Driver.Reset(ctx); err != nil {
-				slog.WarnContext(ctx, "Failed to perform maintenance window reset", "upgrader_kind", e.cfg.Driver.Kind(), "error", err)
+				log.Warnf("Failed to perform %q maintenance window reset: %v", e.cfg.Driver.Kind(), err)
 			}
 			e.event(resetFromExport)
 			e.event(exportFailure)
@@ -281,7 +281,7 @@ func (e *Exporter[C]) exportWithRetry(ctx context.Context) {
 		})
 
 		if err != nil {
-			slog.WarnContext(ctx, "Failed to import maintenance window from auth", "upgrader_kind", e.cfg.Driver.Kind(), "error", err)
+			log.Warnf("Failed to import %q maintenance window from auth: %v", e.cfg.Driver.Kind(), err)
 			e.retry.Inc()
 			e.event(getExportErr)
 			continue
@@ -289,13 +289,13 @@ func (e *Exporter[C]) exportWithRetry(ctx context.Context) {
 
 		// sync exported windows out to our upgrader
 		if err := e.cfg.Driver.Sync(ctx, rsp); err != nil {
-			slog.WarnContext(ctx, "Failed to sync %q maintenance window", "upgrader_kind", e.cfg.Driver.Kind(), "error", err)
+			log.Warnf("Failed to sync %q maintenance window: %v", e.cfg.Driver.Kind(), err)
 			e.retry.Inc()
 			e.event(syncExportErr)
 			continue
 		}
 
-		slog.InfoContext(ctx, "Successfully synced upgrader maintenance window value", "upgrader_kind", e.cfg.Driver.Kind())
+		log.Infof("Successfully synced %q upgrader maintenance window value.", e.cfg.Driver.Kind())
 		e.event(exportSuccess)
 		return
 	}

@@ -24,20 +24,14 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	wanwin "github.com/gravitational/teleport/lib/auth/webauthnwin"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
-)
-
-var (
-	log     = logutils.NewPackageLogger(teleport.ComponentKey, "WebAuthn")
-	fidoLog = logutils.NewPackageLogger(teleport.ComponentKey, "FIDO2")
 )
 
 // ErrUsingNonRegisteredDevice is returned from Login when the user attempts to
@@ -143,10 +137,10 @@ func Login(
 	switch {
 	case origin == "", assertion == nil: // let downstream handle empty/nil
 	case !strings.HasPrefix(origin, "https://"+assertion.Response.RelyingPartyID):
-		log.WarnContext(ctx, "origin and RPID mismatch, if you are having authentication problems double check your proxy address",
-			"origin", origin,
-			"rpid", assertion.Response.RelyingPartyID,
-		)
+		log.Warnf(""+
+			"WebAuthn: origin and RPID mismatch, "+
+			"if you are having authentication problems double check your proxy address "+
+			"(%q vs %q)", origin, assertion.Response.RelyingPartyID)
 	}
 
 	var attachment AuthenticatorAttachment
@@ -157,7 +151,7 @@ func Login(
 	}
 
 	if wanwin.IsAvailable() {
-		log.DebugContext(ctx, "Using windows webauthn for credential assertion")
+		log.Debug("WebAuthnWin: Using windows webauthn for credential assertion")
 		return wanwin.Login(ctx, origin, assertion, &wanwin.LoginOpts{
 			AuthenticatorAttachment: wanwin.AuthenticatorAttachment(attachment),
 		})
@@ -165,19 +159,19 @@ func Login(
 
 	switch attachment {
 	case AttachmentCrossPlatform:
-		log.DebugContext(ctx, "Cross-platform login")
+		log.Debug("Cross-platform login")
 		return crossPlatformLogin(ctx, origin, assertion, prompt, opts)
 	case AttachmentPlatform:
-		log.DebugContext(ctx, "Platform login")
+		log.Debug("Platform login")
 		return platformLogin(origin, user, assertion, prompt)
 	default:
-		log.DebugContext(ctx, "Attempting platform login")
+		log.Debug("Attempting platform login")
 		resp, credentialUser, err := platformLogin(origin, user, assertion, prompt)
 		if !errors.Is(err, &touchid.ErrAttemptFailed{}) {
 			return resp, credentialUser, trace.Wrap(err)
 		}
 
-		log.DebugContext(ctx, "Platform login failed, falling back to cross-platform", "error", err)
+		log.WithError(err).Debug("Platform login failed, falling back to cross-platform")
 		return crossPlatformLogin(ctx, origin, assertion, prompt, opts)
 	}
 }
@@ -186,7 +180,7 @@ func crossPlatformLogin(
 	ctx context.Context,
 	origin string, assertion *wantypes.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
-	fidoLog.DebugContext(ctx, "Using libfido2 for assertion")
+	log.Debug("FIDO2: Using libfido2 for assertion")
 	resp, user, err := FIDO2Login(ctx, origin, assertion, prompt, opts)
 	return resp, user, trace.Wrap(err)
 }
@@ -229,11 +223,11 @@ func Register(
 	ctx context.Context,
 	origin string, cc *wantypes.CredentialCreation, prompt RegisterPrompt) (*proto.MFARegisterResponse, error) {
 	if wanwin.IsAvailable() {
-		log.DebugContext(ctx, "Using windows webauthn for credential creation")
+		log.Debug("WebAuthnWin: Using windows webauthn for credential creation")
 		return wanwin.Register(ctx, origin, cc)
 	}
 
-	fidoLog.DebugContext(ctx, "Using libfido2 for credential creation")
+	log.Debug("FIDO2: Using libfido2 for credential creation")
 	resp, err := FIDO2Register(ctx, origin, cc, prompt)
 	return resp, trace.Wrap(err)
 }

@@ -22,13 +22,13 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"log/slog"
 	"net"
 	"runtime"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -69,8 +69,8 @@ type Config struct {
 	Username string
 	// WebProxyAddr
 	WebProxyAddr string
-	// Logger is a component logger
-	Logger *slog.Logger
+	// Log is a component logger
+	Log *logrus.Entry
 	// TCPPortAllocator creates listeners on the given ports. This interface lets us avoid occupying
 	// hardcoded ports in tests.
 	TCPPortAllocator TCPPortAllocator
@@ -130,8 +130,8 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.LocalPort = "0"
 	}
 
-	if c.Logger == nil {
-		c.Logger = slog.Default()
+	if c.Log == nil {
+		c.Log = logrus.NewEntry(logrus.StandardLogger())
 	}
 
 	if c.TargetName == "" {
@@ -159,10 +159,10 @@ func (c *Config) CheckAndSetDefaults() error {
 		}
 	}
 
-	c.Logger = c.Logger.With(
-		"resource", c.TargetURI.String(),
-		"gateway", c.URI.String(),
-	)
+	c.Log = c.Log.WithFields(logrus.Fields{
+		"resource": c.TargetURI.String(),
+		"gateway":  c.URI.String(),
+	})
 	return nil
 }
 

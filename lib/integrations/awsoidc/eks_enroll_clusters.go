@@ -74,10 +74,8 @@ const (
 	concurrentEKSEnrollingLimit = 5
 )
 
-var (
-	agentRepoURL        = url.URL{Scheme: "https", Host: "charts.releases.teleport.dev"}
-	agentStagingRepoURL = url.URL{Scheme: "https", Host: "charts.releases.development.teleport.dev"}
-)
+var agentRepoURL = url.URL{Scheme: "https", Host: "charts.releases.teleport.dev"}
+var agentStagingRepoURL = url.URL{Scheme: "https", Host: "charts.releases.development.teleport.dev"}
 
 // EnrollEKSClusterResult contains result for a single EKS cluster enrollment, if it was successful 'Error' will be nil
 // otherwise it will contain an error happened during enrollment.
@@ -394,7 +392,7 @@ func enrollEKSCluster(ctx context.Context, log *slog.Logger, clock clockwork.Clo
 	if req.IsCloud && !eksCluster.ResourcesVpcConfig.EndpointPublicAccess {
 		return "",
 			usertasks.AutoDiscoverEKSIssueMissingEndpoingPublicAccess,
-			trace.AccessDenied("can't enroll %q because it is not accessible from Teleport Cloud, please enable endpoint public access in your EKS cluster and try again.", clusterName)
+			trace.AccessDenied(`can't enroll %q because it is not accessible from Teleport Cloud, please enable endpoint public access in your EKS cluster and try again.`, clusterName)
 	}
 
 	// When clusters are using CONFIG_MAP, API is not acessible and thus Teleport can't install the Teleport's Helm chart.
@@ -464,6 +462,7 @@ func enrollEKSCluster(ctx context.Context, log *slog.Logger, clock clockwork.Clo
 		return "",
 			issueTypeFromCheckAgentInstalledError(err),
 			trace.Wrap(err, "could not check if teleport-kube-agent is already installed.")
+
 	} else if alreadyInstalled {
 		return "",
 			// When using EKS Auto Discovery, after the Kube Agent connects to the Teleport cluster, it is ignored in next discovery iterations.
@@ -539,7 +538,7 @@ func maybeAddAccessEntry(ctx context.Context, log *slog.Logger, clusterName, rol
 
 	_, err = clt.CreateAccessEntry(ctx, createAccessEntryReq)
 	if err != nil {
-		convertedError := awslib.ConvertRequestFailureError(err)
+		convertedError := awslib.ConvertIAMv2Error(err)
 		if !trace.IsAccessDenied(convertedError) {
 			return false, trace.Wrap(err)
 		}
@@ -712,8 +711,7 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 	if cfg.req.IsCloud && cfg.req.EnableAutoUpgrades {
 		vals["updater"] = map[string]any{"enabled": true, "releaseChannel": "stable/cloud"}
 
-		vals["highAvailability"] = map[string]any{
-			"replicaCount":        2,
+		vals["highAvailability"] = map[string]any{"replicaCount": 2,
 			"podDisruptionBudget": map[string]any{"enabled": true, "minAvailable": 1},
 		}
 	}
@@ -721,10 +719,11 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 		vals["enterprise"] = true
 	}
 
-	eksTags := make(map[string]string, len(cfg.eksCluster.Tags))
-	maps.Copy(eksTags, cfg.eksCluster.Tags)
-	eksTags[types.OriginLabel] = types.OriginCloud
-
+	eksTags := make(map[string]*string, len(cfg.eksCluster.Tags))
+	for k, v := range cfg.eksCluster.Tags {
+		eksTags[k] = aws.String(v)
+	}
+	eksTags[types.OriginLabel] = aws.String(types.OriginCloud)
 	kubeCluster, err := common.NewKubeClusterFromAWSEKS(aws.ToString(cfg.eksCluster.Name), aws.ToString(cfg.eksCluster.Arn), eksTags)
 	if err != nil {
 		return trace.Wrap(err)

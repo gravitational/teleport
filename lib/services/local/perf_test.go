@@ -122,7 +122,7 @@ func insertNodes(ctx context.Context, b *testing.B, svc services.Presence, nodeC
 func benchmarkGetNodes(ctx context.Context, b *testing.B, svc services.Presence, nodeCount int) {
 	var nodes []types.Server
 	var err error
-	for b.Loop() {
+	for i := 0; i < b.N; i++ {
 		nodes, err = svc.GetNodes(ctx, apidefaults.Namespace)
 		require.NoError(b, err)
 	}

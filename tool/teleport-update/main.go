@@ -120,6 +120,8 @@ func Run(args []string) int {
 		Short('b').Envar(common.BaseURLEnvVar).StringVar(&ccfg.BaseURL)
 	enableCmd.Flag("overwrite", "Allow existing installed Teleport binaries to be overwritten.").
 		Short('o').BoolVar(&ccfg.AllowOverwrite)
+	enableCmd.Flag("allow-proxy-conflict", "Allow proxy addresses in teleport.yaml and update.yaml to conflict.").
+		BoolVar(&ccfg.AllowProxyConflict)
 	enableCmd.Flag("force-version", "Force the provided version instead of using the version provided by the Teleport cluster.").
 		Hidden().Short('f').Envar(updateVersionEnvVar).StringVar(&ccfg.ForceVersion)
 	enableCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for managed updates.").
@@ -139,6 +141,8 @@ func Run(args []string) int {
 		Short('b').Envar(common.BaseURLEnvVar).StringVar(&ccfg.BaseURL)
 	pinCmd.Flag("overwrite", "Allow existing installed Teleport binaries to be overwritten.").
 		Short('o').BoolVar(&ccfg.AllowOverwrite)
+	pinCmd.Flag("allow-proxy-conflict", "Allow proxy addresses in teleport.yaml and update.yaml to conflict.").
+		BoolVar(&ccfg.AllowProxyConflict)
 	pinCmd.Flag("force-version", "Force the provided version instead of using the version provided by the Teleport cluster.").
 		Short('f').Envar(updateVersionEnvVar).StringVar(&ccfg.ForceVersion)
 	pinCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for managed updates.").
@@ -184,10 +188,14 @@ func Run(args []string) int {
 		return 1
 	}
 
-	// Set required umask for commands that write files to system directories as root, and warn loudly if it changes.
 	switch command {
 	case statusCmd.FullCommand(), versionCmd.FullCommand():
 	default:
+		if os.Geteuid() != 0 {
+			plog.ErrorContext(ctx, "This command must be run as root. Try running with sudo.")
+			return 1
+		}
+		// Set required umask for commands that write files to system directories as root, and warn loudly if it changes.
 		autoupdate.SetRequiredUmask(ctx, plog)
 	}
 
@@ -459,6 +467,10 @@ func cmdStatus(ctx context.Context, ccfg *cliConfig) error {
 	status, err := updater.Status(ctx)
 	if err != nil {
 		return trace.Wrap(err, "failed to get status")
+	}
+	if errors.Is(err, autoupdate.ErrNotInstalled) {
+		plog.InfoContext(ctx, "Teleport is not installed by teleport-update with this suffix.")
+		return nil
 	}
 	enc := yaml.NewEncoder(os.Stdout)
 	return trace.Wrap(enc.Encode(status))

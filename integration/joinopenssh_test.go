@@ -47,7 +47,7 @@ func TestJoinOpenSSH(t *testing.T) {
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Loopback,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Log:         utils.NewLoggerForTests(),
 	}
 	cfg.Listeners = helpers.StandardListenerSetup(t, &cfg.Fds)
 	rc := helpers.NewInstance(t, cfg)

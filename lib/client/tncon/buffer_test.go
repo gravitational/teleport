@@ -153,6 +153,7 @@ func BenchmarkBufferedChannelPipe(b *testing.B) {
 	for _, s := range []int{1, 10, 100, 500, 1000} {
 		data := make([]byte, 1000)
 		b.Run(fmt.Sprintf("size=%d", s), func(b *testing.B) {
+			b.StopTimer() // stop timer during setup
 			buffer := newBufferedChannelPipe(s)
 			b.Cleanup(func() { require.NoError(b, buffer.Close()) })
 
@@ -164,7 +165,8 @@ func BenchmarkBufferedChannelPipe(b *testing.B) {
 			}()
 
 			// benchmark write+read
-			for b.Loop() {
+			b.StartTimer()
+			for n := 0; n < b.N; n++ {
 				written, err := buffer.Write(data)
 				require.NoError(b, err)
 				require.Len(b, data, written)

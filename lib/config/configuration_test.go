@@ -3978,7 +3978,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				},
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.BadParameter("okta_service is enabled but no api_endpoint is specified"))
+				require.ErrorIs(t, err, trace.BadParameter(`okta_service is enabled but no api_endpoint is specified`))
 			},
 		},
 		{
@@ -4004,7 +4004,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				APIEndpoint: `http://`,
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.BadParameter("api_endpoint has no host"))
+				require.ErrorIs(t, err, trace.BadParameter(`api_endpoint has no host`))
 			},
 		},
 		{
@@ -4017,7 +4017,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				APIEndpoint: `//hostname`,
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.BadParameter("api_endpoint has no scheme"))
+				require.ErrorIs(t, err, trace.BadParameter(`api_endpoint has no scheme`))
 			},
 		},
 		{
@@ -4029,7 +4029,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				APIEndpoint: "https://test-endpoint",
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.BadParameter("okta_service is enabled but no api_token_path is specified"))
+				require.ErrorIs(t, err, trace.BadParameter(`okta_service is enabled but no api_token_path is specified`))
 			},
 		},
 		{
@@ -4042,7 +4042,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				APITokenPath: "/non-existent/path",
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.BadParameter("error trying to find file %s", i...))
+				require.ErrorIs(t, err, trace.BadParameter(`error trying to find file %s`, i...))
 			},
 		},
 		{

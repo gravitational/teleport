@@ -35,6 +35,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/kubernetes"
@@ -65,7 +66,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	sessPkg "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 type TestContext struct {
@@ -226,6 +226,8 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	require.NoError(t, err)
 	testCtx.kubeProxyListener, err = net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
+	log := logrus.New()
+	log.SetLevel(logrus.DebugLevel)
 
 	inventoryHandle := inventory.NewDownstreamHandle(client.InventoryControlStream, proto.UpstreamInventoryHello{
 		ServerID: testCtx.HostID,
@@ -279,7 +281,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		GetRotation:      func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
 		ResourceMatchers: cfg.ResourceMatchers,
 		OnReconcile:      cfg.OnReconcile,
-		Log:              utils.NewSlogLoggerForTests(),
+		Log:              log,
 		InventoryHandle:  inventoryHandle,
 	})
 	require.NoError(t, err)
@@ -356,7 +358,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		LimiterConfig: limiter.Config{
 			MaxConnections: 1000,
 		},
-		Log:             utils.NewSlogLoggerForTests(),
+		Log:             log,
 		InventoryHandle: inventoryHandle,
 		GetRotation: func(role types.SystemRole) (*types.Rotation, error) {
 			return &types.Rotation{}, nil

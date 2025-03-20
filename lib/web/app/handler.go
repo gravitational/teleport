@@ -25,7 +25,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -35,6 +34,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -103,7 +103,7 @@ type Handler struct {
 
 	clusterName string
 
-	logger *slog.Logger
+	log *logrus.Entry
 }
 
 // NewHandler returns a new application handler.
@@ -116,7 +116,9 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	h := &Handler{
 		c:            c,
 		closeContext: ctx,
-		logger:       slog.With(teleport.ComponentKey, teleport.ComponentAppProxy),
+		log: logrus.WithFields(logrus.Fields{
+			teleport.ComponentKey: teleport.ComponentAppProxy,
+		}),
 	}
 
 	// Create a new session cache, this holds sessions that can be used to
@@ -334,7 +336,7 @@ func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, e
 func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, error) {
 	ws, err := h.getAppSession(r)
 	if err != nil {
-		h.logger.WarnContext(ctx, "Failed to fetch application session", "error", err)
+		h.log.Warnf("Failed to fetch application session: %v.", err)
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -342,7 +344,7 @@ func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, 
 	// process has seen.
 	session, err := h.getSession(ctx, ws)
 	if err != nil {
-		h.logger.WarnContext(ctx, "Failed to get session", "error", err)
+		h.log.Warnf("Failed to get session: %v.", err)
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -355,7 +357,7 @@ func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, 
 func (h *Handler) renewSession(r *http.Request) (*session, error) {
 	ws, err := h.getAppSession(r)
 	if err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to fetch application session: not found")
+		h.log.Debugf("Failed to fetch application session: not found.")
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -366,7 +368,7 @@ func (h *Handler) renewSession(r *http.Request) (*session, error) {
 	// Fetches a new session using the same flow as `authenticate`.
 	session, err := h.getSession(r.Context(), ws)
 	if err != nil {
-		h.logger.WarnContext(r.Context(), "Failed to get session", "error", err)
+		h.log.Warnf("Failed to get session: %v.", err)
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -385,7 +387,7 @@ func (h *Handler) getAppSession(r *http.Request) (ws types.WebSession, err error
 		ws, err = h.getAppSessionFromCookie(r)
 	}
 	if err != nil {
-		h.logger.WarnContext(r.Context(), "Failed to get session", "error", err)
+		h.log.Warnf("Failed to get session: %v.", err)
 		return nil, trace.AccessDenied("invalid session")
 	}
 	return ws, nil

@@ -847,17 +847,17 @@ const (
 	// AutoUpdateVersionDeleteEvent is emitted when a AutoUpdateVersion resource is deleted.
 	AutoUpdateVersionDeleteEvent = "auto_update_version.delete"
 
-	// ContactCreateEvent is emitted when a Contact resource is created.
-	ContactCreateEvent = "contact.create"
-	// ContactDeleteEvent is emitted when a Contact resource is deleted.
-	ContactDeleteEvent = "contact.delete"
-
 	// WorkloadIdentityCreateEvent is emitted when a WorkloadIdentity resource is created.
 	WorkloadIdentityCreateEvent = "workload_identity.create"
 	// WorkloadIdentityUpdateEvent is emitted when a WorkloadIdentity resource is updated.
 	WorkloadIdentityUpdateEvent = "workload_identity.update"
 	// WorkloadIdentityDeleteEvent is emitted when a WorkloadIdentity resource is deleted.
 	WorkloadIdentityDeleteEvent = "workload_identity.delete"
+
+	// ContactCreateEvent is emitted when a Contact resource is created.
+	ContactCreateEvent = "contact.create"
+	// ContactDeleteEvent is emitted when a Contact resource is deleted.
+	ContactDeleteEvent = "contact.delete"
 
 	// WorkloadIdentityX509RevocationCreateEvent is emitted when a
 	// WorkloadIdentityX509Revocation resource is created.
@@ -874,12 +874,6 @@ const (
 
 	// StableUNIXUserCreateEvent is emitted when a stable UNIX user is created.
 	StableUNIXUserCreateEvent = "stable_unix_user.create"
-
-	// AWSICResourceSyncSuccessEvent is emitted when AWS Identity Center resources are imported
-	// and reconciled to Teleport.
-	AWSICResourceSyncSuccessEvent = "aws_identity_center.resource_sync.success"
-	// AWSICResourceSyncFailureEvent is emitted when AWS Identity Center resources sync failed.
-	AWSICResourceSyncFailureEvent = "aws_identity_center.resource_sync.failed"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

@@ -41,10 +41,7 @@ func ReadEnvironmentFile(filename string) ([]string, error) {
 	// having this file for the user is optional.
 	file, err := utils.OpenFileNoUnsafeLinks(filename)
 	if err != nil {
-		slog.WarnContext(context.Background(), "Unable to open environment file, skipping",
-			"file", filename,
-			"error", err,
-		)
+		slog.WarnContext(context.TODO(), "Unable to open environment file, skipping", "filename", filename, "error", err)
 		return []string{}, nil
 	}
 	defer file.Close()
@@ -64,9 +61,7 @@ func ReadEnvironment(ctx context.Context, r io.Reader) ([]string, error) {
 		// https://github.com/openssh/openssh-portable/blob/master/session.c#L873-L874
 		lineno = lineno + 1
 		if lineno > teleport.MaxEnvironmentFileLines {
-			slog.WarnContext(ctx, "Too many lines in environment file, limiting how many are consumed",
-				"lines_consumed", teleport.MaxEnvironmentFileLines,
-			)
+			slog.WarnContext(ctx, "Too many lines in environment file, returning truncated lines", "lines", teleport.MaxEnvironmentFileLines)
 			return *env, nil
 		}
 
@@ -78,7 +73,7 @@ func ReadEnvironment(ctx context.Context, r io.Reader) ([]string, error) {
 		// split on first =, if not found, log it and continue
 		idx := strings.Index(line, "=")
 		if idx == -1 {
-			slog.DebugContext(ctx, "Bad line while reading environment file: no = separator found", "line_number", lineno)
+			slog.DebugContext(ctx, "Bad line while reading environment file: no = separator found", "line_num", lineno)
 			continue
 		}
 
@@ -86,7 +81,7 @@ func ReadEnvironment(ctx context.Context, r io.Reader) ([]string, error) {
 		key := line[:idx]
 		value := line[idx+1:]
 		if strings.TrimSpace(key) == "" {
-			slog.DebugContext(ctx, "Bad line while reading environment file: key without name", "line_number", lineno)
+			slog.DebugContext(ctx, "Bad line while reading environment file: key without name", "line_num", lineno)
 			continue
 		}
 

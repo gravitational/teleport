@@ -170,7 +170,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 				NodeName:    Host,
 				Priv:        privateKey,
 				Pub:         publicKey,
-				Logger:      utils.NewSlogLoggerForTests(),
+				Log:         utils.NewLoggerForTests(),
 			})
 
 			for _, login := range logins {
@@ -196,7 +196,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 				NodeName:    Host,
 				Priv:        privateKey,
 				Pub:         publicKey,
-				Logger:      utils.NewSlogLoggerForTests(),
+				Log:         utils.NewLoggerForTests(),
 			})
 
 			// Create node config.
@@ -205,6 +205,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			nodeCfg.SetToken("token")
 			nodeCfg.CachePolicy.Enabled = true
 			nodeCfg.DataDir = t.TempDir()
+			nodeCfg.Console = nil
 			nodeCfg.Auth.Enabled = false
 			nodeCfg.Proxy.Enabled = false
 			nodeCfg.SSH.Enabled = true

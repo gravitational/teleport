@@ -89,11 +89,11 @@ service AccessGraphService {
   // EntraEventsStream is a stream of commands to the Entra ID SSO importer.
   rpc EntraEventsStream(stream EntraEventsStreamRequest) returns (stream EntraEventsStreamResponse);
 
-  // AzureEventsStream is a stream of commands to the Azure importer
-  rpc AzureEventsStream(stream AzureEventsStreamRequest) returns (stream AzureEventsStreamResponse);
-
   // NetIQEventsStream is a stream of commands to the NetIQ importer.
   rpc NetIQEventsStream(stream NetIQEventsStreamRequest) returns (stream NetIQEventsStreamResponse);
+
+  // AzureEventsStream is a stream of commands to the Azure importer
+  rpc AzureEventsStream(stream AzureEventsStreamRequest) returns (stream AzureEventsStreamResponse);
 }
 
 // QueryRequest is a request to query the access graph.
@@ -274,6 +274,25 @@ message EntraEventsStreamRequest {
 // EntraEventsStreamResponse is the response from GitlabEventsStream.
 message EntraEventsStreamResponse {}
 
+// NetIQEventsStreamRequest is a request to send commands to the NetIQ importer
+message NetIQEventsStreamRequest {
+  oneof operation {
+    // sync is a command to sync the access graph with the NetIQ state.
+    NetIQSyncOperation sync = 1;
+    // upsert is a command to put a resource into the access graph or update it.
+    NetIQResourceList upsert = 2;
+    // delete is a command to delete a resource from the access graph when it's deleted.
+    NetIQResourceList delete = 3;
+  }
+}
+
+// NetIQSyncOperation is a command that Teleport sends to the access graph service
+// at the end of the sync process.
+message NetIQSyncOperation {}
+
+// NetIQEventsStreamResponse is a response from NetIQEventsStream
+message NetIQEventsStreamResponse {}
+
 // AzureEventsStreamRequest is a request to send commands to the Azure importer
 message AzureEventsStreamRequest {
   oneof operation {
@@ -293,22 +312,3 @@ message AzureSyncOperation {}
 
 // AzureEventsStreamResponse is a response from AzureEventsStream
 message AzureEventsStreamResponse {}
-
-// NetIQEventsStreamRequest is a request to send commands to the NetIQ importer
-message NetIQEventsStreamRequest {
-  oneof operation {
-    // sync is a command to sync the access graph with the NetIQ state.
-    NetIQSyncOperation sync = 1;
-    // upsert is a command to put a resource into the access graph or update it.
-    NetIQResourceList upsert = 2;
-    // delete is a command to delete a resource from the access graph when it's deleted.
-    NetIQResourceList delete = 3;
-  }
-}
-
-// NetIQSyncOperation is a command that Teleport sends to the access graph service
-// at the end of the sync process.
-message NetIQSyncOperation {}
-
-// NetIQEventsStreamResponse is a response from NetIQEventsStream
-message NetIQEventsStreamResponse {}

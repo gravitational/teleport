@@ -782,7 +782,7 @@ func TestParties(t *testing.T) {
 func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
 	scx := newTestServerContext(t, reg.Srv, nil)
 	sshChanOpen := newMockSSHChannel()
-	scx.setSession(context.Background(), sess, sshChanOpen)
+	scx.setSession(sess, sshChanOpen)
 
 	// Open a new session
 	go func() {

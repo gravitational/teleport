@@ -124,13 +124,12 @@ export default class TtyTerminal implements TerminalSearcher {
         this.fallbackToCanvas();
       });
       this.term.loadAddon(this._webglAddon);
-    } catch {
+    } catch (err) {
       this.fallbackToCanvas();
     }
 
     this.term.open(this._el);
     this._fitAddon.fit();
-    this.focus();
     this.term.onData(data => {
       this.tty.send(data);
     });
@@ -169,7 +168,7 @@ export default class TtyTerminal implements TerminalSearcher {
     this._webglAddon = undefined;
     try {
       this.term.loadAddon(this._canvasAddon);
-    } catch {
+    } catch (err) {
       logger.error(
         'Canvas renderer could not be loaded. Falling back to default'
       );

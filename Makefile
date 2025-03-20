@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=18.0.0-dev
+VERSION=17.3.4
 
 DOCKER_IMAGE ?= teleport
 
@@ -406,7 +406,7 @@ $(BUILDDIR)/tbot:
 
 .PHONY: $(BUILDDIR)/teleport-update
 $(BUILDDIR)/teleport-update:
-	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -o $(BUILDDIR)/teleport-update $(BUILDFLAGS_TELEPORT_UPDATE) $(TOOLS_LDFLAGS) ./tool/teleport-update
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -o $(BUILDDIR)/teleport-update $(BUILDFLAGS_TELEPORT_UPDATE) ./tool/teleport-update
 
 TELEPORT_ARGS ?= start
 .PHONY: teleport-hot-reload
@@ -1363,7 +1363,7 @@ $(VERSRC): Makefile
 # 5. Make sure it all builds (`make release` or equivalent)
 # 6. Run `make update-tag` to tag repos with $(VERSION)
 # 7. Run `make tag-build` to build the tag on GitHub Actions
-# 8. Run `make tag-publish` after `make tag-build` tag has completed to
+# 8. Run `make tag-publish` after `make-build` tag has completed to
 #    publish the built artifacts.
 #
 # GHA tag builds: https://github.com/gravitational/teleport.e/actions/workflows/tag-build.yaml

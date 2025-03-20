@@ -419,7 +419,6 @@ func (a *Server) checkAzureRequest(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	attrs, err := verifyVMIdentity(ctx, cfg, req.AccessToken, subID, vmID, requestStart, a.logger)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -452,7 +451,9 @@ func (a *Server) RegisterUsingAzureMethodWithOpts(
 	defer func() {
 		// Emit a log message and audit event on join failure.
 		if err != nil {
-			a.handleJoinFailure(ctx, err, provisionToken, nil, joinRequest)
+			a.handleJoinFailure(
+				err, provisionToken, nil, joinRequest,
+			)
 		}
 	}()
 

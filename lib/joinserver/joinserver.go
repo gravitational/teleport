@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/peer"
 
 	"github.com/gravitational/teleport/api/client"
@@ -189,10 +190,10 @@ func setBotParameters(ctx context.Context, req *types.RegisterUsingTokenRequest)
 	if ident.BotInstanceID != "" {
 		// Trust the instance ID from the incoming identity: bots will
 		// attempt to provide it on renewal, assuming it's still valid.
-		slog.InfoContext(ctx, "bot is rejoining",
-			"bot_name", ident.BotName,
-			"bot_instance_id", ident.BotInstanceID,
-		)
+		logrus.WithFields(logrus.Fields{
+			"bot_name":        ident.BotName,
+			"bot_instance_id": ident.BotInstanceID,
+		}).Info("bot is rejoining")
 		req.BotInstanceID = ident.BotInstanceID
 	} else {
 		// Clear any other value from the request: the value must come from a

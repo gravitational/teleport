@@ -88,7 +88,7 @@ func (f *Forwarder) rewriteResponseForbidden(s *clusterSession) func(r *http.Res
 				newClientNegotiator(&globalKubeCodecs),
 			)
 			if err != nil {
-				f.log.ErrorContext(r.Request.Context(), "Failed to create encoder", "error", err)
+				f.log.WithError(err).Error("Failed to create encoder")
 				return nil
 			}
 
@@ -108,7 +108,7 @@ func (f *Forwarder) rewriteResponseForbidden(s *clusterSession) func(r *http.Res
 
 			// Encode the new response.
 			if err = encoder.Encode(status, b); err != nil {
-				f.log.ErrorContext(r.Request.Context(), "Failed to encode response", "error", err)
+				f.log.WithError(err).Error("Failed to encode response")
 				return trace.Wrap(err)
 			}
 

@@ -46,7 +46,7 @@ func BenchmarkStore(b *testing.B) {
 	var failOnce sync.Once
 	var failErr error
 
-	for b.Loop() {
+	for n := 0; n < b.N; n++ {
 		store := NewStore()
 		var wg sync.WaitGroup
 

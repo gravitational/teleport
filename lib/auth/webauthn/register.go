@@ -32,6 +32,7 @@ import (
 	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -283,7 +284,7 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 
 	origin := parsedResp.Response.CollectedClientData.Origin
 	if err := validateOrigin(origin, f.Webauthn.RPID); err != nil {
-		log.DebugContext(ctx, "origin validation failed", "error", err)
+		log.WithError(err).Debugf("WebAuthn: origin validation failed")
 		return nil, trace.Wrap(err)
 	}
 
@@ -331,7 +332,7 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 			protocolErr.Type == protocol.ErrVerification.Type &&
 			passwordless &&
 			!parsedResp.Response.AttestationObject.AuthData.Flags.UserVerified() {
-			log.DebugContext(ctx, "WebAuthn: Replacing verification error with PIN message", "error", err)
+			log.WithError(err).Debug("WebAuthn: Replacing verification error with PIN message")
 			return nil, trace.BadParameter("authenticator doesn't support passwordless, setting up a PIN may fix this")
 		}
 
@@ -377,7 +378,7 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 
 	// Registration complete, remove the registration challenge we just used.
 	if err := f.Identity.DeleteWebauthnSessionData(ctx, req.User, scopeSession); err != nil {
-		log.WarnContext(ctx, "failed to delete registration SessionData for user", "user", req.User, "error", err)
+		log.Warnf("WebAuthn: failed to delete registration SessionData for user %v", req.User)
 	}
 
 	return newDevice, nil

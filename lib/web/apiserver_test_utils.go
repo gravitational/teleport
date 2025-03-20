@@ -19,8 +19,6 @@
 package web
 
 import (
-	"context"
-	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -34,7 +32,7 @@ func NewDebugFileSystem(isEnterprise bool) (http.FileSystem, error) {
 	assetsPath := "../../webassets/teleport"
 
 	if isEnterprise {
-		assetsPath = "../../../webassets/e/teleport"
+		assetsPath = "../../../webassets/teleport"
 	}
 
 	// Ensure we have the built assets available before continuing.
@@ -44,7 +42,7 @@ func NewDebugFileSystem(isEnterprise bool) (http.FileSystem, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	slog.InfoContext(context.TODO(), "Using filesystem for serving web assets", "assets_path", assetsPath)
+	log.Infof("Using filesystem for serving web assets: %s.", assetsPath)
 
 	return http.Dir(assetsPath), nil
 }

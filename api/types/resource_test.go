@@ -266,7 +266,7 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 			name:               "kube cluster",
 			matchingSearchVals: []string{"foo", "prod", "env"},
 			newResource: func(t *testing.T) ResourceWithLabels {
-				kc, err := NewKubernetesClusterV3FromLegacyCluster("", &KubernetesCluster{
+				kc, err := NewKubernetesClusterV3FromLegacyCluster("_", &KubernetesCluster{
 					Name:         "foo",
 					StaticLabels: labels,
 				})

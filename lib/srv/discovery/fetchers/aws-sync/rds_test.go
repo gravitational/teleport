@@ -20,22 +20,19 @@ package aws_sync
 
 import (
 	"context"
+	"sync"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/iam"
-	"github.com/aws/aws-sdk-go-v2/service/rds"
-	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
-	"github.com/gravitational/teleport/api/types"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 )
 
@@ -47,117 +44,86 @@ func TestPollAWSRDS(t *testing.T) {
 		regions = []string{"eu-west-1"}
 	)
 
-	awsOIDCIntegration, err := types.NewIntegrationAWSOIDC(
-		types.Metadata{Name: "integration-test"},
-		&types.AWSOIDCIntegrationSpecV1{
-			RoleARN: "arn:aws:sts::123456789012:role/TestRole",
-		},
-	)
-	require.NoError(t, err)
-
-	resourcesFixture := Resources{
-		RDSDatabases: []*accessgraphv1alpha.AWSRDSDatabaseV1{
-			{
-				Arn:    "arn:us-west1:rds:instance1",
-				Status: string(rdstypes.DBProxyStatusAvailable),
-				Name:   "db1",
-				EngineDetails: &accessgraphv1alpha.AWSRDSEngineV1{
-					Engine:  string(rdstypes.EngineFamilyMysql),
-					Version: "v1.1",
-				},
-				CreatedAt: timestamppb.New(date),
-				Tags: []*accessgraphv1alpha.AWSTag{
-					{
-						Key:   "tag",
-						Value: wrapperspb.String("val"),
-					},
-				},
-				Region:     "eu-west-1",
-				IsCluster:  false,
-				AccountId:  "12345678",
-				ResourceId: "db1",
-			},
-			{
-				Arn:    "arn:us-west1:rds:cluster1",
-				Status: string(rdstypes.DBProxyStatusAvailable),
-				Name:   "cluster1",
-				EngineDetails: &accessgraphv1alpha.AWSRDSEngineV1{
-					Engine:  string(rdstypes.EngineFamilyMysql),
-					Version: "v1.1",
-				},
-				CreatedAt: timestamppb.New(date),
-				Tags: []*accessgraphv1alpha.AWSTag{
-					{
-						Key:   "tag",
-						Value: wrapperspb.String("val"),
-					},
-				},
-				Region:     "eu-west-1",
-				IsCluster:  true,
-				AccountId:  "12345678",
-				ResourceId: "cluster1",
-			},
-		},
-	}
-
 	tests := []struct {
-		name             string
-		fetcherConfigOpt func(*Fetcher)
-		want             *Resources
-		checkError       func(*testing.T, error)
+		name string
+		want *Resources
 	}{
 		{
 			name: "poll rds databases",
-			want: &resourcesFixture,
-			fetcherConfigOpt: func(a *Fetcher) {
-				a.awsClients = fakeAWSClients{
-					rdsClient: &mocks.RDSClient{
-						DBInstances: dbInstances(),
-						DBClusters:  dbClusters(),
+			want: &Resources{
+				RDSDatabases: []*accessgraphv1alpha.AWSRDSDatabaseV1{
+					{
+						Arn:    "arn:us-west1:rds:instance1",
+						Status: rds.DBProxyStatusAvailable,
+						Name:   "db1",
+						EngineDetails: &accessgraphv1alpha.AWSRDSEngineV1{
+							Engine:  rds.EngineFamilyMysql,
+							Version: "v1.1",
+						},
+						CreatedAt: timestamppb.New(date),
+						Tags: []*accessgraphv1alpha.AWSTag{
+							{
+								Key:   "tag",
+								Value: wrapperspb.String("val"),
+							},
+						},
+						Region:     "eu-west-1",
+						IsCluster:  false,
+						AccountId:  "12345678",
+						ResourceId: "db1",
 					},
-				}
-			},
-			checkError: func(t *testing.T, err error) {
-				require.NoError(t, err)
-			},
-		},
-		{
-			name: "reuse last synced databases on failure",
-			want: &resourcesFixture,
-			fetcherConfigOpt: func(a *Fetcher) {
-				a.awsClients = fakeAWSClients{
-					rdsClient: &mocks.RDSClient{Unauth: true},
-				}
-				a.lastResult = &resourcesFixture
-			},
-			checkError: func(t *testing.T, err error) {
-				require.Error(t, err)
-				require.ErrorContains(t, err, "failed to fetch databases")
+					{
+						Arn:    "arn:us-west1:rds:cluster1",
+						Status: rds.DBProxyStatusAvailable,
+						Name:   "cluster1",
+						EngineDetails: &accessgraphv1alpha.AWSRDSEngineV1{
+							Engine:  rds.EngineFamilyMysql,
+							Version: "v1.1",
+						},
+						CreatedAt: timestamppb.New(date),
+						Tags: []*accessgraphv1alpha.AWSTag{
+							{
+								Key:   "tag",
+								Value: wrapperspb.String("val"),
+							},
+						},
+						Region:     "eu-west-1",
+						IsCluster:  true,
+						AccountId:  "12345678",
+						ResourceId: "cluster1",
+					},
+				},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			a := &Fetcher{
-				Config: Config{
-					AccountID: accountID,
-					AWSConfigProvider: &mocks.AWSConfigProvider{
-						OIDCIntegrationClient: &mocks.FakeOIDCIntegrationClient{
-							Integration: awsOIDCIntegration,
-							Token:       "fake-oidc-token",
-						},
-					},
-					Regions:     regions,
-					Integration: awsOIDCIntegration.GetName(),
+			mockedClients := &cloud.TestCloudClients{
+				RDS: &mocks.RDSMock{
+					DBInstances: dbInstances(),
+					DBClusters:  dbClusters(),
 				},
 			}
-			if tt.fetcherConfigOpt != nil {
-				tt.fetcherConfigOpt(a)
+
+			var (
+				errs []error
+				mu   sync.Mutex
+			)
+
+			collectErr := func(err error) {
+				mu.Lock()
+				defer mu.Unlock()
+				errs = append(errs, err)
+			}
+			a := &Fetcher{
+				Config: Config{
+					AccountID:    accountID,
+					CloudClients: mockedClients,
+					Regions:      regions,
+					Integration:  accountID,
+				},
 			}
 			result := &Resources{}
-			collectErr := func(err error) {
-				tt.checkError(t, err)
-			}
 			execFunc := a.pollAWSRDSDatabases(context.Background(), result, collectErr)
 			require.NoError(t, execFunc())
 			require.Empty(t, cmp.Diff(
@@ -178,16 +144,16 @@ func TestPollAWSRDS(t *testing.T) {
 	}
 }
 
-func dbInstances() []rdstypes.DBInstance {
-	return []rdstypes.DBInstance{
+func dbInstances() []*rds.DBInstance {
+	return []*rds.DBInstance{
 		{
 			DBInstanceIdentifier: aws.String("db1"),
 			DBInstanceArn:        aws.String("arn:us-west1:rds:instance1"),
 			InstanceCreateTime:   aws.Time(date),
-			Engine:               aws.String(string(rdstypes.EngineFamilyMysql)),
-			DBInstanceStatus:     aws.String(string(rdstypes.DBProxyStatusAvailable)),
+			Engine:               aws.String(rds.EngineFamilyMysql),
+			DBInstanceStatus:     aws.String(rds.DBProxyStatusAvailable),
 			EngineVersion:        aws.String("v1.1"),
-			TagList: []rdstypes.Tag{
+			TagList: []*rds.Tag{
 				{
 					Key:   aws.String("tag"),
 					Value: aws.String("val"),
@@ -198,16 +164,16 @@ func dbInstances() []rdstypes.DBInstance {
 	}
 }
 
-func dbClusters() []rdstypes.DBCluster {
-	return []rdstypes.DBCluster{
+func dbClusters() []*rds.DBCluster {
+	return []*rds.DBCluster{
 		{
 			DBClusterIdentifier: aws.String("cluster1"),
 			DBClusterArn:        aws.String("arn:us-west1:rds:cluster1"),
 			ClusterCreateTime:   aws.Time(date),
-			Engine:              aws.String(string(rdstypes.EngineFamilyMysql)),
-			Status:              aws.String(string(rdstypes.DBProxyStatusAvailable)),
+			Engine:              aws.String(rds.EngineFamilyMysql),
+			Status:              aws.String(rds.DBProxyStatusAvailable),
 			EngineVersion:       aws.String("v1.1"),
-			TagList: []rdstypes.Tag{
+			TagList: []*rds.Tag{
 				{
 					Key:   aws.String("tag"),
 					Value: aws.String("val"),
@@ -216,27 +182,4 @@ func dbClusters() []rdstypes.DBCluster {
 			DbClusterResourceId: aws.String("cluster1"),
 		},
 	}
-}
-
-type fakeAWSClients struct {
-	iamClient iamClient
-	rdsClient rdsClient
-	s3Client  s3Client
-	stsClient stsClient
-}
-
-func (f fakeAWSClients) getIAMClient(cfg aws.Config, optFns ...func(*iam.Options)) iamClient {
-	return f.iamClient
-}
-
-func (f fakeAWSClients) getRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) rdsClient {
-	return f.rdsClient
-}
-
-func (f fakeAWSClients) getS3Client(cfg aws.Config, optFns ...func(*s3.Options)) s3Client {
-	return f.s3Client
-}
-
-func (f fakeAWSClients) getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient {
-	return f.stsClient
 }

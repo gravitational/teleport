@@ -21,13 +21,13 @@ package alpnproxy
 import (
 	"context"
 	"crypto/tls"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/http/httpproxy"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/gcp"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // IsConnectRequest returns true if the request is a HTTP CONNECT tunnel
@@ -134,7 +133,7 @@ func (p *ForwardProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	clientConn := hijackClientConnection(rw)
 	if clientConn == nil {
-		slog.ErrorContext(req.Context(), "Failed to hijack client connection")
+		log.Error("Failed to hijack client connection.")
 		rw.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -246,7 +245,7 @@ func (h *ForwardToHostHandler) Handle(ctx context.Context, clientConn net.Conn, 
 
 	serverConn, err := net.Dial("tcp", host)
 	if err != nil {
-		slog.ErrorContext(req.Context(), "Failed to connect to host", "error", err, "host", host)
+		log.WithError(err).Errorf("Failed to connect to host %q.", host)
 		writeHeaderToHijackedConnection(clientConn, req, http.StatusServiceUnavailable)
 		return
 	}
@@ -257,7 +256,7 @@ func (h *ForwardToHostHandler) Handle(ctx context.Context, clientConn net.Conn, 
 		return
 	}
 
-	startForwardProxy(ctx, clientConn, serverConn, req.Host, slog.Default())
+	startForwardProxy(ctx, clientConn, serverConn, req.Host)
 }
 
 // ForwardToSystemProxyHandlerConfig is the config for
@@ -320,25 +319,24 @@ func (h *ForwardToSystemProxyHandler) Handle(ctx context.Context, clientConn net
 		return
 	}
 
-	logger := slog.With("proxy", logutils.StringerAttr(systemProxyURL))
 	serverConn, err := h.connectToSystemProxy(systemProxyURL)
 	if err != nil {
-		logger.ErrorContext(req.Context(), "Failed to connect to system proxy", "error", err)
+		log.WithError(err).Errorf("Failed to connect to system proxy %q.", systemProxyURL.Host)
 		writeHeaderToHijackedConnection(clientConn, req, http.StatusBadGateway)
 		return
 	}
 
 	defer serverConn.Close()
-	logger.DebugContext(req.Context(), "Connected to system proxy")
+	log.Debugf("Connected to system proxy %v.", systemProxyURL)
 
 	// Send original CONNECT request to system proxy.
 	if err = req.WriteProxy(serverConn); err != nil {
-		logger.ErrorContext(req.Context(), "Failed to send CONNECT request to system proxy", "error", err)
+		log.WithError(err).Errorf("Failed to send CONNECT request to system proxy %q.", systemProxyURL.Host)
 		writeHeaderToHijackedConnection(clientConn, req, http.StatusBadGateway)
 		return
 	}
 
-	startForwardProxy(ctx, clientConn, serverConn, req.Host, logger)
+	startForwardProxy(ctx, clientConn, serverConn, req.Host)
 }
 
 // getSystemProxyURL returns the system proxy URL.
@@ -353,7 +351,7 @@ func (h *ForwardToSystemProxyHandler) getSystemProxyURL(req *http.Request) *url.
 
 	// If error exists, make a log for debugging purpose.
 	if err != nil {
-		slog.DebugContext(req.Context(), "Failed to get system proxy", "error", err)
+		log.WithError(err).Debugf("Failed to get system proxy.")
 	}
 	return nil
 }
@@ -386,12 +384,12 @@ func (h *ForwardToSystemProxyHandler) connectToSystemProxy(systemProxyURL *url.U
 }
 
 // startForwardProxy starts streaming between client and server.
-func startForwardProxy(ctx context.Context, clientConn, serverConn net.Conn, host string, logger *slog.Logger) {
-	logger.DebugContext(ctx, "Started forwarding request to host", "host", host)
-	defer logger.DebugContext(ctx, "Stopped forwarding request to host", "host", host)
+func startForwardProxy(ctx context.Context, clientConn, serverConn net.Conn, host string) {
+	log.Debugf("Started forwarding request for %q.", host)
+	defer log.Debugf("Stopped forwarding request for %q.", host)
 
 	if err := utils.ProxyConn(ctx, clientConn, serverConn); err != nil {
-		logger.ErrorContext(ctx, "Failed to proxy request", "error", err, "client_addr", clientConn.LocalAddr(), "server_addr", serverConn.LocalAddr())
+		log.WithError(err).Errorf("Failed to proxy between %q and %q.", clientConn.LocalAddr(), serverConn.LocalAddr())
 	}
 }
 
@@ -416,7 +414,7 @@ func writeHeaderToHijackedConnection(conn net.Conn, req *http.Request, statusCod
 	}
 	err := resp.Write(conn)
 	if err != nil && !utils.IsOKNetworkError(err) {
-		slog.ErrorContext(req.Context(), "Failed to write status code to client connection", "error", err, "status_code", statusCode)
+		log.WithError(err).Errorf("Failed to write status code %d to client connection.", statusCode)
 		return false
 	}
 	return true

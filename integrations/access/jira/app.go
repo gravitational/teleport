@@ -21,7 +21,6 @@ package jira
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/url"
 	"regexp"
 	"strings"
@@ -41,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -127,6 +125,7 @@ func (a *App) run(ctx context.Context) error {
 	var err error
 
 	log := logger.Get(ctx)
+	log.Infof("Starting Teleport Jira Plugin")
 
 	if err = a.init(ctx); err != nil {
 		return trace.Wrap(err)
@@ -165,9 +164,9 @@ func (a *App) run(ctx context.Context) error {
 	ok := (a.webhookSrv == nil || httpOk) && watcherOk
 	a.mainJob.SetReady(ok)
 	if ok {
-		log.InfoContext(ctx, "Plugin is ready")
+		log.Info("Plugin is ready")
 	} else {
-		log.ErrorContext(ctx, "Plugin is not ready")
+		log.Error("Plugin is not ready")
 	}
 
 	if httpJob != nil {
@@ -206,11 +205,11 @@ func (a *App) init(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	log.DebugContext(ctx, "Starting Jira API health check")
+	log.Debug("Starting Jira API health check...")
 	if err = a.jira.HealthCheck(ctx); err != nil {
 		return trace.Wrap(err, "api health check failed")
 	}
-	log.DebugContext(ctx, "Jira API health check finished ok")
+	log.Debug("Jira API health check finished ok")
 
 	if !a.conf.DisableWebhook {
 		webhookSrv, err := NewWebhookServer(a.conf.HTTP, a.onJiraWebhook)
@@ -228,13 +227,13 @@ func (a *App) init(ctx context.Context) error {
 
 func (a *App) checkTeleportVersion(ctx context.Context) (proto.PingResponse, error) {
 	log := logger.Get(ctx)
-	log.DebugContext(ctx, "Checking Teleport server version")
+	log.Debug("Checking Teleport server version")
 	pong, err := a.teleport.Ping(ctx)
 	if err != nil {
 		if trace.IsNotImplemented(err) {
 			return pong, trace.Wrap(err, "server version must be at least %s", minServerVersion)
 		}
-		log.ErrorContext(ctx, "Unable to get Teleport server version")
+		log.Error("Unable to get Teleport server version")
 		return pong, trace.Wrap(err)
 	}
 	err = utils.CheckMinVersion(pong.ServerVersion, minServerVersion)
@@ -247,17 +246,17 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 	}
 	op := event.Type
 	reqID := event.Resource.GetName()
-	ctx, _ = logger.With(ctx, "request_id", reqID)
+	ctx, _ = logger.WithField(ctx, "request_id", reqID)
 
 	switch op {
 	case types.OpPut:
-		ctx, _ = logger.With(ctx, "request_op", "put")
+		ctx, _ = logger.WithField(ctx, "request_op", "put")
 		req, ok := event.Resource.(types.AccessRequest)
 		if !ok {
 			return trace.Errorf("unexpected resource type %T", event.Resource)
 		}
-		ctx, log := logger.With(ctx, "request_state", req.GetState().String())
-		log.DebugContext(ctx, "Processing watcher event")
+		ctx, log := logger.WithField(ctx, "request_state", req.GetState().String())
+		log.Debug("Processing watcher event")
 
 		var err error
 		switch {
@@ -266,29 +265,21 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 		case req.GetState().IsResolved():
 			err = a.onResolvedRequest(ctx, req)
 		default:
-			log.WarnContext(ctx, "Unknown request state",
-				slog.Group("event",
-					slog.Any("type", logutils.StringerAttr(event.Type)),
-					slog.Group("resource",
-						"kind", event.Resource.GetKind(),
-						"name", event.Resource.GetName(),
-					),
-				),
-			)
+			log.WithField("event", event).Warn("Unknown request state")
 			return nil
 		}
 
 		if err != nil {
-			log.ErrorContext(ctx, "Failed to process request", "error", err)
+			log.WithError(err).Error("Failed to process request")
 			return trace.Wrap(err)
 		}
 
 		return nil
 	case types.OpDelete:
-		ctx, log := logger.With(ctx, "request_op", "delete")
+		ctx, log := logger.WithField(ctx, "request_op", "delete")
 
 		if err := a.onDeletedRequest(ctx, reqID); err != nil {
-			log.ErrorContext(ctx, "Failed to process deleted request", "error", err)
+			log.WithError(err).Errorf("Failed to process deleted request")
 			return trace.Wrap(err)
 		}
 		return nil
@@ -308,11 +299,10 @@ func (a *App) onJiraWebhook(_ context.Context, webhook Webhook) error {
 		return nil
 	}
 
-	ctx, log := logger.With(ctx, "jira_issue_id", webhook.Issue.ID)
-	log.DebugContext(ctx, "Processing incoming webhook event",
-		"event", webhookEvent,
-		"event_type", issueEventTypeName,
-	)
+	ctx, log := logger.WithFields(ctx, logger.Fields{
+		"jira_issue_id": webhook.Issue.ID,
+	})
+	log.Debugf("Processing incoming webhook event %q with type %q", webhookEvent, issueEventTypeName)
 
 	if webhook.Issue == nil {
 		return trace.Errorf("got webhook without issue info")
@@ -343,20 +333,20 @@ func (a *App) onJiraWebhook(_ context.Context, webhook Webhook) error {
 		if statusName == "" {
 			return trace.Errorf("getting Jira issue status: %w", err)
 		}
-		log.WarnContext(ctx, "Using most recent successful getIssue response", "error", err)
+		log.Warnf("Using most recent successful getIssue response: %v", err)
 	}
 
-	ctx, log = logger.With(ctx,
-		"jira_issue_id", issue.ID,
-		"jira_issue_key", issue.Key,
-	)
+	ctx, log = logger.WithFields(ctx, logger.Fields{
+		"jira_issue_id":  issue.ID,
+		"jira_issue_key": issue.Key,
+	})
 
 	switch {
 	case statusName == "pending":
-		log.DebugContext(ctx, "Issue has pending status, ignoring it")
+		log.Debug("Issue has pending status, ignoring it")
 		return nil
 	case statusName == "expired":
-		log.DebugContext(ctx, "Issue has expired status, ignoring it")
+		log.Debug("Issue has expired status, ignoring it")
 		return nil
 	case statusName != "approved" && statusName != "denied":
 		return trace.BadParameter("unknown Jira status %s", statusName)
@@ -367,11 +357,11 @@ func (a *App) onJiraWebhook(_ context.Context, webhook Webhook) error {
 		return trace.Wrap(err)
 	}
 	if reqID == "" {
-		log.DebugContext(ctx, "Missing teleportAccessRequestId issue property")
+		log.Debugf("Missing %q issue property", RequestIDPropertyKey)
 		return nil
 	}
 
-	ctx, log = logger.With(ctx, "request_id", reqID)
+	ctx, log = logger.WithField(ctx, "request_id", reqID)
 
 	reqs, err := a.teleport.GetAccessRequests(ctx, types.AccessRequestFilter{ID: reqID})
 	if err != nil {
@@ -392,9 +382,8 @@ func (a *App) onJiraWebhook(_ context.Context, webhook Webhook) error {
 		return trace.Errorf("plugin data is blank")
 	}
 	if pluginData.IssueID != issue.ID {
-		log.DebugContext(ctx, "plugin_data.issue_id does not match issue.id",
-			"plugin_data_issue_id", pluginData.IssueID,
-		)
+		log.WithField("plugin_data_issue_id", pluginData.IssueID).
+			Debug("plugin_data.issue_id does not match issue.id")
 		return trace.Errorf("issue_id from request's plugin_data does not match")
 	}
 
@@ -417,17 +406,17 @@ func (a *App) onJiraWebhook(_ context.Context, webhook Webhook) error {
 
 		author, reason, err := a.loadResolutionInfo(ctx, issue, statusName)
 		if err != nil {
-			log.ErrorContext(ctx, "Failed to load resolution info from the issue history", "error", err)
+			log.WithError(err).Error("Failed to load resolution info from the issue history")
 		}
 		resolution.Reason = reason
 
-		ctx, _ = logger.With(ctx,
-			"jira_user_email", author.EmailAddress,
-			"jira_user_name", author.DisplayName,
-			"request_user", req.GetUser(),
-			"request_roles", req.GetRoles(),
-			"reason", reason,
-		)
+		ctx, _ = logger.WithFields(ctx, logger.Fields{
+			"jira_user_email": author.EmailAddress,
+			"jira_user_name":  author.DisplayName,
+			"request_user":    req.GetUser(),
+			"request_roles":   req.GetRoles(),
+			"reason":          reason,
+		})
 		if err := a.resolveRequest(ctx, reqID, author.EmailAddress, resolution); err != nil {
 			return trace.Wrap(err)
 		}
@@ -509,11 +498,11 @@ func (a *App) createIssue(ctx context.Context, reqID string, reqData RequestData
 		return trace.Wrap(err)
 	}
 
-	ctx, log := logger.With(ctx,
-		"jira_issue_id", data.IssueID,
-		"jira_issue_key", data.IssueKey,
-	)
-	log.InfoContext(ctx, "Jira Issue created")
+	ctx, log := logger.WithFields(ctx, logger.Fields{
+		"jira_issue_id":  data.IssueID,
+		"jira_issue_key": data.IssueKey,
+	})
+	log.Info("Jira Issue created")
 
 	// Save jira issue info in plugin data.
 	_, err = a.modifyPluginData(ctx, reqID, func(existing *PluginData) (PluginData, bool) {
@@ -562,11 +551,11 @@ func (a *App) addReviewComments(ctx context.Context, reqID string, reqReviews []
 	}
 	if !ok {
 		if issueID == "" {
-			logger.Get(ctx).DebugContext(ctx, "Failed to add the comment: plugin data is blank")
+			logger.Get(ctx).Debug("Failed to add the comment: plugin data is blank")
 		}
 		return nil
 	}
-	ctx, _ = logger.With(ctx, "jira_issue_id", issueID)
+	ctx, _ = logger.WithField(ctx, "jira_issue_id", issueID)
 
 	slice := reqReviews[oldCount:]
 	if len(slice) == 0 {
@@ -632,7 +621,7 @@ func (a *App) resolveRequest(ctx context.Context, reqID string, userEmail string
 		return trace.Wrap(err)
 	}
 
-	logger.Get(ctx).InfoContext(ctx, "Jira user processed the request", "resolution", resolution.Tag)
+	logger.Get(ctx).Infof("Jira user %s the request", resolution.Tag)
 	return nil
 }
 
@@ -669,18 +658,18 @@ func (a *App) resolveIssue(ctx context.Context, reqID string, resolution Resolut
 	}
 	if !ok {
 		if issueID == "" {
-			logger.Get(ctx).DebugContext(ctx, "Failed to resolve the issue: plugin data is blank")
+			logger.Get(ctx).Debug("Failed to resolve the issue: plugin data is blank")
 		}
 
 		// Either plugin data is missing or issue is already resolved by us, just quit.
 		return nil
 	}
 
-	ctx, log := logger.With(ctx, "jira_issue_id", issueID)
+	ctx, log := logger.WithField(ctx, "jira_issue_id", issueID)
 	if err := a.jira.ResolveIssue(ctx, issueID, resolution); err != nil {
 		return trace.Wrap(err)
 	}
-	log.InfoContext(ctx, "Successfully resolved the issue")
+	log.Info("Successfully resolved the issue")
 
 	return nil
 }

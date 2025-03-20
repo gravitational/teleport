@@ -89,7 +89,7 @@ export function AddAuthDeviceWizard({
   // TODO(Joerger): v19.0.0
   // A user without devices can register their first device without a privilege token
   // too, but the existing web register endpoint requires privilege token.
-  // We have a new endpoint "/v1/webapi/mfa/registerchallenge" which does not
+  // We have a new endpoint "/v1/webapi/users/devices" which does not
   // require token, but can't be used until v19 for backwards compatibility.
   // Once in use, we can leave privilege token empty here.
   useEffect(() => {

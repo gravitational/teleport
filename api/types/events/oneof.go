@@ -798,15 +798,6 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AutoUpdateVersionDelete{
 			AutoUpdateVersionDelete: e,
 		}
-	case *ContactCreate:
-		out.Event = &OneOf_ContactCreate{
-			ContactCreate: e,
-		}
-	case *ContactDelete:
-		out.Event = &OneOf_ContactDelete{
-			ContactDelete: e,
-		}
-
 	case *WorkloadIdentityCreate:
 		out.Event = &OneOf_WorkloadIdentityCreate{
 			WorkloadIdentityCreate: e,
@@ -819,13 +810,17 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_WorkloadIdentityDelete{
 			WorkloadIdentityDelete: e,
 		}
+	case *ContactCreate:
+		out.Event = &OneOf_ContactCreate{
+			ContactCreate: e,
+		}
+	case *ContactDelete:
+		out.Event = &OneOf_ContactDelete{
+			ContactDelete: e,
+		}
 	case *GitCommand:
 		out.Event = &OneOf_GitCommand{
 			GitCommand: e,
-		}
-	case *StableUNIXUserCreate:
-		out.Event = &OneOf_StableUNIXUserCreate{
-			StableUNIXUserCreate: e,
 		}
 	case *WorkloadIdentityX509RevocationCreate:
 		out.Event = &OneOf_WorkloadIdentityX509RevocationCreate{
@@ -839,9 +834,9 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_WorkloadIdentityX509RevocationUpdate{
 			WorkloadIdentityX509RevocationUpdate: e,
 		}
-	case *AWSICResourceSync:
-		out.Event = &OneOf_AWSICResourceSync{
-			AWSICResourceSync: e,
+	case *StableUNIXUserCreate:
+		out.Event = &OneOf_StableUNIXUserCreate{
+			StableUNIXUserCreate: e,
 		}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())

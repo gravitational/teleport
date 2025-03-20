@@ -622,11 +622,11 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetIdentityCenterAccountAssignment(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
-	} else if r := in.GetPluginStaticCredentials(); r != nil {
-		out.Resource = r
-		return &out, nil
 	} else if r := in.GetWorkloadIdentity(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetPluginStaticCredentials(); r != nil {
+		out.Resource = r
 		return &out, nil
 	} else if r := in.GetWorkloadIdentityX509Revocation(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)

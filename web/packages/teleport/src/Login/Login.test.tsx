@@ -203,7 +203,7 @@ test('redirect to root if session is valid and path is not "/enterprise/saml-idp
   jest
     .spyOn(history, 'getRedirectParam')
     .mockReturnValue(
-      'http://localhost/web/login?redirect_url=http://localhost/web/cluster/localhost/resources'
+      'http://localhost/web/login?redirect_url=https://localhost/web/cluster/localhost/resources'
     );
   render(<Login />);
 

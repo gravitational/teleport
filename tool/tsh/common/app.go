@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // onAppLogin implements "tsh apps login" command.
@@ -160,7 +159,7 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 		cmd.Stderr = cf.Stderr()
 		cmd.Stdout = output
 
-		logger.DebugContext(cf.Context, "Running automatic az login", "command", logutils.StringerAttr(cmd))
+		log.Debugf("Running automatic az login: %v", cmd.String())
 		err := cf.RunCommand(cmd)
 		if err != nil {
 			return trace.Wrap(err, "failed to automatically login with `az login` using identity %q; run with --debug for details", routeToApp.AzureIdentity)
@@ -334,9 +333,7 @@ func onAppLogout(cf *CLIConf) error {
 		// remove generated local files for the provided app.
 		err := utils.RemoveFileIfExist(profile.AppLocalCAPath(tc.SiteName, app.Name))
 		if err != nil {
-			logger.WarnContext(cf.Context, "Failed to clean up app session",
-				"error", err,
-				"profile", profile.AppLocalCAPath(tc.SiteName, app.Name))
+			log.WithError(err).Warnf("Failed to remove %v", profile.AppLocalCAPath(tc.SiteName, app.Name))
 		}
 	}
 
@@ -594,7 +591,7 @@ func (a *appInfo) pickCloudAppLogin(cf *CLIConf, logins []string) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		logger.DebugContext(cf.Context, "Retrieved azure identity", "azure_identity", azureIdentity)
+		log.Debugf("Azure identity is %q", azureIdentity)
 		a.AzureIdentity = azureIdentity
 
 	case a.app.IsGCP():
@@ -602,7 +599,7 @@ func (a *appInfo) pickCloudAppLogin(cf *CLIConf, logins []string) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		logger.DebugContext(cf.Context, "Retrieved GCP service account", "service_account", gcpServiceAccount)
+		log.Debugf("GCP service account is %q", gcpServiceAccount)
 		a.GCPServiceAccount = gcpServiceAccount
 	}
 
@@ -662,7 +659,7 @@ func getApp(ctx context.Context, clt apiclient.GetResourcesClient, name string) 
 
 	appServer, ok := res.Resources[0].ResourceWithLabels.(types.AppServer)
 	if !ok {
-		logger.WarnContext(ctx, "expected types.AppServer but received unexpected type", "resource_type", logutils.TypeAttr(res.Resources[0].ResourceWithLabels))
+		log.Warnf("expected types.AppServer but received unexpected type %T", res.Resources[0].ResourceWithLabels)
 		return nil, nil, trace.NotFound("app %q not found, use `tsh apps ls` to see registered apps", name)
 	}
 

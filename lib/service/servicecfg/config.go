@@ -21,6 +21,7 @@ package servicecfg
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -51,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Config contains the configuration for all services that Teleport can run.
@@ -131,6 +134,9 @@ type Config struct {
 	// HostUUID is a unique UUID of this host (it will be known via this UUID within
 	// a teleport cluster). It's automatically generated on 1st start
 	HostUUID string
+
+	// Console writer to speak to a user
+	Console io.Writer
 
 	// ReverseTunnels is a list of reverse tunnels to create on the
 	// first cluster start
@@ -217,6 +223,10 @@ type Config struct {
 
 	// Kube is a Kubernetes API gateway using Teleport client identities.
 	Kube KubeConfig
+
+	// Log optionally specifies the logger.
+	// Deprecated: use Logger instead.
+	Log utils.Logger
 
 	// Logger outputs messages using slog. The underlying handler respects
 	// the user supplied logging config.
@@ -515,6 +525,10 @@ func ApplyDefaults(cfg *Config) {
 
 	cfg.Version = defaults.TeleportConfigVersionV1
 
+	if cfg.Log == nil {
+		cfg.Log = utils.NewLogger()
+	}
+
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
@@ -543,6 +557,7 @@ func ApplyDefaults(cfg *Config) {
 	// Global defaults.
 	cfg.Hostname = hostname
 	cfg.DataDir = defaults.DataDir
+	cfg.Console = os.Stdout
 	cfg.CipherSuites = utils.DefaultCipherSuites()
 	cfg.Ciphers = sc.Ciphers
 	cfg.KEXAlgorithms = kex
@@ -686,6 +701,14 @@ func applyDefaults(cfg *Config) {
 		cfg.Version = defaults.TeleportConfigVersionV1
 	}
 
+	if cfg.Console == nil {
+		cfg.Console = io.Discard
+	}
+
+	if cfg.Log == nil {
+		cfg.Log = logrus.StandardLogger()
+	}
+
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
@@ -783,6 +806,7 @@ func verifyEnabledService(cfg *Config) error {
 // If called after `config.ApplyFileConfig` or `config.Configure` it will also
 // change the global loggers.
 func (c *Config) SetLogLevel(level slog.Level) {
+	c.Log.SetLevel(logutils.SlogLevelToLogrusLevel(level))
 	c.LoggerLevel.Set(level)
 }
 

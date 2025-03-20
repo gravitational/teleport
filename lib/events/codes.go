@@ -676,11 +676,6 @@ const (
 	// AutoUpdateVersionDeleteCode is the auto update version delete event code.
 	AutoUpdateVersionDeleteCode = "AUV003I"
 
-	// ContactCreateCode is the auto update version create event code.
-	ContactCreateCode = "TCTC001I"
-	// ContactDeleteCode is the auto update version delete event code.
-	ContactDeleteCode = "TCTC002I"
-
 	// WorkloadIdentityCreateCode is the workload identity create event code.
 	WorkloadIdentityCreateCode = "WID001I"
 	// WorkloadIdentityUpdateCode is the workload identity update event code.
@@ -697,6 +692,11 @@ const (
 	// WorkloadIdentityX509Revocation delete event code.
 	WorkloadIdentityX509RevocationDeleteCode = "WID006I"
 
+	// ContactCreateCode is the auto update version create event code.
+	ContactCreateCode = "TCTC001I"
+	// ContactDeleteCode is the auto update version delete event code.
+	ContactDeleteCode = "TCTC002I"
+
 	// GitCommandCode is the git command event code
 	GitCommandCode = "TGIT001I"
 	// GitCommandFailureCode is the git command feature event code.
@@ -704,13 +704,6 @@ const (
 
 	// StableUNIXUserCreateCode is the stable UNIX user create event code.
 	StableUNIXUserCreateCode = "TSUU001I"
-
-	// AWSICResourceSyncSuccessCode is the AWS Identity Center resource
-	// sync attempt success code.
-	AWSICResourceSyncSuccessCode = "TAIC001I"
-	// AWSICResourceSyncFailureCode is the AWS Identity Center resource
-	// sync attempt failure code.
-	AWSICResourceSyncFailureCode = "TAIC001E"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

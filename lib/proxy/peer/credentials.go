@@ -52,7 +52,7 @@ func newClientCredentials(peerID, peerAddr string, log *slog.Logger, creds crede
 }
 
 // ClientHandshake performs the TLS handshake and then verifies that the
-// server is a Proxy and that its UUID matches the expected id of the peer.
+// server is a Proxy and that it's UUID matches the expected id of the peer.
 func (c *clientCredentials) ClientHandshake(ctx context.Context, laddr string, conn net.Conn) (_ net.Conn, _ credentials.AuthInfo, err error) {
 	conn, authInfo, err := c.TransportCredentials.ClientHandshake(ctx, laddr, conn)
 	if err != nil {

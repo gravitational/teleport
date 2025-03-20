@@ -33,6 +33,7 @@ import (
 	apiv1 "cloud.google.com/go/firestore/apiv1/admin"
 	"cloud.google.com/go/firestore/apiv1/admin/adminpb"
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
@@ -41,7 +42,6 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -1097,7 +1097,7 @@ func (b *Backend) deleteDocuments(docs []*firestore.DocumentSnapshot) error {
 }
 
 // ConvertGRPCError converts gRPC errors
-func ConvertGRPCError(err error) error {
+func ConvertGRPCError(err error, args ...interface{}) error {
 	if err == nil {
 		return nil
 	}
@@ -1107,15 +1107,15 @@ func ConvertGRPCError(err error) error {
 	case codes.DeadlineExceeded:
 		return context.DeadlineExceeded
 	case codes.FailedPrecondition:
-		return trace.BadParameter("%s", err)
+		return trace.BadParameter(err.Error(), args...)
 	case codes.NotFound:
-		return trace.NotFound("%s", err)
+		return trace.NotFound(err.Error(), args...)
 	case codes.AlreadyExists:
-		return trace.AlreadyExists("%s", err)
+		return trace.AlreadyExists(err.Error(), args...)
 	case codes.OK:
 		return nil
 	default:
-		return trace.Wrap(err)
+		return trace.Wrap(err, args...)
 	}
 }
 

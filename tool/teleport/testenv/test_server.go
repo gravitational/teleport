@@ -152,7 +152,7 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 
 	cfg.Hostname = "server01"
 	cfg.DataDir = t.TempDir()
-	cfg.Logger = utils.NewSlogLoggerForTests()
+	cfg.Log = utils.NewLoggerForTests()
 	authAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerAuth, &cfg.FileDescriptors)}
 	cfg.SetToken(StaticToken)
 	cfg.SetAuthServerAddress(authAddr)

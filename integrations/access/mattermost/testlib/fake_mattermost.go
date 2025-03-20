@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/integrations/access/mattermost"
 )
@@ -386,6 +387,6 @@ func (s *FakeMattermost) CheckPostUpdate(ctx context.Context) (mattermost.Post, 
 
 func panicIf(err error) {
 	if err != nil {
-		panic(fmt.Sprintf("%v at %v", err, string(debug.Stack())))
+		log.Panicf("%v at %v", err, string(debug.Stack()))
 	}
 }

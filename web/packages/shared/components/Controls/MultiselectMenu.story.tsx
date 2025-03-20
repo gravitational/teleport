@@ -16,10 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { action } from '@storybook/addon-actions';
-import { useArgs } from '@storybook/preview-api';
 import type { Meta, StoryFn, StoryObj } from '@storybook/react';
-import type { ReactNode } from 'react';
+import React, { useState } from 'react';
 
 import { Flex } from 'design';
 
@@ -29,7 +27,7 @@ type OptionValue = `option-${number}`;
 
 const options: {
   value: OptionValue;
-  label: string | ReactNode;
+  label: string | React.ReactNode;
   disabled?: boolean;
   disabledTooltip?: string;
 }[] = [
@@ -101,22 +99,16 @@ export default {
   args: {
     label: 'Select Options',
     tooltip: 'Choose multiple options',
-    selected: [],
     buffered: false,
     showIndicator: true,
     showSelectControls: true,
-    onChange: action('onChange'),
   },
+  parameters: { controls: { expanded: true, exclude: ['userContext'] } },
   render: (args => {
-    const [{ selected }, updateArgs] =
-      useArgs<Meta<typeof MultiselectMenu<OptionValue>>['args']>();
-    const onChange = (value: OptionValue[]) => {
-      updateArgs({ selected: value });
-      args.onChange?.(value);
-    };
+    const [selected, setSelected] = useState<string[]>([]);
     return (
       <Flex alignItems="center" minHeight="100px">
-        <MultiselectMenu {...args} selected={selected} onChange={onChange} />
+        <MultiselectMenu {...args} selected={selected} onChange={setSelected} />
       </Flex>
     );
   }) satisfies StoryFn<typeof MultiselectMenu<OptionValue>>,

@@ -132,7 +132,7 @@ type Identity struct {
 	// GitHubUserID indicates the GitHub user ID identified by the GitHub
 	// connector.
 	GitHubUserID string
-	// GitHubUsername indicates the GitHub username identified by the GitHub
+	// GitHubUserID indicates the GitHub username identified by the GitHub
 	// connector.
 	GitHubUsername string
 }

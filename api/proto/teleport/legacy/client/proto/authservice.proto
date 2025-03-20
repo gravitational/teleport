@@ -2031,7 +2031,6 @@ message PaginatedResource {
     types.SAMLIdPServiceProviderV1 SAMLIdPServiceProvider = 12 [(gogoproto.jsontag) = "saml_idp_service_provider,omitempty"];
     // GitServer represents a Git server resource.
     types.ServerV2 git_server = 15;
-
     // IdentityCenterAccountAssignment represents a requestable Identity Center
     // Account Assignment
     IdentityCenterAccountAssignment IdentityCenterAccountAssignment = 16 [(gogoproto.jsontag) = "identity_center_account_assignment,omitempty"];
@@ -2452,21 +2451,16 @@ message DownstreamInventoryOneOf {
   }
 }
 
-// DownstreamInventoryPing is sent down the inventory control stream.
+// DownstreamInventoryPing is sent down the inventory control stream for testing/debug
+// purposes.
 message DownstreamInventoryPing {
   uint64 ID = 1;
 }
 
 // UpstreamInventoryPong is sent up the inventory control stream in response to a downstream
-// ping including the system clock of the downstream.
+// ping (used for testing/debug purposes).
 message UpstreamInventoryPong {
   uint64 ID = 1;
-  // SystemClock advertises the system clock of the upstream.
-  google.protobuf.Timestamp SystemClock = 2 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "system_clock,omitempty"
-  ];
 }
 
 // UpstreamInventoryHello is the hello message sent up the inventory control stream.

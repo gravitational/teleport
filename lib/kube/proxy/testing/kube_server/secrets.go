@@ -101,7 +101,7 @@ func (s *KubeMockServer) getSecret(w http.ResponseWriter, req *http.Request, p h
 func (s *KubeMockServer) deleteSecret(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 	namespace := p.ByName("namespace")
 	name := p.ByName("name")
-	deleteOpts, err := parseDeleteCollectionBody(req)
+	deleteOpts, err := parseDeleteCollectionBody(req.Body)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
