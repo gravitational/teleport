@@ -19,6 +19,7 @@ package config
 import (
 	"context"
 
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
@@ -85,6 +86,16 @@ func (o *WorkloadIdentityAWSRAService) CheckAndSetDefaults() error {
 		return trace.BadParameter("profile_arn: must be set")
 	case o.TrustAnchorARN == "":
 		return trace.BadParameter("trust_anchor_arn: must be set")
+	}
+
+	if _, err := arn.Parse(o.RoleARN); err != nil {
+		return trace.Wrap(err, "parsing role_arn")
+	}
+	if _, err := arn.Parse(o.ProfileARN); err != nil {
+		return trace.Wrap(err, "parsing profile_arn")
+	}
+	if _, err := arn.Parse(o.TrustAnchorARN); err != nil {
+		return trace.Wrap(err, "parsing trust_anchor_arn")
 	}
 
 	return nil
