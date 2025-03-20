@@ -17,7 +17,7 @@
  */
 
 /** User-visible feature names */
-export enum FeatureNames {
+export enum FeatureName {
   /** Teleport Identity Security (formerly Teleport Policy) */
   IdentitySecurity = 'Teleport Identity Security',
   /** Teleport Identity Governance (formerly Teleport Identity) */
