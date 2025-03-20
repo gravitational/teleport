@@ -18,7 +18,6 @@
     "@babel/preset-env": "^7.24.7",
     "@babel/preset-react": "^7.24.7",
     "@babel/preset-typescript": "^7.24.7",
-    "@ianvs/prettier-plugin-sort-imports": "^4.4.0",
     "@storybook/addon-toolbars": "^6.5.16",
     "@storybook/builder-webpack5": "^6.5.16",
     "@storybook/manager-webpack5": "^6.5.16",
