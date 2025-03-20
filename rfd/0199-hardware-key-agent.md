@@ -145,10 +145,15 @@ func (p *PinCachingPrompt) setCachedPIN(pin string) {
 
 ### Hardware Key Agent
 
-Teleport clients will gain the ability to act as a hardware key agent, providing
-access to the hardware key to other Teleport clients running on the same host.
-This allows separate clients to share the agent's PIN/touch prompts, PIN cache,
-and open hardware key connections.
+The hardware key agent provides access to the hardware key to other Teleport
+clients running on the same host. This allows separate clients to share the
+agent's PIN/touch prompts, PIN cache, and open hardware key connections.
+
+The hardware key agent can be started in two ways:
+
+* By launching [Teleport Connect](#teleport-connect) which automatically starts
+the hardware key agent within the background daemon process.
+* By running [`tsh piv agent`](#tsh-piv-agent) explicitly.
 
 #### Terminology
 
@@ -424,6 +429,13 @@ agent if it runs into an error, with backoff.
 
 The agent is [responsible for prompting hardware key PIN and touch](#pin-and-touch-prompts)
 on behalf of dependent clients.
+
+Note: sometimes, Teleport connect uses `tsh` commands directly, which prompts
+for PIN/touch via the CLI within a Teleport Connect console (e.g. `tsh ssh`).
+A side effect of this change is that the teleport key agent will now prompt via
+Teleport Connect on behalf of these `tsh` commands within Teleport Connect.
+This is ultimately a benefit as the previous CLI prompts will be replaced with
+the UI prompts of Teleport Connect.
 
 The dependent client will include its full command to the agent `Sign` request
 in order for the agent to relay to the user which dependent client is making
