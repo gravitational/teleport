@@ -472,26 +472,19 @@ func (h *Handler) dbConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	stream := terminal.NewStream(ctx, terminal.StreamConfig{WS: ws})
-
-	replConn, alpnConn := net.Pipe()
-	sess := &databaseInteractiveSession{
-		ctx:               ctx,
+	sess, err := newDatabaseInteractiveSession(ctx, databaseInteractiveSessionConfig{
 		log:               log,
 		req:               req,
-		stream:            stream,
 		ws:                ws,
 		sctx:              sctx,
 		site:              site,
 		clt:               clt,
-		replConn:          replConn,
-		alpnConn:          alpnConn,
 		keepAliveInterval: netConfig.GetKeepAliveInterval(),
 		registry:          h.cfg.DatabaseREPLRegistry,
 		alpnHandler:       h.cfg.ALPNHandler,
 		proxyAddr:         h.PublicProxyAddr(),
 		proxyHostCA:       proxyHostCA,
-	}
+	})
 	defer sess.Close()
 
 	// Don't close the terminal stream on session error, as it would also
@@ -500,14 +493,6 @@ func (h *Handler) dbConnect(
 	if err := sess.Run(); err != nil {
 		log.ErrorContext(ctx, "Database interactive session exited with error", "error", err)
 		return nil, trace.Wrap(err)
-	}
-
-	// TODO(gabrielcorado): Right now, if we send a close message the UI closes
-	// the terminal without giving the chance for users to review the session.
-	// Once this gets solved, we should send the close message here.
-
-	if err := stream.Close(); err != nil {
-		log.ErrorContext(ctx, "Unable to close web socket terminal stream", "error", err)
 	}
 
 	return nil, nil
@@ -571,22 +556,73 @@ func readDatabaseSessionRequest(ws *websocket.Conn) (*DatabaseSessionRequest, er
 	return &req, nil
 }
 
-type databaseInteractiveSession struct {
-	ctx               context.Context
+type databaseInteractiveSessionConfig struct {
 	ws                *websocket.Conn
-	stream            *terminal.Stream
 	log               *slog.Logger
 	req               *DatabaseSessionRequest
 	sctx              *SessionContext
 	site              reversetunnelclient.RemoteSite
 	clt               authclient.ClientI
-	replConn          net.Conn
-	alpnConn          net.Conn
 	keepAliveInterval time.Duration
 	registry          dbrepl.REPLRegistry
 	alpnHandler       ConnectionHandler
 	proxyAddr         string
 	proxyHostCA       types.CertAuthority
+}
+
+func (c *databaseInteractiveSessionConfig) check() error {
+	if c.ws == nil {
+		return trace.BadParameter("missing parameter ws")
+	}
+	if c.req == nil {
+		return trace.BadParameter("missing parameter req")
+	}
+	if c.site == nil {
+		return trace.BadParameter("missing parameter site")
+	}
+	if c.clt == nil {
+		return trace.BadParameter("missing parameter clt")
+	}
+	if c.keepAliveInterval == 0 {
+		return trace.BadParameter("missing parameter keepAliveInterval")
+	}
+	if c.registry == nil {
+		return trace.BadParameter("missing parameter registry")
+	}
+	if c.alpnHandler == nil {
+		return trace.BadParameter("missing parameter alpnHandler")
+	}
+	if c.proxyAddr == "" {
+		return trace.BadParameter("missing parameter proxyAddr")
+	}
+	if c.proxyHostCA == nil {
+		return trace.BadParameter("missing parameter proxyHostCA")
+	}
+	return nil
+}
+
+type databaseInteractiveSession struct {
+	databaseInteractiveSessionConfig
+	ctx      context.Context
+	replConn net.Conn
+	alpnConn net.Conn
+	stream   *terminal.Stream
+}
+
+func newDatabaseInteractiveSession(ctx context.Context, cfg databaseInteractiveSessionConfig) (*databaseInteractiveSession, error) {
+	if err := cfg.check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	replConn, alpnConn := net.Pipe()
+	return &databaseInteractiveSession{
+		ctx:                              ctx,
+		databaseInteractiveSessionConfig: cfg,
+		replConn:                         replConn,
+		alpnConn:                         alpnConn,
+		stream: terminal.NewStream(ctx, terminal.StreamConfig{
+			WS: cfg.ws,
+		}),
+	}, nil
 }
 
 func (s *databaseInteractiveSession) Run() error {
@@ -633,7 +669,16 @@ func (s *databaseInteractiveSession) Run() error {
 }
 
 func (s *databaseInteractiveSession) Close() error {
-	s.replConn.Close()
+	// TODO(gabrielcorado): Right now, if we send a close message the UI closes
+	// the terminal without giving the chance for users to review the session.
+	// Once this gets solved, we should send the close message here.
+	if err := s.stream.Close(); err != nil {
+		s.log.ErrorContext(s.ctx, "Unable to close web socket terminal stream", "error", err)
+	}
+
+	if err := s.replConn.Close(); !utils.IsOKNetworkError(err) {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
