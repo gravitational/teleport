@@ -281,8 +281,8 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 
 	// Create DynamoDB service.
 	svc, err := dynamometrics.NewAPIMetrics(dynamometrics.Backend, dynamodb.New(b.session, &aws.Config{
-		// Setting this on the individual service instead of the session, as DynamoDB Streams
-		// and Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
+		// Setting this on the individual service instead of the session, as Application Auto Scaling
+		// does not yet have FIPS endpoints in non-GovCloud.
 		// See also: https://aws.amazon.com/compliance/fips/#FIPS_Endpoints_by_Service
 		UseFIPSEndpoint: useFIPSEndpoint,
 	}))
@@ -290,7 +290,12 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 	b.svc = svc
-	streams, err := dynamometrics.NewStreamsMetricsAPI(dynamometrics.Backend, dynamodbstreams.New(b.session))
+	streams, err := dynamometrics.NewStreamsMetricsAPI(dynamometrics.Backend, dynamodbstreams.New(b.session, &aws.Config{
+		// Setting this on the individual service instead of the session, as Application Auto Scaling
+		// does not yet have FIPS endpoints in non-GovCloud.
+		// See also: https://aws.amazon.com/compliance/fips/#FIPS_Endpoints_by_Service
+		UseFIPSEndpoint: useFIPSEndpoint,
+	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
