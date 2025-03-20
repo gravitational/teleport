@@ -21,6 +21,7 @@ import selectEvent from 'react-select-event';
 import { act, fireEvent, render, screen, tick } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
+import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import makeJoinToken from 'teleport/services/joinToken/makeJoinToken';
 
@@ -153,9 +154,11 @@ const Component = () => {
   );
 
   return (
-    <ContextProvider ctx={ctx}>
-      <JoinTokens />
-    </ContextProvider>
+    <InfoGuidePanelProvider>
+      <ContextProvider ctx={ctx}>
+        <JoinTokens />
+      </ContextProvider>
+    </InfoGuidePanelProvider>
   );
 };
 
