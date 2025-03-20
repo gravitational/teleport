@@ -18,6 +18,7 @@ package config
 
 import (
 	"context"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/gravitational/trace"
@@ -26,7 +27,12 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 )
 
-const WorkloadIdentityAWSRAType = "workload-identity-aws-ra"
+const (
+	WorkloadIdentityAWSRAType        = "workload-identity-aws-ra"
+	defaultAWSSessionDuration        = 6 * time.Hour
+	maxAWSSessionDuration            = 12 * time.Hour
+	defaultAWSSessionRenewalInterval = 1 * time.Hour
+)
 
 var (
 	_ ServiceConfig = &WorkloadIdentityAWSRAService{}
@@ -41,10 +47,6 @@ type WorkloadIdentityAWSRAService struct {
 	Selector WorkloadIdentitySelector `yaml:"selector"`
 	// Destination is where the credentials should be written to.
 	Destination bot.Destination `yaml:"destination"`
-	// CredentialLifetime contains configuration for how long credentials will
-	// last and the frequency at which they'll be renewed.
-	// The lifetime may be up to 12h for the resulting AWS session.
-	CredentialLifetime CredentialLifetime `yaml:",inline"`
 
 	// RoleARN is the ARN of the role to assume.
 	// Example: `arn:aws:iam::123456789012:role/example-role`
@@ -64,6 +66,15 @@ type WorkloadIdentityAWSRAService struct {
 	// `AWS_REGION` environment variable. If set here, this will override the
 	// environment or AWS config.
 	Region string `yaml:"region"`
+
+	// SessionDuration is the duration of the resulting AWS session and
+	// credentials. This may be up to 12 hours. When unset, this defaults to
+	// 6 hours.
+	SessionDuration time.Duration `yaml:"session_duration"`
+	// SessionRenewalInterval is the interval at which the session should be
+	// renewed. This should be less than the session duration. When unset, this
+	// defaults to 1 hour.
+	SessionRenewalInterval time.Duration `yaml:"session_renewal_interval"`
 }
 
 // Init initializes the destination.
@@ -86,6 +97,14 @@ func (o *WorkloadIdentityAWSRAService) CheckAndSetDefaults() error {
 		return trace.BadParameter("profile_arn: must be set")
 	case o.TrustAnchorARN == "":
 		return trace.BadParameter("trust_anchor_arn: must be set")
+	case o.SessionDuration == 0:
+		o.SessionDuration = defaultAWSSessionDuration
+	case o.SessionDuration > maxAWSSessionDuration:
+		return trace.BadParameter("session_duration: must be less than or equal to 12 hours")
+	case o.SessionRenewalInterval == 0:
+		o.SessionRenewalInterval = defaultAWSSessionRenewalInterval
+	case o.SessionRenewalInterval >= o.SessionDuration:
+		return trace.BadParameter("session_renewal_interval: must be less than session_duration")
 	}
 
 	if _, err := arn.Parse(o.RoleARN); err != nil {
@@ -142,5 +161,5 @@ func (o *WorkloadIdentityAWSRAService) GetDestination() bot.Destination {
 }
 
 func (o *WorkloadIdentityAWSRAService) GetCredentialLifetime() CredentialLifetime {
-	return o.CredentialLifetime
+	return CredentialLifetime{}
 }

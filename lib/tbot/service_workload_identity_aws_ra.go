@@ -18,12 +18,12 @@ package tbot
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"crypto"
 	"crypto/x509"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/gravitational/trace"
 	awsspiffe "github.com/spiffe/aws-spiffe-workload-helper"
@@ -42,12 +42,13 @@ import (
 // WorkloadIdentityAWSRAService is a service that retrieves X.509 certificates
 // and exchanges them for AWS credentials using the AWS Roles Anywhere service.
 type WorkloadIdentityAWSRAService struct {
-	botAuthClient  *authclient.Client
-	botCfg         *config.BotConfig
-	cfg            *config.WorkloadIdentityAWSRAService
-	getBotIdentity getBotIdentityFn
-	log            *slog.Logger
-	resolver       reversetunnelclient.Resolver
+	botAuthClient     *authclient.Client
+	botCfg            *config.BotConfig
+	cfg               *config.WorkloadIdentityAWSRAService
+	getBotIdentity    getBotIdentityFn
+	log               *slog.Logger
+	resolver          reversetunnelclient.Resolver
+	reloadBroadcaster *channelBroadcaster
 }
 
 // String returns a human-readable description of the service.
@@ -58,11 +59,33 @@ func (s *WorkloadIdentityAWSRAService) String() string {
 // OneShot runs the service once, generating the output and writing it to the
 // destination, before exiting.
 func (s *WorkloadIdentityAWSRAService) OneShot(ctx context.Context) error {
+	return s.generate(ctx)
+}
+
+// Run runs the service in a loop, generating the output and writing it to the
+// destination at regular intervals.
+func (s *WorkloadIdentityAWSRAService) Run(ctx context.Context) error {
+	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
+	defer unsubscribe()
+
+	err := runOnInterval(ctx, runOnIntervalConfig{
+		service:    s.String(),
+		name:       "output-renewal",
+		f:          s.generate,
+		interval:   s.cfg.SessionRenewalInterval,
+		retryLimit: renewalRetryLimit,
+		log:        s.log,
+		reloadCh:   reloadCh,
+	})
+	return trace.Wrap(err)
+}
+
+func (s *WorkloadIdentityAWSRAService) generate(ctx context.Context) error {
 	res, privateKey, err := s.requestSVID(ctx)
 	if err != nil {
 		return trace.Wrap(err, "requesting SVID")
 	}
-	creds, err := s.exchangeSVID(ctx, res, privateKey)
+	creds, err := s.exchangeSVID(res, privateKey)
 	if err != nil {
 		return trace.Wrap(err, "exchanging SVID via Roles Anywhere")
 	}
@@ -72,7 +95,6 @@ func (s *WorkloadIdentityAWSRAService) OneShot(ctx context.Context) error {
 // exchangeSVID will exchange the X.509 SVID for AWS credentials using the
 // AWS Roles Anywhere service.
 func (s *WorkloadIdentityAWSRAService) exchangeSVID(
-	ctx context.Context,
 	x509Cred *workloadidentityv1pb.Credential,
 	privateKey crypto.Signer,
 ) (*vendoredaws.CredentialProcessOutput, error) {
@@ -82,7 +104,7 @@ func (s *WorkloadIdentityAWSRAService) exchangeSVID(
 	}
 	svid, err := x509svid.ParseRaw(x509Cred.GetX509Svid().Cert, pkcs8)
 	if err != nil {
-		return nil, trace.Wrap(err, "marshalling private key")
+		return nil, trace.Wrap(err, "parsing x509 svid")
 	}
 	signer := &awsspiffe.X509SVIDSigner{
 		SVID: svid,
@@ -97,10 +119,7 @@ func (s *WorkloadIdentityAWSRAService) exchangeSVID(
 		ProfileArnStr:     s.cfg.ProfileARN,
 		Region:            s.cfg.Region,
 		TrustAnchorArnStr: s.cfg.TrustAnchorARN,
-		SessionDuration: int(
-			cmp.Or(
-				s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime,
-			).TTL.Seconds()),
+		SessionDuration:   int(s.cfg.SessionDuration.Seconds()),
 	}, signer, algo)
 	if err != nil {
 		return nil, trace.Wrap(err, "exchanging credentials")
@@ -132,7 +151,9 @@ func (s *WorkloadIdentityAWSRAService) requestSVID(
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		// We only need this to issue the X509 SVID, so we don't need the full
+		// lifetime.
+		time.Minute*10,
 		nil,
 	)
 	if err != nil {
@@ -152,7 +173,9 @@ func (s *WorkloadIdentityAWSRAService) requestSVID(
 		s.log,
 		impersonatedClient,
 		s.cfg.Selector,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		// We only use this SVID to exchange for AWS credentials, so we don't
+		// need the full lifetime.
+		time.Minute*10,
 		nil,
 	)
 	if err != nil {
