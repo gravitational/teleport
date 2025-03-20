@@ -49,6 +49,7 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -168,6 +169,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindSPIFFEFederation:         rc.createSPIFFEFederation,
 		types.KindAutoUpdateConfig:         rc.createAutoUpdateConfig,
 		types.KindAutoUpdateVersion:        rc.createAutoUpdateVersion,
+		types.KindAutoUpdateAgentRollout:   rc.createAutoUpdateAgentRollout,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                    rc.updateUser,
@@ -184,6 +186,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindPlugin:                  rc.updatePlugin,
 		types.KindAutoUpdateConfig:        rc.updateAutoUpdateConfig,
 		types.KindAutoUpdateVersion:       rc.updateAutoUpdateVersion,
+		types.KindAutoUpdateAgentRollout:  rc.updateAutoUpdateAgentRollout,
 	}
 	rc.config = config
 
@@ -1462,6 +1465,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		types.KindNetworkRestrictions,
 		types.KindAutoUpdateConfig,
 		types.KindAutoUpdateVersion,
+		types.KindAutoUpdateAgentRollout,
 	}
 	if !slices.Contains(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
@@ -1855,6 +1859,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("AutoUpdateVersion has been deleted\n")
+	case types.KindAutoUpdateAgentRollout:
+		if err := client.DeleteAutoUpdateAgentRollout(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("AutoUpdateAgentRollout has been deleted\n")
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -2939,6 +2948,12 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &autoUpdateVersionCollection{version}, nil
+	case types.KindAutoUpdateAgentRollout:
+		version, err := client.GetAutoUpdateAgentRollout(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &autoUpdateAgentRolloutCollection{version}, nil
 	case types.KindAccessMonitoringRule:
 		if rc.ref.Name != "" {
 			rule, err := client.AccessMonitoringRuleClient().GetAccessMonitoringRule(ctx, rc.ref.Name)
@@ -3288,6 +3303,13 @@ func (rc *ResourceCommand) createAutoUpdateConfig(ctx context.Context, client *a
 		return trace.Wrap(err)
 	}
 
+	if config.GetMetadata() == nil {
+		config.Metadata = &headerv1.Metadata{}
+	}
+	if config.GetMetadata().GetName() == "" {
+		config.Metadata.Name = types.MetaNameAutoUpdateConfig
+	}
+
 	if rc.IsForced() {
 		_, err = client.UpsertAutoUpdateConfig(ctx, config)
 	} else {
@@ -3306,6 +3328,14 @@ func (rc *ResourceCommand) updateAutoUpdateConfig(ctx context.Context, client *a
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if config.GetMetadata() == nil {
+		config.Metadata = &headerv1.Metadata{}
+	}
+	if config.GetMetadata().GetName() == "" {
+		config.Metadata.Name = types.MetaNameAutoUpdateConfig
+	}
+
 	if _, err := client.UpdateAutoUpdateConfig(ctx, config); err != nil {
 		return trace.Wrap(err)
 	}
@@ -3317,6 +3347,13 @@ func (rc *ResourceCommand) createAutoUpdateVersion(ctx context.Context, client *
 	version, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateVersion](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if version.GetMetadata() == nil {
+		version.Metadata = &headerv1.Metadata{}
+	}
+	if version.GetMetadata().GetName() == "" {
+		version.Metadata.Name = types.MetaNameAutoUpdateVersion
 	}
 
 	if rc.IsForced() {
@@ -3337,7 +3374,61 @@ func (rc *ResourceCommand) updateAutoUpdateVersion(ctx context.Context, client *
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if version.GetMetadata() == nil {
+		version.Metadata = &headerv1.Metadata{}
+	}
+	if version.GetMetadata().GetName() == "" {
+		version.Metadata.Name = types.MetaNameAutoUpdateVersion
+	}
+
 	if _, err := client.UpdateAutoUpdateVersion(ctx, version); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Println("autoupdate_version has been updated")
+	return nil
+}
+
+func (rc *ResourceCommand) createAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	rollout, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateAgentRollout](raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if rollout.GetMetadata() == nil {
+		rollout.Metadata = &headerv1.Metadata{}
+	}
+	if rollout.GetMetadata().GetName() == "" {
+		rollout.Metadata.Name = types.MetaNameAutoUpdateAgentRollout
+	}
+
+	if rc.IsForced() {
+		_, err = client.UpsertAutoUpdateAgentRollout(ctx, rollout)
+	} else {
+		_, err = client.CreateAutoUpdateAgentRollout(ctx, rollout)
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("autoupdate_agent_rollout has been created")
+	return nil
+}
+
+func (rc *ResourceCommand) updateAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	rollout, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateAgentRollout](raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if rollout.GetMetadata() == nil {
+		rollout.Metadata = &headerv1.Metadata{}
+	}
+	if rollout.GetMetadata().GetName() == "" {
+		rollout.Metadata.Name = types.MetaNameAutoUpdateAgentRollout
+	}
+
+	if _, err := client.UpdateAutoUpdateAgentRollout(ctx, rollout); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Println("autoupdate_version has been updated")
