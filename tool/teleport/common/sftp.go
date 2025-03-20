@@ -117,7 +117,7 @@ func (s *sftpHandler) ensureReqIsAllowed(req *sftp.Request) error {
 
 	switch req.Method {
 	case sftputils.MethodLstat, sftputils.MethodStat:
-		// these sftputils.Methods are allowed
+		// these methods are allowed
 	case sftputils.MethodGet:
 		// only allow reads for downloads
 		if s.allowed.write {
@@ -135,8 +135,8 @@ func (s *sftpHandler) ensureReqIsAllowed(req *sftp.Request) error {
 	return nil
 }
 
-// OpenFile handles 'open' requests when opening a file for reading
-// and writing is desired.
+// OpenFile handles Open requests for both reading and writing. Required to
+// satisfy [sftp.OpenFileWriter].
 func (s *sftpHandler) OpenFile(req *sftp.Request) (_ sftp.WriterAtReaderAt, retErr error) {
 	defer s.sendSFTPEvent(req, retErr)
 
@@ -182,30 +182,7 @@ func (s *sftpHandler) openFile(req *sftp.Request) (sftp.WriterAtReaderAt, error)
 		return nil, err
 	}
 
-	var flags int
-	pflags := req.Pflags()
-	if pflags.Append {
-		flags |= os.O_APPEND
-	}
-	if pflags.Creat {
-		flags |= os.O_CREATE
-	}
-	if pflags.Excl {
-		flags |= os.O_EXCL
-	}
-	if pflags.Trunc {
-		flags |= os.O_TRUNC
-	}
-
-	if pflags.Read && pflags.Write {
-		flags |= os.O_RDWR
-	} else if pflags.Read {
-		flags |= os.O_RDONLY
-	} else if pflags.Write {
-		flags |= os.O_WRONLY
-	}
-
-	f, err := os.OpenFile(req.Filepath, flags, defaults.FilePermissions)
+	f, err := os.OpenFile(req.Filepath, sftputils.ParseFlags(req), defaults.FilePermissions)
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +210,7 @@ func (s *sftpHandler) Filecmd(req *sftp.Request) (retErr error) {
 		return err
 	}
 
-	return sftputils.HandleFilecmd(req, nil)
+	return sftputils.HandleFilecmd(req, nil /* local filesystem */)
 }
 
 // Filelist handles 'readdir', 'stat' and 'readlink' requests.
@@ -251,7 +228,7 @@ func (s *sftpHandler) Filelist(req *sftp.Request) (_ sftp.ListerAt, retErr error
 		return nil, err
 	}
 
-	return sftputils.HandleFilelist(req, nil)
+	return sftputils.HandleFilelist(req, nil /* local filesystem */)
 }
 
 func (s *sftpHandler) sendSFTPEvent(req *sftp.Request, reqErr error) {
@@ -388,7 +365,7 @@ func onSFTP() error {
 	// take care of that for us
 	for _, f := range h.files {
 		summaryEvent.FileTransferStats = append(summaryEvent.FileTransferStats, &apievents.FileTransferStat{
-			Path:         f.File.Name(),
+			Path:         f.Name(),
 			BytesRead:    f.BytesRead.Load(),
 			BytesWritten: f.BytesWritten.Load(),
 		})

@@ -27,14 +27,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
+
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
 )
 
-// fileWrapper provides minimal required file interface for SFTP package
-// including WriteTo() method required for concurrent data transfer.
+// fileWrapper is a wrapper for *os.File that implements the WriteTo() method
+// required for concurrent data transfer.
 type fileWrapper struct {
 	*os.File
 }
@@ -91,16 +92,22 @@ func (c *cancelWriter) Write(b []byte) (int, error) {
 	return c.stream.Write(b)
 }
 
+// File is the file interface required for [FileSystem].
 type File interface {
 	sftp.WriterAtReaderAt
 	io.ReadWriteCloser
+	// Name returns the name of the file.
 	Name() string
+	// Stat returns the files stat info.
 	Stat() (fs.FileInfo, error)
 }
 
+// TrackedFile is a [File] that counts the bytes read from/written to it.
 type TrackedFile struct {
-	File         File
-	BytesRead    atomic.Uint64
+	File
+	// BytesRead is the number of bytes read.
+	BytesRead atomic.Uint64
+	// BytesWritten is the number of bytes written.
 	BytesWritten atomic.Uint64
 }
 
@@ -116,13 +123,19 @@ func (t *TrackedFile) WriteAt(b []byte, off int64) (int, error) {
 	return n, err
 }
 
-func (t *TrackedFile) Close() error {
-	return t.File.Close()
-}
-
+// ParseFlags parses Open flags from an SFTP request to an int as used by
+// [os.OpenFile].
 func ParseFlags(req *sftp.Request) int {
-	var flags int
 	pflags := req.Pflags()
+	var flags int
+	if pflags.Read && pflags.Write {
+		flags = os.O_RDWR
+	} else if pflags.Read {
+		flags = os.O_RDONLY
+	} else if pflags.Write {
+		flags = os.O_WRONLY
+	}
+
 	if pflags.Append {
 		flags |= os.O_APPEND
 	}
@@ -136,16 +149,12 @@ func ParseFlags(req *sftp.Request) int {
 		flags |= os.O_TRUNC
 	}
 
-	if pflags.Read && pflags.Write {
-		flags |= os.O_RDWR
-	} else if pflags.Read {
-		flags |= os.O_RDONLY
-	} else if pflags.Write {
-		flags |= os.O_WRONLY
-	}
 	return flags
 }
 
+// ParseSFTPEvent parses an SFTP request and associated error into an SFTP
+// audit event. Note that this does not include the WorkingDirectory field, as
+// that must be determined server-side.
 func ParseSFTPEvent(req *sftp.Request, reqErr error) (*apievents.SFTP, error) {
 	event := &apievents.SFTP{
 		Metadata: apievents.Metadata{
