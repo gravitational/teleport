@@ -193,10 +193,8 @@ const LoginItemList = ({
           px="2"
           mb={2}
           typography="body3"
-          css={`
-            color: ${props => props.theme.colors.text.main};
-            background: ${props => props.theme.colors.spotBackground[2]};
-          `}
+          color="text.main"
+          backgroundColor="spotBackground.2"
         >
           {placeholder}
         </Text>
@@ -258,7 +256,6 @@ function getLoginItemListContent(
               href={url}
               target="_blank"
               title={login ? login : url}
-              /* onClick only serves to close the menu item on click. */
               onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
                 onClick(e, url);
               }}
@@ -298,6 +295,8 @@ const StyledMenuItem = styled(MenuItem)(
   font-size: 12px;
   border-bottom: 1px solid ${theme.colors.spotBackground[0]};
   min-height: 32px;
+
+  /* displays ellipsis for longer string value */
   display: inline-block;
   text-align: left;
   max-width: 450px;
