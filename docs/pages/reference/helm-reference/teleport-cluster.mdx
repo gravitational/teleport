@@ -70,9 +70,12 @@ load balancer address of your Teleport cluster.
 You will need to manually add a DNS A record pointing `teleport.example.com` to
 the IP, or a CNAME record pointing to the hostname of the Kubernetes load balancer.
 
-<Details title="Using Application Access?">
+<details>
+<summary>Using Application Access?</summary>
+
 (!docs/pages/includes/dns-app-access.mdx!)
-</Details>
+
+</details>
 </Admonition>
 
 <Admonition type="warning">
@@ -1024,7 +1027,8 @@ Those labels are used to be selected by a specific Prometheus instance.
 
 ## `persistence`
 
-<Details title="Read this if using Kubernetes 1.23+ on EKS">
+<details>
+<summary>Read this if using Kubernetes 1.23+ on EKS</summary>
 
 Changes in Kubernetes 1.23+ mean that persistent volumes will not automatically be provisioned in AWS EKS clusters
 without additional configuration.
@@ -1032,7 +1036,7 @@ without additional configuration.
 See [AWS documentation on the EBS CSI driver](https://docs.aws.amazon.com/eks/latest/userguide/ebs-csi.html) for more details.
 This driver addon must be configured to use persistent volumes in EKS clusters after Kubernetes 1.23.
 
-</Details>
+</details>
 
 ### `persistence.enabled`
 
@@ -1513,9 +1517,9 @@ You should create the secret in the same namespace as Teleport using a command l
 kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
 ```
 
-<Notice type="warning" title="Root CA filename">
+<Admonition type="warning" title="Root CA filename">
   The filename used for the root CA in the secret must be `ca.pem`.
-</Notice>
+</Admonition>
 
 `values.yaml` example:
 

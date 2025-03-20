@@ -202,6 +202,32 @@ func (p *PluginsCommand) InstallAWSIC(ctx context.Context, args installPluginArg
 		return trace.Wrap(err)
 	}
 
+	settings := &types.PluginAWSICSettings{
+		Region: awsICArgs.region,
+		Arn:    awsICArgs.arn,
+		ProvisioningSpec: &types.AWSICProvisioningSpec{
+			BaseUrl: awsICArgs.scimURL.String(),
+		},
+		AccessListDefaultOwners: awsICArgs.defaultOwners,
+		UserSyncFilters:         userFilters,
+		GroupSyncFilters:        groupFilters,
+		AwsAccountsFilters:      accountFilters,
+	}
+
+	if awsICArgs.useSystemCredentials {
+		settings.Credentials = &types.AWSICCredentials{
+			Source: &types.AWSICCredentials_System{
+				System: &types.AWSICCredentialSourceSystem{
+					AssumeRoleArn: "",
+				},
+			},
+		}
+
+		// Set the deprecated CredentialsSource to the legacy value to allow old
+		// versions of Teleport to handle the record. DELETE in Teleport 19
+		settings.CredentialsSource = types.AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_SYSTEM
+	}
+
 	req := &pluginspb.CreatePluginRequest{
 		Plugin: &types.PluginV1{
 			Metadata: types.Metadata{
@@ -212,19 +238,7 @@ func (p *PluginsCommand) InstallAWSIC(ctx context.Context, args installPluginArg
 			},
 			Spec: types.PluginSpecV1{
 				Settings: &types.PluginSpecV1_AwsIc{
-					AwsIc: &types.PluginAWSICSettings{
-						IntegrationName: apicommon.OriginAWSIdentityCenter,
-						Region:          awsICArgs.region,
-						Arn:             awsICArgs.arn,
-						ProvisioningSpec: &types.AWSICProvisioningSpec{
-							BaseUrl: awsICArgs.scimURL.String(),
-						},
-						AccessListDefaultOwners: awsICArgs.defaultOwners,
-						CredentialsSource:       types.AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_SYSTEM,
-						UserSyncFilters:         userFilters,
-						GroupSyncFilters:        groupFilters,
-						AwsAccountsFilters:      accountFilters,
-					},
+					AwsIc: settings,
 				},
 			},
 		},

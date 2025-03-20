@@ -20,6 +20,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -37,14 +38,23 @@ func TestReverseTunnels(t *testing.T) {
 		newResource: func(name string) (types.ReverseTunnel, error) {
 			return types.NewReverseTunnel(name, []string{"example.com:2023"})
 		},
-		create: p.presenceS.UpsertReverseTunnel,
+		create: func(ctx context.Context, tunnel types.ReverseTunnel) error {
+			_, err := p.presenceS.UpsertReverseTunnel(ctx, tunnel)
+			return err
+		},
 		list: func(ctx context.Context) ([]types.ReverseTunnel, error) {
-			return p.presenceS.GetReverseTunnels(ctx)
+			items, _, err := p.presenceS.ListReverseTunnels(ctx, 0, "")
+			return items, trace.Wrap(err)
 		},
-		cacheList: func(ctx context.Context) ([]types.ReverseTunnel, error) {
-			return p.cache.GetReverseTunnels(ctx)
+		update: func(ctx context.Context, tunnel types.ReverseTunnel) error {
+			_, err := p.presenceS.UpsertReverseTunnel(ctx, tunnel)
+			return err
 		},
-		update:    p.presenceS.UpsertReverseTunnel,
 		deleteAll: p.presenceS.DeleteAllReverseTunnels,
+
+		cacheList: func(ctx context.Context) ([]types.ReverseTunnel, error) {
+			items, _, err := p.cache.ListReverseTunnels(ctx, 0, "")
+			return items, trace.Wrap(err)
+		},
 	})
 }

@@ -397,8 +397,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 
 	c.cfg.Logger.InfoContext(ctx, message)
 
-	// TODO(zmb3): convert this to severity error and ensure it renders in the UI
-	c.sendTDPAlert(message, tdp.SeverityInfo)
+	c.sendTDPAlert(message, tdp.SeverityError)
 
 	return nil
 }

@@ -333,34 +333,6 @@ function DbEngineInstructions({
         );
       }
 
-      if (dbEngine === DatabaseEngine.MongoDb) {
-        return (
-          <Box mb={3}>
-            <Text mb={2}>
-              To create a user for this database, connect to this database using
-              the <Mark>mongosh</Mark>
-              or <Mark>mongo</Mark> shell and run the following command:
-            </Text>
-            <TextSelectCopyMulti
-              bash={false}
-              lines={[
-                {
-                  text:
-                    `db.getSiblingDB("$external").runCommand(\n` +
-                    `  {\n` +
-                    `    createUser: "CN=YOUR_USERNAME",\n` +
-                    `    roles: [\n` +
-                    `      { role: "readWriteAnyDatabase", db: "admin" }\n` +
-                    `    ]\n` +
-                    `  }\n` +
-                    `)`,
-                },
-              ]}
-            />
-          </Box>
-        );
-      }
-
       if (dbEngine === DatabaseEngine.MySql) {
         return (
           <Box mb={3}>

@@ -154,17 +154,14 @@ export function SetupConnect(
       </Flex>
     );
     pollingStatus = (
-      // Override max-width to match StyledBox's max-width.
-      <Box maxWidth="800px">
-        <Alert
-          alignItems="flex-start"
-          kind="warning"
-          dismissible={false}
-          details={details}
-        >
-          We&apos;re still looking for your computer
-        </Alert>
-      </Box>
+      <Alert
+        alignItems="flex-start"
+        kind="warning"
+        dismissible={false}
+        details={details}
+      >
+        We&apos;re still looking for your computer
+      </Alert>
     );
   } else if (node) {
     pollingStatus = (
@@ -223,7 +220,7 @@ export function SetupConnect(
         </ButtonSecondary>
       </StyledBox>
 
-      {pollingStatus}
+      <Box width="100%">{pollingStatus}</Box>
 
       <ActionButtons
         onProceed={handleNextStep}

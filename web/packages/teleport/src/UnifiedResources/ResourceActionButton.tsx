@@ -28,9 +28,10 @@ import {
 } from 'shared/components/MenuLogin';
 import { AwsRole } from 'shared/services/apps';
 
+import { TcpAppConnectDialog } from 'teleport/Apps/TcpAppConnectDialog';
 import cfg from 'teleport/config';
 import DbConnectDialog from 'teleport/Databases/ConnectDialog';
-import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
+import { SelectResourceSpec } from 'teleport/Discover/SelectResource/resources';
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { ConnectDialog as GitServerConnectDialog } from 'teleport/GitServers';
 import KubeConnectDialog from 'teleport/Kubes/ConnectDialog';
@@ -42,7 +43,9 @@ import { Database } from 'teleport/services/databases';
 import { Desktop } from 'teleport/services/desktops';
 import { Kube } from 'teleport/services/kube';
 import { Node, sortNodeLogins } from 'teleport/services/nodes';
+import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 import { DiscoverEventResource } from 'teleport/services/userEvent';
+import { DiscoverGuideId } from 'teleport/services/userPreferences/discoverPreference';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import useTeleport from 'teleport/useTeleport';
 
@@ -163,7 +166,8 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
     fqdn,
     clusterId,
     publicAddr,
-    isCloudOrTcpEndpoint,
+    isCloud,
+    isTcp,
     samlApp,
     samlAppSsoUrl,
     samlAppPreset,
@@ -207,22 +211,37 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
       />
     );
   }
-  if (isCloudOrTcpEndpoint) {
+  if (isCloud) {
     return (
       <ButtonBorder
         disabled
         width="123px"
         size="small"
-        title="Cloud or TCP applications cannot be launched by the browser"
+        title="Cloud apps cannot be launched by the browser"
         textTransform="none"
       >
         Launch
       </ButtonBorder>
     );
   }
+  if (isTcp) {
+    return <TcpAppConnect app={app} />;
+  }
   if (samlApp) {
     if (actions.showActions) {
-      const currentSamlAppSpec: ResourceSpec = {
+      let guideId: DiscoverGuideId;
+      switch (samlAppPreset) {
+        case SamlServiceProviderPreset.Grafana:
+          guideId = DiscoverGuideId.ApplicationSamlGrafana;
+          break;
+        case SamlServiceProviderPreset.GcpWorkforce:
+          guideId = DiscoverGuideId.ApplicationSamlWorkforceIdentityFederation;
+          break;
+        default:
+          guideId = DiscoverGuideId.ApplicationSamlGeneric;
+      }
+      const currentSamlAppSpec: SelectResourceSpec = {
+        id: guideId,
         name: name,
         event: DiscoverEventResource.SamlApplication,
         kind: ResourceKind.SamlApplication,
@@ -385,6 +404,24 @@ function GitServerConnect({ gitServer }: { gitServer: GitServer }) {
           accessRequestId={accessRequestId}
         />
       )}
+    </>
+  );
+}
+
+function TcpAppConnect({ app }: { app: App }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <ButtonBorder
+        textTransform="none"
+        width="123px"
+        size="small"
+        onClick={() => setOpen(true)}
+      >
+        Connect
+      </ButtonBorder>
+      {open && <TcpAppConnectDialog app={app} onClose={() => setOpen(false)} />}
     </>
   );
 }

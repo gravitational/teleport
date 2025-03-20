@@ -32,6 +32,10 @@ attestors:
       anonymous: true
   podman:
     enabled: false
+  docker:
+    enabled: false
+  systemd:
+    enabled: false
 jwt_svid_ttl: 5m0s
 credential_ttl: 1m0s
 renewal_interval: 30s

@@ -279,7 +279,7 @@ type fakeConfig struct {
 	clusterName types.ClusterName
 }
 
-func (f fakeConfig) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
+func (f fakeConfig) GetClusterName(_ context.Context) (types.ClusterName, error) {
 	return f.clusterName, nil
 }
 

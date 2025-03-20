@@ -1126,3 +1126,53 @@ func newICAccountAssignment(t *testing.T, ctx context.Context, svc services.Iden
 	require.NoError(t, err, "creating Identity Center Account Assignment")
 	return assignment
 }
+
+func TestOktaAppServers(t *testing.T) {
+	clt := newClient(t)
+	ctx := context.Background()
+
+	appsServer := []*types.AppServerV3{
+		mustCreateOktaAppServer(t, uuid.NewString(), "App 1"),
+		mustCreateOktaAppServer(t, uuid.NewString(), "App 1"),
+		mustCreateOktaAppServer(t, uuid.NewString(), "App 1"),
+	}
+	for _, v := range appsServer {
+		_, err := clt.UpsertApplicationServer(ctx, v)
+		require.NoError(t, err)
+	}
+
+	w, err := services.NewUnifiedResourceCache(context.Background(), services.UnifiedResourceCacheConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentUnifiedResource,
+			Client:    clt,
+		},
+		ResourceGetter: clt,
+	})
+	require.NoError(t, err)
+	res, err := w.GetUnifiedResources(ctx)
+	require.NoError(t, err)
+	require.Len(t, res, 3)
+
+}
+
+func mustCreateOktaAppServer(t *testing.T, name, friendlyName string) *types.AppServerV3 {
+	app, err := types.NewAppV3(types.Metadata{
+		Name: fmt.Sprintf("app-%v", name),
+		Labels: map[string]string{
+			types.OriginLabel:      common.OriginOkta,
+			types.OktaAppNameLabel: friendlyName,
+		},
+	}, types.AppSpecV3{
+		URI: "localhost",
+	})
+	require.NoError(t, err)
+
+	resource, err := types.NewAppServerV3(types.Metadata{
+		Name: name,
+	}, types.AppServerSpecV3{
+		HostID: "localhost",
+		App:    app,
+	})
+	require.NoError(t, err)
+	return resource
+}

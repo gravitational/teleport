@@ -2492,6 +2492,19 @@ app_service:
 app_service:
   enabled: true
   apps:
+    -
+      name: foo
+      use_any_proxy_public_addr: true
+      uri: "http://127.0.0.1:8080"
+`,
+			name:   "app with use_any_proxy_public_addr",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
     - name: foo
       uri: "tcp://127.0.0.1"
       tcp_ports:
@@ -3216,6 +3229,27 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 				"HSM pin file (%s) must not be world-readable",
 				worldReadablePinFilePath,
 			),
+		},
+		{
+			name: "correct config with max sessions",
+			auth: Auth{
+				CAKeyParams: &CAKeyParams{
+					PKCS11: &PKCS11{
+						ModulePath:  securePKCS11LibPath,
+						TokenLabel:  "foo",
+						SlotNumber:  &slotNumber,
+						MaxSessions: 100,
+					},
+				},
+			},
+			want: servicecfg.KeystoreConfig{
+				PKCS11: servicecfg.PKCS11Config{
+					TokenLabel:  "foo",
+					SlotNumber:  &slotNumber,
+					MaxSessions: 100,
+					Path:        securePKCS11LibPath,
+				},
+			},
 		},
 		{
 			name: "correct gcp config",

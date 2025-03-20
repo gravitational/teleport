@@ -105,8 +105,8 @@ func TestGenericWrapperCRUD(t *testing.T) {
 
 	const backendPrefix = "generic_prefix"
 
-	service, err := NewServiceWrapper[*testResource153](
-		ServiceWrapperConfig[*testResource153]{
+	service, err := NewServiceWrapper(
+		ServiceConfig[*testResource153]{
 			Backend:       memBackend,
 			ResourceKind:  "generic resource",
 			BackendPrefix: backend.NewKey(backendPrefix),
@@ -248,8 +248,8 @@ func TestGenericWrapperWithPrefix(t *testing.T) {
 	initialBackendPrefix := backend.NewKey("initial_prefix")
 	const additionalBackendPrefix = "additional_prefix"
 
-	service, err := NewServiceWrapper[*testResource153](
-		ServiceWrapperConfig[*testResource153]{
+	service, err := NewServiceWrapper(
+		ServiceConfig[*testResource153]{
 			Backend:       memBackend,
 			ResourceKind:  "generic resource",
 			BackendPrefix: initialBackendPrefix,

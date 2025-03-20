@@ -25,9 +25,8 @@ import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 import { TdpClientCanvasRef } from 'teleport/components/TdpClientCanvas/TdpClientCanvas';
 import cfg from 'teleport/config';
 import { formatDisplayTime, StatusEnum } from 'teleport/lib/player';
-import { PlayerClient, TdpClientEvent } from 'teleport/lib/tdp';
-import { BitmapFrame } from 'teleport/lib/tdp/client';
-import type { ClientScreenSpec, PngFrame } from 'teleport/lib/tdp/codec';
+import { PlayerClient } from 'teleport/lib/tdp';
+import { useListener } from 'teleport/lib/tdp/client';
 import { getHostName } from 'teleport/services/api';
 
 import ProgressBar from './ProgressBar';
@@ -58,83 +57,23 @@ export const DesktopPlayer = ({
   });
   const tdpClientCanvasRef = useRef<TdpClientCanvasRef>(null);
 
-  useEffect(() => {
-    if (playerClient && clientOnTdpError) {
-      playerClient.on(TdpClientEvent.TDP_ERROR, clientOnTdpError);
-      playerClient.on(TdpClientEvent.CLIENT_ERROR, clientOnTdpError);
-
-      return () => {
-        playerClient.removeListener(TdpClientEvent.TDP_ERROR, clientOnTdpError);
-        playerClient.removeListener(
-          TdpClientEvent.CLIENT_ERROR,
-          clientOnTdpError
-        );
-      };
-    }
-  }, [playerClient, clientOnTdpError]);
-
-  useEffect(() => {
-    if (playerClient && clientOnTdpInfo) {
-      playerClient.on(TdpClientEvent.TDP_INFO, clientOnTdpInfo);
-
-      return () => {
-        playerClient.removeListener(TdpClientEvent.TDP_INFO, clientOnTdpInfo);
-      };
-    }
-  }, [playerClient, clientOnTdpInfo]);
-
-  useEffect(() => {
-    if (playerClient && clientOnWsClose) {
-      playerClient.on(TdpClientEvent.WS_CLOSE, clientOnWsClose);
-
-      return () => {
-        playerClient.removeListener(TdpClientEvent.WS_CLOSE, clientOnWsClose);
-      };
-    }
-  }, [playerClient, clientOnWsClose]);
-
-  useEffect(() => {
-    if (!playerClient) {
-      return;
-    }
-    const renderPngFrame = (frame: PngFrame) =>
-      tdpClientCanvasRef.current?.renderPngFrame(frame);
-    playerClient.addListener(TdpClientEvent.TDP_PNG_FRAME, renderPngFrame);
-
-    return () => {
-      playerClient.removeListener(TdpClientEvent.TDP_PNG_FRAME, renderPngFrame);
-    };
-  }, [playerClient]);
-
-  useEffect(() => {
-    if (!playerClient) {
-      return;
-    }
-    const renderBitmapFrame = (frame: BitmapFrame) =>
-      tdpClientCanvasRef.current?.renderBitmapFrame(frame);
-    playerClient.addListener(TdpClientEvent.TDP_BMP_FRAME, renderBitmapFrame);
-
-    return () => {
-      playerClient.removeListener(
-        TdpClientEvent.TDP_BMP_FRAME,
-        renderBitmapFrame
-      );
-    };
-  }, [playerClient]);
-
-  useEffect(() => {
-    const setResolution = (spec: ClientScreenSpec) => {
-      tdpClientCanvasRef.current?.setResolution(spec);
-    };
-    playerClient.on(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, setResolution);
-
-    return () => {
-      playerClient.removeListener(
-        TdpClientEvent.TDP_CLIENT_SCREEN_SPEC,
-        setResolution
-      );
-    };
-  }, [playerClient]);
+  useListener(playerClient?.onError, clientOnTdpError);
+  useListener(playerClient?.onClientError, clientOnTdpError);
+  useListener(playerClient?.onClientError, clientOnTdpError);
+  useListener(playerClient?.onInfo, clientOnTdpInfo);
+  useListener(playerClient?.onWsClose, clientOnWsClose);
+  useListener(
+    playerClient?.onPngFrame,
+    tdpClientCanvasRef.current?.renderPngFrame
+  );
+  useListener(
+    playerClient?.onBmpFrame,
+    tdpClientCanvasRef.current?.renderBitmapFrame
+  );
+  useListener(
+    playerClient?.onScreenSpec,
+    tdpClientCanvasRef.current?.setResolution
+  );
 
   const isError = playerStatus === StatusEnum.ERROR || statusText !== '';
   const isLoading = playerStatus === StatusEnum.LOADING;

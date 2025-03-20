@@ -60,7 +60,7 @@ func (m mockAccessPoint) GetAuthPreference(ctx context.Context) (types.AuthPrefe
 	return m.authPreference, nil
 }
 
-func (m mockAccessPoint) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
+func (m mockAccessPoint) GetClusterName(_ context.Context) (types.ClusterName, error) {
 	return m.clusterName, nil
 }
 

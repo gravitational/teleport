@@ -34,12 +34,12 @@ some additional context:
 
 ### Explanation
 
-<Notice type="note">
+<Admonition type="note">
 This applies only to bots using the `token` join method, which makes use of
 one-time use shared secrets. Provider-specific join methods, such as GitHub,
 AWS IAM, etc will not be locked in this fashion unless another instance of the
 bot uses `token` joining.
-</Notice>
+</Admonition>
 
 Machine ID (with token-based joining) uses a certificate generation counter to
 detect potentially stolen renewable certificates. Each time a bot fetches a new
@@ -288,7 +288,7 @@ Edit the role, then save and close the file to apply your changes.
 
 (!docs/pages/includes/create-role-using-web.mdx!)
 
-<Notice type="note">
+<Admonition type="note">
 By default, outputs (like `/opt/machine-id`) are granted all roles provided
 to the bot via `tctl bots add --roles=...`, but it's possible to grant only a
 subset of these roles using the `roles: ...` parameter in `tbot.yaml`.
@@ -296,7 +296,7 @@ subset of these roles using the `roles: ...` parameter in `tbot.yaml`.
 If permissions are unexpectedly missing, ensure `tbot.yaml` requests your
 database role, either by relying on default behavior or adding the role to the
 `roles: ...` list.
-</Notice>
+</Admonition>
 
 Once fixed, restart or reload the `tbot` clients for the updated role to take
 effect.

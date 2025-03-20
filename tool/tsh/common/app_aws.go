@@ -65,7 +65,7 @@ func onAWS(cf *CLIConf) error {
 
 	args := cf.AWSCommandArgs
 	if cf.AWSEndpointURLMode {
-		args = append(args, "--endpoint-url", awsApp.GetEndpointURL())
+		return trace.BadParameter("--endpoint-url is no longer supported, use HTTPS proxy instead (default mode)")
 	}
 
 	commandToRun := awsCLIBinaryName
@@ -107,18 +107,10 @@ func (a *awsApp) GetAppName() string {
 
 // StartLocalProxies sets up local proxies for serving AWS clients.
 //
-// There are two ways clients can connect to the local proxies.
-//
-// 1. client can send AWS requests to our local forward proxy by configuring
-// HTTPS_PROXY (or equivalent). The API flow looks like this:
+// Clients can send AWS requests to our local forward proxy by configuring
+// HTTPS_PROXY (or equivalent). This preserves the original hostname. The API
+// flow looks like this:
 // clients -> local forward proxy -> local ALPN proxy -> remote server
-//
-// 2. client can send AWS requests to our local ALPN proxy directly by
-// configuring AWS endpoint URLs. The API flow looks like this.
-// clients -> local ALPN proxy -> remote server
-//
-// The first method is always preferred as the original hostname is preserved
-// through forward proxy.
 func (a *awsApp) StartLocalProxies(ctx context.Context, opts ...alpnproxy.LocalProxyConfigOpt) error {
 	awsMiddleware := &alpnproxy.AWSAccessMiddleware{
 		AWSCredentialsProvider: a.GetAWSCredentialsProvider(),
@@ -126,8 +118,7 @@ func (a *awsApp) StartLocalProxies(ctx context.Context, opts ...alpnproxy.LocalP
 
 	// AWS endpoint URL mode
 	if a.cf.AWSEndpointURLMode {
-		err := a.StartLocalProxyWithTLS(ctx, alpnproxy.WithHTTPMiddleware(awsMiddleware))
-		return trace.Wrap(err)
+		return trace.BadParameter("--endpoint-url is no longer supported, use HTTPS proxy instead (default mode)")
 	}
 
 	// HTTPS proxy mode
@@ -175,30 +166,17 @@ func (a *awsApp) GetEnvVars() (map[string]string, error) {
 		"AWS_ACCESS_KEY_ID":     cred.AccessKeyID,
 		"AWS_SECRET_ACCESS_KEY": cred.SecretAccessKey,
 		"AWS_CA_BUNDLE":         a.profile.AppLocalCAPath(a.cf.SiteName, a.routeToApp.Name),
+		// Proxy settings.
+		"HTTPS_PROXY": "http://" + a.localForwardProxy.GetAddr(),
+		"https_proxy": "http://" + a.localForwardProxy.GetAddr(),
 	}
 
-	// Set proxy settings.
-	if a.localForwardProxy != nil {
-		envVars["HTTPS_PROXY"] = "http://" + a.localForwardProxy.GetAddr()
-		envVars["https_proxy"] = "http://" + a.localForwardProxy.GetAddr()
-	}
 	return envVars, nil
 }
 
 // GetForwardProxyAddr returns local forward proxy address.
 func (a *awsApp) GetForwardProxyAddr() string {
-	if a.localForwardProxy != nil {
-		return a.localForwardProxy.GetAddr()
-	}
-	return ""
-}
-
-// GetEndpointURL returns AWS endpoint URL that clients can use.
-func (a *awsApp) GetEndpointURL() string {
-	if a.localALPNProxy != nil {
-		return "https://" + a.localALPNProxy.GetAddr()
-	}
-	return ""
+	return a.localForwardProxy.GetAddr()
 }
 
 // RunCommand executes provided command.

@@ -21,10 +21,11 @@ import { NavLink } from 'react-router-dom';
 import styled, { css, useTheme } from 'styled-components';
 
 import { Box, ButtonIcon, Flex, P2, Text } from 'design';
-import { ArrowLineLeft } from 'design/Icon';
+import { ArrowLineLeft, ArrowSquareIn } from 'design/Icon';
 import { Theme } from 'design/theme';
 import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 
+import { SlidingSidePanel } from 'teleport/components/SlidingSidePanel';
 import cfg from 'teleport/config';
 
 import { CategoryIcon } from './CategoryIcon';
@@ -100,7 +101,10 @@ export function DefaultSection({
             {!section.standalone &&
               section.subsections.map(subsection => (
                 <SubsectionItem
-                  $active={currentView?.route === subsection.route}
+                  $active={
+                    currentView?.route === subsection.route &&
+                    !subsection.isHyperLink
+                  }
                   to={subsection.route}
                   exact={subsection.exact}
                   key={subsection.title}
@@ -110,6 +114,9 @@ export function DefaultSection({
                 >
                   <subsection.icon size={16} />
                   <P2>{subsection.title}</P2>
+                  {subsection.isHyperLink && (
+                    <ArrowSquareIn size={16} color="text.muted" />
+                  )}
                 </SubsectionItem>
               ))}
           </Box>
@@ -170,39 +177,31 @@ export function StandaloneSection({
   );
 }
 
-export const rightPanelWidth = 236;
-
-export const RightPanel = styled(Box).attrs({ px: '5px' })<{
-  isVisible: boolean;
-  skipAnimation: boolean;
-}>`
-  position: fixed;
-  left: var(--sidenav-width);
-  height: 100%;
-  scrollbar-color: ${p => p.theme.colors.spotBackground[2]} transparent;
-  width: ${rightPanelWidth}px;
-  background: ${p => p.theme.colors.levels.surface};
-  z-index: ${zIndexMap.sideNavExpandedPanel};
-  border-right: 1px solid ${p => p.theme.colors.spotBackground[1]};
-
-  ${props =>
-    props.isVisible
-      ? `
-      ${props.skipAnimation ? '' : 'transition: transform .15s ease-out;'}
-      transform: translateX(0);
-      `
-      : `
-      ${props.skipAnimation ? '' : 'transition: transform .15s ease-in;'}
-      transform: translateX(-100%);
-      `}
-
-  top: ${p => p.theme.topBarHeight[0]}px;
-  padding-bottom: ${p => p.theme.topBarHeight[0] + p.theme.space[2]}px;
-  @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
-    top: ${p => p.theme.topBarHeight[1]}px;
-    padding-bottom: ${p => p.theme.topBarHeight[1] + p.theme.space[2]}px;
-  }
-`;
+export const rightPanelWidth = 274;
+export const RightPanel: React.FC<
+  PropsWithChildren<{
+    isVisible: boolean;
+    skipAnimation: boolean;
+    id: string;
+    onFocus(): void;
+  }>
+> = ({ isVisible, skipAnimation, id, onFocus, children }) => {
+  return (
+    <SlidingSidePanel
+      px="5px"
+      isVisible={isVisible}
+      skipAnimation={skipAnimation}
+      id={id}
+      onFocus={onFocus}
+      panelWidth={rightPanelWidth}
+      zIndex={zIndexMap.sideNavExpandedPanel}
+      slideFrom="left"
+      panelOffset="var(--sidenav-width)"
+    >
+      {children}
+    </SlidingSidePanel>
+  );
+};
 
 export function RightPanelHeader({
   title,
@@ -266,8 +265,8 @@ export const CategoryButton = styled.button<{
   $active: boolean;
   isExpanded?: boolean;
 }>`
-  min-height: 60px;
-  min-width: 60px;
+  height: 68px;
+  width: 68px;
   cursor: pointer;
   outline: hidden;
   border: none;
@@ -282,11 +281,12 @@ export const CategoryButton = styled.button<{
   justify-content: center;
   gap: ${props => props.theme.space[1]}px;
   font-family: ${props => props.theme.font};
+  padding: ${props => props.theme.space[2]}px ${props => props.theme.space[1]}px;
 
   font-size: ${props => props.theme.typography.body4.fontSize};
   font-weight: ${props => props.theme.typography.body4.fontWeight};
   letter-spacing: ${props => props.theme.typography.body4.letterSpacing};
-  line-height: ${props => props.theme.typography.body4.lineHeight};
+  line-height: 12px;
   text-decoration: none;
 
   ${props => getCategoryStyles(props.theme, props.$active, props.isExpanded)}

@@ -120,6 +120,7 @@ func TestUserTask(t *testing.T) {
 			err = json.Unmarshal(resp.Bytes(), &listResponse)
 			require.NoError(t, err)
 			require.NotEmpty(t, listResponse.Items)
+			require.NotEmpty(t, listResponse.Items[0].Title)
 			listedTasks = append(listedTasks, listResponse.Items...)
 
 			if listResponse.NextKey == "" {
