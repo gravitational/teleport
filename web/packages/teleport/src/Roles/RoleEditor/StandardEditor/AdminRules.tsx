@@ -32,7 +32,11 @@ import {
 } from 'shared/components/FieldSelect';
 import { precomputed } from 'shared/components/Validation/rules';
 
-import { SectionBox, SectionPropsWithDispatch } from './sections';
+import {
+  SectionBox,
+  SectionPadding,
+  SectionPropsWithDispatch,
+} from './sections';
 import {
   ResourceKindOption,
   resourceKindOptions,
@@ -57,8 +61,9 @@ export const AdminRules = memo(function AdminRules({
   }
   return (
     <Flex flexDirection="column" gap={3}>
-      Rules that give this role administrative rights to Teleport resources
-      through client apps and APIs
+      <SectionPadding>
+        Rules that give this role administrative rights to Teleport resources
+      </SectionPadding>
       {value.map((rule, i) => (
         <AdminRule
           key={rule.id}

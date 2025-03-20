@@ -16,10 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Fragment, useEffect, useRef, useState } from 'react';
+import {
+  Fragment,
+  PropsWithChildren,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import styled, { useTheme } from 'styled-components';
 
-import Box from 'design/Box';
+import Box, { BoxProps } from 'design/Box';
 import ButtonIcon from 'design/ButtonIcon';
 import Flex from 'design/Flex';
 import { Check, ChevronDown, Trash, WarningCircle } from 'design/Icon';
@@ -66,6 +72,10 @@ enum ExpansionState {
    */
   Collapsing,
 }
+
+const sectionBoxBorderWidth = 1;
+
+const sectionBoxPadding = 3;
 
 /**
  * A wrapper for editor section. Its responsibility is rendering a header,
@@ -144,7 +154,7 @@ export const SectionBox = ({
     <Box
       as="details"
       open={expansionState !== ExpansionState.Collapsed}
-      border={1}
+      border={sectionBoxBorderWidth}
       borderColor={
         validator.state.validating && !validation.valid
           ? theme.colors.interactive.solid.danger.default
@@ -249,7 +259,7 @@ export const SectionBox = ({
       >
         {/* This element is measured, so its size must reflect the size of
             children. */}
-        <Box px={3} pb={3} ref={contentRef}>
+        <Box px={sectionBoxPadding} pb={sectionBoxPadding} ref={contentRef}>
           {children}
         </Box>
       </ContentExpander>
@@ -277,3 +287,17 @@ const ContentExpander = styled(Box)`
 const InlineH3 = styled(H3)`
   display: inline;
 `;
+
+/**
+ * A utility container that applies a horizontal padding that is consistent
+ * with the offset of the section content.
+ */
+export const SectionPadding = (props: PropsWithChildren<BoxProps>) => (
+  <Box
+    px={sectionBoxPadding}
+    borderLeft={sectionBoxBorderWidth}
+    borderRight={sectionBoxBorderWidth}
+    borderColor="transparent"
+    {...props}
+  />
+);

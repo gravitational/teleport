@@ -28,7 +28,7 @@ import { RadioGroup } from 'design/RadioGroup';
 import Text, { H4 } from 'design/Text';
 import Select from 'shared/components/Select';
 
-import { SectionProps } from './sections';
+import { SectionPadding, SectionProps } from './sections';
 import {
   createDBUserModeOptions,
   createHostUserModeOptions,
@@ -61,7 +61,7 @@ export const Options = memo(function Options({
 
   return (
     <Flex flexDirection="column" gap={3}>
-      Additional advanced settings
+      <SectionPadding>Additional advanced settings</SectionPadding>
       <OptionsGridContainer
         border={1}
         borderColor={theme.colors.interactive.tonal.neutral[0]}
