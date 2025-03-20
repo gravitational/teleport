@@ -22,7 +22,6 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
-	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -148,48 +147,6 @@ func EncodeClusterName(clusterName string) string {
 	return "k" + hex.EncodeToString([]byte(clusterName))
 }
 
-// KubeServicesPresence fetches a list of registered kubernetes servers.
-// It's a subset of services.Presence.
-type KubeServicesPresence interface {
-	// GetKubernetesServers returns a list of registered kubernetes servers.
-	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
-}
-
-// KubeClusterNames returns a sorted list of unique kubernetes cluster
-// names registered in p.
-//
-// DELETE IN 11.0.0, replaced by ListKubeClustersWithFilters
-func KubeClusterNames(ctx context.Context, p KubeServicesPresence) ([]string, error) {
-	kss, err := p.GetKubernetesServers(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return extractAndSortKubeClusterNames(kss), nil
-}
-
-func extractAndSortKubeClusterNames(kubeServers []types.KubeServer) []string {
-	kubeClusters := extractAndSortKubeClusters(kubeServers)
-	kubeClusterNames := make([]string, len(kubeClusters))
-	for i := range kubeClusters {
-		kubeClusterNames[i] = kubeClusters[i].GetName()
-	}
-
-	return kubeClusterNames
-}
-
-// KubeClusters returns a sorted list of unique kubernetes clusters
-// registered in p.
-//
-// DELETE IN 11.0.0, replaced by ListKubeClustersWithFilters
-func KubeClusters(ctx context.Context, p KubeServicesPresence) ([]types.KubeCluster, error) {
-	kubeServers, err := p.GetKubernetesServers(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return extractAndSortKubeClusters(kubeServers), nil
-}
-
 // ListKubeClustersWithFilters returns a sorted list of unique kubernetes clusters
 // registered in p.
 func ListKubeClustersWithFilters(ctx context.Context, p client.GetResourcesClient, req proto.ListResourcesRequest) ([]types.KubeCluster, error) {
@@ -244,20 +201,4 @@ func GetKubeAgentVersion(ctx context.Context, pinger Pinger, clusterFeatures pro
 	}
 
 	return strings.TrimPrefix(agentVersion, "v"), nil
-}
-
-// CheckKubeCluster validates kubeClusterName is registered with this Teleport cluster.
-func CheckKubeCluster(ctx context.Context, p KubeServicesPresence, kubeClusterName string) error {
-	if kubeClusterName == "" {
-		return trace.BadParameter("kube cluster name should not be empty.")
-	}
-	kubeClusterNames, err := KubeClusterNames(ctx, p)
-	if err != nil {
-		return trace.Wrap(err, "failed to get list of available Kubernetes clusters.")
-	}
-	if !slices.Contains(kubeClusterNames, kubeClusterName) {
-		return trace.BadParameter("Kubernetes cluster %q is not registered in this Teleport cluster; you can list registered Kubernetes clusters using 'tsh kube ls'", kubeClusterName)
-	}
-
-	return nil
 }

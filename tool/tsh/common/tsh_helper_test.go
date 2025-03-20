@@ -471,7 +471,7 @@ func mustRegisterKubeClusters(t *testing.T, ctx context.Context, authSrv *auth.S
 	require.NoError(t, wg.Wait())
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		servers, err := authSrv.GetKubernetesServers(ctx)
+		servers, err := authSrv.UnifiedResourceCache.GetKubernetesServers(ctx)
 		assert.NoError(c, err)
 		gotNames := map[string]struct{}{}
 		for _, ks := range servers {
