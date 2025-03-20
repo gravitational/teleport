@@ -9,7 +9,7 @@ import (
 	"github.com/google/go-attestation/attest"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"golang.org/x/mod/semver"
+	"golang.org/x/mod/semver" //nolint:depguard // Usage precedes the x/mod/semver rule.
 	"google.golang.org/protobuf/proto"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"

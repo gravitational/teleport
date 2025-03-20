@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/mod/semver"
+	"golang.org/x/mod/semver" //nolint:depguard // Usage precedes the x/mod/semver rule.
 )
 
 // Log levels copied from logrus to maintain backward compatibility.
