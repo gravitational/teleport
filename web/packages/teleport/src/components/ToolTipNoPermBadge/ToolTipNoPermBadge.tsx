@@ -19,7 +19,7 @@
 import React, { PropsWithChildren } from 'react';
 import { useTheme } from 'styled-components';
 
-import { FeatureNames } from 'design/constants';
+import { FeatureName } from 'design/constants';
 
 import { ToolTipBadge } from 'teleport/components/ToolTipBadge';
 
@@ -52,5 +52,5 @@ export const ToolTipNoPermBadge: React.FC<PropsWithChildren<Props>> = ({
 export enum BadgeTitle {
   LackingPermissions = 'Lacking Permissions',
   LackingEnterpriseLicense = 'Enterprise Only',
-  LackingIgs = `${FeatureNames.IdentityGovernance} Only`,
+  LackingIgs = `${FeatureName.IdentityGovernance} Only`,
 }
