@@ -17,7 +17,7 @@
  */
 
 import { MenuItem } from 'design';
-import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
+import { fireEvent, render, screen } from 'design/utils/testing';
 import { MenuInputType } from 'shared/components/MenuLogin';
 
 import { MenuLoginWithActionMenu } from './MenuLoginWithActionMenu';
