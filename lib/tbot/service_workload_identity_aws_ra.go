@@ -196,7 +196,9 @@ func (s *WorkloadIdentityAWSRAService) render(
 	)
 	defer span.End()
 
-	// TODO(noah): Perhaps offer mode where we read in and modify existing file.
+	// TODO(noah): At a later date, we can add a mode where we read in and
+	// modify an existing profile within the credentials file - without
+	// overwriting other profiles.
 	f := ini.Empty()
 	// "default" is the name of the section that the AWS CLI will use by
 	// default.
