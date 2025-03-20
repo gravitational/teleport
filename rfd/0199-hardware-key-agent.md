@@ -353,18 +353,24 @@ PIN prompts in Teleport Connect, they could just launch Teleport Connect without
 logging in. Teleport Connect would just foreground itself with hardware key
 prompts for the user as needed without adding additional overhead.
 
+If desired, the agent can be disabled manually with a config option:
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `hardwareKeyAgent.enabled` | `true` | Starts the hardware key agent automatically |
+
+Note: In dev mode, `hardwareKeyAgent.enabled` will default to `false` to prevent
+the dev instance from claiming the hardware key agent socket over a "prod"
+instance. This will be achieved by deciding which default to use based on the
+location of the config file - `~/Library/Application\ Support/Teleport\ Connect/app_config.json`
+for prod vs. `~/Library/Application\ Support/Electron/app_config.json` for dev.
+
 Alternative: By default, set `hardwareKeyAgent.enabled: true`. Once the user logs into
 Connect with a hardware key requirement for the first time, flip the flag to
 true indefinitely. The benefit with this approach is that we won't run an
 unused agent by default for users not using hardware key support. On the other
 hand, it requires the user to log in at least once for the feature to work as
 described in the example above.
-
-If desired, the agent can be disabled manually with a config option:
-
-| Property | Default | Description |
-|----------|---------|-------------|
-| `hardwareKeyAgent.enabled` | `true` | Starts the hardware key agent automatically |
 
 ##### `tsh piv agent`
 
@@ -393,8 +399,14 @@ If the ping request succeeds, an error will be returned:
 Error: another agent instance is already running. PID: 86946.
 ```
 
-Note: this should be a very uncommon edge case, as it would only occur if the
-user already has `tsh piv agent` running or another instance of Teleport connect.
+Note: this should be a very uncommon edge case outside of development. The only
+client that starts a hardware key agent automatically by default is the official
+Teleport connect app bundle(s), and there is a
+[single app lock](https://github.com/gravitational/teleport/blob/ec89c43d574c7e514ff4922e5b281c12da9d2189/web/packages/teleterm/src/main.ts#L54-L61)
+designed to prevent multiple app bundles from running at one time. This issue
+will only occur when the user starts a hardware key agent with the hidden
+`tsh piv agent` command or sets `hardwareKeyAgent.enabled: true` for a Teleport
+Connect dev mode instance.
 
 Note: with Teleport Connect, this error would be displayed when it attempts
 to start the agent, but Teleport Connect would not fail to start. The error
