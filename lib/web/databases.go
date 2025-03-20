@@ -626,10 +626,6 @@ func newDatabaseInteractiveSession(ctx context.Context, cfg databaseInteractiveS
 }
 
 func (s *databaseInteractiveSession) Run() error {
-	if s.alpnHandler == nil {
-		return trace.BadParameter("missing ALPN handler for database interactive sessions")
-	}
-
 	replConn, err := s.makeReplConn()
 	if err != nil {
 		return trace.Wrap(err)
