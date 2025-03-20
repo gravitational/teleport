@@ -58,7 +58,7 @@ export function TraitsEditor({
   attempt,
   configuredTraits,
   setConfiguredTraits,
-  toolTipContent,
+  tooltipContent,
 }: TraitEditorProps) {
   function handleInputChange(i: InputOption | InputOptionArray) {
     const newTraits = [...configuredTraits];
@@ -107,7 +107,7 @@ export function TraitsEditor({
     <Box>
       <Flex gap={2} alignItems="center">
         <Text typography="body3">User Traits</Text>
-        {toolTipContent && <IconTooltip>{toolTipContent}</IconTooltip>}
+        {tooltipContent && <IconTooltip>{tooltipContent}</IconTooltip>}
       </Flex>
       <Box>
         {configuredTraits.map(({ traitKey, traitValues }, index) => {
@@ -257,7 +257,7 @@ export type TraitEditorProps = {
   setConfiguredTraits: Dispatch<SetStateAction<TraitsOption[]>>;
   configuredTraits: TraitsOption[];
   attempt: Attempt;
-  toolTipContent?: React.ReactNode;
+  tooltipContent?: React.ReactNode;
 };
 
 export function traitsToTraitsOption(allTraits: AllUserTraits): TraitsOption[] {

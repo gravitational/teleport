@@ -71,7 +71,7 @@ export const TraitsEditorWithToolTip = () => {
         attempt={{ status: 'success' }}
         configuredTraits={traits}
         setConfiguredTraits={setTraits}
-        toolTipContent={tooltip}
+        tooltipContent={tooltip}
       />
     </Validation>
   );
