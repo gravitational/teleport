@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 )
 
+// SFTP request methods.
 const (
 	MethodGet      = "Get"
 	MethodPut      = "Put"
@@ -90,35 +91,45 @@ type Config struct {
 	Log *slog.Logger
 }
 
-// FileSystem describes file operations to be done either locally or over SFTP
+// FileSystem describes file operations to be done either locally or over SFTP.
 type FileSystem interface {
-	// Type returns whether the filesystem is "local" or "remote"
+	// Type returns whether the filesystem is "local" or "remote".
 	Type() string
-	// Glob returns matching files of a glob pattern
+	// Glob returns matching files of a glob pattern.
 	Glob(ctx context.Context, pattern string) ([]string, error)
-	// Stat returns info about a file
+	// Stat returns info about a file.
 	Stat(ctx context.Context, path string) (os.FileInfo, error)
-	// ReadDir returns information about files contained within a directory
+	// ReadDir returns information about files contained within a directory.
 	ReadDir(ctx context.Context, path string) ([]os.FileInfo, error)
-	// Open opens a file
+	// Open opens a file for reading.
 	Open(ctx context.Context, path string) (File, error)
-	// Create creates a new file
+	// Create creates a new file for writing.
 	Create(ctx context.Context, path string, size int64) (File, error)
-	// Mkdir creates a directory
+	// Mkdir creates a directory.
 	Mkdir(ctx context.Context, path string) error
-	// Chmod sets file permissions
+	// Chmod sets file permissions.
 	Chmod(ctx context.Context, path string, mode os.FileMode) error
-	// Chtimes sets file access and modification time
+	// Chtimes sets file access and modification time.
 	Chtimes(ctx context.Context, path string, atime, mtime time.Time) error
+	// OpenFile opens a file with the given flags.
 	OpenFile(ctx context.Context, path string, flags int) (File, error)
+	// Rename renames a file.
 	Rename(ctx context.Context, oldpath, newpath string) error
+	// Lstat returns info about a file or symlink.
 	Lstat(ctx context.Context, name string) (os.FileInfo, error)
+	// RemoveAll recursively removes a file or directory.
 	RemoveAll(ctx context.Context, path string) error
+	// Link creates a new link.
 	Link(ctx context.Context, oldname, newname string) error
+	// Symlink creates a new symlink.
 	Symlink(ctx context.Context, oldname, newname string) error
+	// Remove removes a file or (empty) directory.
 	Remove(ctx context.Context, name string) error
+	// Chown changes a file's owner and/or group.
 	Chown(ctx context.Context, name string, uid, gid int) error
+	// Truncate truncates a file's contents.
 	Truncate(ctx context.Context, name string, size int64) error
+	// Readlink gets the destination for a symlink.
 	Readlink(ctx context.Context, name string) (string, error)
 }
 
@@ -317,7 +328,7 @@ func (c *Config) TransferFiles(ctx context.Context, sshClient *ssh.Client) error
 		return trace.Wrap(err)
 	}
 
-	if err := c.initFS(sshClient, sftpClient); err != nil {
+	if err := c.initFS(sftpClient); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -331,7 +342,7 @@ func (c *Config) TransferFiles(ctx context.Context, sshClient *ssh.Client) error
 }
 
 // initFS ensures the source and destination filesystems are ready to transfer
-func (c *Config) initFS(sshClient *ssh.Client, client *sftp.Client) error {
+func (c *Config) initFS(client *sftp.Client) error {
 	var haveRemoteFS bool
 	srcFS, srcOK := c.srcFS.(*remoteFS)
 	if srcOK {

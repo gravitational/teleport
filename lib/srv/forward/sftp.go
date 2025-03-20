@@ -17,7 +17,6 @@
 package forward
 
 import (
-	"context"
 	"errors"
 	"io"
 	"log/slog"
@@ -25,7 +24,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
 
@@ -33,17 +31,25 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv"
 	sftputils "github.com/gravitational/teleport/lib/sshutils/sftp"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
+// SFTPProxy proxies an SFTP session and emits audit events for the handled
+// commands.
 type SFTPProxy struct {
 	srv      *sftp.RequestServer
 	handlers *proxyHandlers
 }
 
+// NewSFTPProxy creates a new SFTPProxy to serve the given channel.
 func NewSFTPProxy(
 	scx *srv.ServerContext,
 	channel io.ReadWriteCloser,
+	logger *slog.Logger,
 ) (*SFTPProxy, error) {
+	if logger == nil {
+		logger = logutils.NewPackageLogger()
+	}
 	client, err := sftp.NewClient(scx.RemoteClient.Client)
 	if err != nil {
 		return nil, err
@@ -51,7 +57,7 @@ func NewSFTPProxy(
 	h := &proxyHandlers{
 		scx:      scx,
 		remoteFS: sftputils.NewRemoteFilesystem(client),
-		logger:   slog.With(teleport.ComponentKey, teleport.ComponentSubsystemSFTP),
+		logger:   logger,
 	}
 	handlers := sftp.Handlers{
 		FileGet:  h,
@@ -63,13 +69,12 @@ func NewSFTPProxy(
 	return &SFTPProxy{srv: srv, handlers: h}, nil
 }
 
+// Serve serves SFTP requests. It returns after either [*SFTPProxy.Close] is
+// called or the underlying connection is closed.
 func (p *SFTPProxy) Serve() error {
-	return trace.Wrap(p.srv.Serve())
-}
-
-func (p *SFTPProxy) Close() error {
-	closeErr := p.srv.Close()
-	// Send a summary event last
+	// Run server to completion.
+	serveErr := p.srv.Serve()
+	// After the server has finished, send a summary event.
 	scx := p.handlers.scx
 	summaryEvent := &apievents.SFTPSummary{
 		Metadata: apievents.Metadata{
@@ -96,11 +101,16 @@ func (p *SFTPProxy) Close() error {
 	if err := scx.GetServer().EmitAuditEvent(scx.CancelContext(), summaryEvent); err != nil {
 		p.handlers.logger.WarnContext(scx.CancelContext(), "Failed to emit SFTP summary event", "error", err)
 	}
-	return trace.Wrap(closeErr)
+
+	return trace.Wrap(serveErr)
+}
+
+// Close closes the SFTP proxy.
+func (p *SFTPProxy) Close() error {
+	return trace.Wrap(p.srv.Close())
 }
 
 type proxyHandlers struct {
-	ctx      context.Context
 	scx      *srv.ServerContext
 	remoteFS sftputils.FileSystem
 	files    []*sftputils.TrackedFile
@@ -108,6 +118,7 @@ type proxyHandlers struct {
 	logger   *slog.Logger
 }
 
+// Fileread handles Open requests for reading files.
 func (h *proxyHandlers) Fileread(req *sftp.Request) (_ io.ReaderAt, err error) {
 	defer h.sendSFTPEvent(req, err)
 	if req.Filepath == "" {
@@ -123,6 +134,7 @@ func (h *proxyHandlers) Fileread(req *sftp.Request) (_ io.ReaderAt, err error) {
 	return h.trackFile(f), nil
 }
 
+// Filewrite handles Open requests for writing files.
 func (h *proxyHandlers) Filewrite(req *sftp.Request) (_ io.WriterAt, err error) {
 	defer h.sendSFTPEvent(req, err)
 	if req.Filepath == "" {
@@ -138,8 +150,8 @@ func (h *proxyHandlers) Filewrite(req *sftp.Request) (_ io.WriterAt, err error) 
 	return h.trackFile(f), nil
 }
 
-// OpenFile handles 'open' requests when opening a file for reading
-// and writing is desired.
+// OpenFile handles Open requests for both reading and writing. Required to
+// satisfy [sftp.OpenFileWriter].
 func (h *proxyHandlers) OpenFile(req *sftp.Request) (_ sftp.WriterAtReaderAt, retErr error) {
 	defer h.sendSFTPEvent(req, retErr)
 
@@ -157,21 +169,22 @@ func (h *proxyHandlers) OpenFile(req *sftp.Request) (_ sftp.WriterAtReaderAt, re
 func (h *proxyHandlers) trackFile(f sftputils.File) sftp.WriterAtReaderAt {
 	trackFile := &sftputils.TrackedFile{File: f}
 	h.mtx.Lock()
+	defer h.mtx.Unlock()
 	h.files = append(h.files, trackFile)
-	h.mtx.Unlock()
 	return trackFile
 }
 
+// Filecmd handles file commands.
 func (h *proxyHandlers) Filecmd(req *sftp.Request) (err error) {
 	defer func() {
-		if errors.Is(err, sftp.ErrSSHFxOpUnsupported) {
-			return
+		if !errors.Is(err, sftp.ErrSSHFxOpUnsupported) {
+			h.sendSFTPEvent(req, err)
 		}
-		h.sendSFTPEvent(req, err)
 	}()
 	return sftputils.HandleFilecmd(req, h.remoteFS)
 }
 
+// Filelist handles listing info about files.
 func (h *proxyHandlers) Filelist(req *sftp.Request) (_ sftp.ListerAt, err error) {
 	defer func() {
 		if req.Method == sftputils.MethodList {
@@ -200,7 +213,6 @@ func (h *proxyHandlers) sendSFTPEvent(req *sftp.Request, reqErr error) {
 		RemoteAddr: h.scx.ServerConn.RemoteAddr().String(),
 		LocalAddr:  h.scx.ServerConn.LocalAddr().String(),
 	}
-	// TODO: figure out working directory if possible
 	if err := h.scx.GetServer().EmitAuditEvent(req.Context(), event); err != nil {
 		h.logger.WarnContext(req.Context(), "Failed to emit SFTP event", "error", err)
 	}

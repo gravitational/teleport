@@ -7111,7 +7111,7 @@ func eventsInLog(path string, after time.Time) ([]events.EventFields, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if after.IsZero() || fields.GetTimestamp().After(after) {
+		if fields.GetTimestamp().After(after) {
 			ret = append(ret, fields)
 		}
 	}
@@ -8149,7 +8149,7 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create SFTP session.
-			ctx := context.Background()
+			ctx := t.Context()
 			clusterClient, err := teleportClient.ConnectToCluster(ctx)
 			require.NoError(t, err)
 			t.Cleanup(func() {
@@ -8166,11 +8166,17 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 				suite.Me.Username,
 			)
 			require.NoError(t, err)
-			t.Cleanup(func() { _ = nodeClient.Close() })
+			t.Cleanup(func() {
+				// Ignore io.EOF.
+				_ = nodeClient.Close()
+			})
 
 			sftpClient, err := sftp.NewClient(nodeClient.Client.Client)
 			require.NoError(t, err)
-			t.Cleanup(func() { _ = sftpClient.Close() })
+			t.Cleanup(func() {
+				// Ignore io.EOF.
+				_ = sftpClient.Close()
+			})
 
 			// Create file that will be uploaded and downloaded.
 			tempDir := t.TempDir()

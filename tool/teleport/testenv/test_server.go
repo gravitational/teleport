@@ -716,8 +716,8 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 			var channelReq ssh.NewChannel
 			select {
 			case channelReq = <-channels:
-				if channelReq == nil {
-					continue
+				if channelReq == nil { // server is closed
+					return
 				}
 			case <-t.Context().Done():
 				return
@@ -739,8 +739,8 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 					var req *ssh.Request
 					select {
 					case req = <-reqs:
-						if req == nil {
-							continue
+						if req == nil { // channel is closed
+							return
 						}
 					case <-t.Context().Done():
 						break outer
@@ -767,6 +767,7 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 						assert.NoError(t, err)
 						assert.Equal(t, "sftp", r.Name)
 						sftpRequested = true
+
 						sftpServer, err := sftp.NewServer(channel)
 						assert.NoError(t, err)
 						go sftpServer.Serve()

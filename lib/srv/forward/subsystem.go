@@ -24,6 +24,7 @@ import (
 	"io"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -63,27 +64,8 @@ func parseRemoteSubsystem(ctx context.Context, subsystemName string, serverConte
 
 // Start will begin execution of the remote subsystem on the passed in channel.
 func (r *remoteSubsystem) Start(ctx context.Context, channel ssh.Channel) error {
-	if r.subsystemName == "sftp" {
-		proxy, err := NewSFTPProxy(r.serverContext, channel)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		r.proxy = proxy
-		r.wg.Add(1)
-		go func() {
-			defer r.wg.Done()
-			done := make(chan struct{})
-			go func() {
-				r.errorCh <- proxy.Serve()
-				close(done)
-			}()
-			select {
-			case <-done:
-			case <-ctx.Done():
-			}
-			r.errorCh <- proxy.Close()
-		}()
-		return nil
+	if r.subsystemName == teleport.SFTPSubsystem {
+		return trace.Wrap(r.startSFTP(ctx, channel))
 	}
 	session := r.serverContext.RemoteSession
 
@@ -137,10 +119,44 @@ func (r *remoteSubsystem) Start(ctx context.Context, channel ssh.Channel) error 
 	return nil
 }
 
+func (r *remoteSubsystem) startSFTP(ctx context.Context, channel ssh.Channel) error {
+	proxy, err := NewSFTPProxy(r.serverContext, channel, r.logger)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	r.proxy = proxy
+	r.wg.Add(1)
+
+	go func() {
+		defer r.serverContext.RemoteSession.Close()
+		defer r.wg.Done()
+		errCh := make(chan error)
+		go func() {
+			errCh <- proxy.Serve()
+			close(errCh)
+		}()
+
+		var err error
+		select {
+		case err = <-errCh: // Serve finished on its own, error is ready.
+		case <-ctx.Done(): // Stop Serve and wait for error.
+			proxy.Close()
+			select {
+			case err = <-errCh:
+			case <-time.After(5 * time.Second):
+				err = trace.Errorf("SFTP server timed out")
+			}
+		}
+		r.errorCh <- err
+	}()
+
+	return nil
+}
+
 // Wait until the remote subsystem has finished execution and then return the last error.
 func (r *remoteSubsystem) Wait() error {
 	var lastErr error
-
+	// Wait for tasks to finish and populate r.errorCh.
 	r.wg.Wait()
 outer:
 	for {

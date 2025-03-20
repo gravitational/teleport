@@ -126,12 +126,12 @@ func (h *httpFS) Create(ctx context.Context, p string, size int64) (File, error)
 }
 
 func (h *httpFS) OpenFile(ctx context.Context, p string, flags int) (File, error) {
-	switch {
-	case flags|os.O_RDWR != 0:
+	switch flags & 3 {
+	case os.O_RDWR:
 		return nil, trace.BadParameter("read-write files not supported for http")
-	case flags|os.O_RDONLY != 0:
+	case os.O_RDONLY:
 		return h.Open(ctx, p)
-	case flags|os.O_WRONLY != 0:
+	case os.O_WRONLY:
 		return h.Create(ctx, p, 0)
 	default:
 		return nil, trace.BadParameter("invalid flags")

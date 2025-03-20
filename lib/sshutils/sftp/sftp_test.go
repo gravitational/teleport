@@ -37,13 +37,13 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 const fileMaxSize = 1000
@@ -365,7 +365,7 @@ func TestUpload(t *testing.T) {
 			require.NoError(t, err)
 			// use all local filesystems to avoid SSH overhead
 			cfg.dstFS = &localFS{}
-			err = cfg.initFS(nil, nil)
+			err = cfg.initFS(nil)
 			require.NoError(t, err)
 
 			ctx := context.Background()
@@ -543,7 +543,7 @@ func TestDownload(t *testing.T) {
 			require.NoError(t, err)
 			// use all local filesystems to avoid SSH overhead
 			cfg.srcFS = &localFS{}
-			err = cfg.initFS(nil, nil)
+			err = cfg.initFS(nil)
 			require.NoError(t, err)
 
 			ctx := context.Background()
@@ -623,7 +623,7 @@ func TestCopyingSymlinkedFile(t *testing.T) {
 	require.NoError(t, err)
 	// use all local filesystems to avoid SSH overhead
 	cfg.srcFS = &localFS{}
-	err = cfg.initFS(nil, nil)
+	err = cfg.initFS(nil)
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -1126,7 +1126,6 @@ func TestHandleFilelist(t *testing.T) {
 			n, err := lister.ListAt(list, 0)
 			assert.NoError(t, err)
 			assert.Equal(t, len(tc.expectedOutput), n)
-			fmt.Println(list)
 			for _, fi := range list {
 				entry, ok := tc.expectedOutput[fi.Name()]
 				if assert.True(t, ok, "unexpected file %q", fi.Name()) {
