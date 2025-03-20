@@ -4606,7 +4606,7 @@ func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
 }
 
 // GetClusterName gets the name of the cluster.
-// TODO(noah): Delete in V19 when the apiserver getClusterName method is also
+// TODO(noah): DELETE IN v19.0.0 - when the apiserver getClusterName method is also
 // deleted.
 func (a *ServerWithRoles) GetClusterName(ctx context.Context) (types.ClusterName, error) {
 	if err := a.action(types.KindClusterName, types.VerbRead); err != nil {
