@@ -36,6 +36,7 @@
   },
   "devDependencies": {
     "@gravitational/build": "workspace:*",
+    "@ianvs/prettier-plugin-sort-imports": "^4.4.0",
     "@storybook/addon-controls": "^8.3.4",
     "@storybook/addon-toolbars": "^8.3.4",
     "@storybook/components": "^8.3.4",
@@ -102,5 +103,8 @@
       "web/.storybook/public"
     ]
   },
-  "packageManager": "pnpm@9.9.0+sha512.60c18acd138bff695d339be6ad13f7e936eea6745660d4cc4a776d5247c540d0edee1a563695c183a66eb917ef88f2b4feb1fc25f32a7adcadc7aaf3438e99c1"
+  "packageManager": "pnpm@10.6.5+sha512.cdf928fca20832cd59ec53826492b7dc25dc524d4370b6b4adbf65803d32efaa6c1c88147c0ae4e8d579a6c9eec715757b50d4fa35eea179d868eada4ed043af",
+  "engines": {
+    "node": "^20"
+  }
 }
