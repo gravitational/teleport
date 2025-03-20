@@ -358,7 +358,6 @@ spec:
 
   join_method: bound-keypair
   bound_keypair:
-
     # `onboarding` parameters control initial join behavior
     onboarding:
       # If set, no joining secret is generated; the secret exchange ceremony is
@@ -397,6 +396,11 @@ spec:
       # expired.
       may_rejoin_until: "2026-03-01T21:45:40.104524Z"
 
+    # If set, the bot will perform a keypair rotation on its next renewal after
+    # it is informed of the change to this field. Note that this is tied to bot
+    # heartbeats and may not take effect on the next refresh interval.
+    rotate_on_next_renewal: false
+
 status:
   bound_keypair:
     # If `spec.onboarding.initial_public_key` is unset, this value will be
@@ -421,6 +425,9 @@ status:
 
     # The timestamp of the last successful joining or rejoining attempt, if any.
     last_joined_at: null
+
+    # The timestamp of the last successful keypair rotation, if any.
+    last_rotated_at: null
 ```
 
 #### Terraform Example
@@ -553,7 +560,8 @@ public key must have `.status.bound_keypair.remaining_rejoins` >= 1.
 
 #### Client-Side Changes in `tbot`
 
-Bots should be informed of their number of remaining rejoins. There's a few
+Bots should be informed of various status metrics, including number of remaining
+rejoins and whether or not a keypair rotation has been requested. There's a few
 methods by which we could inform bots of their remaining rejoins:
 
 1. (Recommended) Heartbeats: bots submit heartbeats at startup and on a regular
@@ -648,7 +656,51 @@ rotation without bot downtime. Ideally, it should be possible to initiate a
 rotation from either the server (e.g. by setting a `rotate_on_next_renewal` flag
 on the token/bot instance) or `tbot` client.
 
-TODO: Expand this.
+To trigger a rotation, an admin can set `.spec.bound_keypair.rotate_on_next_renewal=true`
+on the bound keypair token. The value of this field will be synchronized to the
+bot using the same mechanism as described above for remaining rejoins, which is
+tied to the heartbeat interval (30m, hard coded) rather than the bot's regular
+renewal interval, so it will take place on the next renewal once the request has
+been synchronized.
+
+To perform the rotation, additional steps are taken as part of the challenge
+ceremony:
+
+```mermaid
+sequenceDiagram
+	participant keystore as Local Keystore
+	participant bot as Bot
+	participant auth as Auth Server
+
+  Note over keystore,auth: Joining secret exchange not shown
+	bot->>keystore: Request new keypair
+	keystore-->>bot: New public key
+	bot->>auth: Request joining challenge<br>with new public key as<br>optional parameter
+	auth-->>bot: Sends joining challenge
+
+	bot->>keystore: Request signed document<br>with original public key
+	keystore-->>bot: Signed challenge document
+	bot->>auth: Signed challenge document
+	auth->>auth: Validate signed document<br>against bound public key
+
+	auth-->>bot: Sends new joining challenge<br>for new public key
+	bot->>keystore: Request signed document<br>with new public key
+	keystore-->>bot: Signed challenge document
+
+	bot->>auth: Signed challenge document
+	auth->>auth: Validate signed document<br>against new public key
+	auth->>auth: Commit new public key to backend,<br>clear rotate flag
+
+	auth-->>bot: Signed TLS certificates
+```
+
+As shown above, the join service will return a second challenge rather than
+certs if the initial request included a new public key. Certs will only be
+returned on completion of the second challenge using the new public key, and the
+new key will only be committed to the backend at this point.
+
+Other bot parameters remain unchanged. No new bot instance is created, the
+generation counter is not reset and is checked and incremented as usual.
 
 #### Remaining Downsides
 
