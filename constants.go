@@ -289,6 +289,12 @@ const (
 	// ComponentProxySecureGRPC represents a secure gRPC server running on Proxy (used for Kube).
 	ComponentProxySecureGRPC = "proxy:secure-grpc"
 
+	// ComponentUpdater represents the teleport-update binary.
+	ComponentUpdater = "updater"
+
+	// ComponentRolloutController represents the autoupdate_agent_rollout controller.
+	ComponentRolloutController = "rollout-controller"
+
 	// VerboseLogsEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 

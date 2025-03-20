@@ -28,14 +28,14 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/kubernetestoken"
+	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 )
 
 type mockK8STokenReviewValidator struct {
-	tokens map[string]*kubernetestoken.ValidationResult
+	tokens map[string]*kubetoken.ValidationResult
 }
 
-func (m *mockK8STokenReviewValidator) Validate(_ context.Context, token, _ string) (*kubernetestoken.ValidationResult, error) {
+func (m *mockK8STokenReviewValidator) Validate(_ context.Context, token, _ string) (*kubetoken.ValidationResult, error) {
 	result, ok := m.tokens[token]
 	if !ok {
 		return nil, errMockInvalidToken
@@ -48,14 +48,14 @@ func TestAuth_RegisterUsingToken_Kubernetes(t *testing.T) {
 	// Test setup
 
 	// Creating an auth server with mock Kubernetes token validator
-	tokenReviewTokens := map[string]*kubernetestoken.ValidationResult{
+	tokenReviewTokens := map[string]*kubetoken.ValidationResult{
 		"matching-implicit-in-cluster": {Username: "system:serviceaccount:namespace1:service-account1"},
 		// "matching-explicit-in-cluster" intentionally matches the second allow
 		// rule of explicitInCluster to ensure all rules are processed.
 		"matching-explicit-in-cluster": {Username: "system:serviceaccount:namespace2:service-account2"},
 		"user-token":                   {Username: "namespace1:service-account1"},
 	}
-	jwksTokens := map[string]*kubernetestoken.ValidationResult{
+	jwksTokens := map[string]*kubetoken.ValidationResult{
 		"jwks-matching-service-account":   {Username: "system:serviceaccount:static-jwks:matching"},
 		"jwks-mismatched-service-account": {Username: "system:serviceaccount:static-jwks:mismatched"},
 	}
@@ -63,7 +63,7 @@ func TestAuth_RegisterUsingToken_Kubernetes(t *testing.T) {
 	ctx := context.Background()
 	p, err := newTestPack(ctx, t.TempDir(), func(server *Server) error {
 		server.k8sTokenReviewValidator = &mockK8STokenReviewValidator{tokens: tokenReviewTokens}
-		server.k8sJWKSValidator = func(_ time.Time, _ []byte, _ string, token string) (*kubernetestoken.ValidationResult, error) {
+		server.k8sJWKSValidator = func(_ time.Time, _ []byte, _ string, token string) (*kubetoken.ValidationResult, error) {
 			result, ok := jwksTokens[token]
 			if !ok {
 				return nil, errMockInvalidToken
