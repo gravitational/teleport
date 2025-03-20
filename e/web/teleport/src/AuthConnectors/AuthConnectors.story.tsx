@@ -1,10 +1,9 @@
 import { delay, http, HttpResponse } from 'msw';
 import { useEffect } from 'react';
-import { MemoryRouter } from 'react-router';
 
 import cfg from 'e-teleport/config';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
-import { ContextProvider } from 'teleport';
+import { TeleportProviderBasicE } from 'e-teleport/mocks/providers';
 import { connectors } from 'teleport/AuthConnectors/fixtures';
 
 import { AuthConnectors } from './AuthConnectors';
@@ -13,13 +12,43 @@ export default {
   title: 'TeleportE/AuthConnectors',
 };
 
+export function Loaded() {
+  return (
+    <ContextWrapper>
+      <AuthConnectors />
+    </ContextWrapper>
+  );
+}
+Loaded.parameters = {
+  msw: {
+    handlers: [
+      http.get(cfg.getAuthConnectorsListUrl(), () =>
+        HttpResponse.json({ connectors })
+      ),
+    ],
+  },
+};
+
+export function Empty() {
+  return (
+    <ContextWrapper>
+      <AuthConnectors />
+    </ContextWrapper>
+  );
+}
+Empty.parameters = {
+  msw: {
+    handlers: [
+      http.get(cfg.getAuthConnectorsListUrl(), () => HttpResponse.json([])),
+    ],
+  },
+};
+
 export function Processing() {
   return (
-    <MemoryRouter initialEntries={[cfg.oss.routes.sso]}>
-      <ContextWrapper>
-        <AuthConnectors />
-      </ContextWrapper>
-    </MemoryRouter>
+    <ContextWrapper>
+      <AuthConnectors />
+    </ContextWrapper>
   );
 }
 Processing.parameters = {
@@ -33,49 +62,11 @@ Processing.parameters = {
   },
 };
 
-export function Loaded() {
-  return (
-    <MemoryRouter initialEntries={[cfg.oss.routes.sso]}>
-      <ContextWrapper>
-        <AuthConnectors />
-      </ContextWrapper>
-    </MemoryRouter>
-  );
-}
-Loaded.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getAuthConnectorsListUrl(), () =>
-        HttpResponse.json(connectors)
-      ),
-    ],
-  },
-};
-
-export function Empty() {
-  return (
-    <MemoryRouter initialEntries={[cfg.oss.routes.sso]}>
-      <ContextWrapper>
-        <AuthConnectors />
-      </ContextWrapper>
-    </MemoryRouter>
-  );
-}
-Empty.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getAuthConnectorsListUrl(), () => HttpResponse.json([])),
-    ],
-  },
-};
-
 export function Failed() {
   return (
-    <MemoryRouter initialEntries={[cfg.oss.routes.sso]}>
-      <ContextWrapper>
-        <AuthConnectors />
-      </ContextWrapper>
-    </MemoryRouter>
+    <ContextWrapper>
+      <AuthConnectors />
+    </ContextWrapper>
   );
 }
 Failed.parameters = {
@@ -103,5 +94,12 @@ function ContextWrapper({ children }: { children: JSX.Element }) {
       ctx.lockedFeatures = initialLockedFeatures;
     };
   });
-  return <ContextProvider ctx={ctx}>{children}</ContextProvider>;
+  return (
+    <TeleportProviderBasicE
+      teleportCtx={ctx}
+      initialEntries={[cfg.oss.routes.sso]}
+    >
+      {children}
+    </TeleportProviderBasicE>
+  );
 }

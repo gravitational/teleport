@@ -1,14 +1,12 @@
-import { MemoryRouter } from 'react-router';
+import { PropsWithChildren } from 'react';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
-import { idpMetadata } from 'e-teleport/SamlApplication/fixtures';
-import { SamlApplicationProvider } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
-import { ContextProvider } from 'teleport';
-import cfg from 'teleport/config';
 import {
-  DiscoverContextState,
-  DiscoverProvider,
-} from 'teleport/Discover/useDiscover';
+  idpMetadata,
+  resourceSpecSamlGcp,
+} from 'e-teleport/SamlApplication/fixtures';
+import { SamlApplicationProvider } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
+import { RequiredDiscoverProviders } from 'teleport/Discover/Fixtures/fixtures';
 
 import { DownloadMetadata as DownloadMetadataComponent } from './DownloadMetadata';
 
@@ -26,36 +24,17 @@ export const DownloadMetadata = () => {
   );
 };
 
-const Provider = props => {
-  const ctx = createTeleportContextE({ customAcl: props.customAcl });
+const Provider: React.FC<PropsWithChildren> = props => {
+  const ctx = createTeleportContextE();
   ctx.idpService.getIdPMetadataValues = () => Promise.resolve(idpMetadata);
-  const discoverCtx: DiscoverContextState = {
-    ...props,
-    currentStep: 0,
-    onSelectResource: () => null,
-    resourceSpec: undefined,
-    exitFlow: () => null,
-    viewConfig: null,
-    indexedViews: [],
-    setResourceSpec: () => null,
-    emitErrorEvent: () => null,
-    emitEvent: () => null,
-    eventState: null,
-  };
 
   return (
-    <MemoryRouter
-      initialEntries={[
-        { pathname: cfg.routes.discover, state: { entity: 'app' } },
-      ]}
+    <RequiredDiscoverProviders
+      agentMeta={{}}
+      resourceSpec={resourceSpecSamlGcp}
+      teleportCtx={ctx}
     >
-      <ContextProvider ctx={ctx}>
-        <SamlApplicationProvider>
-          <DiscoverProvider mockCtx={discoverCtx}>
-            {props.children}
-          </DiscoverProvider>
-        </SamlApplicationProvider>
-      </ContextProvider>
-    </MemoryRouter>
+      <SamlApplicationProvider>{props.children}</SamlApplicationProvider>
+    </RequiredDiscoverProviders>
   );
 };

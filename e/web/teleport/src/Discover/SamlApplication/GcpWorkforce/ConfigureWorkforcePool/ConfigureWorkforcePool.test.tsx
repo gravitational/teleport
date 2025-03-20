@@ -1,11 +1,13 @@
 import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
 
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import {
   idpMetadata,
   MockSamlApplicationContextProvider,
 } from 'e-teleport/SamlApplication/fixtures';
 import { emptyUpsertRequest } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
 import type { SamlIdpMetadataResponse } from 'e-teleport/services/idp/types';
+import { ContextProvider } from 'teleport/index';
 import type { SamlIdpServiceProvider } from 'teleport/services/samlidp/types';
 
 import {
@@ -16,6 +18,8 @@ import {
 } from './ConfigureWorkforcePool';
 
 const renderConfigureServiceProvider = (samlProviderProps: any) => {
+  const ctx = createTeleportContextE();
+
   const samlApplicaitonContextProps = {
     runFetchMetadataValues: jest
       .fn()
@@ -27,14 +31,16 @@ const renderConfigureServiceProvider = (samlProviderProps: any) => {
     guidedConfig: defaultSamlMetaForGcpWorkforce,
   };
   render(
-    <MockSamlApplicationContextProvider
-      samlProviderProps={{
-        ...samlApplicaitonContextProps,
-        ...samlProviderProps,
-      }}
-    >
-      <ConfigurePool prevStep={() => null} nextStep={() => null} />
-    </MockSamlApplicationContextProvider>
+    <ContextProvider ctx={ctx}>
+      <MockSamlApplicationContextProvider
+        samlProviderProps={{
+          ...samlApplicaitonContextProps,
+          ...samlProviderProps,
+        }}
+      >
+        <ConfigurePool prevStep={() => null} nextStep={() => null} />
+      </MockSamlApplicationContextProvider>
+    </ContextProvider>
   );
 };
 

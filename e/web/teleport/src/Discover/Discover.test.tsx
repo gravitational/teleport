@@ -9,6 +9,7 @@ import cfg from 'teleport/config';
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { getGuideTileId } from 'teleport/Discover/testUtils';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import { getAcl } from 'teleport/mocks/contexts';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
@@ -38,7 +39,9 @@ const renderDiscover = () => {
     >
       <TeleportContextProvider ctx={ctx}>
         <FeaturesContextProvider value={getEnterpriseFeatures()}>
-          <Discover />
+          <InfoGuidePanelProvider>
+            <Discover />
+          </InfoGuidePanelProvider>
         </FeaturesContextProvider>
       </TeleportContextProvider>
     </MemoryRouter>

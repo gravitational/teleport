@@ -8,6 +8,7 @@ import {
 } from 'design/utils/testing';
 import Validation, { useValidation } from 'shared/components/Validation';
 
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import {
   MockSamlApplicationContextProvider,
   mockSamlIdpServiceProvider,
@@ -18,6 +19,7 @@ import {
   transformSamlSpecToCreateRequest,
 } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
 import type { SamlIdpMetadataResponse } from 'e-teleport/services/idp/types';
+import { ContextProvider } from 'teleport/index';
 import {
   SamlServiceProviderPreset,
   type AttributeMapping as AttributeMappingType,
@@ -48,6 +50,8 @@ const renderConfigureServiceProvider = (
   preset?: SamlServiceProviderPreset,
   isUpdateFlow?: boolean
 ) => {
+  const ctx = createTeleportContextE();
+
   const samlApplicaitonContextProps = {
     runFetchMetadataValues: jest
       .fn()
@@ -57,24 +61,26 @@ const renderConfigureServiceProvider = (
       .mockImplementation(() => Promise<[SamlIdpServiceProvider, Error]>),
   };
   render(
-    <MockSamlApplicationContextProvider
-      samlProviderProps={{
-        ...samlApplicaitonContextProps,
-        ...samlProviderProps,
-      }}
-    >
-      <ConfigureServiceProvider
-        header="samlAppHeader"
-        subtitle="samlAppSubtitle"
-        agentMeta={mockSamlMeta}
-        updateAgentMeta={jest.fn()}
-        prevStep={() => null}
-        nextStep={() => null}
-        SpMetadataConfigComponent={AddMetadataGeneric}
-        preset={preset}
-        isUpdateFlow={isUpdateFlow}
-      />
-    </MockSamlApplicationContextProvider>
+    <ContextProvider ctx={ctx}>
+      <MockSamlApplicationContextProvider
+        samlProviderProps={{
+          ...samlApplicaitonContextProps,
+          ...samlProviderProps,
+        }}
+      >
+        <ConfigureServiceProvider
+          header="samlAppHeader"
+          subtitle="samlAppSubtitle"
+          agentMeta={mockSamlMeta}
+          updateAgentMeta={jest.fn()}
+          prevStep={() => null}
+          nextStep={() => null}
+          SpMetadataConfigComponent={AddMetadataGeneric}
+          preset={preset}
+          isUpdateFlow={isUpdateFlow}
+        />
+      </MockSamlApplicationContextProvider>
+    </ContextProvider>
   );
 };
 

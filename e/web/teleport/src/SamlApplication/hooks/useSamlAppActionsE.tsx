@@ -3,7 +3,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 
 import useTeleportE from 'e-teleport/useTeleportE';
-import { ResourceSpec } from 'teleport/Discover/SelectResource';
+import { SelectResourceSpec } from 'teleport/Discover/SelectResource/resources';
 import { SamlMeta } from 'teleport/Discover/useDiscover';
 import {
   SamlAppActionContext,
@@ -26,7 +26,7 @@ export function SamlAppActionProvider({
   const userSamlIdPPerm = ctx.storeUser.getSamlIdPServiceProviderAccess();
 
   const [currentAction, setCurrentAction] = useState<SamlAppActionMode>(null);
-  const [resourceSpec, setResourceSpec] = useState<ResourceSpec>(null);
+  const [resourceSpec, setResourceSpec] = useState<SelectResourceSpec>(null);
 
   const { idpService } = useTeleportE();
   const [fetchSamlResourceAttempt, fetchSamlResource] = useAsync(
@@ -59,7 +59,7 @@ export function SamlAppActionProvider({
 
   const actions = useMemo(
     () => ({
-      startEdit: (resourceSpec: ResourceSpec) => {
+      startEdit: (resourceSpec: SelectResourceSpec) => {
         if (!userSamlIdPPerm.edit) {
           return;
         }
@@ -67,7 +67,7 @@ export function SamlAppActionProvider({
         fetchSamlResource(resourceSpec.name);
         setResourceSpec(resourceSpec);
       },
-      startDelete: (resourceSpec: ResourceSpec) => {
+      startDelete: (resourceSpec: SelectResourceSpec) => {
         if (!userSamlIdPPerm.remove) {
           return;
         }

@@ -163,41 +163,37 @@ export function ConfigureServiceProvider({
       {upsertAttempt.status === 'error' && (
         <Danger>{upsertAttempt.statusText}</Danger>
       )}
-      <Box maxWidth="800px">
-        <Validation>
-          {({ validator: inputValidator }) => (
-            <>
-              <SpMetadataConfigComponent
-                spConfig={upsertRequest}
-                setSPConfig={setUpsertRequest}
-                isUpdateFlow={isUpdateFlow}
-                disableInputs={
-                  upsertAttempt.status === 'processing' || guidedToggle
-                }
-                setLabelsValidator={setLabelsValidator}
-              />
-              <AttributeMapping
-                spConfig={upsertRequest}
-                setSPConfig={setUpsertRequest}
-                attrMapErr={attrMapErr}
-                setAttrMapErr={setAttrMapErr}
-                addAttrMap={addAttrMap}
-                disabled={upsertAttempt.status === 'processing'}
-                preset={preset}
-                isGuided={guidedToggle}
-              />
-              <ActionButtons
-                onProceed={() =>
-                  validateAndSubmit(inputValidator, upsertRequest)
-                }
-                disableProceed={upsertAttempt.status === 'processing'}
-                onPrev={prevStep}
-                lastStep
-              />
-            </>
-          )}
-        </Validation>
-      </Box>
+      <Validation>
+        {({ validator: inputValidator }) => (
+          <>
+            <SpMetadataConfigComponent
+              spConfig={upsertRequest}
+              setSPConfig={setUpsertRequest}
+              isUpdateFlow={isUpdateFlow}
+              disableInputs={
+                upsertAttempt.status === 'processing' || guidedToggle
+              }
+              setLabelsValidator={setLabelsValidator}
+            />
+            <AttributeMapping
+              spConfig={upsertRequest}
+              setSPConfig={setUpsertRequest}
+              attrMapErr={attrMapErr}
+              setAttrMapErr={setAttrMapErr}
+              addAttrMap={addAttrMap}
+              disabled={upsertAttempt.status === 'processing'}
+              preset={preset}
+              isGuided={guidedToggle}
+            />
+            <ActionButtons
+              onProceed={() => validateAndSubmit(inputValidator, upsertRequest)}
+              disableProceed={upsertAttempt.status === 'processing'}
+              onPrev={prevStep}
+              lastStep
+            />
+          </>
+        )}
+      </Validation>
     </>
   );
 }

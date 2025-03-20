@@ -1,7 +1,7 @@
 import SwitchBack from 'e-teleport/Banner/Switchback';
 import useTeleportE from 'e-teleport/useTeleportE';
 import { DiscoverComponent } from 'teleport/Discover/Discover';
-import type { ResourceSpec } from 'teleport/Discover/SelectResource';
+import { SelectResourceSpec } from 'teleport/Discover/SelectResource/resources';
 import { AgentMeta } from 'teleport/Discover/useDiscover';
 
 import { resourceViewConfigs } from './resourceViewConfig';
@@ -21,7 +21,7 @@ export function Discover() {
 
 type Props = {
   agentMeta: AgentMeta;
-  resourceSpec: ResourceSpec;
+  resourceSpec: SelectResourceSpec;
 };
 
 export function DiscoverUpdate({ agentMeta, resourceSpec }: Props) {

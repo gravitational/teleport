@@ -1,16 +1,20 @@
-import Validation from 'shared/components/Validation';
+import { PropsWithChildren } from 'react';
 
-import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import Validation from 'shared/components/Validation';
+import { makeEmptyAttempt } from 'shared/hooks/useAsync';
+
 import {
   emptyUpsertRequest,
+  SamlApplication,
   SamlApplicationProvider,
 } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
-import { ContextProvider } from 'teleport';
+import { SAML_APPLICATIONS } from 'teleport/Discover/SelectResource/resources';
 import { SamlMeta } from 'teleport/Discover/useDiscover';
 import {
   SamlIdpServiceProvider,
   SamlServiceProviderPreset,
 } from 'teleport/services/samlidp/types';
+import { DiscoverGuideId } from 'teleport/services/userPreferences/discoverPreference';
 
 export const idpMetadata = {
   entityID: 'https://tele.dev/enterprise/saml-idp/metadata',
@@ -42,7 +46,24 @@ export const mockSamlMeta: SamlMeta = {
   samlGeneric: mockSamlIdpServiceProvider,
 };
 
-export const MockSamlApplicationContextProvider = props => {
+export const emptySamlAppProps: SamlApplication = {
+  upsertRequest: emptyUpsertRequest,
+  setUpsertRequest: () => null,
+  fetchMetadataValuesAttempt: makeEmptyAttempt(),
+  guidedToggle: false,
+  setGuidedToggle: () => null,
+  guidedConfig: undefined,
+  setGuidedConfig: undefined,
+  runFetchMetadataValues: () => null,
+  runUpsert: () => null,
+  upsertAttempt: makeEmptyAttempt(),
+};
+
+export const MockSamlApplicationContextProvider: React.FC<
+  PropsWithChildren<{
+    samlProviderProps: SamlApplication;
+  }>
+> = ({ samlProviderProps, children }) => {
   const MockSamlApplicationContext = {
     runFetchMetadataValues: () => null,
     fetchMetadataValuesAttempt: {
@@ -65,17 +86,19 @@ export const MockSamlApplicationContextProvider = props => {
     setGuidedConfig: () => null,
     onConfigChange: () => null,
   };
-  const ctx = createTeleportContextE();
+
   return (
-    <ContextProvider ctx={ctx}>
-      <SamlApplicationProvider
-        mockCtx={{
-          ...MockSamlApplicationContext,
-          ...props.samlProviderProps,
-        }}
-      >
-        <Validation>{props.children}</Validation>
-      </SamlApplicationProvider>
-    </ContextProvider>
+    <SamlApplicationProvider
+      mockCtx={{
+        ...MockSamlApplicationContext,
+        ...samlProviderProps,
+      }}
+    >
+      <Validation>{children}</Validation>
+    </SamlApplicationProvider>
   );
 };
+
+export const resourceSpecSamlGcp = SAML_APPLICATIONS.find(
+  s => s.id === DiscoverGuideId.ApplicationSamlWorkforceIdentityFederation
+);

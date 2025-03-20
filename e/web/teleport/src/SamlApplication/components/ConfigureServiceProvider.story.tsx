@@ -1,11 +1,19 @@
 import { useState } from 'react';
 
+import { Attempt } from 'shared/hooks/useAsync';
+
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import {
+  emptySamlAppProps,
   MockSamlApplicationContextProvider,
   mockSamlMeta,
 } from 'e-teleport/SamlApplication/fixtures';
 import { emptyUpsertRequest } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
-import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
+import { ContextProvider } from 'teleport/index';
+import {
+  SamlIdpServiceProvider,
+  SamlServiceProviderPreset,
+} from 'teleport/services/samlidp/types';
 
 import {
   AddMetadataGeneric,
@@ -14,13 +22,27 @@ import {
 
 export default {
   title: 'TeleportE/SamlApplication/components/ConfigureServiceProvider',
+  decorators: [
+    Story => {
+      const ctx = createTeleportContextE();
+      return (
+        <ContextProvider ctx={ctx}>
+          <Story />
+        </ContextProvider>
+      );
+    },
+  ],
 };
 
 export const Default = () => {
   const [upsertRequest, setUpsertRequest] = useState(emptyUpsertRequest);
   return (
     <MockSamlApplicationContextProvider
-      samlProviderProps={{ upsertRequest, setUpsertRequest }}
+      samlProviderProps={{
+        ...emptySamlAppProps,
+        upsertRequest,
+        setUpsertRequest,
+      }}
     >
       <ConfigureServiceProvider
         header="samlAppHeader"
@@ -38,13 +60,18 @@ export const Default = () => {
 };
 
 export const Processing = () => {
-  const upsertAttempt = {
+  const upsertAttempt: Attempt<SamlIdpServiceProvider> = {
     status: 'processing',
     data: null,
     statusText: '',
   };
   return (
-    <MockSamlApplicationContextProvider samlProviderProps={{ upsertAttempt }}>
+    <MockSamlApplicationContextProvider
+      samlProviderProps={{
+        ...emptySamlAppProps,
+        upsertAttempt,
+      }}
+    >
       <ConfigureServiceProvider
         header="samlAppHeader"
         subtitle="samlAppSubtitle"
@@ -61,13 +88,16 @@ export const Processing = () => {
 };
 
 export const Failed = () => {
-  const upsertAttempt = {
+  const upsertAttempt: Attempt<SamlIdpServiceProvider> = {
     status: 'error',
+    error: new Error('failed to create service provider'),
     data: null,
     statusText: 'Failed to create service provider',
   };
   return (
-    <MockSamlApplicationContextProvider samlProviderProps={{ upsertAttempt }}>
+    <MockSamlApplicationContextProvider
+      samlProviderProps={{ ...emptySamlAppProps, upsertAttempt }}
+    >
       <ConfigureServiceProvider
         header="samlAppHeader"
         subtitle="samlAppSubtitle"
