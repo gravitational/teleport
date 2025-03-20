@@ -16,7 +16,8 @@ Implement a hardware key PIN caching mechanism so that a user is not prompted
 for PIN more than once within a configured span of time.
 
 In order to cache the PIN across process boundaries (Teleport Connect, separate
-`tsh commands`), this RFD also introduces a client-side hardware key agent.
+`tsh commands`), this RFD also introduces a client-side hardware key agent which
+will automatically run within Teleport Connect.
 
 ## Why
 
@@ -34,6 +35,27 @@ of Hardware Key PIN Support, and unfortunately, the PIN caching built in to the
 hardware key has proven [unreliable for Teleport use cases](#problems-with-built-in-piv-pin-caching).
 
 ## Details
+
+This RFD covers both hardware key PIN caching and the new hardware key agent.
+These features are separate, but the combination of the two features ultimately
+provides the desired behaviors:
+
+* The hardware key agent prompts for PIN/touch on behalf of other clients
+* The hardware key agent caches the PIN on behalf of other clients
+
+If only one of the features is enabled, users would still get that feature's
+distinct benefits.
+
+Hardware key PIN caching: Teleport clients prompt for PIN and cache it for
+the duration of the command. This is useful for commands which may usually
+prompt for PIN multiple times during its lifetime, such as `tsh proxy ...`
+commands.
+
+Hardware key agent: The hardware key agent prompts for PIN/touch on behalf of
+other clients. When using Teleport Connect as the agent, Teleport Connect will
+provide a UI for these prompts and foreground them. This provides better UX
+than the CLI prompts which can be easy to miss, especially in commands with
+verbose output or commands running in the background like `tsh proxy ...`.
 
 ### Hardware key PIN caching
 
@@ -122,6 +144,11 @@ func (p *PinCachingPrompt) setCachedPIN(pin string) {
 ```
 
 ### Hardware Key Agent
+
+Teleport clients will gain the ability to act as a hardware key agent, providing
+access to the hardware key to other Teleport clients running on the same host.
+This allows separate clients to share the agent's PIN/touch prompts, PIN cache,
+and open hardware key connections.
 
 #### Terminology
 
@@ -253,7 +280,7 @@ type hardwareKeyAgentService interface {
 type HardwarePrivateKeyRef struct {
   // SerialNumber is the hardware key's serial number.
   SerialNumber uint32 `json:"serial_number"`
-  // SlotKey is the key name for the hardware key PIV slot, e.g. "9a".
+  // SlotKey is the key name for the hardware key PIV slot, e.g. 0x9a.
   SlotKey uint32 `json:"slot_key"`
   // PublicKey is the public key.
   PublicKey crypto.PublicKey `json:"-"` // below we use custom marshaling in PKIX, ASN.1 DER form
@@ -334,9 +361,9 @@ If desired, the agent can be disabled manually with a config option:
 |----------|---------|-------------|
 | `hardwareKeyAgent.enabled` | `false` | Starts the hardware key agent automatically |
 
-##### `tsh agent`
+##### `tsh piv agent`
 
-`tsh agent` will be made available as a hidden command, primarily for
+`tsh piv agent` will be made available as a hidden command, primarily for
 development. If in the future we get requests to fully support this command,
 we may make it a public command and make any necessary improvements.
 
@@ -362,7 +389,7 @@ Error: another agent instance is already running. PID: 86946.
 ```
 
 Note: this should be a very uncommon edge case, as it would only occur if the
-user already has `tsh agent` running or another instance of Teleport connect.
+user already has `tsh piv agent` running or another instance of Teleport connect.
 
 Note: with Teleport Connect, this error would be displayed when it attempts
 to start the agent, but Teleport Connect would not fail to start. The error
@@ -390,6 +417,9 @@ lead to an error for the dependent client. Rather than returning this error,
 the client will log the error as debug and try again by connecting directly to
 the hardware key.
 
+Note: Teleport Connect and `tsh piv agent` will both attempt to restart the
+agent if it runs into an error, with backoff.
+
 #### Hardware key prompts
 
 The agent is [responsible for prompting hardware key PIN and touch](#pin-and-touch-prompts)
@@ -404,24 +434,27 @@ Teleport Connect:
 
 ```diff
 # touch prompt
-- Verify your identity on root.example.com
-+Verify your identity to continue with command "tsh ssh server01"
+Verify your identity on root.example.com
+
++Hardware key touch is required to continue with command "tsh ssh server01"
  
 # pin prompt
-- Unlock hardware key to access root.example.com
-+ Unlock hardware key to continue with command "tsh ssh server01"
+-Unlock hardware key to access root.example.com
++Verify your identity on root.example.com
+
++Hardware key PIN is required to continue with command "tsh ssh server01"
 ```
 
-`tsh agent`:
+`tsh piv agent`:
 
 ```diff
 # touch prompt
-- Tap your YubiKey
-+ Tap your YubiKey to continue with command "tsh ssh server01"
++Hardware key touch is required to continue with command "tsh ssh server01"
+Tap your YubiKey
  
 # pin prompt
-- Enter your YubiKey PIV PIN:
-+ Enter your YubiKey PIV PIN to continue with command "tsh ssh server01":
++Hardware key PIN is required to continue with command "tsh ssh server01"
+Enter your YubiKey PIV PIN:
 ```
 
 While the agent client prompts the user, the dependent client will hang until
@@ -574,31 +607,14 @@ message HardwareKey {
 #### Local hardware key agent
 
 For the intended use case of using the hardware key agent as a local agent,
-there is not much of concern to consider. The agent merely serves as a proxy
-for the normal PC/SC (Personal Computer/Smart Card) interface. The only notable
-difference is that the agent can [cache the hardware key PIN](#pin-caching)
-directly when configured.
+there is not much of concern. The agent serves as a proxy for the normal PC/SC
+(Personal Computer/Smart Card) interface, which does not provide any privilege
+(e.g. root) to utilize.
 
-Still, the hardware key agent will implement sensible restrictions to increase
-security:
-
-* Basic TLS for end-to-end encryption. The agent service will generate a key in
-memory and a self-signed certificate next to the unix socket at `$TEMP/.Teleport-PIV/ca.pem`
-where local Teleport clients can access it.
-* The hardware key agent will not allow access to hardware private keys on PIV slots
-that were not generated for a Teleport client, which can be identified by the presence
-of a [self-signed metadata certificate](./0080-hardware-key-support.md#piv-slot-logic)
-on the PIV slot.
-  * When user hardware keys are externally managed, administrators are currently
-  only required to generate a key in the PIV slot befitting their requirements.
-  However, they don't currently need to generate the metadata certificate that
-  a Teleport client would usually create, leaving no way for the hardware key
-  agent to determine whether the key is meant for Teleport or some other PIV
-  application. Therefore, admins will need to create the metadata certificate
-  in order for their users to utilize the hardware key agent.
-  * Alternatively, we could add some cross-process validation so clients can
-  confirm the hardware key agent is being served by a legitimate, signed Teleport
-  client and vice versa.
+For a modicum level of security, the agent will use basic TLS for end-to-end
+encryption. The agent service will generate a key in memory and a self-signed
+certificate saved next to the unix socket at `$TEMP/.Teleport-PIV/ca.pem` where
+local Teleport clients can access it.
 
 #### Hardware key agent forwarding
 
@@ -610,6 +626,52 @@ way, the same way that we can not stop a user from running `tsh scp $HOME/.tsh s
 
 Note: any concerns here can be largely ignore in the case where the hardware
 private key has a PIN or touch policy.
+
+#### PIN caching in memory
+
+Since the hardware key PIN is cached in process memory, this introduces a risk
+of the PIN being extracted from a swap file, core dump, cold boot, or other
+similar attacks. These attacks generally are not guaranteed to succeed and
+require system compromise with root privileges.
+
+The [memguard](github.com/awnumar/memguard) library, or something similar, could
+be used to further reduce the effectiveness of these attacks. We have decided
+[not to pursue such mitigations](https://github.com/gravitational/teleport/pull/51537#discussion_r1953488171)
+as the risk appears to be negligible, especially since this feature is intended
+for local use only.
+
+#### Hardware key agent PIN caching
+
+When combined with PIN caching, the hardware key agent effectively caches the
+PIN for any process that interfaces with it, potentially including non official
+clients.
+
+To some extent, enabling PIN caching is inherently a reduction in security for
+this reason, and we don't seek to impose restrictions that may reduce the
+use-fullness of the feature. For example, it may be useful for a user to create
+a custom API client which performs some actions with PIN caching enabled.
+
+However, the hardware key agent should prevent third party clients from using
+the hardware key agent for non Teleport client keys. e.g PIV keys traditionally
+used for email encryption.
+
+The hardware key agent will determine whether a key in a PIV slot is a Teleport
+client key by checking for the [self-signed metadata certificate](./0080-hardware-key-support.md#piv-slot-logic)
+generated by Teleport clients on hardware key login.
+
+Note: When user hardware keys are externally managed, administrators are currently
+only required to generate a key in the PIV slot befitting their requirements.
+However, they don't currently need to generate the metadata certificate that
+a Teleport client would usually create, leaving no way for the hardware key
+agent to determine whether the key is meant for Teleport or some other PIV
+application. Therefore, admins will need to create the metadata certificate
+in order for their users to utilize the hardware key agent.
+
+Alternative: we could add some cross-process validation so clients can confirm
+the hardware key agent is being served by a legitimate, signed Teleport client
+and vice versa. However, this goes above and beyond what is necessary while
+also limiting legitimate possibilities, e.g. using PIN caching for a custom
+Teleport API client.
 
 ### Backward Compatibility
 
