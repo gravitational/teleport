@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -1653,6 +1654,58 @@ func (w *WebClient) SSH(termReq web.TerminalRequest) (*terminal.Stream, error) {
 		Path:   fmt.Sprintf("/v1/webapi/sites/%v/connect/ws", w.tc.SiteName),
 	}
 	data, err := json.Marshal(termReq)
+	if err != nil {
+		return nil, err
+	}
+
+	q := u.Query()
+	q.Set("params", string(data))
+	u.RawQuery = q.Encode()
+
+	header := http.Header{}
+	header.Add("Origin", "http://localhost")
+	for _, cookie := range w.cookies {
+		header.Add("Cookie", cookie.String())
+	}
+
+	dialer := websocket.Dialer{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+	}
+	ws, resp, err := dialer.Dial(u.String(), header)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := makeAuthReqOverWS(ws, w.token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defer resp.Body.Close()
+	return terminal.NewStream(context.Background(), terminal.StreamConfig{WS: ws}), nil
+}
+
+func (w *WebClient) JoinKubernetesSession(id string, mode types.SessionParticipantMode) (*terminal.Stream, error) {
+	u := url.URL{
+		Host:   w.i.Web,
+		Scheme: client.WSS,
+		Path:   fmt.Sprintf("/v1/webapi/sites/%v/kube/exec/ws", w.tc.SiteName),
+	}
+
+	params := struct {
+		// Term is the initial PTY size.
+		Term session.TerminalParams `json:"term"`
+		// SessionID is a Teleport session ID to join as.
+		SessionID session.ID `json:"sid"`
+		// ParticipantMode is the mode that determines what you can do when you join an active session.
+		ParticipantMode types.SessionParticipantMode `json:"mode"`
+	}{
+		SessionID:       session.ID(id),
+		ParticipantMode: mode,
+	}
+
+	data, err := json.Marshal(params)
 	if err != nil {
 		return nil, err
 	}

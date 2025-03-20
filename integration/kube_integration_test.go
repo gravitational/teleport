@@ -24,6 +24,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -46,7 +47,7 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/sync/errgroup"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -145,12 +146,12 @@ func newKubeSuite(t *testing.T) *KubeSuite {
 	ns := newNamespace(testNamespace)
 	_, err = suite.CoreV1().Namespaces().Create(context.Background(), ns, metav1.CreateOptions{})
 	if err != nil {
-		require.True(t, errors.IsAlreadyExists(err), "Failed to create namespace: %v:", err)
+		require.True(t, kubeerrors.IsAlreadyExists(err), "Failed to create namespace: %v:", err)
 	}
 	p := newPod(testNamespace, testPod)
 	_, err = suite.CoreV1().Pods(testNamespace).Create(context.Background(), p, metav1.CreateOptions{})
 	if err != nil {
-		require.True(t, errors.IsAlreadyExists(err), "Failed to create test pod: %v", err)
+		require.True(t, kubeerrors.IsAlreadyExists(err), "Failed to create test pod: %v", err)
 	}
 	// Wait for pod to be running.
 	require.Eventually(t, func() bool {
@@ -1615,7 +1616,7 @@ func waitForContainer(ctx context.Context, podClient corev1client.PodInterface, 
 	ev, err := watchtools.UntilWithSync(ctx, lw, &v1.Pod{}, nil, func(ev watch.Event) (bool, error) {
 		switch ev.Type {
 		case watch.Deleted:
-			return false, errors.NewNotFound(schema.GroupResource{Resource: "pods"}, "")
+			return false, kubeerrors.NewNotFound(schema.GroupResource{Resource: "pods"}, "")
 		}
 
 		p, ok := ev.Object.(*v1.Pod)
@@ -2334,7 +2335,7 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 	}
 }
 
-// testKubeJoinWeb tests that that joining an interactive exec session
+// testKubeJoinWeb tests that joining an interactive exec session
 // via the web ui works.
 func testKubeJoinWeb(t *testing.T, suite *KubeSuite) {
 	tconf := suite.teleKubeConfig(Host)
@@ -2348,12 +2349,10 @@ func testKubeJoinWeb(t *testing.T, suite *KubeSuite) {
 		Logger:      suite.log,
 	})
 
-	// fooey
 	hostUsername := suite.me.Username
 	peerUsername := suite.me.Username + "-peer"
-	observer1Username := suite.me.Username + "-observer1"
-	observer2Username := suite.me.Username + "-observer2"
-	kubeGroups := []string{kube.TestImpersonationGroup}
+	observerUsername := suite.me.Username + "-observer"
+	kubeGroups := []string{"system:masters"}
 	kubeUsers := []string{"alice@example.com"}
 	role, err := types.NewRole("kubemaster", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -2384,8 +2383,14 @@ func testKubeJoinWeb(t *testing.T, suite *KubeSuite) {
 	require.NoError(t, err)
 	teleport.AddUserWithRole(hostUsername, role)
 	teleport.AddUserWithRole(peerUsername, joinRole)
-	teleport.AddUserWithRole(observer1Username, joinRole)
-	teleport.AddUserWithRole(observer2Username, joinRole)
+	teleport.AddUserWithRole(observerUsername, joinRole)
+
+	ap := types.DefaultAuthPreference()
+	ap.SetSecondFactor(constants.SecondFactorOff)
+	tconf.Auth.Preference = ap
+	src := types.DefaultSessionRecordingConfig()
+	src.SetMode(types.RecordAtNodeSync)
+	tconf.Auth.SessionRecordingConfig = src
 
 	err = teleport.CreateEx(t, nil, tconf)
 	require.NoError(t, err)
@@ -2410,12 +2415,11 @@ func testKubeJoinWeb(t *testing.T, suite *KubeSuite) {
 	pod, err := proxyClient.CoreV1().Pods(testNamespace).Get(ctx, testPod, metav1.GetOptions{})
 	require.NoError(t, err)
 
-	// interactive command, allocate pty
 	term := NewTerminal(250)
+	peerTerm := NewTerminal(250)
 
-	out := &bytes.Buffer{}
-
-	group := &errgroup.Group{}
+	var out bytes.Buffer
+	var group errgroup.Group
 
 	// Start the main session.
 	group.Go(func() error {
@@ -2424,7 +2428,7 @@ func testKubeJoinWeb(t *testing.T, suite *KubeSuite) {
 			podNamespace: pod.Namespace,
 			container:    pod.Spec.Containers[0].Name,
 			command:      []string{"/bin/sh"},
-			stdout:       out,
+			stdout:       &out,
 			tty:          true,
 			stdin:        term,
 		})
@@ -2433,7 +2437,7 @@ func testKubeJoinWeb(t *testing.T, suite *KubeSuite) {
 
 	// We need to wait for the exec request to be handled here for the session to be
 	// created. Sadly though the k8s API doesn't give us much indication of when that is.
-	var session types.SessionTracker
+	var tracker types.SessionTracker
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// We need to wait for the session to be created here. We can't use the
 		// session manager's WaitUntilExists method because it doesn't work for
@@ -2441,99 +2445,61 @@ func testKubeJoinWeb(t *testing.T, suite *KubeSuite) {
 		sessions, err := teleport.Process.GetAuthServer().GetActiveSessionTrackers(ctx)
 		assert.NoError(t, err)
 		if assert.Len(t, sessions, 1) {
-			session = sessions[0]
+			tracker = sessions[0]
 		}
 	}, 10*time.Second, time.Second)
 
-	participantStdinR, participantStdinW, err := os.Pipe()
-	require.NoError(t, err)
-	participantStdoutR, participantStdoutW, err := os.Pipe()
-	require.NoError(t, err)
-
-	observerCaptures := make([]*bytes.Buffer, 2)
-	albProxy := helpers.MustStartMockALBProxy(t, teleport.Config.Proxy.WebAddr.Addr)
-
-	// join peer by KubeProxyAddr
+	var observerOut, peerOut bytes.Buffer
+	// join an observer
 	group.Go(func() error {
-		defer func() {
-			// close participant stdout so that we can read it after till EOF
-			participantStdoutW.Close()
-		}()
+		stream := kubeJoinByWebAPI(ctx, t, teleport, observerUsername, kubeUsers, kubeGroups, types.SessionObserverMode)
 
-		tc, err := teleport.NewClient(helpers.ClientConfig{
-			Login:   hostUsername,
-			Cluster: helpers.Site,
-			Host:    Host,
-		})
-		if err != nil {
+		t.Cleanup(func() { _ = stream.Close() })
+
+		if _, err := io.Copy(&observerOut, stream); err != nil && !errors.Is(err, io.EOF) {
 			return trace.Wrap(err)
 		}
 
-		tc.Stdin = participantStdinR
-		tc.Stdout = participantStdoutW
+		return trace.Wrap(peerTerm.Close())
+	})
 
-		stream, err := kubeJoin(
-			ctx,
-			kube.ProxyConfig{
-				T:          teleport,
-				Username:   peerUsername,
-				KubeUsers:  kubeUsers,
-				KubeGroups: kubeGroups,
-			},
-			tc,
-			session,
-			types.SessionPeerMode,
-		)
-		if err != nil {
+	// join a peer
+	group.Go(func() error {
+		stream := kubeJoinByWebAPI(ctx, t, teleport, peerUsername, kubeUsers, kubeGroups, types.SessionPeerMode)
+
+		t.Cleanup(func() { _ = stream.Close() })
+
+		group.Go(func() error {
+			if _, err := io.Copy(stream, peerTerm); err != nil && !errors.Is(err, io.EOF) {
+				return trace.Wrap(err)
+			}
+
+			return nil
+		})
+
+		if _, err := io.Copy(&peerOut, stream); err != nil && !errors.Is(err, io.EOF) {
 			return trace.Wrap(err)
 		}
 
-		t.Cleanup(func() {
-			_ = stream.Close()
-		})
-		stream.Wait()
-
-		return nil
-	})
-
-	// join observer by WebProxyAddr
-	group.Go(func() error {
-		stream, capture := kubeJoinByWebAddr(ctx, t, teleport, observer1Username, kubeUsers, kubeGroups)
-		t.Cleanup(func() {
-			_ = stream.Close()
-		})
-
-		observerCaptures[0] = capture
-		stream.Wait()
-		return nil
-	})
-
-	// join observer with ALPN conn upgrade
-	group.Go(func() error {
-		stream, capture := kubeJoinByALBAddr(ctx, t, teleport, observer2Username, kubeUsers, kubeGroups, albProxy.Addr().String())
-		t.Cleanup(func() {
-			_ = stream.Close()
-		})
-
-		observerCaptures[1] = capture
-		stream.Wait()
 		return nil
 	})
 
 	// Wait for all users to finish joining the session.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		session, err := teleport.Process.GetAuthServer().GetSessionTracker(ctx, session.GetName())
-		assert.NoError(t, err)
-		assert.Len(t, session.GetParticipants(), 4)
+		session, err := teleport.Process.GetAuthServer().GetSessionTracker(ctx, tracker.GetName())
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.Len(t, session.GetParticipants(), 3)
 	}, 30*time.Second, 500*time.Millisecond)
 
-	// send a test message from the participant
-	participantStdinW.Write([]byte("\ahi from peer\n\r"))
-
-	// lets type "echo hi" followed by "enter" and then "exit" + "enter":
+	// enter a command from the session creator
 	term.Type("\ahi from term\n\r")
 
-	// Terminate the session after a moment to allow for the IO to reach the second client.
+	// send a test message from the peer
+	peerTerm.Type("\ahi from peer\n\r")
+
+	// Terminate the session after a moment to allow for the IO to reach the clients.
 	time.AfterFunc(5*time.Second, func() {
 		// send exit command to close the session
 		term.Type("exit 0\n\r\a")
@@ -2542,19 +2508,39 @@ func testKubeJoinWeb(t *testing.T, suite *KubeSuite) {
 	// wait for all clients to finish
 	require.NoError(t, group.Wait())
 
-	// Verify peer.
-	participantOutput, err := io.ReadAll(participantStdoutR)
-	require.NoError(t, err)
-	require.Contains(t, string(participantOutput), "hi from term")
-
-	// Verify original session.
-	require.Contains(t, out.String(), "hi from peer")
-
-	// Verify observers.
-	for _, capture := range observerCaptures {
-		assert.Contains(t, capture.String(), "hi from peer")
-		assert.Contains(t, capture.String(), "hi from term")
+	for _, output := range []string{out.String(), observerOut.String(), peerOut.String()} {
+		require.Contains(t, output, "hi from term")
+		require.Contains(t, output, "hi from peer")
 	}
+}
+
+func kubeJoinByWebAPI(ctx context.Context, t *testing.T, teleport *helpers.TeleInstance, username string, kubeUsers, kubeGroups []string, mode types.SessionParticipantMode) *terminal.Stream {
+	t.Helper()
+
+	sessions, err := teleport.Process.GetAuthServer().GetActiveSessionTrackers(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, sessions)
+
+	password := uuid.NewString()
+	err = teleport.Process.GetAuthServer().UpsertPassword(username, []byte(password))
+	require.NoError(t, err)
+
+	wc, err := teleport.NewWebClient(helpers.ClientConfig{
+		Login:    username,
+		Password: password,
+		Cluster:  helpers.Site,
+		Host:     Host,
+		Proxy: &helpers.ProxyConfig{
+			WebAddr:  teleport.Config.Proxy.WebAddr.Addr,
+			KubeAddr: teleport.Config.Proxy.WebAddr.Addr,
+		},
+	})
+	require.NoError(t, err)
+
+	stream, err := wc.JoinKubernetesSession(sessions[0].GetSessionID(), mode)
+	require.NoError(t, err)
+
+	return stream
 }
 
 func kubeJoinByWebAddr(ctx context.Context, t *testing.T, teleport *helpers.TeleInstance, username string, kubeUsers, kubeGroups []string) (*client.KubeSession, *bytes.Buffer) {
