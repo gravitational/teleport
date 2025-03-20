@@ -539,6 +539,7 @@ func TestConnectDatabaseInteractiveSession(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	forwardedClientAddr := "1.2.3.4"
 	databaseProtocol := defaults.ProtocolPostgres
 
 	// Use a mock REPL and modify it adding the additional configuration when
@@ -565,13 +566,15 @@ func TestConnectDatabaseInteractiveSession(t *testing.T) {
 			},
 		},
 		alpnHandler: func(ctx context.Context, conn net.Conn) error {
-			// mock repl will not send any actual data. just verify the incoming
-			// connection is TLS.
-			if _, ok := conn.(utils.TLSConn); !ok {
-				return trace.BadParameter("expected TLSConn, got %T", conn)
+			// mock repl will not send any actual data. just verify the
+			// forwarded address.
+			defer conn.Close()
+			if conn.RemoteAddr().String() != forwardedClientAddr {
+				return trace.CompareFailed("expecting address %v, got %v", forwardedClientAddr, conn.RemoteAddr())
 			}
 			return nil
 		},
+		trustXForwardedFor: true,
 	})
 	s.webHandler.handler.cfg.PublicProxyAddr = s.webHandler.handler.cfg.ProxyWebAddr.String()
 
@@ -604,6 +607,7 @@ func TestConnectDatabaseInteractiveSession(t *testing.T) {
 	}
 
 	header := http.Header{}
+	header.Add(xForwardedForHeader, "1.2.3.4")
 	for _, cookie := range pack.cookies {
 		header.Add("Cookie", cookie.String())
 	}
