@@ -504,8 +504,8 @@ has a valid client certificate from a previous authentication attempt, it uses
 it to open an mTLS session.
 
 When Auth validates the join attempt, clients that presented an existing valid
-identity are considered to be "refresh" and do not trigger a rejoin, leaving
-the rejoin counter untouched. Clients that do not present a valid client
+identity are considered to be requesting a refresh rather than rejoining,
+leaving the rejoin counter untouched. Clients that do not present a valid client
 certificate are considered to be rejoining and the token associated with this
 public key must have `.status.bound_keypair.remaining_rejoins` >= 1.
 
@@ -693,27 +693,35 @@ configuration fields and would greatly improve the onboarding experience.
 
 The URI syntax might look like this:
 ```
-tbot+[auth|proxy]://[join method]:[token value]@[addr]:[port]?key=val&foo=bar
+tbot+[auth|proxy]+[join method]://[token name]:[optional parameter]@[addr]:[port]?key=val&foo=bar
 ```
+
+The "optional parameter" is a relatively new concept to support specifying the
+token name and secret value, as they are now decoupled. Join methods like Azure
+that require an additional parameter can take advantage of this as well;
+previously this method required a `tbot.yaml` in order to specify a `ClientID`.
 
 Consider these two equivalent commands:
 ```
-$ tbot start identity --proxy-server example.teleport.sh:443 --join-method bound-keypair --token example
+$ tbot start identity --proxy-server example.teleport.sh:443 --join-method bound-keypair:initial-join-secret --token example
 
-$ tbot start identity tbot+proxy://bound-keypair:example@example.teleport.sh:443
+$ tbot start identity tbot+proxy+bound-keypair://example:initial-join-secret@example.teleport.sh:443
 ```
+
+(We will also need to introduce `method:parameter` syntax for the traditional
+`--join-method` syntax.)
 
 Joining URIs can greatly simplify the regular onboarding experience by providing
 a single value to copy when onboarding a bot:
 
 ```
 $ tctl bots add example --roles=access
-The bot token: tbot+proxy://bound-keypair:example@example.teleport.sh:443
+The bot token: tbot+proxy+bound-keypair://example:initial-join-secret@example.teleport.sh:443
 This token will expire in 59 minutes.
 
 [...snip...]
 
-$ tbot start identity tbot+proxy://bound-keypair:example@example.teleport.sh:443 ...
+$ tbot start identity tbot+proxy+bound-keypair://example:initial-join-secret@example.teleport.sh:443 ...
 ```
 
 Given the CLI now supports many operational modes, it's much easier for users to
@@ -722,6 +730,15 @@ URI to get started immediately.
 
 URL paths and query parameters may also provide options for future extension if
 desired.
+
+Additional examples for other join methods:
+```
+# Traditional token joining, connecting to auth
+$ tbot start identity tbot+auth+token://abcde12345@teleport.example.com:3025
+
+# Azure joining via proxy with client ID specified
+$ tbot start identity tbot+proxy+azure://bot-token:22222222-2222-2222-2222-222222222222@example.teleport.sh:443/
+```
 
 ## Future Extensions and Alternatives
 
