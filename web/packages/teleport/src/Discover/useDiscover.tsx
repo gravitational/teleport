@@ -24,6 +24,7 @@ import {
   findViewAtIndex,
 } from 'teleport/components/Wizard/flow';
 import cfg from 'teleport/config';
+import { useInfoGuide } from 'teleport/Main/InfoGuideContext';
 import type { ResourceLabel } from 'teleport/services/agents';
 import type { App } from 'teleport/services/apps';
 import type { Database } from 'teleport/services/databases';
@@ -54,8 +55,9 @@ import {
 
 import { ServiceDeployMethod } from './Database/common';
 import { ResourceViewConfig, View } from './flow';
+import { getOverview } from './Overview/Overview';
 import { viewConfigs } from './resourceViewConfigs';
-import type { ResourceSpec } from './SelectResource';
+import { SelectResourceSpec } from './SelectResource/resources';
 import { EViewConfigs } from './types';
 
 export interface DiscoverContextState<T = any> {
@@ -63,9 +65,9 @@ export interface DiscoverContextState<T = any> {
   currentStep: number;
   nextStep: (count?: number) => void;
   prevStep: () => void;
-  onSelectResource: (resource: ResourceSpec) => void;
+  onSelectResource: (resource: SelectResourceSpec) => void;
   exitFlow: () => void;
-  resourceSpec: ResourceSpec;
+  resourceSpec: SelectResourceSpec;
   viewConfig: ResourceViewConfig<T>;
   indexedViews: View[];
   setResourceSpec: (value: T) => void;
@@ -95,7 +97,7 @@ type CustomEventInput = {
 export type DiscoverUpdateProps = {
   // resourceSpec specifies ResourceSpec which should be used to
   // start a Discover flow.
-  resourceSpec: ResourceSpec;
+  resourceSpec: SelectResourceSpec;
   // agentMeta includes data that will be used to prepopulate input fields
   // in the respective Discover compnents.
   agentMeta: AgentMeta;
@@ -119,7 +121,7 @@ export type DiscoverUrlLocationState = {
   // the flow from where user left off.
   discover: {
     eventState: EventState;
-    resourceSpec: ResourceSpec;
+    resourceSpec: SelectResourceSpec;
     currentStep: number;
   };
   // integration is the created aws-oidc integration
@@ -136,10 +138,11 @@ export function DiscoverProvider({
 }: React.PropsWithChildren<DiscoverProviderProps>) {
   const history = useHistory();
   const location = useLocation<DiscoverUrlLocationState>();
+  const { infoGuideElement, setInfoGuideElement } = useInfoGuide();
 
   const [currentStep, setCurrentStep] = useState(0);
   const [agentMeta, setAgentMeta] = useState<AgentMeta>();
-  const [resourceSpec, setResourceSpec] = useState<ResourceSpec>();
+  const [resourceSpec, setResourceSpec] = useState<SelectResourceSpec>();
   const [viewConfig, setViewConfig] = useState<ResourceViewConfig>();
   const [eventState, setEventState] = useState<EventState>({} as any);
 
@@ -291,7 +294,7 @@ export function DiscoverProvider({
 
   // onSelectResources inits states, starts flow, and
   // emits events.
-  function onSelectResource(resource: ResourceSpec) {
+  function onSelectResource(resource: SelectResourceSpec) {
     // We still want to emit an event if user clicked on an
     // unguided link to gather data on which unguided resource
     // is most popular.
@@ -323,7 +326,7 @@ export function DiscoverProvider({
   // startDiscoverFlow sets all the required states
   // that will begin the flow.
   function startDiscoverFlow(
-    resource: ResourceSpec,
+    resource: SelectResourceSpec,
     initEventState: EventState,
     targetViewIndex = 0
   ) {
@@ -354,6 +357,7 @@ export function DiscoverProvider({
     setIndexedViews(indexedViews);
     setResourceSpec(resource);
     setCurrentStep(targetViewIndex);
+    setInfoGuideElement(getOverview({ resourceSpec: resource }));
   }
 
   // nextStep takes the user to next screen and sends reporting events.
@@ -439,6 +443,10 @@ export function DiscoverProvider({
     setViewConfig(null);
     setResourceSpec(null);
     setIndexedViews([]);
+
+    if (infoGuideElement) {
+      setInfoGuideElement(null);
+    }
   }
 
   function updateAgentMeta(meta: AgentMeta) {

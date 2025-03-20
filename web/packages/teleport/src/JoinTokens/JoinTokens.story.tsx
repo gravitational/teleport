@@ -17,11 +17,9 @@
  */
 
 import { http, HttpResponse } from 'msw';
-import { MemoryRouter } from 'react-router';
 
-import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { createTeleportContext } from 'teleport/mocks/contexts';
+import { TeleportProviderBasic } from 'teleport/mocks/providers';
 import { JoinToken } from 'teleport/services/joinToken';
 
 import { JoinTokens } from './JoinTokens';
@@ -31,9 +29,9 @@ export default {
 };
 
 export const Loaded = () => (
-  <Provider>
+  <TeleportProviderBasic>
     <JoinTokens />
-  </Provider>
+  </TeleportProviderBasic>
 );
 
 Loaded.parameters = {
@@ -47,16 +45,6 @@ Loaded.parameters = {
       }),
     ],
   },
-};
-
-const Provider = ({ children }) => {
-  const ctx = createTeleportContext();
-
-  return (
-    <MemoryRouter>
-      <ContextProvider ctx={ctx}>{children}</ContextProvider>
-    </MemoryRouter>
-  );
 };
 
 const tokens: JoinToken[] = [
