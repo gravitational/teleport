@@ -327,7 +327,7 @@ func TestMatchApplicationServers(t *testing.T) {
 
 	// Create a httptest server to serve the application requests. It must serve
 	// TLS content with the generated certificate.
-	expectedContent := "Hello from application"
+	expectedContent := "Hello application"
 	fakeRemoteSite := startFakeAppServerOnRemoteSite(t, clusterName, authClient, cert, key)
 	tunnel := &reversetunnelclient.FakeServer{
 		Sites: []reversetunnelclient.RemoteSite{
