@@ -317,6 +317,10 @@ lifecycle than other types of bots. To summarize some key differences:
   the content of `.status.bound_keypair.bound_bot_instance_id` at rejoining
   time.
 
+- When a new instance is generated as part of a rejoin, refresh attempts using
+  the old instance will be denied via a check against the currently bound
+  `.status.bound_keypair.bound_bot_instance_id`.
+
 Bots may stop refreshing under several conditions, triggering a rejoin attempt:
 
 - The backing `ProvisionToken` resource has been deleted; in this case, the
@@ -339,6 +343,49 @@ Bots will be unable to rejoin under any of these conditions:
 
 - `.spec.bound_keypair.rejoining.may_rejoin_until` is set to a value before the
   current time
+
+#### Preventing Credential Duplication
+
+Like `token` joining, `bound-keypair` aims to have relatively robust protections
+against stolen or duplicated credentials, including both the long-lived keypair
+and short-lived refreshed certificates.
+
+Refreshed certificates will function like renewable certificates do today,
+including generation counter checks. An attacker would need to exfiltrate both
+the bot certificates and its keypair, and then also prevent the original bot
+instance from attempting to refresh certificates, or else a generation counter
+check will lock the bot on the next refresh attempt.
+
+However, the long-lived keypair introduces a similar class of problem. If an
+attacker exfiltrates the keypair, assuming rejoins are available, they can
+attempt to rejoin and gain extended access. The original bot will still compete
+with the imposter bot and each will be forced to fully rejoin on every attempt,
+but this results in minimal real downtime for an attacker, at least until the
+rejoin allowance runs out.
+
+To mitigate this, we'll need to create a mechanism similar to the generation
+counter to protect rejoins and the long-lived keypair:
+
+1. When joining, Auth will return a join state document (signed JWT) that
+   includes the current join counter, alongside the usual Teleport
+   certificates. Bots must store this document for the next join attempt.
+
+2. On subsequent join attempts, bots must include this signed document in the
+   join request.
+
+3. On each join attempt, before creating a new bot instance, auth verifies the
+   JWT, and compares the current join counter to the join counter in the JWT.
+
+   If the values match, the join is allowed, and a new join state document is
+   returned alongside the certificate bundle.
+
+   If they do not match, the join is rejected, and a lock is generated against
+   the affected `(bot, token)`.
+
+Just as with the generation counter, this procedure relies on an imposter bot
+successfully joining once. When the original bot fails to refresh and attempts
+to rejoin, it presents a valid but outdated join state document, we generate a
+lock, and then deny further access to both bots.
 
 #### Token Resource Example
 
@@ -423,11 +470,68 @@ status:
     # be 0 but rejoin attempts will succeed.
     remaining_rejoins: 10
 
+    # A count of the total number of joins performed using this token.
+    join_count: 0
+
     # The timestamp of the last successful joining or rejoining attempt, if any.
     last_joined_at: null
 
     # The timestamp of the last successful keypair rotation, if any.
     last_rotated_at: null
+```
+
+#### Proto Draft
+
+```protobuf
+message RegisterUsingBoundKeypairInitialRequest {
+  types.RegisterUsingTokenRequest join_request = 1;
+
+  // If set, requests a rotation to the new public key. The joining challenge
+  // must first be completed using the previous key, and upon completion a new
+  // challenge will be issued for this key. Certificates will only be returned
+  // after the second challenge is complete.
+  bytes new_public_key = 2;
+
+  // A document signed by Auth containing join state parameters from the
+  // previous join attempt. Not required on initial join; required on all
+  // subsequent joins.
+  bytes previous_join_state = 3;
+}
+
+message RegisterUsingBoundKeypairChallengeResponse {
+  bytes solution = 1;
+}
+
+message RegisterUsingBoundKeypairRequest {
+  oneof payload {
+    RegisterUsingBoundKeypairInitialRequest init = 1;
+    RegisterUsingBoundKeypairChallengeResponse challenge_response = 2;
+  }
+}
+
+message RegisterUsingBoundKeypairCertificates {
+  // Signed Teleport certificates resulting from the join process.
+  Certs certs = 1;
+
+  // A signed join state document to be provided on the next join attempt.
+  bytes join_state = 2;
+}
+
+message RegisterUsingBoundKeypairResponse {
+  oneof response {
+    // A challenge to sign. During keypair rotation, a second challenge will be
+    // provided to verify the new keypair before certs are returned.
+    string challenge = 1;
+    RegisterUsingBoundKeypairCertificates certs = 2;
+  }
+}
+
+service JoinService {
+  // ...snip...
+
+  rpc RegisterUsingBoundKeypair(stream RegisterUsingBoundKeypairRequest) returns (stream RegisterUsingBoundKeypairResponse);
+}
+
 ```
 
 #### Terraform Example
@@ -536,14 +640,15 @@ sequenceDiagram
 	auth-->>bot: Sends joining challenge
 	bot->>keystore: Request signed document
 	keystore-->>bot: Signed challenge document
-	bot->>auth: Signed challenge document
+	bot->>auth: Signed challenge document<br>& previous join state
 	auth->>auth: Validate signed document<br>against bound public key
 
 	opt no valid client certificate
+		auth->>auth: Validate join state document
 		auth->>auth: decrement rejoin counter
 	end
 
-	auth-->>bot: Signed TLS certificates
+	auth-->>bot: Signed TLS certificates<br>& new join state
 ```
 
 To avoid use of traditional renewable certificates, this takes advantage of
@@ -685,13 +790,13 @@ sequenceDiagram
 
 	auth-->>bot: Sends new joining challenge<br>for new public key
 	bot->>keystore: Request signed document<br>with new public key
-	keystore-->>bot: Signed challenge document
+	keystore-->>bot: Signed challenge document<br>& previous join state
 
 	bot->>auth: Signed challenge document
 	auth->>auth: Validate signed document<br>against new public key
 	auth->>auth: Commit new public key to backend,<br>clear rotate flag
 
-	auth-->>bot: Signed TLS certificates
+	auth-->>bot: Signed TLS certificates<br>& new join state
 ```
 
 As shown above, the join service will return a second challenge rather than
@@ -774,7 +879,7 @@ $ tbot start identity tbot+proxy+bound-keypair://example:initial-join-secret@exa
 ```
 
 (We will also need to introduce `method:parameter` syntax for the traditional
-`--join-method` syntax.)
+`--join-method` flag.)
 
 Joining URIs can greatly simplify the regular onboarding experience by providing
 a single value to copy when onboarding a bot:
