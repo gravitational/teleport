@@ -51,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -566,7 +565,7 @@ func (c *mockAuthClient) DeleteAppSession(ctx context.Context, r types.DeleteApp
 	return nil
 }
 
-func (c *mockAuthClient) GetClusterName(_ ...services.MarshalOption) (types.ClusterName, error) {
+func (c *mockAuthClient) GetClusterName(_ context.Context) (types.ClusterName, error) {
 	return mockClusterName{name: c.clusterName}, nil
 }
 

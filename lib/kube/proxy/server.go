@@ -230,7 +230,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		return nil, trace.BadParameter("kube_service won't start because it has neither static clusters nor a resource watcher configured.")
 	}
 
-	clustername, err := cfg.AccessPoint.GetClusterName()
+	clustername, err := cfg.AccessPoint.GetClusterName(cfg.Context)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

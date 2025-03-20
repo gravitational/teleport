@@ -1573,6 +1573,7 @@ func TestClusterAuditConfig(t *testing.T) {
 
 func TestClusterName(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
@@ -1592,7 +1593,7 @@ func TestClusterName(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	outName, err := p.cache.GetClusterName()
+	outName, err := p.cache.GetClusterName(ctx)
 	require.NoError(t, err)
 
 	require.Empty(t, cmp.Diff(outName, clusterName, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))

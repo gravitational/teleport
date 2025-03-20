@@ -302,7 +302,7 @@ func (a *Server) getCAsForTrustedCluster(ctx context.Context, tc types.TrustedCl
 // DeleteTrustedCluster removes types.CertAuthority, services.ReverseTunnel,
 // and services.TrustedCluster resources.
 func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
-	cn, err := a.GetClusterName()
+	cn, err := a.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -427,7 +427,7 @@ func (a *Server) establishTrust(ctx context.Context, trustedCluster types.Truste
 // DeleteRemoteCluster deletes remote cluster resource, all certificate authorities
 // associated with it
 func (a *Server) DeleteRemoteCluster(ctx context.Context, name string) error {
-	cn, err := a.GetClusterName()
+	cn, err := a.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

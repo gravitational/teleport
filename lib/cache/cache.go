@@ -295,7 +295,7 @@ func ForRemoteProxy(cfg Config) Config {
 func ForNode(cfg Config) Config {
 	var caFilter map[string]string
 	if cfg.ClusterConfig != nil {
-		clusterName, err := cfg.ClusterConfig.GetClusterName()
+		clusterName, err := cfg.ClusterConfig.GetClusterName(context.TODO())
 		if err == nil {
 			caFilter = types.CertAuthorityFilter{
 				types.HostCA: clusterName.GetClusterName(),
@@ -1972,8 +1972,8 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNe
 }
 
 // GetClusterName gets the name of the cluster from the backend.
-func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
-	ctx, span := c.Tracer.Start(context.TODO(), "cache/GetClusterName")
+func (c *Cache) GetClusterName(ctx context.Context) (types.ClusterName, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetClusterName")
 	defer span.End()
 
 	rg, err := readCollectionCache(c, c.collections.clusterNames)
@@ -1983,7 +1983,7 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		cachedName, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"name"}, func(ctx context.Context) (types.ClusterName, error) {
-			cfg, err := rg.reader.GetClusterName(opts...)
+			cfg, err := rg.reader.GetClusterName(ctx)
 			return cfg, err
 		})
 		if err != nil {
@@ -1991,7 +1991,7 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 		}
 		return cachedName.Clone(), nil
 	}
-	return rg.reader.GetClusterName(opts...)
+	return rg.reader.GetClusterName(ctx)
 }
 
 type autoUpdateCacheKey struct {
