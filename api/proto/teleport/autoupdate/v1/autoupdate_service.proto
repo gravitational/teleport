@@ -52,6 +52,21 @@ service AutoUpdateService {
 
   // DeleteAutoUpdateVersion hard deletes the specified AutoUpdateVersionRequest.
   rpc DeleteAutoUpdateVersion(DeleteAutoUpdateVersionRequest) returns (google.protobuf.Empty);
+
+  // GetAutoUpdateVersion gets the current autoupdate version singleton.
+  rpc GetAutoUpdateAgentRollout(GetAutoUpdateAgentRolloutRequest) returns (AutoUpdateAgentRollout);
+
+  // CreateAutoUpdateAgentRollout creates a new AutoUpdateAgentRollout.
+  rpc CreateAutoUpdateAgentRollout(CreateAutoUpdateAgentRolloutRequest) returns (AutoUpdateAgentRollout);
+
+  // UpdateAutoUpdateAgentRollout updates AutoUpdateAgentRollout singleton.
+  rpc UpdateAutoUpdateAgentRollout(UpdateAutoUpdateAgentRolloutRequest) returns (AutoUpdateAgentRollout);
+
+  // UpsertAutoUpdateAgentRollout creates a new AutoUpdateAgentRollout or replaces an existing AutoUpdateAgentRollout.
+  rpc UpsertAutoUpdateAgentRollout(UpsertAutoUpdateAgentRolloutRequest) returns (AutoUpdateAgentRollout);
+
+  // DeleteAutoUpdateAgentRollout hard deletes the specified AutoUpdateAgentRolloutRequest.
+  rpc DeleteAutoUpdateAgentRollout(DeleteAutoUpdateAgentRolloutRequest) returns (google.protobuf.Empty);
 }
 
 // Request for GetAutoUpdateConfig.
@@ -95,3 +110,24 @@ message UpsertAutoUpdateVersionRequest {
 
 // Request for DeleteAutoUpdateVersion.
 message DeleteAutoUpdateVersionRequest {}
+
+// Request for GetAutoUpdateAgentRollout.
+message GetAutoUpdateAgentRolloutRequest {}
+
+// Request for CreateAutoUpdateAgentRollout.
+message CreateAutoUpdateAgentRolloutRequest {
+  AutoUpdateAgentRollout rollout = 1;
+}
+
+// Request for UpdateAutoUpdateConfig.
+message UpdateAutoUpdateAgentRolloutRequest {
+  AutoUpdateAgentRollout rollout = 1;
+}
+
+// Request for UpsertAutoUpdateAgentRollout.
+message UpsertAutoUpdateAgentRolloutRequest {
+  AutoUpdateAgentRollout rollout = 1;
+}
+
+// Request for DeleteAutoUpdateAgentRollout.
+message DeleteAutoUpdateAgentRolloutRequest {}
