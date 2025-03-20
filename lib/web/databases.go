@@ -485,6 +485,9 @@ func (h *Handler) dbConnect(
 		proxyAddr:         h.PublicProxyAddr(),
 		proxyHostCA:       proxyHostCA,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	defer sess.Close()
 
 	// Don't close the terminal stream on session error, as it would also
