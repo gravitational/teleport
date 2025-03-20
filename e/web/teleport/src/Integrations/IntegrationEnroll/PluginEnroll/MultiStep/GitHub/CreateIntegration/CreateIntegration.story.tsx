@@ -19,6 +19,7 @@ export const Success = () => {
         onGitHubOrgNameChange={setOrgName}
         nextStep={() => null}
         prevStep={() => null}
+        emitEvent={() => null}
       />
     </MemoryRouter>
   );

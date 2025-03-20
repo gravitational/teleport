@@ -27,6 +27,7 @@ export function CreateIntegration({
   gitHubOrgName,
   onGitHubOrgNameChange,
   nextStep,
+  emitEvent,
 }: Props) {
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
@@ -207,6 +208,7 @@ export function CreateIntegration({
           gitHubOrgName={gitHubOrgName}
           clientId={clientId}
           clientSecret={clientSecret}
+          emitEvent={emitEvent}
         />
       )}
     </>

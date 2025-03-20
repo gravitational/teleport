@@ -16,6 +16,7 @@ const defaultProps = {
   cancel: () => null,
   clientId: '',
   clientSecret: '',
+  emitEvent: () => null,
 };
 
 export const Success = () => {

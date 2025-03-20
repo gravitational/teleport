@@ -25,6 +25,7 @@ export const SkipOrCreateRole = () => {
         onGitHubOrgNameChange={setOrgName}
         nextStep={() => null}
         prevStep={() => null}
+        emitEvent={() => null}
       />
     </MemoryRouter>
   );
@@ -44,6 +45,7 @@ export const CreateRoleLoading = () => {
         onGitHubOrgNameChange={setOrgName}
         nextStep={() => null}
         prevStep={() => null}
+        emitEvent={() => null}
       />
     </MemoryRouter>
   );
@@ -63,6 +65,7 @@ export const CreateRoleFailed = () => {
         onGitHubOrgNameChange={setOrgName}
         nextStep={() => null}
         prevStep={() => null}
+        emitEvent={() => null}
       />
     </MemoryRouter>
   );

@@ -19,6 +19,7 @@ export const Loaded = () => {
         onGitHubOrgNameChange={setOrgName}
         nextStep={() => null}
         prevStep={() => null}
+        emitEvent={() => null}
       />
     </MemoryRouter>
   );
@@ -44,6 +45,7 @@ export const Loading = () => {
         onGitHubOrgNameChange={setOrgName}
         nextStep={() => null}
         prevStep={() => null}
+        emitEvent={() => null}
       />
     </MemoryRouter>
   );
@@ -63,6 +65,7 @@ export const FetchFailed = () => {
         onGitHubOrgNameChange={setOrgName}
         nextStep={() => null}
         prevStep={() => null}
+        emitEvent={() => null}
       />
     </MemoryRouter>
   );

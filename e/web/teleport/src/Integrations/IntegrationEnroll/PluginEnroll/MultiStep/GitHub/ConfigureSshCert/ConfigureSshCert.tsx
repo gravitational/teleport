@@ -12,24 +12,45 @@ import {
 import { Alert, Info } from 'design/Alert/Alert';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import { useAsync } from 'shared/hooks/useAsync';
+import { getErrMessage } from 'shared/utils/errorType';
 
 import { StyledBox } from 'teleport/Discover/Shared';
 import { integrationService } from 'teleport/services/integrations';
+import { IntegrationEnrollStatusCode } from 'teleport/services/userEvent';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { Header } from '../../Shared';
 import { getIntegrationName } from '../getIntegrationName';
 import { Props } from '../GitHub';
 
-export function ConfigureSshCert({ gitHubOrgName, nextStep }: Props) {
+export function ConfigureSshCert({
+  gitHubOrgName,
+  nextStep,
+  emitEvent,
+}: Props) {
   const { clusterId } = useStickyClusterId();
 
   const [fetchCaAttempt, fetchCa] = useAsync(async () => {
-    return await integrationService.fetchExportedIntegrationCA(
-      clusterId,
-      getIntegrationName(gitHubOrgName)
-    );
+    try {
+      return await integrationService.fetchExportedIntegrationCA(
+        clusterId,
+        getIntegrationName(gitHubOrgName)
+      );
+    } catch (err) {
+      emitEvent({
+        status: {
+          code: IntegrationEnrollStatusCode.Error,
+          error: `Failed to fetch CA: ${getErrMessage(err)}`,
+        },
+      });
+      throw err;
+    }
   });
+
+  function onNext() {
+    emitEvent({ status: { code: IntegrationEnrollStatusCode.Success } });
+    nextStep();
+  }
 
   useEffect(() => {
     fetchCa();
@@ -104,7 +125,7 @@ export function ConfigureSshCert({ gitHubOrgName, nextStep }: Props) {
           </Info>
           <Flex mt={4} mb={5} gap={3}>
             <ButtonPrimary
-              onClick={nextStep}
+              onClick={onNext}
               disabled={fetchCaAttempt.status !== 'success'}
             >
               Next

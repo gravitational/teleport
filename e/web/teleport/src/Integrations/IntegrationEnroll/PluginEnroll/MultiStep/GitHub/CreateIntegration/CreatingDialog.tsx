@@ -10,6 +10,7 @@ import {
 } from 'design';
 import Dialog, { DialogContent } from 'design/DialogConfirmation';
 import { useAsync } from 'shared/hooks/useAsync';
+import { getErrMessage } from 'shared/utils/errorType';
 
 import {
   IntegrationGitHub,
@@ -17,9 +18,11 @@ import {
   integrationService,
 } from 'teleport/services/integrations';
 import ResourceService from 'teleport/services/resources';
+import { IntegrationEnrollStatusCode } from 'teleport/services/userEvent/types';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { getIntegrationName } from '../getIntegrationName';
+import { EmitEvent } from '../GitHub';
 import { isAlreadyExistsError } from './error';
 import { AttemptStatus } from './Status';
 
@@ -29,69 +32,116 @@ export function CreatingDialog({
   gitHubOrgName,
   clientId,
   clientSecret,
+  emitEvent,
 }: {
   next(): void;
   cancel(): void;
   gitHubOrgName: string;
   clientId: string;
   clientSecret: string;
+  emitEvent(event: EmitEvent): void;
 }) {
   const { clusterId } = useStickyClusterId();
 
   const integrationName = getIntegrationName(gitHubOrgName);
 
   const [createIntegrationAttempt, createIntegration] = useAsync(async () => {
-    return await integrationService.createIntegration({
-      name: integrationName,
-      subKind: IntegrationKind.GitHub,
-      oauth: {
-        id: clientId,
-        secret: clientSecret,
-      },
-      github: { organization: gitHubOrgName },
-    });
+    try {
+      return await integrationService.createIntegration({
+        name: integrationName,
+        subKind: IntegrationKind.GitHub,
+        oauth: {
+          id: clientId,
+          secret: clientSecret,
+        },
+        github: { organization: gitHubOrgName },
+      });
+    } catch (err) {
+      emitEvent({
+        status: {
+          code: IntegrationEnrollStatusCode.Error,
+          error: `Failed to create integration: ${getErrMessage(err)}`,
+        },
+      });
+      throw err;
+    }
   });
 
   const [updateIntegrationAttempt, updateIntegration] = useAsync(async () => {
-    return await integrationService.updateIntegration(integrationName, {
-      kind: IntegrationKind.GitHub,
-      oauth: {
-        id: clientId,
-        secret: clientSecret,
-      },
-      github: { organization: gitHubOrgName },
-    });
+    try {
+      return await integrationService.updateIntegration(integrationName, {
+        kind: IntegrationKind.GitHub,
+        oauth: {
+          id: clientId,
+          secret: clientSecret,
+        },
+        github: { organization: gitHubOrgName },
+      });
+    } catch (err) {
+      emitEvent({
+        status: {
+          code: IntegrationEnrollStatusCode.Error,
+          error: `Failed to update integration: ${getErrMessage(err)}`,
+        },
+      });
+      throw err;
+    }
   });
 
   const [createGitServerAttempt, createGitServer] = useAsync(
     async (integration: IntegrationGitHub) => {
       const resourceService = new ResourceService();
-      return await resourceService.createOrOverwriteGitServer(clusterId, {
-        id: integration.name,
-        subKind: 'github',
-        overwrite: false,
-        github: {
-          organization: gitHubOrgName,
-          integration: integration.name,
-        },
-      });
+      try {
+        return await resourceService.createOrOverwriteGitServer(clusterId, {
+          id: integration.name,
+          subKind: 'github',
+          overwrite: false,
+          github: {
+            organization: gitHubOrgName,
+            integration: integration.name,
+          },
+        });
+      } catch (err) {
+        emitEvent({
+          status: {
+            code: IntegrationEnrollStatusCode.Error,
+            error: `Failed to create git server: ${getErrMessage(err)}`,
+          },
+        });
+        throw err;
+      }
     }
   );
 
   const [updateGitServerAttempt, updateGitServer] = useAsync(
     async (integration: IntegrationGitHub) => {
       const resourceService = new ResourceService();
-      return await resourceService.createOrOverwriteGitServer(clusterId, {
-        id: integration.name,
-        subKind: 'github',
-        overwrite: true,
-        github: {
-          organization: gitHubOrgName,
-          integration: integration.name,
-        },
-      });
+      try {
+        return await resourceService.createOrOverwriteGitServer(clusterId, {
+          id: integration.name,
+          subKind: 'github',
+          overwrite: true,
+          github: {
+            organization: gitHubOrgName,
+            integration: integration.name,
+          },
+        });
+      } catch (err) {
+        emitEvent({
+          status: {
+            code: IntegrationEnrollStatusCode.Error,
+            error: `Failed to update git server: ${getErrMessage(err)}`,
+          },
+        });
+        throw err;
+      }
     }
   );
+
+  function onNext() {
+    emitEvent({ status: { code: IntegrationEnrollStatusCode.Success } });
+    next();
+  }
 
   const success =
     (createGitServerAttempt.status === 'success' ||
@@ -148,7 +198,7 @@ export function CreatingDialog({
   function renderButton() {
     if (success) {
       return (
-        <ButtonPrimary width="100%" onClick={next}>
+        <ButtonPrimary width="100%" onClick={onNext}>
           Next
         </ButtonPrimary>
       );

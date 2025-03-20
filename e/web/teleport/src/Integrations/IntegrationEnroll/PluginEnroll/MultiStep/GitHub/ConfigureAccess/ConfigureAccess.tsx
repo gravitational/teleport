@@ -14,16 +14,21 @@ import TextEditor from 'shared/components/TextEditor';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
+import { getErrMessage } from 'shared/utils/errorType';
 
 import { StyledBox } from 'teleport/Discover/Shared';
 import ResourceService from 'teleport/services/resources';
+import {
+  IntegrationEnrollEvent,
+  IntegrationEnrollStatusCode,
+} from 'teleport/services/userEvent';
 
 import { Header } from '../../Shared';
 import { getIntegrationName } from '../getIntegrationName';
 import { Props } from '../GitHub';
 import { FinishDialog } from './FinishDialog';
 
-export function ConfigureAccess({ gitHubOrgName }: Props) {
+export function ConfigureAccess({ gitHubOrgName, emitEvent }: Props) {
   const [skipStep, setSkipStep] = useState(false);
 
   const [roleName, setRoleName] = useState(`github-${gitHubOrgName}`);
@@ -40,7 +45,19 @@ version: v7
 
   const [createRoleAttempt, createRole] = useAsync(async () => {
     const resourceService = new ResourceService();
-    await resourceService.createRole(roleYaml);
+    try {
+      await resourceService.createRole(roleYaml);
+      emitEvent({ status: { code: IntegrationEnrollStatusCode.Success } });
+      emitEvent({ event: IntegrationEnrollEvent.Complete });
+    } catch (err) {
+      emitEvent({
+        status: {
+          code: IntegrationEnrollStatusCode.Error,
+          error: getErrMessage(err),
+        },
+      });
+      throw err;
+    }
   });
 
   async function onNext(validator: Validator) {
@@ -49,6 +66,11 @@ version: v7
     }
 
     await createRole();
+  }
+
+  function onSkip() {
+    emitEvent({ status: { code: IntegrationEnrollStatusCode.Skipped } });
+    setSkipStep(true);
   }
 
   const createdRole = createRoleAttempt.status === 'success';
@@ -104,7 +126,7 @@ version: v7
                 Finish
               </ButtonPrimary>
               <ButtonSecondary
-                onClick={() => setSkipStep(true)}
+                onClick={onSkip}
                 disabled={createRoleAttempt.status === 'processing'}
               >
                 Skip

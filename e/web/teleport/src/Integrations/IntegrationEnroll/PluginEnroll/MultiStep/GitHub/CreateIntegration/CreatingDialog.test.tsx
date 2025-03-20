@@ -215,6 +215,7 @@ async function renderAndFillRequiredInputs() {
         onGitHubOrgNameChange={() => null}
         nextStep={() => null}
         prevStep={() => null}
+        emitEvent={() => null}
       />
     </MemoryRouter>
   );
