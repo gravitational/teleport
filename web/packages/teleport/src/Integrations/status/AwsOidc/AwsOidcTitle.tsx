@@ -17,12 +17,17 @@
  */
 import { Link as InternalLink } from 'react-router-dom';
 
-import { ButtonIcon, Flex, Label, Text } from 'design';
+import { ButtonIcon, Flex, Label, MenuItem, Text } from 'design';
+import * as Icons from 'design/Icon';
 import { ArrowLeft } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
+import { MenuButton } from 'shared/components/MenuAction';
 
+import { IntegrationOperationsE } from 'e-teleport/Integrations/IntegrationOperationsE';
+import { useIntegrations } from 'e-teleport/Integrations/useIntegrations';
 import cfg from 'teleport/config';
 import { getStatusAndLabel } from 'teleport/Integrations/helpers';
+import { EditableIntegration } from 'teleport/Integrations/Operations/useIntegrationOperation';
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import { IntegrationAwsOidc } from 'teleport/services/integrations';
 
@@ -35,22 +40,42 @@ export function AwsOidcTitle({
   resource?: AwsResource;
   tasks?: boolean;
 }) {
+  const { integrationOps } = useIntegrations();
   const { status, labelKind } = getStatusAndLabel(integration);
   const content = getContent(integration, resource, tasks);
 
   return (
-    <Flex alignItems="center" data-testid="aws-oidc-title">
-      <HoverTooltip placement="bottom" tipContent={content.helper}>
-        <ButtonIcon as={InternalLink} to={content.to} aria-label="back">
-          <ArrowLeft size="medium" />
-        </ButtonIcon>
-      </HoverTooltip>
-      <Text bold fontSize={6} mx={2}>
-        {content.content}
-      </Text>
-      <Label kind={labelKind} aria-label="status" px={3}>
-        {status}
-      </Label>
+    <Flex justifyContent="space-between">
+      <Flex alignItems="center" data-testid="aws-oidc-title">
+        <HoverTooltip placement="bottom" tipContent={content.helper}>
+          <ButtonIcon as={InternalLink} to={content.to} aria-label="back">
+            <ArrowLeft size="medium" />
+          </ButtonIcon>
+        </HoverTooltip>
+        <Text bold fontSize={6} mx={2}>
+          {content.content}
+        </Text>
+        <Label kind={labelKind} aria-label="status" px={3}>
+          {status}
+        </Label>
+      </Flex>
+      {!resource && !tasks && (
+        <MenuButton icon={<Icons.Cog />}>
+          <MenuItem onClick={() => integrationOps.onEdit(integration)}>
+            Edit...
+          </MenuItem>
+          <MenuItem onClick={() => integrationOps.onRemove(integration)}>
+            Delete...
+          </MenuItem>
+        </MenuButton>
+      )}
+      <IntegrationOperationsE
+        operation={integrationOps.type}
+        integration={integrationOps.item as EditableIntegration}
+        close={integrationOps.clear}
+        remove={integrationOps.removeIntegration}
+        edit={integrationOps.editIntegration}
+      />
     </Flex>
   );
 }
