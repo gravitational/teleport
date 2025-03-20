@@ -214,6 +214,12 @@ type webSuiteConfig struct {
 
 	// databaseREPLGetter allows setting custom database REPLs.
 	databaseREPLGetter dbrepl.REPLRegistry
+
+	// alpnHandler allows setting custom alpnHandler.
+	alpnHandler ConnectionHandler
+
+	// trustXForwardedFor enables NewXForwardedForMiddleware.
+	trustXForwardedFor bool
 }
 
 func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
@@ -523,6 +529,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		},
 		IntegrationAppHandler: &mockIntegrationAppHandler{},
 		DatabaseREPLRegistry:  cfg.databaseREPLGetter,
+		ALPNHandler:           cfg.alpnHandler,
 	}
 
 	if handlerConfig.HealthCheckAppServer == nil {
@@ -532,7 +539,12 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	handler, err := NewHandler(handlerConfig, SetClock(s.clock))
 	require.NoError(t, err)
 
-	s.webServer = httptest.NewUnstartedServer(handler)
+	var httpTestHandler http.Handler = handler
+	if cfg.trustXForwardedFor {
+		httpTestHandler = NewXForwardedForMiddleware(httpTestHandler)
+	}
+
+	s.webServer = httptest.NewUnstartedServer(httpTestHandler)
 	s.webHandler = handler
 	s.webServer.StartTLS()
 	err = s.proxy.Start()
