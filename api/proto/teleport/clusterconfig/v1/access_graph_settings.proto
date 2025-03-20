@@ -38,6 +38,20 @@ message AccessGraphSettings {
 message AccessGraphSettingsSpec {
   // secrets_scan_config is used to configure the parameters for the secrets scanning functionality.
   AccessGraphSecretsScanConfig secrets_scan_config = 1;
+  // demo_mode is used to determine if some features should be available for use in a demo capacity
+  AccessGraphDemoMode demo_mode = 2;
+  // initial_sync_complete is true if the initial sendAllTeleportResources has completed
+  bool initial_sync_complete = 3;
+}
+
+// AccessGraphDemoMode is used to determine if some features should be available for use in a demo capacity
+enum AccessGraphDemoMode {
+  // ACCESS_GRAPH_DEMO_MODE_UNSPECIFIED is an unknown demo mode configuration.
+  ACCESS_GRAPH_DEMO_MODE_UNSPECIFIED = 0;
+  // ACCESS_GRAPH_DEMO_MODE_DISABLED is a disabled demo mode configuration.
+  ACCESS_GRAPH_DEMO_MODE_DISABLED = 1;
+  // ACCESS_GRAPH_DEMO_MODE_ENABLED is an enabled demo mode configuration.
+  ACCESS_GRAPH_DEMO_MODE_ENABLED = 2;
 }
 
 // AccessGraphSecretsScanConfig is used to configure the parameters for the secrets scanning functionality.

@@ -19,12 +19,13 @@
 import { useTheme } from 'styled-components';
 
 import { Box, Flex } from 'design';
-import { ButtonSecondary } from 'design/Button';
-import { ChevronLeft, ChevronRight } from 'design/Icon';
+import { ButtonPrimary, ButtonSecondary } from 'design/Button';
+import { ChevronLeft, ChevronRight, RocketLaunch } from 'design/Icon';
 import Image from 'design/Image';
 import { StepComponentProps, StepSlider } from 'design/StepSlider';
 import { H1, H3, P, P3 } from 'design/Text/Text';
 import type { Theme } from 'design/theme';
+import { Attempt } from 'shared/hooks/useAsync';
 
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import cfg from 'teleport/config';
@@ -45,8 +46,12 @@ const promoFlows = {
 
 export function PolicyPlaceholder({
   currentFlow,
+  enableTeleportPolicy,
+  enableTeleportPolicyAttempt,
 }: {
   currentFlow: 'creating' | 'updating';
+  enableTeleportPolicy: () => void;
+  enableTeleportPolicyAttempt: Attempt<void>;
 }) {
   const theme = useTheme();
   return (
@@ -96,6 +101,20 @@ export function PolicyPlaceholder({
           />
         </Box>
         <StepSlider wrapping flows={promoFlows} currFlow={currentFlow} />
+      </Flex>
+      <Flex justifyContent="center">
+        <ButtonPrimary
+          size="large"
+          mt={3}
+          onClick={enableTeleportPolicy}
+          block
+          disabled={enableTeleportPolicyAttempt.status === 'processing'}
+        >
+          <RocketLaunch size={20} mr={2} />
+          {enableTeleportPolicyAttempt.status === 'processing'
+            ? 'Creating graph...'
+            : 'Preview Teleport Policy'}
+        </ButtonPrimary>
       </Flex>
     </Box>
   );

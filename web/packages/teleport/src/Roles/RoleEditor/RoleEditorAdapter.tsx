@@ -16,15 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTheme } from 'styled-components';
 
 import { Danger } from 'design/Alert';
+import { ButtonPrimary } from 'design/Button';
 import Flex from 'design/Flex';
 import { Indicator } from 'design/Indicator';
 import { useAsync } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
+import { accessGraphService } from 'e-teleport/services/accessgraph';
 import { State as ResourcesState } from 'teleport/components/useResources';
 import { Role, RoleWithYaml } from 'teleport/services/resources';
 import { yamlService } from 'teleport/services/yaml';
@@ -49,6 +51,18 @@ export function RoleEditorAdapter({
   onSave: (role: Partial<RoleWithYaml>) => Promise<void>;
   onCancel: () => void;
 } & RolesProps) {
+  const [tenantAdded, setTenantAdded] = useState(false);
+  const [addTentantAttempt, addTenant] = useAsync(async () => {
+    return new Promise<void>(resolve => {
+      setTimeout(() => {
+        setTenantAdded(true);
+        resolve();
+      }, 2000);
+    });
+  });
+  const handleAddTenant = () => {
+    addTenant();
+  };
   const theme = useTheme();
   const [convertAttempt, convertToRole] = useAsync(
     async (yaml: string): Promise<RoleWithYaml | null> => {
@@ -76,6 +90,9 @@ export function RoleEditorAdapter({
 
   return (
     <Flex flex="1">
+      <ButtonPrimary onClick={() => accessGraphService.enableDemoMode()}>
+        CLICK ME
+      </ButtonPrimary>
       <Flex
         flexDirection="column"
         borderLeft={1}
@@ -112,11 +129,13 @@ export function RoleEditorAdapter({
           />
         )}
       </Flex>
-      {roleDiffProps ? (
+      {roleDiffProps && tenantAdded ? (
         <Flex flex="1">{roleDiffProps.roleDiffElement}</Flex>
       ) : (
         <Flex flex="1" alignItems="center" justifyContent="center" m={3}>
           <PolicyPlaceholder
+            enableTeleportPolicy={handleAddTenant}
+            enableTeleportPolicyAttempt={addTentantAttempt}
             currentFlow={
               resources.status === 'creating' ? 'creating' : 'updating'
             }
