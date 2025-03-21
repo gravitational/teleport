@@ -141,6 +141,8 @@ type record struct {
 	Value      []byte `firestore:"value,omitempty"`
 	RevisionV2 string `firestore:"revision,omitempty"`
 	RevisionV1 string `firestore:"-"`
+
+	snapShot *firestore.DocumentSnapshot `firestore:"-"`
 }
 
 func (r *record) updates() []firestore.Update {
@@ -223,6 +225,7 @@ func newRecordFromDoc(doc *firestore.DocumentSnapshot) (*record, error) {
 			Timestamp:  br.Timestamp,
 			Expires:    br.Expires,
 			RevisionV2: br.RevisionV2,
+			snapShot:   doc,
 		}
 	default:
 		if err := doc.DataTo(&r); err != nil {
@@ -238,6 +241,7 @@ func newRecordFromDoc(doc *firestore.DocumentSnapshot) (*record, error) {
 				Value:     []byte(rl.Value),
 				Timestamp: rl.Timestamp,
 				Expires:   rl.Expires,
+				snapShot:  doc,
 			}
 		}
 	}
@@ -572,24 +576,18 @@ func (b *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 			}
 		}()
 
-		for docSnap, err := range b.documentSnapshots(ctx, params.StartKey.String(), params.EndKey.String(), limit, sort) {
-			if err != nil {
-				yield(backend.Item{}, trace.Wrap(err))
-				return
-			}
-
-			r, err := newRecordFromDoc(docSnap)
+		for r, err := range b.mergedRecords(ctx, params.StartKey.String(), params.EndKey.String(), limit, sort) {
 			if err != nil {
 				yield(backend.Item{}, trace.Wrap(err))
 				return
 			}
 
 			if r.isExpired(b.clock.Now()) {
-				if _, err := docSnap.Ref.Delete(ctx, firestore.LastUpdateTime(docSnap.UpdateTime)); err != nil && status.Code(err) == codes.FailedPrecondition {
+				if _, err := r.snapShot.Ref.Delete(ctx, firestore.LastUpdateTime(r.snapShot.UpdateTime)); err != nil && status.Code(err) == codes.FailedPrecondition {
 					// If the document has been updated, then attempt one additional get to see if the
 					// resource was updated and is no longer expired.
 					docSnap, err := b.svc.Collection(b.CollectionName).
-						Doc(docSnap.Ref.ID).
+						Doc(r.snapShot.Ref.ID).
 						Get(ctx)
 					if err != nil {
 						yield(backend.Item{}, trace.Wrap(err))
@@ -620,47 +618,37 @@ func (b *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 	}
 }
 
-// documentSnapshots returns an iterator that aggregates all items in the collection
+// mergedRecords returns an iterator that aggregates all items in the collection
 // in the desired order. This is required because over the years the key has been
 // stored in three formats. In order to iterate over all keys in the collection in the
 // correct order, documents with keys of all formats need to be considered.
 //
 // TODO(tross|tigrato): DELETE IN V19.0.0 with the background migration
-func (b *Backend) documentSnapshots(ctx context.Context, startKey, endKey string, limit int, sort firestore.Direction) iter.Seq2[*firestore.DocumentSnapshot, error] {
-	return func(yield func(*firestore.DocumentSnapshot, error) bool) {
-		snaps := snapshots(b.svc.Collection(b.CollectionName).
+func (b *Backend) mergedRecords(ctx context.Context, startKey, endKey string, limit int, sort firestore.Direction) iter.Seq2[*record, error] {
+	return func(yield func(*record, error) bool) {
+		snaps := records(b.svc.Collection(b.CollectionName).
 			Where(keyDocProperty, ">=", []byte(startKey)).
 			Where(keyDocProperty, "<=", []byte(endKey)).
 			Limit(limit).
 			OrderBy(keyDocProperty, sort).
 			Documents(ctx))
 
-		legacySnaps := snapshots(b.svc.Collection(b.CollectionName).
+		legacySnaps := records(b.svc.Collection(b.CollectionName).
 			Where(keyDocProperty, ">=", startKey).
 			Where(keyDocProperty, "<=", endKey).
 			Limit(limit).
 			OrderBy(keyDocProperty, sort).
 			Documents(ctx))
 
-		brokenSnaps := snapshots(b.svc.Collection(b.CollectionName).
+		brokenSnaps := records(b.svc.Collection(b.CollectionName).
 			Where(keyDocProperty, ">=", brokenKey(startKey)).
 			Where(keyDocProperty, "<=", brokenKey(endKey)).
 			Limit(limit).
 			OrderBy(keyDocProperty, sort).
 			Documents(ctx))
 
-		less := func(a, b *firestore.DocumentSnapshot) bool {
-			ar, errA := newRecordFromDoc(a)
-			if errA != nil {
-				return false
-			}
-
-			br, errB := newRecordFromDoc(b)
-			if errB != nil {
-				return true
-			}
-
-			return bytes.Compare(ar.Key, br.Key) < 0
+		less := func(a, b *record) bool {
+			return bytes.Compare(a.Key, b.Key) < 0
 		}
 
 		for snap, err := range stream.MergeStreams(stream.MergeStreams(brokenSnaps, legacySnaps, less), snaps, less) {
@@ -671,8 +659,8 @@ func (b *Backend) documentSnapshots(ctx context.Context, startKey, endKey string
 	}
 }
 
-func snapshots(iter *firestore.DocumentIterator) iter.Seq2[*firestore.DocumentSnapshot, error] {
-	return func(yield func(*firestore.DocumentSnapshot, error) bool) {
+func records(iter *firestore.DocumentIterator) iter.Seq2[*record, error] {
+	return func(yield func(*record, error) bool) {
 		defer iter.Stop()
 
 		for {
@@ -681,7 +669,13 @@ func snapshots(iter *firestore.DocumentIterator) iter.Seq2[*firestore.DocumentSn
 				return
 			}
 
-			if !yield(snapshot, err) || err != nil {
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			r, err := newRecordFromDoc(snapshot)
+			if !yield(r, err) || err != nil {
 				return
 			}
 		}
