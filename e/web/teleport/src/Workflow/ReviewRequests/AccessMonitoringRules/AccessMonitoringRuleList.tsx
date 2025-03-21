@@ -9,6 +9,7 @@ import { capitalizeFirstLetter } from 'shared/utils/text';
 
 import {
   AccessMonitoringRule,
+  AccessMonitoringRuleType,
   AccessMonitoringRuleWithYaml,
 } from 'e-teleport/services/accessmonitoringrule/types';
 import {
@@ -22,6 +23,7 @@ import {
 
 type RowBase = {
   name: string;
+  types: string[];
   integration: string;
   recipients: string[];
 };
@@ -36,7 +38,7 @@ type TableRowFallback = RowBase & {
   item?: never;
 };
 
-export function NotificationRoutingRuleList({
+export function AccessMonitoringRuleList({
   attempt,
   fetch,
   rules,
@@ -62,12 +64,21 @@ export function NotificationRoutingRuleList({
   const badRequest = attempt.statusCode === 400 || attempt.statusCode === 403;
 
   const pluginsForTable = makePluginsForTable(plugins);
-  const rulesForTable: TableRowRule[] = rules.map(r => ({
-    name: r.object.metadata.name,
-    integration: r.object.spec.notification?.name,
-    recipients: r.object.spec.notification?.recipients,
-    item: r,
-  }));
+  const rulesForTable: TableRowRule[] = rules.map(r => {
+    let types: string[] = [];
+
+    if (r.object.spec.notification) {
+      types.push(AccessMonitoringRuleType.Notification);
+    }
+
+    return {
+      name: r.object.metadata.name,
+      types,
+      integration: r.object.spec.notification?.name,
+      recipients: r.object.spec.notification?.recipients,
+      item: r,
+    };
+  });
 
   return (
     <>
@@ -94,6 +105,11 @@ export function NotificationRoutingRuleList({
             render: ({ name, plugin }) => (
               <StyledCell $plugin={!!plugin}>{name}</StyledCell>
             ),
+          },
+          {
+            key: 'types',
+            headerText: 'Type',
+            render: ({ types, plugin }) => renderLabelCell(types, !!plugin),
           },
           {
             key: 'integration',
@@ -124,7 +140,7 @@ export function NotificationRoutingRuleList({
             },
           },
         ]}
-        emptyText="No Notification Routing Rules Found"
+        emptyText="No Access Monitoring Rules Found"
         isSearchable
       />
       <div ref={setTrigger} />
@@ -135,12 +151,14 @@ export function NotificationRoutingRuleList({
 function makePluginsForTable(plugins: Plugin[]): TableRowFallback[] {
   return plugins.map(plugin => {
     const name = `Fallback ${capitalizeFirstLetter(plugin.kind)} Rule`;
+    const types = [AccessMonitoringRuleType.Notification];
     const integration = plugin.name;
     let recipients: string[] = [];
 
     if (!plugin.spec) {
       return {
         name,
+        types,
         integration,
         recipients: ['unknown'],
         plugin,
@@ -184,6 +202,7 @@ function makePluginsForTable(plugins: Plugin[]): TableRowFallback[] {
 
     return {
       name,
+      types,
       integration,
       recipients,
       plugin,

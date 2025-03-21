@@ -21,10 +21,10 @@ import { Plugin } from 'teleport/services/integrations';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import useTeleport from 'teleport/useTeleport';
 
-import { NotificationRoutingRuleList } from './NotificationRoutingRuleList';
+import { AccessMonitoringRuleList } from './AccessMonitoringRuleList';
 import { RuleEditor } from './RuleEditor/RuleEditor';
 
-export const NotificationRoutingRulesDialog = forwardRef<
+export const AccessMonitoringRulesDialog = forwardRef<
   HTMLDivElement,
   {
     onClose(): void;
@@ -177,7 +177,7 @@ export const NotificationRoutingRulesDialog = forwardRef<
                   <Cross size="medium" />
                 </ButtonIcon>
               </HoverTooltip>
-              <Text typography="h1">Notification Rules</Text>
+              <Text typography="h1">Access Monitoring Rules</Text>
             </Flex>
             {fetchPluginsAttempt.status === 'success' && (
               <HoverTooltip
@@ -208,7 +208,7 @@ export const NotificationRoutingRulesDialog = forwardRef<
                     }
                   }}
                 >
-                  Create a Notification Rule
+                  Create Access Monitoring Rule
                 </Button>
               </HoverTooltip>
             )}
@@ -224,7 +224,7 @@ export const NotificationRoutingRulesDialog = forwardRef<
             </Alert>
           )}
           {fetchPluginsAttempt.status === 'success' && (
-            <NotificationRoutingRuleList
+            <AccessMonitoringRuleList
               attempt={fetchRulesAttempt}
               fetch={fetchRules}
               rules={rules}

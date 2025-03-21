@@ -7,7 +7,7 @@ import cfg from 'e-teleport/config';
 import { ContextProvider } from 'teleport';
 import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
 
-import { NotificationRoutingRulesDialog } from './NotificationRoutingRulesDialog';
+import { AccessMonitoringRulesDialog } from './AccessMonitoringRulesDialog';
 
 const defaultIsCloud = cfg.oss.isCloud;
 
@@ -16,7 +16,7 @@ const accessMonitoringRuleListWithoutQuery = withoutQuery(
 );
 
 export default {
-  title: 'TeleportE/AccessRequests/NotificationRoutingRules',
+  title: 'TeleportE/AccessRequests/AccessMonitoringRules',
   decorators: [
     Story => {
       useEffect(() => {
@@ -448,7 +448,7 @@ const Component = ({ noAccess = false }: { noAccess?: boolean }) => {
   return (
     <MemoryRouter initialEntries={[{ pathname: '' }]}>
       <ContextProvider ctx={ctx}>
-        <NotificationRoutingRulesDialog
+        <AccessMonitoringRulesDialog
           onClose={() => null}
           transitionState="entered"
         />

@@ -16,7 +16,7 @@ import {
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import useTeleport from 'teleport/useTeleport';
 
-import { NotificationRoutingRulesDialog } from './NotificationRoutingRules/NotificationRoutingRulesDialog';
+import { AccessMonitoringRulesDialog } from './AccessMonitoringRules/AccessMonitoringRulesDialog';
 import RequestList from './RequestList/RequestList';
 import { RequestView } from './RequestView/RequestView';
 
@@ -53,7 +53,7 @@ export default function Workflow() {
       onClick={() => setShowRoutingRuleDialog(true)}
       disabled={!hasReadRulesAccess}
     >
-      View Notification Routing Rules
+      View Access Monitoring Rules
     </ButtonBorder>
   );
   const transitionRef = useRef<HTMLDivElement>();
@@ -78,7 +78,7 @@ export default function Workflow() {
               <HoverTooltip
                 position="bottom"
                 tipContent={
-                  'You do not have access to read/list Notification Routing Rules'
+                  'You do not have access to read/list Access Monitoring Rules'
                 }
               >
                 {ViewRulesButton}
@@ -96,7 +96,7 @@ export default function Workflow() {
           unmountOnExit
         >
           {transitionState => (
-            <NotificationRoutingRulesDialog
+            <AccessMonitoringRulesDialog
               ref={transitionRef}
               onClose={() => setShowRoutingRuleDialog(false)}
               transitionState={transitionState}

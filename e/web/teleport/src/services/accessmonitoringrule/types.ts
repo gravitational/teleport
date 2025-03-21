@@ -3,6 +3,12 @@ export enum AccessMonitoringRuleSubject {
   AccessRequest = 'access_request',
 }
 
+// Defines the access monitoring rule types.
+export enum AccessMonitoringRuleType {
+  Notification = 'notification',
+  Approval = 'approval',
+}
+
 export interface AccessMonitoringRuleFilter {
   limit?: number;
   startKey?: string;

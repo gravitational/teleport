@@ -11,11 +11,11 @@ import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
 import { Plugin } from 'teleport/services/integrations';
 import { yamlService } from 'teleport/services/yaml';
 
-import { NotificationRoutingRulesDialog } from './NotificationRoutingRulesDialog';
+import { AccessMonitoringRulesDialog } from './AccessMonitoringRulesDialog';
 
 const mio = mockIntersectionObserver();
 
-describe('NotificationRoutingRulesDialog', () => {
+describe('AccessMonitoringRulesDialog', () => {
   beforeEach(() => {
     jest.spyOn(pluginsService, 'fetchPlugins').mockResolvedValue(plugins);
 
@@ -88,7 +88,7 @@ describe('NotificationRoutingRulesDialog', () => {
     await screen.findAllByText(/plugin-name/i);
 
     await userEvent.click(
-      screen.getByRole('button', { name: /create a notification/i })
+      screen.getByRole('button', { name: /create access monitoring rule/i })
     );
 
     expect(screen.getByText(/create a new/i)).toBeInTheDocument();
@@ -130,7 +130,7 @@ describe('NotificationRoutingRulesDialog', () => {
     expect(screen.getAllByRole('button', { name: /view/i })).toHaveLength(2);
 
     await userEvent.click(
-      screen.getByRole('button', { name: /create a notification/i })
+      screen.getByRole('button', { name: /create access monitoring rule/i })
     );
     await userEvent.click(screen.getByRole('tab', { name: /yaml/i }));
     await userEvent.click(screen.getByRole('button', { name: /create rule/i }));
@@ -300,7 +300,7 @@ const Component = ({ noAccess = false }: { noAccess?: boolean }) => {
   return (
     <MemoryRouter initialEntries={[{ pathname: '' }]}>
       <ContextProvider ctx={ctx}>
-        <NotificationRoutingRulesDialog
+        <AccessMonitoringRulesDialog
           onClose={() => null}
           transitionState="entered"
         />
