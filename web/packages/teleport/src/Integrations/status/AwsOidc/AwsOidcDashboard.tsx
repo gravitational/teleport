@@ -70,21 +70,22 @@ export function AwsOidcDashboard() {
             />
           </>
         )}
-
-        <H2 my={3}>Auto-Enrollment</H2>
         <Flex gap={3}>
           <StatCard
             name={integration.name}
+            description="Auto-enrolled Amazon EC2 instances matching configured labels."
             resource={AwsResource.ec2}
             summary={awsec2}
           />
           <StatCard
             name={integration.name}
+            description="Auto-enrolled Amazon EKS clusters"
             resource={AwsResource.eks}
             summary={awseks}
           />
           <StatCard
             name={integration.name}
+            description="Auto-enrolled Amazon RDS databases"
             resource={AwsResource.rds}
             summary={awsrds}
           />

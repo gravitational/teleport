@@ -45,9 +45,12 @@ export function AwsOidcTitle({
           <ArrowLeft size="medium" />
         </ButtonIcon>
       </HoverTooltip>
-      <Text bold fontSize={6} mx={2}>
-        {content.content}
-      </Text>
+      <Flex flexDirection="column" mx={2}>
+        <Text bold fontSize={6}>
+          {content.content}
+        </Text>
+        {integration.spec?.roleArn}
+      </Flex>
       <Label kind={labelKind} aria-label="status" px={3}>
         {status}
       </Label>
