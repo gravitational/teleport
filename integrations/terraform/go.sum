@@ -306,6 +306,8 @@ github.com/aws/aws-sdk-go-v2/service/sts v1.33.16 h1:BHEK2Q/7CMRMCb3nySi/w8UbIcP
 github.com/aws/aws-sdk-go-v2/service/sts v1.33.16/go.mod h1:cQnB8CUnxbMU82JvlqjKR2HBOm3fe9pWorWBza6MBJ4=
 github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v1.1.0 h1:EJsHUYgFBV7/N1YtL73lsfZODAOU+CnNSZfEAlqqQaA=
 github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v1.1.0/go.mod h1:AxKuXHc0zv2yYaeueUG7R3ONbcnQIuDj0bkdFmPVRzU=
+github.com/aws/rolesanywhere-credential-helper v1.2.0 h1:eLqJvSznH8nJk48dwFc0raWOpbTGgBeNYH3Q8UQFVx4=
+github.com/aws/rolesanywhere-credential-helper v1.2.0/go.mod h1:YRxmRrAaqbVVXPNH1gHT76nWaMGvpAziHAHw8UwKrpU=
 github.com/aws/smithy-go v1.22.3 h1:Z//5NuZCSW6R4PhQ93hShNbyBbn8BWCmCVCt+Q8Io5k=
 github.com/aws/smithy-go v1.22.3/go.mod h1:t1ufH5HMublsJYulve2RKmHDC15xu1f26kHCp/HgceI=
 github.com/aws/smithy-go/tracing/smithyoteltracing v1.0.4 h1:Gx4ipHtKfaABSHAVo4Zjo2E4ClKzYqZ2NrPO0gy6qvY=
@@ -1158,6 +1160,8 @@ github.com/spf13/cobra v1.9.1/go.mod h1:nDyEzZ8ogv936Cinf6g1RU9MRY64Ir93oCnqb9wx
 github.com/spf13/pflag v1.0.2/go.mod h1:DYY7MBk1bdzusC3SYhjObp+wFpr4gzcvqqNjLnInEg4=
 github.com/spf13/pflag v1.0.6 h1:jFzHGLGAlb3ruxLB8MhbI6A8+AQX/2eW4qeyNZXNp2o=
 github.com/spf13/pflag v1.0.6/go.mod h1:McXfInJRrz4CZXVZOBLb0bTZqETkiAhM9Iw0y3An2Bg=
+github.com/spiffe/aws-spiffe-workload-helper v0.0.1-rc.8 h1:KFHLQuNqUG4YZXo+QwMurqFxU5qWchFDCxYbl+uJz9w=
+github.com/spiffe/aws-spiffe-workload-helper v0.0.1-rc.8/go.mod h1:xhhvkBenvvbuEEw9YR2HwGzUPv0sQiHd3wv8avhra+U=
 github.com/spiffe/go-spiffe/v2 v2.5.0 h1:N2I01KCUkv1FAjZXJMwh95KK1ZIQLYbPfhaxw8WS0hE=
 github.com/spiffe/go-spiffe/v2 v2.5.0/go.mod h1:P+NxobPc6wXhVtINNtFjNWGBTreew1GBUCwT2wPmb7g=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
