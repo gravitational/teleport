@@ -94,7 +94,7 @@ export function DiscoveryConfigSsm() {
         // This can happen if creating discovery config attempt failed
         // and the user retries.
         if (!joinTokenRef.current) {
-          joinTokenRef.current = await joinTokenService.fetchJoinToken({
+          joinTokenRef.current = await joinTokenService.fetchJoinTokenV2({
             roles: ['Node'],
             method: 'iam',
             rules: [{ awsAccountId }],
@@ -174,7 +174,7 @@ export function DiscoveryConfigSsm() {
   }
 
   return (
-    <Box maxWidth="1000px">
+    <>
       <Header>Setup Discovery Config for Teleport Discovery Service</Header>
       {cfg.isCloud ? (
         <Text>
@@ -188,9 +188,6 @@ export function DiscoveryConfigSsm() {
         </Text>
       )}
       {cfg.isCloud && <SingleEc2InstanceInstallation />}
-      {attempt.status === 'error' && (
-        <Danger mt={3}>{attempt.statusText}</Danger>
-      )}
       <StyledBox mt={4}>
         <header>
           <H3>Step 1</H3>
@@ -341,12 +338,16 @@ export function DiscoveryConfigSsm() {
         <DiscoveryConfigCreatedDialog toNextStep={nextStep} />
       )}
 
+      {attempt.status === 'error' && (
+        <Danger mt={3}>{attempt.statusText}</Danger>
+      )}
+
       <ActionButtons
         onProceed={createJoinTokenAndDiscoveryConfig}
         onPrev={prevStep}
         disableProceed={attempt.status === 'processing' || !scriptUrl}
       />
-    </Box>
+    </>
   );
 }
 
