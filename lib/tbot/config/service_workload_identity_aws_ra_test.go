@@ -69,6 +69,22 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 					Region:         "us-east-1",
 				}
 			},
+			want: &WorkloadIdentityAWSRAService{
+				Selector: WorkloadIdentitySelector{
+					Name: "my-workload-identity",
+				},
+				Destination: &DestinationDirectory{
+					Path:     "/opt/machine-id",
+					ACLs:     botfs.ACLOff,
+					Symlinks: botfs.SymlinksInsecure,
+				},
+				SessionDuration:        defaultAWSSessionDuration,
+				SessionRenewalInterval: defaultAWSSessionRenewalInterval,
+				RoleARN:                "arn:aws:iam::123456789012:role/example-role",
+				TrustAnchorARN:         "arn:aws:rolesanywhere:us-east-1:123456789012:trust-anchor/0000000-0000-0000-0000-000000000000",
+				ProfileARN:             "arn:aws:rolesanywhere:us-east-1:123456789012:profile/0000000-0000-0000-0000-00000000000",
+				Region:                 "us-east-1",
+			},
 		},
 		{
 			name: "valid with labels",
@@ -84,10 +100,12 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
 					},
-					RoleARN:        "arn:aws:iam::123456789012:role/example-role",
-					TrustAnchorARN: "arn:aws:rolesanywhere:us-east-1:123456789012:trust-anchor/0000000-0000-0000-0000-000000000000",
-					ProfileARN:     "arn:aws:rolesanywhere:us-east-1:123456789012:profile/0000000-0000-0000-0000-00000000000",
-					Region:         "us-east-1",
+					SessionDuration:        1 * time.Hour,
+					SessionRenewalInterval: 30 * time.Minute,
+					RoleARN:                "arn:aws:iam::123456789012:role/example-role",
+					TrustAnchorARN:         "arn:aws:rolesanywhere:us-east-1:123456789012:trust-anchor/0000000-0000-0000-0000-000000000000",
+					ProfileARN:             "arn:aws:rolesanywhere:us-east-1:123456789012:profile/0000000-0000-0000-0000-00000000000",
+					Region:                 "us-east-1",
 				}
 			},
 		},

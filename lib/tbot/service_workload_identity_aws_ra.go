@@ -100,7 +100,7 @@ func (s *WorkloadIdentityAWSRAService) exchangeSVID(
 ) (*vendoredaws.CredentialProcessOutput, error) {
 	pkcs8, err := x509.MarshalPKCS8PrivateKey(privateKey)
 	if err != nil {
-		return nil, trace.Wrap(err, "marshalling private key")
+		return nil, trace.Wrap(err, "marshaling private key")
 	}
 	svid, err := x509svid.ParseRaw(x509Cred.GetX509Svid().Cert, pkcs8)
 	if err != nil {

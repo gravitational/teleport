@@ -90,6 +90,7 @@ func (o *WorkloadIdentityAWSRAService) CheckAndSetDefaults() error {
 	if err := o.Selector.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err, "validating selector")
 	}
+
 	switch {
 	case o.RoleARN == "":
 		return trace.BadParameter("role_arn: must be set")
@@ -97,16 +98,7 @@ func (o *WorkloadIdentityAWSRAService) CheckAndSetDefaults() error {
 		return trace.BadParameter("profile_arn: must be set")
 	case o.TrustAnchorARN == "":
 		return trace.BadParameter("trust_anchor_arn: must be set")
-	case o.SessionDuration == 0:
-		o.SessionDuration = defaultAWSSessionDuration
-	case o.SessionDuration > maxAWSSessionDuration:
-		return trace.BadParameter("session_duration: must be less than or equal to 12 hours")
-	case o.SessionRenewalInterval == 0:
-		o.SessionRenewalInterval = defaultAWSSessionRenewalInterval
-	case o.SessionRenewalInterval >= o.SessionDuration:
-		return trace.BadParameter("session_renewal_interval: must be less than session_duration")
 	}
-
 	if _, err := arn.Parse(o.RoleARN); err != nil {
 		return trace.Wrap(err, "parsing role_arn")
 	}
@@ -115,6 +107,19 @@ func (o *WorkloadIdentityAWSRAService) CheckAndSetDefaults() error {
 	}
 	if _, err := arn.Parse(o.TrustAnchorARN); err != nil {
 		return trace.Wrap(err, "parsing trust_anchor_arn")
+	}
+
+	if o.SessionDuration == 0 {
+		o.SessionDuration = defaultAWSSessionDuration
+	}
+	if o.SessionDuration > maxAWSSessionDuration {
+		return trace.BadParameter("session_duration: must be less than or equal to 12 hours")
+	}
+	if o.SessionRenewalInterval == 0 {
+		o.SessionRenewalInterval = defaultAWSSessionRenewalInterval
+	}
+	if o.SessionRenewalInterval >= o.SessionDuration {
+		return trace.BadParameter("session_renewal_interval: must be less than session_duration")
 	}
 
 	return nil
