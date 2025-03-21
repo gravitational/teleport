@@ -49,5 +49,15 @@ type WorkloadIdentityX509Overrides interface {
 }
 
 type WorkloadIdentityX509CAOverrideGetter interface {
+	// GetWorkloadIdentityX509CAOverride will return an alternate
+	// [tlsca.CertAuthority] to use for issuing workload identity X.509
+	// credentials, as well as any necessary certificates for the chain up to
+	// the actual root of trust. The name of the override can be blank, in which
+	// case the "default" override will be used if it exists, or the CA will be
+	// returned as is (with no chain). The "none" override is a special case,
+	// signifying that no override should be used. Any other name (including
+	// "default") will require an override with that name to be in storage, or
+	// an error will be returned. An error will likewise be returned if the
+	// override does not specify an issuer to replace the one in the CA.
 	GetWorkloadIdentityX509CAOverride(ctx context.Context, name string, ca *tlsca.CertAuthority) (*tlsca.CertAuthority, [][]byte, error)
 }
