@@ -17,7 +17,6 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import styled from 'styled-components';
 
 import {
   Box,
@@ -31,6 +30,7 @@ import {
   Text,
 } from 'design';
 import * as Alerts from 'design/Alert';
+import { Divider } from 'design/Divider';
 import { StepComponentProps, StepSlider } from 'design/StepSlider';
 import { P } from 'design/Text/Text';
 import FieldInput from 'shared/components/FieldInput';
@@ -424,31 +424,6 @@ const LocalLogin = ({
     </Box>
   );
 };
-
-const Divider = () => (
-  <Flex
-    alignItems="center"
-    justifyContent="center"
-    flexDirection="column"
-    borderBottom={1}
-    borderColor="text.muted"
-    my={3}
-  >
-    <StyledOr>Or</StyledOr>
-  </Flex>
-);
-
-const StyledOr = styled.div`
-  background: ${props => props.theme.colors.levels.surface};
-  display: flex;
-  align-items: center;
-  font-size: 10px;
-  height: 32px;
-  width: 32px;
-  justify-content: center;
-  position: absolute;
-  text-transform: uppercase;
-`;
 
 const loginViews = { default: [LoginOptions, LocalLogin] };
 
