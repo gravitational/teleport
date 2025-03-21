@@ -38,6 +38,7 @@ import (
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -49,13 +50,17 @@ func TestMain(m *testing.M) {
 
 func TestConfigWildcardBaseDN(t *testing.T) {
 	cfg := &WindowsServiceConfig{
-		DiscoveryBaseDN: "*",
+		Discovery: []servicecfg.LDAPDiscoveryConfig{
+			{
+				BaseDN: "*",
+			},
+		},
 		LDAPConfig: windows.LDAPConfig{
 			Domain: "test.goteleport.com",
 		},
 	}
 	require.NoError(t, cfg.checkAndSetDiscoveryDefaults())
-	require.Equal(t, "DC=test,DC=goteleport,DC=com", cfg.DiscoveryBaseDN)
+	require.Equal(t, "DC=test,DC=goteleport,DC=com", cfg.Discovery[0].BaseDN)
 }
 
 func TestConfigDesktopDiscovery(t *testing.T) {
@@ -95,8 +100,12 @@ func TestConfigDesktopDiscovery(t *testing.T) {
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			cfg := &WindowsServiceConfig{
-				DiscoveryBaseDN:      test.baseDN,
-				DiscoveryLDAPFilters: test.filters,
+				Discovery: []servicecfg.LDAPDiscoveryConfig{
+					{
+						BaseDN:  test.baseDN,
+						Filters: test.filters,
+					},
+				},
 			}
 			test.assert(t, cfg.checkAndSetDiscoveryDefaults())
 		})

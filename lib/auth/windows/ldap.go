@@ -65,10 +65,10 @@ func (cfg LDAPConfig) Check() error {
 	return nil
 }
 
-// DomainDN returns the distinguished name for the domain
-func (cfg LDAPConfig) DomainDN() string {
+// DomainDN returns the distinguished name for an Active Directory Domain.
+func DomainDN(domain string) string {
 	var sb strings.Builder
-	parts := strings.Split(cfg.Domain, ".")
+	parts := strings.Split(domain, ".")
 	for _, p := range parts {
 		if sb.Len() > 0 {
 			sb.WriteString(",")
@@ -302,7 +302,7 @@ func CombineLDAPFilters(filters []string) string {
 }
 
 func crlContainerDN(config LDAPConfig, caType types.CertAuthType) string {
-	return fmt.Sprintf("CN=%s,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,%s", crlKeyName(caType), config.DomainDN())
+	return fmt.Sprintf("CN=%s,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,%s", crlKeyName(caType), DomainDN(config.Domain))
 }
 
 func crlDN(clusterName string, config LDAPConfig, caType types.CertAuthType) string {

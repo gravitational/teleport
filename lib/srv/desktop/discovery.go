@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
@@ -87,11 +88,11 @@ func (s *WindowsService) startDesktopDiscovery() error {
 	return nil
 }
 
-func (s *WindowsService) ldapSearchFilter() string {
+func (s *WindowsService) ldapSearchFilter(additionalFilters []string) string {
 	var filters []string
 	filters = append(filters, fmt.Sprintf("(%s=%s)", windows.AttrObjectClass, windows.ClassComputer))
 	filters = append(filters, fmt.Sprintf("(!(%s=%s))", windows.AttrObjectClass, windows.ClassGMSA))
-	filters = append(filters, s.cfg.DiscoveryLDAPFilters...)
+	filters = append(filters, additionalFilters...)
 
 	return windows.CombineLDAPFilters(filters)
 }
@@ -108,39 +109,41 @@ func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
 	}
 	s.mu.Unlock()
 
-	filter := s.ldapSearchFilter()
-	s.cfg.Logger.DebugContext(context.Background(), "searching for desktops", "filter", filter)
-
-	var attrs []string
-	attrs = append(attrs, ComputerAttributes...)
-	attrs = append(attrs, s.cfg.DiscoveryLDAPAttributeLabels...)
-
-	entries, err := s.lc.ReadWithFilter(s.cfg.DiscoveryBaseDN, filter, attrs)
-	if trace.IsConnectionProblem(err) {
-		// If the connection was broken, re-initialize the LDAP client so that it's
-		// ready for the next reconcile loop. Return the last known set of desktops
-		// in this case, so that the reconciler doesn't delete the desktops it already
-		// knows about.
-		s.cfg.Logger.InfoContext(context.Background(), "LDAP connection error when searching for desktops, reinitializing client")
-		if err := s.initializeLDAP(); err != nil {
-			s.cfg.Logger.ErrorContext(context.Background(), "failed to reinitialize LDAP client, will retry on next reconcile", "error", err)
-		}
-		return s.lastDiscoveryResults
-	} else if err != nil {
-		s.cfg.Logger.WarnContext(context.Background(), "could not discover Windows Desktops", "error", err)
-		return nil
-	}
-
-	s.cfg.Logger.DebugContext(context.Background(), "discovered Windows Desktops", "count", len(entries))
-
 	result := make(map[string]types.WindowsDesktop)
-	for _, entry := range entries {
-		desktop, err := s.ldapEntryToWindowsDesktop(s.closeCtx, entry, s.cfg.HostLabelsFn)
-		if err != nil {
-			s.cfg.Logger.WarnContext(s.closeCtx, "could not create Windows Desktop from LDAP entry", "error", err)
-			continue
+	for _, discoveryConfig := range s.cfg.Discovery {
+		filter := s.ldapSearchFilter(discoveryConfig.Filters)
+		s.cfg.Logger.DebugContext(context.Background(), "searching for desktops", "filter", filter)
+
+		var attrs []string
+		attrs = append(attrs, ComputerAttributes...)
+		attrs = append(attrs, discoveryConfig.LabelAttributes...)
+
+		entries, err := s.lc.ReadWithFilter(discoveryConfig.BaseDN, filter, attrs)
+		if trace.IsConnectionProblem(err) {
+			// If the connection was broken, re-initialize the LDAP client so that it's
+			// ready for the next reconcile loop. Return the last known set of desktops
+			// in this case, so that the reconciler doesn't delete the desktops it already
+			// knows about.
+			s.cfg.Logger.InfoContext(context.Background(), "LDAP connection error when searching for desktops, reinitializing client")
+			if err := s.initializeLDAP(); err != nil {
+				s.cfg.Logger.ErrorContext(context.Background(), "failed to reinitialize LDAP client, will retry on next reconcile", "error", err)
+			}
+			return s.lastDiscoveryResults
+		} else if err != nil {
+			s.cfg.Logger.WarnContext(context.Background(), "could not discover Windows Desktops", "error", err)
+			return nil
 		}
-		result[desktop.GetName()] = desktop
+
+		s.cfg.Logger.DebugContext(context.Background(), "discovered Windows Desktops", "count", len(entries))
+
+		for _, entry := range entries {
+			desktop, err := s.ldapEntryToWindowsDesktop(s.closeCtx, entry, s.cfg.HostLabelsFn, &discoveryConfig)
+			if err != nil {
+				s.cfg.Logger.WarnContext(s.closeCtx, "could not create Windows Desktop from LDAP entry", "error", err)
+				continue
+			}
+			result[desktop.GetName()] = desktop
+		}
 	}
 
 	// capture the result, which will be used on the next reconcile loop
@@ -161,7 +164,7 @@ func (s *WindowsService) deleteDesktop(ctx context.Context, d types.WindowsDeskt
 	return s.cfg.AuthClient.DeleteWindowsDesktop(ctx, d.GetHostID(), d.GetName())
 }
 
-func (s *WindowsService) applyLabelsFromLDAP(entry *ldap.Entry, labels map[string]string) {
+func (s *WindowsService) applyLabelsFromLDAP(entry *ldap.Entry, labels map[string]string, cfg *servicecfg.LDAPDiscoveryConfig) {
 	// apply common LDAP labels by default
 	labels[types.OriginLabel] = types.OriginDynamic
 	labels[types.DiscoveryLabelWindowsDNSHostName] = entry.GetAttributeValue(windows.AttrDNSHostName)
@@ -184,7 +187,7 @@ func (s *WindowsService) applyLabelsFromLDAP(entry *ldap.Entry, labels map[strin
 	}
 
 	// apply any custom labels per the discovery configuration
-	for _, attr := range s.cfg.DiscoveryLDAPAttributeLabels {
+	for _, attr := range cfg.LabelAttributes {
 		if v := entry.GetAttributeValue(attr); v != "" {
 			labels[types.DiscoveryLabelLDAPPrefix+attr] = v
 		}
@@ -258,6 +261,7 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(
 	ctx context.Context,
 	entry *ldap.Entry,
 	getHostLabels func(string) map[string]string,
+	cfg *servicecfg.LDAPDiscoveryConfig,
 ) (types.WindowsDesktop, error) {
 	hostname := entry.GetAttributeValue(windows.AttrDNSHostName)
 	if hostname == "" {
@@ -270,7 +274,7 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(
 	}
 	labels := getHostLabels(hostname)
 	labels[types.DiscoveryLabelWindowsDomain] = s.cfg.Domain
-	s.applyLabelsFromLDAP(entry, labels)
+	s.applyLabelsFromLDAP(entry, labels, cfg)
 
 	if os, ok := labels[types.DiscoveryLabelWindowsOS]; ok && strings.Contains(os, "linux") {
 		return nil, trace.BadParameter("LDAP entry looks like a Linux host")

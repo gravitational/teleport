@@ -55,7 +55,7 @@ type WindowsDesktopConfig struct {
 	KDCAddr string
 
 	// Discovery configures automatic desktop discovery via LDAP.
-	Discovery LDAPDiscoveryConfig
+	Discovery []LDAPDiscoveryConfig
 
 	// StaticHosts is an optional list of static Windows hosts to expose through this
 	// service.

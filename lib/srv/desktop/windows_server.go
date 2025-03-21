@@ -196,16 +196,8 @@ type WindowsServiceConfig struct {
 	// If empty LDAP address will be used.
 	// Used for NLA support when AD is true.
 	KDCAddr string
-	// DiscoveryBaseDN is the base DN for searching for Windows Desktops.
-	// Desktop discovery is disabled if this field is empty.
-	DiscoveryBaseDN string
-	// DiscoveryLDAPFilters are additional LDAP filters for searching for
-	// Windows Desktops. If multiple filters are specified, they are ANDed
-	// together into a single search.
-	DiscoveryLDAPFilters []string
-	// DiscoveryLDAPAttributeLabels are optional LDAP attributes to convert
-	// into Teleport labels.
-	DiscoveryLDAPAttributeLabels []string
+	// Discovery contains policies for configuring LDAP-based discovery.
+	Discovery []servicecfg.LDAPDiscoveryConfig
 	// Hostname of the Windows desktop service
 	Hostname string
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
@@ -229,18 +221,20 @@ type HeartbeatConfig struct {
 }
 
 func (cfg *WindowsServiceConfig) checkAndSetDiscoveryDefaults() error {
-	switch {
-	case cfg.DiscoveryBaseDN == types.Wildcard:
-		cfg.DiscoveryBaseDN = cfg.DomainDN()
-	case len(cfg.DiscoveryBaseDN) > 0:
-		if _, err := ldap.ParseDN(cfg.DiscoveryBaseDN); err != nil {
-			return trace.BadParameter("WindowsServiceConfig contains an invalid base_dn: %v", err)
+	for i := range cfg.Discovery {
+		switch {
+		case cfg.Discovery[i].BaseDN == types.Wildcard:
+			cfg.Discovery[i].BaseDN = windows.DomainDN(cfg.Domain)
+		case len(cfg.Discovery[i].BaseDN) > 0:
+			if _, err := ldap.ParseDN(cfg.Discovery[i].BaseDN); err != nil {
+				return trace.BadParameter("WindowsServiceConfig contains an invalid base_dn %q: %v", cfg.Discovery[i].BaseDN, err)
+			}
 		}
-	}
 
-	for _, filter := range cfg.DiscoveryLDAPFilters {
-		if _, err := ldap.CompileFilter(filter); err != nil {
-			return trace.BadParameter("WindowsServiceConfig contains an invalid LDAP filter %q: %v", filter, err)
+		for _, filter := range cfg.Discovery[i].Filters {
+			if _, err := ldap.CompileFilter(filter); err != nil {
+				return trace.BadParameter("WindowsServiceConfig contains an invalid LDAP filter %q: %v", filter, err)
+			}
 		}
 	}
 
@@ -416,7 +410,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if len(s.cfg.DiscoveryBaseDN) > 0 {
+	if len(s.cfg.Discovery) > 0 {
 		if err := s.startDesktopDiscovery(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -429,7 +423,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	// if LDAP-based discovery is not enabled, but we have configured LDAP
 	// then it's important that we periodically try to use the LDAP connection
 	// to detect connection closure
-	if s.ldapConfigured && len(s.cfg.DiscoveryBaseDN) == 0 {
+	if s.ldapConfigured && len(s.cfg.Discovery) == 0 {
 		s.startLDAPConnectionCheck(ctx)
 	}
 
@@ -465,7 +459,7 @@ func (s *WindowsService) startLDAPConnectionCheck(ctx context.Context) {
 
 				// If we have initialized the LDAP client, then try to use it to make sure we're still connected
 				// by attempting to read CAs in the NTAuth store (we know we have permissions to do so).
-				ntAuthDN := "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration," + s.cfg.LDAPConfig.DomainDN()
+				ntAuthDN := "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration," + windows.DomainDN(s.cfg.LDAPConfig.Domain)
 				_, err := s.lc.Read(ntAuthDN, "certificationAuthority", []string{"cACertificate"})
 				if trace.IsConnectionProblem(err) {
 					s.cfg.Logger.DebugContext(ctx, "detected broken LDAP connection, will reconnect")
@@ -1285,14 +1279,15 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 			fmt.Sprintf("(%s=%s)", windows.AttrSAMAccountName, username),
 		})
 		s.cfg.Logger.DebugContext(ctx, "querying LDAP for objectSid of Windows user", "username", username, "filter", filter)
+		domainDN := windows.DomainDN(s.cfg.LDAPConfig.Domain)
 
-		entries, err := s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), filter, []string{windows.AttrObjectSid})
+		entries, err := s.lc.ReadWithFilter(domainDN, filter, []string{windows.AttrObjectSid})
 		// if LDAP-based desktop discovery is not enabled, there may not be enough
 		// traffic to keep the connection open. Attempt to open a new LDAP connection
 		// in this case.
 		if trace.IsConnectionProblem(err) {
 			s.initializeLDAP() // ignore error, this is a best effort attempt
-			entries, err = s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), filter, []string{windows.AttrObjectSid})
+			entries, err = s.lc.ReadWithFilter(domainDN, filter, []string{windows.AttrObjectSid})
 		}
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
