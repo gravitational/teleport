@@ -14,7 +14,7 @@ VARDIR=/var/lib/teleport
 echo "Starting Teleport installation..."
 cd $(dirname $0)
 mkdir -p $VARDIR $BINDIR
-cp -f teleport tctl tsh tbot $BINDIR/ || exit 1
+cp -f teleport tctl tsh tbot teleport-update $BINDIR/ || exit 1
 
 #
 # What operating system is the user running?
