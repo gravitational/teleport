@@ -32,7 +32,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekeyagent"
+	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver"
 	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -41,9 +42,12 @@ import (
 
 // Serve starts daemon service
 func Serve(ctx context.Context, cfg Config) error {
+	// Teleport Connect always uses the direct (PIV) hardware key service implementation,
+	// Even if the hardware key agent is being served by another client, e.g. `tsh piv agent`.
+	//
 	// TODO(gzdunek): Move tshdEventsClient out of daemonService so that we can
 	// set the prompt before creating Storage.
-	hardwareKeyService := client.NewHardwareKeyService(ctx, nil /*prompt*/)
+	hardwareKeyService := piv.NewYubiKeyService(ctx, nil /*prompt*/)
 
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -103,6 +107,20 @@ func Serve(ctx context.Context, cfg Config) error {
 		serverAPIWait <- err
 	}()
 
+	var hardwareKeyAgentServer *hardwarekeyagent.Server
+	if cfg.HardwareKeyAgent {
+		hardwareKeyAgentServer, err = hardwarekeyagent.NewServer(ctx, hardwareKeyService)
+		if err != nil {
+			slog.WarnContext(ctx, "failed to create the hardware key agent server", "err", err)
+		} else {
+			go func() {
+				if err := hardwareKeyAgentServer.Serve(ctx); err != nil {
+					slog.WarnContext(ctx, "hardware key agent server error", "err", err)
+				}
+			}()
+		}
+	}
+
 	// Wait for shutdown signals
 	go func() {
 		shutdownSignals := []os.Signal{os.Interrupt, syscall.SIGTERM}
@@ -118,6 +136,10 @@ func Serve(ctx context.Context, cfg Config) error {
 
 		daemonService.Stop()
 		apiServer.Stop()
+
+		if hardwareKeyAgentServer != nil {
+			hardwareKeyAgentServer.Stop()
+		}
 	}()
 
 	errAPI := <-serverAPIWait
