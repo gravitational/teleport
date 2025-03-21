@@ -121,7 +121,7 @@ require (
 	github.com/gocql/gocql v1.7.0
 	github.com/gofrs/flock v0.12.1
 	github.com/gogo/protobuf v1.3.2 // replaced
-	github.com/golang-jwt/jwt/v4 v4.5.1
+	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/google/btree v1.1.3
 	github.com/google/go-attestation v0.5.1
 	github.com/google/go-cmp v0.7.0
