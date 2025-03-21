@@ -43,14 +43,14 @@ export function S3BucketConfiguration({
           placeholder="bucket"
           label="Bucket Name"
           width="50%"
-          readonly={true}
+          disabled
         />
         <FieldInput
           value={s3Prefix}
           placeholder="prefix"
           label="Bucket's Prefix Name"
           width="50%"
-          readonly={true}
+          disabled
         />
       </Flex>
     </>

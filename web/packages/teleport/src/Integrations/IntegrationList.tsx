@@ -118,6 +118,11 @@ export function IntegrationList(props: Props) {
         {
           altKey: 'options-btn',
           render: item => {
+            if (item.kind === IntegrationKind.AwsOidc) {
+              // do not show any action menu for aws oidc; settings are available on the dashboard
+              return;
+            }
+
             if (item.resourceType === 'plugin') {
               return (
                 <Cell align="right">
@@ -152,17 +157,7 @@ export function IntegrationList(props: Props) {
               return (
                 <Cell align="right">
                   <MenuButton>
-                    {/* Currently, only AWS OIDC supports editing & status dash */}
-                    {item.kind === IntegrationKind.AwsOidc && (
-                      <MenuItem
-                        as={InternalRouteLink}
-                        to={cfg.getIntegrationStatusRoute(item.kind, item.name)}
-                      >
-                        View Status
-                      </MenuItem>
-                    )}
-                    {(item.kind === IntegrationKind.GitHub ||
-                      item.kind === IntegrationKind.AwsOidc) && (
+                    {item.kind === IntegrationKind.GitHub && (
                       <MenuItem
                         onClick={() =>
                           props.integrationOps.onEditIntegration(item)
