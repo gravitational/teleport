@@ -287,3 +287,54 @@ func Test_maybeShowListDatabaseHint(t *testing.T) {
 		})
 	}
 }
+
+func Test_dbPrefixWriter(t *testing.T) {
+	tests := []struct {
+		name   string
+		inputs []string
+		expect string
+	}{
+		{
+			name: "input with new lines",
+			inputs: []string{
+				"aaa\n",
+				"\n",
+				"bbb\n",
+			},
+			expect: `[my-db] aaa
+[my-db] 
+[my-db] bbb
+`,
+		},
+		{
+			name: "input without new lines are carried",
+			inputs: []string{
+				"aa",
+				"",
+				"bb",
+				"cc\ndd",
+				"ee\nff",
+			},
+			expect: `[my-db] aabbcc
+[my-db] ddee
+[my-db] ff
+`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			w := newDBPrefixWriter(&buf, "my-db")
+
+			for _, input := range test.inputs {
+				n, err := w.Write([]byte(input))
+				require.NoError(t, err)
+				require.Equal(t, len(input), n)
+			}
+			require.NoError(t, w.Close())
+
+			require.Equal(t, test.expect, buf.String())
+		})
+	}
+}

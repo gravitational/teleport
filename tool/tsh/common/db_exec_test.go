@@ -17,3 +17,369 @@
  */
 
 package common
+
+import (
+	"bytes"
+	"context"
+	"crypto/tls"
+	"fmt"
+	"os/exec"
+	"path"
+	"slices"
+	"strings"
+	"testing"
+
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
+)
+
+func Test_checkDatabaseExecInputFlags(t *testing.T) {
+	tests := []struct {
+		name       string
+		cf         *CLIConf
+		checkError require.ErrorAssertionFunc
+	}{
+		{
+			name: "with database services",
+			cf: &CLIConf{
+				MaxConnections:   1,
+				DatabaseServices: "db1,db2",
+			},
+			checkError: require.NoError,
+		},
+		{
+			name: "with search",
+			cf: &CLIConf{
+				MaxConnections: 1,
+				SearchKeywords: "dev",
+			},
+			checkError: require.NoError,
+		},
+		{
+			name: "with labels",
+			cf: &CLIConf{
+				MaxConnections: 1,
+				Labels:         "env=dev",
+			},
+			checkError: require.NoError,
+		},
+		{
+			name: "invalid max connections",
+			cf: &CLIConf{
+				MaxConnections: 15,
+				Labels:         "env=dev",
+			},
+			checkError: require.Error,
+		},
+		{
+			name: "missing selection",
+			cf: &CLIConf{
+				MaxConnections: 1,
+			},
+			checkError: require.Error,
+		},
+		{
+			name: "too many selection options",
+			cf: &CLIConf{
+				MaxConnections:   1,
+				Labels:           "env=dev",
+				DatabaseServices: "db1,db2",
+			},
+			checkError: require.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.checkError(t, checkDatabaseExecInputFlags(tt.cf))
+		})
+	}
+}
+
+func TestDatabaseExec(t *testing.T) {
+	// Populate fake client.
+	cert, err := tls.X509KeyPair([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+
+	fakeClient := &fakeDatabaseExecClient{
+		cert: cert,
+		allDatabaseServers: []types.DatabaseServer{
+			mustMakeDatabaseServerForEnv(t, "pg1", types.DatabaseProtocolPostgreSQL, "dev"),
+			mustMakeDatabaseServerForEnv(t, "pg2", types.DatabaseProtocolPostgreSQL, "dev"),
+			mustMakeDatabaseServerForEnv(t, "pg3", types.DatabaseProtocolPostgreSQL, "prod"),
+			mustMakeDatabaseServerForEnv(t, "mysql", types.DatabaseProtocolMySQL, "prod"),
+			mustMakeDatabaseServerForEnv(t, "mongo", types.DatabaseProtocolMongoDB, "staging"),
+		},
+	}
+
+	// Commands are not actually being run but passed to cf.RunCommand.
+	// Here just passing the query through the command for verification.
+	dbQuery := "db-query"
+	makeCommand := func(_ context.Context, dbInfo *databaseInfo, _ string, dbQuery string) (*exec.Cmd, error) {
+		return exec.Command(dbQuery), nil
+	}
+	verifyDBQuery := func(cmd *exec.Cmd) error {
+		if !slices.Equal(cmd.Args, []string{dbQuery}) {
+			return trace.CompareFailed("expect %q but got %q", dbQuery, cmd.Args)
+		}
+		fmt.Fprintln(cmd.Stdout, dbQuery, "executed")
+		return nil
+	}
+
+	tests := []struct {
+		name                 string
+		setup                func(*databaseExecCommand)
+		wantError            string
+		expectOutputContains []string
+		verifyDir            func(t *testing.T, dir string)
+	}{
+		{
+			name: "no databases found by search",
+			setup: func(cmd *databaseExecCommand) {
+				cmd.cf.SearchKeywords = "not-found"
+			},
+			wantError: "no databases found",
+		},
+		{
+			name: "no databases found by names",
+			setup: func(cmd *databaseExecCommand) {
+				cmd.cf.DatabaseServices = "not-found"
+			},
+			wantError: "not found",
+		},
+		{
+			name: "unsupported protocol",
+			setup: func(cmd *databaseExecCommand) {
+				cmd.cf.SearchKeywords = "mongo"
+			},
+			wantError: "unsupported database protocol",
+		},
+		{
+			name: "by names",
+			setup: func(cmd *databaseExecCommand) {
+				cmd.cf.DatabaseServices = "pg1,pg2,pg3"
+			},
+			expectOutputContains: []string{
+				"Fetching databases by names",
+				"(3/3)", // progress bar,
+				"Executing command for \"pg1\".",
+				"db-query executed",
+				"Executing command for \"pg2\".",
+				"Executing command for \"pg3\".",
+			},
+		},
+		{
+			name: "by keyword",
+			setup: func(cmd *databaseExecCommand) {
+				cmd.cf.SearchKeywords = "mysql"
+			},
+			expectOutputContains: []string{
+				"Found 1 database(s)",
+				"Name  Description Protocol Labels",
+				"----- ----------- -------- --------",
+				"mysql             mysql    env=prod",
+				"Executing command for \"mysql\".",
+				"db-query executed",
+			},
+		},
+		{
+			name: "by env",
+			setup: func(cmd *databaseExecCommand) {
+				cmd.cf.Labels = "env=dev"
+			},
+			expectOutputContains: []string{
+				"Found 2 database(s)",
+				"Name Description Protocol Labels",
+				"---- ----------- -------- -------",
+				"pg1              postgres env=dev",
+				"pg2              postgres env=dev",
+				"Executing command for \"pg1\".",
+				"db-query executed",
+				"Executing command for \"pg2\".",
+			},
+		},
+		{
+			name: "prefixed output for concurrent connections",
+			setup: func(cmd *databaseExecCommand) {
+				cmd.cf.DatabaseServices = "pg1,pg2,pg3"
+				cmd.cf.MaxConnections = 3
+			},
+			expectOutputContains: []string{
+				"Fetching databases by names",
+				"(3/3)", // progress bar,
+				"[pg1] db-query executed",
+				"[pg2] db-query executed",
+				"[pg3] db-query executed",
+			},
+		},
+		{
+			name: "output dir",
+			setup: func(cmd *databaseExecCommand) {
+				cmd.cf.DatabaseServices = "pg3,mysql"
+				cmd.cf.OutputDir = path.Join(cmd.cf.HomePath, "test-output")
+			},
+			expectOutputContains: []string{
+				"Fetching databases by names",
+				"(2/2)", // progress bar,
+				"Executing command for \"pg3\". Output will be saved at",
+				"Executing command for \"mysql\". Output will be saved at",
+			},
+			verifyDir: func(t *testing.T, dir string) {
+				t.Helper()
+				read, err := utils.ReadPath(path.Join(dir, "test-output", "pg3.output"))
+				require.NoError(t, err)
+				require.Equal(t, "db-query executed", strings.TrimSpace(string(read)))
+				read, err = utils.ReadPath(path.Join(dir, "test-output", "mysql.output"))
+				require.NoError(t, err)
+				require.Equal(t, "db-query executed", strings.TrimSpace(string(read)))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+
+			// Prep CLIConf.
+			var buf bytes.Buffer
+			cf := &CLIConf{
+				Proxy:          "proxy:3080",
+				Context:        context.Background(),
+				HomePath:       dir,
+				MaxConnections: 1,
+				DatabaseUser:   "db-user",
+				DatabaseName:   "db-name",
+				DatabaseQuery:  dbQuery,
+				cmdRunner:      verifyDBQuery,
+				OverrideStdout: &buf,
+				overrideStderr: &buf,
+				SkipConfirm:    true,
+			}
+
+			// Create an empty profile so we don't ping proxy.
+			clientStore, err := initClientStore(cf, cf.Proxy)
+			require.NoError(t, err)
+			profile := &profile.Profile{
+				SSHProxyAddr: "proxy:3023",
+				WebProxyAddr: "proxy:3080",
+			}
+			err = clientStore.SaveProfile(profile, true)
+			require.NoError(t, err)
+
+			// Prep command and sanity check.
+			c := &databaseExecCommand{
+				cf:          cf,
+				client:      fakeClient,
+				makeCommand: makeCommand,
+			}
+			tt.setup(c)
+			c.tc, err = makeClient(cf)
+			require.NoError(t, err)
+			require.NoError(t, checkDatabaseExecInputFlags(c.cf))
+
+			runError := c.run()
+			if tt.wantError != "" {
+				require.Error(t, runError)
+				require.Contains(t, runError.Error(), tt.wantError)
+				return
+			}
+
+			output := buf.String()
+			for _, expect := range tt.expectOutputContains {
+				require.Contains(t, output, expect)
+			}
+
+			if tt.verifyDir != nil {
+				tt.verifyDir(t, dir)
+			}
+		})
+	}
+
+}
+
+type fakeDatabaseExecClient struct {
+	cert               tls.Certificate
+	allDatabaseServers []types.DatabaseServer
+}
+
+func (c *fakeDatabaseExecClient) close() error {
+	return nil
+}
+func (c *fakeDatabaseExecClient) getProfileStatus() *client.ProfileStatus {
+	return &client.ProfileStatus{}
+}
+func (c *fakeDatabaseExecClient) getAccessChecker() services.AccessChecker {
+	return services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clustername", services.NewRoleSet())
+}
+func (c *fakeDatabaseExecClient) issueCert(context.Context, *databaseInfo) (tls.Certificate, error) {
+	return c.cert, nil
+}
+func (c *fakeDatabaseExecClient) listDatabasesWithFilter(ctx context.Context, req *proto.ListResourcesRequest) ([]types.Database, error) {
+	filter := services.MatchResourceFilter{
+		ResourceKind:   req.ResourceType,
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
+	}
+
+	if req.PredicateExpression != "" {
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		filter.PredicateExpression = expression
+	}
+
+	var filtered []types.Database
+	for _, dbServer := range c.allDatabaseServers {
+		match, err := services.MatchResourceByFilters(dbServer, filter, nil)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		} else if match {
+			filtered = append(filtered, dbServer.GetDatabase())
+		}
+	}
+	return filtered, nil
+}
+
+func mustMakeDatabaseServer(t *testing.T, db types.Database) types.DatabaseServer {
+	t.Helper()
+
+	dbV3, ok := db.(*types.DatabaseV3)
+	require.True(t, ok)
+
+	server, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: db.GetName(),
+	}, types.DatabaseServerSpecV3{
+		Version:  teleport.Version,
+		Hostname: "hostname",
+		HostID:   "host-id",
+		Database: dbV3,
+		ProxyIDs: []string{"proxy"},
+	})
+	require.NoError(t, err)
+	return server
+}
+
+func mustMakeDatabaseServerForEnv(t *testing.T, name, protocol, env string) types.DatabaseServer {
+	t.Helper()
+	db, err := types.NewDatabaseV3(
+		types.Metadata{
+			Name:   name,
+			Labels: map[string]string{"env": env},
+		},
+		types.DatabaseSpecV3{
+			Protocol: protocol,
+			URI:      "localhost:12345",
+		},
+	)
+	require.NoError(t, err)
+	return mustMakeDatabaseServer(t, db)
+}

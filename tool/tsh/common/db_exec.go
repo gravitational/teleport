@@ -70,19 +70,20 @@ type databaseExecClient interface {
 }
 
 type databaseExecCommand struct {
-	cf          *CLIConf
-	tc          *client.TeleportClient
-	client      databaseExecClient
-	makeCommand func(context.Context, *databaseInfo, string, string) (*exec.Cmd, error)
+	cf                     *CLIConf
+	tc                     *client.TeleportClient
+	client                 databaseExecClient
+	makeCommand            func(context.Context, *databaseInfo, string, string) (*exec.Cmd, error)
+	prefixedOutputHintOnce sync.Once
 }
 
 func newDatabaseExecCommand(cf *CLIConf) (*databaseExecCommand, error) {
-	c := new(databaseExecCommand)
-	err := c.checkInputFlags(cf)
+	err := checkDatabaseExecInputFlags(cf)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	c := new(databaseExecCommand)
 	c.tc, err = makeClient(cf)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -133,7 +134,7 @@ func (c *databaseExecCommand) close() {
 	}
 }
 
-func (c *databaseExecCommand) checkInputFlags(cf *CLIConf) error {
+func checkDatabaseExecInputFlags(cf *CLIConf) error {
 	// Pick an arbitrary number to avoid flooding the backend.
 	if cf.MaxConnections < 1 || cf.MaxConnections > 10 {
 		return trace.BadParameter("--max-connections must be between 1 and 10")
@@ -164,7 +165,7 @@ func (c *databaseExecCommand) getDatabasesByNames() ([]types.Database, error) {
 	// Show a progress bar when fetching more than one database.
 	var progress *progressbar.ProgressBar
 	if len(names) > 1 {
-		fmt.Println("Fetching databases by names:")
+		fmt.Fprintln(c.cf.Stdout(), "Fetching databases by names:")
 		progress = progressbar.NewOptions(
 			len(names),
 			progressbar.OptionSetWriter(c.cf.Stdout()),
@@ -241,7 +242,7 @@ func (c *databaseExecCommand) searchDatabases() (databases []types.Database, err
 	}
 
 	// Print results and prompt for confirmation.
-	fmt.Fprintf(c.cf.Stdout(), "Found %d databases:\n\n", len(dbs))
+	fmt.Fprintf(c.cf.Stdout(), "Found %d database(s):\n\n", len(dbs))
 	var rows []databaseTableRow
 	for _, db := range dbs {
 		rows = append(rows, getDatabaseRow("", "", "", db, nil, nil, false))
@@ -273,16 +274,8 @@ func (c *databaseExecCommand) exec(ctx context.Context, db types.Database) (err 
 	outputWriter := c.cf.Stdout()
 	errWriter := c.cf.Stderr()
 	defer func() {
-		switch {
-		// nothing to do if no error.
-		case err == nil:
-
-		// Stop-on-error.
-		case c.cf.StopOnError:
-			fmt.Fprintln(c.cf.Stdout(), "Aborting since --stop-on-error is set.")
-
-		// Continue-on-error.
-		default:
+		// Print the error and return nil to continue-on-error.
+		if err != nil {
 			fmt.Fprintln(errWriter, err)
 			if c.cf.OutputDir != "" {
 				fmt.Fprintf(c.cf.Stderr(), "Failed to execute command for %q. See output file for more details.\n", displayName)
@@ -302,8 +295,17 @@ func (c *databaseExecCommand) exec(ctx context.Context, db types.Database) (err 
 		errWriter = logFile
 		fmt.Fprintf(c.cf.Stdout(), "Executing command for %q. Output will be saved at %q.\n", displayName, logFile.Name())
 	case c.cf.MaxConnections > 1:
-		outputWriter = newDBPrefixWriter(c.cf.Stdout(), displayName)
-		errWriter = newDBPrefixWriter(c.cf.Stderr(), displayName)
+		outputWriterWithPrefix := newDBPrefixWriter(c.cf.Stdout(), displayName)
+		errWriterWithPrefix := newDBPrefixWriter(c.cf.Stderr(), displayName)
+		defer outputWriterWithPrefix.Close()
+		defer errWriterWithPrefix.Close()
+		outputWriter = outputWriterWithPrefix
+		errWriter = errWriterWithPrefix
+		c.prefixedOutputHintOnce.Do(func() {
+			fmt.Fprintf(c.cf.Stdout(), `Outputs will be prefixed with the name of the target database.
+Alternatively, use --output-dir flag to save the outputs to files.
+`)
+		})
 		fmt.Fprintf(c.cf.Stdout(), "Executing command for %q.\n", displayName)
 	default:
 		// No prefix so output can still be copy-pasted. Extra empty line to
