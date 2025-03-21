@@ -110,6 +110,23 @@ sets clusterDomain on Deployment Pods:
             name: wait-auth-update
           serviceAccountName: RELEASE-NAME-proxy
           terminationGracePeriodSeconds: 60
+          topologySpreadConstraints:
+          - labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: proxy
+                app.kubernetes.io/instance: RELEASE-NAME
+                app.kubernetes.io/name: teleport-cluster
+            maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+          - labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: proxy
+                app.kubernetes.io/instance: RELEASE-NAME
+                app.kubernetes.io/name: teleport-cluster
+            maxSkew: 1
+            topologyKey: topology.kubernetes.io/zone
+            whenUnsatisfiable: ScheduleAnyway
           volumes:
           - name: proxy-serviceaccount-token
             projected:
@@ -271,6 +288,23 @@ should set nodeSelector when set in values:
       role: bastion
     serviceAccountName: RELEASE-NAME-proxy
     terminationGracePeriodSeconds: 60
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: proxy
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: proxy
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - name: proxy-serviceaccount-token
       projected:
@@ -395,6 +429,23 @@ should set resources for wait-auth-update initContainer when set in values:
           memory: 256Mi
     serviceAccountName: RELEASE-NAME-proxy
     terminationGracePeriodSeconds: 60
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: proxy
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: proxy
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - name: proxy-serviceaccount-token
       projected:
@@ -504,6 +555,23 @@ should set resources when set in values:
           memory: 256Mi
     serviceAccountName: RELEASE-NAME-proxy
     terminationGracePeriodSeconds: 60
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: proxy
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: proxy
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - name: proxy-serviceaccount-token
       projected:
@@ -613,6 +681,23 @@ should set securityContext for initContainers when set in values:
         runAsUser: 99
     serviceAccountName: RELEASE-NAME-proxy
     terminationGracePeriodSeconds: 60
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: proxy
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: proxy
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - name: proxy-serviceaccount-token
       projected:
@@ -722,6 +807,23 @@ should set securityContext when set in values:
         runAsUser: 99
     serviceAccountName: RELEASE-NAME-proxy
     terminationGracePeriodSeconds: 60
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: proxy
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: proxy
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - name: proxy-serviceaccount-token
       projected:
