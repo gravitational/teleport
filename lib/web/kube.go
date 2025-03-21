@@ -584,7 +584,7 @@ func (h *Handler) joinKubernetesSession(
 			GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
 				cert, err := tls.X509KeyPair(certs.TLS, privateKeyPEM)
 				if err != nil {
-					return nil, err
+					return nil, trace.Wrap(err)
 				}
 
 				return &cert, nil
