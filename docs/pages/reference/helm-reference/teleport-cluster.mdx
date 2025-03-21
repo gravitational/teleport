@@ -302,12 +302,16 @@ Defaults to Teleport's binary default when empty: `best_effort`.
 
 ### `authentication.secondFactor`
 
+<Admonition type="warning">
+Deprecated, you should use [`authentication.secondFactors`](#authenticationsecondfactors) instead.
+</Admonition>
+
 | Type     | Default value | Required? | `teleport.yaml` equivalent                  |
 |----------|---------------|-----------|---------------------------------------------|
-| `string` | `otp`         | Yes       | `auth_service.authentication.second_factor` |
+| `string` | none          | Yes       | `auth_service.authentication.second_factor` |
 
-`authentication.secondFactor` configures multi-factor authentication for local users. Possible values supported by this chart
-are `on`, `otp`, and `webauthn`.
+`authentication.secondFactor` configures multi-factor authentication for local users.
+Possible values supported by this chart are `on`, `otp`, and `webauthn`.
 
 When set to `on` or `webauthn`, the `authenticationSecondFactor.webauthn` section can also be used.
 The configured `rp_id` defaults to `clusterName`.
@@ -332,12 +336,12 @@ Changing the RP ID will invalidate all already registered webauthn second factor
 
 ### `authentication.secondFactors`
 
-| Type     | Default value | Required? | `teleport.yaml` equivalent                  |
-|----------|---------------|-----------|---------------------------------------------|
-| `array`  | `[]`          | No        | `auth_service.authentication.second_factors` |
+| Type    | Default value         | Required? | `teleport.yaml` equivalent                   |
+|---------|-----------------------|-----------|----------------------------------------------|
+| `array` | `["otp", "webauthn"]` | No        | `auth_service.authentication.second_factors` |
 
-`authentication.secondFactors` configures multi-factor authentication types. Possible values supported by this chart
-are `otp`, `sso`, and `webauthn`.
+`authentication.secondFactors` configures multi-factor authentication types.
+Supported item values are `otp`, `sso`, and `webauthn`.
 
 `authentication.secondFactors` takes precedence over any value that is set in `authentication.secondFactor`.
 If `webauthn` is passed, the `authentication.webauthn` section can also be used.

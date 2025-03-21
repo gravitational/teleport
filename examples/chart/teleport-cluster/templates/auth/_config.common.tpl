@@ -37,14 +37,18 @@ auth_service:
     locking_mode: "{{ $authentication.lockingMode }}"
 {{- end }}
 {{- $hasWebauthnMFA := false }}
-{{- if $authentication.secondFactors }}
-    second_factors: {{- toYaml $authentication.secondFactors | nindent 6 }}
-    {{- if has "webauthn" $authentication.secondFactors }}
+{{/* secondFactor takes precedence for backward compatibility, but new chart releases
+should have second_factor unset and privilege second_factors instead.
+Sadly, it is not possible to do a conversion between second_factor and second_factors
+because of the "off" value. */}}
+{{- if $authentication.secondFactor }}
+    second_factor: {{ $authentication.secondFactor | squote }}
+    {{- if has $authentication.secondFactor (list "webauthn" "on" "optional") }}
       {{- $hasWebauthnMFA = true }}
     {{- end }}
 {{- else }}
-    second_factor: {{ $authentication.secondFactor | squote }}
-    {{- if has $authentication.secondFactor (list "webauthn" "on" "optional") }}
+    second_factors: {{- toYaml $authentication.secondFactors | nindent 6 }}
+    {{- if has "webauthn" $authentication.secondFactors }}
       {{- $hasWebauthnMFA = true }}
     {{- end }}
 {{- end }}

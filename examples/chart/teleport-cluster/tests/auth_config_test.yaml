@@ -720,3 +720,17 @@ tests:
           of: ConfigMap
       - matchSnapshot:
           path: data.teleport\.yaml
+
+  - it: matches snapshot when both secondFactor and secondFactors are set.
+    set:
+      clusterName: helm-lint
+      authentication:
+        secondFactor: "off"
+        secondFactors: ["otp", "webauthn"]
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
