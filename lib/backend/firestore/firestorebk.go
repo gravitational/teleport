@@ -663,7 +663,7 @@ func (b *Backend) documentSnapshots(ctx context.Context, startKey, endKey string
 			return bytes.Compare(ar.Key, br.Key) < 0
 		}
 
-		for snap, err := range stream.MergeStreams(stream.MergeStreams(snaps, legacySnaps, less), brokenSnaps, less) {
+		for snap, err := range stream.MergeStreams(stream.MergeStreams(brokenSnaps, legacySnaps, less), snaps, less) {
 			if !yield(snap, err) || err != nil {
 				return
 			}
