@@ -592,9 +592,6 @@ type CLIConf struct {
 	MaxConnections int
 	// OutputDir specifies the directory for storing command outputs.
 	OutputDir string
-	// StopOnError specifies whether to stop immediately upon a failure when doing
-	// things in parallel.
-	StopOnError bool
 }
 
 // Stdout returns the stdout writer.
@@ -1066,7 +1063,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbExec.Flag("output-dir", "Directory to log command output per target database.").StringVar(&cf.OutputDir)
 	dbExec.Flag("dbs", "List of comma separated target databases. Mutually exclusive with --search or --labels.").StringVar(&cf.DatabaseServices)
 	dbExec.Flag("skip-confirm", "Skip confirmation on search results").BoolVar(&cf.SkipConfirm)
-	dbExec.Flag("--stop-on-error", "Stops immediately when encountered an error. By default, execution is attempted on all target databases.").BoolVar(&cf.StopOnError)
 	dbExec.Arg("query", "Execute this query on target database services").Required().StringVar(&cf.DatabaseQuery)
 
 	// join

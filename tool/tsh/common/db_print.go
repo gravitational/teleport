@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -174,6 +175,8 @@ func maybeShowListDatabasesHint(cf *CLIConf, w io.Writer, numRows int) {
 type dbPrefixWriter struct {
 	io.Writer
 	prefix string
+	buf    string
+	mu     sync.Mutex
 }
 
 func newDBPrefixWriter(w io.Writer, dbServiceName string) *dbPrefixWriter {
@@ -183,13 +186,35 @@ func newDBPrefixWriter(w io.Writer, dbServiceName string) *dbPrefixWriter {
 	}
 }
 
+func (w *dbPrefixWriter) Close() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.buf != "" {
+		w.flushLine("")
+	}
+	return nil
+}
+
+func (w *dbPrefixWriter) flushLine(s string) {
+	fmt.Fprintln(w.Writer, w.prefix, w.buf+s)
+	w.buf = ""
+}
+
 func (w *dbPrefixWriter) Write(p []byte) (int, error) {
-	for _, line := range strings.Split(string(p), "\n") {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			continue
+	if len(p) == 0 {
+		return 0, nil
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	lines := strings.Split(string(p), "\n")
+	for i, line := range lines {
+		if i == len(lines)-1 {
+			// Save whatever is after last \n to buf for next round.
+			w.buf += line
+		} else {
+			w.flushLine(strings.TrimSuffix(line, "\r"))
 		}
-		fmt.Fprintln(w.Writer, w.prefix, trimmed)
 	}
 	return len(p), nil
 }
