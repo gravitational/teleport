@@ -55,11 +55,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join"
-<<<<<<< HEAD
-	"github.com/gravitational/teleport/lib/auth/native"
-=======
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
->>>>>>> 3ba99bc4fa (Fix flaky test in Revocations service. (#53071))
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	libevents "github.com/gravitational/teleport/lib/events"
