@@ -27,8 +27,10 @@ import Indicator from 'design/Indicator';
 import { StepComponentProps, StepHeader, StepSlider } from 'design/StepSlider';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
+import { MfaChallengeScope } from 'teleport-new/services/mfa/types';
+
 import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
-import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
+import auth from 'teleport/services/auth/auth';
 import { MfaDevice } from 'teleport/services/mfa';
 import useTeleport from 'teleport/useTeleport';
 

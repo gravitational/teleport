@@ -21,8 +21,9 @@ import styled from 'styled-components';
 
 import { ButtonSecondary, Card, Flex, H2, ResourceIcon } from 'design';
 
+import { AwsResource } from 'teleport-new/types';
+
 import cfg from 'teleport/config';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 
 export function EnrollCard({ resource }: { resource: AwsResource }) {
   return (

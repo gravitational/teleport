@@ -16,45 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { NodeSubKind } from 'shared/services';
-
-import { ResourceLabel } from 'teleport/services/agents';
-
-import { Regions } from '../integrations';
-
-export interface Node {
-  kind: 'node';
-  id: string;
-  clusterId: string;
-  hostname: string;
-  labels: ResourceLabel[];
-  addr: string;
-  tunnel: boolean;
-  subKind: NodeSubKind;
-  sshLogins: string[];
-  awsMetadata?: AwsMetadata;
-  requiresRequest?: boolean;
-}
-
-export interface BashCommand {
-  text: string;
-  expires: string;
-}
-
-export type AwsMetadata = {
-  accountId: string;
-  instanceId: string;
-  region: Regions;
-  vpcId: string;
-  integration: string;
-  subnetId: string;
-};
-
-export type CreateNodeRequest = {
-  name: string;
-  subKind: string;
-  hostname: string;
-  addr: string;
-  labels?: ResourceLabel[];
-  aws?: AwsMetadata;
-};
+export * from 'teleport-new/services/nodes/types';

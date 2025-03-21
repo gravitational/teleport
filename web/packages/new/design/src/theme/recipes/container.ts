@@ -1,30 +1,30 @@
-import { defineRecipe } from "@chakra-ui/react"
+import { defineRecipe } from '@chakra-ui/react';
 
 export const containerRecipe = defineRecipe({
-  className: "chakra-container",
+  className: 'teleport-container',
   base: {
-    position: "relative",
-    maxWidth: "8xl",
-    w: "100%",
-    mx: "auto",
+    position: 'relative',
+    maxWidth: '8xl',
+    w: '100%',
+    mx: 'auto',
     px: {
-      base: "4",
-      md: "6",
-      lg: "8",
+      base: '4',
+      md: '6',
+      lg: '8',
     },
   },
   variants: {
     centerContent: {
       true: {
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
       },
     },
     fluid: {
       true: {
-        maxWidth: "full",
+        maxWidth: 'full',
       },
     },
   },
-})
+});

@@ -14,8 +14,8 @@
       "shared-new/*": ["web/packages/new/shared/src/*"],
       "shared-new": ["web/packages/new/shared/src/"],
 
-      "teleport-new/*": ["web/packages/new/teleport/src/*"],
-      "teleport-new": ["web/packages/new/teleport/src/"],
+//      "teleport-new/*": ["web/packages/new/teleport/src/*"],
+//      "teleport-new": ["web/packages/new/teleport/src/"],
 
       "gen-proto-ts/*": ["gen/proto/ts/*"],
     },
@@ -27,6 +27,7 @@
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",
+    "../../../@types",
     "../",
     "../../../../gen/proto/ts",
   ],

@@ -16,33 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ResourceLabel } from 'teleport/services/agents';
-
-// UserGroup is a remote user group.
-export type UserGroup = {
-  kind: 'user_group';
-  // Name is name of the user group.
-  name: string;
-  // Description is the description of the user group.
-  description: string;
-  // Labels for the user group.
-  labels: ResourceLabel[];
-  // FriendlyName for the user group.
-  friendlyName?: string;
-  // Applications is a list of associated applications.
-  applications?: ApplicationAndFriendlyName[];
-  // userGroups won't ever have this flag, but the key is added here
-  // so it can appear on the common 'UnifiedResource' type
-  requiresRequest?: false;
-};
-
-export type ApplicationAndFriendlyName = {
-  name: string;
-  friendlyName: string;
-};
-
-export type UserGroupsResponse = {
-  userGroups: UserGroup[];
-  startKey?: string;
-  totalCount?: number;
-};
+export * from 'teleport-new/services/userGroups/types';

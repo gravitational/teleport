@@ -29,10 +29,11 @@ import {
 } from 'shared/components/FileTransfer';
 import { TerminalSearch } from 'shared/components/TerminalSearch';
 
+import { MfaChallengeScope } from 'teleport-new/services/mfa/types';
+
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import * as stores from 'teleport/Console/stores';
 import { useMfaEmitter } from 'teleport/lib/useMfa';
-import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 import { useConsoleContext } from '../consoleContextProvider';
 import Document from '../Document';

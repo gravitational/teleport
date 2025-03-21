@@ -1,85 +1,85 @@
-import { defineSlotRecipe } from "@chakra-ui/react"
+import { defineSlotRecipe } from '@chakra-ui/react';
 
 export const emptyStateSlotRecipe = defineSlotRecipe({
-  slots: ["root", "content", "indicator", "title", "description"],
-  className: "chakra-empty-state",
+  slots: ['root', 'content', 'indicator', 'title', 'description'],
+  className: 'teleport-empty-state',
   base: {
     root: {
-      width: "full",
+      width: 'full',
     },
     content: {
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     indicator: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      color: "fg.subtle",
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: 'fg.subtle',
       _icon: {
-        boxSize: "1em",
+        boxSize: '1em',
       },
     },
     title: {
-      fontWeight: "semibold",
+      fontWeight: 'semibold',
     },
     description: {
-      textStyle: "sm",
-      color: "fg.muted",
+      textStyle: 'sm',
+      color: 'fg.muted',
     },
   },
   variants: {
     size: {
       sm: {
         root: {
-          px: "4",
-          py: "6",
+          px: '4',
+          py: '6',
         },
         title: {
-          textStyle: "md",
+          textStyle: 'md',
         },
         content: {
-          gap: "4",
+          gap: '4',
         },
         indicator: {
-          textStyle: "2xl",
+          textStyle: '2xl',
         },
       },
       md: {
         root: {
-          px: "8",
-          py: "12",
+          px: '8',
+          py: '12',
         },
         title: {
-          textStyle: "lg",
+          textStyle: 'lg',
         },
         content: {
-          gap: "6",
+          gap: '6',
         },
         indicator: {
-          textStyle: "4xl",
+          textStyle: '4xl',
         },
       },
       lg: {
         root: {
-          px: "12",
-          py: "16",
+          px: '12',
+          py: '16',
         },
         title: {
-          textStyle: "xl",
+          textStyle: 'xl',
         },
         content: {
-          gap: "8",
+          gap: '8',
         },
         indicator: {
-          textStyle: "6xl",
+          textStyle: '6xl',
         },
       },
     },
   },
   defaultVariants: {
-    size: "md",
+    size: 'md',
   },
-})
+});

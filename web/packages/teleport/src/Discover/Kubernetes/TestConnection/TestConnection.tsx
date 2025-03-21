@@ -25,11 +25,12 @@ import { Option } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
+import { MfaChallengeScope } from 'teleport-new/services/mfa/types';
+
 import ReAuthenticate from 'teleport/components/ReAuthenticate';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import { generateTshLoginCommand } from 'teleport/lib/util';
 import type { KubeImpersonation } from 'teleport/services/agents';
-import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 import {
   ActionButtons,

@@ -1,4 +1,4 @@
-import { defineTokens } from "@chakra-ui/react"
+import { defineTokens } from '@chakra-ui/react';
 
 export const zIndex = defineTokens.zIndex({
   hide: {
@@ -40,4 +40,4 @@ export const zIndex = defineTokens.zIndex({
   max: {
     value: 2147483647,
   },
-})
+});

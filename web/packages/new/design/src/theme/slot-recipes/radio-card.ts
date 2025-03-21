@@ -1,238 +1,249 @@
-import { defineSlotRecipe } from "@chakra-ui/react"
+import { defineSlotRecipe } from '@chakra-ui/react';
 
 export const radioCardSlotRecipe = defineSlotRecipe({
-  className: "chakra-radio-card",
-  slots: ["root", "label", "item", "itemText", "itemControl", "indicator", "itemAddon", "itemIndicator", "itemContent", "itemDescription"],
+  className: 'teleport-radio-card',
+  slots: [
+    'root',
+    'label',
+    'item',
+    'itemText',
+    'itemControl',
+    'indicator',
+    'itemAddon',
+    'itemIndicator',
+    'itemContent',
+    'itemDescription',
+  ],
   base: {
     root: {
-      display: "flex",
-      flexDirection: "column",
-      gap: "1.5",
-      isolation: "isolate",
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '1.5',
+      isolation: 'isolate',
     },
     item: {
-      flex: "1",
-      display: "flex",
-      flexDirection: "column",
-      userSelect: "none",
-      position: "relative",
-      borderRadius: "l2",
+      flex: '1',
+      display: 'flex',
+      flexDirection: 'column',
+      userSelect: 'none',
+      position: 'relative',
+      borderRadius: 'l2',
       _focus: {
-        bg: "colorPalette.muted/20",
+        bg: 'colorPalette.muted/20',
       },
       _disabled: {
-        opacity: "0.8",
-        borderColor: "border.disabled",
+        opacity: '0.8',
+        borderColor: 'border.disabled',
       },
       _checked: {
-        zIndex: "1",
+        zIndex: '1',
       },
     },
     label: {
-      display: "inline-flex",
-      fontWeight: "medium",
-      textStyle: "sm",
+      display: 'inline-flex',
+      fontWeight: 'medium',
+      textStyle: 'sm',
       _disabled: {
-        opacity: "0.5",
+        opacity: '0.5',
       },
     },
     itemText: {
-      fontWeight: "medium",
-      flex: "1",
+      fontWeight: 'medium',
+      flex: '1',
     },
     itemDescription: {
-      opacity: "0.64",
-      textStyle: "sm",
+      opacity: '0.64',
+      textStyle: 'sm',
     },
     itemControl: {
-      display: "inline-flex",
-      flex: "1",
-      pos: "relative",
-      rounded: "inherit",
-      justifyContent: "var(--radio-card-justify)",
-      alignItems: "var(--radio-card-align)",
+      display: 'inline-flex',
+      flex: '1',
+      pos: 'relative',
+      rounded: 'inherit',
+      justifyContent: 'var(--radio-card-justify)',
+      alignItems: 'var(--radio-card-align)',
       _disabled: {
-        bg: "bg.muted",
+        bg: 'bg.muted',
       },
     },
     itemIndicator: {
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "center",
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
       flexShrink: 0,
-      verticalAlign: "top",
-      color: "white",
-      borderWidth: "1px",
-      borderColor: "transparent",
-      borderRadius: "full",
-      cursor: "radio",
+      verticalAlign: 'top',
+      color: 'white',
+      borderWidth: '1px',
+      borderColor: 'transparent',
+      borderRadius: 'full',
+      cursor: 'radio',
       _focusVisible: {
-        outline: "2px solid",
-        outlineColor: "colorPalette.focusRing",
-        outlineOffset: "2px",
+        outline: '2px solid',
+        outlineColor: 'colorPalette.focusRing',
+        outlineOffset: '2px',
       },
       _invalid: {
-        colorPalette: "red",
-        borderColor: "red.500",
+        colorPalette: 'red',
+        borderColor: 'red.500',
       },
       _disabled: {
-        opacity: "0.5",
-        cursor: "disabled",
+        opacity: '0.5',
+        cursor: 'disabled',
       },
-      "& .dot": {
-        height: "100%",
-        width: "100%",
-        borderRadius: "full",
-        bg: "currentColor",
-        scale: "0.4",
+      '& .dot': {
+        height: '100%',
+        width: '100%',
+        borderRadius: 'full',
+        bg: 'currentColor',
+        scale: '0.4',
       },
     },
     itemAddon: {
-      roundedBottom: "inherit",
+      roundedBottom: 'inherit',
       _disabled: {
-        color: "fg.muted",
+        color: 'fg.muted',
       },
     },
     itemContent: {
-      display: "flex",
-      flexDirection: "column",
-      flex: "1",
-      gap: "1",
-      justifyContent: "var(--radio-card-justify)",
-      alignItems: "var(--radio-card-align)",
+      display: 'flex',
+      flexDirection: 'column',
+      flex: '1',
+      gap: '1',
+      justifyContent: 'var(--radio-card-justify)',
+      alignItems: 'var(--radio-card-align)',
     },
   },
   variants: {
     size: {
       sm: {
         item: {
-          textStyle: "sm",
+          textStyle: 'sm',
         },
         itemControl: {
-          padding: "3",
-          gap: "1.5",
+          padding: '3',
+          gap: '1.5',
         },
         itemAddon: {
-          px: "3",
-          py: "1.5",
-          borderTopWidth: "1px",
+          px: '3',
+          py: '1.5',
+          borderTopWidth: '1px',
         },
         itemIndicator: {
-          boxSize: "4",
+          boxSize: '4',
         },
       },
       md: {
         item: {
-          textStyle: "sm",
+          textStyle: 'sm',
         },
         itemControl: {
-          padding: "4",
-          gap: "2.5",
+          padding: '4',
+          gap: '2.5',
         },
         itemAddon: {
-          px: "4",
-          py: "2",
-          borderTopWidth: "1px",
+          px: '4',
+          py: '2',
+          borderTopWidth: '1px',
         },
         itemIndicator: {
-          boxSize: "5",
+          boxSize: '5',
         },
       },
       lg: {
         item: {
-          textStyle: "md",
+          textStyle: 'md',
         },
         itemControl: {
-          padding: "4",
-          gap: "3.5",
+          padding: '4',
+          gap: '3.5',
         },
         itemAddon: {
-          px: "4",
-          py: "2",
-          borderTopWidth: "1px",
+          px: '4',
+          py: '2',
+          borderTopWidth: '1px',
         },
         itemIndicator: {
-          boxSize: "6",
+          boxSize: '6',
         },
       },
     },
     variant: {
       surface: {
         item: {
-          borderWidth: "1px",
+          borderWidth: '1px',
           _checked: {
-            bg: "colorPalette.subtle",
-            color: "colorPalette.fg",
-            borderColor: "colorPalette.muted",
+            bg: 'colorPalette.subtle',
+            color: 'colorPalette.fg',
+            borderColor: 'colorPalette.muted',
           },
         },
         itemIndicator: {
-          borderWidth: "1px",
-          borderColor: "border",
+          borderWidth: '1px',
+          borderColor: 'border',
           _checked: {
-            bg: "colorPalette.solid",
-            color: "colorPalette.contrast",
-            borderColor: "colorPalette.solid",
+            bg: 'colorPalette.solid',
+            color: 'colorPalette.contrast',
+            borderColor: 'colorPalette.solid',
           },
         },
       },
       subtle: {
         item: {
-          bg: "bg.muted",
+          bg: 'bg.muted',
         },
         itemControl: {
           _checked: {
-            bg: "colorPalette.muted",
-            color: "colorPalette.fg",
+            bg: 'colorPalette.muted',
+            color: 'colorPalette.fg',
           },
         },
         itemIndicator: {
-          borderWidth: "1px",
-          borderColor: "inherit",
+          borderWidth: '1px',
+          borderColor: 'inherit',
           _checked: {
-            color: "colorPalette.fg",
-            borderColor: "colorPalette.solid",
+            color: 'colorPalette.fg',
+            borderColor: 'colorPalette.solid',
           },
-          "& .dot": {
-            scale: "0.6",
+          '& .dot': {
+            scale: '0.6',
           },
         },
       },
       outline: {
         item: {
-          borderWidth: "1px",
+          borderWidth: '1px',
           _checked: {
-            boxShadow: "0 0 0 1px var(--shadow-color)",
-            boxShadowColor: "colorPalette.solid",
-            borderColor: "colorPalette.solid",
+            boxShadow: '0 0 0 1px var(--shadow-color)',
+            boxShadowColor: 'colorPalette.solid',
+            borderColor: 'colorPalette.solid',
           },
         },
         itemIndicator: {
-          borderWidth: "1px",
-          borderColor: "border",
+          borderWidth: '1px',
+          borderColor: 'border',
           _checked: {
-            bg: "colorPalette.solid",
-            color: "colorPalette.contrast",
-            borderColor: "colorPalette.solid",
+            bg: 'colorPalette.solid',
+            color: 'colorPalette.contrast',
+            borderColor: 'colorPalette.solid',
           },
         },
       },
       solid: {
         item: {
-          borderWidth: "1px",
+          borderWidth: '1px',
           _checked: {
-            bg: "colorPalette.solid",
-            color: "colorPalette.contrast",
-            borderColor: "colorPalette.solid",
+            bg: 'colorPalette.solid',
+            color: 'colorPalette.contrast',
+            borderColor: 'colorPalette.solid',
           },
         },
         itemIndicator: {
-          bg: "bg",
-          borderWidth: "1px",
-          borderColor: "inherit",
+          bg: 'bg',
+          borderWidth: '1px',
+          borderColor: 'inherit',
           _checked: {
-            color: "colorPalette.solid",
-            borderColor: "currentcolor",
+            color: 'colorPalette.solid',
+            borderColor: 'currentcolor',
           },
         },
       },
@@ -240,63 +251,63 @@ export const radioCardSlotRecipe = defineSlotRecipe({
     justify: {
       start: {
         item: {
-          "--radio-card-justify": "flex-start",
+          '--radio-card-justify': 'flex-start',
         },
       },
       end: {
         item: {
-          "--radio-card-justify": "flex-end",
+          '--radio-card-justify': 'flex-end',
         },
       },
       center: {
         item: {
-          "--radio-card-justify": "center",
+          '--radio-card-justify': 'center',
         },
       },
     },
     align: {
       start: {
         item: {
-          "--radio-card-align": "flex-start",
+          '--radio-card-align': 'flex-start',
         },
         itemControl: {
-          textAlign: "start",
+          textAlign: 'start',
         },
       },
       end: {
         item: {
-          "--radio-card-align": "flex-end",
+          '--radio-card-align': 'flex-end',
         },
         itemControl: {
-          textAlign: "end",
+          textAlign: 'end',
         },
       },
       center: {
         item: {
-          "--radio-card-align": "center",
+          '--radio-card-align': 'center',
         },
         itemControl: {
-          textAlign: "center",
+          textAlign: 'center',
         },
       },
     },
     orientation: {
       vertical: {
         itemControl: {
-          flexDirection: "column",
+          flexDirection: 'column',
         },
       },
       horizontal: {
         itemControl: {
-          flexDirection: "row",
+          flexDirection: 'row',
         },
       },
     },
   },
   defaultVariants: {
-    size: "md",
-    variant: "outline",
-    align: "start",
-    orientation: "horizontal",
+    size: 'md',
+    variant: 'outline',
+    align: 'start',
+    orientation: 'horizontal',
   },
-})
+});

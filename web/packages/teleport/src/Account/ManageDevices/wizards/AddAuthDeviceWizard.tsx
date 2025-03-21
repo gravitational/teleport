@@ -35,8 +35,10 @@ import { useAsync } from 'shared/hooks/useAsync';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { Auth2faType } from 'shared/services';
 
+import { MfaChallengeScope } from 'teleport-new/services/mfa/types';
+
 import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
-import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
+import auth from 'teleport/services/auth/auth';
 import {
   DeviceType,
   DeviceUsage,
@@ -56,7 +58,9 @@ interface AddAuthDeviceWizardProps {
   usage: DeviceUsage;
   /** MFA type setting, as configured in the cluster's configuration. */
   auth2faType: Auth2faType;
+
   onClose(): void;
+
   onSuccess(): void;
 }
 
@@ -153,13 +157,17 @@ export type AddAuthDeviceWizardStepProps = StepComponentProps &
   ReauthenticateStepProps &
   CreateDeviceStepProps &
   SaveKeyStepProps;
+
 interface CreateDeviceStepProps {
   usage: DeviceUsage;
   mfaRegisterOptions: MfaOption[];
   privilegeToken: string;
   newMfaDeviceType: DeviceType;
+
   onNewMfaDeviceTypeChange(o: DeviceType): void;
+
   onClose(): void;
+
   onDeviceCreated(c: Credential): void;
 }
 
@@ -330,6 +338,7 @@ interface SaveKeyStepProps {
   credential: Credential;
   usage: DeviceUsage;
   newMfaDeviceType: DeviceType;
+
   onSuccess(): void;
 }
 

@@ -20,12 +20,13 @@ import { useParams } from 'react-router';
 
 import { Danger } from 'design/Alert';
 
+import { AwsResource } from 'teleport-new/types';
+
 import { FeatureBox } from 'teleport/components/Layout';
 import { AwsOidcHeader } from 'teleport/Integrations/status/AwsOidc/AwsOidcHeader';
 import { AwsOidcTitle } from 'teleport/Integrations/status/AwsOidc/AwsOidcTitle';
 import { Rds } from 'teleport/Integrations/status/AwsOidc/Details/Rds';
 import { Rules } from 'teleport/Integrations/status/AwsOidc/Details/Rules';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import { TaskAlert } from 'teleport/Integrations/status/AwsOidc/Tasks/TaskAlert';
 import { useAwsOidcStatus } from 'teleport/Integrations/status/AwsOidc/useAwsOidcStatus';
 import { IntegrationKind } from 'teleport/services/integrations';

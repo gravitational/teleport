@@ -1,108 +1,121 @@
-import { defineSlotRecipe } from "@chakra-ui/react"
+import { defineSlotRecipe } from '@chakra-ui/react';
 
 export const stepsSlotRecipe = defineSlotRecipe({
-  className: "chakra-steps",
-  slots: ["root", "list", "item", "trigger", "indicator", "separator", "content", "title", "description", "nextTrigger", "prevTrigger", "progress"],
+  className: 'teleport-steps',
+  slots: [
+    'root',
+    'list',
+    'item',
+    'trigger',
+    'indicator',
+    'separator',
+    'content',
+    'title',
+    'description',
+    'nextTrigger',
+    'prevTrigger',
+    'progress',
+  ],
   base: {
     root: {
-      display: "flex",
-      width: "full",
+      display: 'flex',
+      width: 'full',
     },
     list: {
-      display: "flex",
-      justifyContent: "space-between",
-      "--steps-gutter": "spacing.3",
-      "--steps-thickness": "2px",
+      display: 'flex',
+      justifyContent: 'space-between',
+      '--steps-gutter': 'spacing.3',
+      '--steps-thickness': '2px',
     },
     title: {
-      fontWeight: "medium",
-      color: "fg",
+      fontWeight: 'medium',
+      color: 'fg',
     },
     description: {
-      color: "fg.muted",
+      color: 'fg.muted',
     },
     separator: {
-      bg: "border",
-      flex: "1",
+      bg: 'border',
+      flex: '1',
     },
     indicator: {
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-      flexShrink: "0",
-      borderRadius: "full",
-      fontWeight: "medium",
-      width: "var(--steps-size)",
-      height: "var(--steps-size)",
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      flexShrink: '0',
+      borderRadius: 'full',
+      fontWeight: 'medium',
+      width: 'var(--steps-size)',
+      height: 'var(--steps-size)',
       _icon: {
-        flexShrink: "0",
-        width: "var(--steps-icon-size)",
-        height: "var(--steps-icon-size)",
+        flexShrink: '0',
+        width: 'var(--steps-icon-size)',
+        height: 'var(--steps-icon-size)',
       },
     },
     item: {
-      position: "relative",
-      display: "flex",
-      gap: "3",
-      flex: "1 0 0",
-      "&:last-of-type": {
-        flex: "initial",
-        "& [data-part=separator]": {
-          display: "none",
+      position: 'relative',
+      display: 'flex',
+      gap: '3',
+      flex: '1 0 0',
+      '&:last-of-type': {
+        flex: 'initial',
+        '& [data-part=separator]': {
+          display: 'none',
         },
       },
     },
     trigger: {
-      display: "flex",
-      alignItems: "center",
-      gap: "3",
-      textAlign: "start",
-      focusVisibleRing: "outside",
-      borderRadius: "l2",
+      display: 'flex',
+      alignItems: 'center',
+      gap: '3',
+      textAlign: 'start',
+      focusVisibleRing: 'outside',
+      borderRadius: 'l2',
     },
     content: {
-      focusVisibleRing: "outside",
+      focusVisibleRing: 'outside',
     },
   },
   variants: {
     orientation: {
       vertical: {
         root: {
-          flexDirection: "row",
-          height: "100%",
+          flexDirection: 'row',
+          height: '100%',
         },
         list: {
-          flexDirection: "column",
-          alignItems: "flex-start",
+          flexDirection: 'column',
+          alignItems: 'flex-start',
         },
         separator: {
-          position: "absolute",
-          width: "var(--steps-thickness)",
-          height: "100%",
-          maxHeight: "calc(100% - var(--steps-size) - var(--steps-gutter) * 2)",
-          top: "calc(var(--steps-size) + var(--steps-gutter))",
-          insetStart: "calc(var(--steps-size) / 2 - 1px)",
+          position: 'absolute',
+          width: 'var(--steps-thickness)',
+          height: '100%',
+          maxHeight: 'calc(100% - var(--steps-size) - var(--steps-gutter) * 2)',
+          top: 'calc(var(--steps-size) + var(--steps-gutter))',
+          insetStart: 'calc(var(--steps-size) / 2 - 1px)',
         },
         item: {
-          alignItems: "flex-start",
+          alignItems: 'flex-start',
         },
       },
       horizontal: {
         root: {
-          flexDirection: "column",
-          width: "100%",
+          flexDirection: 'column',
+          width: '100%',
         },
         list: {
-          flexDirection: "row",
-          alignItems: "center",
+          flexDirection: 'row',
+          alignItems: 'center',
         },
         separator: {
-          width: "100%",
-          height: "var(--steps-thickness)",
-          marginX: "var(--steps-gutter)",
+          width: '100%',
+          height: 'var(--steps-thickness)',
+          marginX: 'var(--steps-gutter)',
         },
         item: {
-          alignItems: "center",
+          alignItems: 'center',
         },
       },
     },
@@ -110,43 +123,43 @@ export const stepsSlotRecipe = defineSlotRecipe({
       solid: {
         indicator: {
           _incomplete: {
-            borderWidth: "var(--steps-thickness)",
+            borderWidth: 'var(--steps-thickness)',
           },
           _current: {
-            bg: "colorPalette.muted",
-            borderWidth: "var(--steps-thickness)",
-            borderColor: "colorPalette.solid",
-            color: "colorPalette.fg",
+            bg: 'colorPalette.muted',
+            borderWidth: 'var(--steps-thickness)',
+            borderColor: 'colorPalette.solid',
+            color: 'colorPalette.fg',
           },
           _complete: {
-            bg: "colorPalette.solid",
-            borderColor: "colorPalette.solid",
-            color: "colorPalette.contrast",
+            bg: 'colorPalette.solid',
+            borderColor: 'colorPalette.solid',
+            color: 'colorPalette.contrast',
           },
         },
         separator: {
           _complete: {
-            bg: "colorPalette.solid",
+            bg: 'colorPalette.solid',
           },
         },
       },
       subtle: {
         indicator: {
           _incomplete: {
-            bg: "bg.muted",
+            bg: 'bg.muted',
           },
           _current: {
-            bg: "colorPalette.muted",
-            color: "colorPalette.fg",
+            bg: 'colorPalette.muted',
+            color: 'colorPalette.fg',
           },
           _complete: {
-            bg: "colorPalette.emphasized",
-            color: "colorPalette.fg",
+            bg: 'colorPalette.emphasized',
+            color: 'colorPalette.fg',
           },
         },
         separator: {
           _complete: {
-            bg: "colorPalette.emphasized",
+            bg: 'colorPalette.emphasized',
           },
         },
       },
@@ -154,61 +167,61 @@ export const stepsSlotRecipe = defineSlotRecipe({
     size: {
       xs: {
         root: {
-          gap: "2.5",
+          gap: '2.5',
         },
         list: {
-          "--steps-size": "sizes.6",
-          "--steps-icon-size": "sizes.3.5",
-          textStyle: "xs",
+          '--steps-size': 'sizes.6',
+          '--steps-icon-size': 'sizes.3.5',
+          textStyle: 'xs',
         },
         title: {
-          textStyle: "sm",
+          textStyle: 'sm',
         },
       },
       sm: {
         root: {
-          gap: "3",
+          gap: '3',
         },
         list: {
-          "--steps-size": "sizes.8",
-          "--steps-icon-size": "sizes.4",
-          textStyle: "xs",
+          '--steps-size': 'sizes.8',
+          '--steps-icon-size': 'sizes.4',
+          textStyle: 'xs',
         },
         title: {
-          textStyle: "sm",
+          textStyle: 'sm',
         },
       },
       md: {
         root: {
-          gap: "4",
+          gap: '4',
         },
         list: {
-          "--steps-size": "sizes.10",
-          "--steps-icon-size": "sizes.4",
-          textStyle: "sm",
+          '--steps-size': 'sizes.10',
+          '--steps-icon-size': 'sizes.4',
+          textStyle: 'sm',
         },
         title: {
-          textStyle: "sm",
+          textStyle: 'sm',
         },
       },
       lg: {
         root: {
-          gap: "6",
+          gap: '6',
         },
         list: {
-          "--steps-size": "sizes.11",
-          "--steps-icon-size": "sizes.5",
-          textStyle: "md",
+          '--steps-size': 'sizes.11',
+          '--steps-icon-size': 'sizes.5',
+          textStyle: 'md',
         },
         title: {
-          textStyle: "md",
+          textStyle: 'md',
         },
       },
     },
   },
   defaultVariants: {
-    size: "md",
-    variant: "solid",
-    orientation: "horizontal",
+    size: 'md',
+    variant: 'solid',
+    orientation: 'horizontal',
   },
-})
+});

@@ -1,49 +1,49 @@
-import { defineRecipe } from "@chakra-ui/react"
+import { defineRecipe } from '@chakra-ui/react';
 
 export const separatorRecipe = defineRecipe({
-  className: "chakra-separator",
+  className: 'teleport-separator',
   base: {
-    display: "block",
-    borderColor: "border",
+    display: 'block',
+    borderColor: 'border',
   },
   variants: {
     variant: {
       solid: {
-        borderStyle: "solid",
+        borderStyle: 'solid',
       },
       dashed: {
-        borderStyle: "dashed",
+        borderStyle: 'dashed',
       },
       dotted: {
-        borderStyle: "dotted",
+        borderStyle: 'dotted',
       },
     },
     orientation: {
       vertical: {
-        borderInlineStartWidth: "var(--separator-thickness)",
+        borderInlineStartWidth: 'var(--separator-thickness)',
       },
       horizontal: {
-        borderTopWidth: "var(--separator-thickness)",
+        borderTopWidth: 'var(--separator-thickness)',
       },
     },
     size: {
       xs: {
-        "--separator-thickness": "0.5px",
+        '--separator-thickness': '0.5px',
       },
       sm: {
-        "--separator-thickness": "1px",
+        '--separator-thickness': '1px',
       },
       md: {
-        "--separator-thickness": "2px",
+        '--separator-thickness': '2px',
       },
       lg: {
-        "--separator-thickness": "3px",
+        '--separator-thickness': '3px',
       },
     },
   },
   defaultVariants: {
-    size: "sm",
-    variant: "solid",
-    orientation: "horizontal",
+    size: 'sm',
+    variant: 'solid',
+    orientation: 'horizontal',
   },
-})
+});

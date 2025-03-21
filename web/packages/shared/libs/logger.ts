@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Logger } from 'design/logger';
+import { Logger } from 'shared-new/logger';
 
-/** @deprecated Import { Logger } from 'design/logger'. */
+/** @deprecated Import { Logger } from 'shared-new/logger'. */
 export { Logger };
 
 /**
- * @deprecated Import { Logger } directly from 'design/logger' and create an instance
+ * @deprecated Import { Logger } directly from 'shared-new/logger' and create an instance
  * Logger by calling `new Logger(name)` instead of using this factory method.
  */
 export default {

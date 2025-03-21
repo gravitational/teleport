@@ -18,8 +18,9 @@
 
 import styled from 'styled-components';
 
+import cloudCity from 'design-new/assets/images/backgrounds/cloud-city.png';
+
 import { Box, Flex } from 'design';
-import cloudCity from 'design/assets/images/backgrounds/cloud-city.png';
 
 import { LogoHero } from 'teleport/components/LogoHero';
 

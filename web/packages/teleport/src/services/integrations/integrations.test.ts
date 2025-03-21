@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { AwsResource } from 'teleport-new/types';
+
 import cfg from 'teleport/config';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
 import api from 'teleport/services/api';
 

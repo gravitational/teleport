@@ -36,11 +36,13 @@ import {
 } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
 
+import { MfaChallengeScope } from 'teleport-new/services/mfa/types';
+
 import useReAuthenticate, {
   ReauthState,
 } from 'teleport/components/ReAuthenticate/useReAuthenticate';
 import { ChangePasswordReq } from 'teleport/services/auth';
-import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
+import auth from 'teleport/services/auth/auth';
 import {
   DeviceType,
   MfaOption,

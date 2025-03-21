@@ -34,9 +34,10 @@
  */
 import { http, HttpResponse } from 'msw';
 
+import { AwsResource } from 'teleport-new/types';
+
 import cfg from 'teleport/config';
 import { Details } from 'teleport/Integrations/status/AwsOidc/Details/Details';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import { MockAwsOidcStatusProvider } from 'teleport/Integrations/status/AwsOidc/testHelpers/mockAwsOidcStatusProvider';
 import { IntegrationKind } from 'teleport/services/integrations';
 

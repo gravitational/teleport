@@ -18,7 +18,9 @@
 
 import 'whatwg-fetch';
 
-import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
+import { MfaChallengeScope } from 'teleport-new/services/mfa/types';
+
+import auth from 'teleport/services/auth/auth';
 import websession from 'teleport/services/websession';
 
 import { MfaChallengeResponse } from '../mfa';

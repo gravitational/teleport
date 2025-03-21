@@ -10,8 +10,17 @@ const appPackages = ['teleport', 'e-teleport', 'teleterm'].flatMap(pkg => [
   pkg,
   `@gravitational/${pkg}`,
 ]);
+const newAppPackages = ['teleport-new', 'e-teleport-new', 'teleterm-new'].flatMap(pkg => [
+  pkg,
+  `@gravitational/${pkg}`,
+]);
 const libraryPackages = [...ourPackages]
-  .filter(pkg => !appPackages.includes(pkg))
+  .filter(pkg => !pkg.includes('-new'))
+  .filter(pkg => !appPackages.includes(pkg) && !newAppPackages.includes(pkg))
+  .flatMap(pkg => [pkg, `@gravitational/${pkg}`]);
+const newLibraryPackages = [...ourPackages]
+  .filter(pkg => pkg.includes('-new'))
+  .filter(pkg => !appPackages.includes(pkg) && !newAppPackages.includes(pkg))
   .flatMap(pkg => [pkg, `@gravitational/${pkg}`]);
 
 module.exports = {
@@ -24,7 +33,11 @@ module.exports = {
     '',
     '<THIRD_PARTY_MODULES>',
     '',
+    `^(${newLibraryPackages.join('|')})`,
+    '',
     `^(${libraryPackages.join('|')})`,
+    '',
+    `^(${newAppPackages.join('|')})`,
     '',
     `^(${appPackages.join('|')})`,
     '',

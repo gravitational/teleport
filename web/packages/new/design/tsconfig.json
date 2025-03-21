@@ -7,11 +7,10 @@
     "noImplicitOverride": true,
     "noUnusedLocals": true,
     "outDir": "../../../../build.assets/.cache/ts/design-new",
-//    "paths": {
-//      "design-new/*": ["web/packages/new/design/src/*"],
-//      "design-new": ["web/packages/new/design/src/"],
-//      "gen-proto-ts/*": ["gen/proto/ts/*"],
-//    },
+    "paths": {
+      "shared-new/*": ["web/packages/new/shared/src/*"],
+      "shared-new": ["web/packages/new/shared/src/"],
+    },
     "pretty": true,
     "rootDir": "../../../..",
     "strict": true,
@@ -20,6 +19,7 @@
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",
+    "../shared",
     "../../../../gen/proto/ts/**/*.ts",
   ],
 }

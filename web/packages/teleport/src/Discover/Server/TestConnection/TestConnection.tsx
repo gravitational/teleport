@@ -21,6 +21,8 @@ import { useState } from 'react';
 import { Box, ButtonSecondary, H3, LabelInput, Subtitle3 } from 'design';
 import Select, { type Option } from 'shared/components/Select';
 
+import { MfaChallengeScope } from 'teleport-new/services/mfa/types';
+
 import ReAuthenticate from 'teleport/components/ReAuthenticate';
 import cfg from 'teleport/config';
 import {
@@ -32,7 +34,6 @@ import {
   useConnectionDiagnostic,
 } from 'teleport/Discover/Shared';
 import { openNewTab } from 'teleport/lib/util';
-import { MfaChallengeScope } from 'teleport/services/auth/auth';
 import type { MfaChallengeResponse } from 'teleport/services/mfa';
 import { sortNodeLogins } from 'teleport/services/nodes';
 

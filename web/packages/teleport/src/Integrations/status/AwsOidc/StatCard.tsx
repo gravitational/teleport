@@ -31,12 +31,6 @@ import {
   ResourceTypeSummary,
 } from 'teleport/services/integrations';
 
-export enum AwsResource {
-  ec2 = 'ec2',
-  eks = 'eks',
-  rds = 'rds',
-}
-
 type StatCardProps = {
   name: string;
   resource: AwsResource;

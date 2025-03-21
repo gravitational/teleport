@@ -1,67 +1,67 @@
-import { defineSlotRecipe } from "@chakra-ui/react"
+import { defineSlotRecipe } from '@chakra-ui/react';
 
 export const listSlotRecipe = defineSlotRecipe({
-  className: "chakra-list",
-  slots: ["root", "item", "indicator"],
+  className: 'teleport-list',
+  slots: ['root', 'item', 'indicator'],
   base: {
     root: {
-      display: "flex",
-      flexDirection: "column",
-      gap: "var(--list-gap)",
-      "& :where(ul, ol)": {
-        marginTop: "var(--list-gap)",
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 'var(--list-gap)',
+      '& :where(ul, ol)': {
+        marginTop: 'var(--list-gap)',
       },
     },
     item: {
-      whiteSpace: "normal",
-      display: "list-item",
+      whiteSpace: 'normal',
+      display: 'list-item',
     },
     indicator: {
-      marginEnd: "2",
-      minHeight: "1lh",
+      marginEnd: '2',
+      minHeight: '1lh',
       flexShrink: 0,
-      display: "inline-block",
-      verticalAlign: "middle",
+      display: 'inline-block',
+      verticalAlign: 'middle',
     },
   },
   variants: {
     variant: {
       marker: {
         root: {
-          listStyle: "revert",
+          listStyle: 'revert',
         },
         item: {
           _marker: {
-            color: "fg.subtle",
+            color: 'fg.subtle',
           },
         },
       },
       plain: {
         item: {
-          alignItems: "flex-start",
-          display: "inline-flex",
+          alignItems: 'flex-start',
+          display: 'inline-flex',
         },
       },
     },
     align: {
       center: {
         item: {
-          alignItems: "center",
+          alignItems: 'center',
         },
       },
       start: {
         item: {
-          alignItems: "flex-start",
+          alignItems: 'flex-start',
         },
       },
       end: {
         item: {
-          alignItems: "flex-end",
+          alignItems: 'flex-end',
         },
       },
     },
   },
   defaultVariants: {
-    variant: "marker",
+    variant: 'marker',
   },
-})
+});

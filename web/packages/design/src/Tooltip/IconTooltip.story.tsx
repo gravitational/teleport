@@ -18,9 +18,10 @@
 
 import styled, { useTheme } from 'styled-components';
 
+import AGPLLogoDark from 'design-new/assets/images/agpl-dark.svg';
+import AGPLLogoLight from 'design-new/assets/images/agpl-light.svg';
+
 import { ButtonPrimary, Flex, Text } from 'design';
-import AGPLLogoDark from 'design/assets/images/agpl-dark.svg';
-import AGPLLogoLight from 'design/assets/images/agpl-light.svg';
 import { P } from 'design/Text/Text';
 
 import { HoverTooltip } from './HoverTooltip';

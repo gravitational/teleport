@@ -16,9 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export type AwsRole = {
-  name: string;
-  arn: string;
-  display: string;
-  accountId: string;
-};
+export * from 'shared-new/services/apps/types';

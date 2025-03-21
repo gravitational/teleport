@@ -1,54 +1,54 @@
-import { defineSlotRecipe } from "@chakra-ui/react"
+import { defineSlotRecipe } from '@chakra-ui/react';
 
 export const ratingGroupSlotRecipe = defineSlotRecipe({
-  className: "chakra-rating-group",
-  slots: ["root", "label", "item", "control", "itemIndicator"],
+  className: 'teleport-rating-group',
+  slots: ['root', 'label', 'item', 'control', 'itemIndicator'],
   base: {
     root: {
-      display: "inline-flex",
+      display: 'inline-flex',
     },
     control: {
-      display: "inline-flex",
-      alignItems: "center",
+      display: 'inline-flex',
+      alignItems: 'center',
     },
     item: {
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "center",
-      userSelect: "none",
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      userSelect: 'none',
     },
     itemIndicator: {
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "center",
-      width: "1em",
-      height: "1em",
-      position: "relative",
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      width: '1em',
+      height: '1em',
+      position: 'relative',
       _icon: {
-        stroke: "currentColor",
-        width: "100%",
-        height: "100%",
-        display: "inline-block",
+        stroke: 'currentColor',
+        width: '100%',
+        height: '100%',
+        display: 'inline-block',
         flexShrink: 0,
-        position: "absolute",
+        position: 'absolute',
         left: 0,
         top: 0,
       },
-      "& [data-bg]": {
-        color: "bg.emphasized",
+      '& [data-bg]': {
+        color: 'bg.emphasized',
       },
-      "& [data-fg]": {
-        color: "transparent",
+      '& [data-fg]': {
+        color: 'transparent',
       },
-      "&[data-highlighted]:not([data-half])": {
-        "& [data-fg]": {
-          color: "colorPalette.solid",
+      '&[data-highlighted]:not([data-half])': {
+        '& [data-fg]': {
+          color: 'colorPalette.solid',
         },
       },
-      "&[data-half]": {
-        "& [data-fg]": {
-          color: "colorPalette.solid",
-          clipPath: "inset(0 50% 0 0)",
+      '&[data-half]': {
+        '& [data-fg]': {
+          color: 'colorPalette.solid',
+          clipPath: 'inset(0 50% 0 0)',
         },
       },
     },
@@ -57,27 +57,27 @@ export const ratingGroupSlotRecipe = defineSlotRecipe({
     size: {
       xs: {
         item: {
-          textStyle: "sm",
+          textStyle: 'sm',
         },
       },
       sm: {
         item: {
-          textStyle: "md",
+          textStyle: 'md',
         },
       },
       md: {
         item: {
-          textStyle: "xl",
+          textStyle: 'xl',
         },
       },
       lg: {
         item: {
-          textStyle: "2xl",
+          textStyle: '2xl',
         },
       },
     },
   },
   defaultVariants: {
-    size: "md",
+    size: 'md',
   },
-})
+});

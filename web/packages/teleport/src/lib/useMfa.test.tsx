@@ -19,8 +19,10 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { act } from 'react';
 
+import { MfaChallengeScope } from 'teleport-new/services/mfa/types';
+
 import { CreateAuthenticateChallengeRequest } from 'teleport/services/auth';
-import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
+import auth from 'teleport/services/auth/auth';
 import {
   MFA_OPTION_WEBAUTHN,
   MfaAuthenticateChallenge,

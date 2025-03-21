@@ -1,19 +1,19 @@
-import { defineSlotRecipe } from "@chakra-ui/react"
+import { defineSlotRecipe } from '@chakra-ui/react';
 
 export const collapsibleSlotRecipe = defineSlotRecipe({
-  slots: ["root", "trigger", "content"],
-  className: "chakra-collapsible",
+  slots: ['root', 'trigger', 'content'],
+  className: 'teleport-collapsible',
   base: {
     content: {
-      overflow: "hidden",
+      overflow: 'hidden',
       _open: {
-        animationName: "expand-height, fade-in",
-        animationDuration: "moderate",
+        animationName: 'expand-height, fade-in',
+        animationDuration: 'moderate',
       },
       _closed: {
-        animationName: "collapse-height, fade-out",
-        animationDuration: "moderate",
+        animationName: 'collapse-height, fade-out',
+        animationDuration: 'moderate',
       },
     },
   },
-})
+});

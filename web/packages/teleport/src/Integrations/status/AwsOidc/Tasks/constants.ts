@@ -16,7 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export enum TaskState {
-  Open = 'OPEN',
-  Resolved = 'RESOLVED',
-}
+export { TaskState } from 'teleport-new/services/integrations/types';

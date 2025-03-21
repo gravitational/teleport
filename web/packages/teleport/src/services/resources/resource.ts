@@ -16,11 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { MfaChallengeScope } from 'teleport-new/services/mfa/types';
+
 import cfg, { UrlListRolesParams, UrlResourcesParams } from 'teleport/config';
 import api from 'teleport/services/api';
 
 import { ResourcesResponse, UnifiedResource } from '../agents';
-import auth, { MfaChallengeScope } from '../auth/auth';
+import auth from '../auth/auth';
 import {
   CreateOrOverwriteGitServer,
   DefaultAuthConnector,

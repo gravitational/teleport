@@ -21,9 +21,10 @@ import { ButtonIcon, Flex, Label, Text } from 'design';
 import { ArrowLeft } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 
+import { AwsResource } from 'teleport-new/types';
+
 import cfg from 'teleport/config';
 import { getStatusAndLabel } from 'teleport/Integrations/helpers';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import { IntegrationAwsOidc } from 'teleport/services/integrations';
 
 export function AwsOidcTitle({

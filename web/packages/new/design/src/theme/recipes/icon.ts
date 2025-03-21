@@ -1,38 +1,41 @@
-import { defineRecipe } from "@chakra-ui/react"
+import { defineRecipe } from '@chakra-ui/react';
 
 export const iconRecipe = defineRecipe({
-  className: "chakra-icon",
+  className: 'teleport-icon',
   base: {
-    display: "inline-block",
-    lineHeight: "1em",
-    flexShrink: "0",
-    color: "currentcolor",
-    verticalAlign: "middle",
+    display: 'inline-block',
+    lineHeight: '1em',
+    flexShrink: '0',
+    color: 'currentcolor',
+    verticalAlign: 'middle',
   },
   variants: {
     size: {
-      inherit: {},
+      text: {
+        width: '1em',
+        height: '1em',
+      },
       xs: {
-        boxSize: "3",
+        boxSize: '3',
       },
       sm: {
-        boxSize: "4",
+        boxSize: '4',
       },
       md: {
-        boxSize: "5",
+        boxSize: '5',
       },
       lg: {
-        boxSize: "6",
+        boxSize: '6',
       },
       xl: {
-        boxSize: "7",
+        boxSize: '7',
       },
-      "2xl": {
-        boxSize: "8",
+      '2xl': {
+        boxSize: '8',
       },
     },
   },
   defaultVariants: {
-    size: "inherit",
+    size: 'text',
   },
-})
+});

@@ -23,13 +23,14 @@ import { P } from 'design/Text/Text';
 import Select, { Option } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
 
+import { MfaChallengeScope } from 'teleport-new/services/mfa/types';
+
 import ReAuthenticate from 'teleport/components/ReAuthenticate';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import { WILD_CARD } from 'teleport/Discover/Shared/const';
 import { CustomInputFieldForAsterisks } from 'teleport/Discover/Shared/CustomInputFieldForAsterisks';
 import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import { generateTshLoginCommand } from 'teleport/lib/util';
-import { MfaChallengeScope } from 'teleport/services/auth/auth';
 import { MfaChallengeResponse } from 'teleport/services/mfa';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 

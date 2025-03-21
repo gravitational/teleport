@@ -1,28 +1,28 @@
-import { defineTokens } from "@chakra-ui/react"
+import { defineTokens } from '@chakra-ui/react';
 
 export const cursor = defineTokens.cursor({
   button: {
-    value: "pointer",
+    value: 'pointer',
   },
   checkbox: {
-    value: "default",
+    value: 'default',
   },
   disabled: {
-    value: "not-allowed",
+    value: 'not-allowed',
   },
   menuitem: {
-    value: "default",
+    value: 'default',
   },
   option: {
-    value: "default",
+    value: 'default',
   },
   radio: {
-    value: "default",
+    value: 'default',
   },
   slider: {
-    value: "default",
+    value: 'default',
   },
   switch: {
-    value: "pointer",
+    value: 'pointer',
   },
-})
+});

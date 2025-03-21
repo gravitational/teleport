@@ -1,185 +1,197 @@
-import { defineSlotRecipe } from "@chakra-ui/react"
+import { defineSlotRecipe } from '@chakra-ui/react';
 
 export const dialogSlotRecipe = defineSlotRecipe({
-  slots: ["trigger", "backdrop", "positioner", "content", "title", "description", "closeTrigger", "header", "body", "footer", "backdrop"],
-  className: "chakra-dialog",
+  slots: [
+    'trigger',
+    'backdrop',
+    'positioner',
+    'content',
+    'title',
+    'description',
+    'closeTrigger',
+    'header',
+    'body',
+    'footer',
+    'backdrop',
+  ],
+  className: 'teleport-dialog',
   base: {
     backdrop: {
-      bg: "blackAlpha.500",
-      pos: "fixed",
+      bg: 'blackAlpha.500',
+      pos: 'fixed',
       left: 0,
       top: 0,
-      w: "100vw",
-      h: "100dvh",
-      zIndex: "modal",
+      w: '100vw',
+      h: '100dvh',
+      zIndex: 'modal',
       _open: {
-        animationName: "fade-in",
-        animationDuration: "slow",
+        animationName: 'fade-in',
+        animationDuration: 'slow',
       },
       _closed: {
-        animationName: "fade-out",
-        animationDuration: "moderate",
+        animationName: 'fade-out',
+        animationDuration: 'moderate',
       },
     },
     positioner: {
-      display: "flex",
-      width: "100vw",
-      height: "100dvh",
-      position: "fixed",
+      display: 'flex',
+      width: '100vw',
+      height: '100dvh',
+      position: 'fixed',
       left: 0,
       top: 0,
-      "--dialog-z-index": "zIndex.modal",
-      zIndex: "calc(var(--dialog-z-index) + var(--layer-index, 0))",
-      justifyContent: "center",
-      overscrollBehaviorY: "none",
+      '--dialog-z-index': 'zIndex.modal',
+      zIndex: 'calc(var(--dialog-z-index) + var(--layer-index, 0))',
+      justifyContent: 'center',
+      overscrollBehaviorY: 'none',
     },
     content: {
-      display: "flex",
-      flexDirection: "column",
-      position: "relative",
-      width: "100%",
+      display: 'flex',
+      flexDirection: 'column',
+      position: 'relative',
+      width: '100%',
       outline: 0,
-      borderRadius: "l3",
-      textStyle: "sm",
-      my: "var(--dialog-margin, var(--dialog-base-margin))",
-      "--dialog-z-index": "zIndex.modal",
-      zIndex: "calc(var(--dialog-z-index) + var(--layer-index, 0))",
-      bg: "bg.panel",
-      boxShadow: "lg",
+      borderRadius: 'l3',
+      textStyle: 'sm',
+      my: 'var(--dialog-margin, var(--dialog-base-margin))',
+      '--dialog-z-index': 'zIndex.modal',
+      zIndex: 'calc(var(--dialog-z-index) + var(--layer-index, 0))',
+      bg: 'bg.panel',
+      boxShadow: 'lg',
       _open: {
-        animationDuration: "moderate",
+        animationDuration: 'moderate',
       },
       _closed: {
-        animationDuration: "faster",
+        animationDuration: 'faster',
       },
     },
     header: {
-      display: "flex",
-      gap: "2",
+      display: 'flex',
+      gap: '2',
       flex: 0,
-      px: "6",
-      pt: "6",
-      pb: "4",
+      px: '6',
+      pt: '6',
+      pb: '4',
     },
     body: {
-      flex: "1",
-      px: "6",
-      pt: "2",
-      pb: "6",
+      flex: '1',
+      px: '6',
+      pt: '2',
+      pb: '6',
     },
     footer: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "flex-end",
-      gap: "3",
-      px: "6",
-      pt: "2",
-      pb: "4",
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+      gap: '3',
+      px: '6',
+      pt: '2',
+      pb: '4',
     },
     title: {
-      textStyle: "lg",
-      fontWeight: "semibold",
+      textStyle: 'lg',
+      fontWeight: 'semibold',
     },
     description: {
-      color: "fg.muted",
+      color: 'fg.muted',
     },
     closeTrigger: {
-      pos: "absolute",
-      top: "2",
-      insetEnd: "2",
+      pos: 'absolute',
+      top: '2',
+      insetEnd: '2',
     },
   },
   variants: {
     placement: {
       center: {
         positioner: {
-          alignItems: "center",
+          alignItems: 'center',
         },
         content: {
-          "--dialog-base-margin": "auto",
-          mx: "auto",
+          '--dialog-base-margin': 'auto',
+          mx: 'auto',
         },
       },
       top: {
         positioner: {
-          alignItems: "flex-start",
+          alignItems: 'flex-start',
         },
         content: {
-          "--dialog-base-margin": "spacing.16",
-          mx: "auto",
+          '--dialog-base-margin': 'spacing.16',
+          mx: 'auto',
         },
       },
       bottom: {
         positioner: {
-          alignItems: "flex-end",
+          alignItems: 'flex-end',
         },
         content: {
-          "--dialog-base-margin": "spacing.16",
-          mx: "auto",
+          '--dialog-base-margin': 'spacing.16',
+          mx: 'auto',
         },
       },
     },
     scrollBehavior: {
       inside: {
         positioner: {
-          overflow: "hidden",
+          overflow: 'hidden',
         },
         content: {
-          maxH: "calc(100% - 7.5rem)",
+          maxH: 'calc(100% - 7.5rem)',
         },
         body: {
-          overflow: "auto",
+          overflow: 'auto',
         },
       },
       outside: {
         positioner: {
-          overflow: "auto",
-          pointerEvents: "auto",
+          overflow: 'auto',
+          pointerEvents: 'auto',
         },
       },
     },
     size: {
       xs: {
         content: {
-          maxW: "sm",
+          maxW: 'sm',
         },
       },
       sm: {
         content: {
-          maxW: "md",
+          maxW: 'md',
         },
       },
       md: {
         content: {
-          maxW: "lg",
+          maxW: 'lg',
         },
       },
       lg: {
         content: {
-          maxW: "2xl",
+          maxW: '2xl',
         },
       },
       xl: {
         content: {
-          maxW: "4xl",
+          maxW: '4xl',
         },
       },
       cover: {
         positioner: {
-          padding: "10",
+          padding: '10',
         },
         content: {
-          width: "100%",
-          height: "100%",
-          "--dialog-margin": "0",
+          width: '100%',
+          height: '100%',
+          '--dialog-margin': '0',
         },
       },
       full: {
         content: {
-          maxW: "100vw",
-          minH: "100vh",
-          "--dialog-margin": "0",
-          borderRadius: "0",
+          maxW: '100vw',
+          minH: '100vh',
+          '--dialog-margin': '0',
+          borderRadius: '0',
         },
       },
     },
@@ -187,50 +199,50 @@ export const dialogSlotRecipe = defineSlotRecipe({
       scale: {
         content: {
           _open: {
-            animationName: "scale-in, fade-in",
+            animationName: 'scale-in, fade-in',
           },
           _closed: {
-            animationName: "scale-out, fade-out",
+            animationName: 'scale-out, fade-out',
           },
         },
       },
-      "slide-in-bottom": {
+      'slide-in-bottom': {
         content: {
           _open: {
-            animationName: "slide-from-bottom, fade-in",
+            animationName: 'slide-from-bottom, fade-in',
           },
           _closed: {
-            animationName: "slide-to-bottom, fade-out",
+            animationName: 'slide-to-bottom, fade-out',
           },
         },
       },
-      "slide-in-top": {
+      'slide-in-top': {
         content: {
           _open: {
-            animationName: "slide-from-top, fade-in",
+            animationName: 'slide-from-top, fade-in',
           },
           _closed: {
-            animationName: "slide-to-top, fade-out",
+            animationName: 'slide-to-top, fade-out',
           },
         },
       },
-      "slide-in-left": {
+      'slide-in-left': {
         content: {
           _open: {
-            animationName: "slide-from-left, fade-in",
+            animationName: 'slide-from-left, fade-in',
           },
           _closed: {
-            animationName: "slide-to-left, fade-out",
+            animationName: 'slide-to-left, fade-out',
           },
         },
       },
-      "slide-in-right": {
+      'slide-in-right': {
         content: {
           _open: {
-            animationName: "slide-from-right, fade-in",
+            animationName: 'slide-from-right, fade-in',
           },
           _closed: {
-            animationName: "slide-to-right, fade-out",
+            animationName: 'slide-to-right, fade-out',
           },
         },
       },
@@ -238,9 +250,9 @@ export const dialogSlotRecipe = defineSlotRecipe({
     },
   },
   defaultVariants: {
-    size: "md",
-    scrollBehavior: "outside",
-    placement: "top",
-    motionPreset: "scale",
+    size: 'md',
+    scrollBehavior: 'outside',
+    placement: 'top',
+    motionPreset: 'scale',
   },
-})
+});

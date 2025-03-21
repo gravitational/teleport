@@ -16,15 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export type YamlParseRequest = {
-  yaml: string;
-};
-
-export type YamlStringifyRequest<T> = {
-  resource: T;
-};
-
-export enum YamlSupportedResourceKind {
-  AccessMonitoringRule = 'access_monitoring_rule',
-  Role = 'role',
-}
+export * from 'teleport-new/services/yaml/types';

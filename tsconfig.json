@@ -36,11 +36,11 @@
       "e-teleport/*": ["e/web/teleport/src/*"],
       "gen-proto-ts/*": ["gen/proto/ts/*"],
 
-      "shared-new/*": ["web/packages/new/shared/*"],
+      "shared-new/*": ["web/packages/new/shared/src/*"],
       "design-new/*": ["web/packages/new/design/src/*"],
       "teleport-new/*": ["web/packages/new/teleport/src/*"],
       "teleport-new": ["web/packages/new/teleport/src/"],
-      "e-teleport-new/*": ["e/web/new/src/*"],
+      "e-teleport-new/*": ["e/web/new/src/*"]
     }
   },
   "exclude": [

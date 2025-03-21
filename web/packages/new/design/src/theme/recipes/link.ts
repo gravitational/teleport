@@ -1,35 +1,35 @@
-import { defineRecipe } from "@chakra-ui/react"
+import { defineRecipe } from '@chakra-ui/react';
 
 export const linkRecipe = defineRecipe({
-  className: "chakra-link",
+  className: 'teleport-link',
   base: {
-    display: "inline-flex",
-    alignItems: "center",
-    outline: "none",
-    gap: "1.5",
-    cursor: "pointer",
-    borderRadius: "l1",
-    focusRing: "outside",
+    display: 'inline-flex',
+    alignItems: 'center',
+    outline: 'none',
+    gap: '1.5',
+    cursor: 'pointer',
+    borderRadius: 'l1',
+    focusRing: 'outside',
   },
   variants: {
     variant: {
       underline: {
-        color: "colorPalette.fg",
-        textDecoration: "underline",
-        textUnderlineOffset: "3px",
-        textDecorationColor: "currentColor/20",
+        color: 'colorPalette.fg',
+        textDecoration: 'underline',
+        textUnderlineOffset: '3px',
+        textDecorationColor: 'currentColor/20',
       },
       plain: {
-        color: "colorPalette.fg",
+        color: 'colorPalette.fg',
         _hover: {
-          textDecoration: "underline",
-          textUnderlineOffset: "3px",
-          textDecorationColor: "currentColor/20",
+          textDecoration: 'underline',
+          textUnderlineOffset: '3px',
+          textDecorationColor: 'currentColor/20',
         },
       },
     },
   },
   defaultVariants: {
-    variant: "plain",
+    variant: 'plain',
   },
-})
+});

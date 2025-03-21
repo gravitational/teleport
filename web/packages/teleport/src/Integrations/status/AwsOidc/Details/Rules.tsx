@@ -21,8 +21,9 @@ import { useParams } from 'react-router';
 
 import Table, { LabelCell } from 'design/DataTable';
 
+import { AwsResource } from 'teleport-new/types';
+
 import { useServerSidePagination } from 'teleport/components/hooks';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import {
   IntegrationDiscoveryRule,
   IntegrationKind,

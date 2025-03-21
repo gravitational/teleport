@@ -16,28 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export type RecordingsQuery = {
-  from: Date;
-  to: Date;
-  limit?: number;
-  startKey?: string;
-};
-
-export type RecordingsResponse = {
-  recordings: Recording[];
-  startKey: string;
-};
-
-export type RecordingType = 'ssh' | 'desktop' | 'k8s' | 'database';
-
-export type Recording = {
-  duration: number;
-  durationText: string;
-  sid: string;
-  createdDate: Date;
-  users: string;
-  hostname: string;
-  description: string;
-  recordingType: RecordingType;
-  playable: boolean;
-};
+export * from 'teleport-new/services/recording/types';

@@ -1,42 +1,42 @@
-import { defineSlotRecipe } from "@chakra-ui/react"
+import { defineSlotRecipe } from '@chakra-ui/react';
 
 export const checkboxSlotRecipe = defineSlotRecipe({
-  slots: ["root", "label", "control", "indicator", "group"],
-  className: "chakra-checkbox",
+  slots: ['root', 'label', 'control', 'indicator', 'group'],
+  className: 'teleport-checkbox',
   base: {
     root: {
-      display: "inline-flex",
-      gap: "2",
-      alignItems: "center",
-      verticalAlign: "top",
-      position: "relative",
+      display: 'inline-flex',
+      gap: '2',
+      alignItems: 'center',
+      verticalAlign: 'top',
+      position: 'relative',
     },
     control: {
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "center",
-      flexShrink: "0",
-      color: "white",
-      borderWidth: "1px",
-      borderColor: "transparent",
-      borderRadius: "l1",
-      focusVisibleRing: "outside",
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: '0',
+      color: 'white',
+      borderWidth: '1px',
+      borderColor: 'transparent',
+      borderRadius: 'l1',
+      focusVisibleRing: 'outside',
       _icon: {
-        boxSize: "full",
+        boxSize: 'full',
       },
       _invalid: {
-        colorPalette: "red",
-        borderColor: "border.error",
+        colorPalette: 'red',
+        borderColor: 'border.error',
       },
       _disabled: {
-        opacity: "0.5",
+        opacity: '0.5',
       },
     },
     label: {
-      fontWeight: "medium",
-      userSelect: "none",
+      fontWeight: 'medium',
+      userSelect: 'none',
       _disabled: {
-        opacity: "0.5",
+        opacity: '0.5',
       },
     },
   },
@@ -44,84 +44,84 @@ export const checkboxSlotRecipe = defineSlotRecipe({
     size: {
       xs: {
         root: {
-          gap: "1.5",
+          gap: '1.5',
         },
         label: {
-          textStyle: "xs",
+          textStyle: 'xs',
         },
         control: {
-          boxSize: "3",
+          boxSize: '3',
         },
       },
       sm: {
         root: {
-          gap: "2",
+          gap: '2',
         },
         label: {
-          textStyle: "sm",
+          textStyle: 'sm',
         },
         control: {
-          boxSize: "4",
+          boxSize: '4',
         },
       },
       md: {
         root: {
-          gap: "2.5",
+          gap: '2.5',
         },
         label: {
-          textStyle: "sm",
+          textStyle: 'sm',
         },
         control: {
-          boxSize: "5",
-          p: "0.5",
+          boxSize: '5',
+          p: '0.5',
         },
       },
       lg: {
         root: {
-          gap: "3",
+          gap: '3',
         },
         label: {
-          textStyle: "md",
+          textStyle: 'md',
         },
         control: {
-          boxSize: "6",
-          p: "0.5",
+          boxSize: '6',
+          p: '0.5',
         },
       },
     },
     variant: {
       outline: {
         control: {
-          borderColor: "border",
-          "&:is([data-state=checked], [data-state=indeterminate])": {
-            color: "colorPalette.fg",
-            borderColor: "colorPalette.solid",
+          borderColor: 'border',
+          '&:is([data-state=checked], [data-state=indeterminate])': {
+            color: 'colorPalette.fg',
+            borderColor: 'colorPalette.solid',
           },
         },
       },
       solid: {
         control: {
-          borderColor: "border",
-          "&:is([data-state=checked], [data-state=indeterminate])": {
-            bg: "colorPalette.solid",
-            color: "colorPalette.contrast",
-            borderColor: "colorPalette.solid",
+          borderColor: 'border',
+          '&:is([data-state=checked], [data-state=indeterminate])': {
+            bg: 'colorPalette.solid',
+            color: 'colorPalette.contrast',
+            borderColor: 'colorPalette.solid',
           },
         },
       },
       subtle: {
         control: {
-          bg: "colorPalette.muted",
-          borderColor: "colorPalette.muted",
-          "&:is([data-state=checked], [data-state=indeterminate])": {
-            color: "colorPalette.fg",
+          bg: 'colorPalette.muted',
+          borderColor: 'colorPalette.muted',
+          '&:is([data-state=checked], [data-state=indeterminate])': {
+            color: 'colorPalette.fg',
           },
         },
       },
     },
   },
   defaultVariants: {
-    variant: "solid",
-    size: "md",
+    variant: 'solid',
+    size: 'md',
   },
-})
+});

@@ -1,5 +1,6 @@
-import type { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
 import { Logger } from 'shared-new/logger';
+
+import type { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
 
 import { StorageService } from '../storage/storageService';
 
@@ -22,28 +23,8 @@ interface BackendBearerToken {
 
 const logger = new Logger('services/session');
 
-export class SessionService {
-  static getBearerToken() {
-    try {
-      const token = SessionService.extractBearerTokenFromHtml();
-
-      if (token) {
-        StorageService.setBearerToken(token);
-
-        return token;
-      }
-
-      const storedToken = StorageService.getBearerToken();
-
-      if (storedToken) {
-        return storedToken;
-      }
-    } catch (err) {
-      logger.error('No bearer token found in HTML or local storage', err);
-    }
-  }
-
-  static extractBearerTokenFromHtml(): BearerToken | null {
+export const SessionService = {
+  extractBearerTokenFromHtml(): BearerToken | null {
     const el = document.querySelector<HTMLMetaElement>(
       '[name=grv_bearer_token]'
     );
@@ -59,8 +40,47 @@ export class SessionService {
     const token = JSON.parse(decoded) as BackendBearerToken;
 
     return convertBackendBearerToken(token);
-  }
-}
+  },
+  getBearerToken() {
+    try {
+      const token = SessionService.extractBearerTokenFromHtml();
+
+      if (token) {
+        StorageService.setBearerToken(token);
+
+        return token;
+      }
+
+      const storedToken = StorageService.getBearerToken();
+
+      if (storedToken) {
+        return storedToken;
+      }
+    } catch (err) {
+      logger.error('Cannot find bearer token', err);
+    }
+
+    return;
+  },
+  getTimeLeft() {
+    const token = this.getBearerToken();
+
+    if (!token) {
+      return 0;
+    }
+
+    const { expiresIn, created } = token;
+
+    if (!created || !expiresIn) {
+      return 0;
+    }
+
+    return created + expiresIn * 1000 - new Date().getTime();
+  },
+  isValid() {
+    return this.getTimeLeft() > 0;
+  },
+};
 
 function convertBackendBearerToken(token: BackendBearerToken): BearerToken {
   return {

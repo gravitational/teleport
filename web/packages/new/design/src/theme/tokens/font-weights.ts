@@ -1,31 +1,31 @@
-import { defineTokens } from "@chakra-ui/react"
+import { defineTokens } from '@chakra-ui/react';
 
 export const fontWeights = defineTokens.fontWeights({
   thin: {
-    value: "100",
+    value: '100',
   },
   extralight: {
-    value: "200",
+    value: '200',
   },
   light: {
-    value: "300",
+    value: '300',
   },
   normal: {
-    value: "400",
+    value: '400',
   },
   medium: {
-    value: "500",
+    value: '500',
   },
   semibold: {
-    value: "600",
+    value: '600',
   },
   bold: {
-    value: "700",
+    value: '700',
   },
   extrabold: {
-    value: "800",
+    value: '800',
   },
   black: {
-    value: "900",
+    value: '900',
   },
-})
+});

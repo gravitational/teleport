@@ -1,213 +1,221 @@
-import { defineSlotRecipe } from "@chakra-ui/react"
+import { defineSlotRecipe } from '@chakra-ui/react';
 
 export const checkboxCardSlotRecipe = defineSlotRecipe({
-  slots: ["root", "control", "label", "description", "addon", "indicator", "content"],
-  className: "chakra-checkbox-card",
+  slots: [
+    'root',
+    'control',
+    'label',
+    'description',
+    'addon',
+    'indicator',
+    'content',
+  ],
+  className: 'teleport-checkbox-card',
   base: {
     root: {
-      display: "flex",
-      flexDirection: "column",
-      userSelect: "none",
-      position: "relative",
-      borderRadius: "l2",
-      flex: "1",
-      focusVisibleRing: "outside",
+      display: 'flex',
+      flexDirection: 'column',
+      userSelect: 'none',
+      position: 'relative',
+      borderRadius: 'l2',
+      flex: '1',
+      focusVisibleRing: 'outside',
       _disabled: {
-        opacity: "0.8",
+        opacity: '0.8',
       },
       _invalid: {
-        outline: "2px solid",
-        outlineColor: "border.error",
+        outline: '2px solid',
+        outlineColor: 'border.error',
       },
     },
     control: {
-      display: "inline-flex",
-      flex: "1",
-      position: "relative",
-      borderRadius: "inherit",
-      justifyContent: "var(--checkbox-card-justify)",
-      alignItems: "var(--checkbox-card-align)",
+      display: 'inline-flex',
+      flex: '1',
+      position: 'relative',
+      borderRadius: 'inherit',
+      justifyContent: 'var(--checkbox-card-justify)',
+      alignItems: 'var(--checkbox-card-align)',
     },
     label: {
-      fontWeight: "medium",
-      display: "flex",
-      alignItems: "center",
-      gap: "2",
-      flex: "1",
+      fontWeight: 'medium',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '2',
+      flex: '1',
       _disabled: {
-        opacity: "0.5",
+        opacity: '0.5',
       },
     },
     description: {
-      opacity: "0.64",
-      textStyle: "sm",
+      opacity: '0.64',
+      textStyle: 'sm',
       _disabled: {
-        opacity: "0.5",
+        opacity: '0.5',
       },
     },
     addon: {
       _disabled: {
-        opacity: "0.5",
+        opacity: '0.5',
       },
     },
     indicator: {
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "center",
-      flexShrink: "0",
-      color: "white",
-      borderWidth: "1px",
-      borderColor: "transparent",
-      borderRadius: "l1",
-      focusVisibleRing: "outside",
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: '0',
+      color: 'white',
+      borderWidth: '1px',
+      borderColor: 'transparent',
+      borderRadius: 'l1',
+      focusVisibleRing: 'outside',
       _icon: {
-        boxSize: "full",
+        boxSize: 'full',
       },
       _invalid: {
-        colorPalette: "red",
-        borderColor: "border.error",
+        colorPalette: 'red',
+        borderColor: 'border.error',
       },
       _disabled: {
-        opacity: "0.5",
+        opacity: '0.5',
       },
     },
     content: {
-      display: "flex",
-      flexDirection: "column",
-      flex: "1",
-      gap: "1",
-      justifyContent: "var(--checkbox-card-justify)",
-      alignItems: "var(--checkbox-card-align)",
+      display: 'flex',
+      flexDirection: 'column',
+      flex: '1',
+      gap: '1',
+      justifyContent: 'var(--checkbox-card-justify)',
+      alignItems: 'var(--checkbox-card-align)',
     },
   },
   variants: {
     size: {
       sm: {
         root: {
-          textStyle: "sm",
+          textStyle: 'sm',
         },
         control: {
-          padding: "3",
-          gap: "1.5",
+          padding: '3',
+          gap: '1.5',
         },
         addon: {
-          px: "3",
-          py: "1.5",
-          borderTopWidth: "1px",
+          px: '3',
+          py: '1.5',
+          borderTopWidth: '1px',
         },
         indicator: {
-          boxSize: "4",
+          boxSize: '4',
         },
       },
       md: {
         root: {
-          textStyle: "sm",
+          textStyle: 'sm',
         },
         control: {
-          padding: "4",
-          gap: "2.5",
+          padding: '4',
+          gap: '2.5',
         },
         addon: {
-          px: "4",
-          py: "2",
-          borderTopWidth: "1px",
+          px: '4',
+          py: '2',
+          borderTopWidth: '1px',
         },
         indicator: {
-          boxSize: "5",
-          p: "0.5",
+          boxSize: '5',
+          p: '0.5',
         },
       },
       lg: {
         root: {
-          textStyle: "md",
+          textStyle: 'md',
         },
         control: {
-          padding: "4",
-          gap: "3.5",
+          padding: '4',
+          gap: '3.5',
         },
         addon: {
-          px: "4",
-          py: "2",
-          borderTopWidth: "1px",
+          px: '4',
+          py: '2',
+          borderTopWidth: '1px',
         },
         indicator: {
-          boxSize: "6",
-          p: "0.5",
+          boxSize: '6',
+          p: '0.5',
         },
       },
     },
     variant: {
       surface: {
         root: {
-          borderWidth: "1px",
-          borderColor: "border",
+          borderWidth: '1px',
+          borderColor: 'border',
           _checked: {
-            bg: "colorPalette.subtle",
-            color: "colorPalette.fg",
-            borderColor: "colorPalette.muted",
+            bg: 'colorPalette.subtle',
+            color: 'colorPalette.fg',
+            borderColor: 'colorPalette.muted',
           },
           _disabled: {
-            bg: "bg.muted",
+            bg: 'bg.muted',
           },
         },
         indicator: {
-          borderColor: "border",
-          "&:is([data-state=checked], [data-state=indeterminate])": {
-            bg: "colorPalette.solid",
-            color: "colorPalette.contrast",
-            borderColor: "colorPalette.solid",
+          borderColor: 'border',
+          '&:is([data-state=checked], [data-state=indeterminate])': {
+            bg: 'colorPalette.solid',
+            color: 'colorPalette.contrast',
+            borderColor: 'colorPalette.solid',
           },
         },
       },
       subtle: {
         root: {
-          bg: "bg.muted",
+          bg: 'bg.muted',
         },
         control: {
           _checked: {
-            bg: "colorPalette.muted",
-            color: "colorPalette.fg",
+            bg: 'colorPalette.muted',
+            color: 'colorPalette.fg',
           },
         },
         indicator: {
-          "&:is([data-state=checked], [data-state=indeterminate])": {
-            color: "colorPalette.fg",
+          '&:is([data-state=checked], [data-state=indeterminate])': {
+            color: 'colorPalette.fg',
           },
         },
       },
       outline: {
         root: {
-          borderWidth: "1px",
-          borderColor: "border",
+          borderWidth: '1px',
+          borderColor: 'border',
           _checked: {
-            boxShadow: "0 0 0 1px var(--shadow-color)",
-            boxShadowColor: "colorPalette.solid",
-            borderColor: "colorPalette.solid",
+            boxShadow: '0 0 0 1px var(--shadow-color)',
+            boxShadowColor: 'colorPalette.solid',
+            borderColor: 'colorPalette.solid',
           },
         },
         indicator: {
-          borderColor: "border",
-          "&:is([data-state=checked], [data-state=indeterminate])": {
-            bg: "colorPalette.solid",
-            color: "colorPalette.contrast",
-            borderColor: "colorPalette.solid",
+          borderColor: 'border',
+          '&:is([data-state=checked], [data-state=indeterminate])': {
+            bg: 'colorPalette.solid',
+            color: 'colorPalette.contrast',
+            borderColor: 'colorPalette.solid',
           },
         },
       },
       solid: {
         root: {
-          borderWidth: "1px",
+          borderWidth: '1px',
           _checked: {
-            bg: "colorPalette.solid",
-            color: "colorPalette.contrast",
-            borderColor: "colorPalette.solid",
+            bg: 'colorPalette.solid',
+            color: 'colorPalette.contrast',
+            borderColor: 'colorPalette.solid',
           },
         },
         indicator: {
-          borderColor: "border",
-          color: "colorPalette.fg",
-          "&:is([data-state=checked], [data-state=indeterminate])": {
-            borderColor: "colorPalette.solid",
+          borderColor: 'border',
+          color: 'colorPalette.fg',
+          '&:is([data-state=checked], [data-state=indeterminate])': {
+            borderColor: 'colorPalette.solid',
           },
         },
       },
@@ -215,63 +223,63 @@ export const checkboxCardSlotRecipe = defineSlotRecipe({
     justify: {
       start: {
         root: {
-          "--checkbox-card-justify": "flex-start",
+          '--checkbox-card-justify': 'flex-start',
         },
       },
       end: {
         root: {
-          "--checkbox-card-justify": "flex-end",
+          '--checkbox-card-justify': 'flex-end',
         },
       },
       center: {
         root: {
-          "--checkbox-card-justify": "center",
+          '--checkbox-card-justify': 'center',
         },
       },
     },
     align: {
       start: {
         root: {
-          "--checkbox-card-align": "flex-start",
+          '--checkbox-card-align': 'flex-start',
         },
         content: {
-          textAlign: "start",
+          textAlign: 'start',
         },
       },
       end: {
         root: {
-          "--checkbox-card-align": "flex-end",
+          '--checkbox-card-align': 'flex-end',
         },
         content: {
-          textAlign: "end",
+          textAlign: 'end',
         },
       },
       center: {
         root: {
-          "--checkbox-card-align": "center",
+          '--checkbox-card-align': 'center',
         },
         content: {
-          textAlign: "center",
+          textAlign: 'center',
         },
       },
     },
     orientation: {
       vertical: {
         control: {
-          flexDirection: "column",
+          flexDirection: 'column',
         },
       },
       horizontal: {
         control: {
-          flexDirection: "row",
+          flexDirection: 'row',
         },
       },
     },
   },
   defaultVariants: {
-    size: "md",
-    variant: "outline",
-    align: "start",
-    orientation: "horizontal",
+    size: 'md',
+    variant: 'outline',
+    align: 'start',
+    orientation: 'horizontal',
   },
-})
+});

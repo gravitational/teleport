@@ -61,6 +61,12 @@ const dataVisualisationColors: DataVisualisationColors = {
   },
 };
 
+const neutralColors = [
+  'rgba(0,0,0,0.06)',
+  'rgba(0,0,0,0.13)',
+  'rgba(0,0,0,0.18)',
+];
+
 const levels = {
   deep: '#E6E9EA',
 
@@ -72,12 +78,6 @@ const levels = {
 
   popout: '#FFFFFF',
 };
-
-const neutralColors = [
-  'rgba(0,0,0,0.06)',
-  'rgba(0,0,0,0.13)',
-  'rgba(0,0,0,0.18)',
-];
 
 const colors: ThemeColors = {
   ...sharedColors,

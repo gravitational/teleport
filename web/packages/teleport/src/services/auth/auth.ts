@@ -16,15 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import cfg from 'teleport/config';
-import api from 'teleport/services/api';
+import {
+  ChangePasswordReq,
+  CreateAuthenticateChallengeRequest,
+  CreateNewHardwareDeviceRequest,
+  ResetPasswordReqWithEvent,
+  ResetPasswordWithWebauthnReqWithEvent,
+  UserCredentials,
+} from 'teleport-new/services/auth/types';
 import {
   DeviceType,
   DeviceUsage,
   MfaAuthenticateChallenge,
   MfaChallengeResponse,
+  MfaChallengeScope,
   SsoChallenge,
-} from 'teleport/services/mfa';
+  type IsMfaRequiredRequest,
+  type IsMfaRequiredResponse,
+} from 'teleport-new/services/mfa/types';
+
+import cfg from 'teleport/config';
+import api from 'teleport/services/api';
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
 import {
@@ -35,14 +47,6 @@ import {
 } from '../mfa/makeMfa';
 import { makeChangedUserAuthn } from './make';
 import makePasswordToken from './makePasswordToken';
-import {
-  ChangePasswordReq,
-  CreateAuthenticateChallengeRequest,
-  CreateNewHardwareDeviceRequest,
-  ResetPasswordReqWithEvent,
-  ResetPasswordWithWebauthnReqWithEvent,
-  UserCredentials,
-} from './types';
 
 const auth = {
   checkWebauthnSupport() {
@@ -449,85 +453,3 @@ function waitForMessage(
 }
 
 export default auth;
-
-// TODO(Joerger): In order to check if mfa is required for a leaf host, the leaf
-// clusterID must be included in the request. Currently, only IsMfaRequiredApp
-// supports this functionality.
-export type IsMfaRequiredRequest =
-  | IsMfaRequiredDatabase
-  | IsMfaRequiredNode
-  | IsMfaRequiredKube
-  | IsMfaRequiredWindowsDesktop
-  | IsMfaRequiredApp
-  | IsMfaRequiredAdminAction;
-
-export type IsMfaRequiredResponse = {
-  required: boolean;
-};
-
-export type IsMfaRequiredDatabase = {
-  database: {
-    // service_name is the database service name.
-    service_name: string;
-    // protocol is the type of the database protocol.
-    protocol: string;
-    // username is an optional database username.
-    username?: string;
-    // database_name is an optional database name.
-    database_name?: string;
-  };
-};
-
-export type IsMfaRequiredNode = {
-  node: {
-    // node_name can be node's hostname or UUID.
-    node_name: string;
-    // login is the OS login name.
-    login: string;
-  };
-};
-
-export type IsMfaRequiredWindowsDesktop = {
-  windows_desktop: {
-    // desktop_name is the Windows Desktop server name.
-    desktop_name: string;
-    // login is the Windows desktop user login.
-    login: string;
-  };
-};
-
-export type IsMfaRequiredKube = {
-  kube: {
-    // cluster_name is the name of the kube cluster.
-    cluster_name: string;
-  };
-};
-
-export type IsMfaRequiredApp = {
-  app: {
-    // fqdn indicates (tentatively) the fully qualified domain name of the application.
-    fqdn: string;
-    // public_addr is the public address of the application.
-    public_addr: string;
-    // cluster_name is the cluster within which this application is running.
-    cluster_name: string;
-  };
-};
-
-export type IsMfaRequiredAdminAction = {
-  // empty object.
-  admin_action: Record<string, never>;
-};
-
-// MfaChallengeScope is an mfa challenge scope. Possible values are defined in mfa.proto
-export enum MfaChallengeScope {
-  UNSPECIFIED = 0,
-  LOGIN = 1,
-  PASSWORDLESS_LOGIN = 2,
-  HEADLESS_LOGIN = 3,
-  MANAGE_DEVICES = 4,
-  ACCOUNT_RECOVERY = 5,
-  USER_SESSION = 6,
-  ADMIN_ACTION = 7,
-  CHANGE_PASSWORD = 8,
-}

@@ -1,97 +1,98 @@
-import { defineSlotRecipe } from "@chakra-ui/react"
+import { defineSlotRecipe } from '@chakra-ui/react';
 
 export const cardSlotRecipe = defineSlotRecipe({
-  className: "chakra-card",
-  slots: ["root", "header", "body", "footer", "title", "description"],
+  className: 'teleport-card',
+  slots: ['root', 'header', 'body', 'footer', 'title', 'description'],
   base: {
     root: {
-      display: "flex",
-      flexDirection: "column",
-      position: "relative",
-      minWidth: "0",
-      wordWrap: "break-word",
-      borderRadius: "l3",
-      color: "fg",
-      textAlign: "start",
+      display: 'flex',
+      flexDirection: 'column',
+      position: 'relative',
+      minWidth: '0',
+      wordWrap: 'break-word',
+      borderRadius: 'l3',
+      color: 'fg',
+      textAlign: 'start',
     },
     title: {
-      fontWeight: "semibold",
+      fontWeight: 'semibold',
     },
     description: {
-      color: "fg.muted",
-      fontSize: "sm",
+      color: 'fg.muted',
+      fontSize: 'sm',
     },
     header: {
-      paddingInline: "var(--card-padding)",
-      paddingTop: "var(--card-padding)",
-      display: "flex",
-      flexDirection: "column",
-      gap: "1.5",
+      paddingInline: 'var(--card-padding)',
+      paddingTop: 'var(--card-padding)',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '1.5',
     },
     body: {
-      padding: "var(--card-padding)",
-      flex: "1",
-      display: "flex",
-      flexDirection: "column",
+      padding: 'var(--card-padding)',
+      flex: '1',
+      display: 'flex',
+      flexDirection: 'column',
     },
     footer: {
-      display: "flex",
-      alignItems: "center",
-      gap: "2",
-      paddingInline: "var(--card-padding)",
-      paddingBottom: "var(--card-padding)",
+      display: 'flex',
+      alignItems: 'center',
+      gap: '2',
+      paddingInline: 'var(--card-padding)',
+      paddingBottom: 'var(--card-padding)',
     },
   },
   variants: {
     size: {
       sm: {
         root: {
-          "--card-padding": "spacing.4",
+          '--card-padding': 'spacing.4',
         },
         title: {
-          textStyle: "md",
+          textStyle: 'md',
         },
       },
       md: {
         root: {
-          "--card-padding": "spacing.6",
+          '--card-padding': 'spacing.6',
         },
         title: {
-          textStyle: "lg",
+          textStyle: 'lg',
         },
       },
       lg: {
         root: {
-          "--card-padding": "spacing.7",
+          '--card-padding': 'spacing.7',
         },
         title: {
-          textStyle: "xl",
+          textStyle: 'xl',
         },
       },
     },
     variant: {
       elevated: {
         root: {
-          bg: "bg.panel",
-          boxShadow: "md",
+          bg: 'levels.surface',
+          boxShadow: 'md',
+          borderRadius: 'lg',
         },
       },
       outline: {
         root: {
-          bg: "bg.panel",
-          borderWidth: "1px",
-          borderColor: "border",
+          bg: 'bg.panel',
+          borderWidth: '1px',
+          borderColor: 'border',
         },
       },
       subtle: {
         root: {
-          bg: "bg.muted",
+          bg: 'bg.muted',
         },
       },
     },
   },
   defaultVariants: {
-    variant: "outline",
-    size: "md",
+    variant: 'elevated',
+    size: 'md',
   },
-})
+});

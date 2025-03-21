@@ -227,7 +227,6 @@ export type ThemeColors = {
   highlightedNavigationItem: string;
 
   dataVisualisation: DataVisualisationColors;
-  accessGraph: AccessGraphColors;
 } & SharedColors;
 
 interface AccessGraphColors {

@@ -1,28 +1,28 @@
-import { defineTokens } from "@chakra-ui/react"
+import { defineTokens } from '@chakra-ui/react';
 
 export const blurs = defineTokens.blurs({
   none: {
-    value: " ",
+    value: ' ',
   },
   sm: {
-    value: "4px",
+    value: '4px',
   },
   md: {
-    value: "8px",
+    value: '8px',
   },
   lg: {
-    value: "12px",
+    value: '12px',
   },
   xl: {
-    value: "16px",
+    value: '16px',
   },
-  "2xl": {
-    value: "24px",
+  '2xl': {
+    value: '24px',
   },
-  "3xl": {
-    value: "40px",
+  '3xl': {
+    value: '40px',
   },
-  "4xl": {
-    value: "64px",
+  '4xl': {
+    value: '64px',
   },
-})
+});

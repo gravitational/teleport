@@ -20,8 +20,9 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 
+import { MfaChallengeScope } from 'teleport-new/services/mfa/types';
+
 import auth from 'teleport/services/auth';
-import { MfaChallengeScope } from 'teleport/services/auth/auth';
 import {
   DeviceType,
   DeviceUsage,

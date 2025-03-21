@@ -1,80 +1,80 @@
-import { defineTextStyles } from "@chakra-ui/react"
+import { defineTextStyles } from '@chakra-ui/react';
 
 export const textStyles = defineTextStyles({
-  "2xs": {
+  '2xs': {
     value: {
-      fontSize: "2xs",
-      lineHeight: "0.75rem",
+      fontSize: '2xs',
+      lineHeight: '0.75rem',
     },
   },
   xs: {
     value: {
-      fontSize: "xs",
-      lineHeight: "1rem",
+      fontSize: 'xs',
+      lineHeight: '1rem',
     },
   },
   sm: {
     value: {
-      fontSize: "sm",
-      lineHeight: "1.25rem",
+      fontSize: 'sm',
+      lineHeight: '1.25rem',
     },
   },
   md: {
     value: {
-      fontSize: "md",
-      lineHeight: "1.5rem",
+      fontSize: 'md',
+      lineHeight: '1.5rem',
     },
   },
   lg: {
     value: {
-      fontSize: "lg",
-      lineHeight: "1.75rem",
+      fontSize: 'lg',
+      lineHeight: '1.75rem',
     },
   },
   xl: {
     value: {
-      fontSize: "xl",
-      lineHeight: "1.875rem",
+      fontSize: 'xl',
+      lineHeight: '1.875rem',
     },
   },
-  "2xl": {
+  '2xl': {
     value: {
-      fontSize: "2xl",
-      lineHeight: "2rem",
+      fontSize: '2xl',
+      lineHeight: '2rem',
     },
   },
-  "3xl": {
+  '3xl': {
     value: {
-      fontSize: "3xl",
-      lineHeight: "2.375rem",
+      fontSize: '3xl',
+      lineHeight: '2.375rem',
     },
   },
-  "4xl": {
+  '4xl': {
     value: {
-      fontSize: "4xl",
-      lineHeight: "2.75rem",
-      letterSpacing: "-0.025em",
+      fontSize: '4xl',
+      lineHeight: '2.75rem',
+      letterSpacing: '-0.025em',
     },
   },
-  "5xl": {
+  '5xl': {
     value: {
-      fontSize: "5xl",
-      lineHeight: "3.75rem",
-      letterSpacing: "-0.025em",
+      fontSize: '5xl',
+      lineHeight: '3.75rem',
+      letterSpacing: '-0.025em',
     },
   },
-  "6xl": {
+  '6xl': {
     value: {
-      fontSize: "6xl",
-      lineHeight: "4.5rem",
-      letterSpacing: "-0.025em",
+      fontSize: '6xl',
+      lineHeight: '4.5rem',
+      letterSpacing: '-0.025em',
     },
   },
-  "7xl": {
+  '7xl': {
     value: {
-      fontSize: "7xl",
-      lineHeight: "5.75rem",
-      letterSpacing: "-0.025em",
+      fontSize: '7xl',
+      lineHeight: '5.75rem',
+      letterSpacing: '-0.025em',
     },
   },
   none: {
@@ -82,9 +82,9 @@ export const textStyles = defineTextStyles({
   },
   label: {
     value: {
-      fontSize: "sm",
-      lineHeight: "1.25rem",
-      fontWeight: "medium",
+      fontSize: 'sm',
+      lineHeight: '1.25rem',
+      fontWeight: 'medium',
     },
   },
-})
+});

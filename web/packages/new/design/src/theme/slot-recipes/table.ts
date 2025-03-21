@@ -1,45 +1,54 @@
-import { defineSlotRecipe } from "@chakra-ui/react"
+import { defineSlotRecipe } from '@chakra-ui/react';
 
 export const tableSlotRecipe = defineSlotRecipe({
-  className: "chakra-table",
-  slots: ["root", "header", "body", "row", "columnHeader", "cell", "footer", "caption"],
+  className: 'teleport-table',
+  slots: [
+    'root',
+    'header',
+    'body',
+    'row',
+    'columnHeader',
+    'cell',
+    'footer',
+    'caption',
+  ],
   base: {
     root: {
-      fontVariantNumeric: "lining-nums tabular-nums",
-      borderCollapse: "collapse",
-      width: "full",
-      textAlign: "start",
-      verticalAlign: "top",
+      fontVariantNumeric: 'lining-nums tabular-nums',
+      borderCollapse: 'collapse',
+      width: 'full',
+      textAlign: 'start',
+      verticalAlign: 'top',
     },
     row: {
       _selected: {
-        bg: "colorPalette.subtle",
+        bg: 'colorPalette.subtle',
       },
     },
     cell: {
-      textAlign: "start",
-      alignItems: "center",
+      textAlign: 'start',
+      alignItems: 'center',
     },
     columnHeader: {
-      fontWeight: "medium",
-      textAlign: "start",
-      color: "fg",
+      fontWeight: 'medium',
+      textAlign: 'start',
+      color: 'fg',
     },
     caption: {
-      fontWeight: "medium",
-      textStyle: "xs",
+      fontWeight: 'medium',
+      textStyle: 'xs',
     },
     footer: {
-      fontWeight: "medium",
+      fontWeight: 'medium',
     },
   },
   variants: {
     interactive: {
       true: {
         body: {
-          "& tr": {
+          '& tr': {
             _hover: {
-              bg: "colorPalette.subtle",
+              bg: 'colorPalette.subtle',
             },
           },
         },
@@ -48,9 +57,9 @@ export const tableSlotRecipe = defineSlotRecipe({
     stickyHeader: {
       true: {
         header: {
-          "& :where(tr)": {
-            top: "var(--table-sticky-offset, 0)",
-            position: "sticky",
+          '& :where(tr)': {
+            top: 'var(--table-sticky-offset, 0)',
+            position: 'sticky',
             zIndex: 1,
           },
         },
@@ -59,8 +68,8 @@ export const tableSlotRecipe = defineSlotRecipe({
     striped: {
       true: {
         row: {
-          "&:nth-of-type(odd) td": {
-            bg: "bg.muted",
+          '&:nth-of-type(odd) td': {
+            bg: 'bg.muted',
           },
         },
       },
@@ -68,13 +77,13 @@ export const tableSlotRecipe = defineSlotRecipe({
     showColumnBorder: {
       true: {
         columnHeader: {
-          "&:not(:last-of-type)": {
-            borderInlineEndWidth: "1px",
+          '&:not(:last-of-type)': {
+            borderInlineEndWidth: '1px',
           },
         },
         cell: {
-          "&:not(:last-of-type)": {
-            borderInlineEndWidth: "1px",
+          '&:not(:last-of-type)': {
+            borderInlineEndWidth: '1px',
           },
         },
       },
@@ -82,80 +91,80 @@ export const tableSlotRecipe = defineSlotRecipe({
     variant: {
       line: {
         columnHeader: {
-          borderBottomWidth: "1px",
+          borderBottomWidth: '1px',
         },
         cell: {
-          borderBottomWidth: "1px",
+          borderBottomWidth: '1px',
         },
         row: {
-          bg: "bg",
+          bg: 'bg',
         },
       },
       outline: {
         root: {
-          boxShadow: "0 0 0 1px {colors.border}",
-          overflow: "hidden",
+          boxShadow: '0 0 0 1px {colors.border}',
+          overflow: 'hidden',
         },
         columnHeader: {
-          borderBottomWidth: "1px",
+          borderBottomWidth: '1px',
         },
         header: {
-          bg: "bg.muted",
+          bg: 'bg.muted',
         },
         row: {
-          "&:not(:last-of-type)": {
-            borderBottomWidth: "1px",
+          '&:not(:last-of-type)': {
+            borderBottomWidth: '1px',
           },
         },
         footer: {
-          borderTopWidth: "1px",
+          borderTopWidth: '1px',
         },
       },
     },
     size: {
       sm: {
         root: {
-          textStyle: "sm",
+          textStyle: 'sm',
         },
         columnHeader: {
-          px: "2",
-          py: "2",
+          px: '2',
+          py: '2',
         },
         cell: {
-          px: "2",
-          py: "2",
+          px: '2',
+          py: '2',
         },
       },
       md: {
         root: {
-          textStyle: "sm",
+          textStyle: 'sm',
         },
         columnHeader: {
-          px: "3",
-          py: "3",
+          px: '3',
+          py: '3',
         },
         cell: {
-          px: "3",
-          py: "3",
+          px: '3',
+          py: '3',
         },
       },
       lg: {
         root: {
-          textStyle: "md",
+          textStyle: 'md',
         },
         columnHeader: {
-          px: "4",
-          py: "3",
+          px: '4',
+          py: '3',
         },
         cell: {
-          px: "4",
-          py: "3",
+          px: '4',
+          py: '3',
         },
       },
     },
   },
   defaultVariants: {
-    variant: "line",
-    size: "md",
+    variant: 'line',
+    size: 'md',
   },
-})
+});

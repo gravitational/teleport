@@ -20,8 +20,9 @@ import { MemoryRouter } from 'react-router';
 
 import { render, screen } from 'design/utils/testing';
 
+import { AwsResource } from 'teleport-new/types';
+
 import { AwsOidcTitle } from 'teleport/Integrations/status/AwsOidc/AwsOidcTitle';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import {
   IntegrationAwsOidc,
   IntegrationKind,

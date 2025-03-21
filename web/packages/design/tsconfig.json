@@ -13,6 +13,8 @@
       "design": ["web/packages/design/src/"],
       "gen-proto-ts/*": ["gen/proto/ts/*"],
 
+      "design-new/*": ["web/packages/new/design/src/*"],
+      "design-new": ["web/packages/new/design/src/"],
       "shared-new/*": ["web/packages/new/shared/src/*"],
       "shared-new": ["web/packages/new/shared/src/"]
     },

@@ -1,77 +1,77 @@
-import { defineSlotRecipe } from "@chakra-ui/react"
+import { defineSlotRecipe } from '@chakra-ui/react';
 
 export const fieldsetSlotRecipe = defineSlotRecipe({
-  className: "fieldset",
-  slots: ["root", "errorText", "helperText", "legend", "content"],
+  className: 'fieldset',
+  slots: ['root', 'errorText', 'helperText', 'legend', 'content'],
   base: {
     root: {
-      display: "flex",
-      flexDirection: "column",
-      width: "full",
+      display: 'flex',
+      flexDirection: 'column',
+      width: 'full',
     },
     content: {
-      display: "flex",
-      flexDirection: "column",
-      width: "full",
+      display: 'flex',
+      flexDirection: 'column',
+      width: 'full',
     },
     legend: {
-      color: "fg",
-      fontWeight: "medium",
+      color: 'fg',
+      fontWeight: 'medium',
       _disabled: {
-        opacity: "0.5",
+        opacity: '0.5',
       },
     },
     helperText: {
-      color: "fg.muted",
-      textStyle: "sm",
+      color: 'fg.muted',
+      textStyle: 'sm',
     },
     errorText: {
-      display: "inline-flex",
-      alignItems: "center",
-      color: "fg.error",
-      gap: "2",
-      fontWeight: "medium",
-      textStyle: "sm",
+      display: 'inline-flex',
+      alignItems: 'center',
+      color: 'fg.error',
+      gap: '2',
+      fontWeight: 'medium',
+      textStyle: 'sm',
     },
   },
   variants: {
     size: {
       sm: {
         root: {
-          spaceY: "2",
+          spaceY: '2',
         },
         content: {
-          gap: "1.5",
+          gap: '1.5',
         },
         legend: {
-          textStyle: "sm",
+          textStyle: 'sm',
         },
       },
       md: {
         root: {
-          spaceY: "4",
+          spaceY: '4',
         },
         content: {
-          gap: "4",
+          gap: '4',
         },
         legend: {
-          textStyle: "sm",
+          textStyle: 'sm',
         },
       },
       lg: {
         root: {
-          spaceY: "6",
+          spaceY: '6',
         },
         content: {
-          gap: "4",
+          gap: '4',
         },
         legend: {
-          textStyle: "md",
+          textStyle: 'md',
         },
       },
     },
   },
   defaultVariants: {
-    size: "md",
+    size: 'md',
   },
-})
+});

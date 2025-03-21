@@ -16,14 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { MfaChallengeScope } from 'teleport-new/services/mfa/types';
+import { AwsResource } from 'teleport-new/types';
+
 import cfg from 'teleport/config';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
 import api from 'teleport/services/api';
 
 import { App } from '../apps';
 import makeApp from '../apps/makeApps';
-import auth, { MfaChallengeScope } from '../auth/auth';
+import auth from '../auth/auth';
 import {
   withGenericUnsupportedError,
   withUnsupportedLabelFeatureErrorConversion,

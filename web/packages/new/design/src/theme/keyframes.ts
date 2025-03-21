@@ -1,98 +1,98 @@
 export const keyframes = {
   spin: {
-    "0%": {
-      transform: "rotate(0deg)",
+    '0%': {
+      transform: 'rotate(0deg)',
     },
-    "100%": {
-      transform: "rotate(360deg)",
+    '100%': {
+      transform: 'rotate(360deg)',
     },
   },
   pulse: {
-    "50%": {
-      opacity: "0.5",
+    '50%': {
+      opacity: '0.5',
     },
   },
   ping: {
-    "75%, 100%": {
-      transform: "scale(2)",
-      opacity: "0",
+    '75%, 100%': {
+      transform: 'scale(2)',
+      opacity: '0',
     },
   },
   bounce: {
-    "0%, 100%": {
-      transform: "translateY(-25%)",
-      animationTimingFunction: "cubic-bezier(0.8,0,1,1)",
+    '0%, 100%': {
+      transform: 'translateY(-25%)',
+      animationTimingFunction: 'cubic-bezier(0.8,0,1,1)',
     },
-    "50%": {
-      transform: "none",
-      animationTimingFunction: "cubic-bezier(0,0,0.2,1)",
+    '50%': {
+      transform: 'none',
+      animationTimingFunction: 'cubic-bezier(0,0,0.2,1)',
     },
   },
-  "bg-position": {
+  'bg-position': {
     from: {
-      backgroundPosition: "var(--animate-from, 1rem) 0",
+      backgroundPosition: 'var(--animate-from, 1rem) 0',
     },
     to: {
-      backgroundPosition: "var(--animate-to, 0) 0",
+      backgroundPosition: 'var(--animate-to, 0) 0',
     },
   },
   position: {
     from: {
-      insetInlineStart: "var(--animate-from-x)",
-      insetBlockStart: "var(--animate-from-y)",
+      insetInlineStart: 'var(--animate-from-x)',
+      insetBlockStart: 'var(--animate-from-y)',
     },
     to: {
-      insetInlineStart: "var(--animate-to-x)",
-      insetBlockStart: "var(--animate-to-y)",
+      insetInlineStart: 'var(--animate-to-x)',
+      insetBlockStart: 'var(--animate-to-y)',
     },
   },
-  "circular-progress": {
-    "0%": {
-      strokeDasharray: "1, 400",
-      strokeDashoffset: "0",
+  'circular-progress': {
+    '0%': {
+      strokeDasharray: '1, 400',
+      strokeDashoffset: '0',
     },
-    "50%": {
-      strokeDasharray: "400, 400",
-      strokeDashoffset: "-100%",
+    '50%': {
+      strokeDasharray: '400, 400',
+      strokeDashoffset: '-100%',
     },
-    "100%": {
-      strokeDasharray: "400, 400",
-      strokeDashoffset: "-260%",
+    '100%': {
+      strokeDasharray: '400, 400',
+      strokeDashoffset: '-260%',
     },
   },
-  "expand-height": {
+  'expand-height': {
     from: {
-      height: "0",
+      height: '0',
     },
     to: {
-      height: "var(--height)",
+      height: 'var(--height)',
     },
   },
-  "collapse-height": {
+  'collapse-height': {
     from: {
-      height: "var(--height)",
+      height: 'var(--height)',
     },
     to: {
-      height: "0",
+      height: '0',
     },
   },
-  "expand-width": {
+  'expand-width': {
     from: {
-      width: "0",
+      width: '0',
     },
     to: {
-      width: "var(--width)",
+      width: 'var(--width)',
     },
   },
-  "collapse-width": {
+  'collapse-width': {
     from: {
-      height: "var(--width)",
+      height: 'var(--width)',
     },
     to: {
-      height: "0",
+      height: '0',
     },
   },
-  "fade-in": {
+  'fade-in': {
     from: {
       opacity: 0,
     },
@@ -100,7 +100,7 @@ export const keyframes = {
       opacity: 1,
     },
   },
-  "fade-out": {
+  'fade-out': {
     from: {
       opacity: 1,
     },
@@ -108,148 +108,148 @@ export const keyframes = {
       opacity: 0,
     },
   },
-  "slide-from-left-full": {
+  'slide-from-left-full': {
     from: {
-      translate: "-100% 0",
+      translate: '-100% 0',
     },
     to: {
-      translate: "0 0",
+      translate: '0 0',
     },
   },
-  "slide-from-right-full": {
+  'slide-from-right-full': {
     from: {
-      translate: "100% 0",
+      translate: '100% 0',
     },
     to: {
-      translate: "0 0",
+      translate: '0 0',
     },
   },
-  "slide-from-top-full": {
+  'slide-from-top-full': {
     from: {
-      translate: "0 -100%",
+      translate: '0 -100%',
     },
     to: {
-      translate: "0 0",
+      translate: '0 0',
     },
   },
-  "slide-from-bottom-full": {
+  'slide-from-bottom-full': {
     from: {
-      translate: "0 100%",
+      translate: '0 100%',
     },
     to: {
-      translate: "0 0",
+      translate: '0 0',
     },
   },
-  "slide-to-left-full": {
+  'slide-to-left-full': {
     from: {
-      translate: "0 0",
+      translate: '0 0',
     },
     to: {
-      translate: "-100% 0",
+      translate: '-100% 0',
     },
   },
-  "slide-to-right-full": {
+  'slide-to-right-full': {
     from: {
-      translate: "0 0",
+      translate: '0 0',
     },
     to: {
-      translate: "100% 0",
+      translate: '100% 0',
     },
   },
-  "slide-to-top-full": {
+  'slide-to-top-full': {
     from: {
-      translate: "0 0",
+      translate: '0 0',
     },
     to: {
-      translate: "0 -100%",
+      translate: '0 -100%',
     },
   },
-  "slide-to-bottom-full": {
+  'slide-to-bottom-full': {
     from: {
-      translate: "0 0",
+      translate: '0 0',
     },
     to: {
-      translate: "0 100%",
+      translate: '0 100%',
     },
   },
-  "slide-from-top": {
-    "0%": {
-      translate: "0 -0.5rem",
+  'slide-from-top': {
+    '0%': {
+      translate: '0 -0.5rem',
     },
     to: {
-      translate: "0",
+      translate: '0',
     },
   },
-  "slide-from-bottom": {
-    "0%": {
-      translate: "0 0.5rem",
+  'slide-from-bottom': {
+    '0%': {
+      translate: '0 0.5rem',
     },
     to: {
-      translate: "0",
+      translate: '0',
     },
   },
-  "slide-from-left": {
-    "0%": {
-      translate: "-0.5rem 0",
+  'slide-from-left': {
+    '0%': {
+      translate: '-0.5rem 0',
     },
     to: {
-      translate: "0",
+      translate: '0',
     },
   },
-  "slide-from-right": {
-    "0%": {
-      translate: "0.5rem 0",
+  'slide-from-right': {
+    '0%': {
+      translate: '0.5rem 0',
     },
     to: {
-      translate: "0",
+      translate: '0',
     },
   },
-  "slide-to-top": {
-    "0%": {
-      translate: "0",
+  'slide-to-top': {
+    '0%': {
+      translate: '0',
     },
     to: {
-      translate: "0 -0.5rem",
+      translate: '0 -0.5rem',
     },
   },
-  "slide-to-bottom": {
-    "0%": {
-      translate: "0",
+  'slide-to-bottom': {
+    '0%': {
+      translate: '0',
     },
     to: {
-      translate: "0 0.5rem",
+      translate: '0 0.5rem',
     },
   },
-  "slide-to-left": {
-    "0%": {
-      translate: "0",
+  'slide-to-left': {
+    '0%': {
+      translate: '0',
     },
     to: {
-      translate: "-0.5rem 0",
+      translate: '-0.5rem 0',
     },
   },
-  "slide-to-right": {
-    "0%": {
-      translate: "0",
+  'slide-to-right': {
+    '0%': {
+      translate: '0',
     },
     to: {
-      translate: "0.5rem 0",
+      translate: '0.5rem 0',
     },
   },
-  "scale-in": {
+  'scale-in': {
     from: {
-      scale: "0.95",
+      scale: '0.95',
     },
     to: {
-      scale: "1",
+      scale: '1',
     },
   },
-  "scale-out": {
+  'scale-out': {
     from: {
-      scale: "1",
+      scale: '1',
     },
     to: {
-      scale: "0.95",
+      scale: '0.95',
     },
   },
-}
+};

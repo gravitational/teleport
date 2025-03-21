@@ -21,7 +21,9 @@ import { userEvent, UserEvent } from '@testing-library/user-event';
 
 import { render, screen } from 'design/utils/testing';
 
-import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
+import { MfaChallengeScope } from 'teleport-new/services/mfa/types';
+
+import auth from 'teleport/services/auth/auth';
 import {
   MFA_OPTION_TOTP,
   MFA_OPTION_WEBAUTHN,

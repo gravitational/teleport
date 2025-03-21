@@ -44,9 +44,6 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 
-
-
-
 export default tseslint.config(
   [
     {
@@ -227,8 +224,6 @@ export default tseslint.config(
 
         '@typescript-eslint/no-unused-vars': ['error'],
         '@typescript-eslint/unbound-method': 'off',
-        '@typescript-eslint/consistent-type-exports': 'error',
-        '@typescript-eslint/consistent-type-imports': 'error',
 
         'import/no-unresolved': 'off',
 

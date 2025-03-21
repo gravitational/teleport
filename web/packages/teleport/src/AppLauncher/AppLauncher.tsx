@@ -23,11 +23,12 @@ import { Flex, Indicator } from 'design';
 import { AccessDenied } from 'design/CardError';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
+import { MfaChallengeScope } from 'teleport-new/services/mfa/types';
+
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import { CreateAppSessionParams, UrlLauncherParams } from 'teleport/config';
 import { useMfa } from 'teleport/lib/useMfa';
 import service from 'teleport/services/apps';
-import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 export function AppLauncher() {
   const { attempt, setAttempt } = useAttempt('processing');

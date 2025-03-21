@@ -1,16 +1,22 @@
-import { useLocalStorage } from 'usehooks-ts';
+import { NewLoginForm } from './LoginForm';
 
-import { KeysEnum } from '../../services/storage/types';
+export function NewLoginRoute() {
+  // const [licenseAcknowledged] = useLocalStorage(
+  //   KeysEnum.LICENSE_ACKNOWLEDGED,
+  //   false
+  // );
+  //
+  // const checkingValidSession = useCheckSessionAndRedirect();
+  //
+  // if (checkingValidSession) {
+  //   return null;
+  // }
+  //
+  // if (!licenseAcknowledged) {
+  //   return null;
+  // }
+  //
+  // return <div>hello there!</div>;
 
-export function NewLogin() {
-  const [licenseAcknowledged] = useLocalStorage(
-    KeysEnum.LICENSE_ACKNOWLEDGED,
-    false
-  );
-
-  if (!licenseAcknowledged) {
-    return null;
-  }
-
-  return <div>hello there!</div>;
+  return <NewLoginForm />;
 }

@@ -24,7 +24,8 @@ import { Danger } from 'design/Alert';
 import Table, { LabelCell } from 'design/DataTable';
 import { useAsync } from 'shared/hooks/useAsync';
 
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { AwsResource } from 'teleport-new/types';
+
 import {
   AWSOIDCDeployedDatabaseService,
   IntegrationKind,

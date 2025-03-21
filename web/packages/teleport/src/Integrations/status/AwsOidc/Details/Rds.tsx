@@ -21,10 +21,11 @@ import { useLocation, useParams } from 'react-router';
 
 import { TabBorder, TabContainer, TabsContainer } from 'design/Tabs/Tabs';
 
+import { AwsResource } from 'teleport-new/types';
+
 import cfg from 'teleport/config';
 import { Agents } from 'teleport/Integrations/status/AwsOidc/Details/Agents';
 import { Rules } from 'teleport/Integrations/status/AwsOidc/Details/Rules';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import { IntegrationKind } from 'teleport/services/integrations';
 
 export enum RdsTab {

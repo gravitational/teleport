@@ -35,6 +35,8 @@ import Select, { type Option } from 'shared/components/Select';
 import * as connectMyComputer from 'shared/connectMyComputer';
 import { useAsync } from 'shared/hooks/useAsync';
 
+import { MfaChallengeScope } from 'teleport-new/services/mfa/types';
+
 import ReAuthenticate from 'teleport/components/ReAuthenticate';
 import cfg from 'teleport/config';
 import {
@@ -49,7 +51,6 @@ import {
 import { openNewTab } from 'teleport/lib/util';
 import type { ConnectionDiagnosticRequest } from 'teleport/services/agents';
 import { ApiError } from 'teleport/services/api/parseError';
-import { MfaChallengeScope } from 'teleport/services/auth/auth';
 import type { MfaChallengeResponse } from 'teleport/services/mfa';
 import { sortNodeLogins } from 'teleport/services/nodes';
 import useTeleport from 'teleport/useTeleport';

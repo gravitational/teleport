@@ -29,6 +29,8 @@ import { Attempt, useAsync } from 'shared/hooks/useAsync';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
 
+import { AwsResource } from 'teleport-new/types';
+
 import { getResourceType } from 'teleport/Integrations/status/AwsOidc/helpers';
 import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
 import {
@@ -42,7 +44,6 @@ import {
   UserTaskDetail,
 } from 'teleport/services/integrations';
 
-import { AwsResource } from '../StatCard';
 import { SidePanel } from './SidePanel';
 
 export function Task({

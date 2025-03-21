@@ -1,45 +1,53 @@
-import { defineSlotRecipe } from "@chakra-ui/react"
+import { defineSlotRecipe } from '@chakra-ui/react';
 
 export const breadcrumbSlotRecipe = defineSlotRecipe({
-  className: "chakra-breadcrumb",
-  slots: ["link", "currentLink", "item", "list", "root", "ellipsis", "separator"],
+  className: 'teleport-breadcrumb',
+  slots: [
+    'link',
+    'currentLink',
+    'item',
+    'list',
+    'root',
+    'ellipsis',
+    'separator',
+  ],
   base: {
     list: {
-      display: "flex",
-      alignItems: "center",
-      wordBreak: "break-word",
-      color: "fg.muted",
-      listStyle: "none",
+      display: 'flex',
+      alignItems: 'center',
+      wordBreak: 'break-word',
+      color: 'fg.muted',
+      listStyle: 'none',
     },
     link: {
-      outline: "0",
-      textDecoration: "none",
-      borderRadius: "l1",
-      focusRing: "outside",
-      display: "inline-flex",
-      alignItems: "center",
-      gap: "2",
+      outline: '0',
+      textDecoration: 'none',
+      borderRadius: 'l1',
+      focusRing: 'outside',
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '2',
     },
     item: {
-      display: "inline-flex",
-      alignItems: "center",
+      display: 'inline-flex',
+      alignItems: 'center',
     },
     separator: {
-      color: "fg.muted",
-      opacity: "0.8",
+      color: 'fg.muted',
+      opacity: '0.8',
       _icon: {
-        boxSize: "1em",
+        boxSize: '1em',
       },
       _rtl: {
-        rotate: "180deg",
+        rotate: '180deg',
       },
     },
     ellipsis: {
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "center",
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
       _icon: {
-        boxSize: "1em",
+        boxSize: '1em',
       },
     },
   },
@@ -47,50 +55,50 @@ export const breadcrumbSlotRecipe = defineSlotRecipe({
     variant: {
       underline: {
         link: {
-          color: "colorPalette.fg",
-          textDecoration: "underline",
-          textUnderlineOffset: "0.2em",
-          textDecorationColor: "colorPalette.muted",
+          color: 'colorPalette.fg',
+          textDecoration: 'underline',
+          textUnderlineOffset: '0.2em',
+          textDecorationColor: 'colorPalette.muted',
         },
         currentLink: {
-          color: "colorPalette.fg",
+          color: 'colorPalette.fg',
         },
       },
       plain: {
         link: {
-          color: "fg.muted",
+          color: 'fg.muted',
           _hover: {
-            color: "fg",
+            color: 'fg',
           },
         },
         currentLink: {
-          color: "fg",
+          color: 'fg',
         },
       },
     },
     size: {
       sm: {
         list: {
-          gap: "1",
-          textStyle: "xs",
+          gap: '1',
+          textStyle: 'xs',
         },
       },
       md: {
         list: {
-          gap: "1.5",
-          textStyle: "sm",
+          gap: '1.5',
+          textStyle: 'sm',
         },
       },
       lg: {
         list: {
-          gap: "2",
-          textStyle: "md",
+          gap: '2',
+          textStyle: 'md',
         },
       },
     },
   },
   defaultVariants: {
-    variant: "plain",
-    size: "md",
+    variant: 'plain',
+    size: 'md',
   },
-})
+});

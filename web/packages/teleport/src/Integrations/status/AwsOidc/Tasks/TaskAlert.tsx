@@ -20,8 +20,9 @@ import { useHistory } from 'react-router';
 import { Alert } from 'design';
 import { ArrowForward, BellRinging } from 'design/Icon';
 
+import { AwsResource } from 'teleport-new/types';
+
 import cfg from 'teleport/config';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import { IntegrationKind } from 'teleport/services/integrations';
 
 export function TaskAlert({

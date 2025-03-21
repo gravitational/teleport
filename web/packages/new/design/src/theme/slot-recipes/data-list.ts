@@ -1,93 +1,93 @@
-import { defineSlotRecipe } from "@chakra-ui/react"
+import { defineSlotRecipe } from '@chakra-ui/react';
 
 export const dataListSlotRecipe = defineSlotRecipe({
-  slots: ["root", "item", "itemLabel", "itemValue"],
-  className: "chakra-data-list",
+  slots: ['root', 'item', 'itemLabel', 'itemValue'],
+  className: 'teleport-data-list',
   base: {
     itemLabel: {
-      display: "flex",
-      alignItems: "center",
-      gap: "1",
+      display: 'flex',
+      alignItems: 'center',
+      gap: '1',
     },
     itemValue: {
-      display: "flex",
-      minWidth: "0",
-      flex: "1",
+      display: 'flex',
+      minWidth: '0',
+      flex: '1',
     },
   },
   variants: {
     orientation: {
       horizontal: {
         root: {
-          display: "flex",
-          flexDirection: "column",
+          display: 'flex',
+          flexDirection: 'column',
         },
         item: {
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "4",
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '4',
         },
         itemLabel: {
-          minWidth: "120px",
+          minWidth: '120px',
         },
       },
       vertical: {
         root: {
-          display: "flex",
-          flexDirection: "column",
+          display: 'flex',
+          flexDirection: 'column',
         },
         item: {
-          display: "flex",
-          flexDirection: "column",
-          gap: "1",
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1',
         },
       },
     },
     size: {
       sm: {
         root: {
-          gap: "3",
+          gap: '3',
         },
         item: {
-          textStyle: "xs",
+          textStyle: 'xs',
         },
       },
       md: {
         root: {
-          gap: "4",
+          gap: '4',
         },
         item: {
-          textStyle: "sm",
+          textStyle: 'sm',
         },
       },
       lg: {
         root: {
-          gap: "5",
+          gap: '5',
         },
         item: {
-          textStyle: "md",
+          textStyle: 'md',
         },
       },
     },
     variant: {
       subtle: {
         itemLabel: {
-          color: "fg.muted",
+          color: 'fg.muted',
         },
       },
       bold: {
         itemLabel: {
-          fontWeight: "medium",
+          fontWeight: 'medium',
         },
         itemValue: {
-          color: "fg.muted",
+          color: 'fg.muted',
         },
       },
     },
   },
   defaultVariants: {
-    size: "md",
-    orientation: "vertical",
-    variant: "subtle",
+    size: 'md',
+    orientation: 'vertical',
+    variant: 'subtle',
   },
-})
+});

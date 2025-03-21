@@ -1,4 +1,4 @@
-import { defineTokens } from "@chakra-ui/react"
+import { defineTokens } from '@chakra-ui/react';
 
 export const lineHeights = defineTokens.lineHeights({
   shorter: {
@@ -16,4 +16,4 @@ export const lineHeights = defineTokens.lineHeights({
   taller: {
     value: 2,
   },
-})
+});

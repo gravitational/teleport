@@ -16,29 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Image from "design/Image";
-import teleportLogo from "design/assets/images/enterprise-light.svg";
-import cloudCity from "design/assets/images/backgrounds/cloud-city.png"
+import type { ResourceLabel } from '../agents/types';
 
-export default {
-    title: 'Design/Assets',
-};
+// Desktop is a remote desktop.
+export interface Desktop {
+  kind: 'windows_desktop';
+  // OS is the os of this desktop.
+  os: 'windows' | 'linux' | 'darwin';
+  // Name is name (uuid) of the windows desktop.
+  name: string;
+  // Addr is the network address the desktop can be reached at.
+  addr: string;
+  // Labels.
+  labels: ResourceLabel[];
+  // The list of logins this user can use on this desktop.
+  logins: string[];
 
-export const ImageSVG = () => (
-    <div
-        style={{
-            display: 'grid',
-            gridTemplateColumns: '100px 100px 100px',
-            gridTemplateRows: '100px 100px 100px',
-            columnGap: '15px',
-            rowGap: '15px',
-            alignItems: 'stretch',
-        }}
-    >
-        <Image maxWidth="100px" maxHeight="100px" src={teleportLogo} />
-    </div>
-);
-
-export const BackgroundsCloudCity = () => (
-    <Image src={cloudCity} />
-)
+  host_id?: string;
+  host_addr?: string;
+  requiresRequest?: boolean;
+}

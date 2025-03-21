@@ -16,6 +16,7 @@
     "snippet": "chakra snippet"
   },
   "dependencies": {
+    "@ark-ui/react": "^4.9.2",
     "@chakra-ui/react": "^3.13.0",
     "@emotion/react": "^11.14.0",
     "next-themes": "^0.4.6",

@@ -17,7 +17,7 @@ import { tokens } from './tokens';
 
 const themeConfig = defineConfig({
   preflight: true,
-  cssVarsPrefix: 'chakra',
+  cssVarsPrefix: 'teleport',
   cssVarsRoot: ':where(:root, :host)',
   globalCss,
   theme: {

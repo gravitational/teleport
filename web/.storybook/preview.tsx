@@ -20,6 +20,8 @@ import { Preview } from '@storybook/react';
 import { initialize, mswLoader } from 'msw-storybook-addon';
 import { ComponentType, PropsWithChildren } from 'react';
 
+import { ThemeProvider } from 'design-new/provider';
+
 import Box from '../packages/design/src/Box';
 import { bblpTheme, darkTheme, lightTheme } from '../packages/design/src/theme';
 import { Theme } from '../packages/design/src/theme/themes/types';
@@ -45,15 +47,15 @@ interface ThemeDecoratorProps {
 }
 
 function ThemeDecorator(props: PropsWithChildren<ThemeDecoratorProps>) {
-  let ThemeProvider: ComponentType<PropsWithChildren<{ theme: Theme }>>;
+  let LegacyThemeProvider: ComponentType<PropsWithChildren<{ theme: Theme }>>;
   let theme = darkTheme;
 
   if (props.title.startsWith('Teleterm/')) {
-    ThemeProvider = TeletermThemeProvider;
+    LegacyThemeProvider = TeletermThemeProvider;
     theme =
       props.theme === 'Dark Theme' ? teletermDarkTheme : teletermLightTheme;
   } else {
-    ThemeProvider = ConfiguredThemeProvider;
+    LegacyThemeProvider = ConfiguredThemeProvider;
     switch (props.theme) {
       case 'Dark Theme':
         theme = darkTheme;
@@ -68,8 +70,10 @@ function ThemeDecorator(props: PropsWithChildren<ThemeDecoratorProps>) {
   }
 
   return (
-    <ThemeProvider theme={theme}>
-      <Box p={3}>{props.children}</Box>
+    <ThemeProvider>
+      <LegacyThemeProvider theme={theme}>
+        <Box p={3}>{props.children}</Box>
+      </LegacyThemeProvider>
     </ThemeProvider>
   );
 }

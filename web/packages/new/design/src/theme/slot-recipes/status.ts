@@ -1,43 +1,43 @@
-import { defineSlotRecipe } from "@chakra-ui/react"
+import { defineSlotRecipe } from '@chakra-ui/react';
 
 export const statusSlotRecipe = defineSlotRecipe({
-  className: "chakra-status",
-  slots: ["root", "indicator"],
+  className: 'teleport-status',
+  slots: ['root', 'indicator'],
   base: {
     root: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: "2",
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '2',
     },
     indicator: {
-      width: "0.64em",
-      height: "0.64em",
+      width: '0.64em',
+      height: '0.64em',
       flexShrink: 0,
-      borderRadius: "full",
-      forcedColorAdjust: "none",
-      bg: "colorPalette.solid",
+      borderRadius: 'full',
+      forcedColorAdjust: 'none',
+      bg: 'colorPalette.solid',
     },
   },
   variants: {
     size: {
       sm: {
         root: {
-          textStyle: "xs",
+          textStyle: 'xs',
         },
       },
       md: {
         root: {
-          textStyle: "sm",
+          textStyle: 'sm',
         },
       },
       lg: {
         root: {
-          textStyle: "md",
+          textStyle: 'md',
         },
       },
     },
   },
   defaultVariants: {
-    size: "md",
+    size: 'md',
   },
-})
+});
