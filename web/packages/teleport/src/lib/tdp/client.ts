@@ -98,6 +98,7 @@ export default class Client extends EventEmitterWebAuthnSender {
   private socketAddr: string;
   private sdManager: SharedDirectoryManager;
   private fastPathProcessor: FastPathProcessor | undefined;
+  private wasmReady: Promise<void> | undefined;
 
   private logger = Logger.create('TDPClient');
 
@@ -116,7 +117,10 @@ export default class Client extends EventEmitterWebAuthnSender {
   // set the internal screen size when it receives the screen spec from the server
   // (see PlayerClient.handleClientScreenSpec).
   async connect(spec?: ClientScreenSpec) {
-    await this.initWasm();
+    if (!this.wasmReady) {
+      this.wasmReady = this.initWasm();
+    }
+    await this.wasmReady;
 
     this.socket = new AuthenticatedWebSocket(this.socketAddr);
     this.socket.binaryType = 'arraybuffer';
@@ -758,9 +762,9 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.send(this.codec.encodeSharedDirectoryTruncateResponse(response));
   }
 
-  resize(spec: ClientScreenSpec) {
+  resize = (spec: ClientScreenSpec) => {
     this.sendClientScreenSpec(spec);
-  }
+  };
 
   sendRdpResponsePDU(responseFrame: ArrayBuffer) {
     this.send(this.codec.encodeRdpResponsePDU(responseFrame));
