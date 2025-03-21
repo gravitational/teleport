@@ -148,10 +148,10 @@ expires.
 
 If the identity refresh fails at any point, bots may attempt to rejoin,
 and the Auth service can use predefined per-bot rules to decide if this specific
-bot is allowed to rejoin, including a rejoin counter and expiration date. If a
-rejoin is rejected, the bot's keypair does not necessarily remain invalid: if
-server-side rules are adjusted, for example by increasing the token's rejoin
-limit, it can then rejoin without any client-side reconfiguration.
+bot is allowed to rejoin, including a join counter and expiration date. If a
+join attempt is rejected, the bot's keypair does not necessarily remain invalid:
+if server-side rules are adjusted, for example by increasing the token's join
+allowance, it can then rejoin without any client-side reconfiguration.
 
 This has several important differences to existing join methods:
 
@@ -164,13 +164,13 @@ This has several important differences to existing join methods:
   solve. This is similar to TPM joining today, but backed by a local keypair
   rather than (necessarily) a hardware token.
 
-- When a bot's identity expires, assuming it has some rejoin allocations left,
+- When a bot's identity expires, assuming it has a nonzero join allowance,
   it can simply repeat the joining process to receive a fresh certificate.
 
-- If a bot exhausts its rejoining limit, it will not be able to fetch new
+- If a bot exhausts its joining allowance, it will not be able to fetch new
   certificates, similar to today's behavior. However, this bot can be restored
   without needing to generate a new identity: an admin user can edit the backing
-  `ProvisionToken` to increment `spec.bound_keypair.rejoining.total_rejoins`.
+  `ProvisionToken` to increment `spec.bound_keypair.joining.total_joins`.
   The failed `tbot` instance can then retry the joining process, and it will
   succeed.
 
@@ -239,7 +239,7 @@ clients to present an existing valid identity to preserve certain identity
 parameters, like the bot instance UUID.
 
 Using this mechanism, we can ensure that join attempts with an existing client
-identity do not consume a rejoin; attempts without one will consume a rejoin.
+identity do not consume a join; attempts without one will consume a join.
 
 #### Joining UX Flows
 
@@ -307,11 +307,11 @@ lifecycle than other types of bots. To summarize some key differences:
 - The bot keypair has no defined lifespan of its own.
 
 - As long as a bot retains its keypair, it can always be recovered server-side.
-  If it runs out of rejoins, the backend token can be reconfigured to allow
+  If it runs out of joins, the backend token can be reconfigured to allow
   more. If the backend token is deleted outright, it can be recreated with the
   public key.
 
-- Each time a bot rejoins, it creates a new bot instance. The bot instance is
+- Each time a bot joins, it creates a new bot instance. The bot instance is
   tied to the valid client certificate, and we won't change this behavior. The
   new bot instance will contain a reference to the previous instance ID based on
   the content of `.status.bound_keypair.bound_bot_instance_id` at rejoining
@@ -339,9 +339,9 @@ Bots will be unable to rejoin under any of these conditions:
 
 - A lock is in place
 
-- `.status.bound_keypair.remaining_rejoins` is zero (and not unlimited)
+- `.status.bound_keypair.remaining_joins` is zero (and not unlimited)
 
-- `.spec.bound_keypair.rejoining.may_rejoin_until` is set to a value before the
+- `.spec.bound_keypair.joining.may_join_until` is set to a value before the
   current time
 
 #### Preventing Credential Duplication
@@ -357,11 +357,11 @@ instance from attempting to refresh certificates, or else a generation counter
 check will lock the bot on the next refresh attempt.
 
 However, the long-lived keypair introduces a similar class of problem. If an
-attacker exfiltrates the keypair, assuming rejoins are available, they can
-attempt to rejoin and gain extended access. The original bot will still compete
-with the imposter bot and each will be forced to fully rejoin on every attempt,
-but this results in minimal real downtime for an attacker, at least until the
-rejoin allowance runs out.
+attacker exfiltrates the keypair, assuming additional joins are available, they
+can attempt to rejoin and gain extended access. The original bot will still
+compete with the imposter bot and each will be forced to fully rejoin on every
+attempt, but this results in minimal real downtime for an attacker, at least
+until the join allowance runs out.
 
 To mitigate this, we'll need to create a mechanism similar to the generation
 counter to protect rejoins and the long-lived keypair:
@@ -421,31 +421,33 @@ spec:
       # stored in `.status.bound_keypair.initial_join_secret`
       initial_join_secret: ""
 
-      # Initial joining must take place before this timestamp. May be
-      # modified if bot has not yet joined.
+      # Use of `initial_join_secret` must take place before this timestamp. May
+      # be modified if initial secret has not yet been consumed.
       must_join_before: "2025-03-01T21:45:40.104524Z"
 
-    # Parameters to tune rejoining behavior when the regular bot identity has
-    # expired
-    rejoining:
-      # If true, `total_rejoins` is ignored and bots may rejoin indefinitely;
+    # Parameters to tune joining behavior, both on first join and when rejoining
+    # when the regular identity expires.
+    joining:
+      # If true, `total_joins` is ignored and bots may rejoin indefinitely;
       # must be opt-in.
       unlimited: false
 
-      # Total number of allowed rejoins; this may be incremented to allow
+      # Total number of allowed joins; this may be incremented to allow
       # additional rejoins, even if a bot identity has already expired. May
       # be decremented, but only by the current value of
-      # `.status.bound_keypair.remaining_rejoins`.
-      total_rejoins: 10
+      # `.status.bound_keypair.remaining_joins`. This value must be at least 1
+      # for a bot to perform an initial join.
+      total_joins: 10
 
-      # If set, rejoining is only valid before this timestamp; may be
+      # If set, joining is only valid before this timestamp; may be
       # incremented or reset to the empty string to allow rejoining once
       # expired.
-      may_rejoin_until: "2026-03-01T21:45:40.104524Z"
+      may_join_until: "2026-03-01T21:45:40.104524Z"
 
     # If set, the bot will perform a keypair rotation on its next renewal after
     # it is informed of the change to this field. Note that this is tied to bot
-    # heartbeats and may not take effect on the next refresh interval.
+    # heartbeats and may not take effect on the next refresh interval. This flag
+    # will be reset to `false` by Auth upon successful keypair rotation.
     rotate_on_next_renewal: false
 
 status:
@@ -459,16 +461,17 @@ status:
     # The public key of the bot associated with this token, set on first join.
     bound_public_key: <data>
 
-    # The current bot instance UUID. A new UUID is issued on rejoin; the previous
-    # UUID will be linked via a `previous_instance_id` in the bot instance.
+    # The current bot instance UUID. A new UUID is issued on rejoin; the
+    # previous UUID will be linked via a `previous_instance_id` in the bot
+    # instance.
     bound_bot_instance_id: <uuid>
 
-    # A count of remaining rejoins; if `.spec.bound_keypair.rejoining.total_rejoins`
+    # A count of remaining joins; if `.spec.bound_keypair.joining.total_joins`
     # is incremented, this value will be incremented by the same amount. If
     # decremented, this value cannot fall below zero. If
-    # `.spec.bound_keypair.rejoining.unlimited` is set, this value will always
+    # `.spec.bound_keypair.joining.unlimited` is set, this value will always
     # be 0 but rejoin attempts will succeed.
-    remaining_rejoins: 10
+    remaining_joins: 10
 
     # A count of the total number of joins performed using this token.
     join_count: 0
@@ -552,8 +555,8 @@ the node, and manually copying the new token into the bot config.
 
 The new `bound-keypair` method improves this situation in two primary ways: one
 fewer resource needs to be generated (the secret value), and maintenance can be
-performed simply by adjusting values in the resource. If a bot fails, its rejoin
-counter can be incremented easily.
+performed simply by adjusting values in the resource. If a bot fails, its join
+allowance can be incremented easily.
 
 As an example, we can consider provisioning several bots. We'll need to account
 for future overrides so we can fix a single bot in the future if needed:
@@ -568,7 +571,7 @@ resource "teleport_bot" "example" {
   roles = ["access"]
 }
 
-variable "bot_rejoin_overrides" {
+variable "bot_join_overrides" {
   type = map(number)
   default = {
     foo = 5
@@ -588,9 +591,9 @@ resource "teleport_provision_token" "example" {
     join_method = "bound-keypair"
 
     bound_keypair = {
-      rejoining = {
-        # look up node-specific count in the rejoin overrides map, default to 2
-        total_rejoins = lookup(var.bot_rejoin_overrides, each.key, 2)
+      joining = {
+        # look up node-specific count in the join overrides map, default to 2
+        total_joins = lookup(var.bot_join_overrides, each.key, 2)
       }
     }
   }
@@ -608,9 +611,9 @@ resource "aws_instance" "example" {
 }
 ```
 
-In this example, if node `bar` uses its 2 rejoins, we can add a new entry for
-it in `bot_rejoin_overrides` and its `ProvisionToken` will be updated to allow
-additional rejoins.
+In this example, if node `bar` uses its 2 joins, we can add a new entry for
+it in `bot_join_overrides` and its `ProvisionToken` will be updated to allow
+additional joins.
 
 #### Challenge Ceremony
 
@@ -645,7 +648,7 @@ sequenceDiagram
 
 	opt no valid client certificate
 		auth->>auth: Validate join state document
-		auth->>auth: decrement rejoin counter
+		auth->>auth: decrement remaining join counter
 	end
 
 	auth-->>bot: Signed TLS certificates<br>& new join state
@@ -659,21 +662,21 @@ it to open an mTLS session.
 
 When Auth validates the join attempt, clients that presented an existing valid
 identity are considered to be requesting a refresh rather than rejoining,
-leaving the rejoin counter untouched. Clients that do not present a valid client
+leaving the join counter untouched. Clients that do not present a valid client
 certificate are considered to be rejoining and the token associated with this
-public key must have `.status.bound_keypair.remaining_rejoins` >= 1.
+public key must have `.status.bound_keypair.remaining_joins` >= 1.
 
 #### Client-Side Changes in `tbot`
 
 Bots should be informed of various status metrics, including number of remaining
-rejoins and whether or not a keypair rotation has been requested. There's a few
-methods by which we could inform bots of their remaining rejoins:
+joins and whether or not a keypair rotation has been requested. There's a few
+methods by which we could inform bots of their remaining join allowance:
 
 1. (Recommended) Heartbeats: bots submit heartbeats at startup and on a regular
-   interval. It would be trivial to include a remaining rejoin counter in the
+   interval. It would be trivial to include a remaining join counter in the
    (currently empty) heartbeat response.
 
-2. Certificate field: we could include the number of remaining rejoins in a
+2. Certificate field: we could include the number of remaining joins in a
    certificate field.
 
 3. New RPC: we could add a new RPC for bots to fetch this, alongside any other
@@ -683,11 +686,11 @@ methods by which we could inform bots of their remaining rejoins:
    precedent here as bots can view e.g. their own roles without explicitly
    having RBAC permissions to do so.
 
-The remaining rejoin counter should then be exposed as a Prometheus metric to
+The remaining join counter should then be exposed as a Prometheus metric to
 allow for alerting if a bot drops below some threshold.
 
 Importantly, this is a potentially lagging indicator. The design allows for the
-rejoin counter to be decreased (to zero) at any time, so a rejoin attempt may
+join counter to be decreased (to zero) at any time, so a rejoin attempt may
 still fail at any time. This should be acceptable since it can also be increased
 after the fact to restore access if desired.
 
@@ -720,7 +723,7 @@ This proposal also aims to improve the non-Terraform UX, particularly when
 automating with `tctl`. All regular token management workflows with
 `tctl create -f` will continue to work; upserting resources to modify runtime
 values will, for example, properly increase
-`status.bound_keypair.remaining_rejoins` while preserving other token fields
+`status.bound_keypair.remaining_joins` while preserving other token fields
 like `status.bound_keypair.bound_public_key`.
 
 Additional `tctl` changes will include:
@@ -729,10 +732,10 @@ Additional `tctl` changes will include:
   automatically generated join tokens for `tctl bots add` and
   `tctl bots instances add` to use this new join method.
 
-- Adding a column for "rejoins remaining" in `tctl bots instances ls` (where
+- Adding a column for "joins remaining" in `tctl bots instances ls` (where
   relevant).
 
-- Adding support for updating `total_rejoins` in `tctl bots update`
+- Adding support for updating `total_joins` in `tctl bots update`
 
 #### Expiration Alerting UX
 
@@ -763,7 +766,7 @@ on the token/bot instance) or `tbot` client.
 
 To trigger a rotation, an admin can set `.spec.bound_keypair.rotate_on_next_renewal=true`
 on the bound keypair token. The value of this field will be synchronized to the
-bot using the same mechanism as described above for remaining rejoins, which is
+bot using the same mechanism as described above for remaining joins, which is
 tied to the heartbeat interval (30m, hard coded) rather than the bot's regular
 renewal interval, so it will take place on the next renewal once the request has
 been synchronized.
@@ -809,10 +812,10 @@ generation counter is not reset and is checked and incremented as usual.
 
 #### Remaining Downsides
 
-- Repairing a bot that has exhausted all of its rejoins is still a semi-manual
+- Repairing a bot that has exhausted all of its joins is still a semi-manual
   process. It is significantly easier, and does not necessarily require any
   changes on the impacted bot node itself, but is still annoying. Users can opt
-  out of this by setting `.spec.rejoining.unlimited=true`, but this has obvious
+  out of this by setting `.spec.joining.unlimited=true`, but this has obvious
   security implications.
 
 - Effort required to configure IaC / Terraform is still fairly high, even if
@@ -945,7 +948,7 @@ To better support use cases where central administrators vend bot tokens for
 teams, we can add scoped RBAC support for `ProvisionToken` CRUD operations.
 
 For example, this would allow a designated team to update a `bound-keypair`
-token to increase the rejoin counter without needing to reach out to the central
+token to increase the join counter without needing to reach out to the central
 administrator.
 
 This is likely dependent on [Scoped RBAC](https://github.com/gravitational/teleport/pull/38078),
@@ -1002,7 +1005,7 @@ into the bind-on-join flow described above. Multiple secrets mainly served to
 constrain credential reuse by limiting the number of possible rejoins until a
 human has to take some action.
 
-Bound keypair joining replaces the secrets with a rejoin counter, and allows for
+Bound keypair joining replaces the secrets with a join counter, and allows for
 (among other things) resuscitation of dead bots since their credentials remain
 available even once expired.
 
