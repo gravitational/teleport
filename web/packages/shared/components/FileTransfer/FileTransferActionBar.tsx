@@ -39,7 +39,7 @@ export function FileTransferActionBar({
   return (
     <Flex flex="none" alignItems="center" height="24px">
       <HoverTooltip
-        position="bottom"
+        placement="bottom"
         tipContent={
           !hasAccess ? (
             <Text>

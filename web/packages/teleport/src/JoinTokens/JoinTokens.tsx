@@ -435,7 +435,7 @@ const ActionCell = ({
     return (
       <Cell align="right">
         <HoverTooltip
-          justifyContentProps={{ justifyContent: 'end' }}
+          placement="top-end"
           tipContent="You cannot configure or delete static tokens via the web UI. Static tokens should be removed from your Teleport configuration file."
         >
           <MenuButton buttonProps={{ disabled: true, ...buttonProps }} />

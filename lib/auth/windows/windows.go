@@ -107,6 +107,13 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 		csr.ExtraExtensions = append(csr.ExtraExtensions, createUser)
 	}
 
+	if req.AD {
+		csr.ExtraExtensions = append(csr.ExtraExtensions, pkix.Extension{
+			Id:    tlsca.ADStatusOID,
+			Value: []byte("AD"),
+		})
+	}
+
 	if req.ActiveDirectorySID != "" {
 		adUserMapping, err := asn1.Marshal(SubjectAltName[adSid]{
 			otherName[adSid]{
@@ -194,6 +201,9 @@ type GenerateCredentialsRequest struct {
 	// CRL Distribution Point (CDP). CDPs are required in user certificates
 	// for RDP, but they can be omitted for certs that are used for LDAP binds.
 	OmitCDP bool
+
+	// AD is true if we're connecting to a domain-joined desktop.
+	AD bool
 }
 
 // GenerateWindowsDesktopCredentials generates a private key / certificate pair for the given

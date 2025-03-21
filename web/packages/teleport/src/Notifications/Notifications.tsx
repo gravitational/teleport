@@ -153,8 +153,7 @@ export function Notifications({ iconSize = 24 }: { iconSize?: number }) {
       className={IGNORE_CLICK_CLASSNAME}
     >
       <HoverTooltip
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+        placement="bottom"
         tipContent="Notifications"
         css={`
           height: 100%;

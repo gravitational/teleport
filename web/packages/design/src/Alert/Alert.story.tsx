@@ -16,6 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { action } from '@storybook/addon-actions';
+import React from 'react';
+
 import { Restore } from 'design/Icon';
 
 import { Box } from '..';
@@ -116,14 +119,10 @@ const commonProps: AlertProps = {
   dismissible: true,
   primaryAction: {
     content: 'Primary Action',
-    onClick: () => {
-      alert('Primary button clicked');
-    },
+    onClick: action('primaryAction.onClick'),
   },
   secondaryAction: {
     content: 'Secondary Action',
-    onClick: () => {
-      alert('Secondary button clicked');
-    },
+    onClick: action('secondaryAction.onClick'),
   },
 };

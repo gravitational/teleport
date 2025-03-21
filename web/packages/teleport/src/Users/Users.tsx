@@ -102,7 +102,7 @@ export function Users(props: State) {
           <Flex gap={2}>
             {!InviteCollaborators && (
               <HoverTooltip
-                position="bottom"
+                placement="bottom"
                 tipContent={
                   !isMissingPermissions ? (
                     ''

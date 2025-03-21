@@ -284,20 +284,6 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 
 	dynamoOpts := []func(*dynamodb.Options){dynamodb.WithEndpointResolverV2(dynamoResolver)}
 
-	// FIPS settings are applied on the individual service instead of the aws config,
-	// as DynamoDB Streams and Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
-	// See also: https://aws.amazon.com/compliance/fips/#FIPS_Endpoints_by_Service
-	useFIPS := dynamodbutils.IsFIPSEnabled()
-	if useFIPS {
-		dynamoOpts = append(dynamoOpts, func(o *dynamodb.Options) {
-			o.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateEnabled
-		})
-	}
-
-	otelaws.AppendMiddlewares(&awsConfig.APIOptions, otelaws.WithAttributeSetter(otelaws.DynamoDBAttributeSetter))
-
-	dynamoClient := dynamodb.NewFromConfig(awsConfig, dynamoOpts...)
-
 	streamsResolver, err := endpoint.NewLoggingResolver(
 		dynamodbstreams.NewDefaultEndpointResolverV2(),
 		l.With(slog.Group("service",
@@ -309,7 +295,28 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	streamsClient := dynamodbstreams.NewFromConfig(awsConfig, dynamodbstreams.WithEndpointResolverV2(streamsResolver))
+	streamsOpts := []func(*dynamodbstreams.Options){
+		dynamodbstreams.WithEndpointResolverV2(streamsResolver),
+	}
+
+	// FIPS settings are applied on the individual service instead of the aws config,
+	// as Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
+	// See also: https://aws.amazon.com/compliance/fips/#FIPS_Endpoints_by_Service
+	useFIPS := dynamodbutils.IsFIPSEnabled()
+	if useFIPS {
+		dynamoOpts = append(dynamoOpts, func(o *dynamodb.Options) {
+			o.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateEnabled
+		})
+		streamsOpts = append(streamsOpts, func(o *dynamodbstreams.Options) {
+			o.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateEnabled
+		})
+	}
+
+	otelaws.AppendMiddlewares(&awsConfig.APIOptions, otelaws.WithAttributeSetter(otelaws.DynamoDBAttributeSetter))
+
+	dynamoClient := dynamodb.NewFromConfig(awsConfig, dynamoOpts...)
+
+	streamsClient := dynamodbstreams.NewFromConfig(awsConfig, streamsOpts...)
 	b := &Backend{
 		logger:  l,
 		Config:  *cfg,
