@@ -455,7 +455,7 @@ func (h *Handler) dbConnect(
 	}
 
 	// Get host CA for this Proxy.
-	clusterName, err := h.GetAccessPoint().GetClusterName(ctx)
+	clusterName, err := h.GetAccessPoint().GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
