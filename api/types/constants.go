@@ -624,6 +624,9 @@ const (
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"
 
+	// V8 is the eighth version of resources.
+	V8 = "v8"
+
 	// V7 is the seventh version of resources.
 	V7 = "v7"
 

@@ -935,7 +935,7 @@ func (p *roleParser) parse(event backend.Event) (types.Resource, error) {
 
 		return &types.ResourceHeader{
 			Kind:    types.KindRole,
-			Version: types.V7,
+			Version: types.V8,
 			Metadata: types.Metadata{
 				Name:      strings.TrimPrefix(name, backend.SeparatorString),
 				Namespace: apidefaults.Namespace,
