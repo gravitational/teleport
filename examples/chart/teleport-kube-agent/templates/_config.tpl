@@ -47,7 +47,11 @@ app_service:
     {{- end }}
   enabled: true
   {{- if .Values.apps }}
-    {{- range $app := .Values.apps }}
+    {{- $apps := .Values.apps }}
+    {{- if eq (typeOf $apps) "string" }}
+      {{- $apps = tpl $apps . | fromYamlArray }}
+    {{- end }}
+    {{- range $app := $apps }}
       {{- if not (hasKey $app "name") }}
         {{- fail "'name' is required for all 'apps' in chart values when app role is enabled, see README" }}
       {{- end }}
@@ -56,7 +60,7 @@ app_service:
       {{- end }}
     {{- end }}
   apps:
-    {{- toYaml .Values.apps | nindent 4 }}
+    {{- toYaml $apps | nindent 4 }}
     {{- end }}
   resources:
     {{- if .Values.appResources }}
