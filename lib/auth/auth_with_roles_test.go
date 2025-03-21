@@ -5595,7 +5595,7 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 	}
 
 	// Update the roles to prevent access to any resource kinds.
-	role.SetRules(types.Deny, []types.Rule{{Resources: services.UnifiedResourceKinds, Verbs: []string{types.VerbList, types.VerbRead}}})
+	role.SetRules(types.Deny, []types.Rule{{Resources: []string{types.Wildcard}, Verbs: []string{types.VerbList, types.VerbRead}}})
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
@@ -5618,7 +5618,7 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 	resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
 		Limit:  20,
 		SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
-		Kinds:  []string{types.KindNode, types.KindDatabaseServer},
+		Kinds:  []string{types.KindNode, types.KindDatabase},
 	})
 	require.True(t, trace.IsAccessDenied(err))
 	require.Nil(t, resp)
@@ -5729,7 +5729,9 @@ func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
 		node, err := types.NewServerWithLabels(
 			name,
 			types.KindNode,
-			types.ServerSpecV2{},
+			types.ServerSpecV2{
+				Hostname: "node." + strconv.Itoa(i),
+			},
 			labels,
 		)
 		require.NoError(b, err)
@@ -5850,7 +5852,9 @@ func BenchmarkListUnifiedResources(b *testing.B) {
 		node, err := types.NewServerWithLabels(
 			name,
 			types.KindNode,
-			types.ServerSpecV2{},
+			types.ServerSpecV2{
+				Hostname: "node." + strconv.Itoa(i),
+			},
 			map[string]string{
 				"key":   id,
 				"group": "users",
@@ -5927,6 +5931,7 @@ func benchmarkListUnifiedResources(
 	for n := 0; n < b.N; n++ {
 		var resources []*proto.PaginatedResource
 		req := &proto.ListUnifiedResourcesRequest{
+			Kinds:  []string{types.KindNode},
 			SortBy: types.SortBy{IsDesc: false, Field: types.ResourceMetadataName},
 			Limit:  1_000,
 		}
