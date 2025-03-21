@@ -50,8 +50,8 @@ export default function makeApp(json: any): App {
   const userGroups = json.userGroups || [];
   const permissionSets: PermissionSet[] = json.permissionSets || [];
 
-  const isTcp = uri && uri.startsWith('tcp://');
-  const isCloud = uri && uri.startsWith('cloud://');
+  const isTcp = !!uri && uri.startsWith('tcp://');
+  const isCloud = !!uri && uri.startsWith('cloud://');
 
   let addrWithProtocol = uri;
   if (publicAddr) {
@@ -85,7 +85,8 @@ export default function makeApp(json: any): App {
     launchUrl,
     awsRoles,
     awsConsole,
-    isCloudOrTcpEndpoint: isTcp || isCloud,
+    isTcp,
+    isCloud,
     addrWithProtocol,
     friendlyName,
     userGroups,

@@ -99,6 +99,12 @@ export class DeepLinksService {
         await this.askAuthorizeDeviceTrust(result.url);
         break;
       }
+      case '/vnet': {
+        break;
+      }
+      default: {
+        result.url satisfies never;
+      }
     }
   }
 
