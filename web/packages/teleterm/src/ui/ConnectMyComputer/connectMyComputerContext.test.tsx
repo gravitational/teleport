@@ -23,7 +23,10 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { makeErrorAttempt } from 'shared/hooks/useAsync';
 
 import Logger, { NullService } from 'teleterm/logger';
-import { AgentProcessState } from 'teleterm/mainProcess/types';
+import {
+  AgentProcessState,
+  MainProcessClient,
+} from 'teleterm/mainProcess/types';
 import {
   makeAcl,
   makeLoggedInUser,
@@ -115,7 +118,10 @@ test('startAgent re-throws errors that are thrown while spawning the process', a
       return;
     });
   jest
-    .spyOn(appContext.mainProcessClient, 'subscribeToAgentUpdate')
+    .spyOn(
+      appContext.mainProcessClient as MainProcessClient,
+      'subscribeToAgentUpdate'
+    )
     .mockImplementation((rootClusterUri, listener) => {
       eventEmitter.on('', listener);
       return { cleanup: () => eventEmitter.off('', listener) };
@@ -239,7 +245,10 @@ test('starts the agent automatically if the workspace autoStart flag is true', a
     .mockResolvedValue(makeServer());
   jest.spyOn(appContext.connectMyComputerService, 'downloadAgent');
   jest
-    .spyOn(appContext.mainProcessClient, 'subscribeToAgentUpdate')
+    .spyOn(
+      appContext.mainProcessClient as MainProcessClient,
+      'subscribeToAgentUpdate'
+    )
     .mockImplementation((rootClusterUri, listener) => {
       eventEmitter.on('', listener);
       return { cleanup: () => eventEmitter.off('', listener) };

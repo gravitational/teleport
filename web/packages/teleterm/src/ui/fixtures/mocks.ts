@@ -29,6 +29,8 @@ import AppContext from 'teleterm/ui/appContext';
 import { Document } from 'teleterm/ui/services/workspacesService';
 
 export class MockAppContext extends AppContext {
+  declare mainProcessClient: MockMainProcessClient;
+
   constructor(runtimeSettings?: Partial<RuntimeSettings>) {
     const mainProcessClient = new MockMainProcessClient(runtimeSettings);
     const tshdClient = new MockTshClient();

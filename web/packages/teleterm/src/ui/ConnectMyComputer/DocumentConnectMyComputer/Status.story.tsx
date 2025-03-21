@@ -19,7 +19,10 @@
 import { useLayoutEffect } from 'react';
 
 import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
-import { AgentProcessState } from 'teleterm/mainProcess/types';
+import {
+  AgentProcessState,
+  MainProcessClient,
+} from 'teleterm/mainProcess/types';
 import {
   makeLabelsList,
   makeRootCluster,
@@ -49,7 +52,7 @@ export function Running() {
   const appContext = new MockAppContext({ appVersion: '17.0.0' });
 
   let agentUpdateListener: (state: AgentProcessState) => void;
-  appContext.mainProcessClient.subscribeToAgentUpdate = (
+  (appContext.mainProcessClient as MainProcessClient).subscribeToAgentUpdate = (
     rootClusterUri,
     listener
   ) => {

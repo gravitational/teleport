@@ -26,6 +26,7 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
+import { NewTab } from 'design/Icon';
 import { getPlatform, Platform } from 'design/platform';
 import { SlideTabs, TabSpec } from 'design/SlideTabs/SlideTabs';
 import {
@@ -124,6 +125,7 @@ export function TcpAppConnectDialog(props: { app: App; onClose: () => void }) {
               })}
             >
               Sign In & Start VNet
+              <NewTab size="small" ml={1} />
             </ButtonSecondary>
           </Stack>
 
