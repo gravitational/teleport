@@ -30,6 +30,8 @@ import { InputMode, InputSize, InputType } from 'design/Input';
 import { LabelContent } from 'design/LabelInput/LabelInput';
 import { useRule } from 'shared/components/Validation';
 
+import { Rule } from '../Validation/rules';
+
 const FieldInput = forwardRef<HTMLInputElement, FieldInputProps>(
   (
     {
@@ -223,7 +225,7 @@ export type FieldInputProps = BoxProps & {
   type?: InputType;
   inputMode?: InputMode;
   spellCheck?: boolean;
-  rule?: (options: unknown) => () => unknown;
+  rule?: Rule;
   onChange?: React.ChangeEventHandler<HTMLInputElement>;
   onKeyPress?: React.KeyboardEventHandler<HTMLInputElement>;
   onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
