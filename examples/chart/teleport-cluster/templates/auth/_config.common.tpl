@@ -36,20 +36,29 @@ auth_service:
 {{- if $authentication.lockingMode }}
     locking_mode: "{{ $authentication.lockingMode }}"
 {{- end }}
-{{- if $authentication.secondFactor }}
-    second_factor: "{{ $authentication.secondFactor }}"
-  {{- if not (or (eq $authentication.secondFactor "off") (eq $authentication.secondFactor "otp")) }}
+{{- $hasWebauthnMFA := false }}
+{{- if $authentication.secondFactors }}
+    second_factors: {{- toYaml $authentication.secondFactors | nindent 6 }}
+    {{- if has "webauthn" $authentication.secondFactors }}
+      {{- $hasWebauthnMFA = true }}
+    {{- end }}
+{{- else }}
+    second_factor: {{ $authentication.secondFactor | squote }}
+    {{- if has $authentication.secondFactor (list "webauthn" "on" "optional") }}
+      {{- $hasWebauthnMFA = true }}
+    {{- end }}
+{{- end }}
+{{- if $hasWebauthnMFA }}
     webauthn:
       rp_id: {{ required "clusterName is required in chart values" .Values.clusterName }}
-    {{- if $authentication.webauthn }}
-      {{- if $authentication.webauthn.attestationAllowedCas }}
+      {{- if $authentication.webauthn }}
+        {{- if $authentication.webauthn.attestationAllowedCas }}
       attestation_allowed_cas: {{- toYaml $authentication.webauthn.attestationAllowedCas | nindent 12 }}
-      {{- end }}
-      {{- if $authentication.webauthn.attestationDeniedCas }}
+        {{- end }}
+        {{- if $authentication.webauthn.attestationDeniedCas }}
       attestation_denied_cas: {{- toYaml $authentication.webauthn.attestationDeniedCas | nindent 12 }}
+        {{- end }}
       {{- end }}
-    {{- end }}
-  {{- end }}
 {{- end }}
 {{- if .Values.sessionRecording }}
   session_recording: {{ .Values.sessionRecording | squote }}
