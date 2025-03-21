@@ -21,6 +21,8 @@ package common
 import (
 	"github.com/alecthomas/kingpin/v2"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekeyagent"
 	"github.com/gravitational/teleport/api/utils/keys/piv"
 )
@@ -50,6 +52,9 @@ func newPIVAgentCommand(parent *kingpin.CmdClause) *pivAgentCommand {
 
 func (c *pivAgentCommand) run(cf *CLIConf) error {
 	hwKeyService := piv.NewYubiKeyService(nil /*prompt*/)
-	s := hardwarekeyagent.NewServer(hwKeyService)
-	return s.RunServer(cf.Context)
+	s, err := hardwarekeyagent.NewServer(cf.Context, hwKeyService)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return s.Serve(cf.Context)
 }

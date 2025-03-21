@@ -49,39 +49,46 @@ const (
 
 // Server implementation [hardwarekeyagentv1.HardwareKeyAgentServiceServer].
 type Server struct {
-	hardwarekeyagentv1.UnimplementedHardwareKeyAgentServiceServer
-	s hardwarekey.Service
+	hardwareKeyService hardwarekey.Service
+	grpcServer         *grpc.Server
+	listener           net.Listener
 }
 
 // NewServer returns a new hardware key agent server.
-func NewServer(s hardwarekey.Service) *Server {
-	return &Server{s: s}
-}
-
-// RunServer runs a new [hardwarekeyagentv1.HardwareKeyAgentServiceServer] using the service.
-func (s *Server) RunServer(ctx context.Context) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
+func NewServer(ctx context.Context, s hardwarekey.Service) (*Server, error) {
 	l, err := newAgentListener(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	context.AfterFunc(ctx, func() { l.Close() })
 
 	cert, err := generateServerCert()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	grpcServer := grpc.NewServer(
 		grpc.Creds(credentials.NewServerTLSFromCert(&cert)),
 		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
 	)
-	hardwarekeyagentv1.RegisterHardwareKeyAgentServiceServer(grpcServer, s)
+	hardwarekeyagentv1.RegisterHardwareKeyAgentServiceServer(grpcServer, &service{s: s})
 
+	return &Server{
+		hardwareKeyService: s,
+		grpcServer:         grpcServer,
+		listener:           l,
+	}, nil
+}
+
+// Serve the hardware key agent server.
+func (s *Server) Serve(ctx context.Context) error {
 	fmt.Fprintln(os.Stderr, "Listening for hardware key agent requests")
-	return trace.Wrap(grpcServer.Serve(l))
+	context.AfterFunc(ctx, s.Stop)
+	return trace.Wrap(s.grpcServer.Serve(s.listener))
+}
+
+// Stop the hardware key agent server.
+func (s *Server) Stop() {
+	s.grpcServer.GracefulStop()
 }
 
 func newAgentListener(ctx context.Context) (net.Listener, error) {
@@ -137,8 +144,13 @@ func generateServerCert() (tls.Certificate, error) {
 	return keys.X509KeyPair(creds.Cert, creds.PrivateKey)
 }
 
+type service struct {
+	hardwarekeyagentv1.UnimplementedHardwareKeyAgentServiceServer
+	s hardwarekey.Service
+}
+
 // Sign the given digest with the specified hardware private key.
-func (s *Server) Sign(ctx context.Context, req *hardwarekeyagentv1.SignRequest) (*hardwarekeyagentv1.Signature, error) {
+func (s *service) Sign(ctx context.Context, req *hardwarekeyagentv1.SignRequest) (*hardwarekeyagentv1.Signature, error) {
 	slotKey, err := pivSlotKeyFromProto(req.KeyRef.SlotKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -195,7 +207,7 @@ func (s *Server) Sign(ctx context.Context, req *hardwarekeyagentv1.SignRequest) 
 }
 
 // Ping the server and get its PID.
-func (s *Server) Ping(ctx context.Context, req *hardwarekeyagentv1.PingRequest) (*hardwarekeyagentv1.PingResponse, error) {
+func (s *service) Ping(ctx context.Context, req *hardwarekeyagentv1.PingRequest) (*hardwarekeyagentv1.PingResponse, error) {
 	return &hardwarekeyagentv1.PingResponse{
 		Pid: uint32(os.Getpid()),
 	}, nil
