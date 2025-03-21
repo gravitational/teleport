@@ -18,12 +18,14 @@
 
 import { useEffect } from 'react';
 import { useParams } from 'react-router';
+import { Link as InternalLink } from 'react-router-dom';
 
-import { Box, Indicator } from 'design';
+import { Box, ButtonPrimary, Indicator } from 'design';
 import { Danger } from 'design/Alert';
 import Table, { LabelCell } from 'design/DataTable';
 import { useAsync } from 'shared/hooks/useAsync';
 
+import cfg from 'teleport/config';
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import {
   AWSOIDCDeployedDatabaseService,
@@ -76,7 +78,19 @@ export function Agents() {
             ),
           },
         ]}
-        emptyText={`No ${resourceKind.toUpperCase()} agents`}
+        emptyText={`No ${resourceKind.toUpperCase()} Agents Found`}
+        emptyButton={
+          <ButtonPrimary
+            as={InternalLink}
+            to={{
+              pathname: cfg.routes.discover,
+              state: { searchKeywords: resourceKind },
+            }}
+          >
+            Add Enrollment Rule
+          </ButtonPrimary>
+        }
+        emptyHint="Set up Teleport Discovery service to monitor the dynamic [db] resources registered by the discovery services"
       />
     </>
   );
