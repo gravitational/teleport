@@ -13,7 +13,7 @@ export const inputSlotRecipe = defineSlotRecipe({
       borderWidth: '1px',
       borderColor: 'interactive.tonal.neutral.2',
       focusVisibleRing: 'inside',
-      focusRingColor: 'var(--focus-color)',
+      focusRingColor: 'interactive.solid.primary.default',
       width: '100%',
       minWidth: '0',
       outline: '0',
@@ -31,10 +31,20 @@ export const inputSlotRecipe = defineSlotRecipe({
       _invalid: {
         focusRingColor: 'var(--error-color)',
         borderColor: 'var(--error-color)',
+        _hover: {
+          borderColor: 'var(--error-color)',
+        },
+      },
+      _hover: {
+        borderColor: 'text.muted',
       },
     },
     icon: {
-      color: 'interactive.solid.danger.default',
+      display: 'flex',
+      alignItems: 'center',
+      pos: 'absolute',
+      top: 0,
+      bottom: 0,
     },
   },
   variants: {

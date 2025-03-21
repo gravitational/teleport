@@ -27,7 +27,9 @@ import react from '@vitejs/plugin-react-swc';
 /** @param {string} mode */
 export function reactPlugin(mode) {
   return react({
-    plugins: [['@swc/plugin-styled-components', getStyledComponentsConfig(mode)]],
+    plugins: [
+      ['@swc/plugin-styled-components', getStyledComponentsConfig(mode)],
+    ],
   });
 }
 
@@ -40,7 +42,7 @@ function getStyledComponentsConfig(mode) {
       pure: false, // not currently supported by SWC
       displayName: false,
       fileName: false,
-      cssProp: true,
+      cssProp: false,
     };
   }
 
@@ -49,6 +51,6 @@ function getStyledComponentsConfig(mode) {
     pure: true, // not currently supported by SWC
     displayName: true,
     fileName: true,
-    cssProp: true,
+    cssProp: false,
   };
 }

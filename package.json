@@ -69,6 +69,7 @@
     "prettier": "^3.5.3",
     "react-select-event": "^5.5.1",
     "storybook": "^8.6.3",
+    "storybook-addon-pseudo-states": "^4.0.3",
     "typescript": "^5.8.2",
     "vite": "^6.2.0"
   },

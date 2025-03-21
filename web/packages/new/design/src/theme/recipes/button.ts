@@ -3,6 +3,7 @@ import { defineRecipe } from '@chakra-ui/react';
 export const buttonRecipe = defineRecipe({
   className: 'teleport-button',
   base: {
+    border: '1.5px solid transparent',
     display: 'inline-flex',
     appearance: 'none',
     alignItems: 'center',
@@ -12,17 +13,17 @@ export const buttonRecipe = defineRecipe({
     borderRadius: 'l2',
     whiteSpace: 'nowrap',
     verticalAlign: 'middle',
-    borderWidth: '1px',
     borderColor: 'transparent',
     cursor: 'button',
     flexShrink: '0',
-    outline: '0',
     lineHeight: '1.2',
     isolation: 'isolate',
-    fontWeight: 'medium',
+    fontWeight: 'semibold',
     transitionProperty: 'common',
     transitionDuration: 'moderate',
-    focusVisibleRing: 'outside',
+    _focusVisible: {
+      outline: '2px solid var(--bg-currentcolor)',
+    },
     _disabled: {
       layerStyle: 'disabled',
     },
@@ -32,32 +33,9 @@ export const buttonRecipe = defineRecipe({
   },
   variants: {
     size: {
-      '2xs': {
-        h: '6',
-        minW: '6',
-        textStyle: 'xs',
-        px: '2',
-        gap: '1',
-        _icon: {
-          width: '3.5',
-          height: '3.5',
-        },
-      },
-      xs: {
-        h: '8',
-        minW: '8',
-        textStyle: 'xs',
-        px: '2.5',
-        gap: '1',
-        _icon: {
-          width: '4',
-          height: '4',
-        },
-      },
       sm: {
-        h: '9',
-        minW: '9',
-        px: '3.5',
+        minH: 7,
+        px: 'calc(var(--teleport-spacing-3) - 1.5px)',
         textStyle: 'sm',
         gap: '2',
         _icon: {
@@ -66,10 +44,10 @@ export const buttonRecipe = defineRecipe({
         },
       },
       md: {
-        h: '10',
+        minH: 9,
         minW: '10',
         textStyle: 'sm',
-        px: '4',
+        px: 'calc(var(--teleport-spacing-9) - 1.5px)',
         gap: '2',
         _icon: {
           width: '5',
@@ -77,10 +55,9 @@ export const buttonRecipe = defineRecipe({
         },
       },
       lg: {
-        h: '11',
-        minW: '11',
-        textStyle: 'md',
-        px: '5',
+        minH: 11,
+        textStyle: 'lg',
+        px: 'calc(var(--teleport-spacing-9) - 1.5px)',
         gap: '3',
         _icon: {
           width: '5',
@@ -88,91 +65,305 @@ export const buttonRecipe = defineRecipe({
         },
       },
       xl: {
-        h: '12',
-        minW: '12',
-        textStyle: 'md',
-        px: '5',
+        minH: '3.1rem',
+        textStyle: 'xl',
+        px: 'calc(var(--teleport-spacing-9) - 1.5px)',
         gap: '2.5',
         _icon: {
           width: '5',
           height: '5',
         },
       },
-      '2xl': {
-        h: '16',
-        minW: '16',
-        textStyle: 'lg',
-        px: '7',
-        gap: '3',
-        _icon: {
-          width: '6',
-          height: '6',
-        },
-      },
+    },
+    intent: {
+      primary: {},
+      neutral: {},
+      danger: {},
+      success: {},
     },
     variant: {
-      solid: {
-        bg: 'colorPalette.solid',
-        color: 'colorPalette.contrast',
-        borderColor: 'transparent',
-        _hover: {
-          bg: 'colorPalette.solid/90',
-        },
-        _expanded: {
-          bg: 'colorPalette.solid/90',
-        },
+      filled: {
+        color: 'text.primaryInverse',
       },
-      subtle: {
-        bg: 'colorPalette.subtle',
-        color: 'colorPalette.fg',
-        borderColor: 'transparent',
-        _hover: {
-          bg: 'colorPalette.muted',
-        },
-        _expanded: {
-          bg: 'colorPalette.muted',
-        },
+      minimal: {},
+      border: {},
+    },
+    block: {
+      true: {
+        w: '100%',
       },
-      surface: {
-        bg: 'colorPalette.subtle',
-        color: 'colorPalette.fg',
-        shadow: '0 0 0px 1px var(--shadow-color)',
-        shadowColor: 'colorPalette.muted',
-        _hover: {
-          bg: 'colorPalette.muted',
-        },
-        _expanded: {
-          bg: 'colorPalette.muted',
-        },
+    },
+    compact: {
+      true: {
+        px: 'calc(var(--teleport-spacing-1) - 1.5px)',
       },
-      outline: {
-        borderWidth: '1px',
-        borderColor: 'colorPalette.muted',
-        color: 'colorPalette.fg',
-        _hover: {
-          bg: 'colorPalette.subtle',
-        },
-        _expanded: {
-          bg: 'colorPalette.subtle',
-        },
-      },
-      ghost: {
-        bg: 'transparent',
-        color: 'colorPalette.fg',
-        _hover: {
-          bg: 'colorPalette.subtle',
-        },
-        _expanded: {
-          bg: 'colorPalette.subtle',
-        },
-      },
-      plain: {
-        color: 'colorPalette.fg',
+    },
+    inputAlignment: {
+      true: {
+        px: 'calc(var(--teleport-spacing-4) - 1.5px)',
       },
     },
   },
+  compoundVariants: [
+    // filled
+    {
+      intent: 'primary',
+      variant: 'filled',
+      css: {
+        bg: 'interactive.solid.primary.default',
+        _hover: {
+          bg: 'interactive.solid.primary.hover',
+        },
+        _active: {
+          bg: 'interactive.solid.primary.active',
+        },
+        _focusVisible: {
+          bg: 'interactive.solid.primary.default',
+          borderColor: 'text.primaryInverse',
+        },
+      },
+    },
+    {
+      intent: 'danger',
+      variant: 'filled',
+      css: {
+        bg: 'interactive.solid.danger.default',
+        _hover: {
+          bg: 'interactive.solid.danger.hover',
+        },
+        _active: {
+          bg: 'interactive.solid.danger.active',
+        },
+        _focusVisible: {
+          bg: 'interactive.solid.danger.default',
+          borderColor: 'text.primaryInverse',
+        },
+      },
+    },
+    {
+      intent: 'success',
+      variant: 'filled',
+      css: {
+        bg: 'interactive.solid.success.default',
+        _hover: {
+          bg: 'interactive.solid.success.hover',
+        },
+        _active: {
+          bg: 'interactive.solid.success.active',
+        },
+        _focusVisible: {
+          bg: 'interactive.solid.success.default',
+          borderColor: 'text.primaryInverse',
+        },
+      },
+    },
+    {
+      intent: 'neutral',
+      variant: 'filled',
+      css: {
+        color: 'text.slightlyMuted',
+        bg: 'interactive.tonal.neutral.0',
+        _hover: {
+          color: 'text.main',
+          bg: 'interactive.tonal.neutral.1',
+        },
+        _active: {
+          color: 'text.main',
+          bg: 'interactive.tonal.neutral.2',
+        },
+        _focusVisible: {
+          color: 'text.slightlyMuted',
+          bg: 'interactive.tonal.neutral.0',
+          borderColor: 'text.primaryInverse',
+        },
+      },
+    },
+
+    // minimal
+    {
+      intent: 'primary',
+      variant: 'minimal',
+      css: {
+        bg: 'transparent',
+        color: 'interactive.solid.primary.default',
+        _hover: {
+          bg: 'interactive.tonal.primary.0',
+          color: 'interactive.solid.primary.hover',
+        },
+        _active: {
+          bg: 'interactive.tonal.primary.1',
+          color: 'interactive.solid.primary.active',
+        },
+        _focusVisible: {
+          color: 'interactive.solid.primary.default',
+          borderColor: 'interactive.solid.primary.default',
+          outline: 0,
+        },
+      },
+    },
+    {
+      intent: 'danger',
+      variant: 'minimal',
+      css: {
+        bg: 'transparent',
+        color: 'interactive.solid.danger.default',
+        _hover: {
+          bg: 'interactive.tonal.danger.0',
+          color: 'interactive.solid.danger.hover',
+        },
+        _active: {
+          bg: 'interactive.tonal.danger.1',
+          color: 'interactive.solid.danger.active',
+        },
+        _focusVisible: {
+          color: 'interactive.solid.danger.default',
+          borderColor: 'interactive.solid.danger.default',
+          outline: 0,
+        },
+      },
+    },
+    {
+      intent: 'success',
+      variant: 'minimal',
+      css: {
+        bg: 'transparent',
+        color: 'interactive.solid.success.default',
+        _hover: {
+          bg: 'interactive.tonal.success.0',
+          color: 'interactive.solid.success.hover',
+        },
+        _active: {
+          bg: 'interactive.tonal.success.1',
+          color: 'interactive.solid.success.active',
+        },
+        _focusVisible: {
+          color: 'interactive.solid.success.default',
+          borderColor: 'interactive.solid.success.default',
+          outline: 0,
+        },
+      },
+    },
+    {
+      intent: 'neutral',
+      variant: 'minimal',
+      css: {
+        color: 'text.slightlyMuted',
+        bg: 'transparent',
+        _hover: {
+          bg: 'interactive.tonal.neutral.0',
+        },
+        _active: {
+          color: 'text.main',
+          bg: 'interactive.tonal.neutral.1',
+        },
+        _focusVisible: {
+          color: 'text.slightlyMuted',
+          borderColor: 'text.slightlyMuted',
+        },
+      },
+    },
+
+    // border
+    {
+      intent: 'primary',
+      variant: 'border',
+      css: {
+        bg: 'transparent',
+        color: 'interactive.solid.primary.default',
+        borderColor: 'interactive.solid.primary.default',
+        _hover: {
+          color: 'text.primaryInverse',
+          bg: 'interactive.solid.primary.hover',
+          borderColor: 'transparent',
+        },
+        _active: {
+          color: 'text.primaryInverse',
+          bg: 'interactive.solid.primary.active',
+          borderColor: 'transparent',
+        },
+        _focusVisible: {
+          color: 'text.primaryInverse',
+          borderColor: 'text.primaryInverse',
+          bg: 'interactive.solid.primary.default',
+        },
+      },
+    },
+    {
+      intent: 'danger',
+      variant: 'border',
+      css: {
+        bg: 'transparent',
+        color: 'interactive.solid.danger.default',
+        borderColor: 'interactive.solid.danger.default',
+        _hover: {
+          color: 'text.primaryInverse',
+          bg: 'interactive.solid.danger.hover',
+          borderColor: 'transparent',
+        },
+        _active: {
+          color: 'text.primaryInverse',
+          bg: 'interactive.solid.danger.active',
+          borderColor: 'transparent',
+        },
+        _focusVisible: {
+          color: 'text.primaryInverse',
+          borderColor: 'text.primaryInverse',
+          bg: 'interactive.solid.danger.default',
+        },
+      },
+    },
+    {
+      intent: 'success',
+      variant: 'border',
+      css: {
+        bg: 'transparent',
+        color: 'interactive.solid.success.default',
+        borderColor: 'interactive.solid.success.default',
+        _hover: {
+          color: 'text.primaryInverse',
+          bg: 'interactive.solid.success.hover',
+          borderColor: 'transparent',
+        },
+        _active: {
+          color: 'text.primaryInverse',
+          bg: 'interactive.solid.success.active',
+          borderColor: 'transparent',
+        },
+        _focusVisible: {
+          color: 'text.primaryInverse',
+          borderColor: 'text.primaryInverse',
+          bg: 'interactive.solid.success.default',
+        },
+      },
+    },
+    {
+      intent: 'neutral',
+      variant: 'border',
+      css: {
+        bg: 'transparent',
+        color: 'text.slightlyMuted',
+        borderColor: 'interactive.tonal.neutral.2',
+        _hover: {
+          color: 'text.main',
+          bg: 'interactive.tonal.neutral.1',
+          borderColor: 'transparent',
+        },
+        _active: {
+          color: 'text.main',
+          bg: 'interactive.tonal.neutral.2',
+          borderColor: 'transparent',
+        },
+        _focusVisible: {
+          color: 'text.slightlyMuted',
+          borderColor: 'text.slightlyMuted',
+          bg: 'interactive.tonal.neutral.0',
+        },
+      },
+    },
+  ],
   defaultVariants: {
     size: 'md',
-    variant: 'solid',
+    variant: 'filled',
+    intent: 'primary',
   },
 });

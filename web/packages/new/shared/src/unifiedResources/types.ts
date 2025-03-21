@@ -18,6 +18,15 @@
 
 import React from 'react';
 
+import type { NodeSubKind } from 'teleport-new/config/auth';
+import type { ResourceLabel } from 'teleport-new/services/agents/types';
+import {
+  AppSubKind,
+  type PermissionSet,
+} from 'teleport-new/services/apps/types';
+
+import type { DbProtocol } from '../services/databases/databases';
+
 // import { Icon } from 'design/Icon';
 // import { ResourceIconName } from 'design/ResourceIcon';
 // import { NodeSubKind } from 'shared/services';

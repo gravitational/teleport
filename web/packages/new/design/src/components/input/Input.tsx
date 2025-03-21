@@ -2,12 +2,11 @@ import { Field } from '@ark-ui/react';
 import {
   Box,
   createSlotRecipeContext,
-  Flex,
   useSlotRecipe,
   type InputProps as ChakraInputProps,
   type IconProps,
 } from '@chakra-ui/react';
-import { forwardRef, type RefAttributes } from 'react';
+import { forwardRef, type ReactNode, type RefAttributes } from 'react';
 
 import { WarningCircleIcon } from '../../icons/WarningCircle';
 
@@ -25,6 +24,7 @@ const StyledField = withContext<HTMLInputElement, InputProps>(
 
 export interface InputProps extends ChakraInputProps {
   hasError?: boolean;
+  icon?: ReactNode;
 }
 
 export const Input = forwardRef<
@@ -35,14 +35,29 @@ export const Input = forwardRef<
 
   const [recipeProps, restProps] = recipe.splitVariantProps(props);
 
-  const { hasError, ...rest } = restProps;
+  const { hasError, icon, ...rest } = restProps;
 
   const styles = recipe(recipeProps);
+
+  const paddingLeft = icon ? 10 : undefined;
+  const paddingRight = hasError ? 10 : undefined;
 
   return (
     <StylesProvider value={styles}>
       <Box css={styles.container}>
-        <StyledField data-invalid={hasError} {...rest} ref={ref} />
+        {icon && (
+          <Box css={styles.icon} left={3}>
+            {icon}
+          </Box>
+        )}
+
+        <StyledField
+          data-invalid={hasError}
+          {...rest}
+          pl={paddingLeft}
+          pr={paddingRight}
+          ref={ref}
+        />
 
         {hasError && <ErrorIcon />}
       </Box>
@@ -53,9 +68,11 @@ export const Input = forwardRef<
 function ErrorIcon(props: IconProps) {
   const { icon } = useInputStyles();
 
+  console.log('icon', icon);
+
   return (
-    <Flex css={icon}>
+    <Box css={icon} right={3} color="interactive.solid.danger.default">
       <WarningCircleIcon {...props} />
-    </Flex>
+    </Box>
   );
 }

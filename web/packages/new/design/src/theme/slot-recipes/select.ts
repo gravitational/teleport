@@ -71,7 +71,7 @@ export const selectSlotRecipe = defineSlotRecipe({
       },
     },
     content: {
-      background: 'bg.panel',
+      background: 'levels.surface',
       display: 'flex',
       flexDirection: 'column',
       zIndex: 'dropdown',
@@ -230,7 +230,7 @@ export const selectSlotRecipe = defineSlotRecipe({
       },
       md: {
         root: {
-          '--select-trigger-height': 'sizes.10',
+          '--select-trigger-height': 'sizes.11',
           '--select-trigger-padding-x': 'spacing.3',
         },
         content: {
@@ -259,8 +259,8 @@ export const selectSlotRecipe = defineSlotRecipe({
         },
         indicator: {
           _icon: {
-            width: '4',
-            height: '4',
+            width: '6',
+            height: '6',
           },
         },
       },

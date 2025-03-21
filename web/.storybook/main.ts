@@ -47,6 +47,7 @@ const config: StorybookConfig = {
     '@storybook/addon-toolbars',
     '@storybook/addon-controls',
     '@storybook/addon-actions',
+    'storybook-addon-pseudo-states',
   ],
   viteFinal(config) {
     return {

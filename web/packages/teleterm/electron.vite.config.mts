@@ -21,8 +21,8 @@ import path from 'node:path';
 import { defineConfig, externalizeDepsPlugin, UserConfig } from 'electron-vite';
 import type { Plugin } from 'vite';
 
-import { reactPlugin } from '@gravitational/build/vite/react.mjs';
-import { tsconfigPathsPlugin } from '@gravitational/build/vite/tsconfigPaths.mjs';
+import { reactPlugin } from '@gravitational/build/vite/react';
+import { tsconfigPathsPlugin } from '@gravitational/build/vite/tsconfigPaths';
 
 import { getConnectCsp } from './csp';
 

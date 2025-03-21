@@ -63,14 +63,17 @@ const GlobalStyle = createGlobalStyle`
       props.theme
         .name}; // this ensures Chrome's scrollbars are set to the right color depending on the theme
   }
-
-  // remove dotted Firefox outline
-  button, a {
-    outline: 0;
-    ::-moz-focus-inner {
-      border: 0;
-    }
+  
+  @layer reset {
+      // remove dotted Firefox outline
+      button, a {
+        outline: 0;
+        ::-moz-focus-inner {
+          border: 0;
+        }
+      }
   }
+
 `;
 
 export { GlobalStyle };

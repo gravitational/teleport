@@ -2,7 +2,17 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
-import { Button, Card, Field, Heading, Input, VStack } from 'design-new';
+import {
+  Box,
+  ButtonPrimary,
+  Card,
+  Field,
+  Flex,
+  Heading,
+  Input,
+  Select,
+  VStack,
+} from 'design-new';
 
 import { LogoHero } from '../../components/LogoHero/LogoHero';
 import { useCheckSessionAndRedirect } from './useCheckSessionAndRedirect';
@@ -22,11 +32,22 @@ type NewLoginFormProps =
   | NewLoginFormWithoutRecoveryEnabledProps;
 
 const schema = z.object({
-  username: z.string().min(1),
-  password: z.string().min(1),
+  username: z.string().min(1, { message: 'Username is required' }),
+  password: z.string().min(1, { message: 'Password is required' }),
 });
 
 type Schema = z.infer<typeof schema>;
+
+const options = [
+  {
+    label: 'Passkey or Security Key',
+    value: 'passkey',
+  },
+  {
+    label: 'Authenticator App',
+    value: 'authenticator',
+  },
+];
 
 function LocalLoginForm() {
   const { formState, handleSubmit, register } = useForm<Schema>({
@@ -37,40 +58,58 @@ function LocalLoginForm() {
     console.log('data', data);
   }
 
+  console.log(formState.errors);
+
   return (
     <form
-      onSubmit={() => {
-        void handleSubmit(onSubmit);
+      onSubmit={e => {
+        void handleSubmit(onSubmit)(e);
       }}
     >
-      <Field.Root>
-        <Field.Label>Username</Field.Label>
+      <VStack gap={5}>
+        <Field.Root invalid={!!formState.errors.username}>
+          <Field.Label>Username</Field.Label>
 
-        <Input placeholder="Username" {...register('username')} />
+          <Input placeholder="Username" {...register('username')} />
 
-        <Field.ErrorText>This is an error text</Field.ErrorText>
-      </Field.Root>
+          <Field.ErrorText>
+            {formState.errors.username?.message}
+          </Field.ErrorText>
+        </Field.Root>
 
-      <Field.Root mb={4}>
-        <Field.Label>Password</Field.Label>
+        <Field.Root invalid={!!formState.errors.password}>
+          <Field.Label>Password</Field.Label>
 
-        <Input
-          placeholder="Password"
-          type="password"
-          hasError={true}
-          {...register('password')}
-        />
+          <Input
+            placeholder="Password"
+            type="password"
+            {...register('password')}
+          />
 
-        <Field.ErrorText>This is an error text</Field.ErrorText>
-      </Field.Root>
+          <Field.ErrorText>
+            {formState.errors.password?.message}
+          </Field.ErrorText>
+        </Field.Root>
 
-      <Button
-        loading={formState.isSubmitting}
-        disabled={!formState.isValid}
-        type="submit"
-      >
-        hello
-      </Button>
+        <Flex w="100%">
+          <Box maxW="50%" w="100%">
+            <Field.Root>
+              <Field.Label>Multi-factor Type</Field.Label>
+
+              <Select options={options} value={options[0]} />
+            </Field.Root>
+          </Box>
+        </Flex>
+
+        <ButtonPrimary
+          loading={formState.isSubmitting}
+          size="xl"
+          type="submit"
+          w="100%"
+        >
+          Sign In
+        </ButtonPrimary>
+      </VStack>
     </form>
   );
 }

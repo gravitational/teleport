@@ -7,11 +7,10 @@
     "noImplicitOverride": true,
     "noUnusedLocals": true,
     "outDir": "../../../../build.assets/.cache/ts/shared-new",
-//    "paths": {
-//      "shared-new/*": ["web/packages/new/shared/src/*"],
-//      "shared-new": ["web/packages/new/shared/src/"],
-//      "gen-proto-ts/*": ["gen/proto/ts/*"],
-//    },
+    "paths": {
+      "teleport-new/*": ["web/packages/new/teleport/src/*"],
+      "teleport-new": ["web/packages/new/teleport/src/"]
+    },
     "pretty": true,
     "rootDir": "../../../..",
     "strict": true,

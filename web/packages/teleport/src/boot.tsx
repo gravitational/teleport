@@ -26,6 +26,8 @@ import cfg from './config';
 import Teleport from './Teleport';
 import TeleportContext from './teleportContext';
 
+import 'design-new/assets/ubuntu/style.css';
+
 // apply configuration received from the server
 cfg.init(window['GRV_CONFIG']);
 
