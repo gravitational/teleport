@@ -387,6 +387,18 @@ successfully joining once. When the original bot fails to refresh and attempts
 to rejoin, it presents a valid but outdated join state document, we generate a
 lock, and then deny further access to both bots.
 
+As an additional level of protection, following a successful rejoin attempt,
+we can optionally insert a lock targeting the previous bot instance UUID. This
+lock can have a modest expiration date to avoid resource leakage on the cluster
+(max renewable cert TTL of the proposed 7 days).
+
+Today, bots do not immediately notice if they have been locked. However, we can
+investigate methods to ensure clients notice locks early and trigger a
+rapid renewal, which would in turn fully lock the `(bot, token)` pair once the
+original bot attempts to rejoin with an outdated join state document. This would
+be an improvement over `token`-joined bots today, which will take up to a full
+renewal interval to trigger a generation counter check.
+
 #### The Join State Document
 
 As discussed above, the join state document is a JWT signed by Auth included
