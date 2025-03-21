@@ -3906,6 +3906,8 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			src := respResource.GetIdentityCenterAccountAssignment()
 			dst := proto.UnpackICAccountAssignment(src)
 			resources[i] = dst
+		case types.KindGitServer:
+			resources[i] = respResource.GetGitServer()
 		default:
 			return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 		}
@@ -4119,6 +4121,8 @@ func GetEnrichedResourcePage(ctx context.Context, clt GetResourcesClient, req *p
 				resource = respResource.GetAppServerOrSAMLIdPServiceProvider()
 			case types.KindSAMLIdPServiceProvider:
 				resource = respResource.GetSAMLIdPServiceProvider()
+			case types.KindGitServer:
+				resource = respResource.GetGitServer()
 			default:
 				out.Resources = nil
 				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -4187,6 +4191,8 @@ func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 				resource = respResource.GetAppServerOrSAMLIdPServiceProvider()
 			case types.KindSAMLIdPServiceProvider:
 				resource = respResource.GetSAMLIdPServiceProvider()
+			case types.KindGitServer:
+				resource = respResource.GetGitServer()
 			default:
 				out.Resources = nil
 				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
