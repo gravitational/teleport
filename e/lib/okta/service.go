@@ -19,7 +19,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/e/lib/okta/api"
+	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	oktacommon "github.com/gravitational/teleport/e/lib/okta/common"
 	"github.com/gravitational/teleport/e/lib/okta/common/sso"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
@@ -128,7 +128,7 @@ type Config struct {
 	SCIMEnabled bool
 
 	// AuthProvider is the auth provider for the Okta service.
-	AuthProvider api.AuthProvider
+	AuthProvider oktaapi.AuthProvider
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -243,7 +243,7 @@ type Service struct {
 	// service to interact with the Teleport cluster.
 	accessPoint authclient.OktaAccessPoint
 	onHeartbeat func(error)
-	client      api.Client
+	client      oktaapi.Interface
 	emitter     apievents.Emitter
 	orgURL      string
 
@@ -349,16 +349,13 @@ type Service struct {
 	serviceStatus serviceStatus
 }
 
-// StatusCodeUpdater is a function that can update a hosted plugin status code.
-type StatusCodeUpdater func(context.Context, types.PluginStatusCode)
-
 // New will create a new Okta service.
 func New(ctx context.Context, config Config) (*Service, error) {
-	return newWithClientCreator(ctx, config, api.CreateNewOktaClient)
+	return newWithClientCreator(ctx, config, oktaapi.New)
 }
 
 // newWithClientCreator will create a new Okta service with the given oktaClient.
-func newWithClientCreator(ctx context.Context, config Config, creator api.OktaClientFn) (*Service, error) {
+func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.OktaClientFn) (*Service, error) {
 	oktaStatus := NewPluginOktaStatus(PluginOktaStatusParams{
 		SyncSettings: config.SyncSettings,
 		ScimEnabled:  config.SCIMEnabled,
@@ -433,23 +430,23 @@ func newWithClientCreator(ctx context.Context, config Config, creator api.OktaCl
 	}
 
 	scopes := []string{
-		api.ScopeUserRead,
-		api.ScopeUserManage,
-		api.ScopeAppsRead,
-		api.ScopeGroupsRead,
+		oktaapi.ScopeUserRead,
+		oktaapi.ScopeUserManage,
+		oktaapi.ScopeAppsRead,
+		oktaapi.ScopeGroupsRead,
 	}
 
 	if !config.SyncSettings.DisableSyncAppGroups {
 		// If app and group sync is enabled, add the necessary scopes.
 		// to manage apps and groups assignments in Okta.
 		scopes = append(scopes, []string{
-			api.ScopeAppsManage,
-			api.ScopeGroupsManage,
+			oktaapi.ScopeAppsManage,
+			oktaapi.ScopeGroupsManage,
 		}...)
 	}
 
-	client, err := creator(ctx, api.ClientConfig{
-		Endpoint:     config.OktaAPIEndpoint,
+	client, err := creator(ctx, oktaapi.Config{
+		OrgUrl:       config.OktaAPIEndpoint,
 		AuthProvider: config.AuthProvider,
 		Log:          config.Logger.With("okta", "client"),
 		Scopes:       scopes,
@@ -669,7 +666,7 @@ type ParamSelectAuthProviderStaticCredentials struct {
 
 // SelectAuthProviderStaticCredentials selects an auth provider and static credentials
 // from the given parameters.
-func SelectAuthProviderStaticCredentials(ctx context.Context, params ParamSelectAuthProviderStaticCredentials) (api.AuthProvider, types.PluginStaticCredentials, error) {
+func SelectAuthProviderStaticCredentials(ctx context.Context, params ParamSelectAuthProviderStaticCredentials) (oktaapi.AuthProvider, types.PluginStaticCredentials, error) {
 	if len(params.StaticCredentials) == 0 {
 		return nil, nil, trace.NotFound("no Okta credentials found")
 	}
@@ -682,7 +679,7 @@ func SelectAuthProviderStaticCredentials(ctx context.Context, params ParamSelect
 		if v.GetAPIToken() == "" {
 			return nil, nil, trace.NotFound("missing api token")
 		}
-		return api.NewSSWSAuthProvider(v.GetAPIToken()), v, nil
+		return oktaapi.NewSSWSAuthProvider(v.GetAPIToken()), v, nil
 	}
 	for _, cred := range params.StaticCredentials {
 		// Older Okta API credentials are not labeled with a purpose, so a cred
@@ -695,7 +692,7 @@ func SelectAuthProviderStaticCredentials(ctx context.Context, params ParamSelect
 				// In this case Plugin should start and report the status as OK.
 				return nil, nil, trace.NotFound("Okta plugin was configured with API credentials")
 			}
-			return api.NewSSWSAuthProvider(cred.GetAPIToken()), cred, nil
+			return oktaapi.NewSSWSAuthProvider(cred.GetAPIToken()), cred, nil
 		}
 	}
 
@@ -704,7 +701,7 @@ func SelectAuthProviderStaticCredentials(ctx context.Context, params ParamSelect
 		if clientID == "" {
 			return nil, nil, trace.NotFound("missing client ID")
 		}
-		return api.NewOauthProviderWithOktaCASigner(ctx, api.OauthOktaCACredentialsConfig{
+		return oktaapi.NewOauthProviderWithOktaCASigner(ctx, oktaapi.OauthOktaCACredentialsConfig{
 			OAuthClientID: clientID,
 			AuthService:   params.Auth,
 			CAKeyStore:    params.CAKeyStore,

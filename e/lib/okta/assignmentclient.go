@@ -12,7 +12,7 @@ import (
 	"github.com/okta/okta-sdk-golang/v2/okta/query"
 	"golang.org/x/sync/singleflight"
 
-	"github.com/gravitational/teleport/e/lib/okta/api"
+	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/e/lib/okta/common/set"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -24,7 +24,7 @@ import (
 // should be discarded at the end of an assignment loop or singular assignment run.
 type assignmentClient struct {
 	logger     *slog.Logger
-	oktaClient api.Client
+	oktaClient oktaapi.Interface
 
 	// Mapping of usernames to user IDs. Initialized once on first read and then
 	// only ever read from, so locking isn't an issue.
@@ -37,7 +37,7 @@ type assignmentClient struct {
 	groups utils.SyncMap[oktaGroupID, set.Set[oktaUserID]]
 
 	// Apps membership.
-	apps utils.SyncMap[oktaAppID, set.Set[api.AppAssignment]]
+	apps utils.SyncMap[oktaAppID, set.Set[oktaapi.AppAssignment]]
 
 	// syncSingleFlight is used to prevent multiple requests during listing user apps groups
 	// assignments. Parallel calls will be collapsed in to one and all receive the same result.
@@ -46,7 +46,7 @@ type assignmentClient struct {
 }
 
 // newAssignmentClient will return a new assignment client.
-func newAssignmentClient(log *slog.Logger, oktaClient api.Client) *assignmentClient {
+func newAssignmentClient(log *slog.Logger, oktaClient oktaapi.Interface) *assignmentClient {
 	return &assignmentClient{
 		logger:     log,
 		oktaClient: oktaClient,
@@ -168,7 +168,7 @@ func (a *assignmentClient) unregisterUserFromGroup(ctx context.Context, username
 	}
 
 	if err := a.oktaClient.UnassignUserFromGroup(ctx, userID, groupID); err != nil {
-		if oErr := (*api.OktaAPIValidationError)(nil); errors.As(err, &oErr) {
+		if oErr := (*oktaapi.OktaAPIValidationError)(nil); errors.As(err, &oErr) {
 			// This is referring to Okta group rules:
 			// https://help.okta.com/en-us/Content/Topics/users-groups-profiles/usgp-about-group-rules.htm
 			logger.WarnContext(ctx, "Unable to remove user from group due to API validation exception. This membership is likely managed by Okta group rules. Proceeding as if this were successful.")
@@ -189,7 +189,7 @@ func (a *assignmentClient) unregisterUserFromGroup(ctx context.Context, username
 	return nil
 }
 
-func (a *assignmentClient) getUserAssignedToApp(ctx context.Context, appID oktaAppID) (set.Set[api.AppAssignment], error) {
+func (a *assignmentClient) getUserAssignedToApp(ctx context.Context, appID oktaAppID) (set.Set[oktaapi.AppAssignment], error) {
 	// syncSingleFlight is used to prevent multiple requests during listing user apps assignments.
 	// assignments are processed in parallel (See processAssignments function)
 	// We need to make sure that we don't make multiple requests to Okta for the same app.
@@ -205,7 +205,7 @@ func (a *assignmentClient) getUserAssignedToApp(ctx context.Context, appID oktaA
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
-		cached = set.New[api.AppAssignment]()
+		cached = set.New[oktaapi.AppAssignment]()
 		for _, member := range items {
 			cached.Add(member)
 		}
@@ -220,7 +220,7 @@ func (a *assignmentClient) getUserAssignedToApp(ctx context.Context, appID oktaA
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	members, ok := items.(set.Set[api.AppAssignment])
+	members, ok := items.(set.Set[oktaapi.AppAssignment])
 	if !ok {
 		return nil, trace.BadParameter("unexpected type %T returned", items)
 	}
@@ -247,9 +247,9 @@ func (a *assignmentClient) userAssignedToApp(ctx context.Context, username userN
 
 	assignedToGroup := false
 	assignedToApp := false
-	a.apps.Read(func(_ map[oktaAppID]set.Set[api.AppAssignment]) {
-		assignedToGroup = assignments.Has(api.AppAssignment{UserID: string(userID), Scope: api.GroupScope})
-		assignedToApp = assignments.Has(api.AppAssignment{UserID: string(userID), Scope: api.UserScope})
+	a.apps.Read(func(_ map[oktaAppID]set.Set[oktaapi.AppAssignment]) {
+		assignedToGroup = assignments.Has(oktaapi.AppAssignment{UserID: string(userID), Scope: oktaapi.GroupScope})
+		assignedToApp = assignments.Has(oktaapi.AppAssignment{UserID: string(userID), Scope: oktaapi.UserScope})
 	})
 
 	return assignedToGroup || assignedToApp, nil
@@ -280,8 +280,8 @@ func (a *assignmentClient) registerUserToApp(ctx context.Context, username userN
 
 	// Update local cache
 	a.logger.DebugContext(ctx, "User has been assigned to app", "user_id", userID, "app_id", appID)
-	a.apps.Write(func(apps map[oktaAppID]set.Set[api.AppAssignment]) {
-		apps[appID].Add(api.AppAssignment{UserID: string(userID), Scope: api.UserScope})
+	a.apps.Write(func(apps map[oktaAppID]set.Set[oktaapi.AppAssignment]) {
+		apps[appID].Add(oktaapi.AppAssignment{UserID: string(userID), Scope: oktaapi.UserScope})
 	})
 
 	return nil
@@ -308,7 +308,7 @@ func (a *assignmentClient) unregisterUserFromApp(ctx context.Context, username u
 	}
 
 	if err := a.oktaClient.UnassignUserFromApplication(ctx, userID, appID); err != nil {
-		if oErr := (*api.OktaAPIValidationError)(nil); errors.As(err, &oErr) {
+		if oErr := (*oktaapi.OktaAPIValidationError)(nil); errors.As(err, &oErr) {
 			// This is referring to Okta group rules:
 			// https://help.okta.com/en-us/Content/Topics/users-groups-profiles/usgp-about-group-rules.htm
 			logger.WarnContext(ctx, "Unable to remove user from application due to API validation exception. Proceeding as if this were successful.")
@@ -322,8 +322,8 @@ func (a *assignmentClient) unregisterUserFromApp(ctx context.Context, username u
 	}
 
 	// Update local cache
-	a.apps.Write(func(apps map[oktaAppID]set.Set[api.AppAssignment]) {
-		apps[appID].Remove(api.AppAssignment{UserID: string(userID), Scope: api.UserScope})
+	a.apps.Write(func(apps map[oktaAppID]set.Set[oktaapi.AppAssignment]) {
+		apps[appID].Remove(oktaapi.AppAssignment{UserID: string(userID), Scope: oktaapi.UserScope})
 	})
 
 	return nil
@@ -354,7 +354,7 @@ func (a *assignmentClient) userID(ctx context.Context, username userName) (oktaU
 		}
 
 		if a.users == nil {
-			a.users = make(map[api.UserName]api.OktaUserID)
+			a.users = make(map[oktaapi.UserName]oktaapi.OktaUserID)
 		}
 		maps.Copy(a.users, deactivatedUsers)
 	})

@@ -13,7 +13,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/okta/api"
+	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 )
 
@@ -112,7 +112,7 @@ func TestIsGroupValid(t *testing.T) {
 			group: &okta.Group{
 				Id: "group-id",
 				Profile: &okta.GroupProfile{
-					Name: api.OktaGroupEveryone,
+					Name: oktaapi.OktaGroupEveryone,
 				},
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
@@ -370,7 +370,7 @@ func TestIsAppValid(t *testing.T) {
 			name: "is valid",
 			app: &okta.Application{
 				Id:         "app-id",
-				Status:     api.OktaActive,
+				Status:     oktaapi.OktaActive,
 				Visibility: &okta.ApplicationVisibility{Hide: &okta.ApplicationVisibilityHide{Web: &falseBool}},
 			},
 			errAssertionFunc: require.NoError,
@@ -391,7 +391,7 @@ func TestIsAppValid(t *testing.T) {
 			app: &okta.Application{
 				Id:     "app-id",
 				Label:  "Okta Admin Console",
-				Status: api.OktaActive,
+				Status: oktaapi.OktaActive,
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.BadParameter("application app-id is the Okta admin console"))
@@ -402,7 +402,7 @@ func TestIsAppValid(t *testing.T) {
 			app: &okta.Application{
 				Id:         "app-id",
 				Label:      "app label",
-				Status:     api.OktaActive,
+				Status:     oktaapi.OktaActive,
 				Visibility: &okta.ApplicationVisibility{Hide: &okta.ApplicationVisibilityHide{Web: &trueBool}},
 			},
 			errAssertionFunc: require.NoError,
@@ -411,7 +411,7 @@ func TestIsAppValid(t *testing.T) {
 			name: "only visibility present",
 			app: &okta.Application{
 				Id:         "app-id",
-				Status:     api.OktaActive,
+				Status:     oktaapi.OktaActive,
 				Visibility: &okta.ApplicationVisibility{},
 			},
 			errAssertionFunc: require.NoError,
@@ -420,7 +420,7 @@ func TestIsAppValid(t *testing.T) {
 			name: "only hide present",
 			app: &okta.Application{
 				Id:         "app-id",
-				Status:     api.OktaActive,
+				Status:     oktaapi.OktaActive,
 				Visibility: &okta.ApplicationVisibility{Hide: &okta.ApplicationVisibilityHide{}},
 			},
 			errAssertionFunc: require.NoError,

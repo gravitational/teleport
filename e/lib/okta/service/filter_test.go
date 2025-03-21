@@ -12,7 +12,7 @@ import (
 
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/okta/api"
+	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -103,12 +103,12 @@ func TestGetOktaGroups(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			testClient := api.NewTestClient()
+			testClient := oktaapi.NewTestClient()
 			cache, err := utils.NewFnCache(utils.FnCacheConfig{TTL: time.Minute})
 			require.NoError(t, err)
 			svc := Service{
 				cache: cache,
-				apiClientProviderFn: func(ctx context.Context, cfg api.ClientConfig) (api.Client, error) {
+				apiClientProviderFn: func(ctx context.Context, cfg oktaapi.Config) (oktaapi.Interface, error) {
 					return testClient, nil
 				},
 				logger: slog.Default(),
@@ -192,7 +192,7 @@ func TestGetOktaApps(t *testing.T) {
 			name: "get apps with no filters, one not an app instances",
 			apps: []okta.App{
 				&okta.Application{Id: "1", Label: "app1"},
-				&api.DummyOktaApp{},
+				&oktaapi.DummyOktaApp{},
 				&okta.Application{Id: "3", Label: "dev-app3"},
 			},
 			expectErr: require.NoError,
@@ -227,12 +227,12 @@ func TestGetOktaApps(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			testClient := api.NewTestClient()
+			testClient := oktaapi.NewTestClient()
 			cache, err := utils.NewFnCache(utils.FnCacheConfig{TTL: time.Minute})
 			require.NoError(t, err)
 			svc := Service{
 				cache: cache,
-				apiClientProviderFn: func(ctx context.Context, cfg api.ClientConfig) (api.Client, error) {
+				apiClientProviderFn: func(ctx context.Context, cfg oktaapi.Config) (oktaapi.Interface, error) {
 					return testClient, nil
 				},
 				logger: slog.Default(),

@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	accesslistsvc "github.com/gravitational/teleport/e/lib/accesslist"
-	"github.com/gravitational/teleport/e/lib/okta/api"
+	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/e/lib/okta/common"
 	"github.com/gravitational/teleport/e/lib/okta/common/set"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
@@ -63,7 +63,7 @@ type accessListSyncConfig struct {
 	ClusterName string
 
 	// Client is the okta client.
-	Client api.Client
+	Client oktaapi.Interface
 
 	// Owners is the default owners for access lists.
 	Owners []string
@@ -188,7 +188,7 @@ type accessListSync struct {
 	clusterName string
 
 	// client is the Okta client so that the importer can query the Okta API.
-	client api.Client
+	client oktaapi.Interface
 
 	// owners is the default owners for access lists.
 	owners []accesslist.Owner
@@ -856,7 +856,7 @@ func (a *accessListSync) appToImportResources(ctx context.Context, appID oktaApp
 		// Add a member to the Okta App synced access list only if an Okta user has UserScope (the user has an individual Okta App assessment type).
 		// We do not want to add users with GroupScope to App synced access list because this will cause redundancy were the user will be assigned as
 		// member to both App and Group synced access list and will introduce duplicate access paths.
-		if assignment.Scope == api.UserScope {
+		if assignment.Scope == oktaapi.UserScope {
 			if user, ok := userMapping[oktaUserID(assignment.UserID)]; ok {
 				members = append(members, user)
 			}

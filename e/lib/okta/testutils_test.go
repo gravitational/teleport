@@ -17,7 +17,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
-	"github.com/gravitational/teleport/e/lib/okta/api"
+	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
@@ -234,13 +234,13 @@ func newTestService(t *testing.T, ap *testAccessPoint, options ...testServiceOpt
 		Emitter:          emitter,
 		OktaAPIEndpoint:  "dummy",
 		ConnectorService: ap,
-		AuthProvider:     api.NewSSWSAuthProvider("dummy"),
+		AuthProvider:     oktaapi.NewSSWSAuthProvider("dummy"),
 	}
 	for _, opt := range options {
 		opt(&serviceConfig)
 	}
 
-	svc, err := newWithClientCreator(ctx, serviceConfig, api.CreatorFromTestClient(client))
+	svc, err := newWithClientCreator(ctx, serviceConfig, oktaapi.CreatorFromTestClient(client))
 	require.NoError(t, err)
 
 	// Skip client cert verification for tests.

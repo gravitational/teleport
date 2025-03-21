@@ -15,7 +15,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/okta"
-	"github.com/gravitational/teleport/e/lib/okta/api"
+	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/e/lib/okta/leader"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/integrations/access/common"
@@ -35,7 +35,7 @@ const (
 // implementation details)
 type oktaSettings struct {
 	orgUrl           string
-	authProvider     api.AuthProvider
+	authProvider     oktaapi.AuthProvider
 	pluginStatusSink common.StatusSink
 	syncPeriod       time.Duration
 	syncSettings     types.PluginOktaSyncSettings
@@ -62,7 +62,7 @@ func InitOkta(process *service.TeleportProcess) error {
 		return initOktaService(process.ExitContext(), process,
 			oktaSettings{
 				orgUrl:       process.Config.Okta.APIEndpoint,
-				authProvider: api.NewSSWSAuthProvider(token),
+				authProvider: oktaapi.NewSSWSAuthProvider(token),
 				syncPeriod:   process.Config.Okta.SyncSettings.AppGroupSyncPeriod,
 				syncSettings: types.PluginOktaSyncSettings{
 					SyncUsers:       false,
@@ -88,7 +88,7 @@ type OktaPluginPrams struct {
 	// OrgUrl is Okta org URL.
 	OrgUrl string
 	// AuthProvider is the Okta auth provider.
-	AuthProvider api.AuthProvider
+	AuthProvider oktaapi.AuthProvider
 	// SyncSettings are the Okta sync settings.
 	SyncSettings types.PluginOktaSyncSettings
 	// SCIMEnabled indicates that SCIM sync is enabled for this plugin instance.

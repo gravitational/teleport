@@ -1,17 +1,17 @@
 package okta
 
 import (
-	"github.com/gravitational/teleport/e/lib/okta/api"
+	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 )
 
-type userName = api.UserName
+type userName = oktaapi.UserName
 
-type oktaAppID = api.OktaAppID
+type oktaAppID = oktaapi.OktaAppID
 
-type oktaUserID = api.OktaUserID
+type oktaUserID = oktaapi.OktaUserID
 
-type oktaGroupID = api.OktaGroupID
+type oktaGroupID = oktaapi.OktaGroupID
 
-type testOktaClient = api.TestOktaClient
+type testOktaClient = oktaapi.TestOktaClient
 
-var newTestClient = api.NewTestClient
+var newTestClient = oktaapi.NewTestClient

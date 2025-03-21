@@ -22,8 +22,8 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
-	"github.com/gravitational/teleport/e/lib/okta/api"
-	"github.com/gravitational/teleport/e/lib/okta/api/oktaapitest"
+	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
+	oktaapitest "github.com/gravitational/teleport/e/lib/okta/api/apitest"
 	"github.com/gravitational/teleport/e/lib/okta/common"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/entitlements"
@@ -93,7 +93,7 @@ func (a *accessListSyncTestContext) groupReviewerRoleName(id string) string {
 
 func (a *accessListSyncTestContext) addGroup(group types.UserGroup) {
 	a.groups[group.GetName()] = group
-	a.oktaData.UpsertGroupForId(api.OktaGroupID(group.GetName()))
+	a.oktaData.UpsertGroupForId(oktaapi.OktaGroupID(group.GetName()))
 }
 
 func (a *accessListSyncTestContext) advanceAndWaitForSync() {
@@ -727,8 +727,8 @@ func TestAccessListSync(t *testing.T) {
 				for _, appName := range appNames {
 					app := c.addApp(newAccessListSyncApp(t, appName))
 					appID, _ := app.GetLabel(eteleport.OktaAppIDLabel)
-					c.oktaData.UpsertAppForId(api.OktaAppID(appID))
-					c.oktaData.UpsertAppUserAssignments(api.OktaAppID(appID), "1", "2")
+					c.oktaData.UpsertAppForId(oktaapi.OktaAppID(appID))
+					c.oktaData.UpsertAppUserAssignments(oktaapi.OktaAppID(appID), "1", "2")
 				}
 				c.advanceAndWaitForSync()
 				expectAuditEvent(t, c.emitter, func(event *apievents.OktaAccessListSync) {
@@ -740,7 +740,7 @@ func TestAccessListSync(t *testing.T) {
 				// specific Okta app
 				oldGetAppAssignmentsFunc := c.oktaClient.GetAppAssignmentsFunc
 				c.oktaClient.GetAppAssignmentsFunc =
-					func(t *testing.T, ctx context.Context, app api.OktaAppID) ([]api.AppAssignment, error) {
+					func(t *testing.T, ctx context.Context, app oktaapi.OktaAppID) ([]oktaapi.AppAssignment, error) {
 						if err, ok := tt.importErrors[app]; ok {
 							return nil, err
 						}

@@ -11,7 +11,7 @@ import (
 
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/okta/api"
+	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/e/lib/okta/common"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -77,7 +77,7 @@ func (p *createOktaClientParams) validate() error {
 // This function is shared function between Create and Update plugin flow.
 // The credentials from the request payload have higher priority than the saved credentials
 // to support the case when the user wants to update the Okta credentials.
-func (s *Service) createOktaClient(ctx context.Context, params *createOktaClientParams) (api.Client, error) {
+func (s *Service) createOktaClient(ctx context.Context, params *createOktaClientParams) (oktaapi.Interface, error) {
 	if params.credsFromReq != nil {
 		oktaClient, err := s.createOktaClientFromRequestPayload(ctx, params)
 		if err != nil {
@@ -94,13 +94,13 @@ func (s *Service) createOktaClient(ctx context.Context, params *createOktaClient
 	return oktaClient, nil
 }
 
-func (s *Service) createOktaClientFromSavedCred(ctx context.Context, params *createOktaClientParams) (api.Client, error) {
+func (s *Service) createOktaClientFromSavedCred(ctx context.Context, params *createOktaClientParams) (oktaapi.Interface, error) {
 	staticCreds, err := s.credsBackend.GetPluginStaticCredentialsByLabels(ctx, params.pluginCredentialsLabels)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var authProvider api.AuthProvider
+	var authProvider oktaapi.AuthProvider
 	for _, v := range staticCreds {
 		// We will try to create Okta client from saved credentials stored Teleport backend.
 		// Okta credentials can be SSWS, OAuth or SCIM token
@@ -115,59 +115,59 @@ func (s *Service) createOktaClientFromSavedCred(ctx context.Context, params *cre
 		return nil, trace.BadParameter("no Okta credentials found")
 	}
 
-	return s.apiClientProviderFn(ctx, api.ClientConfig{
-		HTTPClient: &http.Client{
+	return s.apiClientProviderFn(ctx, oktaapi.Config{
+		TestHTTPClient: &http.Client{
 			Transport: s.roundTripper,
 			Timeout:   time.Second * 7,
 		},
-		Endpoint:     params.oktaOrganization,
+		OrgUrl:       params.oktaOrganization,
 		AuthProvider: authProvider,
 	})
 }
 
-func (s *Service) oktaAuthProviderFromStaticCreds(ctx context.Context, staticCred types.PluginStaticCredentials) (api.AuthProvider, error) {
+func (s *Service) oktaAuthProviderFromStaticCreds(ctx context.Context, staticCred types.PluginStaticCredentials) (oktaapi.AuthProvider, error) {
 	purpose, _ := staticCred.GetLabel(common.CredPurposeLabel)
 	switch purpose {
 	case common.CredPurposeOktaOauth:
 		clientID, _ := staticCred.GetOAuthClientSecret()
-		return api.NewOauthProviderWithOktaCASigner(ctx, api.OauthOktaCACredentialsConfig{
+		return oktaapi.NewOauthProviderWithOktaCASigner(ctx, oktaapi.OauthOktaCACredentialsConfig{
 			OAuthClientID: clientID,
 			AuthService:   s.authCache,
 			CAKeyStore:    s.jwtSigner,
 			Clock:         s.clock,
 		}), nil
 	case common.CredPurposeOktaAuth, common.CredPurposeOktaAPITokenWithSCIMOnlyIntegration, "":
-		return api.NewSSWSAuthProvider(staticCred.GetAPIToken()), nil
+		return oktaapi.NewSSWSAuthProvider(staticCred.GetAPIToken()), nil
 	}
 	return nil, trace.BadParameter("unexpected credential purpose %q", purpose)
 }
 
-func (s *Service) createOktaClientFromRequestPayload(ctx context.Context, params *createOktaClientParams) (api.Client, error) {
+func (s *Service) createOktaClientFromRequestPayload(ctx context.Context, params *createOktaClientParams) (oktaapi.Interface, error) {
 	if err := params.validate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var authProvider api.AuthProvider
+	var authProvider oktaapi.AuthProvider
 	switch {
 	case params.credsFromReq.GetOauthId() != "":
-		authProvider = api.NewOauthProviderWithOktaCASigner(ctx, api.OauthOktaCACredentialsConfig{
+		authProvider = oktaapi.NewOauthProviderWithOktaCASigner(ctx, oktaapi.OauthOktaCACredentialsConfig{
 			OAuthClientID: params.credsFromReq.GetOauthId(),
 			AuthService:   s.authCache,
 			CAKeyStore:    s.jwtSigner,
 			Clock:         s.clock,
 		})
 	case params.credsFromReq.GetSswsBearerToken() != "":
-		authProvider = api.NewSSWSAuthProvider(params.credsFromReq.GetSswsBearerToken())
+		authProvider = oktaapi.NewSSWSAuthProvider(params.credsFromReq.GetSswsBearerToken())
 	default:
 		return nil, trace.BadParameter("missing Okta API credentials")
 	}
 
-	oktaClient, err := s.apiClientProviderFn(ctx, api.ClientConfig{
-		HTTPClient: &http.Client{
+	oktaClient, err := s.apiClientProviderFn(ctx, oktaapi.Config{
+		TestHTTPClient: &http.Client{
 			Transport: s.roundTripper,
 			Timeout:   defaults.HTTPRequestTimeout,
 		},
-		Endpoint:     params.oktaOrganization,
+		OrgUrl:       params.oktaOrganization,
 		AuthProvider: authProvider,
 		Log:          slog.With("okta_url", params.oktaOrganization),
 	})

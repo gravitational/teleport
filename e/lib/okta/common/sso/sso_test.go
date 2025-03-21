@@ -13,9 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/okta/api"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
-	"github.com/gravitational/teleport/e/lib/okta/api/oktaapitest"
+	oktaapitest "github.com/gravitational/teleport/e/lib/okta/api/apitest"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -76,7 +75,7 @@ func (m *mockSamlConnectors) GetSAMLConnector(ctx context.Context, id string, wi
 }
 
 // makeTestGroup constructs a minimal okta.Group instance
-func makeTestGroup(id api.OktaGroupID, kind, name string) *okta.Group {
+func makeTestGroup(id oktaapi.OktaGroupID, kind, name string) *okta.Group {
 	return &okta.Group{
 		Id:      string(id),
 		Type:    kind,
@@ -91,8 +90,8 @@ func TestSSOConnectorCreation(t *testing.T) {
 
 	t.Run("happy path", func(t *testing.T) {
 		const (
-			testTeleportAppId             = api.OktaAppID("TEST-OKTA-APP-ID")
-			everyoneGroupId               = api.OktaGroupID("EVERYONE-GROUP-ID")
+			testTeleportAppId             = oktaapi.OktaAppID("TEST-OKTA-APP-ID")
+			everyoneGroupId               = oktaapi.OktaGroupID("EVERYONE-GROUP-ID")
 			testEntityMetadataURL         = "https://example.com/some/thing/or/other"
 			testEntityMetadataContentType = "vegetable/potato"
 		)
@@ -120,7 +119,7 @@ func TestSSOConnectorCreation(t *testing.T) {
 		createAppCalled := false
 		groupWasAssigned := false
 		metadataWasFetched := false
-		oktaClient := api.NewTestClient()
+		oktaClient := oktaapi.NewTestClient()
 		oktaClient.OktaGroups = []*okta.Group{
 			makeTestGroup("NOT A BUILTIN", "OKTA_GROUP", "Everyone"),
 			makeTestGroup("NOT EVERYONE", "BUILT_IN", "Bananas"),
@@ -149,7 +148,7 @@ func TestSSOConnectorCreation(t *testing.T) {
 				return samlApp, nil
 			}
 		oktaClient.MonkeyPatch.AssignGroupToApplication =
-			func(ctx context.Context, groupId api.OktaGroupID, appId api.OktaAppID) error {
+			func(ctx context.Context, groupId oktaapi.OktaGroupID, appId oktaapi.OktaAppID) error {
 				require.Equal(t, everyoneGroupId, groupId)
 				require.Equal(t, testTeleportAppId, appId)
 				groupWasAssigned = true
@@ -198,7 +197,7 @@ func TestSSOConnectorCreation(t *testing.T) {
 
 		// and an Okta client rigged to fail the test if someone tries to
 		// actually create an Okta application
-		oktaClient := api.NewTestClient()
+		oktaClient := oktaapi.NewTestClient()
 		oktaClient.MonkeyPatch.CreateApp = func(context.Context, okta.App) (okta.App, error) {
 			t.Fatal("Unexpected call to oktaClient.CreateApp")
 			return nil, nil
@@ -240,7 +239,7 @@ func TestSSOConnectorCreation(t *testing.T) {
 		// special "Everyone" group), and set to allow
 		createAppCalled := false
 		metadataWasFetched := false
-		oktaClient := api.NewTestClient()
+		oktaClient := oktaapi.NewTestClient()
 		oktaClient.OktaGroups = []*okta.Group{
 			makeTestGroup("NOT A BUILTIN", "OKTA_GROUP", "Everyone"),
 			makeTestGroup("NOT EVERYONE", "BUILT_IN", "Bananas"),
@@ -266,7 +265,7 @@ func TestSSOConnectorCreation(t *testing.T) {
 				return samlApp, nil
 			}
 		oktaClient.MonkeyPatch.AssignGroupToApplication =
-			func(ctx context.Context, groupId api.OktaGroupID, appId api.OktaAppID) error {
+			func(ctx context.Context, groupId oktaapi.OktaGroupID, appId oktaapi.OktaAppID) error {
 				require.Fail(t, "must not be called, because Everyone is not returned")
 				return nil
 			}
@@ -332,7 +331,7 @@ func Test_ValidateSAMLConnector(t *testing.T) {
 				OrgURLFunc: func(_ *testing.T) string {
 					return "test-okta-org"
 				},
-				GetApplicationFunc: func(t *testing.T, ctx context.Context, appID api.OktaAppID, appType okta.App) (okta.App, error) {
+				GetApplicationFunc: func(t *testing.T, ctx context.Context, appID oktaapi.OktaAppID, appType okta.App) (okta.App, error) {
 					require.Equal(t, oktaapi.OktaAppID("test-okta-app-id"), appID)
 					return &okta.SamlApplication{}, nil
 				},
@@ -364,7 +363,7 @@ func Test_ValidateSAMLConnector(t *testing.T) {
 					require.NoError(t, err)
 					return nil
 				},
-				GetApplicationFunc: func(t *testing.T, ctx context.Context, appID api.OktaAppID, appType okta.App) (okta.App, error) {
+				GetApplicationFunc: func(t *testing.T, ctx context.Context, appID oktaapi.OktaAppID, appType okta.App) (okta.App, error) {
 					require.Equal(t, oktaapi.OktaAppID("found-okta-app-id"), appID)
 					return &okta.SamlApplication{}, nil
 				},

@@ -1,4 +1,4 @@
-package api
+package oktaapi
 
 import "fmt"
 
@@ -17,6 +17,15 @@ type OktaUserID string
 // OktaGroupID holds the Okta-generated ID string for an Okta group. This is the
 // persistent ID of a group, as the name and description can be changed.
 type OktaGroupID string
+
+// AppAssignment an individual assignment to an application.
+type AppAssignment struct {
+	// UserID is the ID of the user assigned to the application.
+	// TODO(kopiczko) use OktaUserId type.
+	UserID string
+	// Scope is the scope of the assignment.
+	Scope AppAssignmentScope
+}
 
 // AppAssignmentScope is the assignment scope of the application.
 // components/schemas/AppUserProfile Okta API users assignment scope

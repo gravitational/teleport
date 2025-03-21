@@ -1,4 +1,4 @@
-package api
+package oktaapi
 
 import (
 	"bytes"
@@ -91,76 +91,76 @@ func TestErrorConversion(t *testing.T) {
 
 	operations := []struct {
 		name   string
-		action func(context.Context, Client) error
+		action func(context.Context, Interface) error
 	}{
 		{
 			name: "getCurrentUser",
-			action: func(ctx context.Context, client Client) error {
+			action: func(ctx context.Context, client Interface) error {
 				_, err := client.GetCurrentUser(ctx)
 				return err
 			},
 		},
 		{
 			name: "getGroupAssignments",
-			action: func(ctx context.Context, client Client) error {
+			action: func(ctx context.Context, client Interface) error {
 				_, err := client.GetGroupAssignments(ctx, "someGroupID")
 				return err
 			},
 		},
 		{
 			name: "getAppAssignments",
-			action: func(ctx context.Context, client Client) error {
+			action: func(ctx context.Context, client Interface) error {
 				_, err := client.GetAppAssignments(ctx, "someAppID")
 				return err
 			},
 		},
 		{
 			name: "getAppGroups",
-			action: func(ctx context.Context, client Client) error {
+			action: func(ctx context.Context, client Interface) error {
 				_, err := client.GetAppGroups(ctx, "someAppID")
 				return err
 			},
 		},
 		{
 			name: "listUsers",
-			action: func(ctx context.Context, client Client) error {
+			action: func(ctx context.Context, client Interface) error {
 				_, err := client.ListUsers(ctx)
 				return err
 			},
 		},
 		{
 			name: "assignUserToGroup",
-			action: func(ctx context.Context, client Client) error {
+			action: func(ctx context.Context, client Interface) error {
 				return client.AssignUserToGroup(ctx, "someUserID", "someGroupID")
 			},
 		},
 		{
 			name: "unassignUserFromGroup",
-			action: func(ctx context.Context, client Client) error {
+			action: func(ctx context.Context, client Interface) error {
 				return client.UnassignUserFromGroup(ctx, "someUserID", "someGroupID")
 			},
 		},
 		{
 			name: "assignUserToApplication",
-			action: func(ctx context.Context, client Client) error {
+			action: func(ctx context.Context, client Interface) error {
 				return client.AssignUserToApplication(ctx, "someUserID", "someAppID")
 			},
 		},
 		{
 			name: "assignGroupToApplication",
-			action: func(ctx context.Context, client Client) error {
+			action: func(ctx context.Context, client Interface) error {
 				return client.AssignGroupToApplication(ctx, "someGroupID", "someAppID")
 			},
 		},
 		{
 			name: "unassignUserFromApplication",
-			action: func(ctx context.Context, client Client) error {
+			action: func(ctx context.Context, client Interface) error {
 				return client.UnassignUserFromApplication(ctx, "someGroupID", "someAppID")
 			},
 		},
 		{
 			name: "getApplication",
-			action: func(ctx context.Context, client Client) error {
+			action: func(ctx context.Context, client Interface) error {
 				var app okta.App
 				_, err := client.GetApplication(ctx, "someAppID", app)
 				return err
@@ -180,11 +180,11 @@ func TestErrorConversion(t *testing.T) {
 						On("RoundTrip", anyRequest).
 						Return(ec.roundTrip)
 
-					client, err := NewClient(testCtx, ClientConfig{
-						Endpoint:     "https://okta.example.com",
-						AuthProvider: NewSSWSAuthProvider("i-am-not-a-token"),
-						HTTPClient:   &http.Client{Transport: mockta},
-						Log:          slog.With("test", t.Name()),
+					client, err := New(testCtx, Config{
+						OrgUrl:         "https://okta.example.com",
+						AuthProvider:   NewSSWSAuthProvider("i-am-not-a-token"),
+						TestHTTPClient: &http.Client{Transport: mockta},
+						Log:            slog.With("test", t.Name()),
 					})
 					require.NoError(t, err)
 

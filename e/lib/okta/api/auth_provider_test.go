@@ -1,4 +1,4 @@
-package api
+package oktaapi
 
 import (
 	"context"
@@ -19,8 +19,8 @@ func TestNewSSWSAuthProvider(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	client, err := NewClient(ctx, ClientConfig{
-		Endpoint:     orgURL,
+	client, err := New(ctx, Config{
+		OrgUrl:       orgURL,
 		AuthProvider: NewSSWSAuthProvider(oktaClientToken),
 	})
 	require.NoError(t, err)
@@ -59,8 +59,8 @@ func TestOAuthProvider(t *testing.T) {
 
 	ctx := context.Background()
 
-	client, err := NewClient(ctx, ClientConfig{
-		Endpoint: orgURL,
+	client, err := New(ctx, Config{
+		OrgUrl: orgURL,
 		AuthProvider: NewOauthProvider(ctx, oktaClientID, &fileKeyGetter{
 			file:  privateKey,
 			keyID: privateKeyID,

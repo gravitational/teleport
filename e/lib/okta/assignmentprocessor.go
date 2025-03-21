@@ -16,7 +16,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/e/lib/okta/api"
+	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/events"
 )
@@ -72,7 +72,7 @@ type assignmentProcessor struct {
 	accessPoint        assignmentProcessorAccessPoint
 	assignmentGetter   func() types.OktaAssignments
 	rateLimiter        *rate.Limiter
-	oktaClient         api.Client
+	oktaClient         oktaapi.Interface
 	assignmentClientMu sync.RWMutex
 	assignmentClient   *assignmentClient
 	stopCh             chan struct{}
@@ -103,12 +103,12 @@ func newAssignmentProcessor(svc *Service, assignmentGetter func() types.OktaAssi
 }
 
 // start will start the processor loop, which is used for retrying assignment processing.
-func (a *assignmentProcessor) start(ctx context.Context, oktaClient api.Client) {
+func (a *assignmentProcessor) start(ctx context.Context, oktaClient oktaapi.Interface) {
 	go a.loop(ctx, oktaClient)
 }
 
 // loop runs the main body of the processing loop.
-func (a *assignmentProcessor) loop(ctx context.Context, oktaClient api.Client) {
+func (a *assignmentProcessor) loop(ctx context.Context, oktaClient oktaapi.Interface) {
 	ticker := a.clock.NewTicker(TimeBetweenAssignmentProcessLoops)
 	defer ticker.Stop()
 

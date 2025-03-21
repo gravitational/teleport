@@ -1,4 +1,4 @@
-package api
+package oktaapi
 
 import (
 	"github.com/okta/okta-sdk-golang/v2/okta"

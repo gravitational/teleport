@@ -13,7 +13,7 @@ import (
 	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/okta/okta-sdk-golang/v2/okta/query"
 
-	"github.com/gravitational/teleport/e/lib/okta/api"
+	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 )
 
 type mockOktaAPIClient struct {
@@ -46,12 +46,12 @@ func newMockOktaAPIClient() *mockOktaAPIClient {
 		appUserAssignments:  make(map[string]map[string]bool),
 		appGroupAssignments: make(map[string]map[string]*okta.ApplicationGroupAssignment),
 		scopes: []string{
-			api.ScopeUserManage,
-			api.ScopeUserRead,
-			api.ScopeAppsManage,
-			api.ScopeAppsRead,
-			api.ScopeGroupsManage,
-			api.ScopeGroupsRead,
+			oktaapi.ScopeUserManage,
+			oktaapi.ScopeUserRead,
+			oktaapi.ScopeAppsManage,
+			oktaapi.ScopeAppsRead,
+			oktaapi.ScopeGroupsManage,
+			oktaapi.ScopeGroupsRead,
 		},
 	}
 	setOktaMockedAPIClient(m)
@@ -59,7 +59,7 @@ func newMockOktaAPIClient() *mockOktaAPIClient {
 }
 
 func setOktaMockedAPIClient(apiMock *mockOktaAPIClient) {
-	api.SetClientProvider(func(ctx context.Context, cfg ...okta.ConfigSetter) (api.OktaAPI, error) {
+	oktaapi.SetClientProvider(func(ctx context.Context, cfg ...okta.ConfigSetter) (oktaapi.APIClient, error) {
 		return apiMock, nil
 	})
 }
@@ -275,7 +275,7 @@ func (m *mockOktaAPIClient) ListApplicationUsers(_ context.Context, appId string
 			Credentials: &okta.AppUserCredentials{},
 			Status:      u.Status,
 			Profile:     map[string]any(*u.Profile),
-			Scope:       string(api.UserScope),
+			Scope:       string(oktaapi.UserScope),
 		})
 	}
 

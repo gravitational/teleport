@@ -34,7 +34,7 @@ import (
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/okta/api"
+	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/e/lib/okta/common/sso"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -173,7 +173,7 @@ type Service struct {
 	roundTripper        http.RoundTripper
 	pluginBackend       services.Plugins
 	credsBackend        services.PluginStaticCredentials
-	apiClientProviderFn api.OktaClientFn
+	apiClientProviderFn oktaapi.OktaClientFn
 	clock               clockwork.Clock
 }
 
@@ -207,7 +207,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		roundTripper:        cfg.RoundTripper,
 		pluginBackend:       cfg.PluginBackend,
 		credsBackend:        cfg.CredsBackend,
-		apiClientProviderFn: api.NewClient,
+		apiClientProviderFn: oktaapi.New,
 		clock:               cfg.Clock,
 	}, nil
 }

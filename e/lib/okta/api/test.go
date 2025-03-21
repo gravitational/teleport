@@ -1,4 +1,4 @@
-package api
+package oktaapi
 
 import (
 	"context"
@@ -19,7 +19,7 @@ const (
 )
 
 // OktaClientFn is a function interface for creating Okta client.
-type OktaClientFn func(context.Context, ClientConfig) (Client, error)
+type OktaClientFn func(context.Context, Config) (Interface, error)
 
 // TestOktaClient is a testing Okta client that is backed by fixed values.
 type TestOktaClient struct {
@@ -57,7 +57,7 @@ type TestOktaClient struct {
 }
 
 // Static assertion that TestOktaClient actually implements OktaClient
-var _ Client = (*TestOktaClient)(nil)
+var _ Interface = (*TestOktaClient)(nil)
 
 func NewTestClient() *TestOktaClient {
 	return &TestOktaClient{
@@ -69,7 +69,7 @@ func NewTestClient() *TestOktaClient {
 }
 
 func CreatorFromTestClient(testClient *TestOktaClient) OktaClientFn {
-	return func(_ context.Context, _ ClientConfig) (Client, error) {
+	return func(_ context.Context, _ Config) (Interface, error) {
 		return testClient, nil
 	}
 }

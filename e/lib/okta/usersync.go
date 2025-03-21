@@ -17,7 +17,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/e/lib/okta/api"
+	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -99,7 +99,7 @@ type userConverter func(*okta.User) (types.User, error)
 
 // fetchOktaUsers fetches users from the upstream okta service and creates
 // candidate Teleport user equivalents for them.
-func fetchOktaUsers(ctx context.Context, oktaClient api.Client, convertUser userConverter, log *slog.Logger) (map[string]types.User, error) {
+func fetchOktaUsers(ctx context.Context, oktaClient oktaapi.Interface, convertUser userConverter, log *slog.Logger) (map[string]types.User, error) {
 	result := map[string]types.User{}
 	err := oktaClient.IterateUsers(ctx, func(ou *okta.User) error {
 		log := log.With("okta_user_id", ou.Id)
@@ -130,7 +130,7 @@ type appUserConverter func(*okta.AppUser) (types.User, error)
 
 // fetchOktaUsers fetches users from the upstream okta service and creates
 // candidate Teleport user equivalents for them.
-func fetchOktaAppUsers(ctx context.Context, oktaClient api.Client, appID string, convertUser appUserConverter, logger *slog.Logger) (map[string]types.User, error) {
+func fetchOktaAppUsers(ctx context.Context, oktaClient oktaapi.Interface, appID string, convertUser appUserConverter, logger *slog.Logger) (map[string]types.User, error) {
 	result := map[string]types.User{}
 	err := oktaClient.IterateAppUsers(ctx, oktaAppID(appID), func(oau *okta.AppUser) error {
 		if oau == nil {

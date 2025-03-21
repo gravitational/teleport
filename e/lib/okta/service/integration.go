@@ -10,7 +10,7 @@ import (
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/okta/api"
+	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/e/lib/okta/common/sso"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
@@ -279,7 +279,7 @@ func (s *Service) updateIntegration(ctx context.Context, req *oktapb.UpdateInteg
 	}, nil
 }
 
-func (s *Service) createOktaClientForPluginInstall(ctx context.Context, req *oktapb.CreateIntegrationRequest, connector types.SAMLConnector) (api.Client, error) {
+func (s *Service) createOktaClientForPluginInstall(ctx context.Context, req *oktapb.CreateIntegrationRequest, connector types.SAMLConnector) (oktaapi.Interface, error) {
 	if req.GetApiCredentials() == nil {
 		return nil, trace.BadParameter("missing Okta API credentials")
 	}
