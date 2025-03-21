@@ -400,16 +400,14 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 	// these delays are lazily initialized upon receipt of the first heartbeat
 	// since not all servers send all heartbeats
 	var sshKeepAliveDelay *delay.Delay
-	var appKeepAliveDelay *delay.Delay
-	var dbKeepAliveDelay *delay.Delay
-	var kubeKeepAliveDelay *delay.Delay
+
 	defer func() {
 		// this is a function expression because the variables are initialized
 		// later and we want to call Stop on the initialized value (if any)
 		sshKeepAliveDelay.Stop()
-		appKeepAliveDelay.Stop()
-		dbKeepAliveDelay.Stop()
-		kubeKeepAliveDelay.Stop()
+		handle.appKeepAliveDelay.Stop()
+		handle.dbKeepAliveDelay.Stop()
+		handle.kubeKeepAliveDelay.Stop()
 	}()
 
 	for _, service := range handle.hello.Services {
@@ -527,35 +525,35 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				}
 
 				if m.AppServer != nil {
+					if handle.appKeepAliveDelay == nil {
+						handle.appKeepAliveDelay = c.createKeepAliveMultiDelay(c.appHBVariableDuration)
+					}
+
 					if err := c.handleAppServerHB(handle, m.AppServer); err != nil {
 						handle.CloseWithError(err)
 						return
 					}
-
-					if appKeepAliveDelay == nil {
-						appKeepAliveDelay = c.createKeepAliveDelay(c.appHBVariableDuration)
-					}
 				}
 
 				if m.DatabaseServer != nil {
+					if handle.dbKeepAliveDelay == nil {
+						handle.dbKeepAliveDelay = c.createKeepAliveMultiDelay(c.dbHBVariableDuration)
+					}
+
 					if err := c.handleDatabaseServerHB(handle, m.DatabaseServer); err != nil {
 						handle.CloseWithError(err)
 						return
 					}
-
-					if dbKeepAliveDelay == nil {
-						dbKeepAliveDelay = c.createKeepAliveDelay(c.dbHBVariableDuration)
-					}
 				}
 
 				if m.KubernetesServer != nil {
+					if handle.kubeKeepAliveDelay == nil {
+						handle.kubeKeepAliveDelay = c.createKeepAliveMultiDelay(c.kubeHBVariableDuration)
+					}
+
 					if err := c.handleKubernetesServerHB(handle, m.KubernetesServer); err != nil {
 						handle.CloseWithError(err)
 						return
-					}
-
-					if kubeKeepAliveDelay == nil {
-						kubeKeepAliveDelay = c.createKeepAliveDelay(c.kubeHBVariableDuration)
 					}
 				}
 
@@ -588,10 +586,10 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 			}
 			c.testEvent(keepAliveSSHTick)
 
-		case now := <-appKeepAliveDelay.Elapsed():
-			appKeepAliveDelay.Advance(now)
+		case now := <-handle.appKeepAliveDelay.Elapsed():
+			key := handle.appKeepAliveDelay.Tick(now)
 
-			if err := c.keepAliveAppServer(handle, now); err != nil {
+			if err := c.keepAliveAppServer(handle, now, key); err != nil {
 				handle.CloseWithError(err)
 				return
 			}
@@ -608,19 +606,20 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				return
 			}
 
-		case now := <-dbKeepAliveDelay.Elapsed():
-			dbKeepAliveDelay.Advance(now)
+		case now := <-handle.dbKeepAliveDelay.Elapsed():
+			key := handle.dbKeepAliveDelay.Tick(now)
 
-			if err := c.keepAliveDatabaseServer(handle, now); err != nil {
+			if err := c.keepAliveDatabaseServer(handle, now, key); err != nil {
 				handle.CloseWithError(err)
 				return
 			}
+
 			c.testEvent(keepAliveDatabaseTick)
 
-		case now := <-kubeKeepAliveDelay.Elapsed():
-			kubeKeepAliveDelay.Advance(now)
+		case now := <-handle.kubeKeepAliveDelay.Elapsed():
+			key := handle.kubeKeepAliveDelay.Tick(now)
 
-			if err := c.keepAliveKubernetesServer(handle, now); err != nil {
+			if err := c.keepAliveKubernetesServer(handle, now, key); err != nil {
 				handle.CloseWithError(err)
 				return
 			}
@@ -844,6 +843,7 @@ func (c *Controller) handleAppServerHB(handle *upstreamHandle, appServer *types.
 			c.appHBVariableDuration.Inc()
 		}
 		handle.appServers[appKey] = &heartBeatInfo[*types.AppServerV3]{}
+		handle.appKeepAliveDelay.Add(appKey)
 	}
 
 	now := c.clock.Now()
@@ -898,6 +898,7 @@ func (c *Controller) handleDatabaseServerHB(handle *upstreamHandle, databaseServ
 			c.dbHBVariableDuration.Inc()
 		}
 		handle.databaseServers[dbKey] = &heartBeatInfo[*types.DatabaseServerV3]{}
+		handle.dbKeepAliveDelay.Add(dbKey)
 	}
 
 	now := time.Now()
@@ -952,6 +953,7 @@ func (c *Controller) handleKubernetesServerHB(handle *upstreamHandle, kubernetes
 			c.kubeHBVariableDuration.Inc()
 		}
 		handle.kubernetesServers[kubeKey] = &heartBeatInfo[*types.KubernetesServerV3]{}
+		handle.kubeKeepAliveDelay.Add(kubeKey)
 	}
 
 	now := time.Now()
@@ -1007,163 +1009,177 @@ func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m proto.Upstrea
 	})
 }
 
-func (c *Controller) keepAliveAppServer(handle *upstreamHandle, now time.Time) error {
-	for name, srv := range handle.appServers {
-		if srv.lease != nil {
-			lease := *srv.lease
-			lease.Expires = now.Add(c.serverTTL).UTC()
-			if err := c.auth.KeepAliveServer(c.closeContext, lease); err != nil {
-				c.testEvent(appKeepAliveErr)
+func (c *Controller) keepAliveAppServer(handle *upstreamHandle, now time.Time, name resourceKey) error {
+	srv, ok := handle.appServers[name]
+	if !ok {
+		handle.appKeepAliveDelay.Remove(name)
+		return trace.Errorf("desync between app server hb registry and keepalive delay (this is a bug)")
+	}
 
-				srv.keepAliveErrs++
-				handle.appServers[name] = srv
-				shouldRemove := srv.keepAliveErrs > c.maxKeepAliveErrs
-				slog.WarnContext(c.closeContext, "Failed to keep alive app server",
-					"server_id", handle.Hello().ServerID,
-					"error", err,
-					"error_count", srv.keepAliveErrs,
-					"should_remove", shouldRemove,
-				)
+	if srv.lease != nil {
+		lease := *srv.lease
+		lease.Expires = now.Add(c.serverTTL).UTC()
+		if err := c.auth.KeepAliveServer(c.closeContext, lease); err != nil {
+			c.testEvent(appKeepAliveErr)
 
-				if shouldRemove {
-					c.testEvent(appKeepAliveDel)
-					c.onDisconnectFunc(constants.KeepAliveApp, 1)
-					if c.appHBVariableDuration != nil {
-						c.appHBVariableDuration.Dec()
-					}
-					delete(handle.appServers, name)
+			srv.keepAliveErrs++
+			handle.appServers[name] = srv
+			shouldRemove := srv.keepAliveErrs > c.maxKeepAliveErrs
+			slog.WarnContext(c.closeContext, "Failed to keep alive app server",
+				"server_id", handle.Hello().ServerID,
+				"error", err,
+				"error_count", srv.keepAliveErrs,
+				"should_remove", shouldRemove,
+			)
+
+			if shouldRemove {
+				c.testEvent(appKeepAliveDel)
+				c.onDisconnectFunc(constants.KeepAliveApp, 1)
+				if c.appHBVariableDuration != nil {
+					c.appHBVariableDuration.Dec()
 				}
-			} else {
-				srv.keepAliveErrs = 0
-				c.testEvent(appKeepAliveOk)
+				delete(handle.appServers, name)
+				handle.appKeepAliveDelay.Remove(name)
 			}
-		} else if srv.retryUpsert {
-			srv.resource.SetExpiry(c.clock.Now().Add(c.serverTTL).UTC())
-			lease, err := c.auth.UpsertApplicationServer(c.closeContext, srv.resource)
-			if err != nil {
-				c.testEvent(appUpsertRetryErr)
-				slog.WarnContext(c.closeContext, "Failed to upsert app server on retry",
-					"server_id", handle.Hello().ServerID,
-					"error", err,
-				)
-				// since this is retry-specific logic, an error here means that upsert failed twice in
-				// a row. Missing upserts is more problematic than missing keepalives so we don't bother
-				// attempting a third time.
-				return trace.Errorf("failed to upsert app server on retry: %v", err)
-			}
-			c.testEvent(appUpsertRetryOk)
-
-			srv.lease = lease
-			srv.retryUpsert = false
+		} else {
+			srv.keepAliveErrs = 0
+			c.testEvent(appKeepAliveOk)
 		}
+	} else if srv.retryUpsert {
+		srv.resource.SetExpiry(c.clock.Now().Add(c.serverTTL).UTC())
+		lease, err := c.auth.UpsertApplicationServer(c.closeContext, srv.resource)
+		if err != nil {
+			c.testEvent(appUpsertRetryErr)
+			slog.WarnContext(c.closeContext, "Failed to upsert app server on retry",
+				"server_id", handle.Hello().ServerID,
+				"error", err,
+			)
+			// since this is retry-specific logic, an error here means that upsert failed twice in
+			// a row. Missing upserts is more problematic than missing keepalives so we don't bother
+			// attempting a third time.
+			return trace.Errorf("failed to upsert app server on retry: %v", err)
+		}
+		c.testEvent(appUpsertRetryOk)
+
+		srv.lease = lease
+		srv.retryUpsert = false
 	}
 
 	return nil
 }
 
-func (c *Controller) keepAliveDatabaseServer(handle *upstreamHandle, now time.Time) error {
-	for name, srv := range handle.databaseServers {
-		if srv.lease != nil {
-			lease := *srv.lease
-			lease.Expires = now.Add(c.serverTTL).UTC()
-			if err := c.auth.KeepAliveServer(c.closeContext, lease); err != nil {
-				c.testEvent(dbKeepAliveErr)
+func (c *Controller) keepAliveDatabaseServer(handle *upstreamHandle, now time.Time, name resourceKey) error {
+	srv, ok := handle.databaseServers[name]
+	if !ok {
+		handle.dbKeepAliveDelay.Remove(name)
+		return trace.Errorf("desync between db server hb registry and keepalive delay (this is a bug)")
+	}
+	if srv.lease != nil {
+		lease := *srv.lease
+		lease.Expires = now.Add(c.serverTTL).UTC()
+		if err := c.auth.KeepAliveServer(c.closeContext, lease); err != nil {
+			c.testEvent(dbKeepAliveErr)
 
-				srv.keepAliveErrs++
-				handle.databaseServers[name] = srv
-				shouldRemove := srv.keepAliveErrs > c.maxKeepAliveErrs
-				slog.WarnContext(c.closeContext, "Failed to keep alive database server",
-					"server_id", handle.Hello().ServerID,
-					"error", err,
-					"error_count", srv.keepAliveErrs,
-					"should_remove", shouldRemove,
-				)
+			srv.keepAliveErrs++
+			handle.databaseServers[name] = srv
+			shouldRemove := srv.keepAliveErrs > c.maxKeepAliveErrs
+			slog.WarnContext(c.closeContext, "Failed to keep alive database server",
+				"server_id", handle.Hello().ServerID,
+				"error", err,
+				"error_count", srv.keepAliveErrs,
+				"should_remove", shouldRemove,
+			)
 
-				if shouldRemove {
-					c.testEvent(dbKeepAliveDel)
-					c.onDisconnectFunc(constants.KeepAliveDatabase, 1)
-					if c.dbHBVariableDuration != nil {
-						c.dbHBVariableDuration.Dec()
-					}
-					delete(handle.databaseServers, name)
+			if shouldRemove {
+				c.testEvent(dbKeepAliveDel)
+				c.onDisconnectFunc(constants.KeepAliveDatabase, 1)
+				if c.dbHBVariableDuration != nil {
+					c.dbHBVariableDuration.Dec()
 				}
-			} else {
-				srv.keepAliveErrs = 0
-				c.testEvent(dbKeepAliveOk)
+				delete(handle.databaseServers, name)
+				handle.dbKeepAliveDelay.Remove(name)
 			}
-		} else if srv.retryUpsert {
-			srv.resource.SetExpiry(time.Now().Add(c.serverTTL).UTC())
-			lease, err := c.auth.UpsertDatabaseServer(c.closeContext, srv.resource)
-			if err != nil {
-				c.testEvent(dbUpsertRetryErr)
-				slog.WarnContext(c.closeContext, "Failed to upsert database server on retry",
-					"server_id", handle.Hello().ServerID,
-					"error", err,
-				)
-				// since this is retry-specific logic, an error here means that upsert failed twice in
-				// a row. Missing upserts is more problematic than missing keepalives so we don't bother
-				// attempting a third time.
-				return trace.Errorf("failed to upsert database server on retry: %v", err)
-			}
-			c.testEvent(dbUpsertRetryOk)
-
-			srv.lease = lease
-			srv.retryUpsert = false
+		} else {
+			srv.keepAliveErrs = 0
+			c.testEvent(dbKeepAliveOk)
 		}
+	} else if srv.retryUpsert {
+		srv.resource.SetExpiry(time.Now().Add(c.serverTTL).UTC())
+		lease, err := c.auth.UpsertDatabaseServer(c.closeContext, srv.resource)
+		if err != nil {
+			c.testEvent(dbUpsertRetryErr)
+			slog.WarnContext(c.closeContext, "Failed to upsert database server on retry",
+				"server_id", handle.Hello().ServerID,
+				"error", err,
+			)
+			// since this is retry-specific logic, an error here means that upsert failed twice in
+			// a row. Missing upserts is more problematic than missing keepalives so we don't bother
+			// attempting a third time.
+			return trace.Errorf("failed to upsert database server on retry: %v", err)
+		}
+		c.testEvent(dbUpsertRetryOk)
+
+		srv.lease = lease
+		srv.retryUpsert = false
 	}
 
 	return nil
 }
 
-func (c *Controller) keepAliveKubernetesServer(handle *upstreamHandle, now time.Time) error {
-	for name, srv := range handle.kubernetesServers {
-		if srv.lease != nil {
-			lease := *srv.lease
-			lease.Expires = now.Add(c.serverTTL).UTC()
-			if err := c.auth.KeepAliveServer(c.closeContext, lease); err != nil {
-				c.testEvent(kubeKeepAliveErr)
+func (c *Controller) keepAliveKubernetesServer(handle *upstreamHandle, now time.Time, name resourceKey) error {
+	srv, ok := handle.kubernetesServers[name]
+	if !ok {
+		handle.kubeKeepAliveDelay.Remove(name)
+		return trace.Errorf("desync between kube server hb registry and keepalive delay (this is a bug)")
+	}
 
-				srv.keepAliveErrs++
-				handle.kubernetesServers[name] = srv
-				shouldRemove := srv.keepAliveErrs > c.maxKeepAliveErrs
-				slog.WarnContext(c.closeContext, "Failed to keep alive kubernetes server",
-					"server_id", handle.Hello().ServerID,
-					"error", err,
-					"error_count", srv.keepAliveErrs,
-					"should_remove", shouldRemove,
-				)
+	if srv.lease != nil {
+		lease := *srv.lease
+		lease.Expires = now.Add(c.serverTTL).UTC()
+		if err := c.auth.KeepAliveServer(c.closeContext, lease); err != nil {
+			c.testEvent(kubeKeepAliveErr)
 
-				if shouldRemove {
-					c.testEvent(kubeKeepAliveDel)
-					c.onDisconnectFunc(constants.KeepAliveKube, 1)
-					if c.kubeHBVariableDuration != nil {
-						c.kubeHBVariableDuration.Dec()
-					}
-					delete(handle.kubernetesServers, name)
+			srv.keepAliveErrs++
+			handle.kubernetesServers[name] = srv
+			shouldRemove := srv.keepAliveErrs > c.maxKeepAliveErrs
+			slog.WarnContext(c.closeContext, "Failed to keep alive kubernetes server",
+				"server_id", handle.Hello().ServerID,
+				"error", err,
+				"error_count", srv.keepAliveErrs,
+				"should_remove", shouldRemove,
+			)
+
+			if shouldRemove {
+				c.testEvent(kubeKeepAliveDel)
+				c.onDisconnectFunc(constants.KeepAliveKube, 1)
+				if c.kubeHBVariableDuration != nil {
+					c.kubeHBVariableDuration.Dec()
 				}
-			} else {
-				srv.keepAliveErrs = 0
-				c.testEvent(kubeKeepAliveOk)
+				delete(handle.kubernetesServers, name)
+				handle.kubeKeepAliveDelay.Remove(name)
 			}
-		} else if srv.retryUpsert {
-			srv.resource.SetExpiry(time.Now().Add(c.serverTTL).UTC())
-			lease, err := c.auth.UpsertKubernetesServer(c.closeContext, srv.resource)
-			if err != nil {
-				c.testEvent(kubeUpsertRetryErr)
-				slog.WarnContext(c.closeContext, "Failed to upsert kubernetes server on retry.",
-					"server_id", handle.Hello().ServerID,
-					"error", err,
-				)
-				// since this is retry-specific logic, an error here means that upsert failed twice in
-				// a row. Missing upserts is more problematic than missing keepalives so we don'resource bother
-				// attempting a third time.
-				return trace.Errorf("failed to upsert kubernetes server on retry: %v", err)
-			}
-			c.testEvent(kubeUpsertRetryOk)
-
-			srv.lease = lease
-			srv.retryUpsert = false
+		} else {
+			srv.keepAliveErrs = 0
+			c.testEvent(kubeKeepAliveOk)
 		}
+	} else if srv.retryUpsert {
+		srv.resource.SetExpiry(time.Now().Add(c.serverTTL).UTC())
+		lease, err := c.auth.UpsertKubernetesServer(c.closeContext, srv.resource)
+		if err != nil {
+			c.testEvent(kubeUpsertRetryErr)
+			slog.WarnContext(c.closeContext, "Failed to upsert kubernetes server on retry.",
+				"server_id", handle.Hello().ServerID,
+				"error", err,
+			)
+			// since this is retry-specific logic, an error here means that upsert failed twice in
+			// a row. Missing upserts is more problematic than missing keepalives so we don'resource bother
+			// attempting a third time.
+			return trace.Errorf("failed to upsert kubernetes server on retry: %v", err)
+		}
+		c.testEvent(kubeUpsertRetryOk)
+
+		srv.lease = lease
+		srv.retryUpsert = false
 	}
 
 	return nil
@@ -1219,6 +1235,15 @@ func (c *Controller) createKeepAliveDelay(variableDuration *interval.VariableDur
 		FirstInterval:    retryutils.HalfJitter(c.serverKeepAlive),
 		FixedInterval:    c.serverKeepAlive,
 		VariableInterval: variableDuration,
+		Jitter:           retryutils.SeventhJitter,
+	})
+}
+
+func (c *Controller) createKeepAliveMultiDelay(variableDuration *interval.VariableDuration) *delay.Multi[resourceKey] {
+	return delay.NewMulti[resourceKey](delay.MultiParams{
+		FixedInterval:    c.serverKeepAlive,
+		VariableInterval: variableDuration,
+		FirstJitter:      retryutils.HalfJitter,
 		Jitter:           retryutils.SeventhJitter,
 	})
 }
