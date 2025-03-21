@@ -126,10 +126,9 @@ func match(rule *accessmonitoringrulesv1.AccessMonitoringRule, subjects []string
 			return false
 		}
 	}
-	if automaticApprovalName != "" {
-		if rule.GetSpec().GetAutomaticApproval().GetName() != automaticApprovalName {
-			return false
-		}
+	// Empty automatic_approval name indicates that the rule is internally managed by Teleport.
+	if rule.GetSpec().GetAutomaticApproval().GetName() != automaticApprovalName {
+		return false
 	}
 	for _, subject := range subjects {
 		if ok := slices.ContainsFunc(rule.Spec.Subjects, func(s string) bool {

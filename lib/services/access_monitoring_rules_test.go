@@ -58,19 +58,21 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 			},
 		},
 		{
-			description: "notification or automatic_approval required",
+			description: "notification or automatic approval rules required",
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
 				amr.Spec.Notification = nil
 				amr.Spec.AutomaticApproval = nil
+				amr.Spec.States = []string{}
 			},
 			assertErr: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "notification or automatic_approval must be configured")
+				require.ErrorContains(t, err, "notification or automatic approval rule must be configured")
 			},
 		},
 		{
-			description: "allow automatic_approvals to be nil",
+			description: "allow automatic approval state to be nil",
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
 				amr.Spec.AutomaticApproval = nil
+				amr.Spec.States = []string{}
 			},
 			assertErr: require.NoError,
 		},
@@ -78,6 +80,14 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 			description: "allow notifications to be nil",
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
 				amr.Spec.Notification = nil
+			},
+			assertErr: require.NoError,
+		},
+		{
+			description: "allow notifications and automatic_approval to be nil",
+			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
+				amr.Spec.Notification = nil
+				amr.Spec.AutomaticApproval = nil
 			},
 			assertErr: require.NoError,
 		},
@@ -96,6 +106,7 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 			AutomaticApproval: &accessmonitoringrulesv1.AutomaticApproval{
 				Name: "fakePlugin",
 			},
+			States: []string{types.AccessRequestStateApproved},
 		},
 	}
 
