@@ -567,8 +567,8 @@ func (b *Backend) Items(ctx context.Context, params backend.IterateParams) iter.
 	return func(yield func(backend.Item, error) bool) {
 		count := 0
 		defer func() {
-			if count == backend.DefaultRangeLimit {
-				b.logger.WarnContext(ctx, "Range query hit backend limit. (this is a bug!)", "start_key", params.StartKey, "limit", backend.DefaultRangeLimit)
+			if count >= backend.DefaultRangeLimit {
+				b.logger.WarnContext(ctx, "Range query hit backend limit. (this is a bug!)", "start_key", params.StartKey, "count", count)
 			}
 		}()
 
