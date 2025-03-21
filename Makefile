@@ -813,15 +813,6 @@ docs-test-whitespace:
 	fi
 
 #
-# Builds some tooling for filtering and displaying test progress/output/etc
-#
-# Deprecated: Use gotestsum instead.
-TOOLINGDIR := ${abspath ./build.assets/tooling}
-RENDER_TESTS := $(TOOLINGDIR)/bin/render-tests
-$(RENDER_TESTS): $(wildcard $(TOOLINGDIR)/cmd/render-tests/*.go)
-	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/render-tests
-
-#
 # Install gotestsum to parse test output.
 #
 .PHONY: ensure-gotestsum
@@ -831,6 +822,7 @@ ensure-gotestsum:
 	go install gotest.tools/gotestsum@latest
 endif
 
+TOOLINGDIR := ${abspath ./build.assets/tooling}
 DIFF_TEST := $(TOOLINGDIR)/bin/difftest
 $(DIFF_TEST): $(wildcard $(TOOLINGDIR)/cmd/difftest/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/difftest
@@ -1074,21 +1066,16 @@ test-teleport-usage:
 #
 # Flaky test detection. Usually run from CI nightly, overriding these default parameters
 # This runs the same tests as test-go-unit but repeatedly to try to detect flaky tests.
-#
-# TODO(jakule): Migrate to gotestsum
 .PHONY: test-go-flaky
 FLAKY_RUNS ?= 3
 FLAKY_TIMEOUT ?= 1h
-FLAKY_TOP_N ?= 20
 FLAKY_SUMMARY_FILE ?= /tmp/flaky-report.txt
 test-go-flaky: FLAGS ?= -race -shuffle on
 test-go-flaky: SUBJECT ?= $(shell go list ./... | grep -v -e e2e -e integration -e tool/tsh -e integrations/operator -e integrations/access -e integrations/lib )
 test-go-flaky: GO_BUILD_TAGS ?= $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(LIBFIDO2_TEST_TAG) $(VNETDAEMON_TAG)
-test-go-flaky: RENDER_FLAGS ?= -report-by flakiness -summary-file $(FLAKY_SUMMARY_FILE) -top $(FLAKY_TOP_N)
-test-go-flaky: test-go-prepare $(RENDER_TESTS) $(RERUN)
+test-go-flaky: test-go-prepare $(RERUN)
 	$(CGOFLAG) $(RERUN) -n $(FLAKY_RUNS) -t $(FLAKY_TIMEOUT) \
-		go test -count=1 -cover -json -tags "$(GO_BUILD_TAGS)" $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
-		| $(RENDER_TESTS) $(RENDER_FLAGS)
+	gotestsum --debug --rerun-fails-report=$(FLAKY_SUMMARY_FILE) --rerun-fails=$(FLAKY_RUNS) --packages="$(SUBJECT)" --hide-summary=skipped -- -count=1 -race -tags "$(GO_BUILD_TAGS)" $(FLAGS) $(ADDFLAGS)
 
 #
 # Runs cargo test on our Rust modules.
