@@ -61,9 +61,51 @@ func ConnectPostgres(ctx context.Context, poolConfig *pgxpool.Config) (*pgx.Conn
 	return conn, nil
 }
 
+// Performs a best-effort check to see if the specified database exists. It will return 'true' if the
+// database is guaranteed to exist, false otherwise. An error will only be returned if it is known to
+// not stem from the database not existing.
+func CheckIfDatabaseExists(ctx context.Context, poolConfig *pgxpool.Config, log *slog.Logger) (bool, error) {
+	if poolConfig.BeforeConnect != nil {
+		if err := poolConfig.BeforeConnect(ctx, poolConfig.ConnConfig); err != nil {
+			return false, trace.Wrap(err)
+		}
+	}
+
+	conn, err := pgx.ConnectConfig(ctx, poolConfig.ConnConfig)
+	if err != nil {
+		errMsg := fmt.Sprintf("Failed to verify that the %q database already exists",
+			poolConfig.ConnConfig.Database)
+		log.DebugContext(ctx, errMsg, "error", err)
+		return false, nil
+	}
+
+	if poolConfig.AfterConnect != nil {
+		if err := poolConfig.AfterConnect(ctx, conn); err != nil {
+			conn.Close(ctx)
+			return false, trace.Wrap(err)
+		}
+	}
+
+	// If the connection succeeds, then the database must exist. If the database does not exist,
+	// the connection attempt will fail with a `pgconn.ConnectError`, which makes authentication
+	// problems and missing database problems indistinguishable.
+	return true, nil
+}
+
 // TryEnsureDatabase will connect to the "postgres" database and attempt to
 // create the database named in the pool's configuration.
 func TryEnsureDatabase(ctx context.Context, poolConfig *pgxpool.Config, log *slog.Logger) {
+	doesDatabaseExist, err := CheckIfDatabaseExists(ctx, poolConfig, log)
+	if err != nil {
+		errMsg := fmt.Sprintf("An error occurred while checking if the %q database already exists",
+			poolConfig.ConnConfig.Database)
+		log.WarnContext(ctx, errMsg, "error", err)
+		return
+	}
+	if doesDatabaseExist {
+		return
+	}
+
 	pgConn, err := ConnectPostgres(ctx, poolConfig)
 	if err != nil {
 		log.WarnContext(ctx, "Failed to connect to the \"postgres\" database.", "error", err)
