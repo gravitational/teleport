@@ -74,16 +74,6 @@ endif
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
 		--plugin=$(PROTOC_GEN_TERRAFORM) \
-		--terraform_out=config=protoc-gen-terraform-teleport-token.yaml:./tfschema \
-		teleport/legacy/types/types.proto
-
-	mkdir -p ./tfschema/token
-	mv ./tfschema/github.com/gravitational/teleport/api/types/types_terraform.go ./tfschema/token/
-
-	@protoc \
-		-I=../../api/proto \
-		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(PROTOC_GEN_TERRAFORM) \
 		--terraform_out=config=protoc-gen-terraform-loginrule.yaml:./tfschema \
 		teleport/loginrule/v1/loginrule.proto
 
