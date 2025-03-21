@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"maps"
 	"net/url"
 	"os"
 	"slices"
@@ -1334,6 +1335,22 @@ func (a *ServerWithRoles) selectActionChecker(resourceKind string) actionChecker
 	return a.action
 }
 
+var (
+	// supportedUnifiedResourceKinds is the set of kinds that
+	// may be requested via ListUnifiedResources.
+	supportedUnifiedResourceKinds = map[string]struct{}{
+		types.KindApp:                    {},
+		types.KindDatabase:               {},
+		types.KindGitServer:              {},
+		types.KindKubernetesCluster:      {},
+		types.KindNode:                   {},
+		types.KindSAMLIdPServiceProvider: {},
+		types.KindWindowsDesktop:         {},
+	}
+
+	defaultUnifiedResourceKinds = slices.Collect(maps.Keys(supportedUnifiedResourceKinds))
+)
+
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
 func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
 	filter := services.MatchResourceFilter{
@@ -1350,17 +1367,29 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		filter.PredicateExpression = expression
 	}
 
+	// Validate the requested kinds and precheck that the user has read/list
+	// permissions for all requested resources before doing any listing of
+	// resources to conserve resources.
+	requested := req.Kinds
+	if len(req.Kinds) == 0 {
+		requested = defaultUnifiedResourceKinds
+	}
+
 	resourceAccess := &resourceAccess{
 		// Populate kindAccessMap with any access errors the user has for each possible
 		// resource kind. This allows the access check to occur a single time per resource
 		// kind instead of once per matching resource.
-		kindAccessMap: make(map[string]error, len(services.UnifiedResourceKinds)),
+		kindAccessMap: make(map[string]error, len(requested)),
 		// requestableMap is populated with resources that are being returned but can only
 		// be accessed to the user via an access request
 		requestableMap: make(map[string]struct{}),
 	}
 
-	for _, kind := range services.UnifiedResourceKinds {
+	for _, kind := range requested {
+		if _, ok := supportedUnifiedResourceKinds[kind]; !ok {
+			return nil, trace.BadParameter("Unsupported kind %q requested", kind)
+		}
+
 		actionVerbs := []string{types.VerbList, types.VerbRead}
 		if kind == types.KindNode {
 			// We are checking list only for Nodes to keep backwards compatibility.
@@ -1378,10 +1407,6 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	// Before doing any listing, verify that the user is allowed to list
 	// at least one of the requested kinds. If no access is permitted, then
 	// return an access denied error.
-	requested := req.Kinds
-	if len(req.Kinds) == 0 {
-		requested = services.UnifiedResourceKinds
-	}
 	var rbacErrors int
 	for _, kind := range requested {
 		if err, ok := resourceAccess.kindAccessMap[kind]; ok && err != nil {
