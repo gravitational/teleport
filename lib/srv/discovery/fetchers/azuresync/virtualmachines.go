@@ -28,14 +28,14 @@ import (
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
 
-const allResourceGroups = "*" //nolint:unused // invoked in a dependent PR
+const allResourceGroups = "*"
 
 // VirtualMachinesClient specifies the methods used to fetch virtual machines from Azure
 type VirtualMachinesClient interface {
 	ListVirtualMachines(ctx context.Context, resourceGroup string) ([]*armcompute.VirtualMachine, error)
 }
 
-func fetchVirtualMachines(ctx context.Context, subscriptionID string, cli VirtualMachinesClient) ([]*accessgraphv1alpha.AzureVirtualMachine, error) { //nolint:unused // invoked in a dependent PR
+func fetchVirtualMachines(ctx context.Context, subscriptionID string, cli VirtualMachinesClient) ([]*accessgraphv1alpha.AzureVirtualMachine, error) {
 	vms, err := cli.ListVirtualMachines(ctx, allResourceGroups)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -49,11 +49,17 @@ func fetchVirtualMachines(ctx context.Context, subscriptionID string, cli Virtua
 			fetchErrs = append(fetchErrs, trace.BadParameter("nil values on AzureVirtualMachine object: %v", vm))
 			continue
 		}
+		tags := make(map[string]string)
+		for key, value := range vm.Tags {
+			tags[key] = *value
+		}
 		pbVm := accessgraphv1alpha.AzureVirtualMachine{
 			Id:             *vm.ID,
 			SubscriptionId: subscriptionID,
 			LastSyncTime:   timestamppb.Now(),
 			Name:           *vm.Name,
+			Location:       *vm.Location,
+			Tags:           tags,
 		}
 		pbVms = append(pbVms, &pbVm)
 	}

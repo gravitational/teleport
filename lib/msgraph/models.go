@@ -33,6 +33,12 @@ type DirectoryObject struct {
 	DisplayName *string `json:"displayName,omitempty"`
 }
 
+type ObjectIdentity struct {
+	SignInType       *string `json:"signInType,omitempty"`
+	Issuer           *string `json:"issuer,omitempty"`
+	IssuerAssignedId *string `json:"issuerAssignedId,omitempty"`
+}
+
 type Group struct {
 	DirectoryObject
 	// GroupTypes is a list of group type strings.
@@ -56,11 +62,12 @@ func (g *Group) GetID() *string { return g.ID }
 type User struct {
 	DirectoryObject
 
-	Mail                     *string `json:"mail,omitempty"`
-	OnPremisesSAMAccountName *string `json:"onPremisesSamAccountName,omitempty"`
-	UserPrincipalName        *string `json:"userPrincipalName,omitempty"`
-	Surname                  *string `json:"surname,omitempty"`
-	GivenName                *string `json:"givenName,omitempty"`
+	Mail                     *string            `json:"mail,omitempty"`
+	OnPremisesSAMAccountName *string            `json:"onPremisesSamAccountName,omitempty"`
+	UserPrincipalName        *string            `json:"userPrincipalName,omitempty"`
+	Surname                  *string            `json:"surname,omitempty"`
+	GivenName                *string            `json:"givenName,omitempty"`
+	Identities               *[]*ObjectIdentity `json:"identities,omitempty"`
 }
 
 func (g *User) isGroupMember() {}
