@@ -48,7 +48,7 @@ func NewS3Manager(config *S3Config) (*S3manager, error) {
 	if syncManagerMaxConcurrentSyncs < 0 {
 		// This isn't unlimited but due to the s3sync library's parallelism implementation
 		//  this must be limited to a "reasonable" number
-		syncManagerMaxConcurrentSyncs = 128
+		syncManagerMaxConcurrentSyncs = 1024
 	}
 
 	s := &S3manager{

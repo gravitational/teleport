@@ -336,7 +336,7 @@ jobs:
           # rm -rf "$CACHE_PATH"/*
       - name: Publish the ${{ inputs.artifact-tag }} version artifacts to the ${{ inputs.repo-type }} repo in ${{ inputs.environment }} environment
         env:
-          LOG_LEVEL: 6
+          LOG_LEVEL: 3
         run: |
             IFS=' ' read -r -a tool_arguments_array <<< "$TOOL_ARGUMENTS"
             "./$TOOL_BINARY_PATH" "${REPO_TYPE}" \
