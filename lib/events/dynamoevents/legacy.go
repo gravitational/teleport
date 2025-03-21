@@ -23,6 +23,8 @@ import (
 
 // convertLegacyAttributesMap converts a map of legacy (SDK V1) Dynamo attribute
 // values into SDK V2 attribute values.
+//
+// DELETE IN: 19.0.0
 func convertLegacyAttributesMap(m map[string]*LegacyAttributeValue) (map[string]types.AttributeValue, error) {
 	ret := make(map[string]types.AttributeValue)
 	for name, legacyValue := range m {
@@ -38,6 +40,8 @@ func convertLegacyAttributesMap(m map[string]*LegacyAttributeValue) (map[string]
 
 // convertLegacyAttributeValue converts a legacy (SDK V1) Dynamo attribute value
 // into a newer attribute value (SDK V2).
+//
+// DELETE IN: 19.0.0
 func convertLegacyAttributeValue(legacyAttr *LegacyAttributeValue) (types.AttributeValue, error) {
 	switch {
 	case legacyAttr.B != nil:
@@ -95,6 +99,8 @@ func toStrings(s []*string) []string {
 // LegacyAttributeValue represents the data for an attribute from AWS SDK V1.
 //
 // https://github.com/aws/aws-sdk-go/blob/8d203ccff393340d080be0417d091cc60354449b/service/dynamodb/api.go#L8487
+//
+// DELETE IN: 19.0.0
 type LegacyAttributeValue struct {
 	// An attribute of type Binary. For example:
 	//

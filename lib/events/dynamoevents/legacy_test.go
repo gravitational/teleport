@@ -46,7 +46,7 @@ func TestParseLegacyDynamoAttributes(t *testing.T) {
 			expectedAttribute: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
 				require.IsType(t, &types.AttributeValueMemberBOOL{}, i1)
 				attr, _ := i1.(*types.AttributeValueMemberBOOL)
-				require.Equal(t, true, attr.Value)
+				require.True(t, attr.Value)
 			},
 		},
 		"binary set field": {
@@ -76,6 +76,7 @@ func TestParseLegacyDynamoAttributes(t *testing.T) {
 			expectedAttribute: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
 				require.IsType(t, &types.AttributeValueMemberM{}, i1)
 				attr, _ := i1.(*types.AttributeValueMemberM)
+				require.Len(t, attr.Value, 1)
 				require.Contains(t, attr.Value, "name")
 
 				mapAttr := attr.Value["name"]
@@ -108,7 +109,7 @@ func TestParseLegacyDynamoAttributes(t *testing.T) {
 			expectedAttribute: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
 				require.IsType(t, &types.AttributeValueMemberNULL{}, i1)
 				attr, _ := i1.(*types.AttributeValueMemberNULL)
-				require.Equal(t, true, attr.Value)
+				require.True(t, attr.Value)
 			},
 		},
 		"string field": {
