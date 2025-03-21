@@ -20,7 +20,7 @@ import { formatDistanceStrict } from 'date-fns';
 import { Link as InternalLink } from 'react-router-dom';
 import styled from 'styled-components';
 
-import { Card, Flex, H2, Text } from 'design';
+import { Card, Flex, H2, P2, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
 
@@ -39,11 +39,17 @@ export enum AwsResource {
 
 type StatCardProps = {
   name: string;
+  description: string;
   resource: AwsResource;
   summary?: ResourceTypeSummary;
 };
 
-export function StatCard({ name, resource, summary }: StatCardProps) {
+export function StatCard({
+  name,
+  description,
+  resource,
+  summary,
+}: StatCardProps) {
   const updated = summary?.discoverLastSync
     ? new Date(summary?.discoverLastSync)
     : undefined;
@@ -69,10 +75,11 @@ export function StatCard({ name, resource, summary }: StatCardProps) {
         minHeight="220px"
       >
         <Flex flexDirection="column" gap={2}>
-          <Flex alignItems="center" mb={2}>
+          <Flex alignItems="center">
             <ResourceIcon name={resource} mr={2} width="32px" height="32px" />
             <H2>{resource.toUpperCase()}</H2>
           </Flex>
+          <P2 mb={2}>{description}</P2>
           <Flex justifyContent="space-between" data-testid="rules">
             <Text>Enrollment Rules </Text>
             <Text>{summary?.rulesCount || 0}</Text>
