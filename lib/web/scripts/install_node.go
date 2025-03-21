@@ -134,7 +134,7 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 
 	if opts.AppServiceEnabled {
 		if errs := validation.IsDNS1035Label(opts.AppName); len(errs) > 0 {
-			return "", trace.BadParameter("appName %q must be a valid DNS subdomain: https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name", opts.AppName)
+			return "", trace.BadParameter("appName %q must be a lower case valid DNS subdomain: https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name", opts.AppName)
 		}
 		if !appURIPattern.MatchString(opts.AppURI) {
 			return "", trace.BadParameter("appURI %q contains invalid characters", opts.AppURI)
