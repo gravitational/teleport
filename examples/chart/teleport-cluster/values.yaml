@@ -150,6 +150,27 @@ authentication:
   #   Changing the RP ID will invalidate all already registered webauthn second factors.
   secondFactor: "on"
 
+  # Second factor requirements for users of the Teleport cluster.
+  # Controls the `auth_config.authentication.second_factors` field in `teleport.yaml`.
+  # Possible values are 'otp', 'sso' and 'webauthn'.
+  #
+  # WARNING:
+  #   If you set `publicAddr` for users to access the cluster under a domain different
+  #   to clusterName you must manually set the webauthn Relying
+  #   Party Identifier (RP ID) - https://www.w3.org/TR/webauthn-2/#relying-party-identifier
+  #   If you don't, RP ID will default to `clusterName` and users will fail
+  #   to register second factors.
+  #
+  #   You can do this by setting the value
+  #   `auth.teleportConfig.auth_service.authentication.webauthn.rp_id`.
+  #
+  #   RP ID must be both a valid domain, and part of the full domain users are connecting to.
+  #   For example, if users are accessing the cluster with the domain
+  #   "teleport.example.com", RP ID can be "teleport.example.com" or "example.com".
+  #
+  #   Changing the RP ID will invalidate all already registered webauthn second factors.
+  secondFactors: []
+
   # (Optional) When using webauthn this allows to restrict which vendor and key models can be used.
   # webauthn:
   #   attestationAllowedCas:
