@@ -156,6 +156,10 @@ jobs:
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $(realpath .) && make derive-up-to-date
 
+      - name: Check if go generated files are up to date
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: git config --global --add safe.directory $(realpath .) && make go-generate-up-to-date
+
   lint-rust:
     name: Lint (Rust)
     runs-on: ubuntu-22.04
