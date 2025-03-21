@@ -55,6 +55,11 @@ const SemaphoreKindUploadCompleter = "upload_completer"
 // the periodic check which creates access list reminder notifications.
 const SemaphoreKindAccessListReminderLimiter = "access_list_reminder_limiter"
 
+// SemaphoreKindOpenUserTasksForIntegrationNotificationLimiter is the semaphore kind used by
+// the periodic check which creates open UserTasks notifications for a given integration.
+// See [github.com/gravitational/teleport/lib/auth.Server.CreateOpenUserTasksForIntegrationNotifications]
+const SemaphoreKindOpenUserTasksForIntegrationNotificationLimiter = "open_usertasks_integration_notification_limiter"
+
 // Semaphore represents distributed semaphore concept
 type Semaphore interface {
 	// Resource contains common resource values
