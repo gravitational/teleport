@@ -52,30 +52,21 @@ export default function useRouting(ctx: ConsoleContext) {
       return;
     }
 
+    const participantMode = getParticipantMode(search);
+
     // When no document matches current URL that means we need to
     // create one base on URL parameters.
     if (sshRouteMatch) {
       ctx.addSshDocument(sshRouteMatch.params);
     } else if (joinSshRouteMatch) {
-      // Extract the mode param from the URL if it is present.
-      const searchParams = new URLSearchParams(search);
-      const mode = searchParams.get('mode');
-      if (mode) {
-        joinSshRouteMatch.params.mode = mode as ParticipantMode;
-      }
+      joinSshRouteMatch.params.mode = participantMode;
       ctx.addSshDocument(joinSshRouteMatch.params);
     } else if (nodesRouteMatch) {
       ctx.addNodeDocument(clusterId);
     } else if (kubeExecRouteMatch) {
       ctx.addKubeExecDocument(kubeExecRouteMatch.params);
     } else if (joinKubeExecRouteMatch) {
-      // Extract the mode param from the URL if it is present.
-      const searchParams = new URLSearchParams(search);
-      const mode = searchParams.get('mode');
-      if (mode) {
-        joinKubeExecRouteMatch.params.mode = mode as ParticipantMode;
-      }
-
+      joinKubeExecRouteMatch.params.mode = participantMode;
       ctx.addKubeExecDocument(joinKubeExecRouteMatch.params);
     } else if (dbConnectMatch) {
       ctx.addDbDocument(dbConnectMatch.params);
@@ -86,4 +77,12 @@ export default function useRouting(ctx: ConsoleContext) {
     clusterId,
     activeDocId: ctx.getActiveDocId(pathname),
   };
+}
+
+function getParticipantMode(search: string): ParticipantMode | undefined {
+  const searchParams = new URLSearchParams(search);
+  const mode = searchParams.get('mode');
+  if (mode === 'observer' || mode === 'moderator' || mode === 'peer') {
+    return mode;
+  }
 }
