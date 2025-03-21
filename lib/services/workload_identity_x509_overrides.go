@@ -20,6 +20,7 @@ import (
 	"context"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 type WorkloadIdentityX509Overrides interface {
@@ -45,4 +46,18 @@ type WorkloadIdentityX509Overrides interface {
 	// DeleteX509IssuerOverride deletes an existing override by name. If no
 	// override with such a name exists, a [*trace.NotFoundError] is returned.
 	DeleteX509IssuerOverride(ctx context.Context, name string) error
+}
+
+type WorkloadIdentityX509CAOverrideGetter interface {
+	// GetWorkloadIdentityX509CAOverride will return an alternate
+	// [tlsca.CertAuthority] to use for issuing workload identity X.509
+	// credentials, as well as any necessary certificates for the chain up to
+	// the actual root of trust. The name of the override can be blank, in which
+	// case the "default" override will be used if it exists, or the CA will be
+	// returned as is (with no chain). The "none" override is a special case,
+	// signifying that no override should be used. Any other name (including
+	// "default") will require an override with that name to be in storage, or
+	// an error will be returned. An error will likewise be returned if the
+	// override does not specify an issuer to replace the one in the CA.
+	GetWorkloadIdentityX509CAOverride(ctx context.Context, name string, ca *tlsca.CertAuthority) (*tlsca.CertAuthority, [][]byte, error)
 }
