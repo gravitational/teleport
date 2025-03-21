@@ -80,13 +80,10 @@ export function DesktopSession(props: State) {
   } = props;
   const [tdpConnectionStatus, setTdpConnectionStatus] =
     useState<TdpConnectionStatus>({ status: '' });
-  const keyboardHandler = useRef(new KeyboardHandler());
 
+  const keyboardHandler = useRef(new KeyboardHandler());
   useEffect(() => {
-    keyboardHandler.current = new KeyboardHandler();
-    return () => {
-      keyboardHandler.current.dispose();
-    };
+    return () => keyboardHandler.current.dispose();
   }, []);
 
   const tdpClientCanvasRef = useRef<TdpClientCanvasRef>(null);
