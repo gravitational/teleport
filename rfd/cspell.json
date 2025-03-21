@@ -633,6 +633,7 @@
     "rdsproxy",
     "readyz",
     "reauth",
+    "reauthenticated",
     "reauthenticates",
     "reccfg",
     "reconnections",
