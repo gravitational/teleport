@@ -387,6 +387,38 @@ successfully joining once. When the original bot fails to refresh and attempts
 to rejoin, it presents a valid but outdated join state document, we generate a
 lock, and then deny further access to both bots.
 
+#### The Join State Document
+
+As discussed above, the join state document is a JWT signed by Auth included
+alongside the regular Teleport user certificates after successfully completing
+the challenge ceremony.
+
+This contains fields that
+
+An example join state document JWT payload:
+```json
+{
+  "iat": 1234567890,
+  "iss": "example.teleport.sh",
+  "aud": "bot-name",
+  "sequence": 10,
+  "remaining_joins": 1,
+  "rotate_on_next_renewal": false,
+}
+```
+
+Our unique claims include:
+
+- `sequence`: The identity sequence number, analogous to the generation counter
+  used for `token` joining. This is used to ensure the identity can't be renewed
+  simultaneously by two different clients.
+
+- `remaining_joins`: Used to inform clients of how many remaining join attempts
+  they can make before expiring.
+
+- `rotate_on_next_renewal`: Used to inform clients of a request to rotate their
+  keypair on the next refresh attempt.
+
 #### Token Resource Example
 
 `bound-keypair`-type tokens differ from other types in that they are intended to
@@ -672,17 +704,21 @@ Bots should be informed of various status metrics, including number of remaining
 joins and whether or not a keypair rotation has been requested. There's a few
 methods by which we could inform bots of their remaining join allowance:
 
-1. (Recommended) Heartbeats: bots submit heartbeats at startup and on a regular
-   interval. It would be trivial to include a remaining join counter in the
-   (currently empty) heartbeat response.
+1. Join State Document (recommended): we include this information as part of the
+   join state document which is returned alongside the certificate bundle
+   following a successful join.
 
-2. Certificate field: we could include the number of remaining joins in a
+2. Heartbeats: bots submit heartbeats at startup and on a regular interval. It
+   would be trivial to include a remaining join counter in the (currently empty)
+   heartbeat response.
+
+3. Certificate field: we could include the number of remaining joins in a
    certificate field.
 
-3. New RPC: we could add a new RPC for bots to fetch this, alongside any other
+4. New RPC: we could add a new RPC for bots to fetch this, alongside any other
    potentially useful information.
 
-4. We could grant bots permission to view their own join tokens. There is
+5. We could grant bots permission to view their own join tokens. There is
    precedent here as bots can view e.g. their own roles without explicitly
    having RBAC permissions to do so.
 
@@ -691,8 +727,8 @@ allow for alerting if a bot drops below some threshold.
 
 Importantly, this is a potentially lagging indicator. The design allows for the
 join counter to be decreased (to zero) at any time, so a rejoin attempt may
-still fail at any time. This should be acceptable since it can also be increased
-after the fact to restore access if desired.
+still fail. This should be acceptable since it can also be increased after the
+fact to restore access if desired.
 
 #### Keystore Storage Backends
 
