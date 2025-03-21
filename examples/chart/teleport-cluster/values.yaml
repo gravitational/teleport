@@ -604,6 +604,30 @@ log:
 # https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
 nodeSelector: {}
 
+# Turns off the topology spread constraints.
+# The feature is automatically turned off on Kubernetes versions below 1.18.
+disableTopologySpreadConstraints: false
+
+# Pod topology spread constraints:
+# https://kubernetes.io/fr/docs/concepts/workloads/pods/pod-topology-spread-constraints/
+# When unset, the chart defaults to a soft topology spread constraint
+# that tries to spread pods across hosts and zones.
+#
+# ```
+# topologySpreadConstraints
+#   - maxSkew: 1
+#     topologyKey: kubernetes.io/hostname
+#     whenUnsatisfiable: ScheduleAnyway
+#     labelSelector:
+#       matchLabels: # dynamically computed
+#   - maxSkew: 1
+#     topologyKey: topology.kubernetes.io/zone
+#     whenUnsatisfiable: ScheduleAnyway
+#     labelSelector:
+#       matchLabels: # dynamically computed
+# ```
+topologySpreadConstraints: []
+
 # Affinity for pod assignment
 # https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
 # NOTE: If affinity is set here, highAvailability.requireAntiAffinity cannot also be used - you can only set one or the other.

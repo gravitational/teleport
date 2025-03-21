@@ -1687,6 +1687,42 @@ Kubernetes affinity to set for pod assignments.
             - teleport
   ```
 
+## `disableTopologySpreadConstraints`
+
+| Type      | Default value | Required? |
+|-----------|---------------|-----------|
+| `boolean` | `false`       | No        |
+
+Turns off the topology spread constraints.
+The feature is automatically turned off on Kubernetes versions below 1.18.
+
+## `topologySpreadConstraints`
+
+| Type   | Default value   | Required? |
+|--------|-----------------|-----------|
+| `list` | see description | No        |
+
+Configures custom [Pod topology spread constraints
+](https://kubernetes.io/fr/docs/concepts/workloads/pods/pod-topology-spread-constraints/)
+
+When unset, the chart defaults to a soft topology spread constraint
+that tries to spread pods across hosts and zones.
+
+Default value:
+```
+topologySpreadConstraints
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels: # dynamically computed
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels: # dynamically computed
+```
+
 ## `annotations`
 ### `annotations.config`
 
