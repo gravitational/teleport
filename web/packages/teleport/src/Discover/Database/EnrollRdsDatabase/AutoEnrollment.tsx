@@ -44,6 +44,7 @@ import {
 import useTeleport from 'teleport/useTeleport';
 
 import { ActionButtons } from '../../Shared';
+import { AwsRdsAuthRequirementAlert } from '../SetupAccess/AwsRdsAuthRequirements';
 import { DatabaseList } from './RdsDatabaseList';
 
 type TableData = {
@@ -82,8 +83,14 @@ export function AutoEnrollment({
   const ctx = useTeleport();
   const clusterId = ctx.storeUser.getClusterId();
 
-  const { agentMeta, updateAgentMeta, emitErrorEvent, nextStep, emitEvent } =
-    useDiscover();
+  const {
+    agentMeta,
+    updateAgentMeta,
+    emitErrorEvent,
+    nextStep,
+    emitEvent,
+    resourceSpec,
+  } = useDiscover();
   const {
     attempt: createDiscoveryConfigAttempt,
     setAttempt: setCreateDiscoveryConfigAttempt,
@@ -230,6 +237,10 @@ export function AutoEnrollment({
             items={tableData?.items || []}
             fetchStatus={tableData?.fetchStatus || 'loading'}
             fetchNextPage={fetchNextPage}
+          />
+          <AwsRdsAuthRequirementAlert
+            wantAutoDiscover={true}
+            id={resourceSpec.id}
           />
         </>
       )}
