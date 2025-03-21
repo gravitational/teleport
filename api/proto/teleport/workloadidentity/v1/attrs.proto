@@ -95,6 +95,14 @@ message WorkloadAttrsDockerContainer {
   map<string, string> labels = 3;
 }
 
+// Attributes sourced from the Systemd workload attestor.
+message WorkloadAttrsSystemd {
+  // Whether the workload passed Systemd attestation.
+  bool attested = 1;
+  // The systemd service name.
+  string service = 2;
+}
+
 // The attributes provided by `tbot` regarding the workload's attestation.
 // This will be mostly unset if the workload has not requested credentials via
 // the SPIFFE Workload API.
@@ -107,6 +115,8 @@ message WorkloadAttrs {
   WorkloadAttrsPodman podman = 3;
   // The Docker-specific attributes.
   WorkloadAttrsDocker docker = 4;
+  // The Systemd-specific attributes.
+  WorkloadAttrsSystemd systemd = 5;
 }
 
 // Attributes related to the user/bot making the request for a workload
