@@ -312,13 +312,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 		if err = client.RetryWithRelogin(cf.Context, tc, func() error {
 			key, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
 				RouteToCluster: tc.SiteName,
-				RouteToDatabase: proto.RouteToDatabase{
-					ServiceName: dbInfo.ServiceName,
-					Protocol:    dbInfo.Protocol,
-					Username:    dbInfo.Username,
-					Database:    dbInfo.Database,
-					Roles:       dbInfo.Roles,
-				},
+				RouteToDatabase: client.RouteToDatabaseToProto(dbInfo.RouteToDatabase),
 				AccessRequests: profile.ActiveRequests,
 			})
 			return trace.Wrap(err)
