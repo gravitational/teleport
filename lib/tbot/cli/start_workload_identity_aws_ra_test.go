@@ -18,6 +18,7 @@ package cli
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -40,6 +41,8 @@ func TestWorkloadIdentityAWSRACommand(t *testing.T) {
 				"--trust-anchor-arn=arn:aws:rolesanywhere:us-east-1:123456789012:trust-anchor/0000000-0000-0000-0000-000000000000",
 				"--profile-arn=arn:aws:rolesanywhere:us-east-1:123456789012:profile/0000000-0000-0000-0000-00000000000",
 				"--region=us-east-1",
+				"--session-duration=2h",
+				"--session-renewal-interval=30m",
 			},
 			assertConfig: func(t *testing.T, cfg *config.BotConfig) {
 				require.Len(t, cfg.Services, 1)
@@ -68,6 +71,9 @@ func TestWorkloadIdentityAWSRACommand(t *testing.T) {
 					wis.ProfileARN,
 				)
 				require.Equal(t, "us-east-1", wis.Region)
+
+				require.Equal(t, 2*time.Hour, wis.SessionDuration)
+				require.Equal(t, 30*time.Minute, wis.SessionRenewalInterval)
 			},
 		},
 		{

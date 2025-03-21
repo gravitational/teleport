@@ -19,6 +19,7 @@ package cli
 import (
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -59,6 +60,15 @@ type WorkloadIdentityAWSRACommand struct {
 	// `AWS_REGION` environment variable. If set here, this will override the
 	// environment or AWS config.
 	Region string
+
+	// SessionDuration is the duration of the resulting AWS session and
+	// credentials. This may be up to 12 hours. When unset, this defaults to
+	// 6 hours.
+	SessionDuration time.Duration
+	// SessionRenewalInterval is the interval at which the session should be
+	// renewed. This should be less than the session duration. When unset, this
+	// defaults to 1 hour.
+	SessionRenewalInterval time.Duration
 }
 
 // NewWorkloadIdentityAWSRACommand initializes the command and flags for the
@@ -105,6 +115,15 @@ func NewWorkloadIdentityAWSRACommand(
 		"The AWS region to use. If unset, value will be used from the AWS config or the AWS_REGION environment variable.",
 	).StringVar(&c.Region)
 
+	cmd.Flag(
+		"session-duration",
+		"The duration of the resulting AWS session and credentials. This may be up to 12 hours. When unset, this defaults to 6 hours.",
+	).DurationVar(&c.SessionDuration)
+	cmd.Flag(
+		"session-renewal-interval",
+		"How often the session should be renewed. This should be less than the session duration. When unset, this defaults to 1 hour.",
+	).DurationVar(&c.SessionRenewalInterval)
+
 	return c
 }
 
@@ -120,11 +139,13 @@ func (c *WorkloadIdentityAWSRACommand) ApplyConfig(cfg *config.BotConfig, l *slo
 	}
 
 	svc := &config.WorkloadIdentityAWSRAService{
-		Destination:    dest,
-		RoleARN:        c.RoleARN,
-		ProfileARN:     c.ProfileARN,
-		TrustAnchorARN: c.TrustAnchorARN,
-		Region:         c.Region,
+		Destination:            dest,
+		RoleARN:                c.RoleARN,
+		ProfileARN:             c.ProfileARN,
+		TrustAnchorARN:         c.TrustAnchorARN,
+		Region:                 c.Region,
+		SessionDuration:        c.SessionDuration,
+		SessionRenewalInterval: c.SessionRenewalInterval,
 	}
 
 	switch {
