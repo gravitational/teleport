@@ -1,0 +1,103 @@
+---
+title: SCIM Sailpoint Integration (Preview - Dev Build)
+description: How to manage Access Lists membership via SCIM Sailpoint integration
+---
+
+## Overview
+
+The Sailpoint SCIM integration with Teleport automates user provisioning and deprovisioning while synchronizing Sailpoint group memberships with Teleport access lists using the SCIM protocol. This integration enables organizations leveraging Sailpoint for identity governance to manage access control within Teleport efficiently.
+In this integration, user permissions in Teleport are governed by Access Lists, which define role-based access policies. However, user membership within Access Lists is managed dynamically through Sailpoint SCIM group memberships. This ensures that access rights align with organizational policies and are updated automatically as users are added to or removed from Sailpoint groups.
+
+
+## Installation and Configuration
+### 1. Install the Sailpoint SCIM Integration
+To enable the integration use the following command:
+
+```sh
+$ tctl plugins install sailpoint --teleport-connector-name=ad
+
+SCIM Base URL: https://teleport.example.com:443/v1/webapi/scim/sailpoint
+SCIM Bearer Token: 11111111-2222-3333-3333-444444444444
+```
+
+Where `--teleport-connector=ad`  in the name of teleport SAML connector:
+```sh
+$ tctl get connectors
+kind: saml
+metadata:
+  name: ad
+...
+```
+### SCIM Server in Teleport
+
+SCIM Server in TeleportTeleport runs an internal SCIM server to support synchronization with Sailpoint. Once the integration is installed, Teleport exposes a SCIM endpoint that can be used to receive user and group updates from Sailpoint.
+
+After the installation, you can test the SCIM server using the following command:
+
+```sh
+$ export SCIM_TOKEN=11111111-2222-3333-3333-444444444444
+$ curl -H "Authorization: Bearer $SCIM_TOKEN" https://teleport.example.com:443/v1/webapi/scim/sailpoint/Users
+{"schemas":["urn:ietf:params:scim:api:messages:2.0:ListResponse"],"totalResults":0,"startIndex":1,"itemsPerPage":100,"Resources":[]
+```
+
+The SCIM Base URL and SCIM Bearer Token are provided during installation and must be used to configure Sailpoint SCIM configuration.
+
+
+### 2. Configure SCIM Group Synchronization
+
+To manage user group memberships via SCIM, you must create a Teleport Access List where the membership is handled by Sailpoint.
+To achieve this, set the `scim` `sailpoint` label to the Access List definition
+
+```terraform
+resource "teleport_access_list" "acl-group-editor" {
+  header = {
+    version = "v1"
+    name = "scim-group-editor"
+    metadata = {
+      labels = {
+        scim = "sailpoint"
+      }
+    }
+  }
+  spec = {
+    title = "GroupEditor"
+    grants = {
+      roles  = ["editor"]
+      traits = []
+    }
+    owners = [
+      {
+        name = "alice"
+      }
+    ]
+    membership_requires = {
+      roles = []
+    }
+    ownership_requires = {
+      roles = []
+    }
+    audit = {
+      recurrence = {
+        frequency    = 3
+        day_of_month = 15
+      }
+    }
+  }
+}
+```
+
+The binding between SCIM groups and the Teleport access list is established through the Access List Title and the SCIM group name:
+(access_list.spec.title must match the SCIM group name (displayName) in Sailpoint)
+
+
+### Troubleshooting
+
+SCIM requests and responses are logged in the Teleport proxy logs. If issues arise, collect Handled SCIM Request logs for troubleshooting.
+Example log output:
+
+`2025-03-14T17:57:51.754-04:00 INFO  Handled SCIM Request method:GET url:/webapi/scim/sailpoint/Users status_code:200 request: response:{"schemas":["urn:ietf:params:scim:api:messages:2.0:ListResponse"],"totalResults":0,"startIndex":1,"itemsPerPage":100,"Resources":[]} error:<nil> web/scim.go:160`
+
+If the SCIM integration is not syncing as expected, check the following:
+* Verify that the SCIM token is correctly configured in Sailpoint.
+* Ensure that the Teleport SCIM Base URL is accessible from Sailpoint.
+* Collect the `Handled SCIM Request` log entries for further analysis.
