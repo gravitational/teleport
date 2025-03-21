@@ -220,7 +220,7 @@ Today, Machine ID has two broad categories of joining:
 
 Bound keypair joining could be implemented using either of these strategies.
 However, we'll opt to implement this as a delegated join method. This provides
-several advantanges:
+several advantages:
 
 - Standardized implementation, matching all other join methods - except `token`.
 
@@ -380,7 +380,7 @@ counter to protect rejoins and the long-lived keypair:
    returned alongside the certificate bundle.
 
    If they do not match, the join is rejected, and a lock is generated against
-   the affected `(bot, token)`.
+   the affected `(bot, token)` pair.
 
 Just as with the generation counter, this procedure relies on an imposter bot
 successfully joining once. When the original bot fails to refresh and attempts
@@ -489,9 +489,8 @@ spec:
       may_join_until: "2026-03-01T21:45:40.104524Z"
 
     # If set, the bot will perform a keypair rotation on its next renewal after
-    # it is informed of the change to this field. Note that this is tied to bot
-    # heartbeats and may not take effect on the next refresh interval. This flag
-    # will be reset to `false` by Auth upon successful keypair rotation.
+    # it is informed of the change to this field. This flag will be reset to
+    # `false` by Auth upon successful keypair rotation.
     rotate_on_next_renewal: false
 
 status:
