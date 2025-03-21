@@ -83,6 +83,7 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 		}
 	}
 
+	// TODO(Joerger): supply proxy address in req through the redirector.
 	chal, err := c.CreateAuthenticateChallenge(ctx, req)
 	if err != nil {
 		// CreateAuthenticateChallenge returns a bad parameter error when the client
