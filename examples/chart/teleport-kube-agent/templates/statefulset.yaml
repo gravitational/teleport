@@ -6,10 +6,10 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ .Release.Name }}
+  name: {{ include "teleport-kube-agent.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    app: {{ .Release.Name }}
+    app: {{ include "teleport-kube-agent.fullname" . }}
   {{- if .Values.extraLabels.deployment }}
     {{- toYaml .Values.extraLabels.deployment | nindent 4 }}
   {{- end }}
@@ -18,11 +18,11 @@ metadata:
     {{- toYaml .Values.annotations.deployment | nindent 4 }}
   {{- end }}
 spec:
-  serviceName: {{ .Release.Name }}
+  serviceName: {{ include "teleport-kube-agent.fullname" . }}
   replicas: {{ $replicaCount }}
   selector:
     matchLabels:
-      app: {{ .Release.Name }}
+      app: {{ include "teleport-kube-agent.fullname" . }}
   template:
     metadata:
       annotations:
@@ -32,7 +32,7 @@ spec:
   {{- toYaml .Values.annotations.pod | nindent 8 }}
 {{- end }}
       labels:
-        app: {{ .Release.Name }}
+        app: {{ include "teleport-kube-agent.fullname" . }}
 {{- if .Values.extraLabels.pod }}
   {{- toYaml .Values.extraLabels.pod | nindent 8 }}
 {{- end }}
@@ -68,7 +68,7 @@ spec:
               - key: app
                 operator: In
                 values:
-                - {{ .Release.Name }}
+                - {{ include "teleport-kube-agent.fullname" . }}
             topologyKey: "kubernetes.io/hostname"
         {{- else if gt (int $replicaCount) 1 }}
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -79,7 +79,7 @@ spec:
                 - key: app
                   operator: In
                   values:
-                  - {{ .Release.Name }}
+                  - {{ include "teleport-kube-agent.fullname" . }}
               topologyKey: "kubernetes.io/hostname"
         {{- end }}
         {{- end }}
@@ -108,7 +108,7 @@ spec:
           name: "auth-token"
           readOnly: true
         - mountPath: /var/lib/teleport
-          name: "{{ .Release.Name }}-teleport-data"
+          name: "{{ include "teleport-kube-agent.fullname" . }}-teleport-data"
           {{- if .Values.tls.existingCASecretName }}
         - mountPath: /etc/teleport-tls-ca
           name: "teleport-tls-ca"
@@ -151,7 +151,7 @@ spec:
               fieldRef:
                 fieldPath: metadata.namespace
           - name: RELEASE_NAME
-            value: {{ .Release.Name }}
+            value: {{ include "teleport-kube-agent.fullname" . }}
           {{- if .Values.updater.enabled }}
           - name: TELEPORT_EXT_UPGRADER
             value: kube
@@ -213,7 +213,7 @@ spec:
           readOnly: true
 {{- if .Values.storage.enabled }}
         - mountPath: /var/lib/teleport
-          name: "{{ .Release.Name }}-teleport-data"
+          name: "{{ include "teleport-kube-agent.fullname" . }}-teleport-data"
 {{- else }}
         - mountPath: /var/lib/teleport
           name: "data"
@@ -237,7 +237,7 @@ spec:
       volumes:
       - name: "config"
         configMap:
-          name: {{ .Release.Name }}
+          name: {{ include "teleport-kube-agent.fullname" . }}
       - name: "auth-token"
         secret:
           secretName: {{ coalesce .Values.secretName .Values.joinTokenSecret.name }}
@@ -261,7 +261,7 @@ spec:
 {{- if and .Values.storage.enabled }}
   volumeClaimTemplates:
   - metadata:
-      name: "{{ .Release.Name }}-teleport-data"
+      name: "{{ include "teleport-kube-agent.fullname" . }}-teleport-data"
     spec:
       accessModes: [ "ReadWriteOnce" ]
       storageClassName: {{ .Values.storage.storageClassName }}

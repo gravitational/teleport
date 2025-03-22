@@ -6,10 +6,10 @@ apiVersion: policy/v1beta1
 {{- end }}
 kind: PodDisruptionBudget
 metadata:
-  name: {{ .Release.Name }}
+  name: {{ include "teleport-kube-agent.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    app: {{ .Release.Name }}
+    app: {{ include "teleport-kube-agent.fullname" . }}
 {{- if .Values.extraLabels.podDisruptionBudget }}
   {{- toYaml .Values.extraLabels.podDisruptionBudget | nindent 4 }}
 {{- end }}
@@ -17,5 +17,5 @@ spec:
   minAvailable: {{ .Values.highAvailability.podDisruptionBudget.minAvailable }}
   selector:
     matchLabels:
-      app: {{ .Release.Name }}
+      app: {{ include "teleport-kube-agent.fullname" . }}
 {{- end }}
