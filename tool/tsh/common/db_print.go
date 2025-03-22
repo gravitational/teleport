@@ -25,6 +25,8 @@ import (
 	"reflect"
 	"regexp"
 	"slices"
+	"strings"
+	"sync"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -79,9 +81,20 @@ type printDatabaseTableConfig struct {
 	rows                []databaseTableRow
 	showProxyAndCluster bool
 	verbose             bool
+	// includeColumns specifies a white list of columns to include. verbose and
+	// showProxyAndCluster are ignored when includeColumns is provided.
+	includeColumns []string
 }
 
-func (cfg printDatabaseTableConfig) excludeColumns() (out []string) {
+func (cfg printDatabaseTableConfig) excludeColumns(allColumns []string) (out []string) {
+	if len(cfg.includeColumns) > 0 {
+		for _, column := range allColumns {
+			if !slices.Contains(cfg.includeColumns, column) {
+				out = append(out, column)
+			}
+		}
+		return
+	}
 	if !cfg.showProxyAndCluster {
 		out = append(out, "Proxy", "Cluster")
 	}
@@ -94,7 +107,7 @@ func (cfg printDatabaseTableConfig) excludeColumns() (out []string) {
 func printDatabaseTable(cfg printDatabaseTableConfig) {
 	allColumns := makeTableColumnTitles(databaseTableRow{})
 	rowsWithAllColumns := makeTableRows(cfg.rows)
-	excludeColumns := cfg.excludeColumns()
+	excludeColumns := cfg.excludeColumns(allColumns)
 
 	var printColumns []string
 	printRows := make([][]string, len(cfg.rows))
@@ -164,6 +177,53 @@ func maybeShowListDatabasesHint(cf *CLIConf, w io.Writer, numRows int) {
 	}
 
 	fmt.Fprint(w, listDatabaseHint)
+}
+
+type dbPrefixWriter struct {
+	io.Writer
+	prefix string
+	buf    string
+	mu     sync.Mutex
+}
+
+func newDBPrefixWriter(w io.Writer, dbServiceName string) *dbPrefixWriter {
+	return &dbPrefixWriter{
+		Writer: w,
+		prefix: fmt.Sprintf("[%s]", dbServiceName),
+	}
+}
+
+func (w *dbPrefixWriter) Close() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.buf != "" {
+		w.flushLine("")
+	}
+	return nil
+}
+
+func (w *dbPrefixWriter) flushLine(s string) {
+	fmt.Fprintln(w.Writer, w.prefix, w.buf+s)
+	w.buf = ""
+}
+
+func (w *dbPrefixWriter) Write(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	lines := strings.Split(string(p), "\n")
+	for i, line := range lines {
+		if i == len(lines)-1 {
+			// Save whatever is after last \n to buf for next round.
+			w.buf += line
+		} else {
+			w.flushLine(strings.TrimSuffix(line, "\r"))
+		}
+	}
+	return len(p), nil
 }
 
 // minNumRowsToShowListDatabasesHint is an arbitrary number selected to show
