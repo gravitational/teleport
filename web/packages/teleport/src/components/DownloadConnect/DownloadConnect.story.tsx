@@ -22,7 +22,7 @@ import { Platform } from 'design/platform';
 import { DownloadConnect, getConnectDownloadLinks } from './DownloadConnect';
 
 export default {
-  title: 'Shared/DownloadConnect',
+  title: 'Teleport/DownloadConnect',
 };
 
 const links = getConnectDownloadLinks(Platform.Windows, '15.1.2');

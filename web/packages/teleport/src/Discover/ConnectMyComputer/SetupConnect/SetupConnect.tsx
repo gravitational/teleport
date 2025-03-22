@@ -24,13 +24,13 @@ import { ButtonSecondary } from 'design/Button';
 import * as Icons from 'design/Icon';
 import { getPlatform } from 'design/platform';
 import { P } from 'design/Text/Text';
-import {
-  DownloadConnect,
-  getConnectDownloadLinks,
-} from 'shared/components/DownloadConnect/DownloadConnect';
 import * as connectMyComputer from 'shared/connectMyComputer';
 import { makeDeepLinkWithSafeInput } from 'shared/deepLinks';
 
+import {
+  DownloadConnect,
+  getConnectDownloadLinks,
+} from 'teleport/components/DownloadConnect/DownloadConnect';
 import cfg from 'teleport/config';
 import { ActionButtons, Header, StyledBox } from 'teleport/Discover/Shared';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';

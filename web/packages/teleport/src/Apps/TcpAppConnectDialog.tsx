@@ -28,13 +28,13 @@ import Dialog, {
 } from 'design/Dialog';
 import { getPlatform, Platform } from 'design/platform';
 import { SlideTabs, TabSpec } from 'design/SlideTabs/SlideTabs';
-import {
-  DownloadConnect,
-  getConnectDownloadLinks,
-} from 'shared/components/DownloadConnect/DownloadConnect';
 import { TextSelectCopy } from 'shared/components/TextSelectCopy';
 import { makeDeepLinkWithSafeInput } from 'shared/deepLinks';
 
+import {
+  DownloadConnect,
+  getConnectDownloadLinks,
+} from 'teleport/components/DownloadConnect/DownloadConnect';
 import { generateTshLoginCommand } from 'teleport/lib/util';
 import { App } from 'teleport/services/apps';
 import useStickyClusterId from 'teleport/useStickyClusterId';
