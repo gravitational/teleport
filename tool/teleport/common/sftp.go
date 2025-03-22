@@ -232,20 +232,18 @@ func (s *sftpHandler) Filelist(req *sftp.Request) (_ sftp.ListerAt, retErr error
 }
 
 func (s *sftpHandler) sendSFTPEvent(req *sftp.Request, reqErr error) {
-	ctx := context.TODO()
-	event, err := sftputils.ParseSFTPEvent(req, reqErr)
-	if err != nil {
-		s.logger.WarnContext(ctx, "Unknown SFTP request", "request", req.Method)
-		return
-	} else if reqErr != nil {
-		s.logger.DebugContext(ctx, "failed handling SFTP request", "request", req.Method, "error", reqErr)
-	}
-
 	wd, err := os.Getwd()
 	if err != nil {
-		s.logger.WarnContext(ctx, "Failed to get working dir", "error", err)
+		s.logger.WarnContext(req.Context(), "Failed to get working dir", "error", err)
+		// Log event without it.
 	}
-	event.WorkingDirectory = wd
+	event, err := sftputils.ParseSFTPEvent(req, wd, reqErr)
+	if err != nil {
+		s.logger.WarnContext(req.Context(), "Unknown SFTP request", "request", req.Method)
+		return
+	} else if reqErr != nil {
+		s.logger.DebugContext(req.Context(), "failed handling SFTP request", "request", req.Method, "error", reqErr)
+	}
 	s.events <- event
 }
 

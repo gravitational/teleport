@@ -153,9 +153,8 @@ func ParseFlags(req *sftp.Request) int {
 }
 
 // ParseSFTPEvent parses an SFTP request and associated error into an SFTP
-// audit event. Note that this does not include the WorkingDirectory field, as
-// that must be determined server-side.
-func ParseSFTPEvent(req *sftp.Request, reqErr error) (*apievents.SFTP, error) {
+// audit event.
+func ParseSFTPEvent(req *sftp.Request, workingDirectory string, reqErr error) (*apievents.SFTP, error) {
 	event := &apievents.SFTP{
 		Metadata: apievents.Metadata{
 			Type: events.SFTPEvent,
@@ -234,6 +233,7 @@ func ParseSFTPEvent(req *sftp.Request, reqErr error) (*apievents.SFTP, error) {
 	event.Path = req.Filepath
 	event.TargetPath = req.Target
 	event.Flags = req.Flags
+	event.WorkingDirectory = workingDirectory
 	if req.Method == MethodSetStat {
 		attrFlags := req.AttrFlags()
 		attrs := req.Attributes()

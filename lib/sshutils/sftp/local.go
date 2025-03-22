@@ -41,25 +41,14 @@ func (l localFS) Glob(ctx context.Context, pattern string) ([]string, error) {
 		return nil, err
 	}
 
-	matches, err := filepath.Glob(pattern)
-	if err != nil {
-		return nil, err
-	}
-
-	return matches, nil
+	return filepath.Glob(pattern)
 }
 
 func (l localFS) Stat(ctx context.Context, path string) (os.FileInfo, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-
-	fi, err := os.Stat(path)
-	if err != nil {
-		return nil, err
-	}
-
-	return fi, nil
+	return os.Stat(path)
 }
 
 func (l localFS) ReadDir(ctx context.Context, path string) ([]os.FileInfo, error) {
@@ -112,11 +101,7 @@ func (l localFS) OpenFile(ctx context.Context, path string, flags int) (File, er
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	f, err := os.OpenFile(path, flags, defaults.FilePermissions)
-	if err != nil {
-		return nil, err
-	}
-	return f, nil
+	return os.OpenFile(path, flags, defaults.FilePermissions)
 }
 
 func (l localFS) Mkdir(ctx context.Context, path string) error {
@@ -159,11 +144,7 @@ func (l localFS) Lstat(ctx context.Context, name string) (os.FileInfo, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	fi, err := os.Lstat(name)
-	if err != nil {
-		return nil, err
-	}
-	return fi, nil
+	return os.Lstat(name)
 }
 
 func (l localFS) RemoveAll(ctx context.Context, path string) error {
@@ -212,9 +193,12 @@ func (l localFS) Readlink(ctx context.Context, name string) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	dest, err := os.Readlink(name)
-	if err != nil {
+	return os.Readlink(name)
+}
+
+func (l localFS) Getwd(ctx context.Context) (string, error) {
+	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	return dest, nil
+	return os.Getwd()
 }
