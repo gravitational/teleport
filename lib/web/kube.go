@@ -44,6 +44,7 @@ import (
 
 	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -561,15 +562,24 @@ func (h *Handler) joinKubernetesSession(
 		}
 	}
 
+	proxyListenerMode, err := sctx.GetProxyListenerMode(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	tc := &client.TeleportClient{
 		Config: client.Config{
-			InsecureSkipVerify:            false,
+			SiteName:                      tracker.GetClusterName(),
+			SessionID:                     tracker.GetName(),
+			ClientAddr:                    ws.RemoteAddr().String(),
 			TLSRoutingConnUpgradeRequired: false,
+			TLSRoutingEnabled:             proxyListenerMode == types.ProxyListenerMode_Multiplex,
 			KubeProxyAddr:                 h.cfg.ProxyKubeAddr.String(),
 			WebProxyAddr:                  h.cfg.ProxyWebAddr.String(),
 			Stdout:                        stream,
-			Stderr:                        stream,
+			Stderr:                        stderrWriter{stream: stream},
 			Stdin:                         stream,
+			Tracer:                        apitracing.DefaultProvider().Tracer("webterminal"),
 		},
 	}
 
