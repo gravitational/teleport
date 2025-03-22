@@ -187,3 +187,10 @@ func (r *remoteFS) Readlink(ctx context.Context, name string) (dest string, err 
 	})
 	return dest, cmp.Or(ctxErr, err)
 }
+
+func (r *remoteFS) Getwd(ctx context.Context) (wd string, err error) {
+	ctxErr := runCancelableFunc(ctx, func() {
+		wd, err = r.c.Getwd()
+	})
+	return wd, cmp.Or(ctxErr, err)
+}

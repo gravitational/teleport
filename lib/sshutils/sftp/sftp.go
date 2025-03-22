@@ -131,6 +131,8 @@ type FileSystem interface {
 	Truncate(ctx context.Context, name string, size int64) error
 	// Readlink gets the destination for a symlink.
 	Readlink(ctx context.Context, name string) (string, error)
+
+	Getwd(ctx context.Context) (string, error)
 }
 
 // CreateUploadConfig returns a Config ready to upload files over SFTP.

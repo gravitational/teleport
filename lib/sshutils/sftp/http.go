@@ -186,6 +186,10 @@ func (h *httpFS) Readlink(_ context.Context, _ string) (string, error) {
 	return "", nil
 }
 
+func (h *httpFS) Getwd(_ context.Context) (string, error) {
+	return "", nil
+}
+
 type nopWriteCloser struct {
 	io.Writer
 }

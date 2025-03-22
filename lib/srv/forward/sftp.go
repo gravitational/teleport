@@ -54,9 +54,14 @@ func NewSFTPProxy(
 	if err != nil {
 		return nil, err
 	}
+	remoteFS := sftputils.NewRemoteFilesystem(client)
+	wd, err := remoteFS.Getwd(scx.CancelContext())
+	if err != nil {
+		logger.WarnContext(scx.CancelContext(), "Unable to get working directory, defaulting to \"/\"")
+	}
 	h := &proxyHandlers{
 		scx:      scx,
-		remoteFS: sftputils.NewRemoteFilesystem(client),
+		remoteFS: remoteFS,
 		logger:   logger,
 	}
 	handlers := sftp.Handlers{
@@ -65,7 +70,7 @@ func NewSFTPProxy(
 		FileCmd:  h,
 		FileList: h,
 	}
-	srv := sftp.NewRequestServer(channel, handlers)
+	srv := sftp.NewRequestServer(channel, handlers, sftp.WithStartDirectory(wd))
 	return &SFTPProxy{srv: srv, handlers: h}, nil
 }
 
@@ -199,7 +204,12 @@ func (h *proxyHandlers) Filelist(req *sftp.Request) (_ sftp.ListerAt, err error)
 }
 
 func (h *proxyHandlers) sendSFTPEvent(req *sftp.Request, reqErr error) {
-	event, err := sftputils.ParseSFTPEvent(req, reqErr)
+	wd, err := h.remoteFS.Getwd(req.Context())
+	if err != nil {
+		h.logger.WarnContext(req.Context(), "Unable to get working directory", "error", err)
+		// Log event without it
+	}
+	event, err := sftputils.ParseSFTPEvent(req, wd, reqErr)
 	if err != nil {
 		h.logger.WarnContext(req.Context(), "Unknown SFTP request", "request", req.Method)
 		return
