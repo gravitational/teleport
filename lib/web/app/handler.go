@@ -388,6 +388,11 @@ func (h *Handler) getAppSession(r *http.Request) (ws types.WebSession, err error
 		h.logger.WarnContext(r.Context(), "Failed to get session", "error", err)
 		return nil, trace.AccessDenied("invalid session")
 	}
+
+	if ws.Expiry().Before(h.c.Clock.Now()) {
+		h.logger.WarnContext(r.Context(), "Session expired")
+		return nil, trace.AccessDenied("session expired")
+	}
 	return ws, nil
 }
 
