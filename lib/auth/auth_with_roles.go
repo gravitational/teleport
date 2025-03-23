@@ -21,6 +21,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"maps"
 	"net/url"
 	"os"
 	"slices"
@@ -1304,6 +1305,21 @@ func (a *ServerWithRoles) checkUnifiedAccess(resource types.ResourceWithLabels, 
 	return true, nil
 }
 
+var (
+	// supportedUnifiedResourceKinds is the set of kinds that
+	// may be requested via ListUnifiedResources.
+	supportedUnifiedResourceKinds = map[string]struct{}{
+		types.KindApp:                    {},
+		types.KindDatabase:               {},
+		types.KindKubernetesCluster:      {},
+		types.KindNode:                   {},
+		types.KindSAMLIdPServiceProvider: {},
+		types.KindWindowsDesktop:         {},
+	}
+
+	defaultUnifiedResourceKinds = slices.Collect(maps.Keys(supportedUnifiedResourceKinds))
+)
+
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
 func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
 	filter := services.MatchResourceFilter{
@@ -1320,11 +1336,20 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		filter.PredicateExpression = expression
 	}
 
-	// Populate resourceAccessMap with any access errors the user has for each possible
-	// resource kind. This allows the access check to occur a single time per resource
-	// kind instead of once per matching resource.
-	resourceAccessMap := make(map[string]error, len(services.UnifiedResourceKinds))
-	for _, kind := range services.UnifiedResourceKinds {
+	// Validate the requested kinds and precheck that the user has read/list
+	// permissions for all requested resources before doing any listing of
+	// resources to conserve resources.
+	requested := req.Kinds
+	if len(req.Kinds) == 0 {
+		requested = defaultUnifiedResourceKinds
+	}
+
+	resourceAccessMap := make(map[string]error, len(requested))
+	for _, kind := range requested {
+		if _, ok := supportedUnifiedResourceKinds[kind]; !ok {
+			return nil, trace.BadParameter("Unsupported kind %q requested", kind)
+		}
+
 		actionVerbs := []string{types.VerbList, types.VerbRead}
 		if kind == types.KindNode {
 			// We are checking list only for Nodes to keep backwards compatibility.
@@ -1341,10 +1366,6 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	// Before doing any listing, verify that the user is allowed to list
 	// at least one of the requested kinds. If no access is permitted, then
 	// return an access denied error.
-	requested := req.Kinds
-	if len(req.Kinds) == 0 {
-		requested = services.UnifiedResourceKinds
-	}
 	var rbacErrors int
 	for _, kind := range requested {
 		if err, ok := resourceAccessMap[kind]; ok && err != nil {
