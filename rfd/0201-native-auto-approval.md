@@ -152,15 +152,13 @@ metadata:
 spec:
   subjects:
     - access_request
-  states:
-    - approved
   condition: >
     contains_all(set("cloud-dev", "cloud-stage"), access_request.spec.roles) &&
     contains_any(user.traits["level"], set("L1", "L2")) &&
     contains_any(user.traits["team"], set("Cloud")) &&
     contains_any(user.traits["location"], set("Seattle"))
   automatic_approval:
-    name: teleport
+    desired_state: approved
   notification:
     name: slack
     recipients: ["#dev-cloud"]
@@ -182,17 +180,18 @@ It will be running as part of the Teleport Auth Service by default.
 
 The automatic approval service relies on a similar workflow that supports access
 request notification routing with access monitoring rules. The service watches
-for Access Monitoring (AMR) events and Access Request (AR) events. If an
+for Access Monitoring Rule (AMR) events and Access Request (AR) events. If an
 incoming AR matches an existing AMR condition, then the service will attempt to
 automatically approve the request.
 
 ### Access Monitoring Rule
-The AMR now supports a configurable `automatic_approval.name` spec. This field
-specifies the plugin/service responsible for handling automatic approvals for
-matching ARs. For the initial implementation, the only acceptable value will be
-"teleport", indicating that the internal Teleport service will handle the
-request. This field will eventually accept values for all the available access
-plugins that support automatic approvals.
+The AMR now supports a configurable `automatic_approval` spec.
+- `automatic_approval.name` specifies an external plugin/integration that is
+responsible for monitoring the automatic approval rule. This value may be
+omitted to indicate that the automatic approval rule should be monitored by Teleport.
+- `automatic_approval.desired_state` specifies the desired state of the access
+request. For now, the only acceptable value will be `approved` to indicate that
+the access request should be automatically approved.
 
 The AMR conditions now also support a `user.traits` variable.  This variable
 maps a trait name to a set of values. This allows users to specify arbitrary
@@ -205,10 +204,6 @@ This operator returns true if `list` contains an exact match for all elements of
 `items`. This operator allows users to configure a more restrictive condition
 for automatic approvals.
 
-Additionally, the `spec.states` field will now be utilized to support an
-`approved` state. If the AMR contains `spec.states.approved`, this indicates
-that the AR should be automatically approved.
-
 ```yaml
 # This AMR would allow users with traits "level"="L1" and "team"="Cloud" and
 # "location"="Seattle" to be pre-approved for the "cloud-dev" role.
@@ -219,16 +214,13 @@ metadata:
 spec:
   subjects:
     - access_request
-  # states.approved indicates that matching access requests should be automatically approved.
-  states:
-    - approved
   condition: >
     contains_all(set("cloud-dev"), access_request.spec.roles) &&
     contains_any(user.traits["level"], set("L1")) &&
     contains_any(user.traits["team"], set("Cloud")) &&
     contains_any(user.traits["location"], set("Seattle"))
   automatic_approval:
-    name: teleport
+    desired_state: approved
 ```
 
 ### Internal automatic approval service
@@ -306,7 +298,7 @@ allow us track automatic approval usage, and with which plugin it is being used.
   - `plugin`: Specifies the plugin/service that submitted the automatic approval request.
 
 ## Implementation Plan
-1. Extend the Access Monitoring Rule to support the `automatic_approvals` field
+1. Extend the Access Monitoring Rule to support the `automatic_approval` field
 and the `user.traits` variable.
 2. Implement the automatic approvals service.
 3. Deploy the automatic approvals service as part of Teleport initialization.
