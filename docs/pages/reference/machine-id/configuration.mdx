@@ -444,10 +444,9 @@ audiences:
 ### `workload-identity-aws-ra`
 
 The `workload-identity-aws-ra` output is used to issue an X509 workload identity
-credential, exchange this for short-lived AWS credentials using Roles Anywhere
-and writes these to a configured destination.
+credential, exchange this for short-lived AWS credentials using Roles Anywhere, and write these to a configured destination.
 
-The credentials are written in the [AWS shared credentials file format](https://docs.aws.amazon.com/sdkref/latest/guide/file-format.html#file-format-creds)
+The credentials are written in the [AWS shared credentials file format](https://docs.aws.amazon.com/sdkref/latest/guide/file-format.html#file-format-creds),
 which is compatible with the AWS CLI and SDKs.
 
 The output generates the following artifacts:
