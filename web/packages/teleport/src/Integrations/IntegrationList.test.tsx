@@ -19,7 +19,7 @@
 import { createMemoryHistory } from 'history';
 import { Router } from 'react-router';
 
-import { fireEvent, render, screen, userEvent } from 'design/utils/testing';
+import { render, screen, userEvent } from 'design/utils/testing';
 
 import { IntegrationList } from 'teleport/Integrations/IntegrationList';
 import {
@@ -27,7 +27,7 @@ import {
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
 
-test('integration list shows edit and view action menu for aws-oidc, row click navigates', async () => {
+test('integration list does not display action menu for aws-oidc, row click navigates', async () => {
   const history = createMemoryHistory();
   history.push = jest.fn();
 
@@ -47,15 +47,9 @@ test('integration list shows edit and view action menu for aws-oidc, row click n
     </Router>
   );
 
-  fireEvent.click(screen.getByRole('button', { name: 'Options' }));
-  expect(screen.getByText('View Status')).toBeInTheDocument();
-  expect(screen.getByText('View Status')).toHaveAttribute(
-    'href',
-    '/web/integrations/status/aws-oidc/aws-integration'
-  );
-  expect(screen.getByText('Edit...')).toBeInTheDocument();
-  expect(screen.getByText('Delete...')).toBeInTheDocument();
-
+  expect(
+    screen.queryByRole('button', { name: 'Options' })
+  ).not.toBeInTheDocument();
   await userEvent.click(screen.getAllByRole('row')[1]);
   expect(history.push).toHaveBeenCalledWith(
     '/web/integrations/status/aws-oidc/aws-integration'
