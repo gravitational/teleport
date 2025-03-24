@@ -92,16 +92,6 @@ func (c *cancelWriter) Write(b []byte) (int, error) {
 	return c.stream.Write(b)
 }
 
-// File is the file interface required for [FileSystem].
-type File interface {
-	sftp.WriterAtReaderAt
-	io.ReadWriteCloser
-	// Name returns the name of the file.
-	Name() string
-	// Stat returns the files stat info.
-	Stat() (fs.FileInfo, error)
-}
-
 // TrackedFile is a [File] that counts the bytes read from/written to it.
 type TrackedFile struct {
 	File

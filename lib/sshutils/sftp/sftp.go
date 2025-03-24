@@ -91,6 +91,16 @@ type Config struct {
 	Log *slog.Logger
 }
 
+// File is the file interface required for [FileSystem].
+type File interface {
+	sftp.WriterAtReaderAt
+	io.ReadWriteCloser
+	// Name returns the name of the file.
+	Name() string
+	// Stat returns the files stat info.
+	Stat() (fs.FileInfo, error)
+}
+
 // FileSystem describes file operations to be done either locally or over SFTP.
 type FileSystem interface {
 	// Type returns whether the filesystem is "local" or "remote".
@@ -131,7 +141,7 @@ type FileSystem interface {
 	Truncate(ctx context.Context, name string, size int64) error
 	// Readlink gets the destination for a symlink.
 	Readlink(ctx context.Context, name string) (string, error)
-
+	// Getwd gets the current working directory.
 	Getwd(ctx context.Context) (string, error)
 }
 
@@ -773,11 +783,12 @@ func setstat(req *sftp.Request, fs FileSystem) error {
 	return nil
 }
 
+// HandleFilecmd handles file command requests. If filesys is nil, the local
+// filesystem will be used.
 func HandleFilecmd(req *sftp.Request, filesys FileSystem) error {
 	if filesys == nil {
 		filesys = localFS{}
 	}
-	// Required for FileSystem interface, but does nothing.
 	switch req.Method {
 	case MethodSetStat:
 		return setstat(req, filesys)
@@ -865,6 +876,8 @@ func (f fileName) Sys() any {
 	return nil
 }
 
+// HandleFilelist handles file list requests. If filesys is nil, the local
+// filesystem will be used.
 func HandleFilelist(req *sftp.Request, filesys FileSystem) (sftp.ListerAt, error) {
 	if filesys == nil {
 		filesys = localFS{}

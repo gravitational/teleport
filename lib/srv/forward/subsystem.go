@@ -144,7 +144,7 @@ func (r *remoteSubsystem) startSFTP(ctx context.Context, channel ssh.Channel) er
 			select {
 			case err = <-errCh:
 			case <-time.After(5 * time.Second):
-				err = trace.Errorf("SFTP server timed out")
+				err = trace.Errorf("SFTP server timed out while closing")
 			}
 		}
 		r.errorCh <- err

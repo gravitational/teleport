@@ -98,7 +98,7 @@ func (p *SFTPProxy) Serve() error {
 
 	for _, f := range p.handlers.files {
 		summaryEvent.FileTransferStats = append(summaryEvent.FileTransferStats, &apievents.FileTransferStat{
-			Path:         f.File.Name(),
+			Path:         f.Name(),
 			BytesRead:    f.BytesRead.Load(),
 			BytesWritten: f.BytesWritten.Load(),
 		})
@@ -207,7 +207,7 @@ func (h *proxyHandlers) sendSFTPEvent(req *sftp.Request, reqErr error) {
 	wd, err := h.remoteFS.Getwd(req.Context())
 	if err != nil {
 		h.logger.WarnContext(req.Context(), "Unable to get working directory", "error", err)
-		// Log event without it
+		// Log event without it.
 	}
 	event, err := sftputils.ParseSFTPEvent(req, wd, reqErr)
 	if err != nil {

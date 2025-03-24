@@ -121,7 +121,6 @@ func (l localFS) Chmod(ctx context.Context, path string, mode os.FileMode) error
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-
 	return os.Chmod(path, mode)
 }
 
@@ -129,7 +128,6 @@ func (l localFS) Chtimes(ctx context.Context, path string, atime, mtime time.Tim
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-
 	return os.Chtimes(path, atime, mtime)
 }
 

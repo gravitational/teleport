@@ -833,6 +833,8 @@ func (m mockCmdHandlers) Filecmd(req *sftp.Request) error {
 
 func TestHandleFilecmd(t *testing.T) {
 	t.Parallel()
+	// We're using a full client/server instead of just calling HandleFilecmd so
+	// the sftp package can handle marshaling attributes.
 	clientConn, serverConn := net.Pipe()
 	srv := sftp.NewRequestServer(serverConn, sftp.Handlers{
 		FileCmd: mockCmdHandlers{},

@@ -49,6 +49,7 @@ type remoteFS struct {
 	c *sftp.Client
 }
 
+// NewRemoteFilesystem creates a new FileSystem over SFTP.
 func NewRemoteFilesystem(c *sftp.Client) FileSystem {
 	return &remoteFS{c: c}
 }
