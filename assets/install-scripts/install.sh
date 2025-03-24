@@ -225,7 +225,7 @@ install_via_curl() {
   cd -
 
   $SUDO tar -xzf "${TEMP_DIR}/${TELEPORT_FILENAME}" -C "$TEMP_DIR"
-  $SUDO "$TEMP_DIR/teleport/install"
+  $SUDO "$TEMP_DIR/teleport${TELEPORT_SUFFIX}/install"
   set +x
 }
 
