@@ -221,7 +221,7 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 }
 
 func (s *Service) getLocalClusterName(ctx context.Context) (string, error) {
-	clusterName, err := s.cfg.AccessPoint.GetClusterName()
+	clusterName, err := s.cfg.AccessPoint.GetClusterName(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

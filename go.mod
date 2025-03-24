@@ -65,6 +65,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/iam v1.40.0
 	github.com/aws/aws-sdk-go-v2/service/identitystore v1.28.0
 	github.com/aws/aws-sdk-go-v2/service/kms v1.38.0
+	github.com/aws/aws-sdk-go-v2/service/lambda v1.70.1
 	github.com/aws/aws-sdk-go-v2/service/memorydb v1.26.0
 	github.com/aws/aws-sdk-go-v2/service/opensearch v1.46.0
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.38.0
@@ -120,7 +121,7 @@ require (
 	github.com/gocql/gocql v1.7.0
 	github.com/gofrs/flock v0.12.1
 	github.com/gogo/protobuf v1.3.2 // replaced
-	github.com/golang-jwt/jwt/v4 v4.5.1
+	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/google/btree v1.1.3
 	github.com/google/go-attestation v0.5.1
 	github.com/google/go-cmp v0.7.0
@@ -304,12 +305,13 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/chai2010/gettext-go v1.0.2 // indirect
+	github.com/charlievieth/strcase v0.0.5 // indirect
 	github.com/charmbracelet/x/ansi v0.8.0 // indirect
 	github.com/charmbracelet/x/exp/strings v0.0.0-20240722160745-212f7b056ed0 // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
 	github.com/cloudflare/cfssl v1.6.4 // indirect
 	github.com/cncf/xds/go v0.0.0-20241223141626-cff3c89139a3 // indirect
-	github.com/containerd/containerd v1.7.24 // indirect
+	github.com/containerd/containerd v1.7.27 // indirect
 	github.com/containerd/errdefs v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v0.2.1 // indirect
@@ -373,7 +375,7 @@ require (
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
-	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
+	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect

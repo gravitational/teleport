@@ -40,7 +40,7 @@ export function AwsOidcTitle({
 
   return (
     <Flex alignItems="center" data-testid="aws-oidc-title">
-      <HoverTooltip position="bottom" tipContent={content.helper}>
+      <HoverTooltip placement="bottom" tipContent={content.helper}>
         <ButtonIcon as={InternalLink} to={content.to} aria-label="back">
           <ArrowLeft size="medium" />
         </ButtonIcon>

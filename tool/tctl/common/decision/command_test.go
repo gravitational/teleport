@@ -29,7 +29,6 @@ import (
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/tool/tctl/common/decision"
 )
 
@@ -38,7 +37,7 @@ type fakeClient struct {
 	decisionClient decisionpb.DecisionServiceClient
 }
 
-func (c fakeClient) GetClusterName(_ ...services.MarshalOption) (types.ClusterName, error) {
+func (c fakeClient) GetClusterName(_ context.Context) (types.ClusterName, error) {
 	return types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: c.clusterName,
 		ClusterID:   c.clusterName,

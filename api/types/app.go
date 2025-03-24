@@ -87,6 +87,8 @@ type Application interface {
 	GetIntegration() string
 	// GetRequiredAppNames will return a list of required apps names that should be authenticated during this apps authentication process.
 	GetRequiredAppNames() []string
+	// GetUseAnyProxyPublicAddr will return true if a client should rebuild this app's fqdn based on the proxy's public addr.
+	GetUseAnyProxyPublicAddr() bool
 	// GetCORS returns the CORS configuration for the app.
 	GetCORS() *CORSPolicy
 	// GetTCPPorts returns port ranges supported by the app to which connections can be forwarded to.
@@ -344,6 +346,10 @@ func (a *AppV3) Copy() *AppV3 {
 
 func (a *AppV3) GetRequiredAppNames() []string {
 	return a.Spec.RequiredAppNames
+}
+
+func (a *AppV3) GetUseAnyProxyPublicAddr() bool {
+	return a.Spec.UseAnyProxyPublicAddr
 }
 
 func (a *AppV3) GetCORS() *CORSPolicy {

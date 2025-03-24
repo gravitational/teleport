@@ -44,7 +44,7 @@ type Backend interface {
 	UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error)
 	PatchRemoteCluster(ctx context.Context, name string, updateFn func(rc types.RemoteCluster) (types.RemoteCluster, error)) (types.RemoteCluster, error)
 
-	UpsertReverseTunnelV2(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error)
+	UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error)
 	DeleteReverseTunnel(ctx context.Context, tunnelName string) error
 }
 
@@ -383,7 +383,7 @@ func (s *Service) UpsertReverseTunnel(
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := s.backend.UpsertReverseTunnelV2(ctx, req.ReverseTunnel)
+	res, err := s.backend.UpsertReverseTunnel(ctx, req.ReverseTunnel)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

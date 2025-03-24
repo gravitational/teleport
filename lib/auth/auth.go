@@ -2061,8 +2061,8 @@ func (a *Server) SetUsageReporter(reporter usagereporter.UsageReporter) {
 }
 
 // GetClusterID returns the cluster ID.
-func (a *Server) GetClusterID(ctx context.Context, opts ...services.MarshalOption) (string, error) {
-	clusterName, err := a.GetClusterName(opts...)
+func (a *Server) GetClusterID(ctx context.Context) (string, error) {
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -2074,7 +2074,7 @@ func (a *Server) GetClusterID(ctx context.Context, opts ...services.MarshalOptio
 // - (Teleport Cloud) a key provided by the Teleport Cloud API
 // - a key embedded in the license file
 // - the cluster's UUID
-func (a *Server) GetAnonymizationKey(ctx context.Context, opts ...services.MarshalOption) (string, error) {
+func (a *Server) GetAnonymizationKey(ctx context.Context) (string, error) {
 	if key := modules.GetModules().Features().CloudAnonymizationKey; len(key) > 0 {
 		return string(key), nil
 	}
@@ -2082,14 +2082,14 @@ func (a *Server) GetAnonymizationKey(ctx context.Context, opts ...services.Marsh
 	if a.license != nil && len(a.license.AnonymizationKey) > 0 {
 		return string(a.license.AnonymizationKey), nil
 	}
-	id, err := a.GetClusterID(ctx, opts...)
+	id, err := a.GetClusterID(ctx)
 	return id, trace.Wrap(err)
 }
 
 // GetDomainName returns the domain name that identifies this authority server.
 // Also known as "cluster name"
 func (a *Server) GetDomainName() (string, error) {
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(context.TODO())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -2099,7 +2099,7 @@ func (a *Server) GetDomainName() (string, error) {
 // GetClusterCACert returns the PEM-encoded TLS certs for the local cluster. If
 // the cluster has multiple TLS certs, they will all be concatenated.
 func (a *Server) GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertResponse, error) {
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2397,7 +2397,7 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	}
 	roleSet := services.NewRoleSet(roles...)
 
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2467,7 +2467,7 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 		return nil, nil, trace.Wrap(err)
 	}
 	accessInfo := services.AccessInfoFromUserState(userState)
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -2536,7 +2536,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		return nil, trace.Wrap(err)
 	}
 	accessInfo := services.AccessInfoFromUserState(userState)
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2608,7 +2608,7 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 		return nil, trace.Wrap(err)
 	}
 	accessInfo := services.AccessInfoFromUserState(userState)
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2761,7 +2761,7 @@ func (a *Server) AugmentWebSessionCertificates(ctx context.Context, opts *Augmen
 	}
 
 	// Prepare the AccessChecker for the WebSession identity.
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4144,7 +4144,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 	}
 
 	// Emit deleted event.
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4262,7 +4262,7 @@ func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, req *newMFADevic
 		return nil, trace.BadParameter("MFARegisterResponse is an unknown response type %T", req.deviceResp.Response)
 	}
 
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4662,7 +4662,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	generateRequestsCurrent.Inc()
 	defer generateRequestsCurrent.Dec()
 
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5505,7 +5505,7 @@ func (a *Server) submitAccessReview(
 		return nil, trace.BadParameter("promoted access list can be only set when promoting access requests")
 	}
 
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -6407,7 +6407,7 @@ func (a *Server) createAccessListReminderNotification(ctx context.Context, owner
 // GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.
 func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
 	// Generate a CRL for the current cluster CA.
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -6796,7 +6796,7 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 // Please note that Ping is publicly accessible (not protected by any RBAC) by design,
 // and thus PingResponse must never contain any sensitive information.
 func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
-	cn, err := a.GetClusterName()
+	cn, err := a.GetClusterName(ctx)
 	if err != nil {
 		return proto.PingResponse{}, trace.Wrap(err)
 	}
@@ -7192,7 +7192,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, ssoClientRed
 			return nil, trace.Wrap(err)
 		}
 
-		clusterName, err := a.GetClusterName()
+		clusterName, err := a.GetClusterName(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -7254,7 +7254,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, ssoClientRed
 		}
 	}
 
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -7365,7 +7365,7 @@ func (a *Server) ValidateMFAAuthResponse(
 
 	// Read ClusterName for audit.
 	var clusterName string
-	if cn, err := a.GetClusterName(); err != nil {
+	if cn, err := a.GetClusterName(ctx); err != nil {
 		a.logger.WarnContext(ctx, "Failed to read cluster name", "error", err)
 		// err swallowed on purpose.
 	} else {

@@ -57,7 +57,7 @@ type ProxyConfig struct {
 func ProxyClient(cfg ProxyConfig) (*kubernetes.Clientset, *rest.Config, error) {
 	ctx := context.Background()
 	authServer := cfg.T.Process.GetAuthServer()
-	clusterName, err := authServer.GetClusterName()
+	clusterName, err := authServer.GetClusterName(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
