@@ -33,6 +33,26 @@ import { JoinToken, JoinTokenRequest } from '../joinToken';
 export const ProxyRequiresUpgrade = 'Ensure all proxies are upgraded';
 
 /**
+ * Determines if error 404 is a result of an endpoint path not found
+ * (not resource not found).
+ */
+export function isPathNotFoundError(err: unknown) {
+  if (err instanceof ApiError && err.response.status === 404) {
+    if (err.proxyVersion) {
+      return true;
+    }
+    // TODO(kimlisa): DELETE IN v19.0
+    // pre v17.X this is the legacy error message crafted as a result
+    // of path not found.
+    if (err.message == `${err.response.status} - ${err.response.url}`) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Throws a custom error that are a result of `path not found` as a generic
  * error message about this request not being supported and suggests
  * to user to upgrade all proxies to the specified version.

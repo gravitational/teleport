@@ -125,6 +125,10 @@ func (w *WebClient) PostJSON(ctx context.Context, endpoint string, val interface
 	return httplib.ConvertResponse(w.Client.PostJSON(ctx, endpoint, val))
 }
 
+func (w *WebClient) PostWithFormData(ctx context.Context, endpoint string, val url.Values) (*roundtrip.Response, error) {
+	return httplib.ConvertResponse(w.Client.PostForm(ctx, endpoint, val))
+}
+
 func (w *WebClient) PutJSON(ctx context.Context, endpoint string, val interface{}) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(w.Client.PutJSON(ctx, endpoint, val))
 }
