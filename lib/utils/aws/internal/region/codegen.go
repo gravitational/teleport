@@ -24,7 +24,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"text/template"
@@ -59,6 +58,10 @@ var tmpl = template.Must(template.New("generate").
 
 package aws
 
+import (
+	"sync"
+)
+
 // Region represents an AWS region.
 type Region struct {
 	// Name is the region name.
@@ -68,14 +71,16 @@ type Region struct {
 }
 
 // regions is the set of available AWS regions based on the AWS SDK definition.
-var regions = map[string]Region{
-	{{- range $name, $desc := $.Regions }}
-	{{ quote $name }}: Region{
-		Name: {{ quote $name }},
-		Description: {{ quote $desc }},
-	},
-	{{- end }}
-}
+var regions = sync.OnceValue(func() map[string]Region {
+	return map[string]Region{
+		{{- range $name, $desc := $.Regions }}
+		{{ quote $name }}: Region{
+			Name: {{ quote $name }},
+			Description: {{ quote $desc }},
+		},
+		{{- end }}
+	}
+})
 `))
 
 // TemplateData is the data passed to the template.
@@ -173,18 +178,4 @@ const (
 	// globalRegionSuffix is a strings suffix that indicates a region is a
 	// global region.
 	awsGlobalRegionSuffix = "-global"
-)
-
-var (
-	// matchGlobalRegion is a regex that defines the format of AWS global regions.
-	// Those regions are usually used for endpoint resolution.
-	//
-	// The regex matches the following from left to right:
-	// - `aws` prefix.
-	// - optional -us-gov, -cn, -iso, -iso-b for corresponding partitions
-	// - `global` suffix.
-	//
-	// Reference:
-	// https://github.com/aws/aws-sdk-go-v2/blob/main/codegen/smithy-aws-go-codegen/src/main/resources/software/amazon/smithy/aws/go/codegen/endpoints.json
-	matchGlobalRegion = regexp.MustCompile(`^aws(-us-gov|-cn|-iso|-iso-b|-iso-e|-iso-f)?-global$`)
 )
