@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -78,29 +79,31 @@ type databaseExecCommand struct {
 }
 
 func newDatabaseExecCommand(cf *CLIConf) (*databaseExecCommand, error) {
-	err := checkDatabaseExecInputFlags(cf)
+	if err := checkDatabaseExecInputFlags(cf); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tc, err := makeClient(cf)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	c := new(databaseExecCommand)
-	c.tc, err = makeClient(cf)
+	sharedClient, err := newSharedDatabaseExecClient(cf, tc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sharedClient, err := newSharedDatabaseExecClient(cf, c.tc)
+	commandMaker, err := newDatabaseExecCommandMaker(cf.Context, tc, sharedClient.getProfileStatus())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	c.client = sharedClient
 
-	commandMaker, err := newDatabaseExecCommandMaker(cf.Context, c.tc, c.client.getProfileStatus())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	c.makeCommand = commandMaker.makeCommand
-	return c, nil
+	return &databaseExecCommand{
+		cf:          cf,
+		tc:          tc,
+		client:      sharedClient,
+		makeCommand: commandMaker.makeCommand,
+	}, nil
 }
 
 func (c *databaseExecCommand) run() error {
@@ -111,18 +114,27 @@ func (c *databaseExecCommand) run() error {
 	}
 
 	// Pre-checks before execution.
+	dbInfos := make([]*databaseInfo, 0, len(dbs))
 	for _, db := range dbs {
-		if err := c.checkDatabase(db); err != nil {
+		dbInfo, err := c.checkDatabaseAndMakeDatabaseInfo(db)
+		if err != nil {
 			return trace.Wrap(err)
 		}
+		dbInfos = append(dbInfos, dbInfo)
 	}
 
 	// Execute queries in parallel.
 	group, groupCtx := errgroup.WithContext(c.cf.Context)
 	group.SetLimit(c.cf.MaxConnections)
-	for _, db := range dbs {
+	for _, dbInfo := range dbInfos {
 		group.Go(func() error {
-			return trace.Wrap(c.exec(groupCtx, db))
+			select {
+			case <-groupCtx.Done():
+				return groupCtx.Err()
+			default:
+			}
+
+			return trace.Wrap(c.exec(groupCtx, dbInfo))
 		})
 	}
 	return trace.Wrap(group.Wait())
@@ -220,7 +232,7 @@ func (c *databaseExecCommand) getDatabasesByNames() ([]types.Database, error) {
 	}
 
 	logger.DebugContext(c.cf.Context, "Fetched database services by names.",
-		"databases", logutils.IterAttr(types.ResourceNameIter(dbs)))
+		"databases", logutils.IterAttr(types.ResourceNames(dbs)))
 	return dbs, nil
 }
 
@@ -234,7 +246,7 @@ func (c *databaseExecCommand) searchDatabases() (databases []types.Database, err
 	}
 
 	logger.DebugContext(c.cf.Context, "Fetched databases with search filter.",
-		"databases", logutils.IterAttr(types.ResourceNameIter(dbs)),
+		"databases", logutils.IterAttr(types.ResourceNames(dbs)),
 	)
 
 	if len(dbs) == 0 {
@@ -259,22 +271,13 @@ func (c *databaseExecCommand) searchDatabases() (databases []types.Database, err
 	return dbs, nil
 }
 
-func (c *databaseExecCommand) checkDatabase(db types.Database) error {
-	switch db.GetProtocol() {
-	case types.DatabaseProtocolPostgreSQL, types.DatabaseProtocolMySQL:
-	default:
-		return trace.NotImplemented("unsupported database protocol: %s", db.GetProtocol())
-	}
-
-	return trace.Wrap(c.makeDatabaseInfo(db).checkAndSetDefaults(c.cf, c.tc))
-}
-
-func (c *databaseExecCommand) exec(ctx context.Context, db types.Database) (err error) {
-	displayName := common.FormatResourceName(db, false)
+func (c *databaseExecCommand) exec(ctx context.Context, dbInfo *databaseInfo) (err error) {
+	displayName := common.FormatResourceName(dbInfo.database, false)
 	outputWriter := c.cf.Stdout()
 	errWriter := c.cf.Stderr()
 	defer func() {
-		// Print the error and return nil to continue-on-error.
+		// Print the error and return nil to continue-on-error. Consider
+		// implementing stop-on-error if requested.
 		if err != nil {
 			fmt.Fprintln(errWriter, err)
 			if c.cf.OutputDir != "" {
@@ -287,25 +290,18 @@ func (c *databaseExecCommand) exec(ctx context.Context, db types.Database) (err 
 	switch {
 	case c.cf.OutputDir != "":
 		// Use full-name instead of display name for output path.
-		logFile, err := c.openOutputFile(db.GetName())
+		logFile, err := c.openOutputFile(dbInfo.ServiceName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer logFile.Close()
 		outputWriter = logFile
 		errWriter = logFile
 		fmt.Fprintf(c.cf.Stdout(), "Executing command for %q. Output will be saved at %q.\n", displayName, logFile.Name())
 	case c.cf.MaxConnections > 1:
-		outputWriterWithPrefix := newDBPrefixWriter(c.cf.Stdout(), displayName)
-		errWriterWithPrefix := newDBPrefixWriter(c.cf.Stderr(), displayName)
-		defer outputWriterWithPrefix.Close()
-		defer errWriterWithPrefix.Close()
-		outputWriter = outputWriterWithPrefix
-		errWriter = errWriterWithPrefix
-		c.prefixedOutputHintOnce.Do(func() {
-			fmt.Fprintf(c.cf.Stdout(), `Outputs will be prefixed with the name of the target database.
-Alternatively, use --output-dir flag to save the outputs to files.
-`)
-		})
+		var closeFunc func()
+		outputWriter, errWriter, closeFunc = c.makePrefixWriters(displayName)
+		defer closeFunc()
 		fmt.Fprintf(c.cf.Stdout(), "Executing command for %q.\n", displayName)
 	default:
 		// No prefix so output can still be copy-pasted. Extra empty line to
@@ -313,7 +309,6 @@ Alternatively, use --output-dir flag to save the outputs to files.
 		fmt.Fprintf(c.cf.Stdout(), "\nExecuting command for %q.\n", displayName)
 	}
 
-	dbInfo := c.makeDatabaseInfo(db)
 	lp, err := c.startLocalProxy(ctx, dbInfo)
 	if err != nil {
 		return trace.Wrap(err)
@@ -327,8 +322,23 @@ Alternatively, use --output-dir flag to save the outputs to files.
 	dbCmd.Stdout = outputWriter
 	dbCmd.Stderr = errWriter
 
-	logger.DebugContext(ctx, "Executing database command", "command", dbCmd, "db", db.GetName())
+	logger.DebugContext(ctx, "Executing database command", "command", dbCmd, "db", dbInfo.ServiceName)
 	return trace.Wrap(c.cf.RunCommand(dbCmd))
+}
+
+func (c *databaseExecCommand) makePrefixWriters(displayName string) (io.Writer, io.Writer, func()) {
+	outputWriterWithPrefix := newDBPrefixWriter(c.cf.Stdout(), displayName)
+	errWriterWithPrefix := newDBPrefixWriter(c.cf.Stderr(), displayName)
+	c.prefixedOutputHintOnce.Do(func() {
+		fmt.Fprintf(c.cf.Stdout(), `Outputs will be prefixed with the name of the target database.
+Alternatively, use --output-dir flag to save the outputs to files.
+
+`)
+	})
+	return outputWriterWithPrefix, errWriterWithPrefix, func() {
+		outputWriterWithPrefix.Close()
+		errWriterWithPrefix.Close()
+	}
 }
 
 func (c *databaseExecCommand) startLocalProxy(ctx context.Context, dbInfo *databaseInfo) (*alpnproxy.LocalProxy, error) {
@@ -365,8 +375,20 @@ func (c *databaseExecCommand) startLocalProxy(ctx context.Context, dbInfo *datab
 	return lp, nil
 }
 
-func (c *databaseExecCommand) makeDatabaseInfo(db types.Database) *databaseInfo {
-	return &databaseInfo{
+func (c *databaseExecCommand) checkDatabaseAndMakeDatabaseInfo(db types.Database) (*databaseInfo, error) {
+	switch db.GetProtocol() {
+	case types.DatabaseProtocolPostgreSQL, types.DatabaseProtocolMySQL:
+	default:
+		return nil, trace.NotImplemented("unsupported database protocol: %s", db.GetProtocol())
+	}
+
+	if c.cf.OutputDir != "" {
+		if filename := c.outputFilename(db.GetName()); utils.FileExists(filename) {
+			return nil, trace.BadParameter("output file %q already exists", filename)
+		}
+	}
+
+	dbInfo := &databaseInfo{
 		RouteToDatabase: tlsca.RouteToDatabase{
 			ServiceName: db.GetName(),
 			Protocol:    db.GetProtocol(),
@@ -377,11 +399,15 @@ func (c *databaseExecCommand) makeDatabaseInfo(db types.Database) *databaseInfo 
 		database: db,
 		checker:  c.client.getAccessChecker(),
 	}
+	return dbInfo, trace.Wrap(dbInfo.checkAndSetDefaults(c.cf, c.tc))
+}
+
+func (c *databaseExecCommand) outputFilename(dbServiceName string) string {
+	return filepath.Join(c.cf.OutputDir, dbServiceName+".output")
 }
 
 func (c *databaseExecCommand) openOutputFile(dbServiceName string) (*os.File, error) {
-	logFilePath := filepath.Join(c.cf.OutputDir, dbServiceName+".output")
-	logFilePath, err := utils.EnsureLocalPath(logFilePath, "", "")
+	logFilePath, err := utils.EnsureLocalPath(c.outputFilename(dbServiceName), "", "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
