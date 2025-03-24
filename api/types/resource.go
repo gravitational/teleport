@@ -84,9 +84,9 @@ func GetName[R Resource](r R) string {
 	return r.GetName()
 }
 
-// ResourceNameIter creates an iterator that loops through the provided slice of
+// ResourceNames creates an iterator that loops through the provided slice of
 // resources and return their names.
-func ResourceNameIter[R Resource, S ~[]R](s S) iter.Seq[string] {
+func ResourceNames[R Resource, S ~[]R](s S) iter.Seq[string] {
 	return func(yield func(string) bool) {
 		for _, r := range s {
 			if !yield(GetName(r)) {

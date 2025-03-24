@@ -186,6 +186,12 @@ type dbPrefixWriter struct {
 	mu     sync.Mutex
 }
 
+// newDBPrefixWriter returns a writer that prefixes outputs then writes them to
+// the parent writer.
+//
+// dbPrefixWriter can be used when concurrent outputs need to be printed for
+// different databases. This is a very simplistic implementation with some
+// drawbacks so writing to files should be preferred.
 func newDBPrefixWriter(w io.Writer, dbServiceName string) *dbPrefixWriter {
 	return &dbPrefixWriter{
 		Writer: w,
@@ -193,20 +199,13 @@ func newDBPrefixWriter(w io.Writer, dbServiceName string) *dbPrefixWriter {
 	}
 }
 
-func (w *dbPrefixWriter) Close() error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if w.buf != "" {
-		w.flushLine("")
-	}
-	return nil
-}
-
-func (w *dbPrefixWriter) flushLine(s string) {
-	fmt.Fprintln(w.Writer, w.prefix, w.buf+s)
-	w.buf = ""
-}
-
+// Write prefixes the provided p with the database service name and writes that
+// to its parent.
+//
+// It is expected that p may have multiple newlines where Write will add the
+// prefix to each line it sees. It assumes p usually ends with a new line as
+// they are outputs from database clients. However, in case p is not ending with
+// a new line, the leftover gets buffered until a new line is seen.
 func (w *dbPrefixWriter) Write(p []byte) (int, error) {
 	if len(p) == 0 {
 		return 0, nil
@@ -224,6 +223,23 @@ func (w *dbPrefixWriter) Write(p []byte) (int, error) {
 		}
 	}
 	return len(p), nil
+}
+
+// Close flushes any remaining buffer.
+// Note that dbPrefixWriter takes in a parent io.Writer, but it's caller's
+// responsibility to close the parent if the parent is an io.WriteCloser.
+func (w *dbPrefixWriter) Close() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.buf != "" {
+		w.flushLine("")
+	}
+	return nil
+}
+
+func (w *dbPrefixWriter) flushLine(s string) {
+	fmt.Fprintln(w.Writer, w.prefix, w.buf+s)
+	w.buf = ""
 }
 
 // minNumRowsToShowListDatabasesHint is an arbitrary number selected to show

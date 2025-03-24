@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"os"
 	"os/exec"
 	"path"
 	"slices"
@@ -34,7 +35,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -136,35 +136,35 @@ func TestDatabaseExec(t *testing.T) {
 
 	tests := []struct {
 		name                 string
-		setup                func(*databaseExecCommand)
+		setup                func(*testing.T, *databaseExecCommand)
 		wantError            string
 		expectOutputContains []string
 		verifyDir            func(t *testing.T, dir string)
 	}{
 		{
 			name: "no databases found by search",
-			setup: func(cmd *databaseExecCommand) {
+			setup: func(_ *testing.T, cmd *databaseExecCommand) {
 				cmd.cf.SearchKeywords = "not-found"
 			},
 			wantError: "no databases found",
 		},
 		{
 			name: "no databases found by names",
-			setup: func(cmd *databaseExecCommand) {
+			setup: func(_ *testing.T, cmd *databaseExecCommand) {
 				cmd.cf.DatabaseServices = "not-found"
 			},
 			wantError: "not found",
 		},
 		{
 			name: "unsupported protocol",
-			setup: func(cmd *databaseExecCommand) {
+			setup: func(_ *testing.T, cmd *databaseExecCommand) {
 				cmd.cf.SearchKeywords = "mongo"
 			},
 			wantError: "unsupported database protocol",
 		},
 		{
 			name: "by names",
-			setup: func(cmd *databaseExecCommand) {
+			setup: func(_ *testing.T, cmd *databaseExecCommand) {
 				cmd.cf.DatabaseServices = "pg1,pg2,pg3"
 			},
 			expectOutputContains: []string{
@@ -178,7 +178,7 @@ func TestDatabaseExec(t *testing.T) {
 		},
 		{
 			name: "by keyword",
-			setup: func(cmd *databaseExecCommand) {
+			setup: func(_ *testing.T, cmd *databaseExecCommand) {
 				cmd.cf.SearchKeywords = "mysql"
 			},
 			expectOutputContains: []string{
@@ -192,7 +192,7 @@ func TestDatabaseExec(t *testing.T) {
 		},
 		{
 			name: "by env",
-			setup: func(cmd *databaseExecCommand) {
+			setup: func(_ *testing.T, cmd *databaseExecCommand) {
 				cmd.cf.Labels = "env=dev"
 			},
 			expectOutputContains: []string{
@@ -208,7 +208,7 @@ func TestDatabaseExec(t *testing.T) {
 		},
 		{
 			name: "prefixed output for concurrent connections",
-			setup: func(cmd *databaseExecCommand) {
+			setup: func(_ *testing.T, cmd *databaseExecCommand) {
 				cmd.cf.DatabaseServices = "pg1,pg2,pg3"
 				cmd.cf.MaxConnections = 3
 			},
@@ -222,7 +222,7 @@ func TestDatabaseExec(t *testing.T) {
 		},
 		{
 			name: "output dir",
-			setup: func(cmd *databaseExecCommand) {
+			setup: func(_ *testing.T, cmd *databaseExecCommand) {
 				cmd.cf.DatabaseServices = "pg3,mysql"
 				cmd.cf.OutputDir = path.Join(cmd.cf.HomePath, "test-output")
 			},
@@ -242,6 +242,15 @@ func TestDatabaseExec(t *testing.T) {
 				require.Equal(t, "db-query executed", strings.TrimSpace(string(read)))
 			},
 		},
+		{
+			name: "output file already exists",
+			setup: func(t *testing.T, cmd *databaseExecCommand) {
+				cmd.cf.DatabaseServices = "pg3"
+				cmd.cf.OutputDir = cmd.cf.HomePath
+				require.NoError(t, os.WriteFile(path.Join(cmd.cf.OutputDir, "pg3.output"), []byte("touch"), teleport.FileMaskOwnerOnly))
+			},
+			wantError: "already exists",
+		},
 	}
 
 	for _, tt := range tests {
@@ -249,7 +258,8 @@ func TestDatabaseExec(t *testing.T) {
 			dir := t.TempDir()
 
 			// Prep CLIConf.
-			var buf bytes.Buffer
+			var capture bytes.Buffer
+			writer := utils.NewSyncWriter(&capture)
 			cf := &CLIConf{
 				Proxy:          "proxy:3080",
 				Context:        context.Background(),
@@ -259,20 +269,10 @@ func TestDatabaseExec(t *testing.T) {
 				DatabaseName:   "db-name",
 				DatabaseQuery:  dbQuery,
 				cmdRunner:      verifyDBQuery,
-				OverrideStdout: &buf,
-				overrideStderr: &buf,
+				OverrideStdout: writer,
+				overrideStderr: writer,
 				SkipConfirm:    true,
 			}
-
-			// Create an empty profile so we don't ping proxy.
-			clientStore, err := initClientStore(cf, cf.Proxy)
-			require.NoError(t, err)
-			profile := &profile.Profile{
-				SSHProxyAddr: "proxy:3023",
-				WebProxyAddr: "proxy:3080",
-			}
-			err = clientStore.SaveProfile(profile, true)
-			require.NoError(t, err)
 
 			// Prep command and sanity check.
 			c := &databaseExecCommand{
@@ -280,7 +280,8 @@ func TestDatabaseExec(t *testing.T) {
 				client:      fakeClient,
 				makeCommand: makeCommand,
 			}
-			tt.setup(c)
+			tt.setup(t, c)
+			mustCreateEmptyProfile(t, cf)
 			c.tc, err = makeClient(cf)
 			require.NoError(t, err)
 			require.NoError(t, checkDatabaseExecInputFlags(c.cf))
@@ -292,7 +293,7 @@ func TestDatabaseExec(t *testing.T) {
 				return
 			}
 
-			output := buf.String()
+			output := capture.String()
 			for _, expect := range tt.expectOutputContains {
 				require.Contains(t, output, expect)
 			}
@@ -328,7 +329,6 @@ func (c *fakeDatabaseExecClient) listDatabasesWithFilter(ctx context.Context, re
 		Labels:         req.Labels,
 		SearchKeywords: req.SearchKeywords,
 	}
-
 	if req.PredicateExpression != "" {
 		expression, err := services.NewResourceExpression(req.PredicateExpression)
 		if err != nil {

@@ -823,7 +823,7 @@ func TestResourceHeaderIsEqual(t *testing.T) {
 	}
 }
 
-func TestResourceNameIter(t *testing.T) {
+func TestResourceNames(t *testing.T) {
 	var apps Apps
 	var expectedNames []string
 	for i := 0; i < 10; i++ {
@@ -837,5 +837,5 @@ func TestResourceNameIter(t *testing.T) {
 		expectedNames = append(expectedNames, app.GetName())
 	}
 
-	require.Equal(t, expectedNames, slices.Collect(ResourceNameIter(apps)))
+	require.Equal(t, expectedNames, slices.Collect(ResourceNames(apps)))
 }

@@ -204,18 +204,18 @@ func (a typeAttr) LogValue() slog.Value {
 	return slog.StringValue("nil")
 }
 
-type collectorAttr[V any] struct {
+type iterAttr[V any] struct {
 	iter iter.Seq[V]
 }
 
 // IterAttr creates a [slog.LogValuer] that will defer the collection of an
 // iter.Seq.
 func IterAttr[V any](iter iter.Seq[V]) slog.LogValuer {
-	return collectorAttr[V]{
+	return iterAttr[V]{
 		iter: iter,
 	}
 }
 
-func (a collectorAttr[V]) LogValue() slog.Value {
+func (a iterAttr[V]) LogValue() slog.Value {
 	return slog.AnyValue(slices.Collect[V](a.iter))
 }
