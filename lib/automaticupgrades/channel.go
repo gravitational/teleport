@@ -99,6 +99,15 @@ func (c Channels) DefaultVersion(ctx context.Context) (string, error) {
 	return targetVersion, trace.Wrap(err)
 }
 
+// DefaultChannel returns the default upgrade channel.
+func (c Channels) DefaultChannel() (*Channel, error) {
+	defaultChannel, ok := c[DefaultChannelName]
+	if ok && defaultChannel != nil {
+		return defaultChannel, nil
+	}
+	return NewDefaultChannel()
+}
+
 // Channel describes an automatic update channel configuration.
 // It can be configured to serve a static version, or forward version requests
 // to an upstream version server. Forwarded results are cached for 1 minute.

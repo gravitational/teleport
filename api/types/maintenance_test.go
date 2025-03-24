@@ -205,7 +205,7 @@ func TestWeekdayParser(t *testing.T) {
 	}
 
 	for _, tt := range tts {
-		day, ok := parseWeekday(tt.input)
+		day, ok := ParseWeekday(tt.input)
 		if tt.fail {
 			require.False(t, ok)
 			continue
@@ -268,6 +268,86 @@ func TestWithinUpgradeWindow(t *testing.T) {
 			date, err := time.Parse(time.RFC1123, tt.date)
 			require.NoError(t, err)
 			require.Equal(t, tt.withinWindow, cmc.WithinUpgradeWindow(date))
+		})
+	}
+}
+
+func TestParseWeekdays(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name        string
+		input       []string
+		expect      map[time.Weekday]struct{}
+		expectError require.ErrorAssertionFunc
+	}{
+		{
+			name:        "Nil slice",
+			input:       nil,
+			expect:      nil,
+			expectError: require.Error,
+		},
+		{
+			name:        "Empty slice",
+			input:       []string{},
+			expect:      nil,
+			expectError: require.Error,
+		},
+		{
+			name:  "Few valid days",
+			input: []string{"Mon", "Tuesday", "WEDNESDAY"},
+			expect: map[time.Weekday]struct{}{
+				time.Monday:    {},
+				time.Tuesday:   {},
+				time.Wednesday: {},
+			},
+			expectError: require.NoError,
+		},
+		{
+			name:  "Every day",
+			input: []string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"},
+			expect: map[time.Weekday]struct{}{
+				time.Monday:    {},
+				time.Tuesday:   {},
+				time.Wednesday: {},
+				time.Thursday:  {},
+				time.Friday:    {},
+				time.Saturday:  {},
+				time.Sunday:    {},
+			},
+			expectError: require.NoError,
+		},
+		{
+			name:  "Wildcard",
+			input: []string{"*"},
+			expect: map[time.Weekday]struct{}{
+				time.Monday:    {},
+				time.Tuesday:   {},
+				time.Wednesday: {},
+				time.Thursday:  {},
+				time.Friday:    {},
+				time.Saturday:  {},
+				time.Sunday:    {},
+			},
+			expectError: require.NoError,
+		},
+		{
+			name:        "Duplicated day",
+			input:       []string{"Mon", "Monday"},
+			expect:      nil,
+			expectError: require.Error,
+		},
+		{
+			name:        "Invalid days",
+			input:       []string{"Mon", "Tuesday", "frurfday"},
+			expect:      nil,
+			expectError: require.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := ParseWeekdays(tt.input)
+			tt.expectError(t, err)
+			require.Equal(t, tt.expect, result)
 		})
 	}
 }
