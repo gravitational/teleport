@@ -34,6 +34,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
@@ -85,27 +86,39 @@ func (s *WorkloadIdentityAWSRAService) generate(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err, "requesting SVID")
 	}
-	creds, err := s.exchangeSVID(res, privateKey)
+	pkcs8, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		return trace.Wrap(err, "marshaling private key")
+	}
+	svid, err := x509svid.ParseRaw(res.GetX509Svid().Cert, pkcs8)
+	if err != nil {
+		return trace.Wrap(err, "parsing x509 svid")
+	}
+
+	s.log.Info(
+		"Exchanging SVID for AWS credentials",
+		"spiffe_id", svid.ID.String(),
+		"role_arn", s.cfg.RoleARN,
+		"profile_arn", s.cfg.ProfileARN,
+		"trust_anchor_arn", s.cfg.TrustAnchorARN,
+	)
+	creds, err := s.exchangeSVID(svid)
 	if err != nil {
 		return trace.Wrap(err, "exchanging SVID via Roles Anywhere")
 	}
-	return s.render(ctx, creds)
+	s.log.Info(
+		"Exchanged SVID for AWS credentials",
+		"aws_credentials_expiry", creds.Expiration,
+	)
+
+	return renderAWSCreds(ctx, creds, s.cfg.Destination)
 }
 
 // exchangeSVID will exchange the X.509 SVID for AWS credentials using the
 // AWS Roles Anywhere service.
 func (s *WorkloadIdentityAWSRAService) exchangeSVID(
-	x509Cred *workloadidentityv1pb.Credential,
-	privateKey crypto.Signer,
+	svid *x509svid.SVID,
 ) (*vendoredaws.CredentialProcessOutput, error) {
-	pkcs8, err := x509.MarshalPKCS8PrivateKey(privateKey)
-	if err != nil {
-		return nil, trace.Wrap(err, "marshaling private key")
-	}
-	svid, err := x509svid.ParseRaw(x509Cred.GetX509Svid().Cert, pkcs8)
-	if err != nil {
-		return nil, trace.Wrap(err, "parsing x509 svid")
-	}
 	signer := &awsspiffe.X509SVIDSigner{
 		SVID: svid,
 	}
@@ -210,12 +223,12 @@ func (s *WorkloadIdentityAWSRAService) requestSVID(
 
 // render will write the AWS credentials to the AWS CLI configuration file.
 // See https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html
-func (s *WorkloadIdentityAWSRAService) render(
-	ctx context.Context, creds *vendoredaws.CredentialProcessOutput,
+func renderAWSCreds(
+	ctx context.Context, creds *vendoredaws.CredentialProcessOutput, dest bot.Destination,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"WorkloadIdentityAWSRAService/render",
+		"renderAWSCreds",
 	)
 	defer span.End()
 
@@ -236,7 +249,7 @@ func (s *WorkloadIdentityAWSRAService) render(
 		return trace.Wrap(err, "writing credentials to buffer")
 	}
 
-	err = s.cfg.Destination.Write(ctx, "aws_credentials", b.Bytes())
+	err = dest.Write(ctx, "aws_credentials", b.Bytes())
 	if err != nil {
 		return trace.Wrap(err, "writing credentials to destination")
 	}
