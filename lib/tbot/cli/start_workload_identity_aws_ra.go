@@ -78,7 +78,7 @@ func NewWorkloadIdentityAWSRACommand(
 	parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode,
 ) *WorkloadIdentityAWSRACommand {
 	cmd := parentCmd.Command(
-		"workload-identity-aws-ra",
+		"workload-identity-aws-roles-anywhere",
 		fmt.Sprintf(
 			"%s tbot with an output containing AWS credentials generated via AWS Roles Anywhere.",
 			mode,

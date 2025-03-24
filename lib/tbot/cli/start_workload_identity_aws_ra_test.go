@@ -31,7 +31,7 @@ func TestWorkloadIdentityAWSRACommand(t *testing.T) {
 			name: "success",
 			args: []string{
 				"start",
-				"workload-identity-aws-ra",
+				"workload-identity-aws-roles-anywhere",
 				"--destination=/bar",
 				"--token=foo",
 				"--join-method=github",
@@ -80,7 +80,7 @@ func TestWorkloadIdentityAWSRACommand(t *testing.T) {
 			name: "success name selector",
 			args: []string{
 				"start",
-				"workload-identity-aws-ra",
+				"workload-identity-aws-roles-anywhere",
 				"--destination=/bar",
 				"--token=foo",
 				"--join-method=github",

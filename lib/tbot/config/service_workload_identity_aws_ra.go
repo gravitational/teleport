@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	WorkloadIdentityAWSRAType        = "workload-identity-aws-ra"
+	WorkloadIdentityAWSRAType        = "workload-identity-aws-roles-anywhere"
 	defaultAWSSessionDuration        = 6 * time.Hour
 	maxAWSSessionDuration            = 12 * time.Hour
 	defaultAWSSessionRenewalInterval = 1 * time.Hour

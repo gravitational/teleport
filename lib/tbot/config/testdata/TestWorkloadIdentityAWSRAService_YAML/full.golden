@@ -1,4 +1,4 @@
-type: workload-identity-aws-ra
+type: workload-identity-aws-roles-anywhere
 selector:
   name: my-workload-identity
 destination:
