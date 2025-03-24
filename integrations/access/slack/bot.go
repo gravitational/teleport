@@ -41,6 +41,10 @@ import (
 )
 
 const slackMaxConns = 100
+
+// textObjectMaxCharLimit is the max length for a slack 'text' object.
+const textObjectMaxCharLimit = 3000
+
 const slackHTTPTimeout = 10 * time.Second
 const statusEmitTimeout = 10 * time.Second
 
@@ -309,7 +313,7 @@ func (b Bot) slackAccessListReminderMsgSection(accessList *accesslist.AccessList
 
 	sections := []BlockItem{
 		NewBlockItem(SectionBlock{
-			Text: NewTextObjectItem(MarkdownObject{Text: msg}),
+			Text: NewTextObjectItem(MarkdownObject{Text: truncateTextObjectString(msg)}),
 		}),
 	}
 
@@ -348,7 +352,7 @@ func (b Bot) slackAccessListBatchedReminderMsgSection(accessLists []*accesslist.
 
 	sections := []BlockItem{
 		NewBlockItem(SectionBlock{
-			Text: NewTextObjectItem(MarkdownObject{Text: fmt.Sprintf("%d Access Lists are due for reviews, %s\n%s", numOfReviewsRequired, dueDate, link)}),
+			Text: NewTextObjectItem(MarkdownObject{Text: truncateTextObjectString(fmt.Sprintf("%d Access Lists are due for reviews, %s\n%s", numOfReviewsRequired, dueDate, link))}),
 		}),
 	}
 
@@ -365,14 +369,26 @@ func (b Bot) slackAccessRequestMsgSections(reqID string, reqData pd.AccessReques
 			Text: NewTextObjectItem(MarkdownObject{Text: "You have a new Role Request:"}),
 		}),
 		NewBlockItem(SectionBlock{
-			Text: NewTextObjectItem(MarkdownObject{Text: fields}),
+			Text: NewTextObjectItem(MarkdownObject{
+				Text: truncateTextObjectString(fields),
+			}),
 		}),
 		NewBlockItem(ContextBlock{
 			ElementItems: []ContextElementItem{
-				NewContextElementItem(MarkdownObject{Text: statusText}),
+				NewContextElementItem(MarkdownObject{
+					Text: truncateTextObjectString(statusText),
+				}),
 			},
 		}),
 	}
 
 	return sections
+}
+
+func truncateTextObjectString(s string) string {
+	truncateMsg := " (truncated)"
+	if len(s) <= textObjectMaxCharLimit {
+		return s
+	}
+	return s[:textObjectMaxCharLimit-len(truncateMsg)] + truncateMsg
 }
