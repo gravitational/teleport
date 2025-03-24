@@ -516,6 +516,9 @@ const (
 	// KindAuthInfo contains auth server info.
 	KindAuthInfo = "auth_info"
 
+	// MetaNameAuthInfo name auth server info entity.
+	MetaNameAuthInfo = "auth-info"
+
 	// SubKindCloudInfo is a ServerInfo that was created by the Discovery
 	// service to match with a single discovered instance.
 	SubKindCloudInfo = "cloud_info"

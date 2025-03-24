@@ -49,8 +49,8 @@ func NewAuthInfoService(b backend.Backend) (*AuthInfoService, error) {
 }
 
 // GetTeleportVersion reads the last known Teleport version from storage.
-func (s *AuthInfoService) GetTeleportVersion(ctx context.Context, serverID string) (*semver.Version, error) {
-	item, err := s.backed.Get(ctx, backend.NewKey(authInfoPrefix, serverID))
+func (s *AuthInfoService) GetTeleportVersion(ctx context.Context) (*semver.Version, error) {
+	item, err := s.backed.Get(ctx, backend.NewKey(authInfoPrefix))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -71,15 +71,12 @@ func (s *AuthInfoService) GetTeleportVersion(ctx context.Context, serverID strin
 }
 
 // WriteTeleportVersion writes the last known Teleport version to the storage.
-func (s *AuthInfoService) WriteTeleportVersion(ctx context.Context, serverID string, version *semver.Version) error {
-	if serverID == "" {
-		return trace.BadParameter("missing server ID")
-	}
+func (s *AuthInfoService) WriteTeleportVersion(ctx context.Context, version *semver.Version) error {
 	if version == nil {
 		return trace.BadParameter("wrong version parameter")
 	}
 
-	info, err := authinfotype.NewAuthInfo(serverID, &authinfo.AuthInfoSpec{
+	info, err := authinfotype.NewAuthInfo(&authinfo.AuthInfoSpec{
 		TeleportVersion: version.String(),
 	})
 	if err != nil {
@@ -101,7 +98,7 @@ func (s *AuthInfoService) WriteTeleportVersion(ctx context.Context, serverID str
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      backend.NewKey(authInfoPrefix, info.GetMetadata().GetName()),
+		Key:      backend.NewKey(authInfoPrefix),
 		Value:    value,
 		Expires:  expires,
 		Revision: rev,
@@ -111,27 +108,4 @@ func (s *AuthInfoService) WriteTeleportVersion(ctx context.Context, serverID str
 	}
 
 	return nil
-}
-
-// GetAuthInfoList returns list of all registered auth servers in cluster.
-func (s *AuthInfoService) GetAuthInfoList(ctx context.Context) ([]*authinfo.AuthInfo, error) {
-	startKey := backend.ExactKey(authInfoPrefix)
-	endKey := backend.RangeEnd(startKey)
-	result, err := s.backed.GetRange(ctx, startKey, endKey, backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	servers := make([]*authinfo.AuthInfo, len(result.Items))
-	for i, item := range result.Items {
-		info, err := services.UnmarshalProtoResource[*authinfo.AuthInfo](item.Value)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if err := authinfotype.ValidateAuthInfo(info); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		servers[i] = info
-	}
-
-	return servers, nil
 }

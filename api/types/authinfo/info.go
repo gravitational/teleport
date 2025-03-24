@@ -17,29 +17,19 @@ limitations under the License.
 package authinfo
 
 import (
-	"time"
-
-	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/authinfo/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
-)
-
-const (
-	// authInfoExpire defines expiration time for the auth information resource.
-	authInfoExpire = 24 * time.Hour
+	"github.com/gravitational/trace"
 )
 
 // NewAuthInfo creates a new auth info resource.
-func NewAuthInfo(name string, spec *authinfo.AuthInfoSpec) (*authinfo.AuthInfo, error) {
+func NewAuthInfo(spec *authinfo.AuthInfoSpec) (*authinfo.AuthInfo, error) {
 	info := &authinfo.AuthInfo{
 		Kind:    types.KindAuthInfo,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
-			Name:    name,
-			Expires: timestamppb.New(time.Now().Add(authInfoExpire)),
+			Name: types.MetaNameAuthInfo,
 		},
 		Spec: spec,
 	}

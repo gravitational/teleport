@@ -2151,7 +2151,7 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 				require.NoError(t, err)
 			}
 			if test.initialVersion != "" {
-				err = service.WriteTeleportVersion(ctx, authCfg.HostUUID, semver.New(test.initialVersion))
+				err = service.WriteTeleportVersion(ctx, semver.New(test.initialVersion))
 				require.NoError(t, err)
 			}
 			if test.skipCheck {
@@ -2165,7 +2165,7 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			lastKnownVersion, err := service.GetTeleportVersion(ctx, authCfg.HostUUID)
+			lastKnownVersion, err := service.GetTeleportVersion(ctx)
 			require.NoError(t, err)
 			require.Equal(t, test.expectedVersion, lastKnownVersion.String())
 		})

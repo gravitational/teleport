@@ -402,7 +402,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		return trace.Wrap(err)
 	}
 
-	if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, asrv.Services.AuthInfoService, cfg.HostUUID, teleport.SemVersion); err != nil {
+	if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, asrv.Services.AuthInfoService, teleport.SemVersion); err != nil {
 		return trace.Wrap(err)
 	}
 
