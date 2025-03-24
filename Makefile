@@ -1634,7 +1634,7 @@ go-generate:
 
 # go-generate-up-to-date checks if the generated code is up to date.
 .PHONY: go-generate-up-to-date
-go-generate-up-to-date: must-start-clean/host go-generate-lib
+go-generate-up-to-date: must-start-clean/host go-generate
 	@if ! git diff --quiet; then \
 		./build.assets/please-run.sh "go generate lib" "make go-generate-lib"; \
 		exit 1; \
