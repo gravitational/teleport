@@ -1057,6 +1057,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbExec.Flag("dbs", "List of comma separated target databases. Mutually exclusive with --search or --labels.").StringVar(&cf.DatabaseServices)
 	dbExec.Flag("skip-confirm", "Skip confirmation on search results").BoolVar(&cf.SkipConfirm)
 	dbExec.Arg("query", "Execute this query on target database services").Required().StringVar(&cf.DatabaseQuery)
+	dbExec.Alias(dbExecHelp)
 
 	// join
 	join := app.Command("join", "Join the active SSH or Kubernetes session.")
