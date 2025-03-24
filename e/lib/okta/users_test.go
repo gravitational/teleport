@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -205,15 +204,15 @@ func BenchmarkUserAssignmentCreator(b *testing.B) {
 
 func assertResourceCount(t *testing.T, ctx context.Context, ap *testUACAccessPoint, want int) {
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		resources, _, err := ap.uac.resourceCache.IterateUnifiedResources(ctx, func(rwl types.ResourceWithLabels) (bool, error) {
-			return rwl.GetKind() == types.KindAppServer, nil
-		}, &proto.ListUnifiedResourcesRequest{
-			Kinds:  []string{types.KindAppServer},
-			Limit:  5,
-			SortBy: types.SortBy{Field: services.SortByName},
-		})
-		assert.NoError(t, err)
-		assert.Len(t, resources, want)
+		var count int
+		for _, err := range ap.uac.resourceCache.AppServers(ctx, services.UnifiedResourcesIterateParams{}) {
+			if !assert.NoError(t, err) {
+				return
+			}
+			count++
+		}
+
+		assert.Equal(t, want, count)
 	}, 10*time.Second, 100*time.Millisecond)
 }
 

@@ -14,7 +14,6 @@ import (
 	"google.golang.org/grpc/connectivity"
 	_ "google.golang.org/grpc/health"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
@@ -35,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // initializeAndWatchAccessGraph initializes the access graph service and watches the auth server for events.
@@ -1361,38 +1359,27 @@ func resourceHeaderFromMetadata(kind, version string, t interface{ GetMetadata()
 // pushResourcesViaUnifiedResourcesCache pushes resources to the access graph service via the unified resources cache.
 // It iterates over all resources in the unified resources cache whose kinds match [kinds] and pushes them to the access graph service.
 func pushResourcesViaUnifiedResourcesCache(ctx context.Context, authServer *auth.Server, stream accessgraphv1.AccessGraphService_EventsStreamV2Client, kinds ...string) error {
-	set := utils.StringsSet(kinds)
-	req := &proto.ListUnifiedResourcesRequest{
-		Kinds: kinds,
-		Limit: apidefaults.DefaultChunkSize,
-		SortBy: types.SortBy{
-			Field: types.ResourceKind,
-		},
-	}
-	if err := req.CheckAndSetDefaults(); err != nil {
-		panic(err)
-	}
-
-	for {
-		resources, nextKey, err := authServer.UnifiedResourceCache.IterateUnifiedResources(
-			ctx,
-			func(rwl types.ResourceWithLabels) (bool, error) {
-				_, ok := set[rwl.GetKind()]
-				return ok, nil
-			},
-			req,
-		)
+	resources := make([]types.ResourceWithLabels, 0, apidefaults.DefaultChunkSize)
+	for resource, err := range authServer.UnifiedResourceCache.Resources(ctx, "", types.SortBy{Field: types.ResourceKind}, kinds...) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		resources = append(resources, resource)
+		if len(resources) >= apidefaults.DefaultChunkSize {
+			if err := pushResourcesWithLabelsToTAG(resources, stream); err != nil {
+				return trace.Wrap(err)
+			}
+			resources = resources[:0]
+		}
+	}
+
+	if len(resources) > 0 {
 		if err := pushResourcesWithLabelsToTAG(resources, stream); err != nil {
 			return trace.Wrap(err)
 		}
-		if nextKey == "" {
-			break
-		}
-		req.StartKey = nextKey
 	}
+
 	return nil
 }
 

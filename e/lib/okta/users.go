@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"slices"
 	"sort"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -355,20 +355,14 @@ func (u *UserAssignmentCreator) groupTargets(ctx context.Context, accessChecker 
 func (u *UserAssignmentCreator) appServerTargets(ctx context.Context, accessChecker services.AccessChecker) ([]string, error) {
 	targets := map[string]struct{}{}
 
-	// Iterate through the app servers. Note that when iterating
-	// false, nil is returned in all branches because we don't
-	// want the unified resource cache to accumulate resources.
-	// Similarly the returned resources and next key are ignored
-	// because the targets map is built manually during iteration.
-	_, _, err := u.resourceCache.IterateUnifiedResources(ctx, func(rwl types.ResourceWithLabels) (bool, error) {
-		// Only check Okta apps.
-		if rwl.Origin() != types.OriginOkta {
-			return false, nil
+	for appServer, err := range u.resourceCache.AppServers(ctx, services.UnifiedResourcesIterateParams{}) {
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
-		appServer, ok := rwl.(types.AppServer)
-		if !ok {
-			return false, nil
+		// Only check Okta apps.
+		if appServer.Origin() != types.OriginOkta {
+			continue
 		}
 
 		app := appServer.GetApp()
@@ -380,22 +374,9 @@ func (u *UserAssignmentCreator) appServerTargets(ctx context.Context, accessChec
 		} else if !trace.IsAccessDenied(err) {
 			u.logger.ErrorContext(ctx, "Error checking access to application during login", "error", err)
 		}
-
-		return false, nil
-	}, &proto.ListUnifiedResourcesRequest{
-		Kinds:  []string{types.KindAppServer},
-		SortBy: types.SortBy{Field: services.SortByName},
-	})
-
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
-	out := make([]string, 0, len(targets))
-	for k := range maps.Keys(targets) {
-		out = append(out, k)
-	}
-	return out, nil
+	return slices.Collect(maps.Keys(targets)), nil
 }
 
 // newOktaAssignment will create an Okta assignment resource corresponding to the groups and apps given. The groups and apps
