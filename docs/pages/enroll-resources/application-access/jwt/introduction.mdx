@@ -116,6 +116,24 @@ can be trusted. This endpoint is `https://[cluster-name]:3080/.well-known/jwks.j
 See the example Go program used to validate Teleport's JWT tokens on our
 [GitHub](https://github.com/gravitational/teleport/blob/v(=teleport.version=)/examples/jwt/verify-jwt.go).
 
+## Known Issues
+
+Some webservers like Apache Tomcat have an HTTP Header limit of 8KB by default.
+It's possible that the webserver responds with an HTTP Status Code 400 "Bad Request - Header too large" when running behind the Application Service.
+
+To circumvent this error, you can either increase the max header size of the webserver or disable passing some information in the generated JWT.
+This will reduce the size of the JWT significantly, which helps to stay below the configured HTTP Header Limit.
+You can do this by setting the `jwt_claims` variable to `none` for example.
+
+Full example:
+```yaml
+- name: 'dashboard'
+  uri: http://localhost:8080
+  public_addr: dashboard.example.com
+  rewrite:
+    jwt_headers: none
+```
+
 ## Application guides
 
 Many existing web applications and APIs support JWT authentication.
