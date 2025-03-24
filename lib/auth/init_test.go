@@ -698,21 +698,22 @@ func TestSessionRecordingConfig(t *testing.T) {
 
 func TestClusterID(t *testing.T) {
 	conf := setupConfig(t)
-	authServer, err := Init(context.Background(), conf)
+	ctx := context.Background()
+	authServer, err := Init(ctx, conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cc, err := authServer.GetClusterName()
+	cc, err := authServer.GetClusterName(ctx)
 	require.NoError(t, err)
 	clusterID := cc.GetClusterID()
 	require.NotEmpty(t, clusterID)
 
 	// do it again and make sure cluster ID hasn't changed
-	authServer, err = Init(context.Background(), conf)
+	authServer, err = Init(ctx, conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cc, err = authServer.GetClusterName()
+	cc, err = authServer.GetClusterName(ctx)
 	require.NoError(t, err)
 	require.Equal(t, clusterID, cc.GetClusterID())
 }
@@ -720,7 +721,8 @@ func TestClusterID(t *testing.T) {
 // TestClusterName ensures that a cluster can not be renamed.
 func TestClusterName(t *testing.T) {
 	conf := setupConfig(t)
-	authServer, err := Init(context.Background(), conf)
+	ctx := context.Background()
+	authServer, err := Init(ctx, conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
@@ -735,7 +737,7 @@ func TestClusterName(t *testing.T) {
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cn, err := authServer.GetClusterName()
+	cn, err := authServer.GetClusterName(ctx)
 	require.NoError(t, err)
 	require.NotEqual(t, newConfig.ClusterName.GetClusterName(), cn.GetClusterName())
 	require.Equal(t, conf.ClusterName.GetClusterName(), cn.GetClusterName())

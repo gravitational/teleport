@@ -93,7 +93,7 @@ type AccessPoint interface {
 	types.Semaphores
 
 	// GetClusterName returns cluster name
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
@@ -465,7 +465,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		child.Logger = child.Logger.With("idle", child.clientIdleTimeout)
 	}
 
-	clusterName, err := srv.GetAccessPoint().GetClusterName()
+	clusterName, err := srv.GetAccessPoint().GetClusterName(ctx)
 	if err != nil {
 		childErr := child.Close()
 		return nil, trace.NewAggregate(err, childErr)

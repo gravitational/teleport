@@ -45,7 +45,7 @@ import (
 // Cache is the subset of the cached resources that the Service queries.
 type Cache interface {
 	// GetClusterName returns local cluster name of the current auth server
-	GetClusterName(...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 
 	// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 	// controls if signing keys are loaded
@@ -238,7 +238,7 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		// This creates a new AppServer whose endpoint is <integrationName>.<proxyURL>, which can fail if integrationName is not a valid DNS Label.
 		// Instead of failing when the integration is already created, it fails at creation time.
 		if errs := validation.IsDNS1035Label(req.GetIntegration().GetName()); len(errs) > 0 {
-			return nil, trace.BadParameter("integration name %q must be a valid DNS subdomain so that it can be used to allow Web/CLI access", req.GetIntegration().GetName())
+			return nil, trace.BadParameter("integration name %q must be a lower case valid DNS subdomain so that it can be used to allow Web/CLI access", req.GetIntegration().GetName())
 		}
 	}
 

@@ -17,17 +17,16 @@
  */
 
 import { renderHook, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
 
-import { ContextProvider } from 'teleport/index';
-import {
-  DiscoverEventResource,
-  userEventService,
-} from 'teleport/services/userEvent';
+import { userEventService } from 'teleport/services/userEvent';
 import { ProxyRequiresUpgrade } from 'teleport/services/version/unsupported';
 import TeleportContext from 'teleport/teleportContext';
 
-import { DiscoverContextState, DiscoverProvider } from '../useDiscover';
+import {
+  RequiredDiscoverProviders,
+  resourceSpecAwsEks,
+} from '../Fixtures/fixtures';
+import { DiscoverContextState } from '../useDiscover';
 import { ResourceKind } from './ResourceKind';
 import {
   clearCachedJoinTokenResult,
@@ -57,11 +56,14 @@ test('create join token without labels', async () => {
     .mockResolvedValue(tokenResp);
 
   const wrapper = ({ children }) => (
-    <MemoryRouter>
-      <ContextProvider ctx={ctx}>
-        <DiscoverProvider mockCtx={discoverCtx}>{children}</DiscoverProvider>
-      </ContextProvider>
-    </MemoryRouter>
+    <RequiredDiscoverProviders
+      agentMeta={discoverCtx.agentMeta}
+      resourceSpec={discoverCtx.resourceSpec}
+      teleportCtx={ctx}
+      discoverCtx={discoverCtx}
+    >
+      {children}
+    </RequiredDiscoverProviders>
   );
 
   let { result } = renderHook(
@@ -90,11 +92,14 @@ test('create join token without labels with v1 fallback', async () => {
     .mockResolvedValue(tokenResp);
 
   const wrapper = ({ children }) => (
-    <MemoryRouter>
-      <ContextProvider ctx={ctx}>
-        <DiscoverProvider mockCtx={discoverCtx}>{children}</DiscoverProvider>
-      </ContextProvider>
-    </MemoryRouter>
+    <RequiredDiscoverProviders
+      agentMeta={discoverCtx.agentMeta}
+      resourceSpec={discoverCtx.resourceSpec}
+      teleportCtx={ctx}
+      discoverCtx={discoverCtx}
+    >
+      {children}
+    </RequiredDiscoverProviders>
   );
 
   let { result } = renderHook(
@@ -121,13 +126,7 @@ const discoverCtx: DiscoverContextState = {
   nextStep: () => null,
   prevStep: () => null,
   onSelectResource: () => null,
-  resourceSpec: {
-    name: 'Eks',
-    kind: ResourceKind.Kubernetes,
-    icon: 'eks',
-    keywords: [],
-    event: DiscoverEventResource.KubernetesEks,
-  },
+  resourceSpec: resourceSpecAwsEks,
   exitFlow: () => null,
   viewConfig: null,
   indexedViews: [],

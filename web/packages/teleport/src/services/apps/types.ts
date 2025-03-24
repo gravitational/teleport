@@ -35,7 +35,8 @@ export interface App {
   awsRoles: AwsRole[];
   awsConsole: boolean;
   requiresRequest?: boolean;
-  isCloudOrTcpEndpoint?: boolean;
+  isTcp?: boolean;
+  isCloud?: boolean;
   // addrWithProtocol can either be a public address or
   // if public address wasn't defined, fallback to uri
   addrWithProtocol?: string;
@@ -58,6 +59,11 @@ export interface App {
    * aws_ic_account.
    */
   permissionSets?: PermissionSet[];
+  /**
+   * SamlAppLaunchUrl contains service provider specific authentication
+   * endpoints where user should be launched to start SAML authentication.
+   */
+  samlAppLaunchUrls?: SamlAppLaunchUrl[];
 }
 
 export type UserGroupAndDescription = {
@@ -81,4 +87,15 @@ export type PermissionSet = {
   arn: string;
   /** assignmentId is an account assignment ID. */
   assignmentId: string;
+};
+
+/**
+ * SamlAppLaunchUrl contains service provider specific authentication
+ * endpoint where user should be launched to start SAML authentication.
+ */
+export type SamlAppLaunchUrl = {
+  /* launch URL. */
+  url: string;
+  /* friendly name of the URL. */
+  friendlyName?: string;
 };

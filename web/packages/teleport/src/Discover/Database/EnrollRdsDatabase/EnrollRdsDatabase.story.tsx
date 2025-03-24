@@ -18,22 +18,13 @@
 
 import { delay, http, HttpResponse } from 'msw';
 import { useEffect } from 'react';
-import { MemoryRouter } from 'react-router';
 import { withoutQuery } from 'web/packages/build/storybook';
 
 import { Info } from 'design/Alert';
 
-import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import {
-  DatabaseEngine,
-  DatabaseLocation,
-} from 'teleport/Discover/SelectResource';
-import {
-  DiscoverContextState,
-  DiscoverProvider,
-} from 'teleport/Discover/useDiscover';
-import { createTeleportContext } from 'teleport/mocks/contexts';
+import { resourceSpecAwsRdsPostgres } from 'teleport/Discover/Fixtures/databases';
+import { RequiredDiscoverProviders } from 'teleport/Discover/Fixtures/fixtures';
 import {
   IntegrationKind,
   IntegrationStatusCode,
@@ -271,60 +262,31 @@ WithOneOfDbListError.parameters = {
 };
 
 const Component = () => {
-  const ctx = createTeleportContext();
-  const discoverCtx: DiscoverContextState = {
-    agentMeta: {
-      resourceName: 'db-name',
-      agentMatcherLabels: [],
-      db: {} as any,
-      selectedAwsRdsDb: {} as any,
-      node: {} as any,
-      awsIntegration: {
-        kind: IntegrationKind.AwsOidc,
-        name: 'test-oidc',
-        resourceType: 'integration',
-        spec: {
-          roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
-          issuerS3Bucket: '',
-          issuerS3Prefix: '',
-        },
-        statusCode: IntegrationStatusCode.Running,
-      },
-    },
-    currentStep: 0,
-    nextStep: () => null,
-    prevStep: () => null,
-    onSelectResource: () => null,
-    resourceSpec: {
-      dbMeta: {
-        location: DatabaseLocation.Aws,
-        engine: DatabaseEngine.Postgres,
-      },
-    } as any,
-    exitFlow: () => null,
-    viewConfig: null,
-    indexedViews: [],
-    setResourceSpec: () => null,
-    updateAgentMeta: () => null,
-    emitErrorEvent: () => null,
-    emitEvent: () => null,
-    eventState: null,
-  };
-
-  cfg.proxyCluster = 'localhost';
   return (
-    <MemoryRouter
-      initialEntries={[
-        { pathname: cfg.routes.discover, state: { entity: 'database' } },
-      ]}
+    <RequiredDiscoverProviders
+      agentMeta={{
+        resourceName: 'db-name',
+        agentMatcherLabels: [],
+        db: {} as any,
+        selectedAwsRdsDb: {} as any,
+        node: {} as any,
+        awsIntegration: {
+          kind: IntegrationKind.AwsOidc,
+          name: 'test-oidc',
+          resourceType: 'integration',
+          spec: {
+            roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
+            issuerS3Bucket: '',
+            issuerS3Prefix: '',
+          },
+          statusCode: IntegrationStatusCode.Running,
+        },
+      }}
+      resourceSpec={resourceSpecAwsRdsPostgres}
     >
-      <ContextProvider ctx={ctx}>
-        <DiscoverProvider mockCtx={discoverCtx}>
-          <Info>Devs: Select any region to see story state</Info>
-          <EnrollRdsDatabase />
-        </DiscoverProvider>
-      </ContextProvider>
-    </MemoryRouter>
+      <Info>Devs: Select any region to see story state</Info>
+      <EnrollRdsDatabase />
+    </RequiredDiscoverProviders>
   );
 };
 

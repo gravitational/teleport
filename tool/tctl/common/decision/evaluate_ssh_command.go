@@ -58,7 +58,7 @@ func (c *EvaluateSSHCommand) Run(ctx context.Context, clt Client) error {
 		return trace.BadParameter("please specify an extant teleport user with --username")
 	}
 
-	clusterName, err := clt.GetClusterName()
+	clusterName, err := clt.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
