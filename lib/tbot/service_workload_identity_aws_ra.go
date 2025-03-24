@@ -135,6 +135,7 @@ func (s *WorkloadIdentityAWSRAService) exchangeSVID(
 		Region:            s.cfg.Region,
 		TrustAnchorArnStr: s.cfg.TrustAnchorARN,
 		SessionDuration:   int(s.cfg.SessionDuration.Seconds()),
+		Endpoint:          s.cfg.EndpointOverride,
 	}, signer, algo)
 	if err != nil {
 		return nil, trace.Wrap(err, "exchanging credentials")

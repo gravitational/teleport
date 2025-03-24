@@ -75,6 +75,11 @@ type WorkloadIdentityAWSRAService struct {
 	// renewed. This should be less than the session duration. When unset, this
 	// defaults to 1 hour.
 	SessionRenewalInterval time.Duration `yaml:"session_renewal_interval"`
+
+	// EndpointOverride is the endpoint to use for the AWS Roles Anywhere service.
+	// This is designed to be leveraged by tests and unset in production
+	// circumstances.
+	EndpointOverride string `yaml:"-"`
 }
 
 // Init initializes the destination.
