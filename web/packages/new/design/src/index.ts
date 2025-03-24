@@ -13,9 +13,11 @@ export {
   VStack,
 } from '@chakra-ui/react';
 
-export { ButtonPrimary } from './components/button';
-export { Input } from './components/input/Input';
-export { Select } from './components/select';
+export * from './components/Button';
+export * from './components/FieldInput';
+export * from './components/FieldSelect';
+export * from './components/Input';
+export * from './components/Select';
 
 export type {
   BoxProps,

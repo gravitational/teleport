@@ -20,8 +20,9 @@ import { OnboardUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 
+import type { RecentHistoryItem } from 'teleport-new/navigation/types';
+
 import { getPrefersDark } from 'teleport/LegacyThemeProvider';
-import { RecentHistoryItem } from 'teleport/Navigation/RecentHistory';
 import { OnboardDiscover } from 'teleport/services/user';
 import {
   BackendUserPreferences,

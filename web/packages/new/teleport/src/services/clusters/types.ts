@@ -16,6 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { session } from 'teleport-new/services/websession/websession';
+export interface Cluster {
+  clusterId: string;
+  lastConnected: Date;
+  connectedText: string;
+  status: string;
+  url: string;
+  publicURL: string;
+  authVersion: string;
+  proxyVersion: string;
+  licenseExpiryDateText?: string;
+}
 
-export default session;
+export type ClusterInfo = {
+  isCloud: boolean;
+} & Cluster;

@@ -83,354 +83,309 @@ export const colors = defineTokens.colors({
       value: 'rgba(0, 0, 0, 0.95)',
     },
   },
-  gray: {
-    '50': {
-      value: '#fafafa',
-    },
-    '100': {
-      value: '#f4f4f5',
-    },
-    '200': {
-      value: '#e4e4e7',
-    },
-    '300': {
-      value: '#d4d4d8',
-    },
-    '400': {
-      value: '#a1a1aa',
-    },
-    '500': {
-      value: '#71717a',
-    },
-    '600': {
-      value: '#52525b',
-    },
-    '700': {
-      value: '#3f3f46',
-    },
-    '800': {
-      value: '#27272a',
-    },
-    '900': {
-      value: '#18181b',
-    },
-    '950': {
-      value: '#111111',
-    },
-  },
-  red: {
-    '50': {
-      value: '#fef2f2',
-    },
-    '100': {
-      value: '#fee2e2',
-    },
-    '200': {
-      value: '#fecaca',
-    },
-    '300': {
-      value: '#fca5a5',
-    },
-    '400': {
-      value: '#f87171',
-    },
-    '500': {
-      value: '#ef4444',
-    },
-    '600': {
-      value: '#dc2626',
-    },
-    '700': {
-      value: '#991919',
-    },
-    '800': {
-      value: '#511111',
-    },
-    '900': {
-      value: '#300c0c',
-    },
-    '950': {
-      value: '#1f0808',
-    },
-  },
-  orange: {
-    '50': {
-      value: '#fff7ed',
-    },
-    '100': {
-      value: '#ffedd5',
-    },
-    '200': {
-      value: '#fed7aa',
-    },
-    '300': {
-      value: '#fdba74',
-    },
-    '400': {
-      value: '#fb923c',
-    },
-    '500': {
-      value: '#f97316',
-    },
-    '600': {
-      value: '#ea580c',
-    },
-    '700': {
-      value: '#92310a',
-    },
-    '800': {
-      value: '#6c2710',
-    },
-    '900': {
-      value: '#3b1106',
-    },
-    '950': {
-      value: '#220a04',
-    },
-  },
-  yellow: {
-    '50': {
-      value: '#fefce8',
-    },
-    '100': {
-      value: '#fef9c3',
-    },
-    '200': {
-      value: '#fef08a',
-    },
-    '300': {
-      value: '#fde047',
-    },
-    '400': {
-      value: '#facc15',
-    },
-    '500': {
-      value: '#eab308',
-    },
-    '600': {
-      value: '#ca8a04',
-    },
-    '700': {
-      value: '#845209',
-    },
-    '800': {
-      value: '#713f12',
-    },
-    '900': {
-      value: '#422006',
-    },
-    '950': {
-      value: '#281304',
-    },
-  },
-  green: {
-    '50': {
-      value: '#f0fdf4',
-    },
-    '100': {
-      value: '#dcfce7',
-    },
-    '200': {
-      value: '#bbf7d0',
-    },
-    '300': {
-      value: '#86efac',
-    },
-    '400': {
-      value: '#4ade80',
-    },
-    '500': {
-      value: '#22c55e',
-    },
-    '600': {
-      value: '#16a34a',
-    },
-    '700': {
-      value: '#116932',
-    },
-    '800': {
-      value: '#124a28',
-    },
-    '900': {
-      value: '#042713',
-    },
-    '950': {
-      value: '#03190c',
-    },
-  },
-  teal: {
-    '50': {
-      value: '#f0fdfa',
-    },
-    '100': {
-      value: '#ccfbf1',
-    },
-    '200': {
-      value: '#99f6e4',
-    },
-    '300': {
-      value: '#5eead4',
-    },
-    '400': {
-      value: '#2dd4bf',
-    },
-    '500': {
-      value: '#14b8a6',
-    },
-    '600': {
-      value: '#0d9488',
-    },
-    '700': {
-      value: '#0c5d56',
-    },
-    '800': {
-      value: '#114240',
-    },
-    '900': {
-      value: '#032726',
-    },
-    '950': {
-      value: '#021716',
-    },
+  amber: {
+    50: { value: '#fff8e1' },
+    100: { value: '#ffecb3' },
+    200: { value: '#ffe082' },
+    300: { value: '#ffd54f' },
+    400: { value: '#ffca28' },
+    500: { value: '#ffc107' },
+    600: { value: '#ffb300' },
+    700: { value: '#ffa000' },
+    800: { value: '#ff8f00' },
+    900: { value: '#ff6f00' },
+    A100: { value: '#ffe57f' },
+    A200: { value: '#ffd740' },
+    A400: { value: '#ffc400' },
+    A700: { value: '#ffab00' },
   },
   blue: {
-    '50': {
-      value: '#eff6ff',
-    },
-    '100': {
-      value: '#dbeafe',
-    },
-    '200': {
-      value: '#bfdbfe',
-    },
-    '300': {
-      value: '#a3cfff',
-    },
-    '400': {
-      value: '#60a5fa',
-    },
-    '500': {
-      value: '#3b82f6',
-    },
-    '600': {
-      value: '#2563eb',
-    },
-    '700': {
-      value: '#173da6',
-    },
-    '800': {
-      value: '#1a3478',
-    },
-    '900': {
-      value: '#14204a',
-    },
-    '950': {
-      value: '#0c142e',
-    },
+    50: { value: '#e3f2fd' },
+    100: { value: '#bbdefb' },
+    200: { value: '#90caf9' },
+    300: { value: '#64b5f6' },
+    400: { value: '#42a5f5' },
+    500: { value: '#2196f3' },
+    600: { value: '#1e88e5' },
+    700: { value: '#1976d2' },
+    800: { value: '#1565c0' },
+    900: { value: '#0d47a1' },
+    A100: { value: '#82b1ff' },
+    A200: { value: '#448aff' },
+    A400: { value: '#2979ff' },
+    A700: { value: '#2962ff' },
+  },
+  blueGrey: {
+    50: { value: '#eceff1' },
+    100: { value: '#cfd8dc' },
+    200: { value: '#b0bec5' },
+    300: { value: '#90a4ae' },
+    400: { value: '#78909c' },
+    500: { value: '#607d8b' },
+    600: { value: '#546e7a' },
+    700: { value: '#455a64' },
+    800: { value: '#37474f' },
+    900: { value: '#263238' },
+    A100: { value: '#cfd8dc' },
+    A200: { value: '#b0bec5' },
+    A400: { value: '#78909c' },
+    A700: { value: '#455a64' },
+  },
+  brown: {
+    50: { value: '#efebe9' },
+    100: { value: '#d7ccc8' },
+    200: { value: '#bcaaa4' },
+    300: { value: '#a1887f' },
+    400: { value: '#8d6e63' },
+    500: { value: '#795548' },
+    600: { value: '#6d4c41' },
+    700: { value: '#5d4037' },
+    800: { value: '#4e342e' },
+    900: { value: '#3e2723' },
+    A100: { value: '#d7ccc8' },
+    A200: { value: '#bcaaa4' },
+    A400: { value: '#8d6e63' },
+    A700: { value: '#5d4037' },
   },
   cyan: {
-    '50': {
-      value: '#ecfeff',
-    },
-    '100': {
-      value: '#cffafe',
-    },
-    '200': {
-      value: '#a5f3fc',
-    },
-    '300': {
-      value: '#67e8f9',
-    },
-    '400': {
-      value: '#22d3ee',
-    },
-    '500': {
-      value: '#06b6d4',
-    },
-    '600': {
-      value: '#0891b2',
-    },
-    '700': {
-      value: '#0c5c72',
-    },
-    '800': {
-      value: '#134152',
-    },
-    '900': {
-      value: '#072a38',
-    },
-    '950': {
-      value: '#051b24',
-    },
+    50: { value: '#e0f7fa' },
+    100: { value: '#b2ebf2' },
+    200: { value: '#80deea' },
+    300: { value: '#4dd0e1' },
+    400: { value: '#26c6da' },
+    500: { value: '#00bcd4' },
+    600: { value: '#00acc1' },
+    700: { value: '#0097a7' },
+    800: { value: '#00838f' },
+    900: { value: '#006064' },
+    A100: { value: '#84ffff' },
+    A200: { value: '#18ffff' },
+    A400: { value: '#00e5ff' },
+    A700: { value: '#00b8d4' },
   },
-  purple: {
-    '50': {
-      value: '#faf5ff',
-    },
-    '100': {
-      value: '#f3e8ff',
-    },
-    '200': {
-      value: '#e9d5ff',
-    },
-    '300': {
-      value: '#d8b4fe',
-    },
-    '400': {
-      value: '#c084fc',
-    },
-    '500': {
-      value: '#a855f7',
-    },
-    '600': {
-      value: '#9333ea',
-    },
-    '700': {
-      value: '#641ba3',
-    },
-    '800': {
-      value: '#4a1772',
-    },
-    '900': {
-      value: '#2f0553',
-    },
-    '950': {
-      value: '#1a032e',
-    },
+  deepOrange: {
+    50: { value: '#fbe9e7' },
+    100: { value: '#ffccbc' },
+    200: { value: '#ffab91' },
+    300: { value: '#ff8a65' },
+    400: { value: '#ff7043' },
+    500: { value: '#ff5722' },
+    600: { value: '#f4511e' },
+    700: { value: '#e64a19' },
+    800: { value: '#d84315' },
+    900: { value: '#bf360c' },
+    A100: { value: '#ff9e80' },
+    A200: { value: '#ff6e40' },
+    A400: { value: '#ff3d00' },
+    A700: { value: '#dd2c00' },
+  },
+  deepPurple: {
+    50: { value: '#ede7f6' },
+    100: { value: '#d1c4e9' },
+    200: { value: '#b39ddb' },
+    300: { value: '#9575cd' },
+    400: { value: '#7e57c2' },
+    500: { value: '#673ab7' },
+    600: { value: '#5e35b1' },
+    700: { value: '#512da8' },
+    800: { value: '#4527a0' },
+    900: { value: '#311b92' },
+    A100: { value: '#b388ff' },
+    A200: { value: '#7c4dff' },
+    A400: { value: '#651fff' },
+    A700: { value: '#6200ea' },
+  },
+  green: {
+    50: { value: '#e8f5e9' },
+    100: { value: '#c8e6c9' },
+    200: { value: '#a5d6a7' },
+    300: { value: '#81c784' },
+    400: { value: '#66bb6a' },
+    500: { value: '#4caf50' },
+    600: { value: '#43a047' },
+    700: { value: '#388e3c' },
+    800: { value: '#2e7d32' },
+    900: { value: '#1b5e20' },
+    A100: { value: '#b9f6ca' },
+    A200: { value: '#69f0ae' },
+    A400: { value: '#00e676' },
+    A700: { value: '#00c853' },
+  },
+  grey: {
+    50: { value: '#fafafa' },
+    100: { value: '#f5f5f5' },
+    200: { value: '#eeeeee' },
+    300: { value: '#e0e0e0' },
+    400: { value: '#bdbdbd' },
+    500: { value: '#9e9e9e' },
+    600: { value: '#757575' },
+    700: { value: '#616161' },
+    800: { value: '#424242' },
+    900: { value: '#212121' },
+    A100: { value: '#d5d5d5' },
+    A200: { value: '#aaaaaa' },
+    A400: { value: '#303030' },
+    A700: { value: '#616161' },
+  },
+  indigo: {
+    50: { value: '#e8eaf6' },
+    100: { value: '#c5cae9' },
+    200: { value: '#9fa8da' },
+    300: { value: '#7986cb' },
+    400: { value: '#5c6bc0' },
+    500: { value: '#3f51b5' },
+    600: { value: '#3949ab' },
+    700: { value: '#303f9f' },
+    800: { value: '#283593' },
+    900: { value: '#1a237e' },
+    A100: { value: '#8c9eff' },
+    A200: { value: '#536dfe' },
+    A400: { value: '#3d5afe' },
+    A700: { value: '#304ffe' },
+  },
+  lightBlue: {
+    50: { value: '#e1f5fe' },
+    100: { value: '#b3e5fc' },
+    200: { value: '#81d4fa' },
+    300: { value: '#4fc3f7' },
+    400: { value: '#29b6f6' },
+    500: { value: '#03a9f4' },
+    600: { value: '#039be5' },
+    700: { value: '#0288d1' },
+    800: { value: '#0277bd' },
+    900: { value: '#01579b' },
+    A100: { value: '#80d8ff' },
+    A200: { value: '#40c4ff' },
+    A400: { value: '#00b0ff' },
+    A700: { value: '#0091ea' },
+  },
+  lightGreen: {
+    50: { value: '#f1f8e9' },
+    100: { value: '#dcedc8' },
+    200: { value: '#c5e1a5' },
+    300: { value: '#aed581' },
+    400: { value: '#9ccc65' },
+    500: { value: '#8bc34a' },
+    600: { value: '#7cb342' },
+    700: { value: '#689f38' },
+    800: { value: '#558b2f' },
+    900: { value: '#33691e' },
+    A100: { value: '#ccff90' },
+    A200: { value: '#b2ff59' },
+    A400: { value: '#76ff03' },
+    A700: { value: '#64dd17' },
+  },
+  lime: {
+    50: { value: '#f9fbe7' },
+    100: { value: '#f0f4c3' },
+    200: { value: '#e6ee9c' },
+    300: { value: '#dce775' },
+    400: { value: '#d4e157' },
+    500: { value: '#cddc39' },
+    600: { value: '#c0ca33' },
+    700: { value: '#afb42b' },
+    800: { value: '#9e9d24' },
+    900: { value: '#827717' },
+    A100: { value: '#f4ff81' },
+    A200: { value: '#eeff41' },
+    A400: { value: '#c6ff00' },
+    A700: { value: '#aeea00' },
+  },
+  orange: {
+    50: { value: '#fff3e0' },
+    100: { value: '#ffe0b2' },
+    200: { value: '#ffcc80' },
+    300: { value: '#ffb74d' },
+    400: { value: '#ffa726' },
+    500: { value: '#ff9800' },
+    600: { value: '#fb8c00' },
+    700: { value: '#f57c00' },
+    800: { value: '#ef6c00' },
+    900: { value: '#e65100' },
+    A100: { value: '#ffd180' },
+    A200: { value: '#ffab40' },
+    A400: { value: '#ff9100' },
+    A700: { value: '#ff6d00' },
   },
   pink: {
-    '50': {
-      value: '#fdf2f8',
-    },
-    '100': {
-      value: '#fce7f3',
-    },
-    '200': {
-      value: '#fbcfe8',
-    },
-    '300': {
-      value: '#f9a8d4',
-    },
-    '400': {
-      value: '#f472b6',
-    },
-    '500': {
-      value: '#ec4899',
-    },
-    '600': {
-      value: '#db2777',
-    },
-    '700': {
-      value: '#a41752',
-    },
-    '800': {
-      value: '#6d0e34',
-    },
-    '900': {
-      value: '#45061f',
-    },
-    '950': {
-      value: '#2c0514',
-    },
+    50: { value: '#fce4ec' },
+    100: { value: '#f8bbd0' },
+    200: { value: '#f48fb1' },
+    300: { value: '#f06292' },
+    400: { value: '#ec407a' },
+    500: { value: '#e91e63' },
+    600: { value: '#d81b60' },
+    700: { value: '#c2185b' },
+    800: { value: '#ad1457' },
+    900: { value: '#880e4f' },
+    A100: { value: '#ff80ab' },
+    A200: { value: '#ff4081' },
+    A400: { value: '#f50057' },
+    A700: { value: '#c51162' },
+  },
+  purple: {
+    50: { value: '#f3e5f5' },
+    100: { value: '#e1bee7' },
+    200: { value: '#ce93d8' },
+    300: { value: '#ba68c8' },
+    400: { value: '#ab47bc' },
+    500: { value: '#9c27b0' },
+    600: { value: '#8e24aa' },
+    700: { value: '#7b1fa2' },
+    800: { value: '#6a1b9a' },
+    900: { value: '#4a148c' },
+    A100: { value: '#ea80fc' },
+    A200: { value: '#e040fb' },
+    A400: { value: '#d500f9' },
+    A700: { value: '#aa00ff' },
+  },
+  red: {
+    50: { value: '#ffebee' },
+    100: { value: '#ffcdd2' },
+    200: { value: '#ef9a9a' },
+    300: { value: '#e57373' },
+    400: { value: '#ef5350' },
+    500: { value: '#f44336' },
+    600: { value: '#e53935' },
+    700: { value: '#d32f2f' },
+    800: { value: '#c62828' },
+    900: { value: '#b71c1c' },
+    A100: { value: '#ff8a80' },
+    A200: { value: '#ff5252' },
+    A400: { value: '#ff1744' },
+    A700: { value: '#d50000' },
+  },
+  teal: {
+    50: { value: '#e0f2f1' },
+    100: { value: '#b2dfdb' },
+    200: { value: '#80cbc4' },
+    300: { value: '#4db6ac' },
+    400: { value: '#26a69a' },
+    500: { value: '#009688' },
+    600: { value: '#00897b' },
+    700: { value: '#00796b' },
+    800: { value: '#00695c' },
+    900: { value: '#004d40' },
+    A100: { value: '#a7ffeb' },
+    A200: { value: '#64ffda' },
+    A400: { value: '#1de9b6' },
+    A700: { value: '#00bfa5' },
+  },
+  yellow: {
+    50: { value: '#fffde7' },
+    100: { value: '#fff9c4' },
+    200: { value: '#fff59d' },
+    300: { value: '#fff176' },
+    400: { value: '#ffee58' },
+    500: { value: '#ffeb3b' },
+    600: { value: '#fdd835' },
+    700: { value: '#fbc02d' },
+    800: { value: '#f9a825' },
+    900: { value: '#f57f17' },
+    A100: { value: '#ffff8d' },
+    A200: { value: '#ffff00' },
+    A400: { value: '#ffea00' },
+    A700: { value: '#ffd600' },
   },
 });
+

@@ -16,11 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { QueryClientProvider } from '@tanstack/react-query';
 import type { History } from 'history';
 import React, { Suspense, useEffect } from 'react';
 
 import { ThemeProvider } from 'design-new/provider';
 
+import { queryClient } from 'teleport-new/queryClient';
 import { NewLoginRoute } from 'teleport-new/routes/login/Login';
 
 import Authenticated from 'teleport/components/Authenticated';
@@ -82,34 +84,36 @@ const Teleport: React.FC<Props> = props => {
 
   return (
     <CatchError>
-      <ThemeProvider>
-        <LegacyThemeProvider>
-          <LayoutContextProvider>
-            <Router history={history}>
-              <Suspense fallback={null}>
-                <Switch>
-                  {createPublicRoutes()}
-                  <Route path={cfg.routes.root}>
-                    <Authenticated>
-                      <UserContextProvider>
-                        <TeleportContextProvider ctx={ctx}>
-                          <Switch>
-                            <Route
-                              path={cfg.routes.appLauncher}
-                              component={AppLauncher}
-                            />
-                            <Route>{createPrivateRoutes()}</Route>
-                          </Switch>
-                        </TeleportContextProvider>
-                      </UserContextProvider>
-                    </Authenticated>
-                  </Route>
-                </Switch>
-              </Suspense>
-            </Router>
-          </LayoutContextProvider>
-        </LegacyThemeProvider>
-      </ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <LegacyThemeProvider>
+            <LayoutContextProvider>
+              <Router history={history}>
+                <Suspense fallback={null}>
+                  <Switch>
+                    {createPublicRoutes()}
+                    <Route path={cfg.routes.root}>
+                      <Authenticated>
+                        <UserContextProvider>
+                          <TeleportContextProvider ctx={ctx}>
+                            <Switch>
+                              <Route
+                                path={cfg.routes.appLauncher}
+                                component={AppLauncher}
+                              />
+                              <Route>{createPrivateRoutes()}</Route>
+                            </Switch>
+                          </TeleportContextProvider>
+                        </UserContextProvider>
+                      </Authenticated>
+                    </Route>
+                  </Switch>
+                </Suspense>
+              </Router>
+            </LayoutContextProvider>
+          </LegacyThemeProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
     </CatchError>
   );
 };

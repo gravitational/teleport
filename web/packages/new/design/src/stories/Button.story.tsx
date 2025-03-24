@@ -26,8 +26,9 @@ import {
   ButtonPrimary,
   ButtonSecondary,
   ButtonWarning,
-} from '../components/button';
-import { Input } from '../components/input/Input';
+} from '../components/Button';
+import { Input } from '../components/Input';
+import type { ExtractValueType } from '../types';
 
 const meta: Meta<typeof Button> = {
   component: Button,
@@ -38,8 +39,10 @@ export default meta;
 
 type Story = StoryObj<typeof Button>;
 
-export const Buttons = () => {
-  const fills: ButtonProps['variant'][] = ['filled', 'minimal', 'border'];
+type ButtonFill = ExtractValueType<ButtonProps['variant']>;
+
+export const Buttons: Story = () => {
+  const fills: ButtonFill[] = ['filled', 'minimal', 'border'];
 
   return (
     <Flex gap={5} direction="column" align="flex-start">

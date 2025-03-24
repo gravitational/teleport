@@ -24,18 +24,12 @@ import styled from 'styled-components';
 import { ButtonIcon, Flex, H4, P3, Text } from 'design';
 import { Cross } from 'design/Icon';
 
+import type { RecentHistoryItem } from 'teleport-new/navigation/types';
+
 import { useFeatures } from 'teleport/FeaturesContext';
 import { TeleportFeature } from 'teleport/types';
 
-import { SidenavCategory } from './categories';
 import { getSubsectionStyles } from './Section';
-
-export type RecentHistoryItem = {
-  category?: SidenavCategory;
-  title: string;
-  route: string;
-  exact?: boolean;
-};
 
 type AnimatedItem = RecentHistoryItem & {
   animationState: 'exiting' | 'entering' | '';

@@ -379,7 +379,7 @@ export const cfg = {
 
   playable_db_protocols: [],
 
-  getNonExactRoutes() {
+  getNonExactRoutes(): string[] {
     // These routes will not be exact matched when deciding if it is a valid route
     // to redirect to when a user is unauthenticated.
     // This is useful for routes that can be infinitely nested, e.g. `
@@ -392,7 +392,7 @@ export const cfg = {
     ];
   },
 
-  getPlayableDatabaseProtocols() {
+  getPlayableDatabaseProtocols(): string[] {
     return cfg.playable_db_protocols;
   },
 

@@ -8,7 +8,7 @@ import {
 } from '@chakra-ui/react';
 import { forwardRef, type ReactNode, type RefAttributes } from 'react';
 
-import { WarningCircleIcon } from '../../icons/WarningCircle';
+import { WarningCircleIcon } from '../icons/WarningCircle';
 
 const {
   withContext,
@@ -52,7 +52,7 @@ export const Input = forwardRef<
         )}
 
         <StyledField
-          data-invalid={hasError}
+          data-invalid={hasError ? 'true' : undefined}
           {...rest}
           pl={paddingLeft}
           pr={paddingRight}

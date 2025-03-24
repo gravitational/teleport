@@ -16,6 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { DeviceWebToken } from 'gen-proto-ts/teleport/devicetrust/v1/device_web_token_pb';
+import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
+
 import type {
   DeviceUsage,
   IsMfaRequiredRequest,
@@ -81,4 +84,15 @@ export interface ChangePasswordReq {
 export interface CreateNewHardwareDeviceRequest {
   tokenId: string;
   deviceUsage?: DeviceUsage;
+}
+
+export interface LoginResponse {
+  type: string;
+  token: string;
+  expires_in: number;
+  sessionExpiresIn?: number;
+  sessionExpires?: string;
+  sessionInactiveTimeout?: number;
+  deviceWebToken?: DeviceWebToken;
+  trustedDeviceRequirement?: TrustedDeviceRequirement;
 }

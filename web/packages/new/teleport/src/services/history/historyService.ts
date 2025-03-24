@@ -1,12 +1,13 @@
 import { matchPath } from 'react-router';
 
-import { routePaths, type RouteRecord } from '../../config/routes';
+import { cfg } from '../../config';
+import type { RouteRecord } from '../../config/routes';
 
-const nonExactRoutes = [routePaths.accessGraph.base];
+const nonExactRoutes = [cfg.routes.accessGraph.base];
 
 export const HistoryService = {
   canPush(route: string) {
-    const knownRoutes = collectAllValues(routePaths);
+    const knownRoutes = collectAllValues(cfg.routes);
 
     const { pathname } = new URL(this.ensureBaseUrl(route));
 
@@ -36,7 +37,37 @@ export const HistoryService = {
     return urlWithBase.toString();
   },
   ensureKnownRoute(url: string) {
-    return this.canPush(url) ? url : routePaths.root;
+    return this.canPush(url) ? url : cfg.routes.root;
+  },
+  goToLogin({
+    rememberLocation = false,
+    withAccessChangedMessage = false,
+  } = {}) {
+    const params: string[] = [];
+
+    // withAccessChangedMessage determines whether the login page the user is redirected to should include a notice that
+    // they were logged out due to their roles having changed.
+    if (withAccessChangedMessage) {
+      params.push('access_changed');
+    }
+
+    if (rememberLocation) {
+      const { search, pathname } = window.location;
+
+      const knownRoute = this.ensureKnownRoute(pathname);
+      const knownRedirect = this.ensureBaseUrl(knownRoute);
+
+      const query = search ? encodeURIComponent(search) : '';
+
+      params.push(`redirect_uri=${knownRedirect}${query}`);
+    }
+
+    const queryString = params.join('&');
+    const url = queryString
+      ? `${cfg.routes.login}?${queryString}`
+      : cfg.routes.login;
+
+    this.refreshPage(url);
   },
   refreshPage(url: string) {
     window.location.href = this.ensureBaseUrl(url);

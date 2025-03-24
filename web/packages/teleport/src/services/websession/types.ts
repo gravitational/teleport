@@ -16,17 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export type RenewSessionRequest = {
-  requestId?: string;
-  switchback?: boolean;
-  reloadUser?: boolean;
-};
-
-export type BearerToken = {
-  accessToken: string;
-  expiresIn: string;
-  created: number;
-  sessionExpires: Date;
-  sessionExpiresIn: number;
-  sessionInactiveTimeout: number;
-};
+export * from 'teleport-new/services/websession/types';

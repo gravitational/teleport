@@ -87,8 +87,8 @@ export interface MfaRegistrationChallengeJson {
 }
 
 export interface MfaRegistrationChallenge {
-  qrCode: Base64urlString;
-  webauthnPublicKey: PublicKeyCredentialCreationOptions;
+  qrCode: Base64urlString | null;
+  webauthnPublicKey: PublicKeyCredentialCreationOptions | null;
 }
 
 export interface MfaChallengeResponse {
@@ -122,7 +122,7 @@ export interface WebauthnAttestationResponse {
   type: string;
   extensions: {
     appid: boolean;
-    credProps: CredentialPropertiesOutput;
+    credProps: CredentialPropertiesOutput | undefined;
   };
   rawId: string;
   response: {

@@ -16,6 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { session } from 'teleport-new/services/websession/websession';
+import { arrayBufferToBase64, base64ToArrayBuffer } from './base64-arraybuffer';
 
-export default session;
+export function base64urlToBuffer(base64url: string): ArrayBuffer {
+  // Base64url to Base64string
+  const padding = '=='.slice(0, (4 - (base64url.length % 4)) % 4);
+  const base64String =
+    base64url.replace(/-/g, '+').replace(/_/g, '/') + padding;
+
+  return base64ToArrayBuffer(base64String);
+}
+
+export function bufferToBase64url(buffer: ArrayBuffer): string {
+  const base64str = arrayBufferToBase64(buffer);
+
+  // Assuming the base64str is a well-formed url.
+  return base64str.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}

@@ -3,9 +3,9 @@ import { matchPath, useHistory, useLocation } from 'react-router';
 
 import { routePaths } from '../../config/routes';
 import { HistoryService } from '../../services/history/historyService';
-import { SessionService } from '../../services/session/sessionService';
+import { session } from '../../services/websession/websession';
 
-function getRedirectUri(search: string) {
+export function getRedirectUri(search: string) {
   const params = new URLSearchParams(search);
 
   let entryUrl = params.get('redirect_url');
@@ -21,7 +21,7 @@ function getRedirectUri(search: string) {
 
 export function useCheckSessionAndRedirect() {
   const [checkingValidSession, setCheckingValidSession] = useState(
-    SessionService.isValid()
+    session.isValid()
   );
 
   const history = useHistory();
@@ -29,7 +29,7 @@ export function useCheckSessionAndRedirect() {
   const { search } = useLocation();
 
   useEffect(() => {
-    if (!SessionService.isValid()) {
+    if (!session.isValid()) {
       return;
     }
 

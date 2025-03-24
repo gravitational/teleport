@@ -3,8 +3,12 @@ import {
   type ChakraStylesConfig,
   type GroupBase,
   type Props,
+  type SelectComponent,
+  type SelectInstance,
 } from 'chakra-react-select';
-import { useMemo } from 'react';
+import { forwardRef, useCallback, useMemo, type ForwardedRef } from 'react';
+
+export type { SelectInstance };
 
 function createStyles<
   Option,
@@ -14,7 +18,11 @@ function createStyles<
   return {
     option: (provided, state) => ({
       ...provided,
-      bg: state.isSelected ? 'interactive.tonal.neutral.1' : 'levels.surface',
+      bg: state.isSelected
+        ? 'interactive.tonal.neutral.1'
+        : state.isFocused
+          ? 'interactive.tonal.neutral.0'
+          : 'levels.surface',
       color: 'text.main',
       fontSize: 'md',
       fontWeight: state.isSelected ? 'bold' : 'normal',
@@ -61,18 +69,36 @@ function createStyles<
   };
 }
 
-export function Select<
-  Option = unknown,
-  IsMulti extends boolean = false,
-  Group extends GroupBase<Option> = GroupBase<Option>,
->(props: Props<Option, IsMulti, Group>) {
+export const Select = forwardRef(function Select<
+  Option,
+  IsMulti extends boolean,
+  Group extends GroupBase<Option>,
+>(
+  props: Props<Option, IsMulti, Group>,
+  forwardedRef:
+    | ((instance: SelectInstance<Option, IsMulti, Group> | null) => void)
+    | ForwardedRef<SelectInstance<Option, IsMulti, Group> | null>
+    | null
+) {
   const styles = useMemo(() => createStyles<Option, IsMulti, Group>(), []);
+
+  const ref = useCallback(
+    (instance: SelectInstance<Option, IsMulti, Group> | null) => {
+      if (typeof forwardedRef === 'function') {
+        forwardedRef(instance);
+      } else if (forwardedRef && 'current' in forwardedRef) {
+        forwardedRef.current = instance;
+      }
+    },
+    [forwardedRef]
+  );
 
   return (
     <ChakraSelect<Option, IsMulti, Group>
       {...props}
+      ref={ref}
       chakraStyles={styles}
       selectedOptionColorPalette="interactive.tonal.neutral"
     />
   );
-}
+}) as SelectComponent;

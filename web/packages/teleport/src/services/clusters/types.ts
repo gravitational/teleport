@@ -16,18 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export interface Cluster {
-  clusterId: string;
-  lastConnected: Date;
-  connectedText: string;
-  status: string;
-  url: string;
-  publicURL: string;
-  authVersion: string;
-  proxyVersion: string;
-  licenseExpiryDateText?: string;
-}
-
-export type ClusterInfo = {
-  isCloud: boolean;
-} & Cluster;
+export * from 'teleport-new/services/clusters/types';

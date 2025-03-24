@@ -36,3 +36,9 @@ export const ButtonText = forwardRef<HTMLButtonElement, ButtonProps>(
     return <Button variant="minimal" intent="neutral" ref={ref} {...props} />;
   }
 );
+
+export const ButtonLink = forwardRef<HTMLButtonElement, ButtonProps>(
+  function ButtonLink(props, ref) {
+    return <Button as="a" variant="link" ref={ref} {...props} />;
+  }
+);

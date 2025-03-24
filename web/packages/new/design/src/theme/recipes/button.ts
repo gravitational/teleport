@@ -87,6 +87,28 @@ export const buttonRecipe = defineRecipe({
       },
       minimal: {},
       border: {},
+      link: {
+        color: 'buttons.link.default',
+        bg: 'none',
+        fontWeight: 'normal',
+        textDecoration: 'underline',
+        textTransform: 'none',
+        px: 2,
+        _hover: {
+          bg: 'levels.surface',
+          color: 'buttons.link.hover',
+          boxShadow: 'none',
+        },
+        _active: {
+          bg: 'levels.surface',
+          color: 'buttons.link.active',
+        },
+        _focus: {
+          bg: 'levels.surface',
+          color: 'buttons.link.hover',
+          boxShadow: 'none',
+        },
+      },
     },
     block: {
       true: {

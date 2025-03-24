@@ -39,7 +39,7 @@ export function TopBar({ CustomLogo }: TopBarProps) {
   const history = useHistory();
   const features = useFeatures();
   const { currentWidth } = useLayout();
-  const theme: Theme = useTheme();
+  const theme = useTheme() as Theme;
 
   // find active feature
   const feature = features.find(
