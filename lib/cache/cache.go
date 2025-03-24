@@ -1023,7 +1023,8 @@ func New(config Config) (*Cache, error) {
 	}
 
 	identityCenterCache, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
-		Backend: config.Backend})
+		Backend: config.Backend,
+	})
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -3440,7 +3441,6 @@ func (c *Cache) ListAccessMonitoringRules(ctx context.Context, pageSize int, nex
 	defer span.End()
 
 	rg, err := readCollectionCache(c, c.collections.accessMonitoringRules)
-
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -3455,7 +3455,6 @@ func (c *Cache) ListAccessMonitoringRulesWithFilter(ctx context.Context, req *ac
 	defer span.End()
 
 	rg, err := readCollectionCache(c, c.collections.accessMonitoringRules)
-
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -3526,6 +3525,31 @@ func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesReques
 	}
 
 	return rg.reader.ListResources(ctx, req)
+}
+
+// GetAccessGraphState
+func (c *Cache) GetAccessGraphState(ctx context.Context) (*clusterconfigpb.AccessGraphState, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessGraphState")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessGraphState)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	if !rg.IsCacheRead() {
+		cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"access_graph_state"}, func(ctx context.Context) (*clusterconfigpb.AccessGraphState, error) {
+			cfg, err := rg.reader.GetAccessGraphState(ctx)
+			return cfg, err
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		clone := protobuf.Clone(cachedCfg).(*clusterconfigpb.AccessGraphState)
+		return clone, nil
+	}
+	return rg.reader.GetAccessGraphState(ctx)
 }
 
 // GetAccessGraphSettings gets AccessGraphSettings from the backend.

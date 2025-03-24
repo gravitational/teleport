@@ -35,6 +35,7 @@ type Upstream interface {
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 	GetAccessGraphSettings(ctx context.Context) (*clusterconfigpb.AccessGraphSettings, error)
+	GetAccessGraphState(ctx context.Context) (*clusterconfigpb.AccessGraphState, error)
 }
 
 // Cache provides simple ttl-based in-memory caching for select resources that are frequently accessed
@@ -135,6 +136,19 @@ func (c *Cache) GetReadOnlyAccessGraphSettings(ctx context.Context) (AccessGraph
 	cfg, err := utils.FnCacheGet(ctx, c.ttlCache, ttlCacheKey{kind: types.KindAccessGraphSettings}, func(ctx context.Context) (AccessGraphSettings, error) {
 		cfg, err := c.cfg.Upstream.GetAccessGraphSettings(ctx)
 		return sealAccessGraphSettings(cfg), trace.Wrap(err)
+	})
+	return cfg, trace.Wrap(err)
+}
+
+// GetReadOnlyAccessGraphState returns a read-only shared reference to the dynamic access graph state resource.
+func (c *Cache) GetReadOnlyAccessGraphState(ctx context.Context) (AccessGraphState, error) {
+	if c.cfg.Disabled {
+		cfg, err := c.cfg.Upstream.GetAccessGraphState(ctx)
+		return sealAccessGraphState(cfg), trace.Wrap(err)
+	}
+	cfg, err := utils.FnCacheGet(ctx, c.ttlCache, ttlCacheKey{kind: types.KindAccessGraphState}, func(ctx context.Context) (AccessGraphState, error) {
+		cfg, err := c.cfg.Upstream.GetAccessGraphState(ctx)
+		return sealAccessGraphState(cfg), trace.Wrap(err)
 	})
 	return cfg, trace.Wrap(err)
 }

@@ -18,6 +18,7 @@ package teleport.clusterconfig.v1;
 
 import "teleport/clusterconfig/v1/access_graph.proto";
 import "teleport/clusterconfig/v1/access_graph_settings.proto";
+import "teleport/clusterconfig/v1/access_graph_state.proto";
 import "teleport/legacy/types/types.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1;clusterconfigv1";
@@ -67,6 +68,13 @@ service ClusterConfigService {
   rpc UpsertAccessGraphSettings(UpsertAccessGraphSettingsRequest) returns (teleport.clusterconfig.v1.AccessGraphSettings);
   // ResetAccessGraphSettings restores the active cluster Access Graph to default settings.
   rpc ResetAccessGraphSettings(ResetAccessGraphSettingsRequest) returns (teleport.clusterconfig.v1.AccessGraphSettings);
+
+  // GetAccessGraphState
+  rpc GetAccessGraphState(GetAccessGraphStateRequest) returns (teleport.clusterconfig.v1.AccessGraphState);
+  // UpdateAccessGraphState
+  rpc CreateAccessGraphState(CreateAccessGraphStateRequest) returns (teleport.clusterconfig.v1.AccessGraphState);
+  // UpdateAccessGraphState
+  rpc UpdateAccessGraphState(UpdateAccessGraphStateRequest) returns (teleport.clusterconfig.v1.AccessGraphState);
 
   // GetClusterName retrieves the cluster name.
   rpc GetClusterName(GetClusterNameRequest) returns (types.ClusterNameV2);
@@ -130,6 +138,19 @@ message GetClusterAccessGraphConfigRequest {}
 message GetClusterAccessGraphConfigResponse {
   // access_graph holds the information about Access Graph service.
   teleport.clusterconfig.v1.AccessGraphConfig access_graph = 1;
+}
+
+// GetAccessGraphStateRequest
+message GetAccessGraphStateRequest {}
+
+// Request for UpdateAccessGraphState
+message UpdateAccessGraphStateRequest {
+  teleport.clusterconfig.v1.AccessGraphState access_graph_state = 1;
+}
+
+// Request for CreateAccessGraphState
+message CreateAccessGraphStateRequest {
+  teleport.clusterconfig.v1.AccessGraphState access_graph_state = 1;
 }
 
 // Request for GetAccessGraphSettings

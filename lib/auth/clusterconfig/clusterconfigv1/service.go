@@ -41,6 +41,7 @@ type Cache interface {
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
+	GetAccessGraphState(context.Context) (*clusterconfigpb.AccessGraphState, error)
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
@@ -50,6 +51,7 @@ type ReadOnlyCache interface {
 	GetReadOnlyClusterNetworkingConfig(ctx context.Context) (readonly.ClusterNetworkingConfig, error)
 	GetReadOnlySessionRecordingConfig(ctx context.Context) (readonly.SessionRecordingConfig, error)
 	GetReadOnlyAccessGraphSettings(context.Context) (readonly.AccessGraphSettings, error)
+	GetReadOnlyAccessGraphState(context.Context) (readonly.AccessGraphState, error)
 }
 
 // Backend is used by the [Service] to mutate cluster config resources.
@@ -69,6 +71,9 @@ type Backend interface {
 	CreateAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error)
 	UpdateAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error)
 	UpsertAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error)
+
+	CreateAccessGraphState(context.Context, *clusterconfigpb.AccessGraphState) (*clusterconfigpb.AccessGraphState, error)
+	UpdateAccessGraphState(context.Context, *clusterconfigpb.AccessGraphState) (*clusterconfigpb.AccessGraphState, error)
 }
 
 // ServiceConfig contain dependencies required to create a [Service].
@@ -984,6 +989,46 @@ func (s *Service) GetClusterAccessGraphConfig(ctx context.Context, _ *clustercon
 			},
 		},
 	}, nil
+}
+
+func (s *Service) CreateAccessGraphState(ctx context.Context, req *clusterconfigpb.CreateAccessGraphStateRequest) (*clusterconfigpb.AccessGraphState, error) {
+	authzCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authzCtx.CheckAccessToKind(types.KindAccessGraphState, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !authz.HasBuiltinRole(*authzCtx, string(types.RoleAuth)) {
+		return nil, trace.AccessDenied("this request can be only executed by an auth server")
+	}
+
+	cfg := req.GetAccessGraphState()
+	if err := clusterconfig.ValidateAccessGraphState(cfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return s.backend.CreateAccessGraphState(ctx, cfg)
+}
+
+func (s *Service) GetAccessGraphState(ctx context.Context, _ *clusterconfigpb.GetAccessGraphStateRequest) (*clusterconfigpb.AccessGraphState, error) {
+	authzCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authzCtx.CheckAccessToKind(types.KindAccessGraphState, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg, err := s.readOnlyCache.GetReadOnlyAccessGraphState(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cfg.Clone(), nil
 }
 
 func (s *Service) GetAccessGraphSettings(ctx context.Context, _ *clusterconfigpb.GetAccessGraphSettingsRequest) (*clusterconfigpb.AccessGraphSettings, error) {

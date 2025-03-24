@@ -848,6 +848,21 @@ func (c *Client) ListUniqueNotificationIdentifiersForPrefix(ctx context.Context,
 }
 
 // GetAccessGraphSettings gets the access graph settings from the backend.
+func (c *Client) GetAccessGraphState(context.Context) (*clusterconfigpb.AccessGraphState, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// CreateAccessGraphState creates the access graph state in the backend.
+func (c *Client) CreateAccessGraphState(context.Context, *clusterconfigpb.AccessGraphState) (*clusterconfigpb.AccessGraphState, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// UpdateAccessGraphState updates the access graph state in the backend.
+func (c *Client) UpdateAccessGraphState(context.Context, *clusterconfigpb.AccessGraphState) (*clusterconfigpb.AccessGraphState, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// GetAccessGraphSettings gets the access graph settings from the backend.
 func (c *Client) GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
 }

@@ -165,6 +165,7 @@ type cacheCollections struct {
 	windowsDesktopServices             collectionReader[windowsDesktopServiceGetter]
 	userNotifications                  collectionReader[notificationGetter]
 	accessGraphSettings                collectionReader[accessGraphSettingsGetter]
+	accessGraphState                   collectionReader[accessGraphStateGetter]
 	globalNotifications                collectionReader[notificationGetter]
 	accessMonitoringRules              collectionReader[accessMonitoringRuleGetter]
 	spiffeFederations                  collectionReader[SPIFFEFederationReader]
@@ -3405,7 +3406,6 @@ func (globalNotificationExecutor) deleteAll(ctx context.Context, cache *Cache) e
 }
 
 func (globalNotificationExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-
 	r, ok := resource.(types.Resource153Unwrapper)
 	if !ok {
 		return trace.BadParameter("unknown resource type, expected types.Resource153Unwrapper, got %T", resource)
@@ -3517,6 +3517,10 @@ func (accessGraphSettingsExecutor) getReader(cache *Cache, cacheOK bool) accessG
 
 type accessGraphSettingsGetter interface {
 	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
+}
+
+type accessGraphStateGetter interface {
+	GetAccessGraphState(context.Context) (*clusterconfigpb.AccessGraphState, error)
 }
 
 var _ executor[*clusterconfigpb.AccessGraphSettings, accessGraphSettingsGetter] = accessGraphSettingsExecutor{}

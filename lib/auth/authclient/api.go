@@ -1181,6 +1181,9 @@ type Cache interface {
 	// GetAccessGraphSettings returns the access graph settings.
 	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
 
+	// GetAccessGraphState returns the access graph state.
+	GetAccessGraphState(context.Context) (*clusterconfigpb.AccessGraphState, error)
+
 	// GetSPIFFEFederation gets a SPIFFE Federation by name.
 	GetSPIFFEFederation(ctx context.Context, name string) (*machineidv1.SPIFFEFederation, error)
 	// ListSPIFFEFederations lists all SPIFFE Federations using Google style

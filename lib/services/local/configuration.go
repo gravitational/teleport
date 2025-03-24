@@ -732,6 +732,64 @@ func (s *ClusterConfigurationService) DeleteClusterMaintenanceConfig(ctx context
 	return nil
 }
 
+// GetAccessGraphState fetches the cluster *clusterconfigpb.AccessGraphState from the backend and return them.
+func (s *ClusterConfigurationService) GetAccessGraphState(ctx context.Context) (*clusterconfigpb.AccessGraphState, error) {
+	item, err := s.Get(ctx, backend.NewKey(clusterConfigPrefix, accessGraphStatePrefix))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("AccessGraphState preference not found")
+		}
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalAccessGraphState(item.Value,
+		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+}
+
+// CreateAccessGraphState creates an *clusterconfigpb.AccessGraphState if it does not already exist.
+func (s *ClusterConfigurationService) CreateAccessGraphState(ctx context.Context, set *clusterconfigpb.AccessGraphState) (*clusterconfigpb.AccessGraphState, error) {
+	value, err := services.MarshalAccessGraphState(set)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:   backend.NewKey(clusterConfigPrefix, accessGraphStatePrefix),
+		Value: value,
+	}
+
+	lease, err := s.Backend.Create(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	set.Metadata.Revision = lease.Revision
+	return set, nil
+}
+
+// UpdateAccessGraphState updates an existing *clusterconfigpb.AccessGraphState.
+func (s *ClusterConfigurationService) UpdateAccessGraphState(ctx context.Context, set *clusterconfigpb.AccessGraphState) (*clusterconfigpb.AccessGraphState, error) {
+	rev := set.GetMetadata().GetRevision()
+
+	value, err := services.MarshalAccessGraphState(set)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:      backend.NewKey(clusterConfigPrefix, accessGraphStatePrefix),
+		Value:    value,
+		Revision: rev,
+	}
+
+	lease, err := s.ConditionalUpdate(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	set.Metadata.Revision = lease.Revision
+	return set, nil
+}
+
 // GetAccessGraphSettings fetches the cluster *clusterconfigpb.AccessGraphSettings from the backend and return them.
 func (s *ClusterConfigurationService) GetAccessGraphSettings(ctx context.Context) (*clusterconfigpb.AccessGraphSettings, error) {
 	item, err := s.Get(ctx, backend.NewKey(clusterConfigPrefix, accessGraphSettingsPrefix))
@@ -840,4 +898,5 @@ const (
 	installerPrefix           = "installer"
 	maintenancePrefix         = "maintenance"
 	accessGraphSettingsPrefix = "access_graph_settings"
+	accessGraphStatePrefix    = "access_graph_state"
 )

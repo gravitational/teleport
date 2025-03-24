@@ -113,6 +113,32 @@ func sealSessionRecordingConfig(c SessionRecordingConfig) SessionRecordingConfig
 	return sealedSessionRecordingConfig{SessionRecordingConfig: c}
 }
 
+type AccessGraphState interface {
+	InitialSyncComplete() bool
+	Clone() *clusterconfigpb.AccessGraphState
+}
+
+type sealedAccessGraphState struct {
+	*clusterconfigpb.AccessGraphState
+}
+
+func (a sealedAccessGraphState) InitialSyncComplete() bool {
+	return a.GetSpec().GetInitialSyncComplete()
+}
+
+func (a sealedAccessGraphState) Clone() *clusterconfigpb.AccessGraphState {
+	return protobuf.Clone(a.AccessGraphState).(*clusterconfigpb.AccessGraphState)
+}
+
+// sealAccessGraphState returns a read-only version of the AccessGraphState.
+func sealAccessGraphState(c *clusterconfigpb.AccessGraphState) AccessGraphState {
+	if c == nil {
+		// preserving nils simplifies error flow-control
+		return nil
+	}
+	return sealedAccessGraphState{c}
+}
+
 // AccessGraphSettings is a read-only subset of clusterconfigpb.AccessGraphSettings used on certain hot paths
 // to ensure that we do not modify the underlying AccessGraphSettings as it may be shared across
 // multiple goroutines.

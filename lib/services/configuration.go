@@ -118,6 +118,10 @@ type ClusterConfiguration interface {
 	// DeleteClusterMaintenanceConfig deletes the maintenance config singleton.
 	DeleteClusterMaintenanceConfig(ctx context.Context) error
 
+	GetAccessGraphState(context.Context) (*clusterconfigpb.AccessGraphState, error)
+	CreateAccessGraphState(context.Context, *clusterconfigpb.AccessGraphState) (*clusterconfigpb.AccessGraphState, error)
+	UpdateAccessGraphState(context.Context, *clusterconfigpb.AccessGraphState) (*clusterconfigpb.AccessGraphState, error)
+
 	// GetAccessGraphSettings gets the access graph settings from the backend.
 	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
 	// CreateAccessGraphSettings creates the access graph settings in the backend.

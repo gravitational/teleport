@@ -577,6 +577,9 @@ const (
 	// KindAccessGraphSettings is a resource which holds cluster-wide configuration for dynamic access graph settings.
 	KindAccessGraphSettings = "access_graph_settings"
 
+	// KindAccessGraphState is a resource which holds cluster-wide state for access graph service.
+	KindAccessGraphState = "access_graph_state"
+
 	// KindStaticHostUser is a host user to be created on matching SSH nodes.
 	KindStaticHostUser = "static_host_user"
 
@@ -623,6 +626,10 @@ const (
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"
+
+	// MetaNameAccessGraphState is the exact name of the singleton resource holding
+	// access graph state.
+	MetaNameAccessGraphState = "access-graph-state"
 
 	// V7 is the seventh version of resources.
 	V7 = "v7"

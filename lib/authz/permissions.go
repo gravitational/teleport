@@ -143,6 +143,11 @@ func (accessPointWrapper) GetAccessGraphSettings(ctx context.Context) (*clusterc
 	return nil, trace.NotImplemented("GetAccessGraphSettings is not implemented")
 }
 
+// GetAccessGraphState returns the access graph state.
+func (accessPointWrapper) GetAccessGraphState(ctx context.Context) (*clusterconfigpb.AccessGraphState, error) {
+	return nil, trace.NotImplemented("GetAccessGraphState is not implemented")
+}
+
 // Authorizer authorizes identity and returns auth context
 type Authorizer interface {
 	// Authorize authorizes user based on identity supplied via context
