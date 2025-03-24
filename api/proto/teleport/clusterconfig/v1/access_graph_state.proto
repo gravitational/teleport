@@ -34,8 +34,3 @@ message AccessGraphState {
   AccessGraphStateSpec spec = 5;
 }
 
-// AccessGraphStateSpec
-message AccessGraphStateSpec {
-  // initial_sync_complete
-  bool initial_sync_complete = 1;
-}

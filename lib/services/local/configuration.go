@@ -781,7 +781,7 @@ func (s *ClusterConfigurationService) UpdateAccessGraphState(ctx context.Context
 		Revision: rev,
 	}
 
-	lease, err := s.ConditionalUpdate(ctx, item)
+	lease, err := s.Put(ctx, item)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

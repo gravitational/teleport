@@ -20,11 +20,13 @@ import { useCallback, useEffect } from 'react';
 import { useTheme } from 'styled-components';
 
 import { Danger } from 'design/Alert';
+import { ButtonPrimary } from 'design/Button';
 import Flex from 'design/Flex';
 import { Indicator } from 'design/Indicator';
 import { useAsync } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
+import { accessGraphService } from 'e-teleport/services/accessgraph';
 import { State as ResourcesState } from 'teleport/components/useResources';
 import { Role, RoleWithYaml } from 'teleport/services/resources';
 import { yamlService } from 'teleport/services/yaml';
@@ -76,6 +78,9 @@ export function RoleEditorAdapter({
 
   return (
     <Flex flex="1">
+      <ButtonPrimary onClick={() => accessGraphService.enableDemoMode()}>
+        Click Me
+      </ButtonPrimary>
       <Flex
         flexDirection="column"
         borderLeft={1}
