@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
 
@@ -31,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv"
 	sftputils "github.com/gravitational/teleport/lib/sshutils/sftp"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // SFTPProxy proxies an SFTP session and emits audit events for the handled
@@ -47,17 +47,24 @@ func NewSFTPProxy(
 	channel io.ReadWriteCloser,
 	logger *slog.Logger,
 ) (*SFTPProxy, error) {
-	if logger == nil {
-		logger = logutils.NewPackageLogger()
+	if scx == nil {
+		return nil, trace.BadParameter("missing parameter scx")
 	}
+	if channel == nil {
+		return nil, trace.BadParameter("missing parameter channel")
+	}
+	if logger == nil {
+		logger = slog.Default().With(teleport.ComponentKey, "SFTP")
+	}
+
 	client, err := sftp.NewClient(scx.RemoteClient.Client)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	remoteFS := sftputils.NewRemoteFilesystem(client)
 	wd, err := remoteFS.Getwd(scx.CancelContext())
 	if err != nil {
-		logger.WarnContext(scx.CancelContext(), "Unable to get working directory, defaulting to \"/\"")
+		logger.WarnContext(scx.CancelContext(), `Unable to get working directory, defaulting to "/"`)
 	}
 	h := &proxyHandlers{
 		scx:      scx,

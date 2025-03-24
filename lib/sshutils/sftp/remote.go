@@ -29,7 +29,7 @@ import (
 	"github.com/pkg/sftp"
 )
 
-func runCancelableFunc(ctx context.Context, f func()) error {
+func runWithContext(ctx context.Context, f func()) error {
 	done := make(chan struct{})
 	go func() {
 		f()
@@ -59,14 +59,14 @@ func (r *remoteFS) Type() string {
 }
 
 func (r *remoteFS) Glob(ctx context.Context, pattern string) (matches []string, err error) {
-	ctxErr := runCancelableFunc(ctx, func() {
+	ctxErr := runWithContext(ctx, func() {
 		matches, err = r.c.Glob(pattern)
 	})
 	return matches, cmp.Or(ctxErr, err)
 }
 
 func (r *remoteFS) Stat(ctx context.Context, path string) (fi os.FileInfo, err error) {
-	ctxErr := runCancelableFunc(ctx, func() {
+	ctxErr := runWithContext(ctx, func() {
 		fi, err = r.c.Stat(path)
 	})
 	return fi, cmp.Or(ctxErr, err)
@@ -99,98 +99,98 @@ func (r *remoteFS) Create(ctx context.Context, path string, _ int64) (File, erro
 }
 
 func (r *remoteFS) OpenFile(ctx context.Context, path string, flags int) (f File, err error) {
-	ctxErr := runCancelableFunc(ctx, func() {
+	ctxErr := runWithContext(ctx, func() {
 		f, err = r.c.OpenFile(path, flags)
 	})
 	return f, cmp.Or(ctxErr, err)
 }
 
 func (r *remoteFS) Mkdir(ctx context.Context, path string) (err error) {
-	ctxErr := runCancelableFunc(ctx, func() {
+	ctxErr := runWithContext(ctx, func() {
 		err = r.c.MkdirAll(path)
 	})
 	return cmp.Or(ctxErr, err)
 }
 
 func (r *remoteFS) Chmod(ctx context.Context, path string, mode os.FileMode) (err error) {
-	ctxErr := runCancelableFunc(ctx, func() {
+	ctxErr := runWithContext(ctx, func() {
 		err = r.c.Chmod(path, mode)
 	})
 	return cmp.Or(ctxErr, err)
 }
 
 func (r *remoteFS) Chtimes(ctx context.Context, path string, atime, mtime time.Time) (err error) {
-	ctxErr := runCancelableFunc(ctx, func() {
+	ctxErr := runWithContext(ctx, func() {
 		err = r.c.Chtimes(path, atime, mtime)
 	})
 	return cmp.Or(ctxErr, err)
 }
 
 func (r *remoteFS) Rename(ctx context.Context, oldpath, newpath string) (err error) {
-	ctxErr := runCancelableFunc(ctx, func() {
+	ctxErr := runWithContext(ctx, func() {
 		err = r.c.Rename(oldpath, newpath)
 	})
 	return cmp.Or(ctxErr, err)
 }
 
 func (r *remoteFS) Lstat(ctx context.Context, name string) (fi os.FileInfo, err error) {
-	ctxErr := runCancelableFunc(ctx, func() {
+	ctxErr := runWithContext(ctx, func() {
 		fi, err = r.c.Lstat(name)
 	})
 	return fi, cmp.Or(ctxErr, err)
 }
 
 func (r *remoteFS) RemoveAll(ctx context.Context, path string) (err error) {
-	ctxErr := runCancelableFunc(ctx, func() {
+	ctxErr := runWithContext(ctx, func() {
 		err = r.c.RemoveAll(path)
 	})
 	return cmp.Or(ctxErr, err)
 }
 
 func (r *remoteFS) Link(ctx context.Context, oldname, newname string) (err error) {
-	ctxErr := runCancelableFunc(ctx, func() {
+	ctxErr := runWithContext(ctx, func() {
 		err = r.c.Link(oldname, newname)
 	})
 	return cmp.Or(ctxErr, err)
 }
 
 func (r *remoteFS) Symlink(ctx context.Context, oldname, newname string) (err error) {
-	ctxErr := runCancelableFunc(ctx, func() {
+	ctxErr := runWithContext(ctx, func() {
 		err = r.c.Symlink(oldname, newname)
 	})
 	return cmp.Or(ctxErr, err)
 }
 
 func (r *remoteFS) Remove(ctx context.Context, name string) (err error) {
-	ctxErr := runCancelableFunc(ctx, func() {
+	ctxErr := runWithContext(ctx, func() {
 		err = r.c.Remove(name)
 	})
 	return cmp.Or(ctxErr, err)
 }
 
 func (r *remoteFS) Chown(ctx context.Context, name string, uid, gid int) (err error) {
-	ctxErr := runCancelableFunc(ctx, func() {
+	ctxErr := runWithContext(ctx, func() {
 		err = r.c.Chown(name, uid, gid)
 	})
 	return cmp.Or(ctxErr, err)
 }
 
 func (r *remoteFS) Truncate(ctx context.Context, name string, size int64) (err error) {
-	ctxErr := runCancelableFunc(ctx, func() {
+	ctxErr := runWithContext(ctx, func() {
 		err = r.c.Truncate(name, size)
 	})
 	return cmp.Or(ctxErr, err)
 }
 
 func (r *remoteFS) Readlink(ctx context.Context, name string) (dest string, err error) {
-	ctxErr := runCancelableFunc(ctx, func() {
+	ctxErr := runWithContext(ctx, func() {
 		dest, err = r.c.ReadLink(name)
 	})
 	return dest, cmp.Or(ctxErr, err)
 }
 
 func (r *remoteFS) Getwd(ctx context.Context) (wd string, err error) {
-	ctxErr := runCancelableFunc(ctx, func() {
+	ctxErr := runWithContext(ctx, func() {
 		wd, err = r.c.Getwd()
 	})
 	return wd, cmp.Or(ctxErr, err)

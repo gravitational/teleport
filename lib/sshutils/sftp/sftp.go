@@ -102,6 +102,9 @@ type File interface {
 }
 
 // FileSystem describes file operations to be done either locally or over SFTP.
+//
+// Note: errors returned by a FileSystem should not be `trace.Wrap()`ed so the
+// sftp package can parse os errors.
 type FileSystem interface {
 	// Type returns whether the filesystem is "local" or "remote".
 	Type() string

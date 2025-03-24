@@ -159,7 +159,7 @@ func (r *remoteSubsystem) Wait() error {
 	// Wait for tasks to finish and populate r.errorCh.
 	r.wg.Wait()
 outer:
-	for {
+	for range 3 { // Up to 3 possible errors.
 		select {
 		case err := <-r.errorCh:
 			if err != nil && !errors.Is(err, io.EOF) {
