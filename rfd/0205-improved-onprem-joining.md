@@ -66,10 +66,6 @@ joining was really a *good* experience, effectively just:
   expect your system to never go down for more than 24 hours, bots can happily
   run for months.
 
-  (Ironically, Kubernetes is a great environment in which to run `token`-joined
-  bots since it'll rapidly reschedule any bot deployments that fail... but we
-  have a dedicated `kubernetes` delegated join method.)
-
 In short, token joining has a complexity cliff. It's extremely easy to get
 started, but it can feel like a false start when users learn token joining is
 not suitable to their production use case. At best it's back to the docs to
