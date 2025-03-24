@@ -17,6 +17,7 @@
 package dynamoevents
 
 import (
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/gravitational/trace"
 )
@@ -75,25 +76,16 @@ func convertLegacyAttributeValue(legacyAttr *LegacyAttributeValue) (types.Attrib
 	case legacyAttr.N != nil:
 		return &types.AttributeValueMemberN{Value: *legacyAttr.N}, nil
 	case legacyAttr.NS != nil:
-		return &types.AttributeValueMemberNS{Value: toStrings(legacyAttr.NS)}, nil
+		return &types.AttributeValueMemberNS{Value: aws.ToStringSlice(legacyAttr.NS)}, nil
 	case legacyAttr.NULL != nil:
 		return &types.AttributeValueMemberNULL{Value: *legacyAttr.NULL}, nil
 	case legacyAttr.S != nil:
 		return &types.AttributeValueMemberS{Value: *legacyAttr.S}, nil
 	case legacyAttr.SS != nil:
-		return &types.AttributeValueMemberSS{Value: toStrings(legacyAttr.SS)}, nil
+		return &types.AttributeValueMemberSS{Value: aws.ToStringSlice(legacyAttr.SS)}, nil
 	}
 
 	return nil, trace.BadParameter("unsupported attribute type")
-}
-
-// toStrings converts a slice of strings pointers into slice of strings.
-func toStrings(s []*string) []string {
-	conv := make([]string, len(s))
-	for i, strPtr := range s {
-		conv[i] = *strPtr
-	}
-	return conv
 }
 
 // LegacyAttributeValue represents the data for an attribute from AWS SDK V1.
