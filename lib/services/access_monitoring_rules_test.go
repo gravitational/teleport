@@ -49,12 +49,12 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 			},
 		},
 		{
-			description: "automatic_approval name required",
+			description: "automatic_approval desired_state required",
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
-				amr.Spec.AutomaticApproval.Name = ""
+				amr.Spec.AutomaticApproval.DesiredState = ""
 			},
 			assertErr: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "automatic_approval plugin name is missing")
+				require.ErrorContains(t, err, "automatic_approval desired state is missing")
 			},
 		},
 		{
@@ -62,17 +62,15 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
 				amr.Spec.Notification = nil
 				amr.Spec.AutomaticApproval = nil
-				amr.Spec.States = []string{}
 			},
 			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "notification or automatic approval rule must be configured")
 			},
 		},
 		{
-			description: "allow automatic approval state to be nil",
+			description: "allow automatic approval to be nil",
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
 				amr.Spec.AutomaticApproval = nil
-				amr.Spec.States = []string{}
 			},
 			assertErr: require.NoError,
 		},
@@ -84,10 +82,10 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 			assertErr: require.NoError,
 		},
 		{
-			description: "allow notifications and automatic_approval to be nil",
+			description: "allow notification and automatic_approval name to be omitted",
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
 				amr.Spec.Notification = nil
-				amr.Spec.AutomaticApproval = nil
+				amr.Spec.AutomaticApproval.Name = ""
 			},
 			assertErr: require.NoError,
 		},
@@ -104,9 +102,9 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 				Name: "fakePlugin",
 			},
 			AutomaticApproval: &accessmonitoringrulesv1.AutomaticApproval{
-				Name: "fakePlugin",
+				Name:         "fakePlugin",
+				DesiredState: types.AccessRequestStateApproved,
 			},
-			States: []string{types.AccessRequestStateApproved},
 		},
 	}
 

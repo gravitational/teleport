@@ -156,9 +156,9 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 					Subjects:  []string{types.KindAccessRequest},
 					Condition: "someCondition",
 					AutomaticApproval: &accessmonitoringrulesv1.AutomaticApproval{
-						Name: "automaticApprovalPlugin",
+						Name:         "automaticApprovalPlugin",
+						DesiredState: types.AccessRequestStateApproved,
 					},
-					States: []string{types.AccessRequestStateApproved},
 				},
 			},
 			req: &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest{
@@ -182,9 +182,9 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 						Name: "notificationPlugin",
 					},
 					AutomaticApproval: &accessmonitoringrulesv1.AutomaticApproval{
-						Name: "automaticApprovalPlugin",
+						Name:         "automaticApprovalPlugin",
+						DesiredState: types.AccessRequestStateApproved,
 					},
-					States: []string{types.AccessRequestStateApproved},
 				},
 			},
 			req: &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest{
@@ -208,7 +208,9 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 					Notification: &accessmonitoringrulesv1.Notification{
 						Name: "notificationPlugin",
 					},
-					States: []string{types.AccessRequestStateApproved},
+					AutomaticApproval: &accessmonitoringrulesv1.AutomaticApproval{
+						DesiredState: types.AccessRequestStateApproved,
+					},
 				},
 			},
 			req: &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest{
@@ -227,7 +229,9 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 				Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 					Subjects:  []string{types.KindAccessRequest},
 					Condition: "someCondition",
-					States:    []string{types.AccessRequestStateApproved},
+					AutomaticApproval: &accessmonitoringrulesv1.AutomaticApproval{
+						DesiredState: types.AccessRequestStateApproved,
+					},
 				},
 			},
 			req: &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest{

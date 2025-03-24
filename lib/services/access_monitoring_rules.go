@@ -88,15 +88,17 @@ func ValidateAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.
 	if accessMonitoringRule.Spec.Notification != nil && accessMonitoringRule.Spec.Notification.Name == "" {
 		return trace.BadParameter("accessMonitoringRule notification plugin name is missing")
 	}
-	if accessMonitoringRule.GetSpec().GetAutomaticApproval() != nil && accessMonitoringRule.GetSpec().GetAutomaticApproval().GetName() == "" {
-		return trace.BadParameter("accessMonitoringRule automatic_approval plugin name is missing")
+
+	if accessMonitoringRule.GetSpec().GetAutomaticApproval() != nil &&
+		accessMonitoringRule.GetSpec().GetAutomaticApproval().GetDesiredState() == "" {
+		return trace.BadParameter("accessMonitoringRule automatic_approval desired state is missing")
 	}
 
 	if slices.Contains(accessMonitoringRule.GetSpec().GetSubjects(), types.KindAccessRequest) {
 		if accessMonitoringRule.GetSpec().GetNotification() != nil {
 			return nil
 		}
-		if slices.Contains(accessMonitoringRule.GetSpec().GetStates(), types.AccessRequestStateApproved) {
+		if accessMonitoringRule.GetSpec().GetAutomaticApproval() != nil {
 			return nil
 		}
 		return trace.BadParameter("a notification or automatic approval rule must be configured if subjects contain %q",

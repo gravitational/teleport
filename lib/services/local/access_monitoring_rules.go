@@ -126,7 +126,7 @@ func match(rule *accessmonitoringrulesv1.AccessMonitoringRule, subjects []string
 			return false
 		}
 	}
-	// Empty automatic_approval name indicates that the rule is internally managed by Teleport.
+	// Empty automatic_approval name indicates that the rule is monitored internally by Teleport.
 	if rule.GetSpec().GetAutomaticApproval().GetName() != automaticApprovalName {
 		return false
 	}
