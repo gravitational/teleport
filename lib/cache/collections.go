@@ -164,21 +164,21 @@ func setupCollections(c Config) (*collections, error) {
 			out.kubeClusters = collect
 			out.byKind[resourceKind] = out.kubeClusters
 		case types.KindWindowsDesktop:
-			collect, err := newKubernetesServerCollection(c.Presence, watch)
+			collect, err := newWindowsDesktopCollection(c.WindowsDesktops, watch)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 
-			out.kubeServers = collect
-			out.byKind[resourceKind] = out.kubeServers
+			out.windowsDesktops = collect
+			out.byKind[resourceKind] = out.windowsDesktops
 		case types.KindWindowsDesktopService:
-			collect, err := newKubernetesClusterCollection(c.Kubernetes, watch)
+			collect, err := newWindowsDesktopServiceCollection(c.Presence, watch)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 
-			out.kubeClusters = collect
-			out.byKind[resourceKind] = out.kubeClusters
+			out.windowsDesktopServices = collect
+			out.byKind[resourceKind] = out.windowsDesktopServices
 		}
 	}
 

@@ -141,15 +141,6 @@ func (c *Cache) GetDatabaseServers(ctx context.Context, namespace string, opts .
 	return servers, trace.Wrap(err)
 }
 
-type listDatabaseServerRequest struct {
-	Limit               int32
-	StartKey            string
-	Labels              map[string]string
-	PredicateExpression string
-	SearchKeywords      []string
-	SortBy              types.SortBy
-}
-
 func newDatabaseServiceCollection(p services.Presence, w types.WatchKind) (*collection[types.DatabaseService], error) {
 	if p == nil {
 		return nil, trace.BadParameter("missing parameter Databases")

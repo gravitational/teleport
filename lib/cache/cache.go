@@ -576,19 +576,6 @@ func readLegacyCollectionCache[R any](cache *Cache, collection collectionReader[
 	return legacyReadCache(cache, collection.watchKind(), collection.getReader)
 }
 
-// readLegacyListResourcesCache acquires the cache read lock and uses getReader() to select the appropriate target
-// for listing resources of the specified resourceType. The returned guard *must* be released to prevent deadlocks.
-func readLegacyListResourcesCache(cache *Cache, resourceType string) (legacyReadGuard[resourceGetter], error) {
-	getResourceReader := func(cacheOK bool) resourceGetter {
-		if cacheOK {
-			return cache.presenceCache
-		}
-		return cache.Config.Presence
-	}
-
-	return legacyReadCache(cache, types.WatchKind{Kind: resourceType}, getResourceReader)
-}
-
 // acquireReadGuard provides a readGuard that may be used to determine how
 // a cache read should operate. The returned guard *must* be released to prevent deadlocks.
 func acquireReadGuard[T any](cache *Cache, c *collection[T]) (readGuard[T], error) {

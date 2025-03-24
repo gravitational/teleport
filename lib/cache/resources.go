@@ -82,7 +82,7 @@ func (c *Cache) listResourcesFallback(ctx context.Context, req proto.ListResourc
 }
 
 func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/listResources")
+	_, span := c.Tracer.Start(ctx, "cache/listResources")
 	defer span.End()
 
 	filter := services.MatchResourceFilter{

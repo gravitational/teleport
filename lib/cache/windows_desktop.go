@@ -119,7 +119,7 @@ func (c *Cache) ListWindowsDesktopServices(ctx context.Context, req types.ListWi
 	}
 
 	// Adjust page size, so it can't be too large or small.
-	pageSize := int(req.Limit)
+	pageSize := req.Limit
 	if pageSize <= 0 || pageSize > defaults.DefaultChunkSize {
 		pageSize = defaults.DefaultChunkSize
 	}
@@ -228,7 +228,7 @@ func (c *Cache) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDe
 	}
 
 	// Adjust page size, so it can't be too large or small.
-	pageSize := int(req.Limit)
+	pageSize := req.Limit
 	if pageSize <= 0 || pageSize > defaults.DefaultChunkSize {
 		pageSize = defaults.DefaultChunkSize
 	}
