@@ -16,5 +16,5 @@
 
 package aws
 
-//go:generate go run ./internal/region/codegen.go
+//go:generate go run ./internal/codegen.go
 //go:generate gofmt -w -s .

@@ -67,7 +67,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -1499,12 +1499,12 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 
 		for _, region := range matcher.Regions {
-			if !awsutils.IsKnownRegion(region) {
+			if !awsregion.IsKnownRegion(region) {
 				const message = "AWS matcher uses unknown region" +
 					"This is either a typo or a new AWS region that is unknown to the AWS SDK used to compile this binary. "
 				slog.WarnContext(context.Background(), message,
 					"region", region,
-					"known_regions", awsutils.GetKnownRegions(),
+					"known_regions", awsregion.GetKnownRegions(),
 				)
 			}
 		}
