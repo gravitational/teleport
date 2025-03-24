@@ -95,7 +95,8 @@ func (s *WorkloadIdentityAWSRAService) generate(ctx context.Context) error {
 		return trace.Wrap(err, "parsing x509 svid")
 	}
 
-	s.log.Info(
+	s.log.InfoContext(
+		ctx,
 		"Exchanging SVID for AWS credentials",
 		"spiffe_id", svid.ID.String(),
 		"role_arn", s.cfg.RoleARN,
@@ -106,7 +107,8 @@ func (s *WorkloadIdentityAWSRAService) generate(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err, "exchanging SVID via Roles Anywhere")
 	}
-	s.log.Info(
+	s.log.InfoContext(
+		ctx,
 		"Exchanged SVID for AWS credentials",
 		"aws_credentials_expiry", creds.Expiration,
 	)
