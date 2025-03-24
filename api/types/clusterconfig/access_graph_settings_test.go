@@ -52,6 +52,9 @@ func TestNewAccessGraphSettings(t *testing.T) {
 				Spec: &clusterconfigpb.AccessGraphSettingsSpec{
 					SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
 				},
+				Status: &clusterconfigpb.AccessGraphSettingsStatus{
+					InitialSyncComplete: false,
+				},
 			},
 		},
 		{
@@ -70,6 +73,57 @@ func TestNewAccessGraphSettings(t *testing.T) {
 				},
 				Spec: &clusterconfigpb.AccessGraphSettingsSpec{
 					SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED,
+				},
+				Status: &clusterconfigpb.AccessGraphSettingsStatus{
+					InitialSyncComplete: false,
+				},
+			},
+		},
+		{
+			name: "demo mode disabled",
+			spec: &clusterconfigpb.AccessGraphSettingsSpec{
+				SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
+				DemoMode:          clusterconfigpb.AccessGraphDemoMode_ACCESS_GRAPH_DEMO_MODE_DISABLED,
+			},
+			assertErr: func(t *testing.T, err error, a ...any) {
+				require.NoError(t, err)
+			},
+			want: &clusterconfigpb.AccessGraphSettings{
+				Kind:    types.KindAccessGraphSettings,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: types.MetaNameAccessGraphSettings,
+				},
+				Spec: &clusterconfigpb.AccessGraphSettingsSpec{
+					SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
+					DemoMode:          clusterconfigpb.AccessGraphDemoMode_ACCESS_GRAPH_DEMO_MODE_DISABLED,
+				},
+				Status: &clusterconfigpb.AccessGraphSettingsStatus{
+					InitialSyncComplete: false,
+				},
+			},
+		},
+		{
+			name: "demo enabled",
+			spec: &clusterconfigpb.AccessGraphSettingsSpec{
+				DemoMode:          clusterconfigpb.AccessGraphDemoMode_ACCESS_GRAPH_DEMO_MODE_ENABLED,
+				SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
+			},
+			assertErr: func(t *testing.T, err error, a ...any) {
+				require.NoError(t, err)
+			},
+			want: &clusterconfigpb.AccessGraphSettings{
+				Kind:    types.KindAccessGraphSettings,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: types.MetaNameAccessGraphSettings,
+				},
+				Spec: &clusterconfigpb.AccessGraphSettingsSpec{
+					SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
+					DemoMode:          clusterconfigpb.AccessGraphDemoMode_ACCESS_GRAPH_DEMO_MODE_ENABLED,
+				},
+				Status: &clusterconfigpb.AccessGraphSettingsStatus{
+					InitialSyncComplete: false,
 				},
 			},
 		},
