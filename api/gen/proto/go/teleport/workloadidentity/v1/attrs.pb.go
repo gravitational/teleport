@@ -140,7 +140,7 @@ type WorkloadAttrsUnix struct {
 	Uid uint32 `protobuf:"varint,4,opt,name=uid,proto3" json:"uid,omitempty"`
 	// The path to the workload process binary.
 	BinaryPath *string `protobuf:"bytes,5,opt,name=binary_path,json=binaryPath,proto3,oneof" json:"binary_path,omitempty"`
-	// The SHA256 hash of the workload process binary.
+	// The hex-encoded SHA256 hash of the workload process binary.
 	BinaryHash    *string `protobuf:"bytes,6,opt,name=binary_hash,json=binaryHash,proto3,oneof" json:"binary_hash,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

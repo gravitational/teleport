@@ -49,7 +49,7 @@ message WorkloadAttrsUnix {
   uint32 uid = 4;
   // The path to the workload process binary.
   optional string binary_path = 5;
-  // The SHA256 hash of the workload process binary.
+  // The hex-encoded SHA256 hash of the workload process binary.
   optional string binary_hash = 6;
 }
 
