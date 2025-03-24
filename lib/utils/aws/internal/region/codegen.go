@@ -76,23 +76,11 @@ var regions = map[string]Region{
 	},
 	{{- end }}
 }
-
-// globalRegions is the set of available AWS global regions based on the AWS SDK
-// definition.
-var globalRegions = map[string]Region{
-	{{- range $name, $desc := $.GlobalRegions }}
-	{{ quote $name }}: Region{
-		Name: {{ quote $name }},
-		Description: {{ quote $desc }},
-	},
-	{{- end }}
-}
 `))
 
 // TemplateData is the data passed to the template.
 type TemplateData struct {
-	Regions       map[string]string
-	GlobalRegions map[string]string
+	Regions map[string]string
 }
 
 // AWSPartitions contains the struct representation of the AWS SDK patitions
@@ -142,14 +130,13 @@ func convertToTemplateData(partitionsContents []byte) (*TemplateData, error) {
 	}
 
 	data := &TemplateData{
-		Regions:       make(map[string]string),
-		GlobalRegions: make(map[string]string),
+		Regions: make(map[string]string),
 	}
 
 	for _, partition := range awsPartitions.Partitions {
 		for name, region := range partition.Regions {
-			if matchGlobalRegion.MatchString(name) {
-				data.GlobalRegions[name] = region.Description
+			// For now, we're not including the global regions.
+			if strings.HasSuffix(name, awsGlobalRegionSuffix) {
 				continue
 			}
 
@@ -183,6 +170,9 @@ const (
 	awsPackageName = "github.com/aws/aws-sdk-go-v2"
 	// awsPartitionsFilePath is the patitions JSON file path inside the package.
 	awsPartitionsFilePath = "internal/endpoints/awsrulesfn/partitions.json"
+	// globalRegionSuffix is a strings suffix that indicates a region is a
+	// global region.
+	awsGlobalRegionSuffix = "-global"
 )
 
 var (

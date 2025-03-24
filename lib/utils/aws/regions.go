@@ -197,32 +197,3 @@ var regions = map[string]Region{
 		Description: "US West (Oregon)",
 	},
 }
-
-// globalRegions is the set of available AWS global regions based on the AWS SDK
-// definition.
-var globalRegions = map[string]Region{
-	"aws-cn-global": {
-		Name:        "aws-cn-global",
-		Description: "AWS China global region",
-	},
-	"aws-global": {
-		Name:        "aws-global",
-		Description: "AWS Standard global region",
-	},
-	"aws-iso-b-global": {
-		Name:        "aws-iso-b-global",
-		Description: "AWS ISOB (US) global region",
-	},
-	"aws-iso-f-global": {
-		Name:        "aws-iso-f-global",
-		Description: "AWS ISOF global region",
-	},
-	"aws-iso-global": {
-		Name:        "aws-iso-global",
-		Description: "AWS ISO (US) global region",
-	},
-	"aws-us-gov-global": {
-		Name:        "aws-us-gov-global",
-		Description: "AWS GovCloud (US) global region",
-	},
-}

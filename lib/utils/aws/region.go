@@ -28,10 +28,6 @@ var sortedRegions = sync.OnceValue(func() []string {
 	return slices.Sorted(maps.Keys(regions))
 })
 
-var sortedGlobalRegions = sync.OnceValue(func() []string {
-	return slices.Sorted(maps.Keys(globalRegions))
-})
-
 // IsKnownRegion returns true if provided region is one of the "well-known"
 // AWS regions.
 func IsKnownRegion(region string) bool {
@@ -42,9 +38,4 @@ func IsKnownRegion(region string) bool {
 // GetKnownRegions returns a list of "well-known" AWS regions.
 func GetKnownRegions() []string {
 	return sortedRegions()
-}
-
-// GetKnownGlobalRegions returns a list of "well-known" AWS global regions.
-func GetKnownGlobalRegions() []string {
-	return sortedGlobalRegions()
 }
