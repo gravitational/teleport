@@ -441,10 +441,11 @@ audiences:
 (!docs/pages/includes/machine-id/common-output-config.yaml!)
 ```
 
-### `workload-identity-aws-ra`
+### `workload-identity-aws-roles-anywhere`
 
-The `workload-identity-aws-ra` output is used to issue an X509 workload identity
-credential, exchange this for short-lived AWS credentials using Roles Anywhere, and write these to a configured destination.
+The `workload-identity-aws-roles-anywhere` output is used to issue an X509
+workload identity credential, exchange this for short-lived AWS credentials
+using Roles Anywhere, and write these to a configured destination.
 
 The credentials are written in the [AWS shared credentials file format](https://docs.aws.amazon.com/sdkref/latest/guide/file-format.html#file-format-creds),
 which is compatible with the AWS CLI and SDKs.
@@ -458,8 +459,8 @@ for more information on Workload Identity functionality.
 
 ```yaml
 # type specifies the type of the output. For the Workload Identity AWS Roles
-# Anywhere output, this will always be `workload-identity-aws-ra`.
-type: workload-identity-aws-ra
+# Anywhere output, this will always be `workload-identity-aws-roles-anywhere`.
+type: workload-identity-aws-roles-anywhere
 # The following configuration fields are available across most output types.
 
 # destination specifies where the output should write any generated artifacts
