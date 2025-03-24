@@ -101,6 +101,7 @@ export function makeDefaultUserPreferences(): UserPreferences {
     },
     clusterPreferences: makeDefaultUserClusterPreferences(),
     sideNavDrawerMode: SideNavDrawerMode.COLLAPSED,
+    discoverResourcePreferences: {},
   };
 }
 

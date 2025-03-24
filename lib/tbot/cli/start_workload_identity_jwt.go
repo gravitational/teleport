@@ -49,7 +49,6 @@ type WorkloadIdentityJWTCommand struct {
 // `workload-identity-jwt` output and returns a struct that will contain the parse
 // result.
 func NewWorkloadIdentityJWTCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) *WorkloadIdentityJWTCommand {
-	// TODO(noah): Unhide this command when feature flag removed
 	cmd := parentCmd.Command("workload-identity-jwt", fmt.Sprintf("%s tbot with a SPIFFE-compatible JWT SVID output.", mode))
 
 	c := &WorkloadIdentityJWTCommand{}

@@ -173,7 +173,7 @@ func TestBuildDeployServiceConfigureIAMScript(t *testing.T) {
 			}
 
 			require.Contains(t, string(resp.Bytes()),
-				fmt.Sprintf("teleportArgs='%s'\n", tc.expectedTeleportArgs),
+				fmt.Sprintf("entrypointArgs='%s'\n", tc.expectedTeleportArgs),
 			)
 		})
 	}
@@ -304,7 +304,7 @@ func TestBuildEC2SSMIAMScript(t *testing.T) {
 			}
 
 			require.Contains(t, string(resp.Bytes()),
-				fmt.Sprintf("teleportArgs='%s'\n", tc.expectedTeleportArgs),
+				fmt.Sprintf("entrypointArgs='%s'\n", tc.expectedTeleportArgs),
 			)
 		})
 	}
@@ -379,7 +379,7 @@ func TestBuildAWSAppAccessConfigureIAMScript(t *testing.T) {
 			}
 
 			require.Contains(t, string(resp.Bytes()),
-				fmt.Sprintf("teleportArgs='%s'\n", tc.expectedTeleportArgs),
+				fmt.Sprintf("entrypointArgs='%s'\n", tc.expectedTeleportArgs),
 			)
 		})
 	}
@@ -482,7 +482,7 @@ func TestBuildEKSConfigureIAMScript(t *testing.T) {
 			}
 
 			require.Contains(t, string(resp.Bytes()),
-				fmt.Sprintf("teleportArgs='%s'\n", tc.expectedTeleportArgs),
+				fmt.Sprintf("entrypointArgs='%s'\n", tc.expectedTeleportArgs),
 			)
 		})
 	}
@@ -614,7 +614,7 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 			}
 
 			require.Contains(t, string(resp.Bytes()),
-				fmt.Sprintf("teleportArgs='%s'\n", tc.expectedTeleportArgs),
+				fmt.Sprintf("entrypointArgs='%s'\n", tc.expectedTeleportArgs),
 			)
 		})
 	}
@@ -717,7 +717,7 @@ func TestBuildListDatabasesConfigureIAMScript(t *testing.T) {
 			}
 
 			require.Contains(t, string(resp.Bytes()),
-				fmt.Sprintf("teleportArgs='%s'\n", tc.expectedTeleportArgs),
+				fmt.Sprintf("entrypointArgs='%s'\n", tc.expectedTeleportArgs),
 			)
 		})
 	}
@@ -1361,10 +1361,16 @@ func dummyDeployedDatabaseServices(count int, command []string) []*integrationv1
 func TestRegionsForListingDeployedDatabaseService(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("regions query param is used instead of parsing internal resources", func(t *testing.T) {
+	t.Run("regions query param, returns nil if no internal resources match", func(t *testing.T) {
 		clt := &mockRelevantAWSRegionsClient{
 			databaseServices: &proto.ListResourcesResponse{
-				Resources: []*proto.PaginatedResource{},
+				Resources: []*proto.PaginatedResource{{Resource: &proto.PaginatedResource_DatabaseService{
+					DatabaseService: &types.DatabaseServiceV1{Spec: types.DatabaseServiceSpecV1{
+						ResourceMatchers: []*types.DatabaseResourceMatcher{
+							{Labels: &types.Labels{"region": []string{"af-south-1"}}},
+						},
+					}},
+				}}},
 			},
 			databases:        make([]types.Database, 0),
 			discoveryConfigs: make([]*discoveryconfig.DiscoveryConfig, 0),
@@ -1374,7 +1380,28 @@ func TestRegionsForListingDeployedDatabaseService(t *testing.T) {
 		}
 		gotRegions, err := regionsForListingDeployedDatabaseService(ctx, &r, clt, clt)
 		require.NoError(t, err)
-		require.ElementsMatch(t, []string{"us-east-1", "us-east-2"}, gotRegions)
+		require.ElementsMatch(t, nil, gotRegions)
+	})
+
+	t.Run("regions query param, returns matches in internal resources", func(t *testing.T) {
+		clt := &mockRelevantAWSRegionsClient{
+			databaseServices: &proto.ListResourcesResponse{
+				Resources: []*proto.PaginatedResource{{Resource: &proto.PaginatedResource_DatabaseService{
+					DatabaseService: &types.DatabaseServiceV1{Spec: types.DatabaseServiceSpecV1{
+						ResourceMatchers: []*types.DatabaseResourceMatcher{
+							{Labels: &types.Labels{"region": []string{"af-south-1"}}}},
+					}},
+				}}},
+			},
+			databases:        make([]types.Database, 0),
+			discoveryConfigs: make([]*discoveryconfig.DiscoveryConfig, 0),
+		}
+		r := http.Request{
+			URL: &url.URL{RawQuery: "regions=af-south-1&regions=us-east-2"},
+		}
+		gotRegions, err := regionsForListingDeployedDatabaseService(ctx, &r, clt, clt)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"af-south-1"}, gotRegions)
 	})
 
 	t.Run("fallbacks to internal resources when query param is not present", func(t *testing.T) {
@@ -1393,13 +1420,14 @@ func TestRegionsForListingDeployedDatabaseService(t *testing.T) {
 			discoveryConfigs: make([]*discoveryconfig.DiscoveryConfig, 0),
 		}
 		r := http.Request{
-			URL: &url.URL{},
+			URL: &url.URL{RawQuery: "regions="},
 		}
 		gotRegions, err := regionsForListingDeployedDatabaseService(ctx, &r, clt, clt)
 		require.NoError(t, err)
 		require.ElementsMatch(t, []string{"us-east-1", "us-east-2"}, gotRegions)
 	})
 }
+
 func TestFetchRelevantAWSRegions(t *testing.T) {
 	ctx := context.Background()
 

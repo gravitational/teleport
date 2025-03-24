@@ -51,25 +51,18 @@ export function TextSelectCopyMulti({
     selectElementContent(targetEl as HTMLElement);
   }
 
-  const isFirefox = window.navigator?.userAgent
-    ?.toLowerCase()
-    .includes('firefox');
-
   return (
     <Box
       bg="bgTerminal"
       pl={3}
       pt={2}
+      pb={3}
       pr={saveContent.save ? 10 : 6}
-      // pr={2}
       borderRadius={2}
       minHeight="50px"
-      // Firefox does not add space for visible scrollbars
-      // like it does for chrome and safari.
-      pb={isFirefox ? 3 : 0}
       css={{
         position: 'relative',
-        overflow: 'scroll',
+        overflow: 'auto',
       }}
       maxHeight={maxHeight}
     >
@@ -174,7 +167,7 @@ const Lines = styled(Box)`
   word-break: break-all;
   font-size: 12px;
   font-family: ${({ theme }) => theme.fonts.mono};
-  overflow: scroll;
+  overflow: auto;
   line-height: 20px;
   color: ${props => props.theme.colors.light};
 `;

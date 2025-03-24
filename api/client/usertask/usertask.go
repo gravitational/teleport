@@ -35,24 +35,11 @@ func NewClient(grpcClient usertaskv1.UserTaskServiceClient) *Client {
 }
 
 // ListUserTasks returns a list of User Tasks.
-func (c *Client) ListUserTasks(ctx context.Context, pageSize int64, nextToken string) ([]*usertaskv1.UserTask, string, error) {
+func (c *Client) ListUserTasks(ctx context.Context, pageSize int64, nextToken string, filters *usertaskv1.ListUserTasksFilters) ([]*usertaskv1.UserTask, string, error) {
 	resp, err := c.grpcClient.ListUserTasks(ctx, &usertaskv1.ListUserTasksRequest{
 		PageSize:  pageSize,
 		PageToken: nextToken,
-	})
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	return resp.UserTasks, resp.NextPageToken, nil
-}
-
-// ListUserTasksByIntegration returns a list of User Tasks filtered by an integration.
-func (c *Client) ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextToken string, integration string) ([]*usertaskv1.UserTask, string, error) {
-	resp, err := c.grpcClient.ListUserTasksByIntegration(ctx, &usertaskv1.ListUserTasksByIntegrationRequest{
-		PageSize:    pageSize,
-		PageToken:   nextToken,
-		Integration: integration,
+		Filters:   filters,
 	})
 	if err != nil {
 		return nil, "", trace.Wrap(err)

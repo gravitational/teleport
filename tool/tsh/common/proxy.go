@@ -553,7 +553,6 @@ func onProxyCommandAWS(cf *CLIConf) error {
 type awsAppInfo interface {
 	GetAppName() string
 	GetEnvVars() (map[string]string, error)
-	GetEndpointURL() string
 	GetForwardProxyAddr() string
 }
 
@@ -564,14 +563,13 @@ func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
 	}
 
 	templateData := map[string]interface{}{
-		"envVars":     envVars,
-		"endpointURL": awsApp.GetEndpointURL(),
-		"format":      cf.Format,
-		"randomPort":  cf.LocalProxyPort == "",
-		"appName":     awsApp.GetAppName(),
-		"region":      getEnvOrDefault(awsRegionEnvVar, "<region>"),
-		"keystore":    getEnvOrDefault(awsKeystoreEnvVar, "<keystore>"),
-		"workgroup":   getEnvOrDefault(awsWorkgroupEnvVar, "<workgroup>"),
+		"envVars":    envVars,
+		"format":     cf.Format,
+		"randomPort": cf.LocalProxyPort == "",
+		"appName":    awsApp.GetAppName(),
+		"region":     getEnvOrDefault(awsRegionEnvVar, "<region>"),
+		"keystore":   getEnvOrDefault(awsKeystoreEnvVar, "<keystore>"),
+		"workgroup":  getEnvOrDefault(awsWorkgroupEnvVar, "<workgroup>"),
 	}
 
 	if proxyAddr := awsApp.GetForwardProxyAddr(); proxyAddr != "" {
@@ -591,7 +589,7 @@ func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
 	case cf.Format == awsProxyFormatAthenaJDBC:
 		templates = append(templates, awsProxyJDBCHeaderFooterTemplate, awsProxyAthenaJDBCTemplate)
 	case cf.AWSEndpointURLMode:
-		templates = append(templates, awsEndpointURLProxyTemplate)
+		return trace.BadParameter("--endpoint-url is no longer supported, use HTTPS proxy instead (default mode)")
 	default:
 		templates = append(templates, awsHTTPSProxyTemplate)
 	}
@@ -608,11 +606,8 @@ func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
 }
 
 func checkProxyAWSFormatCompatibility(cf *CLIConf) error {
-	switch cf.Format {
-	case awsProxyFormatAthenaODBC, awsProxyFormatAthenaJDBC:
-		if cf.AWSEndpointURLMode {
-			return trace.BadParameter("format %q is not supported in --endpoint-url mode", cf.Format)
-		}
+	if cf.AWSEndpointURLMode {
+		return trace.BadParameter("--endpoint-url is no longer supported, use HTTPS proxy instead (default mode)")
 	}
 	return nil
 }
@@ -905,11 +900,7 @@ var cloudTemplateFuncs = template.FuncMap{
 // awsProxyHeaderTemplate contains common header used for AWS proxy.
 const awsProxyHeaderTemplate = `
 {{define "header"}}
-{{- if .envVars.HTTPS_PROXY -}}
 Started AWS proxy on {{.envVars.HTTPS_PROXY}}.
-{{- else -}}
-Started AWS proxy which serves as an AWS endpoint URL at {{.endpointURL}}.
-{{- end }}
 {{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
 {{end}}
 {{end}}
@@ -944,15 +935,6 @@ Use the following credentials and HTTPS proxy setting to connect to the proxy:
   {{ envVarCommand .format "AWS_SECRET_ACCESS_KEY" .envVars.AWS_SECRET_ACCESS_KEY}}
   {{ envVarCommand .format "AWS_CA_BUNDLE" .envVars.AWS_CA_BUNDLE}}
   {{ envVarCommand .format "HTTPS_PROXY" .envVars.HTTPS_PROXY}}
-`
-
-// awsEndpointURLProxyTemplate is the message that gets printed to a user when an
-// AWS endpoint URL proxy is started.
-var awsEndpointURLProxyTemplate = `{{- template "header" . -}}
-In addition to the endpoint URL, use the following credentials to connect to the proxy:
-  {{ envVarCommand .format "AWS_ACCESS_KEY_ID" .envVars.AWS_ACCESS_KEY_ID}}
-  {{ envVarCommand .format "AWS_SECRET_ACCESS_KEY" .envVars.AWS_SECRET_ACCESS_KEY}}
-  {{ envVarCommand .format "AWS_CA_BUNDLE" .envVars.AWS_CA_BUNDLE}}
 `
 
 // awsProxyAthenaODBCTemplate is the message that gets printed to a user when an

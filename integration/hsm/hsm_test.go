@@ -176,7 +176,7 @@ func testAdminClient(t *testing.T, authDataDir string, authAddr string) {
 			return err
 		}
 		defer clt.Close()
-		_, err = clt.GetClusterName()
+		_, err = clt.GetClusterName(context.TODO())
 		return err
 	}
 	// We might be hitting a load balancer in front of two auths, running

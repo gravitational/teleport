@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/ingress"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 // TLSServerConfig is a configuration for TLS server
@@ -122,7 +123,7 @@ func (f *awsClientsGetter) GetAWSEKSClient(cfg aws.Config) EKSClient {
 }
 
 func (f *awsClientsGetter) GetAWSSTSPresignClient(cfg aws.Config) STSPresignClient {
-	stsClient := sts.NewFromConfig(cfg)
+	stsClient := stsutils.NewFromConfig(cfg)
 	return sts.NewPresignClient(stsClient)
 }
 
@@ -229,7 +230,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		return nil, trace.BadParameter("kube_service won't start because it has neither static clusters nor a resource watcher configured.")
 	}
 
-	clustername, err := cfg.AccessPoint.GetClusterName()
+	clustername, err := cfg.AccessPoint.GetClusterName(cfg.Context)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

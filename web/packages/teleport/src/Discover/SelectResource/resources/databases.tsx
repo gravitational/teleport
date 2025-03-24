@@ -22,19 +22,16 @@ import { DbProtocol } from 'shared/services/databases';
 import { DiscoverEventResource } from 'teleport/services/userEvent';
 import { DiscoverGuideId } from 'teleport/services/userPreferences/discoverPreference';
 
+import { SelectResourceSpec } from '.';
 import { ResourceKind } from '../../Shared/ResourceKind';
 import { DatabaseEngine, DatabaseLocation } from '../types';
-import { SelectResourceSpec } from './resources';
-
-const baseDatabaseKeywords = ['db', 'database', 'databases'];
-const awsKeywords = [...baseDatabaseKeywords, 'aws', 'amazon web services'];
-const gcpKeywords = [...baseDatabaseKeywords, 'gcp', 'google cloud platform'];
-const selfhostedKeywords = [
-  ...baseDatabaseKeywords,
-  'self hosted',
-  'self-hosted',
-];
-const azureKeywords = [...baseDatabaseKeywords, 'microsoft azure'];
+import {
+  awsDatabaseKeywords,
+  azureKeywords,
+  baseDatabaseKeywords,
+  gcpKeywords,
+  selfHostedDatabaseKeywords,
+} from './keywords';
 
 // DATABASES_UNGUIDED_DOC are documentations that is not specific
 // to one type of database.
@@ -43,7 +40,7 @@ export const DATABASES_UNGUIDED_DOC: SelectResourceSpec[] = [
     id: DiscoverGuideId.DatabaseAwsRdsProxyPostgres,
     dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.Doc },
     name: 'RDS Proxy PostgreSQL',
-    keywords: [...awsKeywords, 'rds', 'proxy', 'postgresql'],
+    keywords: [...awsDatabaseKeywords, 'rds', 'proxy', 'postgresql'],
     kind: ResourceKind.Database,
     icon: 'aws',
     unguidedLink:
@@ -55,7 +52,13 @@ export const DATABASES_UNGUIDED_DOC: SelectResourceSpec[] = [
     id: DiscoverGuideId.DatabaseAwsRdsProxySqlServer,
     dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.Doc },
     name: 'RDS Proxy SQL Server',
-    keywords: [...awsKeywords, 'rds', 'proxy', 'sql server', 'sqlserver'],
+    keywords: [
+      ...awsDatabaseKeywords,
+      'rds',
+      'proxy',
+      'sql server',
+      'sqlserver',
+    ],
     kind: ResourceKind.Database,
     icon: 'aws',
     unguidedLink:
@@ -67,7 +70,7 @@ export const DATABASES_UNGUIDED_DOC: SelectResourceSpec[] = [
     id: DiscoverGuideId.DatabaseAwsRdsProxyMariaMySql,
     dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.Doc },
     name: 'RDS Proxy MariaDB/MySQL',
-    keywords: [...awsKeywords, 'rds', 'proxy', 'mariadb', 'mysql'],
+    keywords: [...awsDatabaseKeywords, 'rds', 'proxy', 'mariadb', 'mysql'],
     kind: ResourceKind.Database,
     icon: 'aws',
     unguidedLink:
@@ -104,7 +107,7 @@ export const DATABASES_UNGUIDED: SelectResourceSpec[] = [
     id: DiscoverGuideId.DatabaseAwsDynamoDb,
     dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.DynamoDb },
     name: 'DynamoDB',
-    keywords: [...awsKeywords, 'dynamodb'],
+    keywords: [...awsDatabaseKeywords, 'dynamodb'],
     kind: ResourceKind.Database,
     icon: 'dynamo',
     unguidedLink:
@@ -115,7 +118,7 @@ export const DATABASES_UNGUIDED: SelectResourceSpec[] = [
     id: DiscoverGuideId.DatabaseAwsElastiCacheMemoryDb,
     dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.Redis },
     name: 'ElastiCache & MemoryDB',
-    keywords: [...awsKeywords, 'elasticache', 'memorydb', 'redis'],
+    keywords: [...awsDatabaseKeywords, 'elasticache', 'memorydb', 'redis'],
     kind: ResourceKind.Database,
     icon: 'aws',
     unguidedLink:
@@ -129,7 +132,7 @@ export const DATABASES_UNGUIDED: SelectResourceSpec[] = [
       engine: DatabaseEngine.Cassandra,
     },
     name: 'Keyspaces (Apache Cassandra)',
-    keywords: [...awsKeywords, 'keyspaces', 'apache', 'cassandra'],
+    keywords: [...awsDatabaseKeywords, 'keyspaces', 'apache', 'cassandra'],
     kind: ResourceKind.Database,
     icon: 'aws',
     unguidedLink:
@@ -140,7 +143,7 @@ export const DATABASES_UNGUIDED: SelectResourceSpec[] = [
     id: DiscoverGuideId.DatabaseAwsPostgresRedshift,
     dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.Redshift },
     name: 'Redshift PostgreSQL',
-    keywords: [...awsKeywords, 'redshift', 'postgresql'],
+    keywords: [...awsDatabaseKeywords, 'redshift', 'postgresql'],
     kind: ResourceKind.Database,
     icon: 'redshift',
     unguidedLink:
@@ -151,7 +154,7 @@ export const DATABASES_UNGUIDED: SelectResourceSpec[] = [
     id: DiscoverGuideId.DatabaseAwsRedshiftServerless,
     dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.Redshift },
     name: 'Redshift Serverless',
-    keywords: [...awsKeywords, 'redshift', 'serverless', 'postgresql'],
+    keywords: [...awsDatabaseKeywords, 'redshift', 'serverless', 'postgresql'],
     kind: ResourceKind.Database,
     icon: 'redshift',
     unguidedLink:
@@ -224,7 +227,7 @@ export const DATABASES_UNGUIDED: SelectResourceSpec[] = [
     },
     name: 'RDS SQL Server',
     keywords: [
-      ...awsKeywords,
+      ...awsDatabaseKeywords,
       'rds',
       'microsoft',
       'active directory',
@@ -283,7 +286,7 @@ export const DATABASES_UNGUIDED: SelectResourceSpec[] = [
       engine: DatabaseEngine.Cassandra,
     },
     name: 'Cassandra & ScyllaDB',
-    keywords: [...selfhostedKeywords, 'cassandra scylladb'],
+    keywords: [...selfHostedDatabaseKeywords, 'cassandra scylladb'],
     kind: ResourceKind.Database,
     icon: 'selfhosted',
     unguidedLink:
@@ -297,7 +300,7 @@ export const DATABASES_UNGUIDED: SelectResourceSpec[] = [
       engine: DatabaseEngine.CockroachDb,
     },
     name: 'CockroachDB',
-    keywords: [...selfhostedKeywords, 'cockroachdb'],
+    keywords: [...selfHostedDatabaseKeywords, 'cockroachdb'],
     kind: ResourceKind.Database,
     icon: 'cockroach',
     unguidedLink:
@@ -311,7 +314,7 @@ export const DATABASES_UNGUIDED: SelectResourceSpec[] = [
       engine: DatabaseEngine.ElasticSearch,
     },
     name: 'Elasticsearch',
-    keywords: [...selfhostedKeywords, 'elasticsearch', 'es'],
+    keywords: [...selfHostedDatabaseKeywords, 'elasticsearch', 'es'],
     kind: ResourceKind.Database,
     icon: 'selfhosted',
     unguidedLink:
@@ -325,7 +328,7 @@ export const DATABASES_UNGUIDED: SelectResourceSpec[] = [
       engine: DatabaseEngine.MongoDb,
     },
     name: 'MongoDB',
-    keywords: [...selfhostedKeywords, 'mongodb'],
+    keywords: [...selfHostedDatabaseKeywords, 'mongodb'],
     kind: ResourceKind.Database,
     icon: 'mongo',
     unguidedLink:
@@ -339,7 +342,7 @@ export const DATABASES_UNGUIDED: SelectResourceSpec[] = [
       engine: DatabaseEngine.Redis,
     },
     name: 'Redis',
-    keywords: [...selfhostedKeywords, 'redis'],
+    keywords: [...selfHostedDatabaseKeywords, 'redis'],
     kind: ResourceKind.Database,
     icon: 'selfhosted',
     unguidedLink:
@@ -353,7 +356,7 @@ export const DATABASES_UNGUIDED: SelectResourceSpec[] = [
       engine: DatabaseEngine.Redis,
     },
     name: 'Redis Cluster',
-    keywords: [...selfhostedKeywords, 'redis cluster'],
+    keywords: [...selfHostedDatabaseKeywords, 'redis cluster'],
     kind: ResourceKind.Database,
     icon: 'selfhosted',
     unguidedLink:
@@ -384,7 +387,7 @@ export const DATABASES: SelectResourceSpec[] = [
       engine: DatabaseEngine.Postgres,
     },
     name: 'RDS PostgreSQL',
-    keywords: [...awsKeywords, 'rds postgresql'],
+    keywords: [...awsDatabaseKeywords, 'rds postgresql'],
     kind: ResourceKind.Database,
     icon: 'aws',
     event: DiscoverEventResource.DatabasePostgresRds,
@@ -396,7 +399,7 @@ export const DATABASES: SelectResourceSpec[] = [
       engine: DatabaseEngine.AuroraPostgres,
     },
     name: 'RDS Aurora PostgreSQL',
-    keywords: [...awsKeywords, 'rds aurora postgresql'],
+    keywords: [...awsDatabaseKeywords, 'rds aurora postgresql'],
     kind: ResourceKind.Database,
     icon: 'aws',
     event: DiscoverEventResource.DatabasePostgresRds,
@@ -405,7 +408,7 @@ export const DATABASES: SelectResourceSpec[] = [
     id: DiscoverGuideId.DatabaseAwsRdsMysqlMariaDb,
     dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.MySql },
     name: 'RDS MySQL/MariaDB',
-    keywords: [...awsKeywords, 'rds mysql mariadb'],
+    keywords: [...awsDatabaseKeywords, 'rds mysql mariadb'],
     kind: ResourceKind.Database,
     icon: 'aws',
     event: DiscoverEventResource.DatabaseMysqlRds,
@@ -417,7 +420,7 @@ export const DATABASES: SelectResourceSpec[] = [
       engine: DatabaseEngine.AuroraMysql,
     },
     name: 'RDS Aurora MySQL',
-    keywords: [...awsKeywords, 'rds aurora mysql'],
+    keywords: [...awsDatabaseKeywords, 'rds aurora mysql'],
     kind: ResourceKind.Database,
     icon: 'aws',
     event: DiscoverEventResource.DatabaseMysqlRds,
@@ -429,7 +432,7 @@ export const DATABASES: SelectResourceSpec[] = [
       engine: DatabaseEngine.Postgres,
     },
     name: 'PostgreSQL',
-    keywords: [...selfhostedKeywords, 'postgresql'],
+    keywords: [...selfHostedDatabaseKeywords, 'postgresql'],
     kind: ResourceKind.Database,
     icon: 'postgres',
     event: DiscoverEventResource.DatabasePostgresSelfHosted,
@@ -441,7 +444,7 @@ export const DATABASES: SelectResourceSpec[] = [
       engine: DatabaseEngine.MySql,
     },
     name: 'MySQL/MariaDB',
-    keywords: [...selfhostedKeywords, 'mysql mariadb'],
+    keywords: [...selfHostedDatabaseKeywords, 'mysql mariadb'],
     kind: ResourceKind.Database,
     icon: 'selfhosted',
     event: DiscoverEventResource.DatabaseMysqlSelfHosted,

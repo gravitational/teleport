@@ -16,10 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
 import { Platform, UserAgent } from 'design/platform';
-import { render, screen, waitFor } from 'design/utils/testing';
+import { render, screen, userEvent, waitFor } from 'design/utils/testing';
 import {
   OnboardUserPreferences,
   Resource,
@@ -32,37 +33,41 @@ import {
   noAccess,
 } from 'teleport/mocks/contexts';
 import { OnboardDiscover } from 'teleport/services/user';
+import * as service from 'teleport/services/userPreferences/userPreferences';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 import * as userUserContext from 'teleport/User/UserContext';
+import { UserContextProvider } from 'teleport/User/UserContext';
 
 import { ResourceKind } from '../Shared';
 import { resourceKindToPreferredResource } from '../Shared/ResourceKind';
+import { getGuideTileId } from '../testUtils';
 import { SelectResourceSpec } from './resources';
 import { SelectResource } from './SelectResource';
+import {
+  a_DatabaseAws,
+  c_ApplicationGcp,
+  d_Saml,
+  e_KubernetesSelfHosted_unguided,
+  f_Server,
+  g_Application,
+  h_Server,
+  i_Desktop,
+  j_Kubernetes,
+  k_Database,
+  kindBasedList,
+  l_DesktopAzure,
+  l_Saml,
+  makeResourceSpec,
+  NoAccessList,
+} from './testUtils';
 import { filterBySupportedPlatformsAndAuthTypes } from './utils/filters';
+import { defaultPins } from './utils/pins';
 import { sortResourcesByPreferences } from './utils/sort';
 
 const setUp = () => {
   jest
     .spyOn(window.navigator, 'userAgent', 'get')
     .mockReturnValue(UserAgent.macOS);
-};
-
-const makeResourceSpec = (
-  overrides: Partial<SelectResourceSpec> = {}
-): SelectResourceSpec => {
-  return Object.assign(
-    {
-      id: '',
-      name: '',
-      kind: ResourceKind.Application,
-      icon: '',
-      event: null,
-      keywords: [],
-      hasAccess: true,
-    },
-    overrides
-  );
 };
 
 /**
@@ -83,6 +88,10 @@ const onboardDiscoverNoResources: OnboardDiscover = {
   notified: true,
   hasVisited: false,
 };
+
+beforeEach(() => {
+  jest.restoreAllMocks();
+});
 
 test('sortResourcesByPreferences without preferred resources, sorts resources alphabetically with guided resources first', () => {
   setUp();
@@ -117,121 +126,6 @@ test('sortResourcesByPreferences without preferred resources, sorts resources al
   ]);
 });
 
-const t_Application_NoAccess = makeResourceSpec({
-  name: 'tango',
-  kind: ResourceKind.Application,
-  hasAccess: false,
-});
-const u_Database_NoAccess = makeResourceSpec({
-  name: 'uniform',
-  kind: ResourceKind.Database,
-  hasAccess: false,
-});
-const v_Desktop_NoAccess = makeResourceSpec({
-  name: 'victor',
-  kind: ResourceKind.Desktop,
-  hasAccess: false,
-});
-const w_Kubernetes_NoAccess = makeResourceSpec({
-  name: 'whiskey',
-  kind: ResourceKind.Kubernetes,
-  hasAccess: false,
-});
-const x_Server_NoAccess = makeResourceSpec({
-  name: 'xray',
-  kind: ResourceKind.Server,
-  hasAccess: false,
-});
-const y_Saml_NoAccess = makeResourceSpec({
-  name: 'yankee',
-  kind: ResourceKind.SamlApplication,
-  hasAccess: false,
-});
-const z_Discovery_NoAccess = makeResourceSpec({
-  name: 'zulu',
-  kind: ResourceKind.Discovery,
-  hasAccess: false,
-});
-
-const NoAccessList: SelectResourceSpec[] = [
-  t_Application_NoAccess,
-  u_Database_NoAccess,
-  v_Desktop_NoAccess,
-  w_Kubernetes_NoAccess,
-  x_Server_NoAccess,
-  y_Saml_NoAccess,
-  z_Discovery_NoAccess,
-];
-
-const c_Application = makeResourceSpec({
-  name: 'charlie',
-  kind: ResourceKind.Application,
-});
-const a_Database = makeResourceSpec({
-  name: 'alpha',
-  kind: ResourceKind.Database,
-});
-const l_Desktop = makeResourceSpec({
-  name: 'linux',
-  kind: ResourceKind.Desktop,
-});
-const e_Kubernetes_unguided = makeResourceSpec({
-  name: 'echo',
-  kind: ResourceKind.Kubernetes,
-  unguidedLink: 'test.com',
-});
-const f_Server = makeResourceSpec({
-  name: 'foxtrot',
-  kind: ResourceKind.Server,
-});
-const d_Saml = makeResourceSpec({
-  name: 'delta',
-  kind: ResourceKind.SamlApplication,
-});
-const g_Application = makeResourceSpec({
-  name: 'golf',
-  kind: ResourceKind.Application,
-});
-const k_Database = makeResourceSpec({
-  name: 'kilo',
-  kind: ResourceKind.Database,
-});
-const i_Desktop = makeResourceSpec({
-  name: 'india',
-  kind: ResourceKind.Desktop,
-});
-const j_Kubernetes = makeResourceSpec({
-  name: 'juliette',
-  kind: ResourceKind.Kubernetes,
-});
-const h_Server = makeResourceSpec({ name: 'hotel', kind: ResourceKind.Server });
-const l_Saml = makeResourceSpec({
-  name: 'lima',
-  kind: ResourceKind.SamlApplication,
-});
-
-const kindBasedList: SelectResourceSpec[] = [
-  c_Application,
-  a_Database,
-  t_Application_NoAccess,
-  l_Desktop,
-  e_Kubernetes_unguided,
-  u_Database_NoAccess,
-  f_Server,
-  w_Kubernetes_NoAccess,
-  d_Saml,
-  v_Desktop_NoAccess,
-  g_Application,
-  x_Server_NoAccess,
-  k_Database,
-  i_Desktop,
-  z_Discovery_NoAccess,
-  j_Kubernetes,
-  h_Server,
-  y_Saml_NoAccess,
-  l_Saml,
-];
-
 describe('preferred resources', () => {
   beforeEach(() => {
     setUp();
@@ -250,16 +144,16 @@ describe('preferred resources', () => {
         f_Server,
         h_Server,
         // alpha; guided before unguided
-        a_Database,
-        c_Application,
+        a_DatabaseAws,
+        c_ApplicationGcp,
         d_Saml,
         g_Application,
         i_Desktop,
         j_Kubernetes,
         k_Database,
         l_Saml,
-        l_Desktop,
-        e_Kubernetes_unguided,
+        l_DesktopAzure,
+        e_KubernetesSelfHosted_unguided,
         // no access is last
         ...NoAccessList,
       ],
@@ -269,10 +163,10 @@ describe('preferred resources', () => {
       preferred: [Resource.DATABASES],
       expected: [
         // preferred first
-        a_Database,
+        a_DatabaseAws,
         k_Database,
         // alpha; guided before unguided
-        c_Application,
+        c_ApplicationGcp,
         d_Saml,
         f_Server,
         g_Application,
@@ -280,8 +174,8 @@ describe('preferred resources', () => {
         i_Desktop,
         j_Kubernetes,
         l_Saml,
-        l_Desktop,
-        e_Kubernetes_unguided,
+        l_DesktopAzure,
+        e_KubernetesSelfHosted_unguided,
         // no access is last
         ...NoAccessList,
       ],
@@ -292,10 +186,10 @@ describe('preferred resources', () => {
       expected: [
         // preferred first
         i_Desktop,
-        l_Desktop,
+        l_DesktopAzure,
         // alpha; guided before unguided
-        a_Database,
-        c_Application,
+        a_DatabaseAws,
+        c_ApplicationGcp,
         d_Saml,
         f_Server,
         g_Application,
@@ -303,7 +197,7 @@ describe('preferred resources', () => {
         j_Kubernetes,
         k_Database,
         l_Saml,
-        e_Kubernetes_unguided,
+        e_KubernetesSelfHosted_unguided,
         // no access is last
         ...NoAccessList,
       ],
@@ -313,10 +207,10 @@ describe('preferred resources', () => {
       preferred: [Resource.WEB_APPLICATIONS],
       expected: [
         // preferred first
-        c_Application,
+        c_ApplicationGcp,
         g_Application,
         // alpha; guided before unguided
-        a_Database,
+        a_DatabaseAws,
         d_Saml,
         f_Server,
         h_Server,
@@ -324,8 +218,8 @@ describe('preferred resources', () => {
         j_Kubernetes,
         k_Database,
         l_Saml,
-        l_Desktop,
-        e_Kubernetes_unguided,
+        l_DesktopAzure,
+        e_KubernetesSelfHosted_unguided,
         // no access is last
         ...NoAccessList,
       ],
@@ -336,10 +230,10 @@ describe('preferred resources', () => {
       expected: [
         // preferred first; guided before unguided
         j_Kubernetes,
-        e_Kubernetes_unguided,
+        e_KubernetesSelfHosted_unguided,
         // alpha
-        a_Database,
-        c_Application,
+        a_DatabaseAws,
+        c_ApplicationGcp,
         d_Saml,
         f_Server,
         g_Application,
@@ -347,7 +241,7 @@ describe('preferred resources', () => {
         i_Desktop,
         k_Database,
         l_Saml,
-        l_Desktop,
+        l_DesktopAzure,
         // no access is last
         ...NoAccessList,
       ],
@@ -391,10 +285,10 @@ describe('marketing params', () => {
       expected: [
         // marketing params first; no preferred priority, guided before unguided
         j_Kubernetes,
-        e_Kubernetes_unguided,
+        e_KubernetesSelfHosted_unguided,
         // alpha
-        a_Database,
-        c_Application,
+        a_DatabaseAws,
+        c_ApplicationGcp,
         d_Saml,
         f_Server,
         g_Application,
@@ -402,7 +296,7 @@ describe('marketing params', () => {
         i_Desktop,
         k_Database,
         l_Saml,
-        l_Desktop,
+        l_DesktopAzure,
         // no access is last
         ...NoAccessList,
       ],
@@ -423,16 +317,16 @@ describe('marketing params', () => {
         f_Server,
         h_Server,
         // alpha; guided before unguided
-        a_Database,
-        c_Application,
+        a_DatabaseAws,
+        c_ApplicationGcp,
         d_Saml,
         g_Application,
         i_Desktop,
         j_Kubernetes,
         k_Database,
         l_Saml,
-        l_Desktop,
-        e_Kubernetes_unguided,
+        l_DesktopAzure,
+        e_KubernetesSelfHosted_unguided,
         // no access is last
         ...NoAccessList,
       ],
@@ -450,10 +344,10 @@ describe('marketing params', () => {
       },
       expected: [
         // preferred first
-        a_Database,
+        a_DatabaseAws,
         k_Database,
         // alpha; guided before unguided
-        c_Application,
+        c_ApplicationGcp,
         d_Saml,
         f_Server,
         g_Application,
@@ -461,8 +355,8 @@ describe('marketing params', () => {
         i_Desktop,
         j_Kubernetes,
         l_Saml,
-        l_Desktop,
-        e_Kubernetes_unguided,
+        l_DesktopAzure,
+        e_KubernetesSelfHosted_unguided,
         // no access is last
         ...NoAccessList,
       ],
@@ -481,10 +375,10 @@ describe('marketing params', () => {
       expected: [
         // preferred first
         i_Desktop,
-        l_Desktop,
+        l_DesktopAzure,
         // alpha; guided before unguided
-        a_Database,
-        c_Application,
+        a_DatabaseAws,
+        c_ApplicationGcp,
         d_Saml,
         f_Server,
         g_Application,
@@ -492,7 +386,7 @@ describe('marketing params', () => {
         j_Kubernetes,
         k_Database,
         l_Saml,
-        e_Kubernetes_unguided,
+        e_KubernetesSelfHosted_unguided,
         // no access is last
         ...NoAccessList,
       ],
@@ -510,10 +404,10 @@ describe('marketing params', () => {
       },
       expected: [
         // preferred first
-        c_Application,
+        c_ApplicationGcp,
         g_Application,
         // alpha; guided before unguided
-        a_Database,
+        a_DatabaseAws,
         d_Saml,
         f_Server,
         h_Server,
@@ -521,8 +415,8 @@ describe('marketing params', () => {
         j_Kubernetes,
         k_Database,
         l_Saml,
-        l_Desktop,
-        e_Kubernetes_unguided,
+        l_DesktopAzure,
+        e_KubernetesSelfHosted_unguided,
         // no access is last
         ...NoAccessList,
       ],
@@ -541,10 +435,10 @@ describe('marketing params', () => {
       expected: [
         // preferred first; guided before unguided
         j_Kubernetes,
-        e_Kubernetes_unguided,
+        e_KubernetesSelfHosted_unguided,
         // alpha
-        a_Database,
-        c_Application,
+        a_DatabaseAws,
+        c_ApplicationGcp,
         d_Saml,
         f_Server,
         g_Application,
@@ -552,7 +446,7 @@ describe('marketing params', () => {
         i_Desktop,
         k_Database,
         l_Saml,
-        l_Desktop,
+        l_DesktopAzure,
         // no access is last
         ...NoAccessList,
       ],
@@ -1131,6 +1025,7 @@ test('displays an info banner if lacking "all" permissions to add resources', as
     updatePreferences: () => null,
     updateClusterPinnedResources: () => null,
     getClusterPinnedResources: () => null,
+    updateDiscoverResourcePreferences: () => null,
   });
 
   const ctx = createTeleportContext();
@@ -1151,12 +1046,59 @@ test('displays an info banner if lacking "all" permissions to add resources', as
   });
 });
 
+test('add and remove pin, and rendering of default pins', async () => {
+  jest
+    .spyOn(window.navigator, 'userAgent', 'get')
+    .mockReturnValue(UserAgent.macOS);
+
+  const prefs = makeDefaultUserPreferences();
+  jest.spyOn(service, 'getUserPreferences').mockResolvedValue(prefs);
+  jest.spyOn(service, 'updateUserPreferences').mockResolvedValue(prefs);
+
+  render(
+    <MemoryRouter>
+      <ContextProvider ctx={createTeleportContext()}>
+        <UserContextProvider>
+          <SelectResource onSelect={() => {}} />
+        </UserContextProvider>
+      </ContextProvider>
+    </MemoryRouter>
+  );
+
+  await screen.findAllByTestId(/large-tile-/);
+
+  // Default pins on initial render with no preferences set.
+  let pinnedGuides = screen.queryAllByTestId(/large-tile-/);
+  expect(pinnedGuides).toHaveLength(defaultPins.length);
+
+  // Add pin.
+  let snowflakeGuide = screen.getByTestId(
+    getGuideTileId({ kind: ResourceKind.Database, title: 'snowflake' })
+  );
+  await userEvent.click(within(snowflakeGuide).getByTestId(/pin-button/i));
+  pinnedGuides = screen.queryAllByTestId(/large-tile-/);
+  expect(pinnedGuides).toHaveLength(defaultPins.length + 1);
+
+  // Remove pin.
+  snowflakeGuide = screen.getByTestId(
+    getGuideTileId({
+      kind: ResourceKind.Database,
+      title: 'snowflake',
+      size: 'large',
+    })
+  );
+  await userEvent.click(within(snowflakeGuide).getByTestId(/pin-button/i));
+  pinnedGuides = screen.queryAllByTestId(/large-tile-/);
+  expect(pinnedGuides).toHaveLength(defaultPins.length);
+});
+
 test('does not display erorr banner if user has "some" permissions to add', async () => {
   jest.spyOn(userUserContext, 'useUser').mockReturnValue({
     preferences: makeDefaultUserPreferences(),
     updatePreferences: () => null,
     updateClusterPinnedResources: () => null,
     getClusterPinnedResources: () => null,
+    updateDiscoverResourcePreferences: () => null,
   });
 
   const ctx = createTeleportContext();
@@ -1175,7 +1117,7 @@ test('does not display erorr banner if user has "some" permissions to add', asyn
   ).not.toBeInTheDocument();
 });
 
-describe('filterResources', () => {
+describe('filterBySupportedPlatformsAndAuthTypes', () => {
   it('filters out resources based on supportedPlatforms', () => {
     const winAndLinux = makeResourceSpec({
       name: 'Filtered out with many supported platforms',

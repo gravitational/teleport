@@ -238,14 +238,14 @@ $ TELEPORT_VERSION="$(curl https://<Var name="example.teleport.sh:443" />/v1/web
 ```
 
 
-Install the Helm chart for Teleport agent services, `teleport-kube-agent`:
+Install the Helm chart for Teleport Agent services, `teleport-kube-agent`:
 
 ```code
 $ helm -n teleport-agent install teleport-kube-agent teleport/teleport-kube-agent \
   --values values.yaml --create-namespace --version $TELEPORT_VERSION
 ```
 
-Make sure that the Teleport agent pod is running. You should see one
+Make sure that the Teleport Agent pod is running. You should see one
 `teleport-kube-agent` pod with a single ready container:
 
 ```code

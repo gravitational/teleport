@@ -20,8 +20,8 @@ import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 import { DiscoverEventResource } from 'teleport/services/userEvent';
 import { DiscoverGuideId } from 'teleport/services/userPreferences/discoverPreference';
 
+import { SelectResourceSpec } from '.';
 import { ResourceKind } from '../../Shared';
-import { SelectResourceSpec } from './resources';
 
 export const SAML_APPLICATIONS: SelectResourceSpec[] = [
   {

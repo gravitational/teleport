@@ -86,9 +86,8 @@ with one of the following options:
   </TabItem>
 </Tabs>
 
-<Details
-  title="Troubleshooting: failed to create a lock?"
->
+<details>
+<summary>Troubleshooting: failed to create a lock?</summary>
 
 If your user is missing a lock permission, you will get an error when creating
 a lock:
@@ -122,7 +121,7 @@ $ tctl create -f locksmith.yaml
 
 (!docs/pages/includes/add-role-to-user.mdx role="locksmith"!)
 
-</Details>
+</details>
 
 With a lock in force, all established connections involving the lock's target
 get terminated while any new requests are rejected.
@@ -141,7 +140,8 @@ $ tctl lock --user=foo@example.com --message="Please come back tomorrow." --ttl=
 ```
 </Admonition>
 
-<Details title="Under the hood: Lock resource and expiration">
+<details>
+<summary>Under the hood: Lock resource and expiration</summary>
 Note that without specifying `--ttl` or `--expires`, the created lock remains in
 force until explicitly removed with `tctl rm`.  Refer to `tctl lock --help` for
 the list of all supported parameters.
@@ -163,7 +163,7 @@ spec:
 The `kind: lock` resources can also be created and updated using `tctl create`
 as per usual. See the [Admin Guide](../../../reference/resources.mdx) for more
 details.
-</Details>
+</details>
 
 ## Step 2/2. List and delete active locks
 

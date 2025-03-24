@@ -62,17 +62,13 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 const (
 	// azureVirtualMachineCacheTTL is the default TTL for Azure virtual machine
 	// cache entries.
 	azureVirtualMachineCacheTTL = 5 * time.Minute
-
-	// emptyPayloadHash is the SHA-256 for an empty element (as in echo -n | sha256sum).
-	// PresignHTTP requires the hash of the body, but when there is no body we hash the empty string.
-	// https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html
-	emptyPayloadHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 )
 
 // Auth defines interface for creating auth tokens and TLS configurations.
@@ -164,7 +160,7 @@ func (defaultAWSClients) getRedshiftServerlessClient(cfg aws.Config, optFns ...f
 }
 
 func (defaultAWSClients) getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient {
-	return sts.NewFromConfig(cfg, optFns...)
+	return stsutils.NewFromConfig(cfg, optFns...)
 }
 
 // AuthConfig is the database access authenticator configuration.
@@ -1322,7 +1318,7 @@ func (r *awsRedisIAMTokenRequest) toSignedRequestURI(ctx context.Context) (strin
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	signedURI, _, err := signer.PresignHTTP(ctx, creds, req, emptyPayloadHash, r.serviceName, r.region, r.clock.Now())
+	signedURI, _, err := signer.PresignHTTP(ctx, creds, req, awsutils.EmptyPayloadHash, r.serviceName, r.region, r.clock.Now())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Report } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
+
 import type { Shell } from 'teleterm/mainProcess/shell';
 import type { RuntimeSettings } from 'teleterm/mainProcess/types';
 import * as uri from 'teleterm/ui/uri';
@@ -48,6 +50,7 @@ import {
   DocumentTshKube,
   DocumentTshNode,
   DocumentTshNodeWithServerId,
+  DocumentVnetDiagReport,
   WebSessionRequest,
 } from './types';
 
@@ -248,6 +251,21 @@ export class DocumentsService {
       title: 'Authorize Web Session',
       rootClusterUri: params.rootClusterUri,
       webSessionRequest: params.webSessionRequest,
+    };
+  }
+
+  createVnetDiagReportDocument(opts: {
+    rootClusterUri: RootClusterUri;
+    report: Report;
+  }): DocumentVnetDiagReport {
+    const uri = routing.getDocUri({ docId: unique() });
+
+    return {
+      uri,
+      kind: 'doc.vnet_diag_report',
+      title: 'VNet Diagnostic Report',
+      rootClusterUri: opts.rootClusterUri,
+      report: opts.report,
     };
   }
 

@@ -32,6 +32,8 @@ import (
 const (
 	// OIDCJWKWURI is the relative path where the OIDC IdP JWKS is located
 	OIDCJWKWURI = "/.well-known/jwks-oidc"
+	// OktaJWKSWellknownURI is the relative path where the Okta JWKS is located
+	OktaJWKSWellknownURI = "/.well-known/jwks-okta"
 )
 
 // openidConfiguration returns the openid-configuration for setting up the AWS OIDC Integration

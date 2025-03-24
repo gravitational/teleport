@@ -96,6 +96,9 @@ message UpdateIntegrationRequest {
 message DeleteIntegrationRequest {
   // Name is the name of the Integration to be deleted.
   string name = 1;
+  // DeleteAssociatedResources allows the request to search associated resources
+  // and attempt to delete them.
+  bool delete_associated_resources = 2;
 }
 
 // DeleteAllIntegrationsRequest is the request for deleting all integrations.

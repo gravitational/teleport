@@ -44,6 +44,8 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -117,7 +119,7 @@ func (defaultAWSClients) getElastiCacheClient(cfg aws.Config, optFns ...func(*el
 }
 
 func (defaultAWSClients) getIAMClient(cfg aws.Config, optFns ...func(*iam.Options)) iamClient {
-	return iam.NewFromConfig(cfg, optFns...)
+	return iamutils.NewFromConfig(cfg, optFns...)
 }
 
 func (defaultAWSClients) getMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) memoryDBClient {
@@ -141,7 +143,7 @@ func (defaultAWSClients) getRedshiftServerlessClient(cfg aws.Config, optFns ...f
 }
 
 func (defaultAWSClients) getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient {
-	return sts.NewFromConfig(cfg, optFns...)
+	return stsutils.NewFromConfig(cfg, optFns...)
 }
 
 // MetadataConfig is the cloud metadata service config.
@@ -185,7 +187,7 @@ func NewMetadata(config MetadataConfig) (*Metadata, error) {
 // Update updates cloud metadata of the provided database.
 func (m *Metadata) Update(ctx context.Context, database types.Database) error {
 	switch database.GetType() {
-	case types.DatabaseTypeRDS:
+	case types.DatabaseTypeRDS, types.DatabaseTypeRDSOracle:
 		return m.updateAWS(ctx, database, m.fetchRDSMetadata)
 	case types.DatabaseTypeRDSProxy:
 		return m.updateAWS(ctx, database, m.fetchRDSProxyMetadata)

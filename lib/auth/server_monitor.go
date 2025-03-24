@@ -78,11 +78,6 @@ func (a *Server) checkInventorySystemClocks(ctx context.Context) {
 	var counter int
 	var messages []string
 	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
-		counter++
-		if counter >= systemClockMessagesLimit {
-			return
-		}
-
 		hello := handle.Hello()
 		handle.VisitInstanceState(func(ref inventory.InstanceStateRef) (update inventory.InstanceStateUpdate) {
 			if ref.LastHeartbeat != nil && ref.LastHeartbeat.GetLastMeasurement() != nil {
@@ -97,12 +92,15 @@ func (a *Server) checkInventorySystemClocks(ctx context.Context) {
 						"services", hello.GetServices(),
 						"difference", durationText(diff),
 					)
-					messages = append(messages, fmt.Sprintf(
-						"%s[%s] is %s",
-						hello.GetServerID(),
-						types.SystemRoles(hello.GetServices()).String(),
-						durationText(diff),
-					))
+					if counter < systemClockMessagesLimit {
+						messages = append(messages, fmt.Sprintf(
+							"%s[%s] is %s",
+							hello.GetServerID(),
+							types.SystemRoles(hello.GetServices()).String(),
+							durationText(diff),
+						))
+					}
+					counter++
 				}
 			}
 			return

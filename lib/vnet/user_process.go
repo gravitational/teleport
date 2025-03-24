@@ -56,9 +56,9 @@ func (c *UserProcessConfig) checkAndSetDefaults() error {
 // caller is expected to call Close on the process manager to clean up any
 // resources, terminate all processes, and remove any OS configuration used for
 // actively running VNet.
-func RunUserProcess(ctx context.Context, cfg *UserProcessConfig) (pm *ProcessManager, err error) {
+func RunUserProcess(ctx context.Context, cfg *UserProcessConfig) (*ProcessManager, NetworkStackInfo, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, NetworkStackInfo{}, trace.Wrap(err)
 	}
 	return runPlatformUserProcess(ctx, cfg)
 }

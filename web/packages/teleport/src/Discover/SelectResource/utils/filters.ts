@@ -18,6 +18,7 @@
 
 import { Platform } from 'design/platform';
 
+import { ResourceKind } from 'teleport/Discover/Shared';
 import { AuthType } from 'teleport/services/user';
 
 import { SelectResourceSpec } from '../resources';
@@ -38,4 +39,115 @@ export function filterBySupportedPlatformsAndAuthTypes(
 
     return resourceSupportsPlatform && resourceSupportsAuthType;
   });
+}
+
+export const resourceTypeOptions = [
+  { value: 'app', label: 'Applications' },
+  { value: 'db', label: 'Database' },
+  { value: 'desktops', label: 'Desktops' },
+  { value: 'kube', label: 'Kubernetes' },
+  { value: 'server', label: 'SSH' },
+] as const satisfies { value: string; label: string }[];
+
+type ResourceType = Extract<
+  (typeof resourceTypeOptions)[number],
+  { value: string }
+>['value'];
+
+export const hostingPlatformOptions = [
+  { value: 'aws', label: 'Amazon Web Services (AWS)' },
+  { value: 'azure', label: 'Microsoft Azure' },
+  { value: 'gcp', label: 'Google Cloud Services (GCP)' },
+  { value: 'self-hosted', label: 'Self-Hosted' },
+] as const satisfies { value: string; label: string }[];
+
+type HostingPlatform = Extract<
+  (typeof hostingPlatformOptions)[number],
+  { value: string }
+>['value'];
+
+export type Filters = {
+  resourceTypes?: ResourceType[];
+  hostingPlatforms?: HostingPlatform[];
+};
+
+export function filterResources(
+  resources: SelectResourceSpec[],
+  filters: Filters
+) {
+  if (
+    !resources.length &&
+    !filters.resourceTypes &&
+    !filters.hostingPlatforms
+  ) {
+    return resources;
+  }
+
+  let filtered = [...resources];
+  if (filters.resourceTypes.length) {
+    const resourceTypes = filters.resourceTypes;
+    filtered = filtered.filter(r => {
+      if (
+        resourceTypes.includes('app') &&
+        (r.kind === ResourceKind.Application ||
+          r.kind === ResourceKind.SamlApplication)
+      ) {
+        return true;
+      }
+      if (resourceTypes.includes('db') && r.kind === ResourceKind.Database) {
+        return true;
+      }
+      if (
+        resourceTypes.includes('desktops') &&
+        r.kind === ResourceKind.Desktop
+      ) {
+        return true;
+      }
+      if (
+        resourceTypes.includes('kube') &&
+        r.kind === ResourceKind.Kubernetes
+      ) {
+        return true;
+      }
+      if (
+        resourceTypes.includes('server') &&
+        (r.kind === ResourceKind.Server ||
+          r.kind === ResourceKind.ConnectMyComputer)
+      ) {
+        return true;
+      }
+    });
+  }
+
+  if (filters.hostingPlatforms.length) {
+    const hostingPlatforms = filters.hostingPlatforms;
+    filtered = filtered.filter(r => {
+      if (
+        hostingPlatforms.includes('aws') &&
+        r.keywords.some(k => k.toLowerCase().includes('aws'))
+      ) {
+        return true;
+      }
+      if (
+        hostingPlatforms.includes('azure') &&
+        r.keywords.some(k => k.toLowerCase().includes('azure'))
+      ) {
+        return true;
+      }
+      if (
+        hostingPlatforms.includes('gcp') &&
+        r.keywords.some(k => k.toLowerCase().includes('gcp'))
+      ) {
+        return true;
+      }
+      if (
+        hostingPlatforms.includes('self-hosted') &&
+        r.keywords.some(k => k.toLowerCase().includes('self-hosted'))
+      ) {
+        return true;
+      }
+    });
+  }
+
+  return filtered;
 }

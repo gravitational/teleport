@@ -29,11 +29,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 type authServer interface {
 	// GetClusterName returns cluster name
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 
 	// GenerateHostCert uses the private key of the CA to sign the public key of
 	// the host (along with metadata like host ID, node name, roles, and ttl)
@@ -304,7 +305,28 @@ func (s *Service) RotateExternalCertAuthority(ctx context.Context, req *trustpb.
 		return nil, trace.AccessDenied("this request can be only executed by an internal Teleport service")
 	}
 
-	clusterName, err := s.authServer.GetClusterName()
+	// ensure that the caller is rotating a CA from the same cluster
+	caClusterName := req.CertAuthority.GetClusterName()
+	if caClusterName != authCtx.Identity.GetIdentity().TeleportCluster {
+		return nil, trace.BadParameter("can not rotate local certificate authority")
+	}
+	// ensure the subjects and issuers of the CA certs match what the
+	// cluster name of this CA is supposed to be
+	for _, keyPair := range req.CertAuthority.GetTrustedTLSKeyPairs() {
+		cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		certClusterName, err := tlsca.ClusterName(cert.Subject)
+		if err != nil {
+			return nil, trace.AccessDenied("CA certificate subject organization is invalid")
+		}
+		if certClusterName != caClusterName {
+			return nil, trace.AccessDenied("the subject organization of a CA certificate does not match the cluster name of the CA")
+		}
+	}
+
+	clusterName, err := s.authServer.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

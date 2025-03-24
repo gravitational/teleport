@@ -18,10 +18,10 @@
 
 import styled from 'styled-components';
 
-import { Box, ButtonIcon, ButtonSecondary, Flex, Text } from 'design';
+import { Box, ButtonIcon, ButtonSecondary, Flex } from 'design';
 import * as Icons from 'design/Icon';
 import { inputGeometry } from 'design/Input/Input';
-import { IconTooltip } from 'design/Tooltip';
+import { LabelContent } from 'design/LabelInput/LabelInput';
 import FieldInput from 'shared/components/FieldInput';
 import {
   useRule,
@@ -66,11 +66,12 @@ export type LabelsRule = Rule<Label[], LabelListValidationResult>;
 export function LabelsInput({
   legend,
   tooltipContent,
+  tooltipSticky,
   labels = [],
   setLabels,
   disableBtns = false,
   autoFocus = false,
-  areLabelsRequired = false,
+  required = false,
   adjective = 'Label',
   labelKey = { fieldName: 'Key', placeholder: 'label key' },
   labelVal = { fieldName: 'Value', placeholder: 'label value' },
@@ -79,6 +80,7 @@ export function LabelsInput({
 }: {
   legend?: string;
   tooltipContent?: string;
+  tooltipSticky?: boolean;
   labels: Label[];
   setLabels(l: Label[]): void;
   disableBtns?: boolean;
@@ -90,7 +92,7 @@ export function LabelsInput({
   /**
    * Makes it so at least one label is required
    */
-  areLabelsRequired?: boolean;
+  required?: boolean;
   /**
    * A rule for validating the list of labels as a whole. Note that contrary to
    * other input fields, the labels input will default to validating every
@@ -106,7 +108,7 @@ export function LabelsInput({
   }
 
   function removeLabel(index: number) {
-    if (areLabelsRequired && labels.length === 1) {
+    if (required && labels.length === 1) {
       // Since at least one label is required
       // instead of removing the last row, clear
       // the input and turn on error.
@@ -149,31 +151,21 @@ export function LabelsInput({
     <Fieldset>
       {legend && (
         <Legend>
-          {tooltipContent ? (
-            <>
-              <span
-                css={{
-                  marginRight: '4px',
-                  verticalAlign: 'middle',
-                }}
-              >
-                {legend}
-              </span>
-              <IconTooltip children={tooltipContent} />
-            </>
-          ) : (
-            legend
-          )}
+          <LabelContent
+            required={required}
+            tooltipContent={tooltipContent}
+            tooltipSticky={tooltipSticky}
+          >
+            {legend}
+          </LabelContent>
         </Legend>
       )}
       {labels.length > 0 && (
         <Flex mt={legend ? 1 : 0} mb={1}>
           <Box width={width} mr="3">
-            <Text typography="body3">
-              {labelKey.fieldName} (required field)
-            </Text>
+            <LabelContent required>{labelKey.fieldName}</LabelContent>
           </Box>
-          <Text typography="body3">{labelVal.fieldName} (required field)</Text>
+          <LabelContent required>{labelVal.fieldName}</LabelContent>
         </Flex>
       )}
       <Box>

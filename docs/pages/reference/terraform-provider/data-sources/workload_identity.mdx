@@ -48,7 +48,8 @@ Optional:
 
 Optional:
 
-- `conditions` (Attributes List) The conditions that must be met for this rule to be considered passed. (see [below for nested schema](#nested-schema-for-specrulesallowconditions))
+- `conditions` (Attributes List) The conditions that must be met for this rule to be considered passed.  Mutually exclusive with expression. (see [below for nested schema](#nested-schema-for-specrulesallowconditions))
+- `expression` (String) An expression written in Teleport's predicate language that must evaluate to true for this rule to be considered passed.  Mutually exclusive with conditions.
 
 ### Nested Schema for `spec.rules.allow.conditions`
 

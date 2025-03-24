@@ -295,7 +295,7 @@ func ForRemoteProxy(cfg Config) Config {
 func ForNode(cfg Config) Config {
 	var caFilter map[string]string
 	if cfg.ClusterConfig != nil {
-		clusterName, err := cfg.ClusterConfig.GetClusterName()
+		clusterName, err := cfg.ClusterConfig.GetClusterName(context.TODO())
 		if err == nil {
 			caFilter = types.CertAuthorityFilter{
 				types.HostCA: clusterName.GetClusterName(),
@@ -500,7 +500,7 @@ type Cache struct {
 	fnCache *utils.FnCache
 
 	trustCache                   services.Trust
-	clusterConfigCache           services.ClusterConfiguration
+	clusterConfigCache           services.ClusterConfigurationInternal
 	autoUpdateCache              *local.AutoUpdateService
 	provisionerCache             services.Provisioner
 	usersCache                   services.UsersService
@@ -1972,8 +1972,8 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNe
 }
 
 // GetClusterName gets the name of the cluster from the backend.
-func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
-	ctx, span := c.Tracer.Start(context.TODO(), "cache/GetClusterName")
+func (c *Cache) GetClusterName(ctx context.Context) (types.ClusterName, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetClusterName")
 	defer span.End()
 
 	rg, err := readCollectionCache(c, c.collections.clusterNames)
@@ -1983,7 +1983,7 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		cachedName, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"name"}, func(ctx context.Context) (types.ClusterName, error) {
-			cfg, err := rg.reader.GetClusterName(opts...)
+			cfg, err := rg.reader.GetClusterName(ctx)
 			return cfg, err
 		})
 		if err != nil {
@@ -1991,7 +1991,7 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 		}
 		return cachedName.Clone(), nil
 	}
-	return rg.reader.GetClusterName(opts...)
+	return rg.reader.GetClusterName(ctx)
 }
 
 type autoUpdateCacheKey struct {
@@ -3053,7 +3053,7 @@ func (c *Cache) GetIntegration(ctx context.Context, name string) (types.Integrat
 }
 
 // ListUserTasks returns a list of UserTask resources.
-func (c *Cache) ListUserTasks(ctx context.Context, pageSize int64, nextKey string) ([]*usertasksv1.UserTask, string, error) {
+func (c *Cache) ListUserTasks(ctx context.Context, pageSize int64, nextKey string, filters *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListUserTasks")
 	defer span.End()
 
@@ -3062,20 +3062,7 @@ func (c *Cache) ListUserTasks(ctx context.Context, pageSize int64, nextKey strin
 		return nil, "", trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.ListUserTasks(ctx, pageSize, nextKey)
-}
-
-// ListUserTasksByIntegration returns a list of UserTask resources filtered by an integration.
-func (c *Cache) ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextKey string, integration string) ([]*usertasksv1.UserTask, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListUserTasksByIntegration")
-	defer span.End()
-
-	rg, err := readCollectionCache(c, c.collections.userTasks)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListUserTasksByIntegration(ctx, pageSize, nextKey, integration)
+	return rg.reader.ListUserTasks(ctx, pageSize, nextKey, filters)
 }
 
 // GetUserTask returns the specified UserTask resource.
@@ -3463,7 +3450,7 @@ func (c *Cache) ListAccessMonitoringRules(ctx context.Context, pageSize int, nex
 }
 
 // ListAccessMonitoringRulesWithFilter returns a paginated list of access monitoring rules.
-func (c *Cache) ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, nextToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
+func (c *Cache) ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessMonitoringRules")
 	defer span.End()
 
@@ -3473,7 +3460,7 @@ func (c *Cache) ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSiz
 		return nil, "", trace.Wrap(err)
 	}
 	defer rg.Release()
-	out, nextKey, err := rg.reader.ListAccessMonitoringRulesWithFilter(ctx, pageSize, nextToken, subjects, notificationName)
+	out, nextKey, err := rg.reader.ListAccessMonitoringRulesWithFilter(ctx, req)
 	return out, nextKey, trace.Wrap(err)
 }
 

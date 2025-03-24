@@ -4,3 +4,5 @@ selector:
 destination:
   type: memory
 include_federated_trust_bundles: true
+credential_ttl: 1m0s
+renewal_interval: 30s

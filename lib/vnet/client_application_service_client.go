@@ -21,7 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	grpccredentials "google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
@@ -36,10 +36,13 @@ type clientApplicationServiceClient struct {
 	conn *grpc.ClientConn
 }
 
-func newClientApplicationServiceClient(ctx context.Context, addr string) (*clientApplicationServiceClient, error) {
-	// TODO(nklaassen): add mTLS credentials for client application service.
+func newClientApplicationServiceClient(ctx context.Context, creds *credentials, addr string) (*clientApplicationServiceClient, error) {
+	tlsConfig, err := creds.clientTLSConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	conn, err := grpc.NewClient(addr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithTransportCredentials(grpccredentials.NewTLS(tlsConfig)),
 		grpc.WithUnaryInterceptor(interceptors.GRPCClientUnaryErrorInterceptor),
 		grpc.WithStreamInterceptor(interceptors.GRPCClientStreamErrorInterceptor),
 	)

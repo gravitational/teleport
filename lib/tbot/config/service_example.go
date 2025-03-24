@@ -56,3 +56,7 @@ func (s *ExampleService) CheckAndSetDefaults() error {
 	}
 	return nil
 }
+
+func (s *ExampleService) GetCredentialLifetime() CredentialLifetime {
+	return CredentialLifetime{}
+}

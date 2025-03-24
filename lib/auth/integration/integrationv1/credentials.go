@@ -44,18 +44,16 @@ func (s *Service) ExportIntegrationCertAuthorities(ctx context.Context, in *inte
 		return nil, trace.Wrap(err)
 	}
 
-	// Currently only public keys are exported.
-	switch ig.GetSubKind() {
-	case types.IntegrationSubKindGitHub:
-		caKeySet, err := s.getGitHubCertAuthorities(ctx, ig)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		caKeySetWithoutSecerts := caKeySet.WithoutSecrets()
-		return &integrationpb.ExportIntegrationCertAuthoritiesResponse{CertAuthorities: &caKeySetWithoutSecerts}, nil
-	default:
-		return nil, trace.BadParameter("unsupported for integration subkind %v", ig.GetSubKind())
+	caKeySet, err := credentials.GetIntegrationCertAuthorities(ctx, ig, s.cache)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
+	// Currently only public keys are exported.
+	caKeySetWithoutSecrets := caKeySet.WithoutSecrets()
+	return &integrationpb.ExportIntegrationCertAuthoritiesResponse{
+		CertAuthorities: &caKeySetWithoutSecrets,
+	}, nil
 }
 
 func buildGitHubOAuthCredentials(idSecret *types.PluginIdSecretCredential) (*types.PluginStaticCredentialsV1, error) {
@@ -245,22 +243,4 @@ func (s *Service) getStaticCredentialsWithPurpose(ctx context.Context, ig types.
 	}
 
 	return credentials.GetByPurpose(ctx, ig.GetCredentials().GetStaticCredentialsRef(), purpose, s.cache)
-}
-
-func (s *Service) getGitHubCertAuthorities(ctx context.Context, ig types.Integration) (*types.CAKeySet, error) {
-	if ig.GetSubKind() != types.IntegrationSubKindGitHub {
-		return nil, trace.BadParameter("integration is not a GitHub integration")
-	}
-	creds, err := s.getStaticCredentialsWithPurpose(ctx, ig, credentials.PurposeGitHubSSHCA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cas := creds.GetSSHCertAuthorities()
-	if len(cas) == 0 {
-		return nil, trace.BadParameter("missing SSH cert authorities from plugin static credentials")
-	}
-	return &types.CAKeySet{
-		SSH: cas,
-	}, nil
 }

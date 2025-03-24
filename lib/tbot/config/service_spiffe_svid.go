@@ -38,6 +38,7 @@ const (
 	SVIDPEMPath            = "svid.pem"
 	SVIDKeyPEMPath         = "svid_key.pem"
 	SVIDTrustBundlePEMPath = "svid_bundle.pem"
+	SVIDCRLPemPath         = "svid_crl.pem"
 )
 
 // SVIDRequestSANs is the configuration for the SANs of a single SVID request.
@@ -123,6 +124,10 @@ type SPIFFESVIDOutput struct {
 	// JWTs is an optional list of audiences and file names to write JWT SVIDs
 	// to.
 	JWTs []JWTSVID `yaml:"jwts,omitempty"`
+
+	// CredentialLifetime contains configuration for how long credentials will
+	// last and the frequency at which they'll be renewed.
+	CredentialLifetime CredentialLifetime `yaml:",inline"`
 }
 
 // Init initializes the destination.
@@ -193,4 +198,8 @@ func (o *SPIFFESVIDOutput) UnmarshalYAML(node *yaml.Node) error {
 	}
 	o.Destination = dest
 	return nil
+}
+
+func (o *SPIFFESVIDOutput) GetCredentialLifetime() CredentialLifetime {
+	return o.CredentialLifetime
 }

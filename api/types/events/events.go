@@ -184,9 +184,16 @@ func (m *Struct) nonEmptyStrs() int {
 }
 
 func (m *Struct) trimToMaxSize(maxSize int) *Struct {
-	var out Struct
+	if len(m.Fields) == 0 {
+		return m
+	}
+
+	out := Struct{
+		Struct: types.Struct{
+			Fields: make(map[string]*types.Value),
+		},
+	}
 	for k, v := range m.Fields {
-		delete(out.Fields, k)
 		trimmedKey := trimStr(k, maxSize)
 
 		if v != nil {
@@ -2431,6 +2438,48 @@ func (m *WorkloadIdentityDelete) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
 
+func (m *WorkloadIdentityX509RevocationCreate) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.Reason = ""
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := nonEmptyStrs(m.Reason)
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.Reason = trimStr(m.Reason, maxFieldsSize)
+
+	return m
+}
+
+func (m *WorkloadIdentityX509RevocationUpdate) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.Reason = ""
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := nonEmptyStrs(m.Reason)
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.Reason = trimStr(m.Reason, maxFieldsSize)
+
+	return m
+}
+
+func (m *WorkloadIdentityX509RevocationDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
 func (m *GitCommand) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
@@ -2438,4 +2487,18 @@ func (m *GitCommand) TrimToMaxSize(_ int) AuditEvent {
 // TrimToMaxSize implements [AuditEvent].
 func (m *StableUNIXUserCreate) TrimToMaxSize(int) AuditEvent {
 	return m
+}
+
+func (m *AWSICResourceSync) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+	out := utils.CloneProtoMsg(m)
+	out.Status = Status{}
+	maxSize = adjustedMaxSize(out, maxSize)
+	customFieldsCount := m.Status.nonEmptyStrs()
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	return out
 }

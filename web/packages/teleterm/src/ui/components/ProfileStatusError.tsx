@@ -30,7 +30,7 @@ export function ProfileStatusError(props: {
         color="text.slightlyMuted"
         css={`
           text-wrap: auto;
-          line-height: 1.25;
+          line-height: 1.3;
         `}
       >
         {toWellFormattedConnectionError(props.error)}

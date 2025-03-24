@@ -859,11 +859,27 @@ const (
 	// WorkloadIdentityDeleteEvent is emitted when a WorkloadIdentity resource is deleted.
 	WorkloadIdentityDeleteEvent = "workload_identity.delete"
 
+	// WorkloadIdentityX509RevocationCreateEvent is emitted when a
+	// WorkloadIdentityX509Revocation resource is created.
+	WorkloadIdentityX509RevocationCreateEvent = "workload_identity_x509_revocation.create"
+	// WorkloadIdentityX509RevocationUpdateEvent is emitted when a
+	// WorkloadIdentityX509Revocation resource is updated.
+	WorkloadIdentityX509RevocationUpdateEvent = "workload_identity_x509_revocation.update"
+	// WorkloadIdentityX509RevocationDeleteEvent is emitted when a
+	// WorkloadIdentityX509Revocation resource is deleted.
+	WorkloadIdentityX509RevocationDeleteEvent = "workload_identity_x509_revocation.delete"
+
 	// GitCommandEvent is emitted when a Git command is executed.
 	GitCommandEvent = "git.command"
 
 	// StableUNIXUserCreateEvent is emitted when a stable UNIX user is created.
 	StableUNIXUserCreateEvent = "stable_unix_user.create"
+
+	// AWSICResourceSyncSuccessEvent is emitted when AWS Identity Center resources are imported
+	// and reconciled to Teleport.
+	AWSICResourceSyncSuccessEvent = "aws_identity_center.resource_sync.success"
+	// AWSICResourceSyncFailureEvent is emitted when AWS Identity Center resources sync failed.
+	AWSICResourceSyncFailureEvent = "aws_identity_center.resource_sync.failed"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

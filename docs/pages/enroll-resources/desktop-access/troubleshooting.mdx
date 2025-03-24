@@ -277,7 +277,7 @@ errors similar to:
 skipping desktop discovery: LDAP not yet initialized
 ```
 
-**Solution:** Confirm Teleport certificate is installed
+**Solution 1:** Confirm Teleport certificate is installed
 
 The Teleport Desktop Service uses a Teleport-issued certificate to authenticate
 with the LDAP server. This error occurs when Teleport is unable to authenticate,
@@ -314,11 +314,37 @@ in LDAP, you can force the desktop to sync with the following command:
 $ certutil -pulse
 ```
 
+**Solution 2:** Check for conflicting tools
+
 If you have verified that the Teleport CA certificate is properly installed and
 are still seeing this error, check for any security tools or addons that may be
 interfering with the mTLS connection. Tools such as CrowdStrike's LDAP inspection
 or Silverfort's AD adapter are known to terminate TLS and drop the client certificate,
 which prevents Teleport from authenticating.
+
+**Solution 3:** Ensure you've specified the SID for your LDAP service account
+
+Microsoft's February 2025 security updates switch all domain controllers to
+*full enforcement mode* for certificate mapping. This means that in order for
+Windows to accept Teleport client certificates, the certificates need to embed
+the SID of the user they are issued to.
+
+The fix for this is to ensure that you've set the SID in the configuration file
+for your `windows_desktop_service`:
+
+```yaml
+windows_desktop_service:
+  enabled: yes
+  ldap:
+    username: 'MYDOMAIN\svc-teleport'
+    sid: S-1-5-21-...
+```
+
+To look up a user's SID, use the following PowerShell command:
+
+```
+$ Get-AdUser -Identity $USERNAME | Select SID
+```
 
 #### Manually validate a client certificate
 

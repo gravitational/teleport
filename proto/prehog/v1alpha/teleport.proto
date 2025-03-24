@@ -48,6 +48,29 @@ message UserLoginEvent {
 
   // the required private key policy for this login.
   string required_private_key_policy = 4;
+
+  // UserOrigin specifies the origin of this user account.
+  //
+  // PostHog property: tp.user_origin
+  UserOrigin user_origin = 5;
+}
+
+// UserOrigin is the origin of a user account.
+// Keep the values in sync with UserOrigin enum defined in
+// API events and prehogv1.
+enum UserOrigin {
+  // Indicates a legacy cluster emitting events without a defined user origin.
+  USER_ORIGIN_UNSPECIFIED = 0;
+  // Indicates a local user.
+  USER_ORIGIN_LOCAL = 1;
+  // Indicates an SSO user originated from the SAML or OIDC connector.
+  USER_ORIGIN_SSO = 2;
+  // Indicates a user originated from the Okta integration.
+  USER_ORIGIN_OKTA = 3;
+  // Indicates a user originated from the SCIM integration.
+  USER_ORIGIN_SCIM = 4;
+  // Indicates a user originated from the EntraID integration.
+  USER_ORIGIN_ENTRAID = 5;
 }
 
 // MFAAuthenticationEvent is emitted when a user performs MFA authentication.
@@ -222,6 +245,10 @@ message SessionStartEvent {
   //
   // PostHog property: tp.app
   SessionStartAppMetadata app = 6;
+
+  // if session_type == "git" the git struct contains additional information
+  // about git session.
+  SessionStartGitMetadata git = 7;
 }
 
 // SessionStartDatabaseMetadata contains additional information about database session.
@@ -265,6 +292,15 @@ message SessionStartDesktopMetadata {
 message SessionStartAppMetadata {
   // is_multi_port is true for multi-port TCP apps.
   bool is_multi_port = 1;
+}
+
+// SessionStartGitMetadata contains additional information about a git session.
+message SessionStartGitMetadata {
+  // git session type (equivalent to git_server.sub_kind).
+  string git_type = 1;
+  // git_service is the type of the git request like git-upload-pack or
+  // git-receive-pack.
+  string git_service = 2;
 }
 
 // the issuance of a user certificate from the user CA
@@ -1072,6 +1108,7 @@ enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_DATADOG_INCIDENT_MANAGEMENT = 24;
   INTEGRATION_ENROLL_KIND_SERVICENOW = 25;
   INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER = 26;
+  INTEGRATION_ENROLL_KIND_GITHUB_REPO_ACCESS = 27;
 }
 
 // IntegrationEnrollMetadata contains common metadata
@@ -1108,6 +1145,12 @@ enum IntegrationEnrollStep {
   INTEGRATION_ENROLL_STEP_AWSIC_SET_ACCESSLIST_DEFAULT_OWNER = 2;
   INTEGRATION_ENROLL_STEP_AWSIC_UPLOAD_AWS_SAML_SP_METADATA = 3;
   INTEGRATION_ENROLL_STEP_AWSIC_TEST_SCIM_CONNECTION = 4;
+
+  // GITHUBRA denotes GitHub Repo Access.
+  INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_INTEGRATION = 5;
+  INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_GIT_SERVER = 6;
+  INTEGRATION_ENROLL_STEP_GITHUBRA_CONFIGURE_SSH_CERT = 7;
+  INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_ROLE = 8;
 }
 
 // IntegrationEnrollStatusCode defines status code for an integration enroll step.
@@ -1543,6 +1586,12 @@ message UserTaskStateEvent {
   int32 instances_count = 4;
 }
 
+// AccessRequestEvent emitted for Access Request audit events.
+message AccessRequestEvent {
+  // Teleport user name. Anonymized.
+  string user_name = 1;
+}
+
 message SubmitEventRequest {
   // anonymized, 32 bytes (HMAC-SHA-256) encoded in base64
   //
@@ -1710,6 +1759,9 @@ message SubmitEventRequest {
     // note that 95 is used for "teleport_version" above.
 
     UIIntegrationEnrollStepEvent ui_integration_enroll_step_event = 96;
+
+    AccessRequestEvent access_request_create_event = 97;
+    AccessRequestEvent access_request_review_event = 98;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

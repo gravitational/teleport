@@ -1,42 +1,42 @@
 {
-  "resources": [
+  "resources":  [
     {
-      "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret",
-      "name": "spiffe://example.com/default",
-      "tlsCertificate": {
-        "certificateChain": {
-          "inlineBytes": "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tClEwVlNWQzF6Y0dsbVptVTZMeTlsZUdGdGNHeGxMbU52YlM5a1pXWmhkV3gwCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"
+      "@type":  "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret",
+      "name":  "spiffe://example.com/default",
+      "tlsCertificate":  {
+        "certificateChain":  {
+          "inlineBytes":  "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tClEwVlNWQzF6Y0dsbVptVTZMeTlsZUdGdGNHeGxMbU52YlM5a1pXWmhkV3gwCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"
         },
-        "privateKey": {
-          "inlineBytes": "LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tClMwVlpMWE53YVdabVpUb3ZMMlY0WVcxd2JHVXVZMjl0TDJSbFptRjFiSFE9Ci0tLS0tRU5EIFBSSVZBVEUgS0VZLS0tLS0K"
+        "privateKey":  {
+          "inlineBytes":  "LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tClMwVlpMWE53YVdabVpUb3ZMMlY0WVcxd2JHVXVZMjl0TDJSbFptRjFiSFE9Ci0tLS0tRU5EIFBSSVZBVEUgS0VZLS0tLS0K"
         }
       }
     },
     {
-      "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret",
-      "name": "spiffe://example.com/second",
-      "tlsCertificate": {
-        "certificateChain": {
-          "inlineBytes": "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tClEwVlNWQzF6Y0dsbVptVTZMeTlsZUdGdGNHeGxMbU52YlM5elpXTnZibVE9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"
+      "@type":  "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret",
+      "name":  "spiffe://example.com/second",
+      "tlsCertificate":  {
+        "certificateChain":  {
+          "inlineBytes":  "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tClEwVlNWQzF6Y0dsbVptVTZMeTlsZUdGdGNHeGxMbU52YlM5elpXTnZibVE9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"
         },
-        "privateKey": {
-          "inlineBytes": "LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tClMwVlpMWE53YVdabVpUb3ZMMlY0WVcxd2JHVXVZMjl0TDNObFkyOXVaQT09Ci0tLS0tRU5EIFBSSVZBVEUgS0VZLS0tLS0K"
+        "privateKey":  {
+          "inlineBytes":  "LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tClMwVlpMWE53YVdabVpUb3ZMMlY0WVcxd2JHVXVZMjl0TDNObFkyOXVaQT09Ci0tLS0tRU5EIFBSSVZBVEUgS0VZLS0tLS0K"
         }
       }
     },
     {
-      "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret",
-      "name": "spiffe://example.com",
-      "validationContext": {
-        "customValidatorConfig": {
-          "name": "envoy.tls.cert_validator.spiffe",
-          "typedConfig": {
-            "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.SPIFFECertValidatorConfig",
-            "trustDomains": [
+      "@type":  "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret",
+      "name":  "spiffe://example.com",
+      "validationContext":  {
+        "customValidatorConfig":  {
+          "name":  "envoy.tls.cert_validator.spiffe",
+          "typedConfig":  {
+            "@type":  "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.SPIFFECertValidatorConfig",
+            "trustDomains":  [
               {
-                "name": "example.com",
-                "trustBundle": {
-                  "inlineBytes": "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURLakNDQWhLZ0F3SUJBZ0lRSnRKREpaWkJrZy9hZk04ZDJaSkNUakFOQmdrcWhraUc5dzBCQVFzRkFEQkEKTVJVd0V3WURWUVFLRXd4VVpXeGxjRzl5ZENCUFUxTXhKekFsQmdOVkJBTVRIblJsYkdWd2IzSjBMbXh2WTJGcwphRzl6ZEM1c2IyTmhiR1J2YldGcGJqQWVGdzB4TnpBMU1Ea3hPVFF3TXpaYUZ3MHlOekExTURjeE9UUXdNelphCk1FQXhGVEFUQmdOVkJBb1RERlJsYkdWd2IzSjBJRTlUVXpFbk1DVUdBMVVFQXhNZWRHVnNaWEJ2Y25RdWJHOWoKWVd4b2IzTjBMbXh2WTJGc1pHOXRZV2x1TUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEFNSUlCQ2dLQwpBUUVBdUtGTGFmMmlJSS94RFIrbTJZajZQblVFYStxenF3eHNkTFVqbnVuRlphQVhHK2habTRNbDgwU0NpQmdJCmdUSFFsSnlMSWtUdHVSb0g1YWVNeXoxRVJVQ3RpaTRac1RxRHJqalV5YnhQNHIrNEhWWDZtMzRzNmh3RXI4RmkKZnRzOXBNcDRpUzN0UWd1UmMyOGdQZERvL1Q2VnJKVFZZVWZVVXNORFJ0SXJsQjVPOWlncXFMbnVhWTllcUdpNApQVXgwRzB3UllKcFJ5d29qOEcwSWtwZlFUaVgrQ0FDN2R0NXdzN1pybkdxQ05CTEdpNWJHc2FNbXB0VmJzU0VwCjFUZW5udEY1NFYxaVI0OUlWNUpxRGhtMVMwSG1rbGVvSnpLZGMrNnNQL3hOZXB6OVBKenVGOWQ5TnViVExXZ0IKc0syOFlJdGNtV0hkSFhEL09EeFZhZWhSandJREFRQUJveUF3SGpBT0JnTlZIUThCQWY4RUJBTUNCNEF3REFZRApWUjBUQVFIL0JBSXdBREFOQmdrcWhraUc5dzBCQVFzRkFBT0NBUUVBQVZVNnNOQmRqNzZzYUh3T3hHU2RuRXFRCm8ydE11UjNtc1NNNEY2d0ZLMlVrS2Vwc0Q3Q1lJZi9Qek5TTlVxQTVKSUVVVmVNcUd5aUh1QWJVNEM2NTVuVDEKSXlKWDFELytyNzNzU3A1amJJcFFtMnhvUUdabmo2Zy9LbHR3OE9TT0F3K0RzTUYvUExWcW9XSnAwN3U2ZXcvbQpOeFdzSktjWjVrK3E0ZU14Y2k5bUtSSEhxc3F1V0tYelFsVVJNTkZJK21HYUZ3cktNNGRtemFSMEJFYytpbFN4ClFxVXZRNzRzbXNMSyt6aE5pa21namxHQzVvYjlnOFhraFZBa0pNQWgycmI5b25ETmlSbDY4aUFnY3pQODhtWHUKdk4vbzk4ZHlwenNQeFhtdzZ0a0RxSVJQVUFVYmg0NjVybFk1c0tNbVJnWGkyclVmbC9RVjVuYm96VW8vSFE9PQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg=="
+                "name":  "example.com",
+                "trustBundle":  {
+                  "inlineBytes":  "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURLakNDQWhLZ0F3SUJBZ0lRSnRKREpaWkJrZy9hZk04ZDJaSkNUakFOQmdrcWhraUc5dzBCQVFzRkFEQkEKTVJVd0V3WURWUVFLRXd4VVpXeGxjRzl5ZENCUFUxTXhKekFsQmdOVkJBTVRIblJsYkdWd2IzSjBMbXh2WTJGcwphRzl6ZEM1c2IyTmhiR1J2YldGcGJqQWVGdzB4TnpBMU1Ea3hPVFF3TXpaYUZ3MHlOekExTURjeE9UUXdNelphCk1FQXhGVEFUQmdOVkJBb1RERlJsYkdWd2IzSjBJRTlUVXpFbk1DVUdBMVVFQXhNZWRHVnNaWEJ2Y25RdWJHOWoKWVd4b2IzTjBMbXh2WTJGc1pHOXRZV2x1TUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEFNSUlCQ2dLQwpBUUVBdUtGTGFmMmlJSS94RFIrbTJZajZQblVFYStxenF3eHNkTFVqbnVuRlphQVhHK2habTRNbDgwU0NpQmdJCmdUSFFsSnlMSWtUdHVSb0g1YWVNeXoxRVJVQ3RpaTRac1RxRHJqalV5YnhQNHIrNEhWWDZtMzRzNmh3RXI4RmkKZnRzOXBNcDRpUzN0UWd1UmMyOGdQZERvL1Q2VnJKVFZZVWZVVXNORFJ0SXJsQjVPOWlncXFMbnVhWTllcUdpNApQVXgwRzB3UllKcFJ5d29qOEcwSWtwZlFUaVgrQ0FDN2R0NXdzN1pybkdxQ05CTEdpNWJHc2FNbXB0VmJzU0VwCjFUZW5udEY1NFYxaVI0OUlWNUpxRGhtMVMwSG1rbGVvSnpLZGMrNnNQL3hOZXB6OVBKenVGOWQ5TnViVExXZ0IKc0syOFlJdGNtV0hkSFhEL09EeFZhZWhSandJREFRQUJveUF3SGpBT0JnTlZIUThCQWY4RUJBTUNCNEF3REFZRApWUjBUQVFIL0JBSXdBREFOQmdrcWhraUc5dzBCQVFzRkFBT0NBUUVBQVZVNnNOQmRqNzZzYUh3T3hHU2RuRXFRCm8ydE11UjNtc1NNNEY2d0ZLMlVrS2Vwc0Q3Q1lJZi9Qek5TTlVxQTVKSUVVVmVNcUd5aUh1QWJVNEM2NTVuVDEKSXlKWDFELytyNzNzU3A1amJJcFFtMnhvUUdabmo2Zy9LbHR3OE9TT0F3K0RzTUYvUExWcW9XSnAwN3U2ZXcvbQpOeFdzSktjWjVrK3E0ZU14Y2k5bUtSSEhxc3F1V0tYelFsVVJNTkZJK21HYUZ3cktNNGRtemFSMEJFYytpbFN4ClFxVXZRNzRzbXNMSyt6aE5pa21namxHQzVvYjlnOFhraFZBa0pNQWgycmI5b25ETmlSbDY4aUFnY3pQODhtWHUKdk4vbzk4ZHlwenNQeFhtdzZ0a0RxSVJQVUFVYmg0NjVybFk1c0tNbVJnWGkyclVmbC9RVjVuYm96VW8vSFE9PQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg=="
                 }
               }
             ]
@@ -45,18 +45,18 @@
       }
     },
     {
-      "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret",
-      "name": "spiffe://federated.example.com",
-      "validationContext": {
-        "customValidatorConfig": {
-          "name": "envoy.tls.cert_validator.spiffe",
-          "typedConfig": {
-            "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.SPIFFECertValidatorConfig",
-            "trustDomains": [
+      "@type":  "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret",
+      "name":  "spiffe://federated.example.com",
+      "validationContext":  {
+        "customValidatorConfig":  {
+          "name":  "envoy.tls.cert_validator.spiffe",
+          "typedConfig":  {
+            "@type":  "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.SPIFFECertValidatorConfig",
+            "trustDomains":  [
               {
-                "name": "federated.example.com",
-                "trustBundle": {
-                  "inlineBytes": "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURLakNDQWhLZ0F3SUJBZ0lRSnRKREpaWkJrZy9hZk04ZDJaSkNUakFOQmdrcWhraUc5dzBCQVFzRkFEQkEKTVJVd0V3WURWUVFLRXd4VVpXeGxjRzl5ZENCUFUxTXhKekFsQmdOVkJBTVRIblJsYkdWd2IzSjBMbXh2WTJGcwphRzl6ZEM1c2IyTmhiR1J2YldGcGJqQWVGdzB4TnpBMU1Ea3hPVFF3TXpaYUZ3MHlOekExTURjeE9UUXdNelphCk1FQXhGVEFUQmdOVkJBb1RERlJsYkdWd2IzSjBJRTlUVXpFbk1DVUdBMVVFQXhNZWRHVnNaWEJ2Y25RdWJHOWoKWVd4b2IzTjBMbXh2WTJGc1pHOXRZV2x1TUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEFNSUlCQ2dLQwpBUUVBdUtGTGFmMmlJSS94RFIrbTJZajZQblVFYStxenF3eHNkTFVqbnVuRlphQVhHK2habTRNbDgwU0NpQmdJCmdUSFFsSnlMSWtUdHVSb0g1YWVNeXoxRVJVQ3RpaTRac1RxRHJqalV5YnhQNHIrNEhWWDZtMzRzNmh3RXI4RmkKZnRzOXBNcDRpUzN0UWd1UmMyOGdQZERvL1Q2VnJKVFZZVWZVVXNORFJ0SXJsQjVPOWlncXFMbnVhWTllcUdpNApQVXgwRzB3UllKcFJ5d29qOEcwSWtwZlFUaVgrQ0FDN2R0NXdzN1pybkdxQ05CTEdpNWJHc2FNbXB0VmJzU0VwCjFUZW5udEY1NFYxaVI0OUlWNUpxRGhtMVMwSG1rbGVvSnpLZGMrNnNQL3hOZXB6OVBKenVGOWQ5TnViVExXZ0IKc0syOFlJdGNtV0hkSFhEL09EeFZhZWhSandJREFRQUJveUF3SGpBT0JnTlZIUThCQWY4RUJBTUNCNEF3REFZRApWUjBUQVFIL0JBSXdBREFOQmdrcWhraUc5dzBCQVFzRkFBT0NBUUVBQVZVNnNOQmRqNzZzYUh3T3hHU2RuRXFRCm8ydE11UjNtc1NNNEY2d0ZLMlVrS2Vwc0Q3Q1lJZi9Qek5TTlVxQTVKSUVVVmVNcUd5aUh1QWJVNEM2NTVuVDEKSXlKWDFELytyNzNzU3A1amJJcFFtMnhvUUdabmo2Zy9LbHR3OE9TT0F3K0RzTUYvUExWcW9XSnAwN3U2ZXcvbQpOeFdzSktjWjVrK3E0ZU14Y2k5bUtSSEhxc3F1V0tYelFsVVJNTkZJK21HYUZ3cktNNGRtemFSMEJFYytpbFN4ClFxVXZRNzRzbXNMSyt6aE5pa21namxHQzVvYjlnOFhraFZBa0pNQWgycmI5b25ETmlSbDY4aUFnY3pQODhtWHUKdk4vbzk4ZHlwenNQeFhtdzZ0a0RxSVJQVUFVYmg0NjVybFk1c0tNbVJnWGkyclVmbC9RVjVuYm96VW8vSFE9PQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg=="
+                "name":  "federated.example.com",
+                "trustBundle":  {
+                  "inlineBytes":  "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURLakNDQWhLZ0F3SUJBZ0lRSnRKREpaWkJrZy9hZk04ZDJaSkNUakFOQmdrcWhraUc5dzBCQVFzRkFEQkEKTVJVd0V3WURWUVFLRXd4VVpXeGxjRzl5ZENCUFUxTXhKekFsQmdOVkJBTVRIblJsYkdWd2IzSjBMbXh2WTJGcwphRzl6ZEM1c2IyTmhiR1J2YldGcGJqQWVGdzB4TnpBMU1Ea3hPVFF3TXpaYUZ3MHlOekExTURjeE9UUXdNelphCk1FQXhGVEFUQmdOVkJBb1RERlJsYkdWd2IzSjBJRTlUVXpFbk1DVUdBMVVFQXhNZWRHVnNaWEJ2Y25RdWJHOWoKWVd4b2IzTjBMbXh2WTJGc1pHOXRZV2x1TUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEFNSUlCQ2dLQwpBUUVBdUtGTGFmMmlJSS94RFIrbTJZajZQblVFYStxenF3eHNkTFVqbnVuRlphQVhHK2habTRNbDgwU0NpQmdJCmdUSFFsSnlMSWtUdHVSb0g1YWVNeXoxRVJVQ3RpaTRac1RxRHJqalV5YnhQNHIrNEhWWDZtMzRzNmh3RXI4RmkKZnRzOXBNcDRpUzN0UWd1UmMyOGdQZERvL1Q2VnJKVFZZVWZVVXNORFJ0SXJsQjVPOWlncXFMbnVhWTllcUdpNApQVXgwRzB3UllKcFJ5d29qOEcwSWtwZlFUaVgrQ0FDN2R0NXdzN1pybkdxQ05CTEdpNWJHc2FNbXB0VmJzU0VwCjFUZW5udEY1NFYxaVI0OUlWNUpxRGhtMVMwSG1rbGVvSnpLZGMrNnNQL3hOZXB6OVBKenVGOWQ5TnViVExXZ0IKc0syOFlJdGNtV0hkSFhEL09EeFZhZWhSandJREFRQUJveUF3SGpBT0JnTlZIUThCQWY4RUJBTUNCNEF3REFZRApWUjBUQVFIL0JBSXdBREFOQmdrcWhraUc5dzBCQVFzRkFBT0NBUUVBQVZVNnNOQmRqNzZzYUh3T3hHU2RuRXFRCm8ydE11UjNtc1NNNEY2d0ZLMlVrS2Vwc0Q3Q1lJZi9Qek5TTlVxQTVKSUVVVmVNcUd5aUh1QWJVNEM2NTVuVDEKSXlKWDFELytyNzNzU3A1amJJcFFtMnhvUUdabmo2Zy9LbHR3OE9TT0F3K0RzTUYvUExWcW9XSnAwN3U2ZXcvbQpOeFdzSktjWjVrK3E0ZU14Y2k5bUtSSEhxc3F1V0tYelFsVVJNTkZJK21HYUZ3cktNNGRtemFSMEJFYytpbFN4ClFxVXZRNzRzbXNMSyt6aE5pa21namxHQzVvYjlnOFhraFZBa0pNQWgycmI5b25ETmlSbDY4aUFnY3pQODhtWHUKdk4vbzk4ZHlwenNQeFhtdzZ0a0RxSVJQVUFVYmg0NjVybFk1c0tNbVJnWGkyclVmbC9RVjVuYm96VW8vSFE9PQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg=="
                 }
               }
             ]
@@ -65,5 +65,5 @@
       }
     }
   ],
-  "typeUrl": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret"
+  "typeUrl":  "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret"
 }

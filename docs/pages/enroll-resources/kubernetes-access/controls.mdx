@@ -335,14 +335,14 @@ Below is a Kubernetes `ClusterRole` that grants the minimum set of permissions
 to enable impersonation, and a `ClusterRoleBinding` that grants these
 permissions to a service account.
 
-<Notice type="tip">
+<Admonition type="tip">
 
 There is usually no need to define these resources manually. The [manual
 methods](register-clusters/register-clusters.mdx) and [automatic methods](../auto-discovery/kubernetes/kubernetes.mdx) for
 registering Kubernetes clusters with Teleport include steps for setting up the
 Kubernetes RBAC resources that Teleport needs to allow access to clusters.
 
-</Notice>
+</Admonition>
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -393,7 +393,7 @@ can add template variables to Teleport your roles, and the Teleport Auth Service
 will populate them with information from each authenticating user.
 
 For more information on how template variable expansion works in Teleport roles,
-see the [Teleport Access Controls
+see the [Access Controls
 Reference](../../reference/access-controls/roles.mdx).
 
 ##### Single Sign-On provider traits
@@ -555,14 +555,14 @@ value begins with `^` and ends in `$`, the Kubernetes Service will treat it as a
 regular expression using Go's `re2` syntax (see the `re2`
 [README](https://github.com/google/re2/wiki/Syntax)).
 
-<Notice type="tip" >
+<Admonition type="tip" >
 For a user to access a pod named in a role's `kubernetes_resources` field, the user
 must be assigned a Teleport role that contains at least one value within
 `kubernetes_groups` or `kubernetes_users`. Teleport does not alter Kubernetes
 roles to allow or deny access. Read the next section for an explanation of how the
 Kubernetes Service evaluates Teleport roles in order to allow or deny access to
 pods in a cluster.
-</Notice>
+</Admonition>
 
 ## How the Kubernetes Service evaluates Teleport roles
 

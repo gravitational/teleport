@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 type ec2Client interface {
@@ -101,7 +102,7 @@ func checkInstanceRunning(ctx context.Context, instanceID, region, IAMRole strin
 
 	// assume the configured IAM role if necessary
 	if IAMRole != "" {
-		stsClient := sts.NewFromConfig(awsClientConfig, func(o *sts.Options) {
+		stsClient := stsutils.NewFromConfig(awsClientConfig, func(o *sts.Options) {
 			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
 		})
 		creds := stscreds.NewAssumeRoleProvider(stsClient, IAMRole)

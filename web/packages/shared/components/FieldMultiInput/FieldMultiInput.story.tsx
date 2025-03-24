@@ -41,6 +41,9 @@ export function Story() {
               value={items}
               onChange={setItems}
               rule={arrayOf(requiredField('required'))}
+              required
+              tooltipContent="I'm a sticky tooltip."
+              tooltipSticky
             />
             <Button mt={3} onClick={() => validator.validate()}>
               Validate

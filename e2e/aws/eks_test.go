@@ -91,6 +91,7 @@ func awsEKSDiscoveryMatchedCluster(t *testing.T) {
 	)
 	// Get the auth server.
 	authC := teleport.Process.GetAuthServer()
+	expectedClusterName := os.Getenv(eksClusterNameEnv)
 	// Wait for the discovery service to discover the cluster and create a
 	// KubernetesCluster resource.
 	// Discovery service will scan the AWS account each minutes.
@@ -105,7 +106,7 @@ func awsEKSDiscoveryMatchedCluster(t *testing.T) {
 		// Fail fast if the discovery service creates more than one cluster.
 		assert.Len(t, clusters, 1)
 		// Fail fast if the discovery service creates a cluster with a different name.
-		assert.Equal(t, os.Getenv(eksClusterNameEnv), clusters[0].GetName())
+		assert.Equal(t, expectedClusterName, clusters[0].GetName())
 		return true
 	}, 3*time.Minute, 10*time.Second, "wait for the discovery service to create a cluster")
 
@@ -116,12 +117,13 @@ func awsEKSDiscoveryMatchedCluster(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		kubeServers, err := authC.GetKubernetesServers(ctx)
-		return err == nil && len(kubeServers) == 1
+		for ks := range authC.UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
+			if ks.GetCluster().GetName() == expectedClusterName {
+				return true
+			}
+		}
+		return false
 	}, 2*time.Minute, time.Second, "wait for the kubernetes service to create a KubernetesServer")
-
-	clusters, err := authC.GetKubernetesClusters(context.Background())
-	require.NoError(t, err)
 
 	// kubeClient is a Kubernetes client for the user created above
 	// that will be used to verify that the user can access the cluster and
@@ -131,7 +133,7 @@ func awsEKSDiscoveryMatchedCluster(t *testing.T) {
 		Username:    hostUser,
 		KubeUsers:   kubeUsers,
 		KubeGroups:  kubeGroups,
-		KubeCluster: clusters[0].GetName(),
+		KubeCluster: expectedClusterName,
 	})
 	require.NoError(t, err)
 

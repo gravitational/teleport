@@ -20,8 +20,6 @@ package backend
 
 import (
 	"context"
-	"regexp"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -31,9 +29,28 @@ import (
 // errorMessage is the error message to return when invalid input is provided by the caller.
 const errorMessage = "special characters are not allowed in resource names, please use name composed only from characters, hyphens, dots, and plus signs: %q"
 
-// allowPattern is the pattern of allowed characters for each key within
-// the path.
-var allowPattern = regexp.MustCompile(`^[0-9A-Za-z@_:.\-/+]*$`)
+// isValidKeyByte checks if the byte is a valid character for a key.
+func isValidKeyByte(b byte) bool {
+	switch b {
+	case
+		// Digits
+		'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+
+		// Lowercase letters
+		'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+		'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+
+		// Uppercase letters
+		'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+		'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+
+		// Allowed symbols
+		'@', '_', ':', '.', '-', '+':
+		return true
+	default:
+		return false
+	}
+}
 
 // IsKeySafe checks if the passed in key conforms to whitelist
 func IsKeySafe(key Key) bool {
@@ -48,12 +65,10 @@ func IsKeySafe(key Key) bool {
 			return key.exactKey && i == len(components)-1
 		}
 
-		if strings.Contains(k, string(Separator)) {
-			return false
-		}
-
-		if !allowPattern.MatchString(k) {
-			return false
+		for _, b := range []byte(k) {
+			if !isValidKeyByte(b) {
+				return false
+			}
 		}
 	}
 	return true

@@ -31,6 +31,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -170,7 +171,7 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		return IdentityContext{}, trace.Wrap(err)
 	}
 
-	clusterName, err := h.c.AccessPoint.GetClusterName()
+	clusterName, err := h.c.AccessPoint.GetClusterName(context.TODO())
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
 	}
@@ -230,13 +231,13 @@ func (h *AuthHandlers) CheckFileCopying(ctx *ServerContext) error {
 }
 
 // CheckPortForward checks if port forwarding is allowed for the users RoleSet.
-func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, requestedMode services.SSHPortForwardMode) error {
+func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, requestedMode decisionpb.SSHPortForwardMode) error {
 	allowedMode := ctx.Identity.AccessChecker.SSHPortForwardMode()
-	if allowedMode == services.SSHPortForwardModeOn {
+	if allowedMode == decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON {
 		return nil
 	}
 
-	if allowedMode == services.SSHPortForwardModeOff || allowedMode != requestedMode {
+	if allowedMode == decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF || allowedMode != requestedMode {
 		systemErrorMessage := fmt.Sprintf("port forwarding not allowed by role set: %v", ctx.Identity.AccessChecker.RoleNames())
 		userErrorMessage := "port forwarding not allowed"
 
@@ -377,7 +378,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 			UserMetadata: apievents.UserMetadata{
 				Login:         principal,
 				User:          ident.Username,
-				TrustedDevice: eventDeviceMetadataFromIdentity(ident),
+				TrustedDevice: ident.GetDeviceMetadata(),
 			},
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  conn.LocalAddr().String(),
@@ -421,7 +422,19 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	}
 	log.DebugContext(ctx, "Successfully authenticated")
 
-	clusterName, err := h.c.AccessPoint.GetClusterName()
+	for ext := range permissions.Extensions {
+		if utils.IsInternalSSHExtension(ext) {
+			return nil, trace.BadParameter("internal extension %q is not permitted in cert permissions", ext)
+		}
+	}
+
+	for ext := range permissions.CriticalOptions {
+		if utils.IsInternalSSHExtension(ext) {
+			return nil, trace.BadParameter("internal extension %q is not permitted in cert critical options", ext)
+		}
+	}
+
+	clusterName, err := h.c.AccessPoint.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -439,6 +452,23 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		permissions.Extensions[utils.ExtIntCertType] = utils.ExtIntCertTypeHost
 	default:
 		log.WarnContext(ctx, "Received unexpected cert type", "cert_type", cert.CertType)
+	}
+
+	// the git forwarding component currently only supports an authorization model that makes sense
+	// for local identities. reject all non-local identities explicitly.
+	if h.c.Component == teleport.ComponentForwardingGit {
+		ca, err := h.authorityForCert(types.UserCA, cert.SignatureKey)
+		if err != nil {
+			log.ErrorContext(ctx, "permission denied", "error", err)
+			recordFailedLogin(err)
+			return nil, trace.Wrap(err)
+		}
+
+		if clusterName.GetClusterName() != ca.GetClusterName() {
+			log.ErrorContext(ctx, "cross-cluster git forwarding is not supported", "local_cluster", clusterName.GetClusterName(), "remote_cluster", ca.GetClusterName())
+			recordFailedLogin(trace.AccessDenied("cross-cluster git forwarding is not supported"))
+			return nil, trace.AccessDenied("cross-cluster git forwarding is not supported")
+		}
 	}
 
 	// Skip RBAC check for proxy or git servers. RBAC check on git servers are

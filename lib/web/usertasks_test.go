@@ -120,6 +120,7 @@ func TestUserTask(t *testing.T) {
 			err = json.Unmarshal(resp.Bytes(), &listResponse)
 			require.NoError(t, err)
 			require.NotEmpty(t, listResponse.Items)
+			require.NotEmpty(t, listResponse.Items[0].Title)
 			listedTasks = append(listedTasks, listResponse.Items...)
 
 			if listResponse.NextKey == "" {
@@ -141,6 +142,8 @@ func TestUserTask(t *testing.T) {
 		err = json.Unmarshal(resp.Bytes(), &userTaskDetailResp)
 		require.NoError(t, err)
 		require.Equal(t, "OPEN", userTaskDetailResp.State)
+		require.NotEmpty(t, userTaskDetailResp.Description)
+		require.NotEmpty(t, userTaskDetailResp.Title)
 		require.NotEmpty(t, userTaskDetailResp.DiscoverEC2)
 		lastStateChangeT0 := userTaskDetailResp.LastStateChange
 
@@ -160,5 +163,63 @@ func TestUserTask(t *testing.T) {
 		// Its last changed state should be updated.
 		lastStateChangeT1 := userTaskDetailResp.LastStateChange
 		require.True(t, lastStateChangeT1.After(lastStateChangeT0), "last state change was not updated after changing the UserTask state")
+
+		t.Run("List open tasks by integration must not return the resolved task", func(t *testing.T) {
+			startKey := ""
+			var listedTasks []ui.UserTask
+			for {
+				// Add a small limit page to test iteration.
+				resp, err := pack.clt.Get(ctx, getAllEndpoint, url.Values{
+					"startKey":    []string{startKey},
+					"integration": []string{"my-integration"},
+					"state":       []string{"OPEN"},
+					"limit":       []string{"2"},
+				})
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.Code())
+
+				var listResponse ui.UserTasksListResponse
+				err = json.Unmarshal(resp.Bytes(), &listResponse)
+				require.NoError(t, err)
+				require.NotEmpty(t, listResponse.Items)
+				listedTasks = append(listedTasks, listResponse.Items...)
+
+				if listResponse.NextKey == "" {
+					break
+				}
+
+				startKey = listResponse.NextKey
+			}
+			expectedOpenTasks := len(issueTypes) - 1
+			require.Len(t, listedTasks, expectedOpenTasks)
+		})
+		t.Run("List resolved tasks by integration must return the resolved task", func(t *testing.T) {
+			startKey := ""
+			var listedTasks []ui.UserTask
+			for {
+				// Add a small limit page to test iteration.
+				resp, err := pack.clt.Get(ctx, getAllEndpoint, url.Values{
+					"startKey":    []string{startKey},
+					"integration": []string{"my-integration"},
+					"state":       []string{"RESOLVED"},
+					"limit":       []string{"2"},
+				})
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.Code())
+
+				var listResponse ui.UserTasksListResponse
+				err = json.Unmarshal(resp.Bytes(), &listResponse)
+				require.NoError(t, err)
+				require.NotEmpty(t, listResponse.Items)
+				listedTasks = append(listedTasks, listResponse.Items...)
+
+				if listResponse.NextKey == "" {
+					break
+				}
+
+				startKey = listResponse.NextKey
+			}
+			require.Len(t, listedTasks, 1)
+		})
 	})
 }

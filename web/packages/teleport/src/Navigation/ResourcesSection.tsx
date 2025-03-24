@@ -32,7 +32,11 @@ import { useUser } from 'teleport/User/UserContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { CustomNavigationSubcategory, NavigationCategory } from './categories';
-import { NavigationSection, NavigationSubsection } from './Navigation';
+import {
+  NavigationSection,
+  NavigationSubsection,
+  useFloatingUiWithRestMs,
+} from './Navigation';
 import {
   CustomChildrenSection,
   RightPanel,
@@ -294,20 +298,30 @@ export function ResourcesSection({
 
   const currentViewRoute = currentView?.route;
 
+  const { refs, getReferenceProps, getFloatingProps } = useFloatingUiWithRestMs(
+    {
+      open: isExpanded,
+      onOpenChange: open => open && handleSetExpandedSection(section),
+    }
+  );
+
   return (
     <CustomChildrenSection
+      ref={refs.setReference}
       key="resources"
       section={section}
       $active={currentView?.route === baseRoute}
-      onExpandSection={() => handleSetExpandedSection(section)}
       aria-controls={`panel-${expandedSection?.category}`}
       isExpanded={isExpanded}
+      {...getReferenceProps()}
     >
       <RightPanel
+        ref={refs.setFloating}
         isVisible={isExpanded}
         skipAnimation={!!previousExpandedSection}
         id={`panel-resources`}
         onFocus={() => handleSetExpandedSection(section)}
+        {...getFloatingProps()}
       >
         <Box
           css={`

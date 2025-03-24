@@ -21,8 +21,11 @@ import { MemoryRouter } from 'react-router';
 import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
+import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import { createTeleportContext } from 'teleport/mocks/contexts';
+import { yamlService } from 'teleport/services/yaml';
 
+import { withDefaults } from './RoleEditor/StandardEditor/withDefaults';
 import { Roles } from './Roles';
 import { State } from './useRoles';
 
@@ -64,9 +67,11 @@ describe('Roles list', () => {
     const ctx = createTeleportContext();
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Roles {...defaultState} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Roles {...defaultState} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -87,9 +92,11 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Roles {...testState} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Roles {...testState} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -103,9 +110,11 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Roles {...defaultState} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Roles {...defaultState} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -132,9 +141,11 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Roles {...testState} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Roles {...testState} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -167,9 +178,11 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Roles {...testState} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Roles {...testState} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -202,9 +215,11 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Roles {...testState} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Roles {...testState} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -231,9 +246,11 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Roles {...testState} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Roles {...testState} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -271,25 +288,35 @@ test('renders the role diff component', async () => {
       list: true,
     },
   });
+  jest.spyOn(yamlService, 'parse').mockImplementation(async () => {
+    return withDefaults({});
+  });
   const roleDiffElement = <div>i am rendered</div>;
 
   render(
     <MemoryRouter>
-      <ContextProvider ctx={ctx}>
-        <Roles
-          {...defaultState()}
-          roleDiffProps={{
-            roleDiffElement,
-            updateRoleDiff: () => null,
-            errorMessage: 'there is an error here',
-          }}
-        />
-      </ContextProvider>
+      <InfoGuidePanelProvider>
+        <ContextProvider ctx={ctx}>
+          <Roles
+            {...defaultState()}
+            roleDiffProps={{
+              roleDiffElement,
+              updateRoleDiff: () => null,
+              roleDiffAttempt: {
+                status: 'error',
+                statusText: 'there is an error here',
+                data: null,
+                error: null,
+              },
+            }}
+          />
+        </ContextProvider>
+      </InfoGuidePanelProvider>
     </MemoryRouter>
   );
   await openEditor();
   expect(screen.getByText('i am rendered')).toBeInTheDocument();
-  expect(screen.getByText('there is an error here')).toBeInTheDocument();
+  expect(await screen.findByText('there is an error here')).toBeInTheDocument();
 });
 
 async function openEditor() {

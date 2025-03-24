@@ -1,3 +1,4 @@
+# SSM Agent lost connection
 Auto enrolling EC2 instances requires the SSM Agent to be installed and running on them.
 Some instances appear to have lost connection to Amazon Systems Manager.
 

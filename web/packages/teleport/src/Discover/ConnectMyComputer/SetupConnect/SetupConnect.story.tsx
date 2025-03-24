@@ -27,6 +27,7 @@ import {
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
+import { DiscoverBox } from 'teleport/Discover/Shared';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 import { UserContext } from 'teleport/User/UserContext';
@@ -144,6 +145,7 @@ const Provider = ({ children }) => {
   const updatePreferences = () => Promise.resolve();
   const getClusterPinnedResources = () => Promise.resolve([]);
   const updateClusterPinnedResources = () => Promise.resolve();
+  const updateDiscoverResourcePreferences = () => Promise.resolve();
 
   return (
     <MemoryRouter>
@@ -153,9 +155,12 @@ const Provider = ({ children }) => {
           updatePreferences,
           getClusterPinnedResources,
           updateClusterPinnedResources,
+          updateDiscoverResourcePreferences,
         }}
       >
-        <ContextProvider ctx={ctx}>{children}</ContextProvider>
+        <ContextProvider ctx={ctx}>
+          <DiscoverBox>{children}</DiscoverBox>
+        </ContextProvider>
       </UserContext.Provider>
     </MemoryRouter>
   );

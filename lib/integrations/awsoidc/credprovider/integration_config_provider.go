@@ -24,13 +24,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 // Options represents additional options for configuring the AWS credentials provider.
@@ -53,7 +53,7 @@ func CreateAWSConfigForIntegration(ctx context.Context, config Config, option ..
 		return nil, trace.Wrap(err)
 	}
 	if config.STSClient == nil {
-		config.STSClient = sts.NewFromConfig(*cacheAWSConfig)
+		config.STSClient = stsutils.NewFromConfig(*cacheAWSConfig)
 	}
 	credCache, err := newAWSCredCache(ctx, config, config.STSClient)
 	if err != nil {

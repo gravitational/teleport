@@ -580,6 +580,7 @@ func TestConvertUsageEvent(t *testing.T) {
 					CountTraitsGranted:          6,
 					CountInheritedRolesGranted:  0,
 					CountInheritedTraitsGranted: 0,
+					UserName:                    "myuser",
 				},
 			}},
 			identityUsername: "myuser",

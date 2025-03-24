@@ -345,7 +345,7 @@ func (a *SessionWriter) RecordEvent(ctx context.Context, pe apievents.PreparedSe
 		return nil
 	case <-t.C:
 		if setBackoff := a.maybeSetBackoff(a.cfg.Clock.Now().UTC().Add(a.cfg.BackoffDuration)); setBackoff {
-			a.log.ErrorContext(ctx, "Audit write timed out. Will be losing events while applying backogg.", "timeout", a.cfg.BackoffTimeout, "backoff_duration", a.cfg.BackoffDuration)
+			a.log.ErrorContext(ctx, "Audit write timed out. Will be losing events while applying backoff.", "timeout", a.cfg.BackoffTimeout, "backoff_duration", a.cfg.BackoffDuration)
 		}
 		a.lostEvents.Add(1)
 		return nil

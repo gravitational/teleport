@@ -177,25 +177,15 @@ func VerifyCertificateChain(certificateChain []*x509.Certificate) error {
 	return nil
 }
 
-// IsSelfSigned checks if the certificate is a self-signed certificate. To
-// check if a certificate is self-signed, we make sure that only one
-// certificate is in the chain and that the SubjectKeyId and AuthorityKeyId
-// match.
-//
-// From RFC5280: https://tools.ietf.org/html/rfc5280#section-4.2.1.1
-//
-//	The signature on a self-signed certificate is generated with the private
-//	key associated with the certificate's subject public key. (This
-//	proves that the issuer possesses both the public and private keys.)
-//	In this case, the subject and authority key identifiers would be
-//	identical, but only the subject key identifier is needed for
-//	certification path building.
+// IsSelfSigned checks if the certificate is a self-signed certificate. To check
+// if a certificate is self-signed, we make sure that only one certificate is in
+// the chain and that its Subject and Issuer match.
 func IsSelfSigned(certificateChain []*x509.Certificate) bool {
 	if len(certificateChain) != 1 {
 		return false
 	}
 
-	return bytes.Equal(certificateChain[0].SubjectKeyId, certificateChain[0].AuthorityKeyId)
+	return bytes.Equal(certificateChain[0].RawSubject, certificateChain[0].RawIssuer)
 }
 
 // ReadCertificates parses PEM encoded bytes that can contain one or

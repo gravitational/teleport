@@ -51,6 +51,8 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 const (
@@ -390,12 +392,13 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 		}
 
 		if c.stsClient == nil {
-			c.stsClient = sts.NewFromConfig(*c.awsCfg, func(o *sts.Options) {
+			c.stsClient = stsutils.NewFromConfig(*c.awsCfg, func(o *sts.Options) {
 				o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
 			})
+
 		}
 		if c.iamClient == nil {
-			c.iamClient = iam.NewFromConfig(*c.awsCfg, func(o *iam.Options) {
+			c.iamClient = iamutils.NewFromConfig(*c.awsCfg, func(o *iam.Options) {
 				o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
 			})
 		}
@@ -430,7 +433,7 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 		if c.Policies == nil {
 			partition := c.Identity.GetPartition()
 			accountID := c.Identity.GetAccountID()
-			iamClient := iam.NewFromConfig(*c.awsCfg, func(o *iam.Options) {
+			iamClient := iamutils.NewFromConfig(*c.awsCfg, func(o *iam.Options) {
 				o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
 			})
 			c.Policies = awslib.NewPolicies(partition, accountID, iamClient)

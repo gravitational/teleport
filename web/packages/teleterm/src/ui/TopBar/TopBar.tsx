@@ -78,9 +78,9 @@ const JustifyLeft = styled(Flex).attrs({ gap: 3 })`
   height: 100%;
 `;
 
-const JustifyRight = styled.div`
-  display: flex;
-  justify-self: end;
+const JustifyRight = styled(Flex).attrs({ gap: 2 })`
+  justify-content: end;
   align-items: center;
+  min-width: 128px; // reserves space for access requests icon to prevent layout shifting
   height: 100%;
 `;

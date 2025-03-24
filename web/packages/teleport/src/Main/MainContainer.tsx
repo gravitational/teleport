@@ -26,9 +26,8 @@ import styled from 'styled-components';
 export const MainContainer = styled.div`
   display: flex;
   flex: 1;
-  --sidebar-width: 256px;
-  --sidenav-width: 76px;
-  --sidenav-panel-width: 224px;
+  --sidenav-width: 84px;
+  --sidenav-panel-width: 264px;
   overflow: hidden;
   margin-top: ${p => p.theme.topBarHeight[0]}px;
   @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {

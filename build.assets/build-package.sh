@@ -183,6 +183,11 @@ if [[ "${RUNTIME}" == "fips" ]]; then
     OPTIONAL_RUNTIME_SECTION+="-fips"
 fi
 
+# After install is --after-install except for RPM, we use --rpm-posttrans.
+# This is because RPM runs after install scrips before the old package removal,
+# so old Teleport are still here and we cannot run our teleport-update symlink logic.
+AFTER_INSTALL_TARGET="--after-install"
+
 # set variables appropriately depending on type of package being built
 if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
     TARBALL_FILENAME="teleport-ent-v${TELEPORT_VERSION}-${PLATFORM}-${TARBALL_ARCH}${OPTIONAL_TARBALL_SECTION}${OPTIONAL_RUNTIME_SECTION}-bin.tar.gz"
@@ -240,6 +245,8 @@ else
         FILE_PERMISSIONS_STANZA="--rpm-user root --rpm-group root --rpm-use-file-permissions "
         # the rpm/rpmmacros file suppresses the creation of .build-id files (see https://github.com/gravitational/teleport/issues/7040)
         EXTRA_DOCKER_OPTIONS="-v $(pwd)/rpm/rpmmacros:/root/.rpmmacros"
+
+        AFTER_INSTALL_TARGET="--rpm-posttrans"
         # if we set this environment variable, don't sign RPMs (can be useful for building test RPMs
         # without having the signing keys)
         if [ "${UNSIGNED_RPM}" == "true" ]; then
@@ -375,7 +382,7 @@ else
         --provides teleport \
         --prefix / \
         --verbose \
-        --after-install /src/post-install \
+        "$AFTER_INSTALL_TARGET" /src/post-install \
         --before-remove /src/before-remove \
         ${CONFIG_FILE_STANZA} \
         ${FILE_PERMISSIONS_STANZA} \

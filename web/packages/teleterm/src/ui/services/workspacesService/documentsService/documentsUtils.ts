@@ -24,6 +24,7 @@ import {
   Kubernetes,
   Laptop,
   ListAddCheck,
+  ListMagnifyingGlass,
   Server,
   ShieldCheck,
   Table,
@@ -78,6 +79,8 @@ export function getResourceUri(
     case 'doc.connect_my_computer':
       return document.rootClusterUri;
     case 'doc.authorize_web_session':
+      return document.rootClusterUri;
+    case 'doc.vnet_diag_report':
       return document.rootClusterUri;
     case 'doc.blank':
       return undefined;
@@ -194,6 +197,11 @@ export function getStaticNameAndIcon(
       return {
         name: document.title,
         Icon: ShieldCheck,
+      };
+    case 'doc.vnet_diag_report':
+      return {
+        name: document.title,
+        Icon: ListMagnifyingGlass,
       };
     case 'doc.blank':
     case 'doc.terminal_tsh_kube':

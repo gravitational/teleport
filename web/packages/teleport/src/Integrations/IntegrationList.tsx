@@ -69,7 +69,7 @@ export function IntegrationList(props: Props) {
   }
 
   function getRowStyle(row: IntegrationLike): React.CSSProperties {
-    if (row.kind !== 'okta') return;
+    if (row.kind !== 'okta' && row.kind !== IntegrationKind.AwsOidc) return;
     return { cursor: 'pointer' };
   }
 

@@ -1,3 +1,4 @@
+# SSM Agent not registered
 Auto enrolling EC2 instances requires the SSM Agent to be installed and running on them.
 Some instances failed to connect to Amazon Systems Manager.
 

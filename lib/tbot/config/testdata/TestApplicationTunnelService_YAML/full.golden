@@ -1,3 +1,5 @@
 type: application-tunnel
 listen: tcp://0.0.0.0:3621
 app_name: my-app
+credential_ttl: 1m0s
+renewal_interval: 30s

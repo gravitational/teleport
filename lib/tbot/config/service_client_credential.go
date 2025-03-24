@@ -148,3 +148,7 @@ func (o *UnstableClientCredentialOutput) MarshalYAML() (interface{}, error) {
 func (o *UnstableClientCredentialOutput) Type() string {
 	return UnstableClientCredentialOutputType
 }
+
+func (o *UnstableClientCredentialOutput) GetCredentialLifetime() CredentialLifetime {
+	return CredentialLifetime{}
+}

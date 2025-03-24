@@ -93,8 +93,7 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
 
   return (
     <HoverTooltip
-      anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+      placement="bottom"
       tipContent="Teleport Resources Home"
       css={`
         height: 100%;

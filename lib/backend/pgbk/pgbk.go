@@ -21,6 +21,7 @@ package pgbk
 import (
 	"context"
 	"errors"
+	"iter"
 	"log/slog"
 	"sync"
 	"time"
@@ -430,56 +431,114 @@ func (b *Backend) Get(ctx context.Context, key backend.Key) (*backend.Item, erro
 	return item, nil
 }
 
-// GetRange implements [backend.Backend].
-func (b *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
+func (b *Backend) Items(ctx context.Context, params backend.IterateParams) iter.Seq2[backend.Item, error] {
+	if params.StartKey.IsZero() {
+		err := trace.BadParameter("missing parameter startKey")
+		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
+	}
+	if params.EndKey.IsZero() {
+		err := trace.BadParameter("missing parameter endKey")
+		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
+	}
+
+	limit := params.Limit
 	if limit <= 0 {
 		limit = backend.DefaultRangeLimit
 	}
 
-	items, err := pgcommon.RetryIdempotent(ctx, b.log, func() ([]backend.Item, error) {
-		batch := new(pgx.Batch)
-		// batches run in an implicit transaction
-		batch.Queue("SET transaction_read_only TO on")
-		// TODO(espadolini): figure out if we want transaction_deferred enabled
-		// for GetRange
+	const (
+		queryAsc = "SELECT kv.key, kv.value, kv.expires, kv.revision FROM kv" +
+			" WHERE kv.key BETWEEN $1 AND $2 AND ($3::bytea is NULL or kv.key > $3) AND (kv.expires IS NULL OR kv.expires > now())" +
+			" ORDER BY kv.key ASC LIMIT $4"
 
-		var items []backend.Item
-		batch.Queue(
-			"SELECT kv.key, kv.value, kv.expires, kv.revision FROM kv"+
-				" WHERE kv.key BETWEEN $1 AND $2 AND (kv.expires IS NULL OR kv.expires > now())"+
-				" ORDER BY kv.key LIMIT $3",
-			nonNilKey(startKey), nonNilKey(endKey), limit,
-		).Query(func(rows pgx.Rows) error {
-			var err error
-			items, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (backend.Item, error) {
-				var key backend.Key
-				var value []byte
-				var expires time.Time
-				var revision revision
-				if err := row.Scan(&key, &value, (*zeronull.Timestamptz)(&expires), &revision); err != nil {
-					return backend.Item{}, err
+		queryDesc = "SELECT kv.key, kv.value, kv.expires, kv.revision FROM kv" +
+			" WHERE kv.key BETWEEN $1 AND $2 AND ($3::bytea is NULL or kv.key < $3) AND (kv.expires IS NULL OR kv.expires > now())" +
+			" ORDER BY kv.key DESC LIMIT $4"
+
+		defaultPageSize = 1000
+	)
+	return func(yield func(backend.Item, error) bool) {
+		var exclusiveStartKey []byte
+		query := queryAsc
+		if params.Descending {
+			query = queryDesc
+		}
+
+		var totalCount int
+		for {
+			pageLimit := min(limit-totalCount, defaultPageSize)
+
+			items, err := pgcommon.RetryIdempotent(ctx, b.log, func() ([]backend.Item, error) {
+				batch := new(pgx.Batch)
+				// batches run in an implicit transaction
+				batch.Queue("SET transaction_read_only TO on")
+				// TODO(espadolini): figure out if we want transaction_deferred enabled
+				var items []backend.Item
+				batch.Queue(query, nonNilKey(params.StartKey), nonNilKey(params.EndKey), exclusiveStartKey, pageLimit).Query(func(rows pgx.Rows) error {
+					var err error
+					items, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (backend.Item, error) {
+						var key backend.Key
+						var value []byte
+						var expires time.Time
+						var revision revision
+						if err := row.Scan(&key, &value, (*zeronull.Timestamptz)(&expires), &revision); err != nil {
+							return backend.Item{}, err
+						}
+						return backend.Item{
+							Key:      key,
+							Value:    value,
+							Expires:  expires.UTC(),
+							Revision: revisionToString(revision),
+						}, nil
+					})
+					return trace.Wrap(err)
+				})
+
+				if err := b.pool.SendBatch(ctx, batch).Close(); err != nil {
+					return nil, trace.Wrap(err)
 				}
-				return backend.Item{
-					Key:      key,
-					Value:    value,
-					Expires:  expires.UTC(),
-					Revision: revisionToString(revision),
-				}, nil
-			})
-			return trace.Wrap(err)
-		})
 
-		if err := b.pool.SendBatch(ctx, batch).Close(); err != nil {
+				return items, nil
+			})
+			if err != nil {
+				yield(backend.Item{}, trace.Wrap(err))
+				return
+			}
+
+			if len(items) >= pageLimit {
+				exclusiveStartKey = []byte(items[len(items)-1].Key.String())
+			}
+
+			for _, item := range items {
+				if !yield(item, nil) {
+					return
+				}
+
+				totalCount++
+				if limit != backend.NoLimit && totalCount >= limit {
+					return
+				}
+			}
+
+			if len(items) < pageLimit {
+				return
+			}
+		}
+	}
+}
+
+// GetRange implements [backend.Backend].
+func (b *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
+	var result backend.GetResult
+	for item, err := range b.Items(ctx, backend.IterateParams{StartKey: startKey, EndKey: endKey, Limit: limit}) {
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		return items, nil
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+		result.Items = append(result.Items, item)
 	}
 
-	return &backend.GetResult{Items: items}, nil
+	return &result, nil
 }
 
 // Delete implements [backend.Backend].

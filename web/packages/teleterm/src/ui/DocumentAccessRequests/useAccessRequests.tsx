@@ -28,7 +28,6 @@ import {
   makeAccessRequest,
 } from 'shared/services/accessRequests';
 
-import { AssumedRequest } from 'teleterm/services/tshd/types';
 import { useAccessRequestsContext } from 'teleterm/ui/AccessRequests/AccessRequestsContext';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
@@ -113,7 +112,7 @@ export function makeUiAccessRequest(request: TshdAccessRequest) {
 // TODO(gzdunek): Replace with a function from `DocumentAccessRequests/useReviewAccessRequest`.
 export function makeFlags(
   request: AccessRequest,
-  assumed: Record<string, AssumedRequest>,
+  assumed: Record<string, TshdAccessRequest>,
   loggedInUser: LoggedInUser
 ): RequestFlags {
   const ownRequest = request.user === loggedInUser?.name;

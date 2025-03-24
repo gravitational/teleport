@@ -510,6 +510,16 @@ func (o *PluginOktaSettings) GetSyncSettings() *PluginOktaSyncSettings {
 
 type OktaUserSyncSource string
 
+// IsUnknown returns true if user sync source is empty or explicitly set to "unknown".
+func (s OktaUserSyncSource) IsUnknown() bool {
+	switch s {
+	case "", OktaUserSyncSourceUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
 const (
 	// OktaUserSyncSourceUnknown indicates the user sync source is not set.
 	OktaUserSyncSourceUnknown OktaUserSyncSource = "unknown"

@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"io"
@@ -33,6 +34,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/client"
 )
 
 func TestAuthExport(t *testing.T) {
@@ -88,6 +91,22 @@ func TestAuthExport(t *testing.T) {
 	}
 	validateFormatZipPEM := func(t *testing.T, body []byte, wantCAFiles int) {
 		validateFormatZip(t, body, wantCAFiles, validateTLSCertificatePEMFunc)
+	}
+
+	validateFormatJSON := func(
+		t *testing.T,
+		body []byte,
+		wantCAFiles int,
+		validateCAFile func(t *testing.T, contents []byte),
+	) {
+		var authorities []client.ExportedAuthority
+		err := json.Unmarshal(body, &authorities)
+		require.NoError(t, err)
+		assert.Len(t, authorities, wantCAFiles)
+
+		for _, authority := range authorities {
+			validateCAFile(t, authority.Data)
+		}
 	}
 
 	ctx := context.Background()
@@ -213,6 +232,17 @@ func TestAuthExport(t *testing.T) {
 			expectedStatus: http.StatusOK,
 			assertBody: func(t *testing.T, b []byte) {
 				validateFormatZipPEM(t, b, 1 /* wantCAFiles */)
+			},
+		},
+		{
+			name: "format=json",
+			params: url.Values{
+				"type":   []string{"db-client"},
+				"format": []string{"json"},
+			},
+			expectedStatus: http.StatusOK,
+			assertBody: func(t *testing.T, b []byte) {
+				validateFormatJSON(t, b, 1, validateTLSCertificatePEMFunc)
 			},
 		},
 	} {

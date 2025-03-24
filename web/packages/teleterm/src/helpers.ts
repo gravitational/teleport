@@ -22,6 +22,10 @@ import { Kube } from 'gen-proto-ts/teleport/lib/teleterm/v1/kube_pb';
 import { Server } from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
 import { PaginatedResource } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 import * as api from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
+import {
+  CheckReport,
+  RouteConflictReport,
+} from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 
 import {
   ReloginRequest,
@@ -170,4 +174,13 @@ export function reloginReasonOneOfIsVnetCertExpired(
   vnetCertExpired: api.VnetCertExpired;
 } {
   return reason.oneofKind === 'vnetCertExpired';
+}
+
+export function reportOneOfIsRouteConflictReport(
+  report: CheckReport['report']
+): report is {
+  oneofKind: 'routeConflictReport';
+  routeConflictReport: RouteConflictReport;
+} {
+  return report.oneofKind === 'routeConflictReport';
 }

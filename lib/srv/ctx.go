@@ -93,7 +93,7 @@ type AccessPoint interface {
 	types.Semaphores
 
 	// GetClusterName returns cluster name
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
@@ -465,7 +465,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		child.Logger = child.Logger.With("idle", child.clientIdleTimeout)
 	}
 
-	clusterName, err := srv.GetAccessPoint().GetClusterName()
+	clusterName, err := srv.GetAccessPoint().GetClusterName(ctx)
 	if err != nil {
 		childErr := child.Close()
 		return nil, trace.NewAggregate(err, childErr)
@@ -1066,22 +1066,6 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 	}, nil
 }
 
-func eventDeviceMetadataFromIdentity(ident *sshca.Identity) *apievents.DeviceMetadata {
-	if ident == nil {
-		return nil
-	}
-
-	if ident.DeviceID == "" && ident.DeviceAssetTag == "" && ident.DeviceCredentialID == "" {
-		return nil
-	}
-
-	return &apievents.DeviceMetadata{
-		DeviceId:     ident.DeviceID,
-		AssetTag:     ident.DeviceAssetTag,
-		CredentialId: ident.DeviceCredentialID,
-	}
-}
-
 func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 	userKind := apievents.UserKind_USER_KIND_HUMAN
 	if id.BotName != "" {
@@ -1093,7 +1077,7 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 		User:           id.TeleportUser,
 		Impersonator:   id.Impersonator,
 		AccessRequests: id.ActiveRequests,
-		TrustedDevice:  eventDeviceMetadataFromIdentity(id.UnmappedIdentity),
+		TrustedDevice:  id.UnmappedIdentity.GetDeviceMetadata(),
 		UserKind:       userKind,
 		BotName:        id.BotName,
 		BotInstanceID:  id.BotInstanceID,

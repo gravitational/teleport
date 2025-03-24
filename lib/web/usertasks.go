@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -113,7 +114,13 @@ func (h *Handler) userTaskListByIntegration(w http.ResponseWriter, r *http.Reque
 		return nil, trace.BadParameter("integration query param is required")
 	}
 
-	userTasks, nextKey, err := clt.UserTasksServiceClient().ListUserTasksByIntegration(r.Context(), int64(limit), startKey, integrationName)
+	taskStateFilter := values.Get("state")
+
+	filters := &usertasksv1.ListUserTasksFilters{
+		Integration: integrationName,
+		TaskState:   taskStateFilter,
+	}
+	userTasks, nextKey, err := clt.UserTasksServiceClient().ListUserTasks(r.Context(), int64(limit), startKey, filters)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

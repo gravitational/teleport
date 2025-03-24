@@ -94,6 +94,7 @@ import (
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
 	"github.com/gravitational/teleport/lib/events"
@@ -102,7 +103,6 @@ import (
 	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/inventory"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
-	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/loginrule"
 	"github.com/gravitational/teleport/lib/modules"
@@ -405,6 +405,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 		cfg.WorkloadIdentity = workloadIdentity
 	}
+	if cfg.WorkloadIdentityX509Revocations == nil {
+		cfg.WorkloadIdentityX509Revocations, err = local.NewWorkloadIdentityX509RevocationService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating WorkloadIdentityX509Revocation service")
+		}
+	}
 	if cfg.StableUNIXUsers == nil {
 		cfg.StableUNIXUsers = &local.StableUNIXUsersService{
 			Backend: cfg.Backend,
@@ -464,53 +470,54 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
-		TrustInternal:                cfg.Trust,
-		PresenceInternal:             cfg.Presence,
-		Provisioner:                  cfg.Provisioner,
-		Identity:                     cfg.Identity,
-		Access:                       cfg.Access,
-		DynamicAccessExt:             cfg.DynamicAccessExt,
-		ClusterConfigurationInternal: cfg.ClusterConfiguration,
-		AutoUpdateService:            cfg.AutoUpdateService,
-		Restrictions:                 cfg.Restrictions,
-		Apps:                         cfg.Apps,
-		Kubernetes:                   cfg.Kubernetes,
-		Databases:                    cfg.Databases,
-		DatabaseServices:             cfg.DatabaseServices,
-		AuditLogSessionStreamer:      cfg.AuditLog,
-		Events:                       cfg.Events,
-		WindowsDesktops:              cfg.WindowsDesktops,
-		DynamicWindowsDesktops:       cfg.DynamicWindowsDesktops,
-		SAMLIdPServiceProviders:      cfg.SAMLIdPServiceProviders,
-		UserGroups:                   cfg.UserGroups,
-		SessionTrackerService:        cfg.SessionTrackerService,
-		ConnectionsDiagnostic:        cfg.ConnectionsDiagnostic,
-		Integrations:                 cfg.Integrations,
-		UserTasks:                    cfg.UserTasks,
-		DiscoveryConfigs:             cfg.DiscoveryConfigs,
-		Okta:                         cfg.Okta,
-		AccessLists:                  cfg.AccessLists,
-		DatabaseObjectImportRules:    cfg.DatabaseObjectImportRules,
-		DatabaseObjects:              cfg.DatabaseObjects,
-		SecReports:                   cfg.SecReports,
-		UserLoginStates:              cfg.UserLoginState,
-		StatusInternal:               cfg.Status,
-		UsageReporter:                cfg.UsageReporter,
-		UserPreferences:              cfg.UserPreferences,
-		PluginData:                   cfg.PluginData,
-		KubeWaitingContainer:         cfg.KubeWaitingContainers,
-		Notifications:                cfg.Notifications,
-		AccessMonitoringRules:        cfg.AccessMonitoringRules,
-		CrownJewels:                  cfg.CrownJewels,
-		BotInstance:                  cfg.BotInstance,
-		SPIFFEFederations:            cfg.SPIFFEFederations,
-		StaticHostUser:               cfg.StaticHostUsers,
-		ProvisioningStates:           cfg.ProvisioningStates,
-		IdentityCenter:               cfg.IdentityCenter,
-		PluginStaticCredentials:      cfg.PluginStaticCredentials,
-		GitServers:                   cfg.GitServers,
-		WorkloadIdentities:           cfg.WorkloadIdentity,
-		StableUNIXUsersInternal:      cfg.StableUNIXUsers,
+		TrustInternal:                   cfg.Trust,
+		PresenceInternal:                cfg.Presence,
+		Provisioner:                     cfg.Provisioner,
+		Identity:                        cfg.Identity,
+		Access:                          cfg.Access,
+		DynamicAccessExt:                cfg.DynamicAccessExt,
+		ClusterConfigurationInternal:    cfg.ClusterConfiguration,
+		AutoUpdateService:               cfg.AutoUpdateService,
+		Restrictions:                    cfg.Restrictions,
+		Apps:                            cfg.Apps,
+		Kubernetes:                      cfg.Kubernetes,
+		Databases:                       cfg.Databases,
+		DatabaseServices:                cfg.DatabaseServices,
+		AuditLogSessionStreamer:         cfg.AuditLog,
+		Events:                          cfg.Events,
+		WindowsDesktops:                 cfg.WindowsDesktops,
+		DynamicWindowsDesktops:          cfg.DynamicWindowsDesktops,
+		SAMLIdPServiceProviders:         cfg.SAMLIdPServiceProviders,
+		UserGroups:                      cfg.UserGroups,
+		SessionTrackerService:           cfg.SessionTrackerService,
+		ConnectionsDiagnostic:           cfg.ConnectionsDiagnostic,
+		Integrations:                    cfg.Integrations,
+		UserTasks:                       cfg.UserTasks,
+		DiscoveryConfigs:                cfg.DiscoveryConfigs,
+		Okta:                            cfg.Okta,
+		AccessLists:                     cfg.AccessLists,
+		DatabaseObjectImportRules:       cfg.DatabaseObjectImportRules,
+		DatabaseObjects:                 cfg.DatabaseObjects,
+		SecReports:                      cfg.SecReports,
+		UserLoginStates:                 cfg.UserLoginState,
+		StatusInternal:                  cfg.Status,
+		UsageReporter:                   cfg.UsageReporter,
+		UserPreferences:                 cfg.UserPreferences,
+		PluginData:                      cfg.PluginData,
+		KubeWaitingContainer:            cfg.KubeWaitingContainers,
+		Notifications:                   cfg.Notifications,
+		AccessMonitoringRules:           cfg.AccessMonitoringRules,
+		CrownJewels:                     cfg.CrownJewels,
+		BotInstance:                     cfg.BotInstance,
+		SPIFFEFederations:               cfg.SPIFFEFederations,
+		StaticHostUser:                  cfg.StaticHostUsers,
+		ProvisioningStates:              cfg.ProvisioningStates,
+		IdentityCenter:                  cfg.IdentityCenter,
+		PluginStaticCredentials:         cfg.PluginStaticCredentials,
+		GitServers:                      cfg.GitServers,
+		WorkloadIdentities:              cfg.WorkloadIdentity,
+		StableUNIXUsersInternal:         cfg.StableUNIXUsers,
+		WorkloadIdentityX509Revocations: cfg.WorkloadIdentityX509Revocations,
 	}
 
 	as := Server{
@@ -553,6 +560,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			}
 		}),
 	)
+
 	for _, o := range opts {
 		if err := o(&as); err != nil {
 			return nil, trace.Wrap(err)
@@ -669,6 +677,14 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	as.RegisterLoginHook(as.ulsGenerator.LoginHook(services.UserLoginStates))
 
+	as.pdp, err = decision.NewService(decision.Config{
+		AccessPoint:  as.Cache,
+		ULSGenerator: as.ulsGenerator,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if _, ok := as.getCache(); !ok {
 		as.logger.WarnContext(closeCtx, "Auth server starting without cache (may have negative performance implications)")
 	}
@@ -733,6 +749,7 @@ type Services struct {
 	services.GitServers
 	services.WorkloadIdentities
 	services.StableUNIXUsersInternal
+	services.WorkloadIdentityX509Revocations
 }
 
 // GetWebSession returns existing web session described by req.
@@ -1011,6 +1028,8 @@ type Server struct {
 	GlobalNotificationCache *services.GlobalNotificationCache
 
 	inventory *inventory.Controller
+
+	pdp *decision.Service
 
 	// githubOrgSSOCache is used to cache whether Github organizations use
 	// external SSO or not.
@@ -1512,62 +1531,46 @@ func (a *Server) runPeriodicOperations() {
 				}()
 			case heartbeatCheckKey:
 				go func() {
-					req := &proto.ListUnifiedResourcesRequest{Kinds: []string{types.KindNode}, SortBy: types.SortBy{Field: types.ResourceKind}}
-
-					for {
-						_, next, err := a.UnifiedResourceCache.IterateUnifiedResources(a.closeCtx,
-							func(rwl types.ResourceWithLabels) (bool, error) {
-								srv, ok := rwl.(types.Server)
-								if !ok {
-									return false, nil
-								}
-								if services.NodeHasMissedKeepAlives(srv) {
-									heartbeatsMissedByAuth.Inc()
-								}
-
-								if srv.GetSubKind() != types.SubKindOpenSSHNode {
-									return false, nil
-								}
-								// TODO(tross) DELETE in v20.0.0 - all invalid hostnames should have been sanitized by then.
-								if !validServerHostname(srv.GetHostname()) {
-									logger := a.logger.With("server", srv.GetName(), "hostname", srv.GetHostname())
-
-									logger.DebugContext(a.closeCtx, "sanitizing invalid static SSH server hostname")
-									// Any existing static hosts will not have their
-									// hostname sanitized since they don't heartbeat.
-									if err := sanitizeHostname(srv); err != nil {
-										logger.WarnContext(a.closeCtx, "failed to sanitize static SSH server hostname", "error", err)
-										return false, nil
-									}
-
-									if _, err := a.Services.UpdateNode(a.closeCtx, srv); err != nil && !trace.IsCompareFailed(err) {
-										logger.WarnContext(a.closeCtx, "failed to update SSH server hostname", "error", err)
-									}
-								} else if oldHostname, ok := srv.GetLabel(replacedHostnameLabel); ok && validServerHostname(oldHostname) {
-									// If the hostname has been replaced by a sanitized version, revert it back to the original
-									// if the original is valid under the most recent rules.
-									logger := a.logger.With("server", srv.GetName(), "old_hostname", oldHostname, "sanitized_hostname", srv.GetHostname())
-									if err := restoreSanitizedHostname(srv); err != nil {
-										logger.WarnContext(a.closeCtx, "failed to restore sanitized static SSH server hostname", "error", err)
-										return false, nil
-									}
-									if _, err := a.Services.UpdateNode(a.closeCtx, srv); err != nil && !trace.IsCompareFailed(err) {
-										logger.WarnContext(a.closeCtx, "Failed to update node hostname", "error", err)
-									}
-								}
-
-								return false, nil
-							},
-							req,
-						)
+					for srv, err := range a.UnifiedResourceCache.Nodes(a.closeCtx, services.UnifiedResourcesIterateParams{}) {
 						if err != nil {
 							a.logger.ErrorContext(a.closeCtx, "Failed to load nodes for heartbeat metric calculation", "error", err)
 							return
 						}
 
-						req.StartKey = next
-						if req.StartKey == "" {
-							break
+						if services.NodeHasMissedKeepAlives(srv) {
+							heartbeatsMissedByAuth.Inc()
+						}
+
+						if srv.GetSubKind() != types.SubKindOpenSSHNode {
+							continue
+						}
+
+						// TODO(tross) DELETE in v20.0.0 - all invalid hostnames should have been sanitized by then.
+						if !validServerHostname(srv.GetHostname()) {
+							logger := a.logger.With("server", srv.GetName(), "hostname", srv.GetHostname())
+
+							logger.DebugContext(a.closeCtx, "sanitizing invalid static SSH server hostname")
+							// Any existing static hosts will not have their
+							// hostname sanitized since they don't heartbeat.
+							if err := sanitizeHostname(srv); err != nil {
+								logger.WarnContext(a.closeCtx, "failed to sanitize static SSH server hostname", "error", err)
+								continue
+							}
+
+							if _, err := a.Services.UpdateNode(a.closeCtx, srv); err != nil && !trace.IsCompareFailed(err) {
+								logger.WarnContext(a.closeCtx, "failed to update SSH server hostname", "error", err)
+							}
+						} else if oldHostname, ok := srv.GetLabel(replacedHostnameLabel); ok && validServerHostname(oldHostname) {
+							// If the hostname has been replaced by a sanitized version, revert it back to the original
+							// if the original is valid under the most recent rules.
+							logger := a.logger.With("server", srv.GetName(), "old_hostname", oldHostname, "sanitized_hostname", srv.GetHostname())
+							if err := restoreSanitizedHostname(srv); err != nil {
+								logger.WarnContext(a.closeCtx, "failed to restore sanitized static SSH server hostname", "error", err)
+								continue
+							}
+							if _, err := a.Services.UpdateNode(a.closeCtx, srv); err != nil && !trace.IsCompareFailed(err) {
+								logger.WarnContext(a.closeCtx, "Failed to update node hostname", "error", err)
+							}
 						}
 					}
 				}()
@@ -2058,8 +2061,8 @@ func (a *Server) SetUsageReporter(reporter usagereporter.UsageReporter) {
 }
 
 // GetClusterID returns the cluster ID.
-func (a *Server) GetClusterID(ctx context.Context, opts ...services.MarshalOption) (string, error) {
-	clusterName, err := a.GetClusterName(opts...)
+func (a *Server) GetClusterID(ctx context.Context) (string, error) {
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -2071,7 +2074,7 @@ func (a *Server) GetClusterID(ctx context.Context, opts ...services.MarshalOptio
 // - (Teleport Cloud) a key provided by the Teleport Cloud API
 // - a key embedded in the license file
 // - the cluster's UUID
-func (a *Server) GetAnonymizationKey(ctx context.Context, opts ...services.MarshalOption) (string, error) {
+func (a *Server) GetAnonymizationKey(ctx context.Context) (string, error) {
 	if key := modules.GetModules().Features().CloudAnonymizationKey; len(key) > 0 {
 		return string(key), nil
 	}
@@ -2079,14 +2082,14 @@ func (a *Server) GetAnonymizationKey(ctx context.Context, opts ...services.Marsh
 	if a.license != nil && len(a.license.AnonymizationKey) > 0 {
 		return string(a.license.AnonymizationKey), nil
 	}
-	id, err := a.GetClusterID(ctx, opts...)
+	id, err := a.GetClusterID(ctx)
 	return id, trace.Wrap(err)
 }
 
 // GetDomainName returns the domain name that identifies this authority server.
 // Also known as "cluster name"
 func (a *Server) GetDomainName() (string, error) {
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(context.TODO())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -2096,7 +2099,7 @@ func (a *Server) GetDomainName() (string, error) {
 // GetClusterCACert returns the PEM-encoded TLS certs for the local cluster. If
 // the cluster has multiple TLS certs, they will all be concatenated.
 func (a *Server) GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertResponse, error) {
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2394,7 +2397,7 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	}
 	roleSet := services.NewRoleSet(roles...)
 
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2464,7 +2467,7 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 		return nil, nil, trace.Wrap(err)
 	}
 	accessInfo := services.AccessInfoFromUserState(userState)
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -2533,7 +2536,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		return nil, trace.Wrap(err)
 	}
 	accessInfo := services.AccessInfoFromUserState(userState)
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2605,7 +2608,7 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 		return nil, trace.Wrap(err)
 	}
 	accessInfo := services.AccessInfoFromUserState(userState)
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2758,7 +2761,7 @@ func (a *Server) AugmentWebSessionCertificates(ctx context.Context, opts *Augmen
 	}
 
 	// Prepare the AccessChecker for the WebSession identity.
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3309,8 +3312,19 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	// If the certificate is targeting a trusted Teleport cluster, it is the
 	// responsibility of the cluster to ensure its existence.
 	if req.routeToCluster == clusterName && req.kubernetesCluster != "" {
-		if err := kubeutils.CheckKubeCluster(a.closeCtx, a, req.kubernetesCluster); err != nil {
-			return nil, trace.Wrap(err)
+		var found bool
+		for ks, err := range a.UnifiedResourceCache.KubernetesServers(a.closeCtx, services.UnifiedResourcesIterateParams{}) {
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			if ks.GetCluster().GetName() == req.kubernetesCluster {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, trace.BadParameter("Kubernetes cluster %q is not registered in this Teleport cluster; you can list registered Kubernetes clusters using 'tsh kube ls'", req.kubernetesCluster)
 		}
 	}
 
@@ -4130,7 +4144,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 	}
 
 	// Emit deleted event.
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4248,7 +4262,7 @@ func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, req *newMFADevic
 		return nil, trace.BadParameter("MFARegisterResponse is an unknown response type %T", req.deviceResp.Response)
 	}
 
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4648,7 +4662,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	generateRequestsCurrent.Inc()
 	defer generateRequestsCurrent.Dec()
 
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5491,7 +5505,7 @@ func (a *Server) submitAccessReview(
 		return nil, trace.BadParameter("promoted access list can be only set when promoting access requests")
 	}
 
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -6211,7 +6225,7 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 		for _, al := range response {
 			daysDiff := int(al.Spec.Audit.NextAuditDate.Sub(now).Hours() / 24)
 			// Only keep access lists that fall within our thresholds in memory
-			if daysDiff <= 15 && daysDiff >= -8 {
+			if daysDiff <= 15 {
 				accessLists = append(accessLists, al)
 			}
 		}
@@ -6393,7 +6407,7 @@ func (a *Server) createAccessListReminderNotification(ctx context.Context, owner
 // GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.
 func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
 	// Generate a CRL for the current cluster CA.
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -6782,7 +6796,7 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 // Please note that Ping is publicly accessible (not protected by any RBAC) by design,
 // and thus PingResponse must never contain any sensitive information.
 func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
-	cn, err := a.GetClusterName()
+	cn, err := a.GetClusterName(ctx)
 	if err != nil {
 		return proto.PingResponse{}, trace.Wrap(err)
 	}
@@ -7178,7 +7192,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, ssoClientRed
 			return nil, trace.Wrap(err)
 		}
 
-		clusterName, err := a.GetClusterName()
+		clusterName, err := a.GetClusterName(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -7240,7 +7254,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, ssoClientRed
 		}
 	}
 
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -7351,7 +7365,7 @@ func (a *Server) ValidateMFAAuthResponse(
 
 	// Read ClusterName for audit.
 	var clusterName string
-	if cn, err := a.GetClusterName(); err != nil {
+	if cn, err := a.GetClusterName(ctx); err != nil {
 		a.logger.WarnContext(ctx, "Failed to read cluster name", "error", err)
 		// err swallowed on purpose.
 	} else {

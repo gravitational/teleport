@@ -151,16 +151,54 @@ const api = {
     mfaResponse?: MfaChallengeResponse
   ): Promise<any> {
     try {
-      return await api.fetch(url, customOptions, mfaResponse);
+      const response = await api.fetch(url, customOptions, mfaResponse);
+      return await api.getJsonFromFetchResponse(response);
     } catch (err) {
       // Retry with MFA if we get an admin action MFA error.
       if (!mfaResponse && isAdminActionRequiresMfaError(err)) {
         mfaResponse = await api.getAdminActionMfaResponse();
-        return api.fetch(url, customOptions, mfaResponse);
+        const response = await api.fetch(url, customOptions, mfaResponse);
+        return await api.getJsonFromFetchResponse(response);
       } else {
         throw err;
       }
     }
+  },
+
+  async getJsonFromFetchResponse(response: Response) {
+    let json;
+    try {
+      json = await response.json();
+    } catch (err) {
+      // error reading JSON
+      const message = response.ok
+        ? err.message
+        : `${response.status} - ${response.url}`;
+      throw new ApiError({ message, response, opts: { cause: err } });
+    }
+
+    if (response.ok) {
+      return json;
+    }
+
+    /** This error can occur in the edge case where a role in the user's certificate was deleted during their session. */
+    const isRoleNotFoundErr = isRoleNotFoundError(parseError(json));
+    if (isRoleNotFoundErr) {
+      websession.logoutWithoutSlo({
+        /* Don't remember location after login, since they may no longer have access to the page they were on. */
+        rememberLocation: false,
+        /* Show "access changed" notice on login page. */
+        withAccessChangedMessage: true,
+      });
+      return;
+    }
+
+    throw new ApiError({
+      message: parseError(json),
+      response,
+      proxyVersion: parseProxyVersion(json),
+      messages: json.messages,
+    });
   },
 
   async getAdminActionMfaResponse() {
@@ -218,12 +256,14 @@ const api = {
    *
    * @param mfaResponse if defined (eg: `fetchJsonWithMfaAuthnRetry`)
    * will add a custom MFA header field that will hold the mfaResponse.
+   *
+   * @returns the native fetch's response object.
    */
   async fetch(
     url: string,
     customOptions: RequestInit = {},
     mfaResponse?: MfaChallengeResponse
-  ) {
+  ): Promise<Response> {
     url = window.location.origin + url;
     const options = {
       ...defaultRequestOptions,
@@ -245,41 +285,7 @@ const api = {
     }
 
     // native call
-    const response = await fetch(url, options);
-
-    let json;
-    try {
-      json = await response.json();
-    } catch (err) {
-      // error reading JSON
-      const message = response.ok
-        ? err.message
-        : `${response.status} - ${response.url}`;
-      throw new ApiError({ message, response, opts: { cause: err } });
-    }
-
-    if (response.ok) {
-      return json;
-    }
-
-    /** This error can occur in the edge case where a role in the user's certificate was deleted during their session. */
-    const isRoleNotFoundErr = isRoleNotFoundError(parseError(json));
-    if (isRoleNotFoundErr) {
-      websession.logoutWithoutSlo({
-        /* Don't remember location after login, since they may no longer have access to the page they were on. */
-        rememberLocation: false,
-        /* Show "access changed" notice on login page. */
-        withAccessChangedMessage: true,
-      });
-      return;
-    }
-
-    throw new ApiError({
-      message: parseError(json),
-      response,
-      proxyVersion: parseProxyVersion(json),
-      messages: json.messages,
-    });
+    return await fetch(url, options);
   },
 };
 

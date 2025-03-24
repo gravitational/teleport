@@ -534,7 +534,12 @@ func (t *TerminalHandler) makeClient(ctx context.Context, stream *terminal.Strea
 	// used to update all other parties window size to that of the web client and
 	// to allow future window changes.
 	tc.OnShellCreated = func(s *tracessh.Session, c *tracessh.Client, _ io.ReadWriteCloser) (bool, error) {
-		t.stream.SessionCreated(s)
+		if err := t.stream.SessionCreated(s); err != nil {
+			t.logger.DebugContext(ctx, "terminating established ssh connection to host",
+				"error", err,
+			)
+			return false, trace.Wrap(s.Close())
+		}
 
 		// The web session was closed by the client while the ssh connection was being established.
 		// Attempt to close the SSH session instead of proceeding with the window change request.
