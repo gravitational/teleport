@@ -108,6 +108,22 @@ export function ResourceActionButton() {
             })}
           />
         </Stack>
+        <Stack>
+          <Text>SAML app with launch URLs</Text>
+          <Component
+            resource={makeApp({
+              uri: 'http://localhost:300',
+              publicAddr: 'saml-app.teleport.example.com',
+              fqdn: 'saml-app.teleport.example.com',
+              name: 'saml-app',
+              samlApp: true,
+              samlAppLaunchUrls: [
+                { url: 'https://example.com' },
+                { url: 'https://example.com/1' },
+              ],
+            })}
+          />
+        </Stack>
       </Stack>
 
       <Stack>
