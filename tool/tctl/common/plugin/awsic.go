@@ -44,6 +44,7 @@ type awsICArgs struct {
 	region               string
 	arn                  string
 	useSystemCredentials bool
+	assumeRoleARN        string
 	userOrigins          []string
 	userLabels           []string
 	groupNameFilters     []string
@@ -60,11 +61,27 @@ func (a *awsICArgs) validate(ctx context.Context, log *slog.Logger) error {
 		return trace.BadParameter("SCIM token must not be empty")
 	}
 
-	if !a.useSystemCredentials {
-		return trace.BadParameter("only AWS Local system credentials are supported")
+	if err := a.validateSystemCredentialInput(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if err := a.validateSCIMBaseURL(ctx, log); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (a *awsICArgs) validateSystemCredentialInput() error {
+	if !a.useSystemCredentials {
+		return trace.BadParameter("--useSystemCredentials must be set")
+	}
+
+	if a.assumeRoleARN == "" {
+		return trace.BadParameter("--assume-role-arn must be set when --useSystemCredentials is configured")
+	}
+
+	if _, err := awsutils.ParseRoleARN(a.assumeRoleARN); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -164,6 +181,8 @@ func (p *PluginsCommand) initInstallAWSIC(parent *kingpin.CmdClause) {
 	cmd.Flag("use-system-credentials", "Uses system credentials instead of OIDC.").
 		Default("true").
 		BoolVar(&p.install.awsIC.useSystemCredentials)
+	cmd.Flag("assume-role-arn", "ARN of a role that the system credential should assume.").
+		StringVar(&p.install.awsIC.assumeRoleARN)
 
 	cmd.Flag("user-origin", fmt.Sprintf(`Shorthand for "--user-label %s=ORIGIN"`, types.OriginLabel)).
 		PlaceHolder("ORIGIN").
@@ -218,7 +237,7 @@ func (p *PluginsCommand) InstallAWSIC(ctx context.Context, args installPluginArg
 		settings.Credentials = &types.AWSICCredentials{
 			Source: &types.AWSICCredentials_System{
 				System: &types.AWSICCredentialSourceSystem{
-					AssumeRoleArn: "",
+					AssumeRoleArn: awsICArgs.assumeRoleARN,
 				},
 			},
 		}
