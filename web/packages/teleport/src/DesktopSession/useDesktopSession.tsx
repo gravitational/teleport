@@ -172,7 +172,10 @@ export default function useDesktopSession() {
           }));
           addAlert({
             severity: 'warn',
-            content: 'Failed to open the directory picker: ' + e.message,
+            content: {
+              title: 'Failed to open the directory picker',
+              description: e.message,
+            },
           });
         });
     } catch (e) {
@@ -187,7 +190,7 @@ export default function useDesktopSession() {
         // In a perfect world, we could check for which error message this is and display
         // context appropriate directions.
         content: {
-          title: 'Encountered an error while attempting to share a directory: ',
+          title: 'Encountered an error while attempting to share a directory',
           description:
             e.message +
             '. \n\nYour user role supports directory sharing over desktop access, \
