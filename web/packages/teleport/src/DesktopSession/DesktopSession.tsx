@@ -190,7 +190,7 @@ export function DesktopSession(props: State) {
     if (!(client && shouldConnect)) {
       return;
     }
-    void client.connect(clientScreenSpecToRequest);
+    void client.connect(tdpClientCanvasRef.current.getSize());
     return () => {
       client.shutdown();
     };
@@ -337,9 +337,7 @@ export function DesktopSession(props: State) {
 
       <TdpClientCanvas
         ref={tdpClientCanvasRef}
-        style={{
-          display: screenState.state === 'canvas-visible' ? 'flex' : 'none',
-        }}
+        hidden={screenState.state !== 'canvas-visible'}
         onKeyDown={handleKeyDown}
         onKeyUp={handleKeyUp}
         onBlur={handleBlur}
@@ -403,8 +401,16 @@ const AnotherSessionActiveDialog = (props: {
 
 const Processing = () => {
   return (
-    <Box textAlign="center" m={10}>
-      <Indicator />
+    <Box
+      // Position the indicator in the center of the screen without taking space.
+      css={`
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+      `}
+    >
+      <Indicator delay="none" />
     </Box>
   );
 };
