@@ -295,6 +295,12 @@ spec:
                       will default to `gitlab.com` - but can be set to the domain
                       of your self-hosted GitLab e.g `gitlab.example.com`.
                     type: string
+                  static_jwks:
+                    description: StaticJWKS disables fetching of the GitLab signing
+                      keys via the JWKS/OIDC endpoints, and allows them to be directly
+                      specified. This allows joining from GitLab CI instances that
+                      are not reachable by the Teleport Auth Service.
+                    type: string
                 type: object
               join_method:
                 description: 'JoinMethod is the joining method required in order to
