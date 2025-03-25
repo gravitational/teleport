@@ -26,6 +26,12 @@ import { SharedColors, SharedStyles } from './types';
 // by changing the minimum width on a per-view basis (Main.tsx).
 const sidebarWidth = 256;
 
+export const breakpointsPx = {
+  small: 600,
+  medium: 1024,
+  large: 1280,
+} as const;
+
 // Styles that are shared by all themes.
 export const sharedStyles: SharedStyles = {
   sidebarWidth,
@@ -44,9 +50,9 @@ export const sharedStyles: SharedStyles = {
     /** @deprecated Use the "large" breakpoint instead. */
     desktop: `${1200 + sidebarWidth}px`,
     // use these from now on
-    small: '600px',
-    medium: '1024px',
-    large: '1280px',
+    small: `${breakpointsPx.small}px`,
+    medium: `${breakpointsPx.medium}px`,
+    large: `${breakpointsPx.large}px`,
   },
   topBarHeight: [44, 56, 72],
   space: [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80],

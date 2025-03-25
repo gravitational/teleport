@@ -21,8 +21,7 @@ import { matchPath, useHistory } from 'react-router';
 import { Link } from 'react-router-dom';
 import styled, { useTheme } from 'styled-components';
 
-import { Flex, Image, TopNav } from 'design';
-import { Theme } from 'design/theme/themes/types';
+import { breakpointsPx, Flex, Image, TopNav } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
 
 import { logos } from 'teleport/components/LogoHero/LogoHero';
@@ -39,7 +38,6 @@ export function TopBar({ CustomLogo }: TopBarProps) {
   const history = useHistory();
   const features = useFeatures();
   const { currentWidth } = useLayout();
-  const theme: Theme = useTheme();
 
   // find active feature
   const feature = features.find(
@@ -52,7 +50,7 @@ export function TopBar({ CustomLogo }: TopBarProps) {
   );
 
   const iconSize =
-    currentWidth >= theme.breakpoints.medium
+    currentWidth >= breakpointsPx.medium
       ? navigationIconSizeMedium
       : navigationIconSizeSmall;
 
