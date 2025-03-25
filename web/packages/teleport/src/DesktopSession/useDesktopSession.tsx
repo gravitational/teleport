@@ -21,33 +21,32 @@ import {
   SetStateAction,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react';
-import { useParams } from 'react-router';
 
 import type { NotificationItem } from 'shared/components/Notification';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import { Attempt } from 'shared/hooks/useAsync';
 
-import type { UrlDesktopParams } from 'teleport/config';
+import { TdpClient } from 'teleport/lib/tdp';
 import { ClipboardData } from 'teleport/lib/tdp/codec';
-import { useMfaEmitter } from 'teleport/lib/useMfa';
 import { Sha256Digest } from 'teleport/lib/util';
-import desktopService from 'teleport/services/desktops';
-import userService from 'teleport/services/user';
 
-import useTdpClientCanvas from './useTdpClientCanvas';
+declare global {
+  interface Window {
+    showDirectoryPicker: () => Promise<FileSystemDirectoryHandle>;
+  }
+}
 
-export default function useDesktopSession() {
+export default function useDesktopSession(
+  tdpClient: TdpClient,
+  aclAttempt: Attempt<{
+    clipboardSharingEnabled: boolean;
+    directorySharingEnabled: boolean;
+  }>
+) {
   const encoder = useRef(new TextEncoder());
   const latestClipboardDigest = useRef('');
-  const { attempt: fetchAttempt, run } = useAttempt('');
-
-  const { username, desktopName, clusterId } = useParams<UrlDesktopParams>();
-
-  const [hostname, setHostname] = useState<string>('');
-
   const [directorySharingState, setDirectorySharingState] =
     useState<DirectorySharingState>(defaultDirectorySharingState);
 
@@ -72,38 +71,20 @@ export default function useDesktopSession() {
     };
   }, []);
 
-  const [showAnotherSessionActiveDialog, setShowAnotherSessionActiveDialog] =
-    useState(false);
-
-  document.title = useMemo(
-    () => `${username}@${hostname} • ${clusterId}`,
-    [clusterId, hostname, username]
-  );
-
+  //TODO(gzdunek): This is workaround for synchronizing *sharingState with aclAttempt.
+  //Refactor clipboard and directory sharing so that we won't need allowedByAcl fields in state.
   useEffect(() => {
-    run(() =>
-      Promise.all([
-        desktopService
-          .fetchDesktop(clusterId, desktopName)
-          .then(desktop => setHostname(desktop.name)),
-        userService.fetchUserContext().then(user => {
-          setClipboardSharingState(prevState => ({
-            ...prevState,
-            allowedByAcl: user.acl.clipboardSharingEnabled,
-          }));
-          setDirectorySharingState(prevState => ({
-            ...prevState,
-            allowedByAcl: user.acl.directorySharingEnabled,
-          }));
-        }),
-        desktopService
-          .checkDesktopIsActive(clusterId, desktopName)
-          .then(isActive => {
-            setShowAnotherSessionActiveDialog(isActive);
-          }),
-      ])
-    );
-  }, [clusterId, desktopName, run]);
+    if (aclAttempt.status === 'success') {
+      setClipboardSharingState(prevState => ({
+        ...prevState,
+        allowedByAcl: aclAttempt.data.clipboardSharingEnabled,
+      }));
+      setDirectorySharingState(prevState => ({
+        ...prevState,
+        allowedByAcl: aclAttempt.data.directorySharingEnabled,
+      }));
+    }
+  }, [aclAttempt]);
 
   const [alerts, setAlerts] = useState<NotificationItem[]>([]);
   const onRemoveAlert = (id: string) => {
@@ -142,15 +123,6 @@ export default function useDesktopSession() {
       );
     }
   }
-
-  const clientCanvasProps = useTdpClientCanvas({
-    username,
-    desktopName,
-    clusterId,
-  });
-  const tdpClient = clientCanvasProps.tdpClient;
-
-  const mfa = useMfaEmitter(tdpClient);
 
   const onShareDirectory = () => {
     try {
@@ -204,27 +176,18 @@ export default function useDesktopSession() {
   };
 
   return {
-    hostname,
-    username,
     clipboardSharingState,
     setClipboardSharingState,
     directorySharingState,
     setDirectorySharingState,
-    fetchAttempt,
-    mfa,
-    showAnotherSessionActiveDialog,
-    setShowAnotherSessionActiveDialog,
     onShareDirectory,
     alerts,
     onRemoveAlert,
     addAlert,
     sendLocalClipboardToRemote,
     onClipboardData,
-    ...clientCanvasProps,
   };
 }
-
-export type State = ReturnType<typeof useDesktopSession>;
 
 type CommonFeatureState = {
   /**
@@ -387,11 +350,6 @@ export const defaultDirectorySharingState: DirectorySharingState = {
 
 export const defaultClipboardSharingState: ClipboardSharingState = {
   browserSupported: navigator.userAgent.includes('Chrome'),
-};
-
-export type WebsocketAttempt = {
-  status: 'init' | 'open' | 'closed';
-  statusText?: string;
 };
 
 /**

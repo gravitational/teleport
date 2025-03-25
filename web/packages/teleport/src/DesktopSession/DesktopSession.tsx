@@ -17,6 +17,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useParams } from 'react-router';
 
 import { Box, ButtonPrimary, ButtonSecondary, Flex, Indicator } from 'design';
 import { Info } from 'design/Alert';
@@ -26,16 +27,20 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
-import { Attempt } from 'shared/hooks/useAttemptNext';
+import { Attempt, makeSuccessAttempt, useAsync } from 'shared/hooks/useAsync';
 
+import { useTeleport } from 'teleport';
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
-import { TdpClientCanvasRef } from 'teleport/components/TdpClientCanvas/TdpClientCanvas';
+import cfg, { UrlDesktopParams } from 'teleport/config';
 import { KeyboardHandler } from 'teleport/DesktopSession/KeyboardHandler';
-import { ButtonState, ScrollAxis } from 'teleport/lib/tdp';
+import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
+import { ButtonState, ScrollAxis, TdpClient } from 'teleport/lib/tdp';
 import { useListener } from 'teleport/lib/tdp/client';
-import { MfaState, shouldShowMfaPrompt } from 'teleport/lib/useMfa';
+import { shouldShowMfaPrompt, useMfaEmitter } from 'teleport/lib/useMfa';
+import { getHostName } from 'teleport/services/api';
 
+import { TdpClientCanvasRef } from '../components/TdpClientCanvas/TdpClientCanvas';
 import TopBar from './TopBar';
 import useDesktopSession, {
   clipboardSharingMessage,
@@ -44,40 +49,113 @@ import useDesktopSession, {
   directorySharingPossible,
   isSharingClipboard,
   isSharingDirectory,
-  type State,
 } from './useDesktopSession';
 
 export function DesktopSessionContainer() {
-  const state = useDesktopSession();
-  return <DesktopSession {...state} />;
+  const ctx = useTeleport();
+  const { username, desktopName, clusterId } = useParams<UrlDesktopParams>();
+  useEffect(() => {
+    document.title = `${username}@${desktopName} • ${clusterId}`;
+  }, [clusterId, desktopName, username]);
+
+  const [client] = useState(
+    () =>
+      //TODO(gzdunek): It doesn't really matter here, but make TdpClient reactive to addr change.
+      new TdpClient(
+        () =>
+          new AuthenticatedWebSocket(
+            cfg.api.desktopWsAddr
+              .replace(':fqdn', getHostName())
+              .replace(':clusterId', clusterId)
+              .replace(':desktopName', desktopName)
+              .replace(':username', username)
+          )
+      )
+  );
+  const mfa = useMfaEmitter(client);
+
+  const [aclAttempt, fetchAcl] = useAsync(
+    useCallback(async () => {
+      const { acl } = await ctx.userService.fetchUserContext();
+      return acl;
+    }, [ctx.userService])
+  );
+
+  const hasAnotherSession = useCallback(
+    () => ctx.desktopService.checkDesktopIsActive(clusterId, desktopName),
+    [clusterId, ctx.desktopService, desktopName]
+  );
+
+  useEffect(() => {
+    fetchAcl();
+  }, [username, clusterId, fetchAcl]);
+
+  return (
+    <DesktopSession
+      client={client}
+      username={username}
+      desktop={desktopName}
+      customConnectionState={({ retry }) => {
+        // Errors, except for dialog cancellations, are handled within the MFA dialog.
+        if (mfa.attempt.status === 'error' && !shouldShowMfaPrompt(mfa)) {
+          return (
+            <AlertDialog
+              message={{
+                title: 'This session requires multi factor authentication',
+                details: mfa.attempt.statusText,
+              }}
+              onRetry={retry}
+            />
+          );
+        }
+        if (shouldShowMfaPrompt(mfa)) {
+          return <AuthnDialog mfaState={mfa} />;
+        }
+      }}
+      aclAttempt={aclAttempt}
+      hasAnotherSession={hasAnotherSession}
+    />
+  );
 }
 
-declare global {
-  interface Window {
-    showDirectoryPicker: () => Promise<FileSystemDirectoryHandle>;
-  }
+export interface DesktopSessionProps {
+  client: TdpClient;
+  username: string;
+  desktop: string;
+  aclAttempt: Attempt<{
+    clipboardSharingEnabled: boolean;
+    directorySharingEnabled: boolean;
+  }>;
+  /**
+   * Injects a custom component that overrides other connection states.
+   * Useful for per-session MFA, which differs between Web UI and Connect.
+   * Provides a callback to retry the connection.
+   */
+  customConnectionState?(args: { retry(): void }): React.ReactElement;
+  hasAnotherSession(): Promise<boolean>;
 }
 
-export function DesktopSession(props: State) {
+export function DesktopSession({
+  client,
+  aclAttempt,
+  username,
+  desktop,
+  hasAnotherSession,
+  customConnectionState,
+}: DesktopSessionProps) {
   const {
-    mfa,
-    tdpClient: client,
-    username,
-    hostname,
     directorySharingState,
     setDirectorySharingState,
     onClipboardData,
     sendLocalClipboardToRemote,
-    clientScreenSpecToRequest,
     clipboardSharingState,
     setClipboardSharingState,
     onShareDirectory,
     alerts,
     onRemoveAlert,
-    fetchAttempt,
-    showAnotherSessionActiveDialog,
     addAlert,
-  } = props;
+  } = useDesktopSession(client, aclAttempt);
+
   const [tdpConnectionStatus, setTdpConnectionStatus] =
     useState<TdpConnectionStatus>({ status: '' });
 
@@ -85,6 +163,18 @@ export function DesktopSession(props: State) {
   useEffect(() => {
     return () => keyboardHandler.current.dispose();
   }, []);
+
+  const [
+    anotherDesktopActiveAttempt,
+    runCheckIsAnotherDesktopActive,
+    setAnotherDesktopActiveAttempt,
+  ] = useAsync(hasAnotherSession);
+
+  useEffect(() => {
+    if (anotherDesktopActiveAttempt.status === '') {
+      runCheckIsAnotherDesktopActive();
+    }
+  }, [anotherDesktopActiveAttempt.status, runCheckIsAnotherDesktopActive]);
 
   const tdpClientCanvasRef = useRef<TdpClientCanvasRef>(null);
   const initialTdpConnectionSucceeded = useRef(false);
@@ -185,7 +275,9 @@ export function DesktopSession(props: State) {
   useListener(client?.onScreenSpec, tdpClientCanvasRef.current?.setResolution);
 
   const shouldConnect =
-    fetchAttempt.status === 'success' && !showAnotherSessionActiveDialog;
+    aclAttempt.status === 'success' &&
+    anotherDesktopActiveAttempt.status === 'success' &&
+    !anotherDesktopActiveAttempt.data;
   useEffect(() => {
     if (!(client && shouldConnect)) {
       return;
@@ -280,11 +372,13 @@ export function DesktopSession(props: State) {
     client.sendKeyboardInput('Delete', ButtonState.DOWN);
   }
 
+  //TODO(gzdunek): Replace with client.connect(), so that we don't refresh the entire page.
+  const onRetry = () => window.location.reload();
   const screenState = getScreenState(
-    fetchAttempt,
+    aclAttempt,
+    anotherDesktopActiveAttempt,
     tdpConnectionStatus,
-    showAnotherSessionActiveDialog,
-    mfa
+    customConnectionState?.({ retry: onRetry })
   );
 
   return (
@@ -309,7 +403,7 @@ export function DesktopSession(props: State) {
           }));
           client.shutdown();
         }}
-        userHost={`${username}@${hostname}`}
+        userHost={`${username}@${desktop}`}
         canShareDirectory={directorySharingPossible(directorySharingState)}
         isSharingDirectory={isSharingDirectory(directorySharingState)}
         isSharingClipboard={isSharingClipboard(clipboardSharingState)}
@@ -322,16 +416,15 @@ export function DesktopSession(props: State) {
 
       {screenState.state === 'another-session-active' && (
         <AnotherSessionActiveDialog
-          onContinue={() => props.setShowAnotherSessionActiveDialog(false)}
+          onContinue={() =>
+            setAnotherDesktopActiveAttempt(makeSuccessAttempt(false))
+          }
           onAbort={() => window.close()}
         />
       )}
-      {screenState.state === 'mfa' && <AuthnDialog mfaState={mfa} />}
+      {screenState.state === 'custom' && screenState.component}
       {screenState.state === 'error' && (
-        <AlertDialog
-          message={screenState.message}
-          onRetry={() => window.location.reload()}
-        />
+        <AlertDialog message={screenState.message} onRetry={onRetry} />
       )}
       {screenState.state === 'processing' && <Processing />}
 
@@ -416,17 +509,30 @@ const Processing = () => {
 };
 
 function getScreenState(
-  fetchAttempt: Attempt,
+  aclAttempt: Attempt<unknown>,
+  anotherDesktopActiveAttempt: Attempt<unknown>,
   tdpConnectionStatus: TdpConnectionStatus,
-  showAnotherSessionActiveDialog: boolean,
-  mfa: MfaState
+  customConnectionState: React.ReactElement | undefined
 ): ScreenState {
-  if (fetchAttempt.status === 'failed') {
+  if (customConnectionState) {
+    return { state: 'custom', component: customConnectionState };
+  }
+
+  if (aclAttempt.status === 'error') {
     return {
       state: 'error',
       message: {
         title: 'Could not fetch session details',
-        details: fetchAttempt.statusText,
+        details: aclAttempt.statusText,
+      },
+    };
+  }
+  if (anotherDesktopActiveAttempt.status === 'error') {
+    return {
+      state: 'error',
+      message: {
+        title: 'Could not fetch session details',
+        details: anotherDesktopActiveAttempt.statusText,
       },
     };
   }
@@ -436,23 +542,12 @@ function getScreenState(
       message: { title: tdpConnectionStatus.message },
     };
   }
-  // Errors, except for dialog cancellations, are handled within the MFA dialog.
-  if (mfa.attempt.status === 'error' && !shouldShowMfaPrompt(mfa)) {
-    return {
-      state: 'error',
-      message: {
-        title: 'This session requires multi factor authentication',
-        details: mfa.attempt.statusText,
-      },
-    };
-  }
 
-  if (showAnotherSessionActiveDialog) {
+  if (
+    anotherDesktopActiveAttempt.status === 'success' &&
+    anotherDesktopActiveAttempt.data
+  ) {
     return { state: 'another-session-active' };
-  }
-
-  if (shouldShowMfaPrompt(mfa)) {
-    return { state: 'mfa' };
   }
 
   if (tdpConnectionStatus.status === 'active') {
@@ -481,8 +576,8 @@ type TdpConnectionStatus =
     };
 
 type ScreenState =
+  | { state: 'custom'; component: React.JSX.Element }
   | { state: 'another-session-active' }
-  | { state: 'mfa' }
   | { state: 'processing' }
   | { state: 'canvas-visible' }
   | {
