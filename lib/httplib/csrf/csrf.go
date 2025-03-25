@@ -29,19 +29,19 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// CookieName is the name of the CSRF cookie used to protect against login
-// CSRF in Teleport's SSO flows.
-//
-// It's prefixed with "__Host-" as an additional defense in depth measure.
-// This makes sure the cookie is sent from a secure page (HTTPS),
-// won't be sent to subdomains, and the path attribute is set to /.
 const (
+	// CookieName is the name of the CSRF cookie used to protect against login
+	// CSRF in Teleport's SSO flows.
+	//
+	// It's prefixed with "__Host-" as an additional defense in depth measure.
+	// This makes sure the cookie is sent from a secure page (HTTPS),
+	// won't be sent to subdomains, and the path attribute is set to /.
 	CookieName = "__Host-grv_csrf"
 
 	// TODO(kimlisa): DELETE IN v19.0 (csrf)
 	// Deprecated: do not use (only here to support backwards compat for old plugin endpoints)
-	// FormFieldName is the default form field to inspect.
-	FormFieldName = "csrf_token"
+	// formFieldName is the default form field to inspect.
+	formFieldName = "csrf_token"
 )
 
 // tokenLenBytes is the length of a raw CSRF token prior to encoding
@@ -133,9 +133,9 @@ func save(encodedToken string, w http.ResponseWriter) string {
 // Deprecated: do not use (only here to support backwards compat for old plugin endpoints)
 // VerifyFormField checks if HTTP form value matches the cookie.
 func VerifyFormField(r *http.Request) error {
-	token := r.FormValue(FormFieldName)
+	token := r.FormValue(formFieldName)
 	if len(token) == 0 {
-		return trace.BadParameter("cannot retrieve CSRF token from form field %q", FormFieldName)
+		return trace.BadParameter("cannot retrieve CSRF token from form field %q", formFieldName)
 	}
 
 	err := VerifyToken(token, r)

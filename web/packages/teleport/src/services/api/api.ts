@@ -316,7 +316,6 @@ export function getNoCacheHeaders() {
   };
 }
 
-// TODO(kimlisa): DELETE IN v19.0 (csrf)
 export const getXCSRFToken = () => {
   const metaTag = document.querySelector(
     '[name=grv_csrf_token]'
