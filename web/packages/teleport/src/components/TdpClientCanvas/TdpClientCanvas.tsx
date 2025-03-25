@@ -107,7 +107,7 @@ export const TdpClientCanvas = forwardRef<
 
     const debouncedOnResize = debounce(onResize, 250, { trailing: true });
     const observer = new ResizeObserver(([entry]) => {
-      if (entry) {
+      if (entry && entry.contentRect.height !== 0) {
         debouncedOnResize({
           height: entry.contentRect.height,
           width: entry.contentRect.width,
