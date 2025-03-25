@@ -549,7 +549,7 @@ message SignRequest {
 message Signature {
   // For an RSA key, signature should be either a PKCS #1 v1.5 or PSS signature,
   // depending on the hash and salt chosen. For an (EC)DSA key, it should be a
-  // DER-serialised, ASN.1 signature structure.
+  // DER-serialized, ASN.1 signature structure.
   bytes signature = 1;
 }
 
