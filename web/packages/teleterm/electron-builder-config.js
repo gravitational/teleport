@@ -165,6 +165,7 @@ module.exports = {
           '-c',
           "$ProgressPreference = 'SilentlyContinue'; " +
             "$ErrorActionPreference = 'Stop'; " +
+            '$PSNativeCommandUseErrorActionPreference = $true; ' +
             '. ../../../build.assets/windows/build.ps1; ' +
             `Invoke-SignBinary -UnsignedBinaryPath "${customSign.path}"`,
         ],
