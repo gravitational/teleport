@@ -19,19 +19,27 @@
 import { useState } from 'react';
 
 import cfg from 'teleport/config';
+import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 import { TdpClient } from 'teleport/lib/tdp';
 import { getHostName } from 'teleport/services/api';
 
 export default function useTdpClientCanvas(props: Props) {
   const { username, desktopName, clusterId } = props;
-  const addr = cfg.api.desktopWsAddr
-    .replace(':fqdn', getHostName())
-    .replace(':clusterId', clusterId)
-    .replace(':desktopName', desktopName)
-    .replace(':username', username);
   //TODO(gzdunek): It doesn't really matter here, but make TdpClient reactive to addr change.
   //Perhaps pass it to TdpClient.connect().
-  const [tdpClient] = useState<TdpClient | null>(() => new TdpClient(addr));
+  const [tdpClient] = useState<TdpClient>(
+    () =>
+      new TdpClient(
+        () =>
+          new AuthenticatedWebSocket(
+            cfg.api.desktopWsAddr
+              .replace(':fqdn', getHostName())
+              .replace(':clusterId', clusterId)
+              .replace(':desktopName', desktopName)
+              .replace(':username', username)
+          )
+      )
+  );
 
   return {
     tdpClient,
