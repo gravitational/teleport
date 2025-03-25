@@ -7,7 +7,7 @@ state: draft
 
 ## Required Approvers
 
-* Engineering: @strideynet || @timothyb89
+* Engineering: @strideynet && (@timothyb89 || @boxofrad)
 
 ## What
 
