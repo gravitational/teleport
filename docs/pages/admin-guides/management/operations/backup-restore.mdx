@@ -38,95 +38,118 @@ backends depends on the solution you use for each backend. The following table
 includes instructions for backing up each backend solution. For backends not
 listed here, consult the documentation for your backend:
 
+### Cluster state backends
+
 | Backend | Recommended backup strategy |
 | - | - |
 | Local Filesystem | Back up the data directory (`/var/lib/teleport/` by default) |
-| DynamoDB | [Follow AWS's guidelines for backup and restore](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BackupRestore.html) |
-| etcd | [Follow etcd's guidelines for disaster recovery](https://etcd.io/docs/v2/admin_guide) |
-| Firestore | [Follow GCP's guidelines for automated backups](https://firebase.google.com/docs/database/backups) |
-| Azure Database for PostgreSQL | [Follow Azure's guidelines for automated backups](https://learn.microsoft.com/en-us/azure/backup/backup-azure-database-postgresql) |
+| DynamoDB | [Amazon DynamoDB documentation](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BackupRestore.html) |
+| etcd | [etcd documentation](https://etcd.io/docs/v2.3/admin_guide/#disaster-recovery) |
+| Firestore | [Firestore documentation](https://firebase.google.com/docs/database/backups) |
+| Azure Database for PostgreSQL | [Azure Database for PostgreSQL documentation](https://learn.microsoft.com/en-us/azure/backup/backup-azure-database-postgresql) |
+| Cloud SQL for PostgreSQL | [Cloud SQL for PostgreSQL documentation](https://cloud.google.com/sql/docs/postgres/backup-recovery/backups) |
 
-## Dynamic resources
+### Session recording backends
+
+| Backend | Recommended backup strategy |
+| - | - |
+| Local Filesystem | Back up the data directory (`/var/lib/teleport/` by default) |
+| S3 | [Amazon S3 documentation](https://docs.aws.amazon.com/aws-backup/latest/devguide/s3-backups.html) |
+| GCS | GCS has [built-in
+redundancy](https://cloud.google.com/storage/docs/availability-durability), but you may also use [cross-bucket replication](https://cloud.google.com/storage/docs/using-cross-bucket-replication) |
+| Azure Blob Storage | [Azure Blob backup documentation](https://learn.microsoft.com/en-us/azure/backup/blob-backup-overview)|
+
+## Versioning dynamic resources with infrastructure as code
 
 Teleport uses [dynamic
 resources](../../infrastructure-as-code/infrastructure-as-code.mdx) for roles,
-local users, authentication connectors, and other configurations. We recommend
-that you back up your configuration resources because they are essential to the
-normal operation of your cluster.
+local users, authentication connectors, and other configurations, and stores
+dynamic resource data on the cluster state backend. Backing up the cluster
+state backend protects your cluster against the loss of dynamic resource data.
 
-### Using infrastructure as code (recommended)
+For more control over the version of a dynamic resource that you back up and
+restore, we recommend storing dynamic resource manifests in a code repository
+that uses a version control system. You can use a continuous deployment pipeline
+to apply configurations automatically, so your Teleport cluster always reflects
+the latest state of your dynamic resources. 
 
-We recommend managing dynamic resources as code using one of the following
-tools, along with a version control system and continuous deployment pipeline
-that applies your configurations automatically:
+If you need to revert to an earlier version of a resource (e.g., to correct a
+misconfiguration), you can restore the resource on your code repository without
+conducting a full restore of the cluster state backend.
 
-- [Teleport Terraform
+Teleport provides the following infrastructure as code tools for managing
+dynamic resources:
+
+- [Terraform
   provider](../../infrastructure-as-code/terraform-provider/terraform-provider.mdx)
-- [Teleport Kubernetes
+- [Kubernetes
   operator](../../infrastructure-as-code/teleport-operator/teleport-operator.mdx)
 
-This way, you can ensure that all Teleport configurations in your cluster are
-always up to date. Your source repository can act as a backup of your dynamic
-configurations, and restoring is only a matter of applying these configurations.
+## Cloning a backend
 
-### Using a state file
+You can clone a Teleport Auth Service backend by instructing Teleport to
+retrieve all dynamic resources from one backend and apply them against another
+backend. You can use this operation to, for example, migrate dynamic resources
+to a new backend or back up dynamic resources from one region to another. 
 
-You can run a command to retrieve all resource manifests and print them to a
-single file, the **state file**, then restart the Teleport Auth Service using
-the state file to bootstrap the cluster.
+This operation uses the `teleport backend clone` command with a configuration
+file that includes information about the source and destination backends. The
+`teleport` process running the clone must have access to credentials for both
+backends. If you complete the instructions below on a virtual machine or
+Kubernetes pod that usually runs the Teleport Auth Service, you can expect the
+`teleport` process to have the required permissions.
 
-#### Restarting the Auth Service with a state file
+1. Write a configuration file for the clone. Create a file called `clone.yaml`
+   that includes the following structure:
 
-1. Log in to your Auth Service machine and run the following command:
-
-   ```code
-   $ tctl get all --with-secrets > state.yaml
+   ```yaml
+     # src is the configuration for the backend where data is cloned from.
+     src: 
+       type: sqlite
+       path: /var/lib/teleport_data
+     # dst is the configuration for the backend where data is cloned to.
+     dst:
+       type: dynamodb
+       region: us-east-1
+       table: teleport_backend
+     # parallel is the amount of backend data cloned in parallel.
+     # If a clone operation is taking too long consider increasing this value.
+     parallel: 100
+     # force, if set to true, will continue cloning data to a destination
+     # regardless of whether data is already present. By default this is false
+     # to protect against overwriting the data of an existing Teleport cluster.
+     force: false
    ```
 
-1. Prepare a new uninitialized backend (make sure to port any non-default config
-   values from the old config file):
+1. Update the `src` and `dst` sections of the clone configuration file to
+   include information about the source and destination backends. Possible
+   values of `src` and `dst` are the same as the `teleport.storage` section in
+   the Teleport configuration file. See the [Storage
+   Backends](../../../reference/backends.mdx) reference for the configuration
+   fields to assign for each backend.
+
+1. Scale your Auth Service pool down to a single instance in order to avoid
+   inconsistent data.
+
+1. Stop the Teleport Auth Service. For example, on a Linux host running a
+   Teleport binary installed through a package manager, run the following
+   command:
 
    ```code
-   $ mkdir fresh && cat > fresh.yaml << EOF
-   teleport:
-     data_dir: fresh
-   EOF
+   $ sudo systemctl stop teleport
    ```
 
-1. Stop Teleport on each Auth Service instance.
-
-1. Restart Teleport on each Auth Service instance with the fresh backend and the
-   state file you created earlier:
-
+1. Run the following command on your Auth Service instance to execute the clone
+   operation. The value of the `-c` flag is the configuration file you created
+   earlier:
+   
    ```code
-   $ sudo teleport start --config fresh.yaml --bootstrap state.yaml
+   $ sudo teleport backend clone -c clone.yaml
    ```
 
-1. From another terminal, verify that the state transferred correctly:
+After the clone operation is complete, you can either:
 
-   ```code
-   $ tctl --config fresh.yaml get all
-   # <your state here>
-   ```
-
-#### Limitations
-
-The `--bootstrap` flag has no effect, except when the Auth Service initializes
-its backend on first startup, so it is safe for use in supervised/High
-Availability contexts.
-
-The `--bootstrap` flag doesn't re-trigger Trusted Cluster handshakes, so Trusted
-Cluster resources need to be recreated manually.
-
-All the same limitations around modifying the config file of an existing cluster
-also apply to a new cluster being bootstrapped from the state of an old cluster:
-
-  - Changing the cluster name will break your CAs. This will be caught and Teleport
-    will refuse to start.
-  - Some user authentication mechanisms (e.g. WebAuthn) require that the public
-    endpoint of the Web UI remains the same. This cannot be caught by Teleport,
-    so be careful!
-  - Any Teleport Agent whose invite token is defined in the Auth Service's
-    configuration file will be able to join automatically, but Agents that were
-    added dynamically will need to be re-invited.
-
+- Start the Teleport Auth Service again with the existing backend (e.g., if you
+  are using `teleport backend clone` to back up dynamic resources).
+- Update the Teleport Auth Service configuration file to point to the new
+  backend (the `teleport.storage` section) and start the Teleport Auth Service.
