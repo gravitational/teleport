@@ -39,6 +39,7 @@ export interface TdpClientCanvasRef {
   setResolution(resolution: { width: number; height: number }): void;
   clear(): void;
   focus(): void;
+  getSize(): { width: number; height: number };
 }
 
 export const TdpClientCanvas = forwardRef<
@@ -59,6 +60,8 @@ export const TdpClientCanvas = forwardRef<
      * with a debounced delay of 250 ms to optimize performance.
      */
     onResize?(e: { width: number; height: number }): void;
+    /** Hides the element without changing the layout of a document. */
+    hidden?: boolean;
     style?: CSSProperties;
   }
 >((props, ref) => {
@@ -72,7 +75,6 @@ export const TdpClientCanvas = forwardRef<
     onMouseWheel,
     onContextMenu,
     onResize,
-    style,
   } = props;
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -94,6 +96,7 @@ export const TdpClientCanvas = forwardRef<
         canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
       },
       focus: () => canvasRef.current.focus(),
+      getSize: () => canvasRef.current.getBoundingClientRect(),
     };
   }, []);
 
@@ -143,6 +146,7 @@ export const TdpClientCanvas = forwardRef<
       onBlur={onBlur}
       onMouseMove={onMouseMove}
       style={{
+        visibility: props.hidden ? 'hidden' : 'visible',
         outline: 'none',
         height: '100%',
         width: '100%',
@@ -153,7 +157,6 @@ export const TdpClientCanvas = forwardRef<
         // If the resolution is higher than the available window size,
         // the content is automatically scaled down to fit.
         objectFit: 'scale-down',
-        ...style,
       }}
       ref={canvasRef}
     />

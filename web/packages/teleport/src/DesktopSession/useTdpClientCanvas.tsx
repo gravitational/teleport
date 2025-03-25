@@ -22,8 +22,6 @@ import cfg from 'teleport/config';
 import { TdpClient } from 'teleport/lib/tdp';
 import { getHostName } from 'teleport/services/api';
 
-import { TopBarHeight } from './TopBar';
-
 export default function useTdpClientCanvas(props: Props) {
   const { username, desktopName, clusterId } = props;
   const addr = cfg.api.desktopWsAddr
@@ -37,17 +35,6 @@ export default function useTdpClientCanvas(props: Props) {
 
   return {
     tdpClient,
-    clientScreenSpecToRequest: getDisplaySize(),
-  };
-}
-
-// Calculates the size (in pixels) of the display.
-// Since we want to maximize the display size for the user, this is simply
-// the full width of the screen and the full height sans top bar.
-function getDisplaySize() {
-  return {
-    width: window.innerWidth,
-    height: window.innerHeight - TopBarHeight,
   };
 }
 
