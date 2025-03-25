@@ -191,7 +191,7 @@ export function DesktopSession({
     setTimeout(() => tdpClientCanvasRef.current?.focus());
   }, []);
 
-  useListener(client?.onClipboardData, onClipboardData);
+  useListener(client.onClipboardData, onClipboardData);
 
   const handleFatalError = useCallback(
     (error: Error) => {
@@ -205,8 +205,8 @@ export function DesktopSession({
     },
     [setClipboardSharingState, setDirectorySharingState]
   );
-  useListener(client?.onError, handleFatalError);
-  useListener(client?.onClientError, handleFatalError);
+  useListener(client.onError, handleFatalError);
+  useListener(client.onClientError, handleFatalError);
 
   const addWarning = useCallback(
     (warning: string) => {
@@ -217,11 +217,11 @@ export function DesktopSession({
     },
     [addAlert]
   );
-  useListener(client?.onWarning, addWarning);
-  useListener(client?.onClientWarning, addWarning);
+  useListener(client.onWarning, addWarning);
+  useListener(client.onClientWarning, addWarning);
 
   useListener(
-    client?.onInfo,
+    client.onInfo,
     useCallback(
       info => {
         addAlert({
@@ -234,7 +234,7 @@ export function DesktopSession({
   );
 
   useListener(
-    client?.onWsClose,
+    client.onWsClose,
     useCallback(
       statusText => {
         setTdpConnectionStatus({ status: 'disconnected', message: statusText });
@@ -244,15 +244,15 @@ export function DesktopSession({
     )
   );
   useListener(
-    client?.onWsOpen,
+    client.onWsOpen,
     useCallback(() => {
       setTdpConnectionStatus({ status: 'connected' });
     }, [setTdpConnectionStatus])
   );
 
-  useListener(client?.onPointer, tdpClientCanvasRef.current?.setPointer);
+  useListener(client.onPointer, tdpClientCanvasRef.current?.setPointer);
   useListener(
-    client?.onPngFrame,
+    client.onPngFrame,
     useCallback(
       frame => {
         onInitialTdpConnectionSucceeded();
@@ -262,7 +262,7 @@ export function DesktopSession({
     )
   );
   useListener(
-    client?.onBmpFrame,
+    client.onBmpFrame,
     useCallback(
       frame => {
         onInitialTdpConnectionSucceeded();
@@ -271,15 +271,15 @@ export function DesktopSession({
       [onInitialTdpConnectionSucceeded]
     )
   );
-  useListener(client?.onReset, tdpClientCanvasRef.current?.clear);
-  useListener(client?.onScreenSpec, tdpClientCanvasRef.current?.setResolution);
+  useListener(client.onReset, tdpClientCanvasRef.current?.clear);
+  useListener(client.onScreenSpec, tdpClientCanvasRef.current?.setResolution);
 
   const shouldConnect =
     aclAttempt.status === 'success' &&
     anotherDesktopActiveAttempt.status === 'success' &&
     !anotherDesktopActiveAttempt.data;
   useEffect(() => {
-    if (!(client && shouldConnect)) {
+    if (!shouldConnect) {
       return;
     }
     void client.connect(tdpClientCanvasRef.current.getSize());
@@ -364,9 +364,6 @@ export function DesktopSession({
   }
 
   function handleCtrlAltDel() {
-    if (!client) {
-      return;
-    }
     client.sendKeyboardInput('ControlLeft', ButtonState.DOWN);
     client.sendKeyboardInput('AltLeft', ButtonState.DOWN);
     client.sendKeyboardInput('Delete', ButtonState.DOWN);
@@ -439,7 +436,7 @@ export function DesktopSession({
         onMouseUp={handleMouseUp}
         onMouseWheel={handleMouseWheel}
         onContextMenu={handleContextMenu}
-        onResize={client?.resize}
+        onResize={client.resize}
       />
     </Flex>
   );
