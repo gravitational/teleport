@@ -24,6 +24,7 @@ import (
 	"io"
 	"log/slog"
 	"math"
+	"net"
 	"os"
 	"path/filepath"
 
@@ -62,12 +63,17 @@ func newClient() (hardwarekeyagentv1.HardwareKeyAgentServiceClient, error) {
 	}
 
 	certPath := filepath.Join(os.TempDir(), dirName, certFileName)
-	creds, err := credentials.NewClientTLSFromFile(certPath, "" /*serverNameOverride*/)
+	creds, err := credentials.NewClientTLSFromFile(certPath, "localhost")
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 
-	cc, err := grpc.NewClient("unix://"+agentPath, grpc.WithTransportCredentials(creds))
+	// The [grpc] library fails to resolve unix sockets on Windows, so
+	// we provide "passthrough:" to skip grpc's address resolution and
+	// a custom [net] dialer to connect to the socket.
+	cc, err := grpc.NewClient("passthrough:", grpc.WithTransportCredentials(creds), grpc.WithContextDialer(func(_ context.Context, addr string) (net.Conn, error) {
+		return net.Dial("unix", agentPath)
+	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
