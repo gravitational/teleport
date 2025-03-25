@@ -607,8 +607,8 @@ To configure Teleport to protect access to Windows desktops:
        sid: "$LDAP_USER_SID"
        # Path to the certificate you exported.
        der_ca_file: "path/to/exported/cert"
-     discovery:
-       base_dn: "*"
+     discovery_configs:
+       - base_dn: "*"
    auth_service:
      enabled: no
    proxy_service:
@@ -684,16 +684,18 @@ To connect to a Windows desktop:
 ## LDAP Discovery
 
 In Active Directory environments, Teleport can be configured to discover hosts
-via LDAP. LDAP discovery is enabled by setting the `discovery.base_dn` field in
-the Teleport Windows Desktop Service configuration. You can set `base_dn` to a
-wildcard `'*` to search from the root of the domain, or you can specify an alternate
-base distinguished name to search from.
+via LDAP. LDAP discovery is enabled by adding one or more discovery configs to
+the `discovery_configs` field in the Teleport Windows Desktop Service
+configuration. You can set `base_dn` to a wildcard `'*` to search from the root
+of the domain, or you can specify an alternate base distinguished name to search
+from.
 
 ```yaml
 windows_desktop_service:
   enabled: yes
-  discovery:
-    base_dn: '*'
+  discovery_configs:
+    - base_dn: 'OU=prod,DC=example,DC=com'
+    - base_dn: 'OU=staging,DC=example,DC=com'
 ```
 
 ### Filters
@@ -706,28 +708,27 @@ compute a logical AND of all filters specified.
 ```yaml
 windows_desktop_service:
   enabled: yes
-  discovery:
-    base_dn: '*'
-    filters:
-    - '(location=Oakland)'
-    - '(!(primaryGroupID=516))'
+  discovery_configs:
+    - base_dn: '*'
+      filters:
+        - '(location=Oakland)'
+        - '(!(primaryGroupID=516))'
 ```
 
 ### Labeling
 
 It is often necessary to apply labels to discovered hosts to control access. You
 can configure Teleport to convert LDAP attributes to Teleport labels by setting
-the `discovery.label_attributes` field in the Teleport Windows Desktop Service
-configuration.
+the `label_attributes` field in the discovery configuration.
 
 ```yaml
 windows_desktop_service:
   enabled: yes
-  discovery:
-    base_dn: '*'
-    label_attributes:
-      - 'location'
-      - 'department'
+  discovery_configs:
+    - base_dn: '*'
+      label_attributes:
+        - 'location'
+        - 'department'
 ```
 
 Each of the specified attributes will be placed in a Teleport label prefixed with `ldap/`.

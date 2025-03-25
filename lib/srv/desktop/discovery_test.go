@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/windows"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -64,13 +65,8 @@ func TestDiscoveryLDAPFilter(t *testing.T) {
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			s := &WindowsService{
-				cfg: WindowsServiceConfig{
-					DiscoveryLDAPFilters: test.filters,
-				},
-			}
-
-			filter := s.ldapSearchFilter()
+			s := new(WindowsService)
+			filter := s.ldapSearchFilter(test.filters)
 			_, err := ldap.CompileFilter(filter)
 			test.assert(t, err)
 		})
@@ -90,12 +86,11 @@ func TestAppliesLDAPLabels(t *testing.T) {
 		"quux":                        {""},
 	})
 
-	s := &WindowsService{
-		cfg: WindowsServiceConfig{
-			DiscoveryLDAPAttributeLabels: []string{"bar"},
-		},
-	}
-	s.applyLabelsFromLDAP(entry, l)
+	s := new(WindowsService)
+	s.applyLabelsFromLDAP(entry, l, &servicecfg.LDAPDiscoveryConfig{
+		BaseDN:          "*",
+		LabelAttributes: []string{"bar"},
+	})
 
 	// check default labels
 	require.Equal(t, types.OriginDynamic, l[types.OriginLabel])
@@ -143,7 +138,7 @@ func TestLabelsDomainControllers(t *testing.T) {
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			l := make(map[string]string)
-			s.applyLabelsFromLDAP(test.entry, l)
+			s.applyLabelsFromLDAP(test.entry, l, new(servicecfg.LDAPDiscoveryConfig))
 
 			b, _ := strconv.ParseBool(l[types.DiscoveryLabelWindowsIsDomainController])
 			test.assert(t, b)

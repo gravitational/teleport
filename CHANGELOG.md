@@ -7,9 +7,10 @@
 #### TLS Cipher Suites
 
 TLS cipher suites with known security issues can no longer be manually
-configured in the Teleport YAML configuration file.
-If you do not explicitly configure any of the listed TLS cipher suites, you are
-not affected by this change.
+configured in the Teleport YAML configuration file. If you do not explicitly
+configure any of the listed TLS cipher suites, you are not affected by this
+change.
+
 Teleport 18 removes support for:
 - `tls-rsa-with-aes-128-cbc-sha`
 - `tls-rsa-with-aes-256-cbc-sha`
@@ -21,9 +22,30 @@ Teleport 18 removes support for:
 
 #### AWS endpoint URL mode removed
 
-The AWS endpoint URL mode (`--endpoint-url`) has been removed for
-`tsh proxy aws` and `tsh aws`. Users using this mode should use the default
-HTTPS Proxy mode from now on.
+The AWS endpoint URL mode (`--endpoint-url`) has been removed for `tsh proxy
+aws` and `tsh aws`. Users using this mode should use the default HTTPS Proxy
+mode from now on.
+
+### Other changes
+
+#### Windows desktop service supports multiple discovery configurations
+
+Teleport's `windows_desktop_service` now supports multiple discovery configurations,
+allowing you to configure finely-grained discovery policies without running multpile
+agents.
+
+To update your configuration, move the `discovery` section to `discovery_configs`:
+
+```diff
+windows_desktop_service:
+  enabled: yes
+-  discovery:
+-    base_dn: '*'
+-    label_attributes: [ department ]
++  discovery_configs:
++    - base_dn: '*'
++      label_attributes: [ department ]
+```
 
 ## 16.0.0 (xx/xx/xx)
 
