@@ -2,6 +2,7 @@ import React from 'react';
 import styled from 'styled-components';
 
 import { Box, Card, Flex, P1, P2, Text } from 'design';
+import { FeatureName } from 'design/constants';
 import { pluralize } from 'shared/utils/text';
 
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
@@ -19,7 +20,7 @@ export function FeatureLimitReached() {
       <FeatureLimitReachedCard>
         <Text mb={3}>
           This cluster has reached its limit for creating access lists. <br />
-          Unlock additional Access Lists with Teleport Identity
+          Unlock additional Access Lists with {FeatureName.IdentityGovernance}
         </Text>
         <ButtonLockedFeature width="200px" event={CtaEvent.CTA_ACCESS_LIST}>
           Contact Sales

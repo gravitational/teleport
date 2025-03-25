@@ -25,7 +25,7 @@ export default {
       return <Story />;
     },
   ],
-  render: () => render(cfg.oss.getIntegrationStatusRoute('okta', 'some-id')),
+  render: () => render(cfg.oss.getIntegrationStatusRoute('okta', 'okta')),
 } satisfies Meta<typeof IntegrationStatus>;
 
 const basePluginResp = {
@@ -100,7 +100,7 @@ export const WithAllFeaturesEnabled = {
   },
   render: () => {
     cfg.oss.entitlements.Identity = { enabled: true, limit: 0 };
-    return render(cfg.oss.getIntegrationStatusRoute('okta', 'some-id'));
+    return render(cfg.oss.getIntegrationStatusRoute('okta', 'okta'));
   },
 } satisfies StoryObj<typeof IntegrationStatus>;
 
@@ -131,7 +131,7 @@ export const WithAllFeaturesEnabledWithoutAppName = {
   },
   render: () => {
     cfg.oss.entitlements.Identity = { enabled: true, limit: 0 };
-    return render(cfg.oss.getIntegrationStatusRoute('okta', 'some-id'));
+    return render(cfg.oss.getIntegrationStatusRoute('okta', 'okta'));
   },
 } satisfies StoryObj<typeof IntegrationStatus>;
 
@@ -141,7 +141,7 @@ export const Loading = {
       handlers: [http.get(cfg.api.pluginPath, () => delay('infinite'))],
     },
   },
-  render: () => render(cfg.oss.getIntegrationStatusRoute('okta', 'some-id')),
+  render: () => render(cfg.oss.getIntegrationStatusRoute('okta', 'okta')),
 } satisfies StoryObj<typeof IntegrationStatus>;
 
 export const Failed = {
@@ -159,7 +159,7 @@ export const Failed = {
       ],
     },
   },
-  render: () => render(cfg.oss.getIntegrationStatusRoute('okta', 'some-id')),
+  render: () => render(cfg.oss.getIntegrationStatusRoute('okta', 'okta')),
 } satisfies StoryObj<typeof IntegrationStatus>;
 
 export const WithSyncErrors = {
@@ -226,7 +226,7 @@ export const WithSyncErrors = {
   },
   render: () => {
     cfg.oss.entitlements.Identity = { enabled: true, limit: 0 };
-    return render(cfg.oss.getIntegrationStatusRoute('okta', 'some-id'));
+    return render(cfg.oss.getIntegrationStatusRoute('okta', 'okta'));
   },
 } satisfies StoryObj<typeof IntegrationStatus>;
 
@@ -267,7 +267,7 @@ export const WithCta = {
   },
   render: () => {
     cfg.oss.entitlements.Identity = { enabled: false, limit: 0 };
-    return render(cfg.oss.getIntegrationStatusRoute('okta', 'some-id'));
+    return render(cfg.oss.getIntegrationStatusRoute('okta', 'okta'));
   },
 } satisfies StoryObj<typeof IntegrationStatus>;
 

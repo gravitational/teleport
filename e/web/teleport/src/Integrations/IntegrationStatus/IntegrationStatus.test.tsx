@@ -72,9 +72,9 @@ describe('Okta status', () => {
       screen.getByText(stubOktaPluginOnlySSO.spec.oktaAppId)
     ).toBeInTheDocument();
     // CTA should be displayed for SCIM, UserSync, and App/Group Sync.
-    expect(screen.getAllByText(/unlock with teleport identity/i)).toHaveLength(
-      3
-    );
+    expect(
+      screen.getAllByText(/unlock with teleport identity governance/i)
+    ).toHaveLength(3);
   });
 
   test('allows enabling SCIM, UserSync, and App/Group Sync after setup', async () => {
@@ -85,7 +85,7 @@ describe('Okta status', () => {
     await renderOktaStatus(true);
 
     expect(
-      screen.queryByText(/unlock with teleport identity/i)
+      screen.queryByText(/unlock with teleport identity governance/i)
     ).not.toBeInTheDocument();
 
     let userSyncSection = (await screen.findByText(/user sync/i)).closest('div')

@@ -349,7 +349,7 @@ test('limited: displays upsell link and button when access request limit is reac
     expect(screen.getByTestId('usage-info')).toBeInTheDocument();
   });
 
-  let ctaTexts = screen.getAllByText(/with teleport identity/i);
+  let ctaTexts = screen.getAllByText(/with teleport identity governance/i);
   expect(ctaTexts).toHaveLength(2);
 
   let upsellLinks = screen.queryAllByRole('link');

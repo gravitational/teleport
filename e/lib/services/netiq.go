@@ -27,7 +27,7 @@ func startnetIQService(ctx context.Context, process *service.TeleportProcess, st
 	logger := process.Config.Logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentNetIQ, process.GetID()))
 	features := modules.GetModules().Features()
 	if !features.GetEntitlement(entitlements.Policy).Enabled {
-		logger.ErrorContext(ctx, "NetIQ service requires Teleport Policy.")
+		logger.ErrorContext(ctx, "NetIQ service requires Teleport Identity Security.")
 		return nil
 	}
 

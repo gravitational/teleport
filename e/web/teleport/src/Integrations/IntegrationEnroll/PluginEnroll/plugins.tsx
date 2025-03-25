@@ -4,6 +4,7 @@ import styled from 'styled-components';
 
 import { Box, Flex, H2, Link, Text } from 'design';
 import CardError from 'design/CardError';
+import { FeatureName } from 'design/constants';
 import * as Icons from 'design/Icon';
 import { Mark } from 'design/Mark';
 import { P } from 'design/Text/Text';
@@ -1306,7 +1307,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
           ID directory and provides an SSO connector to sign into Teleport via
           Entra ID.
         </Text>
-        <H2 mt={3}>Included with Teleport Identity:</H2>
+        <H2 mt={3}>Included with {FeatureName.IdentityGovernance}:</H2>
         <StyledUl>
           <li>
             <strong>Directory synchronization</strong>: Routinely synchronizes
@@ -1317,7 +1318,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             Entra ID directory users access to the Teleport cluster.
           </li>
         </StyledUl>
-        <H2 mt={3}>Included with Teleport Policy:</H2>
+        <H2 mt={3}>Included with {FeatureName.IdentitySecurity}:</H2>
         <StyledUl>
           <li>
             <strong>Access Graph integration</strong>: analyze your Entra ID
@@ -1327,12 +1328,12 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
         {(!cfg.oss.entitlements.Policy.enabled || !cfg.oss.isPolicyEnabled) && (
           <ButtonLockedFeature
             event={CtaEvent.CTA_ENTRA_ID}
-            width={'460px'}
+            width={'auto'}
             mt={2}
             mb={3}
             url={UPGRADE_POLICY_URL}
           >
-            Unlock Access Graph integration with Teleport Policy
+            Unlock Access Graph integration with {FeatureName.IdentitySecurity}
           </ButtonLockedFeature>
         )}
       </Box>

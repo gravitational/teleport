@@ -14,6 +14,7 @@ import {
   Indicator,
   Text,
 } from 'design';
+import { FeatureName } from 'design/constants';
 import * as Icons from 'design/Icon';
 import { useAsync } from 'shared/hooks/useAsync';
 import { getErrMessage } from 'shared/utils/errorType';
@@ -356,7 +357,7 @@ const IntegrationLevelTile = ({
           mt={3}
           width="fit-content"
         >
-          Unlock the Full Integration with Teleport Identity
+          Unlock the Full Integration with {FeatureName.IdentityGovernance}
         </ButtonLockedFeature>
       )}
     </IntegrationLevelTileInner>

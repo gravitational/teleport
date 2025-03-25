@@ -1,6 +1,7 @@
 import { useHistory } from 'react-router-dom';
 
 import { Flex, P3, Text } from 'design';
+import { FeatureName } from 'design/constants';
 import { Edit, SyncAlt, User } from 'design/Icon';
 
 import {
@@ -112,7 +113,7 @@ export function UserSyncDetails({
             />
             {!hasIdentity && (
               <ButtonLockedFeature event={CtaEvent.CTA_OKTA_USER_SYNC} mt={1}>
-                Unlock with Teleport Identity
+                Unlock with {FeatureName.IdentityGovernance}
               </ButtonLockedFeature>
             )}
           </>

@@ -32,7 +32,7 @@ func startEntraIDService(ctx context.Context, process *service.TeleportProcess, 
 	logger := process.Config.Logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentEntraID, process.GetID()))
 	features := modules.GetModules().Features()
 	if !features.GetEntitlement(entitlements.Identity).Enabled {
-		logger.ErrorContext(ctx, "Entra ID service requires Teleport Identity. Entra ID sync will not run.")
+		logger.ErrorContext(ctx, "Entra ID service requires Teleport Identity Governance. Entra ID sync will not run.")
 		return nil
 	}
 

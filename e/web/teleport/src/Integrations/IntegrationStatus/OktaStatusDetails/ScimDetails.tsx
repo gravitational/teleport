@@ -2,6 +2,7 @@ import { ComponentProps } from 'react';
 import { useHistory } from 'react-router-dom';
 
 import { Flex, Text } from 'design';
+import { FeatureName } from 'design/constants';
 import { Edit, NewTab } from 'design/Icon';
 
 import {
@@ -97,7 +98,7 @@ export function ScimDetails({
           />
           {!hasIdentity && (
             <ButtonLockedFeature event={CtaEvent.CTA_OKTA_SCIM} mt={1}>
-              Unlock with Teleport Identity
+              Unlock with {FeatureName.IdentityGovernance}
             </ButtonLockedFeature>
           )}
         </Flex>

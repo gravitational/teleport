@@ -1,6 +1,7 @@
 import { useHistory } from 'react-router-dom';
 
 import { Flex, Label, P3, Text } from 'design';
+import { FeatureName } from 'design/constants';
 import { Application, Edit, SyncAlt, UserList } from 'design/Icon';
 
 import cfg from 'e-teleport/config';
@@ -182,7 +183,7 @@ export function AppGroupSyncDetails({
           />
           {!hasIdentity && (
             <ButtonLockedFeature event={CtaEvent.CTA_OKTA_USER_SYNC} mt={3}>
-              Unlock with Teleport Identity
+              Unlock with {FeatureName.IdentityGovernance}
             </ButtonLockedFeature>
           )}
         </Flex>

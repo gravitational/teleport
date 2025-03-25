@@ -81,7 +81,7 @@ func (p *Plugin) wrapSCIMRequest(fn func(http.ResponseWriter, *http.Request, htt
 		features := p.h.GetClusterFeatures()
 		identity := modules.GetProtoEntitlement(&features, entitlements.OktaSCIM)
 		if !identity.Enabled {
-			err = trace.AccessDenied("SCIM support requires Teleport Identity")
+			err = trace.AccessDenied("SCIM support requires Teleport Identity Governance")
 		} else {
 			err = fn(w, r, params)
 		}

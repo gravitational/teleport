@@ -2,6 +2,7 @@ import { ComponentType, useEffect, useRef, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 
 import { Box, ButtonPrimary, Flex, H1, Image, Text } from 'design';
+import { FeatureName } from 'design/constants';
 import { RocketLaunch } from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { Theme } from 'design/theme';
@@ -53,10 +54,10 @@ export function EmptyState() {
     <FeatureBox>
       <Box mt={4} data-testid="tag-empty-state">
         <Box mb={3}>
-          <H1 mb={3}>Teleport Policy</H1>
+          <H1 mb={3}>{FeatureName.IdentitySecurity}</H1>
           <Text css={{ maxWidth }}>
-            Teleport Policy unifies management of access policies across your
-            infrastructure. Eliminate shadow access and blind spots.
+            {FeatureName.IdentitySecurity} unifies management of access policies
+            across your infrastructure. Eliminate shadow access and blind spots.
           </Text>
         </Box>
         <FeatureContainer py={2} pr={2}>
@@ -85,7 +86,9 @@ export function EmptyState() {
             size="large"
           >
             <RocketLaunch size={20} mr={2} />
-            {cfg.isEnterprise ? 'Try Teleport Policy' : 'Upgrade to Enterprise'}
+            {cfg.isEnterprise
+              ? `Try ${FeatureName.IdentitySecurity}`
+              : 'Upgrade to Enterprise'}
           </ButtonPrimary>
         </Box>
       </Box>

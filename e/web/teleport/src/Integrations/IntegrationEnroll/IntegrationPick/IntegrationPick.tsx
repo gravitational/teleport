@@ -10,6 +10,7 @@ import {
   Indicator,
   Text,
 } from 'design';
+import { FeatureName } from 'design/constants';
 import * as Icons from 'design/Icon';
 import { P } from 'design/Text/Text';
 import useAttempt from 'shared/hooks/useAttemptNext';
@@ -398,7 +399,9 @@ function RenderTooltip({
           sticky={true}
           children={
             <Box textAlign="center" maxWidth="200px">
-              <Text>Unlock {pluginName} plugin with Teleport Identity</Text>
+              <Text>
+                Unlock {pluginName} plugin with {FeatureName.IdentityGovernance}
+              </Text>
               <ButtonLockedFeature
                 width="165px"
                 mt={2}

@@ -189,7 +189,7 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 		// https://github.com/gravitational/teleport/blob/3af6d9c1a25836bb160589a27a7d168a19a4992b/lib/service/service.go#L1873
 		features := modules.GetModules().Features()
 		if !features.GetEntitlement(entitlements.Policy).Enabled {
-			cfg.Logger.InfoContext(ctx, "Access Graph specified in config, but the license does not include Teleport Policy. Access graph sync will not be enabled.")
+			cfg.Logger.InfoContext(ctx, "Access Graph specified in config, but the license does not include Teleport Identity Security. Access graph sync will not be enabled.")
 			return nil
 		}
 		modules.GetModules().EnableAccessGraph()

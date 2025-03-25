@@ -152,7 +152,7 @@ func (s *Service) Run(ctx context.Context) error {
 	for {
 		// reset the currentTAGResources to force a full sync
 		if err := s.initializeAndWatchAccessGraph(ctx); errors.Is(err, ErrTAGFeatureNotEnabled) {
-			s.logger.WarnContext(ctx, "Access Graph specified in config, but the license does not include Teleport Policy. Access graph sync will not be enabled.")
+			s.logger.WarnContext(ctx, "Access Graph specified in config, but the license does not include Teleport Identity Security. Access graph sync will not be enabled.")
 			break
 		} else if err != nil {
 			s.logger.WarnContext(ctx, "Error initializing and watching access graph", "error", err)

@@ -13,6 +13,7 @@ import {
   Text,
 } from 'design';
 import { Info } from 'design/Alert';
+import { FeatureName } from 'design/constants';
 import {
   ArrowLeft,
   Info as InfoIcon,
@@ -183,7 +184,8 @@ function NewRequest(props: State) {
             <Box>
               <ButtonLockedFeature event={CtaEvent.CTA_ACCESS_REQUESTS}>
                 <Text color="buttons.primary.text">
-                  Unlock Unlimited Access Requests with Teleport Identity
+                  Unlock Unlimited Access Requests with{' '}
+                  {FeatureName.IdentityGovernance}
                 </Text>
               </ButtonLockedFeature>
             </Box>
@@ -401,7 +403,8 @@ function UsageInfo(usage: { limit: number; used?: number }) {
             Your cluster has reached its allocation of {usage.limit} access
             requests per month, but{' '}
             <Link href={getSalesLink()} target="_blank">
-              you can get unlimited access requests with Teleport Identity.
+              you can get unlimited access requests with{' '}
+              {FeatureName.IdentityGovernance}
             </Link>
           </>
         ) : (

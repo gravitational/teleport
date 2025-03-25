@@ -2,6 +2,7 @@ import { components } from 'react-select';
 import styled from 'styled-components';
 
 import Box from 'design/Box';
+import { FeatureName } from 'design/constants';
 import Select, { type Option } from 'shared/components/Select';
 
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
@@ -111,7 +112,7 @@ const MenuListComponent = props => {
             event={CtaEvent.CTA_ACCESS_MONITORING}
             noIcon={true}
           >
-            Unlock higher range with Teleport Identity
+            Unlock higher range with {FeatureName.IdentityGovernance}
           </ButtonLockedFeature>
         </Box>
       )}
