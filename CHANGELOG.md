@@ -1,5 +1,22 @@
 # Changelog
 
+## 17.3.5 (03/25/25)
+
+* Added static_jwks field to the GitLab join method configuration to support cases where Teleport Auth Service cannot reach the GitLab instance. [#53413](https://github.com/gravitational/teleport/pull/53413)
+* Introduce workload-identity-aws-ra service for generating AWS credentials using Roles Anywhere directly from tbot. [#53408](https://github.com/gravitational/teleport/pull/53408)
+* Helm chart now supports specifying a second factor list, this simplifies setting up SSO MFA with the `teleport-cluster` chart. [#53319](https://github.com/gravitational/teleport/pull/53319)
+* Improve resource consumption when retrieving resources via the Web UI or tsh ls. [#53302](https://github.com/gravitational/teleport/pull/53302)
+* Add support for topologySpreadConstraints to the `teleport-cluster` Helm chart. [#53287](https://github.com/gravitational/teleport/pull/53287)
+* Fixed rare high CPU usage bug in reverse tunnel agents. [#53281](https://github.com/gravitational/teleport/pull/53281)
+* Fix an issue PostgreSQL via WebUI fails when IP pinning is enabled. PostgreSQL via WebUI no longer requires Proxy to dial its own public address. [#53250](https://github.com/gravitational/teleport/pull/53250)
+* Add support for `SendEnv` OpenSSH option in `tsh`. [#53216](https://github.com/gravitational/teleport/pull/53216)
+* Add support for using DynamoDB Streams FIPS endpoints. [#53201](https://github.com/gravitational/teleport/pull/53201)
+* Allow AD and non-AD logins to single Windows desktop. [#53199](https://github.com/gravitational/teleport/pull/53199)
+
+Enterprise:
+* Fixed Slack plugin failing to enroll with "need auth" error in the web UI.
+* Add support for Kerberos auth for Oracle, enabling Oracle RDS usage.
+
 ## 17.3.4 (03/19/25)
 
 * Improved clarity of error logs and address UX edge cases in teleport-update, part 2. [#53197](https://github.com/gravitational/teleport/pull/53197)
