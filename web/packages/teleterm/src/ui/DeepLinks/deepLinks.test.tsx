@@ -52,10 +52,10 @@ test('queuing up a deep link launch before the app is rendered', async () => {
   );
   expect(deepLinkParseResult.status).toEqual('success');
   // Before the app is rendered, queue up a deep link launch to be sent after the UI is ready.
-  const deepLinkLaunchPromise = ctx.mainProcessClient
+  const deepLinkLaunchPromise = ctx.mockMainProcessClient
     .whenFrontendAppIsReady()
     .then(() => {
-      ctx.mainProcessClient.launchDeepLink(deepLinkParseResult);
+      ctx.mockMainProcessClient.launchDeepLink(deepLinkParseResult);
     });
 
   render(<App ctx={ctx} />);

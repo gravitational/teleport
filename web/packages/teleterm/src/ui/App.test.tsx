@@ -102,7 +102,7 @@ test('activating a workspace via deep link overrides the previously active works
 
   // Launch a deep link and do not wait for the result.
   act(() => {
-    void appContext.mainProcessClient.launchDeepLink({
+    void appContext.mockMainProcessClient.launchDeepLink({
       status: 'success',
       url: {
         host: deepLinkCluster.proxyHost,
