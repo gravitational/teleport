@@ -235,7 +235,7 @@ func (s *sftpHandler) sendSFTPEvent(req *sftp.Request, reqErr error) {
 	wd, err := os.Getwd()
 	if err != nil {
 		s.logger.WarnContext(req.Context(), "Failed to get working dir", "error", err)
-		// Log event without working directory.
+		// Emit event without working directory.
 	}
 	event, err := sftputils.ParseSFTPEvent(req, wd, reqErr)
 	if err != nil {

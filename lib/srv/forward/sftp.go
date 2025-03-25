@@ -214,7 +214,7 @@ func (h *proxyHandlers) sendSFTPEvent(req *sftp.Request, reqErr error) {
 	wd, err := h.remoteFS.Getwd(req.Context())
 	if err != nil {
 		h.logger.WarnContext(req.Context(), "Unable to get working directory", "error", err)
-		// Log event without working directory.
+		// Emit event without working directory.
 	}
 	event, err := sftputils.ParseSFTPEvent(req, wd, reqErr)
 	if err != nil {
