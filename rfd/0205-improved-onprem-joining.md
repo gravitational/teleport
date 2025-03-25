@@ -223,7 +223,8 @@ several advantages:
 - Regular verification checks. With true renewable certificates, bots could last
   indefinitely without completing a challenge. This makes it harder to tell
   which bots are still alive, and could leave bots alive if their join token is
-  deleted. When bots regularly interact with the join method, we can
+  deleted. When bots regularly interact with the join method, we can ensure they
+  _stop_ working more rapidly once disabled (see lifecycle section below)
 
 - If using hardware key storage backends, repeating the joining challenge helps
   ensure the identity can't be effectively exfiltrated.
@@ -339,6 +340,8 @@ Bots will be unable to rejoin under any of these conditions:
 
 - `.spec.bound_keypair.joining.may_join_until` is set to a value before the
   current time
+
+- Inability to provide valid join state document after first join attempt
 
 #### Preventing Credential Duplication
 
