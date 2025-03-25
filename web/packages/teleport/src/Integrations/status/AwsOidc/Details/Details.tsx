@@ -18,6 +18,8 @@
 
 import { useParams } from 'react-router';
 
+import { Danger } from 'design/Alert';
+
 import { FeatureBox } from 'teleport/components/Layout';
 import { AwsOidcHeader } from 'teleport/Integrations/status/AwsOidc/AwsOidcHeader';
 import { AwsOidcTitle } from 'teleport/Integrations/status/AwsOidc/AwsOidcTitle';
@@ -35,8 +37,36 @@ export function Details() {
     resourceKind: AwsResource;
   }>();
 
-  const { integrationAttempt } = useAwsOidcStatus();
+  const { integrationAttempt, statsAttempt } = useAwsOidcStatus();
+
+  if (integrationAttempt.status === 'error') {
+    return <Danger>{integrationAttempt.statusText}</Danger>;
+  }
+
+  if (statsAttempt.status === 'error') {
+    return <Danger>{statsAttempt.statusText}</Danger>;
+  }
+
+  if (!statsAttempt.data || !integrationAttempt.data) {
+    return null;
+  }
+
   const { data: integration } = integrationAttempt;
+  const { awsec2, awsrds, awseks, unresolvedUserTasks } = statsAttempt.data;
+
+  let pendingTasks = unresolvedUserTasks;
+  switch (resourceKind) {
+    case AwsResource.rds:
+      pendingTasks = awsrds.unresolvedUserTasks;
+      break;
+    case AwsResource.ec2:
+      pendingTasks = awsec2.unresolvedUserTasks;
+      break;
+    case AwsResource.eks:
+      pendingTasks = awseks.unresolvedUserTasks;
+      break;
+  }
+
   return (
     <>
       {integration && (
@@ -47,7 +77,11 @@ export function Details() {
           {integration && (
             <>
               <AwsOidcTitle integration={integration} resource={resourceKind} />
-              <TaskAlert name={integration.name} />
+              <TaskAlert
+                name={integration.name}
+                pendingTasksCount={pendingTasks}
+                taskType={resourceKind}
+              />
             </>
           )}
         </>

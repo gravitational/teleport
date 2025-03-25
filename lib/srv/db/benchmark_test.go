@@ -72,7 +72,7 @@ func BenchmarkPostgresReadLargeTable(b *testing.B) {
 		require.NoError(b, err)
 
 		b.Run(fmt.Sprintf("size=%v", messageSize), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				// Execute a query, count results.
 				q := pgConn.Exec(ctx, fmt.Sprintf("SELECT * FROM bench_%v LIMIT %v", messageSize, rowCount))
 

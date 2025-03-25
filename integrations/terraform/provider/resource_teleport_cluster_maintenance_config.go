@@ -109,7 +109,10 @@ func (r resourceTeleportClusterMaintenanceConfig) Create(ctx context.Context, re
 			resp.Diagnostics.Append(diagFromWrappedErr("Error reading ClusterMaintenanceConfig", trace.Wrap(err), "cluster_maintenance_config"))
 			return
 		}
-		if clusterMaintenanceConfigBefore.GetMetadata().Revision != clusterMaintenanceConfigI.GetMetadata().Revision || true {
+
+		previousMetadata := clusterMaintenanceConfigBefore.GetMetadata()
+		currentMetadata := clusterMaintenanceConfigI.GetMetadata()
+		if previousMetadata.GetRevision() != currentMetadata.GetRevision() || true {
 			break
 		}
 		if bErr := backoff.Do(ctx); bErr != nil {
@@ -165,6 +168,7 @@ func (r resourceTeleportClusterMaintenanceConfig) Read(ctx context.Context, req 
 		return
 	}
 
+	
 	clusterMaintenanceConfig := clusterMaintenanceConfigI.(*apitypes.ClusterMaintenanceConfigV1)
 	diags = tfschema.CopyClusterMaintenanceConfigV1ToTerraform(ctx, clusterMaintenanceConfig, &state)
 	resp.Diagnostics.Append(diags...)
@@ -218,7 +222,6 @@ func (r resourceTeleportClusterMaintenanceConfig) Update(ctx context.Context, re
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating ClusterMaintenanceConfig", trace.Wrap(err), "cluster_maintenance_config"))
 		return
 	}
-
 	var clusterMaintenanceConfigI apitypes.ClusterMaintenanceConfig
 
 	tries := 0
@@ -248,6 +251,7 @@ func (r resourceTeleportClusterMaintenanceConfig) Update(ctx context.Context, re
 		return
 	}
 
+	
 	clusterMaintenanceConfig = clusterMaintenanceConfigI.(*apitypes.ClusterMaintenanceConfigV1)
 	diags = tfschema.CopyClusterMaintenanceConfigV1ToTerraform(ctx, clusterMaintenanceConfig, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -280,7 +284,6 @@ func (r resourceTeleportClusterMaintenanceConfig) ImportState(ctx context.Contex
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating ClusterMaintenanceConfig", trace.Wrap(err), "cluster_maintenance_config"))
 		return
 	}
-
 	clusterMaintenanceConfig := clusterMaintenanceConfigI.(*apitypes.ClusterMaintenanceConfigV1)
 
 	var state types.Object
@@ -296,8 +299,9 @@ func (r resourceTeleportClusterMaintenanceConfig) ImportState(ctx context.Contex
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	id := clusterMaintenanceConfig.GetName()
 
-	state.Attrs["id"] = types.String{Value: clusterMaintenanceConfig.Metadata.Name}
+	state.Attrs["id"] = types.String{Value: id}
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)

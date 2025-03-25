@@ -25,6 +25,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -458,8 +459,8 @@ func TestLocalInstaller_Link(t *testing.T) {
 				InstallDir:        versionsDir,
 				TargetServiceFile: filepath.Join(linkDir, serviceDir, serviceName),
 				Log:               slog.Default(),
-				TransformService: func(b []byte) []byte {
-					return []byte("[transform]" + string(b))
+				TransformService: func(b []byte, pathDir string) []byte {
+					return []byte(fmt.Sprintf("[service=%s][path=%s]", string(b), pathDir))
 				},
 				ValidateBinary: validator.IsExecutable,
 				Template:       autoupdate.DefaultCDNURITemplate,
@@ -498,7 +499,7 @@ func TestLocalInstaller_Link(t *testing.T) {
 			for _, svc := range tt.resultServices {
 				v, err := os.ReadFile(filepath.Join(linkDir, svc))
 				require.NoError(t, err)
-				require.Equal(t, "[transform]"+filepath.Base(svc), string(v))
+				require.Equal(t, fmt.Sprintf("[service=%s][path=%s]", filepath.Base(svc), filepath.Join(linkDir, "bin")), string(v))
 			}
 
 			// verify manual revert
@@ -713,8 +714,8 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 				InstallDir:        versionsDir,
 				TargetServiceFile: filepath.Join(linkDir, serviceDir, serviceName),
 				Log:               slog.Default(),
-				TransformService: func(b []byte) []byte {
-					return []byte("[transform]" + string(b))
+				TransformService: func(b []byte, pathDir string) []byte {
+					return []byte(fmt.Sprintf("[service=%s][path=%s]", string(b), pathDir))
 				},
 				ValidateBinary: validator.IsExecutable,
 			}
@@ -748,7 +749,7 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 			for _, svc := range tt.resultServices {
 				v, err := os.ReadFile(filepath.Join(linkDir, svc))
 				require.NoError(t, err)
-				require.Equal(t, "[transform]"+filepath.Base(svc), string(v))
+				require.Equal(t, fmt.Sprintf("[service=%s][path=%s]", filepath.Base(svc), filepath.Join(linkDir, "bin")), string(v))
 			}
 
 		})
@@ -850,8 +851,8 @@ func TestLocalInstaller_Remove(t *testing.T) {
 				InstallDir:        versionsDir,
 				TargetServiceFile: filepath.Join(linkDir, serviceDir, serviceName),
 				Log:               slog.Default(),
-				TransformService: func(b []byte) []byte {
-					return []byte("[transform]" + string(b))
+				TransformService: func(b []byte, pathDir string) []byte {
+					return []byte(fmt.Sprintf("[service=%s][path=%s]", string(b), pathDir))
 				},
 				ValidateBinary: validator.IsExecutable,
 			}
@@ -920,8 +921,8 @@ func TestLocalInstaller_IsLinked(t *testing.T) {
 				InstallDir:        versionsDir,
 				TargetServiceFile: filepath.Join(linkDir, serviceDir, serviceName),
 				Log:               slog.Default(),
-				TransformService: func(b []byte) []byte {
-					return []byte("[transform]" + string(b))
+				TransformService: func(b []byte, pathDir string) []byte {
+					return []byte(fmt.Sprintf("[service=%s][path=%s]", string(b), pathDir))
 				},
 				ValidateBinary: validator.IsExecutable,
 			}
@@ -980,7 +981,7 @@ func TestLocalInstaller_Unlink(t *testing.T) {
 				{oldname: "bin/teleport", newname: "bin/teleport"},
 				{oldname: "bin/tsh", newname: "bin/tsh"},
 			},
-			svcCopy: []byte("[transform]orig"),
+			svcCopy: []byte("[service=orig][path=bin]"),
 		},
 		{
 			name:    "different services",
@@ -1020,7 +1021,7 @@ func TestLocalInstaller_Unlink(t *testing.T) {
 			links: []symlink{
 				{oldname: "bin/tsh", newname: "bin/tsh"},
 			},
-			svcCopy:   []byte("[transform]orig"),
+			svcCopy:   []byte("[service=orig][path=bin]"),
 			remaining: []string{servicePath},
 		},
 		{
@@ -1030,7 +1031,7 @@ func TestLocalInstaller_Unlink(t *testing.T) {
 			links: []symlink{
 				{oldname: "bin/teleport", newname: "bin/teleport"},
 			},
-			svcCopy: []byte("[transform]orig"),
+			svcCopy: []byte("[service=orig][path=bin]"),
 		},
 		{
 			name:    "wrong teleport link",
@@ -1040,7 +1041,7 @@ func TestLocalInstaller_Unlink(t *testing.T) {
 				{oldname: "other", newname: "bin/teleport"},
 				{oldname: "bin/tsh", newname: "bin/tsh"},
 			},
-			svcCopy:   []byte("[transform]orig"),
+			svcCopy:   []byte("[service=orig][path=bin]"),
 			remaining: []string{servicePath, "bin/teleport"},
 		},
 		{
@@ -1051,7 +1052,7 @@ func TestLocalInstaller_Unlink(t *testing.T) {
 				{oldname: "bin/teleport", newname: "bin/teleport"},
 				{oldname: "wrong", newname: "bin/tsh"},
 			},
-			svcCopy:   []byte("[transform]orig"),
+			svcCopy:   []byte("[service=orig][path=bin]"),
 			remaining: []string{"bin/tsh"},
 		},
 	}
@@ -1106,8 +1107,8 @@ func TestLocalInstaller_Unlink(t *testing.T) {
 				InstallDir:        versionsDir,
 				TargetServiceFile: filepath.Join(linkDir, serviceDir, serviceName),
 				Log:               slog.Default(),
-				TransformService: func(b []byte) []byte {
-					return []byte("[transform]" + string(b))
+				TransformService: func(b []byte, pathDir string) []byte {
+					return []byte(fmt.Sprintf("[service=%s][path=%s]", string(b), filepath.Base(pathDir)))
 				},
 			}
 			ctx := context.Background()

@@ -33,6 +33,7 @@ import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants'
 import type { SortType } from 'teleport/services/agents';
 import {
   AwsOidcPolicyPreset,
+  IntegrationDeleteRequest,
   IntegrationKind,
   PluginKind,
   Regions,
@@ -185,7 +186,7 @@ const cfg = {
     consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
     consoleSession: '/web/cluster/:clusterId/console/session/:sid',
     kubeExec: '/web/cluster/:clusterId/console/kube/exec/:kubeId/',
-    kubeExecSession: '/web/cluster/:clusterId/console/kube/exec/:sid',
+    kubeExecSession: '/web/cluster/:clusterId/console/kube/session/:sid',
     dbConnect: '/web/cluster/:clusterId/console/db/connect/:serviceName',
     dbSession: '/web/cluster/:clusterId/console/db/session/:sid',
     player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
@@ -360,7 +361,13 @@ const cfg = {
       export: '/v1/webapi/sites/:clusterId/integrations/:name/ca',
     },
 
+    // TODO(kimlisa): move integrationsPath into integration: {...}
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
+    integration: {
+      deleteV2:
+        '/v2/webapi/sites/:clusterId/integrations/:name?associatedresources=:associatedresources',
+    },
+
     integrationStatsPath:
       '/v1/webapi/sites/:clusterId/integrations/:name/stats',
     integrationRulesPath:
@@ -1105,6 +1112,20 @@ const cfg = {
     });
   },
 
+  getDeleteIntegrationUrlV2(req: IntegrationDeleteRequest) {
+    // Not using generatePath here because it doesn't work
+    // when a dynamic path and a query param is next to each other.
+    // eg: some/path/:name?queryParmKey=queryParamValue it will
+    // remove the required ? in the path.
+    return cfg.api.integration.deleteV2
+      .replace(':clusterId', req.clusterId)
+      .replace(':name', req.name)
+      .replace(
+        ':associatedresources',
+        req.deleteAssociatedResources ? 'true' : 'false'
+      );
+  },
+
   getIntegrationStatsUrl(name: string) {
     const clusterId = cfg.proxyCluster;
     return generatePath(cfg.api.integrationStatsPath, {
@@ -1435,6 +1456,8 @@ export interface UrlSshParams {
 export interface UrlKubeExecParams {
   clusterId: string;
   kubeId: string;
+  sid?: string;
+  mode?: ParticipantMode;
 }
 
 export interface UrlDbConnectParams {

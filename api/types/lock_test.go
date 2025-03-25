@@ -133,3 +133,39 @@ func TestLockTargetIsEmpty(t *testing.T) {
 		require.False(t, lt.IsEmpty(), "field name: %v", field.Name)
 	}
 }
+
+// TestLockTargetEquals checks that the implementation of [LockTarget.Equals]
+// is correct by filling one field at a time in for two LockTargets and expecting
+// Equals to return the appropriate value. Only the public fields that don't start with
+// `XXX_` are checked (as those are gogoproto-internal fields).
+func TestLockTargetEquals(t *testing.T) {
+	t.Run("equal", func(t *testing.T) {
+		require.True(t, (LockTarget{}).Equals(LockTarget{}), "empty targets equal")
+
+		for i, field := range reflect.VisibleFields(reflect.TypeOf(LockTarget{})) {
+			if strings.HasPrefix(field.Name, "XXX_") {
+				continue
+			}
+
+			var a, b LockTarget
+			// if we add non-string fields to LockTarget we need a type switch here
+			reflect.ValueOf(&a).Elem().Field(i).SetString("nonempty")
+			reflect.ValueOf(&b).Elem().Field(i).SetString("nonempty")
+			require.True(t, a.Equals(b), "field name: %v", field.Name)
+		}
+	})
+
+	t.Run("not equal", func(t *testing.T) {
+		for i, field := range reflect.VisibleFields(reflect.TypeOf(LockTarget{})) {
+			if strings.HasPrefix(field.Name, "XXX_") {
+				continue
+			}
+
+			var a, b LockTarget
+			// if we add non-string fields to LockTarget we need a type switch here
+			reflect.ValueOf(&a).Elem().Field(i).SetString("nonempty")
+			reflect.ValueOf(&b).Elem().Field(i).SetString("other")
+			require.False(t, a.Equals(b), "field name: %v", field.Name)
+		}
+	})
+}

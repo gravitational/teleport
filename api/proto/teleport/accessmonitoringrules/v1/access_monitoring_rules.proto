@@ -44,7 +44,19 @@ message AccessMonitoringRuleSpec {
   // and determines whether the subject will be moved into desired state.
   string condition = 3;
   // notification defines the plugin configuration for notifications if rule is triggered.
+  // Both notification and automatic_approval may be set within the same
+  // access_monitoring_rule. If both fields are set, the rule handler will
+  // manage notifications and automatic approvals for the same set
+  // of access events. Separate plugins may be used if both notifications and
+  // automatic_approvals is set.
   Notification notification = 4;
+  // automatic_approval defines the plugin configuration for automatic approvals.
+  // Both notification and automatic_approval may be set within the same
+  // access_monitoring_rule. If both fields are set, the rule handler will
+  // manage notifications and automatic approvals for the same set
+  // of access events. Separate plugins may be used if both notifications and
+  // automatic_approvals is set.
+  AutomaticApproval automatic_approval = 5;
 }
 
 // Notification contains configurations for plugin notification rules.
@@ -53,6 +65,13 @@ message Notification {
   string name = 1;
   // recipients is the list of recipients the plugin should notify.
   repeated string recipients = 2;
+}
+
+// AutomaticApproval contains configurations for plugin automatic approval rules.
+message AutomaticApproval {
+  // name is the name of the plugin to which this configuration should apply.
+  // Set this value to `teleport` to manage automatic approvals natively within Teleport.
+  string name = 1;
 }
 
 // CreateAccessMonitoringRuleRequest is the request for CreateAccessMonitoringRule.
@@ -105,6 +124,9 @@ message ListAccessMonitoringRulesWithFilterRequest {
   repeated string subjects = 3;
   // notification_name is the value of the notification name field the rule must have. This field is optional.
   string notification_name = 4;
+  // automatic_approval_name is the value of the automatic_approval name field
+  // the rule must have. This field is optional.
+  string automatic_approval_name = 5;
 }
 
 // ListAccessMonitoringRulesResponse is the response from ListAccessMonitoringRules.

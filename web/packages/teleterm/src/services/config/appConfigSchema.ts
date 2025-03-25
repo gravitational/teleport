@@ -38,6 +38,7 @@ export const CUSTOM_SHELL_ID = 'custom' as const;
  */
 export const CONFIG_MODIFIABLE_FROM_RENDERER: (keyof AppConfig)[] = [
   'usageReporting.enabled',
+  'skipVersionCheck',
 ];
 
 export const createAppConfigSchema = (settings: RuntimeSettings) => {
@@ -56,6 +57,12 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
       .enum(['light', 'dark', 'system'])
       .default('system')
       .describe('Color theme for the app.'),
+    skipVersionCheck: z
+      .boolean()
+      .default(false)
+      .describe(
+        'Skips the version check and hides the version compatibility warning when logging in to a cluster.'
+      ),
     /**
      * This value can be provided by the user and is unsanitized. This means that it cannot be directly interpolated
      * in a styled component or used in CSS, as it may inject malicious CSS code.
@@ -206,7 +213,6 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
           "'no' never attempts to add them, 'yes' always attempts to add them, " +
           "'only' always attempts to add the keys to the agent but it does not save them on disk."
       ),
-    'unstable.vnetDiag': z.boolean().default(false),
   });
 };
 

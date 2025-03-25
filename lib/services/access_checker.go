@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -113,7 +114,7 @@ type AccessChecker interface {
 	CanPortForward() bool
 
 	// SSHPortForwardMode returns the SSHPortForwardMode that the RoleSet allows.
-	SSHPortForwardMode() SSHPortForwardMode
+	SSHPortForwardMode() decisionpb.SSHPortForwardMode
 
 	// DesktopClipboard returns true if the role set has enabled shared
 	// clipboard for desktop sessions. Clipboard sharing is disabled if

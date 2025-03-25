@@ -81,7 +81,7 @@ export function RoleEditorAdapter({
         borderLeft={1}
         borderColor={theme.colors.interactive.tonal.neutral[0]}
         backgroundColor={theme.colors.levels.surface}
-        width="700px"
+        width="550px"
       >
         {convertAttempt.status === 'processing' && (
           <Flex
@@ -96,12 +96,16 @@ export function RoleEditorAdapter({
         {convertAttempt.status === 'error' && (
           <Danger>{convertAttempt.statusText}</Danger>
         )}
+
+        {/* TODO(bl-nero): Remove once RoleE doesn't set this attribute. */}
         {roleDiffProps?.errorMessage && (
           <Danger>{roleDiffProps.errorMessage}</Danger>
         )}
+
         {convertAttempt.status === 'success' && (
           <RoleEditor
             originalRole={convertAttempt.data}
+            roleDiffAttempt={roleDiffProps?.roleDiffAttempt}
             onCancel={onCancel}
             onSave={onSave}
             onRoleUpdate={onRoleUpdate}
@@ -109,7 +113,7 @@ export function RoleEditorAdapter({
         )}
       </Flex>
       {roleDiffProps ? (
-        roleDiffProps.roleDiffElement
+        <Flex flex="1">{roleDiffProps.roleDiffElement}</Flex>
       ) : (
         <Flex flex="1" alignItems="center" justifyContent="center" m={3}>
           <PolicyPlaceholder

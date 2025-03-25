@@ -3,8 +3,8 @@
 # Keep versions in sync with devbox.json, when applicable.
 
 # Sync with devbox.json.
-GOLANG_VERSION ?= go1.24.0
-GOLANGCI_LINT_VERSION ?= v1.64.5
+GOLANG_VERSION ?= go1.24.1
+GOLANGCI_LINT_VERSION ?= v1.64.7
 
 # NOTE: Remember to update engines.node in package.json to match the major version.
 # TODO(ravicious): When updating Node.js, see if corepack distributed with the new Node.JS version
@@ -21,7 +21,7 @@ LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 DEVTOOLSET ?= devtoolset-12
 
 # Protogen related versions.
-BUF_VERSION ?= v1.48.0
+BUF_VERSION ?= v1.50.1
 # Keep in sync with api/proto/buf.yaml (and buf.lock).
 GOGO_PROTO_TAG ?= v1.3.2
 NODE_GRPC_TOOLS_VERSION ?= 1.12.4

@@ -24,34 +24,33 @@ import { Cluster } from 'design/Icon';
 
 import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
 
-import { ConnectionsIconStatusIndicator } from './ConnectionsIconStatusIndicator';
+import {
+  ConnectionsIconStatusIndicator,
+  Status,
+} from './ConnectionsIconStatusIndicator';
 
-interface ConnectionsIconProps {
-  isAnyConnectionActive: boolean;
-
-  onClick(): void;
-}
-
-export const ConnectionsIcon = forwardRef<HTMLDivElement, ConnectionsIconProps>(
-  (props, ref) => {
-    const { getLabelWithAccelerator } = useKeyboardShortcutFormatters();
-    return (
-      <Container ref={ref}>
-        <ConnectionsIconStatusIndicator
-          connected={props.isAnyConnectionActive}
-        />
-        <StyledButton
-          onClick={props.onClick}
-          size="small"
-          m="auto"
-          title={getLabelWithAccelerator('Open Connections', 'openConnections')}
-        >
-          <Cluster size="medium" />
-        </StyledButton>
-      </Container>
-    );
+export const ConnectionsIcon = forwardRef<
+  HTMLDivElement,
+  {
+    status: Status;
+    onClick(): void;
   }
-);
+>((props, ref) => {
+  const { getLabelWithAccelerator } = useKeyboardShortcutFormatters();
+  return (
+    <Container ref={ref}>
+      <ConnectionsIconStatusIndicator status={props.status} />
+      <StyledButton
+        onClick={props.onClick}
+        size="small"
+        m="auto"
+        title={getLabelWithAccelerator('Open Connections', 'openConnections')}
+      >
+        <Cluster size="medium" />
+      </StyledButton>
+    </Container>
+  );
+});
 
 const Container = styled.div`
   position: relative;

@@ -57,6 +57,7 @@ import {
   DatabaseAccessValidationResult,
   GitHubOrganizationAccessValidationResult,
   KubernetesAccessValidationResult,
+  kubernetesClusterWideResourceKinds,
   KubernetesResourceValidationResult,
   ResourceAccessValidationResult,
   ServerAccessValidationResult,
@@ -262,6 +263,7 @@ export function ServerAccessSection({
         rule={precomputed(validation.fields.logins)}
         mt={3}
         mb={0}
+        menuPosition="fixed"
       />
     </>
   );
@@ -287,6 +289,7 @@ export function KubernetesAccessSection({
         openMenuOnClick={false}
         value={value.groups}
         onChange={groups => onChange?.({ ...value, groups })}
+        menuPosition="fixed"
       />
 
       <FieldSelectCreatable
@@ -301,6 +304,7 @@ export function KubernetesAccessSection({
         openMenuOnClick={false}
         value={value.users}
         onChange={users => onChange?.({ ...value, users })}
+        menuPosition="fixed"
       />
 
       <LabelsInput
@@ -404,9 +408,11 @@ function KubernetesResourceView({
         value={kind}
         rule={precomputed(validation.kind)}
         onChange={k => onChange?.({ ...value, kind: k })}
+        menuPosition="fixed"
       />
       <FieldInput
         label="Name"
+        required
         toolTipContent={
           <>
             Name of the resource. Special value <MarkInverse>*</MarkInverse>{' '}
@@ -420,6 +426,7 @@ function KubernetesResourceView({
       />
       <FieldInput
         label="Namespace"
+        required={!kubernetesClusterWideResourceKinds.includes(kind.value)}
         toolTipContent={
           <>
             Namespace that contains the resource. Special value{' '}
@@ -440,6 +447,7 @@ function KubernetesResourceView({
         rule={precomputed(validation.verbs)}
         onChange={v => onChange?.({ ...value, verbs: v })}
         mb={0}
+        menuPosition="fixed"
       />
     </Box>
   );
@@ -521,6 +529,7 @@ export function DatabaseAccessSection({
         openMenuOnClick={false}
         value={value.names}
         onChange={names => onChange?.({ ...value, names })}
+        menuPosition="fixed"
       />
       <FieldSelectCreatable
         isMulti
@@ -540,6 +549,7 @@ export function DatabaseAccessSection({
         openMenuOnClick={false}
         value={value.users}
         onChange={users => onChange?.({ ...value, users })}
+        menuPosition="fixed"
       />
       <FieldSelectCreatable
         isMulti
@@ -555,6 +565,7 @@ export function DatabaseAccessSection({
         value={value.roles}
         onChange={roles => onChange?.({ ...value, roles })}
         rule={precomputed(validation.fields.roles)}
+        menuPosition="fixed"
       />
       <LabelsInput
         legend="Database Service Labels"
@@ -598,6 +609,7 @@ export function WindowsDesktopAccessSection({
         openMenuOnClick={false}
         value={value.logins}
         onChange={logins => onChange?.({ ...value, logins })}
+        menuPosition="fixed"
       />
     </>
   );
@@ -625,6 +637,7 @@ export function GitHubOrganizationAccessSection({
       openMenuOnClick={false}
       value={value.organizations}
       onChange={organizations => onChange?.({ ...value, organizations })}
+      menuPosition="fixed"
     />
   );
 }

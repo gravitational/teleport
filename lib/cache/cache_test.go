@@ -104,7 +104,7 @@ type testPack struct {
 	eventsS        *proxyEvents
 	trustS         services.Trust
 	provisionerS   services.Provisioner
-	clusterConfigS services.ClusterConfiguration
+	clusterConfigS services.ClusterConfigurationInternal
 
 	usersS                  services.UsersService
 	accessS                 services.Access
@@ -1060,9 +1060,7 @@ func benchGetNodes(b *testing.B, nodeCount int) {
 		}
 	}
 
-	b.ResetTimer()
-
-	for n := 0; n < b.N; n++ {
+	for b.Loop() {
 		nodes, err := p.cache.GetNodes(ctx, apidefaults.Namespace)
 		require.NoError(b, err)
 		require.Len(b, nodes, nodeCount)
@@ -1108,7 +1106,7 @@ func BenchmarkListResourcesWithSort(b *testing.B) {
 	for _, limit := range []int32{100, 1_000, 10_000, 100_000} {
 		for _, totalCount := range []bool{true, false} {
 			b.Run(fmt.Sprintf("limit=%d,needTotal=%t", limit, totalCount), func(b *testing.B) {
-				for n := 0; n < b.N; n++ {
+				for b.Loop() {
 					resp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
 						ResourceType: types.KindNode,
 						Namespace:    apidefaults.Namespace,
@@ -1575,6 +1573,7 @@ func TestClusterAuditConfig(t *testing.T) {
 
 func TestClusterName(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
@@ -1594,7 +1593,7 @@ func TestClusterName(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	outName, err := p.cache.GetClusterName()
+	outName, err := p.cache.GetClusterName(ctx)
 	require.NoError(t, err)
 
 	require.Empty(t, cmp.Diff(outName, clusterName, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))

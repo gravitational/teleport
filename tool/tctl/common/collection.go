@@ -1593,12 +1593,17 @@ type pluginCollection struct {
 	plugins []types.Plugin
 }
 
+// pluginResourceWrapper provides custom JSON unmarshaling for Plugin resource
+// types. The Plugin resource uses structures generated from a protobuf `oneof`
+// directive, which the stdlib JSON unmarshaller can't handle, so we use this
+// custom wrapper to help.
 type pluginResourceWrapper struct {
 	types.PluginV1
 }
 
 func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
-
+	// If your plugin contains a `oneof` message, implement custom UnmarshalJSON/MarshalJSON
+	// using gogo/jsonpb for the type.
 	const (
 		credOauth2AccessToken             = "oauth2_access_token"
 		credBearerToken                   = "bearer_token"
@@ -1618,11 +1623,15 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		settingsEntraID                   = "entra_id"
 		settingsDatadogIncidentManagement = "datadog_incident_management"
 		settingsEmailAccessPlugin         = "email_access_plugin"
+		settingsAWSIdentityCenter         = "aws_ic"
 	)
 	type unknownPluginType struct {
 		Spec struct {
 			Settings map[string]json.RawMessage `json:"Settings"`
 		} `json:"spec"`
+		Status struct {
+			Details map[string]json.RawMessage `json:"Details"`
+		} `json:"status"`
 		Credentials struct {
 			Credentials map[string]json.RawMessage `json:"Credentials"`
 		} `json:"credentials"`
@@ -1659,7 +1668,6 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 	}
 
 	for k := range unknownPlugin.Spec.Settings {
-
 		switch k {
 		case settingsSlackAccessPlugin:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_SlackAccessPlugin{}
@@ -1689,6 +1697,9 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Datadog{}
 		case settingsEmailAccessPlugin:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Email{}
+		case settingsAWSIdentityCenter:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_AwsIc{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_AwsIc{}
 		default:
 			return trace.BadParameter("unsupported plugin type: %v", k)
 		}

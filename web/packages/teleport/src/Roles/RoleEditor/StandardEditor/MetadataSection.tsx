@@ -42,6 +42,7 @@ export const MetadataSection = ({
   >
     <FieldInput
       label="Role Name"
+      required
       placeholder="Enter Role Name"
       value={value.name}
       disabled={isProcessing}
@@ -75,6 +76,7 @@ export const MetadataSection = ({
       value={value.version}
       onChange={version => onChange({ ...value, version })}
       mb={0}
+      menuPosition="fixed"
     />
   </SectionBox>
 );

@@ -23,7 +23,9 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
@@ -33,6 +35,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils/teleportassets"
 	"github.com/gravitational/teleport/lib/web/scripts"
 )
+
+const insecureParamName = "insecure"
 
 // installScriptHandle handles calls for "/scripts/install.sh" and responds with a bash script installing Teleport
 // by downloading and running `teleport-update`. This installation script does not start the agent, join it,
@@ -49,6 +53,14 @@ func (h *Handler) installScriptHandle(w http.ResponseWriter, r *http.Request, pa
 	opts, err := h.installScriptOptions(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to build install script options")
+	}
+
+	if insecure := r.URL.Query().Get(insecureParamName); insecure != "" {
+		v, err := strconv.ParseBool(insecure)
+		if err != nil {
+			return nil, trace.BadParameter("failed to parse insecure flag %q: %v", insecure, err)
+		}
+		opts.Insecure = v
 	}
 
 	script, err := scripts.GetInstallScript(r.Context(), opts)
@@ -77,7 +89,7 @@ func (h *Handler) installScriptOptions(ctx context.Context) (scripts.InstallScri
 	version, err := h.autoUpdateAgentVersion(ctx, defaultGroup, defaultUpdater)
 	if err != nil {
 		h.logger.WarnContext(ctx, "Failed to get intended agent version", "error", err)
-		version = teleport.Version
+		version = teleport.SemVersion
 	}
 
 	// if there's a rollout, we do new autoupdates
@@ -108,7 +120,7 @@ func (h *Handler) installScriptOptions(ctx context.Context) (scripts.InstallScri
 		teleportFlavor = types.PackageNameOSS
 	}
 
-	cdnBaseURL, err := getCDNBaseURL()
+	cdnBaseURL, err := getCDNBaseURL(version)
 	if err != nil {
 		h.logger.WarnContext(ctx, "Failed to get CDN base URL", "error", err)
 		return scripts.InstallScriptOptions{}, trace.Wrap(err)
@@ -133,7 +145,7 @@ func (h *Handler) installScriptOptions(ctx context.Context) (scripts.InstallScri
 // - "https://cdn.cloud.gravitational.io" (dev builds/staging)
 const EnvVarCDNBaseURL = "TELEPORT_CDN_BASE_URL"
 
-func getCDNBaseURL() (string, error) {
+func getCDNBaseURL(version *semver.Version) (string, error) {
 	// If the user explicitly overrides the CDN base URL, we use it.
 	if override := os.Getenv(EnvVarCDNBaseURL); override != "" {
 		return override, nil
@@ -150,5 +162,5 @@ func getCDNBaseURL() (string, error) {
 			teleportassets.CDNBaseURL())
 	}
 
-	return teleportassets.CDNBaseURL(), nil
+	return teleportassets.CDNBaseURLForVersion(version), nil
 }

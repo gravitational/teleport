@@ -21,6 +21,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"maps"
 	"math"
 	"path/filepath"
 	"slices"
@@ -697,21 +698,22 @@ func TestSessionRecordingConfig(t *testing.T) {
 
 func TestClusterID(t *testing.T) {
 	conf := setupConfig(t)
-	authServer, err := Init(context.Background(), conf)
+	ctx := context.Background()
+	authServer, err := Init(ctx, conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cc, err := authServer.GetClusterName()
+	cc, err := authServer.GetClusterName(ctx)
 	require.NoError(t, err)
 	clusterID := cc.GetClusterID()
 	require.NotEmpty(t, clusterID)
 
 	// do it again and make sure cluster ID hasn't changed
-	authServer, err = Init(context.Background(), conf)
+	authServer, err = Init(ctx, conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cc, err = authServer.GetClusterName()
+	cc, err = authServer.GetClusterName(ctx)
 	require.NoError(t, err)
 	require.Equal(t, clusterID, cc.GetClusterID())
 }
@@ -719,7 +721,8 @@ func TestClusterID(t *testing.T) {
 // TestClusterName ensures that a cluster can not be renamed.
 func TestClusterName(t *testing.T) {
 	conf := setupConfig(t)
-	authServer, err := Init(context.Background(), conf)
+	ctx := context.Background()
+	authServer, err := Init(ctx, conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
@@ -734,18 +737,10 @@ func TestClusterName(t *testing.T) {
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cn, err := authServer.GetClusterName()
+	cn, err := authServer.GetClusterName(ctx)
 	require.NoError(t, err)
 	require.NotEqual(t, newConfig.ClusterName.GetClusterName(), cn.GetClusterName())
 	require.Equal(t, conf.ClusterName.GetClusterName(), cn.GetClusterName())
-}
-
-func keysIn[K comparable, V any](m map[K]V) []K {
-	result := make([]K, 0, len(m))
-	for k := range m {
-		result = append(result, k)
-	}
-	return result
 }
 
 type failingTrustInternal struct {
@@ -994,7 +989,7 @@ func TestPresets(t *testing.T) {
 				defer mu.Unlock()
 				require.True(t, types.IsSystemResource(r))
 				require.Contains(t, expectedSystemRoles, r.GetName())
-				require.NotContains(t, keysIn(createdSystemRoles), r.GetName())
+				require.NotContains(t, slices.Collect(maps.Keys(createdSystemRoles)), r.GetName())
 				createdSystemRoles[r.GetName()] = r
 			}).
 			Maybe().
@@ -1004,8 +999,8 @@ func TestPresets(t *testing.T) {
 
 		err := createPresetRoles(ctx, roleManager)
 		require.NoError(t, err)
-		require.ElementsMatch(t, keysIn(createdPresets), expectedPresetRoles)
-		require.ElementsMatch(t, keysIn(createdSystemRoles), expectedSystemRoles)
+		require.ElementsMatch(t, slices.Collect(maps.Keys(createdPresets)), expectedPresetRoles)
+		require.ElementsMatch(t, slices.Collect(maps.Keys(createdSystemRoles)), expectedSystemRoles)
 		roleManager.AssertExpectations(t)
 
 		//
@@ -1142,7 +1137,7 @@ func TestPresets(t *testing.T) {
 			// Run multiple times to simulate starting auth on an
 			// existing cluster and asserting that everything still
 			// returns success
-			for i := 0; i < 2; i++ {
+			for range 2 {
 				err := createPresetRoles(ctx, as)
 				require.NoError(t, err)
 

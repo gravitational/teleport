@@ -54,7 +54,6 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/mod/semver"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -267,7 +266,11 @@ type Config struct {
 	PublicProxyAddr string
 
 	// ALPNHandler is the ALPN connection handler for handling upgraded ALPN
-	// connection through a HTTP upgrade call.
+	// connection through an HTTP upgrade call.
+	//
+	// It’s also used in scenarios where the Proxy needs to dial to itself (e.g.
+	// database access via ws), but the handler can directly forward the traffic
+	// to the ALPN router without initiating a new connection.
 	ALPNHandler ConnectionHandler
 
 	// TraceClient is used to forward spans to the upstream collector for the UI
@@ -1018,7 +1021,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/integrations/:name/stats", h.WithClusterAuth(h.integrationStats))
 	h.GET("/webapi/sites/:site/integrations/:name/discoveryrules", h.WithClusterAuth(h.integrationDiscoveryRules))
 	h.GET("/webapi/sites/:site/integrations/:name/ca", h.WithClusterAuth(h.integrationsExportCA))
+	// TODO(kimlisa): DELETE IN 19.0 - Replaced by /v2 equivalent endpoint
 	h.DELETE("/webapi/sites/:site/integrations/:name_or_subkind", h.WithClusterAuth(h.integrationsDelete))
+	h.DELETE("/v2/webapi/sites/:site/integrations/:name_or_subkind", h.WithClusterAuth(h.integrationsDelete))
 
 	// GET the Microsoft Teams plugin app.zip file.
 	h.GET("/webapi/sites/:site/plugins/:plugin/files/msteams_app.zip", h.WithClusterAuth(h.integrationsMsTeamsAppZipGet))
@@ -1236,7 +1241,7 @@ func (h *Handler) handleGetUserOrResetToken(w http.ResponseWriter, r *http.Reque
 //
 // GET /webapi/sites/:site/context
 func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
-	cn, err := h.cfg.AccessPoint.GetClusterName()
+	cn, err := h.cfg.AccessPoint.GetClusterName(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1888,7 +1893,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	// Set entitlements with backwards field compatibility
 	setEntitlementsWithLegacyLogic(&webCfg, clusterFeatures)
 
-	resource, err := h.cfg.ProxyClient.GetClusterName()
+	resource, err := h.cfg.ProxyClient.GetClusterName(r.Context())
 	if err != nil {
 		h.logger.WarnContext(r.Context(), "Failed to query cluster name", "error", err)
 	} else {
@@ -2226,8 +2231,14 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// semver parsing requires a 'v' at the beginning of the version string.
-	version := semver.Major("v" + ping.ServerVersion)
+
+	const group, agentUUD = "", ""
+	targetVersion, err := h.autoUpdateAgentVersion(r.Context(), group, agentUUD)
+	if err != nil {
+		h.logger.WarnContext(r.Context(), "Error retrieving the target version", "error", err)
+		targetVersion = teleport.SemVersion
+	}
+
 	instTmpl, err := template.New("").Parse(installer.GetScript())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2243,7 +2254,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	}
 
 	// By default, it uses the stable/v<majorVersion> channel.
-	repoChannel := fmt.Sprintf("stable/%s", version)
+	repoChannel := fmt.Sprintf("stable/v%d", targetVersion.Major)
 
 	// If the updater must be installed, then change the repo to stable/cloud
 	// It must also install the version specified in
@@ -2256,7 +2267,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 
 	tmpl := installers.Template{
 		PublicProxyAddr:   h.PublicProxyAddr(),
-		MajorVersion:      shsprintf.EscapeDefaultContext(version),
+		MajorVersion:      shsprintf.EscapeDefaultContext(fmt.Sprintf("v%d", targetVersion.Major)),
 		TeleportPackage:   teleportPackage,
 		RepoChannel:       shsprintf.EscapeDefaultContext(repoChannel),
 		AutomaticUpgrades: strconv.FormatBool(installUpdater),
@@ -2917,7 +2928,7 @@ func (h *Handler) getClusters(w http.ResponseWriter, r *http.Request, p httprout
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusterName, err := clt.GetClusterName()
+	clusterName, err := clt.GetClusterName(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3722,6 +3733,10 @@ func (h *Handler) setDefaultConnectorHandle(w http.ResponseWriter, r *http.Reque
 type podConnectParams struct {
 	// Term is the initial PTY size.
 	Term session.TerminalParams `json:"term"`
+	// SessionID is a Teleport session ID to join as.
+	SessionID session.ID `json:"sid"`
+	// ParticipantMode is the mode that determines what you can do when you join an active session.
+	ParticipantMode types.SessionParticipantMode `json:"mode"`
 }
 
 func (h *Handler) podConnect(
@@ -3741,6 +3756,20 @@ func (h *Handler) podConnect(
 		return nil, trace.Wrap(err)
 	}
 
+	// If a session is provided, then join an existing session
+	// instead of creating a new one.
+	if !params.SessionID.IsZero() {
+		return nil, trace.Wrap(h.joinKubernetesSession(
+			r.Context(),
+			params.SessionID.String(),
+			params.ParticipantMode,
+			sctx,
+			site,
+			ws,
+		))
+	}
+
+	// Wait for the user to supply the pod information.
 	execReq, err := readPodExecRequestFromWS(ws)
 	if err != nil {
 		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || terminal.IsOKWebsocketCloseError(trace.Unwrap(err)) {
@@ -3759,26 +3788,11 @@ func (h *Handler) podConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	clusterName := site.GetName()
-
-	accessChecker, err := sctx.GetUserAccessChecker()
-	if err != nil {
-		return session.Session{}, trace.Wrap(err)
-	}
-	policySets := accessChecker.SessionPolicySets()
-	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, sctx.GetUser())
-
 	sess := session.Session{
 		Kind:                  types.KubernetesSessionKind,
 		Login:                 "root",
-		ClusterName:           clusterName,
+		ClusterName:           site.GetName(),
 		KubernetesClusterName: execReq.KubeCluster,
-		Moderated:             accessEvaluator.IsModerated(),
 		ID:                    session.NewID(),
 		Created:               h.clock.Now().UTC(),
 		LastActive:            h.clock.Now().UTC(),
@@ -3805,8 +3819,6 @@ func (h *Handler) podConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	keepAliveInterval := netConfig.GetKeepAliveInterval()
-
 	serverAddr, tlsServerName, err := h.getKubeExecClusterData(netConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3820,13 +3832,18 @@ func (h *Handler) podConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	ph := podHandler{
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ph := podExecHandler{
 		req:                 execReq,
 		sess:                sess,
 		sctx:                sctx,
 		teleportCluster:     site.GetName(),
 		ws:                  ws,
-		keepAliveInterval:   keepAliveInterval,
+		keepAliveInterval:   netConfig.GetKeepAliveInterval(),
 		logger:              h.logger.With(teleport.ComponentKey, "pod"),
 		userClient:          clt,
 		localCA:             hostCA,
@@ -4594,7 +4611,7 @@ func (h *Handler) getSiteByParams(ctx context.Context, sctx *SessionContext, p h
 
 func (h *Handler) getSiteByClusterName(ctx context.Context, sctx *SessionContext, clusterName string) (reversetunnelclient.RemoteSite, error) {
 	if clusterName == currentSiteShortcut {
-		res, err := h.cfg.ProxyClient.GetClusterName()
+		res, err := h.cfg.ProxyClient.GetClusterName(ctx)
 		if err != nil {
 			h.logger.WarnContext(ctx, "Failed to query cluster name", "error", err)
 			return nil, trace.Wrap(err)
@@ -5032,7 +5049,7 @@ func (h *Handler) ProxyWithRoles(ctx context.Context, sctx *SessionContext) (rev
 		return nil, trace.Wrap(err)
 	}
 
-	cn, err := h.cfg.AccessPoint.GetClusterName()
+	cn, err := h.cfg.AccessPoint.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

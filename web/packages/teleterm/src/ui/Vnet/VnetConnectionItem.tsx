@@ -16,15 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { forwardRef, useEffect, useRef } from 'react';
+import React, { forwardRef, useEffect, useMemo, useRef } from 'react';
 
 import { ButtonIcon, Flex, rotate360, Text } from 'design';
 import * as icons from 'design/Icon';
 
-import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
 import { ListItem } from 'teleterm/ui/components/ListItem';
-import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
+import {
+  Status as ConnectionStatus,
+  ConnectionStatusIndicator,
+} from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 
 import { useVnetContext } from './vnetContext';
 
@@ -57,7 +59,10 @@ export const VnetConnectionItem = (props: {
   );
 };
 
-export const VnetSliderStepHeader = (props: { goBack: () => void }) => (
+export const VnetSliderStepHeader = (props: {
+  goBack: () => void;
+  runDiagnosticsFromVnetPanel: () => Promise<unknown>;
+}) => (
   <VnetConnectionItemBase
     title="Go back to Connections"
     onClick={props.goBack}
@@ -65,6 +70,7 @@ export const VnetSliderStepHeader = (props: { goBack: () => void }) => (
     showExtraRightButtons
     // Make the element focusable.
     tabIndex={0}
+    runDiagnosticsFromVnetPanel={props.runDiagnosticsFromVnetPanel}
   />
 );
 
@@ -78,33 +84,50 @@ const VnetConnectionItemBase = forwardRef<
     showExtraRightButtons?: boolean;
     isActive?: boolean;
     tabIndex?: number;
-  }
+  } & (
+    | { showExtraRightButtons?: false }
+    | {
+        showExtraRightButtons: true;
+        runDiagnosticsFromVnetPanel: () => Promise<unknown>;
+      }
+  )
 >((props, ref) => {
-  const { configService } = useAppContext();
-  const isVnetDiagEnabled = configService.get('unstable.vnetDiag').value;
   const {
     status,
     start,
     stop,
     startAttempt,
     stopAttempt,
-    runDiagnostics,
     diagnosticsAttempt,
     getDisabledDiagnosticsReason,
+    showDiagWarningIndicator,
+    isDiagSupported,
   } = useVnetContext();
   const isProcessing =
     startAttempt.status === 'processing' || stopAttempt.status === 'processing';
   const disabledDiagnosticsReason =
     getDisabledDiagnosticsReason(diagnosticsAttempt);
-  const indicatorStatus =
-    startAttempt.status === 'error' ||
-    stopAttempt.status === 'error' ||
-    (status.value === 'stopped' &&
-      status.reason.value === 'unexpected-shutdown')
-      ? 'error'
-      : status.value === 'running'
-        ? 'on'
-        : 'off';
+  const indicatorStatus: ConnectionStatus = useMemo(() => {
+    // Consider an error state first. If there was an error, status.value is not 'running'.
+    if (
+      startAttempt.status === 'error' ||
+      stopAttempt.status === 'error' ||
+      (status.value === 'stopped' &&
+        status.reason.value === 'unexpected-shutdown')
+    ) {
+      return 'error';
+    }
+
+    if (status.value === 'stopped') {
+      return 'off';
+    }
+
+    if (showDiagWarningIndicator) {
+      return 'warning';
+    }
+
+    return 'on';
+  }, [startAttempt, stopAttempt, status, showDiagWarningIndicator]);
 
   const onEnterPress = (event: React.KeyboardEvent) => {
     if (
@@ -187,13 +210,13 @@ const VnetConnectionItemBase = forwardRef<
                 <icons.Question size={18} />
               </ButtonIcon>
 
-              {isVnetDiagEnabled && (
+              {isDiagSupported && (
                 <ButtonIcon
                   title={disabledDiagnosticsReason || 'Run diagnostics'}
                   disabled={!!disabledDiagnosticsReason}
                   onClick={e => {
                     e.stopPropagation();
-                    runDiagnostics();
+                    props.runDiagnosticsFromVnetPanel();
                   }}
                 >
                   <icons.ListMagnifyingGlass size={18} />

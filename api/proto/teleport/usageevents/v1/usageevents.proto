@@ -539,6 +539,9 @@ message AccessListGrantsToUser {
 
   // count_inherited_traits_granted is the number of traits granted to a user inherited from nested access lists.
   int32 count_inherited_traits_granted = 4;
+
+  // user_name is the Teleport username of the user for whom a role or trait was granted for.
+  string user_name = 5;
 }
 
 // AccessListReviewCreate is an event that is emitted when an access list review is created.
@@ -603,6 +606,7 @@ enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_MACHINE_ID_SPACELIFT = 24;
   INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES = 25;
   INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER = 26;
+  INTEGRATION_ENROLL_KIND_GITHUB_REPO_ACCESS = 27;
 }
 
 // IntegrationEnrollMetadata contains common metadata
@@ -639,6 +643,12 @@ enum IntegrationEnrollStep {
   INTEGRATION_ENROLL_STEP_AWSIC_SET_ACCESSLIST_DEFAULT_OWNER = 2;
   INTEGRATION_ENROLL_STEP_AWSIC_UPLOAD_AWS_SAML_SP_METADATA = 3;
   INTEGRATION_ENROLL_STEP_AWSIC_TEST_SCIM_CONNECTION = 4;
+
+  // GITHUBRA denotes GitHub Repo Access.
+  INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_INTEGRATION = 5;
+  INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_GIT_SERVER = 6;
+  INTEGRATION_ENROLL_STEP_GITHUBRA_CONFIGURE_SSH_CERT = 7;
+  INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_ROLE = 8;
 }
 
 // IntegrationEnrollStatusCode defines status code for an integration enroll step.

@@ -71,6 +71,17 @@ func TestDecisionServiceRequiresLocalAdmin(t *testing.T) {
 		}
 	})
 
+	t.Run("EvaluateSSHJoin", func(t *testing.T) {
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				_, err := test.client.EvaluateSSHJoin(ctx, &decisionpb.EvaluateSSHJoinRequest{})
+				assert.ErrorAs(t, err, &test.expectedError, "EvaluateSSHJoin error mismatch")
+			})
+		}
+	})
+
 	t.Run("EvaluateDatabaseAccess", func(t *testing.T) {
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {

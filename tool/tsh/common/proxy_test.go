@@ -377,7 +377,7 @@ func TestWithRsync(t *testing.T) {
 					require.NoError(t, err)
 
 					// generate certificates for our user
-					clusterName, err := asrv.GetClusterName()
+					clusterName, err := asrv.GetClusterName(ctx)
 					if !assert.NoError(t, err) {
 						return
 					}
@@ -1356,17 +1356,6 @@ func TestPrintProxyAWSTemplate(t *testing.T) {
 			},
 		},
 		{
-			name: "endpoint URL mode",
-			inputCLIConf: &CLIConf{
-				Format:             envVarDefaultFormat(),
-				AWSEndpointURLMode: true,
-			},
-			inputAWSApp: fakeAWSAppInfo{},
-			wantSnippets: []string{
-				"AWS endpoint URL at https://127.0.0.1:12345",
-			},
-		},
-		{
 			name: "athena-odbc",
 			inputCLIConf: &CLIConf{
 				Format: awsProxyFormatAthenaODBC,
@@ -1422,12 +1411,12 @@ func TestCheckProxyAWSFormatCompatibility(t *testing.T) {
 			checkError: require.NoError,
 		},
 		{
-			name: "default format is supported in endpoint URL mode",
+			name: "endpoint URL mode is not supported",
 			input: &CLIConf{
 				Format:             envVarDefaultFormat(),
 				AWSEndpointURLMode: true,
 			},
-			checkError: require.NoError,
+			checkError: require.Error,
 		},
 		{
 			name: "athena-odbc is supported in HTTPS_PROXY mode",
@@ -1437,27 +1426,11 @@ func TestCheckProxyAWSFormatCompatibility(t *testing.T) {
 			checkError: require.NoError,
 		},
 		{
-			name: "athena-odbc is not supported in endpoint URL mode",
-			input: &CLIConf{
-				Format:             awsProxyFormatAthenaODBC,
-				AWSEndpointURLMode: true,
-			},
-			checkError: require.Error,
-		},
-		{
 			name: "athena-jdbc is supported in HTTPS_PROXY mode",
 			input: &CLIConf{
 				Format: awsProxyFormatAthenaJDBC,
 			},
 			checkError: require.NoError,
-		},
-		{
-			name: "athena-jdbc is not supported in endpoint URL mode",
-			input: &CLIConf{
-				Format:             awsProxyFormatAthenaJDBC,
-				AWSEndpointURLMode: true,
-			},
-			checkError: require.Error,
 		},
 	}
 

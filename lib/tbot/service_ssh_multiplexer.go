@@ -391,7 +391,8 @@ func (s *SSHMultiplexerService) identityRenewalLoop(
 	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
 	defer unsubscribe()
 	err := runOnInterval(ctx, runOnIntervalConfig{
-		name: "identity-renewal",
+		service: s.String(),
+		name:    "identity-renewal",
 		f: func(ctx context.Context) error {
 			id, err := s.generateIdentity(ctx)
 			if err != nil {

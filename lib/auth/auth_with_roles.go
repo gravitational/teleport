@@ -19,9 +19,9 @@
 package auth
 
 import (
-	"cmp"
 	"context"
 	"fmt"
+	"maps"
 	"net/url"
 	"os"
 	"slices"
@@ -64,7 +64,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -578,53 +577,6 @@ func (a *ServerWithRoles) GetClusterCACert(
 ) (*proto.GetClusterCACertResponse, error) {
 	// Allow all roles to get the CA certs.
 	return a.authServer.GetClusterCACert(ctx)
-}
-
-// Deprecated: This method only exists to service the RegisterUsingToken HTTP
-// RPC, which has been replaced by an RPC on the JoinServiceServer.
-// JoinServiceServer directly invokes auth.Server and performs its own checks
-// on metadata.
-// TODO(strideynet): DELETE IN V18.0.0
-func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
-	isProxy := a.hasBuiltinRole(types.RoleProxy)
-
-	// We do not trust remote addr in the request unless it's coming from the Proxy.
-	if !isProxy || req.RemoteAddr == "" {
-		if err := setRemoteAddrFromContext(ctx, req); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	// Similarly, do not trust bot instance IDs or generation values in the
-	// request unless from a component with the proxy role (e.g. the join
-	// service). They will be derived from the client certificate otherwise.
-	if !isProxy {
-		if req.BotInstanceID != "" {
-			a.authServer.logger.WarnContext(ctx, "Untrusted client attempted to provide a bot instance ID, this will be ignored",
-				"bot_instance_id", req.BotInstanceID,
-			)
-
-			req.BotInstanceID = ""
-		}
-
-		if req.BotGeneration > 0 {
-			a.authServer.logger.WarnContext(ctx, "Untrusted client attempted to provide a bot generation, this will be ignored",
-				"bot_generation", req.BotGeneration,
-			)
-
-			req.BotGeneration = 0
-		}
-	}
-
-	// If the identity has a BotInstanceID or BotGeneration included, copy it
-	// onto the request - but only if one wasn't already passed along via the
-	// proxy.
-	ident := a.context.Identity.GetIdentity()
-	req.BotInstanceID = cmp.Or(req.BotInstanceID, ident.BotInstanceID)
-	req.BotGeneration = cmp.Or(req.BotGeneration, int32(ident.Generation))
-
-	// tokens have authz mechanism  on their own, no need to check
-	return a.authServer.RegisterUsingToken(ctx, req)
 }
 
 // GenerateHostCerts generates new host certificates (signed
@@ -1314,6 +1266,22 @@ func (a *ServerWithRoles) selectActionChecker(resourceKind string) actionChecker
 	return a.actionNamespace
 }
 
+var (
+	// supportedUnifiedResourceKinds is the set of kinds that
+	// may be requested via ListUnifiedResources.
+	supportedUnifiedResourceKinds = map[string]struct{}{
+		types.KindApp:                    {},
+		types.KindDatabase:               {},
+		types.KindGitServer:              {},
+		types.KindKubernetesCluster:      {},
+		types.KindNode:                   {},
+		types.KindSAMLIdPServiceProvider: {},
+		types.KindWindowsDesktop:         {},
+	}
+
+	defaultUnifiedResourceKinds = slices.Collect(maps.Keys(supportedUnifiedResourceKinds))
+)
+
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
 func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
 	filter := services.MatchResourceFilter{
@@ -1330,17 +1298,29 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		filter.PredicateExpression = expression
 	}
 
+	// Validate the requested kinds and precheck that the user has read/list
+	// permissions for all requested resources before doing any listing of
+	// resources to conserve resources.
+	requested := req.Kinds
+	if len(req.Kinds) == 0 {
+		requested = defaultUnifiedResourceKinds
+	}
+
 	resourceAccess := &resourceAccess{
 		// Populate kindAccessMap with any access errors the user has for each possible
 		// resource kind. This allows the access check to occur a single time per resource
 		// kind instead of once per matching resource.
-		kindAccessMap: make(map[string]error, len(services.UnifiedResourceKinds)),
+		kindAccessMap: make(map[string]error, len(requested)),
 		// requestableMap is populated with resources that are being returned but can only
 		// be accessed to the user via an access request
 		requestableMap: make(map[string]struct{}),
 	}
 
-	for _, kind := range services.UnifiedResourceKinds {
+	for _, kind := range requested {
+		if _, ok := supportedUnifiedResourceKinds[kind]; !ok {
+			return nil, trace.BadParameter("Unsupported kind %q requested", kind)
+		}
+
 		actionVerbs := []string{types.VerbList, types.VerbRead}
 		if kind == types.KindNode {
 			// We are checking list only for Nodes to keep backwards compatibility.
@@ -1358,10 +1338,6 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	// Before doing any listing, verify that the user is allowed to list
 	// at least one of the requested kinds. If no access is permitted, then
 	// return an access denied error.
-	requested := req.Kinds
-	if len(req.Kinds) == 0 {
-		requested = services.UnifiedResourceKinds
-	}
 	var rbacErrors int
 	for _, kind := range requested {
 		if err, ok := resourceAccess.kindAccessMap[kind]; ok && err != nil {
@@ -1617,7 +1593,7 @@ func (a *ServerWithRoles) authContextForSearch(ctx context.Context, req *proto.L
 		return &a.context, nil
 	}
 
-	clusterName, err := a.authServer.GetClusterName()
+	clusterName, err := a.authServer.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2294,30 +2270,6 @@ func (a *ServerWithRoles) DeleteProxy(ctx context.Context, name string) error {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteProxy(ctx, name)
-}
-
-// TODO(noah): DELETE IN 18.0.0 - all these methods are now gRPC.
-func (a *ServerWithRoles) UpsertReverseTunnel(ctx context.Context, r types.ReverseTunnel) error {
-	if err := a.action(types.KindReverseTunnel, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.UpsertReverseTunnel(ctx, r)
-}
-
-// TODO(noah): DELETE IN 18.0.0 - all these methods are now gRPC.
-func (a *ServerWithRoles) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
-	if err := a.action(types.KindReverseTunnel, types.VerbList, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.GetReverseTunnels(ctx)
-}
-
-// TODO(noah): DELETE IN 18.0.0 - all these methods are now gRPC.
-func (a *ServerWithRoles) DeleteReverseTunnel(ctx context.Context, domainName string) error {
-	if err := a.action(types.KindReverseTunnel, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteReverseTunnel(ctx, domainName)
 }
 
 func (a *ServerWithRoles) DeleteToken(ctx context.Context, token string) error {
@@ -3329,7 +3281,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 	// add implicit roles to the set and build a checker
 	roleSet := services.NewRoleSet(parsedRoles...)
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4678,36 +4630,14 @@ func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
 	return a.authServer.DeleteRole(ctx, name)
 }
 
-// DeleteClusterName deletes cluster name
-func (a *ServerWithRoles) DeleteClusterName() error {
-	if err := a.action(types.KindClusterName, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteClusterName()
-}
-
 // GetClusterName gets the name of the cluster.
-func (a *ServerWithRoles) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
+// TODO(noah): DELETE IN v19.0.0 - when the apiserver getClusterName method is also
+// deleted.
+func (a *ServerWithRoles) GetClusterName(ctx context.Context) (types.ClusterName, error) {
 	if err := a.action(types.KindClusterName, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetClusterName()
-}
-
-// SetClusterName sets the name of the cluster. SetClusterName can only be called once.
-func (a *ServerWithRoles) SetClusterName(c types.ClusterName) error {
-	if err := a.action(types.KindClusterName, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.SetClusterName(c)
-}
-
-// UpsertClusterName sets the name of the cluster.
-func (a *ServerWithRoles) UpsertClusterName(c types.ClusterName) error {
-	if err := a.action(types.KindClusterName, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.UpsertClusterName(c)
+	return a.authServer.GetClusterName(ctx)
 }
 
 // GetAuthPreference gets cluster auth preference.
@@ -5318,51 +5248,6 @@ func (a *ServerWithRoles) DeleteSemaphore(ctx context.Context, filter types.Sema
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteSemaphore(ctx, filter)
-}
-
-// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
-// signed certificate if successful.
-// DEPRECATED
-// TODO(tigrato): DELETE IN 18.0
-func (a *ServerWithRoles) ProcessKubeCSR(req authclient.KubeCSR) (*authclient.KubeCSRResponse, error) {
-	// limits the requests types to proxies to make it harder to break
-	if !a.hasBuiltinRole(types.RoleProxy) {
-		return nil, trace.AccessDenied("this request can be only executed by a proxy")
-	}
-	clusterName, err := a.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	proxyClusterName := a.context.Identity.GetIdentity().TeleportCluster
-	identityClusterName, err := extractOriginalClusterNameFromCSR(req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if proxyClusterName != "" &&
-		proxyClusterName != clusterName.GetClusterName() &&
-		proxyClusterName != identityClusterName {
-		a.authServer.logger.WarnContext(a.CloseContext(), "KubeCSR request denied because the proxy and identity clusters didn't match",
-			"proxy_cluster_name", proxyClusterName,
-			"identity_cluster_name", identityClusterName,
-		)
-		return nil, trace.AccessDenied("can not sign certs for users via a different cluster proxy")
-	}
-	return a.authServer.ProcessKubeCSR(req)
-}
-
-func extractOriginalClusterNameFromCSR(req authclient.KubeCSR) (string, error) {
-	csr, err := tlsca.ParseCertificateRequestPEM(req.CSR)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	// Extract identity from the CSR. Pass zero time for id.Expiry, it won't be
-	// used here.
-	id, err := tlsca.FromSubject(csr.Subject, time.Time{})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return id.TeleportCluster, nil
 }
 
 // GetDatabaseServers returns all registered database servers.

@@ -155,13 +155,13 @@ describe('KubernetesAccessSection', () => {
     expect(
       reactSelectValueContainer(screen.getByLabelText('Kind'))
     ).toHaveTextContent('Any kind');
-    expect(screen.getByLabelText('Name')).toHaveValue('*');
-    expect(screen.getByLabelText('Namespace')).toHaveValue('*');
+    expect(screen.getByLabelText('Name *')).toHaveValue('*');
+    expect(screen.getByLabelText('Namespace *')).toHaveValue('*');
     await selectEvent.select(screen.getByLabelText('Kind'), 'Job');
-    await user.clear(screen.getByLabelText('Name'));
-    await user.type(screen.getByLabelText('Name'), 'job-name');
-    await user.clear(screen.getByLabelText('Namespace'));
-    await user.type(screen.getByLabelText('Namespace'), 'job-namespace');
+    await user.clear(screen.getByLabelText('Name *'));
+    await user.type(screen.getByLabelText('Name *'), 'job-name');
+    await user.clear(screen.getByLabelText('Namespace *'));
+    await user.type(screen.getByLabelText('Namespace *'), 'job-namespace');
     await selectEvent.select(screen.getByLabelText('Verbs'), [
       'create',
       'delete',
@@ -200,18 +200,18 @@ describe('KubernetesAccessSection', () => {
     const { user, onChange } = setup();
 
     await user.click(screen.getByRole('button', { name: 'Add a Resource' }));
-    await user.clear(screen.getByLabelText('Name'));
-    await user.type(screen.getByLabelText('Name'), 'res1');
+    await user.clear(screen.getByLabelText('Name *'));
+    await user.type(screen.getByLabelText('Name *'), 'res1');
     await user.click(
       screen.getByRole('button', { name: 'Add Another Resource' })
     );
-    await user.clear(screen.getAllByLabelText('Name')[1]);
-    await user.type(screen.getAllByLabelText('Name')[1], 'res2');
+    await user.clear(screen.getAllByLabelText('Name *')[1]);
+    await user.type(screen.getAllByLabelText('Name *')[1], 'res2');
     await user.click(
       screen.getByRole('button', { name: 'Add Another Resource' })
     );
-    await user.clear(screen.getAllByLabelText('Name')[2]);
-    await user.type(screen.getAllByLabelText('Name')[2], 'res3');
+    await user.clear(screen.getAllByLabelText('Name *')[2]);
+    await user.type(screen.getAllByLabelText('Name *')[2], 'res3');
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
         resources: [
@@ -254,8 +254,8 @@ describe('KubernetesAccessSection', () => {
     await user.click(screen.getByRole('button', { name: 'Add a Label' }));
     await user.click(screen.getByRole('button', { name: 'Add a Resource' }));
     await selectEvent.select(screen.getByLabelText('Kind'), 'Service');
-    await user.clear(screen.getByLabelText('Name'));
-    await user.clear(screen.getByLabelText('Namespace'));
+    await user.clear(screen.getByLabelText('Name *'));
+    await user.clear(screen.getByLabelText('Namespace *'));
     await selectEvent.select(screen.getByLabelText('Verbs'), [
       'All verbs',
       'create',
@@ -267,10 +267,10 @@ describe('KubernetesAccessSection', () => {
     expect(
       screen.getByPlaceholderText('label key')
     ).toHaveAccessibleDescription('required');
-    expect(screen.getByLabelText('Name')).toHaveAccessibleDescription(
+    expect(screen.getByLabelText('Name *')).toHaveAccessibleDescription(
       'Resource name is required, use "*" for any resource'
     );
-    expect(screen.getByLabelText('Namespace')).toHaveAccessibleDescription(
+    expect(screen.getByLabelText('Namespace *')).toHaveAccessibleDescription(
       'Namespace is required for resources of this kind'
     );
     expect(
@@ -315,27 +315,28 @@ describe('AppAccessSection', () => {
     await user.click(screen.getByRole('button', { name: 'Add a Label' }));
     await user.type(screen.getByPlaceholderText('label key'), 'env');
     await user.type(screen.getByPlaceholderText('label value'), 'prod');
+
+    // Instead of typing these ungodly long values, we paste them — otherwise,
+    // this test may time out. And that's what our users would typically do,
+    // anyway.
     await user.click(
       within(awsRoleArns()).getByRole('button', { name: 'Add More' })
     );
-    await user.type(
-      awsRoleArnTextBoxes()[1],
-      'arn:aws:iam::123456789012:role/admin'
-    );
+    await user.click(awsRoleArnTextBoxes()[1]);
+    await user.paste('arn:aws:iam::123456789012:role/admin');
     await user.click(
       within(azureIdentities()).getByRole('button', { name: 'Add More' })
     );
-    await user.type(
-      azureIdentityTextBoxes()[1],
+    await user.click(azureIdentityTextBoxes()[1]);
+    await user.paste(
       '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/admin'
     );
     await user.click(
       within(gcpServiceAccounts()).getByRole('button', { name: 'Add More' })
     );
-    await user.type(
-      gcpServiceAccountTextBoxes()[1],
-      'admin@some-project.iam.gserviceaccount.com'
-    );
+    await user.click(gcpServiceAccountTextBoxes()[1]);
+    await user.paste('admin@some-project.iam.gserviceaccount.com');
+
     expect(onChange).toHaveBeenLastCalledWith({
       kind: 'app',
       labels: [{ name: 'env', value: 'prod' }],

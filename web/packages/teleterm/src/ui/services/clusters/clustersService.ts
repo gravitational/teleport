@@ -512,11 +512,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     }
   }
 
-  async getAuthSettings(clusterUri: uri.RootClusterUri) {
-    const { response } = await this.client.getAuthSettings({ clusterUri });
-    return response as types.AuthSettings;
-  }
-
   async createGateway(params: CreateGatewayRequest) {
     const { response: gateway } = await this.client.createGateway(params);
     this.setState(draft => {

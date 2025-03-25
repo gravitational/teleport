@@ -20,6 +20,8 @@ import { current, original } from 'immer';
 import { Dispatch } from 'react';
 import { useImmerReducer } from 'use-immer';
 
+import { Logger } from 'design/logger';
+
 import { Role, RoleVersion } from 'teleport/services/resources';
 
 import {
@@ -38,9 +40,14 @@ import {
 } from './standardmodel';
 import { validateRoleEditorModel } from './validation';
 
+const logger = new Logger('useStandardModel');
+
 /**
  * Creates a standard model state and returns an array composed of the state
- * and an action dispatcher that can be used to change it.
+ * and an action dispatcher that can be used to change it. Since the conversion
+ * is a complex process, we put additional protection against unexpected errors
+ * here: if an error is thrown, the {@link StandardEditorModel.roleModel} and
+ * {@link StandardEditorModel.validationResult} will be set to `undefined`.
  */
 export const useStandardModel = (
   originalRole?: Role
@@ -49,13 +56,25 @@ export const useStandardModel = (
 
 const initializeState = (originalRole?: Role): StandardEditorModel => {
   const role = originalRole ?? newRole();
-  const roleModel = roleToRoleEditorModel(role, role);
+  const roleModel = safelyConvertRoleToEditorModel(role);
   return {
     roleModel,
     originalRole,
     isDirty: !originalRole, // New role is dirty by default.
-    validationResult: validateRoleEditorModel(roleModel, undefined, undefined),
+    validationResult:
+      roleModel && validateRoleEditorModel(roleModel, undefined, undefined),
   };
+};
+
+const safelyConvertRoleToEditorModel = (
+  role: Role
+): RoleEditorModel | undefined => {
+  try {
+    return roleToRoleEditorModel(role, role);
+  } catch (err) {
+    logger.error('Could not convert Role to a standard model', err);
+    return undefined;
+  }
 };
 
 /** A function for dispatching model-changing actions. */
@@ -68,9 +87,9 @@ type StandardModelAction =
   | AddResourceAccessAction
   | SetResourceAccessAction
   | RemoveResourceAccessAction
-  | AddAccessRuleAction
-  | SetAccessRuleAction
-  | RemoveAccessRuleAction
+  | AddAdminRuleAction
+  | SetAdminRuleAction
+  | RemoveAdminRuleAction
   | SetOptionsAction;
 
 /** Sets the entire model. */
@@ -89,9 +108,9 @@ type RemoveResourceAccessAction = {
   type: 'remove-resource-access';
   payload: { kind: ResourceAccessKind };
 };
-type AddAccessRuleAction = { type: 'add-access-rule'; payload?: never };
-type SetAccessRuleAction = { type: 'set-access-rule'; payload: RuleModel };
-type RemoveAccessRuleAction = {
+type AddAdminRuleAction = { type: 'add-access-rule'; payload?: never };
+type SetAdminRuleAction = { type: 'set-access-rule'; payload: RuleModel };
+type RemoveAdminRuleAction = {
   type: 'remove-access-rule';
   payload: { id: string };
 };

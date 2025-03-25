@@ -120,6 +120,7 @@ func TestUserTask(t *testing.T) {
 			err = json.Unmarshal(resp.Bytes(), &listResponse)
 			require.NoError(t, err)
 			require.NotEmpty(t, listResponse.Items)
+			require.NotEmpty(t, listResponse.Items[0].Title)
 			listedTasks = append(listedTasks, listResponse.Items...)
 
 			if listResponse.NextKey == "" {
@@ -141,6 +142,8 @@ func TestUserTask(t *testing.T) {
 		err = json.Unmarshal(resp.Bytes(), &userTaskDetailResp)
 		require.NoError(t, err)
 		require.Equal(t, "OPEN", userTaskDetailResp.State)
+		require.NotEmpty(t, userTaskDetailResp.Description)
+		require.NotEmpty(t, userTaskDetailResp.Title)
 		require.NotEmpty(t, userTaskDetailResp.DiscoverEC2)
 		lastStateChangeT0 := userTaskDetailResp.LastStateChange
 

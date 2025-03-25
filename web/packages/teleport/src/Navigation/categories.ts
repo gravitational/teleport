@@ -18,9 +18,10 @@
 
 export enum NavigationCategory {
   Resources = 'Resources',
-  Access = 'Access',
-  Identity = 'Identity',
-  Policy = 'Policy',
+  ZeroTrustAccess = 'Zero Trust Access',
+  MachineWorkloadId = 'Machine & Workload ID',
+  IdentityGovernance = 'Identity Governance',
+  IdentitySecurity = 'Identity Security',
   Audit = 'Audit',
   AddNew = 'Add New',
 }
@@ -43,9 +44,10 @@ export enum CustomNavigationSubcategory {
 export type SidenavCategory = NavigationCategory | CustomNavigationCategory;
 
 export const NAVIGATION_CATEGORIES = [
-  NavigationCategory.Access,
-  NavigationCategory.Identity,
-  NavigationCategory.Policy,
+  NavigationCategory.ZeroTrustAccess,
+  NavigationCategory.MachineWorkloadId,
+  NavigationCategory.IdentityGovernance,
+  NavigationCategory.IdentitySecurity,
   NavigationCategory.Audit,
   NavigationCategory.AddNew,
 ];

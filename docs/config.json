@@ -1,127 +1,4 @@
 {
-  "navigation": [
-    {
-      "icon": "home",
-      "title": "Get Started",
-      "entries": [
-        {
-          "title": "Introduction to Teleport",
-          "slug": "/"
-        },
-        {
-           "title": "Get Started",
-           "slug": "/get-started/"
-        },
-        {
-          "title": "Core Concepts",
-          "slug": "/core-concepts/"
-        },
-        {
-          "title": "Installation",
-          "slug": "/installation/"
-        },
-        {
-          "title": "Upgrading",
-          "slug": "/upgrading/upgrading/",
-          "entries": [
-            {
-              "title": "Compatibility Overview",
-              "slug": "/upgrading/overview/"
-            },
-            {
-              "title": "Set up Automatic Agent Updates",
-              "slug": "/upgrading/automatic-agent-updates/"
-            },
-            {
-              "title": "Upgrading Reference",
-              "slug": "/upgrading/upgrading-reference/"
-	        },
-            {
-              "title": "Client Tool Automatic Updates",
-              "slug": "/upgrading/client-tools-autoupdate/"
-            }
-          ]
-        },
-        {
-          "title": "FAQ",
-          "slug": "/faq/"
-        },
-        {
-          "title": "Usage Reporting and Billing",
-          "slug": "/usage-billing/",
-          "forScopes": ["cloud", "enterprise"]
-        },
-        {
-          "title": "Upcoming Releases",
-          "slug": "/upcoming-releases/"
-        },
-	{
-	  "title": "Cloud IP Addresses",
-	  "slug": "/ips/"
-	},
-        {
-          "title": "Changelog",
-          "slug": "/changelog/"
-        }
-      ]
-    },
-    {
-    	"icon": "wrench",
-    	"title": "Admin Guides",
-    	"entries": [],
-    	"generateFrom": "admin-guides"
-    },
-    {
-      "icon": "connect",
-      "title": "User Guides",
-      "entries": [
-        {
-          "title": "Introduction",
-          "slug": "/connect-your-client/introduction/"
-        },
-        {
-          "title": "Using tsh",
-          "slug": "/connect-your-client/tsh/"
-        },
-        {
-          "title": "Using the Web UI",
-          "slug": "/connect-your-client/web-ui/"
-        },
-        {
-          "title": "Using Teleport Connect",
-          "slug": "/connect-your-client/teleport-connect/"
-        },
-        {
-          "title": "Using VNet",
-          "slug": "/connect-your-client/vnet/"
-        },
-        {
-          "title": "Using PuTTY and WinSCP",
-          "slug": "/connect-your-client/putty-winscp/"
-        },
-        {
-          "title": "Database GUI Clients",
-          "slug": "/connect-your-client/gui-clients/"
-        },
-        {
-          "title": "Notifications",
-          "slug": "/connect-your-client/notifications/"
-        }
-      ]
-    },
-    {
-      "title": "Enroll Resources",
-      "icon": "layers",
-      "generateFrom": "enroll-resources",
-      "entries": []
-    },
-    {
-      "icon": "book",
-      "title": "References",
-      "entries": [],
-      "generateFrom": "reference"
-    }
-  ],
   "variables": {
     "clusterDefaults": {
       "clusterName": "teleport.example.com",
@@ -140,7 +17,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "17.2.3",
+      "version": "17.3.3",
       "major_version": "17",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -221,6 +98,11 @@
     {
       "source": "/admin-guides/access-controls/guides/moderated-sessions/",
       "destination": "/admin-guides/access-controls/guides/joining-sessions/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/guides/aws-iam-identity-center/",
+      "destination": "/admin-guides/management/guides/aws-iam-identity-center/guide/",
       "permanent": true
     },
     {
@@ -377,6 +259,21 @@
     {
       "source": "/access-controls/access-request-plugins/",
       "destination": "/admin-guides/access-controls/access-request-plugins/",
+      "permanent": true
+    },
+    {
+      "source": "/upgrading/automatic-agent-updates/",
+      "destination": "/upgrading/agent-managed-updates-v1/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/compliance-frameworks/fedramp/",
+      "destination": "/admin-guides/access-controls/compliance-frameworks/fedramp/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/introduction/",
+      "destination": "/enroll-resources/server-access/",
       "permanent": true
     }
   ]

@@ -10,5 +10,8 @@ resource "teleport_access_monitoring_rule" "test" {
       name       = "slack"
       recipients = ["your-slack-channel"]
     }
+    automatic_approval = {
+      name = "teleport"
+    }
   }
 }

@@ -108,7 +108,9 @@ const meta: Meta<StoryProps> = {
 export default meta;
 
 export function VnetSliderStep(props: StoryProps) {
-  const appContext = new MockAppContext();
+  const appContext = new MockAppContext({
+    platform: props.vnetDiag ? 'darwin' : 'win32',
+  });
 
   if (props.isWorkspacePresent) {
     appContext.addRootCluster(makeRootCluster());
@@ -122,10 +124,6 @@ export function VnetSliderStep(props: StoryProps) {
     appContext.workspacesService.setState(draft => {
       draft.isInitialized = true;
     });
-  }
-
-  if (props.vnetDiag) {
-    appContext.configService.set('unstable.vnetDiag', true);
   }
 
   const pendingPromise = usePromiseRejectedOnUnmount();

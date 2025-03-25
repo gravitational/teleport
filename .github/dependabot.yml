@@ -28,10 +28,9 @@ updates:
           - "minor"
           - "patch"
     reviewers:
-      - codingllama
       - rosstimothy
       - zmb3
-      - hugoshaka
+      - hugoShaka
     labels:
       - "dependencies"
       - "go"
@@ -50,10 +49,9 @@ updates:
           - "minor"
           - "patch"
     reviewers:
-      - codingllama
       - rosstimothy
       - zmb3
-      - hugoshaka
+      - hugoShaka
     labels:
       - "dependencies"
       - "go"
@@ -75,7 +73,6 @@ updates:
           - "minor"
           - "patch"
     reviewers:
-      - codingllama
       - rosstimothy
       - tcsc
       - zmb3
@@ -97,7 +94,6 @@ updates:
           - "minor"
           - "patch"
     reviewers:
-      - codingllama
       - rosstimothy
       - zmb3
     labels:
@@ -121,7 +117,6 @@ updates:
           - "minor"
           - "patch"
     reviewers:
-      - codingllama
       - fheinecke
       - rosstimothy
       - zmb3
@@ -148,9 +143,8 @@ updates:
           - "minor"
           - "patch"
     reviewers:
-      - codingllama
       - rosstimothy
-      - hugoshaka
+      - hugoShaka
       - tigrato
       - marcoandredinis
     labels:
@@ -171,9 +165,8 @@ updates:
           - "minor"
           - "patch"
     reviewers:
-      - codingllama
       - rosstimothy
-      - hugoshaka
+      - hugoShaka
       - tigrato
       - marcoandredinis
     labels:
@@ -195,7 +188,6 @@ updates:
           - "minor"
           - "patch"
     reviewers:
-      - codingllama
       - rosstimothy
       - zmb3
     labels:
@@ -216,7 +208,6 @@ updates:
           - "minor"
           - "patch"
     reviewers:
-      - codingllama
       - rosstimothy
       - zmb3
     labels:

@@ -1212,7 +1212,7 @@ var _ executor[types.ProvisionToken, tokenGetter] = provisionTokenExecutor{}
 type clusterNameExecutor struct{}
 
 func (clusterNameExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.ClusterName, error) {
-	name, err := cache.ClusterConfig.GetClusterName()
+	name, err := cache.ClusterConfig.GetClusterName(ctx)
 	return []types.ClusterName{name}, trace.Wrap(err)
 }
 
@@ -1238,7 +1238,7 @@ func (clusterNameExecutor) getReader(cache *Cache, cacheOK bool) clusterNameGett
 }
 
 type clusterNameGetter interface {
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
 var _ executor[types.ClusterName, clusterNameGetter] = clusterNameExecutor{}
@@ -3479,7 +3479,7 @@ func (accessMonitoringRulesExecutor) getReader(cache *Cache, cacheOK bool) acces
 type accessMonitoringRuleGetter interface {
 	GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrulesv1.AccessMonitoringRule, error)
 	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
-	ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, nextToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
+	ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
 }
 
 type accessGraphSettingsExecutor struct{}
