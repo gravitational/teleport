@@ -61,9 +61,6 @@ func TestGenerateCredentials(t *testing.T) {
 		require.NoError(t, client.Close())
 	})
 
-	ldapConfig := LDAPConfig{
-		Domain: domain,
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -89,7 +86,6 @@ func TestGenerateCredentials(t *testing.T) {
 				TTL:                CertTTL,
 				ClusterName:        clusterName,
 				ActiveDirectorySID: test.activeDirectorySID,
-				LDAPConfig:         ldapConfig,
 				AuthClient:         client,
 			})
 			require.NoError(t, err)
@@ -172,10 +168,7 @@ func TestCRLDN(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			cfg := LDAPConfig{
-				Domain: "test.goteleport.com",
-			}
-			require.Equal(t, test.crlDN, crlDN(test.clusterName, cfg, test.caType))
+			require.Equal(t, test.crlDN, crlDN(test.clusterName, "test.goteleport.com", test.caType))
 		})
 	}
 }
