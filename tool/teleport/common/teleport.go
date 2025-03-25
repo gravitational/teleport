@@ -48,6 +48,7 @@ import (
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/openssh"
+	"github.com/gravitational/teleport/lib/selinux"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv"
@@ -55,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/versioncontrol"
 )
 
 // Options combines init/start teleport options
@@ -582,6 +584,12 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	collectProfilesCmd.Arg("PROFILES", fmt.Sprintf("Comma-separated profile names to be exported. Supported profiles: %s. Default: %s", strings.Join(slices.Collect(maps.Keys(debugclient.SupportedProfiles)), ","), strings.Join(defaultCollectProfiles, ","))).StringVar(&ccf.Profiles)
 	collectProfilesCmd.Flag("seconds", "For CPU and trace profiles, profile for the given duration (if set to 0, it returns a profile snapshot). For other profiles, return a delta profile. Default: 0").Short('s').Default("0").IntVar(&ccf.ProfileSeconds)
 
+	selinuxCmd := app.Command("selinux", "Commands related to SSH SELinux module.")
+	selinuxCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').ExistingFileVar(&ccf.ConfigFile)
+	moduleSourceCmd := selinuxCmd.Command("module-source", "Export SSH SELinux module source to stdout.")
+	fileContextsCmd := selinuxCmd.Command("file-contexts", "Export SSH SELinux file contexts to stdout.")
+	selinuxDirsCmd := selinuxCmd.Command("dirs", "Export directories that may need to be labeled for SSH SELinux module to work correctly.").Hidden()
+
 	backendCmd := app.Command("backend", "Commands for managing backend data.")
 	backendCmd.Hidden()
 	backendCloneCmd := backendCmd.Command("clone", "Clones data from a source to a destination backend.")
@@ -747,6 +755,13 @@ Examples:
 		err = onGetLogLevel(ccf.ConfigFile)
 	case collectProfilesCmd.FullCommand():
 		err = onCollectProfiles(ccf.ConfigFile, ccf.Profiles, ccf.ProfileSeconds)
+	case moduleSourceCmd.FullCommand():
+		moduleSrc := selinux.ModuleSource()
+		fmt.Printf("%s", moduleSrc)
+	case fileContextsCmd.FullCommand():
+		err = onSELinuxFileContexts(ccf.ConfigFile)
+	case selinuxDirsCmd.FullCommand():
+		err = onSELinuxDirs(ccf.ConfigFile)
 	case backendCloneCmd.FullCommand():
 		err = onClone(context.Background(), ccf.ConfigFile)
 	}
@@ -1094,5 +1109,41 @@ func onJoinOpenSSH(clf config.CommandLineFlags, conf *servicecfg.Config) error {
 	if err := OnStart(clf, conf); err != nil {
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+func onSELinuxFileContexts(configPath string) error {
+	// Explicitly set the default config path so ReadConfigFile won't
+	// return (nil, nil) if configPath is unset and the default config
+	// path doesn't have a file
+	if configPath == "" {
+		configPath = defaults.ConfigFilePath
+	}
+	cfg, err := config.ReadConfigFile(configPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fileContexts, err := selinux.FileContexts("/opt/teleport/default", cfg.DataDir, configPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("%s", fileContexts)
+	return nil
+}
+
+func onSELinuxDirs(configPath string) error {
+	// Explicitly set the default config path so ReadConfigFile won't
+	// return (nil, nil) if configPath is unset and the default config
+	// path doesn't have a file
+	if configPath == "" {
+		configPath = defaults.ConfigFilePath
+	}
+	cfg, err := config.ReadConfigFile(configPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("%s\n%s\n%s\n%s\n", "/opt/teleport/default", cfg.DataDir, filepath.Dir(configPath), versioncontrol.UnitConfigDir)
 	return nil
 }
