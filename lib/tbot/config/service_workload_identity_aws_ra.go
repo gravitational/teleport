@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
+	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 )
 
@@ -112,6 +113,11 @@ func (o *WorkloadIdentityAWSRAService) CheckAndSetDefaults() error {
 	}
 	if _, err := arn.Parse(o.TrustAnchorARN); err != nil {
 		return trace.Wrap(err, "parsing trust_anchor_arn")
+	}
+	if o.Region != "" {
+		if err := aws.IsValidRegion(o.Region); err != nil {
+			return trace.Wrap(err, "validating region")
+		}
 	}
 
 	if o.SessionDuration == 0 {

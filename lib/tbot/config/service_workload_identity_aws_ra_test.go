@@ -283,6 +283,26 @@ func TestWorkloadIdentityAWSRAService_CheckAndSetDefaults(t *testing.T) {
 			},
 			wantErr: "arn: invalid prefix",
 		},
+		{
+			name: "invalid region",
+			in: func() *WorkloadIdentityAWSRAService {
+				return &WorkloadIdentityAWSRAService{
+					Selector: WorkloadIdentitySelector{
+						Name: "my-workload-identity",
+					},
+					Destination: &DestinationDirectory{
+						Path:     "/opt/machine-id",
+						ACLs:     botfs.ACLOff,
+						Symlinks: botfs.SymlinksInsecure,
+					},
+					RoleARN:        "arn:aws:iam::123456789012:role/example-role",
+					TrustAnchorARN: "arn:aws:rolesanywhere:us-east-1:123456789012:trust-anchor/0000000-0000-0000-0000-000000000000",
+					ProfileARN:     "arn:aws:rolesanywhere:us-east-1:123456789012:profile/0000000-0000-0000-0000-00000000000",
+					Region:         "us-east-1!!!!",
+				}
+			},
+			wantErr: "validating region",
+		},
 	}
 	testCheckAndSetDefaults(t, tests)
 }
