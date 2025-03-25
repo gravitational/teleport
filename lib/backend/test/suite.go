@@ -442,7 +442,7 @@ func testItems(t *testing.T, newBackend Constructor) {
 		for _, test := range cases {
 			t.Run(test.name, func(t *testing.T) {
 				i := 0
-				for item, err := range it.Items(ctx, backend.IterateParams{StartKey: test.startKey, EndKey: test.endKey}) {
+				for item, err := range it.Items(ctx, backend.ItemsParams{StartKey: test.startKey, EndKey: test.endKey}) {
 					require.NoError(t, err)
 
 					if len(test.expected) == 0 {
@@ -516,7 +516,7 @@ func testItems(t *testing.T, newBackend Constructor) {
 		for _, test := range cases {
 			t.Run(test.name, func(t *testing.T) {
 				i := 0
-				for item, err := range it.Items(ctx, backend.IterateParams{StartKey: test.startKey, EndKey: test.endKey, Descending: true}) {
+				for item, err := range it.Items(ctx, backend.ItemsParams{StartKey: test.startKey, EndKey: test.endKey, Descending: true}) {
 					require.NoError(t, err)
 
 					if len(test.expected) == 0 {
@@ -557,7 +557,7 @@ func testItems(t *testing.T, newBackend Constructor) {
 
 		t.Run("ascending", func(t *testing.T) {
 			i := 0
-			for item := range it.Items(ctx, backend.IterateParams{StartKey: prefix("page"), EndKey: backend.RangeEnd(prefix("page"))}) {
+			for item := range it.Items(ctx, backend.ItemsParams{StartKey: prefix("page"), EndKey: backend.RangeEnd(prefix("page"))}) {
 				require.Equal(t, expected[i], string(item.Value))
 				i++
 			}
@@ -566,7 +566,7 @@ func testItems(t *testing.T, newBackend Constructor) {
 
 		t.Run("descending", func(t *testing.T) {
 			i := count - 1
-			for item := range it.Items(ctx, backend.IterateParams{StartKey: prefix("page"), EndKey: backend.RangeEnd(prefix("page")), Descending: true}) {
+			for item := range it.Items(ctx, backend.ItemsParams{StartKey: prefix("page"), EndKey: backend.RangeEnd(prefix("page")), Descending: true}) {
 				assert.Equal(t, expected[i], string(item.Value))
 				i--
 			}
