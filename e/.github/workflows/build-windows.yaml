@@ -287,6 +287,7 @@ jobs:
         run: |
           $ProgressPreference = 'SilentlyContinue'
           $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
           . "build.assets/windows/build.ps1"
           Install-BuildRequirements -InstallDirectory "C:\toolchains" -TeleportSourceDirectory "$(Get-Location)"
           Write-Version-Objects -TeleportSourceDirectory "$(Get-Location)" -TeleportVersion "$env:ARTIFACT_TAG"
@@ -296,6 +297,7 @@ jobs:
           RELCLI_URL: 'https://cdn.teleport.dev/relcli-${{ env.RELCLI_VERSION }}-windows.exe'
         run: |
           $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
           $ProgressPreference = 'SilentlyContinue'
           . "build.assets/windows/build.ps1"
           Get-Relcli -Url "$env:RELCLI_URL" -Workspace "$env:RELCLI_DIR"
@@ -305,6 +307,7 @@ jobs:
           ARTIFACT_VERSION: ${{ inputs.artifact-version }}
         run: |
           $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
           $ProgressPreference = 'SilentlyContinue'
           . "build.assets/windows/build.ps1"
           Generate-Artifacts -Workspace "$env:RELCLI_DIR" -ArtifactDirectory "$env:ARTIFACT_DIRECTORY"
