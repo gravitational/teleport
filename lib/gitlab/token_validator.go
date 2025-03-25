@@ -145,7 +145,7 @@ func (id *IDTokenValidator) ValidateTokenWithJWKS(
 		return nil, trace.Wrap(err, "validating jwt signature")
 	}
 
-	clusterNameResource, err := id.ClusterNameGetter.GetClusterName(ctx)
+	clusterNameResource, err := id.ClusterNameGetter.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err, "getting cluster name")
 	}
