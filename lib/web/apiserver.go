@@ -3752,6 +3752,10 @@ func (h *Handler) setDefaultConnectorHandle(w http.ResponseWriter, r *http.Reque
 type podConnectParams struct {
 	// Term is the initial PTY size.
 	Term session.TerminalParams `json:"term"`
+	// SessionID is a Teleport session ID to join as.
+	SessionID session.ID `json:"sid"`
+	// ParticipantMode is the mode that determines what you can do when you join an active session.
+	ParticipantMode types.SessionParticipantMode `json:"mode"`
 }
 
 func (h *Handler) podConnect(
@@ -3771,6 +3775,20 @@ func (h *Handler) podConnect(
 		return nil, trace.Wrap(err)
 	}
 
+	// If a session is provided, then join an existing session
+	// instead of creating a new one.
+	if !params.SessionID.IsZero() {
+		return nil, trace.Wrap(h.joinKubernetesSession(
+			r.Context(),
+			params.SessionID.String(),
+			params.ParticipantMode,
+			sctx,
+			site,
+			ws,
+		))
+	}
+
+	// Wait for the user to supply the pod information.
 	execReq, err := readPodExecRequestFromWS(ws)
 	if err != nil {
 		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || terminal.IsOKWebsocketCloseError(trace.Unwrap(err)) {
@@ -3789,26 +3807,11 @@ func (h *Handler) podConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	clusterName := site.GetName()
-
-	accessChecker, err := sctx.GetUserAccessChecker()
-	if err != nil {
-		return session.Session{}, trace.Wrap(err)
-	}
-	policySets := accessChecker.SessionPolicySets()
-	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, sctx.GetUser())
-
 	sess := session.Session{
 		Kind:                  types.KubernetesSessionKind,
 		Login:                 "root",
-		ClusterName:           clusterName,
+		ClusterName:           site.GetName(),
 		KubernetesClusterName: execReq.KubeCluster,
-		Moderated:             accessEvaluator.IsModerated(),
 		ID:                    session.NewID(),
 		Created:               h.clock.Now().UTC(),
 		LastActive:            h.clock.Now().UTC(),
@@ -3830,8 +3833,6 @@ func (h *Handler) podConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	keepAliveInterval := netConfig.GetKeepAliveInterval()
-
 	serverAddr, tlsServerName, err := h.getKubeExecClusterData(netConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3845,13 +3846,18 @@ func (h *Handler) podConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	ph := podHandler{
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ph := podExecHandler{
 		req:                 execReq,
 		sess:                sess,
 		sctx:                sctx,
 		teleportCluster:     site.GetName(),
 		ws:                  ws,
-		keepAliveInterval:   keepAliveInterval,
+		keepAliveInterval:   netConfig.GetKeepAliveInterval(),
 		log:                 h.log.WithField(teleport.ComponentKey, "pod"),
 		logger:              h.logger.With(teleport.ComponentKey, "pod"),
 		userClient:          clt,
