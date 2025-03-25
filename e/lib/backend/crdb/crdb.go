@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"iter"
 	"log/slog"
 	"sync"
 	"time"
@@ -37,9 +38,6 @@ const (
 	// Name is the name of the backend used for configuration.
 	Name      = "cockroachdb"
 	component = "crdb"
-)
-
-var (
 
 	// defaultPageSize is the page size used for GetRange queries by default.
 	// This was chosen based on load testing at 150k ssh nodes. At scale range queries
@@ -47,7 +45,9 @@ var (
 	defaultPageSize = 1000
 	// defaultQueryTimeout is the context timeout set for all queries by default.
 	defaultQueryTimeout = time.Second * 30
+)
 
+var (
 	metricCertExpiry = prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: teleport.MetricNamespace,
 		Name:      "crdb_backend_certificate_expiry",
@@ -475,19 +475,42 @@ func (b *Backend) Get(ctx context.Context, key backend.Key) (*backend.Item, erro
 	return item, nil
 }
 
-// GetRange implements [backend.Backend].
-func (b *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
+func (b *Backend) Items(ctx context.Context, params backend.ItemsParams) iter.Seq2[backend.Item, error] {
+	if params.StartKey.IsZero() {
+		err := trace.BadParameter("missing parameter startKey")
+		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
+	}
+	if params.EndKey.IsZero() {
+		err := trace.BadParameter("missing parameter endKey")
+		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
+	}
+
+	limit := params.Limit
 	if limit <= 0 {
 		limit = backend.DefaultRangeLimit
 	}
-	var exclusiveStartKey []byte
-	results := &backend.GetResult{}
 
-	for {
-		pageLimit := min(limit-len(results.Items), defaultPageSize)
-		items, err := pgcommon.RetryIdempotent(ctx, b.log, func() ([]backend.Item, error) {
-			var items []backend.Item
-			err := b.pool.AcquireFunc(ctx, func(c *pgxpool.Conn) error {
+	const (
+		queryAsc = "SELECT kv.key, kv.value, kv.expires, kv.revision FROM kv" +
+			" WHERE kv.key BETWEEN $1 AND $2 AND ($3::bytea is NULL or kv.key > $3) AND (kv.expires IS NULL OR kv.expires > now())" +
+			" ORDER BY kv.key ASC LIMIT $4"
+		queryDesc = "SELECT kv.key, kv.value, kv.expires, kv.revision FROM kv" +
+			" WHERE kv.key BETWEEN $1 AND $2 AND ($3::bytea is NULL or kv.key < $3) AND (kv.expires IS NULL OR kv.expires > now())" +
+			" ORDER BY kv.key DESC LIMIT $4"
+	)
+
+	return func(yield func(backend.Item, error) bool) {
+		var exclusiveStartKey []byte
+		query := queryAsc
+		if params.Descending {
+			query = queryDesc
+		}
+
+		var totalCount int
+		for {
+			pageLimit := min(limit-totalCount, defaultPageSize)
+
+			items, err := pgcommon.RetryIdempotent(ctx, b.log, func() ([]backend.Item, error) {
 				// Timers can be expensive at scale. To mitigate this allocate the
 				// timeout context after a connection has been acquired. This limits
 				// the number of timers to at most the size of the connection pool.
@@ -500,52 +523,74 @@ func (b *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, li
 				// TODO(espadolini): figure out if we want transaction_deferred enabled
 				// for GetRange
 
-				batch.Queue(
-					"SELECT kv.key, kv.value, kv.expires, kv.revision FROM kv"+
-						" WHERE kv.key BETWEEN $1 AND $2 AND ($3::bytea is NULL or kv.key > $3) AND (kv.expires IS NULL OR kv.expires > now())"+
-						" ORDER BY kv.key LIMIT $4",
-					nonNilKey(startKey), nonNilKey(endKey), exclusiveStartKey, pageLimit,
-				).Query(func(rows pgx.Rows) error {
-					var err error
-					items, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (backend.Item, error) {
-						var key backend.Key
-						var value []byte
-						var expires time.Time
-						var revision revision
-						if err := row.Scan(&key, &value, (*zeronull.Timestamptz)(&expires), &revision); err != nil {
-							return backend.Item{}, err
-						}
-						return backend.Item{
-							Key:      key,
-							Value:    value,
-							Expires:  expires.UTC(),
-							Revision: revisionToString(revision),
-						}, nil
+				var items []backend.Item
+				batch.Queue(query, nonNilKey(params.StartKey), nonNilKey(params.EndKey), exclusiveStartKey, pageLimit).
+					Query(func(rows pgx.Rows) error {
+						var err error
+						items, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (backend.Item, error) {
+							var key backend.Key
+							var value []byte
+							var expires time.Time
+							var revision revision
+							if err := row.Scan(&key, &value, (*zeronull.Timestamptz)(&expires), &revision); err != nil {
+								return backend.Item{}, err
+							}
+							return backend.Item{
+								Key:      key,
+								Value:    value,
+								Expires:  expires.UTC(),
+								Revision: revisionToString(revision),
+							}, nil
+						})
+						return trace.Wrap(err)
 					})
-					return trace.Wrap(err)
-				})
 
-				if err := c.SendBatch(ctx, batch).Close(); err != nil {
-					return trace.Wrap(err)
+				if err := b.pool.SendBatch(ctx, batch).Close(); err != nil {
+					return nil, trace.Wrap(err)
 				}
-				return nil
+
+				return items, nil
+
 			})
 			if err != nil {
-				return nil, trace.Wrap(err)
+				yield(backend.Item{}, trace.Wrap(err))
+				return
 			}
-			return items, nil
-		})
+
+			if len(items) >= pageLimit {
+				exclusiveStartKey = []byte(items[len(items)-1].Key.String())
+			}
+
+			for _, item := range items {
+				if !yield(item, nil) {
+					return
+				}
+
+				totalCount++
+				if limit != backend.NoLimit && totalCount >= limit {
+					return
+				}
+			}
+
+			if len(items) < pageLimit {
+				return
+			}
+		}
+	}
+}
+
+// GetRange implements [backend.Backend].
+func (b *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
+	var result backend.GetResult
+	for item, err := range b.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey, Limit: limit}) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		results.Items = append(results.Items, items...)
-		if len(items) < pageLimit || len(results.Items) >= limit {
-			break
-		}
-		exclusiveStartKey = nonNilKey(items[len(items)-1].Key)
+
+		result.Items = append(result.Items, item)
 	}
 
-	return results, nil
+	return &result, nil
 }
 
 // Delete implements [backend.Backend].
