@@ -59,6 +59,10 @@ message WorkloadAttrsUnix {
   uint32 gid = 3;
   // The primary group ID of the workload process.
   uint32 uid = 4;
+  // The path to the workload process binary.
+  optional string binary_path = 5;
+  // The hex-encoded SHA256 hash of the workload process binary.
+  optional string binary_hash = 6;
 }
 
 // Attributes sourced from the Podman workload attestor.
