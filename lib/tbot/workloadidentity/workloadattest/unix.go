@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"io"
 	"log/slog"
 
@@ -176,7 +177,7 @@ func copyAtMost(dst io.Writer, src io.Reader, n int64) (int64, error) {
 
 	copied, err := io.CopyN(dst, src, n)
 	switch {
-	case err == io.EOF:
+	case errors.Is(err, io.EOF):
 		return copied, nil
 	case err != nil:
 		return 0, err
@@ -185,7 +186,7 @@ func copyAtMost(dst io.Writer, src io.Reader, n int64) (int64, error) {
 	// Try to read one more byte to see if we reached the end of src.
 	_, err = src.Read([]byte{0})
 	switch {
-	case err == io.EOF:
+	case errors.Is(err, io.EOF):
 		return copied, nil
 	case err != nil:
 		return 0, err
