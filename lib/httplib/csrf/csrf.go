@@ -40,10 +40,6 @@ const (
 
 	// TODO(kimlisa): DELETE IN v19.0 (csrf)
 	// Deprecated: do not use (only here to support backwards compat for old plugin endpoints)
-	// HeaderName is the default HTTP request header to inspect.
-	HeaderName = "X-CSRF-Token"
-	// TODO(kimlisa): DELETE IN v19.0 (csrf)
-	// Deprecated: do not use (only here to support backwards compat for old plugin endpoints)
 	// FormFieldName is the default form field to inspect.
 	FormFieldName = "csrf_token"
 )
@@ -131,23 +127,6 @@ func save(encodedToken string, w http.ResponseWriter) string {
 	http.SetCookie(w, cookie)
 	w.Header().Add("Vary", "Cookie")
 	return encodedToken
-}
-
-// TODO(kimlisa): DELETE IN v19.0 (csrf)
-// Deprecated: do not use (only here to support backwards compat for old plugin endpoints)
-// VerifyHTTPHeader checks if HTTP header value matches the cookie.
-func VerifyHTTPHeader(r *http.Request) error {
-	token := r.Header.Get(HeaderName)
-	if len(token) == 0 {
-		return trace.BadParameter("cannot retrieve CSRF token from HTTP header %q", HeaderName)
-	}
-
-	err := VerifyToken(token, r)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
 }
 
 // TODO(kimlisa): DELETE IN v19.0 (csrf)

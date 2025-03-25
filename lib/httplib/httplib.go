@@ -380,10 +380,9 @@ func WithCSRFProtection(fn HandlerFunc) httprouter.Handle {
 	handlerFn := MakeHandler(fn)
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
-			errHeader := csrf.VerifyHTTPHeader(r)
 			errForm := csrf.VerifyFormField(r)
-			if errForm != nil && errHeader != nil {
-				slog.WarnContext(r.Context(), "unable to validate CSRF token", "header_error", errHeader, "form_error", errForm)
+			if errForm != nil {
+				slog.WarnContext(r.Context(), "unable to validate CSRF token", "form_error", errForm)
 				trace.WriteError(w, trace.AccessDenied("access denied"))
 				return
 			}
