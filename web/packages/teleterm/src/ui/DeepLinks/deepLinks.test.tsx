@@ -27,17 +27,12 @@ import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { App } from 'teleterm/ui/App';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 
-import { launchDeepLink } from './launchDeepLink';
-
-jest.mock<typeof import('./launchDeepLink')>('./launchDeepLink', () => ({
-  launchDeepLink: jest.fn().mockResolvedValue(undefined),
-}));
-
 beforeAll(() => {
   Logger.init(new NullService());
 });
 
 test('queuing up a deep link launch before the app is rendered', async () => {
+  const launchDeepLink = jest.fn().mockResolvedValue(undefined);
   const ctx = new MockAppContext();
   ctx.configService.set('usageReporting.enabled', false);
   const rootCluster = makeRootCluster();
@@ -58,7 +53,7 @@ test('queuing up a deep link launch before the app is rendered', async () => {
       ctx.mockMainProcessClient.launchDeepLink(deepLinkParseResult);
     });
 
-  render(<App ctx={ctx} />);
+  render(<App ctx={ctx} launchDeepLink={launchDeepLink} />);
 
   expect(await screen.findByText('Connect a Cluster')).toBeInTheDocument();
 

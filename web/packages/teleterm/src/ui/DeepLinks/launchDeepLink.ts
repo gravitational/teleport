@@ -39,9 +39,6 @@ export type AuxContext = {
 
 /**
  * Performs the business logic associated with the given deep link.
- *
- * It's defined in a separate file from useDeepLinks on purpose so that in tests we can completely
- * mock out launchDeepLink.
  */
 export async function launchDeepLink(
   appCtx: IAppContext,

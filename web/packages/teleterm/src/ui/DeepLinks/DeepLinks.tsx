@@ -23,9 +23,20 @@ import { useLogger } from 'teleterm/ui/hooks/useLogger';
 import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 import { useVnetContext } from 'teleterm/ui/Vnet';
 
-import { launchDeepLink } from './launchDeepLink';
+import * as launchDeepLinkModule from './launchDeepLink';
 
-export const DeepLinks = () => {
+/**
+ * DeepLinks subscribes to deep link launch events coming from the main process and fires relevant
+ * business logic handlers.
+ *
+ * It's defined as a separate component in the tree so that updates to contexts used by DeepLinks
+ * don't cause re-renders of the whole app.
+ */
+export const DeepLinks = ({
+  launchDeepLink = launchDeepLinkModule.launchDeepLink,
+}: {
+  launchDeepLink?: typeof launchDeepLinkModule.launchDeepLink;
+}) => {
   const appCtx = useAppContext();
   const logger = useLogger('DeepLinks');
   const connections = useConnectionsContext();
@@ -57,7 +68,7 @@ export const DeepLinks = () => {
     }
 
     return cleanup;
-  }, [appCtx, auxCtx, logger]);
+  }, [appCtx, auxCtx, logger, launchDeepLink]);
 
   return null;
 };
