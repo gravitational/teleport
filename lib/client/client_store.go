@@ -128,6 +128,8 @@ func NewHardwareKeyService(ctx context.Context, prompt hardwarekey.Prompt) hardw
 	agentService, err := hardwarekeyagent.NewClient(ctx, pivService)
 	if err == nil {
 		return agentService
+	} else {
+		slog.ErrorContext(ctx, "failed to connect to the hardware key agent", "err", err)
 	}
 
 	return pivService
