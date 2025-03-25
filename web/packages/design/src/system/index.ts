@@ -89,6 +89,26 @@ export interface GapProps<TLength = TLengthStyledSystem> {
   gap?: ResponsiveValue<Property.Gap<TLength>>;
 }
 
+const rowGap = style({
+  prop: 'rowGap',
+  cssProperty: 'row-gap',
+  key: 'space',
+});
+
+export interface RowGapProps<TLength = TLengthStyledSystem> {
+  rowGap?: ResponsiveValue<Property.RowGap<TLength>>;
+}
+
+const columnGap = style({
+  prop: 'columnGap',
+  cssProperty: 'column-gap',
+  key: 'space',
+});
+
+export interface ColumnGapProps<TLength = TLengthStyledSystem> {
+  columnGap?: ResponsiveValue<Property.ColumnGap<TLength>>;
+}
+
 export {
   alignItems,
   type AlignItemsProps,
@@ -117,6 +137,8 @@ export {
   fontWeight,
   type FontWeightProps,
   gap,
+  rowGap,
+  columnGap,
   height,
   type HeightProps,
   justifyContent,
