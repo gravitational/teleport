@@ -25,7 +25,9 @@ import (
 func TestBasicAssignmentFlow(t *testing.T) {
 	ctx := context.Background()
 
-	oktaInfra := createOktaSetup(t, ctx, newMockOktaAPIClient(), withAppsGroupsUsersCount(1, 2, 7))
+	oktaApiClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
+
+	oktaInfra := createOktaSetup(t, ctx, oktaApiClient, withAppsGroupsUsersCount(1, 2, 7))
 	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[0].Id)
 	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[1].Id)
 	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[4].Id)
@@ -43,7 +45,7 @@ func TestBasicAssignmentFlow(t *testing.T) {
 
 	tclCmd.run(t, []string{
 		`plugins`, `install`, `okta`,
-		`--org`, "https://trial-1234567.okta.com",
+		`--org`, oktaApiClient.GetOrgUrl(),
 		`--saml-connector`, `okta-pre-created-test`,
 		`--group-filter=*`,
 		`--app-filter=*`,
@@ -84,7 +86,9 @@ func TestBasicAssignmentFlow(t *testing.T) {
 func TestNestedAclAssignment(t *testing.T) {
 	ctx := context.Background()
 
-	oktaInfra := createOktaSetup(t, ctx, newMockOktaAPIClient(), withAppsGroupsUsersCount(1, 2, 7))
+	oktaApiClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
+
+	oktaInfra := createOktaSetup(t, ctx, oktaApiClient, withAppsGroupsUsersCount(1, 2, 7))
 	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[1].Id)
 	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[2].Id)
 	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[3].Id)
@@ -104,7 +108,7 @@ func TestNestedAclAssignment(t *testing.T) {
 
 	tclCmd.run(t, []string{
 		`plugins`, `install`, `okta`,
-		`--org`, "https://trial-1234567.okta.com",
+		`--org`, oktaApiClient.GetOrgUrl(),
 		`--saml-connector`, `okta-pre-created-test`,
 		`--group-filter=*`,
 		`--app-filter=*`,
@@ -169,7 +173,9 @@ func TestNestedAclAssignment(t *testing.T) {
 func TestAccessRequest(t *testing.T) {
 	ctx := context.Background()
 
-	oktaInfra := createOktaSetup(t, ctx, newMockOktaAPIClient(), withAppsGroupsUsersCount(1, 2, 7))
+	oktaApiClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
+
+	oktaInfra := createOktaSetup(t, ctx, oktaApiClient, withAppsGroupsUsersCount(1, 2, 7))
 
 	oktaInfra.createApplicationGroupAssignment(t, oktaInfra.Apps[0].Id, oktaInfra.Groups[0].Id)
 	reviewer := oktaInfra.Users[5]
@@ -187,7 +193,7 @@ func TestAccessRequest(t *testing.T) {
 
 	tclCmd.run(t, []string{
 		`plugins`, `install`, `okta`,
-		`--org`, "https://trial-1234567.okta.com",
+		`--org`, oktaApiClient.GetOrgUrl(),
 		`--saml-connector`, `okta-pre-created-test`,
 		`--group-filter=*`,
 		`--app-filter=*`,

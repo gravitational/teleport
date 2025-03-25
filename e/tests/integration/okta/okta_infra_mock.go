@@ -67,9 +67,9 @@ func withAppsGroupsUsersCount(apps, groups, users int) oktaSetupOptionFun {
 	}
 }
 
-func createOktaSetupTreeAppGroupUserAndBasicUserGroupAssignment(t *testing.T, ctx context.Context) *oktaInfraSetup {
+func createOktaSetupTreeAppGroupUserAndBasicUserGroupAssignment(t *testing.T, ctx context.Context, orgUrl string) *oktaInfraSetup {
 	oktaAppGroupsUsersCount := withAppsGroupsUsersCount(3, 3, 3)
-	oktaInfra := createOktaSetup(t, ctx, newMockOktaAPIClient(), oktaAppGroupsUsersCount)
+	oktaInfra := createOktaSetup(t, ctx, newMockOktaAPIClient(orgUrl), oktaAppGroupsUsersCount)
 	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[0].Id)
 	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[1].Id)
 	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[2].Id)

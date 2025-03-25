@@ -175,8 +175,8 @@ func (c *Client) GetApplication(ctx context.Context, appID oktaapi.OktaAppID, ap
 	panic("Client.GetApplication not implemented")
 }
 
-// OrgURL implements [[oktaapi.Interface]].
-func (c *Client) OrgURL() string {
+// GetOrgUrl implements [[oktaapi.Interface]].
+func (c *Client) GetOrgUrl() string {
 	if c.OrgURLFunc != nil {
 		return c.OrgURLFunc(c.t)
 	}

@@ -16,7 +16,9 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/gravitational/teleport"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -37,10 +39,16 @@ const (
 	oktaConnectionTimeout    = 30 * time.Second
 )
 
-// Interface is an Okta client interface that can be mocked for testing.
+// Interface provides higher-level operations on underlying Okta SDK API client. It's implemented
+// by [Client].
 //
 // TODO(kopiczko) get rid of the interface and test only with mocking [APIClient]
 type Interface interface {
+	// GetOrgUrl will return the org URL for the client.
+	GetOrgUrl() string
+	// GetScopes returns the scopes that the client is configured to use.
+	GetScopes() []string
+
 	// GetCurrentUser will fetch the profile of the user currently logged into
 	// Okta.
 	GetCurrentUser(context.Context) (*okta.User, error)
@@ -90,15 +98,11 @@ type Interface interface {
 	CreateApplication(ctx context.Context, application okta.App) (okta.App, error)
 	// GetApplication fetches the data for single application.
 	GetApplication(ctx context.Context, appID OktaAppID, appType okta.App) (okta.App, error)
-	// OrgURL will return the org URL for the client.
-	OrgURL() string
 	// OrgName returns the configured
 	OrgName(context.Context) (string, error)
 	// DoHttp executes an HTTP request on the supplied URL using the same
 	// credentials and headers used by underlying Okta client
 	DoHttp(ctx context.Context, method string, url *url.URL, accept []string) ([]byte, error)
-	// GetScopes returns the scopes that the client is configured to use.
-	GetScopes() []string
 }
 
 type Config struct {
@@ -118,9 +122,7 @@ type Config struct {
 // Check validates the state of the ClientConfig, returning a non-nil error
 // if the config is invalid.
 func (cfg *Config) Check() error {
-	if cfg.Log == nil {
-		cfg.Log = slog.Default()
-	}
+	cfg.Log = createOrSetupLogger(cfg.Log)
 	if cfg.OrgUrl == "" {
 		return trace.BadParameter("missing Okta org URL")
 	}
@@ -146,7 +148,14 @@ func (cfg *Config) Check() error {
 	return nil
 }
 
-// New creates new Okta client.
+func createOrSetupLogger(l *slog.Logger) *slog.Logger {
+	if l == nil {
+		return log.NewPackageLogger(teleport.ComponentKey, eteleport.ComponentOktaClient)
+	}
+	return l.With(teleport.ComponentKey, eteleport.ComponentOktaClient)
+}
+
+// New creates and initializes a new Okta client implementing the [Interface].
 func New(ctx context.Context, cfg Config) (Interface, error) {
 	if err := cfg.Check(); err != nil {
 		return nil, trace.Wrap(err)
@@ -164,17 +173,25 @@ func New(ctx context.Context, cfg Config) (Interface, error) {
 	}
 
 	settings = append(settings, cfg.AuthProvider.GetAuthOptions()...)
-	createFunc := getClientProvider()
+	createFunc := APIClientProvider.get()
 	client, err := createFunc(ctx, settings...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &Client{
-		Log:        cfg.Log,
-		APIClient:  client,
-		oktaOrgURL: cfg.OrgUrl,
+		Log:       cfg.Log,
+		APIClient: client,
 	}, nil
+}
+
+// NewForAPIClient creates new Client for the given [APIClient]. It's useful for testing. [New]
+// should be used in the production code.
+func NewForAPIClient(apiClient APIClient) *Client {
+	return &Client{
+		Log:       createOrSetupLogger(nil),
+		APIClient: apiClient,
+	}
 }
 
 // ErrStopIteration is a sentinel value that iterator functions can use to
@@ -185,13 +202,10 @@ var ErrStopIteration = errors.New("stop iterating")
 // Static assertion that the wrappedClient type implements OktaClient
 var _ Interface = (*Client)(nil)
 
-// Client is a wrapper around an Okta SDK client that provides
-// higher-level operations and for interacting with an Okta server
-// over using the basic SDK client (e.g. result pagination)
+// Client is the default [Interface] implementation.
 type Client struct {
-	Log        *slog.Logger
-	APIClient  APIClient
-	oktaOrgURL string
+	Log       *slog.Logger
+	APIClient APIClient
 }
 
 // GetCurrentUser fetches the Okta profile of the user represented by the API token.
@@ -550,14 +564,14 @@ func (w *Client) OrgName(ctx context.Context) (string, error) {
 	return settings.CompanyName, nil
 }
 
-// OrgURL will return the org URL for the client.
-func (w *Client) OrgURL() string {
-	return w.oktaOrgURL
+// GetOrgUrl implements [Interface].
+func (c *Client) GetOrgUrl() string {
+	return c.APIClient.GetOrgUrl()
 }
 
-// GetScopes returns the scopes that the client is authorized to access.
-func (w *Client) GetScopes() []string {
-	return w.APIClient.GetScopes()
+// GetScopes implements [Interface].
+func (c *Client) GetScopes() []string {
+	return c.APIClient.GetScopes()
 }
 
 // DoHttp performs an HTTP request to the Okta API.

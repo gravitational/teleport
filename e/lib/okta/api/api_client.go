@@ -8,9 +8,19 @@ import (
 )
 
 // APIClient is a very thin layer wrapping original Okta SDK. Its purpose is to allow replacing
-// Okta SDK with custom implementation using [ApiClientProvider].Set() and it's meant to be used as
+// Okta SDK with custom implementation using [APIClientProvider].Set() and it's meant to be used as
 // a backing client for [Client].
 type APIClient interface {
+	// GetOrgUrl returns Okta API URL this client is configured with.
+	GetOrgUrl() string
+	// GetScopes returns Okta API scopes this client was configured with. Please note that
+	// [ApiClientProvider].defaultNewClient fetches the scopes from Okta using the provided
+	// credentials.
+	//
+	// Scopes are never refreshed so it they may become inaccurate if the Okta Services API app
+	// is changed during client's operation.
+	GetScopes() []string
+
 	GetOrgSettings(ctx context.Context) (*okta.OrgSetting, *okta.Response, error)
 	GetUser(ctx context.Context, userId string) (*okta.User, *okta.Response, error)
 	ListUsers(ctx context.Context, qp *query.Params) ([]*okta.User, *okta.Response, error)
@@ -28,20 +38,32 @@ type APIClient interface {
 	CloneRequestExecutor() *okta.RequestExecutor
 	ListGroupUsers(ctx context.Context, groupId string, qp *query.Params) ([]*okta.User, *okta.Response, error)
 	AddUserToGroup(ctx context.Context, groupId string, userId string) (*okta.Response, error)
-	GetScopes() []string
 }
 
-func NewAPIClient(client *okta.Client, scopes ...string) APIClient {
+// NewAPIClient creates APIClient from the provided upstream Okta SDK client.
+func NewAPIClient(client *okta.Client) APIClient {
 	return &apiClient{
 		client: client,
-		scopes: scopes,
+		orgUrl: client.GetConfig().Okta.Client.OrgUrl,
+		scopes: client.GetConfig().Okta.Client.Scopes,
 	}
 }
 
 // apiClient is an adapter for the Okta API client.
 type apiClient struct {
 	client *okta.Client
+	orgUrl string
 	scopes []string
+}
+
+// GetScopes returns the scopes for the Okta client.
+func (o *apiClient) GetOrgUrl() string {
+	return o.orgUrl
+}
+
+// GetScopes returns the scopes for the Okta client.
+func (o *apiClient) GetScopes() []string {
+	return o.scopes
 }
 
 // AddUserToGroup will assign the given user to the group.
@@ -127,9 +149,4 @@ func (o *apiClient) CreateApplication(ctx context.Context, body okta.App, qp *qu
 // GetApplication fetches the data for a single application, by ID
 func (o *apiClient) GetApplication(ctx context.Context, appId string, appInstance okta.App, qp *query.Params) (okta.App, *okta.Response, error) {
 	return o.client.Application.GetApplication(ctx, appId, appInstance, qp)
-}
-
-// GetScopes returns the scopes for the Okta client.
-func (o *apiClient) GetScopes() []string {
-	return o.scopes
 }

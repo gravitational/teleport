@@ -295,8 +295,8 @@ func (t *TestOktaClient) CreateApplication(ctx context.Context, app okta.App) (o
 	return nil, trace.NotImplemented("createApp")
 }
 
-// OrgURL will return the org URL for the client.
-func (t *TestOktaClient) OrgURL() string {
+// GetOrgUrl will return the org URL for the client.
+func (t *TestOktaClient) GetOrgUrl() string {
 	return t.OktaOrgURL
 }
 

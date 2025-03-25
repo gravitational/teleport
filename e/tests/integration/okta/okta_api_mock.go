@@ -17,6 +17,9 @@ import (
 )
 
 type mockOktaAPIClient struct {
+	orgUrl string
+	scopes []string
+
 	mu           sync.Mutex
 	users        map[string]*okta.User
 	groups       map[string]*okta.Group
@@ -27,9 +30,13 @@ type mockOktaAPIClient struct {
 	appUserAssignments map[string]map[string]bool
 	// Represents        appId -> groupId -> assignment
 	appGroupAssignments map[string]map[string]*okta.ApplicationGroupAssignment
-	// Okta Token Scopes
-	scopes []string
-	rt     http.RoundTripper
+
+	rt http.RoundTripper
+}
+
+// GetScopes returns the scopes.
+func (m *mockOktaAPIClient) GetOrgUrl() string {
+	return m.orgUrl
 }
 
 // GetScopes returns the scopes.
@@ -37,14 +44,9 @@ func (m *mockOktaAPIClient) GetScopes() []string {
 	return m.scopes
 }
 
-func newMockOktaAPIClient() *mockOktaAPIClient {
+func newMockOktaAPIClient(orgUrl string) *mockOktaAPIClient {
 	m := &mockOktaAPIClient{
-		users:               make(map[string]*okta.User),
-		groups:              make(map[string]*okta.Group),
-		applications:        make(map[string]okta.App),
-		groupAssignments:    make(map[string]map[string]bool),
-		appUserAssignments:  make(map[string]map[string]bool),
-		appGroupAssignments: make(map[string]map[string]*okta.ApplicationGroupAssignment),
+		orgUrl: orgUrl,
 		scopes: []string{
 			oktaapi.ScopeUserManage,
 			oktaapi.ScopeUserRead,
@@ -53,15 +55,17 @@ func newMockOktaAPIClient() *mockOktaAPIClient {
 			oktaapi.ScopeGroupsManage,
 			oktaapi.ScopeGroupsRead,
 		},
+		users:               make(map[string]*okta.User),
+		groups:              make(map[string]*okta.Group),
+		applications:        make(map[string]okta.App),
+		groupAssignments:    make(map[string]map[string]bool),
+		appUserAssignments:  make(map[string]map[string]bool),
+		appGroupAssignments: make(map[string]map[string]*okta.ApplicationGroupAssignment),
 	}
-	setOktaMockedAPIClient(m)
-	return m
-}
-
-func setOktaMockedAPIClient(apiMock *mockOktaAPIClient) {
-	oktaapi.SetClientProvider(func(ctx context.Context, cfg ...okta.ConfigSetter) (oktaapi.APIClient, error) {
-		return apiMock, nil
+	oktaapi.APIClientProvider.Set(func(ctx context.Context, cfg ...okta.ConfigSetter) (oktaapi.APIClient, error) {
+		return m, nil
 	})
+	return m
 }
 
 func (m *mockOktaAPIClient) DeactivateUser(ctx context.Context, userId string, qp *query.Params) (*okta.Response, error) {

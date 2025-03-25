@@ -458,7 +458,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 
 	// Assign the client to the service.
 	s.client = client
-	s.orgURL = strings.TrimSuffix(client.OrgURL(), "/")
+	s.orgURL = strings.TrimSuffix(client.GetOrgUrl(), "/")
 
 	clusterName, err := s.accessPoint.GetClusterName(ctx)
 	if err != nil {

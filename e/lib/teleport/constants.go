@@ -9,6 +9,9 @@ const (
 	// ComponentOkta is an Okta service component.
 	ComponentOkta = "okta"
 
+	// ComponentOktaClient is an Okta API client component.
+	ComponentOktaClient = "okta:client"
+
 	// ComponentOktaAssignmentReconciler is an Okta assignment reconciler component.
 	ComponentOktaAssignmentReconciler = "okta.assignment-reconciler"
 

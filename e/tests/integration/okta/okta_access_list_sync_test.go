@@ -24,7 +24,7 @@ import (
 func TestAccessListSync(t *testing.T) {
 	ctx := context.Background()
 
-	oktaApiClient := newMockOktaAPIClient()
+	oktaApiClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
 
 	httpMock := RoundTripperFunc(func(request *http.Request) (*http.Response, error) {
 		if strings.HasSuffix(request.URL.Path, "/sso/saml/metadata") {
@@ -64,7 +64,7 @@ func TestAccessListSync(t *testing.T) {
 
 	_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
 		ApiCredentials:       apiCredentials,
-		OktaOrganizationUrl:  "https://trial-1234567.okta.com",
+		OktaOrganizationUrl:  oktaApiClient.GetOrgUrl(),
 		EnableUserSync:       true,
 		EnableAppGroupSync:   true,
 		EnableAccessListSync: true,

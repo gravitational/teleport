@@ -36,7 +36,7 @@ var apiCredentials = &oktav1.OktaAPICredentials{
 // Additionally, it tests the filtering of apps and groups.
 func TestPluginEnrolmentFullIntegration(t *testing.T) {
 	ctx := context.Background()
-	oktaApiClientMock := newMockOktaAPIClient()
+	oktaApiClientMock := newMockOktaAPIClient("https://trial-1234567.okta.com")
 	oktaInfra := createOktaSetup(t, ctx, oktaApiClientMock, withAppsGroupsUsersCount(1, 10, 7))
 	httpMock := RoundTripperFunc(func(request *http.Request) (*http.Response, error) {
 		if strings.HasSuffix(request.URL.Path, "/sso/saml/metadata") {
@@ -63,7 +63,7 @@ func TestPluginEnrolmentFullIntegration(t *testing.T) {
 
 	t.Run("filter apps", func(t *testing.T) {
 		var resp, err = oktaClient.GetApps(ctx, &oktav1.GetAppsRequest{
-			OktaOrganizationUrl: "https://trial-1234567.okta.com",
+			OktaOrganizationUrl: oktaApiClientMock.GetOrgUrl(),
 			ApiCredentials:      apiCredentials,
 			Filters:             nil,
 		})
@@ -89,7 +89,7 @@ func TestPluginEnrolmentFullIntegration(t *testing.T) {
 		mustCreateOktaEveryoneGroupAndAssignOktaUsers(t, oktaInfra.client, oktaInfra.Users...)
 
 		resp, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-			OktaOrganizationUrl:  "https://trial-1234567.okta.com",
+			OktaOrganizationUrl:  oktaApiClientMock.GetOrgUrl(),
 			ApiCredentials:       apiCredentials,
 			EnableUserSync:       true,
 			EnableAppGroupSync:   true,
@@ -105,7 +105,7 @@ func TestPluginEnrolmentFullIntegration(t *testing.T) {
 		})
 		require.NoError(t, err)
 		expectedOktaPluginSettings := &types.PluginOktaSettings{
-			OrgUrl: "https://trial-1234567.okta.com",
+			OrgUrl: oktaApiClientMock.GetOrgUrl(),
 			SyncSettings: &types.PluginOktaSyncSettings{
 				SsoConnectorId:       "okta",
 				AppId:                resp.GetConnectorInfo().GetOktaAppId(),
@@ -134,7 +134,8 @@ func TestPluginEnrolmentFullIntegration(t *testing.T) {
 func TestPluginEnrolmentSSOMetadataURL(t *testing.T) {
 	ctx := context.Background()
 
-	oktaInfra := createOktaSetup(t, ctx, newMockOktaAPIClient(), withAppsGroupsUsersCount(1, 1, 1))
+	oktaApiClientMock := newMockOktaAPIClient("https://trial-1234567.okta.com")
+	oktaInfra := createOktaSetup(t, ctx, oktaApiClientMock, withAppsGroupsUsersCount(1, 1, 1))
 	httpMock := RoundTripperFunc(func(request *http.Request) (*http.Response, error) {
 		if strings.HasSuffix(request.URL.Path, "/sso/saml/metadata") {
 			return &http.Response{
@@ -179,7 +180,7 @@ func TestPluginEnrolmentSSOMetadataURL(t *testing.T) {
 	})
 	require.NoError(t, err)
 	expectedOktaPluginSettings := &types.PluginOktaSettings{
-		OrgUrl: "https://trial-1234567.okta.com",
+		OrgUrl: oktaApiClientMock.GetOrgUrl(),
 		SyncSettings: &types.PluginOktaSyncSettings{
 			SsoConnectorId:       "okta",
 			AppId:                resp.GetConnectorInfo().GetOktaAppId(),
@@ -200,7 +201,7 @@ func TestPluginEnrolmentSSOMetadataURL(t *testing.T) {
 	require.NoError(t, err)
 	samlConnector, err := sut.Teleport.Process.GetAuthServer().GetSAMLConnector(ctx, "okta", false)
 	require.NoError(t, err)
-	require.Equal(t, "https://trial-1234567.okta.com", samlConnector.GetMetadata().Labels[types.OktaOrgURLLabel])
+	require.Equal(t, oktaApiClientMock.GetOrgUrl(), samlConnector.GetMetadata().Labels[types.OktaOrgURLLabel])
 }
 
 // TestPluginEnrolmentSSOMetadataURL tests the enrolment of the Okta plugin where the SSO metadata URL is provided
@@ -240,8 +241,7 @@ func TestPluginEnrolmentSSOMetadataURLOnly(t *testing.T) {
 func TestPluginEnrolmentPartialSteps(t *testing.T) {
 	ctx := context.Background()
 	scimToken := uuid.NewString()
-
-	oktaInfra := createOktaSetupTreeAppGroupUserAndBasicUserGroupAssignment(t, ctx)
+	oktaInfra := createOktaSetupTreeAppGroupUserAndBasicUserGroupAssignment(t, ctx, "https://trial-1234567.okta.com")
 	sut := common.InitSUT(t,
 		common.WithSAMLConnector(idp.SAMLConnector),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
@@ -481,7 +481,8 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 func TestPluginEnrollmentErrors(t *testing.T) {
 	var scimToken = uuid.NewString()
 	ctx := context.Background()
-	oktaInfra := createOktaSetup(t, ctx, newMockOktaAPIClient(), withAppsGroupsUsersCount(3, 3, 3))
+	oktaApiClientMock := newMockOktaAPIClient("https://trial-1234567.okta.com")
+	oktaInfra := createOktaSetup(t, ctx, oktaApiClientMock, withAppsGroupsUsersCount(3, 3, 3))
 	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[0].Id)
 	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[1].Id)
 	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[2].Id)
@@ -559,7 +560,7 @@ func TestEnrolmentPartialStepsFromLegacyConnector(t *testing.T) {
 	)
 
 	ctx := context.Background()
-	oktaApiClientMock := newMockOktaAPIClient()
+	oktaApiClientMock := newMockOktaAPIClient("https://trial-1234567.okta.com")
 	samlAPP := createOktaSAMLAPP(t, ctx, oktaApiClientMock, "trial-1234567_teleportsamlconnectorapp_1")
 
 	sut := common.InitSUT(t,

@@ -302,12 +302,7 @@ func (ts *testAssignmentOktaServer) client(t *testing.T, ctx context.Context) ok
 	)
 	require.NoError(t, err)
 
-	client := &oktaapi.Client{
-		APIClient: oktaapi.NewAPIClient(oktaClient),
-		Log:       slog.Default(),
-	}
-
-	return client
+	return oktaapi.NewForAPIClient(oktaapi.NewAPIClient(oktaClient))
 }
 
 func (ts *testAssignmentOktaServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {

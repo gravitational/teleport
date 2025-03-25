@@ -220,7 +220,7 @@ func CreateSAMLConnector(ctx context.Context, args ConnectorArgs) (*SAMLConnecto
 	meta := connector.GetMetadata()
 	meta.Labels = map[string]string{
 		types.OriginLabel:         types.OriginOkta,
-		eteleport.OktaOrgURLLabel: args.OktaClient.OrgURL(),
+		eteleport.OktaOrgURLLabel: args.OktaClient.GetOrgUrl(),
 		eteleport.OktaAppIDLabel:  app.Id,
 	}
 	connector.SetMetadata(meta)
@@ -235,7 +235,7 @@ func CreateSAMLConnector(ctx context.Context, args ConnectorArgs) (*SAMLConnecto
 		OktaAppID:    app.Id,
 		OktaAppName:  app.Name,
 		OktaAppLabel: app.Label,
-		OktaOrg:      args.OktaClient.OrgURL(),
+		OktaOrg:      args.OktaClient.GetOrgUrl(),
 	}
 
 	return info, nil
@@ -408,8 +408,8 @@ func ValidateSAMLConnector(ctx context.Context, oktaClient oktaapi.Interface, co
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if oktaOrg != oktaClient.OrgURL() {
-		return nil, trace.BadParameter("SAML connector %q bound to %q Okta organization but expected %q", connector.GetName(), oktaOrg, oktaClient.OrgURL())
+	if oktaOrg != oktaClient.GetOrgUrl() {
+		return nil, trace.BadParameter("SAML connector %q bound to %q Okta organization but expected %q", connector.GetName(), oktaOrg, oktaClient.GetOrgUrl())
 	}
 
 	app, err := oktaClient.GetApplication(ctx, oktaapi.OktaAppID(connectorAppID), &okta.SamlApplication{})
@@ -540,7 +540,7 @@ func generateConnectorName(ctx context.Context, oktaClient oktaapi.Interface) (s
 	case trace.IsAccessDenied(err):
 		// The user does not have the rights to fetch okta settings, so fall
 		// back try to trying to generate a name based on the base endpoint url
-		url, err := url.Parse(oktaClient.OrgURL())
+		url, err := url.Parse(oktaClient.GetOrgUrl())
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
