@@ -802,7 +802,7 @@ func (c *AWSICProvisioningSpec) CheckAndSetDefaults() error {
 // it to use the `jsonpb` unmarshaler, which understands how to unpack values
 // generated from a protobuf `oneof` directive.
 func (s *AWSICResourceFilter) UnmarshalJSON(b []byte) error {
-	if err := jsonpb.Unmarshal(bytes.NewReader(b), s); err != nil {
+	if err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(b), s); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
