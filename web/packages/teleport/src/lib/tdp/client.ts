@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { EventEmitter } from 'events';
+
 import { useEffect } from 'react';
 
 import init, {
@@ -23,10 +25,6 @@ import init, {
   init_wasm_log,
 } from 'shared/libs/ironrdp/pkg/ironrdp';
 import Logger from 'shared/libs/logger';
-
-import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
-import { TermEvent, WebsocketCloseCode } from 'teleport/lib/term/enums';
-import { MfaChallengeResponse } from 'teleport/services/mfa';
 
 import Codec, {
   FileType,
@@ -103,7 +101,7 @@ interface TdpTransport {
 // sending client commands, and receiving and processing server messages. Its creator is responsible for
 // ensuring the websocket gets closed and all of its event listeners cleaned up when it is no longer in use.
 // For convenience, this can be done in one fell swoop by calling Client.shutdown().
-export default class Client extends EventEmitterMfaSender {
+export default class Client extends EventEmitter {
   protected codec: Codec;
   protected socket: TdpTransport | undefined;
   private sdManager: SharedDirectoryManager;
@@ -152,7 +150,9 @@ export default class Client extends EventEmitterMfaSender {
     this.socket.onerror = null;
     this.socket.onclose = ev => {
       let message = 'session disconnected';
-      if (ev.code !== WebsocketCloseCode.NORMAL) {
+      //TODO(gzdunek): This will be handled in AuthenticatedWebSocket.
+      // WebsocketCloseCode.NORMAL
+      if (ev.code !== 1000) {
         this.logger.error(`websocket closed with error code: ${ev.code}`);
         message = `connection closed with websocket error`;
       }
@@ -451,7 +451,8 @@ export default class Client extends EventEmitterMfaSender {
     try {
       const mfaJson = this.codec.decodeMfaJson(buffer);
       if (mfaJson.mfaType == 'n') {
-        this.emit(TermEvent.MFA_CHALLENGE, mfaJson.jsonString);
+        // TermEvent.MFA_CHALLENGE
+        this.emit('terminal.webauthn', mfaJson.jsonString);
       } else {
         // mfaJson.mfaType === 'u', or else decodeMfaJson would have thrown an error.
         this.handleError(
@@ -701,7 +702,27 @@ export default class Client extends EventEmitterMfaSender {
     this.send(this.codec.encodeClipboardData(clipboardData));
   }
 
-  sendChallengeResponse(data: MfaChallengeResponse) {
+  sendChallengeResponse(data: {
+    totp_code?: string;
+    webauthn_response?: {
+      id: string;
+      type: string;
+      extensions: {
+        appid: boolean;
+      };
+      rawId: string;
+      response: {
+        authenticatorData: string;
+        clientDataJSON: string;
+        signature: string;
+        userHandle: string;
+      };
+    };
+    sso_response?: {
+      requestId: string;
+      token: string;
+    };
+  }) {
     const msg = this.codec.encodeMfaJson({
       mfaType: 'n',
       jsonString: JSON.stringify(data),
@@ -810,7 +831,9 @@ export default class Client extends EventEmitterMfaSender {
 
   // It's safe to call this multiple times, calls subsequent to the first call
   // will simply do nothing.
-  shutdown(closeCode = WebsocketCloseCode.NORMAL) {
+  //TODO(gzdunek): This will be handled in AuthenticatedWebSocket.
+  // WebsocketCloseCode.NORMAL
+  shutdown(closeCode = 1000) {
     this.socket?.close(closeCode);
   }
 }
