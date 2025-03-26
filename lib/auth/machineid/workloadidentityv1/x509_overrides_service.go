@@ -24,13 +24,16 @@ import (
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	apitypes "github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 type X509OverridesServiceConfig struct {
 	Authorizer authz.Authorizer
 	Storage    services.WorkloadIdentityX509Overrides
+	Emitter    apievents.Emitter
 
 	ClusterName string
 }
@@ -42,6 +45,9 @@ func NewX509OverridesService(cfg X509OverridesServiceConfig) (*X509OverridesServ
 	if cfg.Storage == nil {
 		return nil, trace.BadParameter("storage is required")
 	}
+	if cfg.Emitter == nil {
+		return nil, trace.BadParameter("emitter is required")
+	}
 
 	if cfg.ClusterName == "" {
 		return nil, trace.BadParameter("cluster name is required")
@@ -50,6 +56,7 @@ func NewX509OverridesService(cfg X509OverridesServiceConfig) (*X509OverridesServ
 	return &X509OverridesService{
 		authorizer: cfg.Authorizer,
 		storage:    cfg.Storage,
+		emitter:    cfg.Emitter,
 
 		clusterName: cfg.ClusterName,
 	}, nil
@@ -60,6 +67,7 @@ type X509OverridesService struct {
 
 	authorizer authz.Authorizer
 	storage    services.WorkloadIdentityX509Overrides
+	emitter    apievents.Emitter
 
 	clusterName string
 }
@@ -139,5 +147,21 @@ func (s *X509OverridesService) DeleteX509IssuerOverride(ctx context.Context, req
 		return nil, trace.Wrap(err)
 	}
 
-	return nil, s.storage.DeleteX509IssuerOverride(ctx, req.GetName())
+	if err := s.storage.DeleteX509IssuerOverride(ctx, req.GetName()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s.emitter.EmitAuditEvent(ctx, &apievents.WorkloadIdentityX509IssuerOverrideDelete{
+		Metadata: apievents.Metadata{
+			Type: events.WorkloadIdentityX509IssuerOverrideDeleteEvent,
+			Code: events.WorkloadIdentityX509IssuerOverrideDeleteCode,
+		},
+		UserMetadata:       authz.ClientUserMetadata(ctx),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: req.GetName(),
+		},
+	})
+
+	return &emptypb.Empty{}, nil
 }

@@ -5338,6 +5338,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		srv, err := workloadidentityv1.NewX509OverridesService(workloadidentityv1.X509OverridesServiceConfig{
 			Authorizer: cfg.Authorizer,
 			Storage:    cfg.AuthServer.Services,
+			Emitter:    cfg.Emitter,
 
 			ClusterName: clusterName.GetClusterName(),
 		})
