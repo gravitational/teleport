@@ -34,6 +34,9 @@ type gitlabIDTokenValidator interface {
 	Validate(
 		ctx context.Context, domain string, token string,
 	) (*gitlab.IDTokenClaims, error)
+	ValidateTokenWithJWKS(
+		ctx context.Context, jwks []byte, token string,
+	) (*gitlab.IDTokenClaims, error)
 }
 
 func (a *Server) checkGitLabJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*gitlab.IDTokenClaims, error) {
@@ -50,11 +53,21 @@ func (a *Server) checkGitLabJoinRequest(ctx context.Context, req *types.Register
 		return nil, trace.BadParameter("gitlab join method only supports ProvisionTokenV2, '%T' was provided", pt)
 	}
 
-	claims, err := a.gitlabIDTokenValidator.Validate(
-		ctx, token.Spec.GitLab.Domain, req.IDToken,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var claims *gitlab.IDTokenClaims
+	if token.Spec.GitLab.StaticJWKS != "" {
+		claims, err = a.gitlabIDTokenValidator.ValidateTokenWithJWKS(
+			ctx, []byte(token.Spec.GitLab.StaticJWKS), req.IDToken,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "validating with static jwks")
+		}
+	} else {
+		claims, err = a.gitlabIDTokenValidator.Validate(
+			ctx, token.Spec.GitLab.Domain, req.IDToken,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "validating with oidc")
+		}
 	}
 
 	log.WithFields(logrus.Fields{

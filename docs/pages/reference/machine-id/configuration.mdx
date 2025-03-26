@@ -289,6 +289,13 @@ type: kubernetes
 # Teleport, that the output should generate credentials and a kubeconfig for.
 # This field must be specified.
 kubernetes_cluster: my-cluster
+# disable_exec_plugin disables the default behaviour of using the `tbot` binary
+# as a `kubectl` credentials exec plugin. This is useful in environments where
+# `tbot` does not exist on the system that will consume the generated kubeconfig
+# (e.g. when using the `kubernetes_secret` output type). This credentials exec
+# plugin is used to automatically refresh the credentials within a single
+# invocation of `kubectl`. Defaults to `false`.
+disable_exec_plugin: false
 
 (!docs/pages/includes/machine-id/common-output-config.yaml!)
 ```
