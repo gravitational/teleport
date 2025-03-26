@@ -1,8 +1,11 @@
 import styled, { useTheme } from 'styled-components';
 
-import { Box, Flex, Text } from 'design';
+import { Box, ButtonSecondary, Flex, Text } from 'design';
 
 import { ProductUsage } from 'e-teleport/UsageSummary/types';
+import { getSalesURL } from 'teleport/services/sales';
+import { CtaEvent } from 'teleport/services/userEvent';
+import useTeleport from 'teleport/useTeleport';
 
 export function UsageBar({
   productUsage,
@@ -11,7 +14,11 @@ export function UsageBar({
   productUsage: ProductUsage;
   calibrating: boolean;
 }) {
+  const ctx = useTeleport();
+  const version = ctx.storeUser.state.cluster.authVersion;
+
   const theme = useTheme();
+
   const getColor = (
     total: number,
     hasFreeTier: boolean,
@@ -32,6 +39,28 @@ export function UsageBar({
     // the default behavior is for free tier products within their free tier limits
     return theme.colors.success.main;
   };
+
+  if (!productUsage.enabled) {
+    return (
+      <Flex justifyContent="space-between">
+        <Text color={theme.colors.text.slightlyMuted} fontWeight="300">
+          This feature isn&apos;t part of your current plan.
+        </Text>
+        <ButtonSecondary
+          as="a"
+          target="blank"
+          href={getSalesURL(
+            version,
+            true,
+            CtaEvent.CTA_UNSPECIFIED,
+            productUsage.ctaUrl
+          )}
+        >
+          Upgrade Now
+        </ButtonSecondary>
+      </Flex>
+    );
+  }
 
   return productUsage.usages.map(
     ({ percentageMax, percentage, hardMax, total, name }, i) => (

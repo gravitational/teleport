@@ -1,14 +1,28 @@
 import { within } from '@testing-library/react';
+import type { ReactNode } from 'react';
 
 import { render, screen } from 'design/utils/testing';
 
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import { Cycle, CycleProps } from 'e-teleport/UsageSummary/Cycle';
 import { makeUsageSummary } from 'e-teleport/UsageSummary/testHelpers';
+import cfg from 'teleport/config';
+import { ContextProvider } from 'teleport/index';
+
+const defaultEntitlements = cfg.entitlements;
+
+function renderWithContext(component: ReactNode) {
+  const ctx = createTeleportContextE();
+
+  return render(<ContextProvider ctx={ctx}>{component}</ContextProvider>);
+}
 
 describe('cycle', () => {
   let props: CycleProps;
 
   beforeEach(() => {
+    cfg.entitlements.Identity.enabled = true;
+    cfg.entitlements.Policy.enabled = true;
     props = {
       summary: makeUsageSummary({
         cycleEnd: 1682989332,
@@ -44,6 +58,10 @@ describe('cycle', () => {
     };
   });
 
+  afterEach(() => {
+    cfg.entitlements = defaultEntitlements;
+  });
+
   test('renders cycle overview, handles 0, no calibration period', () => {
     props.summary.tpr = {
       maximum: 0,
@@ -70,7 +88,7 @@ describe('cycle', () => {
       cycleCount: 0,
     };
 
-    render(<Cycle {...props} />);
+    renderWithContext(<Cycle {...props} />);
 
     expect(screen.getByText(/Current Billing Cycle:/i)).toBeInTheDocument();
     expect(
@@ -108,7 +126,7 @@ describe('cycle', () => {
     props.summary.igmau.cycleCount = 4;
     props.summary.usageUpdatedAt = 0;
 
-    render(<Cycle {...props} />);
+    renderWithContext(<Cycle {...props} />);
     const mau = screen.getAllByTestId(/Monthly Active Users \(MAU\)/i)[0];
 
     expect(within(mau).getByText(/0 of 2/i)).toBeInTheDocument();
@@ -137,7 +155,7 @@ describe('cycle', () => {
 
   test('renders usage updated at with no value', () => {
     props.summary.usageUpdatedAt = 0;
-    render(<Cycle {...props} />);
+    renderWithContext(<Cycle {...props} />);
 
     expect(screen.getByText('Updated every 12 hours')).toBeInTheDocument();
     expect(screen.queryByText(/Last updated/)).not.toBeInTheDocument();
@@ -146,14 +164,47 @@ describe('cycle', () => {
   test('renders usage updated at with value', () => {
     props.summary.usageUpdatedAt = 1699538455; // 2023-11-09 14:00:55
     props.summary.usageUpdatedAtFormatted = 'Nov 09, 2023';
-    render(<Cycle {...props} />);
+    renderWithContext(<Cycle {...props} />);
 
     expect(screen.getByText('Last updated: Nov 09, 2023')).toBeInTheDocument();
     expect(screen.getByText(/Updated every 12 hours/)).toBeInTheDocument();
   });
+
+  test('show IGS CTA if Identity is disabled', () => {
+    cfg.entitlements.Identity.enabled = false;
+    renderWithContext(<Cycle {...props} />);
+
+    const ctaButton = screen.getByRole('link', { name: /Upgrade Now/i });
+    expect(ctaButton).toBeInTheDocument();
+    expect(ctaButton).toHaveProperty(
+      'href',
+      'https://goteleport.com/r/upgrade-policy?e_4.4.0-dev&utm_campaign=CTA_UNSPECIFIED'
+    );
+  });
+
+  test('show IS CTA if Policy is disabled', () => {
+    cfg.entitlements.Policy.enabled = false;
+    renderWithContext(<Cycle {...props} />);
+
+    const ctaButton = screen.getByRole('link', { name: /Upgrade Now/i });
+    expect(ctaButton).toBeInTheDocument();
+    expect(ctaButton).toHaveProperty(
+      'href',
+      'https://goteleport.com/r/upgrade-igs?e_4.4.0-dev&utm_campaign=CTA_UNSPECIFIED'
+    );
+  });
 });
 
 describe('calibration period', () => {
+  beforeAll(() => {
+    cfg.entitlements.Identity.enabled = true;
+    cfg.entitlements.Policy.enabled = true;
+  });
+
+  afterAll(() => {
+    cfg.entitlements = defaultEntitlements;
+  });
+
   test.each`
     desc                        | start                               | end                                 | updated
     ${'updated on cycle start'} | ${new Date('2024-01-01').getTime()} | ${new Date('2024-01-31').getTime()} | ${new Date('2024-01-01').getTime()}
@@ -169,7 +220,7 @@ describe('calibration period', () => {
       }),
     };
 
-    render(<Cycle {...props} />);
+    renderWithContext(<Cycle {...props} />);
 
     expect(screen.getAllByText('Calibrating')).toHaveLength(5);
     expect(screen.getByText('Calibration In Progress')).toBeInTheDocument();

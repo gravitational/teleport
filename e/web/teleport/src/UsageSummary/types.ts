@@ -1,8 +1,10 @@
 export type ProductUsage = {
   name: string;
   info: string;
-  usages: Usage[];
   blurb?: string;
+  enabled: boolean;
+  ctaUrl?: string;
+  usages: Usage[];
 };
 
 export type Usage = {

@@ -4,6 +4,8 @@ import { Box, Flex, H2, H3, Text } from 'design';
 import { IconTooltip } from 'design/Tooltip';
 
 import { UsageSummary } from 'e-teleport/services/cloud/v1/tenants_pb';
+import cfg from 'teleport/config';
+import { UPGRADE_POLICY_URL } from 'teleport/services/sales';
 
 import { isCalibrationPeriod } from './SummaryPage';
 import { ProductUsage } from './types';
@@ -38,10 +40,14 @@ export const Cycle = ({
     salesforceIdUpdatedAt
   );
 
+  const hasIdentityGovernance = cfg.entitlements.Identity.enabled;
+  const hasIdentitySecurity = cfg.entitlements.Policy.enabled;
+
   const productUsages: ProductUsage[] = [
     {
       name: 'Zero Trust Access',
       info: 'A secure, on-demand, least-privileged access to infrastructure using cryptographic identity and Zero Trust principles.',
+      enabled: true, // always enabled
       usages: [
         {
           name: 'Monthly Active Users (MAU)',
@@ -66,6 +72,7 @@ export const Cycle = ({
     {
       name: 'Machine and Workload Identities',
       info: 'Improve infrastructure resiliency by securing access to systems  and data between machines & workloads.',
+      enabled: true, // always enabled
       usages: [
         {
           name: 'MWI',
@@ -83,6 +90,8 @@ export const Cycle = ({
     {
       name: 'Identity Governance',
       info: 'Harden your infrastructure with identity governance and security.',
+      enabled: hasIdentityGovernance,
+      ctaUrl: UPGRADE_POLICY_URL,
       usages: [
         {
           name: 'Monthly Active Users (MAU)',
@@ -98,6 +107,8 @@ export const Cycle = ({
     {
       name: 'Identity Security',
       info: 'Secure identities and access policies across all of your infrastructure. Eliminate shadow access and blind spots.',
+      enabled: hasIdentitySecurity,
+      ctaUrl: '',
       usages: [
         {
           name: 'Teleport Protected Resources (TPR)',
@@ -175,6 +186,7 @@ const CyclesContainer = styled(Flex)`
   border-radius: 8px;
   padding: ${({ theme }) => theme.space[4]}px;
   flex-direction: column;
+  justify-content: space-between;
 `;
 
 const CalibrationText = styled(Text)`

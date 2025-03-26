@@ -1,19 +1,28 @@
 import { getUnixTime } from 'date-fns';
+import type { ReactNode } from 'react';
 
 import { render, screen } from 'design/utils/testing';
 
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import {
   isCalibrationPeriod,
   SummaryPage,
 } from 'e-teleport/UsageSummary/SummaryPage';
 import { makeUsageSummary } from 'e-teleport/UsageSummary/testHelpers';
+import { ContextProvider } from 'teleport/index';
+
+function renderWithContext(component: ReactNode) {
+  const ctx = createTeleportContextE();
+
+  return render(<ContextProvider ctx={ctx}>{component}</ContextProvider>);
+}
 
 jest.mock('teleport/useStickyClusterId', () =>
   jest.fn(() => ({ clusterId: 'cluster-name', isLeafCluster: false }))
 );
 
 test('renders cycle if cycle usage is present', () => {
-  render(
+  renderWithContext(
     <SummaryPage
       summary={makeUsageSummary({
         usageBased: true,
@@ -49,7 +58,7 @@ test('renders cycle if cycle usage is present', () => {
 });
 
 test('does not render cycle if cycle usage is not present', () => {
-  render(<SummaryPage summary={undefined} />);
+  renderWithContext(<SummaryPage summary={undefined} />);
 
   expect(screen.queryByText(/Current Billing Cycle/i)).not.toBeInTheDocument();
   expect(
