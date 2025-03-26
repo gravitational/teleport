@@ -21,6 +21,8 @@ import styled from 'styled-components';
 import {
   alignItems,
   AlignItemsProps,
+  columnGap,
+  ColumnGapProps,
   flexBasis,
   FlexBasisProps,
   flexDirection,
@@ -31,6 +33,8 @@ import {
   GapProps,
   justifyContent,
   JustifyContentProps,
+  rowGap,
+  RowGapProps,
 } from 'design/system';
 
 import Box, { BoxProps } from '../Box';
@@ -42,6 +46,8 @@ interface FlexProps
     FlexWrapProps,
     FlexDirectionProps,
     FlexBasisProps,
+    RowGapProps,
+    ColumnGapProps,
     GapProps {
   /**
    * Uses inline-flex instead of just flex as the display property.
@@ -58,6 +64,8 @@ const Flex = styled(Box)<FlexProps>`
   ${flexWrap}
   ${flexBasis}
   ${flexDirection}
+  ${rowGap};
+  ${columnGap};
   ${gap};
 
   ${props =>
