@@ -502,6 +502,9 @@ type Config struct {
 	// DisableSSHResumption disables transparent SSH connection resumption.
 	DisableSSHResumption bool
 
+	// PreferDirectConnection disables transparent SSH connection resumption.
+	PreferDirectConnection bool
+
 	// SAMLSingleLogoutEnabled is whether SAML SLO (single logout) is enabled, this can only be true if this is a SAML SSO session
 	// using an auth connector with a SAML SLO URL configured.
 	SAMLSingleLogoutEnabled bool
@@ -1482,12 +1485,21 @@ type TargetNode struct {
 	// Address of the target host. For hosts resolved
 	// via auth this will be in the form of UUID:0.
 	Addr string
+	// PublicAddrs are the publicly available addresses
+	// that the host may be reached at.
+	PublicAddrs []string
+}
+
+type GetTargetNodesClient interface {
+	ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error)
+	ResolveSSHTarget(ctx context.Context, req *proto.ResolveSSHTargetRequest) (*proto.ResolveSSHTargetResponse, error)
+	GetSSHTargets(ctx context.Context, req *proto.GetSSHTargetsRequest) (*proto.GetSSHTargetsResponse, error)
 }
 
 // GetTargetNodes returns hosts matching the target host provided by users. Host resolution
 // honors an explicit host, i.e. tsh ssh user@hostname, label based hosts, i.e. tsh ssh user@foo=bar,
 // as well as respecting any proxy templates that are specified.
-func (tc *TeleportClient) GetTargetNodes(ctx context.Context, clt client.ListUnifiedResourcesClient, options SSHOptions) ([]TargetNode, error) {
+func (tc *TeleportClient) GetTargetNodes(ctx context.Context, clt GetTargetNodesClient, options SSHOptions) ([]TargetNode, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/GetTargetNodes",
@@ -1532,8 +1544,35 @@ func (tc *TeleportClient) GetTargetNodes(ctx context.Context, clt client.ListUni
 
 			// always dial nodes by UUID
 			retval = append(retval, TargetNode{
-				Hostname: server.GetHostname(),
-				Addr:     fmt.Sprintf("%s:0", resource.GetName()),
+				Hostname:    server.GetHostname(),
+				Addr:        fmt.Sprintf("%s:0", resource.GetName()),
+				PublicAddrs: server.GetPublicAddrs(),
+			})
+		}
+
+		return retval, nil
+	} else if tc.PreferDirectConnection {
+		log.DebugContext(ctx, "Attempting to match host for direct dialing",
+			"labels", tc.Labels,
+			"search", tc.SearchKeywords,
+			"predicate", tc.PredicateExpression,
+			"host", tc.Host,
+		)
+
+		resp, err := clt.GetSSHTargets(ctx, &proto.GetSSHTargetsRequest{
+			Host: tc.Host,
+			Port: strconv.Itoa(tc.HostPort),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		retval := make([]TargetNode, 0, len(resp.Servers))
+		for _, server := range resp.Servers {
+			retval = append(retval, TargetNode{
+				Hostname:    server.GetHostname(),
+				Addr:        fmt.Sprintf("%s:0", server.GetName()),
+				PublicAddrs: server.GetPublicAddrs(),
 			})
 		}
 
@@ -1944,7 +1983,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, opts ...fun
 	if len(nodeAddrs) > 1 {
 		return tc.runShellOrCommandOnMultipleNodes(ctx, clt, nodeAddrs, command)
 	}
-	return tc.runShellOrCommandOnSingleNode(ctx, clt, nodeAddrs[0].Addr, command, options.LocalCommandExecutor)
+	return tc.runShellOrCommandOnSingleNode(ctx, clt, nodeAddrs[0], command, options.LocalCommandExecutor)
 }
 
 // ConnectToNode attempts to establish a connection to the node resolved to by the provided
@@ -1995,20 +2034,42 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 		)
 		defer span.End()
 
-		// Try connecting to the node with the certs we already have. Note that the different context being provided
-		// here is intentional. The underlying stream backing the connection will run for the duration of the session
-		// and cause the current span to have a duration longer than just the initial connection. To avoid this the
-		// parent context is used.
-		conn, details, err := clt.DialHostWithResumption(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
-		if err != nil {
-			directResultC <- clientRes{err: err}
-			return
-		}
-
 		sshConfig := clt.ProxyClient.SSHConfig(user)
-		clt, err := NewNodeClient(connectCtx, sshConfig, conn, nodeDetails.ProxyFormat(), nodeDetails.Addr, tc, details.FIPS,
-			WithNodeHostname(nodeDetails.hostname), WithSSHLogDir(tc.SSHLogDir))
-		directResultC <- clientRes{clt: clt, err: err}
+
+		if tc.PreferDirectConnection {
+			dialer := net.Dialer{Timeout: sshConfig.Timeout}
+			var dialError error
+			for _, addr := range nodeDetails.PubliAddrs {
+				conn, err := dialer.DialContext(ctx, "tcp", addr)
+				if err == nil {
+					clt, err := NewNodeClient(connectCtx, sshConfig, conn, nodeDetails.ProxyFormat(), nodeDetails.Addr, tc, false,
+						WithNodeHostname(nodeDetails.hostname), WithSSHLogDir(tc.SSHLogDir))
+					directResultC <- clientRes{clt: clt, err: err}
+					break
+				}
+
+				dialError = err
+			}
+
+			switch {
+			case len(nodeDetails.PubliAddrs) == 0:
+				directResultC <- clientRes{err: &NonRetryableError{Err: trace.BadParameter("unable to directly connect to a host without at least one public address")}}
+			case dialError != nil:
+				directResultC <- clientRes{err: err}
+			}
+		} else {
+			// Try connecting to the node with the certs we already have. Note that the different context being provided
+			// here is intentional. The underlying stream backing the connection will run for the duration of the session
+			// and cause the current span to have a duration longer than just the initial connection. To avoid this the
+			// parent context is used.
+			if conn, details, err := clt.DialHostWithResumption(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent); err != nil {
+				directResultC <- clientRes{err: err}
+			} else {
+				clt, err := NewNodeClient(connectCtx, sshConfig, conn, nodeDetails.ProxyFormat(), nodeDetails.Addr, tc, details.FIPS,
+					WithNodeHostname(nodeDetails.hostname), WithSSHLogDir(tc.SSHLogDir))
+				directResultC <- clientRes{clt: clt, err: err}
+			}
+		}
 	}()
 
 	go func() {
@@ -2147,14 +2208,14 @@ func (tc *TeleportClient) connectToNodeWithMFA(ctx context.Context, clt *Cluster
 	return nodeClient, trace.Wrap(err)
 }
 
-func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt *ClusterClient, nodeAddr string, command []string, commandExecutor func(string, []string) error) error {
+func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt *ClusterClient, node TargetNode, command []string, commandExecutor func(string, []string) error) error {
 	cluster := clt.ClusterName()
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/runShellOrCommandOnSingleNode",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(
-			attribute.String("node", nodeAddr),
+			attribute.String("node", node.Addr),
 			attribute.String("cluster", cluster),
 		),
 	)
@@ -2163,7 +2224,7 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 	nodeClient, err := tc.ConnectToNode(
 		ctx,
 		clt,
-		NodeDetails{Addr: nodeAddr, Cluster: cluster},
+		NodeDetails{Addr: node.Addr, Cluster: cluster, PubliAddrs: node.PublicAddrs},
 		tc.Config.HostLogin,
 	)
 	if err != nil {
@@ -2241,7 +2302,7 @@ func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, 
 
 	// Issue "shell" request to the first matching node.
 	fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %q\n", nodeAddrs[0])
-	return tc.runShellOrCommandOnSingleNode(ctx, clt, nodeAddrs[0], nil, nil)
+	return tc.runShellOrCommandOnSingleNode(ctx, clt, nodes[0], nil, nil)
 }
 
 func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) error {
@@ -2938,10 +2999,11 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 				ctx,
 				clt,
 				NodeDetails{
-					Addr:     node.Addr,
-					Cluster:  cluster,
-					MFACheck: mfaRequiredCheck,
-					hostname: node.Hostname,
+					Addr:       node.Addr,
+					Cluster:    cluster,
+					MFACheck:   mfaRequiredCheck,
+					hostname:   node.Hostname,
+					PubliAddrs: node.PublicAddrs,
 				},
 				tc.Config.HostLogin,
 			)

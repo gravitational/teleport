@@ -1073,13 +1073,7 @@ func (s *Server) GetInfo() types.Server {
 }
 
 func (s *Server) getBasicInfo() *types.ServerV2 {
-	// Only set the address for non-tunnel nodes.
-	var addr string
-	if !s.useTunnel {
-		addr = s.AdvertiseAddr()
-	}
-
-	srv := &types.ServerV2{
+	return &types.ServerV2{
 		Kind:    types.KindNode,
 		Version: types.V2,
 		Metadata: types.Metadata{
@@ -1088,17 +1082,15 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 			Labels:    s.getStaticLabels(),
 		},
 		Spec: types.ServerSpecV2{
-			CmdLabels: s.getDynamicLabels(),
-			Addr:      addr,
-			Hostname:  s.hostname,
-			UseTunnel: s.useTunnel,
-			Version:   teleport.Version,
-			ProxyIDs:  s.connectedProxyGetter.GetProxyIDs(),
+			CmdLabels:   s.getDynamicLabels(),
+			Addr:        s.AdvertiseAddr(),
+			Hostname:    s.hostname,
+			UseTunnel:   s.useTunnel,
+			Version:     teleport.Version,
+			ProxyIDs:    s.connectedProxyGetter.GetProxyIDs(),
+			PublicAddrs: utils.NetAddrsToStrings(s.publicAddrs),
 		},
 	}
-	srv.SetPublicAddrs(utils.NetAddrsToStrings(s.publicAddrs))
-
-	return srv
 }
 
 func (s *Server) getServerInfo(ctx context.Context) (*types.ServerV2, error) {
