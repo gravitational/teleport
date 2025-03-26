@@ -65,7 +65,7 @@ export interface WrappedQuery<
   TVariables = void,
   TError = DefaultError,
 > {
-  createQueryKey: (variables?: TVariables) => string[];
+  createQueryKey: (variables?: TVariables) => DataTag<string[], TData, TError>;
   queryKey: DataTag<string[], TData, TError>;
   useQuery: QueryHook<TData, TVariables, TError>;
 }
@@ -97,7 +97,7 @@ export function wrapQuery<
         key.push(JSON.stringify(variables));
       }
 
-      return key;
+      return key as DataTag<string[], TData, TError>;
     },
     useQuery: function wrappedQuery(
       variables?: TVariables,
