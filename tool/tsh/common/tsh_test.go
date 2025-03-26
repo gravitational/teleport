@@ -2600,6 +2600,29 @@ func TestKubeCredentialsLock(t *testing.T) {
 		_, err = authServer.UpsertKubernetesServer(context.Background(), kubeServer)
 		require.NoError(t, err)
 
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			found, _, err := authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(rwl types.ResourceWithLabels) (bool, error) {
+				if rwl.GetKind() != types.KindKubeServer {
+					return false, nil
+				}
+
+				ks, ok := rwl.(types.KubeServer)
+				if !ok {
+					return false, nil
+				}
+
+				return ks.GetCluster().GetName() == kubeCluster.GetName(), nil
+			}, &proto.ListUnifiedResourcesRequest{
+				Kinds:  []string{types.KindKubeServer},
+				SortBy: types.SortBy{Field: services.SortByName},
+				Limit:  1,
+			})
+
+			assert.NoError(t, err)
+			assert.Len(t, found, 1)
+
+		}, 10*time.Second, 100*time.Millisecond)
+
 		var ssoCalls atomic.Int32
 		mockSSOLogin := mockSSOLogin(authServer, alice)
 		mockSSOLoginWithCountCalls := func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*authclient.SSHLoginResponse, error) {
@@ -7089,6 +7112,49 @@ func TestSCP(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, expected, got)
 			}
+		})
+	}
+}
+
+func TestSetEnvVariables(t *testing.T) {
+	testCases := []struct {
+		name              string
+		envVars           map[string]string
+		sendEnvVariables  []string
+		expectedExtraEnvs map[string]string
+	}{
+		{
+			name: "Skip unset var",
+			envVars: map[string]string{
+				"TEST_VAR1": "value1",
+				"TEST_VAR2": "value2",
+			},
+			sendEnvVariables: []string{"TEST_VAR1", "TEST_VAR2", "UNSET_VAR"},
+			expectedExtraEnvs: map[string]string{
+				"TEST_VAR1": "value1",
+				"TEST_VAR2": "value2",
+			},
+		},
+		{
+			name:              "Sending empty var",
+			envVars:           map[string]string{"EMPTY_VAR": ""},
+			sendEnvVariables:  []string{"EMPTY_VAR"},
+			expectedExtraEnvs: map[string]string{"EMPTY_VAR": ""},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			for k, v := range tc.envVars {
+				t.Setenv(k, v)
+			}
+
+			c := &client.Config{}
+			options := Options{SendEnvVariables: tc.sendEnvVariables}
+
+			setEnvVariables(c, options)
+
+			require.Equal(t, tc.expectedExtraEnvs, c.ExtraEnvs)
 		})
 	}
 }

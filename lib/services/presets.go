@@ -188,6 +188,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindAutoUpdateVersion, RW()),
 					types.NewRule(types.KindAutoUpdateConfig, RW()),
 					types.NewRule(types.KindWorkloadIdentityX509Revocation, RW()),
+					types.NewRule(types.KindAutoUpdateAgentRollout, RO()),
 				},
 			},
 		},

@@ -254,6 +254,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindAutoUpdateConfig, nil
 	case types.KindAutoUpdateVersion:
 		return types.KindAutoUpdateVersion, nil
+	case types.KindAutoUpdateAgentRollout:
+		return types.KindAutoUpdateAgentRollout, nil
 	case types.KindWorkloadIdentityX509Revocation, types.KindWorkloadIdentityX509Revocation + "s":
 		return types.KindWorkloadIdentityX509Revocation, nil
 	}

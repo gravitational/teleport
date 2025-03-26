@@ -26,11 +26,46 @@ import (
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 )
 
-// DefaultInstaller represents the default installer script provided by teleport.
-var DefaultInstaller = oneoffScriptToDefaultInstaller()
+const (
+	scriptShebangAndSetOptions = `#!/usr/bin/env sh
+set -euo pipefail`
+	execGenericInstallScript = `
+INSTALL_SCRIPT_URL="https://{{.PublicProxyAddr}}/scripts/install.sh"
 
-func oneoffScriptToDefaultInstaller() *types.InstallerV1 {
-	argsList := []string{
+echo "Offloading the installation part to the generic Teleport install script hosted at: $INSTALL_SCRIPT_URL"
+
+TEMP_INSTALLER_SCRIPT="$(mktemp)"
+curl -sSf "$INSTALL_SCRIPT_URL" -o "$TEMP_INSTALLER_SCRIPT"
+
+chmod +x "$TEMP_INSTALLER_SCRIPT"
+
+sudo "$TEMP_INSTALLER_SCRIPT" || (echo "The install script ($TEMP_INSTALLER_SCRIPT) returned a non-zero exit code" && exit 1)
+rm "$TEMP_INSTALLER_SCRIPT"`
+)
+
+// LegacyDefaultInstaller represents the default installer script provided by teleport.
+var (
+	// LegacyDefaultInstaller uses oneoff.sh to download the Teleport tarball and run `teleport install`.
+	// The Teleport install command handles both Teleport installation and agent configuration.
+	LegacyDefaultInstaller = oneoffScriptToDefaultInstaller()
+
+	// NewDefaultInstaller installs Teleport by calling the standard "/scripts/install.sh" route on the proxy.
+	// After successfully installing Teleport, it will invoke the same `teleport install`
+	// command as the LegacyDefaultInstaller which will only take care of configuring Teleport.
+	NewDefaultInstaller = types.MustNewInstallerV1(
+		installers.InstallerScriptName,
+		strings.Join(
+			[]string{scriptShebangAndSetOptions, execGenericInstallScript, configureTeleport},
+			"\n\n",
+		),
+	)
+	configureTeleport = `
+echo "Configuring the Teleport agent"
+
+set +x
+sudo teleport ` + strings.Join(argsList, " ")
+
+	argsList = []string{
 		"install", "autodiscover-node",
 		"--public-proxy-addr={{.PublicProxyAddr}}",
 		"--teleport-package={{.TeleportPackage}}",
@@ -38,9 +73,11 @@ func oneoffScriptToDefaultInstaller() *types.InstallerV1 {
 		"--auto-upgrade={{.AutomaticUpgrades}}",
 		"--azure-client-id={{.AzureClientID}}",
 	}
+)
 
+func oneoffScriptToDefaultInstaller() *types.InstallerV1 {
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
-		TeleportArgs:          strings.Join(argsList, " "),
+		EntrypointArgs:        strings.Join(argsList, " "),
 		SuccessMessage:        "Teleport is installed and running.",
 		TeleportCommandPrefix: oneoff.PrefixSUDO,
 	})

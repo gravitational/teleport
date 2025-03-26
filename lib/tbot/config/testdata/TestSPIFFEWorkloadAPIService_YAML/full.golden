@@ -34,4 +34,6 @@ attestors:
     enabled: false
   docker:
     enabled: false
+  systemd:
+    enabled: false
 jwt_svid_ttl: 5m0s

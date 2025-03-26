@@ -13,5 +13,7 @@ attestors:
     enabled: false
   docker:
     enabled: false
+  systemd:
+    enabled: false
 selector:
   name: my-workload-identity

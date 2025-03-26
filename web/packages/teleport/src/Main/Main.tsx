@@ -31,7 +31,6 @@ import styled from 'styled-components';
 
 import { Box, Indicator } from 'design';
 import { Failed } from 'design/CardError';
-import Dialog from 'design/Dialog';
 import { sharedStyles } from 'design/theme/themes/sharedStyles';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
@@ -54,7 +53,6 @@ import { TopBarProps } from 'teleport/TopBar/TopBar';
 import type { LockedFeatures, TeleportFeature } from 'teleport/types';
 import { useUser } from 'teleport/User/UserContext';
 import useTeleport from 'teleport/useTeleport';
-import { QuestionnaireProps } from 'teleport/Welcome/NewCredentials';
 
 import { MainContainer } from './MainContainer';
 import { OnboardDiscover } from './OnboardDiscover';
@@ -64,7 +62,6 @@ export interface MainProps {
   customBanners?: ReactNode[];
   features: TeleportFeature[];
   billingBanners?: ReactNode[];
-  Questionnaire?: (props: QuestionnaireProps) => React.ReactElement;
   topBarProps?: TopBarProps;
   inviteCollaboratorsFeedback?: ReactNode;
 }
@@ -106,9 +103,6 @@ export function Main(props: MainProps) {
   // if there is a redirectUrl, do not show the onboarding popup - it'll get in the way of the redirected page
   const [showOnboardDiscover, setShowOnboardDiscover] = useState(
     !ctx.redirectUrl
-  );
-  const [showOnboardSurvey, setShowOnboardSurvey] = useState<boolean>(
-    !!props.Questionnaire
   );
 
   useEffect(() => {
@@ -222,14 +216,6 @@ export function Main(props: MainProps) {
       </Wrapper>
       {displayOnboardDiscover && (
         <OnboardDiscover onClose={handleOnClose} onOnboard={handleOnboard} />
-      )}
-      {showOnboardSurvey && (
-        <Dialog open={showOnboardSurvey}>
-          <props.Questionnaire
-            onSubmit={() => setShowOnboardSurvey(false)}
-            onboard={false}
-          />
-        </Dialog>
       )}
       {props.inviteCollaboratorsFeedback}
     </FeaturesContextProvider>
