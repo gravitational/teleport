@@ -17,6 +17,7 @@ package v1
 import (
 	"encoding/json"
 
+	"google.golang.org/protobuf/encoding/protojson"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -86,6 +87,20 @@ func (spec *TeleportBotSpec) Marshal() ([]byte, error) {
 func (spec *TeleportBotSpec) Unmarshal(data []byte) error {
 	// TODO(noah): use protojson??
 	return json.Unmarshal(data, spec)
+}
+
+// UnmarshalJSON delegates unmarshalling of the BotSpec to protojson, which is
+// necessary for the BotSpec (and other Proto RFD153 resources) to be
+// unmarshalled correctly from the unstructured object.
+func (spec *TeleportBotSpec) UnmarshalJSON(data []byte) error {
+	return protojson.Unmarshal(data, (*machineidv1.BotSpec)(spec))
+}
+
+// MarshalJSON delegates marshalling of the BotSpec to protojson, which is
+// necessary for the BotSpec (and other Proto RFD153 resources) to be
+// marshalled correctly into the unstructured object.
+func (spec *TeleportBotSpec) MarshalJSON() ([]byte, error) {
+	return protojson.Marshal((*machineidv1.BotSpec)(spec))
 }
 
 // DeepCopyInto deep-copies one user spec into another.
