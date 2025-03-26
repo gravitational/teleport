@@ -225,6 +225,10 @@ linters-settings:
         msg: 'Use stsutils.NewV1'
       - p: '^stscreds\.NewCredentials$'
         msg: 'Use stsutils.NewCredentials'
+      - p: '^protojson\.Unmarshal$'
+        msg: "use protojson.UnmarshalOptions and consider enabling DiscardUnknown"
+      - p: '^jsonpb\.(?:Unmarshal|UnmarshalString|UnmarshalNext)$'
+        msg: "use jsonpb.Unmarshaler and consider enabling AllowUnknownFields"
 
 run:
   go: '1.23'
