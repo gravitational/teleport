@@ -62,6 +62,11 @@ func (s *store[T]) delete(t T) error {
 	return nil
 }
 
+// len returns the number of values currently stored.
+func (s *store[T]) len() int {
+	return s.cache.Len()
+}
+
 // get returns the item matching the provided index and item,
 // or a [trace.NotFoundError] if no match was found.
 //
