@@ -35,7 +35,12 @@ import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 import cfg, { UrlDesktopParams } from 'teleport/config';
 import { KeyboardHandler } from 'teleport/DesktopSession/KeyboardHandler';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
-import {ButtonState, ScrollAxis, TdpClient, TdpClientEvent} from 'teleport/lib/tdp';
+import {
+  ButtonState,
+  ScrollAxis,
+  TdpClient,
+  TdpClientEvent,
+} from 'teleport/lib/tdp';
 import { useListener } from 'teleport/lib/tdp/client';
 import { shouldShowMfaPrompt, useMfaEmitter } from 'teleport/lib/useMfa';
 import { getHostName } from 'teleport/services/api';
