@@ -362,6 +362,9 @@ func (k *Key) SignJWTSVID(p SignParamsJWTSVID) (string, error) {
 		if err := json.Unmarshal(marshaled, &unmarshaled); err != nil {
 			return "", trace.Wrap(err, "unmarshaling claims")
 		}
+
+		// Only inject claims that don't conflict with an existing primary claim
+		// such as sub or aud.
 		for k, v := range p.PrivateClaims {
 			if _, ok := unmarshaled[k]; !ok {
 				unmarshaled[k] = v
