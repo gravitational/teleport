@@ -18,12 +18,12 @@
 
 import { useEffect } from 'react';
 
-import Logger from 'shared/libs/logger';
-
 import init, {
   FastPathProcessor,
   init_wasm_log,
-} from 'teleport/ironrdp/pkg/ironrdp';
+} from 'shared/libs/ironrdp/pkg/ironrdp';
+import Logger from 'shared/libs/logger';
+
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
 import { TermEvent, WebsocketCloseCode } from 'teleport/lib/term/enums';
