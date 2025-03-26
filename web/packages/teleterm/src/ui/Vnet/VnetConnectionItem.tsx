@@ -18,7 +18,7 @@
 
 import React, { forwardRef, useEffect, useMemo, useRef } from 'react';
 
-import { ButtonIcon, Flex, rotate360, Text } from 'design';
+import { Button, ButtonIcon, Flex, rotate360, Text } from 'design';
 import * as icons from 'design/Icon';
 
 import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
@@ -80,7 +80,10 @@ const VnetConnectionItemBase = forwardRef<
     onClick: () => void;
     title: string;
     showBackButton?: boolean;
-    /** Shows help and diagnostics buttons between "VNet" text and the start/stop button. */
+    /**
+     * Shows help and diagnostics buttons between "VNet" text and the start/stop button.
+     * Also adds text to the VNet toggle button rather than using just an icon.
+     */
     showExtraRightButtons?: boolean;
     isActive?: boolean;
     tabIndex?: number;
@@ -233,54 +236,110 @@ const VnetConnectionItemBase = forwardRef<
                 There's a test which checks whether the focus is kept between state transitions.
             */}
 
-          {isProcessing && (
+          {isProcessing &&
             // This button cannot be disabled, otherwise the focus will be lost between
             // transitions and the test won't be able to catch this.
-            <ButtonIcon
-              key="vnet-toggle"
-              title={
-                status.value === 'running' ? 'Stopping VNet' : 'Starting VNet'
-              }
-              onClick={e => {
-                e.stopPropagation();
-              }}
-            >
-              <icons.Spinner
-                css={`
-                  width: 32px;
-                  height: 32px;
-                  animation: ${rotate360} 1.5s infinite linear;
-                `}
-                size={18}
-              />
-            </ButtonIcon>
-          )}
-          {!isProcessing && status.value === 'running' && (
-            <ButtonIcon
-              key="vnet-toggle"
-              title="Stop VNet"
-              onClick={e => {
-                e.stopPropagation();
-                stop();
-              }}
-            >
-              <icons.BroadcastSlash size={18} />
-            </ButtonIcon>
-          )}
-          {!isProcessing && status.value === 'stopped' && (
-            <ButtonIcon
-              key="vnet-toggle"
-              title="Start VNet"
-              onClick={e => {
-                e.stopPropagation();
-                start();
-              }}
-            >
-              <icons.Broadcast size={18} />
-            </ButtonIcon>
-          )}
+            (props.showExtraRightButtons ? (
+              <Button
+                key={toggleVnetButtonKey}
+                width={toggleVnetButtonWidth}
+                size="small"
+                intent="neutral"
+                fill="minimal"
+                onClick={e => {
+                  e.stopPropagation();
+                }}
+              >
+                {status.value === 'running' ? (
+                  <>
+                    <icons.BroadcastSlash size={18} mr={1} /> Stopping…
+                  </>
+                ) : (
+                  <>
+                    <icons.Broadcast size={18} mr={1} /> Starting…
+                  </>
+                )}
+              </Button>
+            ) : (
+              <ButtonIcon
+                key={toggleVnetButtonKey}
+                title={
+                  status.value === 'running' ? 'Stopping VNet' : 'Starting VNet'
+                }
+                onClick={e => {
+                  e.stopPropagation();
+                }}
+              >
+                <icons.Spinner
+                  css={`
+                    width: 32px;
+                    height: 32px;
+                    animation: ${rotate360} 1.5s infinite linear;
+                  `}
+                  size={18}
+                />
+              </ButtonIcon>
+            ))}
+          {!isProcessing &&
+            status.value === 'running' &&
+            (props.showExtraRightButtons ? (
+              <Button
+                intent="neutral"
+                fill="minimal"
+                key={toggleVnetButtonKey}
+                size="small"
+                width={toggleVnetButtonWidth}
+                onClick={e => {
+                  e.stopPropagation();
+                  stop();
+                }}
+              >
+                <icons.BroadcastSlash size={18} mr={1} />
+                Stop VNet
+              </Button>
+            ) : (
+              <ButtonIcon
+                key={toggleVnetButtonKey}
+                title="Stop VNet"
+                onClick={e => {
+                  e.stopPropagation();
+                  stop();
+                }}
+              >
+                <icons.BroadcastSlash size={18} />
+              </ButtonIcon>
+            ))}
+          {!isProcessing &&
+            status.value === 'stopped' &&
+            (props.showExtraRightButtons ? (
+              <Button
+                key={toggleVnetButtonKey}
+                size="small"
+                width={toggleVnetButtonWidth}
+                onClick={e => {
+                  e.stopPropagation();
+                  start();
+                }}
+              >
+                <icons.Broadcast size={18} mr={1} /> Start VNet
+              </Button>
+            ) : (
+              <ButtonIcon
+                key={toggleVnetButtonKey}
+                title="Start VNet"
+                onClick={e => {
+                  e.stopPropagation();
+                  start();
+                }}
+              >
+                <icons.Broadcast size={18} />
+              </ButtonIcon>
+            ))}
         </Flex>
       </Flex>
     </ListItem>
   );
 });
+
+const toggleVnetButtonKey = 'vnet-toggle';
+const toggleVnetButtonWidth = 102;

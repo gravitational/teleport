@@ -294,6 +294,13 @@ type: kubernetes
 # Teleport, that the output should generate credentials and a kubeconfig for.
 # This field must be specified.
 kubernetes_cluster: my-cluster
+# disable_exec_plugin disables the default behaviour of using the `tbot` binary
+# as a `kubectl` credentials exec plugin. This is useful in environments where
+# `tbot` does not exist on the system that will consume the generated kubeconfig
+# (e.g. when using the `kubernetes_secret` output type). This credentials exec
+# plugin is used to automatically refresh the credentials within a single
+# invocation of `kubectl`. Defaults to `false`.
+disable_exec_plugin: false
 
 (!docs/pages/includes/machine-id/common-output-config.yaml!)
 ```
@@ -334,6 +341,14 @@ destination:
 # on the next invocation, but don't want long-lived workload certificates on-disk.
 credential_ttl: 30m
 renewal_interval: 15m
+
+# disable_exec_plugin disables the default behaviour of using the `tbot` binary
+# as a `kubectl` credentials exec plugin. This is useful in environments where
+# `tbot` does not exist on the system that will consume the generated kubeconfig
+# (e.g. when using the `kubernetes_secret` output type). This credentials exec
+# plugin is used to automatically refresh the credentials within a single
+# invocation of `kubectl`. Defaults to `false`.
+disable_exec_plugin: false
 ```
 
 Each Kubernetes cluster matching a selector will result in a new context in the
@@ -531,6 +546,18 @@ listen: unix:///opt/machine-id/workload.sock
 # attestors allows Workload Attestation to be configured for this Workload
 # API.
 attestors:
+  # docker is configuration for the Docker Workload Attestor. See the Workload
+  # Identity API & Workload Attestation reference for more information.
+  docker:
+    # enabled specifies whether the workload's identity should be attested with
+    # information about its Docker container. If unspecified, this defaults to
+    # false.
+    enabled: true
+    # addr is the address at which the Docker Engine daemon can be reached. It
+    # must be in the form `unix://path/to/socket`, as connecting via TCP is not
+    # currently supported. If unspecified, this defaults to the standard socket
+    # location for "rootful" Docker installations: `unix:///var/run/docker.sock`.
+    addr: unix:///var/run/docker.sock
   # kubernetes is configuration for the Kubernetes Workload Attestor. See
   # the Kubernetes Workload Attestor section for more information.
   kubernetes:
@@ -569,6 +596,18 @@ attestors:
       # unspecified, this defaults to false. If set, the token_path field is
       # ignored.
       anonymous: false
+  # podman is configuration for the Podman Workload Attestor. See the Workload
+  # Identity API & Workload Attestation reference for more information.
+  podman:
+    # enabled specifies whether the workload's identity should be attested with
+    # information about its Podman container and pod. If unspecified, this
+    # defaults to false.
+    enabled: true
+    # addr is the address at which the Podman API Service can be reached. It
+    # must be in the form `unix://path/to/socket`, as connecting via TCP is not
+    # supported. This field is required and there is no default value. See the
+    # Workload Identity API & Workload Attestation reference for more information.
+    addr: unix:///run/podman/podman.sock
 # svids specifies the SPIFFE SVIDs that the Workload API should provide.
 svids:
     # path specifies what the path element should be requested for the SPIFFE
