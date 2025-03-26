@@ -73,11 +73,12 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 	}
 
 	c := client.MakeDefaultConfig()
+	c.ClientStore = clientStore
 	slog.DebugContext(ctx, "Found profile",
 		"proxy", logutils.StringerAttr(&profile.ProxyURL),
 		"user", profile.Username,
 	)
-	if err := c.LoadProfile(clientStore, proxyAddr); err != nil {
+	if err := c.LoadProfile(proxyAddr); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
