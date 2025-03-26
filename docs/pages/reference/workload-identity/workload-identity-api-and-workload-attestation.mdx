@@ -162,7 +162,7 @@ SVIDs to unauthorized workloads.
 
 The Unix Workload Attestor captures the path and a SHA-256 checksum of the
 workload's executable using the `/proc/$pid/exe` symlink. There are a number of
-important considerations when using these attributes in your rules.
+important considerations when using these attributes in your rules:
 
 - `tbot` can only reliably determine the a process' executable path if it's
   running in the same mount namespace. The `binary_path` attribute will likely
