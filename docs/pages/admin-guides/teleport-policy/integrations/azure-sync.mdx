@@ -71,7 +71,11 @@ how to set up Access Graph.
   another Teleport service (Auth or Proxy, for example), you can skip this step.
 </Admonition>
 
-Install Teleport on the virtual machine that will run the Discovery Service:
+Install Teleport on an Azure virtual machine that will run the Discovery Service. This allows for a managed identity
+attached to the VM to be assigned the correct permissions to fetch the required Azure sources. Alternatively, Teleport
+can be installed in other environments as long it is attached to a Auth service configured with an Azure OIDC
+integration. Two options are given below for either 1) using an Azure virtual machine or 2) using Azure OIDC credentials
+via Entra ID integration.
 
 (!docs/pages/includes/install-linux.mdx!)
 
