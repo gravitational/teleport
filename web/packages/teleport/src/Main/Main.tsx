@@ -31,7 +31,6 @@ import styled from 'styled-components';
 
 import { Box, Indicator } from 'design';
 import { Failed } from 'design/CardError';
-import Dialog from 'design/Dialog';
 import { sharedStyles } from 'design/theme/themes/sharedStyles';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
