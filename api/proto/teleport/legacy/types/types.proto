@@ -202,6 +202,12 @@ message DatabaseServerV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+
+  // Status is the database server status.
+  DatabaseServerStatusV3 Status = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "status"
+  ];
 }
 
 // DatabaseServerSpecV3 is the database server spec.
@@ -236,6 +242,13 @@ message DatabaseServerSpecV3 {
   DatabaseV3 Database = 12 [(gogoproto.jsontag) = "database,omitempty"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
   repeated string ProxyIDs = 13 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
+}
+
+// DatabaseServerStatusV3 is the database server status.
+message DatabaseServerStatusV3 {
+  // TargetHealth is the health status of network connectivity between
+  // the agent and the database.
+  TargetHealth TargetHealth = 14 [(gogoproto.jsontag) = "target_health,omitempty"];
 }
 
 // DatabaseV3List represents a list of databases.
@@ -1594,6 +1607,11 @@ message ProvisionTokenSpecV2GitLab {
   // `gitlab.com` - but can be set to the domain of your self-hosted GitLab
   // e.g `gitlab.example.com`.
   string Domain = 2 [(gogoproto.jsontag) = "domain,omitempty"];
+  // StaticJWKS disables fetching of the GitLab signing keys via the JWKS/OIDC
+  // endpoints, and allows them to be directly specified. This allows joining
+  // from GitLab CI instances that are not reachable by the Teleport Auth
+  // Service.
+  string StaticJWKS = 3 [(gogoproto.jsontag) = "static_jwks,omitempty"];
 }
 
 // ProvisionTokenSpecV2CircleCI contains the CircleCI-specific part of the
@@ -8264,4 +8282,28 @@ message AccessGraphAzureSync {
   string SubscriptionID = 1 [(gogoproto.jsontag) = "subscription_id,omitempty"];
   // Integration is the integration name used to generate credentials to interact with AWS APIs.
   string Integration = 2 [(gogoproto.jsontag) = "integration,omitempty"];
+}
+
+// TargetHealth describes the health status of network connectivity between
+// an agent and a resource.
+message TargetHealth {
+  // Address is the resource address.
+  string Address = 1 [(gogoproto.jsontag) = "address,omitempty"];
+  // Protocol is the health check protocol such as "tcp".
+  string Protocol = 2 [(gogoproto.jsontag) = "protocol,omitempty"];
+  // Status is the health status, one of "", "disabled", "initialized", "healthy", "unhealthy".
+  string Status = 3 [(gogoproto.jsontag) = "status,omitempty"];
+  // TransitionTimestamp is the time that the last status transition occurred.
+  google.protobuf.Timestamp TransitionTimestamp = 4 [
+    (gogoproto.jsontag) = "transition_timestamp,omitempty",
+    (gogoproto.nullable) = true,
+    (gogoproto.stdtime) = true
+  ];
+  // TransitionReason is a unique single word reason why the last transition occurred.
+  string TransitionReason = 5 [(gogoproto.jsontag) = "transition_reason,omitempty"];
+  // TransitionError shows the health check error observed when the transition
+  // happened. Empty when transitioning to "healthy".
+  string TransitionError = 6 [(gogoproto.jsontag) = "transition_error,omitempty"];
+  // Message is additional information meant for a user.
+  string Message = 7 [(gogoproto.jsontag) = "message,omitempty"];
 }

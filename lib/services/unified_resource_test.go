@@ -465,7 +465,7 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 	tests := []struct {
 		name             string
 		createResource   func(name string, c *client) error
-		iterateResources func(urc *services.UnifiedResourceCache) iter.Seq2[GetNamer, error]
+		iterateResources func(urc *services.UnifiedResourceCache, descending bool) iter.Seq2[GetNamer, error]
 	}{
 		{
 			name: "nodes",
@@ -474,9 +474,9 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 				_, err := c.UpsertNode(ctx, node)
 				return err
 			},
-			iterateResources: func(urc *services.UnifiedResourceCache) iter.Seq2[GetNamer, error] {
+			iterateResources: func(urc *services.UnifiedResourceCache, descending bool) iter.Seq2[GetNamer, error] {
 				return func(yield func(GetNamer, error) bool) {
-					for n, err := range urc.Nodes(ctx, services.UnifiedResourcesIterateParams{}) {
+					for n, err := range urc.Nodes(ctx, services.UnifiedResourcesIterateParams{Descending: descending}) {
 						if err != nil {
 							yield(nil, err)
 							return
@@ -514,9 +514,9 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 				_, err = c.UpsertDatabaseServer(ctx, dbServer)
 				return err
 			},
-			iterateResources: func(urc *services.UnifiedResourceCache) iter.Seq2[GetNamer, error] {
+			iterateResources: func(urc *services.UnifiedResourceCache, descending bool) iter.Seq2[GetNamer, error] {
 				return func(yield func(GetNamer, error) bool) {
-					for n, err := range urc.DatabaseServers(ctx, services.UnifiedResourcesIterateParams{}) {
+					for n, err := range urc.DatabaseServers(ctx, services.UnifiedResourcesIterateParams{Descending: descending}) {
 						if err != nil {
 							yield(nil, err)
 							return
@@ -545,9 +545,9 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 				_, err = c.UpsertApplicationServer(ctx, app)
 				return err
 			},
-			iterateResources: func(urc *services.UnifiedResourceCache) iter.Seq2[GetNamer, error] {
+			iterateResources: func(urc *services.UnifiedResourceCache, descending bool) iter.Seq2[GetNamer, error] {
 				return func(yield func(GetNamer, error) bool) {
-					for n, err := range urc.AppServers(ctx, services.UnifiedResourcesIterateParams{}) {
+					for n, err := range urc.AppServers(ctx, services.UnifiedResourcesIterateParams{Descending: descending}) {
 						if err != nil {
 							yield(nil, err)
 							return
@@ -574,9 +574,9 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 				_, err = c.UpsertKubernetesServer(ctx, kubeServer)
 				return err
 			},
-			iterateResources: func(urc *services.UnifiedResourceCache) iter.Seq2[GetNamer, error] {
+			iterateResources: func(urc *services.UnifiedResourceCache, descending bool) iter.Seq2[GetNamer, error] {
 				return func(yield func(GetNamer, error) bool) {
-					for n, err := range urc.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
+					for n, err := range urc.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{Descending: descending}) {
 						if err != nil {
 							yield(nil, err)
 							return
@@ -603,9 +603,9 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 				_, err = c.CreateGitServer(ctx, gitServer)
 				return err
 			},
-			iterateResources: func(urc *services.UnifiedResourceCache) iter.Seq2[GetNamer, error] {
+			iterateResources: func(urc *services.UnifiedResourceCache, descending bool) iter.Seq2[GetNamer, error] {
 				return func(yield func(GetNamer, error) bool) {
-					for n, err := range urc.GitServers(ctx, services.UnifiedResourcesIterateParams{}) {
+					for n, err := range urc.GitServers(ctx, services.UnifiedResourcesIterateParams{Descending: descending}) {
 						if err != nil {
 							yield(nil, err)
 							return
@@ -632,9 +632,9 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 				err = c.UpsertWindowsDesktop(ctx, win)
 				return err
 			},
-			iterateResources: func(urc *services.UnifiedResourceCache) iter.Seq2[GetNamer, error] {
+			iterateResources: func(urc *services.UnifiedResourceCache, descending bool) iter.Seq2[GetNamer, error] {
 				return func(yield func(GetNamer, error) bool) {
-					for n, err := range urc.WindowsDesktops(ctx, services.UnifiedResourcesIterateParams{}) {
+					for n, err := range urc.WindowsDesktops(ctx, services.UnifiedResourcesIterateParams{Descending: descending}) {
 						if err != nil {
 							yield(nil, err)
 							return
@@ -678,9 +678,9 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 				})
 				return err
 			},
-			iterateResources: func(urc *services.UnifiedResourceCache) iter.Seq2[GetNamer, error] {
+			iterateResources: func(urc *services.UnifiedResourceCache, descending bool) iter.Seq2[GetNamer, error] {
 				return func(yield func(GetNamer, error) bool) {
-					for n, err := range urc.SAMLIdPServiceProviders(ctx, services.UnifiedResourcesIterateParams{}) {
+					for n, err := range urc.SAMLIdPServiceProviders(ctx, services.UnifiedResourcesIterateParams{Descending: descending}) {
 						if err != nil {
 							yield(nil, err)
 							return
@@ -725,9 +725,9 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 					}})
 				return err
 			},
-			iterateResources: func(urc *services.UnifiedResourceCache) iter.Seq2[GetNamer, error] {
+			iterateResources: func(urc *services.UnifiedResourceCache, descending bool) iter.Seq2[GetNamer, error] {
 				return func(yield func(GetNamer, error) bool) {
-					for n, err := range urc.IdentityCenterAccounts(ctx, services.UnifiedResourcesIterateParams{}) {
+					for n, err := range urc.IdentityCenterAccounts(ctx, services.UnifiedResourcesIterateParams{Descending: descending}) {
 						if err != nil {
 							yield(nil, err)
 							return
@@ -766,9 +766,9 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 					}})
 				return err
 			},
-			iterateResources: func(urc *services.UnifiedResourceCache) iter.Seq2[GetNamer, error] {
+			iterateResources: func(urc *services.UnifiedResourceCache, descending bool) iter.Seq2[GetNamer, error] {
 				return func(yield func(GetNamer, error) bool) {
-					for n, err := range urc.IdentityCenterAccountAssignments(ctx, services.UnifiedResourcesIterateParams{}) {
+					for n, err := range urc.IdentityCenterAccountAssignments(ctx, services.UnifiedResourcesIterateParams{Descending: descending}) {
 						if err != nil {
 							yield(nil, err)
 							return
@@ -802,25 +802,100 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 				require.NoError(t, test.createResource(ids[i], clt), "creating resource %d", i)
 			}
 
+			var expected []types.ResourceWithLabels
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
-				found, err := w.GetUnifiedResources(ctx)
+				var err error
+				expected, err = w.GetUnifiedResources(ctx)
 				assert.NoError(t, err)
-				assert.Len(t, found, resourceCount)
+				assert.Len(t, expected, resourceCount)
 			}, 10*time.Second, 100*time.Millisecond)
 
-			count := 0
-			for r, err := range test.iterateResources(w) {
-				require.NoError(t, err)
+			t.Run("resource iterator", func(t *testing.T) {
+				t.Run("ascending", func(t *testing.T) {
+					count := 0
+					for r, err := range test.iterateResources(w, false) {
+						require.NoError(t, err)
 
-				if r.GetName() != ids[count] {
-					t.Fatalf("expected resource named %s, got %s", ids[count], r.GetName())
-				}
-				count++
-			}
+						if r.GetName() != ids[count] {
+							t.Fatalf("expected resource named %s, got %s", ids[count], r.GetName())
+						}
+						count++
+					}
 
-			if count != resourceCount {
-				t.Fatalf("iteration completed early, expected %d apps, got %d", resourceCount, count)
-			}
+					require.Equal(t, resourceCount, count)
+				})
+
+				t.Run("descending", func(t *testing.T) {
+					count := resourceCount - 1
+					for r, err := range test.iterateResources(w, true) {
+						require.NoError(t, err)
+
+						if r.GetName() != ids[count] {
+							t.Fatalf("expected resource named %s, got %s", ids[count], r.GetName())
+						}
+						count--
+					}
+
+					require.Equal(t, -1, count)
+				})
+			})
+
+			t.Run("IterateUnifiedResources", func(t *testing.T) {
+				t.Run("ascending", func(t *testing.T) {
+					count := 0
+					req := proto.ListUnifiedResourcesRequest{}
+					for {
+						resources, next, err := w.IterateUnifiedResources(ctx, func(labels types.ResourceWithLabels) (bool, error) {
+							return true, nil
+						}, &req)
+
+						require.NoError(t, err)
+
+						for _, r := range resources {
+							if r.GetName() != ids[count] {
+								t.Fatalf("expected resource named %s, got %s", ids[count], r.GetName())
+							}
+							count++
+						}
+
+						if next == "" {
+							break
+						}
+						req.StartKey = next
+					}
+
+					require.Equal(t, resourceCount, count)
+				})
+
+				t.Run("descending", func(t *testing.T) {
+					count := resourceCount - 1
+					req := proto.ListUnifiedResourcesRequest{
+						SortBy: types.SortBy{Field: types.ResourceKind, IsDesc: true},
+					}
+					for {
+						resources, next, err := w.IterateUnifiedResources(ctx, func(labels types.ResourceWithLabels) (bool, error) {
+							return true, nil
+						}, &req)
+
+						require.NoError(t, err)
+
+						for _, r := range resources {
+							if r.GetName() != ids[count] {
+								t.Fatalf("expected resource named %s, got %s", ids[count], r.GetName())
+							}
+							count--
+						}
+
+						if next == "" {
+							break
+						}
+						req.StartKey = next
+					}
+
+					require.Equal(t, -1, count)
+				})
+			})
+
 		})
 	}
 }

@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,26 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MemoryRouter } from 'react-router';
-
-import { getPlatform } from 'design/platform';
-
-import { getConnectDownloadLinks } from '../DownloadConnect/DownloadConnect';
-import { DeviceTrustConnectPassthrough } from './AuthorizeDeviceWeb';
-
-export default {
-  title: 'Shared/AuthorizeDeviceWeb',
-};
-
-export function AuthorizeDeviceWeb() {
-  const platform = getPlatform();
-  const downloadLinks = getConnectDownloadLinks(platform, '15.2.2');
-  return (
-    <MemoryRouter>
-      <DeviceTrustConnectPassthrough
-        authorizeWebDeviceDeepLink={'blank'}
-        downloadLinks={downloadLinks}
-      />
-    </MemoryRouter>
-  );
+/** User-visible feature names */
+export enum FeatureName {
+  /** Teleport Identity Security (formerly Teleport Policy) */
+  IdentitySecurity = 'Teleport Identity Security',
+  /** Teleport Identity Governance (formerly Teleport Identity) */
+  IdentityGovernance = 'Teleport Identity Governance',
 }
