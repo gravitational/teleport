@@ -448,6 +448,9 @@ type Config struct {
 	// PIVSlot specifies a specific PIV slot to use with hardware key support.
 	PIVSlot hardwarekey.PIVSlotKeyString
 
+	// PIVPINCacheTimeout specifies how long to cache the user's PIV PIN.
+	PIVPINCacheTimeout time.Duration
+
 	// LoadAllCAs indicates that tsh should load the CAs of all clusters
 	// instead of just the current cluster.
 	LoadAllCAs bool
@@ -945,6 +948,7 @@ func (c *Config) LoadProfile(proxyAddr string) error {
 	c.LoadAllCAs = profile.LoadAllCAs
 	c.PrivateKeyPolicy = profile.PrivateKeyPolicy
 	c.PIVSlot = profile.PIVSlot
+	c.PIVPINCacheTimeout = profile.PIVPINCacheTimeout
 	c.SAMLSingleLogoutEnabled = profile.SAMLSingleLogoutEnabled
 	c.SSHDialTimeout = profile.SSHDialTimeout
 	c.SSOHost = profile.SSOHost
@@ -1000,6 +1004,7 @@ func (c *Config) Profile() *profile.Profile {
 		LoadAllCAs:                    c.LoadAllCAs,
 		PrivateKeyPolicy:              c.PrivateKeyPolicy,
 		PIVSlot:                       c.PIVSlot,
+		PIVPINCacheTimeout:            c.PIVPINCacheTimeout,
 		SAMLSingleLogoutEnabled:       c.SAMLSingleLogoutEnabled,
 		SSHDialTimeout:                c.SSHDialTimeout,
 		SSOHost:                       c.SSOHost,
@@ -4734,6 +4739,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 // authentication settings, overriding existing fields in tc.
 func (tc *TeleportClient) applyAuthSettings(authSettings webclient.AuthenticationSettings) error {
 	tc.LoadAllCAs = authSettings.LoadAllCAs
+	tc.PIVPINCacheTimeout = authSettings.PIVPINCacheTimeout
 
 	// If PIVSlot is not already set, default to the server setting.
 	if tc.PIVSlot == "" {
