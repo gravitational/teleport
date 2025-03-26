@@ -1481,6 +1481,20 @@ export const formatters: Formatters = {
       return `User [${user}] deleted a Workload Identity [${name}]`;
     },
   },
+  [eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_CREATE]: {
+    type: 'workload_identity_x509_issuer_override.create',
+    desc: 'Workload Identity X.509 Issuer Override Created',
+    format: ({ user, name }) => {
+      return `User [${user}] created a Workload Identity X.509 Issuer Override [${name}]`;
+    },
+  },
+  [eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_DELETE]: {
+    type: 'workload_identity_x509_issuer_override.delete',
+    desc: 'Workload Identity X.509 Issuer Override Deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted a Workload Identity X.509 Issuer Override [${name}]`;
+    },
+  },
   [eventCodes.LOGIN_RULE_CREATE]: {
     type: 'login_rule.create',
     desc: 'Login Rule Created',
