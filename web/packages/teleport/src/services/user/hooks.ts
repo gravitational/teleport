@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,4 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { UserAddEdit } from './UserAddEdit';
+import { wrapMutation, wrapQuery } from 'teleport/services/queryHelpers';
+import userService from 'teleport/services/user';
+
+export const { queryKey: GetUsersQueryKey, useQuery: useGetUsers } = wrapQuery(
+  ['users', 'get'],
+  userService.fetchUsers
+);
+
+export const useCreateUser = wrapMutation(userService.createUser);
+
+export const useDeleteUser = wrapMutation(userService.deleteUser);
+
+export const useUpdateUser = wrapMutation(userService.updateUser);
