@@ -56,6 +56,11 @@ type MarshalConfig struct {
 
 	// Expires is an optional expiry time
 	Expires time.Time
+
+	// DisallowUnknown will, for resources stored in protojson, disallow unknown
+	// fields when unmarshaling. This is useful if a resource is being parsed
+	// from user-specified data rather than persistent cluster state storage.
+	DisallowUnknown bool
 }
 
 // GetVersion returns explicitly provided version or sets latest as default
@@ -121,6 +126,16 @@ func WithVersion(v string) MarshalOption {
 		default:
 			return trace.BadParameter("version '%v' is not supported", v)
 		}
+	}
+}
+
+// DisallowUnknown will, for resources stored in protojson, disallow unknown
+// fields when unmarshaling. This is useful if a resource is being parsed
+// from user-specified data rather than persistent cluster state storage.
+func DisallowUnknown() MarshalOption {
+	return func(c *MarshalConfig) error {
+		c.DisallowUnknown = true
+		return nil
 	}
 }
 
