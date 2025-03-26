@@ -55,7 +55,7 @@ export function DesktopSessionContainer() {
   const ctx = useTeleport();
   const { username, desktopName, clusterId } = useParams<UrlDesktopParams>();
   useEffect(() => {
-    document.title = `${username}@${desktopName} • ${clusterId}`;
+    document.title = `${username} on ${desktopName} • ${clusterId}`;
   }, [clusterId, desktopName, username]);
 
   const [client] = useState(
@@ -400,7 +400,7 @@ export function DesktopSession({
           }));
           client.shutdown();
         }}
-        userHost={`${username}@${desktop}`}
+        userHost={`${username} on ${desktop}`}
         canShareDirectory={directorySharingPossible(directorySharingState)}
         isSharingDirectory={isSharingDirectory(directorySharingState)}
         isSharingClipboard={isSharingClipboard(clipboardSharingState)}
