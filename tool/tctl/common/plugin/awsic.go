@@ -74,11 +74,11 @@ func (a *awsICArgs) validate(ctx context.Context, log *slog.Logger) error {
 
 func (a *awsICArgs) validateSystemCredentialInput() error {
 	if !a.useSystemCredentials {
-		return trace.BadParameter("--useSystemCredentials must be set")
+		return trace.BadParameter("--use-system-credentials must be set. The tctl-based AWS IAM Identity Center plugin installation only supports AWS local system credentials")
 	}
 
 	if a.assumeRoleARN == "" {
-		return trace.BadParameter("--assume-role-arn must be set when --useSystemCredentials is configured")
+		return trace.BadParameter("--assume-role-arn must be set when --use-system-credentials is configured")
 	}
 
 	if _, err := awsutils.ParseRoleARN(a.assumeRoleARN); err != nil {
