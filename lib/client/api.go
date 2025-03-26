@@ -849,13 +849,16 @@ func IsErrorResolvableWithRelogin(err error) bool {
 		IsNoCredentialsError(err)
 }
 
-// GetProfile gets the profile for the specified proxy address, or
-// the current profile if no proxy is specified.
-func (c *Config) GetProfile(ps ProfileStore, proxyAddr string) (*profile.Profile, error) {
+// GetProfile gets the client profile for the specified proxy address.
+func (c *Config) GetProfile(proxyAddr string) (*profile.Profile, error) {
+	if c.ClientStore == nil {
+		return nil, trace.BadParameter("client store can not be nil")
+	}
+
 	var proxyHost string
 	var err error
 	if proxyAddr == "" {
-		proxyHost, err = ps.CurrentProfile()
+		proxyHost, err = c.ClientStore.CurrentProfile()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -866,18 +869,17 @@ func (c *Config) GetProfile(ps ProfileStore, proxyAddr string) (*profile.Profile
 		}
 	}
 
-	profile, err := ps.GetProfile(proxyHost)
+	profile, err := c.ClientStore.GetProfile(proxyHost)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return profile, nil
 }
 
-// LoadProfile populates Config with the values stored in the given
-// profiles directory. If profileDir is an empty string, the default profile
-// directory ~/.tsh is used.
-func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
-	profile, err := c.GetProfile(ps, proxyAddr)
+// LoadProfile populates Config with the values stored in the client
+// profile for the specified proxy address.
+func (c *Config) LoadProfile(proxyAddr string) error {
+	profile, err := c.GetProfile(proxyAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
