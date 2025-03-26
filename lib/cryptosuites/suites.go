@@ -191,8 +191,9 @@ var (
 		ProxyKubeClient:      RSA2048,
 		// EC2InstanceConnect has always used Ed25519 by default.
 		EC2InstanceConnect: Ed25519,
-		GitHubProxyCASSH:   Ed25519,
-		GitClient:          Ed25519,
+		// Use ECDSAP256 for KMS compatibility while avoiding RSA2048.
+		GitHubProxyCASSH: ECDSAP256,
+		GitClient:        Ed25519,
 	}
 
 	// balancedV1 strikes a balance between security, compatibility, and
@@ -223,7 +224,7 @@ var (
 		ProxyToDatabaseAgent:    ECDSAP256,
 		ProxyKubeClient:         ECDSAP256,
 		EC2InstanceConnect:      Ed25519,
-		GitHubProxyCASSH:        Ed25519,
+		GitHubProxyCASSH:        ECDSAP256,
 		GitClient:               Ed25519,
 	}
 
