@@ -5261,7 +5261,6 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 
 	a.AnonymizeAndSubmit(&usagereporter.AccessRequestCreateEvent{
 		UserName:  req.GetUser(),
-		Action:    events.AccessRequestCreateEvent,
 		Resources: resources,
 	})
 
@@ -5596,7 +5595,6 @@ func (a *Server) submitAccessReview(
 
 	a.AnonymizeAndSubmit(&usagereporter.AccessRequestReviewEvent{
 		UserName:       params.Review.Author,
-		Action:         events.AccessRequestReviewEvent,
 		Resources:      resources,
 		IsAutoApproved: (params.Review.Author == teleport.SystemAccessApproverUserName),
 	})
