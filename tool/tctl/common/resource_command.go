@@ -593,7 +593,7 @@ func (rc *ResourceCommand) createUser(ctx context.Context, client *authclient.Cl
 
 func (rc *ResourceCommand) createBot(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	bot := &machineidv1pb.Bot{}
-	if err := protojson.Unmarshal(raw.Raw, bot); err != nil {
+	if err := (protojson.UnmarshalOptions{}).Unmarshal(raw.Raw, bot); err != nil {
 		return trace.Wrap(err)
 	}
 	if rc.IsForced() {
