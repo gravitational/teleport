@@ -428,4 +428,4 @@ replace (
 // (using our fork of github.com/hashicorp/terraform-plugin-docs)
 tool github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs
 
-replace github.com/hashicorp/terraform-plugin-docs => github.com/gravitational/terraform-plugin-docs v0.19.5-0.20240627183239-7e7e22a2c1f6
+replace github.com/hashicorp/terraform-plugin-docs => github.com/gravitational/terraform-plugin-docs v0.19.5-0.20250326215846-2e10ca5fcbdf
