@@ -2783,10 +2783,37 @@ export interface UserTaskStateEvent {
 export interface AccessRequestEvent {
     /**
      * Teleport user name. Anonymized.
+     * For a create event, this is the requester's user name.
+     * For a review event, this is the reviewer's user name.
      *
      * @generated from protobuf field: string user_name = 1;
      */
     userName: string;
+    /**
+     * action specifies the access request action. Either `create` or `review`.
+     *
+     * PostHog property: tp.access_request.action.
+     *
+     * @generated from protobuf field: string action = 2;
+     */
+    action: string;
+    /**
+     * resources specifies the kind of resources requested.
+     *
+     * PostHog property: tp.access_request.resources.
+     *
+     * @generated from protobuf field: repeated string resources = 3;
+     */
+    resources: string[];
+    /**
+     * is_auto_approved indicates whether the access request was automatically
+     * approved by a bot. Only relevant for access request reviews.
+     *
+     * PostHog property: tp.access_request.is_auto_approved.
+     *
+     * @generated from protobuf field: bool is_auto_approved = 4;
+     */
+    isAutoApproved: boolean;
 }
 /**
  * @generated from protobuf message prehog.v1alpha.SubmitEventRequest
@@ -10523,12 +10550,18 @@ export const UserTaskStateEvent = new UserTaskStateEvent$Type();
 class AccessRequestEvent$Type extends MessageType<AccessRequestEvent> {
     constructor() {
         super("prehog.v1alpha.AccessRequestEvent", [
-            { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "action", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "resources", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "is_auto_approved", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<AccessRequestEvent>): AccessRequestEvent {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.userName = "";
+        message.action = "";
+        message.resources = [];
+        message.isAutoApproved = false;
         if (value !== undefined)
             reflectionMergePartial<AccessRequestEvent>(this, message, value);
         return message;
@@ -10540,6 +10573,15 @@ class AccessRequestEvent$Type extends MessageType<AccessRequestEvent> {
             switch (fieldNo) {
                 case /* string user_name */ 1:
                     message.userName = reader.string();
+                    break;
+                case /* string action */ 2:
+                    message.action = reader.string();
+                    break;
+                case /* repeated string resources */ 3:
+                    message.resources.push(reader.string());
+                    break;
+                case /* bool is_auto_approved */ 4:
+                    message.isAutoApproved = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -10556,6 +10598,15 @@ class AccessRequestEvent$Type extends MessageType<AccessRequestEvent> {
         /* string user_name = 1; */
         if (message.userName !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.userName);
+        /* string action = 2; */
+        if (message.action !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.action);
+        /* repeated string resources = 3; */
+        for (let i = 0; i < message.resources.length; i++)
+            writer.tag(3, WireType.LengthDelimited).string(message.resources[i]);
+        /* bool is_auto_approved = 4; */
+        if (message.isAutoApproved !== false)
+            writer.tag(4, WireType.Varint).bool(message.isAutoApproved);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
