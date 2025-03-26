@@ -237,8 +237,14 @@ ruleLoop:
 
 func templateExtraClaims(templates *structpb.Struct, attrs *workloadidentityv1pb.Attrs) (*structpb.Struct, error) {
 	// render is called recursively on list elements and struct fields.
-	var render func(string, *structpb.Value) (*structpb.Value, error)
-	render = func(fieldName string, fieldValue *structpb.Value) (*structpb.Value, error) {
+	var render func(string, *structpb.Value, int) (*structpb.Value, error)
+
+	const maxDepth = 10
+	render = func(fieldName string, fieldValue *structpb.Value, depth int) (*structpb.Value, error) {
+		if depth >= maxDepth {
+			return nil, trace.BadParameter("extra_claims cannot contain more than %d levels of nesting", maxDepth)
+		}
+
 		switch value := fieldValue.GetKind().(type) {
 		// Numbers, booleans, and nulls can be emitted as-is.
 		case *structpb.Value_NumberValue, *structpb.Value_BoolValue, *structpb.Value_NullValue:
@@ -260,7 +266,7 @@ func templateExtraClaims(templates *structpb.Struct, attrs *workloadidentityv1pb
 				if fieldName != "" {
 					keyWithPrefix = fmt.Sprintf("%s.%s", fieldName, structKey)
 				}
-				v, err := render(keyWithPrefix, structValue)
+				v, err := render(keyWithPrefix, structValue, depth+1)
 				if err != nil {
 					return nil, err
 				}
@@ -272,7 +278,7 @@ func templateExtraClaims(templates *structpb.Struct, attrs *workloadidentityv1pb
 		case *structpb.Value_ListValue:
 			result := new(structpb.ListValue)
 			for idx, val := range value.ListValue.GetValues() {
-				v, err := render(fmt.Sprintf("%s[%d]", fieldName, idx), val)
+				v, err := render(fmt.Sprintf("%s[%d]", fieldName, idx), val, depth+1)
 				if err != nil {
 					return nil, err
 				}
@@ -286,7 +292,7 @@ func templateExtraClaims(templates *structpb.Struct, attrs *workloadidentityv1pb
 		}
 	}
 
-	result, err := render("", structpb.NewStructValue(templates))
+	result, err := render("", structpb.NewStructValue(templates), 0)
 	if err != nil {
 		return nil, err
 	}

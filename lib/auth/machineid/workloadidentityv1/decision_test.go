@@ -486,3 +486,36 @@ func TestTemplateExtraClaims_Failure(t *testing.T) {
 	require.ErrorContains(t, err, "templating claim: foo.bar.baz[1].b")
 	require.ErrorContains(t, err, `unknown identifier: "blah"`)
 }
+
+func TestTemplateExtraClaims_TooDeeplyNested(t *testing.T) {
+	const claimsJSON = `
+		{
+			"1": {
+				"2": {
+					"3": {
+						"4": {
+							"5": {
+								"6": {
+									"7": {
+										"8": {
+											"9": {
+												"10": "very deep"
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	`
+
+	var rawClaims *structpb.Struct
+	err := json.Unmarshal([]byte(claimsJSON), &rawClaims)
+	require.NoError(t, err)
+
+	_, err = templateExtraClaims(rawClaims, &workloadidentityv1pb.Attrs{})
+	require.ErrorContains(t, err, "cannot contain more than 10 levels of nesting")
+}
