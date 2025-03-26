@@ -46,6 +46,8 @@ services:
         enabled: false
       docker:
         enabled: false
+      systemd:
+        enabled: false
   - type: example
     message: llama
   - type: ssh-multiplexer
@@ -73,6 +75,8 @@ services:
       podman:
         enabled: false
       docker:
+        enabled: false
+      systemd:
         enabled: false
     selector:
       name: my-workload-identity
