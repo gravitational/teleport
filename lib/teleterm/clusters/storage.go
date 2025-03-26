@@ -210,7 +210,7 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *c
 	clusterURI := uri.NewClusterURI(profileName)
 
 	cfg := s.makeClientConfig()
-	if err := cfg.LoadProfile(s.ClientStore, profileName); err != nil {
+	if err := cfg.LoadProfile(profileName); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 

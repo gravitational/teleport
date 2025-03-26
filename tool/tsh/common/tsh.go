@@ -4238,7 +4238,7 @@ func makeClientForProxy(cf *CLIConf, proxy string) (*client.TeleportClient, erro
 	// Load SSH key for the cluster indicated in the profile.
 	// Handle gracefully if the profile is empty, the key cannot
 	// be found, or the key isn't supported as an agent key.
-	profile, profileError := c.GetProfile(c.ClientStore, proxy)
+	profile, profileError := c.GetProfile(proxy)
 	if profileError == nil {
 		if err := tc.LoadKeyForCluster(ctx, profile.SiteName); err != nil {
 			if !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) && !trace.IsCompareFailed(err) {
@@ -4471,7 +4471,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 
 	// load profile. if no --proxy is given the currently active profile is used, otherwise
 	// fetch profile for exact proxy we are trying to connect to.
-	profileErr := c.LoadProfile(c.ClientStore, proxy)
+	profileErr := c.LoadProfile(proxy)
 	if profileErr != nil && !trace.IsNotFound(profileErr) {
 		fmt.Printf("WARNING: Failed to load tsh profile for %q: %v\n", proxy, profileErr)
 	}
