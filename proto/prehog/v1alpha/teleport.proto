@@ -1589,7 +1589,20 @@ message UserTaskStateEvent {
 // AccessRequestEvent emitted for Access Request audit events.
 message AccessRequestEvent {
   // Teleport user name. Anonymized.
+  // For a create event, this is the requester's user name.
+  // For a review event, this is the reviewer's user name.
   string user_name = 1;
+
+  // resources specifies the kind of resources requested.
+  //
+  // PostHog property: tp.access_request.resources.
+  repeated string resources = 2;
+
+  // is_auto_approved indicates whether the access request was automatically
+  // approved by a bot. Only relevant for access request reviews.
+  //
+  // PostHog property: tp.access_request.is_auto_approved.
+  bool is_auto_approved = 3;
 }
 
 message SubmitEventRequest {
