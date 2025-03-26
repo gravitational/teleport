@@ -118,7 +118,7 @@ func (c *Cache) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, e
 		return users, trace.Wrap(err)
 	}
 
-	var users []types.User
+	users := make([]types.User, 0, c.collections.users.store.len())
 	for u := range c.collections.users.store.resources("name", "", "") {
 		if withSecrets {
 			users = append(users, u.Clone())

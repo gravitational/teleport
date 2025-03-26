@@ -156,16 +156,15 @@ func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthTyp
 	ctx, span := c.Tracer.Start(ctx, "cache/GetCertAuthorities")
 	defer span.End()
 
-	collection := c.collections.certAuthorities
-	rg, err := acquireReadGuard(c, collection.watch)
+	rg, err := acquireReadGuard(c, c.collections.certAuthorities.watch)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if rg.ReadCache() {
-		var cas []types.CertAuthority
-		for ca := range collection.store.resources("id", string(caType), sortcache.NextKey(string(caType))) {
+		cas := make([]types.CertAuthority, 0, c.collections.certAuthorities.store.len())
+		for ca := range c.collections.certAuthorities.store.resources("id", string(caType), sortcache.NextKey(string(caType))) {
 			if loadSigningKeys {
 				cas = append(cas, ca.Clone())
 			} else {
