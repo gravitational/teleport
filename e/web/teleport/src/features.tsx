@@ -16,7 +16,6 @@ import {
   Table,
   UserList,
 } from 'design/Icon';
-import { PassthroughPage } from 'shared/components/AuthorizeDeviceWeb/AuthorizeDeviceWeb';
 
 import { AccessListManagement } from 'e-teleport/AccessListManagement';
 import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
@@ -24,6 +23,7 @@ import { CreateAccessList } from 'e-teleport/AccessListManagement/CreateAccessLi
 import { AccessMonitoring } from 'e-teleport/AccessMonitoring';
 import { Account as AccountE } from 'e-teleport/Account';
 import { AuthConnectors } from 'e-teleport/AuthConnectors';
+import { PassthroughPage } from 'e-teleport/AuthorizeDeviceWeb/AuthorizeDeviceWeb';
 import { Clusters as ClustersE } from 'e-teleport/Clusters';
 import cfg from 'e-teleport/config';
 import { DeviceTrust } from 'e-teleport/DeviceTrust';

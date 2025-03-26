@@ -4,9 +4,8 @@ import 'react-day-picker/dist/style.css';
 
 import { DayPicker } from 'react-day-picker';
 
+import { StyledDateRange } from 'design/DatePicker';
 import Dialog from 'design/DialogConfirmation';
-
-import { StyledDateRange } from 'teleport/components/DayPicker/Shared';
 
 // TODO(lisa): instead of a dialog change into a dropdown
 // so we can avoid dialog on dialog:

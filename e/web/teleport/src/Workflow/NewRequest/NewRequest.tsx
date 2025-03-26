@@ -23,7 +23,6 @@ import {
 import Link from 'design/Link';
 import { HoverTooltip } from 'design/Tooltip';
 import { Roles } from 'shared/components/AccessRequests/NewRequest';
-import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 import Select from 'shared/components/Select';
 import {
   FilterKind,
@@ -33,6 +32,7 @@ import {
 import useTeleportE from 'e-teleport/useTeleportE';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
+import { ClusterDropdown } from 'teleport/components/ClusterDropdown/ClusterDropdown';
 import {
   FeatureBox,
   FeatureHeader,
