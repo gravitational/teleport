@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
-import React, { useRef, type FormEvent } from 'react';
-import { FormProvider, useForm, useWatch } from 'react-hook-form';
+import { useRef, type FormEvent } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
 import { useHistory, useLocation } from 'react-router';
 import { z } from 'zod';
 
@@ -14,6 +14,7 @@ import {
   FieldInputPassword,
   FieldSelect,
   Flex,
+  Form,
   Heading,
   VStack,
   type SelectInstance,
@@ -175,12 +176,12 @@ function LocalLoginForm({ isRecoveryEnabled, onRecover }: NewLoginFormProps) {
   const ref = useRef<SelectInstance<Option>>(null);
 
   return (
-    <FormProvider {...form}>
+    <Form form={form} onSubmit={handleSubmit}>
       {login.isError && (
         <Alerts.Danger m={4}>{login.error.message}</Alerts.Danger>
       )}
 
-      <VStack as="form" onSubmit={handleSubmit} gap={5}>
+      <VStack>
         <FieldInput
           autoComplete="username"
           autoFocus
@@ -243,7 +244,7 @@ function LocalLoginForm({ isRecoveryEnabled, onRecover }: NewLoginFormProps) {
           Sign In
         </ButtonPrimary>
       </VStack>
-    </FormProvider>
+    </Form>
   );
 }
 

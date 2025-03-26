@@ -16,6 +16,7 @@ export {
 export * from './components/Button';
 export * from './components/FieldInput';
 export * from './components/FieldSelect';
+export * from './components/Form';
 export * from './components/Input';
 export * from './components/Select';
 
