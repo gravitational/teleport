@@ -93,15 +93,10 @@ func (c *DBCertChecker) renewCerts(ctx context.Context, lp *alpnproxy.LocalProxy
 	var key *Key
 	if err := RetryWithRelogin(ctx, c.tc, func() error {
 		newKey, err := c.tc.IssueUserCertsWithMFA(ctx, ReissueParams{
-			RouteToCluster: c.tc.SiteName,
-			RouteToDatabase: proto.RouteToDatabase{
-				ServiceName: c.dbRoute.ServiceName,
-				Protocol:    c.dbRoute.Protocol,
-				Username:    c.dbRoute.Username,
-				Database:    c.dbRoute.Database,
-			},
-			AccessRequests: accessRequests,
-			RequesterName:  proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
+			RouteToCluster:  c.tc.SiteName,
+			RouteToDatabase: RouteToDatabaseToProto(c.dbRoute),
+			AccessRequests:  accessRequests,
+			RequesterName:   proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
 		}, mfa.WithPromptReasonSessionMFA("database", c.dbRoute.ServiceName))
 		key = newKey
 		return trace.Wrap(err)
