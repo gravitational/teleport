@@ -279,9 +279,9 @@ func WithHardwareKeyService(hwKeyService hardwarekey.Service) ParsePrivateKeyOpt
 }
 
 // WithContextualKeyInfo adds contextual key info to the parsed private key.
-func WithContextualKeyInfo(proxyHost string) ParsePrivateKeyOpt {
+func WithContextualKeyInfo(info hardwarekey.ContextualKeyInfo) ParsePrivateKeyOpt {
 	return func(o *ParsePrivateKeyOptions) {
-		o.ContextualKeyInfo = hardwarekey.ContextualKeyInfo{ProxyHost: proxyHost}
+		o.ContextualKeyInfo = info
 	}
 }
 
@@ -304,23 +304,11 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 			return nil, trace.BadParameter("cannot parse hardware private key without an initialized hardware key service")
 		}
 
-		keyRef, err := hardwarekey.DecodeKeyRef(block.Bytes)
+		hwPrivateKey, err := hardwarekey.DecodePrivateKey(appliedOpts.HardwareKeyService, block.Bytes, appliedOpts.ContextualKeyInfo)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse hardware private key")
 		}
 
-		// If the public key is missing, this is likely an old login key with only
-		// the serial number and slot. Fetch missing data from the hardware key.
-		// This data will be saved to the login key on next login
-		// TODO(Joerger): DELETE IN v19.0.0
-		if keyRef.PublicKey == nil {
-			if err := appliedOpts.HardwareKeyService.GetMissingKeyRefDetails(keyRef); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-
-		keyRef.ContextualKeyInfo = appliedOpts.ContextualKeyInfo
-		hwPrivateKey := hardwarekey.NewPrivateKey(appliedOpts.HardwareKeyService, keyRef)
 		return newPrivateKeyWithKeyPEM(hwPrivateKey, keyPEM)
 	case OpenSSHPrivateKeyType:
 		priv, err := ssh.ParseRawPrivateKey(keyPEM)
@@ -393,15 +381,13 @@ func MarshalPrivateKey(key crypto.Signer) ([]byte, error) {
 		})
 		return privPEM, nil
 	case *hardwarekey.PrivateKey:
-		encodedKeyRef, err := privateKey.EncodeKeyRef()
+		encodedKey, err := privateKey.Encode()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
 		privPEM := pem.EncodeToMemory(&pem.Block{
-			Type:    pivYubiKeyPrivateKeyType,
-			Headers: nil,
-			Bytes:   encodedKeyRef,
+			Type:  pivYubiKeyPrivateKeyType,
+			Bytes: encodedKey,
 		})
 		return privPEM, nil
 	default:

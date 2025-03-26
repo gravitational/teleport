@@ -4006,7 +4006,9 @@ func (tc *TeleportClient) GetNewLoginKeyRing(ctx context.Context) (keyRing *KeyR
 				PINRequired:   tc.PrivateKeyPolicy.IsHardwareKeyPINVerified(),
 			},
 			ContextualKeyInfo: hardwarekey.ContextualKeyInfo{
-				ProxyHost: tc.WebProxyHost(),
+				ProxyHost:   tc.WebProxyHost(),
+				Username:    tc.Username,
+				ClusterName: tc.SiteName,
 			},
 		})
 		if err != nil {

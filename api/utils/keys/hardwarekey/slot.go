@@ -33,33 +33,6 @@ const (
 	pivSlotKeyPIN         PIVSlotKey = 0x9e
 )
 
-// PIVSlotKeyString is the string representation of a PIV slot key.
-type PIVSlotKeyString string
-
-// Validate that the PIV slot is a valid value.
-func (s PIVSlotKeyString) Validate() error {
-	slotKey, err := strconv.ParseUint(string(s), 16, 32)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	switch PIVSlotKey(slotKey) {
-	case pivSlotKeyBasic, PivSlotKeyTouch, pivSlotKeyTouchAndPIN, pivSlotKeyPIN:
-		return nil
-	default:
-		return trace.BadParameter("invalid PIV slot %q", s)
-	}
-}
-
-// Validate that the PIV slot is a valid value.
-func (s PIVSlotKeyString) Parse() (PIVSlotKey, error) {
-	slotKey, err := strconv.ParseUint(string(s), 16, 32)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-	return PIVSlotKey(slotKey), nil
-}
-
 // GetDefaultSlotKey gets the default PIV slot key for the given [policy].
 func GetDefaultSlotKey(policy PromptPolicy) (PIVSlotKey, error) {
 	switch policy {
@@ -72,6 +45,30 @@ func GetDefaultSlotKey(policy PromptPolicy) (PIVSlotKey, error) {
 	case PromptPolicyTouchAndPIN:
 		return pivSlotKeyTouchAndPIN, nil
 	default:
-		return 0, trace.BadParameter("unexpected private key policy %v", policy)
+		return 0, trace.BadParameter("unexpected prompt policy %v", policy)
+	}
+}
+
+// PIVSlotKeyString is the string representation of a [PIVSlotKey].
+type PIVSlotKeyString string
+
+// Validate that [s] parses into a valid [PIVSlotKey].
+func (s PIVSlotKeyString) Validate() error {
+	_, err := s.Parse()
+	return trace.Wrap(err)
+}
+
+// Parse [s] into a [PIVSlotKey].
+func (s PIVSlotKeyString) Parse() (PIVSlotKey, error) {
+	slotKey, err := strconv.ParseUint(string(s), 16, 32)
+	if err != nil {
+		return 0, trace.Wrap(err, "failed to parse %q as a uint", s)
+	}
+
+	switch p := PIVSlotKey(slotKey); p {
+	case pivSlotKeyBasic, PivSlotKeyTouch, pivSlotKeyTouchAndPIN, pivSlotKeyPIN:
+		return p, nil
+	default:
+		return 0, trace.BadParameter("invalid PIV slot %q", s)
 	}
 }

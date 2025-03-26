@@ -1,4 +1,4 @@
-// Copyright 2025 Gravitational, Inc.
+// Copyright 2024 Gravitational, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -72,7 +72,7 @@ func (c *CLIPrompt) ChangePIN(ctx context.Context, _ ContextualKeyInfo) (*PINAnd
 			continue
 		}
 
-		if !IsPINLengthValid(newPIN) {
+		if !isPINLengthValid(newPIN) {
 			fmt.Fprintf(os.Stderr, "PIN must be 6-8 characters long.\n")
 			continue
 		}
@@ -113,7 +113,7 @@ func (c *CLIPrompt) ChangePIN(ctx context.Context, _ ContextualKeyInfo) (*PINAnd
 				continue
 			}
 
-			if !IsPINLengthValid(newPUK) {
+			if !isPINLengthValid(newPUK) {
 				fmt.Fprintf(os.Stderr, "PUK must be 6-8 characters long.\n")
 				continue
 			}
