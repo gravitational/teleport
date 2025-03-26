@@ -35,6 +35,7 @@ func TestResourceStore(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		require.NoError(t, store.put(i))
 	}
+	require.Equal(t, 100, store.len())
 
 	zero, err := store.get("numbers", "0")
 	require.NoError(t, err)
@@ -63,5 +64,5 @@ func TestResourceStore(t *testing.T) {
 	_, err = store.get("numbers", "0")
 	require.ErrorIs(t, err, &trace.NotFoundError{Message: `no value for key "0" in index "numbers"`})
 
-	require.Zero(t, store.cache.Len())
+	require.Zero(t, store.len())
 }
