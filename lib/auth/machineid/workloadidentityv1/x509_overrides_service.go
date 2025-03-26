@@ -38,6 +38,12 @@ type X509OverridesServiceConfig struct {
 	ClusterName string
 }
 
+// NewX509OverridesService returns an implementation of
+// [workloadidentityv1pb.X509OverridesServiceServer] that only allows reading
+// and deleting override resources, suitable for checking and cleaning things up
+// after downgrading from a licensed version of Teleport. A matching
+// fully-featured implementation can be found in
+// e/lib/auth/machineid/workloadidentityv1 .
 func NewX509OverridesService(cfg X509OverridesServiceConfig) (*X509OverridesService, error) {
 	if cfg.Authorizer == nil {
 		return nil, trace.BadParameter("authorizer is required")
@@ -62,6 +68,9 @@ func NewX509OverridesService(cfg X509OverridesServiceConfig) (*X509OverridesServ
 	}, nil
 }
 
+// X509OverridesService implements the non-enterprise version of
+// [workloadidentityv1pb.X509OverridesServiceServer], only allowing reading,
+// listing and deleting any stored state.
 type X509OverridesService struct {
 	workloadidentityv1pb.UnsafeX509OverridesServiceServer
 
