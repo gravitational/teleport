@@ -351,6 +351,9 @@ type InitConfig struct {
 
 	// StableUNIXUsers handles the storage for stable UNIX users.
 	StableUNIXUsers services.StableUNIXUsersInternal
+
+	// AuthInfo is a service of auth server information.
+	AuthInfo services.AuthInfoService
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -398,7 +401,8 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, teleport.SemVersion); err != nil {
+
+	if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, asrv.Services.AuthInfoService, cfg.HostUUID, teleport.SemVersion); err != nil {
 		return trace.Wrap(err)
 	}
 
