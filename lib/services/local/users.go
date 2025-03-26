@@ -1515,7 +1515,7 @@ func (s *IdentityService) GetOIDCAuthRequest(ctx context.Context, stateToken str
 		return nil, trace.Wrap(err)
 	}
 	req := new(types.OIDCAuthRequest)
-	if err := jsonpb.Unmarshal(bytes.NewReader(item.Value), req); err != nil {
+	if err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(item.Value), req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return req, nil
@@ -1687,7 +1687,7 @@ func (s *IdentityService) GetSAMLAuthRequest(ctx context.Context, id string) (*t
 		return nil, trace.Wrap(err)
 	}
 	req := new(types.SAMLAuthRequest)
-	if err := jsonpb.Unmarshal(bytes.NewReader(item.Value), req); err != nil {
+	if err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(item.Value), req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return req, nil
@@ -1906,7 +1906,7 @@ func (s *IdentityService) GetGithubAuthRequest(ctx context.Context, stateToken s
 		return nil, trace.Wrap(err)
 	}
 	req := new(types.GithubAuthRequest)
-	if err := jsonpb.Unmarshal(bytes.NewReader(item.Value), req); err != nil {
+	if err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(item.Value), req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return req, nil
