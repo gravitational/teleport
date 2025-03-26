@@ -15,7 +15,7 @@ spec:
     singular: teleportbot
   scope: Namespaced
   versions:
-  - name: ""
+  - name: v1
     schema:
       openAPIV3Schema:
         description: Bot is the Schema for the bots API
@@ -33,7 +33,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: Bot resource definition  from Teleport
+            description: Bot resource definition v1 from Teleport
             properties:
               roles:
                 description: The roles that the bot should be able to impersonate.
