@@ -24,7 +24,6 @@ import init, {
 } from 'shared/libs/ironrdp/pkg/ironrdp';
 import Logger from 'shared/libs/logger';
 
-import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
 import { TermEvent, WebsocketCloseCode } from 'teleport/lib/term/enums';
 import { MfaChallengeResponse } from 'teleport/services/mfa';
@@ -88,21 +87,32 @@ export enum LogType {
   TRACE = 'TRACE',
 }
 
+//TODO(gzdunek): This a temporary transport layer based on AuthenticatedWebSocket.
+interface TdpTransport {
+  binaryType: 'arraybuffer' | 'blob';
+  readyState: number;
+  onopen(this: WebSocket, ev: Event): void;
+  onmessage(event: MessageEvent): void;
+  onerror(ev: Event): void;
+  onclose(ev: CloseEvent): void;
+  close(code?: number): void;
+  send(data: string | ArrayBufferLike | Blob | ArrayBufferView): void;
+}
+
 // Client is the TDP client. It is responsible for connecting to a websocket serving the tdp server,
 // sending client commands, and receiving and processing server messages. Its creator is responsible for
 // ensuring the websocket gets closed and all of its event listeners cleaned up when it is no longer in use.
 // For convenience, this can be done in one fell swoop by calling Client.shutdown().
 export default class Client extends EventEmitterMfaSender {
   protected codec: Codec;
-  protected socket: AuthenticatedWebSocket | undefined;
+  protected socket: TdpTransport | undefined;
   private sdManager: SharedDirectoryManager;
   private fastPathProcessor: FastPathProcessor | undefined;
   private wasmReady: Promise<void> | undefined;
 
   private logger = Logger.create('TDPClient');
 
-  //TODO(gzdunek): getTransport should return a generic transport layer.
-  constructor(private getTransport: () => AuthenticatedWebSocket) {
+  constructor(private getTransport: () => TdpTransport) {
     super();
     this.codec = new Codec();
     this.sdManager = new SharedDirectoryManager();
