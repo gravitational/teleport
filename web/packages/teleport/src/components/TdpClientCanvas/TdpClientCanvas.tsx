@@ -25,10 +25,8 @@ import React, {
 } from 'react';
 
 import { Logger } from 'design/logger';
+import { BitmapFrame, PngFrame } from 'shared/libs/tdp';
 import { debounce } from 'shared/utils/highbar';
-
-import { BitmapFrame } from 'teleport/lib/tdp/client';
-import type { PngFrame } from 'teleport/lib/tdp/codec';
 
 const logger = new Logger('TdpClientCanvas');
 

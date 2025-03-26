@@ -28,6 +28,12 @@ import Dialog, {
   DialogTitle,
 } from 'design/Dialog';
 import { Attempt, makeSuccessAttempt, useAsync } from 'shared/hooks/useAsync';
+import {
+  ButtonState,
+  ScrollAxis,
+  TdpClient,
+  useListener,
+} from 'shared/libs/tdp';
 
 import { useTeleport } from 'teleport';
 import AuthnDialog from 'teleport/components/AuthnDialog';
@@ -35,8 +41,6 @@ import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 import cfg, { UrlDesktopParams } from 'teleport/config';
 import { KeyboardHandler } from 'teleport/DesktopSession/KeyboardHandler';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
-import { ButtonState, ScrollAxis, TdpClient } from 'teleport/lib/tdp';
-import { useListener } from 'teleport/lib/tdp/client';
 import { shouldShowMfaPrompt, useMfaEmitter } from 'teleport/lib/useMfa';
 import { getHostName } from 'teleport/services/api';
 

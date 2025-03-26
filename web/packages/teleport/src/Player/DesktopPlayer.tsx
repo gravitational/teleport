@@ -20,13 +20,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 
 import { Alert, Box, Flex, Indicator } from 'design';
+import { useListener } from 'shared/libs/tdp';
 
 import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 import { TdpClientCanvasRef } from 'teleport/components/TdpClientCanvas/TdpClientCanvas';
 import cfg from 'teleport/config';
 import { formatDisplayTime, StatusEnum } from 'teleport/lib/player';
 import { PlayerClient } from 'teleport/lib/tdp';
-import { useListener } from 'teleport/lib/tdp/client';
 import { getHostName } from 'teleport/services/api';
 
 import ProgressBar from './ProgressBar';

@@ -27,9 +27,8 @@ import {
 
 import type { NotificationItem } from 'shared/components/Notification';
 import { Attempt } from 'shared/hooks/useAsync';
+import { ClipboardData, TdpClient } from 'shared/libs/tdp';
 
-import { TdpClient } from 'teleport/lib/tdp';
-import { ClipboardData } from 'teleport/lib/tdp/codec';
 import { Sha256Digest } from 'teleport/lib/util';
 
 declare global {
