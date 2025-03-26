@@ -50,7 +50,7 @@ export default function TopBar(props: Props) {
 
   return (
     <TopNav
-      height={`${TopBarHeight}px`}
+      height="40px"
       bg="levels.deep"
       style={{
         justifyContent: 'space-between',
@@ -107,8 +107,6 @@ function directorySharingToolTip(
   }
   return 'Directory Sharing Enabled';
 }
-
-export const TopBarHeight = 40;
 
 type Props = {
   userHost: string;

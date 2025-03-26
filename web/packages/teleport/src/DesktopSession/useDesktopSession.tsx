@@ -21,33 +21,32 @@ import {
   SetStateAction,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react';
-import { useParams } from 'react-router';
 
 import type { NotificationItem } from 'shared/components/Notification';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import { Attempt } from 'shared/hooks/useAsync';
 
-import type { UrlDesktopParams } from 'teleport/config';
+import { TdpClient } from 'teleport/lib/tdp';
 import { ClipboardData } from 'teleport/lib/tdp/codec';
-import useWebAuthn from 'teleport/lib/useWebAuthn';
 import { Sha256Digest } from 'teleport/lib/util';
-import desktopService from 'teleport/services/desktops';
-import userService from 'teleport/services/user';
 
-import useTdpClientCanvas from './useTdpClientCanvas';
+declare global {
+  interface Window {
+    showDirectoryPicker: () => Promise<FileSystemDirectoryHandle>;
+  }
+}
 
-export default function useDesktopSession() {
+export default function useDesktopSession(
+  tdpClient: TdpClient,
+  aclAttempt: Attempt<{
+    clipboardSharingEnabled: boolean;
+    directorySharingEnabled: boolean;
+  }>
+) {
   const encoder = useRef(new TextEncoder());
   const latestClipboardDigest = useRef('');
-  const { attempt: fetchAttempt, run } = useAttempt('');
-
-  const { username, desktopName, clusterId } = useParams<UrlDesktopParams>();
-
-  const [hostname, setHostname] = useState<string>('');
-
   const [directorySharingState, setDirectorySharingState] =
     useState<DirectorySharingState>(defaultDirectorySharingState);
 
@@ -72,38 +71,20 @@ export default function useDesktopSession() {
     };
   }, []);
 
-  const [showAnotherSessionActiveDialog, setShowAnotherSessionActiveDialog] =
-    useState(false);
-
-  document.title = useMemo(
-    () => `${username}@${hostname} • ${clusterId}`,
-    [clusterId, hostname, username]
-  );
-
+  //TODO(gzdunek): This is workaround for synchronizing *sharingState with aclAttempt.
+  //Refactor clipboard and directory sharing so that we won't need allowedByAcl fields in state.
   useEffect(() => {
-    run(() =>
-      Promise.all([
-        desktopService
-          .fetchDesktop(clusterId, desktopName)
-          .then(desktop => setHostname(desktop.name)),
-        userService.fetchUserContext().then(user => {
-          setClipboardSharingState(prevState => ({
-            ...prevState,
-            allowedByAcl: user.acl.clipboardSharingEnabled,
-          }));
-          setDirectorySharingState(prevState => ({
-            ...prevState,
-            allowedByAcl: user.acl.directorySharingEnabled,
-          }));
-        }),
-        desktopService
-          .checkDesktopIsActive(clusterId, desktopName)
-          .then(isActive => {
-            setShowAnotherSessionActiveDialog(isActive);
-          }),
-      ])
-    );
-  }, [clusterId, desktopName, run]);
+    if (aclAttempt.status === 'success') {
+      setClipboardSharingState(prevState => ({
+        ...prevState,
+        allowedByAcl: aclAttempt.data.clipboardSharingEnabled,
+      }));
+      setDirectorySharingState(prevState => ({
+        ...prevState,
+        allowedByAcl: aclAttempt.data.directorySharingEnabled,
+      }));
+    }
+  }, [aclAttempt]);
 
   const [alerts, setAlerts] = useState<NotificationItem[]>([]);
   const onRemoveAlert = (id: string) => {
@@ -143,15 +124,6 @@ export default function useDesktopSession() {
     }
   }
 
-  const clientCanvasProps = useTdpClientCanvas({
-    username,
-    desktopName,
-    clusterId,
-  });
-  const tdpClient = clientCanvasProps.tdpClient;
-
-  const webauthn = useWebAuthn(tdpClient);
-
   const onShareDirectory = () => {
     try {
       window
@@ -172,7 +144,10 @@ export default function useDesktopSession() {
           }));
           addAlert({
             severity: 'warn',
-            content: 'Failed to open the directory picker: ' + e.message,
+            content: {
+              title: 'Failed to open the directory picker',
+              description: e.message,
+            },
           });
         });
     } catch (e) {
@@ -187,7 +162,7 @@ export default function useDesktopSession() {
         // In a perfect world, we could check for which error message this is and display
         // context appropriate directions.
         content: {
-          title: 'Encountered an error while attempting to share a directory: ',
+          title: 'Encountered an error while attempting to share a directory',
           description:
             e.message +
             '. \n\nYour user role supports directory sharing over desktop access, \
@@ -201,27 +176,18 @@ export default function useDesktopSession() {
   };
 
   return {
-    hostname,
-    username,
     clipboardSharingState,
     setClipboardSharingState,
     directorySharingState,
     setDirectorySharingState,
-    fetchAttempt,
-    webauthn,
-    showAnotherSessionActiveDialog,
-    setShowAnotherSessionActiveDialog,
     onShareDirectory,
     alerts,
     onRemoveAlert,
     addAlert,
     sendLocalClipboardToRemote,
     onClipboardData,
-    ...clientCanvasProps,
   };
 }
-
-export type State = ReturnType<typeof useDesktopSession>;
 
 type CommonFeatureState = {
   /**
@@ -384,11 +350,6 @@ export const defaultDirectorySharingState: DirectorySharingState = {
 
 export const defaultClipboardSharingState: ClipboardSharingState = {
   browserSupported: navigator.userAgent.includes('Chrome'),
-};
-
-export type WebsocketAttempt = {
-  status: 'init' | 'open' | 'closed';
-  statusText?: string;
 };
 
 /**
