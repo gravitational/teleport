@@ -33,53 +33,56 @@ type Service interface {
 	NewPrivateKey(ctx context.Context, config PrivateKeyConfig) (*PrivateKey, error)
 	// Sign performs a cryptographic signature using the specified hardware
 	// private key and provided signature parameters.
-	Sign(ctx context.Context, ref *PrivateKeyRef, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error)
+	Sign(ctx context.Context, ref *PrivateKeyRef, keyInfo ContextualKeyInfo, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error)
 	// SetPrompt sets the hardware key prompt used by the hardware key service, if applicable.
 	// This is used by Teleport Connect which sets the prompt later than the hardware key service,
 	// due to process initialization constraints.
 	SetPrompt(prompt Prompt)
 }
 
-// PrivateKey is a hardware private key.
+// PrivateKey is a hardware private key implementation of [crypto.Signer].
 type PrivateKey struct {
 	service Service
 	ref     *PrivateKeyRef
-}
-
-// PrivateKeyRef references a specific hardware private key.
-type PrivateKeyRef struct {
-	// SerialNumber is the hardware key's serial number.
-	SerialNumber uint32 `json:"serial_number"`
-	// SlotKey is the key name for the hardware key PIV slot, e.g. "9a".
-	SlotKey PIVSlotKey `json:"slot_key"`
-	// PublicKey is the public key paired with the hardware private key.
-	PublicKey crypto.PublicKey `json:"-"` // uses custom JSON marshaling in PKIX, ASN.1 DER form
-	// Policy specifies the hardware private key's PIN/touch prompt policies.
-	Policy PromptPolicy `json:"policy"`
-	// AttestationStatement contains the hardware private key's attestation statement, which is
-	// to attest the touch and pin requirements for this hardware private key during login.
-	AttestationStatement *AttestationStatement `json:"attestation_statement"`
-	// ContextualKeyInfo contains contextual key info which may be used to add context to prompts,
-	// such as the name of the Teleport user using the key. This information is not saved encoded
-	// in JSON as this info may depend on the context in which the client is using the key.
-	ContextualKeyInfo ContextualKeyInfo
-}
-
-// ContextualKeyInfo contains contextual information associated with a hardware [PrivateKey].
-// TODO(Joerger): This is not hardware key specific, so it may be better placed in a more general package
-// if it is used more broadly, though moving this to the keys package would cause an import cycle.
-type ContextualKeyInfo struct {
-	// ProxyHost is the root proxy hostname that a key is associated with.
-	ProxyHost string
+	keyInfo ContextualKeyInfo
 }
 
 // NewPrivateKey returns a [PrivateKey] for the given service and ref.
 // keyInfo is an optional argument to supply additional contextual info.
-func NewPrivateKey(s Service, ref *PrivateKeyRef) *PrivateKey {
+func NewPrivateKey(s Service, ref *PrivateKeyRef, keyInfo ContextualKeyInfo) *PrivateKey {
 	return &PrivateKey{
 		service: s,
 		ref:     ref,
+		keyInfo: keyInfo,
 	}
+}
+
+// Encode the hardware private key ref in a format understood by other Teleport clients.
+func (p *PrivateKey) Encode() ([]byte, error) {
+	return p.ref.encode()
+}
+
+// DecodePrivateKey decodes an encoded hardware private key for the given service.
+//
+// The updateKeyRef func is provided to fill in missing details for old client logins.
+// TODO(Joerger): DELETE IN v19.0.0
+func DecodePrivateKey(s Service, encodedKey []byte, keyInfo ContextualKeyInfo, updateKeyRef func(ref *PrivateKeyRef) error) (*PrivateKey, error) {
+	ref, err := decodeKeyRef(encodedKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If the public key is missing, this is likely an old login key with only
+	// the serial number and slot. Fetch missing data from the hardware key.
+	// This data will be saved to the login key on next login
+	// TODO(Joerger): DELETE IN v19.0.0
+	if ref.PublicKey == nil {
+		if err := updateKeyRef(ref); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return NewPrivateKey(s, ref, keyInfo), nil
 }
 
 // Public implements [crypto.Signer].
@@ -90,7 +93,7 @@ func (h *PrivateKey) Public() crypto.PublicKey {
 // Sign implements [crypto.Signer].
 func (h *PrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
 	// When context.TODO() is passed, the service should replace this with its own parent context.
-	return h.service.Sign(context.TODO(), h.ref, rand, digest, opts)
+	return h.service.Sign(context.TODO(), h.ref, h.keyInfo, rand, digest, opts)
 }
 
 // GetAttestation returns the hardware private key attestation details.
@@ -113,21 +116,36 @@ func (h *PrivateKey) WarmupHardwareKey(ctx context.Context) error {
 	// ed25519 hardware keys outside of the fake "pivtest" service, but we may extend support in
 	// the future as newer keys are being made with ed25519 support (YubiKey 5.7.x, SoloKey).
 	hash := sha512.Sum512(make([]byte, 512))
-	_, err := h.service.Sign(ctx, h.ref, rand.Reader, hash[:], crypto.SHA512)
+	_, err := h.service.Sign(ctx, h.ref, h.keyInfo, rand.Reader, hash[:], crypto.SHA512)
 	return trace.Wrap(err, "failed to perform warmup signature with hardware private key")
 }
 
-// Encode encodes [h]'s [PrivateKeyRef] to JSON.
-func (h *PrivateKey) EncodeKeyRef() ([]byte, error) {
-	keyRefBytes, err := json.Marshal(h.ref)
+// PrivateKeyRef references a specific hardware private key.
+type PrivateKeyRef struct {
+	// SerialNumber is the hardware key's serial number.
+	SerialNumber uint32 `json:"serial_number"`
+	// SlotKey is the key name for the hardware key PIV slot, e.g. "9a".
+	SlotKey PIVSlotKey `json:"slot_key"`
+	// PublicKey is the public key paired with the hardware private key.
+	PublicKey crypto.PublicKey `json:"-"` // uses custom JSON marshaling in PKIX, ASN.1 DER form
+	// Policy specifies the hardware private key's PIN/touch prompt policies.
+	Policy PromptPolicy `json:"policy"`
+	// AttestationStatement contains the hardware private key's attestation statement, which is
+	// to attest the touch and pin requirements for this hardware private key during login.
+	AttestationStatement *AttestationStatement `json:"attestation_statement"`
+}
+
+// encode encodes a [PrivateKeyRef] to JSON.
+func (r *PrivateKeyRef) encode() ([]byte, error) {
+	keyRefBytes, err := json.Marshal(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return keyRefBytes, nil
 }
 
-// DecodeKeyRef decodes a [PrivateKeyRef] from JSON.
-func DecodeKeyRef(encodedKeyRef []byte) (*PrivateKeyRef, error) {
+// decodeKeyRef decodes a [PrivateKeyRef] from JSON.
+func decodeKeyRef(encodedKeyRef []byte) (*PrivateKeyRef, error) {
 	keyRef := &PrivateKeyRef{}
 	if err := json.Unmarshal(encodedKeyRef, keyRef); err != nil {
 		return nil, trace.Wrap(err)
@@ -193,4 +211,16 @@ type PrivateKeyConfig struct {
 	CustomSlot PIVSlotKeyString
 	// ContextualKeyInfo contains additional info to associate with the key.
 	ContextualKeyInfo ContextualKeyInfo
+}
+
+// ContextualKeyInfo contains contextual information associated with a hardware [PrivateKey].
+// TODO(Joerger): This is not hardware key specific, so it may be better placed in a more general package
+// if it is used more broadly, though moving this to the keys package would cause an import cycle.
+type ContextualKeyInfo struct {
+	// ProxyHost is the root proxy hostname that the key is associated with.
+	ProxyHost string
+	// Username is a Teleport username that the key is associated with.
+	Username string
+	// ClusterName is a Teleport cluster name that the key is associated with.
+	ClusterName string
 }

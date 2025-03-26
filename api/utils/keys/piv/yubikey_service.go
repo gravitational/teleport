@@ -54,8 +54,8 @@ type YubiKeyService struct {
 	promptMux sync.Mutex
 	prompt    hardwarekey.Prompt
 
-	// ctx is provided to signature requests, since `crypto.Sign` does have
-	// context support directly.
+	// ctx is provided to signature requests since the [crypto.Signer] interface
+	// does not have context support directly.
 	ctx context.Context
 }
 
@@ -84,8 +84,8 @@ func NewYubiKeyService(ctx context.Context, prompt hardwarekey.Prompt) *YubiKeyS
 // If a customSlot is not provided, the service uses the default slot for the given policy:
 //   - !touch & !pin -> 9a
 //   - !touch & pin  -> 9c
-//   - touch & pin   -> 9d
-//   - touch & !pin  -> 9e
+//   - touch  & pin  -> 9d
+//   - touch  & !pin -> 9e
 func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.PrivateKeyConfig) (*hardwarekey.PrivateKey, error) {
 	// Use the first yubiKey we find.
 	y, err := s.getYubiKey(0)
@@ -121,9 +121,7 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		ref.ContextualKeyInfo = config.ContextualKeyInfo
-		return hardwarekey.NewPrivateKey(s, ref), nil
+		return hardwarekey.NewPrivateKey(s, ref, config.ContextualKeyInfo), nil
 	}
 
 	// If a custom slot was not specified, check for a key in the
@@ -136,7 +134,8 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 		case err != nil:
 			return nil, trace.Wrap(err)
 
-		// Unknown cert found, prompt the user before we overwrite the slot.
+		// Unknown cert found, this slot could be in use by a non-teleport client.
+		// Prompt the user before we overwrite the slot.
 		case len(cert.Subject.Organization) == 0 || cert.Subject.Organization[0] != certOrgName:
 			if err := s.promptOverwriteSlot(ctx, nonTeleportCertificateMessage(pivSlot, cert), config.ContextualKeyInfo); err != nil {
 				return nil, trace.Wrap(err)
@@ -145,8 +144,8 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 		}
 	}
 
-	// Check for an existing key in the slot that satisfies the required private
-	// key policy, or generate a new one if needed.
+	// Check for an existing key in the slot that satisfies the required
+	// prompt policy, or generate a new one if needed.
 	slotCert, attCert, att, err := y.attestKey(pivSlot)
 	switch {
 	case errors.Is(err, piv.ErrNotFound):
@@ -186,13 +185,12 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 				},
 			},
 		},
-		ContextualKeyInfo: config.ContextualKeyInfo,
-	}), nil
+	}, config.ContextualKeyInfo), nil
 }
 
 // Sign performs a cryptographic signature using the specified hardware
 // private key and provided signature parameters.
-func (s *YubiKeyService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
+func (s *YubiKeyService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
 	// Usually, Sign will be called without context through the [crypto.Signer] interface,
 	// so we opportunistically set the context.
 	if ctx == context.TODO() {
@@ -207,7 +205,7 @@ func (s *YubiKeyService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRe
 	s.promptMux.Lock()
 	defer s.promptMux.Unlock()
 
-	return y.sign(ctx, ref, s.prompt, rand, digest, opts)
+	return y.sign(ctx, ref, keyInfo, s.prompt, rand, digest, opts)
 }
 
 // SetPrompt sets the hardware key prompt used by the hardware key service, if applicable.
@@ -219,7 +217,7 @@ func (s *YubiKeyService) SetPrompt(prompt hardwarekey.Prompt) {
 	s.prompt = prompt
 }
 
-// Get the given YubiKey with the serial number. If the provided serialNumber is "0",
+// Get the given YubiKey with the serial number. If the provided serialNumber is 0,
 // return the first YubiKey found in the smart card list.
 func (s *YubiKeyService) getYubiKey(serialNumber uint32) (*YubiKey, error) {
 	yubiKeysMux.Lock()

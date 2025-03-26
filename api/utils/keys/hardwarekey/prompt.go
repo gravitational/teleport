@@ -21,17 +21,13 @@ import (
 )
 
 var (
-	// PromptPolicyNone is default the PromptPolicy for private key policy HardwareKey.
-	PromptPolicyNone = PromptPolicy{TouchRequired: false, PINRequired: false}
-	// PromptPolicyTouch is default the PromptPolicy for private key policy HardwareKeyTouch.
-	PromptPolicyTouch = PromptPolicy{TouchRequired: true, PINRequired: false}
-	// PromptPolicyPIN is default the PromptPolicy for private key policy HardwareKeyPIN.
-	PromptPolicyPIN = PromptPolicy{TouchRequired: false, PINRequired: true}
-	// PromptPolicyTouchAndPIN is default the PromptPolicy for private key policy HardwareKeyTouchAndPIN.
+	PromptPolicyNone        = PromptPolicy{TouchRequired: false, PINRequired: false}
+	PromptPolicyTouch       = PromptPolicy{TouchRequired: true, PINRequired: false}
+	PromptPolicyPIN         = PromptPolicy{TouchRequired: false, PINRequired: true}
 	PromptPolicyTouchAndPIN = PromptPolicy{TouchRequired: true, PINRequired: true}
 )
 
-// PromptPolicy specifies a hardware private key's PIN/touch policies.
+// PromptPolicy specifies a hardware private key's PIN/touch prompt policies.
 type PromptPolicy struct {
 	// TouchRequired means that touch is required for signatures.
 	TouchRequired bool
@@ -66,7 +62,7 @@ const (
 	PINRequired
 )
 
-// PINAndPUK describes a response returned from HardwareKeyPrompt.ChangePIN.
+// PINAndPUK describes a response returned from [Prompt].ChangePIN.
 type PINAndPUK struct {
 	// New PIN set by the user.
 	PIN string
@@ -77,15 +73,15 @@ type PINAndPUK struct {
 	PUKChanged bool
 }
 
-// Validate [p].
+// Validate the user-provided PIN and PUK.
 func (p PINAndPUK) Validate() error {
-	if !IsPINLengthValid(p.PIN) {
+	if !isPINLengthValid(p.PIN) {
 		return trace.BadParameter("PIN must be 6-8 characters long")
 	}
 	if p.PIN == defaultPIN {
 		return trace.BadParameter("The default PIN is not supported")
 	}
-	if !IsPINLengthValid(p.PUK) {
+	if !isPINLengthValid(p.PUK) {
 		return trace.BadParameter("PUK must be 6-8 characters long")
 	}
 	if p.PUK == defaultPUK {
@@ -94,7 +90,7 @@ func (p PINAndPUK) Validate() error {
 	return nil
 }
 
-// IsPINLengthValid returns whether the given PIV PIN, or PUK, is of valid length (6-8 characters).
-func IsPINLengthValid(pin string) bool {
+// isPINLengthValid returns whether the given PIV PIN, or PUK, is of valid length (6-8 characters).
+func isPINLengthValid(pin string) bool {
 	return len(pin) >= 6 && len(pin) <= 8
 }

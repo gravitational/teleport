@@ -29,6 +29,9 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 )
 
+// TODO(Joerger): Instead of using a distinct build tag for tests, tests should inject
+// a mock hardware key service, e.g. into the CLI conf.
+
 // TODO(Joerger): Rather than using a global cache, clients should be updated to
 // create a single YubiKeyService and ensure it is reused across the program
 // execution.
@@ -110,7 +113,7 @@ func (s *fakeYubiKeyPIVService) NewPrivateKey(ctx context.Context, config hardwa
 
 // Sign performs a cryptographic signature using the specified hardware
 // private key and provided signature parameters.
-func (s *fakeYubiKeyPIVService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
+func (s *fakeYubiKeyPIVService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, _ hardwarekey.ContextualKeyInfo, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
 	hardwarePrivateKeysMux.Lock()
 	defer hardwarePrivateKeysMux.Unlock()
 
