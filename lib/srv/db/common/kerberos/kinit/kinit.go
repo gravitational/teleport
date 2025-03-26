@@ -207,7 +207,7 @@ type WindowsCAAndKeyPair struct {
 
 // GetCertificateBytes returns a new cert/key pem and the DB CA bytes
 func (d *DBCertGetter) GetCertificateBytes(ctx context.Context) (*WindowsCAAndKeyPair, error) {
-	clusterName, err := d.Auth.GetClusterName()
+	clusterName, err := d.Auth.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -218,15 +218,7 @@ func (d *DBCertGetter) GetCertificateBytes(ctx context.Context) (*WindowsCAAndKe
 		Domain:      d.RealmName,
 		TTL:         certTTL,
 		ClusterName: clusterName.GetClusterName(),
-		LDAPConfig: windows.LDAPConfig{
-			Addr:               d.KDCHostName,
-			Domain:             d.RealmName,
-			Username:           d.UserName,
-			InsecureSkipVerify: false,
-			ServerName:         d.AdminServerName,
-			CA:                 d.LDAPCA,
-		},
-		AuthClient: d.Auth,
+		AuthClient:  d.Auth,
 	})
 
 	if err != nil {

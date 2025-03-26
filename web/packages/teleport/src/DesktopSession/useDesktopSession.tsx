@@ -21,46 +21,32 @@ import {
   SetStateAction,
   useCallback,
   useEffect,
-  useMemo,
+  useRef,
   useState,
 } from 'react';
-import { useParams } from 'react-router';
 
 import type { NotificationItem } from 'shared/components/Notification';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import { Attempt } from 'shared/hooks/useAsync';
 
-import type { UrlDesktopParams } from 'teleport/config';
-import { ButtonState } from 'teleport/lib/tdp';
-import { useMfaEmitter } from 'teleport/lib/useMfa';
-import desktopService from 'teleport/services/desktops';
-import userService from 'teleport/services/user';
+import { TdpClient } from 'teleport/lib/tdp';
+import { ClipboardData } from 'teleport/lib/tdp/codec';
+import { Sha256Digest } from 'teleport/lib/util';
 
-import useTdpClientCanvas from './useTdpClientCanvas';
+declare global {
+  interface Window {
+    showDirectoryPicker: () => Promise<FileSystemDirectoryHandle>;
+  }
+}
 
-export default function useDesktopSession() {
-  const { attempt: fetchAttempt, run } = useAttempt('processing');
-
-  // tdpConnection tracks the state of the tdpClient's TDP connection
-  // - 'processing' at first
-  // - 'success' once the first TdpClientEvent.IMAGE_FRAGMENT is seen
-  // - 'failed' if a fatal error is encountered, should have a statusText
-  // - '' if the connection closed gracefully by the server, should have a statusText
-  const { attempt: tdpConnection, setAttempt: setTdpConnection } =
-    useAttempt('processing');
-
-  // wsConnection track's the state of the tdpClient's websocket connection.
-  // - 'init' to start
-  // - 'open' when TdpClientEvent.WS_OPEN is encountered
-  // - then 'closed' again when TdpClientEvent.WS_CLOSE is encountered.
-  // Once it's 'closed', it should have the message that came with the TdpClientEvent.WS_CLOSE event..
-  const [wsConnection, setWsConnection] = useState<WebsocketAttempt>({
-    status: 'init',
-  });
-
-  const { username, desktopName, clusterId } = useParams<UrlDesktopParams>();
-
-  const [hostname, setHostname] = useState<string>('');
-
+export default function useDesktopSession(
+  tdpClient: TdpClient,
+  aclAttempt: Attempt<{
+    clipboardSharingEnabled: boolean;
+    directorySharingEnabled: boolean;
+  }>
+) {
+  const encoder = useRef(new TextEncoder());
+  const latestClipboardDigest = useRef('');
   const [directorySharingState, setDirectorySharingState] =
     useState<DirectorySharingState>(defaultDirectorySharingState);
 
@@ -85,38 +71,20 @@ export default function useDesktopSession() {
     };
   }, []);
 
-  const [showAnotherSessionActiveDialog, setShowAnotherSessionActiveDialog] =
-    useState(false);
-
-  document.title = useMemo(
-    () => `${username}@${hostname} • ${clusterId}`,
-    [clusterId, hostname, username]
-  );
-
+  //TODO(gzdunek): This is workaround for synchronizing *sharingState with aclAttempt.
+  //Refactor clipboard and directory sharing so that we won't need allowedByAcl fields in state.
   useEffect(() => {
-    run(() =>
-      Promise.all([
-        desktopService
-          .fetchDesktop(clusterId, desktopName)
-          .then(desktop => setHostname(desktop.name)),
-        userService.fetchUserContext().then(user => {
-          setClipboardSharingState(prevState => ({
-            ...prevState,
-            allowedByAcl: user.acl.clipboardSharingEnabled,
-          }));
-          setDirectorySharingState(prevState => ({
-            ...prevState,
-            allowedByAcl: user.acl.directorySharingEnabled,
-          }));
-        }),
-        desktopService
-          .checkDesktopIsActive(clusterId, desktopName)
-          .then(isActive => {
-            setShowAnotherSessionActiveDialog(isActive);
-          }),
-      ])
-    );
-  }, [clusterId, desktopName, run]);
+    if (aclAttempt.status === 'success') {
+      setClipboardSharingState(prevState => ({
+        ...prevState,
+        allowedByAcl: aclAttempt.data.clipboardSharingEnabled,
+      }));
+      setDirectorySharingState(prevState => ({
+        ...prevState,
+        allowedByAcl: aclAttempt.data.directorySharingEnabled,
+      }));
+    }
+  }, [aclAttempt]);
 
   const [alerts, setAlerts] = useState<NotificationItem[]>([]);
   const onRemoveAlert = (id: string) => {
@@ -129,20 +97,32 @@ export default function useDesktopSession() {
     ]);
   }, []);
 
-  const clientCanvasProps = useTdpClientCanvas({
-    username,
-    desktopName,
-    clusterId,
-    setTdpConnection,
-    setWsConnection,
-    setClipboardSharingState,
-    setDirectorySharingState,
-    clipboardSharingState,
-    setAlerts,
-  });
-  const tdpClient = clientCanvasProps.tdpClient;
+  async function sendLocalClipboardToRemote() {
+    if (!(await sysClipboardGuard(clipboardSharingState, 'read'))) {
+      return;
+    }
+    const text = await navigator.clipboard.readText();
+    const digest = await Sha256Digest(text, encoder.current);
+    if (text && digest !== latestClipboardDigest.current) {
+      tdpClient.sendClipboardData({
+        data: text,
+      });
+      latestClipboardDigest.current = digest;
+    }
+  }
 
-  const mfa = useMfaEmitter(tdpClient);
+  async function onClipboardData(clipboardData: ClipboardData) {
+    if (
+      clipboardData.data &&
+      (await sysClipboardGuard(clipboardSharingState, 'write'))
+    ) {
+      await navigator.clipboard.writeText(clipboardData.data);
+      latestClipboardDigest.current = await Sha256Digest(
+        clipboardData.data,
+        encoder.current
+      );
+    }
+  }
 
   const onShareDirectory = () => {
     try {
@@ -164,7 +144,10 @@ export default function useDesktopSession() {
           }));
           addAlert({
             severity: 'warn',
-            content: 'Failed to open the directory picker: ' + e.message,
+            content: {
+              title: 'Failed to open the directory picker',
+              description: e.message,
+            },
           });
         });
     } catch (e) {
@@ -179,7 +162,7 @@ export default function useDesktopSession() {
         // In a perfect world, we could check for which error message this is and display
         // context appropriate directions.
         content: {
-          title: 'Encountered an error while attempting to share a directory: ',
+          title: 'Encountered an error while attempting to share a directory',
           description:
             e.message +
             '. \n\nYour user role supports directory sharing over desktop access, \
@@ -192,40 +175,19 @@ export default function useDesktopSession() {
     }
   };
 
-  const onCtrlAltDel = () => {
-    if (!tdpClient) {
-      return;
-    }
-    tdpClient.sendKeyboardInput('ControlLeft', ButtonState.DOWN);
-    tdpClient.sendKeyboardInput('AltLeft', ButtonState.DOWN);
-    tdpClient.sendKeyboardInput('Delete', ButtonState.DOWN);
-  };
-
   return {
-    hostname,
-    username,
     clipboardSharingState,
     setClipboardSharingState,
     directorySharingState,
     setDirectorySharingState,
-    fetchAttempt,
-    tdpConnection,
-    wsConnection,
-    mfa,
-    setTdpConnection,
-    showAnotherSessionActiveDialog,
-    setShowAnotherSessionActiveDialog,
     onShareDirectory,
-    onCtrlAltDel,
     alerts,
     onRemoveAlert,
     addAlert,
-    setWsConnection,
-    ...clientCanvasProps,
+    sendLocalClipboardToRemote,
+    onClipboardData,
   };
 }
-
-export type State = ReturnType<typeof useDesktopSession>;
 
 type CommonFeatureState = {
   /**
@@ -390,7 +352,35 @@ export const defaultClipboardSharingState: ClipboardSharingState = {
   browserSupported: navigator.userAgent.includes('Chrome'),
 };
 
-export type WebsocketAttempt = {
-  status: 'init' | 'open' | 'closed';
-  statusText?: string;
-};
+/**
+ * To be called before any system clipboard read/write operation.
+ */
+async function sysClipboardGuard(
+  clipboardSharingState: ClipboardSharingState,
+  checkingFor: 'read' | 'write'
+): Promise<boolean> {
+  // If we're not allowed to share the clipboard according to the acl
+  // or due to the browser we're using, never try to read or write.
+  if (!clipboardSharingPossible(clipboardSharingState)) {
+    return false;
+  }
+
+  // If the relevant state is 'prompt', try the operation so that the
+  // user is prompted to allow it.
+  const checkingForRead = checkingFor === 'read';
+  const checkingForWrite = checkingFor === 'write';
+  const relevantStateIsPrompt =
+    (checkingForRead && clipboardSharingState.readState === 'prompt') ||
+    (checkingForWrite && clipboardSharingState.writeState === 'prompt');
+  if (relevantStateIsPrompt) {
+    return true;
+  }
+
+  // Otherwise try only if both read and write permissions are granted
+  // and the document has focus (without focus we get an uncatchable error).
+  //
+  // Note that there's no situation where only one of read or write is granted,
+  // but the other is denied, and we want to try the operation. The feature is
+  // either fully enabled or fully disabled.
+  return isSharingClipboard(clipboardSharingState) && document.hasFocus();
+}

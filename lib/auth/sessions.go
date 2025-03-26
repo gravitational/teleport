@@ -212,7 +212,7 @@ func (a *Server) newWebSession(
 		a.logger.DebugContext(ctx, "Creating new web session without login IP specified")
 	}
 
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -502,7 +502,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -718,7 +718,7 @@ func (a *Server) CreateSessionCerts(ctx context.Context, req *SessionCertsReques
 	// this occurs during the initial login before the first certs have been
 	// generated, so there's no possibility of any active access requests.
 	accessInfo := services.AccessInfoFromUserState(req.UserState)
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

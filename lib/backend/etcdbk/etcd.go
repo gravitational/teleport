@@ -649,7 +649,7 @@ func (b *EtcdBackend) NewWatcher(ctx context.Context, watch backend.Watch) (back
 	return b.buf.NewWatcher(ctx, watch)
 }
 
-func (b *EtcdBackend) Items(ctx context.Context, params backend.IterateParams) iter.Seq2[backend.Item, error] {
+func (b *EtcdBackend) Items(ctx context.Context, params backend.ItemsParams) iter.Seq2[backend.Item, error] {
 	if params.StartKey.IsZero() {
 		err := trace.BadParameter("missing parameter startKey")
 		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
@@ -737,7 +737,7 @@ func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey backend.Key
 	}
 
 	var result backend.GetResult
-	for item, err := range b.Items(ctx, backend.IterateParams{StartKey: startKey, EndKey: endKey, Limit: limit}) {
+	for item, err := range b.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey, Limit: limit}) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

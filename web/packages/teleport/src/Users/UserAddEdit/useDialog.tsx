@@ -19,11 +19,13 @@
 import { useState } from 'react';
 
 import { Option } from 'shared/components/Select';
+import {
+  traitsToTraitsOption,
+  type TraitsOption,
+} from 'shared/components/TraitsEditor';
 import { useAttemptNext } from 'shared/hooks';
 
-import { AllUserTraits, ResetToken, User } from 'teleport/services/user';
-
-import type { TraitsOption } from './TraitsEditor';
+import { ResetToken, User } from 'teleport/services/user';
 
 export default function useUserDialog(props: Props) {
   const { attempt, setAttempt } = useAttemptNext('');
@@ -106,25 +108,3 @@ export type Props = {
   onCreate(user: User): Promise<any>;
   onUpdate(user: User): Promise<any>;
 };
-
-export function traitsToTraitsOption(allTraits: AllUserTraits): TraitsOption[] {
-  const newTrait = [];
-  for (let trait in allTraits) {
-    if (!allTraits[trait]) {
-      continue;
-    }
-    if (allTraits[trait].length === 1 && !allTraits[trait][0]) {
-      continue;
-    }
-    if (allTraits[trait].length > 0) {
-      newTrait.push({
-        traitKey: { value: trait, label: trait },
-        traitValues: allTraits[trait].map(t => ({
-          value: t,
-          label: t,
-        })),
-      });
-    }
-  }
-  return newTrait;
-}

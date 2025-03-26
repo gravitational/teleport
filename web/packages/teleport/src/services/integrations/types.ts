@@ -416,6 +416,8 @@ export type UserTask = {
   state: string;
   // issueType identifies this task's issue type.
   issueType: string;
+  // title is the issue title.
+  title: string;
   // integration is the Integration Name this User Task refers to.
   integration: string;
   // lastStateChange indicates when the current's user task state was last changed.
@@ -570,6 +572,8 @@ export type ResourceTypeSummary = {
   resourcesEnrollmentSuccess: number;
   // discoverLastSync contains the time when this integration tried to auto-enroll resources.
   discoverLastSync: number;
+  // unresolvedUserTasks contains the count of unresolved user tasks related to this integration and resource type.
+  unresolvedUserTasks: number;
   // ecsDatabaseServiceCount is the total number of DatabaseServices that were deployed into Amazon ECS.
   // Only applicable for AWS RDS resource summary.
   ecsDatabaseServiceCount: number;

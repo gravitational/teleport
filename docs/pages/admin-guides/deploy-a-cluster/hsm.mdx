@@ -285,6 +285,11 @@ auth_service:
       pin: "<CU_username>:<CU_password>"
       # pin_path can optionally be used to read the pin from a file
       # pin_path: /path/to/pin_file
+
+      # max_sessions configures the maximum number of open sessions for the HSM.
+      # If not set, it will default to the minimum of 1024 or the MaxRWSessionCount
+      # reported by the PKCS#11 module for the token. If set, must be greater than 1.
+      max_sessions: 10
 ```
   </TabItem>
 
@@ -309,6 +314,10 @@ auth_service:
       pin: "85cfpassword"
       # pin_path can optionally be used to read the pin from a file
       # pin_path: /path/to/pin_file
+
+      # Optionally specify the maximum number of open sessions for the HSM.
+      # If not set, it will default to 1024. If set, must be greater than 1.
+      max_sessions: 10
 ```
   </TabItem>
 </Tabs>

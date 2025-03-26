@@ -46,7 +46,7 @@ func NewWorkloadIdentityX509RevocationService(
 	b backend.Backend,
 ) (*WorkloadIdentityX509RevocationService, error) {
 	service, err := generic.NewServiceWrapper(
-		generic.ServiceWrapperConfig[*workloadidentityv1pb.WorkloadIdentityX509Revocation]{
+		generic.ServiceConfig[*workloadidentityv1pb.WorkloadIdentityX509Revocation]{
 			Backend:       b,
 			ResourceKind:  types.KindWorkloadIdentityX509Revocation,
 			BackendPrefix: backend.NewKey(workloadIdentityX509RevocationPrefix),

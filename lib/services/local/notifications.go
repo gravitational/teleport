@@ -48,8 +48,8 @@ type NotificationsService struct {
 
 // NewNotificationsService returns a new instance of the NotificationService.
 func NewNotificationsService(backend backend.Backend, clock clockwork.Clock) (*NotificationsService, error) {
-	userNotificationService, err := generic.NewServiceWrapper[*notificationsv1.Notification](
-		generic.ServiceWrapperConfig[*notificationsv1.Notification]{
+	userNotificationService, err := generic.NewServiceWrapper(
+		generic.ServiceConfig[*notificationsv1.Notification]{
 			Backend:       backend,
 			ResourceKind:  types.KindNotification,
 			BackendPrefix: notificationsUserSpecificPrefix,
@@ -60,8 +60,8 @@ func NewNotificationsService(backend backend.Backend, clock clockwork.Clock) (*N
 		return nil, trace.Wrap(err)
 	}
 
-	globalNotificationService, err := generic.NewServiceWrapper[*notificationsv1.GlobalNotification](
-		generic.ServiceWrapperConfig[*notificationsv1.GlobalNotification]{
+	globalNotificationService, err := generic.NewServiceWrapper(
+		generic.ServiceConfig[*notificationsv1.GlobalNotification]{
 			Backend:       backend,
 			ResourceKind:  types.KindGlobalNotification,
 			BackendPrefix: notificationsGlobalPrefix,
@@ -72,8 +72,8 @@ func NewNotificationsService(backend backend.Backend, clock clockwork.Clock) (*N
 		return nil, trace.Wrap(err)
 	}
 
-	userNotificationStateService, err := generic.NewServiceWrapper[*notificationsv1.UserNotificationState](
-		generic.ServiceWrapperConfig[*notificationsv1.UserNotificationState]{
+	userNotificationStateService, err := generic.NewServiceWrapper(
+		generic.ServiceConfig[*notificationsv1.UserNotificationState]{
 			Backend:       backend,
 			ResourceKind:  types.KindUserNotificationState,
 			BackendPrefix: notificationsStatePrefix,
@@ -84,8 +84,8 @@ func NewNotificationsService(backend backend.Backend, clock clockwork.Clock) (*N
 		return nil, trace.Wrap(err)
 	}
 
-	userLastSeenNotificationService, err := generic.NewServiceWrapper[*notificationsv1.UserLastSeenNotification](
-		generic.ServiceWrapperConfig[*notificationsv1.UserLastSeenNotification]{
+	userLastSeenNotificationService, err := generic.NewServiceWrapper(
+		generic.ServiceConfig[*notificationsv1.UserLastSeenNotification]{
 			Backend:       backend,
 			ResourceKind:  types.KindUserLastSeenNotification,
 			BackendPrefix: notificationsUserLastSeenPrefix,
@@ -97,8 +97,8 @@ func NewNotificationsService(backend backend.Backend, clock clockwork.Clock) (*N
 		return nil, trace.Wrap(err)
 	}
 
-	uniqueNotificationIdentifierService, err := generic.NewServiceWrapper[*notificationsv1.UniqueNotificationIdentifier](
-		generic.ServiceWrapperConfig[*notificationsv1.UniqueNotificationIdentifier]{
+	uniqueNotificationIdentifierService, err := generic.NewServiceWrapper(
+		generic.ServiceConfig[*notificationsv1.UniqueNotificationIdentifier]{
 			Backend:       backend,
 			ResourceKind:  types.KindUniqueNotificationIdentifier,
 			BackendPrefix: notificationUniqueIdentifierPrefix,
@@ -415,7 +415,6 @@ func (s *NotificationsService) UpsertUserLastSeenNotification(ctx context.Contex
 
 // GetUserLastSeenNotification returns a user's last seen notification item.
 func (s *NotificationsService) GetUserLastSeenNotification(ctx context.Context, username string) (*notificationsv1.UserLastSeenNotification, error) {
-
 	ulsn, err := s.userLastSeenNotificationService.GetResource(ctx, username)
 	return ulsn, trace.Wrap(err)
 }

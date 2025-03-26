@@ -202,6 +202,12 @@ message DatabaseServerV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+
+  // Status is the database server status.
+  DatabaseServerStatusV3 Status = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "status"
+  ];
 }
 
 // DatabaseServerSpecV3 is the database server spec.
@@ -236,6 +242,13 @@ message DatabaseServerSpecV3 {
   DatabaseV3 Database = 12 [(gogoproto.jsontag) = "database,omitempty"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
   repeated string ProxyIDs = 13 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
+}
+
+// DatabaseServerStatusV3 is the database server status.
+message DatabaseServerStatusV3 {
+  // TargetHealth is the health status of network connectivity between
+  // the agent and the database.
+  TargetHealth TargetHealth = 14 [(gogoproto.jsontag) = "target_health,omitempty"];
 }
 
 // DatabaseV3List represents a list of databases.
@@ -1063,6 +1076,11 @@ message AppSpecV3 {
   // If this field is not empty, URI is expected to contain no port number and start with the tcp
   // protocol.
   repeated PortRange TCPPorts = 13 [(gogoproto.jsontag) = "tcp_ports,omitempty"];
+  // UseAnyProxyPublicAddr will rebuild this app's fqdn based on the proxy public addr that the
+  // request originated from. This should be true if your proxy has multiple proxy public addrs and you
+  // want the app to be accessible from any of them. If `public_addr` is explicitly set in the app spec,
+  // setting this value to true will overwrite that public address in the web UI.
+  bool UseAnyProxyPublicAddr = 14 [(gogoproto.jsontag) = "use_any_proxy_public_addr,omitempty"];
 }
 
 // AppServerOrSAMLIdPServiceProviderV1 holds either an AppServerV3 or a SAMLIdPServiceProviderV1 resource (never both).
@@ -1589,6 +1607,11 @@ message ProvisionTokenSpecV2GitLab {
   // `gitlab.com` - but can be set to the domain of your self-hosted GitLab
   // e.g `gitlab.example.com`.
   string Domain = 2 [(gogoproto.jsontag) = "domain,omitempty"];
+  // StaticJWKS disables fetching of the GitLab signing keys via the JWKS/OIDC
+  // endpoints, and allows them to be directly specified. This allows joining
+  // from GitLab CI instances that are not reachable by the Teleport Auth
+  // Service.
+  string StaticJWKS = 3 [(gogoproto.jsontag) = "static_jwks,omitempty"];
 }
 
 // ProvisionTokenSpecV2CircleCI contains the CircleCI-specific part of the
@@ -6845,7 +6868,10 @@ message PluginDatadogAccessSettings {
 }
 
 // AWSICCredentialsSource indicates where the AWS Identity Center plugin will
-// draw its AWS credentials from
+// draw its AWS credentials from.
+//
+// DEPRECATED: Superceded by individual message types.
+// TODO(tcsc): Remove in Teleport 19+
 enum AWSICCredentialsSource {
   // AWSIC_CREDENTIALS_SOURCE_UNKNOWN is used when the credentials source is not
   // specified. For backwards compatability, UNKNOWN is handled as OIDC.
@@ -6865,7 +6891,8 @@ message PluginAWSICSettings {
 
   // IntegrationName is the Teleport OIDC integration used to gain access to the
   // AWS account. May be empty if [CredentialsSource] is `SYSTEM`.
-  string integration_name = 1;
+  // DEPRECATED: Use [Credentials] instead. DELETE in Teleport 19+
+  string integration_name = 1 [deprecated = true];
 
   // Region is the AWS region the target Identity Center instance is configured in
   string region = 2;
@@ -6885,8 +6912,9 @@ message PluginAWSICSettings {
   string saml_idp_service_provider_name = 6;
 
   // CredentialsSource indicates how the Identity Center plugin should source
-  // its AWS login credentials
-  AWSICCredentialsSource credentials_source = 7;
+  // its AWS login credentials.
+  // DEPRECATED: Use [Credentials] instead. DELETE in Teleport 19+
+  AWSICCredentialsSource credentials_source = 7 [deprecated = true];
 
   // UserSyncLabelsFilter specifies a map of key-value pairs used to filter users
   // based on their metadata labels. These filtered users will be provisioned
@@ -6914,6 +6942,39 @@ message PluginAWSICSettings {
   // GroupSyncLabelsFilter is used to specify filters that determine which AWS groups
   // should be included during synchronization.
   repeated AWSICResourceFilter group_sync_filters = 10 [(gogoproto.jsontag) = "group_sync_filters,omitempty"];
+
+  // Credentials represents the AWS credentials used by the Identity Center
+  // integration
+  AWSICCredentials credentials = 11 [(gogoproto.jsontag) = "credentials,omitempty"];
+}
+
+// AWSICCredentials holds the credentials for authenticating with AWS
+message AWSICCredentials {
+  option (gogoproto.equal) = true;
+  oneof source {
+    AWSICCredentialSourceSystem system = 1;
+    AWSICCredentialSourceOIDC oidc = 2;
+  }
+}
+
+// AWSICCredentialSourceSystem holds AWSIC credentials drawn from the ambient
+// system configuration
+message AWSICCredentialSourceSystem {
+  option (gogoproto.equal) = true;
+
+  // AwsRoleArn is an optional AWS role for the IC client to assume, overriding
+  // any roles
+  string assume_role_arn = 1 [(gogoproto.jsontag) = "assume_role_arn,omitempty"];
+}
+
+// AWSICCredentialSourceSystem holds AWSIC credentials drawn from a Teleport
+// OIDC integration
+message AWSICCredentialSourceOIDC {
+  option (gogoproto.equal) = true;
+
+  // IntegrationName is the name of the Teleport OIDC integration used by the
+  // Identity Center integration to authenticate with AWS.
+  string integration_name = 1 [(gogoproto.jsontag) = "integration_name,omitempty"];
 }
 
 // AWSICResourceFilter is an entry in the AWS IC plugin settings' allow-list of
@@ -6978,6 +7039,9 @@ enum AWSICGroupImportStatusCode {
   DONE = 1;
   // FAILED denotes that the group and group members import met with an error.
   FAILED = 2;
+  // REIMPORT_REQUESTED denotes that the user has requested that the import
+  // process be re-run.
+  REIMPORT_REQUESTED = 3;
 }
 
 // PluginEmailSettings holds the settings for an Email Access Request plugin.
@@ -8218,4 +8282,28 @@ message AccessGraphAzureSync {
   string SubscriptionID = 1 [(gogoproto.jsontag) = "subscription_id,omitempty"];
   // Integration is the integration name used to generate credentials to interact with AWS APIs.
   string Integration = 2 [(gogoproto.jsontag) = "integration,omitempty"];
+}
+
+// TargetHealth describes the health status of network connectivity between
+// an agent and a resource.
+message TargetHealth {
+  // Address is the resource address.
+  string Address = 1 [(gogoproto.jsontag) = "address,omitempty"];
+  // Protocol is the health check protocol such as "tcp".
+  string Protocol = 2 [(gogoproto.jsontag) = "protocol,omitempty"];
+  // Status is the health status, one of "", "disabled", "initialized", "healthy", "unhealthy".
+  string Status = 3 [(gogoproto.jsontag) = "status,omitempty"];
+  // TransitionTimestamp is the time that the last status transition occurred.
+  google.protobuf.Timestamp TransitionTimestamp = 4 [
+    (gogoproto.jsontag) = "transition_timestamp,omitempty",
+    (gogoproto.nullable) = true,
+    (gogoproto.stdtime) = true
+  ];
+  // TransitionReason is a unique single word reason why the last transition occurred.
+  string TransitionReason = 5 [(gogoproto.jsontag) = "transition_reason,omitempty"];
+  // TransitionError shows the health check error observed when the transition
+  // happened. Empty when transitioning to "healthy".
+  string TransitionError = 6 [(gogoproto.jsontag) = "transition_error,omitempty"];
+  // Message is additional information meant for a user.
+  string Message = 7 [(gogoproto.jsontag) = "message,omitempty"];
 }
