@@ -67,13 +67,13 @@ func validateCreateIntegrationRequest(req *oktapb.CreateIntegrationRequest, saml
 		if req.GetEnableUserSync() {
 			return trace.BadParameter("Okta API credentials are required for user sync")
 		}
-		if req.GetEnableAccessListSync() {
-			return trace.BadParameter("Okta API credentials are required for access list sync")
-		}
-		if req.GetEnableAppGroupSync() {
-			return trace.BadParameter("Okta API credentials are required for group sync")
-		}
 	}
+
+	err = validateSyncSettings(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -83,8 +83,6 @@ func validateUpdateIntegrationRequest(req *oktapb.UpdateIntegrationRequest, plug
 	oktaSettings := plugin.Spec.GetOkta()
 	credentialsInfo := oktaSettings.GetCredentialsInfo()
 	syncSettings := oktaSettings.GetSyncSettings()
-
-	requestSyncEnabled := req.GetEnableAccessListSync() || req.GetEnableUserSync() || req.GetEnableAppGroupSync()
 
 	pluginHasCredentials := false
 	if credentialsInfo != nil {
@@ -98,13 +96,53 @@ func validateUpdateIntegrationRequest(req *oktapb.UpdateIntegrationRequest, plug
 		pluginHasCredentials = true
 	}
 
-	if requestSyncEnabled && req.GetApiCredentials() == nil && !pluginHasCredentials {
-		return trace.BadParameter("update integration request enables sync but does not provide API credentials, and the plugin has no Okta credentials configured")
+	// It's enough to check for user sync to determine if sync is enabled. All other sync
+	// levels are dependent and validated below.
+	isSyncEnabled := req.GetEnableUserSync()
+	hasRequestOrPluginCredentials := req.GetApiCredentials() != nil || pluginHasCredentials
+
+	if isSyncEnabled && !hasRequestOrPluginCredentials {
+		return trace.BadParameter("update integration request enables sync but does not provide Okta API credentials, and the plugin has no Okta API credentials configured")
+	}
+
+	err := validateSyncSettings(req)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
 }
 
+// validateSyncSettings validates sync settings in [oktapb.CreateIntegrationRequest] and
+// [oktapb.UpdateIntegrationRequest].
+func validateSyncSettings(req interface {
+	GetEnableUserSync() bool
+	GetEnableAppGroupSync() bool
+	GetEnableAccessListSync() bool
+	GetEnableBidirectionalSync() bool
+}) error {
+	if req.GetEnableAppGroupSync() {
+		if !req.GetEnableUserSync() {
+			return trace.BadParameter("App and Group sync can be enabled only when user sync is enabled")
+		}
+	}
+
+	if req.GetEnableAccessListSync() {
+		if !req.GetEnableAppGroupSync() {
+			return trace.BadParameter("Access List sync can be enabled only when App and Group sync is enabled")
+		}
+	}
+
+	if req.GetEnableBidirectionalSync() {
+		if !req.GetEnableAppGroupSync() {
+			return trace.BadParameter("bidirectional sync can be set only when App and Group sync is enabled")
+		}
+	}
+
+	return nil
+}
+
+// validateAndSanitizeUrl makes sure the URL is has https:// scheme and has a hostname set.
 func validateAndSanitizeUrl(urlStr string) (string, error) {
 	if !strings.Contains(urlStr, "://") {
 		urlStr = "https://" + urlStr

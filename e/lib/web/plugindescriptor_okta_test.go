@@ -228,7 +228,7 @@ func TestOktaPluginUpdate(t *testing.T) {
 	// Minimal install – no SCIM token, filters, etc.
 	installResp, err := webPack.clt.PostForm(s.ctx, pluginEndpoint, form)
 	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, installResp.Code())
+	require.Equal(t, http.StatusOK, installResp.Code(), "body = %s", installResp.Bytes())
 
 	var installed ui.Plugin
 	require.NoError(t, json.Unmarshal(installResp.Bytes(), &installed))
@@ -318,7 +318,7 @@ func TestOktaPluginUpdate(t *testing.T) {
 			SyncUsers:                true,
 			SyncAccessLists:          false,
 			DisableSyncAppGroups:     true,
-			DisableBidirectionalSync: false,
+			DisableBidirectionalSync: true,
 			SsoConnectorId:           common.OktaSSOConnectorName,
 			UserSyncSource:           string(types.OktaUserSyncSourceSamlApp),
 		},
@@ -533,7 +533,7 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 
 			// Expect that both the HTTP round trip and actual request succeeded
 			require.NoError(t, err)
-			require.Equal(t, http.StatusOK, response.Code())
+			require.Equal(t, http.StatusOK, response.Code(), "body = %s", response.Bytes())
 
 			// Expect that the response is a JSON-encoded ui.Plugin with a
 			// trailing io.OktaPluginSpec{}

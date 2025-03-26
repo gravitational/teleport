@@ -90,6 +90,54 @@ func Test_validateCreateIntegrationRequest(t *testing.T) {
 			expectedErr: "Okta API credentials are required for user sync",
 		},
 		{
+			name: "apps and groups sync can be only enabled if user sync is enabled",
+			req: &oktapb.CreateIntegrationRequest{
+				SsoMetadataUrl:       "example.com/sso", // to bypass URL validation
+				EnableAccessListSync: true,
+				EnableAppGroupSync:   true,
+			},
+			expectedErr: "App and Group sync can be enabled only when user sync is enabled",
+		},
+		{
+			name: "apps and groups sync must be enabled for access list sync",
+			req: &oktapb.CreateIntegrationRequest{
+				SsoMetadataUrl: "example.com/sso", // to bypass URL validation
+				ApiCredentials: &oktapb.OktaAPICredentials{
+					Auth: &oktapb.OktaAPICredentials_OauthId{
+						OauthId: "validation-test-oauth-id",
+					},
+				},
+				EnableUserSync:       true,
+				EnableAppGroupSync:   false,
+				EnableAccessListSync: true,
+			},
+			expectedErr: "Access List sync can be enabled only when App and Group sync is enabled",
+		},
+		{
+			name: "bidirectional sync can be set only when App and Group sync is enabled",
+			req: &oktapb.CreateIntegrationRequest{
+				SsoMetadataUrl:          "example.com/sso", // to bypass URL validation
+				EnableBidirectionalSync: true,
+			},
+			expectedErr: "bidirectional sync can be set only when App and Group sync is enabled",
+		},
+		{
+			name: "valid case for setting bidirectional sync",
+			req: &oktapb.CreateIntegrationRequest{
+				SsoMetadataUrl: "example.com/sso", // to bypass URL validation
+				ApiCredentials: &oktapb.OktaAPICredentials{
+					Auth: &oktapb.OktaAPICredentials_OauthId{
+						OauthId: "validation-test-oauth-id",
+					},
+				},
+				EnableUserSync:          true,
+				EnableAccessListSync:    true,
+				EnableAppGroupSync:      true,
+				EnableBidirectionalSync: true,
+			},
+			expectedErr: "",
+		},
+		{
 			name: "valid case with matching SSO metadata URL and Okta org URL and connector SSO URL",
 			req: &oktapb.CreateIntegrationRequest{
 				SsoMetadataUrl:      "the.same.example.com/metadata/saml",
@@ -125,9 +173,83 @@ func Test_validateUpdateIntegrationRequest(t *testing.T) {
 		expectedErr string
 	}{
 		{
-			name: "require plugin credentials or request credentials when sync is enabled",
+			name: "apps and groups sync can be only enabled if user sync is enabled",
 			req: &oktapb.UpdateIntegrationRequest{
 				EnableAccessListSync: true,
+				EnableAppGroupSync:   true,
+			},
+			plugin: &types.PluginV1{
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Okta{
+						Okta: &types.PluginOktaSettings{
+							CredentialsInfo: &types.PluginOktaCredentialsInfo{
+								HasOauthCredentials: true,
+							},
+						},
+					},
+				},
+			},
+			expectedErr: "App and Group sync can be enabled only when user sync is enabled",
+		},
+		{
+			name: "app and group sync is required for Access List sync",
+			req: &oktapb.UpdateIntegrationRequest{
+				EnableUserSync:       true,
+				EnableAppGroupSync:   false,
+				EnableAccessListSync: true,
+			},
+			plugin: &types.PluginV1{
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Okta{
+						Okta: &types.PluginOktaSettings{
+							CredentialsInfo: &types.PluginOktaCredentialsInfo{
+								HasOauthCredentials: true,
+							},
+						},
+					},
+				},
+			},
+			expectedErr: "Access List sync can be enabled only when App and Group sync is enabled",
+		},
+		{
+			name: "bidirectional sync can be set only when app group sync and access list sync are enabled",
+			req: &oktapb.UpdateIntegrationRequest{
+				EnableBidirectionalSync: true,
+			},
+			plugin: &types.PluginV1{
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Okta{
+						Okta: &types.PluginOktaSettings{},
+					},
+				},
+			},
+			expectedErr: "bidirectional sync can be set only when App and Group sync is enabled",
+		},
+		{
+			name: "valid case for setting bidirectional sync",
+			req: &oktapb.UpdateIntegrationRequest{
+				EnableUserSync:          true,
+				EnableAccessListSync:    true,
+				EnableAppGroupSync:      true,
+				EnableBidirectionalSync: true,
+			},
+			plugin: &types.PluginV1{
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Okta{
+						Okta: &types.PluginOktaSettings{
+							CredentialsInfo: &types.PluginOktaCredentialsInfo{
+								HasOauthCredentials: true,
+							},
+						},
+					},
+				},
+			},
+			expectedErr: "",
+		},
+		{
+			name: "require plugin credentials or request credentials when sync is enabled",
+			req: &oktapb.UpdateIntegrationRequest{
+				EnableUserSync: true,
 			},
 			plugin: &types.PluginV1{
 				Spec: types.PluginSpecV1{
@@ -139,12 +261,12 @@ func Test_validateUpdateIntegrationRequest(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: "update integration request enables sync but does not provide API credentials, and the plugin has no Okta credentials configured",
+			expectedErr: "update integration request enables sync but does not provide Okta API credentials, and the plugin has no Okta API credentials configured",
 		},
 		{
 			name: "require plugin credentials or request credentials when sync is enabled with nil credentials info",
 			req: &oktapb.UpdateIntegrationRequest{
-				EnableAccessListSync: true,
+				EnableUserSync: true,
 			},
 			plugin: &types.PluginV1{
 				Spec: types.PluginSpecV1{
@@ -156,12 +278,15 @@ func Test_validateUpdateIntegrationRequest(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: "update integration request enables sync but does not provide API credentials, and the plugin has no Okta credentials configured",
+			expectedErr: "update integration request enables sync but does not provide Okta API credentials, and the plugin has no Okta API credentials configured",
 		},
 		{
 			name: "enabling sync with provided API credentials is ok",
 			req: &oktapb.UpdateIntegrationRequest{
-				EnableAccessListSync: true,
+				EnableUserSync:          true,
+				EnableAccessListSync:    true,
+				EnableAppGroupSync:      true,
+				EnableBidirectionalSync: true,
 				ApiCredentials: &oktapb.OktaAPICredentials{
 					Auth: &oktapb.OktaAPICredentials_OauthId{
 						OauthId: "test_client_id",
@@ -183,7 +308,7 @@ func Test_validateUpdateIntegrationRequest(t *testing.T) {
 		{
 			name: "enabling sync for plugin with credentials is ok",
 			req: &oktapb.UpdateIntegrationRequest{
-				EnableAccessListSync: true,
+				EnableUserSync: true,
 			},
 			plugin: &types.PluginV1{
 				Spec: types.PluginSpecV1{
@@ -201,7 +326,7 @@ func Test_validateUpdateIntegrationRequest(t *testing.T) {
 		{
 			name: "for legacy plugins without credentials info set, assume valid credentials when user sync is enabled in the plugin",
 			req: &oktapb.UpdateIntegrationRequest{
-				EnableAccessListSync: true,
+				EnableUserSync: true,
 			},
 			plugin: &types.PluginV1{
 				Spec: types.PluginSpecV1{
@@ -218,16 +343,21 @@ func Test_validateUpdateIntegrationRequest(t *testing.T) {
 			expectedErr: "",
 		},
 		{
-			name: "for legacy plugins without credentials info empty, assume valid credentials when user sync is enabled in the plugin",
+			name: "for legacy plugins with credentials info empty, assume valid credentials when user sync is enabled in the plugin",
 			req: &oktapb.UpdateIntegrationRequest{
-				EnableAccessListSync: true,
+				EnableUserSync:          true,
+				EnableAccessListSync:    true,
+				EnableAppGroupSync:      true,
+				EnableBidirectionalSync: true,
 			},
 			plugin: &types.PluginV1{
 				Spec: types.PluginSpecV1{
 					Settings: &types.PluginSpecV1_Okta{
 						Okta: &types.PluginOktaSettings{
 							SyncSettings: &types.PluginOktaSyncSettings{
-								SyncUsers: true,
+								SyncUsers:            true,
+								DisableSyncAppGroups: false,
+								SyncAccessLists:      true,
 							},
 							CredentialsInfo: &types.PluginOktaCredentialsInfo{},
 						},

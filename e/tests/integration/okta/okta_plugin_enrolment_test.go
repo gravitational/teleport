@@ -89,11 +89,12 @@ func TestPluginEnrolmentFullIntegration(t *testing.T) {
 		mustCreateOktaEveryoneGroupAndAssignOktaUsers(t, oktaInfra.client, oktaInfra.Users...)
 
 		resp, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-			OktaOrganizationUrl:  oktaApiClientMock.GetOrgUrl(),
-			ApiCredentials:       apiCredentials,
-			EnableUserSync:       true,
-			EnableAppGroupSync:   true,
-			EnableAccessListSync: true,
+			OktaOrganizationUrl:     oktaApiClientMock.GetOrgUrl(),
+			ApiCredentials:          apiCredentials,
+			EnableUserSync:          true,
+			EnableAppGroupSync:      true,
+			EnableBidirectionalSync: true,
+			EnableAccessListSync:    true,
 			AccessListSettings: &oktav1.AccessListSettings{
 				DefaultOwner: []string{"alice-admin"},
 			},
@@ -107,13 +108,14 @@ func TestPluginEnrolmentFullIntegration(t *testing.T) {
 		expectedOktaPluginSettings := &types.PluginOktaSettings{
 			OrgUrl: oktaApiClientMock.GetOrgUrl(),
 			SyncSettings: &types.PluginOktaSyncSettings{
-				SsoConnectorId:       "okta",
-				AppId:                resp.GetConnectorInfo().GetOktaAppId(),
-				SyncUsers:            true,
-				UserSyncSource:       "saml_app",
-				DisableSyncAppGroups: false,
-				SyncAccessLists:      true,
-				DefaultOwners:        []string{"alice-admin"},
+				SsoConnectorId:           "okta",
+				AppId:                    resp.GetConnectorInfo().GetOktaAppId(),
+				SyncUsers:                true,
+				UserSyncSource:           "saml_app",
+				DisableSyncAppGroups:     false,
+				DisableBidirectionalSync: false,
+				SyncAccessLists:          true,
+				DefaultOwners:            []string{"alice-admin"},
 			},
 			CredentialsInfo: &types.PluginOktaCredentialsInfo{
 				HasOauthCredentials: true,
@@ -164,10 +166,11 @@ func TestPluginEnrolmentSSOMetadataURL(t *testing.T) {
 	pluginClient := pluginsv1.NewPluginServiceClient(sut.GetAuthServiceGRPCConn(t, "alice-admin"))
 
 	resp, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-		ApiCredentials:       apiCredentials,
-		EnableAccessListSync: true,
-		EnableAppGroupSync:   true,
-		EnableUserSync:       true,
+		ApiCredentials:          apiCredentials,
+		EnableAccessListSync:    true,
+		EnableAppGroupSync:      true,
+		EnableBidirectionalSync: true,
+		EnableUserSync:          true,
 		AccessListSettings: &oktav1.AccessListSettings{
 			DefaultOwner: []string{"alice-admin"},
 		},
@@ -182,13 +185,14 @@ func TestPluginEnrolmentSSOMetadataURL(t *testing.T) {
 	expectedOktaPluginSettings := &types.PluginOktaSettings{
 		OrgUrl: oktaApiClientMock.GetOrgUrl(),
 		SyncSettings: &types.PluginOktaSyncSettings{
-			SsoConnectorId:       "okta",
-			AppId:                resp.GetConnectorInfo().GetOktaAppId(),
-			SyncUsers:            true,
-			UserSyncSource:       "saml_app",
-			DisableSyncAppGroups: false,
-			SyncAccessLists:      true,
-			DefaultOwners:        []string{"alice-admin"},
+			SsoConnectorId:           "okta",
+			AppId:                    resp.GetConnectorInfo().GetOktaAppId(),
+			SyncUsers:                true,
+			UserSyncSource:           "saml_app",
+			DisableSyncAppGroups:     false,
+			DisableBidirectionalSync: false,
+			SyncAccessLists:          true,
+			DefaultOwners:            []string{"alice-admin"},
 		},
 		CredentialsInfo: &types.PluginOktaCredentialsInfo{
 			HasOauthCredentials: true,
@@ -263,11 +267,12 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 
 	t.Run("enroll okta integration with SCIM only", func(t *testing.T) {
 		_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-			ScimToken:            scimToken,
-			EnableAccessListSync: false,
-			EnableAppGroupSync:   false,
-			EnableUserSync:       false,
-			ReuseConnector:       "okta-pre-created-test",
+			ScimToken:               scimToken,
+			EnableAccessListSync:    false,
+			EnableAppGroupSync:      false,
+			EnableBidirectionalSync: false,
+			EnableUserSync:          false,
+			ReuseConnector:          "okta-pre-created-test",
 		})
 		require.NoError(t, err)
 
@@ -278,9 +283,10 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 		expectedOktaPluginSettings := &types.PluginOktaSettings{
 			OrgUrl: "https://trial-1234567.okta.com",
 			SyncSettings: &types.PluginOktaSyncSettings{
-				SsoConnectorId:       "okta-pre-created-test",
-				UserSyncSource:       "saml_app",
-				DisableSyncAppGroups: true,
+				SsoConnectorId:           "okta-pre-created-test",
+				UserSyncSource:           "saml_app",
+				DisableSyncAppGroups:     true,
+				DisableBidirectionalSync: true,
 			},
 			CredentialsInfo: &types.PluginOktaCredentialsInfo{
 				HasScimToken: true,
@@ -315,11 +321,12 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 		expectedOktaPluginSettings := &types.PluginOktaSettings{
 			OrgUrl: "https://trial-1234567.okta.com",
 			SyncSettings: &types.PluginOktaSyncSettings{
-				SsoConnectorId:       "okta-pre-created-test",
-				SyncUsers:            true,
-				UserSyncSource:       "saml_app",
-				DisableSyncAppGroups: true,
-				AppId:                samlApp.Id,
+				SsoConnectorId:           "okta-pre-created-test",
+				SyncUsers:                true,
+				UserSyncSource:           "saml_app",
+				DisableSyncAppGroups:     true,
+				DisableBidirectionalSync: true,
+				AppId:                    samlApp.Id,
 			},
 			CredentialsInfo: &types.PluginOktaCredentialsInfo{
 				HasOauthCredentials: true,
@@ -349,9 +356,14 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 	t.Run("update integration setting and enable user sync and app groups sync", func(t *testing.T) {
 		from := time.Now()
 		_, err := oktaClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
-			ApiCredentials:     apiCredentials,
-			EnableUserSync:     true,
-			EnableAppGroupSync: true,
+			ApiCredentials:          apiCredentials,
+			EnableUserSync:          true,
+			EnableAppGroupSync:      true,
+			EnableAccessListSync:    true,
+			EnableBidirectionalSync: true,
+			AccessListSettings: &oktav1.AccessListSettings{
+				DefaultOwner: []string{"alice-admin"},
+			},
 		})
 		require.NoError(t, err)
 
@@ -362,11 +374,14 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 		expectedOktaPluginSettings := &types.PluginOktaSettings{
 			OrgUrl: "https://trial-1234567.okta.com",
 			SyncSettings: &types.PluginOktaSyncSettings{
-				SsoConnectorId:       "okta-pre-created-test",
-				SyncUsers:            true,
-				UserSyncSource:       "saml_app",
-				DisableSyncAppGroups: false,
-				AppId:                samlApp.Id,
+				SsoConnectorId:           "okta-pre-created-test",
+				AppId:                    samlApp.Id,
+				SyncUsers:                true,
+				UserSyncSource:           "saml_app",
+				SyncAccessLists:          true,
+				DisableSyncAppGroups:     false,
+				DefaultOwners:            []string{"alice-admin"},
+				DisableBidirectionalSync: false,
 			},
 			CredentialsInfo: &types.PluginOktaCredentialsInfo{
 				HasOauthCredentials: true,
@@ -392,9 +407,10 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 		from := time.Now()
 		require.EventuallyWithT(t, func(collect *assert.CollectT) {
 			_, err := oktaClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
-				EnableUserSync:       true,
-				EnableAppGroupSync:   true,
-				EnableAccessListSync: true,
+				EnableUserSync:          true,
+				EnableAppGroupSync:      true,
+				EnableAccessListSync:    true,
+				EnableBidirectionalSync: true,
 				AccessListSettings: &oktav1.AccessListSettings{
 					DefaultOwner: []string{"alice-admin"},
 				},
@@ -410,13 +426,14 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 		expectedOktaPluginSettings := &types.PluginOktaSettings{
 			OrgUrl: "https://trial-1234567.okta.com",
 			SyncSettings: &types.PluginOktaSyncSettings{
-				SsoConnectorId:       "okta-pre-created-test",
-				SyncUsers:            true,
-				UserSyncSource:       "saml_app",
-				DisableSyncAppGroups: false,
-				SyncAccessLists:      true,
-				DefaultOwners:        []string{"alice-admin"},
-				AppId:                samlApp.Id,
+				SsoConnectorId:           "okta-pre-created-test",
+				SyncUsers:                true,
+				UserSyncSource:           "saml_app",
+				DisableSyncAppGroups:     false,
+				DisableBidirectionalSync: false,
+				SyncAccessLists:          true,
+				DefaultOwners:            []string{"alice-admin"},
+				AppId:                    samlApp.Id,
 			},
 			CredentialsInfo: &types.PluginOktaCredentialsInfo{
 				HasOauthCredentials: true,
@@ -434,9 +451,10 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 
 	t.Run("update integration setting and enable user sync and app groups sync", func(t *testing.T) {
 		_, err := oktaClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
-			EnableUserSync:       true,
-			EnableAppGroupSync:   true,
-			EnableAccessListSync: true,
+			EnableUserSync:          true,
+			EnableAppGroupSync:      true,
+			EnableAccessListSync:    true,
+			EnableBidirectionalSync: true,
 			AccessListSettings: &oktav1.AccessListSettings{
 				DefaultOwner: []string{"alice-admin"},
 				GroupFilters: []string{oktaInfra.Groups[0].Profile.Name},
@@ -452,15 +470,16 @@ func TestPluginEnrolmentPartialSteps(t *testing.T) {
 		expectedOktaPluginSettings := &types.PluginOktaSettings{
 			OrgUrl: "https://trial-1234567.okta.com",
 			SyncSettings: &types.PluginOktaSyncSettings{
-				SsoConnectorId:       "okta-pre-created-test",
-				SyncUsers:            true,
-				UserSyncSource:       "saml_app",
-				DisableSyncAppGroups: false,
-				SyncAccessLists:      true,
-				GroupFilters:         []string{oktaInfra.Groups[0].Profile.Name},
-				AppFilters:           []string{"__none__"},
-				DefaultOwners:        []string{"alice-admin"},
-				AppId:                samlApp.Id,
+				SsoConnectorId:           "okta-pre-created-test",
+				SyncUsers:                true,
+				UserSyncSource:           "saml_app",
+				DisableSyncAppGroups:     false,
+				DisableBidirectionalSync: false,
+				SyncAccessLists:          true,
+				GroupFilters:             []string{oktaInfra.Groups[0].Profile.Name},
+				AppFilters:               []string{"__none__"},
+				DefaultOwners:            []string{"alice-admin"},
+				AppId:                    samlApp.Id,
 			},
 			CredentialsInfo: &types.PluginOktaCredentialsInfo{
 				HasOauthCredentials: true,
@@ -496,11 +515,12 @@ func TestPluginEnrollmentErrors(t *testing.T) {
 
 	t.Run("try to configure scim integration without any okta connector", func(t *testing.T) {
 		_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-			OktaOrganizationUrl:  "https://trial-1234567.okta.com",
-			ScimToken:            scimToken,
-			EnableAccessListSync: false,
-			EnableAppGroupSync:   false,
-			EnableUserSync:       false,
+			OktaOrganizationUrl:     "https://trial-1234567.okta.com",
+			ScimToken:               scimToken,
+			EnableAccessListSync:    false,
+			EnableAppGroupSync:      false,
+			EnableUserSync:          false,
+			EnableBidirectionalSync: false,
 		})
 		require.True(t, trace.IsBadParameter(err))
 	})
@@ -508,12 +528,13 @@ func TestPluginEnrollmentErrors(t *testing.T) {
 	t.Run("okta client is missing permission to create okta SAML application", func(t *testing.T) {
 		oktaInfra.client.scopes = []string{"okta.apps.read", "okta.groups.read", "okta.users.read"}
 		_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-			ApiCredentials:       &oktav1.OktaAPICredentials{Auth: &oktav1.OktaAPICredentials_OauthId{OauthId: "12345"}},
-			OktaOrganizationUrl:  "https://trial-1234567.okta.com",
-			ScimToken:            scimToken,
-			EnableAccessListSync: false,
-			EnableAppGroupSync:   false,
-			EnableUserSync:       false,
+			ApiCredentials:          &oktav1.OktaAPICredentials{Auth: &oktav1.OktaAPICredentials_OauthId{OauthId: "12345"}},
+			OktaOrganizationUrl:     "https://trial-1234567.okta.com",
+			ScimToken:               scimToken,
+			EnableAccessListSync:    false,
+			EnableAppGroupSync:      false,
+			EnableUserSync:          false,
+			EnableBidirectionalSync: false,
 		})
 		require.Error(t, err)
 	})
@@ -597,11 +618,12 @@ func TestEnrolmentPartialStepsFromLegacyConnector(t *testing.T) {
 		expectedOktaPluginSettings := &types.PluginOktaSettings{
 			OrgUrl: "https://trial-1234567.okta.com",
 			SyncSettings: &types.PluginOktaSyncSettings{
-				SsoConnectorId:       legacyConnectorName,
-				AppId:                samlAPP.Id,
-				SyncUsers:            true,
-				UserSyncSource:       "saml_app",
-				DisableSyncAppGroups: true,
+				SsoConnectorId:           legacyConnectorName,
+				AppId:                    samlAPP.Id,
+				SyncUsers:                true,
+				UserSyncSource:           "saml_app",
+				DisableSyncAppGroups:     true,
+				DisableBidirectionalSync: true,
 			},
 			CredentialsInfo: &types.PluginOktaCredentialsInfo{
 				HasSsmToken: true,
@@ -622,11 +644,12 @@ func TestEnrolmentPartialStepsFromLegacyConnector(t *testing.T) {
 		expectedOktaPluginSettings := &types.PluginOktaSettings{
 			OrgUrl: "https://trial-1234567.okta.com",
 			SyncSettings: &types.PluginOktaSyncSettings{
-				SsoConnectorId:       legacyConnectorName,
-				AppId:                samlAPP.Id,
-				SyncUsers:            true,
-				UserSyncSource:       "saml_app",
-				DisableSyncAppGroups: true,
+				SsoConnectorId:           legacyConnectorName,
+				AppId:                    samlAPP.Id,
+				SyncUsers:                true,
+				UserSyncSource:           "saml_app",
+				DisableSyncAppGroups:     true,
+				DisableBidirectionalSync: true,
 			},
 			CredentialsInfo: &types.PluginOktaCredentialsInfo{
 				HasOauthCredentials: true,
@@ -659,11 +682,12 @@ func TestEnrolmentPartialStepsFromLegacyConnector(t *testing.T) {
 		expectedOktaPluginSettings := &types.PluginOktaSettings{
 			OrgUrl: "https://trial-1234567.okta.com",
 			SyncSettings: &types.PluginOktaSyncSettings{
-				SsoConnectorId:       legacyConnectorName,
-				AppId:                samlAPP.Id,
-				SyncUsers:            true,
-				UserSyncSource:       "org",
-				DisableSyncAppGroups: true,
+				SsoConnectorId:           legacyConnectorName,
+				AppId:                    samlAPP.Id,
+				SyncUsers:                true,
+				UserSyncSource:           "org",
+				DisableSyncAppGroups:     true,
+				DisableBidirectionalSync: true,
 			},
 			CredentialsInfo: &types.PluginOktaCredentialsInfo{
 				HasOauthCredentials: true,

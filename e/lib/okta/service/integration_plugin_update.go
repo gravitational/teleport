@@ -30,6 +30,7 @@ func (s *Service) updatePluginOktaSpec(ctx context.Context, req *oktapb.UpdateIn
 
 	oktaSpec.SyncSettings.SyncUsers = req.GetEnableUserSync()
 	oktaSpec.SyncSettings.DisableSyncAppGroups = !req.GetEnableAppGroupSync()
+	oktaSpec.SyncSettings.DisableBidirectionalSync = !req.GetEnableBidirectionalSync()
 	oktaSpec.SyncSettings.SyncAccessLists = req.GetEnableAccessListSync()
 	oktaSpec.SyncSettings.GroupFilters = req.GetAccessListSettings().GetGroupFilters()
 	oktaSpec.SyncSettings.AppFilters = req.GetAccessListSettings().GetAppFilters()

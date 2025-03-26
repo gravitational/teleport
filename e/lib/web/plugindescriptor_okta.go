@@ -113,11 +113,13 @@ func validateOktaPluginUpdateInputs(params *ui.OktaPluginUpdate) (*oktav1.Update
 
 	return &oktav1.UpdateIntegrationRequest{
 		ApiCredentials:       oktaAPICreds,
+		EnableUserSync:       params.EnableUserSync,
 		EnableAccessListSync: params.EnableAccessListSync,
 		EnableAppGroupSync:   params.EnableAppGroupSync,
-		EnableUserSync:       params.EnableUserSync,
-		AccessListSettings:   accessListSettings,
-		ScimToken:            params.SCIMToken,
+		// TODO(kopiczko) handle EnableBidirectionalSync with UI, e.g. EnableBidirectionalSync: params.EnableBidirectionalSync
+		EnableBidirectionalSync: params.EnableAppGroupSync,
+		AccessListSettings:      accessListSettings,
+		ScimToken:               params.SCIMToken,
 	}, nil
 }
 
@@ -180,9 +182,10 @@ func installOktaPlugin(ctx context.Context, args installOktaPluginArgs) (*ui.Plu
 			AppFilters:   params.appFilters,
 			DefaultOwner: params.defaultOwners,
 		},
-		ReuseConnector:          params.reuseConnector,
-		SsoMetadataUrl:          params.metadataURL,
-		EnableBidirectionalSync: true,
+		ReuseConnector: params.reuseConnector,
+		SsoMetadataUrl: params.metadataURL,
+		// TODO(kopiczko) handle EnableBidirectionalSync with UI, e.g. EnableBidirectionalSync: params.EnableBidirectionalSync
+		EnableBidirectionalSync: params.enableAppGroupsSync,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -333,8 +336,8 @@ func (args *validateOktaPluginInputsArgs) validateOktaConfig(ctx context.Context
 	out.scimBearerToken = args.form.Get("scimToken")
 	out.enableAccessListSync = utils.AsBool(args.form.Get("enableAccessListSync"))
 	// For compat, if unspecified, enable user sync + app/group sync
-	out.enableUserSync = valueOrTrueIfNotSet(args.form, "enableUserSync")
-	out.enableAppGroupsSync = valueOrTrueIfNotSet(args.form, "enableAppGroupsSync")
+	out.enableUserSync = orDefault(args.form, "enableUserSync", true)
+	out.enableAppGroupsSync = orDefault(args.form, "enableAppGroupsSync", out.enableAccessListSync)
 	out.reuseConnector = args.form.Get("reuseConnector")
 
 	// We only want to validate the config via live req to the Okta org
@@ -371,14 +374,14 @@ func (args *validateOktaPluginInputsArgs) validateOktaConfig(ctx context.Context
 	return out, nil
 }
 
-// valueOrTrueIfNotSet returns the value of the key in the form, or true if the
+// orDefault returns the value of the key in the form, or true if the
 // key is not set.
 // This is needed for backward compatibility with the previous version of the
 // Okta plugin where all feature by default where enabled.
-func valueOrTrueIfNotSet(form url.Values, key string) bool {
+func orDefault(form url.Values, key string, defaultValue bool) bool {
 	v := form.Get(key)
 	if v == "" {
-		return true
+		return defaultValue
 	}
 	return utils.AsBool(v)
 }
@@ -412,11 +415,13 @@ func validateOktaPluginInputs(ctx context.Context, args validateOktaPluginInputs
 		if hasOktaSCIM {
 			// If using legacy setup, Access List sync should always be enabled
 			out.enableAccessListSync = true
+			out.enableAppGroupsSync = true
 			if out.scimBearerToken == "" {
 				return nil, trace.BadParameter("missing SCIM bearer token")
 			}
 		} else {
 			out.enableAccessListSync = false
+			out.enableAppGroupsSync = false
 			out.scimBearerToken = ""
 			return out, nil
 		}
@@ -447,6 +452,7 @@ func validateOktaPluginInputs(ctx context.Context, args validateOktaPluginInputs
 	out.defaultOwners = defaultOwners
 	if defaultOwners == nil {
 		out.enableAccessListSync = false
+		out.enableAppGroupsSync = false
 		return out, nil
 	}
 
