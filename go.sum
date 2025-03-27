@@ -940,6 +940,8 @@ github.com/aws/aws-sdk-go-v2/service/redshift v1.54.0 h1:diHdfD0l7ngV5tBj1fBuBT1
 github.com/aws/aws-sdk-go-v2/service/redshift v1.54.0/go.mod h1:TC8pNvjiikrjpX2MEzX/cEJ4/T4XIoSY4BskVvHj8bk=
 github.com/aws/aws-sdk-go-v2/service/redshiftserverless v1.26.0 h1:lKwj6HO89JWpu96fo7tmiI4Y+9Tn7O5DbLlJSrSVKkw=
 github.com/aws/aws-sdk-go-v2/service/redshiftserverless v1.26.0/go.mod h1:gpRsJN3qxZbsj1NhAoCNX02zJ4RZUB5v/7o4QrnGTcA=
+github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.17.1 h1:GgJySVnqtzgEjnf6FF3OwPT92LWhPmeS7fszgWgOGZ8=
+github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.17.1/go.mod h1:NW+LcIadUUlDgM3gb8+97lr6zSKExHR58NRRWSWkXl8=
 github.com/aws/aws-sdk-go-v2/service/s3 v1.78.0 h1:EBm8lXevBWe+kK9VOU/IBeOI189WPRwPUc3LvJK9GOs=
 github.com/aws/aws-sdk-go-v2/service/s3 v1.78.0/go.mod h1:4qzsZSzB/KiX2EzDjs9D7A8rI/WGJxZceVJIHqtJjIU=
 github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.35.0 h1:BRCDd+oBBOk/5VzR/rVk3Azy8o5oCCr8urNJQs191mE=

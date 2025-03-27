@@ -174,6 +174,15 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 
 	if app.IsAWSConsole() {
 		allowedAWSRoles := c.AllowedAWSRolesLookup[app.GetName()]
+		// TODO(marco): This is a temporary solution until we have a better way to
+		// handle this.
+		// Only show the interception of the two sets.
+		// User's allowed Roles is validated using Teleport's RBAC.
+		// The Profile/AppServer allowed Roles are validated using AWS.
+		if len(app.GetAWSRolesAnywhereAllowedRoleARNs()) > 0 {
+			allowedAWSRoles = app.GetAWSRolesAnywhereAllowedRoleARNs()
+		}
+
 		resultApp.AWSRoles = aws.FilterAWSRoles(allowedAWSRoles,
 			app.GetAWSAccountID())
 	}

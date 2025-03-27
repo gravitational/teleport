@@ -469,6 +469,7 @@ func (c *ConnectionsHandler) serveAWSWebConsole(w http.ResponseWriter, r *http.R
 		Issuer:      app.GetPublicAddr(),
 		ExternalID:  app.GetAWSExternalID(),
 		Integration: app.GetIntegration(),
+		ProfileARN:  app.GetAWSRolesAnywhereProfileARN(),
 	})
 	if err != nil {
 		return trace.Wrap(err)

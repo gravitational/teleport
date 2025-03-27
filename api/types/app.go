@@ -76,6 +76,10 @@ type Application interface {
 	GetAWSAccountID() string
 	// GetAWSExternalID returns the AWS External ID configured for this app.
 	GetAWSExternalID() string
+	// GetAWSRolesAnywhereProfileARN returns the AWS IAM Roles Anywhere Profile ARN which originated this App.
+	GetAWSRolesAnywhereProfileARN() string
+	// GetAWSRolesAnywhereAllowedRoleARNs returns the AWS IAM Roles Anywhere allowed role ARNs.
+	GetAWSRolesAnywhereAllowedRoleARNs() []string
 	// GetUserGroups will get the list of user group IDs associated with the application.
 	GetUserGroups() []string
 	// SetUserGroups will set the list of user group IDs associated with the application.
@@ -305,6 +309,22 @@ func (a *AppV3) GetAWSExternalID() string {
 		return ""
 	}
 	return a.Spec.AWS.ExternalID
+}
+
+// GetAWSRolesAnywhereProfileARN returns the AWS IAM Roles Anywhere Profile ARN which originated this App.
+func (a *AppV3) GetAWSRolesAnywhereProfileARN() string {
+	if a.Spec.AWS == nil || a.Spec.AWS.RolesAnywhere == nil {
+		return ""
+	}
+	return a.Spec.AWS.RolesAnywhere.ProfileARN
+}
+
+// GetAWSRolesAnywhereAllowedRoleARNs returns the AWS IAM Roles Anywhere Profile ARN which originated this App.
+func (a *AppV3) GetAWSRolesAnywhereAllowedRoleARNs() []string {
+	if a.Spec.AWS == nil || a.Spec.AWS.RolesAnywhere == nil {
+		return nil
+	}
+	return a.Spec.AWS.RolesAnywhere.AllowedRolesARN
 }
 
 // GetUserGroups will get the list of user group IDss associated with the application.

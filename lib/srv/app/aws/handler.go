@@ -177,6 +177,7 @@ func (s *signerHandler) serveCommonRequest(sessCtx *common.SessionContext, w htt
 			SessionName: sessCtx.Identity.Username,
 		}),
 		awsconfig.WithCredentialsMaybeIntegration(sessCtx.App.GetIntegration()),
+		awsconfig.WithRolesAnywhereProfileRole(sessCtx.App.GetAWSRolesAnywhereProfileARN(), sessCtx.Identity.RouteToApp.AWSRoleARN),
 	)
 	if err != nil {
 		return trace.Wrap(err)

@@ -31,9 +31,11 @@ import (
 	ststypes "github.com/aws/aws-sdk-go-v2/service/sts/types"
 	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"go.opentelemetry.io/otel"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/integrations/awsra"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
@@ -108,6 +110,10 @@ type options struct {
 	stsClientProvider STSClientProviderFunc
 	// baseCredentials is the base config used to assume the roles.
 	baseCredentials aws.CredentialsProvider
+
+	raIntegrationClient awsra.CertificateGenerator
+	profileARN          string
+	roleARN             string
 }
 
 func buildOptions(optFns ...OptionsFn) (*options, error) {
@@ -207,6 +213,21 @@ func WithCredentialsMaybeIntegration(integration string) OptionsFn {
 	}
 
 	return WithAmbientCredentials()
+}
+
+// WithRolesAnywhereProfileRole sets the RA Profile and Role ARN to use.
+func WithRolesAnywhereProfileRole(profileARN, roleARN string) OptionsFn {
+	return func(options *options) {
+		options.profileARN = profileARN
+		options.roleARN = roleARN
+	}
+}
+
+// WithRolesAnywhereIntegrationClient sets the OIDC integration client.
+func WithRolesAnywhereIntegrationClient(c awsra.CertificateGenerator) OptionsFn {
+	return func(options *options) {
+		options.raIntegrationClient = c
+	}
 }
 
 // withIntegrationCredentials configures options with an Integration that must be used to fetch Credentials to assume a role.
@@ -311,6 +332,9 @@ func getBaseConfig(ctx context.Context, region string, opts *options) (aws.Confi
 			OIDCIntegrationClient: opts.oidcIntegrationClient,
 			stsClt:                opts.stsClientProvider(cfg),
 			integrationName:       opts.integration,
+			CertificateGenerator:  opts.raIntegrationClient,
+			profileARN:            opts.profileARN,
+			roleARN:               opts.roleARN,
 		}
 		cc := aws.NewCredentialsCache(provider, awsCredentialsCacheOptions)
 		_, err := cc.Retrieve(ctx)
@@ -370,6 +394,10 @@ type integrationCredentialsProvider struct {
 	OIDCIntegrationClient
 	stsClt          STSClient
 	integrationName string
+
+	awsra.CertificateGenerator
+	profileARN string
+	roleARN    string
 }
 
 // Retrieve provides [aws.Credentials] for an AWS OIDC integration.
@@ -378,20 +406,51 @@ func (p *integrationCredentialsProvider) Retrieve(ctx context.Context) (aws.Cred
 	if err != nil {
 		return aws.Credentials{}, trace.Wrap(err)
 	}
-	spec := integration.GetAWSOIDCIntegrationSpec()
-	if spec == nil {
-		return aws.Credentials{}, trace.BadParameter("invalid integration subkind, expected awsoidc, got %s", integration.GetSubKind())
+
+	switch integration.GetSubKind() {
+	case types.IntegrationSubKindAWSOIDC:
+		spec := integration.GetAWSOIDCIntegrationSpec()
+		if spec == nil {
+			return aws.Credentials{}, trace.BadParameter("invalid integration subkind, expected awsoidc, got %s", integration.GetSubKind())
+		}
+		token, err := p.GenerateAWSOIDCToken(ctx, p.integrationName)
+		if err != nil {
+			return aws.Credentials{}, trace.Wrap(err)
+		}
+		cred, err := stscreds.NewWebIdentityRoleProvider(
+			p.stsClt,
+			spec.RoleARN,
+			staticIdentityToken(token),
+		).Retrieve(ctx)
+		return cred, trace.Wrap(err)
+	case types.IntegrationSubKindAWSRA:
+		spec := integration.GetAWSRAIntegrationSpec()
+		if spec == nil {
+			return aws.Credentials{}, trace.BadParameter("invalid integration subkind, expected awsra, got %s", integration.GetSubKind())
+		}
+
+		resp, err := awsra.GenerateAWSRACredentials(ctx, awsra.GenerateAWSRACredentialsRequest{
+			Clock:                clockwork.NewRealClock(),
+			TrustAnchorARN:       spec.TrustAnchorARN,
+			ProfileARN:           p.profileARN,
+			RoleARN:              p.roleARN,
+			SubjectCommonName:    "user-marco",
+			NotAfter:             time.Now().Add(1 * time.Hour),
+			CertificateGenerator: p.CertificateGenerator,
+		})
+		if err != nil {
+			return aws.Credentials{}, trace.Wrap(err)
+		}
+
+		return aws.Credentials{
+			AccessKeyID:     resp.AccessKeyID,
+			SecretAccessKey: resp.SecretAccessKey,
+			SessionToken:    resp.SessionToken,
+		}, nil
+
+	default:
+		return aws.Credentials{}, trace.BadParameter("invalid integration subkind, expected awsoidc or awsoidcsts, got %s", integration.GetSubKind())
 	}
-	token, err := p.GenerateAWSOIDCToken(ctx, p.integrationName)
-	if err != nil {
-		return aws.Credentials{}, trace.Wrap(err)
-	}
-	cred, err := stscreds.NewWebIdentityRoleProvider(
-		p.stsClt,
-		spec.RoleARN,
-		staticIdentityToken(token),
-	).Retrieve(ctx)
-	return cred, trace.Wrap(err)
 }
 
 // maybeHashRoleSessionName truncates the role session name and adds a hash

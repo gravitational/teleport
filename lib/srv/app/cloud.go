@@ -62,6 +62,7 @@ type AWSSigninRequest struct {
 	// Integration is the Integration name to use to generate credentials.
 	// If empty, it will use ambient credentials
 	Integration string
+	ProfileARN  string
 }
 
 // CheckAndSetDefaults validates the request.
@@ -181,6 +182,7 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 	region := ""
 	baseCfg, err := c.awsCachedProvider.GetConfig(ctx, region,
 		awsconfig.WithCredentialsMaybeIntegration(req.Integration),
+		awsconfig.WithRolesAnywhereProfileRole(req.ProfileARN, req.Identity.RouteToApp.AWSRoleARN),
 	)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -226,7 +228,7 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 		append(c.cfg.AWSConfigOptions,
 			awsconfig.WithCredentialsMaybeIntegration(req.Integration),
 			awsconfig.WithBaseCredentialsProvider(baseCfg.Credentials),
-			awsconfig.WithDetailedAssumeRole(assumeRole),
+			//awsconfig.WithDetailedAssumeRole(assumeRole),
 		)...,
 	)
 	if err != nil {
