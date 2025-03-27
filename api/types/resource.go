@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/iterutils"
 )
 
 var (
@@ -88,13 +89,7 @@ func GetName[R Resource](r R) string {
 // ResourceNames creates an iterator that loops through the provided slice of
 // resources and return their names.
 func ResourceNames[R Resource, S ~[]R](s S) iter.Seq[string] {
-	return func(yield func(string) bool) {
-		for _, r := range s {
-			if !yield(GetName(r)) {
-				return
-			}
-		}
-	}
+	return iterutils.Map(GetName, slices.Values(s))
 }
 
 // ResourceDetails includes details about the resource
