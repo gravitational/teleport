@@ -4603,7 +4603,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		c.AddKeysToAgent = client.AddKeysToAgentNo
 	}
 
-	c.EnableEscapeSequences = cf.EnableEscapeSequences
+	c.DisableEscapeSequences = !cf.EnableEscapeSequences
 
 	// pass along mock functions if provided (only used in tests)
 	c.MockSSOLogin = cf.MockSSOLogin

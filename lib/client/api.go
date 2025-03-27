@@ -388,10 +388,10 @@ type Config struct {
 	//	off - do not attempt to load keys into agent
 	AddKeysToAgent string
 
-	// EnableEscapeSequences will scan Stdin for SSH escape sequences during
+	// DisableEscapeSequences will disable scanning Stdin for SSH escape sequences during
 	// command/shell execution. This also requires Stdin to be an interactive
 	// terminal.
-	EnableEscapeSequences bool
+	DisableEscapeSequences bool
 
 	// MockSSOLogin is used in tests for mocking the SSO login response.
 	MockSSOLogin SSOLoginFunc
@@ -536,12 +536,11 @@ type CachePolicy struct {
 // MakeDefaultConfig returns default client config
 func MakeDefaultConfig() *Config {
 	return &Config{
-		Stdout:                os.Stdout,
-		Stderr:                os.Stderr,
-		Stdin:                 os.Stdin,
-		AddKeysToAgent:        AddKeysToAgentAuto,
-		EnableEscapeSequences: true,
-		Tracer:                tracing.NoopProvider().Tracer("TeleportClient"),
+		Stdout:         os.Stdout,
+		Stderr:         os.Stderr,
+		Stdin:          os.Stdin,
+		AddKeysToAgent: AddKeysToAgentAuto,
+		Tracer:         tracing.NoopProvider().Tracer("TeleportClient"),
 	}
 }
 
