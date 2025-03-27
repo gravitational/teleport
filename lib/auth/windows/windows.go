@@ -39,14 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-const (
-	// CertTTL is the TTL for Teleport-issued Windows Certificates.
-	// Certificates are requested on each connection attempt, so the TTL is
-	// deliberately set to a small value to give enough time to establish a
-	// single desktop session.
-	CertTTL = 5 * time.Minute
-)
-
 type certRequest struct {
 	csrPEM      []byte
 	crlEndpoint string
@@ -363,29 +355,30 @@ func SubjectAltNameExtension(user, domain string) (pkix.Extension, error) {
 }
 
 // Types for ASN.1 SAN serialization.
+type (
+	// SubjectAltName is a struct that can be marshaled as ASN.1
+	// into the SAN field in an x.509 certificate.
+	//
+	// See RFC 3280: https://www.ietf.org/rfc/rfc3280.txt
+	//
+	// T is the ASN.1 encodeable struct corresponding to an otherName
+	// item of the GeneralNames sequence.
+	SubjectAltName[T any] struct {
+		OtherName otherName[T] `asn1:"tag:0"`
+	}
 
-// SubjectAltName is a struct that can be marshaled as ASN.1
-// into the SAN field in an x.509 certificate.
-//
-// See RFC 3280: https://www.ietf.org/rfc/rfc3280.txt
-//
-// T is the ASN.1 encodeable struct corresponding to an otherName
-// item of the GeneralNames sequence.
-type SubjectAltName[T any] struct {
-	OtherName otherName[T] `asn1:"tag:0"`
-}
+	otherName[T any] struct {
+		OID   asn1.ObjectIdentifier
+		Value T `asn1:"tag:0"`
+	}
 
-type otherName[T any] struct {
-	OID   asn1.ObjectIdentifier
-	Value T `asn1:"tag:0"`
-}
+	upn struct {
+		Value string `asn1:"utf8"`
+	}
 
-type upn struct {
-	Value string `asn1:"utf8"`
-}
-
-type adSid struct {
-	// Value is the bytes representation of the user's SID string,
-	// e.g. []byte("S-1-5-21-1329593140-2634913955-1900852804-500")
-	Value []byte // Gets encoded as an asn1 octet string
-}
+	adSid struct {
+		// Value is the bytes representation of the user's SID string,
+		// e.g. []byte("S-1-5-21-1329593140-2634913955-1900852804-500")
+		Value []byte // Gets encoded as an asn1 octet string
+	}
+)
