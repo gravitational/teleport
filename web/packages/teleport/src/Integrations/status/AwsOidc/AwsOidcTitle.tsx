@@ -17,8 +17,9 @@
  */
 import { useHistory } from 'react-router';
 import { Link as InternalLink } from 'react-router-dom';
+import { useTheme } from 'styled-components';
 
-import { ButtonIcon, Flex, Label, MenuItem, Text } from 'design';
+import { ButtonIcon, Flex, Label, Link, MenuItem, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { ArrowLeft } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
@@ -43,6 +44,7 @@ export function AwsOidcTitle({
   resource?: AwsResource;
   tasks?: boolean;
 }) {
+  const theme = useTheme();
   const history = useHistory();
   const integrationOps = useIntegrationOperation();
   const { status, labelKind } = getStatusAndLabel(integration);
@@ -67,15 +69,32 @@ export function AwsOidcTitle({
             <ArrowLeft size="medium" />
           </ButtonIcon>
         </HoverTooltip>
-        <Text bold fontSize={6} mx={2}>
-          {content.content}
-        </Text>
+        <Flex flexDirection="column" mx={2}>
+          <Text bold fontSize={6}>
+            {content.content}
+          </Text>
+          <Flex gap={1}>
+            Role ARN:{' '}
+            <Link
+              target="_blank"
+              href={`https://console.aws.amazon.com/iamv2/home#/roles/details/${integration.name}`}
+            >
+              <Text
+                style={{
+                  fontFamily: theme.fonts.mono,
+                }}
+              >
+                {integration.spec?.roleArn}
+              </Text>
+            </Link>
+          </Flex>
+        </Flex>
         <Label kind={labelKind} aria-label="status" px={3}>
           {status}
         </Label>
       </Flex>
       {!resource && !tasks && (
-        <MenuButton icon={<Icons.Cog />}>
+        <MenuButton icon={<Icons.Cog size="small" />}>
           <MenuItem onClick={() => integrationOps.onEdit(integration)}>
             Edit...
           </MenuItem>
