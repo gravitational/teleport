@@ -31,7 +31,6 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
-	"github.com/schollz/progressbar/v3"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
@@ -113,6 +112,10 @@ func (c *databaseExecCommand) run() error {
 		return trace.Wrap(err)
 	}
 
+	if err := c.confirm(dbs); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Pre-checks before execution.
 	dbInfos := make([]*databaseInfo, 0, len(dbs))
 	for _, db := range dbs {
@@ -181,61 +184,21 @@ func (c *databaseExecCommand) getDatabases() ([]types.Database, error) {
 
 func (c *databaseExecCommand) getDatabasesByNames() ([]types.Database, error) {
 	names := apiutils.Deduplicate(strings.Split(c.cf.DatabaseServices, ","))
+	logger.DebugContext(c.cf.Context, "Getting database by names", "names", names)
 
-	// Show a progress bar when fetching more than one database.
-	var progress *progressbar.ProgressBar
-	if len(names) > 1 {
-		fmt.Fprintln(c.cf.Stdout(), "Fetching databases by names:")
-		progress = progressbar.NewOptions(
-			len(names),
-			progressbar.OptionSetWriter(c.cf.Stdout()),
-			progressbar.OptionShowCount(),
-			progressbar.OptionSetElapsedTime(false),
-			progressbar.OptionSetPredictTime(false),
-		)
-		defer func() {
-			// Print a break line for the progress bar. Note that progress.Close
-			// is not called to avoid filling the progress bar on errors.
-			fmt.Fprintln(c.cf.Stdout(), "")
-		}()
-	}
-
-	// Fetch in parallel.
-	group, groupCtx := errgroup.WithContext(c.cf.Context)
-	group.SetLimit(c.cf.MaxConnections)
-	var (
-		mu  sync.Mutex
-		dbs []types.Database
-	)
+	var predicate string
 	for _, name := range names {
-		group.Go(func() error {
-			logger.DebugContext(c.cf.Context, "Getting database by name", "name", name)
-			list, err := c.client.listDatabasesWithFilter(groupCtx, &proto.ListResourcesRequest{
-				Namespace:           apidefaults.Namespace,
-				ResourceType:        types.KindDatabaseServer,
-				PredicateExpression: makeDiscoveredNameOrNamePredicate(name),
-			})
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			switch len(list) {
-			case 0:
-				return trace.NotFound("database %q not found", name)
-			case 1:
-				mu.Lock()
-				defer mu.Unlock()
-				dbs = append(dbs, list[0])
-				if progress != nil {
-					progress.Add(1)
-				}
-				return nil
-			default:
-				return trace.CompareFailed("expecting one database but got %d", len(list))
-			}
-		})
+		predicate = makePredicateDisjunction(predicate, makeDiscoveredNameOrNamePredicate(name))
 	}
-
-	if err := group.Wait(); err != nil {
+	dbs, err := c.client.listDatabasesWithFilter(c.cf.Context, &proto.ListResourcesRequest{
+		Namespace:           apidefaults.Namespace,
+		ResourceType:        types.KindDatabaseServer,
+		PredicateExpression: predicate,
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "message larger than max") {
+			return nil, trace.Wrap(err, "failed to find database by names: %v. Please try with a smaller set of databases.", err)
+		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -257,15 +220,21 @@ func (c *databaseExecCommand) searchDatabases() (databases []types.Database, err
 		"databases", logutils.IterAttr(types.ResourceNames(dbs)),
 	)
 
+	return dbs, nil
+}
+
+func (c *databaseExecCommand) confirm(dbs []types.Database) error {
 	if len(dbs) == 0 {
-		return nil, trace.NotFound("no databases found")
+		return trace.NotFound("no databases found")
 	}
 
 	// Print results and prompt for confirmation.
 	fmt.Fprintf(c.cf.Stdout(), "Found %d database(s):\n\n", len(dbs))
-	var rows []databaseTableRow
+	rows := make([]databaseTableRow, 0, len(dbs))
 	for _, db := range dbs {
-		rows = append(rows, getDatabaseRow("", "", "", db, nil, nil, true /*verbose*/))
+		row := getDatabaseRow("", "", "", db, nil, nil, false)
+		row.DisplayName = db.GetName()
+		rows = append(rows, row)
 	}
 	printDatabaseTable(printDatabaseTableConfig{
 		writer:         c.cf.Stdout(),
@@ -274,9 +243,9 @@ func (c *databaseExecCommand) searchDatabases() (databases []types.Database, err
 	})
 
 	if err := c.cf.PromptConfirmation("Do you want to proceed?"); err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-	return dbs, nil
+	return nil
 }
 
 func (c *databaseExecCommand) exec(ctx context.Context, dbInfo *databaseInfo) (err error) {
