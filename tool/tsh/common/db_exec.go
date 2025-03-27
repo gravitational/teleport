@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -146,9 +147,17 @@ func (c *databaseExecCommand) close() {
 }
 
 func checkDatabaseExecInputFlags(cf *CLIConf) error {
-	// Pick an arbitrary number to avoid flooding the backend.
-	if cf.MaxConnections < 1 || cf.MaxConnections > 10 {
-		return trace.BadParameter("--max-connections must be between 1 and 10")
+	// Pick an arbitrary number for max connections to avoid flooding the
+	// backend. The limit can be overwritten with an "unstable" env var.
+	const maxConnectionsLimit = 10
+	if maxConnectionsStr := os.Getenv(maxConnectionsEnvVar); maxConnectionsStr != "" {
+		if maxConnections, err := strconv.Atoi(maxConnectionsEnvVar); err != nil || maxConnections <= 0 {
+			return trace.BadParameter("environment variable %s must be a positive integer", maxConnectionsEnvVar)
+		} else {
+			cf.MaxConnections = maxConnections
+		}
+	} else if cf.MaxConnections < 1 || cf.MaxConnections > maxConnectionsLimit {
+		return trace.BadParameter("--max-connections must be between 1 and %v", maxConnectionsLimit)
 	}
 
 	// Selection flags.
