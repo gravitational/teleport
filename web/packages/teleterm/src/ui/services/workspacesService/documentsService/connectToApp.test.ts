@@ -192,5 +192,4 @@ function setTestCluster(appContext: IAppContext): void {
   });
 }
 
-const launchVnet = () =>
-  Promise.resolve([undefined, undefined] as [void, Error]);
+const launchVnet = async () => {};
