@@ -88,11 +88,13 @@ const (
 	dbKeepAliveErr testEvent = "db-keep-alive-err"
 	dbKeepAliveDel testEvent = "db-keep-alive-del"
 
-	dbUpsertOk  testEvent = "db-upsert-ok"
-	dbUpsertErr testEvent = "db-upsert-err"
+	dbUpsertOk      testEvent = "db-upsert-ok"
+	dbUpsertErr     testEvent = "db-upsert-err"
+	dbUpsertLimited testEvent = "db-upsert-limited"
 
-	dbUpsertRetryOk  testEvent = "db-upsert-retry-ok"
-	dbUpsertRetryErr testEvent = "db-upsert-retry-err"
+	dbUpsertRetryOk      testEvent = "db-upsert-retry-ok"
+	dbUpsertRetryErr     testEvent = "db-upsert-retry-err"
+	dbUpsertRetryLimited testEvent = "db-upsert-retry-limited"
 
 	kubeKeepAliveOk  testEvent = "kube-keep-alive-ok"
 	kubeKeepAliveErr testEvent = "kube-keep-alive-err"
@@ -287,8 +289,8 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 	)
 	serverTTL := apidefaults.ServerAnnounceTTL
 	if !variableRateHeartbeatsDisabledEnv() {
-		// by default, heartbeats will scale from 1.5 to 6 minutes, and will
-		// have a TTL of 15 minutes
+		// by default, keepalives will scale from 1.5 to 6 minutes, and
+		// heartbeats will have a TTL of 15 minutes
 		serverTTL = apidefaults.ServerAnnounceTTL * 3 / 2
 		sshHBVariableDuration = interval.NewVariableDuration(interval.VariableDurationConfig{
 			MinDuration: options.serverKeepAlive,
@@ -957,11 +959,23 @@ func (c *Controller) handleDatabaseServerHB(handle *upstreamHandle, databaseServ
 		if c.dbHBVariableDuration != nil {
 			c.dbHBVariableDuration.Inc()
 		}
-		handle.databaseServers[dbKey] = &heartBeatInfo[*types.DatabaseServerV3]{}
+		handle.databaseServers[dbKey] = &heartBeatInfo[*types.DatabaseServerV3]{
+			upsertLimiter: c.newLimiter(),
+		}
 		handle.dbKeepAliveDelay.Add(dbKey)
 	}
 
 	now := time.Now()
+	srv := handle.databaseServers[dbKey]
+	if delay := srv.delayUpsertFrom(now, databaseServer); delay > 0 {
+		slog.DebugContext(c.closeContext, "Failed to upsert database server on heartbeat",
+			"server_id", handle.Hello().ServerID,
+			"error", trace.LimitExceeded("upsert rate limit exceeded"),
+			"delay", delay,
+		)
+		c.testEvent(dbUpsertLimited)
+		return nil
+	}
 
 	databaseServer.SetExpiry(now.Add(c.serverTTL).UTC())
 
@@ -969,7 +983,6 @@ func (c *Controller) handleDatabaseServerHB(handle *upstreamHandle, databaseServ
 	if err == nil {
 		c.testEvent(dbUpsertOk)
 		// store the new lease and reset retry state
-		srv := handle.databaseServers[dbKey]
 		srv.lease = lease
 		srv.retryUpsert = false
 		srv.resource = databaseServer
@@ -982,7 +995,6 @@ func (c *Controller) handleDatabaseServerHB(handle *upstreamHandle, databaseServ
 
 		// blank old lease if any and set retry state. next time handleKeepAlive is called
 		// we will attempt to upsert the server again.
-		srv := handle.databaseServers[dbKey]
 		srv.lease = nil
 		srv.retryUpsert = true
 		srv.resource = databaseServer
@@ -1164,7 +1176,16 @@ func (c *Controller) keepAliveDatabaseServer(handle *upstreamHandle, now time.Ti
 			c.testEvent(dbKeepAliveOk)
 		}
 	} else if srv.retryUpsert {
-		srv.resource.SetExpiry(time.Now().Add(c.serverTTL).UTC())
+		if delay := srv.delayUpsertFrom(now, srv.resource); delay > 0 {
+			slog.DebugContext(c.closeContext, "Failed to upsert database server on retry",
+				"server_id", handle.Hello().ServerID,
+				"error", trace.LimitExceeded("upsert rate limit exceeded"),
+				"delay", delay,
+			)
+			c.testEvent(dbUpsertRetryLimited)
+			return nil
+		}
+		srv.resource.SetExpiry(now.Add(c.serverTTL).UTC())
 		lease, err := c.auth.UpsertDatabaseServer(c.closeContext, srv.resource)
 		if err != nil {
 			c.testEvent(dbUpsertRetryErr)
@@ -1313,4 +1334,9 @@ func (c *Controller) createKeepAliveMultiDelay(variableDuration *interval.Variab
 func (c *Controller) Close() error {
 	c.cancel()
 	return nil
+}
+
+// newLimiter returns a new heartbeat upsert rate limiter.
+func (c *Controller) newLimiter() *rate.Limiter {
+	return rate.NewLimiter(rate.Every(c.serverTTL/3), 2)
 }
