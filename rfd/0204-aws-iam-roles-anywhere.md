@@ -21,7 +21,7 @@ You can manage and access AWS by running [Teleport App Service with access to AW
 This makes it possible to provide different levels of AWS access with RBAC and leveraging features like Access Requests, Access Lists and identity locking.
 
 Existing methods require Teleport to proxy requests between the end user and AWS.
-This has the advantage of auditing those requests, however it has two main disadvantages:
+This has the advantage of auditing those requests, however it has some disadvantages:
 
 **API requests go through Teleport**
 
@@ -224,7 +224,8 @@ This Role has a custom Trust Policy, as described in [AWS documentation](https:/
 
 The following policy is required:
 - `rolesanywhere:ListProfiles` - used to fetch existing IAM Roles Anywhere Profiles
-- `iam:GetRole` - used to create UserTasks when a given IAM Role's trust policy does not accept the Trust Anchor.
+- `rolesanywhere:ListTagsForResource` - used to fetch the Profile tags
+- `iam:GetRole` - used to create UserTasks when a given IAM Role's trust policy does not accept the Trust Anchor
 
 A new **IAM Roles Anywhere Profile** is created, containing the IAM Role above.
 </details>
