@@ -82,6 +82,26 @@ Self-hosted Teleport Enterprise clusters require a license file. Read [Teleport
 Enterprise License File](admin-guides/deploy-a-cluster/license.mdx)
 for how to manage this.
 
+### Teleport configuration file
+
+Note that the methods for installing Teleport on a Linux server do not generate
+a Teleport configuration file for you. You must create the file before starting
+Teleport on your server. If you install Teleport with the one-line installation
+script or a package manager, you must create your configuration file at
+`/etc/teleport.yaml`.
+
+See the following guides for help setting up a configuration file:
+
+- [Enroll Resources](./enroll-resources/enroll-resources.mdx): Guides to setting
+  up Teleport Agents in order to enroll infrastructure resources in your cluster. These
+  guides include examples of setting up Teleport configuration files.
+- [Self-Hosted Demo
+  Cluster](./admin-guides/deploy-a-cluster/deploy-a-cluster.mdx): If you are
+  deploying the Teleport Auth Service and Proxy Service, read this guide for an
+  example of a configuration file.
+- [Teleport Configuration Reference](./reference/config.mdx): A guide to all
+  configuration fields.
+
 ### One-line installation script
 
 You can run a one-line command to install Teleport binaries on a Linux server.
