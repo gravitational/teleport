@@ -43,6 +43,7 @@ import (
 const slackMaxConns = 100
 
 // textObjectMaxCharLimit is the max length for a slack 'text' object.
+// See https://api.slack.com/reference/block-kit/composition-objects#text for more details.
 const textObjectMaxCharLimit = 3000
 
 const slackHTTPTimeout = 10 * time.Second
