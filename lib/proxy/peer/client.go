@@ -769,7 +769,7 @@ func (c *Client) connect(params connectParams) (internal.ClientConn, error) {
 	tlsConfig.InsecureSkipVerify = true
 	tlsConfig.VerifyConnection = utils.VerifyConnectionWithRoots(c.config.GetTLSRoots)
 
-	expectedPeer := authclient.HostFQDN(params.peerID, c.config.ClusterName)
+	expectedPeer := utils.HostFQDN(params.peerID, c.config.ClusterName)
 
 	conn, err := grpc.Dial(
 		params.peerAddr,

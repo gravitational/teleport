@@ -277,6 +277,10 @@ type AccessChecker interface {
 	// requested SPIFFE ID. Returns an error if the role set does not have the
 	// ability to generate the requested SVID.
 	CheckSPIFFESVID(spiffeIDPath string, dnsSANs []string, ipSANs []net.IP) error
+
+	// AccessInfo gets the underlying AccessInfo that was used to build this
+	// access checker.
+	AccessInfo() *AccessInfo
 }
 
 // AccessInfo hold information about an identity necessary to check whether that
@@ -307,6 +311,10 @@ type accessChecker struct {
 	// to search-based access requests) will be implemented by
 	// accessChecker.
 	RoleSet
+}
+
+func (a *accessChecker) AccessInfo() *AccessInfo {
+	return a.info
 }
 
 // NewAccessChecker returns a new AccessChecker which can be used to check

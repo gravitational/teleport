@@ -316,6 +316,11 @@ func SplitHostPort(hostname string) (string, string, error) {
 	return host, port, nil
 }
 
+// HostFQDN consists of host UUID and cluster name joined via '.'
+func HostFQDN(hostUUID, clusterName string) string {
+	return fmt.Sprintf("%v.%v", hostUUID, clusterName)
+}
+
 // IsValidHostname checks if a string represents a valid hostname.
 func IsValidHostname(hostname string) bool {
 	for _, label := range strings.Split(hostname, ".") {

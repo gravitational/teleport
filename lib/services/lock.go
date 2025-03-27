@@ -24,6 +24,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -43,6 +45,26 @@ func LockInForceAccessDenied(lock types.Lock) error {
 // StrictLockingModeAccessDenied is an AccessDenied error returned when strict
 // locking mode causes all interactions to be blocked.
 var StrictLockingModeAccessDenied = trace.AccessDenied("preventive lock-out due to local lock view becoming unreliable")
+
+// SSHAccessLockTargets computes the full set of lock targets related to ssh access.
+func SSHAccessLockTargets(localClusterName, serverID, osLogin string, accessInfo *AccessInfo, unmappedIdentity *sshca.Identity) []types.LockTarget {
+	lockTargets := []types.LockTarget{
+		{User: accessInfo.Username},
+		{Login: osLogin},
+		{Node: serverID, ServerID: serverID},
+		{Node: utils.HostFQDN(serverID, localClusterName), ServerID: utils.HostFQDN(serverID, localClusterName)},
+	}
+	if mfaDevice := unmappedIdentity.MFAVerified; mfaDevice != "" {
+		lockTargets = append(lockTargets, types.LockTarget{MFADevice: mfaDevice})
+	}
+	if trustedDevice := unmappedIdentity.DeviceID; trustedDevice != "" {
+		lockTargets = append(lockTargets, types.LockTarget{Device: trustedDevice})
+	}
+	roles := apiutils.Deduplicate(append(accessInfo.Roles, unmappedIdentity.Roles...))
+	lockTargets = append(lockTargets, RolesToLockTargets(roles)...)
+	lockTargets = append(lockTargets, AccessRequestsToLockTargets(unmappedIdentity.ActiveRequests)...)
+	return lockTargets
+}
 
 // LockTargetsFromTLSIdentity infers a list of LockTargets from tlsca.Identity.
 func LockTargetsFromTLSIdentity(id tlsca.Identity) []types.LockTarget {

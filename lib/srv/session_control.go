@@ -207,20 +207,15 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 		return ctx, trace.Wrap(err)
 	}
 
-	lockingMode := identity.AccessChecker.LockingMode(authPref.GetLockingMode())
-	lockTargets := ComputeLockTargets(clusterName.GetClusterName(), s.cfg.ServerID, identity)
+	lockingMode := constants.LockingMode(identity.AccessPermit.LockingMode)
+	lockTargets := services.SSHAccessLockTargets(clusterName.GetClusterName(), s.cfg.ServerID, identity.Login, identity.AccessChecker.AccessInfo(), identity.UnmappedIdentity)
 
 	if lockErr := s.cfg.LockEnforcer.CheckLockInForce(lockingMode, lockTargets...); lockErr != nil {
 		s.emitRejection(spanCtx, identity.GetUserMetadata(), localAddr, remoteAddr, lockErr.Error(), 0)
 		return ctx, trace.Wrap(lockErr)
 	}
 
-	// Check that the required private key policy, defined by roles and auth pref,
-	// is met by this Identity's ssh certificate.
-	requiredPolicy, err := identity.AccessChecker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	requiredPolicy := keys.PrivateKeyPolicy(identity.AccessPermit.PrivateKeyPolicy)
 	if !requiredPolicy.IsSatisfiedBy(identity.UnmappedIdentity.PrivateKeyPolicy) {
 		return ctx, keys.NewPrivateKeyPolicyError(requiredPolicy)
 	}
@@ -239,7 +234,7 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 		ctx,
 		auth.ConnectionIdentity{
 			Username:       identity.TeleportUser,
-			MaxConnections: identity.AccessChecker.MaxConnections(),
+			MaxConnections: identity.AccessPermit.MaxConnections,
 			LocalAddr:      localAddr,
 			RemoteAddr:     remoteAddr,
 			UserMetadata:   identity.GetUserMetadata(),

@@ -76,6 +76,9 @@ message SSHAccessPermit {
 
   string session_recording_mode = 19;
   string locking_mode = 20;
+  string private_key_policy = 21;
+
+  repeated LockTarget lock_targets = 22;
 }
 
 // SSHAccessDenial describes an SSH access denial.
@@ -90,4 +93,35 @@ enum SSHPortForwardMode {
   SSH_PORT_FORWARD_MODE_ON = 2;
   SSH_PORT_FORWARD_MODE_LOCAL = 3;
   SSH_PORT_FORWARD_MODE_REMOTE = 4;
+}
+
+
+// LockTarget lists the attributes used to lock a resource. This type must
+// be kept in sync with types.LockTarget.
+message LockTarget {
+  // User specifies the name of a Teleport user.
+  string user = 1;
+
+  // Role specifies the name of an RBAC role known to the root cluster.
+  // In remote clusters, this constraint is evaluated before translating to local roles.
+  string role = 2;
+
+  // Login specifies the name of a local UNIX user.
+  string login = 3;
+
+  // MFADevice specifies the UUID of a user MFA device.
+  string mfa_device = 4;
+
+  // WindowsDesktop specifies the name of a Windows desktop.
+  string windows_desktop = 5;
+
+  // AccessRequest specifies the UUID of an access request.
+  string access_request = 6;
+
+  // Device is the device ID of a trusted device.
+  // Requires Teleport Enterprise.
+  string device = 7;
+
+  // ServerID is the host id of the Teleport instance.
+  string server_id = 8;
 }

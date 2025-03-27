@@ -1180,7 +1180,7 @@ func ComputeLockTargets(clusterName, serverID string, id IdentityContext) []type
 		{User: id.TeleportUser},
 		{Login: id.Login},
 		{Node: serverID, ServerID: serverID},
-		{Node: authclient.HostFQDN(serverID, clusterName), ServerID: authclient.HostFQDN(serverID, clusterName)},
+		{Node: utils.HostFQDN(serverID, clusterName), ServerID: utils.HostFQDN(serverID, clusterName)},
 	}
 	if mfaDevice := id.UnmappedIdentity.MFAVerified; mfaDevice != "" {
 		lockTargets = append(lockTargets, types.LockTarget{MFADevice: mfaDevice})
