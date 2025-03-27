@@ -22,6 +22,8 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
+	"math/big"
 	"sync"
 	"time"
 
@@ -152,10 +154,48 @@ func (c *CertReloader) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Ce
 
 	// If there's more than one choice, select the first certificate that matches.
 	for _, cert := range c.certificates {
-		if err := clientHello.SupportsCertificate(&cert); err == nil {
-			return &cert, nil
+		if err := clientHello.SupportsCertificate(&cert); err != nil {
+			// Avoid parsing the cert if debug logging isn't enabled, as this can incur a
+			// significant performance overhead on each request.
+			c.Logger.DebugFn(func() []any {
+				certInfo, debugErr := getCertInfo(cert)
+				if debugErr != nil {
+					return []any{"An error occurred when logging a cert lookup error: %w", debugErr}
+				}
+
+				return []any{"TLS Client Hello does not match certificate %s: %w", certInfo, err}
+			})
+			continue
 		}
+		return &cert, nil
 	}
 	// If nothing matches, return the first certificate.
 	return &c.certificates[0], nil
+}
+
+// Get a human-readable description of the cert for debug logging.
+// This parses the certificate, which may incur a significant performance overhead.
+func getCertInfo(cert tls.Certificate) (string, error) {
+	leafCert := cert.Leaf
+	if leafCert == nil {
+		if len(cert.Certificate) == 0 {
+			return "", trace.Errorf("certificate is missing actual certificate content")
+		}
+
+		// Based on tls.Certificate internal `leaf()` function
+		var err error
+		leafCert, err = x509.ParseCertificate(cert.Certificate[0])
+		if err != nil {
+			return "", trace.Wrap(err, "failed to parse certificate")
+		}
+	}
+
+	var serialNumber big.Int
+	if leafCert.SerialNumber != nil {
+		serialNumber = *leafCert.SerialNumber
+	}
+
+	// Format is not critical, but this roughly follows openssl's cert logging output from
+	// `openssl s_client connect`
+	return fmt.Sprintf("CN = %q, serialNumber = %v", leafCert.Subject.CommonName, serialNumber), nil
 }
