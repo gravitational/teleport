@@ -261,17 +261,17 @@ func TestDatabaseExec(t *testing.T) {
 			var capture bytes.Buffer
 			writer := utils.NewSyncWriter(&capture)
 			cf := &CLIConf{
-				Proxy:          "proxy:3080",
-				Context:        context.Background(),
-				HomePath:       dir,
-				MaxConnections: 1,
-				DatabaseUser:   "db-user",
-				DatabaseName:   "db-name",
-				DatabaseQuery:  dbQuery,
-				cmdRunner:      verifyDBQuery,
-				OverrideStdout: writer,
-				overrideStderr: writer,
-				SkipConfirm:    true,
+				Proxy:           "proxy:3080",
+				Context:         context.Background(),
+				HomePath:        dir,
+				MaxConnections:  1,
+				DatabaseUser:    "db-user",
+				DatabaseName:    "db-name",
+				DatabaseCommand: dbQuery,
+				cmdRunner:       verifyDBQuery,
+				OverrideStdout:  writer,
+				overrideStderr:  writer,
+				SkipConfirm:     true,
 			}
 
 			// Prep command and sanity check.

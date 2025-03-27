@@ -281,7 +281,7 @@ func (c *databaseExecCommand) exec(ctx context.Context, db types.Database) (err 
 	}
 	defer lp.Close()
 
-	dbCmd, err := c.makeCommand(ctx, dbInfo, lp.GetAddr(), c.cf.DatabaseQuery)
+	dbCmd, err := c.makeCommand(ctx, dbInfo, lp.GetAddr(), c.cf.DatabaseCommand)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -457,7 +457,7 @@ func newDatabaseExecCommandMaker(ctx context.Context, tc *client.TeleportClient,
 	}, nil
 }
 
-func (m *databaseExecCommandMaker) makeCommand(ctx context.Context, dbInfo *databaseInfo, lpAddr, execQuery string) (*exec.Cmd, error) {
+func (m *databaseExecCommandMaker) makeCommand(ctx context.Context, dbInfo *databaseInfo, lpAddr, command string) (*exec.Cmd, error) {
 	addr, err := utils.ParseAddr(lpAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -470,5 +470,5 @@ func (m *databaseExecCommandMaker) makeCommand(ctx context.Context, dbInfo *data
 		return nil, trace.Wrap(err)
 	}
 	return dbcmd.NewCmdBuilder(m.tc, m.profile, dbInfo.RouteToDatabase, m.rootCluster, opts...).
-		GetExecCommand(ctx, execQuery)
+		GetExecCommand(ctx, command)
 }
