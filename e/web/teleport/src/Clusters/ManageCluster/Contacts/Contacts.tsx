@@ -287,8 +287,7 @@ function ContactBox({
           gap="3"
           css={`
             flex-direction: column;
-            @media screen and (min-width: ${p =>
-                p.theme.breakpoints.medium}px) {
+            @media screen and (min-width: ${p => p.theme.breakpoints.medium}) {
               flex-direction: row;
             }
           `}

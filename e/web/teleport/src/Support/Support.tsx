@@ -49,7 +49,7 @@ export const SupportE = () => {
             mb={3}
             css={`
               @media screen and (max-width: ${props =>
-                  props.theme.breakpoints.mobile}px) {
+                  props.theme.breakpoints.mobile}) {
                 margin-top: 0px;
               }
             `}
@@ -80,7 +80,7 @@ export const SupportE = () => {
                 typography="body2"
                 css={`
                   @media screen and (max-width: ${props =>
-                      props.theme.breakpoints.mobile}px) {
+                      props.theme.breakpoints.mobile}) {
                     margin-left: ${props => props.theme.space[2]}px;
                   }
                 `}

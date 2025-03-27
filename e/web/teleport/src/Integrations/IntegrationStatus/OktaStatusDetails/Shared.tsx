@@ -59,7 +59,7 @@ export const LinkedInnerCard = styled(InnerCard)`
 `;
 
 export const FlexWrap = styled(Flex)`
-  @media screen and (max-width: ${p => p.theme.breakpoints.tablet}px) {
+  @media screen and (max-width: ${p => p.theme.breakpoints.tablet}) {
     flex-wrap: wrap;
   }
 `;
@@ -83,8 +83,7 @@ export function CustomLabel({ enabled }: { enabled: boolean }) {
         )}
         <span
           css={`
-            @media screen and (max-width: ${p =>
-                p.theme.breakpoints.medium}px) {
+            @media screen and (max-width: ${p => p.theme.breakpoints.medium}) {
               display: none;
             }
           `}

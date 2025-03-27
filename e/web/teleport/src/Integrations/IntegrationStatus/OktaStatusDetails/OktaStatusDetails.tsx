@@ -351,7 +351,7 @@ const StatusDetails = ({
         css={`
           gap: ${p => p.theme.space[3]}px;
           margin-bottom: ${p => p.theme.space[3]}px;
-          @media screen and (max-width: ${p => p.theme.breakpoints.tablet}px) {
+          @media screen and (max-width: ${p => p.theme.breakpoints.tablet}) {
             gap: ${p => p.theme.space[4]}px;
             margin-bottom: ${p => p.theme.space[4]}px;
           }

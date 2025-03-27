@@ -341,7 +341,7 @@ function EmailButton({
       css={`
         padding-left: ${p => p.theme.space[2]}px;
         padding-right: ${p => p.theme.space[2]}px;
-        @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
+        @media screen and (min-width: ${p => p.theme.breakpoints.medium}) {
           width: 120px;
           padding-left: ${p => p.theme.space[3]}px;
           padding-right: ${p => p.theme.space[3]}px;
@@ -353,7 +353,7 @@ function EmailButton({
         ml="1"
         css={`
           display: none;
-          @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
+          @media screen and (min-width: ${p => p.theme.breakpoints.medium}) {
             display: inline;
           }
         `}

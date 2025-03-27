@@ -105,7 +105,7 @@ export function ManageCluster() {
 }
 
 const FlexRow = styled(Flex)`
-  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
+  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}) {
     flex-direction: column;
   }
 `;
@@ -164,7 +164,7 @@ function ScheduledUpgrades({
                 typography="body2"
                 css={`
                   @media screen and (max-width: ${props =>
-                      props.theme.breakpoints.mobile}px) {
+                      props.theme.breakpoints.mobile}) {
                     margin-left: ${props => props.theme.space[2]}px;
                   }
                 `}

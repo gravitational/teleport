@@ -70,7 +70,7 @@ const StyledContainer = styled(Flex)`
   gap: ${({ theme }) => theme.space[5]}px;
   flex-direction: column;
 
-  @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
+  @media screen and (min-width: ${p => p.theme.breakpoints.medium}) {
     align-items: center;
     flex-direction: row;
   }

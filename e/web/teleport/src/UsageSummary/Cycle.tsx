@@ -192,7 +192,7 @@ const CyclesContainer = styled(Flex)`
 const CalibrationText = styled(Text)`
   display: none;
   font-size: ${p => p.theme.fontSizes[1]}px;
-  @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
+  @media screen and (min-width: ${p => p.theme.breakpoints.medium}) {
     display: inline;
   }
 `;
