@@ -108,7 +108,10 @@ export async function connectToApp(
   if (launchVnet) {
     // We don't let the user pick the target port through the search bar on purpose. If an app
     // allows a port range, we'd need to allow the user to input any number from the range.
-    await launchVnet(appToAddrToCopy(target));
+    await launchVnet({
+      addrToCopy: appToAddrToCopy(target),
+      resourceUri: target.uri,
+    });
     return;
   }
 
