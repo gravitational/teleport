@@ -28,21 +28,36 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import type * as docTypes from 'teleterm/ui/services/workspacesService';
+import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 import { routing } from 'teleterm/ui/uri';
 
 import appAccessPng from './app-access.png';
+import { useVnetContext } from './vnetContext';
 
 export function DocumentVnetInfo(props: {
   visible: boolean;
   doc: docTypes.DocumentVnetInfo;
 }) {
   const { mainProcessClient } = useAppContext();
+  const {
+    start,
+    startAttempt,
+    stop: stopVnet,
+    stopAttempt,
+    status,
+  } = useVnetContext();
+  const { open: openConnectionsPanel } = useConnectionsContext();
   const userAtHost = useMemo(() => {
     const { hostname, username } = mainProcessClient.getRuntimeSettings();
     return `${username}@${hostname}`;
   }, [mainProcessClient]);
   const { rootClusterUri } = useWorkspaceContext();
   const proxyHostname = routing.parseClusterName(rootClusterUri);
+
+  const startVnet = () => {
+    openConnectionsPanel('vnet');
+    void start();
+  };
 
   return (
     <Document visible={props.visible}>
@@ -88,8 +103,18 @@ export function DocumentVnetInfo(props: {
             gap={2}
             flexWrap="wrap"
           >
-            <Button size="large" minWidth="fit-content">
-              Start VNet
+            <Button
+              intent={status.value === 'stopped' ? 'primary' : 'neutral'}
+              size="large"
+              minWidth="fit-content"
+              type="button"
+              onClick={status.value === 'stopped' ? startVnet : stopVnet}
+              disabled={
+                startAttempt.status === 'processing' ||
+                stopAttempt.status === 'processing'
+              }
+            >
+              {status.value === 'stopped' ? 'Start VNet' : 'Stop VNet'}
             </Button>
             <Button
               size="large"
