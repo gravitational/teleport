@@ -643,6 +643,7 @@ func (c *CLIConf) LookPath(file string) (string, error) {
 // The prompt is skipped if cf.SkipConfirm is set.
 func (c *CLIConf) PromptConfirmation(question string) error {
 	if c.SkipConfirm {
+		fmt.Fprintf(c.Stderr(), "Skipped confirmation for %q\n", question)
 		return nil
 	}
 
