@@ -17,7 +17,6 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router';
 
 import { Box, ButtonPrimary, ButtonSecondary, Flex, Indicator } from 'design';
 import { Info } from 'design/Alert';
@@ -39,13 +38,6 @@ import {
   useListener,
 } from 'shared/libs/tdp';
 
-import { useTeleport } from 'teleport';
-import AuthnDialog from 'teleport/components/AuthnDialog';
-import cfg, { UrlDesktopParams } from 'teleport/config';
-import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
-import { shouldShowMfaPrompt, useMfaEmitter } from 'teleport/lib/useMfa';
-import { getHostName } from 'teleport/services/api';
-
 import { KeyboardHandler } from './KeyboardHandler';
 import TopBar from './TopBar';
 import useDesktopSession, {
@@ -56,73 +48,6 @@ import useDesktopSession, {
   isSharingClipboard,
   isSharingDirectory,
 } from './useDesktopSession';
-
-export function DesktopSessionContainer() {
-  const ctx = useTeleport();
-  const { username, desktopName, clusterId } = useParams<UrlDesktopParams>();
-  useEffect(() => {
-    document.title = `${username} on ${desktopName} • ${clusterId}`;
-  }, [clusterId, desktopName, username]);
-
-  const [client] = useState(
-    () =>
-      //TODO(gzdunek): It doesn't really matter here, but make TdpClient reactive to addr change.
-      new TdpClient(
-        () =>
-          new AuthenticatedWebSocket(
-            cfg.api.desktopWsAddr
-              .replace(':fqdn', getHostName())
-              .replace(':clusterId', clusterId)
-              .replace(':desktopName', desktopName)
-              .replace(':username', username)
-          )
-      )
-  );
-  const mfa = useMfaEmitter(client);
-
-  const [aclAttempt, fetchAcl] = useAsync(
-    useCallback(async () => {
-      const { acl } = await ctx.userService.fetchUserContext();
-      return acl;
-    }, [ctx.userService])
-  );
-
-  const hasAnotherSession = useCallback(
-    () => ctx.desktopService.checkDesktopIsActive(clusterId, desktopName),
-    [clusterId, ctx.desktopService, desktopName]
-  );
-
-  useEffect(() => {
-    fetchAcl();
-  }, [username, clusterId, fetchAcl]);
-
-  return (
-    <DesktopSession
-      client={client}
-      username={username}
-      desktop={desktopName}
-      customConnectionState={({ retry }) => {
-        // Errors, except for dialog cancellations, are handled within the MFA dialog.
-        if (mfa.attempt.status === 'error' && !shouldShowMfaPrompt(mfa)) {
-          return (
-            <AlertDialog
-              message={{
-                title: 'This session requires multi factor authentication',
-                details: mfa.attempt.statusText,
-              }}
-              onRetry={retry}
-            />
-          );
-        }
-        if (shouldShowMfaPrompt(mfa)) {
-          return <AuthnDialog mfaState={mfa} />;
-        }
-      }}
-      aclAttempt={aclAttempt}
-      hasAnotherSession={hasAnotherSession}
-    />
-  );
-}
 
 export interface DesktopSessionProps {
   client: TdpClient;
@@ -448,7 +373,7 @@ export function DesktopSession({
   );
 }
 
-const AlertDialog = (props: {
+export const AlertDialog = (props: {
   message: { title: string; details?: string };
   onRetry(): void;
 }) => (
