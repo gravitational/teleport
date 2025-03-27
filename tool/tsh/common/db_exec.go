@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/tool/common"
 )
 
 func onDatabaseExec(cf *CLIConf) error {
@@ -257,7 +256,7 @@ func (c *databaseExecCommand) searchDatabases() (databases []types.Database, err
 	fmt.Fprintf(c.cf.Stdout(), "Found %d database(s):\n\n", len(dbs))
 	var rows []databaseTableRow
 	for _, db := range dbs {
-		rows = append(rows, getDatabaseRow("", "", "", db, nil, nil, false))
+		rows = append(rows, getDatabaseRow("", "", "", db, nil, nil, true /*verbose*/))
 	}
 	printDatabaseTable(printDatabaseTableConfig{
 		writer:         c.cf.Stdout(),
@@ -272,7 +271,6 @@ func (c *databaseExecCommand) searchDatabases() (databases []types.Database, err
 }
 
 func (c *databaseExecCommand) exec(ctx context.Context, dbInfo *databaseInfo) (err error) {
-	displayName := common.FormatResourceName(dbInfo.database, false)
 	outputWriter := c.cf.Stdout()
 	errWriter := c.cf.Stderr()
 	defer func() {
@@ -281,7 +279,7 @@ func (c *databaseExecCommand) exec(ctx context.Context, dbInfo *databaseInfo) (e
 		if err != nil {
 			fmt.Fprintln(errWriter, err)
 			if c.cf.OutputDir != "" {
-				fmt.Fprintf(c.cf.Stderr(), "Failed to execute command for %q. See output file for more details.\n", displayName)
+				fmt.Fprintf(c.cf.Stderr(), "Failed to execute command for %q. See output file for more details.\n", dbInfo.ServiceName)
 			}
 			err = nil
 		}
@@ -297,16 +295,16 @@ func (c *databaseExecCommand) exec(ctx context.Context, dbInfo *databaseInfo) (e
 		defer logFile.Close()
 		outputWriter = logFile
 		errWriter = logFile
-		fmt.Fprintf(c.cf.Stdout(), "Executing command for %q. Output will be saved at %q.\n", displayName, logFile.Name())
+		fmt.Fprintf(c.cf.Stdout(), "Executing command for %q. Output will be saved at %q.\n", dbInfo.ServiceName, logFile.Name())
 	case c.cf.MaxConnections > 1:
 		var closeFunc func()
-		outputWriter, errWriter, closeFunc = c.makePrefixWriters(displayName)
+		outputWriter, errWriter, closeFunc = c.makePrefixWriters(dbInfo.ServiceName)
 		defer closeFunc()
-		fmt.Fprintf(c.cf.Stdout(), "Executing command for %q.\n", displayName)
+		fmt.Fprintf(c.cf.Stdout(), "Executing command for %q.\n", dbInfo.ServiceName)
 	default:
 		// No prefix so output can still be copy-pasted. Extra empty line to
 		// separate sequential executions.
-		fmt.Fprintf(c.cf.Stdout(), "\nExecuting command for %q.\n", displayName)
+		fmt.Fprintf(c.cf.Stdout(), "\nExecuting command for %q.\n", dbInfo.ServiceName)
 	}
 
 	lp, err := c.startLocalProxy(ctx, dbInfo)
@@ -326,9 +324,9 @@ func (c *databaseExecCommand) exec(ctx context.Context, dbInfo *databaseInfo) (e
 	return trace.Wrap(c.cf.RunCommand(dbCmd))
 }
 
-func (c *databaseExecCommand) makePrefixWriters(displayName string) (io.Writer, io.Writer, func()) {
-	outputWriterWithPrefix := newDBPrefixWriter(c.cf.Stdout(), displayName)
-	errWriterWithPrefix := newDBPrefixWriter(c.cf.Stderr(), displayName)
+func (c *databaseExecCommand) makePrefixWriters(dbServiceName string) (io.Writer, io.Writer, func()) {
+	outputWriterWithPrefix := newDBPrefixWriter(c.cf.Stdout(), dbServiceName)
+	errWriterWithPrefix := newDBPrefixWriter(c.cf.Stderr(), dbServiceName)
 	c.prefixedOutputHintOnce.Do(func() {
 		fmt.Fprintf(c.cf.Stdout(), `Outputs will be prefixed with the name of the target database.
 Alternatively, use --output-dir flag to save the outputs to files.
