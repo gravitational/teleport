@@ -3004,7 +3004,7 @@ func (a *ServerWithRoles) GetCurrentUserRoles(ctx context.Context) ([]types.Role
 // determine if the user is allowed to assume the returned roles. Will set
 // `req.AccessRequests` and potentially shorten `req.Expires` based on the
 // access request expirations.
-func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.UserCertsRequest, user types.User) (*services.AccessInfo, error) {
+func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.UserCertsRequest, user services.UserState) (*services.AccessInfo, error) {
 	if req.Username != a.context.User.GetName() {
 		if isRoleImpersonation(*req) {
 			a.authServer.logger.WarnContext(ctx, "User tried to issue a cert for another user while adding role requests",
@@ -3034,7 +3034,7 @@ func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.User
 
 // desiredAccessInfoForImpersonation returns the desired AccessInfo for an
 // impersonation request.
-func (a *ServerWithRoles) desiredAccessInfoForImpersonation(user types.User) (*services.AccessInfo, error) {
+func (a *ServerWithRoles) desiredAccessInfoForImpersonation(user services.UserState) (*services.AccessInfo, error) {
 	return &services.AccessInfo{
 		Roles:  user.GetRoles(),
 		Traits: user.GetTraits(),
@@ -3065,7 +3065,7 @@ func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRe
 
 // desiredAccessInfoForUser returns the desired AccessInfo
 // cert request which may contain access requests.
-func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *proto.UserCertsRequest, user types.User) (*services.AccessInfo, error) {
+func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *proto.UserCertsRequest, user services.UserState) (*services.AccessInfo, error) {
 	currentIdentity := a.context.Identity.GetIdentity()
 
 	// Start with the base AccessInfo for current logged-in identity, before
@@ -3081,7 +3081,7 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 		// Reset to the base roles and traits stored in the backend user,
 		// currently active requests (not being dropped) and new access requests
 		// will be filled in below.
-		accessInfo = services.AccessInfoFromUser(user)
+		accessInfo = services.AccessInfoFromUserState(user)
 
 		// Check for ["*"] as special case to drop all requests.
 		if len(req.DropAccessRequests) == 1 && req.DropAccessRequests[0] == "*" {
@@ -3164,7 +3164,7 @@ func isRoleImpersonation(req proto.UserCertsRequest) bool {
 
 // getBotName returns the name of the bot embedded in the user metadata, if any.
 // For non-bot users, returns "".
-func getBotName(user types.User) string {
+func getBotName(user services.UserState) string {
 	name, ok := user.GetLabel(types.BotLabel)
 	if ok {
 		return name
@@ -3238,13 +3238,19 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	// This call bypasses RBAC check for users read on purpose.
 	// Users who are allowed to impersonate other users might not have
 	// permissions to read user data.
-	user, err := a.authServer.GetUser(ctx, req.Username, false)
+	impersonateUser, err := a.authServer.GetUser(ctx, req.Username, false)
 	if err != nil {
 		a.authServer.logger.DebugContext(ctx, "Could not impersonate user, the user could not be fetched from local store",
 			"error", err,
 			"user", req.Username,
 		)
 		return nil, trace.AccessDenied("access denied")
+	}
+	// TODO(greedy52) use a.authServer.GetUserOrLoginState when
+	// AccessChecker.CheckImpersonate supports services.UserState.
+	var user services.UserState = impersonateUser
+	if userState, err := a.authServer.GetUserLoginState(ctx, req.Username); err == nil {
+		user = userState
 	}
 
 	// Do not allow SSO users to be impersonated.
@@ -3376,7 +3382,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 	default:
 		// check if this user is allowed to impersonate other users
-		err = a.context.Checker.CheckImpersonate(a.context.User, user, parsedRoles)
+		err = a.context.Checker.CheckImpersonate(a.context.User, impersonateUser, parsedRoles)
 		// adjust session TTL based on the impersonated role set limit
 		ttl := req.Expires.Sub(a.authServer.GetClock().Now())
 		ttl = checker.AdjustSessionTTL(ttl)
@@ -3453,14 +3459,6 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		keys.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement),
 		keys.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement),
 	)
-
-	// Get GitHub identities from login state if available.
-	if len(user.GetGithubIdentities()) == 0 {
-		loginState, err := a.authServer.GetUserLoginState(ctx, user.GetName())
-		if err == nil {
-			user.SetGithubIdentities(loginState.GetGithubIdentities())
-		}
-	}
 
 	// Generate certificate, note that the roles TTL will be ignored because
 	// the request is coming from "tctl auth sign" itself.
