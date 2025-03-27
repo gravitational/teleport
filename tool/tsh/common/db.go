@@ -311,9 +311,9 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 	} else {
 		if err = client.RetryWithRelogin(cf.Context, tc, func() error {
 			key, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
-				RouteToCluster: tc.SiteName,
+				RouteToCluster:  tc.SiteName,
 				RouteToDatabase: client.RouteToDatabaseToProto(dbInfo.RouteToDatabase),
-				AccessRequests: profile.ActiveRequests,
+				AccessRequests:  profile.ActiveRequests,
 			})
 			return trace.Wrap(err)
 		}); err != nil {
