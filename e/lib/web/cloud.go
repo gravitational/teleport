@@ -272,7 +272,7 @@ func (p *Plugin) readProtoJSON(r *http.Request, val googleproto.Message) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := protojson.Unmarshal(data, val); err != nil {
+	if err := (protojson.UnmarshalOptions{}).Unmarshal(data, val); err != nil {
 		return trace.BadParameter("request: %v", err.Error())
 	}
 	return nil
