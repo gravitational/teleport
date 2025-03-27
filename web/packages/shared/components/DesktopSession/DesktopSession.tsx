@@ -42,11 +42,11 @@ import {
 import { useTeleport } from 'teleport';
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import cfg, { UrlDesktopParams } from 'teleport/config';
-import { KeyboardHandler } from 'teleport/DesktopSession/KeyboardHandler';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 import { shouldShowMfaPrompt, useMfaEmitter } from 'teleport/lib/useMfa';
 import { getHostName } from 'teleport/services/api';
 
+import { KeyboardHandler } from './KeyboardHandler';
 import TopBar from './TopBar';
 import useDesktopSession, {
   clipboardSharingMessage,

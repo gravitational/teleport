@@ -34,7 +34,7 @@ import {
 import { DesktopSession, DesktopSessionProps } from './DesktopSession';
 
 const meta: Meta = {
-  title: 'Teleport/DesktopSession',
+  title: 'Shared/DesktopSession',
   decorators: [
     Story => (
       <div
