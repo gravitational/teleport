@@ -643,7 +643,7 @@ func (c *CLIConf) LookPath(file string) (string, error) {
 // The prompt is skipped if cf.SkipConfirm is set.
 func (c *CLIConf) PromptConfirmation(question string) error {
 	if c.SkipConfirm {
-		fmt.Fprintf(c.Stderr(), "Skipped confirmation for %q\n", question)
+		fmt.Fprintf(c.Stdout(), "Skipped confirmation for %q\n", question)
 		return nil
 	}
 
@@ -1062,7 +1062,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbExec.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	dbExec.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	dbExec.Flag("max-connections", "Run queries on target databases concurrently. Defaults to 1, and maximum allowed is 10.").Default("1").IntVar(&cf.MaxConnections)
-	dbExec.Flag("output-dir", "Directory to log command output per target database.").StringVar(&cf.OutputDir)
+	dbExec.Flag("output-dir", "Directory to store command output per target database. A summary is saved as \"summary.json\".").StringVar(&cf.OutputDir)
 	dbExec.Flag("dbs", "List of comma separated target databases. Mutually exclusive with --search or --labels.").StringVar(&cf.DatabaseServices)
 	dbExec.Flag("skip-confirm", "Skip confirmation on search results").BoolVar(&cf.SkipConfirm)
 	dbExec.Arg("query", "Execute this query on target database services").Required().StringVar(&cf.DatabaseQuery)
