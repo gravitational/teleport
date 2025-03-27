@@ -272,6 +272,8 @@ type NodeDetails struct {
 	// Cluster is the name of the target cluster
 	Cluster string
 
+	PubliAddrs []string
+
 	// MFACheck is optional parameter passed if MFA check was already done.
 	// It can be nil.
 	MFACheck *proto.IsMFARequiredResponse

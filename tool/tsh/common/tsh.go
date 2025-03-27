@@ -572,6 +572,9 @@ type CLIConf struct {
 	// without having to manually run tsh login and the failed command again.
 	Relogin bool
 
+	// PreferDirectConnection disables transparent SSH connection resumption.
+	PreferDirectConnection bool
+
 	// profileStatusOverride overrides return of ProfileStatus(). used in tests.
 	profileStatusOverride *client.ProfileStatus
 
@@ -835,6 +838,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("log-dir", "Directory to log separated command output, when executing on multiple nodes. If set, output from each node will also be labeled in the terminal.").StringVar(&cf.SSHLogDir)
 	ssh.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 	ssh.Flag("relogin", "Permit performing an authentication attempt on a failed command").Default("true").BoolVar(&cf.Relogin)
+	ssh.Flag("direct", "Indicates to prefer connecting directly to the target host's public address instead of via a tunnel.").Default("false").BoolVar(&cf.PreferDirectConnection)
 	// The following flags are OpenSSH compatibility flags. They are used for
 	// users that alias "ssh" to "tsh ssh." The following OpenSSH flags are
 	// implemented. From "man 1 ssh":
@@ -4574,6 +4578,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	c.DisplayParticipantRequirements = cf.displayParticipantRequirements
 	c.SSHLogDir = cf.SSHLogDir
 	c.DisableSSHResumption = cf.DisableSSHResumption
+	c.PreferDirectConnection = cf.PreferDirectConnection
 	return c, nil
 }
 
