@@ -49,6 +49,7 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		{"TeleportOpenSSHEICEServerV2", NewOpenSSHEICEServerV2Reconciler},
 		{"TeleportTrustedClusterV2", NewTrustedClusterV2Reconciler},
 		{"TeleportBotV1", NewBotV1Reconciler},
+		{"TeleportWorkloadIdentity", NewWorkloadIdentityReconciler},
 	}
 
 	oidc := modules.GetProtoEntitlement(features, entitlements.OIDC)
