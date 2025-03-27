@@ -364,8 +364,8 @@ func onSFTP() error {
 	for _, f := range h.files {
 		summaryEvent.FileTransferStats = append(summaryEvent.FileTransferStats, &apievents.FileTransferStat{
 			Path:         f.Name(),
-			BytesRead:    f.BytesRead.Load(),
-			BytesWritten: f.BytesWritten.Load(),
+			BytesRead:    f.BytesRead(),
+			BytesWritten: f.BytesWritten(),
 		})
 	}
 	sftpEvents <- summaryEvent

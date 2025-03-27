@@ -23,7 +23,6 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -35,6 +34,16 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 )
 
+// RemoteSubsystem is a handle for a remote subsystem.
+type RemoteSubsystem interface {
+	// Name is the name of the subsystem.
+	Name() string
+	// Start starts the subsystem on the given channel.
+	Start(ctx context.Context, channel ssh.Channel) error
+	// Wait waits for the subsystem to finish.
+	Wait() error
+}
+
 // remoteSubsystem is a subsystem that executes on a remote node.
 type remoteSubsystem struct {
 	logger *slog.Logger
@@ -44,13 +53,11 @@ type remoteSubsystem struct {
 
 	ctx     context.Context
 	errorCh chan error
-	wg      sync.WaitGroup
-	proxy   *SFTPProxy
 }
 
 // parseRemoteSubsystem returns *remoteSubsystem which can be used to run a subsystem on a remote node.
-func parseRemoteSubsystem(ctx context.Context, subsystemName string, serverContext *srv.ServerContext) *remoteSubsystem {
-	return &remoteSubsystem{
+func parseRemoteSubsystem(ctx context.Context, subsystemName string, serverContext *srv.ServerContext) RemoteSubsystem {
+	r := &remoteSubsystem{
 		logger: slog.With(
 			teleport.ComponentKey, teleport.ComponentRemoteSubsystem,
 			"name", subsystemName,
@@ -60,13 +67,21 @@ func parseRemoteSubsystem(ctx context.Context, subsystemName string, serverConte
 		ctx:           ctx,
 		errorCh:       make(chan error, 3),
 	}
+	if subsystemName == teleport.SFTPSubsystem {
+		return &remoteSFTPSubsystem{
+			remoteSubsystem: r,
+		}
+	}
+	return r
+}
+
+// Name is the name of the subsystem.
+func (r *remoteSubsystem) Name() string {
+	return r.subsystemName
 }
 
 // Start will begin execution of the remote subsystem on the passed in channel.
 func (r *remoteSubsystem) Start(ctx context.Context, channel ssh.Channel) error {
-	if r.subsystemName == teleport.SFTPSubsystem {
-		return trace.Wrap(r.startSFTP(ctx, channel))
-	}
 	session := r.serverContext.RemoteSession
 
 	stdout, err := session.StdoutPipe()
@@ -93,23 +108,19 @@ func (r *remoteSubsystem) Start(ctx context.Context, channel ssh.Channel) error 
 	}
 
 	// copy back and forth between stdin, stdout, and stderr and the SSH channel.
-	r.wg.Add(3)
 	go func() {
-		defer r.wg.Done()
 		defer session.Close()
 
 		_, err := io.Copy(channel, stdout)
 		r.errorCh <- err
 	}()
 	go func() {
-		defer r.wg.Done()
 		defer session.Close()
 
 		_, err := io.Copy(channel.Stderr(), stderr)
 		r.errorCh <- err
 	}()
 	go func() {
-		defer r.wg.Done()
 		defer session.Close()
 
 		_, err := io.Copy(stdin, channel)
@@ -119,47 +130,11 @@ func (r *remoteSubsystem) Start(ctx context.Context, channel ssh.Channel) error 
 	return nil
 }
 
-func (r *remoteSubsystem) startSFTP(ctx context.Context, channel ssh.Channel) error {
-	proxy, err := NewSFTPProxy(r.serverContext, channel, r.logger)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	r.proxy = proxy
-	r.wg.Add(1)
-
-	go func() {
-		defer r.serverContext.RemoteSession.Close()
-		defer r.wg.Done()
-		errCh := make(chan error)
-		go func() {
-			errCh <- proxy.Serve()
-			close(errCh)
-		}()
-
-		var err error
-		select {
-		case err = <-errCh: // Serve finished on its own, error is ready.
-		case <-ctx.Done(): // Stop Serve and wait for error.
-			proxy.Close()
-			select {
-			case err = <-errCh:
-			case <-time.After(5 * time.Second):
-				err = trace.Errorf("SFTP server timed out while closing")
-			}
-		}
-		r.errorCh <- err
-	}()
-
-	return nil
-}
-
 // Wait until the remote subsystem has finished execution and then return the last error.
 func (r *remoteSubsystem) Wait() error {
 	var lastErr error
-	// Wait for tasks to finish and populate r.errorCh.
-	r.wg.Wait()
-outer:
-	for range 3 { // Up to 3 possible errors.
+
+	for i := 0; i < 3; i++ {
 		select {
 		case err := <-r.errorCh:
 			if err != nil && !errors.Is(err, io.EOF) {
@@ -168,8 +143,6 @@ outer:
 			}
 		case <-r.ctx.Done():
 			lastErr = trace.ConnectionProblem(nil, "context is closing")
-		default:
-			break outer
 		}
 	}
 
@@ -203,4 +176,59 @@ func (r *remoteSubsystem) emitAuditEvent(ctx context.Context, err error) {
 	if err := r.serverContext.GetServer().EmitAuditEvent(ctx, subsystemEvent); err != nil {
 		r.logger.WarnContext(ctx, "Failed to emit subsystem audit event", "error", err)
 	}
+}
+
+type remoteSFTPSubsystem struct {
+	*remoteSubsystem
+	proxy *SFTPProxy
+}
+
+// Start will begin execution of the remote subsystem on the passed in channel.
+func (r *remoteSFTPSubsystem) Start(ctx context.Context, channel ssh.Channel) error {
+	proxy, err := NewSFTPProxy(r.serverContext, channel, r.logger)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	r.proxy = proxy
+
+	go func() {
+		defer r.serverContext.RemoteSession.Close()
+		errCh := make(chan error)
+		go func() {
+			errCh <- proxy.Serve()
+			close(errCh)
+		}()
+
+		var err error
+		select {
+		case err = <-errCh: // Serve finished on its own, error is ready.
+		case <-ctx.Done(): // Stop Serve and wait for error.
+			proxy.Close()
+			select {
+			case err = <-errCh:
+			case <-time.After(5 * time.Second):
+				err = trace.Errorf("SFTP server timed out while closing")
+			}
+		}
+		r.errorCh <- err
+	}()
+
+	return nil
+}
+
+// Wait waits until the remote subsystem has finished execution.
+func (r *remoteSFTPSubsystem) Wait() error {
+	var err error
+	select {
+	case err = <-r.errorCh:
+		if err != nil && !errors.Is(err, io.EOF) {
+			r.logger.WarnContext(r.ctx, "Connection problem", "error", err)
+		}
+	case <-r.ctx.Done():
+		err = trace.ConnectionProblem(nil, "context is closing")
+	}
+
+	// emit an event to the audit log with the result of execution
+	r.emitAuditEvent(r.ctx, err)
+	return trace.Wrap(err)
 }

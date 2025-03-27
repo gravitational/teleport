@@ -47,19 +47,33 @@ import (
 
 // SFTP request methods.
 const (
-	MethodGet      = "Get"
-	MethodPut      = "Put"
-	MethodOpen     = "Open"
-	MethodSetStat  = "Setstat"
-	MethodRename   = "Rename"
-	MethodRmdir    = "Rmdir"
-	MethodMkdir    = "Mkdir"
-	MethodLink     = "Link"
-	MethodSymlink  = "Symlink"
-	MethodRemove   = "Remove"
-	MethodList     = "List"
-	MethodStat     = "Stat"
-	MethodLstat    = "Lstat"
+	// MethodGet opens a file for reading.
+	MethodGet = "Get"
+	// MethodPut opens a file for writing.
+	MethodPut = "Put"
+	// MethodOpen opens a file.
+	MethodOpen = "Open"
+	// MethodSetStat sets a file's stats.
+	MethodSetStat = "Setstat"
+	// MethodRename renames a file.
+	MethodRename = "Rename"
+	// MethodRmdir removes a directory.
+	MethodRmdir = "Rmdir"
+	// MethodMkdir creates a directory.
+	MethodMkdir = "Mkdir"
+	// MethodLink creates a hard link.
+	MethodLink = "Link"
+	// MethodSymlink creates a symbolic link.
+	MethodSymlink = "Symlink"
+	// MethodRemove deletes a file.
+	MethodRemove = "Remove"
+	// MethodList lists directory entries.
+	MethodList = "List"
+	// MethodStat gets a directory entry's stat info.
+	MethodStat = "Stat"
+	// MethodLstat gets a directory entry's stat info, without following symbolic links.
+	MethodLstat = "Lstat"
+	// MethodReadlink gets the target of a symbolic link.
 	MethodReadlink = "Readlink"
 )
 
@@ -163,7 +177,7 @@ func CreateUploadConfig(src []string, dst string, opts Options) (*Config, error)
 		srcPaths: src,
 		dstPath:  dst,
 		srcFS:    &localFS{},
-		dstFS:    &remoteFS{},
+		dstFS:    &RemoteFS{},
 		opts:     opts,
 	}
 	c.setDefaults()
@@ -183,7 +197,7 @@ func CreateDownloadConfig(src, dst string, opts Options) (*Config, error) {
 	c := &Config{
 		srcPaths: []string{src},
 		dstPath:  dst,
-		srcFS:    &remoteFS{},
+		srcFS:    &RemoteFS{},
 		dstFS:    &localFS{},
 		opts:     opts,
 	}
@@ -230,7 +244,7 @@ func CreateHTTPUploadConfig(req HTTPTransferRequest) (*Config, error) {
 			fileName: req.Src,
 			fileSize: fileSize,
 		},
-		dstFS: &remoteFS{},
+		dstFS: &RemoteFS{},
 	}
 	c.setDefaults()
 
@@ -250,7 +264,7 @@ func CreateHTTPDownloadConfig(req HTTPTransferRequest) (*Config, error) {
 	c := &Config{
 		srcPaths: []string{req.Src},
 		dstPath:  req.Dst,
-		srcFS:    &remoteFS{},
+		srcFS:    &RemoteFS{},
 		dstFS: &httpFS{
 			writer:   req.HTTPResponse,
 			fileName: req.Dst,
@@ -359,12 +373,12 @@ func (c *Config) TransferFiles(ctx context.Context, sshClient *ssh.Client) error
 // initFS ensures the source and destination filesystems are ready to transfer
 func (c *Config) initFS(client *sftp.Client) error {
 	var haveRemoteFS bool
-	srcFS, srcOK := c.srcFS.(*remoteFS)
+	srcFS, srcOK := c.srcFS.(*RemoteFS)
 	if srcOK {
 		srcFS.c = client
 		haveRemoteFS = true
 	}
-	dstFS, dstOK := c.dstFS.(*remoteFS)
+	dstFS, dstOK := c.dstFS.(*RemoteFS)
 	if dstOK {
 		dstFS.c = client
 		haveRemoteFS = true

@@ -24,10 +24,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
 
+	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv"
@@ -54,7 +54,7 @@ func NewSFTPProxy(
 		return nil, trace.BadParameter("missing parameter channel")
 	}
 	if logger == nil {
-		logger = slog.Default().With(teleport.ComponentKey, "SFTP")
+		logger = slog.With(teleport.ComponentKey, "SFTP")
 	}
 
 	client, err := sftp.NewClient(scx.RemoteClient.Client)
@@ -106,8 +106,8 @@ func (p *SFTPProxy) Serve() error {
 	for _, f := range p.handlers.files {
 		summaryEvent.FileTransferStats = append(summaryEvent.FileTransferStats, &apievents.FileTransferStat{
 			Path:         f.Name(),
-			BytesRead:    f.BytesRead.Load(),
-			BytesWritten: f.BytesWritten.Load(),
+			BytesRead:    f.BytesRead(),
+			BytesWritten: f.BytesWritten(),
 		})
 	}
 	if err := scx.GetServer().EmitAuditEvent(scx.CancelContext(), summaryEvent); err != nil {
@@ -125,9 +125,10 @@ func (p *SFTPProxy) Close() error {
 type proxyHandlers struct {
 	scx      *srv.ServerContext
 	remoteFS sftputils.FileSystem
-	files    []*sftputils.TrackedFile
-	mtx      sync.Mutex
 	logger   *slog.Logger
+
+	fileMtx sync.Mutex
+	files   []*sftputils.TrackedFile
 }
 
 // Fileread handles Open requests for reading files.
@@ -180,8 +181,8 @@ func (h *proxyHandlers) OpenFile(req *sftp.Request) (_ sftp.WriterAtReaderAt, re
 
 func (h *proxyHandlers) trackFile(f sftputils.File) sftp.WriterAtReaderAt {
 	trackFile := &sftputils.TrackedFile{File: f}
-	h.mtx.Lock()
-	defer h.mtx.Unlock()
+	h.fileMtx.Lock()
+	defer h.fileMtx.Unlock()
 	h.files = append(h.files, trackFile)
 	return trackFile
 }

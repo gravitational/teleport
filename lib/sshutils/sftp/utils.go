@@ -96,21 +96,29 @@ func (c *cancelWriter) Write(b []byte) (int, error) {
 type TrackedFile struct {
 	File
 	// BytesRead is the number of bytes read.
-	BytesRead atomic.Uint64
+	bytesRead atomic.Uint64
 	// BytesWritten is the number of bytes written.
-	BytesWritten atomic.Uint64
+	bytesWritten atomic.Uint64
 }
 
 func (t *TrackedFile) ReadAt(b []byte, off int64) (int, error) {
 	n, err := t.File.ReadAt(b, off)
-	t.BytesRead.Add(uint64(n))
+	t.bytesRead.Add(uint64(n))
 	return n, err
 }
 
 func (t *TrackedFile) WriteAt(b []byte, off int64) (int, error) {
 	n, err := t.File.WriteAt(b, off)
-	t.BytesWritten.Add(uint64(n))
+	t.bytesWritten.Add(uint64(n))
 	return n, err
+}
+
+func (t *TrackedFile) BytesRead() uint64 {
+	return t.bytesRead.Load()
+}
+
+func (t *TrackedFile) BytesWritten() uint64 {
+	return t.bytesWritten.Load()
 }
 
 // ParseFlags parses Open flags from an SFTP request to an int as used by

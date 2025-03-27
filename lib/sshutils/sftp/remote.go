@@ -19,60 +19,74 @@
 package sftp
 
 import (
-	"cmp"
 	"context"
 	"os"
 	portablepath "path"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
 )
 
-func runWithContext(ctx context.Context, f func()) error {
-	done := make(chan struct{})
+func runWithContext(ctx context.Context, f func() error) error {
+	res := make(chan error)
 	go func() {
-		f()
-		close(done)
+		res <- f()
 	}()
 	select {
-	case <-done:
-		return nil
+	case err := <-res:
+		return err
 	case <-ctx.Done():
-		return trace.Wrap(ctx.Err())
+		return ctx.Err()
 	}
 }
 
-// remoteFS provides API for accessing the files on
+func runWithContext2[T any](ctx context.Context, f func() (T, error)) (T, error) {
+	type result struct {
+		t   T
+		err error
+	}
+	res := make(chan result)
+	go func() {
+		t, err := f()
+		res <- result{t: t, err: err}
+	}()
+	select {
+	case r := <-res:
+		return r.t, r.err
+	case <-ctx.Done():
+		var t T // get zero value
+		return t, ctx.Err()
+	}
+}
+
+// RemoteFS provides API for accessing the files on
 // the local file system
-type remoteFS struct {
+type RemoteFS struct {
 	c *sftp.Client
 }
 
 // NewRemoteFilesystem creates a new FileSystem over SFTP.
-func NewRemoteFilesystem(c *sftp.Client) FileSystem {
-	return &remoteFS{c: c}
+func NewRemoteFilesystem(c *sftp.Client) *RemoteFS {
+	return &RemoteFS{c: c}
 }
 
-func (r *remoteFS) Type() string {
+func (r *RemoteFS) Type() string {
 	return "remote"
 }
 
-func (r *remoteFS) Glob(ctx context.Context, pattern string) (matches []string, err error) {
-	ctxErr := runWithContext(ctx, func() {
-		matches, err = r.c.Glob(pattern)
+func (r *RemoteFS) Glob(ctx context.Context, pattern string) ([]string, error) {
+	return runWithContext2(ctx, func() ([]string, error) {
+		return r.c.Glob(pattern)
 	})
-	return matches, cmp.Or(ctxErr, err)
 }
 
-func (r *remoteFS) Stat(ctx context.Context, path string) (fi os.FileInfo, err error) {
-	ctxErr := runWithContext(ctx, func() {
-		fi, err = r.c.Stat(path)
+func (r *RemoteFS) Stat(ctx context.Context, path string) (os.FileInfo, error) {
+	return runWithContext2(ctx, func() (os.FileInfo, error) {
+		return r.c.Stat(path)
 	})
-	return fi, cmp.Or(ctxErr, err)
 }
 
-func (r *remoteFS) ReadDir(ctx context.Context, path string) ([]os.FileInfo, error) {
+func (r *RemoteFS) ReadDir(ctx context.Context, path string) ([]os.FileInfo, error) {
 	fileInfos, err := r.c.ReadDirContext(ctx, path)
 	if err != nil {
 		return nil, err
@@ -90,108 +104,94 @@ func (r *remoteFS) ReadDir(ctx context.Context, path string) ([]os.FileInfo, err
 	return fileInfos, nil
 }
 
-func (r *remoteFS) Open(ctx context.Context, path string) (File, error) {
+func (r *RemoteFS) Open(ctx context.Context, path string) (File, error) {
 	return r.OpenFile(ctx, path, os.O_RDONLY)
 }
 
-func (r *remoteFS) Create(ctx context.Context, path string, _ int64) (File, error) {
+func (r *RemoteFS) Create(ctx context.Context, path string, _ int64) (File, error) {
 	return r.OpenFile(ctx, path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
 }
 
-func (r *remoteFS) OpenFile(ctx context.Context, path string, flags int) (f File, err error) {
-	ctxErr := runWithContext(ctx, func() {
-		f, err = r.c.OpenFile(path, flags)
+func (r *RemoteFS) OpenFile(ctx context.Context, path string, flags int) (File, error) {
+	return runWithContext2(ctx, func() (File, error) {
+		return r.c.OpenFile(path, flags)
 	})
-	return f, cmp.Or(ctxErr, err)
 }
 
-func (r *remoteFS) Mkdir(ctx context.Context, path string) (err error) {
-	ctxErr := runWithContext(ctx, func() {
-		err = r.c.MkdirAll(path)
+func (r *RemoteFS) Mkdir(ctx context.Context, path string) error {
+	return runWithContext(ctx, func() error {
+		return r.c.MkdirAll(path)
 	})
-	return cmp.Or(ctxErr, err)
 }
 
-func (r *remoteFS) Chmod(ctx context.Context, path string, mode os.FileMode) (err error) {
-	ctxErr := runWithContext(ctx, func() {
-		err = r.c.Chmod(path, mode)
+func (r *RemoteFS) Chmod(ctx context.Context, path string, mode os.FileMode) error {
+	return runWithContext(ctx, func() error {
+		return r.c.Chmod(path, mode)
 	})
-	return cmp.Or(ctxErr, err)
 }
 
-func (r *remoteFS) Chtimes(ctx context.Context, path string, atime, mtime time.Time) (err error) {
-	ctxErr := runWithContext(ctx, func() {
-		err = r.c.Chtimes(path, atime, mtime)
+func (r *RemoteFS) Chtimes(ctx context.Context, path string, atime, mtime time.Time) error {
+	return runWithContext(ctx, func() error {
+		return r.c.Chtimes(path, atime, mtime)
 	})
-	return cmp.Or(ctxErr, err)
 }
 
-func (r *remoteFS) Rename(ctx context.Context, oldpath, newpath string) (err error) {
-	ctxErr := runWithContext(ctx, func() {
-		err = r.c.Rename(oldpath, newpath)
+func (r *RemoteFS) Rename(ctx context.Context, oldpath, newpath string) error {
+	return runWithContext(ctx, func() error {
+		return r.c.Rename(oldpath, newpath)
 	})
-	return cmp.Or(ctxErr, err)
 }
 
-func (r *remoteFS) Lstat(ctx context.Context, name string) (fi os.FileInfo, err error) {
-	ctxErr := runWithContext(ctx, func() {
-		fi, err = r.c.Lstat(name)
+func (r *RemoteFS) Lstat(ctx context.Context, name string) (os.FileInfo, error) {
+	return runWithContext2(ctx, func() (os.FileInfo, error) {
+		return r.c.Lstat(name)
 	})
-	return fi, cmp.Or(ctxErr, err)
 }
 
-func (r *remoteFS) RemoveAll(ctx context.Context, path string) (err error) {
-	ctxErr := runWithContext(ctx, func() {
-		err = r.c.RemoveAll(path)
+func (r *RemoteFS) RemoveAll(ctx context.Context, path string) error {
+	return runWithContext(ctx, func() error {
+		return r.c.RemoveAll(path)
 	})
-	return cmp.Or(ctxErr, err)
 }
 
-func (r *remoteFS) Link(ctx context.Context, oldname, newname string) (err error) {
-	ctxErr := runWithContext(ctx, func() {
-		err = r.c.Link(oldname, newname)
+func (r *RemoteFS) Link(ctx context.Context, oldname, newname string) error {
+	return runWithContext(ctx, func() error {
+		return r.c.Link(oldname, newname)
 	})
-	return cmp.Or(ctxErr, err)
 }
 
-func (r *remoteFS) Symlink(ctx context.Context, oldname, newname string) (err error) {
-	ctxErr := runWithContext(ctx, func() {
-		err = r.c.Symlink(oldname, newname)
+func (r *RemoteFS) Symlink(ctx context.Context, oldname, newname string) error {
+	return runWithContext(ctx, func() error {
+		return r.c.Symlink(oldname, newname)
 	})
-	return cmp.Or(ctxErr, err)
 }
 
-func (r *remoteFS) Remove(ctx context.Context, name string) (err error) {
-	ctxErr := runWithContext(ctx, func() {
-		err = r.c.Remove(name)
+func (r *RemoteFS) Remove(ctx context.Context, name string) error {
+	return runWithContext(ctx, func() error {
+		return r.c.Remove(name)
 	})
-	return cmp.Or(ctxErr, err)
 }
 
-func (r *remoteFS) Chown(ctx context.Context, name string, uid, gid int) (err error) {
-	ctxErr := runWithContext(ctx, func() {
-		err = r.c.Chown(name, uid, gid)
+func (r *RemoteFS) Chown(ctx context.Context, name string, uid, gid int) error {
+	return runWithContext(ctx, func() error {
+		return r.c.Chown(name, uid, gid)
 	})
-	return cmp.Or(ctxErr, err)
 }
 
-func (r *remoteFS) Truncate(ctx context.Context, name string, size int64) (err error) {
-	ctxErr := runWithContext(ctx, func() {
-		err = r.c.Truncate(name, size)
+func (r *RemoteFS) Truncate(ctx context.Context, name string, size int64) error {
+	return runWithContext(ctx, func() error {
+		return r.c.Truncate(name, size)
 	})
-	return cmp.Or(ctxErr, err)
 }
 
-func (r *remoteFS) Readlink(ctx context.Context, name string) (dest string, err error) {
-	ctxErr := runWithContext(ctx, func() {
-		dest, err = r.c.ReadLink(name)
+func (r *RemoteFS) Readlink(ctx context.Context, name string) (string, error) {
+	return runWithContext2(ctx, func() (string, error) {
+		return r.c.ReadLink(name)
 	})
-	return dest, cmp.Or(ctxErr, err)
 }
 
-func (r *remoteFS) Getwd(ctx context.Context) (wd string, err error) {
-	ctxErr := runWithContext(ctx, func() {
-		wd, err = r.c.Getwd()
+func (r *RemoteFS) Getwd(ctx context.Context) (string, error) {
+	return runWithContext2(ctx, func() (string, error) {
+		return r.c.Getwd()
 	})
-	return wd, cmp.Or(ctxErr, err)
 }
