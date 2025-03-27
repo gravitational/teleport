@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
-import { Box, ButtonIcon, ButtonSecondary, Flex } from 'design';
+import { ButtonIcon, ButtonSecondary, Flex } from 'design';
+import { buttonSizes } from 'design/ButtonIcon/ButtonIcon';
 import * as Icons from 'design/Icon';
 import { inputGeometry } from 'design/Input/Input';
 import { LabelContent } from 'design/LabelInput/LabelInput';
@@ -63,6 +64,8 @@ type LabelValidationResult = {
 
 export type LabelsRule = Rule<Label[], LabelListValidationResult>;
 
+const buttonIconSize = 0;
+
 export function LabelsInput({
   legend,
   tooltipContent,
@@ -75,7 +78,6 @@ export function LabelsInput({
   adjective = 'Label',
   labelKey = { fieldName: 'Key', placeholder: 'label key' },
   labelVal = { fieldName: 'Value', placeholder: 'label value' },
-  inputWidth = 200,
   rule = defaultRule,
 }: {
   legend?: string;
@@ -88,7 +90,6 @@ export function LabelsInput({
   adjective?: string;
   labelKey?: LabelInputTexts;
   labelVal?: LabelInputTexts;
-  inputWidth?: number;
   /**
    * Makes it so at least one label is required
    */
@@ -102,6 +103,7 @@ export function LabelsInput({
 }) {
   const validator = useValidation() as Validator;
   const validationResult: LabelListValidationResult = useRule(rule(labels));
+  const theme = useTheme();
 
   function addLabel() {
     setLabels([...labels, { name: '', value: '' }]);
@@ -145,7 +147,6 @@ export function LabelsInput({
     };
   };
 
-  const width = `${inputWidth}px`;
   const inputSize = 'medium';
   return (
     <Fieldset>
@@ -160,80 +161,94 @@ export function LabelsInput({
           </LabelContent>
         </Legend>
       )}
-      {labels.length > 0 && (
-        <Flex mt={legend ? 1 : 0} mb={1}>
-          <Box width={width} mr="3">
-            <LabelContent required>{labelKey.fieldName}</LabelContent>
-          </Box>
-          <LabelContent required>{labelVal.fieldName}</LabelContent>
-        </Flex>
-      )}
-      <Box>
-        {labels.map((label, index) => {
-          const validationItem: LabelValidationResult | undefined =
-            validationResult.results?.[index];
-          return (
-            <Box mb={2} key={index}>
-              <Flex alignItems="start">
-                <FieldInput
-                  size={inputSize}
-                  rule={
-                    validationItem
-                      ? precomputed(validationItem.name)
-                      : requiredKey
-                  }
-                  autoFocus={autoFocus}
-                  value={label.name}
-                  placeholder={labelKey.placeholder}
-                  width={width}
-                  mr={3}
-                  mb={0}
-                  onChange={e => handleChange(e, index, 'name')}
-                  readonly={disableBtns}
-                />
-                <FieldInput
-                  size={inputSize}
-                  rule={
-                    validationItem
-                      ? precomputed(validationItem.value)
-                      : requiredField('required')
-                  }
-                  value={label.value}
-                  placeholder={labelVal.placeholder}
-                  width={width}
-                  mb={0}
-                  mr={2}
-                  onChange={e => handleChange(e, index, 'value')}
-                  readonly={disableBtns}
-                />
-                {/* Force the trash button container to be the same height as an
-                    input. We can't just set `alignItems="center"` on the parent
-                    flex container above, because the field can expand when
-                    showing a validation error. */}
-                <Flex
-                  alignItems="center"
-                  height={inputGeometry[inputSize].height}
-                >
-                  <ButtonIcon
-                    size={1}
-                    title={`Remove ${adjective}`}
-                    onClick={() => removeLabel(index)}
-                    css={`
-                      &:disabled {
-                        opacity: 0.65;
-                        pointer-events: none;
-                      }
-                    `}
-                    disabled={disableBtns}
+      <LabelTable>
+        <colgroup>
+          {/* Column elements (for styling purposes, see LabelTable styles) */}
+          <col />
+          <col />
+          <col />
+        </colgroup>
+        {labels.length > 0 && (
+          <thead>
+            <tr>
+              <th scope="col">
+                <LabelContent required>{labelKey.fieldName}</LabelContent>
+              </th>
+              <th scope="col">
+                <LabelContent required>{labelVal.fieldName}</LabelContent>
+              </th>
+            </tr>
+          </thead>
+        )}
+        <tbody>
+          {labels.map((label, index) => {
+            const validationItem: LabelValidationResult | undefined =
+              validationResult.results?.[index];
+            return (
+              <tr key={index}>
+                <td>
+                  <FieldInput
+                    size={inputSize}
+                    rule={
+                      validationItem
+                        ? precomputed(validationItem.name)
+                        : requiredKey
+                    }
+                    autoFocus={autoFocus}
+                    value={label.name}
+                    placeholder={labelKey.placeholder}
+                    mb={0}
+                    onChange={e => handleChange(e, index, 'name')}
+                    readonly={disableBtns}
+                  />
+                </td>
+                <td>
+                  <FieldInput
+                    size={inputSize}
+                    rule={
+                      validationItem
+                        ? precomputed(validationItem.value)
+                        : requiredField('required')
+                    }
+                    value={label.value}
+                    placeholder={labelVal.placeholder}
+                    mb={0}
+                    onChange={e => handleChange(e, index, 'value')}
+                    readonly={disableBtns}
+                  />
+                </td>
+                <td>
+                  {/* Force the trash button container to be the same height as an
+                      input. We can't just set center-align the cell, because the
+                      field can expand when showing a validation error. */}
+                  <Flex
+                    alignItems="center"
+                    height={inputGeometry[inputSize].height}
                   >
-                    <Icons.Trash size="medium" />
-                  </ButtonIcon>
-                </Flex>
-              </Flex>
-            </Box>
-          );
-        })}
-      </Box>
+                    <ButtonIcon
+                      size={buttonIconSize}
+                      title={`Remove ${adjective}`}
+                      onClick={() => removeLabel(index)}
+                      css={`
+                        &:disabled {
+                          opacity: 0.65;
+                          pointer-events: none;
+                        }
+                      `}
+                      disabled={disableBtns}
+                    >
+                      <Icons.Cross
+                        color={theme.colors.text.muted}
+                        size="small"
+                      />
+                    </ButtonIcon>
+                  </Flex>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </LabelTable>
       <ButtonSecondary
         onClick={e => {
           e.preventDefault();
@@ -272,4 +287,41 @@ const Legend = styled.legend`
   margin: 0 0 ${props => props.theme.space[1]}px 0;
   padding: 0;
   ${props => props.theme.typography.body3}
+`;
+
+const LabelTable = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  /*
+   * Using fixed layout seems to be the only way to prevent the internal input
+   * padding from somehow influencing the column width. As the padding is
+   * variable (and reflects the error state), we'd rather avoid column width
+   * changes while editing.
+   */
+  table-layout: fixed;
+
+  & th {
+    padding: 0 0 ${props => props.theme.space[1]}px 0;
+  }
+
+  col:nth-child(3) {
+    /*
+     * The fixed layout is good for stability, but it forces us to explicitly
+     * define the width of the delete button column. Set it to the width of an
+     * icon button.
+     */
+    width: ${buttonSizes[buttonIconSize].width};
+  }
+
+  & td {
+    padding: 0;
+    /* Keep the inputs top-aligned to support error messages */
+    vertical-align: top;
+    padding-bottom: ${props => props.theme.space[2]}px;
+
+    &:nth-child(1),
+    &:nth-child(2) {
+      padding-right: ${props => props.theme.space[2]}px;
+    }
+  }
 `;
