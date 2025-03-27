@@ -177,7 +177,7 @@ func readFileTraces(t *testing.T, filename string) []*otlp.ResourceSpans {
 	var spans []*otlp.ResourceSpans
 	for scanner.Scan() {
 		var span otlp.ResourceSpans
-		require.NoError(t, protojson.Unmarshal(scanner.Bytes(), &span))
+		require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(scanner.Bytes(), &span))
 
 		spans = append(spans, &span)
 

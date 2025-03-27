@@ -95,16 +95,15 @@ export enum LogType {
 export default class Client extends EventEmitterMfaSender {
   protected codec: Codec;
   protected socket: AuthenticatedWebSocket | undefined;
-  private socketAddr: string;
   private sdManager: SharedDirectoryManager;
   private fastPathProcessor: FastPathProcessor | undefined;
   private wasmReady: Promise<void> | undefined;
 
   private logger = Logger.create('TDPClient');
 
-  constructor(socketAddr: string) {
+  //TODO(gzdunek): getTransport should return a generic transport layer.
+  constructor(private getTransport: () => AuthenticatedWebSocket) {
     super();
-    this.socketAddr = socketAddr;
     this.codec = new Codec();
     this.sdManager = new SharedDirectoryManager();
   }
@@ -122,7 +121,7 @@ export default class Client extends EventEmitterMfaSender {
     }
     await this.wasmReady;
 
-    this.socket = new AuthenticatedWebSocket(this.socketAddr);
+    this.socket = this.getTransport();
     this.socket.binaryType = 'arraybuffer';
 
     this.socket.onopen = () => {
