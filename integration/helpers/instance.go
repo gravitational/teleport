@@ -1479,7 +1479,7 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		TLSRoutingEnabled:             i.IsSinglePortSetup,
 		TLSRoutingConnUpgradeRequired: cfg.ALBAddr != "",
 		Tracer:                        tracing.NoopProvider().Tracer("test"),
-		EnableEscapeSequences:         cfg.EnableEscapeSequences,
+		DisableEscapeSequences:        !cfg.EnableEscapeSequences,
 		Stderr:                        cfg.Stderr,
 		Stdin:                         cfg.Stdin,
 		Stdout:                        cfg.Stdout,
