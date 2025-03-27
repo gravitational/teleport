@@ -37,10 +37,7 @@ export function Loaded() {
 export function Empty() {
   return (
     <TeleportProviderBasic>
-      <Roles
-        {...sample}
-        fetch={async () => ({ items: [], startKey: '' })}
-      />{' '}
+      <Roles {...sample} fetch={async () => ({ items: [], startKey: '' })} />{' '}
     </TeleportProviderBasic>
   );
 }

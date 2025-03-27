@@ -34,6 +34,7 @@ import {
   NodeMeta,
 } from 'teleport/Discover/useDiscover';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import * as discoveryApi from 'teleport/services/discovery/discovery';
 import { DEFAULT_DISCOVERY_GROUP_NON_CLOUD } from 'teleport/services/discovery/discovery';
@@ -553,11 +554,13 @@ function renderEc2Instances(
       ]}
     >
       <ContextProvider ctx={ctx}>
-        <FeaturesContextProvider value={[]}>
-          <DiscoverProvider mockCtx={discoverCtx}>
-            <EnrollEc2Instance />
-          </DiscoverProvider>
-        </FeaturesContextProvider>
+        <InfoGuidePanelProvider>
+          <FeaturesContextProvider value={[]}>
+            <DiscoverProvider mockCtx={discoverCtx}>
+              <EnrollEc2Instance />
+            </DiscoverProvider>
+          </FeaturesContextProvider>
+        </InfoGuidePanelProvider>
       </ContextProvider>
     </MemoryRouter>
   );
