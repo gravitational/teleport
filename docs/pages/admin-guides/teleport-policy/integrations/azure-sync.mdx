@@ -114,20 +114,41 @@ The Discovery Service will now periodically fetch resources from your Azure subs
 ### Activating the Discovery Service
 
 To activate the Discovery Service for fetching Azure resources, you'll need to authorize the identity running the
-Discovery service. Two options for authorization exist:
+Discovery service. Two options for authorization are available.
 
-1. [Managed identity attached to a VM](https://goteleport.com/docs/enroll-resources/auto-discovery/servers/azure-discovery/#attach-an-identity-to-your-azure-vm) - Use the managed identity ID as the principal ID in step 2 of integration command
-2. [OIDC credentials via Teleport Integration](https://goteleport.com/docs/admin-guides/teleport-policy/integrations/entra-id/#step-23-configure-the-entra-id-integration) - Use the application object ID as the princial ID in step 2 of the integration command
+<Tabs>
+  <TabItem label="Option 1 - Authorize VM With Managed Identity" >
+    Authorizing an Azure VM for running the Discovery service is the simplest option. The Azure VM can be assigned a
+    Managed Identity, and thus the Discovery service running on it can utilize the permissions associated with
+    that identity. The steps below show how to configure a Managed Identity for an Azure VM. In later steps, the
+    Managed Identity's ID is then assigned a role to the identity using the
+    `./teleport integration configure access-graph azure` command.
 
-When using OIDC credentials via Teleport Integration, add the name of the <Var name="integration" /> to the configuration, e.g. `entra-id`:
+    (!docs/pages/includes/server-access/azure-join-managed-identity.mdx!)
 
-```yaml
-discovery_service:
-  access_graph:
-    azure:
-      - subscription_id: <Var name="azure-subscription-id"/>
-      - integration: <Var name="azure-integration"/>
-```
+    Use the Managed Identity ID from this option as the principal ID in step 2 of integration command.
+  </TabItem>
+  <TabItem label="Option 2 - Authorize OIDC Via EntraID Integration" >
+    This option is for running the Discovery service outside of Azure. This requires that Entra OIDC credentials
+    are [configured via the Entra ID integration](../entra-id). Once the Entra ID integration is configured, the
+    Azure Application is then assigned a role using the
+    `./teleport integration configure access-graph azure` command.
+
+    <Admonition type="tip">
+      Use the application object ID as the principal ID in step 2 of the integration command.
+    </Admonition>
+
+    Lastly, add the name of the <Var name="integration" /> to the configuration, typically this is `entra-id`:
+    ```yaml
+    discovery_service:
+      access_graph:
+        azure:
+        - subscription_id: <Var name="azure-subscription-id"/>
+        - integration: <Var name="azure-integration"/>
+    ```
+
+  </TabItem>
+</Tabs>
 
 ## Step 2/2. Set up Access Graph Azure Sync
 
