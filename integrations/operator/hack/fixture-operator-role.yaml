@@ -83,7 +83,15 @@ spec:
           - delete
       - resources:
           - bot
-      - verbs:
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
+          - workload_identity
+        verbs:
           - list
           - create
           - read
