@@ -17,7 +17,9 @@
  */
 
 import { useState } from 'react';
+import styled from 'styled-components';
 
+import Box from 'design/Box';
 import { ButtonSecondary } from 'design/Button';
 import Validation from 'shared/components/Validation';
 
@@ -31,49 +33,52 @@ export const Default = () => {
   const [labels, setLables] = useState<Label[]>([]);
 
   return (
-    <Validation>
-      {({ validator }) => (
-        <div>
+    <Wrapper>
+      <Validation>
+        {({ validator }) => (
           <div>
-            <LabelsInput labels={labels} setLabels={setLables} />
+            <div>
+              <LabelsInput labels={labels} setLabels={setLables} />
+            </div>
+            <ButtonSecondary
+              mt={6}
+              onClick={() => {
+                if (!validator.validate()) {
+                  return;
+                }
+              }}
+            >
+              Test Validation For Empty Inputs
+            </ButtonSecondary>
           </div>
-          <ButtonSecondary
-            mt={6}
-            onClick={() => {
-              if (!validator.validate()) {
-                return;
-              }
-            }}
-          >
-            Test Validation For Empty Inputs
-          </ButtonSecondary>
-        </div>
-      )}
-    </Validation>
+        )}
+      </Validation>
+    </Wrapper>
   );
 };
 
 export const Custom = () => {
   const [labels, setLables] = useState<Label[]>([]);
   return (
-    <Validation>
-      <LabelsInput
-        labels={labels}
-        setLabels={setLables}
-        legend="List of Labels"
-        tooltipContent="List of labels, 'nuff said"
-        labelKey={{
-          fieldName: 'Custom Key Name',
-          placeholder: 'custom key placeholder',
-        }}
-        labelVal={{
-          fieldName: 'Custom Value',
-          placeholder: 'custom value placeholder',
-        }}
-        adjective="Custom Adjective"
-        inputWidth={350}
-      />
-    </Validation>
+    <Wrapper>
+      <Validation>
+        <LabelsInput
+          labels={labels}
+          setLabels={setLables}
+          legend="List of Labels"
+          tooltipContent="List of labels, 'nuff said"
+          labelKey={{
+            fieldName: 'Custom Key Name',
+            placeholder: 'custom key placeholder',
+          }}
+          labelVal={{
+            fieldName: 'Custom Value',
+            placeholder: 'custom value placeholder',
+          }}
+          adjective="Custom Adjective"
+        />
+      </Validation>
+    </Wrapper>
   );
 };
 
@@ -82,31 +87,41 @@ export const Disabled = () => {
     { name: 'some-name', value: 'some-value' },
   ]);
   return (
-    <Validation>
-      <LabelsInput labels={labels} setLabels={setLables} disableBtns={true} />
-    </Validation>
+    <Wrapper>
+      <Validation>
+        <LabelsInput labels={labels} setLabels={setLables} disableBtns={true} />
+      </Validation>
+    </Wrapper>
   );
 };
 
 export const AutoFocus = () => {
   const [labels, setLables] = useState<Label[]>([{ name: '', value: '' }]);
   return (
-    <Validation>
-      <LabelsInput labels={labels} setLabels={setLables} autoFocus={true} />
-    </Validation>
+    <Wrapper>
+      <Validation>
+        <LabelsInput labels={labels} setLabels={setLables} autoFocus={true} />
+      </Validation>
+    </Wrapper>
   );
 };
 
 export const AtLeastOneRequired = () => {
   const [labels, setLables] = useState<Label[]>([{ name: '', value: '' }]);
   return (
-    <Validation>
-      <LabelsInput
-        legend="Labels"
-        labels={labels}
-        setLabels={setLables}
-        required={true}
-      />
-    </Validation>
+    <Wrapper>
+      <Validation>
+        <LabelsInput
+          legend="Labels"
+          labels={labels}
+          setLabels={setLables}
+          required={true}
+        />
+      </Validation>
+    </Wrapper>
   );
 };
+
+const Wrapper = styled(Box)`
+  width: 456px;
+`;
