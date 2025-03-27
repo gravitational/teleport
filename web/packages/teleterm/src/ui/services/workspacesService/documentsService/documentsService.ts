@@ -272,6 +272,7 @@ export class DocumentsService {
 
   createVnetInfoDocument(opts: {
     rootClusterUri: RootClusterUri;
+    targetAddress?: string;
   }): DocumentVnetInfo {
     const uri = routing.getDocUri({ docId: unique() });
 
@@ -280,6 +281,7 @@ export class DocumentsService {
       kind: 'doc.vnet_info',
       title: 'VNet',
       rootClusterUri: opts.rootClusterUri,
+      targetAddress: opts.targetAddress,
     };
   }
 
