@@ -229,7 +229,7 @@ type HeartbeatConfig struct {
 func (cfg *WindowsServiceConfig) checkAndSetDiscoveryDefaults() error {
 	switch {
 	case cfg.DiscoveryBaseDN == types.Wildcard:
-		cfg.DiscoveryBaseDN = cfg.DomainDN()
+		cfg.DiscoveryBaseDN = windows.DomainDN(cfg.Domain)
 	case len(cfg.DiscoveryBaseDN) > 0:
 		if _, err := ldap.ParseDN(cfg.DiscoveryBaseDN); err != nil {
 			return trace.BadParameter("WindowsServiceConfig contains an invalid base_dn: %v", err)
@@ -371,21 +371,15 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		enableNLA: os.Getenv("TELEPORT_ENABLE_RDP_NLA") == "yes",
 	}
 
-	caLDAPConfig := s.cfg.LDAPConfig
-	if s.cfg.PKIDomain != "" {
-		caLDAPConfig.Domain = s.cfg.PKIDomain
-	}
-	s.cfg.Logger.InfoContext(ctx, "PKI domain configured", "domain", caLDAPConfig.Domain)
-
 	s.ca = windows.NewCertificateStoreClient(windows.CertificateStoreConfig{
 		AccessPoint: s.cfg.AccessPoint,
-		LDAPConfig:  caLDAPConfig,
 		Log:         logrus.NewEntry(logrus.StandardLogger()),
+		Domain:      cmp.Or(s.cfg.PKIDomain, s.cfg.Domain),
 		ClusterName: s.clusterName,
 		LC:          s.lc,
 	})
 
-	if caLDAPConfig.Addr != "" {
+	if s.cfg.LDAPConfig.Addr != "" {
 		s.ldapConfigured = true
 		// initialize LDAP - if this fails it will automatically schedule a retry.
 		// we don't want to return an error in this case, because failure to start
@@ -459,7 +453,7 @@ func (s *WindowsService) startLDAPConnectionCheck(ctx context.Context) {
 
 				// If we have initialized the LDAP client, then try to use it to make sure we're still connected
 				// by attempting to read CAs in the NTAuth store (we know we have permissions to do so).
-				ntAuthDN := "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration," + s.cfg.LDAPConfig.DomainDN()
+				ntAuthDN := "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration," + windows.DomainDN(s.cfg.LDAPConfig.Domain)
 				_, err := s.lc.Read(ntAuthDN, "certificationAuthority", []string{"cACertificate"})
 				if trace.IsConnectionProblem(err) {
 					s.cfg.Logger.DebugContext(ctx, "detected broken LDAP connection, will reconnect")
@@ -1279,14 +1273,15 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 			fmt.Sprintf("(%s=%s)", windows.AttrSAMAccountName, username),
 		})
 		s.cfg.Logger.DebugContext(ctx, "querying LDAP for objectSid of Windows user", "username", username, "filter", filter)
+		domainDN := windows.DomainDN(s.cfg.LDAPConfig.Domain)
 
-		entries, err := s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), filter, []string{windows.AttrObjectSid})
+		entries, err := s.lc.ReadWithFilter(domainDN, filter, []string{windows.AttrObjectSid})
 		// if LDAP-based desktop discovery is not enabled, there may not be enough
 		// traffic to keep the connection open. Attempt to open a new LDAP connection
 		// in this case.
 		if trace.IsConnectionProblem(err) {
 			s.initializeLDAP() // ignore error, this is a best effort attempt
-			entries, err = s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), filter, []string{windows.AttrObjectSid})
+			entries, err = s.lc.ReadWithFilter(domainDN, filter, []string{windows.AttrObjectSid})
 		}
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -1337,22 +1332,14 @@ type generateCredentialsRequest struct {
 // Directory. See:
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
 func (s *WindowsService) generateCredentials(ctx context.Context, request generateCredentialsRequest) (certDER, keyDER []byte, err error) {
-	// If PKI domain has been overridden, make sure we pass that through
-	// to the cert request, otherwise the CRL in the cert we issue will
-	// point at the wrong domain.
-	lc := s.cfg.LDAPConfig
-	if s.cfg.PKIDomain != "" {
-		lc.Domain = s.cfg.PKIDomain
-	}
-
 	return windows.GenerateWindowsDesktopCredentials(ctx, &windows.GenerateCredentialsRequest{
 		CAType:             types.UserCA,
 		Username:           request.username,
 		Domain:             request.domain,
+		PKIDomain:          s.cfg.PKIDomain,
 		TTL:                request.ttl,
 		ClusterName:        s.clusterName,
 		ActiveDirectorySID: request.activeDirectorySID,
-		LDAPConfig:         lc,
 		AuthClient:         s.cfg.AuthClient,
 		CreateUser:         request.createUser,
 		Groups:             request.groups,
