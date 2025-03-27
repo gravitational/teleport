@@ -97,9 +97,9 @@ func WithTTL(ttl time.Duration) CertCheckerOption {
 func NewDBCertChecker(tc *TeleportClient, dbRoute tlsca.RouteToDatabase, clock clockwork.Clock, opts ...CertCheckerOption) *CertChecker {
 	opt := applyOptions(opts...)
 	return NewCertChecker(&DBCertIssuer{
-		Client:     tc,
-		RouteToApp: dbRoute,
-		TTL:        opt.ttl,
+		Client:          tc,
+		RouteToDatabase: dbRoute,
+		TTL:             opt.ttl,
 	}, clock)
 }
 
@@ -196,8 +196,8 @@ type CertIssuer interface {
 type DBCertIssuer struct {
 	// Client is a TeleportClient used to issue certificates when necessary.
 	Client *TeleportClient
-	// RouteToApp contains database routing information.
-	RouteToApp tlsca.RouteToDatabase
+	// RouteToDatabase contains database routing information.
+	RouteToDatabase tlsca.RouteToDatabase
 	// TTL defines the maximum time-to-live for user certificates.
 	// This variable sets the upper limit on the duration for which a certificate
 	// remains valid. It's bounded by the `max_session_ttl` or `mfa_verification_interval`
@@ -206,7 +206,7 @@ type DBCertIssuer struct {
 }
 
 func (c *DBCertIssuer) CheckCert(cert *x509.Certificate) error {
-	return alpnproxy.CheckDBCertSubject(cert, c.RouteToApp)
+	return alpnproxy.CheckDBCertSubject(cert, c.RouteToDatabase)
 }
 
 func (c *DBCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
@@ -220,16 +220,11 @@ func (c *DBCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 	var key *Key
 	if err := RetryWithRelogin(ctx, c.Client, func() error {
 		dbCertParams := ReissueParams{
-			RouteToCluster: c.Client.SiteName,
-			RouteToDatabase: proto.RouteToDatabase{
-				ServiceName: c.RouteToApp.ServiceName,
-				Protocol:    c.RouteToApp.Protocol,
-				Username:    c.RouteToApp.Username,
-				Database:    c.RouteToApp.Database,
-			},
-			AccessRequests: accessRequests,
-			RequesterName:  proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
-			TTL:            c.TTL,
+			RouteToCluster:  c.Client.SiteName,
+			RouteToDatabase: RouteToDatabaseToProto(c.RouteToDatabase),
+			AccessRequests:  accessRequests,
+			RequesterName:   proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
+			TTL:             c.TTL,
 		}
 
 		clusterClient, err := c.Client.ConnectToCluster(ctx)
@@ -256,7 +251,7 @@ func (c *DBCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	dbCert, err := key.DBTLSCert(c.RouteToApp.ServiceName)
+	dbCert, err := key.DBTLSCert(c.RouteToDatabase.ServiceName)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
