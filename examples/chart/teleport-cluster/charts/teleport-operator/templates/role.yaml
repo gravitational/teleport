@@ -38,6 +38,8 @@ rules:
       - teleportopenssheiceserversv2/status
       - teleporttrustedclustersv2
       - teleporttrustedclustersv2/status
+      - teleportworkloadidentities
+      - teleportworkloadidentities/status
     verbs:
       - get
       - list
