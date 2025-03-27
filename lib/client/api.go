@@ -86,7 +86,6 @@ import (
 	"github.com/gravitational/teleport/lib/devicetrust"
 	dtauthntypes "github.com/gravitational/teleport/lib/devicetrust/authn/types"
 	"github.com/gravitational/teleport/lib/events"
-	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -256,6 +255,7 @@ type Config struct {
 	// Agent is an SSH agent to use for local Agent procedures. Defaults to in-memory agent keyring.
 	Agent agent.ExtendedAgent
 
+	// ClientStore is the store for client data, e.g. keys, certs, profiles.
 	ClientStore *Store
 
 	// ForwardAgent is used by the client to request agent forwarding from the server.
@@ -533,15 +533,74 @@ type CachePolicy struct {
 	NeverExpires bool
 }
 
-// MakeDefaultConfig returns default client config
-func MakeDefaultConfig() *Config {
+// MakeDefaultConfig returns default client config.
+// If store is not provided, it will default to in-memory storage without
+// hardware key support. This should only be used with static auth methods
+// (TLS and AuthMethods fields).
+func MakeDefaultConfig(store *Store) *Config {
+	if store == nil {
+		store = NewMemClientStore()
+	}
 	return &Config{
 		Stdout:         os.Stdout,
 		Stderr:         os.Stderr,
 		Stdin:          os.Stdin,
 		AddKeysToAgent: AddKeysToAgentAuto,
 		Tracer:         tracing.NoopProvider().Tracer("TeleportClient"),
+		ClientStore:    store,
 	}
+}
+
+func (c *Config) CheckAndSetDefaults() error {
+	if c.ClientStore == nil {
+		if c.TLS == nil && c.AuthMethods == nil {
+			return trace.BadParameter("either client store is or static auth methods are required")
+		}
+		// Client will use static auth methods instead of client store.
+		// Initialize empty client store to prevent panics.
+		c.ClientStore = NewMemClientStore()
+	}
+
+	// validate configuration
+	var err error
+	if c.Username == "" {
+		c.Username, err = Username()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		log.InfoContext(context.Background(), "No teleport login given, using default", "default_login", c.Username)
+	}
+	if c.WebProxyAddr == "" {
+		return trace.BadParameter("No proxy address specified, missed --proxy flag?")
+	}
+	if c.HostLogin == "" {
+		c.HostLogin, err = Username()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		log.InfoContext(context.Background(), "no host login given, using default", "default_host_login", c.HostLogin)
+	}
+	if len(c.JumpHosts) > 1 {
+		return trace.BadParameter("only one jump host is supported, got %v", len(c.JumpHosts))
+	}
+
+	// set defaults
+	if c.Stdout == nil {
+		c.Stdout = os.Stdout
+	}
+	if c.Stderr == nil {
+		c.Stderr = os.Stderr
+	}
+	if c.Stdin == nil {
+		c.Stdin = os.Stdin
+	}
+	if c.AddKeysToAgent == "" {
+		c.AddKeysToAgent = AddKeysToAgentAuto
+	}
+	if c.Tracer == nil {
+		c.Tracer = tracing.NoopProvider().Tracer("TeleportClient")
+	}
+	return nil
 }
 
 // VirtualPathKind is the suffix component for env vars denoting the type of
@@ -1239,61 +1298,12 @@ type ShellCreatedCallback func(s *tracessh.Session, c *tracessh.Client, terminal
 
 // NewClient creates a TeleportClient object and fully configures it
 func NewClient(c *Config) (tc *TeleportClient, err error) {
-	if len(c.JumpHosts) > 1 {
-		return nil, trace.BadParameter("only one jump host is supported, got %v", len(c.JumpHosts))
-	}
-	// validate configuration
-	if c.Username == "" {
-		c.Username, err = Username()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		log.InfoContext(context.Background(), "No teleport login given, using default", "default_login", c.Username)
-	}
-	if c.WebProxyAddr == "" {
-		return nil, trace.BadParameter("No proxy address specified, missed --proxy flag?")
-	}
-	if c.HostLogin == "" {
-		c.HostLogin, err = Username()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		log.InfoContext(context.Background(), "no host login given, using default", "default_host_login", c.HostLogin)
-	}
-
-	if c.Tracer == nil {
-		c.Tracer = tracing.NoopProvider().Tracer(teleport.ComponentTeleport)
+	if err := c.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	tc = &TeleportClient{
 		Config: *c,
-	}
-
-	if tc.Stdout == nil {
-		tc.Stdout = os.Stdout
-	}
-	if tc.Stderr == nil {
-		tc.Stderr = os.Stderr
-	}
-	if tc.Stdin == nil {
-		tc.Stdin = os.Stdin
-	}
-
-	if tc.ClientStore == nil {
-		if tc.TLS != nil || tc.AuthMethods != nil {
-			// Client will use static auth methods instead of client store.
-			// Initialize empty client store to prevent panics.
-			tc.ClientStore = NewMemClientStore()
-		} else {
-			// TODO (Joerger): init hardware key service (and client store) earlier where it can
-			// be properly shared.
-			hardwareKeyService := libhwk.NewService(context.TODO(), nil /*prompt*/)
-			tc.ClientStore = NewFSClientStore(c.KeysDir, WithHardwareKeyService(hardwareKeyService))
-			if c.AddKeysToAgent == AddKeysToAgentOnly {
-				// Store client keys in memory, but still save trusted certs and profile to disk.
-				tc.ClientStore.KeyStore = NewMemKeyStore()
-			}
-		}
 	}
 
 	// Create a buffered channel to hold events that occurred during this session.

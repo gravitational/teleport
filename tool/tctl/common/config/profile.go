@@ -72,17 +72,20 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 		return nil, trace.BadParameter("your credentials have expired, please log in using `tsh login`")
 	}
 
-	c := client.MakeDefaultConfig()
 	slog.DebugContext(ctx, "Found profile",
 		"proxy", logutils.StringerAttr(&profile.ProxyURL),
 		"user", profile.Username,
 	)
-	if err := c.LoadProfile(clientStore, proxyAddr); err != nil {
+
+	// TODO: we shouldn't need to re-retrieve profile. The profile status above
+	// should embed the profile, or profile status should be removed altogether.
+	p, err := clientStore.GetProfile(proxyAddr)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	webProxyHost, _ := c.WebProxyHostPort()
-	idx := client.KeyRingIndex{ProxyHost: webProxyHost, Username: c.Username, ClusterName: profile.Cluster}
+	webProxyHost, _ := p.WebProxyHostPort()
+	idx := client.KeyRingIndex{ProxyHost: webProxyHost, Username: p.Username, ClusterName: profile.Cluster}
 	keyRing, err := clientStore.GetKeyRing(idx, client.WithSSHCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -110,7 +113,7 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 	}
 	// Do not override auth servers from command line
 	if len(ccf.AuthServerAddr) == 0 {
-		webProxyAddr, err := utils.ParseAddr(c.WebProxyAddr)
+		webProxyAddr, err := utils.ParseAddr(p.WebProxyAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -121,7 +124,7 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 	authConfig.Log = cfg.Logger
 	authConfig.DialOpts = append(authConfig.DialOpts, metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTCTL))
 
-	if c.TLSRoutingEnabled {
+	if p.TLSRoutingEnabled {
 		cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 	}
 

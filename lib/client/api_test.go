@@ -1157,8 +1157,7 @@ func TestLoadTLSConfigForClusters(t *testing.T) {
 }
 
 func TestConnectToProxyCancelledContext(t *testing.T) {
-	cfg := MakeDefaultConfig()
-
+	cfg := &Config{}
 	cfg.Agent = &mockAgent{}
 	cfg.AuthMethods = []ssh.AuthMethod{ssh.Password("xyz")}
 	cfg.AddKeysToAgent = AddKeysToAgentNo

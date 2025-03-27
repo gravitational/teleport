@@ -37,6 +37,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	libdefaults "github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -488,4 +490,15 @@ func (p *Profile) AppCertPath(appName string) string {
 // is no guarantee that there is an actual key at that location.
 func (p *Profile) AppKeyPath(appName string) string {
 	return keypaths.AppKeyPath(p.Dir, p.Name(), p.Username, p.SiteName, appName)
+}
+
+// WebProxyHostPort returns the host and port of the web proxy.
+func (p *Profile) WebProxyHostPort() (string, int) {
+	if p.WebProxyAddr != "" {
+		addr, err := utils.ParseAddr(p.WebProxyAddr)
+		if err == nil {
+			return addr.Host(), addr.Port(libdefaults.HTTPListenPort)
+		}
+	}
+	return "unknown", libdefaults.HTTPListenPort
 }

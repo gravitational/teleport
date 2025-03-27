@@ -4344,8 +4344,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	}
 
 	// 1: start with the defaults
-	c := client.MakeDefaultConfig()
-
+	c := &client.Config{}
 	c.DialOpts = append(c.DialOpts, metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTSH))
 	c.Tracer = cf.tracer
 
