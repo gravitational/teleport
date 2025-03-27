@@ -16,22 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTheme } from 'styled-components';
 
-import { Danger } from 'design/Alert';
+import { Alert, Danger } from 'design/Alert';
+import Box from 'design/Box';
 import Flex from 'design/Flex';
+import { ShieldCheck } from 'design/Icon';
 import { Indicator } from 'design/Indicator';
 import { useAsync } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
 import { State as ResourcesState } from 'teleport/components/useResources';
 import { Role, RoleWithYaml } from 'teleport/services/resources';
+import { getSalesURL } from 'teleport/services/sales';
 import { yamlService } from 'teleport/services/yaml';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
+import useTeleport from 'teleport/useTeleport';
 
 import { PolicyPlaceholder } from '../PolicyPlaceholder';
-import { RolesProps } from '../Roles';
+import { RoleDiffProps, RoleDiffState, RolesProps } from '../Roles';
 import { RoleEditor } from './RoleEditor';
 
 /**
@@ -112,17 +116,83 @@ export function RoleEditorAdapter({
           />
         )}
       </Flex>
-      {roleDiffProps ? (
-        <Flex flex="1">{roleDiffProps.roleDiffElement}</Flex>
-      ) : (
-        <Flex flex="1" alignItems="center" justifyContent="center" m={3}>
-          <PolicyPlaceholder
-            currentFlow={
-              resources.status === 'creating' ? 'creating' : 'updating'
-            }
-          />
-        </Flex>
-      )}
+      <RoleEditorAdapterCompanion
+        roleDiffProps={roleDiffProps}
+        currentFlow={resources.status === 'creating' ? 'creating' : 'updating'}
+      />
+    </Flex>
+  );
+}
+
+// RoleEditorAdapterCompanion is the component that will be shown
+// next to the role editor adapter. This can either be the
+// role diff visualizer, or the upsell
+export function RoleEditorAdapterCompanion({
+  roleDiffProps,
+  currentFlow,
+}: {
+  roleDiffProps?: RoleDiffProps;
+  currentFlow: 'creating' | 'updating';
+}) {
+  const ctx = useTeleport();
+  const version = ctx.storeUser.state.cluster.authVersion;
+  // the demo banner should show every time they load the role editor
+  const [demoDismissed, setDemoDismissed] = useState(false);
+  if (
+    roleDiffProps &&
+    (roleDiffProps.roleDiffState === RoleDiffState.DEMO_READY ||
+      roleDiffProps.roleDiffState === RoleDiffState.POLICY_ENABLED)
+  ) {
+    return (
+      <Flex
+        flex="1"
+        flexDirection="column"
+        css={`
+          position: relative;
+        `}
+      >
+        <Box
+          data-testid="demo-banner"
+          css={`
+            position: absolute;
+            width: 100%;
+            z-index: 1000;
+            padding: 20px;
+          `}
+        >
+          {!demoDismissed &&
+            roleDiffProps.roleDiffState === RoleDiffState.DEMO_READY && (
+              <Alert
+                kind="neutral"
+                details="Secure identities and access policies across all of your infrastructure. Eliminate shadow access and blind spots."
+                icon={ShieldCheck}
+                primaryAction={{
+                  content: 'Contact Sales',
+                  href: getSalesURL(version, false),
+                }}
+                secondaryAction={{
+                  content: 'Learn More',
+                  href: 'https://goteleport.com/platform/policy/',
+                }}
+                dismissible
+                onDismiss={() => setDemoDismissed(true)}
+              >
+                Teleport Identity Security
+              </Alert>
+            )}
+        </Box>
+        {roleDiffProps.roleDiffElement}
+      </Flex>
+    );
+  }
+
+  return (
+    <Flex flex="1" alignItems="center" justifyContent="center" m={3}>
+      <PolicyPlaceholder
+        roleDiffProps={roleDiffProps}
+        enableDemoMode={roleDiffProps?.enableDemoMode}
+        currentFlow={currentFlow}
+      />
     </Flex>
   );
 }
