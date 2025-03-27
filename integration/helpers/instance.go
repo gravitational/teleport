@@ -1468,6 +1468,7 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		HostPort:                      cfg.Port,
 		HostLogin:                     cfg.Login,
 		InsecureSkipVerify:            true,
+		ClientStore:                   client.NewFSClientStore(keyDir),
 		KeysDir:                       keyDir,
 		SiteName:                      cfg.Cluster,
 		ForwardAgent:                  fwdAgentMode,
