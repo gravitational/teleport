@@ -21,6 +21,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/google/go-containerregistry/pkg/authn"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/gravitational/trace"
 
@@ -31,12 +32,13 @@ import (
 //
 // TODO: put limits on the number of manifests and layers we will pull.
 type DiscoveryConfig struct {
-	Logger *slog.Logger
+	Logger   *slog.Logger
+	Keychain authn.Keychain
 }
 
 // Discover signatures and attestations for the given image digest.
 func Discover(ctx context.Context, name, digest string, cfg DiscoveryConfig) ([]*workloadidentityv1.SigstoreVerificationPayload, error) {
-	repo, err := NewRepository(name, cfg.Logger)
+	repo, err := NewRepository(name, cfg.Logger, cfg.Keychain)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing image reference")
 	}
