@@ -276,7 +276,7 @@ func (s *Storage) loadProfileStatusAndClusterKey(clusterClient *client.TeleportC
 }
 
 func (s *Storage) makeClientConfig(rootClusterURI uri.ResourceURI) *client.Config {
-	cfg := client.MakeDefaultConfig()
+	cfg := &client.Config{}
 	cfg.HomePath = s.Dir
 	cfg.KeysDir = s.Dir
 	cfg.InsecureSkipVerify = s.InsecureSkipVerify
