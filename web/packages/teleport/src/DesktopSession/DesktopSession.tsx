@@ -27,6 +27,10 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
+import {
+  CanvasRenderer,
+  CanvasRendererRef,
+} from 'shared/components/CanvasRenderer';
 import { Attempt, makeSuccessAttempt, useAsync } from 'shared/hooks/useAsync';
 import {
   ButtonState,
@@ -37,14 +41,12 @@ import {
 
 import { useTeleport } from 'teleport';
 import AuthnDialog from 'teleport/components/AuthnDialog';
-import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 import cfg, { UrlDesktopParams } from 'teleport/config';
 import { KeyboardHandler } from 'teleport/DesktopSession/KeyboardHandler';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 import { shouldShowMfaPrompt, useMfaEmitter } from 'teleport/lib/useMfa';
 import { getHostName } from 'teleport/services/api';
 
-import { TdpClientCanvasRef } from '../components/TdpClientCanvas/TdpClientCanvas';
 import TopBar from './TopBar';
 import useDesktopSession, {
   clipboardSharingMessage,
@@ -180,7 +182,7 @@ export function DesktopSession({
     }
   }, [anotherDesktopActiveAttempt.status, runCheckIsAnotherDesktopActive]);
 
-  const tdpClientCanvasRef = useRef<TdpClientCanvasRef>(null);
+  const canvasRendererRef = useRef<CanvasRendererRef>(null);
   const initialTdpConnectionSucceeded = useRef(false);
   const onInitialTdpConnectionSucceeded = useCallback(() => {
     // The first image fragment we see signals a successful TDP connection.
@@ -192,7 +194,7 @@ export function DesktopSession({
 
     // Focus the canvas once the canvas is visible.
     // It needs to happen in the next tick, otherwise id doesn't work.
-    setTimeout(() => tdpClientCanvasRef.current?.focus());
+    setTimeout(() => canvasRendererRef.current?.focus());
   }, []);
 
   useListener(client.onClipboardData, onClipboardData);
@@ -254,13 +256,13 @@ export function DesktopSession({
     }, [setTdpConnectionStatus])
   );
 
-  useListener(client.onPointer, tdpClientCanvasRef.current?.setPointer);
+  useListener(client.onPointer, canvasRendererRef.current?.setPointer);
   useListener(
     client.onPngFrame,
     useCallback(
       frame => {
         onInitialTdpConnectionSucceeded();
-        tdpClientCanvasRef.current?.renderPngFrame(frame);
+        canvasRendererRef.current?.renderPngFrame(frame);
       },
       [onInitialTdpConnectionSucceeded]
     )
@@ -270,13 +272,13 @@ export function DesktopSession({
     useCallback(
       frame => {
         onInitialTdpConnectionSucceeded();
-        tdpClientCanvasRef.current?.renderBitmapFrame(frame);
+        canvasRendererRef.current?.renderBitmapFrame(frame);
       },
       [onInitialTdpConnectionSucceeded]
     )
   );
-  useListener(client.onReset, tdpClientCanvasRef.current?.clear);
-  useListener(client.onScreenSpec, tdpClientCanvasRef.current?.setResolution);
+  useListener(client.onReset, canvasRendererRef.current?.clear);
+  useListener(client.onScreenSpec, canvasRendererRef.current?.setResolution);
 
   const shouldConnect =
     aclAttempt.status === 'success' &&
@@ -286,7 +288,7 @@ export function DesktopSession({
     if (!shouldConnect) {
       return;
     }
-    void client.connect(tdpClientCanvasRef.current.getSize());
+    void client.connect(canvasRendererRef.current.getSize());
     return () => {
       client.shutdown();
     };
@@ -429,8 +431,8 @@ export function DesktopSession({
       )}
       {screenState.state === 'processing' && <Processing />}
 
-      <TdpClientCanvas
-        ref={tdpClientCanvasRef}
+      <CanvasRenderer
+        ref={canvasRendererRef}
         hidden={screenState.state !== 'canvas-visible'}
         onKeyDown={handleKeyDown}
         onKeyUp={handleKeyUp}

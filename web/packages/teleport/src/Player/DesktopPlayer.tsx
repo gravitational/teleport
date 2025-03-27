@@ -20,10 +20,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 
 import { Alert, Box, Flex, Indicator } from 'design';
+import {
+  CanvasRenderer,
+  CanvasRendererRef,
+} from 'shared/components/CanvasRenderer';
 import { useListener } from 'shared/libs/tdp';
 
-import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
-import { TdpClientCanvasRef } from 'teleport/components/TdpClientCanvas/TdpClientCanvas';
 import cfg from 'teleport/config';
 import { formatDisplayTime, StatusEnum } from 'teleport/lib/player';
 import { PlayerClient } from 'teleport/lib/tdp';
@@ -55,7 +57,7 @@ export const DesktopPlayer = ({
     sid,
     clusterId,
   });
-  const tdpClientCanvasRef = useRef<TdpClientCanvasRef>(null);
+  const canvasRendererRef = useRef<CanvasRendererRef>(null);
 
   useListener(playerClient?.onError, clientOnTdpError);
   useListener(playerClient?.onClientError, clientOnTdpError);
@@ -64,15 +66,15 @@ export const DesktopPlayer = ({
   useListener(playerClient?.onWsClose, clientOnWsClose);
   useListener(
     playerClient?.onPngFrame,
-    tdpClientCanvasRef.current?.renderPngFrame
+    canvasRendererRef.current?.renderPngFrame
   );
   useListener(
     playerClient?.onBmpFrame,
-    tdpClientCanvasRef.current?.renderBitmapFrame
+    canvasRendererRef.current?.renderBitmapFrame
   );
   useListener(
     playerClient?.onScreenSpec,
-    tdpClientCanvasRef.current?.setResolution
+    canvasRendererRef.current?.setResolution
   );
 
   const isError = playerStatus === StatusEnum.ERROR || statusText !== '';
@@ -94,7 +96,7 @@ export const DesktopPlayer = ({
       )}
 
       <StyledContainer>
-        <TdpClientCanvas ref={tdpClientCanvasRef} />
+        <CanvasRenderer ref={canvasRendererRef} />
 
         <ProgressBar
           min={0}
