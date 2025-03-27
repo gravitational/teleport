@@ -380,7 +380,7 @@ describe('registering new databases, mainly error checking', () => {
         name: 'new-db',
         aws: { iamPolicyStatus: IamPolicyStatus.Success },
       },
-      serviceDeployedMethod: 'skipped',
+      serviceDeploy: { method: 'skipped' },
     });
 
     result.current.nextStep();
