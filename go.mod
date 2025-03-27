@@ -188,7 +188,9 @@ require (
 	github.com/scim2/filter-parser/v2 v2.2.0
 	github.com/shirou/gopsutil/v4 v4.25.2
 	github.com/sigstore/cosign/v2 v2.4.3
+	github.com/sigstore/protobuf-specs v0.4.0
 	github.com/sigstore/sigstore v1.8.15
+	github.com/sigstore/sigstore-go v0.7.0
 	github.com/sijms/go-ora/v2 v2.8.24
 	github.com/snowflakedb/gosnowflake v1.13.0
 	github.com/spf13/cobra v1.9.1
@@ -252,10 +254,7 @@ require (
 	software.sslmate.com/src/go-pkcs12 v0.5.0
 )
 
-require (
-	github.com/sigstore/protobuf-specs v0.4.0
-	github.com/sigstore/sigstore-go v0.7.0
-)
+require github.com/docker/cli v27.5.0+incompatible
 
 require (
 	cel.dev/expr v0.19.1 // indirect
@@ -334,7 +333,6 @@ require (
 	github.com/di-wu/xsd-datetime v1.0.0 // indirect
 	github.com/digitorus/timestamp v0.0.0-20231217203849-220c5c2851b7 // indirect
 	github.com/dmarkham/enumer v1.5.10 // indirect
-	github.com/docker/cli v27.5.0+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.8.2 // indirect
 	github.com/docker/go-connections v0.5.0 // indirect
