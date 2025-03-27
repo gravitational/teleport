@@ -136,13 +136,9 @@ func (c *Cluster) reissueDBCerts(ctx context.Context, proxyClient *client.ProxyC
 
 	// Fetch the certs for the database.
 	err = proxyClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
-		RouteToCluster: c.clusterClient.SiteName,
-		RouteToDatabase: proto.RouteToDatabase{
-			ServiceName: routeToDatabase.ServiceName,
-			Protocol:    routeToDatabase.Protocol,
-			Username:    routeToDatabase.Username,
-		},
-		AccessRequests: c.status.ActiveRequests,
+		RouteToCluster:  c.clusterClient.SiteName,
+		RouteToDatabase: client.RouteToDatabaseToProto(routeToDatabase),
+		AccessRequests:  c.status.ActiveRequests,
 	})
 	if err != nil {
 		return trace.Wrap(err)
