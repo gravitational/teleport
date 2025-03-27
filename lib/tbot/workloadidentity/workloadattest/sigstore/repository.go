@@ -23,6 +23,7 @@ import (
 	"io"
 	"log/slog"
 
+	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -34,29 +35,36 @@ import (
 const MaxLayerSize = 10 << 20 // 10MiB
 
 // Repository is a handle on a repository in an OCI registry.
-//
-// TODO: implement authentication for private repositories.
 type Repository struct {
-	repo   name.Repository
-	logger *slog.Logger
+	repo     name.Repository
+	logger   *slog.Logger
+	keychain authn.Keychain
 }
 
 // NewRepository creates a new Repository with the given reference.
-func NewRepository(ref string, logger *slog.Logger) (*Repository, error) {
+func NewRepository(ref string, logger *slog.Logger, keychain authn.Keychain) (*Repository, error) {
 	r, err := name.ParseReference(ref)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing reference")
 	}
+	if keychain == nil {
+		keychain = authn.DefaultKeychain
+	}
 	return &Repository{
-		repo:   r.Context(),
-		logger: logger,
+		repo:     r.Context(),
+		logger:   logger,
+		keychain: keychain,
 	}, nil
 }
 
 // Manifest fetches the manifest at the given reference (tag or digest) from the
 // repository.
 func (r *Repository) Manifest(ctx context.Context, ref Reference) (*v1.Manifest, error) {
-	mfBytes, err := crane.Manifest(ref.String(r.repo), crane.WithContext(ctx))
+	mfBytes, err := crane.Manifest(
+		ref.String(r.repo),
+		crane.WithContext(ctx),
+		crane.WithAuthFromKeychain(r.keychain),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching manifest")
 	}
@@ -73,6 +81,7 @@ func (r *Repository) Layer(ctx context.Context, digest v1.Hash) ([]byte, error) 
 	layer, err := crane.PullLayer(
 		Digest(digest.String()).String(r.repo),
 		crane.WithContext(ctx),
+		crane.WithAuthFromKeychain(r.keychain),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "pulling layer")
@@ -124,6 +133,7 @@ func (r *Repository) Referrers(ctx context.Context, digest v1.Hash) (*v1.IndexMa
 	referrers, err := remote.Referrers(
 		r.repo.Digest(digest.String()),
 		remote.WithContext(ctx),
+		remote.WithAuthFromKeychain(r.keychain),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "finding referrers")
