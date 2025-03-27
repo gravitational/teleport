@@ -185,6 +185,9 @@ message ConnectionMetadata {
 
   // Protocol specifies protocol that was captured
   string Protocol = 3 [(gogoproto.jsontag) = "proto,omitempty"];
+
+  // ConnectorID is the ID of the connector used
+  string ConnectorID = 4 [(gogoproto.jsontag) = "connector_id,omitempty"];
 }
 
 // ClientMetadata identifies the originating client for an event.
