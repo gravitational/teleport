@@ -321,6 +321,9 @@ export const eventCodes = {
   AUTOUPDATE_VERSION_CREATE: 'AUV001I',
   AUTOUPDATE_VERSION_UPDATE: 'AUV002I',
   AUTOUPDATE_VERSION_DELETE: 'AUV003I',
+  HEALTH_CHECK_CONFIG_CREATE: 'THCC001I',
+  HEALTH_CHECK_CONFIG_UPDATE: 'THCC002I',
+  HEALTH_CHECK_CONFIG_DELETE: 'THCC003I',
 } as const;
 
 /**
@@ -1844,6 +1847,18 @@ export type RawEvents = {
     {
       user: string;
     }
+  >;
+  [eventCodes.HEALTH_CHECK_CONFIG_CREATE]: RawEvent<
+    typeof eventCodes.HEALTH_CHECK_CONFIG_CREATE,
+    HasName
+  >;
+  [eventCodes.HEALTH_CHECK_CONFIG_UPDATE]: RawEvent<
+    typeof eventCodes.HEALTH_CHECK_CONFIG_UPDATE,
+    HasName
+  >;
+  [eventCodes.HEALTH_CHECK_CONFIG_DELETE]: RawEvent<
+    typeof eventCodes.HEALTH_CHECK_CONFIG_DELETE,
+    HasName
   >;
 };
 

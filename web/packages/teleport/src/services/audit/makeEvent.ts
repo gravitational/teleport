@@ -2094,6 +2094,27 @@ export const formatters: Formatters = {
       return `User ${user} deleted the Automatic Update Version`;
     },
   },
+  [eventCodes.HEALTH_CHECK_CONFIG_CREATE]: {
+    type: 'health_check_config.create',
+    desc: 'Health Check Config Created',
+    format: ({ user, name }) => {
+      return `User [${user}] created a health check config [${name}]`;
+    },
+  },
+  [eventCodes.HEALTH_CHECK_CONFIG_UPDATE]: {
+    type: 'health_check_config.update',
+    desc: 'Health Check Config Updated',
+    format: ({ user, name }) => {
+      return `User [${user}] updated a health check config [${name}]`;
+    },
+  },
+  [eventCodes.HEALTH_CHECK_CONFIG_DELETE]: {
+    type: 'health_check_config.delete',
+    desc: 'Health Check Config Deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted a health check config [${name}]`;
+    },
+  },
 };
 
 const unknownFormatter = {

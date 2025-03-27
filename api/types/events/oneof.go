@@ -843,6 +843,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AWSICResourceSync{
 			AWSICResourceSync: e,
 		}
+	case *HealthCheckConfigCreate:
+		out.Event = &OneOf_HealthCheckConfigCreate{
+			HealthCheckConfigCreate: e,
+		}
+	case *HealthCheckConfigUpdate:
+		out.Event = &OneOf_HealthCheckConfigUpdate{
+			HealthCheckConfigUpdate: e,
+		}
+	case *HealthCheckConfigDelete:
+		out.Event = &OneOf_HealthCheckConfigDelete{
+			HealthCheckConfigDelete: e,
+		}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())
 		unknown := &Unknown{}

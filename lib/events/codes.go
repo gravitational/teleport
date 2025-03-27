@@ -697,6 +697,13 @@ const (
 	// WorkloadIdentityX509Revocation delete event code.
 	WorkloadIdentityX509RevocationDeleteCode = "WID006I"
 
+	// HealthCheckConfigCreateCode is the health check config create event code.
+	HealthCheckConfigCreateCode = "THCC001I"
+	// HealthCheckConfigUpdateCode is the health check config update event code.
+	HealthCheckConfigUpdateCode = "THCC002I"
+	// HealthCheckConfigDeleteCode is the health check config delete event code.
+	HealthCheckConfigDeleteCode = "THCC003I"
+
 	// GitCommandCode is the git command event code
 	GitCommandCode = "TGIT001I"
 	// GitCommandFailureCode is the git command feature event code.
