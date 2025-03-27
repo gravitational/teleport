@@ -222,7 +222,7 @@ export function getOverview({
     case DiscoverGuideId.DatabaseAwsRdsMysqlMariaDb:
       links = {
         iamAuthn: {
-          title: 'Creating IAM users',
+          title: 'Creating database IAM users',
           href: getRdsIamAuthnHref(resourceSpec.id),
         },
         amazonEcs: {
@@ -253,24 +253,25 @@ export function getOverview({
       prereqs = (
         <InfoUl>
           <li>{requiredAwsAccount}</li>
-          <div>
-            <li>
-              Ability to create database{' '}
-              <Mark>
-                <b>
-                  <InfoExternalTextLink href={links.iamAuthn.href}>
-                    IAM users
-                  </InfoExternalTextLink>
-                </b>
-              </Mark>{' '}
-              and connect to target databases.
-            </li>
-          </div>
+          <li>
+            Ability to create database{' '}
+            <Mark>
+              <b>
+                <InfoExternalTextLink href={links.iamAuthn.href}>
+                  IAM users
+                </InfoExternalTextLink>
+              </b>
+            </Mark>{' '}
+            and connect to target databases.
+          </li>
           <li>The VPC of the RDS databases you want to enroll.</li>
           <li>
             At least one subnet in the VPC with a route to an internet gateway.
           </li>
-          <li>Security groups that allow egress to the Teleport cluster.</li>
+          <li>
+            Security groups that permit access to your RDS databases and allow
+            unrestricted outbound internet traffic.
+          </li>
         </InfoUl>
       );
       break;

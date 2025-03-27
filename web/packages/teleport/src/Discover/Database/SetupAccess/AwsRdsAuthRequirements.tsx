@@ -16,14 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { PropsWithChildren, useState } from 'react';
+import { useState } from 'react';
 import styled from 'styled-components';
 
-import { Alert, Box, Flex, Label, Link, Mark, Stack, Text } from 'design';
+import { Alert, Box, Flex, Label, Link, Mark, Text } from 'design';
 import { CollapsibleInfoSection } from 'design/CollapsibleInfoSection';
 import { ChevronDown } from 'design/Icon';
+import { SpaceProps } from 'design/system';
 import { H3 } from 'design/Text';
-import { HoverTooltip } from 'design/Tooltip';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 
 import { Tabs } from 'teleport/components/Tabs';
@@ -39,14 +39,13 @@ export function AwsRdsAuthRequirements({
   id,
   serviceDeploy,
   uri,
-  preShow = false,
+  ...spaceProps
 }: {
   wantAutoDiscover: boolean;
   id: DiscoverGuideId;
   uri: string | undefined;
   serviceDeploy: DatabaseServiceDeploy | undefined;
-  preShow?: boolean;
-}) {
+} & SpaceProps) {
   const [showEnableInfo, setShowEnableInfo] = useState(false);
   const [showCreateInfo, setShowCreateInfo] = useState(false);
 
@@ -69,152 +68,139 @@ export function AwsRdsAuthRequirements({
     // The id is specifically Aurora here since the AWS documentation for creating
     // IAM users are equivalent (and Teleport doc does the same).
     createInfo = (
-      <Tabs
-        tabs={[
-          {
-            title: 'PostgreSQL',
-            content: (
-              <AwsPostgresUserInfo
-                id={DiscoverGuideId.DatabaseAwsRdsAuroraPostgres}
-              />
-            ),
-          },
-          {
-            title: `MySQL`,
-            content: (
-              <AwsMysqlUserInfo
-                id={DiscoverGuideId.DatabaseAwsRdsAuroraMysql}
-              />
-            ),
-          },
-        ]}
-      />
+      <Box width="100%">
+        <Tabs
+          tabs={[
+            {
+              title: 'PostgreSQL',
+              content: (
+                <AwsPostgresUserInfo
+                  id={DiscoverGuideId.DatabaseAwsRdsAuroraPostgres}
+                />
+              ),
+            },
+            {
+              title: `MySQL`,
+              content: (
+                <AwsMysqlUserInfo
+                  id={DiscoverGuideId.DatabaseAwsRdsAuroraMysql}
+                />
+              ),
+            },
+          ]}
+        />
+      </Box>
     );
   }
 
   return (
-    <Box mb={4}>
+    <Box {...spaceProps}>
       <Text mb={3}>
         Teleport uses AWS IAM authentication to connect to RDS databases.
       </Text>
-      <Stack>
-        <Flex
-          alignItems="center"
-          onClick={() => setShowEnableInfo(!showEnableInfo)}
-          gap={1}
-          mb={2}
-        >
-          <Hover collapse={showEnableInfo}>
-            <ExpandIcon expanded={showEnableInfo} />
-            <Text bold>
-              You must enable IAM authentication on your RDS databases
-            </Text>
-          </Hover>
+      <Flex
+        alignItems="center"
+        onClick={() => setShowEnableInfo(!showEnableInfo)}
+        gap={1}
+        mb={2}
+      >
+        <Flex css={{ cursor: 'pointer' }}>
+          <ExpandIcon expanded={showEnableInfo} />
+          <Text bold>
+            You must enable IAM authentication on your RDS databases
+          </Text>
         </Flex>
-        {showEnableInfo && (
-          <Box ml={4} mb={3}>
-            Follow AWS{' '}
+      </Flex>
+      {showEnableInfo && (
+        <Box ml={4} mb={3}>
+          Follow AWS{' '}
+          <Link
+            target="_blank"
+            href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.Enabling.html"
+          >
+            documentation
+          </Link>{' '}
+          on how to enable IAM authentication on your{' '}
+          {wantAutoDiscover ? 'databses' : 'database'}.
+        </Box>
+      )}
+
+      <Flex
+        alignItems="center"
+        onClick={() => setShowCreateInfo(!showCreateInfo)}
+        gap={1}
+        mb={2}
+      >
+        <Flex css={{ cursor: 'pointer' }}>
+          <ExpandIcon expanded={showCreateInfo} />
+          <Text bold>
+            You must create or alter database users to allow them to log in with
+            IAM authentication
+          </Text>
+        </Flex>
+      </Flex>
+      {showCreateInfo && (
+        <Box mx={4}>
+          <Box width="100%">{createInfo}</Box>
+          <H3 mt={4}>Connecting to your RDS Databases</H3>
+          <Text mb={2}>
+            AWS documents how to{' '}
+            <Link target="_blank" href={getAwsRdsConnectLink(id)}>
+              connect to your RDS database
+            </Link>{' '}
+            in various ways.
+          </Text>
+          {!wantAutoDiscover && uri && (
+            <Box mt={2} mb={3}>
+              Database URI:
+              <TextSelectCopyMulti lines={[{ text: uri }]} />
+            </Box>
+          )}
+          <CollapsibleInfoSection
+            mt={3}
+            size="small"
+            openLabel="Connect with AWS CloudShell"
+            closeLabel="Connect with AWS CloudShell"
+          >
+            Alternatively, you can use{' '}
+            <Link
+              href="https://console.aws.amazon.com/cloudshell/home"
+              target="_blank"
+            >
+              AWS CloudShell
+            </Link>{' '}
+            to connect to your RDS database. See{' '}
             <Link
               target="_blank"
-              href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.Enabling.html"
+              href="https://docs.aws.amazon.com/cloudshell/latest/userguide/creating-vpc-environment.html"
             >
-              documentation
+              Creating a CloudShell VPC environment
             </Link>{' '}
-            on how to enable IAM authentication on your{' '}
-            {wantAutoDiscover ? 'databses' : 'database'}.
-          </Box>
-        )}
-      </Stack>
-
-      <Stack>
-        <Flex
-          alignItems="center"
-          onClick={() => setShowCreateInfo(!showCreateInfo)}
-          gap={1}
-          mb={2}
-        >
-          <Hover collapse={showCreateInfo}>
-            <ExpandIcon expanded={showCreateInfo} />
-            <Text bold>
-              You must create or alter database users to allow them to log in
-              with IAM authentication
-            </Text>
-          </Hover>
-        </Flex>
-        {showCreateInfo && (
-          <Box ml={4}>
-            {createInfo}
-            <H3 mt={4}>Connecting to your RDS Databases</H3>
-            <Text mb={2}>
-              AWS documents how to{' '}
-              <Link target="_blank" href={getAwsRdsConnectLink(id)}>
-                connect to your RDS database
-              </Link>{' '}
-              in various ways.
-            </Text>
-            {!wantAutoDiscover && uri && (
-              <Box mt={2} mb={3}>
-                Database URI:
-                <TextSelectCopyMulti lines={[{ text: uri }]} />
-              </Box>
-            )}
-            <CollapsibleInfoSection
-              mt={3}
-              mb={3}
-              size="small"
-              openLabel="Connect with AWS CloudShell"
-              closeLabel="Connect with AWS CloudShell"
-            >
-              Alternatively, you can use{' '}
-              <Link
-                href="https://console.aws.amazon.com/cloudshell/home"
-                target="_blank"
-              >
-                AWS CloudShell
-              </Link>{' '}
-              to connect to your RDS database. See{' '}
-              <Link
-                target="_blank"
-                href="https://docs.aws.amazon.com/cloudshell/latest/userguide/creating-vpc-environment.html"
-              >
-                Creating a CloudShell VPC environment
-              </Link>{' '}
-              for more information.{' '}
-              {preShow
-                ? 'Use the security groups and subnets that you will use for your Database service for the next step.'
-                : 'Use the same security groups and subnets you specified for your Database Service.'}
-              {!preShow && serviceDeploy?.method === 'auto' && (
+            for more information.
+            {serviceDeploy && (
+              <>
+                {
+                  ' Use the same security groups and subnets you specified for your database service.'
+                }
                 <DatabaseInfo serviceDeploy={serviceDeploy} />
-              )}
-            </CollapsibleInfoSection>
-          </Box>
-        )}
-      </Stack>
+              </>
+            )}
+          </CollapsibleInfoSection>
+        </Box>
+      )}
     </Box>
   );
 }
-
-const Hover: React.FC<PropsWithChildren<{ collapse: boolean }>> = ({
-  children,
-  collapse,
-}) => (
-  <HoverTooltip
-    tipContent={collapse ? 'Collapse' : 'Expand'}
-    css={`
-      &:hover {
-        cursor: pointer;
-      }
-    `}
-  >
-    {children}
-  </HoverTooltip>
-);
 
 function DatabaseInfo({
   serviceDeploy,
 }: {
   serviceDeploy?: DatabaseServiceDeploy;
 }) {
+  if (serviceDeploy?.method !== 'auto') {
+    return null;
+  }
+
   let securityGroups;
   if (serviceDeploy?.selectedSecurityGroups?.length) {
     securityGroups = (
@@ -289,8 +275,8 @@ function AwsMysqlUserInfo({ id }: { id: AwsRdsGuideIds }) {
         />
       </Box>
       <Box>
-        <Text>
-          Created user may not have access to anything by default. We can grant
+        <Text mb={2}>
+          Created user may not have access to anything by default. You can grant
           some permissions by:
         </Text>
         <TextSelectCopyMulti
@@ -345,13 +331,14 @@ export function AwsRdsAuthRequirementAlert({
   wantAutoDiscover,
   id,
   uri,
+  ...spaceProps
 }: {
   wantAutoDiscover: boolean;
   id: DiscoverGuideId;
   uri?: string;
-}) {
+} & SpaceProps) {
   return (
-    <Alert kind="neutral" mt={wantAutoDiscover ? 0 : 3}>
+    <Alert kind="neutral" {...spaceProps}>
       <div
         css={`
           font-weight: normal;
@@ -369,7 +356,6 @@ export function AwsRdsAuthRequirementAlert({
             wantAutoDiscover={wantAutoDiscover}
             id={id}
             uri={uri}
-            preShow={true}
             serviceDeploy={undefined}
           />
         </CollapsibleInfoSection>

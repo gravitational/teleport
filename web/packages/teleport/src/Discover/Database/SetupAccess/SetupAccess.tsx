@@ -262,6 +262,7 @@ function DbEngineInstructions({
       if (isAwsRds(resourceSpec.id)) {
         return (
           <AwsRdsAuthRequirements
+            mb={4}
             id={id}
             wantAutoDiscover={wantAutoDiscover}
             serviceDeploy={serviceDeploy}

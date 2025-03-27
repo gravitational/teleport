@@ -322,7 +322,6 @@ describe('registering new databases, mainly error checking', () => {
       resourceName: 'db-name',
       agentMatcherLabels: dbLabels,
       db: { name: 'new-db', labels: dbLabels },
-      serviceDeploy: {},
     });
 
     // Test the dynamic definition of nextStep is called with a number
@@ -421,7 +420,6 @@ describe('registering new databases, mainly error checking', () => {
         name: 'new-db',
         aws: { iamPolicyStatus: IamPolicyStatus.Unspecified },
       },
-      serviceDeploy: {},
     });
 
     result.current.nextStep();

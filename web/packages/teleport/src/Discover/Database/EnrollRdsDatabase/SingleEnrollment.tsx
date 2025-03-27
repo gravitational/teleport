@@ -242,6 +242,7 @@ export function SingleEnrollment({
                       wantAutoDiscover={false}
                       id={resourceSpec.id}
                       uri={selectedDb.uri}
+                      mt={3}
                     />
                     <Flex alignItems="center" gap={1} mb={2} mt={4}>
                       <Subtitle1>Optionally Add More Labels</Subtitle1>
