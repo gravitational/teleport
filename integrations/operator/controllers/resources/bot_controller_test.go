@@ -20,6 +20,7 @@ package resources_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -69,6 +70,9 @@ func (g *botTestingPrimitives) CreateTeleportResource(ctx context.Context, name 
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name: name,
+			Labels: map[string]string{
+				types.OriginLabel: types.OriginKubernetes,
+			},
 		},
 		Spec: botSpec,
 	}
@@ -99,42 +103,43 @@ func (g *botTestingPrimitives) DeleteTeleportResource(ctx context.Context, name 
 }
 
 func (g *botTestingPrimitives) CreateKubernetesResource(ctx context.Context, name string) error {
-	github := &resourcesv1.TeleportBot{
+	bot := &resourcesv1.TeleportBot{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: g.setup.Namespace.Name,
 		},
 		Spec: (*resourcesv1.TeleportBotSpec)(botSpec),
 	}
-	return trace.Wrap(g.setup.K8sClient.Create(ctx, github))
+	return trace.Wrap(g.setup.K8sClient.Create(ctx, bot))
 }
 
 func (g *botTestingPrimitives) DeleteKubernetesResource(ctx context.Context, name string) error {
-	github := &resourcesv1.TeleportBot{
+	bot := &resourcesv1.TeleportBot{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: g.setup.Namespace.Name,
 		},
 	}
-	return trace.Wrap(g.setup.K8sClient.Delete(ctx, github))
+	return trace.Wrap(g.setup.K8sClient.Delete(ctx, bot))
 }
 
 func (g *botTestingPrimitives) GetKubernetesResource(ctx context.Context, name string) (*resourcesv1.TeleportBot, error) {
-	github := &resourcesv1.TeleportBot{}
+	bot := &resourcesv1.TeleportBot{}
 	obj := kclient.ObjectKey{
 		Name:      name,
 		Namespace: g.setup.Namespace.Name,
 	}
-	err := g.setup.K8sClient.Get(ctx, obj, github)
-	return github, trace.Wrap(err)
+	err := g.setup.K8sClient.Get(ctx, obj, bot)
+	return bot, trace.Wrap(err)
 }
 
 func (g *botTestingPrimitives) ModifyKubernetesResource(ctx context.Context, name string) error {
-	github, err := g.GetKubernetesResource(ctx, name)
+	bot, err := g.GetKubernetesResource(ctx, name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(g.setup.K8sClient.Update(ctx, github))
+	bot.Spec.Roles = []string{"changed"}
+	return trace.Wrap(g.setup.K8sClient.Update(ctx, bot))
 }
 
 func (g *botTestingPrimitives) CompareTeleportAndKubernetesResource(
@@ -142,8 +147,12 @@ func (g *botTestingPrimitives) CompareTeleportAndKubernetesResource(
 	diff := cmp.Diff(
 		tResource,
 		kubeResource.ToTeleport(),
-		protocmp.Transform(),
-		protocmp.IgnoreFields(&machineidv1.Bot{}, "status"),
+		testlib.ProtoCompareOptions(
+			protocmp.IgnoreFields(&machineidv1.Bot{}, "status"),
+			protocmp.SortRepeated(func(a, b *machineidv1.Trait) bool {
+				return strings.Compare(a.Name, b.Name) == -1
+			}),
+		)...,
 	)
 	return diff == "", diff
 }
