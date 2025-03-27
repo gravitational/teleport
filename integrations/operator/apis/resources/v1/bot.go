@@ -89,16 +89,16 @@ func (spec *TeleportBotSpec) Unmarshal(data []byte) error {
 	return json.Unmarshal(data, spec)
 }
 
-// UnmarshalJSON delegates unmarshalling of the BotSpec to protojson, which is
+// UnmarshalJSON delegates unmarshaling of the BotSpec to protojson, which is
 // necessary for the BotSpec (and other Proto RFD153 resources) to be
-// unmarshalled correctly from the unstructured object.
+// unmarshaled correctly from the unstructured object.
 func (spec *TeleportBotSpec) UnmarshalJSON(data []byte) error {
 	return protojson.Unmarshal(data, (*machineidv1.BotSpec)(spec))
 }
 
-// MarshalJSON delegates marshalling of the BotSpec to protojson, which is
+// MarshalJSON delegates marshaling of the BotSpec to protojson, which is
 // necessary for the BotSpec (and other Proto RFD153 resources) to be
-// marshalled correctly into the unstructured object.
+// marshaled correctly into the unstructured object.
 func (spec *TeleportBotSpec) MarshalJSON() ([]byte, error) {
 	return protojson.Marshal((*machineidv1.BotSpec)(spec))
 }
