@@ -40,6 +40,8 @@ rules:
       - teleporttrustedclustersv2/status
       - teleportworkloadidentities
       - teleportworkloadidentities/status
+      - teleportbots
+      - teleportbots/status
     verbs:
       - get
       - list
