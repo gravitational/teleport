@@ -1,6 +1,5 @@
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 
-import eCfg from 'e-teleport/config';
 import CloudService from 'e-teleport/services/cloud';
 import { deviceService } from 'e-teleport/services/devices';
 import RecoveryService from 'e-teleport/services/recovery';
@@ -36,7 +35,6 @@ class TeleportEContext extends TeleportContext {
   deviceService = deviceService;
   idpService = new IdpService();
   externalAuditStorageService = externalAuditStorageService;
-  redirectUrl: string | null = null;
   contactService = contactsService;
 
   notificationContentFactory = notificationContentFactoryE;
@@ -46,28 +44,6 @@ class TeleportEContext extends TeleportContext {
   // block.
   async init(preferences: UserPreferences) {
     await super.init(preferences);
-
-    if (
-      cfg.isCloud &&
-      (!preferences.accessGraph || !preferences.accessGraph.hasBeenRedirected)
-    ) {
-      try {
-        // the marketing UTM params are only retrievable from the survey service
-        const survey = await surveyService.getSurveyCompanyResults();
-
-        if (survey.marketingParams.intent === 'policy') {
-          await service.updateUserPreferences({
-            accessGraph: {
-              hasBeenRedirected: true,
-            },
-          });
-
-          this.redirectUrl = eCfg.routes.accessGraph.dashboard;
-        }
-      } catch {
-        // it's okay if we can't fetch the marketing params
-      }
-    }
 
     const survey = storageService.getOnboardSurvey();
     if (survey) {
