@@ -404,7 +404,7 @@ func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.Session
 		env[teleport.SSHSessionWebProxyAddr] = c.ProxyPublicAddr
 	}
 
-	nodeSession, err := newSession(ctx, c, sessToJoin, env, c.TC.Stdin, c.TC.Stdout, c.TC.Stderr, c.TC.EnableEscapeSequences)
+	nodeSession, err := newSession(ctx, c, sessToJoin, env, c.TC.Stdin, c.TC.Stdout, c.TC.Stderr, !c.TC.DisableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -605,7 +605,7 @@ func (c *NodeClient) RunCommand(ctx context.Context, command []string, opts ...R
 		}
 	}
 
-	nodeSession, err := newSession(ctx, c, nil, c.TC.newSessionEnv(), c.TC.Stdin, stdout, stderr, c.TC.EnableEscapeSequences)
+	nodeSession, err := newSession(ctx, c, nil, c.TC.newSessionEnv(), c.TC.Stdin, stdout, stderr, !c.TC.DisableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
