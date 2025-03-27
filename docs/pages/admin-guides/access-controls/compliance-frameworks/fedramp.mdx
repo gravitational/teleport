@@ -290,3 +290,7 @@ library under the hood for FIPS-compliant TLS cryptography. The primary notable 
 TLS is restricted to TLS 1.2 only (1.3 is not supported).
 
 Note that `arm64` FIPS builds do not support access to Windows desktops.
+
+## Migrating from non-FIPS to FIPS
+
+As of v17, standard binaries of Teleport default to using [Ed25519 keys](../../../reference/signature-algorithms.mdx).  This is currently not supported by FIPS-compliant binaries.  In order to migrate to a FIPS-compliant binary if Teleport was already deployed with a standard binary or without the `--fips` flag, install the FIPS-complint binary then undergo a [CA rotation](../../management/operations/ca-rotation.mdx) to remove the Ed25519 keys.  Otherwise, the error `User Message: only RSA and ECDSA keys supported` is produced.  The command `tctl status` can be used on v17+ to confirm the signature algorithms in use.
