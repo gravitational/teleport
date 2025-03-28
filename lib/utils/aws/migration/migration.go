@@ -23,15 +23,8 @@ import (
 	"sync"
 
 	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/gravitational/trace"
 )
-
-// NewCredentialsAdapter adapts an AWS SDK v2 credentials provider to v1
-// credentials.
-func NewCredentialsAdapter(providerV2 awsv2.CredentialsProvider) *credentials.Credentials {
-	return credentials.NewCredentials(NewProviderAdapter(providerV2))
-}
 
 // NewProviderAdapter returns a [ProviderAdapter] that can be used as an AWS SDK
 // v1 credentials provider.
