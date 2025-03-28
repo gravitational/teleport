@@ -1284,12 +1284,12 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		if tc.TLS != nil || tc.AuthMethods != nil {
 			// Client will use static auth methods instead of client store.
 			// Initialize empty client store to prevent panics.
-			tc.ClientStore = NewMemClientStore(nil /*hwKeyService*/)
+			tc.ClientStore = NewMemClientStore()
 		} else {
 			// TODO (Joerger): init hardware key service (and client store) earlier where it can
 			// be properly shared.
 			hardwareKeyService := piv.NewYubiKeyService(tc.CustomHardwareKeyPrompt)
-			tc.ClientStore = NewFSClientStore(c.KeysDir, hardwareKeyService)
+			tc.ClientStore = NewFSClientStore(c.KeysDir, WithHardwareKeyService(hardwareKeyService))
 			if c.AddKeysToAgent == AddKeysToAgentOnly {
 				// Store client keys in memory, but still save trusted certs and profile to disk.
 				tc.ClientStore.KeyStore = NewMemKeyStore()

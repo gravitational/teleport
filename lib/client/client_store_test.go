@@ -160,7 +160,7 @@ func newSelfSignedCA(privateKey []byte, cluster string) (*tlsca.CertAuthority, a
 }
 
 func newTestFSClientStore(t *testing.T) *Store {
-	fsClientStore := NewFSClientStore(t.TempDir(), nil /*hwKeyService*/)
+	fsClientStore := NewFSClientStore(t.TempDir())
 	return fsClientStore
 }
 
@@ -170,7 +170,7 @@ func testEachClientStore(t *testing.T, testFunc func(t *testing.T, clientStore *
 	})
 
 	t.Run("Mem", func(t *testing.T) {
-		testFunc(t, NewMemClientStore(nil /*hwKeyService*/))
+		testFunc(t, NewMemClientStore())
 	})
 }
 
