@@ -44,42 +44,72 @@ import (
 // when using `tsh --add-keys-to-agent=only`, Store will be made up of an in-memory
 // key store and an FS (~/.tsh) profile and trusted certs store.
 type Store struct {
-	log          *slog.Logger
-	hwKeyService hardwarekey.Service
-
+	StoreConfig
 	KeyStore
 	TrustedCertsStore
 	ProfileStore
 }
 
+// StoreConfig contains shared config options for Store.
+type StoreConfig struct {
+	log          *slog.Logger
+	hwKeyService hardwarekey.Service
+}
+
+// StoreConfigOpt applies configuration options.
+type StoreConfigOpt func(o *StoreConfig)
+
+// WithHardwareKeyService sets the hardware key service.
+func WithHardwareKeyService(hwKeyService hardwarekey.Service) StoreConfigOpt {
+	return func(o *StoreConfig) {
+		o.hwKeyService = hwKeyService
+	}
+}
+
 // NewMemClientStore initializes an FS backed client store with the given base dir.
 //
-// If a hardware key service is not provided, the client store will fail to parse
-// hardware private keys, so it is required outside of tests and select commands
-// that do not interact with hardware keys.
-func NewFSClientStore(dirPath string, hwKeyService hardwarekey.Service) *Store {
-	dirPath = profile.FullProfilePath(dirPath)
-	return &Store{
-		log:               slog.With(teleport.ComponentKey, teleport.ComponentKeyStore),
-		hwKeyService:      hwKeyService,
-		KeyStore:          NewFSKeyStore(dirPath),
-		TrustedCertsStore: NewFSTrustedCertsStore(dirPath),
-		ProfileStore:      NewFSProfileStore(dirPath),
-	}
+// [WithHardwareKeyService] should be provided in order to successfully create and
+// parse hardware private keys. It is not needed for tests and select commands
+// which do not interact with hardware keys
+func NewFSClientStore(dirPath string, opts ...StoreConfigOpt) *Store {
+	return newClientStore(
+		NewFSKeyStore(dirPath),
+		NewFSTrustedCertsStore(dirPath),
+		NewFSProfileStore(dirPath),
+		opts...,
+	)
 }
 
 // NewMemClientStore initializes a new in-memory client store.
 //
-// If a hardware key service is not provided, the client store will fail to parse
-// hardware private keys, so it is required outside of tests and select commands
-// that do not interact with hardware keys.
-func NewMemClientStore(hwKeyService hardwarekey.Service) *Store {
+// [WithHardwareKeyService] should be provided in order to successfully create and
+// parse hardware private keys. It is not needed for tests and select commands
+// which do not interact with hardware keys
+func NewMemClientStore(opts ...StoreConfigOpt) *Store {
+	return newClientStore(
+		NewMemKeyStore(),
+		NewMemTrustedCertsStore(),
+		NewMemProfileStore(),
+		opts...,
+	)
+}
+
+func newClientStore(ks KeyStore, tcs TrustedCertsStore, ps ProfileStore, opts ...StoreConfigOpt) *Store {
+	// Start with default config
+	config := StoreConfig{
+		log: slog.With(teleport.ComponentKey, teleport.ComponentKeyStore),
+	}
+
+	// Apply opts
+	for _, opt := range opts {
+		opt(&config)
+	}
+
 	return &Store{
-		log:               slog.With(teleport.ComponentKey, teleport.ComponentKeyStore),
-		hwKeyService:      hwKeyService,
-		KeyStore:          NewMemKeyStore(),
-		TrustedCertsStore: NewMemTrustedCertsStore(),
-		ProfileStore:      NewMemProfileStore(),
+		StoreConfig:       config,
+		KeyStore:          ks,
+		TrustedCertsStore: tcs,
+		ProfileStore:      ps,
 	}
 }
 
