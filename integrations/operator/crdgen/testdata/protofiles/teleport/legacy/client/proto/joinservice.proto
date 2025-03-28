@@ -158,6 +158,42 @@ message TPMEncryptedCredential {
   bytes secret = 2;
 }
 
+// OracleSignedRequest holds the headers and payload for a signed request to
+// the Oracle API.
+message OracleSignedRequest {
+  // Headers is the signed headers for a request to the Oracle authorizeClient
+  // endpoint.
+  map<string, string> headers = 1;
+  // PayloadHeaders is the signed headers that are the payload to the authorizeClient
+  // request signified by Headers.
+  map<string, string> payload_headers = 2;
+}
+
+// RegisterUsingOracleMethodRequest is the request for registration via the
+// Oracle join method.
+message RegisterUsingOracleMethodRequest {
+  oneof request {
+    // RegisterUsingTokenRequest holds registration parameters common to all join
+    // methods.
+    types.RegisterUsingTokenRequest register_using_token_request = 1;
+    // OracleRequest holds the headers and payload for a signed request to
+    // the Oracle API.
+    OracleSignedRequest oracle_request = 2;
+  }
+}
+
+// RegisterUsingOracleMethodResponse is a stream response and will contain either
+// a Challenge or signed Certs to join the cluster.
+message RegisterUsingOracleMethodResponse {
+  oneof response {
+    // Challenge is a crypto-random string that should be included in the signed
+    // headers.
+    string challenge = 1;
+    // Certs is the returned signed certs.
+    Certs certs = 2;
+  }
+}
+
 // JoinService provides methods which allow Teleport nodes, proxies, and other
 // services to join the Teleport cluster by fetching signed cluster
 // certificates. It is implemented on both the Auth and Proxy servers to serve
@@ -173,6 +209,9 @@ service JoinService {
   // RegisterUsingTPMMethod allows registration of a new agent or Bot to the
   // cluster using a known TPM.
   rpc RegisterUsingTPMMethod(stream RegisterUsingTPMMethodRequest) returns (stream RegisterUsingTPMMethodResponse);
+  // RegisterUsingOracleMethod allows registration of a new node to the cluster
+  // using the Oracle join method.
+  rpc RegisterUsingOracleMethod(stream RegisterUsingOracleMethodRequest) returns (stream RegisterUsingOracleMethodResponse);
   // RegisterUsingToken is used to register a new node to the cluster using one
   // of the legacy join methods which do not yet have their own gRPC method.
   rpc RegisterUsingToken(types.RegisterUsingTokenRequest) returns (Certs);

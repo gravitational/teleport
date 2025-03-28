@@ -1,7 +1,8 @@
 PROTOS = \
 	teleport/loginrule/v1/loginrule.proto \
 	teleport/accesslist/v1/accesslist.proto \
-	teleport/legacy/types/types.proto
+	teleport/legacy/types/types.proto \
+	teleport/machineid/v1/bot.proto
 
 libfiles := $(wildcard *.go)
 

@@ -1,0 +1,119 @@
+// Copyright 2024 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.provisioning.v1;
+
+import "google/protobuf/timestamp.proto";
+import "teleport/header/v1/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1;provisioningv1";
+
+// PrincipalState describes the provisioning state of a Teleport user in a
+// downstream system
+message PrincipalState {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  PrincipalStateSpec spec = 5;
+  PrincipalStateStatus status = 6;
+}
+
+// ProvisioningState indicates the current stage of the provisioning pipeline a
+// resource is in.
+enum ProvisioningState {
+  // PROVISIONING_STATE_UNSPECIFIED is the `unset` default value. This should
+  // never be used in practice.
+  PROVISIONING_STATE_UNSPECIFIED = 0;
+
+  // PROVISIONING_STATE_STALE indicates that Teleport has detected a change in
+  // the principal resource, but that has not yet been reflected in the
+  // downstream system.
+  PROVISIONING_STATE_STALE = 1;
+
+  // PROVISIONING_STATE_PROVISIONED indicates that the principal has been synced
+  // with the downstram system and no further work is necessary.
+  PROVISIONING_STATE_PROVISIONED = 2;
+
+  // PROVISIONING_STATE_DELETED indicates that the principal has been deleted in
+  // Teleport, and must be de-provisioned in the downstream system and the
+  // provisioning state record deleted.
+  PROVISIONING_STATE_DELETED = 3;
+}
+
+// PrincipalType indicates the type of principal represented by a PrincipalState
+enum PrincipalType {
+  // PRINCIPAL_TYPE_UNSPECIFIED is the `unset` default value. This should
+  // never be used in practice.
+  PRINCIPAL_TYPE_UNSPECIFIED = 0;
+
+  // PRINCIPAL_TYPE_USER indicates that the target principal is a Teleport user
+  PRINCIPAL_TYPE_USER = 1;
+
+  // PRINCIPAL_TYPE_USER indicates that the target principal is a Teleport
+  // Access List
+  PRINCIPAL_TYPE_ACCESS_LIST = 2;
+}
+
+// PrincipalStateSpec describes the current state of a provisioning operation. It
+// serves as a Teleport-local record of the downstream state.
+message PrincipalStateSpec {
+  // DownstreamId identifies the downstream service that this state applies to.
+  string downstream_id = 1;
+
+  // PrincipalType identifies what kind of principal this state applies to, either
+  // a User or a Group (i.e. AccessList)
+  PrincipalType principal_type = 2;
+
+  // PrincipalId identifies the Teleport User or Access List that this state
+  // applies to
+  string principal_id = 3;
+}
+
+// PrincipalStateStatus contains the runtime-writable status block for the
+// PrincipalState resource
+message PrincipalStateStatus {
+  // Renamed status value (and it's type) to "provisioning_state" for clarity
+  reserved "status";
+  reserved 1;
+
+  // ProvisioningState indicates the resource's current state in the
+  // provisioning process state machine.
+  ProvisioningState provisioning_state = 5;
+
+  // ExternalID holds the ID used by the downstream system to represent this
+  // principal
+  string external_id = 2;
+
+  // LastProvisioned records the last time this record was provisioined into
+  // the downstream system.
+  google.protobuf.Timestamp last_provisioned = 3;
+
+  // Error holds a description of the last provisioing error, if any.
+  string error = 4;
+
+  // Revision holds the revision of the principal record provisioned into the
+  // downstream system. Used to assert that the latest revision of the principal
+  // is provisioned downstream and detect changes in the principal that require
+  // re-provisoning.
+  string provisioned_principal_revision = 6;
+
+  // ActiveLocks holds the list of known active locks on the principal. Used to
+  // store the lock state across restarts of Teleport in order to detect state
+  // changes that may happen while Teleport is not running (e.g. a storage
+  // backend deleting an expired lock record while Teleport is offline)
+  repeated string active_locks = 7;
+}
