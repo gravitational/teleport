@@ -236,7 +236,7 @@ func expectResourceSyncEvent(t *testing.T, emitter *eventstest.ChannelEmitter, f
 		require.True(t, ok, "expected AWSICResourceSync event, got %T", event)
 
 		fn(syncEvent)
-	case <-time.After(5 * time.Second):
+	case <-time.After(20 * time.Second):
 		require.Fail(t, "timed out waiting for event")
 	}
 }

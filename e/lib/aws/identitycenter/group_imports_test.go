@@ -397,97 +397,79 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 	}
 }
 
-// TestReimportRequestTriggersImport asserts that groups are imported from AWS
-// only on initial startup, or if the REIMPORT_REQUESTED group import state
-// is set.
-func TestReimportRequestTriggersImport(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.AccessLists: {Enabled: true},
-			},
-		},
-	})
-
-	// GIVEN an IC test fixture, with some known groups in the AWS client
+// TestGroupImportTriggers asserts that groups are imported from AWS
+// if GroupImportStatus.StatusCode is not AWSICGroupImportStatusCode_DONE.
+// By design, the group import is only performed once, except when the user wants to update
+// the group filter. In that case, REIMPORT_REQUESTED status is used to override group
+// status code, which re-triggers group import.
+func TestGroupImportTriggers(t *testing.T) {
 	fixture := ictest.NewFixture(t, ictest.WithCache(ictest.CacheArgs{Started: true}))
 	ctx := fixture.Ctx
-
-	// GIVEN an IC plugin resource configured to only import the group with id
-	// "group1"
 	fixture.CreatePluginResource(t,
 		icfixture.WithGroupFilters(icfilters.Filters{
+			// import exactly one group.
 			{Include: &types.AWSICResourceFilter_Id{Id: "group1"}},
 		}))
 
-	// WHEN I create and start the IC integration service...
-	_, stopService := runTestService(t, ctx, fixture)
+	testCases := []struct {
+		name            string
+		updatePluginReq *types.PluginV1
+		statusCode      types.AWSICGroupImportStatusCode
+		expectImport    bool
+	}{
+		{
+			name:         "done status skips import",
+			statusCode:   types.AWSICGroupImportStatusCode_DONE,
+			expectImport: false,
+		},
+		{
+			name:         "default empty group import status triggers import",
+			expectImport: true,
+		},
+		{
+			name:         "error group import status triggers import",
+			statusCode:   types.AWSICGroupImportStatusCode_FAILED,
+			expectImport: true,
+		},
+		{
+			name:         "reimport requested status triggers import",
+			statusCode:   types.AWSICGroupImportStatusCode_REIMPORT_REQUESTED,
+			expectImport: true,
+		},
+	}
 
-	// EXPECT that a resource event was issued indicating that 1 group was imported
-	expectResourceSyncEvent(t, fixture.Emitter, func(e *apievents.AWSICResourceSync) {
-		require.Equal(t, int32(1), e.TotalUserGroups)
-	})
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := fixture.MustGetPluginResource(t)
+			p.Status = types.PluginStatusV1{
+				Code: types.PluginStatusCode_RUNNING,
+				Details: &types.PluginStatusV1_AwsIc{
+					AwsIc: &types.PluginAWSICStatusV1{
+						GroupImportStatus: &types.AWSICGroupImportStatus{
+							StatusCode: tc.statusCode,
+						},
+					},
+				},
+			}
+			_, err := fixture.PluginService.UpdatePlugin(ctx, p)
+			require.NoError(t, err)
+			// runs the main sync cycle that covers group, account,
+			// permission set and account assignment sync.
+			_, stopService := runTestService(t, ctx, fixture)
+			if tc.expectImport {
+				expectResourceSyncEvent(t, fixture.Emitter, func(e *apievents.AWSICResourceSync) {
+					require.Equal(t, int32(1), e.TotalUserGroups)
+				})
 
-	// Ensure that any status update that we intercepted with our fake status
-	// sink is pushed down to the underlying plugin resource
-	p := fixture.MustGetPluginResource(t)
-	require.NoError(t, p.SetStatus(fixture.PluginStatusSink.Get()))
-	_, err := fixture.PluginService.UpdatePlugin(context.Background(), p)
-	require.NoError(t, err)
-
-	// Stop the service so the sub-tests can start new ones, mimicking what the
-	// plugin manager would do on a plugin update.
-	stopService()
-
-	t.Run("non import-triggering update", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-
-		// We don't want to accidentally receive events from the previous run of
-		// the service, so replace the ole event emitter
-		fixture.ResetEmitter()
-
-		// GIVEN a plugin update that should not cause a re-import
-		p := fixture.MustGetPluginResource(t)
-		p.Spec.GetAwsIc().AccessListDefaultOwners = []string{"spongebob"}
-		_, err := fixture.PluginService.UpdatePlugin(ctx, p)
-		require.NoError(t, err)
-
-		// WHEN we start the IC service again
-		runTestService(t, ctx, fixture)
-
-		// EXPECT that we will eventually get a Resource Sync Event indicating
-		// that no groups were imported. This shows that the group import
-		// process wasn't run.
-		expectResourceSyncEvent(t, fixture.Emitter, func(e *apievents.AWSICResourceSync) {
-			require.Equal(t, int32(0), e.TotalUserGroups)
+			} else {
+				expectResourceSyncEvent(t, fixture.Emitter, func(e *apievents.AWSICResourceSync) {
+					require.Equal(t, int32(0), e.TotalUserGroups)
+				})
+			}
+			fixture.ResetEmitter()
+			stopService()
 		})
-	})
-
-	t.Run("import-triggering update", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-
-		// We don't want to accidentally receive events from the previous run of
-		// the service, so replace the ole event emitter
-		fixture.ResetEmitter()
-
-		// GIVEN a plugin update that should cause a re-import
-		p := fixture.MustGetPluginResource(t)
-		p.Status.GetAwsIc().GroupImportStatus.StatusCode = types.AWSICGroupImportStatusCode_REIMPORT_REQUESTED
-		_, err := fixture.PluginService.UpdatePlugin(ctx, p)
-		require.NoError(t, err)
-
-		// WHEN we start the IC service again
-		runTestService(t, ctx, fixture)
-
-		// EXPECT that we will eventually get a Resource Sync Event showing that
-		// a group was imported, indicating that the group import process ran.
-		expectResourceSyncEvent(t, fixture.Emitter, func(e *apievents.AWSICResourceSync) {
-			require.Equal(t, int32(1), e.TotalUserGroups)
-		})
-	})
+	}
 }
 
 func countICOriginatedList(in []listWithMembersAndRoles) int {
