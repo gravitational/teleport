@@ -21,6 +21,7 @@ package common
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -76,6 +77,7 @@ type databaseExecCommand struct {
 	client                 databaseExecClient
 	makeCommand            func(context.Context, *databaseInfo, string, string) (*exec.Cmd, error)
 	prefixedOutputHintOnce sync.Once
+	summary                databaseExecSummary
 }
 
 func newDatabaseExecCommand(cf *CLIConf) (*databaseExecCommand, error) {
@@ -113,7 +115,7 @@ func (c *databaseExecCommand) run() error {
 		return trace.Wrap(err)
 	}
 
-	// Execute queries in parallel.
+	// Execute  in parallel.
 	group, groupCtx := errgroup.WithContext(c.cf.Context)
 	group.SetLimit(c.cf.MaxConnections)
 	for _, db := range dbs {
@@ -127,6 +129,16 @@ func (c *databaseExecCommand) run() error {
 			return trace.Wrap(c.exec(groupCtx, db))
 		})
 	}
+
+	defer func() {
+		c.summary.printResult(c.cf.Stdout())
+		if c.cf.OutputDir != "" {
+			if err := c.summary.saveResult(c.cf.Stdout(), c.cf.OutputDir); err != nil {
+				fmt.Fprintln(os.Stderr, "Failed to save summary.")
+			}
+		}
+	}()
+
 	return trace.Wrap(group.Wait())
 }
 
@@ -164,6 +176,9 @@ func checkDatabaseExecInputFlags(cf *CLIConf) error {
 	if cf.MaxConnections > 1 && cf.OutputDir == "" {
 		return trace.BadParameter("--output-dir must be set when executing concurrent connections")
 	}
+	if cf.OutputDir != "" && utils.FileExists(cf.OutputDir) {
+		return trace.BadParameter("directory %q already exists", cf.OutputDir)
+	}
 	return nil
 }
 
@@ -175,7 +190,7 @@ func (c *databaseExecCommand) getDatabases() ([]types.Database, error) {
 }
 
 func (c *databaseExecCommand) getDatabasesByNames() ([]types.Database, error) {
-	fmt.Fprintln(c.cf.Stdout(), "Fetching databases...")
+	fmt.Fprintln(c.cf.Stdout(), "Fetching databases ...")
 
 	names := apiutils.Deduplicate(strings.Split(c.cf.DatabaseServices, ","))
 	var predicate string
@@ -199,7 +214,7 @@ func (c *databaseExecCommand) getDatabasesByNames() ([]types.Database, error) {
 }
 
 func (c *databaseExecCommand) searchDatabases() (databases []types.Database, err error) {
-	fmt.Fprintln(c.cf.Stdout(), "Searching databases...")
+	fmt.Fprintln(c.cf.Stdout(), "Searching databases ...")
 	filter := c.tc.ResourceFilter(types.KindDatabaseServer)
 
 	logger.DebugContext(c.cf.Context, "Searching for databases", "filter", filter)
@@ -230,13 +245,22 @@ func (c *databaseExecCommand) printResultAndConfirm(dbs []types.Database) error 
 func (c *databaseExecCommand) exec(ctx context.Context, db types.Database) (err error) {
 	outputWriter := c.cf.Stdout()
 	errWriter := c.cf.Stderr()
+	result := databaseExecResult{
+		RouteToDatabase: client.RouteToDatabaseToProto(c.makeRouteToDatabase(db)),
+		Command:         c.cf.DatabaseCommand,
+		Success:         true,
+	}
+
 	defer func() {
-		// Print the error and return nil to continue-on-error. Consider
-		// implementing stop-on-error if requested.
 		if err != nil {
+			result.Error = err.Error()
+			result.Success = false
+
+			// Print the error and return nil to continue-on-error.
 			fmt.Fprintf(errWriter, "Failed to execute command for %s: %v\n", db.GetName(), err)
 			err = nil
 		}
+		c.summary.add(result)
 	}()
 
 	switch {
@@ -250,6 +274,12 @@ func (c *databaseExecCommand) exec(ctx context.Context, db types.Database) (err 
 		outputWriter = logFile
 		errWriter = logFile
 		fmt.Fprintf(c.cf.Stdout(), "Executing command for %q. Output will be saved at %q.\n", db.GetName(), logFile.Name())
+
+		// Save absolute path in the summary. Not expecting the absolute check
+		// to fail but use the filename in case it does.
+		if result.OutputFile, err = filepath.Abs(logFile.Name()); err != nil {
+			result.OutputFile = filepath.Base(logFile.Name())
+		}
 	default:
 		// No prefix so output can still be copy-pasted. Extra empty line to
 		// separate sequential executions.
@@ -272,7 +302,11 @@ func (c *databaseExecCommand) exec(ctx context.Context, db types.Database) (err 
 	}
 	dbCmd.Stdout = outputWriter
 	dbCmd.Stderr = errWriter
-
+	defer func() {
+		if dbCmd.ProcessState != nil {
+			result.ExitCode = dbCmd.ProcessState.ExitCode()
+		}
+	}()
 	logger.DebugContext(ctx, "Executing database command", "command", dbCmd, "db", dbInfo.ServiceName)
 	return trace.Wrap(c.cf.RunCommand(dbCmd))
 }
@@ -311,17 +345,21 @@ func (c *databaseExecCommand) startLocalProxy(ctx context.Context, dbInfo *datab
 	return lp, nil
 }
 
+func (c *databaseExecCommand) makeRouteToDatabase(db types.Database) tlsca.RouteToDatabase {
+	return tlsca.RouteToDatabase{
+		ServiceName: db.GetName(),
+		Protocol:    db.GetProtocol(),
+		Username:    c.cf.DatabaseUser,
+		Database:    c.cf.DatabaseName,
+		Roles:       requestedDatabaseRoles(c.cf),
+	}
+}
+
 func (c *databaseExecCommand) makeDatabaseInfo(db types.Database) (*databaseInfo, error) {
 	dbInfo := &databaseInfo{
-		RouteToDatabase: tlsca.RouteToDatabase{
-			ServiceName: db.GetName(),
-			Protocol:    db.GetProtocol(),
-			Username:    c.cf.DatabaseUser,
-			Database:    c.cf.DatabaseName,
-			Roles:       requestedDatabaseRoles(c.cf),
-		},
-		database: db,
-		checker:  c.client.getAccessChecker(),
+		RouteToDatabase: c.makeRouteToDatabase(db),
+		database:        db,
+		checker:         c.client.getAccessChecker(),
 	}
 	return dbInfo, trace.Wrap(dbInfo.checkAndSetDefaults(c.cf, c.tc))
 }
@@ -507,4 +545,68 @@ func printTableForDatabaseExec(w io.Writer, dbs []types.Database) {
 		rows:           rows,
 		includeColumns: []string{"Name", "Protocol", "Description", "Labels"},
 	})
+}
+
+type databaseExecResult struct {
+	proto.RouteToDatabase `json:"database"`
+	Command               string `json:"command"`
+	OutputFile            string `json:"output_file,omitempty"`
+	Success               bool   `json:"success"`
+	Error                 string `json:"error,omitempty"`
+	ExitCode              int    `json:"exit_code"`
+}
+
+type databaseExecSummary struct {
+	Databases []databaseExecResult `json:"databases"`
+	Success   int                  `json:"success"`
+	Failure   int                  `json:"failure"`
+	Total     int                  `json:"total"`
+
+	mu sync.Mutex
+}
+
+func (s *databaseExecSummary) add(result databaseExecResult) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Databases = append(s.Databases, result)
+	s.Total++
+	if result.Success {
+		s.Success++
+	} else {
+		s.Failure++
+	}
+}
+
+func (s *databaseExecSummary) printResult(w io.Writer) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	fmt.Fprintf(w, "\nSummary: %d of %d succeeded.\n", s.Success, s.Total)
+}
+
+func (s *databaseExecSummary) saveResult(w io.Writer, outputDir string) error {
+	summaryPath := filepath.Join(outputDir, "summary.json")
+	summaryPath, err := utils.EnsureLocalPath(summaryPath, "", "")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	summaryFile, err := utils.OpenNewFile(summaryPath, teleport.FileMaskOwnerOnly)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer summaryFile.Close()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	summaryData, err := json.Marshal(s)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := summaryFile.Write(summaryData); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+
+	fmt.Fprintf(w, "Summary is saved at %q.\n", summaryPath)
+	return nil
 }

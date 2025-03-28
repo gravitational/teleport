@@ -1065,7 +1065,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbExec.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	dbExec.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	dbExec.Flag("max-connections", "Run queries on target databases concurrently. Defaults to 1, and maximum allowed is 10.").Default("1").IntVar(&cf.MaxConnections)
-	dbExec.Flag("output-dir", "Directory to store command output per target database. A summary is saved as \"summary.json\".").StringVar(&cf.OutputDir)
+	dbExec.Flag("output-dir", "Directory to store command output per target database service. A summary is saved as \"summary.json\".").StringVar(&cf.OutputDir)
 	dbExec.Flag("dbs", "List of comma separated target database services. Mutually exclusive with --search or --labels.").StringVar(&cf.DatabaseServices)
 	dbExec.Flag("confirm", "Confirm selected database services before executing command.").Default("true").BoolVar(&cf.Confirm)
 	dbExec.Arg("command", "Execute this command on target database services").Required().StringVar(&cf.DatabaseCommand)
