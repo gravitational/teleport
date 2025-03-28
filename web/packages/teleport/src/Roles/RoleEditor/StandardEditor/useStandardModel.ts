@@ -90,7 +90,8 @@ type StandardModelAction =
   | AddAdminRuleAction
   | SetAdminRuleAction
   | RemoveAdminRuleAction
-  | SetOptionsAction;
+  | SetOptionsAction
+  | EnableValidationAction;
 
 /** Sets the entire model. */
 type SetModelAction = { type: 'set-role-model'; payload: RoleEditorModel };
@@ -115,6 +116,10 @@ type RemoveAdminRuleAction = {
   payload: { id: string };
 };
 type SetOptionsAction = { type: 'set-options'; payload: OptionsModel };
+type EnableValidationAction = {
+  type: 'show-validation-errors';
+  payload?: never;
+};
 
 /** Produces a new model using existing state and the action. */
 const reduce = (
@@ -181,6 +186,15 @@ const reduce = (
       state.roleModel.rules = state.roleModel.rules.filter(
         r => r.id !== payload.id
       );
+      break;
+
+    case 'show-validation-errors':
+      for (const r of state.roleModel.resources) {
+        r.hideValidationErrors = false;
+      }
+      for (const r of state.roleModel.rules) {
+        r.hideValidationErrors = false;
+      }
       break;
 
     default:
