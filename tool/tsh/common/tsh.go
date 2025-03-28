@@ -68,6 +68,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -4592,10 +4593,12 @@ func setEnvVariables(c *client.Config, options Options) {
 }
 
 func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
+	hardwareKeyService := piv.NewYubiKeyService(nil /*prompt*/)
+
 	switch {
 	case cf.IdentityFileIn != "":
 		// Import identity file keys to in-memory client store.
-		clientStore, err := identityfile.NewClientStoreFromIdentityFile(cf.IdentityFileIn, proxy, cf.SiteName)
+		clientStore, err := identityfile.NewClientStoreFromIdentityFile(cf.IdentityFileIn, proxy, cf.SiteName, hardwareKeyService)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4604,16 +4607,16 @@ func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
 	case cf.IdentityFileOut != "", cf.AuthConnector == constants.HeadlessConnector:
 		// Store client keys in memory, where they can be exported to non-standard
 		// FS formats (e.g. identity file) or used for a single client call in memory.
-		return client.NewMemClientStore(), nil
+		return client.NewMemClientStore(hardwareKeyService), nil
 
 	case cf.AddKeysToAgent == client.AddKeysToAgentOnly:
 		// Store client keys in memory, but save trusted certs and profile to disk.
-		clientStore := client.NewFSClientStore(cf.HomePath)
+		clientStore := client.NewFSClientStore(cf.HomePath, hardwareKeyService)
 		clientStore.KeyStore = client.NewMemKeyStore()
 		return clientStore, nil
 
 	default:
-		return client.NewFSClientStore(cf.HomePath), nil
+		return client.NewFSClientStore(cf.HomePath, hardwareKeyService), nil
 	}
 }
 
