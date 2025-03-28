@@ -28,9 +28,12 @@ import (
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
+// maxPayloads is the maximum number of verification payloads a discovery method
+// will attempt to discover. It's used to prevent a DoS attack by filling the
+// registry with thousands of useless signatures.
+const maxPayloads = 25
+
 // DiscoveryConfig contains configuration for the Sigstore discovery process.
-//
-// TODO: put limits on the number of manifests and layers we will pull.
 type DiscoveryConfig struct {
 	Logger   *slog.Logger
 	Keychain authn.Keychain

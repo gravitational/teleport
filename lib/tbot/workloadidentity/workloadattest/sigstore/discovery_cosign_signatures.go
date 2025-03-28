@@ -119,6 +119,9 @@ func (d *CosignSignatureDiscoveryMethod) Discover(ctx context.Context) ([]*workl
 			Bundle:                bundleBytes,
 			SimpleSigningEnvelope: envelope,
 		})
+		if len(payloads) == maxPayloads {
+			break
+		}
 	}
 	return payloads, nil
 }
