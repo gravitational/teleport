@@ -139,6 +139,27 @@ func TestDiscovery_Attestations(t *testing.T) {
 	assert.Equal(t, "https://slsa.dev/provenance/v1", attestation.PredicateType)
 }
 
+func TestDiscovery_InfiniteRedirects(t *testing.T) {
+	// Check that a malicious registry can't DoS us with infinite redirects.
+	server := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+		}),
+	)
+	t.Cleanup(server.Close)
+
+	regURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	_, err = sigstore.Discover(
+		context.Background(),
+		fmt.Sprintf("%s/foo:v1", regURL.Host),
+		"sha256:32c91fcdf8b41ef78cf63e7be080a366597fd5a748480f5d2a6dc0cff5203807",
+		sigstore.DiscoveryConfig{},
+	)
+	require.ErrorContains(t, err, "stopped after 10 redirects")
+}
+
 func runRegistry(t *testing.T) string {
 	t.Helper()
 
