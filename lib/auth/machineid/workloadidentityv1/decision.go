@@ -120,8 +120,7 @@ func decide(
 		dst.OrganizationalUnit = templated
 	}
 
-	ec := wi.GetSpec().GetSpiffe().GetJwt().GetExtraClaims()
-	if ec != nil {
+	if ec := wi.GetSpec().GetSpiffe().GetJwt().GetExtraClaims(); ec != nil {
 		templated, err := templateExtraClaims(ec, attrs)
 		if err != nil {
 			d.reason = trace.Wrap(
