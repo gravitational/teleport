@@ -83,7 +83,7 @@ func (s *fakeYubiKeyPIVService) NewPrivateKey(ctx context.Context, config hardwa
 	}
 
 	if priv, ok := hardwarePrivateKeys[keySlot]; ok {
-		return hardwarekey.NewPrivateKey(s, priv.ref, config.ContextualKeyInfo), nil
+		return hardwarekey.NewPrivateKey(s, priv.ref), nil
 	}
 
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
@@ -107,12 +107,12 @@ func (s *fakeYubiKeyPIVService) NewPrivateKey(ctx context.Context, config hardwa
 		ref:    ref,
 	}
 
-	return hardwarekey.NewPrivateKey(s, ref, config.ContextualKeyInfo), nil
+	return hardwarekey.NewPrivateKey(s, ref), nil
 }
 
 // Sign performs a cryptographic signature using the specified hardware
 // private key and provided signature parameters.
-func (s *fakeYubiKeyPIVService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, _ hardwarekey.ContextualKeyInfo, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
+func (s *fakeYubiKeyPIVService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
 	hardwarePrivateKeysMux.Lock()
 	defer hardwarePrivateKeysMux.Unlock()
 

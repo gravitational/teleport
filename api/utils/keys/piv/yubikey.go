@@ -138,7 +138,7 @@ const (
 	signTouchPromptDelay = time.Millisecond * 200
 )
 
-func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo, prompt hardwarekey.Prompt, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, prompt hardwarekey.Prompt, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 
@@ -161,7 +161,7 @@ func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyI
 			select {
 			case <-touchPromptDelayTimer.C:
 				// Prompt for touch after a delay, in case the function succeeds without touch due to a cached touch.
-				err := prompt.Touch(ctx, keyInfo)
+				err := prompt.Touch(ctx)
 				if err != nil {
 					// Cancel the entire function when an error occurs.
 					// This is typically used for aborting the prompt.
@@ -183,7 +183,7 @@ func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyI
 				defer touchPromptDelayTimer.Reset(signTouchPromptDelay)
 			}
 		}
-		pass, err := prompt.AskPIN(ctx, hardwarekey.PINRequired, keyInfo)
+		pass, err := prompt.AskPIN(ctx, hardwarekey.PINRequired)
 		return pass, trace.Wrap(err)
 	}
 
@@ -390,8 +390,8 @@ func (y *YubiKey) SetPIN(oldPin, newPin string) error {
 	return trace.Wrap(err)
 }
 
-func (y *YubiKey) setPINAndPUKFromDefault(ctx context.Context, prompt hardwarekey.Prompt, keyInfo hardwarekey.ContextualKeyInfo) (string, error) {
-	pinAndPUK, err := prompt.ChangePIN(ctx, keyInfo)
+func (y *YubiKey) setPINAndPUKFromDefault(ctx context.Context, prompt hardwarekey.Prompt) (string, error) {
+	pinAndPUK, err := prompt.ChangePIN(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

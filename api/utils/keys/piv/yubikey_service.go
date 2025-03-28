@@ -111,7 +111,7 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 
 	// If PIN is required, check that PIN and PUK are not the defaults.
 	if config.Policy.PINRequired {
-		if err := s.checkOrSetPIN(ctx, y, config.ContextualKeyInfo); err != nil {
+		if err := s.checkOrSetPIN(ctx, y); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -121,7 +121,7 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return hardwarekey.NewPrivateKey(s, ref, config.ContextualKeyInfo), nil
+		return hardwarekey.NewPrivateKey(s, ref), nil
 	}
 
 	// If a custom slot was not specified, check for a key in the
@@ -137,7 +137,7 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 		// Unknown cert found, this slot could be in use by a non-teleport client.
 		// Prompt the user before we overwrite the slot.
 		case len(cert.Subject.Organization) == 0 || cert.Subject.Organization[0] != certOrgName:
-			if err := s.promptOverwriteSlot(ctx, nonTeleportCertificateMessage(pivSlot, cert), config.ContextualKeyInfo); err != nil {
+			if err := s.promptOverwriteSlot(ctx, nonTeleportCertificateMessage(pivSlot, cert)); err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return generatePrivateKey()
@@ -156,14 +156,14 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 
 	case config.Policy.TouchRequired && att.TouchPolicy == piv.TouchPolicyNever:
 		msg := fmt.Sprintf("private key in YubiKey PIV slot %q does not require touch.", pivSlot)
-		if err := s.promptOverwriteSlot(ctx, msg, config.ContextualKeyInfo); err != nil {
+		if err := s.promptOverwriteSlot(ctx, msg); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return generatePrivateKey()
 
 	case config.Policy.PINRequired && att.PINPolicy == piv.PINPolicyNever:
 		msg := fmt.Sprintf("private key in YubiKey PIV slot %q does not require PIN", pivSlot)
-		if err := s.promptOverwriteSlot(ctx, msg, config.ContextualKeyInfo); err != nil {
+		if err := s.promptOverwriteSlot(ctx, msg); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return generatePrivateKey()
@@ -185,12 +185,12 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 				},
 			},
 		},
-	}, config.ContextualKeyInfo), nil
+	}), nil
 }
 
 // Sign performs a cryptographic signature using the specified hardware
 // private key and provided signature parameters.
-func (s *YubiKeyService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
+func (s *YubiKeyService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
 	// Usually, Sign will be called without context through the [crypto.Signer] interface,
 	// so we opportunistically set the context.
 	if ctx == context.TODO() {
@@ -205,7 +205,7 @@ func (s *YubiKeyService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRe
 	s.promptMux.Lock()
 	defer s.promptMux.Unlock()
 
-	return y.sign(ctx, ref, keyInfo, s.prompt, rand, digest, opts)
+	return y.sign(ctx, ref, s.prompt, rand, digest, opts)
 }
 
 // SetPrompt sets the hardware key prompt used by the hardware key service, if applicable.
@@ -274,11 +274,11 @@ func (s *YubiKeyService) getYubiKey(serialNumber uint32) (*YubiKey, error) {
 // checkOrSetPIN prompts the user for PIN and verifies it with the YubiKey.
 // If the user provides the default PIN, they will be prompted to set a
 // non-default PIN and PUK before continuing.
-func (s *YubiKeyService) checkOrSetPIN(ctx context.Context, y *YubiKey, keyInfo hardwarekey.ContextualKeyInfo) error {
+func (s *YubiKeyService) checkOrSetPIN(ctx context.Context, y *YubiKey) error {
 	s.promptMux.Lock()
 	defer s.promptMux.Unlock()
 
-	pin, err := s.prompt.AskPIN(ctx, hardwarekey.PINOptional, keyInfo)
+	pin, err := s.prompt.AskPIN(ctx, hardwarekey.PINOptional)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -288,7 +288,7 @@ func (s *YubiKeyService) checkOrSetPIN(ctx context.Context, y *YubiKey, keyInfo 
 		fmt.Fprintf(os.Stderr, "The default PIN %q is not supported.\n", piv.DefaultPIN)
 		fallthrough
 	case "":
-		pin, err = y.setPINAndPUKFromDefault(ctx, s.prompt, keyInfo)
+		pin, err = y.setPINAndPUKFromDefault(ctx, s.prompt)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -297,12 +297,12 @@ func (s *YubiKeyService) checkOrSetPIN(ctx context.Context, y *YubiKey, keyInfo 
 	return trace.Wrap(y.verifyPIN(pin))
 }
 
-func (s *YubiKeyService) promptOverwriteSlot(ctx context.Context, msg string, keyInfo hardwarekey.ContextualKeyInfo) error {
+func (s *YubiKeyService) promptOverwriteSlot(ctx context.Context, msg string) error {
 	s.promptMux.Lock()
 	defer s.promptMux.Unlock()
 
 	promptQuestion := fmt.Sprintf("%v\nWould you like to overwrite this slot's private key and certificate?", msg)
-	if confirmed, confirmErr := s.prompt.ConfirmSlotOverwrite(ctx, promptQuestion, keyInfo); confirmErr != nil {
+	if confirmed, confirmErr := s.prompt.ConfirmSlotOverwrite(ctx, promptQuestion); confirmErr != nil {
 		return trace.Wrap(confirmErr)
 	} else if !confirmed {
 		return trace.Wrap(trace.CompareFailed(msg), "user declined to overwrite slot")

@@ -496,6 +496,11 @@ type Config struct {
 	// SSOMFACeremonyConstructor is a custom SSO MFA ceremony constructor.
 	SSOMFACeremonyConstructor func(rd *sso.Redirector) mfa.SSOMFACeremony
 
+	// CustomHardwareKeyPrompt is a custom hardware key prompt to use when asking
+	// for a hardware key PIN, touch, etc.
+	// If empty, a default CLI prompt is used.
+	CustomHardwareKeyPrompt hardwarekey.Prompt
+
 	// DisableSSHResumption disables transparent SSH connection resumption.
 	DisableSSHResumption bool
 
@@ -1281,9 +1286,14 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 			// Initialize empty client store to prevent panics.
 			tc.ClientStore = NewMemClientStore(nil /*hwKeyService*/)
 		} else {
+			var prompt hardwarekey.Prompt = &hardwarekey.CLIPrompt{}
+			if tc.CustomHardwareKeyPrompt != nil {
+				prompt = tc.CustomHardwareKeyPrompt
+			}
+
 			// TODO (Joerger): init hardware key service (and client store) earlier where it can
 			// be properly shared.
-			hardwareKeyService := piv.NewYubiKeyService(context.TODO(), &hardwarekey.CLIPrompt{})
+			hardwareKeyService := piv.NewYubiKeyService(context.TODO(), prompt)
 			tc.ClientStore = NewFSClientStore(c.KeysDir, hardwareKeyService)
 			if c.AddKeysToAgent == AddKeysToAgentOnly {
 				// Store client keys in memory, but still save trusted certs and profile to disk.
@@ -4004,11 +4014,6 @@ func (tc *TeleportClient) GetNewLoginKeyRing(ctx context.Context) (keyRing *KeyR
 			Policy: hardwarekey.PromptPolicy{
 				TouchRequired: tc.PrivateKeyPolicy.IsHardwareKeyTouchVerified(),
 				PINRequired:   tc.PrivateKeyPolicy.IsHardwareKeyPINVerified(),
-			},
-			ContextualKeyInfo: hardwarekey.ContextualKeyInfo{
-				ProxyHost:   tc.WebProxyHost(),
-				Username:    tc.Username,
-				ClusterName: tc.SiteName,
 			},
 		})
 		if err != nil {

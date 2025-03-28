@@ -54,12 +54,7 @@ func TestEncodeDecodePrivateKey(t *testing.T) {
 		},
 	}
 
-	contextualKeyInfo := hardwarekey.ContextualKeyInfo{
-		ProxyHost:   "billy.io",
-		Username:    "Billy@billy.io",
-		ClusterName: "billy.io",
-	}
-	priv := hardwarekey.NewPrivateKey(s, fullRef, contextualKeyInfo)
+	priv := hardwarekey.NewPrivateKey(s, fullRef)
 
 	for _, tt := range []struct {
 		name         string
@@ -97,12 +92,12 @@ func TestEncodeDecodePrivateKey(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			priv := hardwarekey.NewPrivateKey(s, tt.ref, hardwarekey.ContextualKeyInfo{})
+			priv := hardwarekey.NewPrivateKey(s, tt.ref)
 			encoded, err := priv.Encode()
 			require.NoError(t, err)
 
 			s.getMissingKeyRefDetails = tt.updateKeyRef
-			decodedPriv, err := hardwarekey.DecodePrivateKey(s, encoded, contextualKeyInfo)
+			decodedPriv, err := hardwarekey.DecodePrivateKey(s, encoded)
 			require.NoError(t, err)
 			require.Equal(t, tt.expectPriv, decodedPriv)
 		})
@@ -120,7 +115,7 @@ func (s *mockHardwareKeyService) NewPrivateKey(_ context.Context, _ hardwarekey.
 
 // Sign performs a cryptographic signature using the specified hardware
 // private key and provided signature parameters.
-func (s *mockHardwareKeyService) Sign(_ context.Context, _ *hardwarekey.PrivateKeyRef, _ hardwarekey.ContextualKeyInfo, _ io.Reader, _ []byte, _ crypto.SignerOpts) ([]byte, error) {
+func (s *mockHardwareKeyService) Sign(_ context.Context, _ *hardwarekey.PrivateKeyRef, _ io.Reader, _ []byte, _ crypto.SignerOpts) ([]byte, error) {
 	return nil, nil
 }
 

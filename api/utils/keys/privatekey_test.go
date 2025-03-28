@@ -331,7 +331,7 @@ func TestHardwareKey_OldLogin(t *testing.T) {
 	// slot (and serial number which is irrelevant with pivtest).
 	hwPrivMissingInfo := hardwarekey.NewPrivateKey(s, &hardwarekey.PrivateKeyRef{
 		SlotKey: 0x9a,
-	}, hardwarekey.ContextualKeyInfo{})
+	})
 	keyPEM, err := keys.MarshalPrivateKey(hwPrivMissingInfo)
 	require.NoError(t, err)
 	require.NotEqual(t, hwPriv, hwPrivMissingInfo)

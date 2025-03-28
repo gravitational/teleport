@@ -540,7 +540,6 @@ func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, hwks hardwarekey.Service, opt
 		fs.userTLSKeyPath(idx),
 		fs.tlsCertPath(idx),
 		keys.WithHardwareKeyService(hwks),
-		keys.WithContextualKeyInfo(idx.contextualKeyInfo()),
 	)
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -556,7 +555,6 @@ func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, hwks hardwarekey.Service, opt
 		fs.userSSHKeyPath(idx),
 		fs.publicKeyPath(idx),
 		keys.WithHardwareKeyService(hwks),
-		keys.WithContextualKeyInfo(idx.contextualKeyInfo()),
 	)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
@@ -585,7 +583,6 @@ func (fs *FSKeyStore) updateKeyRingWithCerts(o CertOption, hwks hardwarekey.Serv
 		keyRing.KeyRingIndex,
 		keyRing,
 		keys.WithHardwareKeyService(hwks),
-		keys.WithContextualKeyInfo(keyRing.contextualKeyInfo()),
 	)
 }
 
