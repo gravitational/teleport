@@ -17,7 +17,7 @@ print_invalid_license() {
     echo "This Teleport Enterprise cluster is currently using an outdated license file. To resolve this issue, please follow these steps:"
     echo ""
     echo "1. Navigate to https://teleport.sh/ to download your updated license file."
-    echo "2. Refer to our documentation at https://goteleport.com/r/license for detailed instructions on updating your license."
+    echo "2. Refer to our documentation at https://goteleport.com/docs/admin-guides/deploy-a-cluster/license/#renew-or-update-your-license for detailed instructions on updating your license."
     echo "3. If you have any questions or need assistance, please reach out to our support team at support@goteleport.com."
     echo ""
     echo "Thank you for using Teleport."
