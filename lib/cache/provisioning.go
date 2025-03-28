@@ -70,16 +70,12 @@ func (provisioningStateExecutor) upsert(ctx context.Context, cache *Cache, resou
 }
 
 func (provisioningStateExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	unwrapper, ok := resource.(types.Resource153Unwrapper)
+	unwrapper, ok := resource.(types.Resource153UnwrapperT[*provisioningv1.PrincipalState])
 	if !ok {
 		return trace.BadParameter("resource must implement Resource153Unwrapper: %T", resource)
 	}
 
-	principalState, ok := unwrapper.Unwrap().(*provisioningv1.PrincipalState)
-	if !ok {
-		return trace.BadParameter("wrapped resource must be a PrincipalState: %T", resource)
-	}
-
+	principalState := unwrapper.UnwrapT()
 	principalStateID := principalState.GetMetadata().GetName()
 	downstreamID := principalState.GetSpec().GetDownstreamId()
 	if principalStateID == "" || downstreamID == "" {

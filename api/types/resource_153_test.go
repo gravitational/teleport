@@ -87,6 +87,12 @@ func TestResource153ToLegacy(t *testing.T) {
 		if diff := cmp.Diff(bot, unwrapped, protocmp.Transform()); diff != "" {
 			t.Errorf("Unwrap mismatch (-want +got)\n%s", diff)
 		}
+
+		unwrapperT := legacyResource.(types.Resource153UnwrapperT[*machineidv1.Bot])
+		unwrappedT := unwrapperT.UnwrapT()
+		if diff := cmp.Diff(bot, unwrappedT, protocmp.Transform()); diff != "" {
+			t.Errorf("Unwrap mismatch (-want +got)\n%s", diff)
+		}
 	})
 
 	// Marshaling as JSON marshals the underlying resource.
