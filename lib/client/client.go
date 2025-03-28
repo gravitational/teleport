@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/socks"
@@ -108,6 +109,18 @@ func (c *NodeClient) AddCancel(cancel context.CancelFunc) {
 		cancel()
 		return nil
 	}))
+}
+
+// RouteToDatabaseToProto converts tlsca.RouteToDatabase to the proto version
+// that is used for ReissueParams.
+func RouteToDatabaseToProto(dbRoute tlsca.RouteToDatabase) proto.RouteToDatabase {
+	return proto.RouteToDatabase{
+		ServiceName: dbRoute.ServiceName,
+		Protocol:    dbRoute.Protocol,
+		Username:    dbRoute.Username,
+		Database:    dbRoute.Database,
+		Roles:       dbRoute.Roles,
+	}
 }
 
 // ReissueParams encodes optional parameters for

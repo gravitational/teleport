@@ -42,11 +42,12 @@ type CertificateStoreClient struct {
 type CertificateStoreConfig struct {
 	// AccessPoint is the Auth API client (with caching).
 	AccessPoint authclient.WindowsDesktopAccessPoint
-	// LDAPConfig is the ldap configuration
-	LDAPConfig
+	// Domain is the Active Directory domain where Teleport publishes its
+	// Certificate Revocation List (CRL).
+	Domain string
 	// Log is the logging sink for the service
 	Logger *slog.Logger
-	// ClusterName is the name of this cluster
+	// ClusterName is the name of this Teleport cluster
 	ClusterName string
 	// LC is the LDAPClient
 	LC *LDAPClient
@@ -90,8 +91,8 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, crlDER []byte, c
 	// Teleport cluster name. So, for instance, CRL for cluster "prod" and User
 	// CA will be placed at:
 	// ... > CDP > Teleport > prod
-	containerDN := crlContainerDN(c.cfg.LDAPConfig, caType)
-	crlDN := crlDN(c.cfg.ClusterName, c.cfg.LDAPConfig, caType)
+	containerDN := crlContainerDN(c.cfg.Domain, caType)
+	crlDN := crlDN(c.cfg.ClusterName, c.cfg.Domain, caType)
 
 	// Create the parent container.
 	if err := c.cfg.LC.CreateContainer(containerDN); err != nil {

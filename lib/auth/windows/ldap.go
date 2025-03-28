@@ -65,10 +65,10 @@ func (cfg LDAPConfig) Check() error {
 	return nil
 }
 
-// DomainDN returns the distinguished name for the domain
-func (cfg LDAPConfig) DomainDN() string {
+// DomainDN returns the distinguished name for the domain.
+func DomainDN(domain string) string {
 	var sb strings.Builder
-	parts := strings.Split(cfg.Domain, ".")
+	parts := strings.Split(domain, ".")
 	for _, p := range parts {
 		if sb.Len() > 0 {
 			sb.WriteString(",")
@@ -79,61 +79,20 @@ func (cfg LDAPConfig) DomainDN() string {
 	return sb.String()
 }
 
-// See: https://docs.microsoft.com/en-US/windows/security/identity-protection/access-control/security-identifiers
 const (
-	// WritableDomainControllerGroupID is the windows security identifier for dcs with write permissions
-	WritableDomainControllerGroupID = "516"
-	// ReadOnlyDomainControllerGroupID is the windows security identifier for read only dcs
-	ReadOnlyDomainControllerGroupID = "521"
-)
-
-const (
-	// ClassComputer is the object class for computers in Active Directory
-	ClassComputer = "computer"
-	// ClassContainer is the object class for containers in Active Directory
-	ClassContainer = "container"
-	// ClassGMSA is the object class for group managed service accounts in Active Directory.
-	ClassGMSA = "msDS-GroupManagedServiceAccount"
-
-	// AccountTypeUser is the SAM account type for user accounts.
-	// See https://learn.microsoft.com/en-us/windows/win32/adschema/a-samaccounttype
-	// (SAM_USER_OBJECT)
-	AccountTypeUser = "805306368"
-
-	// AttrName is the name of an LDAP object
-	AttrName = "name"
-	// AttrSAMAccountName is the SAM Account name of an LDAP object
-	AttrSAMAccountName = "sAMAccountName"
-	// AttrSAMAccountType is the SAM Account type for an LDAP object
-	AttrSAMAccountType = "sAMAccountType"
-	// AttrCommonName is the common name of an LDAP object, or "CN"
-	AttrCommonName = "cn"
-	// AttrDistinguishedName is the distinguished name of an LDAP object, or "DN"
-	AttrDistinguishedName = "distinguishedName"
-	// AttrDNSHostName is the DNS Host name of an LDAP object
-	AttrDNSHostName = "dNSHostName" // unusual capitalization is correct
-	// AttrObjectGUID is the globally unique identifier for an LDAP object
-	AttrObjectGUID = "objectGUID"
-	// AttrOS is the operating system of a computer object
-	AttrOS = "operatingSystem"
-	// AttrOSVersion is the operating system version of a computer object
-	AttrOSVersion = "operatingSystemVersion"
-	// AttrPrimaryGroupID is the primary group id of an LDAP object
-	AttrPrimaryGroupID = "primaryGroupID"
 	// AttrObjectSid is the Security Identifier of an LDAP object
 	AttrObjectSid = "objectSid"
-	// AttrObjectCategory is the object category of an LDAP object
-	AttrObjectCategory = "objectCategory"
 	// AttrObjectClass is the object class of an LDAP object
 	AttrObjectClass = "objectClass"
 )
+
+// classContainer is the object class for containers in Active Directory
+const classContainer = "container"
 
 // searchPageSize is desired page size for LDAP search. In Active Directory the default search size limit is 1000 entries,
 // so in most cases the 1000 search page size will result in the optimal amount of requests made to
 // LDAP server.
 const searchPageSize = 1000
-
-// Note: if you want to browse LDAP on the Windows machine, run ADSIEdit.msc.
 
 // LDAPClient is a windows LDAP client.
 //
@@ -264,7 +223,7 @@ func (c *LDAPClient) Create(dn string, class string, attrs map[string][]string) 
 // CreateContainer creates an LDAP container entry if
 // it doesn't already exist.
 func (c *LDAPClient) CreateContainer(dn string) error {
-	err := c.Create(dn, ClassContainer, nil)
+	err := c.Create(dn, classContainer, nil)
 	// Ignore the error if container already exists.
 	if trace.IsAlreadyExists(err) {
 		return nil
@@ -301,12 +260,12 @@ func CombineLDAPFilters(filters []string) string {
 	return "(&" + strings.Join(filters, "") + ")"
 }
 
-func crlContainerDN(config LDAPConfig, caType types.CertAuthType) string {
-	return fmt.Sprintf("CN=%s,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,%s", crlKeyName(caType), config.DomainDN())
+func crlContainerDN(domain string, caType types.CertAuthType) string {
+	return fmt.Sprintf("CN=%s,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,%s", crlKeyName(caType), DomainDN(domain))
 }
 
-func crlDN(clusterName string, config LDAPConfig, caType types.CertAuthType) string {
-	return "CN=" + clusterName + "," + crlContainerDN(config, caType)
+func crlDN(clusterName string, activeDirectoryDomain string, caType types.CertAuthType) string {
+	return "CN=" + clusterName + "," + crlContainerDN(activeDirectoryDomain, caType)
 }
 
 // crlKeyName returns the appropriate LDAP key given the CA type.

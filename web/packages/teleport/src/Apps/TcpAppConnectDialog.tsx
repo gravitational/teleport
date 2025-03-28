@@ -26,15 +26,16 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
+import { NewTab } from 'design/Icon';
 import { getPlatform, Platform } from 'design/platform';
 import { SlideTabs, TabSpec } from 'design/SlideTabs/SlideTabs';
-import {
-  DownloadConnect,
-  getConnectDownloadLinks,
-} from 'shared/components/DownloadConnect/DownloadConnect';
 import { TextSelectCopy } from 'shared/components/TextSelectCopy';
 import { makeDeepLinkWithSafeInput } from 'shared/deepLinks';
 
+import {
+  DownloadConnect,
+  getConnectDownloadLinks,
+} from 'teleport/components/DownloadConnect/DownloadConnect';
 import { generateTshLoginCommand } from 'teleport/lib/util';
 import { App } from 'teleport/services/apps';
 import useStickyClusterId from 'teleport/useStickyClusterId';
@@ -124,6 +125,7 @@ export function TcpAppConnectDialog(props: { app: App; onClose: () => void }) {
               })}
             >
               Sign In & Start VNet
+              <NewTab size="small" ml={1} />
             </ButtonSecondary>
           </Stack>
 

@@ -33,7 +33,11 @@ import {
 import { precomputed } from 'shared/components/Validation/rules';
 import { ValidationSuspender } from 'shared/components/Validation/Validation';
 
-import { SectionBox, SectionPropsWithDispatch } from './sections';
+import {
+  SectionBox,
+  SectionPadding,
+  SectionPropsWithDispatch,
+} from './sections';
 import {
   ResourceKindOption,
   resourceKindOptions,
@@ -58,6 +62,9 @@ export const AdminRules = memo(function AdminRules({
   }
   return (
     <Flex flexDirection="column" gap={3}>
+      <SectionPadding>
+        Rules that give this role administrative rights to Teleport resources
+      </SectionPadding>
       {value.map((rule, i) => (
         <AdminRule
           key={rule.id}
@@ -92,8 +99,7 @@ const AdminRule = memo(function AdminRule({
   return (
     <ValidationSuspender suspend={hideValidationErrors}>
       <SectionBox
-        title="Admin Rule"
-        tooltip="A rule that gives users access to certain kinds of resources"
+        titleSegments={getTitleSegments(value.resources)}
         removable
         isProcessing={isProcessing}
         validation={validation}
@@ -148,6 +154,20 @@ const AdminRule = memo(function AdminRule({
     </ValidationSuspender>
   );
 });
+
+function getTitleSegments(resources: readonly ResourceKindOption[]): string[] {
+  switch (resources.length) {
+    case 0:
+      return ['Admin Rule'];
+    case 1:
+      return ['Admin Rule', resources[0].label];
+    default:
+      return [
+        'Admin Rule',
+        `${resources[0].label} + ${resources.length - 1} more`,
+      ];
+  }
+}
 
 const ResourceKindSelect = styled(
   FieldSelectCreatable<ResourceKindOption, true>

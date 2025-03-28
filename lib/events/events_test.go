@@ -255,6 +255,9 @@ var eventsMap = map[string]apievents.AuditEvent{
 	WorkloadIdentityX509RevocationUpdateEvent:   &apievents.WorkloadIdentityX509RevocationUpdate{},
 	AWSICResourceSyncSuccessEvent:               &apievents.AWSICResourceSync{},
 	AWSICResourceSyncFailureEvent:               &apievents.AWSICResourceSync{},
+	HealthCheckConfigCreateEvent:                &apievents.HealthCheckConfigCreate{},
+	HealthCheckConfigUpdateEvent:                &apievents.HealthCheckConfigUpdate{},
+	HealthCheckConfigDeleteEvent:                &apievents.HealthCheckConfigDelete{},
 }
 
 // TestJSON tests JSON marshal events
