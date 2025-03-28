@@ -1968,20 +1968,15 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 		}
 	case types.SAMLIdPServiceProvider:
 		return r.CheckAccess(rr, state)
-
-	case types.Resource153Unwrapper:
+	case types.Resource153UnwrapperT[services.IdentityCenterAccount]:
 		checkable, isCheckable := rr.(services.AccessCheckable)
 		if isCheckable {
-			switch unwrapped := rr.Unwrap().(type) {
-			case services.IdentityCenterAccount:
-				return r.CheckAccess(checkable, state, services.NewIdentityCenterAccountMatcher(unwrapped))
-
-			case services.IdentityCenterAccountAssignment:
-				return r.CheckAccess(checkable, state, services.NewIdentityCenterAccountAssignmentMatcher(unwrapped))
-
-			default:
-				return r.CheckAccess(checkable, state)
-			}
+			return r.CheckAccess(checkable, state, services.NewIdentityCenterAccountMatcher(rr.UnwrapT()))
+		}
+	case types.Resource153UnwrapperT[services.IdentityCenterAccountAssignment]:
+		checkable, isCheckable := rr.(services.AccessCheckable)
+		if isCheckable {
+			return r.CheckAccess(checkable, state, services.NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
 		}
 	}
 
