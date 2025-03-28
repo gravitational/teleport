@@ -153,7 +153,7 @@ export const Cycle = ({
       </Text>
       <Flex gap="3" flexWrap="wrap" my="3">
         {productUsages.map(p => (
-          <CyclesContainer key={p.name}>
+          <CyclesContainer key={p.name} data-testid={p.name}>
             <H3>{p.name}</H3>
             <Text color="text.slightlyMuted" mt="2" fontWeight={300}>
               {p.info}

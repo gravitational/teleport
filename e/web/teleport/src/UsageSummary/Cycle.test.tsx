@@ -98,22 +98,27 @@ describe('cycle', () => {
       screen.getByText(/Monthly usage will reset at the end of this cycle/i)
     ).toBeInTheDocument();
 
-    const mau = screen.getAllByTestId(/Active Users/i)[0];
+    const zeroTrustSection = screen.getByTestId(/Zero Trust Access/);
+    const mau = within(zeroTrustSection).getByTestId(
+      /Monthly Active Users \(MAU\)/
+    );
 
     expect(within(mau).getByText(/0 of 0/i)).toBeInTheDocument();
     expect(within(mau).getByText(/\(0%\)/i)).toBeInTheDocument();
 
-    const pr = screen.getAllByTestId(/Teleport Protected Resources/i)[0];
+    const pr = within(zeroTrustSection).getByTestId(
+      /Teleport Protected Resources/
+    );
 
     expect(within(pr).getByText(/0 of 0/i)).toBeInTheDocument();
     expect(within(pr).getByText(/\(0%\)/i)).toBeInTheDocument();
 
-    const mwi = screen.getAllByTestId(/MWI/i)[0];
+    const mwi = screen.getByTestId(/MWI/);
 
     expect(within(mwi).getByText(/0 of 0/i)).toBeInTheDocument();
     expect(within(mwi).getByText(/\(0%\)/i)).toBeInTheDocument();
 
-    const igmau = screen.getAllByTestId(/Active Users/i)[1];
+    const igmau = screen.getByTestId(/Identity Governance/);
 
     expect(within(igmau).getByText(/0 of 0/i)).toBeInTheDocument();
     expect(within(igmau).getByText(/\(0%\)/i)).toBeInTheDocument();
@@ -127,27 +132,36 @@ describe('cycle', () => {
     props.summary.usageUpdatedAt = 0;
 
     renderWithContext(<Cycle {...props} />);
-    const mau = screen.getAllByTestId(/Monthly Active Users \(MAU\)/i)[0];
+    const zeroTrustSection = screen.getByTestId(/Zero Trust Access/i);
+    const mau = within(zeroTrustSection).getByTestId(
+      /Monthly Active Users \(MAU\)/
+    );
 
     expect(within(mau).getByText(/0 of 2/i)).toBeInTheDocument();
     expect(within(mau).getByText(/\(0%\)/i)).toBeInTheDocument();
 
-    const pr = screen.getAllByTestId(/Teleport Protected Resources/i)[0];
+    const pr = within(zeroTrustSection).getByTestId(
+      /Teleport Protected Resources/
+    );
 
     expect(within(pr).getByText(/80 of 20/i)).toBeInTheDocument();
     expect(within(pr).getByText(/\(400%\)/i)).toBeInTheDocument();
 
-    const mwi = screen.getByTestId(/MWI/i);
+    const mwiSection = screen.getByTestId(/Machine and Workload Identities/);
+    const mwi = within(mwiSection).getByTestId(/MWI/);
 
     expect(within(mwi).getByText(/800 of 2/i)).toBeInTheDocument();
     expect(within(mwi).getByText(/\(40000%\)/i)).toBeInTheDocument();
 
-    const igmau = screen.getAllByTestId(/Monthly Active Users \(MAU\)/i)[1];
+    const igmau = screen.getByTestId(/Identity Governance/);
 
     expect(within(igmau).getByText(/4 of 4/i)).toBeInTheDocument();
     expect(within(igmau).getByText(/\(100%\)/i)).toBeInTheDocument();
 
-    const ispr = screen.getAllByTestId(/Teleport Protected Resources/i)[1];
+    const identitySecuritySection = screen.getByTestId(/Identity Security/i);
+    const ispr = within(identitySecuritySection).getByTestId(
+      /Teleport Protected Resources/
+    );
 
     expect(within(ispr).getByText(/80 of 20/i)).toBeInTheDocument();
     expect(within(ispr).getByText(/\(400%\)/i)).toBeInTheDocument();
