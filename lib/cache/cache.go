@@ -1801,8 +1801,6 @@ type getCertAuthorityCacheKey struct {
 	id types.CertAuthID
 }
 
-var _ map[getCertAuthorityCacheKey]struct{} // compile-time hashability check
-
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
 func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
@@ -1842,8 +1840,6 @@ func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadS
 type getCertAuthoritiesCacheKey struct {
 	caType types.CertAuthType
 }
-
-var _ map[getCertAuthoritiesCacheKey]struct{} // compile-time hashability check
 
 // GetCertAuthorities returns a list of authorities of a given type
 // loadSigningKeys controls whether signing keys should be loaded or not
@@ -1927,8 +1923,6 @@ type clusterConfigCacheKey struct {
 	kind string
 }
 
-var _ map[clusterConfigCacheKey]struct{} // compile-time hashability check
-
 // GetClusterAuditConfig gets ClusterAuditConfig from the backend.
 func (c *Cache) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetClusterAuditConfig")
@@ -2001,8 +1995,6 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 type autoUpdateCacheKey struct {
 	kind string
 }
-
-var _ map[autoUpdateCacheKey]struct{} // compile-time hashability check
 
 // GetAutoUpdateConfig gets the AutoUpdateConfig from the backend.
 func (c *Cache) GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error) {
@@ -2209,8 +2201,6 @@ type getNodesCacheKey struct {
 	namespace string
 }
 
-var _ map[getNodesCacheKey]struct{} // compile-time hashability check
-
 // GetNodes is a part of auth.Cache implementation
 func (c *Cache) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetNodes")
@@ -2279,8 +2269,6 @@ func (c *Cache) GetProxies() ([]types.Server, error) {
 type remoteClustersCacheKey struct {
 	name string
 }
-
-var _ map[remoteClustersCacheKey]struct{} // compile-time hashability check
 
 // GetRemoteClusters returns a list of remote clusters
 func (c *Cache) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
