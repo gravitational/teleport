@@ -467,7 +467,7 @@ function Package-Artifacts {
         [Parameter(Mandatory)]
         [string] $SignedTctlBinaryPath,
         [Parameter(Mandatory)]
-        [string] $SignedTshBinaryPath
+        [string] $SignedTshBinaryPath,
         [Parameter(Mandatory)]
         [string] $SignedTBotBinaryPath
     )
