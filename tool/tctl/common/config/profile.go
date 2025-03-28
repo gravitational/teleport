@@ -49,9 +49,8 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 	hwks := piv.NewYubiKeyService(nil /*prompt*/)
 	clientStore := client.NewFSClientStore(cfg.TeleportHome, client.WithHardwareKeyService(hwks))
 	if ccf.IdentityFilePath != "" {
-		var err error
-		clientStore, err = identityfile.NewClientStoreFromIdentityFile(ccf.IdentityFilePath, proxyAddr, "", client.WithHardwareKeyService(hwks))
-		if err != nil {
+		clientStore = client.NewMemClientStore(client.WithHardwareKeyService(hwks))
+		if err := identityfile.LoadIdentityFileIntoClientStore(clientStore, ccf.IdentityFilePath, proxyAddr, ""); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
