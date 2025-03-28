@@ -264,8 +264,8 @@ func generateDatabaseCredentials(ctx context.Context, req *GenerateCredentialsRe
 	return certDER, keyDER, genResp.CACerts, nil
 }
 
-// CertKeyPEM returns certificate and private key bytes encoded in PEM format for use with `kinit`
-func CertKeyPEM(ctx context.Context, req *GenerateCredentialsRequest) (certPEM, keyPEM []byte, caCerts [][]byte, err error) {
+// DatabaseCredentials returns certificate and private key bytes encoded in PEM format for use with `kinit`.
+func DatabaseCredentials(ctx context.Context, req *GenerateCredentialsRequest) (certPEM, keyPEM []byte, caCerts [][]byte, err error) {
 	certDER, keyDER, caCerts, err := generateDatabaseCredentials(ctx, req)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
