@@ -76,7 +76,7 @@ const Username = styled(Text)`
   font-size: 14px;
   font-weight: 400;
   display: none;
-  @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
+  @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
     display: inline-flex;
   }
 `;
@@ -86,7 +86,7 @@ const StyledAvatar = styled.div`
   background: ${props => props.theme.colors.brand};
   color: ${props => props.theme.colors.text.primaryInverse};
   border-radius: 50%;
-  @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
+  @media screen and (min-width: ${p => p.theme.breakpoints.medium}) {
     margin-right: 16px;
     height: 32px;
     max-width: 32px;
@@ -112,7 +112,7 @@ const Arrow = styled.div<{ open?: boolean }>`
   }
 
   display: none;
-  @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
+  @media screen and (min-width: ${p => p.theme.breakpoints.medium}) {
     display: inline-flex;
   }
 `;

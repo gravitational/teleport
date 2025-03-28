@@ -114,3 +114,4 @@ export {
 };
 export type { TextAreaProps } from './TextArea';
 export * from './keyframes';
+export { breakpointsPx } from './theme';

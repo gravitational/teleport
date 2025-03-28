@@ -22,9 +22,8 @@ import { matchPath, useHistory } from 'react-router';
 import { Link } from 'react-router-dom';
 import styled, { useTheme } from 'styled-components';
 
-import { Flex, Image, Text, TopNav } from 'design';
+import { breakpointsPx, Flex, Image, Text, TopNav } from 'design';
 import { ArrowLeft, Download, Server, SlidersVertical } from 'design/Icon';
-import { Theme } from 'design/theme/themes/types';
 import { HoverTooltip } from 'shared/components/ToolTip';
 
 import { logos } from 'teleport/components/LogoHero/LogoHero';
@@ -70,7 +69,6 @@ export function TopBar({ CustomLogo }: TopBarProps) {
       feature.category === NavigationCategory.Resources && feature.topMenuItem
   );
   const { currentWidth } = useLayout();
-  const theme: Theme = useTheme();
   const [previousManagementRoute, setPreviousManagementRoute] = useState('');
 
   const handleLocationChange = useCallback(
@@ -113,7 +111,7 @@ export function TopBar({ CustomLogo }: TopBarProps) {
   const downloadTabSelected =
     history?.location?.pathname === cfg.routes.downloadCenter;
   const iconSize =
-    currentWidth >= theme.breakpoints.medium
+    currentWidth >= breakpointsPx.medium
       ? navigationIconSizeMedium
       : navigationIconSizeSmall;
 
@@ -128,7 +126,7 @@ export function TopBar({ CustomLogo }: TopBarProps) {
               css={`
                 margin-left: auto;
                 @media screen and (min-width: ${p =>
-                    p.theme.breakpoints.medium}px) {
+                    p.theme.breakpoints.medium}) {
                   margin-left: 0;
                   margin-right: auto;
                 }
@@ -228,10 +226,10 @@ export const TopBarContainer = styled(TopNav)`
   border-bottom: 1px solid ${({ theme }) => theme.colors.spotBackground[1]};
 
   height: ${p => p.theme.topBarHeight[0]}px;
-  @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
+  @media screen and (min-width: ${p => p.theme.breakpoints.small}) {
     height: ${p => p.theme.topBarHeight[1]}px;
   }
-  @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
+  @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
     height: ${p => p.theme.topBarHeight[2]}px;
   }
 `;
@@ -248,10 +246,10 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
       css={`
         height: 100%;
         margin-right: 0px;
-        @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
+        @media screen and (min-width: ${p => p.theme.breakpoints.medium}) {
           margin-right: 76px;
         }
-        @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
+        @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
           margin-right: 67px;
         }
       `}
@@ -281,14 +279,12 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
               padding-left: ${props => props.theme.space[3]}px;
               padding-right: ${props => props.theme.space[3]}px;
               height: 18px;
-              @media screen and (min-width: ${p =>
-                  p.theme.breakpoints.small}px) {
+              @media screen and (min-width: ${p => p.theme.breakpoints.small}) {
                 height: 28px;
                 padding-left: ${props => props.theme.space[4]}px;
                 padding-right: ${props => props.theme.space[4]}px;
               }
-              @media screen and (min-width: ${p =>
-                  p.theme.breakpoints.large}px) {
+              @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
                 height: 30px;
               }
             `}
@@ -335,7 +331,7 @@ const NavigationButton = ({
           height: 100%;
           padding-left: 16px;
           padding-right: 16px;
-          @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
+          @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
             padding-left: 24px;
             padding-right: 24px;
           }
@@ -379,8 +375,7 @@ const MainNavItem = ({
   Icon: (props: { color: string; size: number }) => JSX.Element;
 }) => {
   const { currentWidth } = useLayout();
-  const theme: Theme = useTheme();
-  const mediumAndUp = currentWidth >= theme.breakpoints.medium;
+  const mediumAndUp = currentWidth >= breakpointsPx.medium;
   return (
     <NavigationButton
       selected={isSelected}
@@ -395,7 +390,7 @@ const MainNavItem = ({
         color={isSelected ? 'text.main' : 'text.muted'}
         css={`
           display: none;
-          @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
+          @media screen and (min-width: ${p => p.theme.breakpoints.medium}) {
             display: block;
           }
         `}

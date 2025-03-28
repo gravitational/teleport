@@ -202,7 +202,7 @@ export const DataItem = ({ title = '', data = null, isLoading = false }) => (
 const DataItemFlex = styled(Flex)`
   margin-bottom: ${props => props.theme.space[3]}px;
   align-items: center;
-  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
+  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}) {
     flex-direction: column;
     padding-left: ${props => props.theme.space[2]}px;
     align-items: start;
