@@ -103,12 +103,6 @@ func (spec *TeleportBotV1Spec) MarshalJSON() ([]byte, error) {
 // DeepCopyInto deep-copies one user spec into another.
 // Required to satisfy runtime.Object interface.
 func (spec *TeleportBotV1Spec) DeepCopyInto(out *TeleportBotV1Spec) {
-	data, err := spec.Marshal()
-	if err != nil {
-		panic(err)
-	}
-	*out = TeleportBotV1Spec{}
-	if err = out.Unmarshal(data); err != nil {
-		panic(err)
-	}
+	proto.Reset((*machineidv1.BotSpec)(out))
+	proto.Merge((*machineidv1.BotSpec)(out), (*machineidv1.BotSpec)(spec))
 }
