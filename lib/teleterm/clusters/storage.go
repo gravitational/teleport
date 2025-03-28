@@ -208,6 +208,8 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *c
 		return nil, nil, trace.Wrap(err)
 	}
 
+	cfg.ClientStore.HardwareKeyService.SetPINCacheTimeout(cfg.PIVPINCacheTimeout)
+
 	if leafClusterName != "" {
 		clusterNameForKey = leafClusterName
 		clusterURI = clusterURI.AppendLeafCluster(leafClusterName)

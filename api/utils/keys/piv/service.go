@@ -28,6 +28,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/go-piv/piv-go/piv"
 	"github.com/gravitational/trace"
@@ -220,6 +221,19 @@ func (s *YubiKeyService) SetPrompt(prompt hardwarekey.Prompt) {
 	s.promptMux.Lock()
 	defer s.promptMux.Unlock()
 	s.prompt = prompt
+}
+
+// SetPINCacheTimeout sets the PIN cache timeout. The default, 0, means no PIN caching.
+func (s *YubiKeyService) SetPINCacheTimeout(timeout time.Duration) {
+	s.promptMux.Lock()
+	defer s.promptMux.Unlock()
+
+	if p, ok := s.prompt.(*hardwarekey.PinCachingPrompt); ok {
+		p.PinCacheTimeout = timeout
+		return
+	}
+
+	s.prompt = hardwarekey.NewPinCachingPrompt(s.prompt, timeout)
 }
 
 // Get the given YubiKey with the serial number. If the provided serialNumber is "0",

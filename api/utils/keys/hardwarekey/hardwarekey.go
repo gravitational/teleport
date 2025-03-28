@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"io"
+	"time"
 
 	"github.com/gravitational/trace"
 )
@@ -40,6 +41,8 @@ type Service interface {
 	// This is used by Teleport Connect which sets the prompt later than the hardware key service,
 	// due to process initialization constraints.
 	SetPrompt(prompt Prompt)
+	// SetPINCacheTimeout sets the PIN cache timeout. The default, 0, means no PIN caching.
+	SetPINCacheTimeout(timeout time.Duration)
 }
 
 // Signer is a hardware key implementation of [crypto.Signer].
