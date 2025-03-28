@@ -987,7 +987,7 @@ func (s *Server) handleGlobalRequest(ctx context.Context, req *ssh.Request) {
 			s.log.WithError(err).Warnf("Failed to reply to session ID query request")
 		}
 		return
-	case teleport.KeepAliveReqType:
+	case teleport.KeepAliveReqType, teleport.TerminalSizeRequest:
 	default:
 		s.log.Debugf("Rejecting unknown global request %q.", req.Type)
 		_ = req.Reply(false, nil)

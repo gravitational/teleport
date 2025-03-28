@@ -44,6 +44,12 @@ services:
     attestors:
       kubernetes:
         enabled: false
+      podman:
+        enabled: false
+      docker:
+        enabled: false
+      systemd:
+        enabled: false
     credential_ttl: 30s
     renewal_interval: 15s
   - type: example
@@ -75,6 +81,12 @@ services:
     listen: tcp://127.0.0.1:123
     attestors:
       kubernetes:
+        enabled: false
+      podman:
+        enabled: false
+      docker:
+        enabled: false
+      systemd:
         enabled: false
     selector:
       name: my-workload-identity

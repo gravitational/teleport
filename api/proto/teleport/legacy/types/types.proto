@@ -1564,6 +1564,11 @@ message ProvisionTokenSpecV2GitLab {
   // `gitlab.com` - but can be set to the domain of your self-hosted GitLab
   // e.g `gitlab.example.com`.
   string Domain = 2 [(gogoproto.jsontag) = "domain,omitempty"];
+  // StaticJWKS disables fetching of the GitLab signing keys via the JWKS/OIDC
+  // endpoints, and allows them to be directly specified. This allows joining
+  // from GitLab CI instances that are not reachable by the Teleport Auth
+  // Service.
+  string StaticJWKS = 3 [(gogoproto.jsontag) = "static_jwks,omitempty"];
 }
 
 // ProvisionTokenSpecV2CircleCI contains the CircleCI-specific part of the
@@ -6991,6 +6996,9 @@ enum AWSICGroupImportStatusCode {
   DONE = 1;
   // FAILED denotes that the group and group members import met with an error.
   FAILED = 2;
+  // REIMPORT_REQUESTED denotes that the user has requested that the import
+  // process be re-run.
+  REIMPORT_REQUESTED = 3;
 }
 
 // PluginEmailSettings holds the settings for an Email Access Request plugin.

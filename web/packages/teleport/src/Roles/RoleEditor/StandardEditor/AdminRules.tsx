@@ -32,7 +32,11 @@ import {
 } from 'shared/components/FieldSelect';
 import { precomputed } from 'shared/components/Validation/rules';
 
-import { SectionBox, SectionPropsWithDispatch } from './sections';
+import {
+  SectionBox,
+  SectionPadding,
+  SectionPropsWithDispatch,
+} from './sections';
 import {
   ResourceKindOption,
   resourceKindOptions,
@@ -57,6 +61,9 @@ export const AdminRules = memo(function AdminRules({
   }
   return (
     <Flex flexDirection="column" gap={3}>
+      <SectionPadding>
+        Rules that give this role administrative rights to Teleport resources
+      </SectionPadding>
       {value.map((rule, i) => (
         <AdminRule
           key={rule.id}
@@ -90,8 +97,7 @@ const AdminRule = memo(function AdminRule({
   }
   return (
     <SectionBox
-      title="Admin Rule"
-      tooltip="A rule that gives users access to certain kinds of resources"
+      titleSegments={getTitleSegments(value.resources)}
       removable
       isProcessing={isProcessing}
       validation={validation}
@@ -107,6 +113,7 @@ const AdminRule = memo(function AdminRule({
         value={resources}
         onChange={r => setRule({ ...value, resources: r })}
         rule={precomputed(validation.fields.resources)}
+        menuPosition="fixed"
       />
       <FieldSelect
         isMulti
@@ -117,6 +124,7 @@ const AdminRule = memo(function AdminRule({
         value={verbs}
         onChange={v => setRule({ ...value, verbs: v })}
         rule={precomputed(validation.fields.verbs)}
+        menuPosition="fixed"
       />
       <FieldInput
         label="Filter"
@@ -143,6 +151,20 @@ const AdminRule = memo(function AdminRule({
     </SectionBox>
   );
 });
+
+function getTitleSegments(resources: readonly ResourceKindOption[]): string[] {
+  switch (resources.length) {
+    case 0:
+      return ['Admin Rule'];
+    case 1:
+      return ['Admin Rule', resources[0].label];
+    default:
+      return [
+        'Admin Rule',
+        `${resources[0].label} + ${resources.length - 1} more`,
+      ];
+  }
+}
 
 const ResourceKindSelect = styled(
   FieldSelectCreatable<ResourceKindOption, true>

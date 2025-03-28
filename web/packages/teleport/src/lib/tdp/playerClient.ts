@@ -19,6 +19,7 @@
 import { base64ToArrayBuffer } from 'shared/utils/base64';
 import { throttle } from 'shared/utils/highbar';
 
+import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 import { StatusEnum } from 'teleport/lib/player';
 
 import Client, { TdpClientEvent } from './client';
@@ -53,7 +54,7 @@ export class PlayerClient extends Client {
   private timeout = null;
 
   constructor({ url, setTime, setPlayerStatus, setStatusText }) {
-    super(url);
+    super(() => new AuthenticatedWebSocket(url));
     this.setPlayerStatus = setPlayerStatus;
     this.setStatusText = setStatusText;
     this._setTime = setTime;

@@ -36,9 +36,12 @@
   },
   "devDependencies": {
     "@gravitational/build": "workspace:*",
+    "@ianvs/prettier-plugin-sort-imports": "^4.4.0",
+    "@storybook/addon-actions": "^8.3.4",
     "@storybook/addon-controls": "^8.3.4",
     "@storybook/addon-toolbars": "^8.3.4",
     "@storybook/components": "^8.3.4",
+    "@storybook/preview-api": "^8.3.4",
     "@storybook/react": "^8.3.4",
     "@storybook/react-vite": "^8.3.4",
     "@storybook/test-runner": "^0.19.1",
@@ -59,6 +62,7 @@
     "jsdom-testing-mocks": "^1.13.1",
     "msw": "^2.4.9",
     "msw-storybook-addon": "^2.0.3",
+    "node-gyp": "11.0.0",
     "playwright": "^1.47.2",
     "prettier": "^3.3.3",
     "react-select-event": "^5.5.1",
@@ -70,6 +74,7 @@
     "@codemirror/autocomplete": "^6.18.1",
     "@codemirror/lang-sql": "^6.7.1",
     "@codemirror/view": "^6.34.1",
+    "@floating-ui/react": "^0.27.5",
     "@grpc/grpc-js": "1.11.3",
     "@lezer/highlight": "^1.2.1",
     "@nivo/bar": "^0.87.0",
@@ -102,5 +107,8 @@
       "web/.storybook/public"
     ]
   },
-  "packageManager": "pnpm@9.9.0+sha512.60c18acd138bff695d339be6ad13f7e936eea6745660d4cc4a776d5247c540d0edee1a563695c183a66eb917ef88f2b4feb1fc25f32a7adcadc7aaf3438e99c1"
+  "packageManager": "pnpm@10.6.5+sha512.cdf928fca20832cd59ec53826492b7dc25dc524d4370b6b4adbf65803d32efaa6c1c88147c0ae4e8d579a6c9eec715757b50d4fa35eea179d868eada4ed043af",
+  "engines": {
+    "node": "^20"
+  }
 }

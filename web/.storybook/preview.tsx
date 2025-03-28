@@ -17,6 +17,7 @@
  */
 
 import { Preview } from '@storybook/react';
+import { http, HttpResponse } from 'msw';
 import { initialize, mswLoader } from 'msw-storybook-addon';
 import { ComponentType, PropsWithChildren } from 'react';
 
@@ -24,6 +25,7 @@ import Box from '../packages/design/src/Box';
 import { bblpTheme, darkTheme, lightTheme } from '../packages/design/src/theme';
 import { Theme } from '../packages/design/src/theme/themes/types';
 import { ConfiguredThemeProvider } from '../packages/design/src/ThemeProvider';
+import cfg from '../packages/teleport/src/config';
 import history from '../packages/teleport/src/services/history/history';
 import { UserContextProvider } from '../packages/teleport/src/User';
 import Logger, { ConsoleService } from '../packages/teleterm/src/logger';
@@ -33,7 +35,42 @@ import {
   lightTheme as teletermLightTheme,
 } from '../packages/teleterm/src/ui/ThemeProvider/theme';
 
-initialize();
+initialize(
+  {
+    onUnhandledRequest(request, print) {
+      try {
+        // Ignores asset related http requests, otherwise
+        // it prints noisy warnings, hiding important ones.
+        const url = new URL(request.url);
+        if (
+          url.pathname.startsWith('/sb-common-assets') ||
+          url.pathname.startsWith('/index.json') ||
+          url.pathname.startsWith('/.storybook') ||
+          url.pathname.endsWith('.png') ||
+          url.pathname.endsWith('.svg') ||
+          url.pathname.endsWith('.css') ||
+          url.pathname.endsWith('.yaml')
+        ) {
+          return;
+        }
+      } catch {
+        /* empty */
+      }
+
+      print.warning();
+    },
+  },
+  [
+    // we emit these for posthog events (ignores any error),
+    // and we don't ever mock them in stories.
+    http.post(cfg.api.captureUserEventPath, () => {
+      return HttpResponse.json({ message: 'ok' });
+    }),
+    http.post(cfg.api.capturePreUserEventPath, () => {
+      return HttpResponse.json({ message: 'ok' });
+    }),
+  ]
+);
 
 history.init();
 
@@ -97,7 +134,9 @@ const preview: Preview = {
         order: ['Teleport', 'TeleportE', 'Teleterm', 'Design', 'Shared'],
       },
     },
+    controls: { expanded: true, disableSaveFromUI: true },
   },
+  argTypes: { userContext: { table: { disable: true } } },
   loaders: [mswLoader],
   decorators: [
     (Story, meta) => (

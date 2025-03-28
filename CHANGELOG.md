@@ -1,5 +1,66 @@
 # Changelog
 
+## 17.4.0 (03/27/25)
+
+### Database access for Oracle RDS
+Teleport database access now supports connecting to Oracle RDS with Kerberos
+authentication.
+
+### AWS integration status dashboard
+Teleport web UI now provides a detailed status dashboard for AWS integration as
+well as the new "user tasks" view that highlights integration issues
+requiring user attention along with suggested remediation steps.
+
+### Windows desktop improvements
+Teleport now supports registering the same host twice - once as a domain-joined
+machine, and one as a standalone machine. This allows Teleport users to
+connect as Active Directory users and local users to the same host.
+
+### Other fixes and improvements
+
+* Enable support for joining Kubernetes sessions in the web UI. [#53450](https://github.com/gravitational/teleport/pull/53450)
+* Fixed an issue `tsh proxy db` does not honour `--db-roles` when renewing certificates. [#53445](https://github.com/gravitational/teleport/pull/53445)
+* Fixed an issue that could cause backend instability when running very large numbers of app/db/kube resources through a single agent. [#53419](https://github.com/gravitational/teleport/pull/53419)
+* Added `static_jwks` field to the GitLab join method configuration to support cases where Teleport Auth Service cannot reach the GitLab instance. [#53413](https://github.com/gravitational/teleport/pull/53413)
+* Introduced `workload-identity-aws-ra` service for generating AWS credentials using Roles Anywhere directly from tbot. [#53408](https://github.com/gravitational/teleport/pull/53408)
+* Helm chart now supports specifying a second factor list, this simplifies setting up SSO MFA with the `teleport-cluster` chart. [#53319](https://github.com/gravitational/teleport/pull/53319)
+* Improved resource consumption when retrieving resources via the Web UI or tsh ls. [#53302](https://github.com/gravitational/teleport/pull/53302)
+* Added support for topologySpreadConstraints to the `teleport-cluster` Helm chart. [#53287](https://github.com/gravitational/teleport/pull/53287)
+* Fixed rare high CPU usage bug in reverse tunnel agents. [#53281](https://github.com/gravitational/teleport/pull/53281)
+* Fixed an issue PostgreSQL via WebUI fails when IP pinning is enabled. PostgreSQL via WebUI no longer requires Proxy to dial its own public address. [#53250](https://github.com/gravitational/teleport/pull/53250)
+* Added overview information to "Enroll New Resource" guides in the web UI. [#53218](https://github.com/gravitational/teleport/pull/53218)
+* Added support for `SendEnv` OpenSSH option in `tsh`. [#53216](https://github.com/gravitational/teleport/pull/53216)
+* Added support for using DynamoDB Streams FIPS endpoints. [#53201](https://github.com/gravitational/teleport/pull/53201)
+* Allow AD and non-AD logins to single Windows desktop. [#53199](https://github.com/gravitational/teleport/pull/53199)
+* Workload ID: support for attesting Systemd services. [#53108](https://github.com/gravitational/teleport/pull/53108)
+
+Enterprise:
+* Fixed Slack plugin failing to enroll with "need auth" error in the web UI.
+
+## 17.3.4 (03/19/25)
+
+* Improved clarity of error logs and address UX edge cases in teleport-update, part 2. [#53197](https://github.com/gravitational/teleport/pull/53197)
+* Fixed the `teleport-update` systemd service in CentOS 7 and distros with older systemd versions. [#53196](https://github.com/gravitational/teleport/pull/53196)
+* Fixed panic when trimming audit log entries. [#53195](https://github.com/gravitational/teleport/pull/53195)
+* Fixed an issue causing the teleport process to crash on group database errors when host user creation was enabled. [#53082](https://github.com/gravitational/teleport/pull/53082)
+* Workload ID: support for attesting Docker workloads. [#53069](https://github.com/gravitational/teleport/pull/53069)
+* Added a `--join-method` flag to the `teleport configure` command. [#53061](https://github.com/gravitational/teleport/pull/53061)
+* Improved clarity of error logs and address UX edge cases in `teleport-update`. [#53048](https://github.com/gravitational/teleport/pull/53048)
+* The event handler can now generate certificates for DNS names that are not resolvable. [#53026](https://github.com/gravitational/teleport/pull/53026)
+* Machine ID: Added warning when generated certificates will not last as long as expected. [#53019](https://github.com/gravitational/teleport/pull/53019)
+* Improve support for `teleport-update` on CentOS 7 and distros with older systemd versions. [#53017](https://github.com/gravitational/teleport/pull/53017)
+* You can now use `==` and `!=` operators with integer operands in Teleport predicate language. [#52991](https://github.com/gravitational/teleport/pull/52991)
+* Workload ID: support for attesting Podman workloads. [#52978](https://github.com/gravitational/teleport/pull/52978)
+* Web UI now properly shows per-session MFA errors in desktop sessions. [#52916](https://github.com/gravitational/teleport/pull/52916)
+* Allow specifying the maximum number of PKCS#11 HSM connections. [#52870](https://github.com/gravitational/teleport/pull/52870)
+* Resolved an issue where desktop session recordings could have incorrect proportions. [#52866](https://github.com/gravitational/teleport/pull/52866)
+* The audit log web UI now renders Teleport Autoupdate Config and Version events properly. [#52838](https://github.com/gravitational/teleport/pull/52838)
+* Fixed terraform provider data sources. [#52816](https://github.com/gravitational/teleport/pull/52816)
+
+Enterprise:
+* Fixed Slack plugin failing to enroll with "need auth" error in the web UI.
+* Added checks to opsgenie and servicenow plugin to cause enrollment to fail if the provided config is invalid.
+
 ## 17.3.3 (03/06/25)
 
 * Updated golang.org/x/net (addresses CVE-2025-22870). [#52846](https://github.com/gravitational/teleport/pull/52846)

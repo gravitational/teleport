@@ -22,6 +22,7 @@ import { render, screen, userEvent, waitFor } from 'design/utils/testing';
 
 import { botsApiResponseFixture } from 'teleport/Bots/fixtures';
 import { ContextProvider } from 'teleport/index';
+import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import {
   allAccessAcl,
   createTeleportContext,
@@ -38,7 +39,9 @@ function renderWithContext(element, ctx?: TeleportContext) {
   }
   return render(
     <MemoryRouter>
-      <ContextProvider ctx={ctx}>{element}</ContextProvider>
+      <InfoGuidePanelProvider>
+        <ContextProvider ctx={ctx}>{element}</ContextProvider>
+      </InfoGuidePanelProvider>
     </MemoryRouter>
   );
 }

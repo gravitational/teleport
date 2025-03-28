@@ -218,15 +218,7 @@ func (d *DBCertGetter) GetCertificateBytes(ctx context.Context) (*WindowsCAAndKe
 		Domain:      d.RealmName,
 		TTL:         certTTL,
 		ClusterName: clusterName.GetClusterName(),
-		LDAPConfig: windows.LDAPConfig{
-			Addr:               d.KDCHostName,
-			Domain:             d.RealmName,
-			Username:           d.UserName,
-			InsecureSkipVerify: false,
-			ServerName:         d.AdminServerName,
-			CA:                 d.LDAPCA,
-		},
-		AuthClient: d.Auth,
+		AuthClient:  d.Auth,
 	})
 
 	if err != nil {

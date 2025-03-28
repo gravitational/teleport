@@ -57,13 +57,11 @@ beforeEach(() => {
 
 test('adding and removing sections', async () => {
   render(<TestStandardEditor originalRole={newRoleWithYaml(newRole())} />);
-  expect(getAllSectionNames()).toEqual(['Role Metadata']);
+  expect(getAllSectionNames()).toEqual(['Role Information']);
   await user.click(getTabByName('Resources'));
   expect(getAllSectionNames()).toEqual([]);
 
-  await user.click(
-    screen.getByRole('button', { name: 'Add New Resource Access' })
-  );
+  await user.click(screen.getByRole('button', { name: 'Add Resource Access' }));
   expect(getAllMenuItemNames()).toEqual([
     'Kubernetes',
     'Servers',
@@ -76,9 +74,7 @@ test('adding and removing sections', async () => {
   await user.click(screen.getByRole('menuitem', { name: 'Servers' }));
   expect(getAllSectionNames()).toEqual(['Servers']);
 
-  await user.click(
-    screen.getByRole('button', { name: 'Add New Resource Access' })
-  );
+  await user.click(screen.getByRole('button', { name: 'Add Resource Access' }));
   expect(getAllMenuItemNames()).toEqual([
     'Kubernetes',
     'Applications',
@@ -116,12 +112,12 @@ test('collapsed sections still apply validation', async () => {
   // Intentionally cause a validation error.
   await user.clear(screen.getByLabelText('Role Name *'));
   // Collapse the section.
-  await user.click(screen.getByRole('heading', { name: 'Role Metadata' }));
+  await user.click(screen.getByRole('heading', { name: 'Role Information' }));
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
   expect(onSave).not.toHaveBeenCalled();
 
   // Expand the section, make it valid.
-  await user.click(screen.getByRole('heading', { name: 'Role Metadata' }));
+  await user.click(screen.getByRole('heading', { name: 'Role Information' }));
   await user.type(screen.getByLabelText('Role Name *'), 'foo');
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
   expect(onSave).toHaveBeenCalled();
@@ -175,9 +171,7 @@ test('edits resource access', async () => {
     />
   );
   await user.click(getTabByName('Resources'));
-  await user.click(
-    screen.getByRole('button', { name: 'Add New Resource Access' })
-  );
+  await user.click(screen.getByRole('button', { name: 'Add Resource Access' }));
   await user.click(screen.getByRole('menuitem', { name: 'Servers' }));
   await selectEvent.create(screen.getByLabelText('Logins'), 'ec2-user', {
     createOptionText: 'Login: ec2-user',
@@ -196,9 +190,7 @@ test('triggers v6 validation for Kubernetes resources', async () => {
   );
   await selectEvent.select(screen.getByLabelText('Version'), 'v6');
   await user.click(getTabByName('Resources'));
-  await user.click(
-    screen.getByRole('button', { name: 'Add New Resource Access' })
-  );
+  await user.click(screen.getByRole('button', { name: 'Add Resource Access' }));
   await user.click(screen.getByRole('menuitem', { name: 'Kubernetes' }));
   await user.click(screen.getByRole('button', { name: 'Add a Resource' }));
   await selectEvent.select(screen.getByLabelText('Kind'), 'Job');
@@ -279,9 +271,7 @@ test('tab-level validation when creating a new role', async () => {
   expect(getTabByName('Resources')).toHaveAttribute('aria-selected', 'true');
 
   // Break the validation and attempt switching tabs.
-  await user.click(
-    screen.getByRole('button', { name: 'Add New Resource Access' })
-  );
+  await user.click(screen.getByRole('button', { name: 'Add Resource Access' }));
   await user.click(screen.getByRole('menuitem', { name: 'Servers' }));
   await user.click(screen.getByRole('button', { name: 'Add a Label' }));
   // The form should not be validating until we try to switch to the next tab.
@@ -301,7 +291,7 @@ const getAllMenuItemNames = () =>
   screen.queryAllByRole('menuitem').map(m => m.textContent);
 
 const getAllSectionNames = () =>
-  screen.queryAllByRole('heading', { level: 3 }).map(m => m.textContent);
+  screen.queryAllByRole('heading', { level: 3 }).map(m => m.textContent.trim());
 
 const getTabByName = (name: string) => screen.getByRole('tab', { name });
 

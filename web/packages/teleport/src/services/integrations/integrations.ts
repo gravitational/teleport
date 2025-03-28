@@ -559,22 +559,23 @@ export const integrationService = {
         integration: resp.integration,
         lastStateChange: resp.lastStateChange,
         description: resp.description,
+        title: resp.title,
         discoverEc2: {
           instances: resp.discoverEc2?.instances,
-          accountId: resp.discoverEc2?.accountId,
+          account_id: resp.discoverEc2?.account_id,
           region: resp.discoverEc2?.region,
-          ssmDocument: resp.discoverEc2?.ssmDocument,
-          installerScript: resp.discoverEc2?.installerScript,
+          ssm_document: resp.discoverEc2?.ssm_document,
+          installer_script: resp.discoverEc2?.installer_script,
         },
         discoverEks: {
           clusters: resp.discoverEks?.instances,
-          accountId: resp.discoverEks?.accountId,
+          account_id: resp.discoverEks?.account_id,
           region: resp.discoverEks?.region,
-          appAutoDiscover: resp.discoverEks?.appAutoDiscover,
+          app_auto_discover: resp.discoverEks?.app_auto_discover,
         },
         discoverRds: {
           databases: resp.discoverRds?.instances,
-          accountId: resp.discoverRds?.accountId,
+          account_id: resp.discoverRds?.account_id,
           region: resp.discoverRds?.region,
         },
       };
@@ -592,6 +593,7 @@ export const integrationService = {
           taskType: resp.taskType,
           state: resp.state,
           issueType: resp.issueType,
+          title: resp.title,
           integration: resp.integration,
           lastStateChange: resp.lastStateChange,
         };

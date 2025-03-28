@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/socks"
 )
@@ -108,6 +109,18 @@ func (c *NodeClient) AddCancel(cancel context.CancelFunc) {
 		cancel()
 		return nil
 	}))
+}
+
+// RouteToDatabaseToProto converts tlsca.RouteToDatabase to the proto version
+// that is used for ReissueParams.
+func RouteToDatabaseToProto(dbRoute tlsca.RouteToDatabase) proto.RouteToDatabase {
+	return proto.RouteToDatabase{
+		ServiceName: dbRoute.ServiceName,
+		Protocol:    dbRoute.Protocol,
+		Username:    dbRoute.Username,
+		Database:    dbRoute.Database,
+		Roles:       dbRoute.Roles,
+	}
 }
 
 // ReissueParams encodes optional parameters for
@@ -622,10 +635,10 @@ func (c *NodeClient) RunCommand(ctx context.Context, command []string, opts ...R
 // AddEnv add environment variable to SSH session. This method needs to be called
 // before the session is created.
 func (c *NodeClient) AddEnv(key, value string) {
-	if c.TC.extraEnvs == nil {
-		c.TC.extraEnvs = make(map[string]string)
+	if c.TC.ExtraEnvs == nil {
+		c.TC.ExtraEnvs = make(map[string]string)
 	}
-	c.TC.extraEnvs[key] = value
+	c.TC.ExtraEnvs[key] = value
 }
 
 func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.Request) {

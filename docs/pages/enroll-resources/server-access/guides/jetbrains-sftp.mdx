@@ -59,10 +59,11 @@ You should be able to connect to the desired server using the following command,
 $ ssh user@[server name].[cluster name]
 ```
 
-<Details scopeOnly={true} scope={["cloud"]} title="Teleport Cloud">
+<details>
+<summary>Teleport Cloud</summary>
   The SSH config you generated earlier instructs your SSH client to run `tsh proxy ssh` to access a server in your Teleport cluster.
   However, running an `ssh` command against the Teleport Proxy Service at `yourtenant.teleport.sh` will result in an error.
-</Details>
+</details>
 
 <Admonition type="note">
   Include the port number for OpenSSH servers, by default `22`, or you can experience an error.

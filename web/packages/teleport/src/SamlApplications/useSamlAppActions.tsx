@@ -20,7 +20,7 @@ import React, { createContext, useContext } from 'react';
 
 import { Attempt } from 'shared/hooks/useAsync';
 
-import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
+import { SelectResourceSpec } from 'teleport/Discover/SelectResource/resources';
 import { SamlMeta } from 'teleport/Discover/useDiscover';
 import type { SamlAppToDelete } from 'teleport/services/samlidp/types';
 import type { Access } from 'teleport/services/user';
@@ -40,11 +40,11 @@ export interface SamlAppAction {
     /**
      * startEdit triggers Saml app edit flow.
      */
-    startEdit: (resourceSpec: ResourceSpec) => void;
+    startEdit: (resourceSpec: SelectResourceSpec) => void;
     /**
      * startDelete triggers Saml app delete flow.
      */
-    startDelete: (resourceSpec: ResourceSpec) => void;
+    startDelete: (resourceSpec: SelectResourceSpec) => void;
   };
   /**
    * currentAction specifies edit or delete mode.
@@ -69,7 +69,7 @@ export interface SamlAppAction {
   /**
    * resourceSpec holds current Saml app resource spec.
    */
-  resourceSpec?: ResourceSpec;
+  resourceSpec?: SelectResourceSpec;
   /**
    * userSamlIdPPerm holds user's RBAC permissions to
    * saml_idp_service_provider resource.

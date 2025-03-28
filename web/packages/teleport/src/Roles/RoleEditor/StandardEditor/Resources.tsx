@@ -37,7 +37,12 @@ import { precomputed } from 'shared/components/Validation/rules';
 
 import { LabelsInput } from 'teleport/components/LabelsInput';
 
-import { SectionBox, SectionProps, SectionPropsWithDispatch } from './sections';
+import {
+  SectionBox,
+  SectionPadding,
+  SectionProps,
+  SectionPropsWithDispatch,
+} from './sections';
 import {
   AppAccess,
   DatabaseAccess,
@@ -86,7 +91,10 @@ export const ResourcesTab = memo(function ResourcesTab({
     dispatch({ type: 'add-resource-access', payload: { kind } });
 
   return (
-    <Flex flexDirection="column" gap={3} my={2}>
+    <Flex flexDirection="column" gap={3}>
+      <SectionPadding>
+        Rules that allow connecting to resources controlled by Teleport
+      </SectionPadding>
       {value.map((res, i) => {
         return (
           <ResourceAccessSection
@@ -113,7 +121,7 @@ export const ResourcesTab = memo(function ResourcesTab({
           buttonText={
             <>
               <Plus size="small" mr={2} />
-              Add New Resource Access
+              Add Resource Access
             </>
           }
           buttonProps={{
@@ -151,38 +159,31 @@ export const resourceAccessSections: Record<
   ResourceAccessKind,
   {
     title: string;
-    tooltip: string;
     component: React.ComponentType<SectionProps<unknown, unknown>>;
   }
 > = {
   kube_cluster: {
     title: 'Kubernetes',
-    tooltip: 'Configures access to Kubernetes clusters',
     component: KubernetesAccessSection,
   },
   node: {
     title: 'Servers',
-    tooltip: 'Configures access to SSH servers',
     component: ServerAccessSection,
   },
   app: {
     title: 'Applications',
-    tooltip: 'Configures access to applications',
     component: AppAccessSection,
   },
   db: {
     title: 'Databases',
-    tooltip: 'Configures access to databases',
     component: DatabaseAccessSection,
   },
   windows_desktop: {
     title: 'Windows Desktops',
-    tooltip: 'Configures access to Windows desktops',
     component: WindowsDesktopAccessSection,
   },
   git_server: {
     title: 'GitHub Organizations',
-    tooltip: 'Configures access to GitHub organizations and their repositories',
     component: GitHubOrganizationAccessSection,
   },
 };
@@ -200,11 +201,7 @@ export const ResourceAccessSection = memo(function ResourceAccessSectionRaw<
   validation,
   dispatch,
 }: SectionPropsWithDispatch<T, V>) {
-  const {
-    component: Body,
-    title,
-    tooltip,
-  } = resourceAccessSections[value.kind];
+  const { component: Body, title } = resourceAccessSections[value.kind];
 
   function handleChange(val: T) {
     dispatch({ type: 'set-resource-access', payload: val });
@@ -216,10 +213,9 @@ export const ResourceAccessSection = memo(function ResourceAccessSectionRaw<
 
   return (
     <SectionBox
-      title={title}
+      titleSegments={[title]}
       removable
       onRemove={handleRemove}
-      tooltip={tooltip}
       isProcessing={isProcessing}
       validation={validation}
     >
@@ -263,6 +259,7 @@ export function ServerAccessSection({
         rule={precomputed(validation.fields.logins)}
         mt={3}
         mb={0}
+        menuPosition="fixed"
       />
     </>
   );
@@ -288,6 +285,7 @@ export function KubernetesAccessSection({
         openMenuOnClick={false}
         value={value.groups}
         onChange={groups => onChange?.({ ...value, groups })}
+        menuPosition="fixed"
       />
 
       <FieldSelectCreatable
@@ -302,6 +300,7 @@ export function KubernetesAccessSection({
         openMenuOnClick={false}
         value={value.users}
         onChange={users => onChange?.({ ...value, users })}
+        menuPosition="fixed"
       />
 
       <LabelsInput
@@ -405,6 +404,7 @@ function KubernetesResourceView({
         value={kind}
         rule={precomputed(validation.kind)}
         onChange={k => onChange?.({ ...value, kind: k })}
+        menuPosition="fixed"
       />
       <FieldInput
         label="Name"
@@ -443,6 +443,7 @@ function KubernetesResourceView({
         rule={precomputed(validation.verbs)}
         onChange={v => onChange?.({ ...value, verbs: v })}
         mb={0}
+        menuPosition="fixed"
       />
     </Box>
   );
@@ -524,6 +525,7 @@ export function DatabaseAccessSection({
         openMenuOnClick={false}
         value={value.names}
         onChange={names => onChange?.({ ...value, names })}
+        menuPosition="fixed"
       />
       <FieldSelectCreatable
         isMulti
@@ -543,6 +545,7 @@ export function DatabaseAccessSection({
         openMenuOnClick={false}
         value={value.users}
         onChange={users => onChange?.({ ...value, users })}
+        menuPosition="fixed"
       />
       <FieldSelectCreatable
         isMulti
@@ -558,6 +561,7 @@ export function DatabaseAccessSection({
         value={value.roles}
         onChange={roles => onChange?.({ ...value, roles })}
         rule={precomputed(validation.fields.roles)}
+        menuPosition="fixed"
       />
       <LabelsInput
         legend="Database Service Labels"
@@ -601,6 +605,7 @@ export function WindowsDesktopAccessSection({
         openMenuOnClick={false}
         value={value.logins}
         onChange={logins => onChange?.({ ...value, logins })}
+        menuPosition="fixed"
       />
     </>
   );
@@ -628,6 +633,7 @@ export function GitHubOrganizationAccessSection({
       openMenuOnClick={false}
       value={value.organizations}
       onChange={organizations => onChange?.({ ...value, organizations })}
+      menuPosition="fixed"
     />
   );
 }
