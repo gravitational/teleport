@@ -1069,7 +1069,7 @@ func (a *dbAuth) GenerateDatabaseClientKey(ctx context.Context) (*keys.PrivateKe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	privateKey, err := keys.NewPrivateKey(signer)
+	privateKey, err := keys.NewSoftwarePrivateKey(signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

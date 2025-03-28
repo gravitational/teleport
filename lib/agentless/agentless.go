@@ -177,7 +177,7 @@ func createAuthSigner(ctx context.Context, params certParams, localAccessPoint L
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	priv, err := keys.NewPrivateKey(key)
+	priv, err := keys.NewSoftwarePrivateKey(key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

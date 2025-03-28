@@ -102,7 +102,7 @@ func GenerateDatabaseServerCertificates(ctx context.Context, req GenerateDatabas
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		privateKey, err := keys.NewPrivateKey(key)
+		privateKey, err := keys.NewSoftwarePrivateKey(key)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

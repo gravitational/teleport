@@ -76,9 +76,9 @@ func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeEx
 		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
 	})
 	require.NoError(t, err)
-	sshPriv, err := keys.NewPrivateKey(sshKey)
+	sshPriv, err := keys.NewSoftwarePrivateKey(sshKey)
 	require.NoError(t, err)
-	tlsPriv, err := keys.NewPrivateKey(tlsKey)
+	tlsPriv, err := keys.NewSoftwarePrivateKey(tlsKey)
 	require.NoError(t, err)
 
 	allowedLogins := []string{idx.Username, "root"}
@@ -400,7 +400,9 @@ func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
 	require.NotEmpty(b, certPEM)
 
-	privateKey, err := keys.NewPrivateKey(key)
+	keyPEM, err := keys.MarshalPrivateKey(key)
+	require.NoError(b, err)
+	privateKey, err := keys.NewPrivateKey(key, keyPEM)
 	require.NoError(b, err)
 
 	kubeCred := TLSCredential{

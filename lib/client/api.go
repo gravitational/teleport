@@ -4043,11 +4043,11 @@ func (tc *TeleportClient) GetNewLoginKeyRing(ctx context.Context) (keyRing *KeyR
 		}
 	}
 
-	sshPriv, err := keys.NewPrivateKey(sshKey)
+	sshPriv, err := keys.NewSoftwarePrivateKey(sshKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsPriv, err := keys.NewPrivateKey(tlsKey)
+	tlsPriv, err := keys.NewSoftwarePrivateKey(tlsKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

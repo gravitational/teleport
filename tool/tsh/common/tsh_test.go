@@ -5813,9 +5813,9 @@ func TestLogout(t *testing.T) {
 		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
 	})
 	require.NoError(t, err)
-	sshPriv, err := keys.NewPrivateKey(sshKey)
+	sshPriv, err := keys.NewSoftwarePrivateKey(sshKey)
 	require.NoError(t, err)
-	tlsPriv, err := keys.NewPrivateKey(tlsKey)
+	tlsPriv, err := keys.NewSoftwarePrivateKey(tlsKey)
 	require.NoError(t, err)
 	clientKeyRing := &client.KeyRing{
 		KeyRingIndex: client.KeyRingIndex{

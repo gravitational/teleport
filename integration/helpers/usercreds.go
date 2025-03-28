@@ -120,11 +120,11 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sshPriv, err := keys.NewPrivateKey(sshKey)
+	sshPriv, err := keys.NewSoftwarePrivateKey(sshKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsPriv, err := keys.NewPrivateKey(tlsKey)
+	tlsPriv, err := keys.NewSoftwarePrivateKey(tlsKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

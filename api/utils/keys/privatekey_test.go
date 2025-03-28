@@ -298,7 +298,7 @@ func TestHardwareKeyMethods(t *testing.T) {
 	// Test hardware key methods with a software key.
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
-	key, err := keys.NewPrivateKey(priv)
+	key, err := keys.NewSoftwarePrivateKey(priv)
 	require.NoError(t, err)
 
 	require.Nil(t, key.GetAttestationStatement())

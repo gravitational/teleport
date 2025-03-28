@@ -569,7 +569,7 @@ func genUserKeyRing(hostname string) (*client.KeyRing, []byte, error) {
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	priv, err := keys.NewPrivateKey(key)
+	priv, err := keys.NewSoftwarePrivateKey(key)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

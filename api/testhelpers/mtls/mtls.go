@@ -56,7 +56,7 @@ func generateCA(t *testing.T) (*keys.PrivateKey, *x509.Certificate) {
 
 	caPub, caPriv, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
-	caKey, err := keys.NewPrivateKey(caPriv)
+	caKey, err := keys.NewPrivateKey(caPriv, nil)
 	require.NoError(t, err)
 
 	// Create a self signed certificate.
@@ -97,7 +97,7 @@ func generateChildTLSConfigFromCA(t *testing.T, caKey *keys.PrivateKey, caCert *
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 
-	key, err := keys.NewPrivateKey(priv)
+	key, err := keys.NewPrivateKey(priv, nil)
 	require.NoError(t, err)
 
 	// Create a certificate signed by the CA.

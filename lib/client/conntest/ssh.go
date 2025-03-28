@@ -114,7 +114,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	privateKey, err := keys.NewPrivateKey(key)
+	privateKey, err := keys.NewSoftwarePrivateKey(key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

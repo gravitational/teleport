@@ -60,21 +60,29 @@ type PrivateKey struct {
 	keyPEM []byte
 }
 
-// NewPrivateKey returns a new PrivateKey for a crypto.Signer.
-// [signer] must be an *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey, or *hardwarekey.PrivateKey.
-// TODO(Joerger): Remove the variadic argument once /e is updated to not provide it.
-func NewPrivateKey(signer crypto.Signer, _ ...[]byte) (*PrivateKey, error) {
-	keyPEM, err := MarshalPrivateKey(signer)
+// NewPrivateKey returns a new PrivateKey for the given crypto.Signer with a
+// pre-marshaled private key PEM, which may be a special PIV key PEM.
+func NewPrivateKey(signer crypto.Signer, keyPEM []byte) (*PrivateKey, error) {
+	sshPub, err := ssh.NewPublicKey(signer.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newPrivateKeyWithKeyPEM(signer, keyPEM)
+
+	return &PrivateKey{
+		Signer: signer,
+		sshPub: sshPub,
+		keyPEM: keyPEM,
+	}, nil
 }
 
-// newPrivateKeyWithKeyPEM returns a new PrivateKey for the given crypto.Signer with a
-// pre-marshaled private key PEM, which may be a special PIV key PEM.
-func newPrivateKeyWithKeyPEM(signer crypto.Signer, keyPEM []byte) (*PrivateKey, error) {
+// NewSoftwarePrivateKey returns a new PrivateKey for a crypto.Signer.
+// [signer] must be an *rsa.PrivateKey, *ecdsa.PrivateKey, or ed25519.PrivateKey.
+func NewSoftwarePrivateKey(signer crypto.Signer) (*PrivateKey, error) {
 	sshPub, err := ssh.NewPublicKey(signer.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	keyPEM, err := MarshalPrivateKey(signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -98,7 +106,16 @@ func NewHardwarePrivateKey(ctx context.Context, s hardwarekey.Service, keyConfig
 		return nil, trace.Wrap(err)
 	}
 
-	return NewPrivateKey(hwPrivateKey)
+	encodedKey, err := hwPrivateKey.Encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	privPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  pivYubiKeyPrivateKeyType,
+		Bytes: encodedKey,
+	})
+
+	return NewPrivateKey(hwPrivateKey, privPEM)
 }
 
 // SSHPublicKey returns the ssh.PublicKey representation of the public key.
@@ -300,7 +317,7 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 			return nil, trace.Wrap(err, "failed to parse hardware private key")
 		}
 
-		return newPrivateKeyWithKeyPEM(hwPrivateKey, keyPEM)
+		return NewPrivateKey(hwPrivateKey, keyPEM)
 	case OpenSSHPrivateKeyType:
 		priv, err := ssh.ParseRawPrivateKey(keyPEM)
 		if err != nil {
@@ -316,7 +333,7 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 		if pEdwards, ok := cryptoSigner.(*ed25519.PrivateKey); ok {
 			cryptoSigner = *pEdwards
 		}
-		return newPrivateKeyWithKeyPEM(cryptoSigner, keyPEM)
+		return NewPrivateKey(cryptoSigner, keyPEM)
 	case PKCS1PrivateKeyType, PKCS8PrivateKeyType, ECPrivateKeyType:
 		// The DER format doesn't always exactly match the PEM header, various
 		// versions of Teleport and OpenSSL have been guilty of writing PKCS#8
@@ -328,17 +345,17 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 			if !ok {
 				return nil, trace.BadParameter("x509.ParsePKCS8PrivateKey returned an invalid private key of type %T", priv)
 			}
-			return newPrivateKeyWithKeyPEM(signer, keyPEM)
+			return NewPrivateKey(signer, keyPEM)
 		} else if block.Type == PKCS8PrivateKeyType {
 			preferredErr = err
 		}
 		if signer, err := x509.ParsePKCS1PrivateKey(block.Bytes); err == nil {
-			return newPrivateKeyWithKeyPEM(signer, keyPEM)
+			return NewPrivateKey(signer, keyPEM)
 		} else if block.Type == PKCS1PrivateKeyType {
 			preferredErr = err
 		}
 		if signer, err := x509.ParseECPrivateKey(block.Bytes); err == nil {
-			return newPrivateKeyWithKeyPEM(signer, keyPEM)
+			return NewPrivateKey(signer, keyPEM)
 		} else if block.Type == ECPrivateKeyType {
 			preferredErr = err
 		}
@@ -369,16 +386,6 @@ func MarshalPrivateKey(key crypto.Signer) ([]byte, error) {
 		privPEM := pem.EncodeToMemory(&pem.Block{
 			Type:  PKCS8PrivateKeyType,
 			Bytes: der,
-		})
-		return privPEM, nil
-	case *hardwarekey.PrivateKey:
-		encodedKey, err := privateKey.Encode()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		privPEM := pem.EncodeToMemory(&pem.Block{
-			Type:  pivYubiKeyPrivateKeyType,
-			Bytes: encodedKey,
 		})
 		return privPEM, nil
 	default:
