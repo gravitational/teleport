@@ -35,7 +35,12 @@ import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 import cfg, { UrlDesktopParams } from 'teleport/config';
 import { KeyboardHandler } from 'teleport/DesktopSession/KeyboardHandler';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
-import { ButtonState, ScrollAxis, TdpClient } from 'teleport/lib/tdp';
+import {
+  ButtonState,
+  ScrollAxis,
+  TdpClient,
+  TdpClientEvent,
+} from 'teleport/lib/tdp';
 import { useListener } from 'teleport/lib/tdp/client';
 import { shouldShowMfaPrompt, useMfaEmitter } from 'teleport/lib/useMfa';
 import { getHostName } from 'teleport/services/api';
@@ -155,6 +160,24 @@ export function DesktopSession({
     onRemoveAlert,
     addAlert,
   } = useDesktopSession(client, aclAttempt);
+
+  const [latencyStats, setLatencyStats] = useState(undefined);
+  useEffect(() => {
+    if (!client) {
+      return;
+    }
+    const setStats = stats => {
+      console.log('got latency', stats);
+      setLatencyStats({
+        client: stats.browserLatency,
+        server: stats.desktopLatency,
+      });
+    };
+    client.on(TdpClientEvent.LATENCY_STATS, setStats);
+    return () => {
+      client.removeListener(TdpClientEvent.LATENCY_STATS, setStats);
+    };
+  }, [client]);
 
   const [tdpConnectionStatus, setTdpConnectionStatus] =
     useState<TdpConnectionStatus>({ status: '' });
@@ -389,6 +412,7 @@ export function DesktopSession({
       `}
     >
       <TopBar
+        latency={latencyStats}
         onDisconnect={() => {
           setClipboardSharingState(prevState => ({
             ...prevState,
