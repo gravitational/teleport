@@ -1,6 +1,6 @@
 # Changelog
 
-## 16.5.0 (Upcoming)
+## 16.5.0 (03/28/25)
 
 ### Automatic Updates
 
