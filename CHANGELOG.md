@@ -27,6 +27,18 @@ The binaries will be symlinked to their previous location, no change should be r
 
 This change allows us to do automatic updates without conflicting with the package manager.
 
+### Readiness endpoint changes
+
+The Auth Service readiness now reflects the connectivity from the instance to
+the backend storage, and the Proxy Service readiness reflects the connectivity
+to the Auth Service API. In case of Auth or backend storage failure, the
+instances will now turn unready. This change ensures that control plane
+components can be excluded from their relevant load-balancing pools. If you want
+to preserve the old behaviour (the Auth Service or Proxy Service instance stays
+ready and runs in degraded mode) in the `teleport-cluster` Helm chart, you can
+now tune the readiness setting to have the pods become unready after a high
+number of failed probes.
+
 ### Other improvements and fixes
 
 * Fix a bug causing the discovery service to fail to configure teleport on discovered nodes when managed updates v2 are enabled. [#53544](https://github.com/gravitational/teleport/pull/53544)
