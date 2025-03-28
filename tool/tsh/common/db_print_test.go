@@ -108,6 +108,19 @@ proxy cluster1 db2  describe db2 mysql    self-hosted localhost:3306 [alice]    
 
 `,
 		},
+		{
+			name: "tsh db exec search results",
+			cfg: printDatabaseTableConfig{
+				rows:           rows,
+				includeColumns: []string{"Name", "Protocol", "Description", "Labels"},
+			},
+			expect: `Name Description  Protocol Labels   
+---- ------------ -------- -------- 
+db1  describe db1 postgres Env=dev  
+db2  describe db2 mysql    Env=prod 
+
+`,
+		},
 	}
 
 	for _, test := range tests {
@@ -271,6 +284,57 @@ func Test_maybeShowListDatabaseHint(t *testing.T) {
 			} else {
 				require.Empty(t, buf.String())
 			}
+		})
+	}
+}
+
+func Test_dbPrefixWriter(t *testing.T) {
+	tests := []struct {
+		name   string
+		inputs []string
+		expect string
+	}{
+		{
+			name: "input with new lines",
+			inputs: []string{
+				"aaa\n",
+				"\n",
+				"bbb\n",
+			},
+			expect: `[my-db] aaa
+[my-db] 
+[my-db] bbb
+`,
+		},
+		{
+			name: "input without new lines are carried",
+			inputs: []string{
+				"aa",
+				"",
+				"bb",
+				"cc\ndd",
+				"ee\nff",
+			},
+			expect: `[my-db] aabbcc
+[my-db] ddee
+[my-db] ff
+`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			w := newDBPrefixWriter(&buf, "my-db")
+
+			for _, input := range test.inputs {
+				n, err := w.Write([]byte(input))
+				require.NoError(t, err)
+				require.Equal(t, len(input), n)
+			}
+			require.NoError(t, w.Close())
+
+			require.Equal(t, test.expect, buf.String())
 		})
 	}
 }

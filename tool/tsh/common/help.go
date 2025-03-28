@@ -62,4 +62,19 @@ Examples:
 
   Get database names using "jq":
   $ tsh db ls --format json  | jq -r '.[].metadata.name'`
+
+	dbExecHelp = `
+Examples:
+  Execute queries on specified target databases:
+  $ tsh db exec "select @@hostname" --db-user mysql --dbs mydb1,mydb2,mydb3
+
+  Search databases with labels:
+  $ tsh db exec "source my_script.sql" --db-user mysql --labels key1=value1,key2=value2
+
+  Search databases with keywords:
+  $ tsh db exec "select 1" --db-user mysql --db-name mysql --search foo,bar
+
+  Run concurrent queries and save outputs to files:
+  $ tsh db exec "select 1" --db-user mysql --labels env=dev --max-connections=5 --output-dir=exec-outputs
+`
 )
