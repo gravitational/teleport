@@ -5879,7 +5879,7 @@ func TestLogout(t *testing.T) {
 			t.Parallel()
 			tmpHomePath := t.TempDir()
 
-			store := client.NewFSClientStore(tmpHomePath, nil /*hwKeyService*/)
+			store := client.NewFSClientStore(tmpHomePath)
 			err := store.AddKeyRing(clientKeyRing)
 			require.NoError(t, err)
 			store.SaveProfile(profile, true)
