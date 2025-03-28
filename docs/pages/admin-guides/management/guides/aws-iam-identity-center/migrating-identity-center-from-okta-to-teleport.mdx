@@ -126,6 +126,7 @@ $ tctl plugins install awsic \
     --instance-arn ${IDENTITY_CENTER_INSTANCE_ARN} \
     --instance-region ${IDENTITY_CENTER_INSTANCE_REGION} \
     --use-system-credentials \
+    --assume-role-arn ${AWS_IAM_ROLE_ARN} \
     --scim-url ${IDENTITY_CENTER_SCIM_BASE_URL} \
     --scim-token ${IDENTITY_CENTER_SCIM_BEARER_TOKEN} \
     --access-list-default-owner ${TELEPORT_ACCESS_LIST_DEFAULT_OWNER} \
@@ -138,6 +139,7 @@ This will install the Teleport AWS IAM Identity Center integration with a
 Teleport configuration that:
 - Controls the AWS IAM Identity Center instance indicated by `--instance-arn`.
 - Uses the system AWS credentials to authenticate with AWS (from `--use-system-credentials`)
+  and assumes the IAM role indicated by `--assume-role-arn`.
 - Manages account assignments all AWS accounts that match the `${ACCOUNT_NAME_ALLOW_FILTER}`.
 - Provisions all users imported from Okta into AWS IAM Identity Center (from the `--user-origin okta` flag).
 - Only imports all groups matching `${GROUP_NAME_ALLOW_FILTER}` into Teleport as Access

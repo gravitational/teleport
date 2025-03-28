@@ -2069,6 +2069,7 @@ $ tctl plugins install awsic <flags>
 | `--instance-arn` | none | string | Required. The ARN of the Identity Center instance to manage. |
 | `--instance-region` | none | string | Required. The AWS region where the Identity Center instance is located. |
 | `--[no-]use-system-credentials` | `--no-use-system-credentials` | boolean | Required. Use system AWS credentials to authenticate with AWS. Note that currently only `--use-system-credentials` is supported by `tctl`. |
+| `--assume-role-arn` | none | string | Required. AWS IAM Role ARN value that the integration will use to obtain a temporary security credential. |
 | `--[no]force-scim-url` | `--no-force-scim-url` | boolean | Optional. Force the use of the provided SCIM provisioning endpoint even if it fails SCIM endpoint validation. |
 | `--user-label` | none | string | Optional. Add user label filter, in the form of a comma-separated list of "name=value" pairs. All matching users will be provisioned to AWS Identity Center. If no label filters are supplied, *all* Teleport users will be provisioned to Identity Center. Multiple filters allowed. |
 | `--user-origin` | none | string | Optional. Shorthand for setting a label filter that filters by origin. For example, `--user-origin $ORIGIN` is identical to specifying `--user-label teleport.dev/origin=$ORIGIN`. |
@@ -2083,6 +2084,7 @@ $ tctl plugins install awsic \
     --instance-arn "arn:aws:sso:::instance/ssoins-722326ecc902a06a" \
     --instance-region us-east-1 \
     --use-system-credentials \
+    --assume-role-arn arn:aws:iam::xxxx:role/role-name-to-assume \
     --scim-url https://scim.us-east-1.amazonaws.com/f3v9c6bc2ca-b104-4571-b669-f2eba522efe8/scim/v2 \
     --scim-token ${IDENTITY_CENTER_SCIM_BEARER_TOKEN} \
     --access-list-default-owner admin \
