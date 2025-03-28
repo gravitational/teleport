@@ -35,6 +35,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -596,9 +598,9 @@ func (p *ProfileStatus) DatabasesForCluster(clusterName string) ([]tlsca.RouteTo
 		Username:    p.Username,
 		ClusterName: clusterName,
 	}
-
+	hwks := piv.NewYubiKeyService(context.TODO(), &hardwarekey.CLIPrompt{})
 	store := NewFSKeyStore(p.Dir)
-	keyRing, err := store.GetKeyRing(idx, WithDBCerts{})
+	keyRing, err := store.GetKeyRing(idx, hwks, WithDBCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -618,8 +620,9 @@ func (p *ProfileStatus) AppsForCluster(clusterName string) ([]tlsca.RouteToApp, 
 		ClusterName: clusterName,
 	}
 
+	hwks := piv.NewYubiKeyService(context.TODO(), &hardwarekey.CLIPrompt{})
 	store := NewFSKeyStore(p.Dir)
-	keyRing, err := store.GetKeyRing(idx, WithAppCerts{})
+	keyRing, err := store.GetKeyRing(idx, hwks, WithAppCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -1054,7 +1054,7 @@ func TestRootClusterName(t *testing.T) {
 		}, {
 			name: "key store",
 			modifyCfg: func(c *Config) {
-				c.ClientStore = NewMemClientStore()
+				c.ClientStore = NewMemClientStore(nil /*hwKeyService*/)
 				err := c.ClientStore.AddKeyRing(keyRing)
 				require.NoError(t, err)
 			},
@@ -1113,7 +1113,7 @@ func TestLoadTLSConfigForClusters(t *testing.T) {
 			name:     "key store no clusters",
 			clusters: []string{},
 			modifyCfg: func(c *Config) {
-				c.ClientStore = NewMemClientStore()
+				c.ClientStore = NewMemClientStore(nil /*hwKeyService*/)
 				err := c.ClientStore.AddKeyRing(keyRing)
 				require.NoError(t, err)
 			},
@@ -1122,7 +1122,7 @@ func TestLoadTLSConfigForClusters(t *testing.T) {
 			name:     "key store root cluster",
 			clusters: []string{rootCluster},
 			modifyCfg: func(c *Config) {
-				c.ClientStore = NewMemClientStore()
+				c.ClientStore = NewMemClientStore(nil /*hwKeyService*/)
 				err := c.ClientStore.AddKeyRing(keyRing)
 				require.NoError(t, err)
 			},
@@ -1131,7 +1131,7 @@ func TestLoadTLSConfigForClusters(t *testing.T) {
 			name:     "key store unknown clusters",
 			clusters: []string{"leaf-1", "leaf-2"},
 			modifyCfg: func(c *Config) {
-				c.ClientStore = NewMemClientStore()
+				c.ClientStore = NewMemClientStore(nil /*hwKeyService*/)
 				err := c.ClientStore.AddKeyRing(keyRing)
 				require.NoError(t, err)
 			},
