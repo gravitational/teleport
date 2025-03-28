@@ -5,7 +5,7 @@
     "build-ui": "pnpm build-ui-oss && pnpm build-ui-e",
     "build-ui-oss": "pnpm --filter=@gravitational/teleport build",
     "build-ui-e": "pnpm --filter=@gravitational/teleport.e build",
-    "build-wasm": "pnpm --filter=@gravitational/teleport build-wasm",
+    "build-wasm": "node web/scripts/clean-up-ironrdp-artifacts.mjs & pnpm --filter=@gravitational/shared build-wasm",
     "start-teleport": "pnpm --filter=@gravitational/teleport start",
     "start-teleport-e": "pnpm --filter=@gravitational/teleport.e start",
     "build-term": "pnpm --filter=@gravitational/teleterm build",

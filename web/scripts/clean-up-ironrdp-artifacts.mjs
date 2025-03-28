@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /**
  * Teleport
  * Copyright (C) 2025 Gravitational, Inc.
@@ -16,4 +17,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { DesktopSession as DesktopSessionContainer } from './DesktopSession';
+import { rm } from 'node:fs/promises';
+
+// wasm-pack build artifacts were originally kept in 'teleport' before being moved to 'shared'.
+// While they don’t cause significant issues, they show up in autocomplete suggestions,
+// so it's best to clean them up.
+// TODO(gzdunek) DELETE IN v20.0.0
+await rm('web/packages/teleport/src/ironrdp', {
+  recursive: true,
+  force: true,
+});

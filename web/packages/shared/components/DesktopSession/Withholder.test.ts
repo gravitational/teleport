@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ButtonState, TdpClient } from 'teleport/lib/tdp';
+import { ButtonState, TdpClient } from 'shared/libs/tdp';
 
 import { Withholder } from './Withholder';
 
 // Mock the TdpClient class
 jest.mock('teleport/lib/tdp', () => {
-  const originalModule = jest.requireActual('teleport/lib/tdp'); // Get the actual module
+  const originalModule = jest.requireActual('shared/libs/tdp'); // Get the actual module
   return {
     ...originalModule,
     TdpClient: jest.fn().mockImplementation(() => {
