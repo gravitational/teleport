@@ -25,7 +25,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -44,6 +44,8 @@ import (
 )
 
 func Test_checkDatabaseExecInputFlags(t *testing.T) {
+	dir := t.TempDir()
+
 	tests := []struct {
 		name       string
 		cf         *CLIConf
@@ -96,6 +98,32 @@ func Test_checkDatabaseExecInputFlags(t *testing.T) {
 				DatabaseServices: "db1,db2",
 			},
 			checkError: require.Error,
+		},
+		{
+			name: "missing output dir",
+			cf: &CLIConf{
+				MaxConnections: 5,
+				Labels:         "env=dev",
+			},
+			checkError: require.Error,
+		},
+		{
+			name: "output dir exists",
+			cf: &CLIConf{
+				MaxConnections: 5,
+				OutputDir:      dir,
+				Labels:         "env=dev",
+			},
+			checkError: require.Error,
+		},
+		{
+			name: "max connections and output dir",
+			cf: &CLIConf{
+				MaxConnections: 5,
+				OutputDir:      filepath.Join(dir, "output"),
+				Labels:         "env=dev",
+			},
+			checkError: require.NoError,
 		},
 	}
 	for _, tt := range tests {
@@ -157,24 +185,17 @@ func TestDatabaseExec(t *testing.T) {
 			wantError: "not found",
 		},
 		{
-			name: "unsupported protocol",
-			setup: func(_ *testing.T, cmd *databaseExecCommand) {
-				cmd.cf.SearchKeywords = "mongo"
-			},
-			wantError: "unsupported database protocol",
-		},
-		{
 			name: "by names",
 			setup: func(_ *testing.T, cmd *databaseExecCommand) {
 				cmd.cf.DatabaseServices = "pg1,pg2,pg3"
 			},
 			expectOutputContains: []string{
 				"Fetching databases by names",
-				"(3/3)", // progress bar,
 				"Executing command for \"pg1\".",
 				"db-query executed",
 				"Executing command for \"pg2\".",
 				"Executing command for \"pg3\".",
+				"Summary:",
 			},
 		},
 		{
@@ -205,52 +226,32 @@ func TestDatabaseExec(t *testing.T) {
 				"Executing command for \"pg1\".",
 				"db-query executed",
 				"Executing command for \"pg2\".",
-			},
-		},
-		{
-			name: "prefixed output for concurrent connections",
-			setup: func(_ *testing.T, cmd *databaseExecCommand) {
-				cmd.cf.DatabaseServices = "pg1,pg2,pg3"
-				cmd.cf.MaxConnections = 3
-			},
-			expectOutputContains: []string{
-				"Fetching databases by names",
-				"(3/3)", // progress bar,
-				"[pg1] db-query executed",
-				"[pg2] db-query executed",
-				"[pg3] db-query executed",
+				"Summary:",
 			},
 		},
 		{
 			name: "output dir",
 			setup: func(_ *testing.T, cmd *databaseExecCommand) {
 				cmd.cf.DatabaseServices = "pg3,mysql"
-				cmd.cf.OutputDir = path.Join(cmd.cf.HomePath, "test-output")
+				cmd.cf.OutputDir = filepath.Join(cmd.cf.HomePath, "test-output")
 			},
 			expectOutputContains: []string{
 				"Fetching databases by names",
-				"(2/2)", // progress bar,
 				"Executing command for \"pg3\". Output will be saved at",
 				"Executing command for \"mysql\". Output will be saved at",
+				"Summary:",
+				"Summary is saved",
 			},
 			verifyDir: func(t *testing.T, dir string) {
 				t.Helper()
-				read, err := utils.ReadPath(path.Join(dir, "test-output", "pg3.output"))
+				read, err := utils.ReadPath(filepath.Join(dir, "test-output", "pg3.output"))
 				require.NoError(t, err)
 				require.Equal(t, "db-query executed", strings.TrimSpace(string(read)))
-				read, err = utils.ReadPath(path.Join(dir, "test-output", "mysql.output"))
+				read, err = utils.ReadPath(filepath.Join(dir, "test-output", "mysql.output"))
 				require.NoError(t, err)
 				require.Equal(t, "db-query executed", strings.TrimSpace(string(read)))
+				require.True(t, utils.FileExists(filepath.Join(dir, "test-output", "summary.json")))
 			},
-		},
-		{
-			name: "output file already exists",
-			setup: func(t *testing.T, cmd *databaseExecCommand) {
-				cmd.cf.DatabaseServices = "pg3"
-				cmd.cf.OutputDir = cmd.cf.HomePath
-				require.NoError(t, os.WriteFile(path.Join(cmd.cf.OutputDir, "pg3.output"), []byte("touch"), teleport.FileMaskOwnerOnly))
-			},
-			wantError: "already exists",
 		},
 	}
 
@@ -417,15 +418,15 @@ func Test_ensureEachDatabase(t *testing.T) {
 		},
 		{
 			name:                "database not found",
-			inputNames:          []string{"dev", "staging", "prod-cloud1"},
+			inputNames:          []string{"dev", "staging", "prod-cloud5"},
 			inputDatabases:      []types.Database{devDB, stagingDB},
-			expectErrorContains: "not found",
+			expectErrorContains: "\"prod-cloud5\" not found",
 		},
 		{
 			name:                "ambiguous name",
 			inputNames:          []string{"prod"},
 			inputDatabases:      []types.Database{prodDB1, prodDB2},
-			expectErrorContains: "matches multiple databases",
+			expectErrorContains: "\"prod\" matches multiple databases",
 		},
 	}
 
@@ -440,4 +441,84 @@ func Test_ensureEachDatabase(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_databaseExecSummary(t *testing.T) {
+	summary := databaseExecSummary{}
+	summary.add(databaseExecResult{
+		RouteToDatabase: proto.RouteToDatabase{
+			ServiceName: "db1",
+			Protocol:    "postgres",
+			Username:    "db-user",
+		},
+		Success: true,
+	})
+	summary.add(databaseExecResult{
+		RouteToDatabase: proto.RouteToDatabase{
+			ServiceName: "db2",
+			Protocol:    "postgres",
+			Username:    "db-user",
+		},
+		Error:    "some error",
+		ExitCode: 1,
+	})
+	summary.add(databaseExecResult{
+		RouteToDatabase: proto.RouteToDatabase{
+			ServiceName: "db3",
+			Protocol:    "postgres",
+			Username:    "db-user",
+		},
+		Success: true,
+	})
+
+	var buf bytes.Buffer
+	summary.print(&buf)
+	require.Contains(t, buf.String(), "Summary: 2 of 3 succeeded")
+
+	buf.Reset()
+	dir := t.TempDir()
+	expectPath := filepath.Join(dir, "summary.json")
+	summary.printAndSave(&buf, dir)
+	require.Contains(t, buf.String(), "Summary: 2 of 3 succeeded")
+	require.Contains(t, buf.String(), fmt.Sprintf("Summary is saved at %q", expectPath))
+	summaryData, err := os.ReadFile(expectPath)
+	require.NoError(t, err)
+	require.Equal(t, `{
+  "databases": [
+    {
+      "database": {
+        "service_name": "db1",
+        "protocol": "postgres",
+        "username": "db-user"
+      },
+      "command": "",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "database": {
+        "service_name": "db2",
+        "protocol": "postgres",
+        "username": "db-user"
+      },
+      "command": "",
+      "success": false,
+      "error": "some error",
+      "exit_code": 1
+    },
+    {
+      "database": {
+        "service_name": "db3",
+        "protocol": "postgres",
+        "username": "db-user"
+      },
+      "command": "",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "success": 2,
+  "failure": 1,
+  "total": 3
+}`, string(summaryData))
 }

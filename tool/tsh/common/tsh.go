@@ -1061,7 +1061,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbExec.Flag("output-dir", "Directory to store command output per target database service. A summary is saved as \"summary.json\".").StringVar(&cf.OutputDir)
 	dbExec.Flag("dbs", "List of comma separated target database services. Mutually exclusive with --search or --labels.").StringVar(&cf.DatabaseServices)
 	dbExec.Flag("confirm", "Confirm selected database services before executing command.").Default("true").BoolVar(&cf.Confirm)
-	dbExec.Arg("command", "Execute this command on target database services").Required().StringVar(&cf.DatabaseCommand)
+	dbExec.Arg("command", "Execute this command on target database services.").Required().StringVar(&cf.DatabaseCommand)
 	dbExec.Alias(dbExecHelp)
 
 	// join

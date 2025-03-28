@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -120,22 +121,17 @@ func (c *databaseExecCommand) run() error {
 	group.SetLimit(c.cf.MaxConnections)
 	for _, db := range dbs {
 		group.Go(func() error {
-			select {
-			case <-groupCtx.Done():
-				return groupCtx.Err()
-			default:
-			}
-
 			return trace.Wrap(c.exec(groupCtx, db))
 		})
 	}
 
+	// Print summary.
 	defer func() {
-		c.summary.printResult(c.cf.Stdout())
-		if c.cf.OutputDir != "" {
-			if err := c.summary.saveResult(c.cf.Stdout(), c.cf.OutputDir); err != nil {
-				fmt.Fprintln(os.Stderr, "Failed to save summary.")
-			}
+		switch {
+		case c.cf.OutputDir != "":
+			c.summary.printAndSave(c.cf.Stdout(), c.cf.OutputDir)
+		case len(dbs) > 1:
+			c.summary.print(c.cf.Stdout())
 		}
 	}()
 
@@ -190,22 +186,29 @@ func (c *databaseExecCommand) getDatabases() ([]types.Database, error) {
 }
 
 func (c *databaseExecCommand) getDatabasesByNames() ([]types.Database, error) {
-	fmt.Fprintln(c.cf.Stdout(), "Fetching databases ...")
+	fmt.Fprintln(c.cf.Stdout(), "Fetching databases by names ...")
 
+	// Use a single predicate to search multiple names in one shot but batch 100
+	// names at a time. Extra validation will be performed afterward to ensure
+	// we fetched what we need.
 	names := apiutils.Deduplicate(strings.Split(c.cf.DatabaseServices, ","))
-	var predicate string
-	for _, name := range names {
-		predicate = makePredicateDisjunction(predicate, makeDiscoveredNameOrNamePredicate(name))
-	}
+	var dbs []types.Database
+	for page := range slices.Chunk(names, 100) {
+		var predicate string
+		for _, name := range page {
+			predicate = makePredicateDisjunction(predicate, makeDiscoveredNameOrNamePredicate(name))
+		}
 
-	logger.DebugContext(c.cf.Context, "Getting database by names", "names", names, "predicate", predicate)
-	dbs, err := c.client.listDatabasesWithFilter(c.cf.Context, &proto.ListResourcesRequest{
-		Namespace:           apidefaults.Namespace,
-		ResourceType:        types.KindDatabaseServer,
-		PredicateExpression: predicate,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+		logger.DebugContext(c.cf.Context, "Getting database by names", "names", page, "predicate", predicate)
+		pageDBs, err := c.client.listDatabasesWithFilter(c.cf.Context, &proto.ListResourcesRequest{
+			Namespace:           apidefaults.Namespace,
+			ResourceType:        types.KindDatabaseServer,
+			PredicateExpression: predicate,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		dbs = append(dbs, pageDBs...)
 	}
 
 	logger.DebugContext(c.cf.Context, "Fetched database services by names.",
@@ -257,11 +260,17 @@ func (c *databaseExecCommand) exec(ctx context.Context, db types.Database) (err 
 			result.Success = false
 
 			// Print the error and return nil to continue-on-error.
-			fmt.Fprintf(errWriter, "Failed to execute command for %s: %v\n", db.GetName(), err)
+			fmt.Fprintf(errWriter, "Failed to execute command for %q: %v\n", db.GetName(), err)
 			err = nil
 		}
 		c.summary.add(result)
 	}()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
 
 	switch {
 	case c.cf.OutputDir != "":
@@ -534,8 +543,7 @@ func ensureEachDatabase(names []string, dbs []types.Database) error {
 func printTableForDatabaseExec(w io.Writer, dbs []types.Database) {
 	rows := make([]databaseTableRow, 0, len(dbs))
 	for _, db := range dbs {
-		// Always use full name but don't print hidden labels. But don't print
-		// hidden labels.
+		// Always use full name but don't print hidden labels.
 		row := getDatabaseRow("", "", "", db, nil, nil, false)
 		row.DisplayName = db.GetName()
 		rows = append(rows, row)
@@ -577,13 +585,20 @@ func (s *databaseExecSummary) add(result databaseExecResult) {
 	}
 }
 
-func (s *databaseExecSummary) printResult(w io.Writer) {
+func (s *databaseExecSummary) print(w io.Writer) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	fmt.Fprintf(w, "\nSummary: %d of %d succeeded.\n", s.Success, s.Total)
 }
 
-func (s *databaseExecSummary) saveResult(w io.Writer, outputDir string) error {
+func (s *databaseExecSummary) printAndSave(w io.Writer, outputDir string) {
+	s.print(w)
+	if err := s.save(w, outputDir); err != nil {
+		fmt.Fprintf(w, "Failed to save summary: %v\n", err)
+	}
+}
+
+func (s *databaseExecSummary) save(w io.Writer, outputDir string) error {
 	summaryPath := filepath.Join(outputDir, "summary.json")
 	summaryPath, err := utils.EnsureLocalPath(summaryPath, "", "")
 	if err != nil {
@@ -598,7 +613,7 @@ func (s *databaseExecSummary) saveResult(w io.Writer, outputDir string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	summaryData, err := json.Marshal(s)
+	summaryData, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
 		return trace.Wrap(err)
 	}
