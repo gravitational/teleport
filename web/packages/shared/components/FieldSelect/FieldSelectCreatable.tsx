@@ -29,6 +29,7 @@ import {
   CreatableProps as SelectCreatableProps,
 } from '../Select';
 import { SelectCreatableAsync } from '../Select/Select';
+import { Rule } from '../Validation/rules';
 import {
   FieldProps,
   FieldSelectWrapper,
@@ -127,7 +128,7 @@ type CreatableProps<
     autoFocus?: boolean;
     label?: string;
     toolTipContent?: React.ReactNode;
-    rule?: (options: OnChangeValue<Opt, IsMulti>) => () => unknown;
+    rule?: Rule<OnChangeValue<Opt, IsMulti>>;
     markAsError?: boolean;
     ariaLabel?: string;
   };
