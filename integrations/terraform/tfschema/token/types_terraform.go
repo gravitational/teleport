@@ -206,6 +206,59 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
+				"bound_keypair": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"joining": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"may_join_until": {
+									Description: "MayJoinUntil is an optional timestamp before which all joining attempts must occur. If unset, there are no time constraints on joining attempts. Note that clients may continue to renew their identities past this timestamp; a lock should be created if continued access should be cut off.",
+									Optional:    true,
+									Type:        github_com_gravitational_teleport_integrations_terraform_tfschema.UseRFC3339Time(),
+								},
+								"total_joins": {
+									Description: "TotalJoins indicates the total number of joins that will be allowed over the lifetime of this token and is the initial value for `.status.bound_keypair.remaining_joins`. This value may be incremented after creation to allow additional joins should `remaining_joins` fall to zero, and `remaining_joins` will be incremented by the same amount. Unless `unlimited` is set, this value must be at least 1 at time of token creation for the initial join attempt to succeed.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+								},
+								"unlimited": {
+									Description: "Unlimited indicates no limit for joining and rejoining. `total_joins` and the calculated `.status.bound_keypair.remaining_joins` value will be zero, but rejoin attempts will succeed so long as other join requirements are met.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								},
+							}),
+							Description: "Joining contains parameters related to all join attempts.",
+							Optional:    true,
+						},
+						"onboarding": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"initial_join_secret": {
+									Description: "InitialJoinSecret is an initial join secret joining clients may use to register their public key on first join. If `initial_public_key` is set, this value is ignored. Otherwise, if set, this value will be used to populate `.status.bound_keypair.intitial_join_secret`; if unset, a random secure value will be generated server-side to populate the status field.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"initial_public_key": {
+									Description: "InitialPublicKey is an initial, static public key that will be used to immediately populate `.status.bound_keypair.bound_public_key`. If set, `initial_join_secret` and `must_join_before` are ignored, and `.status.bound_keypair.initial_join_secret` will not be generated. This value is written in SSH public key format, including algorithm.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"must_join_before": {
+									Description: "MustJoinBefore is an optional time before which initial secret joining may be used. Attempts to register using an initial join secret after this timestamp will not be allowed. Users may be modified after creation if necessary to allow the initial registration to take place.",
+									Optional:    true,
+									Type:        github_com_gravitational_teleport_integrations_terraform_tfschema.UseRFC3339Time(),
+								},
+							}),
+							Description: "Onboarding contains parameters related to initial joining and keypair registration.",
+							Optional:    true,
+						},
+						"rotate_on_next_renewal": {
+							Description: "RotateOnNextRenewal is a flag that indicates clients should perform a keypair rotation on the next refresh or rejoin attempt. This flag will automatically be set to `false` after a successful rotation.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+					}),
+					Description: "",
+					Optional:    true,
+				},
 				"circleci": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"allow": {
@@ -626,6 +679,51 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 			}),
 			Description: "Spec is a provisioning token V2 spec",
 			Required:    true,
+		},
+		"status": {
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"bound_keypair": {
+				Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					"bound_bot_instance_id": {
+						Description: "BoundBotInstanceID is the ID of the currently associated bot instance. A new bot instance is issued on each join; the new bot instance will have a `previous_bot_instance` set to this value, if any.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					},
+					"bound_public_key": {
+						Description: "BoundPublicKey contains the currently bound public key. If `.spec.bound_keypair.onboarding.initial_public_key` is set, that value will be copied here on creation, otherwise it will be populated as part of public key registration. This value will be updated over time if keypair rotation takes place, and will always reflect the currently valid public key. This value is written in SSH public key format, including algorithm.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					},
+					"initial_join_secret": {
+						Description: "InitialJoinSecret contains a secret value that may be used for public key registration during the initial join process. If `.spec.bound_keypair.onboarding.initial_public_key` is set, †his field will remain empty. Otherwise, if `.spec.bound_keypair.onboarding.initial_join_secret` is set, that value will be copied here. If that field is unset, a value will be randomly generated.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					},
+					"join_count": {
+						Description: "JoinCount is a count of the total number of joins performed using this token. It is incremented for every successful join or rejoin.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+					},
+					"last_joined_at": {
+						Description: "LastJoinedAt contains a timestamp of the last successful join attempt. Note that normal renewals will not trigger a join attempt. This corresponds with the last time `bound_bot_instance_id` was updated.",
+						Optional:    true,
+						Type:        github_com_gravitational_teleport_integrations_terraform_tfschema.UseRFC3339Time(),
+					},
+					"last_rotated_at": {
+						Description: "LastRotatedAt contains a timestamp of the last time the keypair was rotated, if any. This is not set at initial join.",
+						Optional:    true,
+						Type:        github_com_gravitational_teleport_integrations_terraform_tfschema.UseRFC3339Time(),
+					},
+					"remaining_joins": {
+						Description: "RemainingJoins is a count of the total number of additional joins that can be performed using this token. If `.spec.joining.total_joins` is incremented, this value will be incremented by the same value.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+					},
+				}),
+				Description: "BoundKeypair contains status information related to bound-keypair type tokens.",
+				Optional:    true,
+			}}),
+			Description: "Status is extended status information, depending on token type. It is not user writable.",
+			Optional:    true,
 		},
 		"sub_kind": {
 			Description: "SubKind is an optional resource sub kind, used in some resources",
@@ -2754,6 +2852,338 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 														}
 													}
 												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["bound_keypair"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.BoundKeypair = nil
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj.BoundKeypair = &github_com_gravitational_teleport_api_types.ProvisionTokenSpecV2BoundKeypair{}
+									obj := obj.BoundKeypair
+									{
+										a, ok := tf.Attrs["onboarding"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.Onboarding = nil
+												if !v.Null && !v.Unknown {
+													tf := v
+													obj.Onboarding = &github_com_gravitational_teleport_api_types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{}
+													obj := obj.Onboarding
+													{
+														a, ok := tf.Attrs["initial_public_key"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.InitialPublicKey"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.InitialPublicKey", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.Null && !v.Unknown {
+																	t = string(v.Value)
+																}
+																obj.InitialPublicKey = t
+															}
+														}
+													}
+													{
+														a, ok := tf.Attrs["initial_join_secret"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.InitialJoinSecret"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.InitialJoinSecret", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.Null && !v.Unknown {
+																	t = string(v.Value)
+																}
+																obj.InitialJoinSecret = t
+															}
+														}
+													}
+													{
+														a, ok := tf.Attrs["must_join_before"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.MustJoinBefore"})
+														} else {
+															v, ok := a.(github_com_gravitational_teleport_integrations_terraform_tfschema.TimeValue)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.MustJoinBefore", "github.com/gravitational/teleport/integrations/terraform/tfschema.TimeValue"})
+															} else {
+																var t *time.Time
+																if !v.Null && !v.Unknown {
+																	c := time.Time(v.Value)
+																	t = &c
+																}
+																obj.MustJoinBefore = t
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["joining"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Joining"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Joining", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.Joining = nil
+												if !v.Null && !v.Unknown {
+													tf := v
+													obj.Joining = &github_com_gravitational_teleport_api_types.ProvisionTokenSpecV2BoundKeypair_JoiningSpec{}
+													obj := obj.Joining
+													{
+														a, ok := tf.Attrs["unlimited"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Joining.Unlimited"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Joining.Unlimited", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+															} else {
+																var t bool
+																if !v.Null && !v.Unknown {
+																	t = bool(v.Value)
+																}
+																obj.Unlimited = t
+															}
+														}
+													}
+													{
+														a, ok := tf.Attrs["total_joins"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Joining.TotalJoins"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Joining.TotalJoins", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+															} else {
+																var t uint32
+																if !v.Null && !v.Unknown {
+																	t = uint32(v.Value)
+																}
+																obj.TotalJoins = t
+															}
+														}
+													}
+													{
+														a, ok := tf.Attrs["may_join_until"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Joining.MayJoinUntil"})
+														} else {
+															v, ok := a.(github_com_gravitational_teleport_integrations_terraform_tfschema.TimeValue)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Joining.MayJoinUntil", "github.com/gravitational/teleport/integrations/terraform/tfschema.TimeValue"})
+															} else {
+																var t *time.Time
+																if !v.Null && !v.Unknown {
+																	c := time.Time(v.Value)
+																	t = &c
+																}
+																obj.MayJoinUntil = t
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["rotate_on_next_renewal"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.RotateOnNextRenewal"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.RotateOnNextRenewal", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+											} else {
+												var t bool
+												if !v.Null && !v.Unknown {
+													t = bool(v.Value)
+												}
+												obj.RotateOnNextRenewal = t
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	{
+		a, ok := tf.Attrs["status"]
+		if !ok {
+			diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Status"})
+		} else {
+			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+			if !ok {
+				diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Status", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+			} else {
+				obj.Status = nil
+				if !v.Null && !v.Unknown {
+					tf := v
+					obj.Status = &github_com_gravitational_teleport_api_types.ProvisionTokenStatusV2{}
+					obj := obj.Status
+					{
+						a, ok := tf.Attrs["bound_keypair"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Status.BoundKeypair"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.BoundKeypair = nil
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj.BoundKeypair = &github_com_gravitational_teleport_api_types.ProvisionTokenStatusV2BoundKeypair{}
+									obj := obj.BoundKeypair
+									{
+										a, ok := tf.Attrs["initial_join_secret"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.InitialJoinSecret"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.InitialJoinSecret", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.InitialJoinSecret = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["bound_public_key"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.BoundPublicKey"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.BoundPublicKey", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.BoundPublicKey = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["bound_bot_instance_id"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.BoundBotInstanceID"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.BoundBotInstanceID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.BoundBotInstanceID = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["remaining_joins"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.RemainingJoins"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.RemainingJoins", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+											} else {
+												var t uint32
+												if !v.Null && !v.Unknown {
+													t = uint32(v.Value)
+												}
+												obj.RemainingJoins = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["join_count"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.JoinCount"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.JoinCount", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+											} else {
+												var t uint32
+												if !v.Null && !v.Unknown {
+													t = uint32(v.Value)
+												}
+												obj.JoinCount = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["last_joined_at"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.LastJoinedAt"})
+										} else {
+											v, ok := a.(github_com_gravitational_teleport_integrations_terraform_tfschema.TimeValue)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.LastJoinedAt", "github.com/gravitational/teleport/integrations/terraform/tfschema.TimeValue"})
+											} else {
+												var t *time.Time
+												if !v.Null && !v.Unknown {
+													c := time.Time(v.Value)
+													t = &c
+												}
+												obj.LastJoinedAt = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["last_rotated_at"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.LastRotatedAt"})
+										} else {
+											v, ok := a.(github_com_gravitational_teleport_integrations_terraform_tfschema.TimeValue)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.LastRotatedAt", "github.com/gravitational/teleport/integrations/terraform/tfschema.TimeValue"})
+											} else {
+												var t *time.Time
+												if !v.Null && !v.Unknown {
+													c := time.Time(v.Value)
+													t = &c
+												}
+												obj.LastRotatedAt = t
 											}
 										}
 									}
@@ -6062,9 +6492,497 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 							}
 						}
 					}
+					{
+						a, ok := tf.AttrTypes["bound_keypair"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["bound_keypair"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								if obj.BoundKeypair == nil {
+									v.Null = true
+								} else {
+									obj := obj.BoundKeypair
+									tf := &v
+									{
+										a, ok := tf.AttrTypes["onboarding"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+											} else {
+												v, ok := tf.Attrs["onboarding"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+												if !ok {
+													v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+														AttrTypes: o.AttrTypes,
+														Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+													}
+												} else {
+													if v.Attrs == nil {
+														v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+													}
+												}
+												if obj.Onboarding == nil {
+													v.Null = true
+												} else {
+													obj := obj.Onboarding
+													tf := &v
+													{
+														t, ok := tf.AttrTypes["initial_public_key"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.InitialPublicKey"})
+														} else {
+															v, ok := tf.Attrs["initial_public_key"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.InitialPublicKey", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.InitialPublicKey", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																}
+																v.Null = string(obj.InitialPublicKey) == ""
+															}
+															v.Value = string(obj.InitialPublicKey)
+															v.Unknown = false
+															tf.Attrs["initial_public_key"] = v
+														}
+													}
+													{
+														t, ok := tf.AttrTypes["initial_join_secret"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.InitialJoinSecret"})
+														} else {
+															v, ok := tf.Attrs["initial_join_secret"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.InitialJoinSecret", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.InitialJoinSecret", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																}
+																v.Null = string(obj.InitialJoinSecret) == ""
+															}
+															v.Value = string(obj.InitialJoinSecret)
+															v.Unknown = false
+															tf.Attrs["initial_join_secret"] = v
+														}
+													}
+													{
+														t, ok := tf.AttrTypes["must_join_before"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.MustJoinBefore"})
+														} else {
+															v, ok := tf.Attrs["must_join_before"].(github_com_gravitational_teleport_integrations_terraform_tfschema.TimeValue)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.MustJoinBefore", err})
+																}
+																v, ok = i.(github_com_gravitational_teleport_integrations_terraform_tfschema.TimeValue)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Onboarding.MustJoinBefore", "github.com/gravitational/teleport/integrations/terraform/tfschema.TimeValue"})
+																}
+																v.Null = false
+															}
+															if obj.MustJoinBefore == nil {
+																v.Null = true
+															} else {
+																v.Null = false
+																v.Value = time.Time(*obj.MustJoinBefore)
+															}
+															v.Unknown = false
+															tf.Attrs["must_join_before"] = v
+														}
+													}
+												}
+												v.Unknown = false
+												tf.Attrs["onboarding"] = v
+											}
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["joining"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Joining"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Joining", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+											} else {
+												v, ok := tf.Attrs["joining"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+												if !ok {
+													v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+														AttrTypes: o.AttrTypes,
+														Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+													}
+												} else {
+													if v.Attrs == nil {
+														v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+													}
+												}
+												if obj.Joining == nil {
+													v.Null = true
+												} else {
+													obj := obj.Joining
+													tf := &v
+													{
+														t, ok := tf.AttrTypes["unlimited"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Joining.Unlimited"})
+														} else {
+															v, ok := tf.Attrs["unlimited"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.BoundKeypair.Joining.Unlimited", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Joining.Unlimited", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+																}
+																v.Null = bool(obj.Unlimited) == false
+															}
+															v.Value = bool(obj.Unlimited)
+															v.Unknown = false
+															tf.Attrs["unlimited"] = v
+														}
+													}
+													{
+														t, ok := tf.AttrTypes["total_joins"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Joining.TotalJoins"})
+														} else {
+															v, ok := tf.Attrs["total_joins"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.BoundKeypair.Joining.TotalJoins", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Joining.TotalJoins", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+																}
+																v.Null = int64(obj.TotalJoins) == 0
+															}
+															v.Value = int64(obj.TotalJoins)
+															v.Unknown = false
+															tf.Attrs["total_joins"] = v
+														}
+													}
+													{
+														t, ok := tf.AttrTypes["may_join_until"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.Joining.MayJoinUntil"})
+														} else {
+															v, ok := tf.Attrs["may_join_until"].(github_com_gravitational_teleport_integrations_terraform_tfschema.TimeValue)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.BoundKeypair.Joining.MayJoinUntil", err})
+																}
+																v, ok = i.(github_com_gravitational_teleport_integrations_terraform_tfschema.TimeValue)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.Joining.MayJoinUntil", "github.com/gravitational/teleport/integrations/terraform/tfschema.TimeValue"})
+																}
+																v.Null = false
+															}
+															if obj.MayJoinUntil == nil {
+																v.Null = true
+															} else {
+																v.Null = false
+																v.Value = time.Time(*obj.MayJoinUntil)
+															}
+															v.Unknown = false
+															tf.Attrs["may_join_until"] = v
+														}
+													}
+												}
+												v.Unknown = false
+												tf.Attrs["joining"] = v
+											}
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["rotate_on_next_renewal"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.BoundKeypair.RotateOnNextRenewal"})
+										} else {
+											v, ok := tf.Attrs["rotate_on_next_renewal"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.BoundKeypair.RotateOnNextRenewal", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.BoundKeypair.RotateOnNextRenewal", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+												}
+												v.Null = bool(obj.RotateOnNextRenewal) == false
+											}
+											v.Value = bool(obj.RotateOnNextRenewal)
+											v.Unknown = false
+											tf.Attrs["rotate_on_next_renewal"] = v
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["bound_keypair"] = v
+							}
+						}
+					}
 				}
 				v.Unknown = false
 				tf.Attrs["spec"] = v
+			}
+		}
+	}
+	{
+		a, ok := tf.AttrTypes["status"]
+		if !ok {
+			diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Status"})
+		} else {
+			o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+			if !ok {
+				diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Status", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+			} else {
+				v, ok := tf.Attrs["status"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+				if !ok {
+					v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+						AttrTypes: o.AttrTypes,
+						Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+					}
+				} else {
+					if v.Attrs == nil {
+						v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+					}
+				}
+				if obj.Status == nil {
+					v.Null = true
+				} else {
+					obj := obj.Status
+					tf := &v
+					{
+						a, ok := tf.AttrTypes["bound_keypair"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Status.BoundKeypair"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["bound_keypair"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								if obj.BoundKeypair == nil {
+									v.Null = true
+								} else {
+									obj := obj.BoundKeypair
+									tf := &v
+									{
+										t, ok := tf.AttrTypes["initial_join_secret"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.InitialJoinSecret"})
+										} else {
+											v, ok := tf.Attrs["initial_join_secret"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Status.BoundKeypair.InitialJoinSecret", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.InitialJoinSecret", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.InitialJoinSecret) == ""
+											}
+											v.Value = string(obj.InitialJoinSecret)
+											v.Unknown = false
+											tf.Attrs["initial_join_secret"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["bound_public_key"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.BoundPublicKey"})
+										} else {
+											v, ok := tf.Attrs["bound_public_key"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Status.BoundKeypair.BoundPublicKey", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.BoundPublicKey", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.BoundPublicKey) == ""
+											}
+											v.Value = string(obj.BoundPublicKey)
+											v.Unknown = false
+											tf.Attrs["bound_public_key"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["bound_bot_instance_id"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.BoundBotInstanceID"})
+										} else {
+											v, ok := tf.Attrs["bound_bot_instance_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Status.BoundKeypair.BoundBotInstanceID", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.BoundBotInstanceID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.BoundBotInstanceID) == ""
+											}
+											v.Value = string(obj.BoundBotInstanceID)
+											v.Unknown = false
+											tf.Attrs["bound_bot_instance_id"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["remaining_joins"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.RemainingJoins"})
+										} else {
+											v, ok := tf.Attrs["remaining_joins"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Status.BoundKeypair.RemainingJoins", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.RemainingJoins", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+												}
+												v.Null = int64(obj.RemainingJoins) == 0
+											}
+											v.Value = int64(obj.RemainingJoins)
+											v.Unknown = false
+											tf.Attrs["remaining_joins"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["join_count"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.JoinCount"})
+										} else {
+											v, ok := tf.Attrs["join_count"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Status.BoundKeypair.JoinCount", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.JoinCount", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+												}
+												v.Null = int64(obj.JoinCount) == 0
+											}
+											v.Value = int64(obj.JoinCount)
+											v.Unknown = false
+											tf.Attrs["join_count"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["last_joined_at"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.LastJoinedAt"})
+										} else {
+											v, ok := tf.Attrs["last_joined_at"].(github_com_gravitational_teleport_integrations_terraform_tfschema.TimeValue)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Status.BoundKeypair.LastJoinedAt", err})
+												}
+												v, ok = i.(github_com_gravitational_teleport_integrations_terraform_tfschema.TimeValue)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.LastJoinedAt", "github.com/gravitational/teleport/integrations/terraform/tfschema.TimeValue"})
+												}
+												v.Null = false
+											}
+											if obj.LastJoinedAt == nil {
+												v.Null = true
+											} else {
+												v.Null = false
+												v.Value = time.Time(*obj.LastJoinedAt)
+											}
+											v.Unknown = false
+											tf.Attrs["last_joined_at"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["last_rotated_at"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.LastRotatedAt"})
+										} else {
+											v, ok := tf.Attrs["last_rotated_at"].(github_com_gravitational_teleport_integrations_terraform_tfschema.TimeValue)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Status.BoundKeypair.LastRotatedAt", err})
+												}
+												v, ok = i.(github_com_gravitational_teleport_integrations_terraform_tfschema.TimeValue)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.LastRotatedAt", "github.com/gravitational/teleport/integrations/terraform/tfschema.TimeValue"})
+												}
+												v.Null = false
+											}
+											if obj.LastRotatedAt == nil {
+												v.Null = true
+											} else {
+												v.Null = false
+												v.Value = time.Time(*obj.LastRotatedAt)
+											}
+											v.Unknown = false
+											tf.Attrs["last_rotated_at"] = v
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["bound_keypair"] = v
+							}
+						}
+					}
+				}
+				v.Unknown = false
+				tf.Attrs["status"] = v
 			}
 		}
 	}
