@@ -163,7 +163,7 @@ const AttentionDot = styled.div`
   background-color: ${p => p.theme.colors.buttons.warning.default};
   top: 10px;
   right: 15px;
-  @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
+  @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
     top: 20px;
     right: 25px;
   }

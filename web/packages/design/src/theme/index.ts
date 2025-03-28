@@ -22,3 +22,4 @@ import bblpTheme from './themes/bblpTheme';
 
 export { darkTheme, lightTheme, bblpTheme };
 export type { DeprecatedThemeOption } from './types';
+export { breakpointsPx } from './themes/sharedStyles';
