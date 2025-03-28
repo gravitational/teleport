@@ -71,15 +71,15 @@ func (l botClient) Delete(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
-// NewBotReconciler instantiates a new Kubernetes controller reconciling bot
+// NewBotV1Reconciler instantiates a new Kubernetes controller reconciling bot
 // resources
-func NewBotReconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewBotV1Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
 	botClient := &botClient{
 		teleportClient: tClient,
 	}
 
 	resourceReconciler, err := reconcilers.NewTeleportResource153Reconciler[
-		*machineidv1.Bot, *resourcesv1.TeleportBot,
+		*machineidv1.Bot, *resourcesv1.TeleportBotV1,
 	](
 		client,
 		botClient,

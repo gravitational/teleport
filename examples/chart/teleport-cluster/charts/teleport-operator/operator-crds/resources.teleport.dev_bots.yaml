@@ -33,7 +33,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: Bot resource definition v1 from Teleport
+            description: Bot resource definition  from Teleport
             properties:
               roles:
                 description: The roles that the bot should be able to impersonate.

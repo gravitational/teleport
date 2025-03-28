@@ -103,18 +103,18 @@ func (g *botTestingPrimitives) DeleteTeleportResource(ctx context.Context, name 
 }
 
 func (g *botTestingPrimitives) CreateKubernetesResource(ctx context.Context, name string) error {
-	bot := &resourcesv1.TeleportBot{
+	bot := &resourcesv1.TeleportBotV1{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: g.setup.Namespace.Name,
 		},
-		Spec: (*resourcesv1.TeleportBotSpec)(botSpec),
+		Spec: (*resourcesv1.TeleportBotV1Spec)(botSpec),
 	}
 	return trace.Wrap(g.setup.K8sClient.Create(ctx, bot))
 }
 
 func (g *botTestingPrimitives) DeleteKubernetesResource(ctx context.Context, name string) error {
-	bot := &resourcesv1.TeleportBot{
+	bot := &resourcesv1.TeleportBotV1{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: g.setup.Namespace.Name,
@@ -123,8 +123,8 @@ func (g *botTestingPrimitives) DeleteKubernetesResource(ctx context.Context, nam
 	return trace.Wrap(g.setup.K8sClient.Delete(ctx, bot))
 }
 
-func (g *botTestingPrimitives) GetKubernetesResource(ctx context.Context, name string) (*resourcesv1.TeleportBot, error) {
-	bot := &resourcesv1.TeleportBot{}
+func (g *botTestingPrimitives) GetKubernetesResource(ctx context.Context, name string) (*resourcesv1.TeleportBotV1, error) {
+	bot := &resourcesv1.TeleportBotV1{}
 	obj := kclient.ObjectKey{
 		Name:      name,
 		Namespace: g.setup.Namespace.Name,
@@ -143,7 +143,7 @@ func (g *botTestingPrimitives) ModifyKubernetesResource(ctx context.Context, nam
 }
 
 func (g *botTestingPrimitives) CompareTeleportAndKubernetesResource(
-	tResource *machineidv1.Bot, kubeResource *resourcesv1.TeleportBot) (bool, string) {
+	tResource *machineidv1.Bot, kubeResource *resourcesv1.TeleportBotV1) (bool, string) {
 	diff := cmp.Diff(
 		tResource,
 		kubeResource.ToTeleport(),
@@ -159,15 +159,15 @@ func (g *botTestingPrimitives) CompareTeleportAndKubernetesResource(
 
 func TestBotCreation(t *testing.T) {
 	test := &botTestingPrimitives{}
-	testlib.ResourceCreationTest[*machineidv1.Bot, *resourcesv1.TeleportBot](t, test)
+	testlib.ResourceCreationTest[*machineidv1.Bot, *resourcesv1.TeleportBotV1](t, test)
 }
 
 func TestBotDeletionDrift(t *testing.T) {
 	test := &botTestingPrimitives{}
-	testlib.ResourceDeletionDriftTest[*machineidv1.Bot, *resourcesv1.TeleportBot](t, test)
+	testlib.ResourceDeletionDriftTest[*machineidv1.Bot, *resourcesv1.TeleportBotV1](t, test)
 }
 
 func TestBotUpdate(t *testing.T) {
 	test := &botTestingPrimitives{}
-	testlib.ResourceUpdateTest[*machineidv1.Bot, *resourcesv1.TeleportBot](t, test)
+	testlib.ResourceUpdateTest[*machineidv1.Bot, *resourcesv1.TeleportBotV1](t, test)
 }

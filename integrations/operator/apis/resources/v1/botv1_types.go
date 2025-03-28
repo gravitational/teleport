@@ -27,37 +27,37 @@ import (
 )
 
 func init() {
-	SchemeBuilder.Register(&TeleportBot{}, &TeleportBotList{})
+	SchemeBuilder.Register(&TeleportBotV1{}, &TeleportBotV1List{})
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// TeleportBot holds the kubernetes custom resources for Bot
-type TeleportBot struct {
+// TeleportBotV1 holds the kubernetes custom resources for Bot
+type TeleportBotV1 struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   *TeleportBotSpec `json:"spec,omitempty"`
-	Status resources.Status `json:"status,omitempty"`
+	Spec   *TeleportBotV1Spec `json:"spec,omitempty"`
+	Status resources.Status   `json:"status,omitempty"`
 }
 
-// TeleportBotSpec defines the desired state of TeleportBot
-type TeleportBotSpec machineidv1.BotSpec
+// TeleportBotV1Spec defines the desired state of TeleportBotV1
+type TeleportBotV1Spec machineidv1.BotSpec
 
 //+kubebuilder:object:root=true
 
-// TeleportBotList contains a list of TeleportBot
-type TeleportBotList struct {
+// TeleportBotV1List contains a list of TeleportBotV1
+type TeleportBotV1List struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []TeleportBot `json:"items"`
+	Items           []TeleportBotV1 `json:"items"`
 }
 
 // ToTeleport returns a Bot, which wraps the actual
 // [machineidv1.Bot] and implements the necessary interface methods used
 // by the TeleportResourceReconciler.
-func (l *TeleportBot) ToTeleport() *machineidv1.Bot {
+func (l *TeleportBotV1) ToTeleport() *machineidv1.Bot {
 	resource := &machineidv1.Bot{
 		Kind:    types.KindBot,
 		Version: types.V1,
@@ -73,18 +73,18 @@ func (l *TeleportBot) ToTeleport() *machineidv1.Bot {
 
 // StatusConditions returns a pointer to Status.Conditions slice. This is used
 // by the teleport resource controller to report conditions back to on resource.
-func (l *TeleportBot) StatusConditions() *[]metav1.Condition {
+func (l *TeleportBotV1) StatusConditions() *[]metav1.Condition {
 	return &l.Status.Conditions
 }
 
 // Marshal serializes a spec into binary data.
-func (spec *TeleportBotSpec) Marshal() ([]byte, error) {
+func (spec *TeleportBotV1Spec) Marshal() ([]byte, error) {
 	// TODO(noah): use protojson??
 	return json.Marshal(spec)
 }
 
 // Unmarshal deserializes a spec from binary data.
-func (spec *TeleportBotSpec) Unmarshal(data []byte) error {
+func (spec *TeleportBotV1Spec) Unmarshal(data []byte) error {
 	// TODO(noah): use protojson??
 	return json.Unmarshal(data, spec)
 }
@@ -92,25 +92,25 @@ func (spec *TeleportBotSpec) Unmarshal(data []byte) error {
 // UnmarshalJSON delegates unmarshaling of the BotSpec to protojson, which is
 // necessary for the BotSpec (and other Proto RFD153 resources) to be
 // unmarshaled correctly from the unstructured object.
-func (spec *TeleportBotSpec) UnmarshalJSON(data []byte) error {
+func (spec *TeleportBotV1Spec) UnmarshalJSON(data []byte) error {
 	return protojson.Unmarshal(data, (*machineidv1.BotSpec)(spec))
 }
 
 // MarshalJSON delegates marshaling of the BotSpec to protojson, which is
 // necessary for the BotSpec (and other Proto RFD153 resources) to be
 // marshaled correctly into the unstructured object.
-func (spec *TeleportBotSpec) MarshalJSON() ([]byte, error) {
+func (spec *TeleportBotV1Spec) MarshalJSON() ([]byte, error) {
 	return protojson.Marshal((*machineidv1.BotSpec)(spec))
 }
 
 // DeepCopyInto deep-copies one user spec into another.
 // Required to satisfy runtime.Object interface.
-func (spec *TeleportBotSpec) DeepCopyInto(out *TeleportBotSpec) {
+func (spec *TeleportBotV1Spec) DeepCopyInto(out *TeleportBotV1Spec) {
 	data, err := spec.Marshal()
 	if err != nil {
 		panic(err)
 	}
-	*out = TeleportBotSpec{}
+	*out = TeleportBotV1Spec{}
 	if err = out.Unmarshal(data); err != nil {
 		panic(err)
 	}

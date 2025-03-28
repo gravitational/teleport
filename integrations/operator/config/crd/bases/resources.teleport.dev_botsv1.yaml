@@ -2,23 +2,23 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   creationTimestamp: null
-  name: teleportbots.resources.teleport.dev
+  name: teleportbotsv1.resources.teleport.dev
 spec:
   group: resources.teleport.dev
   names:
-    kind: TeleportBot
-    listKind: TeleportBotList
-    plural: teleportbots
+    kind: TeleportBotV1
+    listKind: TeleportBotV1List
+    plural: teleportbotsv1
     shortNames:
-    - bot
-    - bots
-    singular: teleportbot
+    - botv1
+    - botsv1
+    singular: teleportbotv1
   scope: Namespaced
   versions:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: Bot is the Schema for the bots API
+        description: BotV1 is the Schema for the botsv1 API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
