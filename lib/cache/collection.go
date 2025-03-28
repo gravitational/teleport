@@ -48,6 +48,8 @@ type collection[T any] struct {
 	// from being persisted in the store.
 	filter func(T) bool
 	// singleton indicates if the resource should only ever have a single item.
+	// TODO(tross|fspmarshall|espadolini) investigate if special singleton
+	// behavior can be removed.
 	singleton bool
 }
 
@@ -67,7 +69,7 @@ func (c *collection[T]) onDelete(r types.Resource) error {
 		unwrapped := t.Unwrap()
 		tt, ok := unwrapped.(T)
 		if !ok {
-			return trace.BadParameter("unexpected wrapped type %T (expected %v)", unwrapped, reflect.TypeOf((*T)(nil)).Elem())
+			return trace.BadParameter("unexpected wrapped type %T (expected %v)", unwrapped, reflect.TypeFor[T]())
 		}
 		if c.filter != nil && !c.filter(tt) {
 			return nil
@@ -76,7 +78,7 @@ func (c *collection[T]) onDelete(r types.Resource) error {
 		return trace.Wrap(c.store.delete(tt))
 	case *types.ResourceHeader:
 		if c.headerTransform == nil {
-			return trace.BadParameter("unable to convert types.ResourceHeader to %v (no transform specified, this is a bug)", reflect.TypeOf((*T)(nil)).Elem())
+			return trace.BadParameter("unable to convert types.ResourceHeader to %v (no transform specified, this is a bug)", reflect.TypeFor[T]())
 		}
 
 		tt := c.headerTransform(t)
@@ -92,7 +94,7 @@ func (c *collection[T]) onDelete(r types.Resource) error {
 
 		return trace.Wrap(c.store.delete(t))
 	default:
-		return trace.BadParameter("unexpected type %T (expected %v)", r, reflect.TypeOf((*T)(nil)).Elem())
+		return trace.BadParameter("unexpected type %T (expected %v)", r, reflect.TypeFor[T]())
 	}
 }
 
@@ -100,13 +102,13 @@ func (c *collection[T]) onDelete(r types.Resource) error {
 // An error is returned if the resource is of an unexpected type
 //
 // This is a no-op if the configured filter does not return true.
-func (c *collection[T]) onUpdate(r types.Resource) error {
+func (c *collection[T]) onPut(r types.Resource) error {
 	switch t := r.(type) {
 	case types.Resource153Unwrapper:
 		unwrapped := t.Unwrap()
 		tt, ok := unwrapped.(T)
 		if !ok {
-			return trace.BadParameter("unexpected wrapped type %T (expected %v)", unwrapped, reflect.TypeOf((*T)(nil)).Elem())
+			return trace.BadParameter("unexpected wrapped type %T (expected %v)", unwrapped, reflect.TypeFor[T]())
 		}
 
 		if c.filter != nil && !c.filter(tt) {
@@ -123,13 +125,15 @@ func (c *collection[T]) onUpdate(r types.Resource) error {
 		c.store.put(t)
 		return nil
 	default:
-		return trace.BadParameter("unexpected type %T (expected %v)", r, reflect.TypeOf((*T)(nil)).Elem())
+		return trace.BadParameter("unexpected type %T (expected %v)", r, reflect.TypeFor[T]())
 	}
 }
 
 // fetch populates the store with items received by the configured fetcher.
 func (c collection[T]) fetch(ctx context.Context, cacheOK bool) (apply func(context.Context) error, err error) {
 	// Singleton objects will only get deleted or updated, not both
+	// TODO(tross|fspmarshall|espadolini) investigate if special singleton
+	// behavior can be removed.
 	deleteSingleton := false
 
 	var resources []T

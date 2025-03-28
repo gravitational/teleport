@@ -71,7 +71,7 @@ func (s *store[T]) len() int {
 // or a [trace.NotFoundError] if no match was found.
 //
 // It is the responsibility of the caller to clone the resource
-// before propogating it further.
+// before propagating it further.
 func (s *store[T]) get(index, key string) (T, error) {
 	t, ok := s.cache.Get(index, key)
 	if !ok {
