@@ -198,7 +198,7 @@
     },
     {
       "source": "/application-access/okta/hosted-guide/",
-      "destination": "/enroll-resources/application-access/okta/hosted-guide/",
+      "destination": "/enroll-resources/application-access/okta/",
       "permanent": true
     },
     {
@@ -289,6 +289,21 @@
     {
       "source": "/reference/agent-services/kubernetes-application-discovery/",
       "destination": "/reference/agent-services/auto-discovery-reference/kubernetes-application-discovery/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/hosted-guide/",
+      "destination": "/enroll-resources/application-access/okta/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/scim-only/",
+      "destination": "/enroll-resources/application-access/okta/scim-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/sync-scim/",
+      "destination": "/enroll-resources/application-access/okta/scim-integration/",
       "permanent": true
     }
   ]
