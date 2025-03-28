@@ -18,12 +18,12 @@ The Discovery Service running in a Kubernetes cluster will periodically list ser
 according to the matchers specified in `kubernetes` filed of the service config. You can filter services based on
 types, namespaces and service labels. Services running in the `kube-system` and `kube-public` namespaces are
  automatically ignored. All services by default currently
-are considered of an "app" type, but it can be changed for a service by Kubernetes annotation [`teleport.dev/discovery-type`](../agent-services/kubernetes-application-discovery.mdx).
+are considered of an "app" type, but it can be changed for a service by Kubernetes annotation [`teleport.dev/discovery-type`](../agent-services/auto-discovery-reference/kubernetes-application-discovery.mdx).
 If type of a service doesn't equal the one specified in the matcher, service is ignored.
 
 By default name of the created Teleport app will consist of Kubernetes service name, namespace and 
 Kubernetes cluster name: `$SERVICE_NAME-$NAMESPACE-$KUBE_CLUSTER_NAME`. That name can be changed by Kubernetes annotation 
-[`teleport.dev/name`](../agent-services/kubernetes-application-discovery.mdx).
+[`teleport.dev/name`](../agent-services/auto-discovery-reference/kubernetes-application-discovery.mdx).
 
 Every port that is exposed by the service is considered separately, so one Kubernetes service can result in creation of multiple Teleport app resources, 
 if more than one port is exposed on the service. In that case port name will be added to the app name.
@@ -38,7 +38,7 @@ values `http`/`https` it will be used in the URI.
 - Teleport will perform HTTP request to the port to see if it serves HTTP/HTTPS requests
 - if exposed port's name is `http` or it has numeric value 80 or 8080, `http` will be used.
 
-Otherwise, this port is ignored. But if annotation [`teleport.dev/protocol`](../agent-services/kubernetes-application-discovery.mdx) is used on the service and its value is
+Otherwise, this port is ignored. But if annotation [`teleport.dev/protocol`](../agent-services/auto-discovery-reference/kubernetes-application-discovery.mdx) is used on the service and its value is
 "tcp", then this port will be exposed as a TCP app. 
 
 ### Creating Teleport apps and proxying requests to them
