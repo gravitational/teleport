@@ -20,6 +20,7 @@ import { ComponentType } from 'react';
 
 import {
   Application,
+  Broadcast,
   Database,
   Kubernetes,
   Laptop,
@@ -81,6 +82,8 @@ export function getResourceUri(
     case 'doc.authorize_web_session':
       return document.rootClusterUri;
     case 'doc.vnet_diag_report':
+      return document.rootClusterUri;
+    case 'doc.vnet_info':
       return document.rootClusterUri;
     case 'doc.blank':
       return undefined;
@@ -202,6 +205,11 @@ export function getStaticNameAndIcon(
       return {
         name: document.title,
         Icon: ListMagnifyingGlass,
+      };
+    case 'doc.vnet_info':
+      return {
+        name: document.title,
+        Icon: Broadcast,
       };
     case 'doc.blank':
     case 'doc.terminal_tsh_kube':
