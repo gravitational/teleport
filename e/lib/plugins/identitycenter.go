@@ -146,19 +146,17 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 // makeAWSConfig generates an AWS client configuration for the integration to
 // use.
 func makeAWSConfig(ctx context.Context, settings *types.PluginAWSICSettings, authServer *auth.Server, logger *slog.Logger) (*aws.Config, error) {
-
 	if err := cloudaws.ValidateAWSRegion(settings.Region); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	switch settings.CredentialsSource {
-	case types.AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_UNKNOWN,
-		types.AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_OIDC:
+	switch source := settings.Credentials.GetSource().(type) {
+	case *types.AWSICCredentials_Oidc:
 		logger.DebugContext(ctx, "Using AWS OIDC integration",
 			slog.String("integration", settings.IntegrationName))
 		cfg, err := cloudaws.CreateAWSConfigForIntegration(ctx, credprovider.Config{
 			Region:                settings.Region,
-			IntegrationName:       settings.IntegrationName,
+			IntegrationName:       source.Oidc.IntegrationName,
 			IntegrationGetter:     authServer.Services,
 			AWSOIDCTokenGenerator: identitycenter.MakeTokenGenerator(authServer),
 			Logger:                logger,
@@ -168,17 +166,27 @@ func makeAWSConfig(ctx context.Context, settings *types.PluginAWSICSettings, aut
 			return nil, trace.Wrap(err)
 		}
 		return cfg, nil
+	case *types.AWSICCredentials_System:
+		if source.System.AssumeRoleArn != "" {
+			logger.DebugContext(ctx, "Using ambient system AWS credential with configured assume role ARN")
+			cfg, err := cloudaws.BuildAWSConfig(ctx, settings.Region, source.System.AssumeRoleArn, nil)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &cfg, nil
+		}
 
-	case types.AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_SYSTEM:
-		logger.DebugContext(ctx, "Using ambient system AWS configuration")
+		// AssumeRoleARN is the preferred method and required for newer integration.
+		// Below only serves to support already active integration that uses system credential
+		// without role assumption.
+		// TODO(sshah): DELETE in Teleport 19.
+		logger.DebugContext(ctx, "Using ambient system AWS credential")
 		cfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(settings.Region))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return &cfg, nil
-
 	default:
-		logger.ErrorContext(ctx, "Invalid CredentialsSource value", "credentials_source", settings.CredentialsSource)
-		return nil, trace.BadParameter("invalid CredentialsSource value: %v", settings.CredentialsSource)
+		return nil, trace.BadParameter("invalid Credentials source type: %T", source)
 	}
 }

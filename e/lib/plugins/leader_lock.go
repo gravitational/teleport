@@ -70,7 +70,11 @@ func executeWithLeaderLock(ctx context.Context, deps instanceDependencies, plugi
 			}, func(ctx context.Context) error {
 				log.DebugContext(ctx, "Acquired plugin integration runtime lock.")
 				defer log.DebugContext(ctx, "Released plugin integration runtime lock.")
-				return trace.Wrap(pluginFunc())
+				if err := pluginFunc(); err != nil {
+					log.ErrorContext(ctx, "Plugin execution error. It will be restarted.", "error", err)
+					return trace.Errorf("plugin execution failed, see logs above")
+				}
+				return nil
 			})
 
 			if err != nil {
