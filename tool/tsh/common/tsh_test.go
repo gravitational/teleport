@@ -927,13 +927,12 @@ func TestMakeClient(t *testing.T) {
 	conf.HomePath = t.TempDir()
 
 	// Create a empty profile so we don't ping proxy.
-	clientStore, err := initClientStore(&conf, conf.Proxy)
-	require.NoError(t, err)
+	conf.initClientStore()
 	profile := &profile.Profile{
 		SSHProxyAddr: "proxy:3023",
 		WebProxyAddr: "proxy:3080",
 	}
-	err = clientStore.SaveProfile(profile, true)
+	err = conf.clientStore.SaveProfile(profile, true)
 	require.NoError(t, err)
 
 	tc, err = makeClient(&conf)
@@ -6458,13 +6457,13 @@ func TestProxyTemplatesMakeClient(t *testing.T) {
 		}
 
 		// Create a empty profile so we don't ping proxy.
-		clientStore, err := initClientStore(conf, conf.Proxy)
+		err := conf.initClientStore()
 		require.NoError(t, err)
 		profile := &profile.Profile{
 			SSHProxyAddr: "proxy:3023",
 			WebProxyAddr: "proxy:3080",
 		}
-		err = clientStore.SaveProfile(profile, true)
+		err = conf.clientStore.SaveProfile(profile, true)
 		require.NoError(t, err)
 
 		modify(conf)

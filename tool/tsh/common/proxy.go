@@ -143,7 +143,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routes, err := profile.DatabasesForCluster(tc.SiteName)
+	routes, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}

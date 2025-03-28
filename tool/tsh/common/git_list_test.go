@@ -128,13 +128,11 @@ func TestGitListCommand(t *testing.T) {
 			}
 
 			// Create a empty profile so we don't ping proxy.
-			clientStore, err := initClientStore(cf, cf.Proxy)
-			require.NoError(t, err)
 			profile := &profile.Profile{
 				SSHProxyAddr: "proxy:3023",
 				WebProxyAddr: "proxy:3080",
 			}
-			err = clientStore.SaveProfile(profile, true)
+			err := cf.clientStore.SaveProfile(profile, true)
 			require.NoError(t, err)
 
 			cmd := gitListCommand{
