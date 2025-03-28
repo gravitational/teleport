@@ -624,7 +624,7 @@ function Build-Artifacts {
         -ArtifactDirectory "$ArtifactDirectory" `
         -TeleportVersion "$TeleportVersion" `
         -SignedTshBinaryPath "$SignedTshBinaryPath" `
-        -SignedTctlBinaryPath "$SignedTctlBinaryPath"
+        -SignedTctlBinaryPath "$SignedTctlBinaryPath" `
         -SignedTBotBinaryPath "$SignedTBotBinaryPath"
 
     # Build Teleport Connect
