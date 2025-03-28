@@ -28,6 +28,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/go-piv/piv-go/piv"
 	"github.com/gravitational/trace"
@@ -237,6 +238,14 @@ func (s *YubiKeyService) GetFullKeyRef(serialNumber uint32, slotKey hardwarekey.
 
 	keyRefs[baseRef] = ref
 	return ref, nil
+}
+
+// SetPINCacheTimeout sets the PIN cache timeout. The default, 0, means no PIN caching.
+func (s *YubiKeyService) SetPINCacheTimeout(timeout time.Duration) {
+	s.promptMux.Lock()
+	defer s.promptMux.Unlock()
+
+	s.prompt = hardwarekey.NewPinCachingPrompt(s.prompt, timeout)
 }
 
 // Get the given YubiKey with the serial number. If the provided serialNumber is "0",

@@ -21,6 +21,7 @@ import (
 	"crypto"
 	"errors"
 	"io"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -48,3 +49,5 @@ func (s *unavailableYubiKeyPIVService) Sign(_ context.Context, _ *hardwarekey.Pr
 func (s *unavailableYubiKeyPIVService) GetFullKeyRef(serialNumber uint32, slotKey hardwarekey.PIVSlotKey) (*hardwarekey.PrivateKeyRef, error) {
 	return nil, trace.Wrap(errPIVUnavailable)
 }
+
+func (s *unavailableYubiKeyPIVService) SetPINCacheTimeout(_ time.Duration) {}

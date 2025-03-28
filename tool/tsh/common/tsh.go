@@ -4404,6 +4404,8 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		fmt.Printf("WARNING: Failed to load tsh profile for %q: %v\n", proxy, profileErr)
 	}
 
+	c.ClientStore.HardwareKeyService.SetPINCacheTimeout(c.PIVPINCacheTimeout)
+
 	if cf.Username != "" {
 		c.Username = cf.Username
 	}

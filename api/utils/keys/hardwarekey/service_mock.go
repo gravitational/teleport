@@ -176,6 +176,14 @@ func (s *MockHardwareKeyService) SetPrompt(prompt Prompt) {
 	s.prompt = prompt
 }
 
+// SetPINCacheTimeout sets the PIN cache timeout. The default, 0, means no PIN caching.
+func (s *MockHardwareKeyService) SetPINCacheTimeout(timeout time.Duration) {
+	s.promptMu.Lock()
+	defer s.promptMu.Unlock()
+
+	s.prompt = NewPinCachingPrompt(s.prompt, timeout)
+}
+
 // TODO(Joerger): DELETE IN v19.0.0
 func (s *MockHardwareKeyService) GetFullKeyRef(serialNumber uint32, slotKey PIVSlotKey) (*PrivateKeyRef, error) {
 	s.fakeHardwarePrivateKeysMux.Lock()

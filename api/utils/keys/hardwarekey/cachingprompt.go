@@ -22,7 +22,14 @@ import (
 )
 
 // NewPinCachingPrompt returns a new pin caching HardwareKeyPrompt.
+// If [innerPrompt] already is a pin caching prompt, it will be
+// returned with an updated [cacheTimeout].
 func NewPinCachingPrompt(innerPrompt Prompt, cacheTimeout time.Duration) *PinCachingPrompt {
+	if p, ok := innerPrompt.(*PinCachingPrompt); ok {
+		p.PinCacheTimeout = cacheTimeout
+		return p
+	}
+
 	return &PinCachingPrompt{
 		Prompt:          innerPrompt,
 		PinCacheTimeout: cacheTimeout,
