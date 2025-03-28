@@ -124,6 +124,10 @@ type ResourceAccessBase<T extends ResourceAccessKind> = {
    * this one.
    */
   kind: T;
+  /**
+   * Indicates if the form should make
+   */
+  hideValidationErrors: boolean;
 };
 
 export type ResourceAccessKind =
@@ -315,6 +319,7 @@ export type RuleModel = {
   resources: readonly ResourceKindOption[];
   verbs: readonly VerbOption[];
   where: string;
+  hideValidationErrors: boolean;
 };
 
 export type OptionsModel = {
@@ -483,6 +488,7 @@ export function newResourceAccess(
         kind: 'node',
         labels: [],
         logins: [stringToOption('{{internal.logins}}')],
+        hideValidationErrors: true,
       };
     case 'kube_cluster':
       return {
@@ -492,6 +498,7 @@ export function newResourceAccess(
         resources: [],
         users: [],
         roleVersion,
+        hideValidationErrors: true,
       };
     case 'app':
       return {
@@ -500,6 +507,7 @@ export function newResourceAccess(
         awsRoleARNs: ['{{internal.aws_role_arns}}'],
         azureIdentities: ['{{internal.azure_identities}}'],
         gcpServiceAccounts: ['{{internal.gcp_service_accounts}}'],
+        hideValidationErrors: true,
       };
     case 'db':
       return {
@@ -509,17 +517,20 @@ export function newResourceAccess(
         users: [stringToOption('{{internal.db_users}}')],
         roles: [stringToOption('{{internal.db_roles}}')],
         dbServiceLabels: [],
+        hideValidationErrors: true,
       };
     case 'windows_desktop':
       return {
         kind: 'windows_desktop',
         labels: [],
         logins: [stringToOption('{{internal.windows_logins}}')],
+        hideValidationErrors: true,
       };
     case 'git_server':
       return {
         kind: 'git_server',
         organizations: [stringToOption('{{internal.github_orgs}}')],
+        hideValidationErrors: true,
       };
     default:
       kind satisfies never;
@@ -545,6 +556,7 @@ export function newRuleModel(): RuleModel {
     resources: [],
     verbs: [],
     where: '',
+    hideValidationErrors: true,
   };
 }
 
@@ -681,6 +693,7 @@ function roleConditionsToModel(
       kind: 'node',
       labels: nodeLabelsModel,
       logins: nodeLoginsModel,
+      hideValidationErrors: false,
     });
   }
 
@@ -712,6 +725,7 @@ function roleConditionsToModel(
       resources: kubeResourcesModel,
       users: kubeUsersModel,
       roleVersion,
+      hideValidationErrors: false,
     });
   }
 
@@ -733,6 +747,7 @@ function roleConditionsToModel(
       awsRoleARNs: awsRoleARNsModel,
       azureIdentities: azureIdentitiesModel,
       gcpServiceAccounts: gcpServiceAccountsModel,
+      hideValidationErrors: false,
     });
   }
 
@@ -757,6 +772,7 @@ function roleConditionsToModel(
       users: stringsToOptions(dbUsersModel),
       roles: stringsToOptions(dbRolesModel),
       dbServiceLabels: dbServiceLabelsModel,
+      hideValidationErrors: false,
     });
   }
 
@@ -769,6 +785,7 @@ function roleConditionsToModel(
       kind: 'windows_desktop',
       labels: windowsDesktopLabelsModel,
       logins: windowsDesktopLoginsModel,
+      hideValidationErrors: false,
     });
   }
 
@@ -783,6 +800,7 @@ function roleConditionsToModel(
     resources.push({
       kind: 'git_server',
       organizations: gitHubOrganizationsModel,
+      hideValidationErrors: false,
     });
   }
   conversionErrors.push(...gitHubOrganizationConversionErrors);
@@ -988,6 +1006,7 @@ function ruleToModel(
       resources: resourcesModel,
       verbs: knownVerbsModel,
       where,
+      hideValidationErrors: false,
     },
     conversionErrors,
   };

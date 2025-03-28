@@ -145,6 +145,44 @@ test('invisible tabs still apply validation', async () => {
   expect(onSave).toHaveBeenCalled();
 });
 
+test('hidden validation errors should not propagate to tab headings', async () => {
+  const onSave = jest.fn();
+  render(
+    <TestStandardEditor
+      originalRole={newRoleWithYaml(newRole())}
+      onSave={onSave}
+    />
+  );
+  // Intentionally cause a validation error.
+  await user.clear(screen.getByLabelText('Role Name *'));
+  await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+  expect(onSave).not.toHaveBeenCalled();
+
+  // Switch to the Resources tab. Add a new section and make it invalid.
+  await user.click(getTabByName('Resources'));
+  await user.click(screen.getByRole('button', { name: 'Add Resource Access' }));
+  await user.click(screen.getByRole('menuitem', { name: 'Servers' }));
+  await user.click(screen.getByRole('button', { name: 'Add a Label' }));
+
+  // Switch to the Admin Rules tab. Add a new section (it's invalid by
+  // default).
+  await user.click(getTabByName('Admin Rules'));
+  await user.click(screen.getByRole('button', { name: 'Add New' }));
+
+  // Switch back. The newly invalid tabs should not bear the invalid indicator,
+  // as the section has its validation errors hidden.
+  await user.click(getTabByName('Invalid data Overview'));
+  expect(getTabByName('Resources')).toBeInTheDocument();
+  expect(getTabByName('Admin Rules')).toBeInTheDocument();
+
+  // Attempt to save, causing global validation. Now the invalid tabs should be
+  // marked as invalid.
+  await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+  expect(getTabByName('Invalid data Resources')).toBeInTheDocument();
+  expect(getTabByName('Invalid data Admin Rules')).toBeInTheDocument();
+  expect(onSave).not.toHaveBeenCalled();
+});
+
 test('edits metadata', async () => {
   let role: Role | undefined;
   const onSave = (r: Role) => (role = r);

@@ -34,6 +34,7 @@ import {
 } from 'shared/components/FieldSelect';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { precomputed } from 'shared/components/Validation/rules';
+import { ValidationSuspender } from 'shared/components/Validation/Validation';
 
 import { LabelsInput } from 'teleport/components/LabelsInput';
 
@@ -212,20 +213,22 @@ export const ResourceAccessSection = memo(function ResourceAccessSectionRaw<
   }
 
   return (
-    <SectionBox
-      titleSegments={[title]}
-      removable
-      onRemove={handleRemove}
-      isProcessing={isProcessing}
-      validation={validation}
-    >
-      <Body
-        value={value}
+    <ValidationSuspender suspend={value.hideValidationErrors}>
+      <SectionBox
+        titleSegments={[title]}
+        removable
+        onRemove={handleRemove}
         isProcessing={isProcessing}
         validation={validation}
-        onChange={handleChange}
-      />
-    </SectionBox>
+      >
+        <Body
+          value={value}
+          isProcessing={isProcessing}
+          validation={validation}
+          onChange={handleChange}
+        />
+      </SectionBox>
+    </ValidationSuspender>
   );
 });
 
