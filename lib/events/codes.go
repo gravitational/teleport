@@ -691,6 +691,12 @@ const (
 	// WorkloadIdentityX509RevocationDeleteCode is the
 	// WorkloadIdentityX509Revocation delete event code.
 	WorkloadIdentityX509RevocationDeleteCode = "WID006I"
+	// WorkloadIdentityX509IssuerOverrideCreateCode is the code for the
+	// workload_identity_x509_issuer_override.create event.
+	WorkloadIdentityX509IssuerOverrideCreateCode = "WID007I"
+	// WorkloadIdentityX509IssuerOverrideDeleteCode is the code for the
+	// workload_identity_x509_issuer_override.delete event.
+	WorkloadIdentityX509IssuerOverrideDeleteCode = "WID008I"
 
 	// ContactCreateCode is the auto update version create event code.
 	ContactCreateCode = "TCTC001I"

@@ -3873,6 +3873,32 @@ export const events = [
     user: 'b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io',
     user_kind: 1,
   },
+  {
+    'addr.remote': '203.0.113.71:59517',
+    cluster_name: 'clustername',
+    code: 'WID007I',
+    ei: 0,
+    event: 'workload_identity_x509_issuer_override.create',
+    expires: '0001-01-01T00:00:00Z',
+    name: 'default',
+    time: '2025-03-28T08:42:14.526Z',
+    uid: 'd99124ab-34f8-490e-b839-ca881e7cc6ba',
+    user: 'alice',
+    user_kind: 1,
+  },
+  {
+    'addr.remote': '203.0.113.77:64794',
+    cluster_name: 'clustername',
+    code: 'WID008I',
+    ei: 0,
+    event: 'workload_identity_x509_issuer_override.delete',
+    expires: '0001-01-01T00:00:00Z',
+    name: 'default',
+    time: '2025-03-26T01:14:36.881Z',
+    uid: 'e52def2f-4109-4cc9-91a8-150c6792f89f',
+    user: 'bob',
+    user_kind: 1,
+  },
 ].map(makeEvent);
 
 // Do not add new events to this array, add it to `events` list.

@@ -335,6 +335,10 @@ type InitConfig struct {
 	// WorkloadIdentityX509Revocations.
 	WorkloadIdentityX509Revocations services.WorkloadIdentityX509Revocations
 
+	// WorkloadIdentityX509Overrides handles the storage for workload
+	// identity-related X.509 certificate overrides.
+	WorkloadIdentityX509Overrides services.WorkloadIdentityX509Overrides
+
 	// StaticHostUsers is a service that manages host users that should be
 	// created on SSH nodes.
 	StaticHostUsers services.StaticHostUser

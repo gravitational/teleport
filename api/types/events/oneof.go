@@ -838,6 +838,14 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_StableUNIXUserCreate{
 			StableUNIXUserCreate: e,
 		}
+	case *WorkloadIdentityX509IssuerOverrideCreate:
+		out.Event = &OneOf_WorkloadIdentityX509IssuerOverrideCreate{
+			WorkloadIdentityX509IssuerOverrideCreate: e,
+		}
+	case *WorkloadIdentityX509IssuerOverrideDelete:
+		out.Event = &OneOf_WorkloadIdentityX509IssuerOverrideDelete{
+			WorkloadIdentityX509IssuerOverrideDelete: e,
+		}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())
 		unknown := &Unknown{}

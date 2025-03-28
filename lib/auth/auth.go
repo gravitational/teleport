@@ -420,6 +420,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err, "creating WorkloadIdentityX509Revocation service")
 		}
 	}
+	if cfg.WorkloadIdentityX509Overrides == nil {
+		cfg.WorkloadIdentityX509Overrides, err = local.NewWorkloadIdentityX509OverridesService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating WorkloadIdentityX509Overrides service")
+		}
+	}
 	if cfg.StableUNIXUsers == nil {
 		cfg.StableUNIXUsers = &local.StableUNIXUsersService{
 			Backend: cfg.Backend,
@@ -528,6 +534,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		GitServers:                      cfg.GitServers,
 		WorkloadIdentityX509Revocations: cfg.WorkloadIdentityX509Revocations,
 		StableUNIXUsersInternal:         cfg.StableUNIXUsers,
+		WorkloadIdentityX509Overrides:   cfg.WorkloadIdentityX509Overrides,
 	}
 
 	as := Server{
@@ -751,6 +758,7 @@ type Services struct {
 	services.GitServers
 	services.WorkloadIdentityX509Revocations
 	services.StableUNIXUsersInternal
+	services.WorkloadIdentityX509Overrides
 }
 
 // GetWebSession returns existing web session described by req.
