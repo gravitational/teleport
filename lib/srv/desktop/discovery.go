@@ -42,6 +42,59 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const (
+	// attrName is the name of an LDAP object.
+	attrName = "name"
+
+	// attrCommonName is the common name of an LDAP object, or "CN".
+	attrCommonName = "cn"
+
+	// attrObjectGUID is the globally unique identifier for an LDAP object.
+	attrObjectGUID = "objectGUID"
+
+	// attrDistinguishedName is the distinguished name of an LDAP object, or "DN".
+	attrDistinguishedName = "distinguishedName"
+
+	// attrPrimaryGroupID is the primary group ID of an LDAP object.
+	attrPrimaryGroupID = "primaryGroupID"
+
+	// attrOS is the operating system of a computer object
+	attrOS = "operatingSystem"
+
+	// attrOSVersion is the operating system version of a computer object.
+	attrOSVersion = "operatingSystemVersion"
+
+	// attrDNSHostName is the DNS Host name of an LDAP object.
+	attrDNSHostName = "dNSHostName" // unusual capitalization is correct
+
+	// attrSAMAccountName is the SAM Account name of an LDAP object.
+	attrSAMAccountName = "sAMAccountName"
+
+	// attrSAMAccountType is the SAM Account type for an LDAP object.
+	attrSAMAccountType = "sAMAccountType"
+)
+
+const (
+	// AccountTypeUser is the SAM account type for user accounts.
+	// See https://learn.microsoft.com/en-us/windows/win32/adschema/a-samaccounttype
+	// (SAM_USER_OBJECT)
+	AccountTypeUser = "805306368"
+
+	// ClassComputer is the object class for computers in Active Directory.
+	ClassComputer = "computer"
+
+	// ClassGMSA is the object class for group managed service accounts in Active Directory.
+	ClassGMSA = "msDS-GroupManagedServiceAccount"
+)
+
+// See: https://docs.microsoft.com/en-US/windows/security/identity-protection/access-control/security-identifiers
+const (
+	// writableDomainControllerGroupID is the windows security identifier for dcs with write permissions
+	writableDomainControllerGroupID = "516"
+	// readOnlyDomainControllerGroupID is the windows security identifier for read only dcs
+	readOnlyDomainControllerGroupID = "521"
+)
+
 // startDesktopDiscovery starts fetching desktops from LDAP, periodically
 // registering and unregistering them as necessary.
 func (s *WindowsService) startDesktopDiscovery() error {
@@ -89,8 +142,8 @@ func (s *WindowsService) startDesktopDiscovery() error {
 
 func (s *WindowsService) ldapSearchFilter() string {
 	var filters []string
-	filters = append(filters, fmt.Sprintf("(%s=%s)", windows.AttrObjectClass, windows.ClassComputer))
-	filters = append(filters, fmt.Sprintf("(!(%s=%s))", windows.AttrObjectClass, windows.ClassGMSA))
+	filters = append(filters, fmt.Sprintf("(%s=%s)", windows.AttrObjectClass, ClassComputer))
+	filters = append(filters, fmt.Sprintf("(!(%s=%s))", windows.AttrObjectClass, ClassGMSA))
 	filters = append(filters, s.cfg.DiscoveryLDAPFilters...)
 
 	return windows.CombineLDAPFilters(filters)
@@ -112,7 +165,7 @@ func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
 	s.cfg.Logger.DebugContext(context.Background(), "searching for desktops", "filter", filter)
 
 	var attrs []string
-	attrs = append(attrs, ComputerAttributes...)
+	attrs = append(attrs, computerAttributes...)
 	attrs = append(attrs, s.cfg.DiscoveryLDAPAttributeLabels...)
 
 	entries, err := s.lc.ReadWithFilter(s.cfg.DiscoveryBaseDN, filter, attrs)
@@ -164,22 +217,22 @@ func (s *WindowsService) deleteDesktop(ctx context.Context, d types.WindowsDeskt
 func (s *WindowsService) applyLabelsFromLDAP(entry *ldap.Entry, labels map[string]string) {
 	// apply common LDAP labels by default
 	labels[types.OriginLabel] = types.OriginDynamic
-	labels[types.DiscoveryLabelWindowsDNSHostName] = entry.GetAttributeValue(windows.AttrDNSHostName)
-	labels[types.DiscoveryLabelWindowsComputerName] = entry.GetAttributeValue(windows.AttrName)
-	labels[types.DiscoveryLabelWindowsOS] = entry.GetAttributeValue(windows.AttrOS)
-	labels[types.DiscoveryLabelWindowsOSVersion] = entry.GetAttributeValue(windows.AttrOSVersion)
+	labels[types.DiscoveryLabelWindowsDNSHostName] = entry.GetAttributeValue(attrDNSHostName)
+	labels[types.DiscoveryLabelWindowsComputerName] = entry.GetAttributeValue(attrName)
+	labels[types.DiscoveryLabelWindowsOS] = entry.GetAttributeValue(attrOS)
+	labels[types.DiscoveryLabelWindowsOSVersion] = entry.GetAttributeValue(attrOSVersion)
 
 	// attempt to compute the desktop's OU from its DN
-	dn := entry.GetAttributeValue(windows.AttrDistinguishedName)
-	cn := entry.GetAttributeValue(windows.AttrCommonName)
+	dn := entry.GetAttributeValue(attrDistinguishedName)
+	cn := entry.GetAttributeValue(attrCommonName)
 	if len(dn) > 0 && len(cn) > 0 {
 		ou := strings.TrimPrefix(dn, "CN="+cn+",")
 		labels[types.DiscoveryLabelWindowsOU] = ou
 	}
 
 	// label domain controllers
-	switch entry.GetAttributeValue(windows.AttrPrimaryGroupID) {
-	case windows.WritableDomainControllerGroupID, windows.ReadOnlyDomainControllerGroupID:
+	switch entry.GetAttributeValue(attrPrimaryGroupID) {
+	case writableDomainControllerGroupID, readOnlyDomainControllerGroupID:
 		labels[types.DiscoveryLabelWindowsIsDomainController] = "true"
 	}
 
@@ -259,7 +312,7 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(
 	entry *ldap.Entry,
 	getHostLabels func(string) map[string]string,
 ) (types.WindowsDesktop, error) {
-	hostname := entry.GetAttributeValue(windows.AttrDNSHostName)
+	hostname := entry.GetAttributeValue(attrDNSHostName)
 	if hostname == "" {
 		attrs := make([]string, len(entry.Attributes))
 		for _, a := range entry.Attributes {
@@ -293,7 +346,7 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(
 
 	// append portion of the object GUID to ensure that desktops from
 	// different domains that happen to have the same hostname don't conflict
-	if guid := entry.GetRawAttributeValue(windows.AttrObjectGUID); len(guid) >= 4 {
+	if guid := entry.GetRawAttributeValue(attrObjectGUID); len(guid) >= 4 {
 		name += "-" + hex.EncodeToString(guid[:4])
 	}
 
