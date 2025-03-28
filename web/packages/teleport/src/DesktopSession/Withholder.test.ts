@@ -53,7 +53,7 @@ describe('withholder', () => {
     const params = {
       e: { key: 'Enter' } as KeyboardEvent as KeyboardEvent,
       state: ButtonState.DOWN,
-      cli: new TdpClient('wss://socketAddr.gov'),
+      cli: new TdpClient(() => null),
     };
     withholder.handleKeyboardEvent(params, mockHandleKeyboardEvent);
     expect(mockHandleKeyboardEvent).toHaveBeenCalledWith(params);
@@ -63,19 +63,19 @@ describe('withholder', () => {
     const metaDown = {
       e: { key: 'Meta' } as KeyboardEvent,
       state: ButtonState.DOWN,
-      cli: new TdpClient('wss://socketAddr.gov'),
+      cli: new TdpClient(() => null),
     };
 
     const metaUp = {
       e: { key: 'Meta' } as KeyboardEvent,
       state: ButtonState.UP,
-      cli: new TdpClient('wss://socketAddr.gov'),
+      cli: new TdpClient(() => null),
     };
 
     const enterDown = {
       e: { key: 'Enter' } as KeyboardEvent as KeyboardEvent,
       state: ButtonState.DOWN,
-      cli: new TdpClient('wss://socketAddr.gov'),
+      cli: new TdpClient(() => null),
     };
 
     withholder.handleKeyboardEvent(metaDown, mockHandleKeyboardEvent);
@@ -95,12 +95,12 @@ describe('withholder', () => {
     const metaParams = {
       e: { key: 'Meta' } as KeyboardEvent,
       state: ButtonState.UP,
-      cli: new TdpClient('wss://socketAddr.gov'),
+      cli: new TdpClient(() => null),
     };
     const altParams = {
       e: { key: 'Alt' } as KeyboardEvent,
       state: ButtonState.UP,
-      cli: new TdpClient('wss://socketAddr.gov'),
+      cli: new TdpClient(() => null),
     };
 
     withholder.handleKeyboardEvent(metaParams, mockHandleKeyboardEvent);
@@ -119,7 +119,7 @@ describe('withholder', () => {
     const metaParams = {
       e: { key: 'Meta' } as KeyboardEvent,
       state: ButtonState.UP,
-      cli: new TdpClient('wss://socketAddr.gov'),
+      cli: new TdpClient(() => null),
     };
     withholder.handleKeyboardEvent(metaParams, mockHandleKeyboardEvent);
     expect((withholder as any).withheldKeys).toHaveLength(1);
