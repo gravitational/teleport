@@ -926,7 +926,10 @@ func TestMux(t *testing.T) {
 			out, err := utils.RoundtripWithConn(clt)
 			require.NoError(t, err)
 
-			require.Equal(t, addrV6.String(), out)
+			// returned address should be marked with port 0 to prevent IP pinning
+			expected := addrV6
+			expected.Port = 0
+			require.Equal(t, expected.String(), out)
 		})
 		t.Run("single signed PROXY header from IPv6 to IPv4, no downgrade", func(t *testing.T) {
 			conn, err := net.Dial("tcp", listener4.Addr().String())

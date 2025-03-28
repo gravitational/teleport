@@ -37,6 +37,8 @@ func TestPROXYEnabledListener_Accept(t *testing.T) {
 	addr1 := net.TCPAddr{IP: net.ParseIP("1.2.3.4"), Port: 444}
 	addr2 := net.TCPAddr{IP: net.ParseIP("5.4.3.2"), Port: 555}
 	addrV6 := net.TCPAddr{IP: net.ParseIP("::1"), Port: 999}
+	markedAddrV6 := addrV6
+	markedAddrV6.Port = 0
 
 	signedHeader, err := signPROXYHeader(signPROXYHeaderInput{
 		source:         &addr1,
@@ -102,7 +104,7 @@ func TestPROXYEnabledListener_Accept(t *testing.T) {
 			name:               "signed PROXY v2 header on, mixed version in downgrade mode",
 			proxyLine:          signedHeaderDowngrade,
 			expectedLocalAddr:  addr2.String(),
-			expectedRemoteAddr: addrV6.String(),
+			expectedRemoteAddr: markedAddrV6.String(),
 			proxyMode:          PROXYProtocolOn,
 			allowDowngrade:     true,
 		},
@@ -110,7 +112,7 @@ func TestPROXYEnabledListener_Accept(t *testing.T) {
 			name:               "signed PROXY v2 header unspecified, mixed version in downgrade mode",
 			proxyLine:          signedHeaderDowngrade,
 			expectedLocalAddr:  addr2.String(),
-			expectedRemoteAddr: addrV6.String(),
+			expectedRemoteAddr: markedAddrV6.String(),
 			proxyMode:          PROXYProtocolUnspecified,
 			allowDowngrade:     true,
 		},

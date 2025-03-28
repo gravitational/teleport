@@ -632,8 +632,9 @@ var ErrIPPinningMissing = trace.AccessDenied("pinned IP is required for the user
 var ErrIPPinningMismatch = trace.AccessDenied("pinned IP doesn't match observed client IP")
 
 // ErrIPPinningNotAllowed is returned when user's pinned IP doesn't match observed IP.
-var ErrIPPinningNotAllowed = trace.AccessDenied("IP pinning is not allowed for connections behind L4 load balancers with " +
-	"PROXY protocol enabled without explicitly setting 'proxy_protocol: on' in the proxy_service and/or auth_service config.")
+var ErrIPPinningNotAllowed = trace.AccessDenied("IP pinning is not allowed for connections that have been downgraded or are behind a L4" +
+	" load balancers with PROXY protocol enabled without explicitly setting 'proxy_protocol: on' in the proxy_service and/or" +
+	" auth_service config.")
 
 // CheckIPPinning verifies IP pinning for the identity, using the client IP taken from context.
 // Check is considered successful if no error is returned.
@@ -668,11 +669,9 @@ func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bo
 	// For security reason we don't allow such connection for IP pinning because we can't rely on client IP being correct.
 	if clientPort == "0" {
 		if log != nil {
-			const msg = "IP pinning is not allowed for connections behind L4 load balancers with " +
-				"PROXY protocol enabled without explicitly setting 'proxy_protocol: on' in the proxy_service and/or auth_service config"
-			log.DebugContext(ctx, msg, "client_ip", clientIP, "pinned_ip", identity.PinnedIP)
+			log.DebugContext(ctx, ErrIPPinningNotAllowed.UserMessage(), "client_ip", clientIP, "pinned_ip", identity.PinnedIP)
 		}
-		return ErrIPPinningMismatch
+		return ErrIPPinningNotAllowed
 	}
 
 	return nil

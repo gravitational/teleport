@@ -456,6 +456,11 @@ func signPROXYHeader(in signPROXYHeaderInput) ([]byte, error) {
 		if sAddr, err = getPseudoIPV4(sAddr); err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		// Mark original address, which will be returned as the RemoteAddr for Conns with a proxyLine configured, with port 0
+		// to prevent IP pinning. Pseudo IPv4 addresses are only made up of 31.5 bytes of sha256 hash which provides little
+		// defense against collisions
+		originalSourceAddr.Port = 0
 	}
 
 	signature, err := in.signer.SignPROXYJWT(jwt.PROXYSignParams{
