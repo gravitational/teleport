@@ -159,3 +159,57 @@ func requireEqualHealthCheckConfigs(t *testing.T, got []*healthcheckconfigv1.Hea
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 	))
 }
+
+func TestHealthCheckConfigParser(t *testing.T) {
+	t.Parallel()
+	parser := newHealthCheckConfigParser()
+	t.Run("delete", func(t *testing.T) {
+		event := backend.Event{
+			Type: types.OpDelete,
+			Item: backend.Item{
+				Key: backend.NewKey(healthCheckConfigPrefix, "example"),
+			},
+		}
+		require.True(t, parser.match(event.Item.Key))
+		resource, err := parser.parse(event)
+		require.NoError(t, err)
+		require.Equal(t, "example", resource.GetMetadata().Name)
+	})
+	t.Run("put", func(t *testing.T) {
+		event := backend.Event{
+			Type: types.OpPut,
+			Item: backend.Item{
+				Key: backend.NewKey(healthCheckConfigPrefix, "example"),
+				Value: []byte(`
+{
+  "kind": "health_check_config",
+  "version": "v1",
+  "metadata": {
+    "name": "example"
+  },
+  "spec": {
+    "timeout": "30s",
+    "interval": "60s",
+    "healthy_threshold": 3,
+    "unhealthy_threshold": 1,
+    "match": {
+      "db_labels": [
+        {
+          "name": "*",
+          "values": [
+            "*"
+          ]
+        }
+      ]
+    }
+  }
+}
+`),
+			},
+		}
+		require.True(t, parser.match(event.Item.Key))
+		resource, err := parser.parse(event)
+		require.NoError(t, err)
+		require.Equal(t, "example", resource.GetMetadata().Name)
+	})
+}
