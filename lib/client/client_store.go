@@ -23,8 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/url"
-	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -197,27 +195,6 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 	}
 	keyRing, err := s.GetKeyRing(idx, WithAllCerts...)
 	if err != nil {
-		if trace.IsNotFound(err) || trace.IsConnectionProblem(err) {
-			// If we can't find a keyRing to match the profile, or can't connect to
-			// the keyRing (hardware key), return a partial status. This is used for
-			// some superficial functions `tsh logout` and `tsh status`.
-			return &ProfileStatus{
-				Name: profileName,
-				Dir:  profile.Dir,
-				ProxyURL: url.URL{
-					Scheme: "https",
-					Host:   profile.WebProxyAddr,
-				},
-				Username:    profile.Username,
-				Cluster:     profile.SiteName,
-				KubeEnabled: profile.KubeProxyAddr != "",
-				// Set ValidUntil to now and GetKeyRingError to show that the keys are not available.
-				ValidUntil:              time.Now(),
-				GetKeyRingError:         err,
-				SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
-				SSOHost:                 profile.SSOHost,
-			}, nil
-		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -239,13 +216,8 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 // FullProfileStatus returns the name of the current profile with a
 // a list of all profile statuses.
 func (s *Store) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, error) {
-	currentProfileName, err := s.CurrentProfile()
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	currentProfile, err := s.ReadProfileStatus(currentProfileName)
-	if err != nil {
+	currentProfile, err := s.currentProfileStatus()
+	if err != nil && !trace.IsNotFound(err) {
 		return nil, nil, trace.Wrap(err)
 	}
 
@@ -256,7 +228,7 @@ func (s *Store) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, error) {
 
 	var profiles []*ProfileStatus
 	for _, profileName := range profileNames {
-		if profileName == currentProfileName {
+		if currentProfile != nil && profileName == currentProfile.Name {
 			// already loaded this one
 			continue
 		}
@@ -272,6 +244,15 @@ func (s *Store) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, error) {
 	}
 
 	return currentProfile, profiles, nil
+}
+
+func (s *Store) currentProfileStatus() (*ProfileStatus, error) {
+	currentProfileName, err := s.CurrentProfile()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return s.ReadProfileStatus(currentProfileName)
 }
 
 // LoadKeysToKubeFromStore loads the keys for a given teleport cluster and kube cluster from the store.
