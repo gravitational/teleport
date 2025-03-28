@@ -134,78 +134,80 @@ Same as above, but using JSON output:
 // Initialize allows ResourceCommand to plug itself into the CLI parser
 func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	rc.CreateHandlers = map[ResourceKind]ResourceCreateHandler{
-		types.KindUser:                     rc.createUser,
-		types.KindRole:                     rc.createRole,
-		types.KindTrustedCluster:           rc.createTrustedCluster,
-		types.KindGithubConnector:          rc.createGithubConnector,
-		types.KindCertAuthority:            rc.createCertAuthority,
-		types.KindClusterAuthPreference:    rc.createAuthPreference,
-		types.KindClusterNetworkingConfig:  rc.createClusterNetworkingConfig,
-		types.KindClusterMaintenanceConfig: rc.createClusterMaintenanceConfig,
-		types.KindSessionRecordingConfig:   rc.createSessionRecordingConfig,
-		types.KindExternalAuditStorage:     rc.createExternalAuditStorage,
-		types.KindUIConfig:                 rc.createUIConfig,
-		types.KindLock:                     rc.createLock,
-		types.KindNetworkRestrictions:      rc.createNetworkRestrictions,
-		types.KindApp:                      rc.createApp,
-		types.KindAppServer:                rc.createAppServer,
-		types.KindDatabase:                 rc.createDatabase,
-		types.KindKubernetesCluster:        rc.createKubeCluster,
-		types.KindToken:                    rc.createToken,
-		types.KindInstaller:                rc.createInstaller,
-		types.KindNode:                     rc.createNode,
-		types.KindOIDCConnector:            rc.createOIDCConnector,
-		types.KindSAMLConnector:            rc.createSAMLConnector,
-		types.KindLoginRule:                rc.createLoginRule,
-		types.KindSAMLIdPServiceProvider:   rc.createSAMLIdPServiceProvider,
-		types.KindDevice:                   rc.createDevice,
-		types.KindOktaImportRule:           rc.createOktaImportRule,
-		types.KindIntegration:              rc.createIntegration,
-		types.KindWindowsDesktop:           rc.createWindowsDesktop,
-		types.KindDynamicWindowsDesktop:    rc.createDynamicWindowsDesktop,
-		types.KindAccessList:               rc.createAccessList,
-		types.KindDiscoveryConfig:          rc.createDiscoveryConfig,
-		types.KindAuditQuery:               rc.createAuditQuery,
-		types.KindSecurityReport:           rc.createSecurityReport,
-		types.KindServerInfo:               rc.createServerInfo,
-		types.KindBot:                      rc.createBot,
-		types.KindDatabaseObjectImportRule: rc.createDatabaseObjectImportRule,
-		types.KindDatabaseObject:           rc.createDatabaseObject,
-		types.KindAccessMonitoringRule:     rc.createAccessMonitoringRule,
-		types.KindCrownJewel:               rc.createCrownJewel,
-		types.KindVnetConfig:               rc.createVnetConfig,
-		types.KindAccessGraphSettings:      rc.upsertAccessGraphSettings,
-		types.KindPlugin:                   rc.createPlugin,
-		types.KindSPIFFEFederation:         rc.createSPIFFEFederation,
-		types.KindWorkloadIdentity:         rc.createWorkloadIdentity,
-		types.KindStaticHostUser:           rc.createStaticHostUser,
-		types.KindUserTask:                 rc.createUserTask,
-		types.KindAutoUpdateConfig:         rc.createAutoUpdateConfig,
-		types.KindAutoUpdateVersion:        rc.createAutoUpdateVersion,
-		types.KindGitServer:                rc.createGitServer,
-		types.KindAutoUpdateAgentRollout:   rc.createAutoUpdateAgentRollout,
+		types.KindUser:                               rc.createUser,
+		types.KindRole:                               rc.createRole,
+		types.KindTrustedCluster:                     rc.createTrustedCluster,
+		types.KindGithubConnector:                    rc.createGithubConnector,
+		types.KindCertAuthority:                      rc.createCertAuthority,
+		types.KindClusterAuthPreference:              rc.createAuthPreference,
+		types.KindClusterNetworkingConfig:            rc.createClusterNetworkingConfig,
+		types.KindClusterMaintenanceConfig:           rc.createClusterMaintenanceConfig,
+		types.KindSessionRecordingConfig:             rc.createSessionRecordingConfig,
+		types.KindExternalAuditStorage:               rc.createExternalAuditStorage,
+		types.KindUIConfig:                           rc.createUIConfig,
+		types.KindLock:                               rc.createLock,
+		types.KindNetworkRestrictions:                rc.createNetworkRestrictions,
+		types.KindApp:                                rc.createApp,
+		types.KindAppServer:                          rc.createAppServer,
+		types.KindDatabase:                           rc.createDatabase,
+		types.KindKubernetesCluster:                  rc.createKubeCluster,
+		types.KindToken:                              rc.createToken,
+		types.KindInstaller:                          rc.createInstaller,
+		types.KindNode:                               rc.createNode,
+		types.KindOIDCConnector:                      rc.createOIDCConnector,
+		types.KindSAMLConnector:                      rc.createSAMLConnector,
+		types.KindLoginRule:                          rc.createLoginRule,
+		types.KindSAMLIdPServiceProvider:             rc.createSAMLIdPServiceProvider,
+		types.KindDevice:                             rc.createDevice,
+		types.KindOktaImportRule:                     rc.createOktaImportRule,
+		types.KindIntegration:                        rc.createIntegration,
+		types.KindWindowsDesktop:                     rc.createWindowsDesktop,
+		types.KindDynamicWindowsDesktop:              rc.createDynamicWindowsDesktop,
+		types.KindAccessList:                         rc.createAccessList,
+		types.KindDiscoveryConfig:                    rc.createDiscoveryConfig,
+		types.KindAuditQuery:                         rc.createAuditQuery,
+		types.KindSecurityReport:                     rc.createSecurityReport,
+		types.KindServerInfo:                         rc.createServerInfo,
+		types.KindBot:                                rc.createBot,
+		types.KindDatabaseObjectImportRule:           rc.createDatabaseObjectImportRule,
+		types.KindDatabaseObject:                     rc.createDatabaseObject,
+		types.KindAccessMonitoringRule:               rc.createAccessMonitoringRule,
+		types.KindCrownJewel:                         rc.createCrownJewel,
+		types.KindVnetConfig:                         rc.createVnetConfig,
+		types.KindAccessGraphSettings:                rc.upsertAccessGraphSettings,
+		types.KindPlugin:                             rc.createPlugin,
+		types.KindSPIFFEFederation:                   rc.createSPIFFEFederation,
+		types.KindWorkloadIdentity:                   rc.createWorkloadIdentity,
+		types.KindStaticHostUser:                     rc.createStaticHostUser,
+		types.KindUserTask:                           rc.createUserTask,
+		types.KindAutoUpdateConfig:                   rc.createAutoUpdateConfig,
+		types.KindAutoUpdateVersion:                  rc.createAutoUpdateVersion,
+		types.KindGitServer:                          rc.createGitServer,
+		types.KindAutoUpdateAgentRollout:             rc.createAutoUpdateAgentRollout,
+		types.KindWorkloadIdentityX509IssuerOverride: rc.createWorkloadIdentityX509IssuerOverride,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
-		types.KindUser:                    rc.updateUser,
-		types.KindGithubConnector:         rc.updateGithubConnector,
-		types.KindOIDCConnector:           rc.updateOIDCConnector,
-		types.KindSAMLConnector:           rc.updateSAMLConnector,
-		types.KindRole:                    rc.updateRole,
-		types.KindClusterNetworkingConfig: rc.updateClusterNetworkingConfig,
-		types.KindClusterAuthPreference:   rc.updateAuthPreference,
-		types.KindSessionRecordingConfig:  rc.updateSessionRecordingConfig,
-		types.KindAccessMonitoringRule:    rc.updateAccessMonitoringRule,
-		types.KindCrownJewel:              rc.updateCrownJewel,
-		types.KindVnetConfig:              rc.updateVnetConfig,
-		types.KindAccessGraphSettings:     rc.updateAccessGraphSettings,
-		types.KindPlugin:                  rc.updatePlugin,
-		types.KindStaticHostUser:          rc.updateStaticHostUser,
-		types.KindUserTask:                rc.updateUserTask,
-		types.KindAutoUpdateConfig:        rc.updateAutoUpdateConfig,
-		types.KindAutoUpdateVersion:       rc.updateAutoUpdateVersion,
-		types.KindDynamicWindowsDesktop:   rc.updateDynamicWindowsDesktop,
-		types.KindGitServer:               rc.updateGitServer,
-		types.KindAutoUpdateAgentRollout:  rc.updateAutoUpdateAgentRollout,
+		types.KindUser:                               rc.updateUser,
+		types.KindGithubConnector:                    rc.updateGithubConnector,
+		types.KindOIDCConnector:                      rc.updateOIDCConnector,
+		types.KindSAMLConnector:                      rc.updateSAMLConnector,
+		types.KindRole:                               rc.updateRole,
+		types.KindClusterNetworkingConfig:            rc.updateClusterNetworkingConfig,
+		types.KindClusterAuthPreference:              rc.updateAuthPreference,
+		types.KindSessionRecordingConfig:             rc.updateSessionRecordingConfig,
+		types.KindAccessMonitoringRule:               rc.updateAccessMonitoringRule,
+		types.KindCrownJewel:                         rc.updateCrownJewel,
+		types.KindVnetConfig:                         rc.updateVnetConfig,
+		types.KindAccessGraphSettings:                rc.updateAccessGraphSettings,
+		types.KindPlugin:                             rc.updatePlugin,
+		types.KindStaticHostUser:                     rc.updateStaticHostUser,
+		types.KindUserTask:                           rc.updateUserTask,
+		types.KindAutoUpdateConfig:                   rc.updateAutoUpdateConfig,
+		types.KindAutoUpdateVersion:                  rc.updateAutoUpdateVersion,
+		types.KindDynamicWindowsDesktop:              rc.updateDynamicWindowsDesktop,
+		types.KindGitServer:                          rc.updateGitServer,
+		types.KindAutoUpdateAgentRollout:             rc.updateAutoUpdateAgentRollout,
+		types.KindWorkloadIdentityX509IssuerOverride: rc.updateWorkloadIdentityX509IssuerOverride,
 	}
 	rc.config = config
 
@@ -1162,6 +1164,65 @@ func (rc *ResourceCommand) createWorkloadIdentity(ctx context.Context, client *a
 	return nil
 }
 
+func (rc *ResourceCommand) createWorkloadIdentityX509IssuerOverride(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	r, err := services.UnmarshalProtoResource[*workloadidentityv1pb.X509IssuerOverride](raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	c := client.WorkloadIdentityX509OverridesClient()
+	if rc.IsForced() {
+		if _, err := c.UpsertX509IssuerOverride(
+			ctx,
+			&workloadidentityv1pb.UpsertX509IssuerOverrideRequest{
+				X509IssuerOverride: r,
+			},
+		); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		if _, err := c.CreateX509IssuerOverride(
+			ctx,
+			&workloadidentityv1pb.CreateX509IssuerOverrideRequest{
+				X509IssuerOverride: r,
+			},
+		); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	fmt.Fprintf(
+		rc.stdout,
+		types.KindWorkloadIdentityX509IssuerOverride+" %q has been created\n",
+		r.GetMetadata().GetName(),
+	)
+	return nil
+}
+
+func (rc *ResourceCommand) updateWorkloadIdentityX509IssuerOverride(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	r, err := services.UnmarshalProtoResource[*workloadidentityv1pb.X509IssuerOverride](raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	c := client.WorkloadIdentityX509OverridesClient()
+	if _, err = c.UpdateX509IssuerOverride(
+		ctx,
+		&workloadidentityv1pb.UpdateX509IssuerOverrideRequest{
+			X509IssuerOverride: r,
+		},
+	); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Fprintf(
+		rc.stdout,
+		types.KindWorkloadIdentityX509IssuerOverride+" %q has been updated\n",
+		r.GetMetadata().GetName(),
+	)
+	return nil
+}
+
 func (rc *ResourceCommand) updateCrownJewel(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
 	in, err := services.UnmarshalCrownJewel(resource.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -2077,6 +2138,21 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Workload identity X509 revocation %q has been deleted\n", rc.ref.Name)
+	case types.KindWorkloadIdentityX509IssuerOverride:
+		c := client.WorkloadIdentityX509OverridesClient()
+		if _, err := c.DeleteX509IssuerOverride(
+			ctx,
+			&workloadidentityv1pb.DeleteX509IssuerOverrideRequest{
+				Name: rc.ref.Name,
+			},
+		); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Fprintf(
+			rc.stdout,
+			types.KindWorkloadIdentityX509IssuerOverride+" %q has been deleted\n",
+			rc.ref.Name,
+		)
 	case types.KindStaticHostUser:
 		if err := client.StaticHostUserClient().DeleteStaticHostUser(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -3422,6 +3498,43 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		// TODO(greedy52) consider making dedicated git server collection.
 		return &serverCollection{servers: servers}, nil
+
+	case types.KindWorkloadIdentityX509IssuerOverride:
+		c := client.WorkloadIdentityX509OverridesClient()
+		if rc.ref.Name != "" {
+			r, err := c.GetX509IssuerOverride(
+				ctx,
+				&workloadidentityv1pb.GetX509IssuerOverrideRequest{
+					Name: rc.ref.Name,
+				},
+			)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return namedResourceCollection{types.ProtoResource153ToLegacy(r)}, nil
+		}
+		var collection namedResourceCollection
+		var pageToken string
+		for {
+			resp, err := c.ListX509IssuerOverrides(
+				ctx,
+				&workloadidentityv1pb.ListX509IssuerOverridesRequest{
+					PageToken: pageToken,
+				},
+			)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			collection = slices.Grow(collection, len(resp.GetX509IssuerOverrides()))
+			for _, r := range resp.GetX509IssuerOverrides() {
+				collection = append(collection, types.ProtoResource153ToLegacy(r))
+			}
+			pageToken = resp.GetNextPageToken()
+			if pageToken == "" {
+				break
+			}
+		}
+		return collection, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
