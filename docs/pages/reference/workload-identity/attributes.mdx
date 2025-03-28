@@ -232,14 +232,17 @@ See the
 [Workload API and Workload Attestation reference](./workload-identity-api-and-workload-attestation.mdx#Kubernetes)
 for more information.
 
-| Attribute                             | Description                                         |
-|---------------------------------------|-----------------------------------------------------|
-| `workload.kubernetes.attested`        | Whether the workload passed Kubernetes attestation. |
-| `workload.kubernetes.namespace`       | The namespace of the workload pod.                  |
-| `workload.kubernetes.pod_name`        | The name of the workload pod.                       |
-| `workload.kubernetes.service_account` | The service account of the workload pod.            |
-| `workload.kubernetes.pod_uid`         | The UID of the workload pod.                        |
-| `workload.kubernetes.labels`          | The labels of the workload pod.                     |
+| Attribute                                    | Description                                           |
+|----------------------------------------------|-------------------------------------------------------|
+| `workload.kubernetes.attested`               | Whether the workload passed Kubernetes attestation.   |
+| `workload.kubernetes.namespace`              | The namespace of the workload pod.                    |
+| `workload.kubernetes.pod_name`               | The name of the workload pod.                         |
+| `workload.kubernetes.service_account`        | The service account of the workload pod.              |
+| `workload.kubernetes.pod_uid`                | The UID of the workload pod.                          |
+| `workload.kubernetes.labels`                 | The labels of the workload pod.                       |
+| `workload.kubernetes.container.name`         | Name of the container.                                |
+| `workload.kubernetes.container.image`        | Image name of the container (e.g. `ubuntu:latest`).   |
+| `workload.kubernetes.container.image_digest` | Image digest of the container (e.g. `sha256:<hash>`). |
 
 ### `workload.docker`
 

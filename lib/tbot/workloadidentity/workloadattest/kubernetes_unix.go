@@ -32,6 +32,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -41,6 +42,12 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest/container"
 )
+
+// imageDigestRegex finds the `sha256:<hash>` image digest in an OCI image URI.
+//
+// We use a regex rather than parsing the URI because the format may differ
+// between the schemes, and it's difficult to find comprehensive documentation.
+var imageDigestRegex = regexp.MustCompile(`sha256:([[:xdigit:]]{64})`)
 
 // KubernetesAttestor attests a workload to a Kubernetes pod.
 //
@@ -94,6 +101,18 @@ func (a *KubernetesAttestor) Attest(ctx context.Context, pid int) (*workloadiden
 	}
 	a.log.DebugContext(ctx, "Found pod", "pod_name", pod.Name)
 
+	var ctr *workloadidentityv1pb.WorkloadAttrsKubernetesContainer
+	for _, status := range pod.Status.ContainerStatuses {
+		if status.ContainerID != container.ID {
+			continue
+		}
+		ctr = &workloadidentityv1pb.WorkloadAttrsKubernetesContainer{
+			Name:        status.Name,
+			Image:       status.Image,
+			ImageDigest: imageDigestRegex.FindString(status.ImageID),
+		}
+	}
+
 	att := &workloadidentityv1pb.WorkloadAttrsKubernetes{
 		Attested:       true,
 		Namespace:      pod.Namespace,
@@ -101,6 +120,7 @@ func (a *KubernetesAttestor) Attest(ctx context.Context, pid int) (*workloadiden
 		PodName:        pod.Name,
 		PodUid:         string(pod.UID),
 		Labels:         pod.Labels,
+		Container:      ctr,
 	}
 	a.log.DebugContext(ctx, "Finished Kubernetes workload attestation", "attestation", att)
 	return att, nil

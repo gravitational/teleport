@@ -50,8 +50,9 @@ func TestKubernetesAttestor_Attest(t *testing.T) {
 
 	mockToken := "FOOBARBUZZ"
 	mockPID := 1234
-	// Value from k8s-real-gcp-v1.29.5-gke.1091002
+	// Values from k8s-real-gcp-v1.29.5-gke.1091002
 	mockPodID := "61c266b0-6f75-4490-8d92-3c9ae4d02787"
+	mockContainerID := "9da25af0b548c8c60aa60f77f299ba727bf72d58248bd7528eb5390ffcce555a"
 
 	// Setup mock Kubelet Secure API
 	mockKubeletAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -72,6 +73,16 @@ func TestKubernetesAttestor_Attest(t *testing.T) {
 					},
 					Spec: v1.PodSpec{
 						ServiceAccountName: "my-service-account",
+					},
+					Status: v1.PodStatus{
+						ContainerStatuses: []v1.ContainerStatus{
+							{
+								ContainerID: mockContainerID,
+								Name:        "container-1",
+								Image:       "my.registry.io/my-app:v1",
+								ImageID:     "docker-pullable://my.registry.io/my-app@sha256:84c998f7610b356a5eed24f801c01b273cf3e83f081f25c9b16aa8136c2cafb1",
+							},
+						},
 					},
 				},
 			},
@@ -127,6 +138,11 @@ func TestKubernetesAttestor_Attest(t *testing.T) {
 		PodUid:         mockPodID,
 		Labels: map[string]string{
 			"my-label": "my-label-value",
+		},
+		Container: &workloadidentityv1pb.WorkloadAttrsKubernetesContainer{
+			Name:        "container-1",
+			Image:       "my.registry.io/my-app:v1",
+			ImageDigest: "sha256:84c998f7610b356a5eed24f801c01b273cf3e83f081f25c9b16aa8136c2cafb1",
 		},
 	}, att, protocmp.Transform()))
 }
