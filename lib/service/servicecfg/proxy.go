@@ -61,6 +61,9 @@ type ProxyConfig struct {
 	// PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
 	PROXYProtocolMode multiplexer.PROXYProtocolMode
 
+	// PROXYAllowDowngrade
+	PROXYAllowDowngrade bool
+
 	// WebAddr is address for web portal of the proxy
 	WebAddr utils.NetAddr
 
