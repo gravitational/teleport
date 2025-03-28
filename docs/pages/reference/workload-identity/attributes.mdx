@@ -252,12 +252,13 @@ See the
 [Workload API and Workload Attestation reference](./workload-identity-api-and-workload-attestation.mdx#Docker)
 for more information.
 
-| Attribute                          | Description                                         |
-|------------------------------------|-----------------------------------------------------|
-| `workload.docker.attested`         | Whether the workload passed Docker attestation.     |
-| `workload.docker.container.name`   | Name of the container.                              |
-| `workload.docker.container.image`  | Image name of the container (e.g. `ubuntu:latest`). |
-| `workload.docker.container.labels` | Labels of the container.                            |
+| Attribute                                | Description                                           |
+|------------------------------------------|-------------------------------------------------------|
+| `workload.docker.attested`               | Whether the workload passed Docker attestation.       |
+| `workload.docker.container.name`         | Name of the container.                                |
+| `workload.docker.container.image`        | Image name of the container (e.g. `ubuntu:latest`).   |
+| `workload.docker.container.image_digest` | Image digest of the container (e.g. `sha256:<hash>`). |
+| `workload.docker.container.labels`       | Labels of the container.                              |
 
 ### `workload.podman`
 
