@@ -1878,7 +1878,7 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 				}
 			}
 		case types.OpPut:
-			if err := handler.onUpdate(event.Resource); err != nil {
+			if err := handler.onPut(event.Resource); err != nil {
 				return trace.Wrap(err)
 			}
 		default:

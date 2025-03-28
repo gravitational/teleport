@@ -36,8 +36,8 @@ type collectionHandler interface {
 	// onDelete will delete a single target resource from the cache. For
 	// singletons, this is usually an alias to clear.
 	onDelete(t types.Resource) error
-	// onUpdate will update a single target resource from the cache
-	onUpdate(t types.Resource) error
+	// onPut will update a single target resource from the cache
+	onPut(t types.Resource) error
 	// watchKind returns a watch
 	// required for this collection
 	watchKind() types.WatchKind
