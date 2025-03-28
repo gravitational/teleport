@@ -1018,6 +1018,446 @@ func (*RegisterUsingOracleMethodResponse) XXX_OneofWrappers() []interface{} {
 	}
 }
 
+// RegisterUsingBoundKeypairInitialRequest is the initial request sent during
+// the join process for bound-keypair joining.
+type RegisterUsingBoundKeypairInitialRequest struct {
+	// Registration parameters common to all join methods.
+	JoinRequest *types.RegisterUsingTokenRequest `protobuf:"bytes,1,opt,name=join_request,json=joinRequest,proto3" json:"join_request,omitempty"`
+	// If set, requests a rotation to the new public key. The joining challenge
+	// must first be completed using the previous key, and upon completion a new
+	// challenge will be issued for this key. Certificates will only be returned
+	// after the second challenge is complete.
+	NewPublicKey []byte `protobuf:"bytes,2,opt,name=new_public_key,json=newPublicKey,proto3" json:"new_public_key,omitempty"`
+	// A document signed by Auth containing join state parameters from the
+	// previous join attempt. Not required on initial join; required on all
+	// subsequent joins.
+	PreviousJoinState    []byte   `protobuf:"bytes,3,opt,name=previous_join_state,json=previousJoinState,proto3" json:"previous_join_state,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *RegisterUsingBoundKeypairInitialRequest) Reset() {
+	*m = RegisterUsingBoundKeypairInitialRequest{}
+}
+func (m *RegisterUsingBoundKeypairInitialRequest) String() string { return proto.CompactTextString(m) }
+func (*RegisterUsingBoundKeypairInitialRequest) ProtoMessage()    {}
+func (*RegisterUsingBoundKeypairInitialRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_d7e760ce923b836e, []int{13}
+}
+func (m *RegisterUsingBoundKeypairInitialRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RegisterUsingBoundKeypairInitialRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RegisterUsingBoundKeypairInitialRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RegisterUsingBoundKeypairInitialRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RegisterUsingBoundKeypairInitialRequest.Merge(m, src)
+}
+func (m *RegisterUsingBoundKeypairInitialRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *RegisterUsingBoundKeypairInitialRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_RegisterUsingBoundKeypairInitialRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RegisterUsingBoundKeypairInitialRequest proto.InternalMessageInfo
+
+func (m *RegisterUsingBoundKeypairInitialRequest) GetJoinRequest() *types.RegisterUsingTokenRequest {
+	if m != nil {
+		return m.JoinRequest
+	}
+	return nil
+}
+
+func (m *RegisterUsingBoundKeypairInitialRequest) GetNewPublicKey() []byte {
+	if m != nil {
+		return m.NewPublicKey
+	}
+	return nil
+}
+
+func (m *RegisterUsingBoundKeypairInitialRequest) GetPreviousJoinState() []byte {
+	if m != nil {
+		return m.PreviousJoinState
+	}
+	return nil
+}
+
+// RegisterUsingBoundKeypairChallengeResponse is the completed challenge
+// response sent by joining clients during the bound-keypair joining process.
+type RegisterUsingBoundKeypairChallengeResponse struct {
+	// A solution to a challenge from the server.
+	Solution             []byte   `protobuf:"bytes,1,opt,name=solution,proto3" json:"solution,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *RegisterUsingBoundKeypairChallengeResponse) Reset() {
+	*m = RegisterUsingBoundKeypairChallengeResponse{}
+}
+func (m *RegisterUsingBoundKeypairChallengeResponse) String() string {
+	return proto.CompactTextString(m)
+}
+func (*RegisterUsingBoundKeypairChallengeResponse) ProtoMessage() {}
+func (*RegisterUsingBoundKeypairChallengeResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_d7e760ce923b836e, []int{14}
+}
+func (m *RegisterUsingBoundKeypairChallengeResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RegisterUsingBoundKeypairChallengeResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RegisterUsingBoundKeypairChallengeResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RegisterUsingBoundKeypairChallengeResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RegisterUsingBoundKeypairChallengeResponse.Merge(m, src)
+}
+func (m *RegisterUsingBoundKeypairChallengeResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *RegisterUsingBoundKeypairChallengeResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_RegisterUsingBoundKeypairChallengeResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RegisterUsingBoundKeypairChallengeResponse proto.InternalMessageInfo
+
+func (m *RegisterUsingBoundKeypairChallengeResponse) GetSolution() []byte {
+	if m != nil {
+		return m.Solution
+	}
+	return nil
+}
+
+// RegisterUsingBoundKeypairMethodRequest contains information needed to progress in
+// a bound-keypair joining process. Multiple requests are expected in any given
+// join process.
+type RegisterUsingBoundKeypairMethodRequest struct {
+	// Types that are valid to be assigned to Payload:
+	//	*RegisterUsingBoundKeypairMethodRequest_Init
+	//	*RegisterUsingBoundKeypairMethodRequest_ChallengeResponse
+	Payload              isRegisterUsingBoundKeypairMethodRequest_Payload `protobuf_oneof:"payload"`
+	XXX_NoUnkeyedLiteral struct{}                                         `json:"-"`
+	XXX_unrecognized     []byte                                           `json:"-"`
+	XXX_sizecache        int32                                            `json:"-"`
+}
+
+func (m *RegisterUsingBoundKeypairMethodRequest) Reset() {
+	*m = RegisterUsingBoundKeypairMethodRequest{}
+}
+func (m *RegisterUsingBoundKeypairMethodRequest) String() string { return proto.CompactTextString(m) }
+func (*RegisterUsingBoundKeypairMethodRequest) ProtoMessage()    {}
+func (*RegisterUsingBoundKeypairMethodRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_d7e760ce923b836e, []int{15}
+}
+func (m *RegisterUsingBoundKeypairMethodRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RegisterUsingBoundKeypairMethodRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RegisterUsingBoundKeypairMethodRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RegisterUsingBoundKeypairMethodRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RegisterUsingBoundKeypairMethodRequest.Merge(m, src)
+}
+func (m *RegisterUsingBoundKeypairMethodRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *RegisterUsingBoundKeypairMethodRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_RegisterUsingBoundKeypairMethodRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RegisterUsingBoundKeypairMethodRequest proto.InternalMessageInfo
+
+type isRegisterUsingBoundKeypairMethodRequest_Payload interface {
+	isRegisterUsingBoundKeypairMethodRequest_Payload()
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type RegisterUsingBoundKeypairMethodRequest_Init struct {
+	Init *RegisterUsingBoundKeypairInitialRequest `protobuf:"bytes,1,opt,name=init,proto3,oneof" json:"init,omitempty"`
+}
+type RegisterUsingBoundKeypairMethodRequest_ChallengeResponse struct {
+	ChallengeResponse *RegisterUsingBoundKeypairChallengeResponse `protobuf:"bytes,2,opt,name=challenge_response,json=challengeResponse,proto3,oneof" json:"challenge_response,omitempty"`
+}
+
+func (*RegisterUsingBoundKeypairMethodRequest_Init) isRegisterUsingBoundKeypairMethodRequest_Payload() {
+}
+func (*RegisterUsingBoundKeypairMethodRequest_ChallengeResponse) isRegisterUsingBoundKeypairMethodRequest_Payload() {
+}
+
+func (m *RegisterUsingBoundKeypairMethodRequest) GetPayload() isRegisterUsingBoundKeypairMethodRequest_Payload {
+	if m != nil {
+		return m.Payload
+	}
+	return nil
+}
+
+func (m *RegisterUsingBoundKeypairMethodRequest) GetInit() *RegisterUsingBoundKeypairInitialRequest {
+	if x, ok := m.GetPayload().(*RegisterUsingBoundKeypairMethodRequest_Init); ok {
+		return x.Init
+	}
+	return nil
+}
+
+func (m *RegisterUsingBoundKeypairMethodRequest) GetChallengeResponse() *RegisterUsingBoundKeypairChallengeResponse {
+	if x, ok := m.GetPayload().(*RegisterUsingBoundKeypairMethodRequest_ChallengeResponse); ok {
+		return x.ChallengeResponse
+	}
+	return nil
+}
+
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*RegisterUsingBoundKeypairMethodRequest) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
+		(*RegisterUsingBoundKeypairMethodRequest_Init)(nil),
+		(*RegisterUsingBoundKeypairMethodRequest_ChallengeResponse)(nil),
+	}
+}
+
+// RegisterUsingBoundKeypairChallenge is a challenge issued by the server that
+// joining clients are expected to complete.
+type RegisterUsingBoundKeypairChallenge struct {
+	// The desired public key corresponding to the private key that should be used
+	// to sign this challenge.
+	PublicKey []byte `protobuf:"bytes,1,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	// A challenge to sign with the requested public key. During keypair rotation, a second
+	// challenge will be provided to verify the new keypair before certs are
+	// returned.
+	Challenge            string   `protobuf:"bytes,2,opt,name=challenge,proto3" json:"challenge,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *RegisterUsingBoundKeypairChallenge) Reset()         { *m = RegisterUsingBoundKeypairChallenge{} }
+func (m *RegisterUsingBoundKeypairChallenge) String() string { return proto.CompactTextString(m) }
+func (*RegisterUsingBoundKeypairChallenge) ProtoMessage()    {}
+func (*RegisterUsingBoundKeypairChallenge) Descriptor() ([]byte, []int) {
+	return fileDescriptor_d7e760ce923b836e, []int{16}
+}
+func (m *RegisterUsingBoundKeypairChallenge) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RegisterUsingBoundKeypairChallenge) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RegisterUsingBoundKeypairChallenge.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RegisterUsingBoundKeypairChallenge) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RegisterUsingBoundKeypairChallenge.Merge(m, src)
+}
+func (m *RegisterUsingBoundKeypairChallenge) XXX_Size() int {
+	return m.Size()
+}
+func (m *RegisterUsingBoundKeypairChallenge) XXX_DiscardUnknown() {
+	xxx_messageInfo_RegisterUsingBoundKeypairChallenge.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RegisterUsingBoundKeypairChallenge proto.InternalMessageInfo
+
+func (m *RegisterUsingBoundKeypairChallenge) GetPublicKey() []byte {
+	if m != nil {
+		return m.PublicKey
+	}
+	return nil
+}
+
+func (m *RegisterUsingBoundKeypairChallenge) GetChallenge() string {
+	if m != nil {
+		return m.Challenge
+	}
+	return ""
+}
+
+// RegisterUsingBoundKeypairCertificates is the response sent by the server on
+// successful completion of a bound-keypair joining process.
+type RegisterUsingBoundKeypairCertificates struct {
+	// Signed Teleport certificates resulting from the join process.
+	Certs *Certs `protobuf:"bytes,1,opt,name=certs,proto3" json:"certs,omitempty"`
+	// A signed join state document to be provided on the next join attempt.
+	JoinState            []byte   `protobuf:"bytes,2,opt,name=join_state,json=joinState,proto3" json:"join_state,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *RegisterUsingBoundKeypairCertificates) Reset()         { *m = RegisterUsingBoundKeypairCertificates{} }
+func (m *RegisterUsingBoundKeypairCertificates) String() string { return proto.CompactTextString(m) }
+func (*RegisterUsingBoundKeypairCertificates) ProtoMessage()    {}
+func (*RegisterUsingBoundKeypairCertificates) Descriptor() ([]byte, []int) {
+	return fileDescriptor_d7e760ce923b836e, []int{17}
+}
+func (m *RegisterUsingBoundKeypairCertificates) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RegisterUsingBoundKeypairCertificates) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RegisterUsingBoundKeypairCertificates.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RegisterUsingBoundKeypairCertificates) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RegisterUsingBoundKeypairCertificates.Merge(m, src)
+}
+func (m *RegisterUsingBoundKeypairCertificates) XXX_Size() int {
+	return m.Size()
+}
+func (m *RegisterUsingBoundKeypairCertificates) XXX_DiscardUnknown() {
+	xxx_messageInfo_RegisterUsingBoundKeypairCertificates.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RegisterUsingBoundKeypairCertificates proto.InternalMessageInfo
+
+func (m *RegisterUsingBoundKeypairCertificates) GetCerts() *Certs {
+	if m != nil {
+		return m.Certs
+	}
+	return nil
+}
+
+func (m *RegisterUsingBoundKeypairCertificates) GetJoinState() []byte {
+	if m != nil {
+		return m.JoinState
+	}
+	return nil
+}
+
+// RegisterUsingBoundKeypairMethodResponse is a response sent by the server during the
+// bound-keypair joining process. Multiple requests and responses are expected
+// to be exchanged during one join process.
+type RegisterUsingBoundKeypairMethodResponse struct {
+	// Types that are valid to be assigned to Response:
+	//	*RegisterUsingBoundKeypairMethodResponse_Challenge
+	//	*RegisterUsingBoundKeypairMethodResponse_Certs
+	Response             isRegisterUsingBoundKeypairMethodResponse_Response `protobuf_oneof:"response"`
+	XXX_NoUnkeyedLiteral struct{}                                           `json:"-"`
+	XXX_unrecognized     []byte                                             `json:"-"`
+	XXX_sizecache        int32                                              `json:"-"`
+}
+
+func (m *RegisterUsingBoundKeypairMethodResponse) Reset() {
+	*m = RegisterUsingBoundKeypairMethodResponse{}
+}
+func (m *RegisterUsingBoundKeypairMethodResponse) String() string { return proto.CompactTextString(m) }
+func (*RegisterUsingBoundKeypairMethodResponse) ProtoMessage()    {}
+func (*RegisterUsingBoundKeypairMethodResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_d7e760ce923b836e, []int{18}
+}
+func (m *RegisterUsingBoundKeypairMethodResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RegisterUsingBoundKeypairMethodResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RegisterUsingBoundKeypairMethodResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RegisterUsingBoundKeypairMethodResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RegisterUsingBoundKeypairMethodResponse.Merge(m, src)
+}
+func (m *RegisterUsingBoundKeypairMethodResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *RegisterUsingBoundKeypairMethodResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_RegisterUsingBoundKeypairMethodResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RegisterUsingBoundKeypairMethodResponse proto.InternalMessageInfo
+
+type isRegisterUsingBoundKeypairMethodResponse_Response interface {
+	isRegisterUsingBoundKeypairMethodResponse_Response()
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type RegisterUsingBoundKeypairMethodResponse_Challenge struct {
+	Challenge *RegisterUsingBoundKeypairChallenge `protobuf:"bytes,1,opt,name=challenge,proto3,oneof" json:"challenge,omitempty"`
+}
+type RegisterUsingBoundKeypairMethodResponse_Certs struct {
+	Certs *RegisterUsingBoundKeypairCertificates `protobuf:"bytes,2,opt,name=certs,proto3,oneof" json:"certs,omitempty"`
+}
+
+func (*RegisterUsingBoundKeypairMethodResponse_Challenge) isRegisterUsingBoundKeypairMethodResponse_Response() {
+}
+func (*RegisterUsingBoundKeypairMethodResponse_Certs) isRegisterUsingBoundKeypairMethodResponse_Response() {
+}
+
+func (m *RegisterUsingBoundKeypairMethodResponse) GetResponse() isRegisterUsingBoundKeypairMethodResponse_Response {
+	if m != nil {
+		return m.Response
+	}
+	return nil
+}
+
+func (m *RegisterUsingBoundKeypairMethodResponse) GetChallenge() *RegisterUsingBoundKeypairChallenge {
+	if x, ok := m.GetResponse().(*RegisterUsingBoundKeypairMethodResponse_Challenge); ok {
+		return x.Challenge
+	}
+	return nil
+}
+
+func (m *RegisterUsingBoundKeypairMethodResponse) GetCerts() *RegisterUsingBoundKeypairCertificates {
+	if x, ok := m.GetResponse().(*RegisterUsingBoundKeypairMethodResponse_Certs); ok {
+		return x.Certs
+	}
+	return nil
+}
+
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*RegisterUsingBoundKeypairMethodResponse) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
+		(*RegisterUsingBoundKeypairMethodResponse_Challenge)(nil),
+		(*RegisterUsingBoundKeypairMethodResponse_Certs)(nil),
+	}
+}
+
 func init() {
 	proto.RegisterType((*RegisterUsingIAMMethodRequest)(nil), "proto.RegisterUsingIAMMethodRequest")
 	proto.RegisterType((*RegisterUsingIAMMethodResponse)(nil), "proto.RegisterUsingIAMMethodResponse")
@@ -1034,6 +1474,12 @@ func init() {
 	proto.RegisterMapType((map[string]string)(nil), "proto.OracleSignedRequest.PayloadHeadersEntry")
 	proto.RegisterType((*RegisterUsingOracleMethodRequest)(nil), "proto.RegisterUsingOracleMethodRequest")
 	proto.RegisterType((*RegisterUsingOracleMethodResponse)(nil), "proto.RegisterUsingOracleMethodResponse")
+	proto.RegisterType((*RegisterUsingBoundKeypairInitialRequest)(nil), "proto.RegisterUsingBoundKeypairInitialRequest")
+	proto.RegisterType((*RegisterUsingBoundKeypairChallengeResponse)(nil), "proto.RegisterUsingBoundKeypairChallengeResponse")
+	proto.RegisterType((*RegisterUsingBoundKeypairMethodRequest)(nil), "proto.RegisterUsingBoundKeypairMethodRequest")
+	proto.RegisterType((*RegisterUsingBoundKeypairChallenge)(nil), "proto.RegisterUsingBoundKeypairChallenge")
+	proto.RegisterType((*RegisterUsingBoundKeypairCertificates)(nil), "proto.RegisterUsingBoundKeypairCertificates")
+	proto.RegisterType((*RegisterUsingBoundKeypairMethodResponse)(nil), "proto.RegisterUsingBoundKeypairMethodResponse")
 }
 
 func init() {
@@ -1041,69 +1487,82 @@ func init() {
 }
 
 var fileDescriptor_d7e760ce923b836e = []byte{
-	// 983 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x56, 0xcd, 0x6e, 0x23, 0x45,
-	0x10, 0xf6, 0x38, 0x7f, 0x9b, 0xb2, 0x37, 0x9b, 0xf4, 0xae, 0x82, 0x33, 0xda, 0x75, 0x9c, 0x21,
-	0x10, 0x23, 0x84, 0xbd, 0x32, 0x17, 0xb4, 0x27, 0x1c, 0x6f, 0x24, 0x07, 0x08, 0x44, 0xb3, 0x8b,
-	0x10, 0x5c, 0x46, 0xed, 0x71, 0xc9, 0x69, 0x3c, 0x3b, 0x33, 0x74, 0xb7, 0x23, 0x99, 0x87, 0xe0,
-	0x15, 0x78, 0x02, 0x24, 0x0e, 0x3c, 0x04, 0x07, 0x84, 0xb8, 0x71, 0x45, 0x79, 0x07, 0xee, 0x68,
-	0xba, 0x7b, 0x9c, 0xf1, 0x78, 0xec, 0xec, 0x4a, 0x2b, 0x2e, 0x1e, 0x77, 0x75, 0x55, 0x7d, 0x5d,
-	0x5f, 0xfd, 0x74, 0x43, 0x4b, 0x62, 0x80, 0x71, 0xc4, 0x65, 0x3b, 0xc0, 0x11, 0xf5, 0xa7, 0x6d,
-	0x3f, 0x60, 0x18, 0xca, 0x76, 0xcc, 0x23, 0x19, 0xb5, 0xbf, 0x8f, 0x58, 0x28, 0x90, 0x5f, 0x33,
-	0x1f, 0x5b, 0x4a, 0x42, 0x36, 0xd4, 0xc7, 0x6e, 0xae, 0x34, 0xf3, 0x91, 0x4b, 0xa1, 0x0d, 0xec,
-	0xa3, 0xbc, 0xa6, 0x9c, 0xc6, 0x28, 0xf4, 0xaf, 0x56, 0x71, 0x7e, 0xb3, 0xe0, 0x89, 0x8b, 0x23,
-	0x26, 0x24, 0xf2, 0xaf, 0x05, 0x0b, 0x47, 0xe7, 0xdd, 0x8b, 0x0b, 0x94, 0x57, 0xd1, 0xd0, 0xc5,
-	0x1f, 0x26, 0x28, 0x24, 0xa1, 0xf0, 0x98, 0x1b, 0x05, 0x6f, 0x92, 0x68, 0x78, 0x32, 0x1a, 0x63,
-	0xe8, 0x71, 0xbd, 0x5f, 0xb3, 0x1a, 0x56, 0xb3, 0xd2, 0x69, 0xb4, 0xb4, 0xd7, 0x39, 0x5f, 0x2f,
-	0x13, 0x45, 0xe3, 0xc7, 0x3d, 0xe0, 0xcb, 0xb6, 0xc8, 0x53, 0x78, 0x24, 0xa4, 0xf0, 0xd8, 0x10,
-	0x43, 0xc9, 0xe4, 0x74, 0xe6, 0xba, 0xdc, 0xb0, 0x9a, 0x55, 0x97, 0x08, 0x29, 0xce, 0xcd, 0x96,
-	0xb1, 0x70, 0x06, 0x50, 0x5f, 0x76, 0x6a, 0x11, 0x47, 0xa1, 0x40, 0xf2, 0x18, 0xb6, 0xfd, 0x2b,
-	0x1a, 0x04, 0x18, 0x8e, 0x50, 0x9d, 0x71, 0xdb, 0xbd, 0x15, 0x10, 0x07, 0x36, 0x14, 0x51, 0x0a,
-	0xa2, 0xd2, 0xa9, 0x6a, 0x36, 0x5a, 0xbd, 0x44, 0xe6, 0xea, 0x2d, 0xe7, 0x0f, 0x0b, 0x0e, 0xe7,
-	0x40, 0xba, 0x3f, 0x4e, 0x38, 0xfe, 0xef, 0xe4, 0xbc, 0x0b, 0xf7, 0xa9, 0x94, 0x28, 0x24, 0x0e,
-	0xbd, 0x21, 0x95, 0xd4, 0xb0, 0x52, 0x4d, 0x85, 0xcf, 0xa9, 0xa4, 0xe4, 0x08, 0xaa, 0xd4, 0xf7,
-	0x51, 0x08, 0x8d, 0x5f, 0x5b, 0x53, 0x01, 0x57, 0xb4, 0x4c, 0xb9, 0x73, 0x86, 0xd0, 0x58, 0x1e,
-	0xcd, 0x5b, 0x23, 0xed, 0x0c, 0x4e, 0xe6, 0xa3, 0xbc, 0x34, 0x89, 0xe9, 0xa5, 0x6e, 0x66, 0x60,
-	0x36, 0xdc, 0x13, 0x51, 0x30, 0x91, 0x2c, 0x0a, 0x15, 0x56, 0xd5, 0x9d, 0xad, 0x9d, 0x7f, 0x2d,
-	0x38, 0x2e, 0xf6, 0x73, 0x1e, 0x32, 0xc9, 0x68, 0x90, 0xb2, 0xd3, 0x83, 0x6a, 0xd2, 0x28, 0x6f,
-	0x4c, 0x78, 0x25, 0xb1, 0x4a, 0x9d, 0x1c, 0xc0, 0x16, 0x8e, 0xbd, 0x24, 0x00, 0x4d, 0x6e, 0xbf,
-	0xe4, 0x6e, 0xe2, 0x38, 0x89, 0x8b, 0xbc, 0x03, 0x9b, 0x38, 0xf6, 0xc6, 0x38, 0x55, 0x94, 0x26,
-	0x3b, 0x1b, 0x38, 0xfe, 0x1c, 0xa7, 0xe4, 0x4b, 0x20, 0x3a, 0x03, 0x34, 0x39, 0xb0, 0x17, 0x53,
-	0x4e, 0x5f, 0x89, 0xda, 0xba, 0x82, 0x3f, 0x34, 0xcc, 0xbc, 0xbc, 0xbc, 0xe8, 0xde, 0xea, 0x5c,
-	0x26, 0x2a, 0x28, 0x91, 0x0b, 0x77, 0x8f, 0xe6, 0xc4, 0xe2, 0x74, 0x1d, 0xca, 0x38, 0x76, 0xfe,
-	0xcc, 0xb7, 0xe3, 0x2c, 0xee, 0xf4, 0xac, 0x5d, 0x58, 0x67, 0x21, 0x4b, 0x03, 0xfd, 0xd0, 0x20,
-	0xbd, 0x0e, 0x57, 0xfd, 0x92, 0xab, 0x4c, 0x89, 0x07, 0x64, 0x96, 0x54, 0x8f, 0x9b, 0x74, 0x98,
-	0xa4, 0xb6, 0x56, 0x3a, 0x5c, 0x48, 0x62, 0xbf, 0xe4, 0xee, 0xf9, 0x79, 0xe1, 0xe9, 0x36, 0x6c,
-	0xc5, 0x74, 0x1a, 0x44, 0x74, 0xe8, 0xfc, 0x6c, 0xe5, 0x3a, 0x35, 0x13, 0x90, 0xa9, 0x83, 0x2f,
-	0x60, 0x2f, 0x7b, 0x9c, 0x6c, 0x1e, 0x9f, 0xdc, 0x12, 0x79, 0x16, 0xfa, 0x7c, 0x1a, 0x4b, 0x1c,
-	0xf6, 0x38, 0xaa, 0x61, 0x40, 0x83, 0x7e, 0xc9, 0xdd, 0xcd, 0x80, 0x6b, 0x7e, 0x8e, 0x57, 0x14,
-	0x69, 0x92, 0x3d, 0xb5, 0x99, 0x3d, 0xe1, 0x2f, 0x16, 0xd4, 0x96, 0x25, 0x8a, 0xec, 0xc3, 0x66,
-	0x3c, 0x19, 0x04, 0xcc, 0x37, 0x15, 0x6a, 0x56, 0xe4, 0x10, 0x2a, 0x3e, 0x47, 0x2a, 0x31, 0xdb,
-	0x92, 0xa0, 0x45, 0xaa, 0x21, 0x3f, 0x02, 0x62, 0x14, 0x32, 0xa9, 0xd6, 0x35, 0xe4, 0xee, 0xe9,
-	0x9d, 0x0c, 0x22, 0xf9, 0x00, 0x76, 0x8d, 0xba, 0x60, 0xa3, 0x90, 0xca, 0x09, 0x47, 0x55, 0x4b,
-	0x55, 0xf7, 0x81, 0x96, 0xbf, 0x48, 0xc5, 0xce, 0xb7, 0xb0, 0x5f, 0x4c, 0x07, 0x39, 0x81, 0x44,
-	0xd9, 0xac, 0xbc, 0x41, 0x10, 0x0d, 0xcc, 0xa9, 0x77, 0x6e, 0xc5, 0xa7, 0x41, 0x34, 0x48, 0xa2,
-	0x12, 0xe8, 0x73, 0x4c, 0x27, 0xac, 0x59, 0x39, 0xbf, 0x96, 0xe1, 0xe1, 0x57, 0x9c, 0xfa, 0x81,
-	0x82, 0xc3, 0x4c, 0xcd, 0x6d, 0x5d, 0x21, 0x1d, 0x22, 0x17, 0x35, 0xab, 0xb1, 0xd6, 0xac, 0x74,
-	0x4e, 0x0c, 0xab, 0x05, 0xca, 0xad, 0xbe, 0xd6, 0x3c, 0x0b, 0x25, 0x9f, 0xba, 0xa9, 0x1d, 0xf9,
-	0x06, 0x1e, 0x18, 0xc2, 0xbd, 0xd4, 0x55, 0x59, 0xb9, 0x6a, 0xad, 0x70, 0x75, 0xa9, 0x2d, 0xe6,
-	0x3c, 0xee, 0xc4, 0x73, 0x42, 0xfb, 0x19, 0x54, 0xb3, 0xfb, 0x64, 0x17, 0xd6, 0x92, 0x6e, 0xd5,
-	0xc3, 0x2b, 0xf9, 0x4b, 0x1e, 0xc1, 0xc6, 0x35, 0x0d, 0x26, 0xba, 0xc2, 0xb7, 0x5d, 0xbd, 0x78,
-	0x56, 0xfe, 0xc4, 0xb2, 0xbb, 0xf0, 0xb0, 0x00, 0xe2, 0x4d, 0x5c, 0x38, 0x7f, 0x5b, 0xb9, 0xb1,
-	0xaa, 0xe3, 0x98, 0xef, 0x59, 0xff, 0xed, 0xdc, 0x12, 0xfd, 0xd2, 0xaa, 0x7b, 0xa2, 0x07, 0x3b,
-	0x91, 0xc2, 0x9e, 0xbb, 0x3e, 0x2b, 0x1d, 0x7b, 0x39, 0xc1, 0xfd, 0x92, 0x7b, 0x5f, 0xdb, 0x18,
-	0x41, 0xd2, 0x17, 0xc6, 0xda, 0x99, 0xc0, 0xd1, 0x8a, 0xc0, 0x4c, 0xef, 0xd6, 0x17, 0x2e, 0x8c,
-	0x7e, 0x29, 0x7b, 0x65, 0xbc, 0x5e, 0x37, 0x02, 0xdc, 0x4b, 0xc7, 0x50, 0xe7, 0xa7, 0x75, 0xa8,
-	0x7c, 0x16, 0xb1, 0xf0, 0x85, 0x7e, 0xfa, 0x10, 0x06, 0xfb, 0xc5, 0x37, 0x3d, 0x39, 0x2e, 0x1a,
-	0x55, 0xf9, 0xe7, 0x8b, 0xfd, 0xde, 0x1d, 0x5a, 0x1a, 0xb6, 0x69, 0x3d, 0xb5, 0x48, 0x04, 0xb5,
-	0x65, 0x37, 0x24, 0x79, 0xbf, 0xc8, 0xcd, 0xe2, 0x83, 0xc0, 0x3e, 0xb9, 0x53, 0x2f, 0x03, 0x98,
-	0x8f, 0x6d, 0x36, 0x1b, 0x8b, 0x63, 0xcb, 0xdf, 0x05, 0xc5, 0xb1, 0x2d, 0x0c, 0x58, 0x05, 0xc5,
-	0xe1, 0x60, 0x69, 0x36, 0x49, 0xe1, 0xa1, 0x0b, 0x0a, 0xd9, 0x6e, 0xde, 0xad, 0x98, 0xc1, 0x7c,
-	0x0e, 0x64, 0xb1, 0x96, 0xc9, 0x9d, 0x65, 0x6e, 0xcf, 0x55, 0xc9, 0xe9, 0xa7, 0xbf, 0xdf, 0xd4,
-	0xad, 0xbf, 0x6e, 0xea, 0xd6, 0x3f, 0x37, 0x75, 0xeb, 0xbb, 0xce, 0x88, 0xc9, 0xab, 0xc9, 0xa0,
-	0xe5, 0x47, 0xaf, 0xda, 0x23, 0x4e, 0xaf, 0x99, 0x1e, 0xa0, 0x34, 0x68, 0xcf, 0xde, 0xba, 0x34,
-	0x66, 0x73, 0x4f, 0xe2, 0xc1, 0xa6, 0xfa, 0x7c, 0xfc, 0x5f, 0x00, 0x00, 0x00, 0xff, 0xff, 0x9b,
-	0x47, 0xf1, 0x87, 0x70, 0x0b, 0x00, 0x00,
+	// 1187 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x57, 0x4d, 0x6f, 0x1b, 0xc5,
+	0x1b, 0xf7, 0xba, 0x4d, 0x5a, 0x3f, 0x76, 0xd3, 0x66, 0x5a, 0xf5, 0xef, 0x58, 0xcd, 0xdb, 0xfe,
+	0xd3, 0xc6, 0x05, 0x6a, 0x17, 0x73, 0x41, 0x3d, 0x91, 0x37, 0xc9, 0xa1, 0x04, 0xa2, 0x6d, 0x11,
+	0x82, 0xcb, 0x6a, 0xbc, 0x7e, 0x70, 0x36, 0xde, 0xee, 0x2e, 0x33, 0xe3, 0x54, 0xe6, 0xcc, 0x57,
+	0xe0, 0xcc, 0x27, 0x40, 0xe2, 0xc0, 0x47, 0x40, 0x88, 0x03, 0x42, 0xdc, 0x38, 0x21, 0xa1, 0x7c,
+	0x07, 0xee, 0x68, 0x67, 0x66, 0x9d, 0xdd, 0xf5, 0xae, 0x9d, 0x48, 0x85, 0x4b, 0x9c, 0x7d, 0xe6,
+	0x99, 0xe7, 0xe5, 0xf7, 0xbc, 0x0e, 0xb4, 0x04, 0x7a, 0x18, 0x06, 0x4c, 0xb4, 0x3d, 0x1c, 0x50,
+	0x67, 0xdc, 0x76, 0x3c, 0x17, 0x7d, 0xd1, 0x0e, 0x59, 0x20, 0x82, 0xf6, 0x69, 0xe0, 0xfa, 0x1c,
+	0xd9, 0x99, 0xeb, 0x60, 0x4b, 0x52, 0xc8, 0x82, 0xfc, 0x69, 0x34, 0x67, 0x5e, 0x73, 0x90, 0x09,
+	0xae, 0x2e, 0x34, 0x36, 0xb3, 0x9c, 0x62, 0x1c, 0x22, 0x57, 0x7f, 0x15, 0x8b, 0xf9, 0xa3, 0x01,
+	0xab, 0x16, 0x0e, 0x5c, 0x2e, 0x90, 0x7d, 0xca, 0x5d, 0x7f, 0x70, 0xb8, 0x73, 0x74, 0x84, 0xe2,
+	0x24, 0xe8, 0x5b, 0xf8, 0xd5, 0x08, 0xb9, 0x20, 0x14, 0x1e, 0x30, 0xcd, 0x60, 0x8f, 0x22, 0x0e,
+	0x5b, 0x04, 0x43, 0xf4, 0x6d, 0xa6, 0xce, 0xeb, 0xc6, 0x86, 0xd1, 0xac, 0x76, 0x36, 0x5a, 0x4a,
+	0x6a, 0x4a, 0xd6, 0xcb, 0x88, 0x51, 0xcb, 0xb1, 0x56, 0x58, 0xd1, 0x11, 0x79, 0x0a, 0xf7, 0xb8,
+	0xe0, 0xb6, 0xdb, 0x47, 0x5f, 0xb8, 0x62, 0x3c, 0x11, 0x5d, 0xde, 0x30, 0x9a, 0x35, 0x8b, 0x70,
+	0xc1, 0x0f, 0xf5, 0x91, 0xbe, 0x61, 0xf6, 0x60, 0xad, 0xc8, 0x6a, 0x1e, 0x06, 0x3e, 0x47, 0xf2,
+	0x00, 0x2a, 0xce, 0x09, 0xf5, 0x3c, 0xf4, 0x07, 0x28, 0x6d, 0xac, 0x58, 0x17, 0x04, 0x62, 0xc2,
+	0x82, 0x04, 0x4a, 0xaa, 0xa8, 0x76, 0x6a, 0x0a, 0x8d, 0xd6, 0x5e, 0x44, 0xb3, 0xd4, 0x91, 0xf9,
+	0xab, 0x01, 0xeb, 0x29, 0x25, 0x3b, 0x5f, 0x8f, 0x18, 0xfe, 0xe7, 0xe0, 0xfc, 0x1f, 0x6e, 0x51,
+	0x21, 0x90, 0x0b, 0xec, 0xdb, 0x7d, 0x2a, 0xa8, 0x46, 0xa5, 0x16, 0x13, 0xf7, 0xa9, 0xa0, 0x64,
+	0x13, 0x6a, 0xd4, 0x71, 0x90, 0x73, 0xa5, 0xbf, 0x7e, 0x4d, 0x3a, 0x5c, 0x55, 0x34, 0x29, 0xce,
+	0xec, 0xc3, 0x46, 0xb1, 0x37, 0x6f, 0x0c, 0xb4, 0x03, 0xd8, 0x4e, 0x7b, 0x79, 0xac, 0x03, 0xb3,
+	0x17, 0x8b, 0x99, 0x28, 0x6b, 0xc0, 0x4d, 0x1e, 0x78, 0x23, 0xe1, 0x06, 0xbe, 0xd4, 0x55, 0xb3,
+	0x26, 0xdf, 0xe6, 0xdf, 0x06, 0x6c, 0xe5, 0xcb, 0x39, 0xf4, 0x5d, 0xe1, 0x52, 0x2f, 0x46, 0x67,
+	0x0f, 0x6a, 0x51, 0xa1, 0x5c, 0x19, 0xf0, 0x6a, 0x74, 0x2b, 0x16, 0xb2, 0x02, 0x37, 0x70, 0x68,
+	0x47, 0x0e, 0x28, 0x70, 0xbb, 0x25, 0x6b, 0x11, 0x87, 0x91, 0x5f, 0xe4, 0x7f, 0xb0, 0x88, 0x43,
+	0x7b, 0x88, 0x63, 0x09, 0x69, 0x74, 0xb2, 0x80, 0xc3, 0xe7, 0x38, 0x26, 0x1f, 0x03, 0x51, 0x11,
+	0xa0, 0x91, 0xc1, 0x76, 0x48, 0x19, 0x7d, 0xc5, 0xeb, 0xd7, 0xa5, 0xfa, 0x75, 0x8d, 0xcc, 0xcb,
+	0xe3, 0xa3, 0x9d, 0x0b, 0x9e, 0xe3, 0x88, 0x05, 0x05, 0x32, 0x6e, 0x2d, 0xd3, 0x0c, 0x99, 0xef,
+	0x5e, 0x87, 0x32, 0x0e, 0xcd, 0xdf, 0xb2, 0xe5, 0x38, 0xf1, 0x3b, 0xb6, 0x75, 0x07, 0xae, 0xbb,
+	0xbe, 0x1b, 0x3b, 0xfa, 0xb6, 0xd6, 0x74, 0x19, 0xac, 0xba, 0x25, 0x4b, 0x5e, 0x25, 0x36, 0x90,
+	0x49, 0x50, 0x6d, 0xa6, 0xc3, 0xa1, 0x83, 0xda, 0x9a, 0x29, 0x70, 0x2a, 0x88, 0xdd, 0x92, 0xb5,
+	0xec, 0x64, 0x89, 0xbb, 0x15, 0xb8, 0x11, 0xd2, 0xb1, 0x17, 0xd0, 0xbe, 0xf9, 0x9d, 0x91, 0xa9,
+	0xd4, 0x84, 0x43, 0x3a, 0x0f, 0x3e, 0x82, 0xe5, 0xa4, 0x39, 0xc9, 0x38, 0xae, 0x5e, 0x00, 0x79,
+	0xe0, 0x3b, 0x6c, 0x1c, 0x0a, 0xec, 0xef, 0x31, 0x94, 0xcd, 0x80, 0x7a, 0xdd, 0x92, 0x75, 0x27,
+	0xa1, 0x5c, 0xe1, 0xb3, 0x35, 0x23, 0x49, 0xa3, 0xe8, 0xc9, 0xc3, 0xa4, 0x85, 0xdf, 0x1b, 0x50,
+	0x2f, 0x0a, 0x14, 0xb9, 0x0f, 0x8b, 0xe1, 0xa8, 0xe7, 0xb9, 0x8e, 0xce, 0x50, 0xfd, 0x45, 0xd6,
+	0xa1, 0xea, 0x30, 0xa4, 0x02, 0x93, 0x25, 0x09, 0x8a, 0x24, 0x0b, 0xf2, 0x09, 0x10, 0xcd, 0x90,
+	0x08, 0xb5, 0xca, 0x21, 0x6b, 0x59, 0x9d, 0x24, 0x34, 0x92, 0xc7, 0x70, 0x47, 0xb3, 0x73, 0x77,
+	0xe0, 0x53, 0x31, 0x62, 0x28, 0x73, 0xa9, 0x66, 0xdd, 0x56, 0xf4, 0x17, 0x31, 0xd9, 0xfc, 0x1c,
+	0xee, 0xe7, 0xc3, 0x41, 0xb6, 0x21, 0x62, 0xd6, 0x5f, 0x76, 0xcf, 0x0b, 0x7a, 0xda, 0xea, 0xa5,
+	0x0b, 0xf2, 0xae, 0x17, 0xf4, 0x22, 0xaf, 0x38, 0x3a, 0x0c, 0xe3, 0x0e, 0xab, 0xbf, 0xcc, 0x1f,
+	0xca, 0x70, 0xf7, 0x13, 0x46, 0x1d, 0x4f, 0xaa, 0xc3, 0x44, 0xce, 0xdd, 0x38, 0x41, 0xda, 0x47,
+	0xc6, 0xeb, 0xc6, 0xc6, 0xb5, 0x66, 0xb5, 0xb3, 0xad, 0x51, 0xcd, 0x61, 0x6e, 0x75, 0x15, 0xe7,
+	0x81, 0x2f, 0xd8, 0xd8, 0x8a, 0xef, 0x91, 0xcf, 0xe0, 0xb6, 0x06, 0xdc, 0x8e, 0x45, 0x95, 0xa5,
+	0xa8, 0xd6, 0x0c, 0x51, 0xc7, 0xea, 0x46, 0x4a, 0xe2, 0x52, 0x98, 0x22, 0x36, 0x9e, 0x41, 0x2d,
+	0x79, 0x4e, 0xee, 0xc0, 0xb5, 0xa8, 0x5a, 0x55, 0xf3, 0x8a, 0xfe, 0x25, 0xf7, 0x60, 0xe1, 0x8c,
+	0x7a, 0x23, 0x95, 0xe1, 0x15, 0x4b, 0x7d, 0x3c, 0x2b, 0xbf, 0x6f, 0x34, 0x76, 0xe0, 0x6e, 0x8e,
+	0x8a, 0xab, 0x88, 0x30, 0xff, 0x30, 0x32, 0x6d, 0x55, 0xf9, 0x91, 0xae, 0x59, 0xe7, 0xcd, 0x4c,
+	0x89, 0x6e, 0x69, 0xd6, 0x9c, 0xd8, 0x83, 0xa5, 0x40, 0xea, 0x4e, 0x8d, 0xcf, 0x6a, 0xa7, 0x51,
+	0x0c, 0x70, 0xb7, 0x64, 0xdd, 0x52, 0x77, 0x34, 0x21, 0xaa, 0x0b, 0x7d, 0xdb, 0x1c, 0xc1, 0xe6,
+	0x0c, 0xc7, 0x74, 0xed, 0xae, 0x4d, 0x0d, 0x8c, 0x6e, 0x29, 0x39, 0x32, 0x2e, 0x57, 0x8d, 0x00,
+	0x37, 0xe3, 0x36, 0x64, 0xfe, 0x64, 0x64, 0x26, 0xc8, 0x6e, 0x30, 0xf2, 0xfb, 0xcf, 0x71, 0x1c,
+	0x52, 0x97, 0xfd, 0x1b, 0xcd, 0x7f, 0x0b, 0x96, 0x7c, 0x7c, 0x6d, 0xab, 0xc2, 0x96, 0x9d, 0x5e,
+	0x0f, 0x58, 0x1f, 0x5f, 0x1f, 0x4b, 0x62, 0xd4, 0xee, 0x5b, 0x70, 0x37, 0x64, 0x78, 0xe6, 0x06,
+	0x23, 0x6e, 0x4b, 0x9d, 0x51, 0xe5, 0x62, 0x5c, 0xd0, 0xf1, 0xd1, 0x87, 0x81, 0xeb, 0xbf, 0x88,
+	0x0e, 0xcc, 0x2e, 0xbc, 0x55, 0xe8, 0xc5, 0xd5, 0x46, 0xe1, 0x9f, 0x06, 0x3c, 0x2a, 0x14, 0x95,
+	0xce, 0xb3, 0xfd, 0xd4, 0x6c, 0xc8, 0x6d, 0xe5, 0xc5, 0x68, 0x4e, 0xc6, 0x43, 0x6f, 0xc6, 0x78,
+	0x78, 0x77, 0x9e, 0xcc, 0xab, 0x4f, 0x08, 0x0a, 0xe6, 0x7c, 0x69, 0x64, 0x15, 0x20, 0x11, 0x21,
+	0x85, 0x51, 0x25, 0x9c, 0x84, 0x27, 0xb5, 0xb8, 0x94, 0x33, 0x8b, 0x8b, 0x79, 0x0a, 0x0f, 0x8b,
+	0x55, 0x20, 0x13, 0xee, 0x97, 0xae, 0x43, 0x05, 0xf2, 0x8b, 0x0d, 0xc7, 0x28, 0xdc, 0x70, 0x22,
+	0x4b, 0x12, 0x09, 0xa0, 0x72, 0xa5, 0x72, 0x3a, 0x09, 0xfc, 0xcf, 0xb3, 0xf2, 0x37, 0x53, 0x3d,
+	0x87, 0xd9, 0xea, 0xa9, 0x76, 0x1e, 0x5f, 0x1a, 0xe0, 0x74, 0xa1, 0xed, 0xa7, 0x0b, 0xed, 0x9d,
+	0xb9, 0x62, 0x12, 0x6e, 0xe7, 0x16, 0x62, 0xe7, 0xdb, 0x05, 0xa8, 0xca, 0x7c, 0x56, 0x6f, 0x10,
+	0xe2, 0xc2, 0xfd, 0xfc, 0x95, 0x9b, 0x6c, 0xe5, 0x29, 0xcb, 0xbe, 0x23, 0x1a, 0x0f, 0xe7, 0x70,
+	0x29, 0xb5, 0x4d, 0xe3, 0xa9, 0x41, 0x02, 0xa8, 0x17, 0xad, 0xaa, 0xe4, 0x51, 0x9e, 0x98, 0xe9,
+	0xcd, 0xbc, 0xb1, 0x3d, 0x97, 0x2f, 0xa1, 0x30, 0xeb, 0xdb, 0x64, 0x49, 0xc9, 0xf7, 0x2d, 0xbb,
+	0x94, 0xe5, 0xfb, 0x36, 0xb5, 0xe9, 0x48, 0x55, 0x0c, 0x56, 0x0a, 0xdb, 0x2a, 0xc9, 0x35, 0x3a,
+	0x67, 0xa2, 0x34, 0x9a, 0xf3, 0x19, 0x13, 0x3a, 0xbf, 0xc9, 0xbe, 0x64, 0xa6, 0x73, 0x92, 0x3c,
+	0x99, 0x97, 0x31, 0x69, 0x03, 0x5a, 0x97, 0x65, 0x4f, 0x98, 0xb1, 0x0f, 0x64, 0xba, 0x27, 0x93,
+	0xb9, 0xed, 0xba, 0x91, 0x2a, 0xc3, 0xdd, 0x0f, 0x7e, 0x39, 0x5f, 0x33, 0x7e, 0x3f, 0x5f, 0x33,
+	0xfe, 0x3a, 0x5f, 0x33, 0xbe, 0xe8, 0x0c, 0x5c, 0x71, 0x32, 0xea, 0xb5, 0x9c, 0xe0, 0x55, 0x7b,
+	0xc0, 0xe8, 0x99, 0xab, 0x16, 0x2a, 0xea, 0xb5, 0x27, 0x6f, 0x5f, 0x1a, 0xba, 0xa9, 0x27, 0x72,
+	0x6f, 0x51, 0xfe, 0xbc, 0xf7, 0x4f, 0x00, 0x00, 0x00, 0xff, 0xff, 0x65, 0x1d, 0x16, 0xab, 0x80,
+	0x0f, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -1130,6 +1589,9 @@ type JoinServiceClient interface {
 	// RegisterUsingOracleMethod allows registration of a new node to the cluster
 	// using the Oracle join method.
 	RegisterUsingOracleMethod(ctx context.Context, opts ...grpc.CallOption) (JoinService_RegisterUsingOracleMethodClient, error)
+	// RegisterUsingBoundKeypairMethod allows registration of a new node to the
+	// cluster using the bound-keypair join method.
+	RegisterUsingBoundKeypairMethod(ctx context.Context, opts ...grpc.CallOption) (JoinService_RegisterUsingBoundKeypairMethodClient, error)
 	// RegisterUsingToken is used to register a new node to the cluster using one
 	// of the legacy join methods which do not yet have their own gRPC method.
 	RegisterUsingToken(ctx context.Context, in *types.RegisterUsingTokenRequest, opts ...grpc.CallOption) (*Certs, error)
@@ -1267,6 +1729,37 @@ func (x *joinServiceRegisterUsingOracleMethodClient) Recv() (*RegisterUsingOracl
 	return m, nil
 }
 
+func (c *joinServiceClient) RegisterUsingBoundKeypairMethod(ctx context.Context, opts ...grpc.CallOption) (JoinService_RegisterUsingBoundKeypairMethodClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_JoinService_serviceDesc.Streams[4], "/proto.JoinService/RegisterUsingBoundKeypairMethod", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &joinServiceRegisterUsingBoundKeypairMethodClient{stream}
+	return x, nil
+}
+
+type JoinService_RegisterUsingBoundKeypairMethodClient interface {
+	Send(*RegisterUsingBoundKeypairMethodRequest) error
+	Recv() (*RegisterUsingBoundKeypairMethodResponse, error)
+	grpc.ClientStream
+}
+
+type joinServiceRegisterUsingBoundKeypairMethodClient struct {
+	grpc.ClientStream
+}
+
+func (x *joinServiceRegisterUsingBoundKeypairMethodClient) Send(m *RegisterUsingBoundKeypairMethodRequest) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *joinServiceRegisterUsingBoundKeypairMethodClient) Recv() (*RegisterUsingBoundKeypairMethodResponse, error) {
+	m := new(RegisterUsingBoundKeypairMethodResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 func (c *joinServiceClient) RegisterUsingToken(ctx context.Context, in *types.RegisterUsingTokenRequest, opts ...grpc.CallOption) (*Certs, error) {
 	out := new(Certs)
 	err := c.cc.Invoke(ctx, "/proto.JoinService/RegisterUsingToken", in, out, opts...)
@@ -1290,6 +1783,9 @@ type JoinServiceServer interface {
 	// RegisterUsingOracleMethod allows registration of a new node to the cluster
 	// using the Oracle join method.
 	RegisterUsingOracleMethod(JoinService_RegisterUsingOracleMethodServer) error
+	// RegisterUsingBoundKeypairMethod allows registration of a new node to the
+	// cluster using the bound-keypair join method.
+	RegisterUsingBoundKeypairMethod(JoinService_RegisterUsingBoundKeypairMethodServer) error
 	// RegisterUsingToken is used to register a new node to the cluster using one
 	// of the legacy join methods which do not yet have their own gRPC method.
 	RegisterUsingToken(context.Context, *types.RegisterUsingTokenRequest) (*Certs, error)
@@ -1310,6 +1806,9 @@ func (*UnimplementedJoinServiceServer) RegisterUsingTPMMethod(srv JoinService_Re
 }
 func (*UnimplementedJoinServiceServer) RegisterUsingOracleMethod(srv JoinService_RegisterUsingOracleMethodServer) error {
 	return status.Errorf(codes.Unimplemented, "method RegisterUsingOracleMethod not implemented")
+}
+func (*UnimplementedJoinServiceServer) RegisterUsingBoundKeypairMethod(srv JoinService_RegisterUsingBoundKeypairMethodServer) error {
+	return status.Errorf(codes.Unimplemented, "method RegisterUsingBoundKeypairMethod not implemented")
 }
 func (*UnimplementedJoinServiceServer) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*Certs, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RegisterUsingToken not implemented")
@@ -1423,6 +1922,32 @@ func (x *joinServiceRegisterUsingOracleMethodServer) Recv() (*RegisterUsingOracl
 	return m, nil
 }
 
+func _JoinService_RegisterUsingBoundKeypairMethod_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(JoinServiceServer).RegisterUsingBoundKeypairMethod(&joinServiceRegisterUsingBoundKeypairMethodServer{stream})
+}
+
+type JoinService_RegisterUsingBoundKeypairMethodServer interface {
+	Send(*RegisterUsingBoundKeypairMethodResponse) error
+	Recv() (*RegisterUsingBoundKeypairMethodRequest, error)
+	grpc.ServerStream
+}
+
+type joinServiceRegisterUsingBoundKeypairMethodServer struct {
+	grpc.ServerStream
+}
+
+func (x *joinServiceRegisterUsingBoundKeypairMethodServer) Send(m *RegisterUsingBoundKeypairMethodResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *joinServiceRegisterUsingBoundKeypairMethodServer) Recv() (*RegisterUsingBoundKeypairMethodRequest, error) {
+	m := new(RegisterUsingBoundKeypairMethodRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 func _JoinService_RegisterUsingToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(types.RegisterUsingTokenRequest)
 	if err := dec(in); err != nil {
@@ -1472,6 +1997,12 @@ var _JoinService_serviceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "RegisterUsingOracleMethod",
 			Handler:       _JoinService_RegisterUsingOracleMethod_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "RegisterUsingBoundKeypairMethod",
+			Handler:       _JoinService_RegisterUsingBoundKeypairMethod_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},
@@ -2262,6 +2793,336 @@ func (m *RegisterUsingOracleMethodResponse_Certs) MarshalToSizedBuffer(dAtA []by
 	}
 	return len(dAtA) - i, nil
 }
+func (m *RegisterUsingBoundKeypairInitialRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RegisterUsingBoundKeypairInitialRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RegisterUsingBoundKeypairInitialRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.PreviousJoinState) > 0 {
+		i -= len(m.PreviousJoinState)
+		copy(dAtA[i:], m.PreviousJoinState)
+		i = encodeVarintJoinservice(dAtA, i, uint64(len(m.PreviousJoinState)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.NewPublicKey) > 0 {
+		i -= len(m.NewPublicKey)
+		copy(dAtA[i:], m.NewPublicKey)
+		i = encodeVarintJoinservice(dAtA, i, uint64(len(m.NewPublicKey)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if m.JoinRequest != nil {
+		{
+			size, err := m.JoinRequest.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintJoinservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *RegisterUsingBoundKeypairChallengeResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RegisterUsingBoundKeypairChallengeResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RegisterUsingBoundKeypairChallengeResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Solution) > 0 {
+		i -= len(m.Solution)
+		copy(dAtA[i:], m.Solution)
+		i = encodeVarintJoinservice(dAtA, i, uint64(len(m.Solution)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *RegisterUsingBoundKeypairMethodRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RegisterUsingBoundKeypairMethodRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RegisterUsingBoundKeypairMethodRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Payload != nil {
+		{
+			size := m.Payload.Size()
+			i -= size
+			if _, err := m.Payload.MarshalTo(dAtA[i:]); err != nil {
+				return 0, err
+			}
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *RegisterUsingBoundKeypairMethodRequest_Init) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RegisterUsingBoundKeypairMethodRequest_Init) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.Init != nil {
+		{
+			size, err := m.Init.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintJoinservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+func (m *RegisterUsingBoundKeypairMethodRequest_ChallengeResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RegisterUsingBoundKeypairMethodRequest_ChallengeResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.ChallengeResponse != nil {
+		{
+			size, err := m.ChallengeResponse.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintJoinservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	return len(dAtA) - i, nil
+}
+func (m *RegisterUsingBoundKeypairChallenge) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RegisterUsingBoundKeypairChallenge) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RegisterUsingBoundKeypairChallenge) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Challenge) > 0 {
+		i -= len(m.Challenge)
+		copy(dAtA[i:], m.Challenge)
+		i = encodeVarintJoinservice(dAtA, i, uint64(len(m.Challenge)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.PublicKey) > 0 {
+		i -= len(m.PublicKey)
+		copy(dAtA[i:], m.PublicKey)
+		i = encodeVarintJoinservice(dAtA, i, uint64(len(m.PublicKey)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *RegisterUsingBoundKeypairCertificates) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RegisterUsingBoundKeypairCertificates) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RegisterUsingBoundKeypairCertificates) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.JoinState) > 0 {
+		i -= len(m.JoinState)
+		copy(dAtA[i:], m.JoinState)
+		i = encodeVarintJoinservice(dAtA, i, uint64(len(m.JoinState)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if m.Certs != nil {
+		{
+			size, err := m.Certs.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintJoinservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *RegisterUsingBoundKeypairMethodResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RegisterUsingBoundKeypairMethodResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RegisterUsingBoundKeypairMethodResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Response != nil {
+		{
+			size := m.Response.Size()
+			i -= size
+			if _, err := m.Response.MarshalTo(dAtA[i:]); err != nil {
+				return 0, err
+			}
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *RegisterUsingBoundKeypairMethodResponse_Challenge) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RegisterUsingBoundKeypairMethodResponse_Challenge) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.Challenge != nil {
+		{
+			size, err := m.Challenge.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintJoinservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+func (m *RegisterUsingBoundKeypairMethodResponse_Certs) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RegisterUsingBoundKeypairMethodResponse_Certs) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.Certs != nil {
+		{
+			size, err := m.Certs.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintJoinservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	return len(dAtA) - i, nil
+}
 func encodeVarintJoinservice(dAtA []byte, offset int, v uint64) int {
 	offset -= sovJoinservice(v)
 	base := offset
@@ -2639,6 +3500,164 @@ func (m *RegisterUsingOracleMethodResponse_Challenge) Size() (n int) {
 	return n
 }
 func (m *RegisterUsingOracleMethodResponse_Certs) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Certs != nil {
+		l = m.Certs.Size()
+		n += 1 + l + sovJoinservice(uint64(l))
+	}
+	return n
+}
+func (m *RegisterUsingBoundKeypairInitialRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.JoinRequest != nil {
+		l = m.JoinRequest.Size()
+		n += 1 + l + sovJoinservice(uint64(l))
+	}
+	l = len(m.NewPublicKey)
+	if l > 0 {
+		n += 1 + l + sovJoinservice(uint64(l))
+	}
+	l = len(m.PreviousJoinState)
+	if l > 0 {
+		n += 1 + l + sovJoinservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *RegisterUsingBoundKeypairChallengeResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Solution)
+	if l > 0 {
+		n += 1 + l + sovJoinservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *RegisterUsingBoundKeypairMethodRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Payload != nil {
+		n += m.Payload.Size()
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *RegisterUsingBoundKeypairMethodRequest_Init) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Init != nil {
+		l = m.Init.Size()
+		n += 1 + l + sovJoinservice(uint64(l))
+	}
+	return n
+}
+func (m *RegisterUsingBoundKeypairMethodRequest_ChallengeResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.ChallengeResponse != nil {
+		l = m.ChallengeResponse.Size()
+		n += 1 + l + sovJoinservice(uint64(l))
+	}
+	return n
+}
+func (m *RegisterUsingBoundKeypairChallenge) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.PublicKey)
+	if l > 0 {
+		n += 1 + l + sovJoinservice(uint64(l))
+	}
+	l = len(m.Challenge)
+	if l > 0 {
+		n += 1 + l + sovJoinservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *RegisterUsingBoundKeypairCertificates) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Certs != nil {
+		l = m.Certs.Size()
+		n += 1 + l + sovJoinservice(uint64(l))
+	}
+	l = len(m.JoinState)
+	if l > 0 {
+		n += 1 + l + sovJoinservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *RegisterUsingBoundKeypairMethodResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Response != nil {
+		n += m.Response.Size()
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *RegisterUsingBoundKeypairMethodResponse_Challenge) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Challenge != nil {
+		l = m.Challenge.Size()
+		n += 1 + l + sovJoinservice(uint64(l))
+	}
+	return n
+}
+func (m *RegisterUsingBoundKeypairMethodResponse_Certs) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -4512,6 +5531,726 @@ func (m *RegisterUsingOracleMethodResponse) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			m.Response = &RegisterUsingOracleMethodResponse_Certs{v}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipJoinservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *RegisterUsingBoundKeypairInitialRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowJoinservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RegisterUsingBoundKeypairInitialRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RegisterUsingBoundKeypairInitialRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field JoinRequest", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.JoinRequest == nil {
+				m.JoinRequest = &types.RegisterUsingTokenRequest{}
+			}
+			if err := m.JoinRequest.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NewPublicKey", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.NewPublicKey = append(m.NewPublicKey[:0], dAtA[iNdEx:postIndex]...)
+			if m.NewPublicKey == nil {
+				m.NewPublicKey = []byte{}
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PreviousJoinState", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PreviousJoinState = append(m.PreviousJoinState[:0], dAtA[iNdEx:postIndex]...)
+			if m.PreviousJoinState == nil {
+				m.PreviousJoinState = []byte{}
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipJoinservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *RegisterUsingBoundKeypairChallengeResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowJoinservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RegisterUsingBoundKeypairChallengeResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RegisterUsingBoundKeypairChallengeResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Solution", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Solution = append(m.Solution[:0], dAtA[iNdEx:postIndex]...)
+			if m.Solution == nil {
+				m.Solution = []byte{}
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipJoinservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *RegisterUsingBoundKeypairMethodRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowJoinservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RegisterUsingBoundKeypairMethodRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RegisterUsingBoundKeypairMethodRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Init", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &RegisterUsingBoundKeypairInitialRequest{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Payload = &RegisterUsingBoundKeypairMethodRequest_Init{v}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ChallengeResponse", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &RegisterUsingBoundKeypairChallengeResponse{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Payload = &RegisterUsingBoundKeypairMethodRequest_ChallengeResponse{v}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipJoinservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *RegisterUsingBoundKeypairChallenge) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowJoinservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RegisterUsingBoundKeypairChallenge: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RegisterUsingBoundKeypairChallenge: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PublicKey", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PublicKey = append(m.PublicKey[:0], dAtA[iNdEx:postIndex]...)
+			if m.PublicKey == nil {
+				m.PublicKey = []byte{}
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Challenge", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Challenge = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipJoinservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *RegisterUsingBoundKeypairCertificates) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowJoinservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RegisterUsingBoundKeypairCertificates: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RegisterUsingBoundKeypairCertificates: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Certs", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Certs == nil {
+				m.Certs = &Certs{}
+			}
+			if err := m.Certs.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field JoinState", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.JoinState = append(m.JoinState[:0], dAtA[iNdEx:postIndex]...)
+			if m.JoinState == nil {
+				m.JoinState = []byte{}
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipJoinservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *RegisterUsingBoundKeypairMethodResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowJoinservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RegisterUsingBoundKeypairMethodResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RegisterUsingBoundKeypairMethodResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Challenge", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &RegisterUsingBoundKeypairChallenge{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Response = &RegisterUsingBoundKeypairMethodResponse_Challenge{v}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Certs", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &RegisterUsingBoundKeypairCertificates{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Response = &RegisterUsingBoundKeypairMethodResponse_Certs{v}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

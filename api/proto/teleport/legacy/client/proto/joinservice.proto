@@ -194,6 +194,82 @@ message RegisterUsingOracleMethodResponse {
   }
 }
 
+// RegisterUsingBoundKeypairInitialRequest is the initial request sent during
+// the join process for bound-keypair joining.
+message RegisterUsingBoundKeypairInitialRequest {
+  // Registration parameters common to all join methods.
+  types.RegisterUsingTokenRequest join_request = 1;
+
+  // If set, requests a rotation to the new public key. The joining challenge
+  // must first be completed using the previous key, and upon completion a new
+  // challenge will be issued for this key. Certificates will only be returned
+  // after the second challenge is complete.
+  bytes new_public_key = 2;
+
+  // A document signed by Auth containing join state parameters from the
+  // previous join attempt. Not required on initial join; required on all
+  // subsequent joins.
+  bytes previous_join_state = 3;
+}
+
+// RegisterUsingBoundKeypairChallengeResponse is the completed challenge
+// response sent by joining clients during the bound-keypair joining process.
+message RegisterUsingBoundKeypairChallengeResponse {
+  // A solution to a challenge from the server.
+  bytes solution = 1;
+}
+
+// RegisterUsingBoundKeypairMethodRequest contains information needed to progress in
+// a bound-keypair joining process. Multiple requests are expected in any given
+// join process.
+message RegisterUsingBoundKeypairMethodRequest {
+  oneof payload {
+    // The initial joining request.
+    RegisterUsingBoundKeypairInitialRequest init = 1;
+    // A challenge response from the client in response to a challenge issued by
+    // the server.
+    RegisterUsingBoundKeypairChallengeResponse challenge_response = 2;
+  }
+}
+
+// RegisterUsingBoundKeypairChallenge is a challenge issued by the server that
+// joining clients are expected to complete.
+message RegisterUsingBoundKeypairChallenge {
+  // The desired public key corresponding to the private key that should be used
+  // to sign this challenge.
+  bytes public_key = 1;
+
+  // A challenge to sign with the requested public key. During keypair rotation, a second
+  // challenge will be provided to verify the new keypair before certs are
+  // returned.
+  string challenge = 2;
+}
+
+// RegisterUsingBoundKeypairCertificates is the response sent by the server on
+// successful completion of a bound-keypair joining process.
+message RegisterUsingBoundKeypairCertificates {
+  // Signed Teleport certificates resulting from the join process.
+  Certs certs = 1;
+
+  // A signed join state document to be provided on the next join attempt.
+  bytes join_state = 2;
+}
+
+// RegisterUsingBoundKeypairMethodResponse is a response sent by the server during the
+// bound-keypair joining process. Multiple requests and responses are expected
+// to be exchanged during one join process.
+message RegisterUsingBoundKeypairMethodResponse {
+  oneof response {
+    // A challenge to sign. At least one challenge will always be issued, but
+    // during keypair rotation, a second challenge will be issued to verify
+    // ownership of the new keypair.
+    RegisterUsingBoundKeypairChallenge challenge = 1;
+
+    // Signed certificates upon successful completion of the join challenge.
+    RegisterUsingBoundKeypairCertificates certs = 2;
+  }
+}
+
 // JoinService provides methods which allow Teleport nodes, proxies, and other
 // services to join the Teleport cluster by fetching signed cluster
 // certificates. It is implemented on both the Auth and Proxy servers to serve
@@ -212,6 +288,9 @@ service JoinService {
   // RegisterUsingOracleMethod allows registration of a new node to the cluster
   // using the Oracle join method.
   rpc RegisterUsingOracleMethod(stream RegisterUsingOracleMethodRequest) returns (stream RegisterUsingOracleMethodResponse);
+  // RegisterUsingBoundKeypairMethod allows registration of a new node to the
+  // cluster using the bound-keypair join method.
+  rpc RegisterUsingBoundKeypairMethod(stream RegisterUsingBoundKeypairMethodRequest) returns (stream RegisterUsingBoundKeypairMethodResponse);
   // RegisterUsingToken is used to register a new node to the cluster using one
   // of the legacy join methods which do not yet have their own gRPC method.
   rpc RegisterUsingToken(types.RegisterUsingTokenRequest) returns (Certs);
