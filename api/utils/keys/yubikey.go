@@ -533,7 +533,7 @@ func (y *YubiKey) getPrivateKey(slot piv.Slot) (*PrivateKey, error) {
 		attestation:     attestation,
 	}
 
-	key, err := NewSoftwarePrivateKey(priv)
+	key, err := NewPrivateKey(priv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
