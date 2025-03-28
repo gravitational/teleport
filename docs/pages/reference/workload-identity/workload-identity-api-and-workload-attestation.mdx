@@ -107,7 +107,7 @@ attestors:
   # unix is configuration for the Unix Workload Attestor.
   unix:
     # binary_hash_max_size_bytes is the maximum number of bytes that will be
-    # read from a process' binary to calculate its SHA-256 checksum. If the
+    # read from a process's binary to calculate its SHA-256 checksum. If the
     # binary is larger than this, the `workload.unix.binary_hash` attribute
     # will be empty. If unspecified, this defaults to 1GiB. Set it to -1 to
     # make it unlimited.
@@ -170,9 +170,9 @@ important considerations when using these attributes in your rules:
 
 - Because `/proc/$pid/exe` is a symlink to an *inode* rather than a regular path,
   it's usually an accurate representation of what the process is executing even
-  if the binary has been replaced on-disk (e.g. during a rolling deployment).
+  if the binary has been replaced on disk (e.g. during a rolling deployment).
   However, network filesystems do not guarantee inode stability, so if the
-  process' executable is on a network mount, it's possible for `binary_hash` to
+  process's executable is on a network mount, it's possible for `binary_hash` to
   be out of date.
 
 - By default, `tbot` will only checksum binaries smaller than 1GiB. To change
