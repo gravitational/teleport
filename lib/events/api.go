@@ -880,6 +880,16 @@ const (
 	AWSICResourceSyncSuccessEvent = "aws_identity_center.resource_sync.success"
 	// AWSICResourceSyncFailureEvent is emitted when AWS Identity Center resources sync failed.
 	AWSICResourceSyncFailureEvent = "aws_identity_center.resource_sync.failed"
+
+	// HealthCheckConfigCreateEvent is emitted when a health check config
+	// resource is created.
+	HealthCheckConfigCreateEvent = "health_check_config.create"
+	// HealthCheckConfigUpdateEvent is emitted when a health check config
+	// resource is updated.
+	HealthCheckConfigUpdateEvent = "health_check_config.update"
+	// HealthCheckConfigDeleteEvent is emitted when a health check config
+	// resource is deleted.
+	HealthCheckConfigDeleteEvent = "health_check_config.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add
