@@ -34,6 +34,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"slices"
 	"sync"
 	"time"
 
@@ -51,7 +52,8 @@ import (
 
 var (
 	// ErrBadIP is returned when there's a problem with client source or destination IP address
-	ErrBadIP = &trace.BadParameterError{Message: "client source and destination addresses should be valid same TCP version non-nil IP addresses"}
+	ErrBadIP        = &trace.BadParameterError{Message: "client source and destination addresses should be valid same TCP version non-nil IP addresses"}
+	ErrDowngradeDst = &trace.BadParameterError{Message: "only client source addresses can be downgraded to IPv4, downgrading destination addresses is not supported"}
 )
 
 // Start of class E IPv4 CIDR range
@@ -414,8 +416,13 @@ func isDifferentTCPVersion(addr1, addr2 net.TCPAddr) bool {
 // https://developers.cloudflare.com/network/pseudo-ipv4/
 func getPseudoIPV4(addr net.TCPAddr) (net.TCPAddr, error) {
 	hash := sha256.Sum256([]byte(addr.IP))
-	ip := hash[len(hash)-4:]
+	ip := hash[:4]
 	ip[0] |= classEPrefix
+
+	// don't assign the broadcast address
+	if slices.Equal(ip, []byte{255, 255, 255, 255}) {
+		ip[0] = 254
+	}
 
 	return net.TCPAddr{
 		IP:   net.IP(ip),
@@ -438,6 +445,11 @@ func signPROXYHeader(in signPROXYHeaderInput) ([]byte, error) {
 	if isDifferentTCPVersion(sAddr, dAddr) {
 		if !in.allowDowngrade {
 			return nil, trace.Wrap(ErrBadIP, "source address: %s, destination address: %s", in.source, in.destination)
+		}
+
+		// in a version mismatch, only the source address should be downgraded
+		if sAddr.IP.To4() != nil {
+			return nil, trace.Wrap(ErrDowngradeDst, "source address: %s, destination address: %s", in.source, in.destination)
 		}
 
 		var err error

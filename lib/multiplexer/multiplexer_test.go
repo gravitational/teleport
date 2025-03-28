@@ -943,6 +943,21 @@ func TestMux(t *testing.T) {
 			})
 			require.Error(t, err)
 		})
+		t.Run("single signed PROXY header from IPv4 to IPv6 should fail to downgrade dst address", func(t *testing.T) {
+			conn, err := net.Dial("tcp", listener4.Addr().String())
+			require.NoError(t, err)
+
+			defer conn.Close()
+
+			_, err = signPROXYHeader(signPROXYHeaderInput{
+				source:      &addr1,
+				destination: &addrV6,
+				clusterName: clusterName,
+				signingCert: tlsProxyCert,
+				signer:      jwtSigner,
+			})
+			require.Error(t, err)
+		})
 		t.Run("two signed PROXY headers", func(t *testing.T) {
 			conn, err := net.Dial("tcp", listener4.Addr().String())
 			require.NoError(t, err)

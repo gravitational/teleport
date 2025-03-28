@@ -83,9 +83,7 @@ func (c *Conn) LocalAddr() net.Addr {
 // RemoteAddr returns remote address of the connection
 func (c *Conn) RemoteAddr() net.Addr {
 	if c.proxyLine != nil {
-		if addr := c.proxyLine.ResolveSource(); addr != nil {
-			return addr
-		}
+		return c.proxyLine.ResolveSource()
 	}
 
 	return c.Conn.RemoteAddr()
