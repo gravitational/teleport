@@ -83,6 +83,9 @@ func (d *BundleDiscoveryMethod) Discover(ctx context.Context) ([]*workloadidenti
 		payloads = append(payloads, &workloadidentityv1.SigstoreVerificationPayload{
 			Bundle: bundleProto,
 		})
+		if len(payloads) == maxPayloads {
+			break
+		}
 	}
 	return payloads, nil
 }
