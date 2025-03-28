@@ -95,7 +95,7 @@ func (c *Cache) ListWorkloadIdentities(ctx context.Context, pageSize int, nextTo
 	ctx, span := c.Tracer.Start(ctx, "cache/ListWorkloadIdentities")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.workloadIdentity)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.workloadIdentity)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -109,7 +109,7 @@ func (c *Cache) GetWorkloadIdentity(ctx context.Context, name string) (*workload
 	ctx, span := c.Tracer.Start(ctx, "cache/GetWorkloadIdentity")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.workloadIdentity)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.workloadIdentity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
