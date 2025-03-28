@@ -164,7 +164,9 @@ test('hidden validation errors should not propagate to tab headings', async () =
 
   // Switch to the Resources tab. Add a new section and make it invalid.
   await user.click(getTabByName('Resources'));
-  await user.click(screen.getByRole('button', { name: 'Add Resource Access' }));
+  await user.click(
+    screen.getByRole('button', { name: 'Add Teleport Resource Access' })
+  );
   await user.click(screen.getByRole('menuitem', { name: 'Servers' }));
   await user.click(screen.getByRole('button', { name: 'Add a Label' }));
 
