@@ -293,4 +293,11 @@ Note that `arm64` FIPS builds do not support access to Windows desktops.
 
 ## Migrating from non-FIPS to FIPS
 
-As of v17, new installations of Teleport default to using [Ed25519 keys](../../../reference/signature-algorithms.mdx).  This is currently not supported by FIPS-compliant binaries.  In order to migrate to a FIPS-compliant installation if Teleport was already deployed with a standard binary or without the `--fips` flag, install the FIPS-compliant binary then undergo a [CA rotation](../../management/operations/ca-rotation.mdx) to remove the Ed25519 keys. Otherwise, the error `User Message: only RSA and ECDSA keys supported` is produced.  The command `tctl status` can be used on v17+ to confirm the signature algorithms in use.
+As of v17, new installations of Teleport default to using [Ed25519 keys](../../../reference/signature-algorithms.mdx).  This 
+is currently not supported by FIPS-compliant binaries.  If the Teleport auth service was already deployed with a 
+standard binary or without the `--fips` flag, you must update the certificate authorities.  Otherwise, the error 
+`User Message: only RSA and ECDSA keys supported` is produced.  
+
+To migrate to a FIPS-compliant installation, set the signature algorithm to `fips-v1`.  Then, any CA with an Ed25519 must 
+undergo a [CA rotation](../../management/operations/ca-rotation.mdx).  The command `tctl status` can be used on v17+ to 
+confirm the signature algorithms in use.  After all CA rotations are complete, proceed with installing the FIPS-compliant binary.
