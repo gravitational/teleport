@@ -33,6 +33,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 )
 
@@ -279,17 +280,19 @@ func LoadPrivateKey(keyFile string) (*PrivateKey, error) {
 
 // ParsePrivateKeyOptions contains config options for ParsePrivateKey.
 type ParsePrivateKeyOptions struct {
-	// HardwareKeyService is the hardware key service to use with parsed hardware private keys.
-	HardwareKeyService hardwarekey.Service
+	// CustomHardwareKeyPrompt is a custom hardware key prompt to use when asking
+	// for a hardware key PIN, touch, etc.
+	// If empty, a default CLI prompt is used.
+	CustomHardwareKeyPrompt hardwarekey.Prompt
 }
 
 // ParsePrivateKeyOpt applies configuration options.
 type ParsePrivateKeyOpt func(o *ParsePrivateKeyOptions)
 
-// WithHardwareKeyService sets the hardware key service.
-func WithHardwareKeyService(hwKeyService hardwarekey.Service) ParsePrivateKeyOpt {
+// WithCustomPrompt sets a custom hardware key prompt.
+func WithCustomPrompt(prompt hardwarekey.Prompt) ParsePrivateKeyOpt {
 	return func(o *ParsePrivateKeyOptions) {
-		o.HardwareKeyService = hwKeyService
+		o.CustomHardwareKeyPrompt = prompt
 	}
 }
 
@@ -308,11 +311,11 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 
 	switch block.Type {
 	case pivYubiKeyPrivateKeyType:
-		if appliedOpts.HardwareKeyService == nil {
-			return nil, trace.BadParameter("cannot parse hardware private key without an initialized hardware key service")
-		}
-
-		hwPrivateKey, err := hardwarekey.DecodePrivateKey(appliedOpts.HardwareKeyService, block.Bytes)
+		// TODO(Joerger): Initialize the hardware key service early in the process and store
+		// it in the client store. This allows the process to properly share PIV connections
+		// and prompt logic (pin caching, etc.).
+		hwKeyService := piv.NewYubiKeyService(context.TODO(), appliedOpts.CustomHardwareKeyPrompt)
+		hwPrivateKey, err := hardwarekey.DecodePrivateKey(hwKeyService, block.Bytes)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse hardware private key")
 		}

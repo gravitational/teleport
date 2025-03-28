@@ -1284,17 +1284,13 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		if tc.TLS != nil || tc.AuthMethods != nil {
 			// Client will use static auth methods instead of client store.
 			// Initialize empty client store to prevent panics.
-			tc.ClientStore = NewMemClientStore(nil /*hwKeyService*/)
+			tc.ClientStore = NewMemClientStore()
 		} else {
-			var prompt hardwarekey.Prompt = &hardwarekey.CLIPrompt{}
+			tc.ClientStore = NewFSClientStore(c.KeysDir)
 			if tc.CustomHardwareKeyPrompt != nil {
-				prompt = tc.CustomHardwareKeyPrompt
+				tc.ClientStore.SetCustomHardwareKeyPrompt(tc.CustomHardwareKeyPrompt)
 			}
 
-			// TODO (Joerger): init hardware key service (and client store) earlier where it can
-			// be properly shared.
-			hardwareKeyService := piv.NewYubiKeyService(context.TODO(), prompt)
-			tc.ClientStore = NewFSClientStore(c.KeysDir, hardwareKeyService)
 			if c.AddKeysToAgent == AddKeysToAgentOnly {
 				// Store client keys in memory, but still save trusted certs and profile to disk.
 				tc.ClientStore.KeyStore = NewMemKeyStore()
@@ -4009,7 +4005,12 @@ func (tc *TeleportClient) GetNewLoginKeyRing(ctx context.Context) (keyRing *KeyR
 		if tc.PIVSlot != "" {
 			log.DebugContext(ctx, "Using PIV slot specified by client or server settings", "piv_slot", tc.PIVSlot)
 		}
-		priv, err := tc.ClientStore.NewHardwarePrivateKey(ctx, hardwarekey.PrivateKeyConfig{
+
+		// TODO(Joerger): Initialize the hardware key service early in the process and store
+		// it in the client store. This allows the process to properly share PIV connections
+		// and prompt logic (pin caching, etc.).
+		hwKeyService := piv.NewYubiKeyService(ctx, tc.CustomHardwareKeyPrompt)
+		priv, err := keys.NewHardwarePrivateKey(ctx, hwKeyService, hardwarekey.PrivateKeyConfig{
 			CustomSlot: tc.PIVSlot,
 			Policy: hardwarekey.PromptPolicy{
 				TouchRequired: tc.PrivateKeyPolicy.IsHardwareKeyTouchVerified(),

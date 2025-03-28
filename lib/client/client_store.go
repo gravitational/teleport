@@ -44,8 +44,7 @@ import (
 // when using `tsh --add-keys-to-agent=only`, Store will be made up of an in-memory
 // key store and an FS (~/.tsh) profile and trusted certs store.
 type Store struct {
-	log          *slog.Logger
-	hwKeyService hardwarekey.Service
+	log *slog.Logger
 
 	KeyStore
 	TrustedCertsStore
@@ -53,11 +52,10 @@ type Store struct {
 }
 
 // NewMemClientStore initializes an FS backed client store with the given base dir.
-func NewFSClientStore(dirPath string, hwKeyService hardwarekey.Service) *Store {
+func NewFSClientStore(dirPath string) *Store {
 	dirPath = profile.FullProfilePath(dirPath)
 	return &Store{
 		log:               slog.With(teleport.ComponentKey, teleport.ComponentKeyStore),
-		hwKeyService:      hwKeyService,
 		KeyStore:          NewFSKeyStore(dirPath),
 		TrustedCertsStore: NewFSTrustedCertsStore(dirPath),
 		ProfileStore:      NewFSProfileStore(dirPath),
@@ -65,19 +63,13 @@ func NewFSClientStore(dirPath string, hwKeyService hardwarekey.Service) *Store {
 }
 
 // NewMemClientStore initializes a new in-memory client store.
-func NewMemClientStore(hwKeyService hardwarekey.Service) *Store {
+func NewMemClientStore() *Store {
 	return &Store{
 		log:               slog.With(teleport.ComponentKey, teleport.ComponentKeyStore),
-		hwKeyService:      hwKeyService,
 		KeyStore:          NewMemKeyStore(),
 		TrustedCertsStore: NewMemTrustedCertsStore(),
 		ProfileStore:      NewMemProfileStore(),
 	}
-}
-
-// NewHardwarePrivateKey create a new hardware private key with the given configuration in this client store.
-func (s *Store) NewHardwarePrivateKey(ctx context.Context, config hardwarekey.PrivateKeyConfig) (*keys.PrivateKey, error) {
-	return keys.NewHardwarePrivateKey(ctx, s.hwKeyService, config)
 }
 
 // AddKeyRing adds the given key ring to the key store. The key's trusted certificates are
@@ -90,6 +82,12 @@ func (s *Store) AddKeyRing(keyRing *KeyRing) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// SetCustomHardwareKeyPrompt sets a custom hardware key prompt
+// used to interact with a YubiKey private key.
+func (s *Store) SetCustomHardwareKeyPrompt(prompt hardwarekey.Prompt) {
+	s.KeyStore.SetCustomHardwareKeyPrompt(prompt)
 }
 
 // ErrNoProfile is returned by the client store when a specific profile is not found.
@@ -124,7 +122,7 @@ func IsNoCredentialsError(err error) bool {
 // certs store. If the key ring is not found or is missing data (certificates, etc.),
 // then an ErrNoCredentials error is returned.
 func (s *Store) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRing, error) {
-	keyRing, err := s.KeyStore.GetKeyRing(idx, s.hwKeyService, opts...)
+	keyRing, err := s.KeyStore.GetKeyRing(idx, opts...)
 	if trace.IsNotFound(err) {
 		return nil, newNoCredentialsError(err)
 	} else if err != nil {

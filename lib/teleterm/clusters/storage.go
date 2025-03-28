@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/profile"
-	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/lib/client"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	dtenroll "github.com/gravitational/teleport/lib/devicetrust/enroll"
@@ -280,21 +279,17 @@ func (s *Storage) loadProfileStatusAndClusterKey(clusterClient *client.TeleportC
 }
 
 func (s *Storage) makeDefaultClientConfig(rootClusterURI uri.ResourceURI) *client.Config {
-	// TODO(Joerger): Remove the rootClusterURI dependency from the teleterm prompt so that
-	// the storage service can share a single hardware key service+prompt. This allows the
-	// process to properly share PIV connections, prevents duplicate prompts, and enables
-	// PIN caching across clusters (if both clusters allow PIN caching).
-	prompt := s.HardwareKeyPromptConstructor(rootClusterURI)
-	hwKeyService := piv.NewYubiKeyService(context.TODO(), prompt)
-
 	cfg := client.MakeDefaultConfig()
 	cfg.HomePath = s.Dir
 	cfg.KeysDir = s.Dir
 	cfg.InsecureSkipVerify = s.InsecureSkipVerify
 	cfg.AddKeysToAgent = s.AddKeysToAgent
 	cfg.WebauthnLogin = s.WebauthnLogin
+	// TODO(Joerger): Remove the rootClusterURI dependency from the teleterm prompt so that
+	// the storage service can share a single hardware key service+prompt. This allows the
+	// process to properly share PIV connections, prevents duplicate prompts, and enables
+	// PIN caching across clusters (if both clusters allow PIN caching).
 	cfg.CustomHardwareKeyPrompt = s.HardwareKeyPromptConstructor(rootClusterURI)
-	cfg.ClientStore = client.NewFSClientStore(s.Dir, hwKeyService)
 	cfg.DTAuthnRunCeremony = dtauthn.NewCeremony().Run
 	cfg.DTAutoEnroll = dtenroll.AutoEnroll
 	return cfg

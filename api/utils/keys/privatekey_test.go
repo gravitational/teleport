@@ -64,7 +64,7 @@ func TestMarshalAndParseKey(t *testing.T) {
 		t.Run(keyType, func(t *testing.T) {
 			keyPEM, err := keys.MarshalPrivateKey(key)
 			require.NoError(t, err)
-			gotKey, err := keys.ParsePrivateKey(keyPEM, keys.WithHardwareKeyService(s))
+			gotKey, err := keys.ParsePrivateKey(keyPEM)
 			require.NoError(t, err)
 			require.Equal(t, key, gotKey.Signer)
 
@@ -337,7 +337,7 @@ func TestHardwareKey_OldLogin(t *testing.T) {
 	require.NotEqual(t, hwPriv, hwPrivMissingInfo)
 
 	// ParsePrivateKey should automatically get the missing hardware key info.
-	parsedKey, err := keys.ParsePrivateKey(keyPEM, keys.WithHardwareKeyService(s))
+	parsedKey, err := keys.ParsePrivateKey(keyPEM)
 	require.NoError(t, err)
 	require.Equal(t, hwPriv, parsedKey.Signer)
 }

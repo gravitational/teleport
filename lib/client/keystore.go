@@ -74,7 +74,7 @@ type KeyStore interface {
 	// GetKeyRing returns the user's key ring including the specified certs. The
 	// key's TrustedCerts will be nil and should be filled in using a
 	// TrustedCertsStore.
-	GetKeyRing(idx KeyRingIndex, hwks hardwarekey.Service, opts ...CertOption) (*KeyRing, error)
+	GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRing, error)
 
 	// DeleteKeyRing deletes the user's key with all its certs.
 	DeleteKeyRing(idx KeyRingIndex) error
@@ -89,6 +89,10 @@ type KeyStore interface {
 	// GetSSHCertificates gets all certificates signed for the given user and proxy,
 	// including certificates for trusted clusters.
 	GetSSHCertificates(proxyHost, username string) ([]*ssh.Certificate, error)
+
+	// SetCustomHardwareKeyPrompt sets a custom hardware key prompt
+	// used to interact with a YubiKey private key.
+	SetCustomHardwareKeyPrompt(prompt hardwarekey.Prompt)
 }
 
 // FSKeyStore is an on-disk implementation of the KeyStore interface.
@@ -100,6 +104,10 @@ type FSKeyStore struct {
 
 	// KeyDir is the directory where all keys are stored.
 	KeyDir string
+	// CustomHardwareKeyPrompt is a custom hardware key prompt to use when asking
+	// for a hardware key PIN, touch, etc.
+	// If nil, a default CLI prompt is used.
+	CustomHardwareKeyPrompt hardwarekey.Prompt
 }
 
 // NewFSKeyStore initializes a new FSClientStore.
@@ -184,6 +192,12 @@ func (fs *FSKeyStore) databaseKeyPath(idx KeyRingIndex, dbname string) string {
 // kubeCredPath returns the TLS credential path for the given KeyRingIndex and kube cluster name.
 func (fs *FSKeyStore) kubeCredPath(idx KeyRingIndex, kubename string) string {
 	return keypaths.KubeCredPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, kubename)
+}
+
+// SetCustomHardwareKeyPrompt sets a custom hardware key prompt
+// used to interact with a YubiKey private key.
+func (fs *FSKeyStore) SetCustomHardwareKeyPrompt(prompt hardwarekey.Prompt) {
+	fs.CustomHardwareKeyPrompt = prompt
 }
 
 // AddKeyRing adds the given key ring to the store.
@@ -288,12 +302,12 @@ func (fs *FSKeyStore) writeTLSCredential(cred TLSCredential, keyPath, certPath s
 	return nil
 }
 
-func readTLSCredential(keyPath, certPath string, opts ...keys.ParsePrivateKeyOpt) (TLSCredential, error) {
+func readTLSCredential(keyPath, certPath string, customPrompt hardwarekey.Prompt) (TLSCredential, error) {
 	keyPEM, certPEM, err := readTLSCredentialFiles(keyPath, certPath)
 	if err != nil {
 		return TLSCredential{}, trace.Wrap(err)
 	}
-	key, err := keys.ParsePrivateKey(keyPEM, opts...)
+	key, err := keys.ParsePrivateKey(keyPEM, keys.WithCustomPrompt(customPrompt))
 	if err != nil {
 		return TLSCredential{}, trace.Wrap(err)
 	}
@@ -377,12 +391,12 @@ func (fs *FSKeyStore) writeKubeCredential(cred TLSCredential, path string) error
 // readKubeCredential reads a kube key and cert from a single file written by
 // [(*FSKeyStore).writeKubeCredential]. Compared to using separate files it is
 // more efficient for reading/writing and avoids file locks.
-func readKubeCredential(path string, opts ...keys.ParsePrivateKeyOpt) (TLSCredential, error) {
+func readKubeCredential(path string) (TLSCredential, error) {
 	keyPEM, certPEM, err := readKubeCredentialFile(path)
 	if err != nil {
 		return TLSCredential{}, trace.Wrap(err)
 	}
-	privateKey, err := keys.ParsePrivateKey(keyPEM, opts...)
+	privateKey, err := keys.ParsePrivateKey(keyPEM)
 	if err != nil {
 		return TLSCredential{}, trace.Wrap(err)
 	}
@@ -525,7 +539,7 @@ func (e *LegacyCertPathError) Unwrap() error {
 
 // GetKeyRing returns the user's key including the specified certs.
 // If the key is not found, returns trace.NotFound error.
-func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, hwks hardwarekey.Service, opts ...CertOption) (*KeyRing, error) {
+func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRing, error) {
 	if len(opts) > 0 {
 		if err := idx.Check(); err != nil {
 			return nil, trace.Wrap(err, "GetKeyRing with CertOptions requires a fully specified KeyRingIndex")
@@ -536,11 +550,7 @@ func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, hwks hardwarekey.Service, opt
 		return nil, trace.Wrap(err, "no session keys for %+v", idx)
 	}
 
-	tlsCred, err := readTLSCredential(
-		fs.userTLSKeyPath(idx),
-		fs.tlsCertPath(idx),
-		keys.WithHardwareKeyService(hwks),
-	)
+	tlsCred, err := readTLSCredential(fs.userTLSKeyPath(idx), fs.tlsCertPath(idx), fs.CustomHardwareKeyPrompt)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			if _, statErr := os.Stat(fs.tlsCertPathLegacy(idx)); statErr == nil {
@@ -551,11 +561,7 @@ func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, hwks hardwarekey.Service, opt
 		return nil, trace.Wrap(err)
 	}
 
-	sshPriv, err := keys.LoadKeyPair(
-		fs.userSSHKeyPath(idx),
-		fs.publicKeyPath(idx),
-		keys.WithHardwareKeyService(hwks),
-	)
+	sshPriv, err := keys.LoadKeyPair(fs.userSSHKeyPath(idx), fs.publicKeyPath(idx), keys.WithCustomPrompt(fs.CustomHardwareKeyPrompt))
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -565,7 +571,7 @@ func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, hwks hardwarekey.Service, opt
 	keyRing.TLSCert = tlsCred.Cert
 
 	for _, o := range opts {
-		if err := fs.updateKeyRingWithCerts(o, hwks, keyRing); err != nil && !trace.IsNotFound(err) {
+		if err := fs.updateKeyRingWithCerts(o, keyRing); err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -577,13 +583,8 @@ func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, hwks hardwarekey.Service, opt
 	return keyRing, nil
 }
 
-func (fs *FSKeyStore) updateKeyRingWithCerts(o CertOption, hwks hardwarekey.Service, keyRing *KeyRing) error {
-	return o.updateKeyRing(
-		fs.KeyDir,
-		keyRing.KeyRingIndex,
-		keyRing,
-		keys.WithHardwareKeyService(hwks),
-	)
+func (fs *FSKeyStore) updateKeyRingWithCerts(o CertOption, keyRing *KeyRing) error {
+	return trace.Wrap(o.updateKeyRing(fs.KeyDir, keyRing.KeyRingIndex, keyRing, fs.CustomHardwareKeyPrompt))
 }
 
 // GetSSHCertificates gets all certificates signed for the given user and proxy.
@@ -610,7 +611,7 @@ func (fs *FSKeyStore) GetSSHCertificates(proxyHost, username string) ([]*ssh.Cer
 	return sshCerts, nil
 }
 
-func getCredentialsByName(credentialDir string, opts ...keys.ParsePrivateKeyOpt) (map[string]TLSCredential, error) {
+func getCredentialsByName(credentialDir string, customPrompt hardwarekey.Prompt) (map[string]TLSCredential, error) {
 	files, err := os.ReadDir(credentialDir)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
@@ -620,7 +621,7 @@ func getCredentialsByName(credentialDir string, opts ...keys.ParsePrivateKeyOpt)
 		if keyName := keypaths.TrimKeyPathSuffix(file.Name()); keyName != file.Name() {
 			keyPath := filepath.Join(credentialDir, file.Name())
 			certPath := filepath.Join(credentialDir, keyName+keypaths.FileExtTLSCert)
-			cred, err := readTLSCredential(keyPath, certPath, opts...)
+			cred, err := readTLSCredential(keyPath, certPath, customPrompt)
 			if err != nil {
 				if trace.IsNotFound(err) {
 					// Somehow we have a key with no cert, skip it. This should
@@ -635,7 +636,7 @@ func getCredentialsByName(credentialDir string, opts ...keys.ParsePrivateKeyOpt)
 	return credsByName, nil
 }
 
-func getKubeCredentialsByName(credentialDir string, opts ...keys.ParsePrivateKeyOpt) (map[string]TLSCredential, error) {
+func getKubeCredentialsByName(credentialDir string) (map[string]TLSCredential, error) {
 	files, err := os.ReadDir(credentialDir)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
@@ -644,7 +645,7 @@ func getKubeCredentialsByName(credentialDir string, opts ...keys.ParsePrivateKey
 	for _, file := range files {
 		if credName := strings.TrimSuffix(file.Name(), keypaths.FileExtKubeCred); credName != file.Name() {
 			credPath := filepath.Join(credentialDir, file.Name())
-			cred, err := readKubeCredential(credPath, opts...)
+			cred, err := readKubeCredential(credPath)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -658,7 +659,7 @@ func getKubeCredentialsByName(credentialDir string, opts ...keys.ParsePrivateKey
 type CertOption interface {
 	// updateKeyRing is used by [FSKeyStore] to add the relevant credentials
 	// loaded from disk to [keyRing].
-	updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing, opts ...keys.ParsePrivateKeyOpt) error
+	updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing, customPrompt hardwarekey.Prompt) error
 	// pathsToDelete is used by [FSKeyStore] to get all the paths (files and/or
 	// directories) that should be deleted by [DeleteUserCerts].
 	pathsToDelete(keyDir string, idx KeyRingIndex) []string
@@ -672,7 +673,7 @@ var WithAllCerts = []CertOption{WithSSHCerts{}, WithKubeCerts{}, WithDBCerts{}, 
 // WithSSHCerts is a CertOption for handling SSH certificates.
 type WithSSHCerts struct{}
 
-func (o WithSSHCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing, _ ...keys.ParsePrivateKeyOpt) error {
+func (o WithSSHCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing, _ hardwarekey.Prompt) error {
 	certPath := keypaths.SSHCertPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
 	cert, err := os.ReadFile(certPath)
 	if err != nil {
@@ -696,9 +697,9 @@ func (o WithSSHCerts) deleteFromKeyRing(keyRing *KeyRing) {
 // WithKubeCerts is a CertOption for handling kubernetes certificates.
 type WithKubeCerts struct{}
 
-func (o WithKubeCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing, opts ...keys.ParsePrivateKeyOpt) error {
+func (o WithKubeCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing, _ hardwarekey.Prompt) error {
 	credentialDir := keypaths.KubeCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
-	credsByName, err := getKubeCredentialsByName(credentialDir, opts...)
+	credsByName, err := getKubeCredentialsByName(credentialDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -722,9 +723,9 @@ type WithDBCerts struct {
 	dbName string
 }
 
-func (o WithDBCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing, opts ...keys.ParsePrivateKeyOpt) error {
+func (o WithDBCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing, customPrompt hardwarekey.Prompt) error {
 	credentialDir := keypaths.DatabaseCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
-	credsByName, err := getCredentialsByName(credentialDir, opts...)
+	credsByName, err := getCredentialsByName(credentialDir, customPrompt)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -754,9 +755,9 @@ type WithAppCerts struct {
 	appName string
 }
 
-func (o WithAppCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing, opts ...keys.ParsePrivateKeyOpt) error {
+func (o WithAppCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing, customPrompt hardwarekey.Prompt) error {
 	credentialDir := keypaths.AppCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
-	credsByName, err := getCredentialsByName(credentialDir, opts...)
+	credsByName, err := getCredentialsByName(credentialDir, customPrompt)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -820,7 +821,7 @@ func (ms *MemKeyStore) AddKeyRing(keyRing *KeyRing) error {
 }
 
 // GetKeyRing returns the user's key ring including the specified certs.
-func (ms *MemKeyStore) GetKeyRing(idx KeyRingIndex, _ hardwarekey.Service, opts ...CertOption) (*KeyRing, error) {
+func (ms *MemKeyStore) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRing, error) {
 	if len(opts) > 0 {
 		if err := idx.Check(); err != nil {
 			return nil, trace.Wrap(err, "GetKeyRing with CertOptions requires a fully specified KeyRingIndex")
@@ -922,3 +923,7 @@ func (ms *MemKeyStore) GetSSHCertificates(proxyHost, username string) ([]*ssh.Ce
 
 	return sshCerts, nil
 }
+
+// SetCustomHardwareKeyPrompt implements the KeyStore.SetCustomHardwareKeyPrompt interface.
+// Does nothing.
+func (ms *MemKeyStore) SetCustomHardwareKeyPrompt(_ hardwarekey.Prompt) {}

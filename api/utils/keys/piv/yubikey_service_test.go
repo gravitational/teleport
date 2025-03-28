@@ -110,7 +110,7 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 					require.Equal(t, priv.Public(), retrievePriv.Public())
 
 					// parsing the key's private key PEM should produce the same key as well.
-					retrievePriv, err = keys.ParsePrivateKey(priv.PrivateKeyPEM(), keys.WithHardwareKeyService(s))
+					retrievePriv, err = keys.ParsePrivateKey(priv.PrivateKeyPEM())
 					require.NoError(t, err)
 					require.Equal(t, priv.Public(), retrievePriv.Public())
 				})
