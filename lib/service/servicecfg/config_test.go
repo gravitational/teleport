@@ -128,7 +128,7 @@ func TestCheckApp(t *testing.T) {
 				Name: "-foo",
 				URI:  "http://localhost",
 			},
-			err: "must be a valid DNS subdomain",
+			err: "must be a lower case valid DNS subdomain",
 		},
 		{
 			desc: `subdomain cannot contain the exclamation mark character "!"`,
@@ -136,7 +136,7 @@ func TestCheckApp(t *testing.T) {
 				Name: "foo!bar",
 				URI:  "http://localhost",
 			},
-			err: "must be a valid DNS subdomain",
+			err: "must be a lower case valid DNS subdomain",
 		},
 		{
 			desc: "subdomain of length 63 characters is valid (maximum length)",
@@ -151,7 +151,7 @@ func TestCheckApp(t *testing.T) {
 				Name: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				URI:  "http://localhost",
 			},
-			err: "must be a valid DNS subdomain",
+			err: "must be a lower case valid DNS subdomain",
 		},
 	}
 	for _, h := range common.ReservedHeaders {
