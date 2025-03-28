@@ -48,11 +48,14 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 		proxyAddr = ccf.AuthServerAddr[0]
 	}
 
-	hwKeyService := piv.NewYubiKeyService(ctx, &hardwarekey.CLIPrompt{})
-	clientStore := client.NewFSClientStore(cfg.TeleportHome, hwKeyService)
+	clientStoreOpts := []client.StoreConfigOpt{
+		client.WithHardwareKeyService(piv.NewYubiKeyService(ctx, &hardwarekey.CLIPrompt{})),
+	}
+
+	clientStore := client.NewFSClientStore(cfg.TeleportHome, clientStoreOpts...)
 	if ccf.IdentityFilePath != "" {
 		var err error
-		clientStore, err = identityfile.NewClientStoreFromIdentityFile(ccf.IdentityFilePath, proxyAddr, "", hwKeyService)
+		clientStore, err = identityfile.NewClientStoreFromIdentityFile(ccf.IdentityFilePath, proxyAddr, "", clientStoreOpts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
