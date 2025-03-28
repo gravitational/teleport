@@ -42,9 +42,6 @@ type AuthConfig struct {
 	// PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
 	PROXYProtocolMode multiplexer.PROXYProtocolMode
 
-	// PROXYAllowDowngrade
-	PROXYAllowDowngrade bool
-
 	// ListenAddr is the listening address of the auth service
 	ListenAddr utils.NetAddr
 

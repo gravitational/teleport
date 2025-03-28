@@ -817,9 +817,6 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Auth.PROXYProtocolMode = val
 	}
 
-	allowDowngrade := fc.Auth.ProxyProtocolAllowDowngrade
-	cfg.Auth.PROXYAllowDowngrade = allowDowngrade != nil && allowDowngrade.Value
-
 	if fc.Auth.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.Auth.ListenAddress, int(defaults.AuthListenPort))
 		if err != nil {
