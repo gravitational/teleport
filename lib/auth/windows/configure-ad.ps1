@@ -6,6 +6,11 @@ $BLOCK_GPO_NAME = "Block teleport-svc Interactive Login"
 $ACCESS_GPO_NAME = "Teleport Access Policy"
 $SYSVOL_PATH = "\\$((Get-ADDomain).DNSRoot)\SYSVOL\$((Get-ADDomain).DNSRoot)"
 
+$TELEPORT_CA_CERT_PEM = "{{.caCertPEM}}"
+$TELEPORT_CA_CERT_SHA1 = "{{.caCertSHA1}}"
+$TELEPORT_CA_CERT_BLOB_BASE64 = "{{.caCertBase64}}"
+$TELEPORT_PROXY_PUBLIC_ADDR = "{{.proxyPublicAddr}}"
+$TELEPORT_PROVISION_TOKEN = "{{.provisionToken}}"
 
 $DOMAIN_NAME = (Get-ADDomain).DNSRoot
 $DOMAIN_DN = $((Get-ADDomain).DistinguishedName)
