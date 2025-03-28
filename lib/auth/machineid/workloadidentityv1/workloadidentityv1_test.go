@@ -41,6 +41,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	apiproto "github.com/gravitational/teleport/api/client/proto"
@@ -466,6 +467,31 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	extraClaimTemplates, err := structpb.NewStruct(map[string]any{
+		"user_name": "{{user.name}}",
+		"k8s": map[string]any{
+			"names": []any{"{{workload.kubernetes.pod_name}}"},
+		},
+	})
+	require.NoError(t, err)
+
+	extraClaims, err := tp.srv.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+		Kind:    types.KindWorkloadIdentity,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "extra-claims",
+		},
+		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+				Id: "/foo",
+				Jwt: &workloadidentityv1pb.WorkloadIdentitySPIFFEJWT{
+					ExtraClaims: extraClaimTemplates,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	workloadAttrs := func(f func(attrs *workloadidentityv1pb.WorkloadAttrs)) *workloadidentityv1pb.WorkloadAttrs {
 		attrs := &workloadidentityv1pb.WorkloadAttrs{
 			Kubernetes: &workloadidentityv1pb.WorkloadAttrsKubernetes{
@@ -575,6 +601,35 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 						"JTI",
 					),
 				))
+			},
+		},
+		{
+			name:   "jwt svid - extra claims",
+			client: wilcardAccessClient,
+			req: &workloadidentityv1pb.IssueWorkloadIdentityRequest{
+				Name: extraClaims.GetMetadata().GetName(),
+				Credential: &workloadidentityv1pb.IssueWorkloadIdentityRequest_JwtSvidParams{
+					JwtSvidParams: &workloadidentityv1pb.JWTSVIDParams{
+						Audiences: []string{"example.com"},
+					},
+				},
+				WorkloadAttrs: workloadAttrs(nil),
+			},
+			requireErr: require.NoError,
+			assert: func(t *testing.T, res *workloadidentityv1pb.IssueWorkloadIdentityResponse) {
+				parsed, err := jwt.ParseSigned(res.GetCredential().GetJwtSvid().GetJwt())
+				require.NoError(t, err)
+
+				var claims struct {
+					UserName string `json:"user_name"`
+					K8s      struct {
+						Names []string `json:"names"`
+					} `json:"k8s"`
+				}
+				err = parsed.Claims(tp.spiffeJWTSigner.Public(), &claims)
+				require.NoError(t, err)
+				require.Equal(t, "dog", claims.UserName)
+				require.Equal(t, []string{"test"}, claims.K8s.Names)
 			},
 		},
 		{
