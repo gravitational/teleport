@@ -27,6 +27,22 @@ The binaries will be symlinked to their previous location, no change should be r
 
 This change allows us to do automatic updates without conflicting with the package manager.
 
+### Other improvements and fixes
+
+* Fix a bug causing the discovery service to fail to configure teleport on discovered nodes when managed updates v2 are enabled. [#53544](https://github.com/gravitational/teleport/pull/53544)
+* Enable support for joining Kubernetes sessions in the web UI. [#53456](https://github.com/gravitational/teleport/pull/53456)
+* Fix an issue `tsh proxy db` does not honour `--db-roles` when renewing certificates. [#53446](https://github.com/gravitational/teleport/pull/53446)
+* Added static_jwks field to the GitLab join method configuration to support cases where Teleport Auth Service cannot reach the GitLab instance. [#53412](https://github.com/gravitational/teleport/pull/53412)
+* The `teleport-cluster` Helm chart now supports tuning the pod readiness. [#53353](https://github.com/gravitational/teleport/pull/53353)
+* Fix panic when trimming audit log entries. [#53307](https://github.com/gravitational/teleport/pull/53307)
+* Improve resource consumption when retrieving resources via the Web UI or tsh ls. [#53303](https://github.com/gravitational/teleport/pull/53303)
+* Fixed rare high CPU usage bug in reverse tunnel agents. [#53282](https://github.com/gravitational/teleport/pull/53282)
+* Add support for `SendEnv` OpenSSH option in `tsh`. [#53217](https://github.com/gravitational/teleport/pull/53217)
+* Add support for using DynamoDB Streams FIPS endpoints. [#53202](https://github.com/gravitational/teleport/pull/53202)
+* Workload ID: support for attesting Systemd services. [#53109](https://github.com/gravitational/teleport/pull/53109)
+* Machine ID: Added warning when generated certificates will not last as long as expected. [#53103](https://github.com/gravitational/teleport/pull/53103)
+* Improve latency and reduce resource consumption of generating Kubernetes certificates via tctl auth sign and tsh kube login. [#52147](https://github.com/gravitational/teleport/pull/52147)
+
 ## 16.4.18 (03/18/25)
 
 * Fixed the Teleport process to crashing on group database errors when host user creation was enabled. [#53080](https://github.com/gravitational/teleport/pull/53080)
