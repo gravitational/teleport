@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -46,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/tool/common"
 )
 
 func onDatabaseExec(cf *CLIConf) error {
@@ -111,10 +113,6 @@ func (c *databaseExecCommand) run() error {
 		return trace.Wrap(err)
 	}
 
-	if err := c.printResultAndConfirm(dbs); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Execute queries in parallel.
 	group, groupCtx := errgroup.WithContext(c.cf.Context)
 	group.SetLimit(c.cf.MaxConnections)
@@ -177,34 +175,34 @@ func (c *databaseExecCommand) getDatabases() ([]types.Database, error) {
 }
 
 func (c *databaseExecCommand) getDatabasesByNames() ([]types.Database, error) {
-	names := apiutils.Deduplicate(strings.Split(c.cf.DatabaseServices, ","))
-	logger.DebugContext(c.cf.Context, "Getting database by names", "names", names)
+	fmt.Fprintln(c.cf.Stdout(), "Fetching databases...")
 
+	names := apiutils.Deduplicate(strings.Split(c.cf.DatabaseServices, ","))
 	var predicate string
 	for _, name := range names {
 		predicate = makePredicateDisjunction(predicate, makeDiscoveredNameOrNamePredicate(name))
 	}
+
+	logger.DebugContext(c.cf.Context, "Getting database by names", "names", names, "predicate", predicate)
 	dbs, err := c.client.listDatabasesWithFilter(c.cf.Context, &proto.ListResourcesRequest{
 		Namespace:           apidefaults.Namespace,
 		ResourceType:        types.KindDatabaseServer,
 		PredicateExpression: predicate,
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "message larger than max") {
-			return nil, trace.Wrap(err, "failed to find database by names: %v. Please try with a smaller set of databases.", err)
-		}
 		return nil, trace.Wrap(err)
 	}
 
 	logger.DebugContext(c.cf.Context, "Fetched database services by names.",
 		"databases", logutils.IterAttr(types.ResourceNames(dbs)))
-	return dbs, nil
+	return dbs, trace.Wrap(ensureEachDatabase(names, dbs))
 }
 
 func (c *databaseExecCommand) searchDatabases() (databases []types.Database, err error) {
+	fmt.Fprintln(c.cf.Stdout(), "Searching databases...")
 	filter := c.tc.ResourceFilter(types.KindDatabaseServer)
-	logger.DebugContext(c.cf.Context, "Searching for databases", "filter", filter)
 
+	logger.DebugContext(c.cf.Context, "Searching for databases", "filter", filter)
 	dbs, err := c.client.listDatabasesWithFilter(c.cf.Context, filter)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -213,8 +211,7 @@ func (c *databaseExecCommand) searchDatabases() (databases []types.Database, err
 	logger.DebugContext(c.cf.Context, "Fetched databases with search filter.",
 		"databases", logutils.IterAttr(types.ResourceNames(dbs)),
 	)
-
-	return dbs, nil
+	return dbs, trace.Wrap(c.printResultAndConfirm(dbs))
 }
 
 func (c *databaseExecCommand) printResultAndConfirm(dbs []types.Database) error {
@@ -223,19 +220,7 @@ func (c *databaseExecCommand) printResultAndConfirm(dbs []types.Database) error 
 	}
 
 	fmt.Fprintf(c.cf.Stdout(), "Found %d database(s):\n\n", len(dbs))
-	rows := make([]databaseTableRow, 0, len(dbs))
-	for _, db := range dbs {
-		// Always use full name but don't print hidden labels.
-		row := getDatabaseRow("", "", "", db, nil, nil, false)
-		row.DisplayName = db.GetName()
-		rows = append(rows, row)
-	}
-	printDatabaseTable(printDatabaseTableConfig{
-		writer:         c.cf.Stdout(),
-		rows:           rows,
-		includeColumns: []string{"Name", "Protocol", "Description", "Labels"},
-	})
-
+	printTableForDatabaseExec(c.cf.Stdout(), dbs)
 	if err := c.cf.PromptConfirmation("Do you want to proceed?"); err != nil {
 		return trace.Wrap(err)
 	}
@@ -471,4 +456,55 @@ func (m *databaseExecCommandMaker) makeCommand(ctx context.Context, dbInfo *data
 	}
 	return dbcmd.NewCmdBuilder(m.tc, m.profile, dbInfo.RouteToDatabase, m.rootCluster, opts...).
 		GetExecCommand(ctx, command)
+}
+
+// ensureEachDatabase ensures one to one mapping between the provided database
+// target names and database resources.
+//
+// Note that it is assumed that the provided database resource has at least one
+// matching names as they are retrieved from the backend based on one of those
+// names.
+func ensureEachDatabase(names []string, dbs []types.Database) error {
+	byDiscoveredNameOrName := map[string]types.Databases{}
+	for _, db := range dbs {
+		byDiscoveredNameOrName[db.GetName()] = append(byDiscoveredNameOrName[db.GetName()], db)
+
+		// Database may be listed by their original name in the cloud.
+		if discoveredName, ok := common.GetDiscoveredResourceName(db); ok {
+			byDiscoveredNameOrName[discoveredName] = append(byDiscoveredNameOrName[discoveredName], db)
+		}
+	}
+
+	for _, name := range names {
+		matched := byDiscoveredNameOrName[name]
+		switch len(matched) {
+		case 0:
+			return trace.NotFound("database %q not found", name)
+		case 1:
+			continue
+		default:
+			var sb strings.Builder
+			printTableForDatabaseExec(&sb, dbs)
+			return trace.BadParameter(`%q matches multiple databases:
+%vTry selecting the database with a more specific name printed in the above table`, name, sb.String())
+		}
+	}
+
+	return nil
+}
+
+func printTableForDatabaseExec(w io.Writer, dbs []types.Database) {
+	rows := make([]databaseTableRow, 0, len(dbs))
+	for _, db := range dbs {
+		// Always use full name but don't print hidden labels. But don't print
+		// hidden labels.
+		row := getDatabaseRow("", "", "", db, nil, nil, false)
+		row.DisplayName = db.GetName()
+		rows = append(rows, row)
+	}
+	printDatabaseTable(printDatabaseTableConfig{
+		writer:         w,
+		rows:           rows,
+		includeColumns: []string{"Name", "Protocol", "Description", "Labels"},
+	})
 }
