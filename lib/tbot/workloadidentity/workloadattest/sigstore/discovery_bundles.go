@@ -72,7 +72,7 @@ func (d *BundleDiscoveryMethod) Discover(ctx context.Context) ([]*workloadidenti
 		}
 
 		var bundle bundlepb.Bundle
-		if err := protojson.Unmarshal(bundleJSON, &bundle); err != nil {
+		if err := (protojson.UnmarshalOptions{}).Unmarshal(bundleJSON, &bundle); err != nil {
 			return nil, trace.Wrap(err, "unmarshaling bundle JSON")
 		}
 		bundleProto, err := proto.Marshal(&bundle)
