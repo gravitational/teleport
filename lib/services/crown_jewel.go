@@ -74,7 +74,7 @@ func UnmarshalCrownJewel(data []byte, opts ...MarshalOption) (*crownjewelv1.Crow
 		return nil, trace.Wrap(err)
 	}
 	var obj crownjewelv1.CrownJewel
-	if err := protojson.Unmarshal(data, &obj); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: !cfg.DisallowUnknown}).Unmarshal(data, &obj); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
 	if cfg.Revision != "" {
