@@ -1856,8 +1856,9 @@ message ProvisionTokenSpecV2BoundKeypair {
     // InitialPublicKey is an initial, static public key that will be used to
     // immediately populate `.status.bound_keypair.bound_public_key`. If set,
     // `initial_join_secret` and `must_join_before` are ignored, and
-    // `.status.bound_keypair.initial_join_secret` will not be generated.
-    bytes InitialPublicKey = 1 [(gogoproto.jsontag) = "initial_public_key,omitempty"];
+    // `.status.bound_keypair.initial_join_secret` will not be generated. This
+    // value is written in SSH public key format, including algorithm.
+    string InitialPublicKey = 1 [(gogoproto.jsontag) = "initial_public_key,omitempty"];
 
     // InitialJoinSecret is an initial join secret joining clients may use to
     // register their public key on first join. If `initial_public_key` is set,
@@ -1941,8 +1942,8 @@ message ProvisionTokenStatusV2BoundKeypair {
   // be copied here on creation, otherwise it will be populated as part of
   // public key registration. This value will be updated over time if keypair
   // rotation takes place, and will always reflect the currently valid public
-  // key.
-  bytes BoundPublicKey = 2 [(gogoproto.jsontag) = "bound_public_key"];
+  // key. This value is written in SSH public key format, including algorithm.
+  string BoundPublicKey = 2 [(gogoproto.jsontag) = "bound_public_key"];
 
   // BoundBotInstanceID is the ID of the currently associated bot instance. A
   // new bot instance is issued on each join; the new bot instance will

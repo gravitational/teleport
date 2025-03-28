@@ -140,6 +140,42 @@ spec:
                 description: BotName is the name of the bot this token grants access
                   to, if any
                 type: string
+              bound_keypair:
+                nullable: true
+                properties:
+                  joining:
+                    description: Joining contains parameters related to all join attempts.
+                    nullable: true
+                    properties:
+                      may_join_until:
+                        format: date-time
+                        type: string
+                      total_joins:
+                        format: int32
+                        type: integer
+                      unlimited:
+                        type: boolean
+                    type: object
+                  onboarding:
+                    description: Onboarding contains parameters related to initial
+                      joining and keypair registration.
+                    nullable: true
+                    properties:
+                      initial_join_secret:
+                        type: string
+                      initial_public_key:
+                        type: string
+                      must_join_before:
+                        format: date-time
+                        type: string
+                    type: object
+                  rotate_on_next_renewal:
+                    description: RotateOnNextRenewal is a flag that indicates clients
+                      should perform a keypair rotation on the next refresh or rejoin
+                      attempt. This flag will automatically be set to `false` after
+                      a successful rotation.
+                    type: boolean
+                type: object
               circleci:
                 description: CircleCI allows the configuration of options specific
                   to the "circleci" join method.
