@@ -16,259 +16,184 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { Meta } from '@storybook/react';
 
-import { ButtonPrimary } from 'design/Button';
-import { NotificationItem } from 'shared/components/Notification';
+import DialogConfirmation from 'design/DialogConfirmation';
+import {
+  makeErrorAttempt,
+  makeProcessingAttempt,
+  makeSuccessAttempt,
+} from 'shared/hooks/useAsync';
 
 import { TdpClient, TdpClientEvent } from 'teleport/lib/tdp';
 import { BitmapFrame } from 'teleport/lib/tdp/client';
+import { ClientScreenSpec } from 'teleport/lib/tdp/codec';
 
-import { DesktopSession } from './DesktopSession';
-import { State } from './useDesktopSession';
+import { DesktopSession, DesktopSessionProps } from './DesktopSession';
 
-export default {
+const meta: Meta = {
   title: 'Teleport/DesktopSession',
+  decorators: [
+    Story => (
+      <div
+        css={`
+          position: relative;
+          height: 90vh;
+          width: 100%;
+        `}
+      >
+        <Story />
+      </div>
+    ),
+  ],
 };
 
+export default meta;
+
 const fakeClient = () => {
-  const client = new TdpClient('wss://socketAddr.gov');
+  const client = new TdpClient(() => null);
   // Don't try to connect to a websocket.
-  client.connect = async () => {
-    emitGrayFrame(client);
+  client.connect = async spec => {
+    emitFrame(client, spec);
   };
   return client;
 };
 
-const props: State = {
-  hostname: 'host.com',
-  fetchAttempt: { status: 'processing' },
-  clipboardSharingState: {
-    allowedByAcl: false,
-    browserSupported: false,
-  },
-  tdpClient: fakeClient(),
+const props: DesktopSessionProps = {
+  aclAttempt: makeSuccessAttempt({
+    clipboardSharingEnabled: true,
+    directorySharingEnabled: true,
+  }),
+  client: fakeClient(),
   username: 'user',
-  setClipboardSharingState: () => {},
-  directorySharingState: {
-    allowedByAcl: true,
-    browserSupported: true,
-    directorySelected: false,
-  },
-  sendLocalClipboardToRemote: async () => {},
-  onClipboardData: async () => {},
-  addAlert: () => {},
-  setDirectorySharingState: () => {},
-  onShareDirectory: () => {},
-  clientScreenSpecToRequest: { width: 0, height: 0 },
-  webauthn: {
-    errorText: '',
-    requested: false,
-    authenticate: () => {},
-    setState: () => {},
-    addMfaToScpUrls: false,
-  },
-  showAnotherSessionActiveDialog: false,
-  setShowAnotherSessionActiveDialog: () => {},
-  alerts: [],
-  onRemoveAlert: () => {},
+  desktop: 'windows-11',
+  hasAnotherSession: () => Promise.resolve(false),
 };
 
 export const Processing = () => (
-  <DesktopSession
-    {...props}
-    fetchAttempt={{ status: 'processing' }}
-    clipboardSharingState={{
-      allowedByAcl: false,
-      browserSupported: false,
-      readState: 'granted',
-      writeState: 'granted',
-    }}
-  />
+  <DesktopSession {...props} aclAttempt={makeProcessingAttempt()} />
 );
 
 export const FetchError = () => (
   <DesktopSession
     {...props}
-    fetchAttempt={{ status: 'failed', statusText: 'some fetch  error' }}
+    aclAttempt={makeErrorAttempt(new Error('Network Error'))}
   />
 );
 
 export const TdpError = () => {
-  useEffect(() => {
-    props.tdpClient.emit(TdpClientEvent.TDP_ERROR, new Error('some tdp error'));
-  }, []);
-
-  return <DesktopSession {...props} fetchAttempt={{ status: 'success' }} />;
-};
-
-export const ConnectedSettingsFalse = () => {
   const client = fakeClient();
   client.connect = async () => {
-    emitGrayFrame(client);
+    client.emit(TdpClientEvent.TDP_ERROR, new Error('some tdp error'));
   };
 
-  return (
-    <DesktopSession
-      {...props}
-      tdpClient={client}
-      fetchAttempt={{ status: 'success' }}
-      clipboardSharingState={{
-        allowedByAcl: false,
-        browserSupported: false,
-        readState: 'denied',
-        writeState: 'denied',
-      }}
-      directorySharingState={{
-        allowedByAcl: false,
-        browserSupported: false,
-        directorySelected: false,
-      }}
-    />
-  );
+  return <DesktopSession {...props} client={client} />;
 };
 
-export const ConnectedSettingsTrue = () => (
-  <DesktopSession
-    {...props}
-    fetchAttempt={{ status: 'success' }}
-    clipboardSharingState={{
-      allowedByAcl: true,
-      browserSupported: true,
-      readState: 'granted',
-      writeState: 'granted',
-    }}
-    directorySharingState={{
-      allowedByAcl: true,
-      browserSupported: true,
-      directorySelected: true,
-    }}
-  />
-);
+export const Connected = () => {
+  return <DesktopSession {...props} />;
+};
 
 export const Disconnected = () => {
-  useEffect(() => {
-    props.tdpClient.emit(TdpClientEvent.WS_CLOSE, 'session disconnected');
-  }, []);
+  const client = fakeClient();
+  client.connect = async () => {
+    client.emit(TdpClientEvent.WS_CLOSE, 'session disconnected');
+  };
 
-  return <DesktopSession {...props} fetchAttempt={{ status: 'success' }} />;
+  return <DesktopSession {...props} client={client} />;
 };
 
-export const WebAuthnPrompt = () => (
+export const MfaPrompt = () => (
   <DesktopSession
     {...props}
-    fetchAttempt={{ status: 'processing' }}
-    clipboardSharingState={{
-      allowedByAcl: false,
-      browserSupported: false,
-      readState: 'granted',
-      writeState: 'granted',
-    }}
-    webauthn={{
-      errorText: '',
-      requested: true,
-      authenticate: () => {},
-      setState: () => {},
-      addMfaToScpUrls: false,
+    customConnectionState={() => {
+      return (
+        <DialogConfirmation open={true} dialogCss={() => ({ maxWidth: 300 })}>
+          This is a custom connection state, needed for per-session MFA. Web UI
+          displays its standard AuthnDialog here. Connect utilizes the
+          modalsService for per-session MFA, and only errors will be shown in
+          this state.
+        </DialogConfirmation>
+      );
     }}
   />
 );
 
 export const AnotherSessionActive = () => (
-  <DesktopSession {...props} showAnotherSessionActiveDialog={true} />
+  <DesktopSession {...props} hasAnotherSession={() => Promise.resolve(true)} />
 );
 
-export const ClipboardSharingDisabledRbac = () => (
+export const SharingDisabledRbac = () => (
   <DesktopSession
     {...props}
-    fetchAttempt={{ status: 'success' }}
-    clipboardSharingState={{ browserSupported: true, allowedByAcl: false }}
+    aclAttempt={makeSuccessAttempt({
+      clipboardSharingEnabled: false,
+      directorySharingEnabled: false,
+    })}
   />
 );
 
-export const ClipboardSharingDisabledIncompatibleBrowser = () => (
-  <DesktopSession
-    {...props}
-    fetchAttempt={{ status: 'success' }}
-    clipboardSharingState={{ browserSupported: false, allowedByAcl: true }}
-  />
-);
-
-export const ClipboardSharingDisabledBrowserPermissions = () => (
-  <DesktopSession
-    {...props}
-    fetchAttempt={{ status: 'success' }}
-    clipboardSharingState={{
-      browserSupported: true,
-      allowedByAcl: true,
-      readState: 'granted',
-      writeState: 'denied',
-    }}
-  />
-);
+//TODO(gzdunek): Enable these stories after refactoring clipboard and directory sharing.
+// Currently, the logic is hardcoded in the component so we have no control over it.
+//
+// export const ClipboardSharingDisabledIncompatibleBrowser = () => (
+//   <DesktopSession
+//     {...props}
+//     fetchAttempt={{ status: 'success' }}
+//     clipboardSharingState={{ browserSupported: false, allowedByAcl: true }}
+//   />
+// );
+//
+// export const ClipboardSharingDisabledBrowserPermissions = () => (
+//   <DesktopSession
+//     {...props}
+//     fetchAttempt={{ status: 'success' }}
+//     clipboardSharingState={{
+//       browserSupported: true,
+//       allowedByAcl: true,
+//       readState: 'granted',
+//       writeState: 'denied',
+//     }}
+//   />
+// );
 
 export const Warnings = () => {
   const client = fakeClient();
-  client.connect = async () => {
-    emitGrayFrame(client);
+  client.connect = async spec => {
+    emitFrame(client, spec);
+    client.emit(
+      TdpClientEvent.TDP_WARNING,
+      'Potential performance issues detected. Expect possible lag or instability.'
+    );
+    client.emit(
+      TdpClientEvent.TDP_INFO,
+      'Connection initiated. Monitoring for potential issues.'
+    );
   };
 
-  const [warnings, setWarnings] = useState<NotificationItem[]>([]);
-
-  const addWarning = () => {
-    setWarnings(prevItems => [
-      ...prevItems,
-      {
-        id: crypto.randomUUID(),
-        severity: 'warn',
-        content:
-          "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s.",
-      },
-    ]);
-  };
-
-  const removeWarning = (id: string) => {
-    setWarnings(prevState => prevState.filter(warning => warning.id !== id));
-  };
-
-  return (
-    <>
-      <ButtonPrimary onClick={addWarning} mb={1}>
-        Add Warning
-      </ButtonPrimary>
-      <DesktopSession
-        {...props}
-        tdpClient={client}
-        fetchAttempt={{ status: 'success' }}
-        clipboardSharingState={{
-          allowedByAcl: true,
-          browserSupported: true,
-          readState: 'granted',
-          writeState: 'granted',
-        }}
-        directorySharingState={{
-          allowedByAcl: true,
-          browserSupported: true,
-          directorySelected: true,
-        }}
-        alerts={warnings}
-        onRemoveAlert={removeWarning}
-      />
-    </>
-  );
+  return <DesktopSession {...props} client={client} />;
 };
 
-function emitGrayFrame(client: TdpClient) {
-  const width = 300;
-  const height = 100;
+function emitFrame(client: TdpClient, spec: ClientScreenSpec) {
+  const width = spec.width;
+  const height = spec.height;
   const imageData = new ImageData(width, height);
 
-  // Fill with gray (RGB: 128, 128, 128)
-  for (let i = 0; i < imageData.data.length; i += 4) {
-    imageData.data[i] = 128; // Red
-    imageData.data[i + 1] = 128; // Green
-    imageData.data[i + 2] = 128; // Blue
-    imageData.data[i + 3] = 255; // Alpha (fully opaque)
+  // Displays a nice gradient.
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const index = (y * width + x) * 4;
+
+      // Calculate the gradients for each channel
+      const r = Math.sin((x / width) * Math.PI) * 255; // Sinusoidal Red gradient
+      const g = (y / height) * 255; // Vertical gradient for Green
+      const b = Math.cos((x / width) * Math.PI) * 255; // Cosine-based Blue gradient
+
+      imageData.data[index] = r; // Red
+      imageData.data[index + 1] = g; // Green
+      imageData.data[index + 2] = b; // Blue
+      imageData.data[index + 3] = 255; // Alpha (fully opaque)
+    }
   }
 
   const frame: BitmapFrame = {
@@ -277,5 +202,6 @@ function emitGrayFrame(client: TdpClient) {
     image_data: imageData,
   };
 
+  client.emit(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, spec);
   client.emit(TdpClientEvent.TDP_BMP_FRAME, frame);
 }
