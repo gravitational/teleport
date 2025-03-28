@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/common"
 )
 
 func Test_checkDatabaseExecInputFlags(t *testing.T) {
@@ -271,7 +272,7 @@ func TestDatabaseExec(t *testing.T) {
 				cmdRunner:       verifyDBQuery,
 				OverrideStdout:  writer,
 				overrideStderr:  writer,
-				SkipConfirm:     true,
+				Confirm:         false,
 			}
 
 			// Prep command and sanity check.
@@ -368,7 +369,7 @@ func mustMakeDatabaseServer(t *testing.T, db types.Database) types.DatabaseServe
 	return server
 }
 
-func mustMakeDatabaseServerForEnv(t *testing.T, name, protocol, env string) types.DatabaseServer {
+func mustMakeDatabaseForEnv(t *testing.T, name, protocol, env string) types.Database {
 	t.Helper()
 	db, err := types.NewDatabaseV3(
 		types.Metadata{
@@ -381,5 +382,62 @@ func mustMakeDatabaseServerForEnv(t *testing.T, name, protocol, env string) type
 		},
 	)
 	require.NoError(t, err)
+	return db
+}
+
+func mustMakeDatabaseServerForEnv(t *testing.T, name, protocol, env string) types.DatabaseServer {
+	t.Helper()
+	db := mustMakeDatabaseForEnv(t, name, protocol, env)
 	return mustMakeDatabaseServer(t, db)
+}
+
+func Test_ensureEachDatabase(t *testing.T) {
+	devDB := mustMakeDatabaseForEnv(t, "dev", "postgres", "dev")
+	stagingDB := mustMakeDatabaseForEnv(t, "staging", "postgres", "staging")
+	prodDB1 := mustMakeDatabaseForEnv(t, "prod", "postgres", "prod")
+	prodDB2 := mustMakeDatabaseForEnv(t, "prod", "postgres", "prod")
+	common.SetDiscoveredResourceName(prodDB1, "prod-cloud1")
+	common.SetDiscoveredResourceName(prodDB2, "prod-cloud2")
+
+	tests := []struct {
+		name                string
+		inputNames          []string
+		inputDatabases      []types.Database
+		expectErrorContains string
+	}{
+		{
+			name:           "exact match",
+			inputNames:     []string{"dev", "staging"},
+			inputDatabases: []types.Database{devDB, stagingDB},
+		},
+		{
+			name:           "discovered name match",
+			inputNames:     []string{"prod-cloud1", "prod-cloud2", "dev"},
+			inputDatabases: []types.Database{devDB, prodDB1, prodDB2},
+		},
+		{
+			name:                "database not found",
+			inputNames:          []string{"dev", "staging", "prod-cloud1"},
+			inputDatabases:      []types.Database{devDB, stagingDB},
+			expectErrorContains: "not found",
+		},
+		{
+			name:                "ambiguous name",
+			inputNames:          []string{"prod"},
+			inputDatabases:      []types.Database{prodDB1, prodDB2},
+			expectErrorContains: "matches multiple databases",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ensureEachDatabase(tt.inputNames, tt.inputDatabases)
+			if tt.expectErrorContains == "" {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.expectErrorContains)
+			}
+		})
+	}
 }
