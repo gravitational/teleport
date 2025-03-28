@@ -43,15 +43,14 @@ var (
 	// so we cache the YubiKey connection for re-use across the process.
 	yubiKeys    map[uint32]*YubiKey = map[uint32]*YubiKey{}
 	yubiKeysMux sync.Mutex
-
-	// promptMux is used during to prevent over-prompting, especially for back-to-back sign requests
-	// since touch/PIN from the first signature should be cached for following signatures.
-	promptMux sync.Mutex
 )
 
 // YubiKeyService is a YubiKey PIV implementation of [hardwarekey.Service].
 type YubiKeyService struct {
-	prompt hardwarekey.Prompt
+	// promptMux is used during to prevent over-prompting, especially for back-to-back sign requests
+	// since touch/PIN from the first signature should be cached for following signatures.
+	promptMux sync.Mutex
+	prompt    hardwarekey.Prompt
 
 	// ctx is provided to signature requests since the [crypto.Signer] interface
 	// does not have context support directly.
@@ -201,8 +200,8 @@ func (s *YubiKeyService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRe
 		return nil, trace.Wrap(err)
 	}
 
-	promptMux.Lock()
-	defer promptMux.Unlock()
+	s.promptMux.Lock()
+	defer s.promptMux.Unlock()
 
 	return y.sign(ctx, ref, s.prompt, rand, digest, opts)
 }
@@ -211,8 +210,8 @@ func (s *YubiKeyService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRe
 // This is used by Teleport Connect which sets the prompt later than the hardware key service,
 // due to process initialization constraints.
 func (s *YubiKeyService) SetPrompt(prompt hardwarekey.Prompt) {
-	promptMux.Lock()
-	defer promptMux.Unlock()
+	s.promptMux.Lock()
+	defer s.promptMux.Unlock()
 	s.prompt = prompt
 }
 
@@ -274,8 +273,8 @@ func (s *YubiKeyService) getYubiKey(serialNumber uint32) (*YubiKey, error) {
 // If the user provides the default PIN, they will be prompted to set a
 // non-default PIN and PUK before continuing.
 func (s *YubiKeyService) checkOrSetPIN(ctx context.Context, y *YubiKey) error {
-	promptMux.Lock()
-	defer promptMux.Unlock()
+	s.promptMux.Lock()
+	defer s.promptMux.Unlock()
 
 	pin, err := s.prompt.AskPIN(ctx, hardwarekey.PINOptional)
 	if err != nil {
@@ -297,8 +296,8 @@ func (s *YubiKeyService) checkOrSetPIN(ctx context.Context, y *YubiKey) error {
 }
 
 func (s *YubiKeyService) promptOverwriteSlot(ctx context.Context, msg string) error {
-	promptMux.Lock()
-	defer promptMux.Unlock()
+	s.promptMux.Lock()
+	defer s.promptMux.Unlock()
 
 	promptQuestion := fmt.Sprintf("%v\nWould you like to overwrite this slot's private key and certificate?", msg)
 	if confirmed, confirmErr := s.prompt.ConfirmSlotOverwrite(ctx, promptQuestion); confirmErr != nil {

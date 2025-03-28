@@ -330,7 +330,7 @@ func TestHostCertVerification(t *testing.T) {
 	s := makeSuite(t)
 
 	// Make a new local agent.
-	clientStore := NewFSClientStore(s.keyDir)
+	clientStore := NewFSClientStore(s.keyDir, nil /*hwKeyService*/)
 	lka, err := NewLocalAgent(LocalAgentConfig{
 		ClientStore: clientStore,
 		ProxyHost:   s.hostname,
@@ -471,7 +471,7 @@ func TestHostKeyVerification(t *testing.T) {
 	s := makeSuite(t)
 
 	// make a new local agent
-	keystore := NewFSClientStore(s.keyDir)
+	keystore := NewFSClientStore(s.keyDir, nil /*hwKeyService*/)
 	lka, err := NewLocalAgent(LocalAgentConfig{
 		ClientStore: keystore,
 		ProxyHost:   s.hostname,
@@ -562,7 +562,7 @@ func TestHostCertVerificationLoadAllCasProxyAddrEqClusterName(t *testing.T) {
 	)
 
 	s := makeSuite(t, withClusterName(rootClusterName), withHostname(rootClusterName))
-	clientStore := NewFSClientStore(s.keyDir)
+	clientStore := NewFSClientStore(s.keyDir, nil /*hwKeyService*/)
 	lka, err := NewLocalAgent(LocalAgentConfig{
 		ClientStore: clientStore,
 		ProxyHost:   proxyHost,
@@ -646,7 +646,7 @@ func TestDefaultHostPromptFunc(t *testing.T) {
 
 	keygen := testauthority.New()
 
-	clientStore := NewFSClientStore(s.keyDir)
+	clientStore := NewFSClientStore(s.keyDir, nil /*hwKeyService*/)
 	a, err := NewLocalAgent(LocalAgentConfig{
 		ClientStore: clientStore,
 		ProxyHost:   s.hostname,
@@ -694,7 +694,7 @@ func TestLocalKeyAgent_AddDatabaseKey(t *testing.T) {
 	s := makeSuite(t)
 
 	// make a new local agent
-	clientStore := NewFSClientStore(s.keyDir)
+	clientStore := NewFSClientStore(s.keyDir, nil /*hwKeyService*/)
 	lka, err := NewLocalAgent(
 		LocalAgentConfig{
 			ClientStore: clientStore,
@@ -855,7 +855,7 @@ func startDebugAgent(t *testing.T) error {
 
 func (s *KeyAgentTestSuite) newKeyAgent(t *testing.T) *LocalKeyAgent {
 	// make a new local agent
-	clientStore := NewFSClientStore(s.keyDir)
+	clientStore := NewFSClientStore(s.keyDir, nil /*hwKeyService*/)
 	keyAgent, err := NewLocalAgent(LocalAgentConfig{
 		ClientStore: clientStore,
 		ProxyHost:   s.hostname,
