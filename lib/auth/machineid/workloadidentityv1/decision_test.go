@@ -18,9 +18,13 @@ package workloadidentityv1
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
@@ -400,4 +404,118 @@ func Test_evaluateRules(t *testing.T) {
 			tt.requireErr(t, err)
 		})
 	}
+}
+
+func TestTemplateExtraClaims_Success(t *testing.T) {
+	const inputJSON = `
+		{
+			"simple-string": "hello world",
+			"simple-number": 1234,
+			"simple-bool": true,
+			"null": null,
+			"object": {
+				"message": "hello, {{user.name}}",
+				"workload": {
+					"podman": {
+						"pod_name": "{{workload.podman.pod.name}}",
+						"labels": ["{{workload.podman.pod.labels[\"a\"]}}", "{{workload.podman.pod.labels[\"b\"]}}", "c"]
+					}
+				}
+			}
+		}
+	`
+
+	const expectedOutputJSON = `
+	{
+		"simple-string": "hello world",
+		"simple-number": 1234,
+		"simple-bool": true,
+		"null": null,
+		"object": {
+			"message": "hello, Bobby",
+			"workload": {
+				"podman": {
+					"pod_name": "webserver",
+					"labels": ["a", "b", "c"]
+				}
+			}
+		}
+	}
+	`
+
+	var input, expectedOutput *structpb.Struct
+	err := json.Unmarshal([]byte(inputJSON), &input)
+	require.NoError(t, err)
+
+	err = json.Unmarshal([]byte(expectedOutputJSON), &expectedOutput)
+	require.NoError(t, err)
+
+	output, err := templateExtraClaims(input, &workloadidentityv1pb.Attrs{
+		User: &workloadidentityv1pb.UserAttrs{
+			Name: "Bobby",
+		},
+		Workload: &workloadidentityv1pb.WorkloadAttrs{
+			Podman: &workloadidentityv1pb.WorkloadAttrsPodman{
+				Pod: &workloadidentityv1pb.WorkloadAttrsPodmanPod{
+					Name:   "webserver",
+					Labels: map[string]string{"a": "a", "b": "b"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expectedOutput, output, protocmp.Transform()))
+}
+
+func TestTemplateExtraClaims_Failure(t *testing.T) {
+	const claimsJSON = `
+		{
+			"foo": {
+				"bar": {
+					"baz": ["a", {"b":"{{blah}}"}, "c"]
+				}
+			}
+		}
+	`
+
+	var rawClaims *structpb.Struct
+	err := json.Unmarshal([]byte(claimsJSON), &rawClaims)
+	require.NoError(t, err)
+
+	_, err = templateExtraClaims(rawClaims, &workloadidentityv1pb.Attrs{})
+	require.ErrorContains(t, err, "templating claim: foo.bar.baz[1].b")
+	require.ErrorContains(t, err, `unknown identifier: "blah"`)
+}
+
+func TestTemplateExtraClaims_TooDeeplyNested(t *testing.T) {
+	const claimsJSON = `
+		{
+			"1": {
+				"2": {
+					"3": {
+						"4": {
+							"5": {
+								"6": {
+									"7": {
+										"8": {
+											"9": {
+												"10": "very deep"
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	`
+
+	var rawClaims *structpb.Struct
+	err := json.Unmarshal([]byte(claimsJSON), &rawClaims)
+	require.NoError(t, err)
+
+	_, err = templateExtraClaims(rawClaims, &workloadidentityv1pb.Attrs{})
+	require.ErrorContains(t, err, "cannot contain more than 10 levels of nesting")
 }
