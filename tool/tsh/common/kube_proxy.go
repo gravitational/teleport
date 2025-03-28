@@ -325,7 +325,7 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	localClientKey, err := keys.NewSoftwarePrivateKey(key)
+	localClientKey, err := keys.NewPrivateKey(key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -162,7 +162,7 @@ func (k *KeyRing) generateSubjectTLSKey(ctx context.Context, tc *TeleportClient,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	priv, err := keys.NewSoftwarePrivateKey(key)
+	priv, err := keys.NewPrivateKey(key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
