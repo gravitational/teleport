@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/jose"
+	"github.com/coreos/go-oidc/key"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/google/go-cmp/cmp"
@@ -1701,4 +1703,180 @@ func TestOIDCRoleMapping(t *testing.T) {
 	_, roles := services.TraitsToRoles(oidcConnector.GetTraitMappings(), traits)
 	require.Len(t, roles, 1)
 	require.Equal(t, "user", roles[0])
+}
+
+// TestIDTokenHeaders verifies that id token jwts that contain headers
+// with and without numeric values are unmarshaled properly.
+func TestIDTokenHeaders(t *testing.T) {
+	// Create configurable IdP to use in tests.
+	idp := NewFakeOIDCIdP(t, true)
+
+	// Create OIDC connector and client.
+	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
+		IssuerURL:     idp.S.URL,
+		ClientID:      "00000000000000000000000000000000",
+		ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
+		ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
+		RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+	})
+	require.NoError(t, err)
+
+	conf := oidcConfig(connector, "")
+	conf.HTTPClient = &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+	conf.KeySet = *key.NewPublicKeySet([]jose.JWK{idp.pk.JWK()}, time.Now().Add(time.Hour))
+	client, err := oidc.NewClient(conf)
+	require.NoError(t, err)
+	client.SyncProviderConfig(context.Background(), connector.GetIssuerURL())
+
+	clt := createInsecureOIDCClient(t, connector)
+
+	tests := []struct {
+		name    string
+		headers map[string]any
+	}{
+		{
+			name: "non-string headers",
+			headers: map[string]any{
+				jose.HeaderMediaType:    "JWT",
+				jose.HeaderKeyAlgorithm: idp.pk.JWK().Alg,
+				jose.HeaderKeyID:        idp.pk.JWK().ID,
+				"version":               1.0,
+			},
+		},
+		{
+			name: "string only headers",
+			headers: map[string]any{
+				jose.HeaderMediaType:    "JWT",
+				jose.HeaderKeyAlgorithm: idp.pk.JWK().Alg,
+				jose.HeaderKeyID:        idp.pk.JWK().ID,
+				"version":               "1.0",
+			},
+		},
+	}
+
+	expectedClaims := map[string]any{
+		"groups": []string{"devs"},
+		"email":  "alice@example.com",
+		"sub":    "00001234abcd",
+		"exp":    float64(time.Now().Add(time.Hour).Unix()),
+		"iss":    idp.S.URL,
+		"iat":    time.Now().Unix(),
+		"aud":    connector.GetClientID(),
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			payload, err := json.Marshal(expectedClaims)
+			require.NoError(t, err)
+
+			header, err := json.Marshal(map[string]any{
+				jose.HeaderMediaType:    "JWT",
+				jose.HeaderKeyAlgorithm: idp.pk.JWK().Alg,
+				jose.HeaderKeyID:        idp.pk.JWK().ID,
+				"version":               1.0,
+			})
+			require.NoError(t, err)
+
+			// The JWT is constructed by hand to acomadate header
+			// values that may not be a string instead of using
+			// [jose.NewJWT] and updating the header after the fact.
+			jwt := strings.TrimRight(base64.URLEncoding.EncodeToString(header), "=") + "." +
+				strings.TrimRight(base64.URLEncoding.EncodeToString(payload), "=")
+
+			sig, err := idp.pk.Signer().Sign([]byte(jwt))
+			require.NoError(t, err)
+
+			jwt += "." + strings.TrimRight(base64.URLEncoding.EncodeToString(sig), "=")
+
+			claims, err := claimsFromIDToken(clt, jwt)
+			require.NoError(t, err)
+
+			assert.Len(t, claims, len(expectedClaims))
+			rawClaims, err := json.Marshal(claims)
+			require.NoError(t, err)
+
+			assert.JSONEq(t, string(payload), string(rawClaims))
+		})
+	}
+}
+
+// TestLargePayload verifies that large payloads from
+// discovery requests are rejected.
+func TestLargePayload(t *testing.T) {
+	clt := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(strings.Repeat("a", 1024*1024*2))
+	})
+
+	srv := httptest.NewTLSServer(mux)
+	t.Cleanup(srv.Close)
+
+	r := oidc.NewHTTPProviderConfigGetter(clt, srv.URL)
+	_, err := r.Get()
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "response exceeds maximum size of")
+}
+
+// TestDiscoveryURL verifies that query parameters set on the issuer url
+// are passed along to discovery requests.
+func TestDiscoveryURL(t *testing.T) {
+	mux := http.NewServeMux()
+	srv := httptest.NewTLSServer(mux)
+	requestedURL := make(chan *url.URL, 1)
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		requestedURL <- r.URL
+		fmt.Fprintf(w, `{
+		"issuer": "%[1]v",
+		"authorization_endpoint": "%[1]v/authz",
+		"token_endpoint": "%[1]v/token",
+		"jwks_uri": "%[1]v/jwks",
+		"userinfo_endpoint": "%[1]v/userinfo",
+		"subject_types_supported": ["public"],
+		"id_token_signing_alg_values_supported": ["HS256", "RS256"]
+}`, srv.URL)
+	})
+	t.Cleanup(srv.Close)
+
+	u, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+
+	params := u.Query()
+	params.Add("a", "b")
+	params.Add("c", "d")
+	u.RawQuery = params.Encode()
+
+	clt := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+	r := oidc.NewHTTPProviderConfigGetter(clt, u.String())
+	_, err = r.Get()
+	assert.NoError(t, err)
+
+	select {
+	case u := <-requestedURL:
+		assert.Equal(t, "b", u.Query().Get("a"))
+		assert.Equal(t, "d", u.Query().Get("c"))
+	case <-time.After(20 * time.Second):
+		t.Fatal("timed out waiting for requested url")
+	}
 }

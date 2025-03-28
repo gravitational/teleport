@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"fmt"
 	"io"
 	stdlog "log"
@@ -13,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/coreos/go-oidc/jose"
+	"github.com/coreos/go-oidc/key"
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/crewjam/saml"
 	"github.com/gravitational/trace"
@@ -31,15 +33,31 @@ import (
 // tests. At the moment it creates an HTTP server and only responds to the
 // "/.well-known/openid-configuration" endpoint.
 type FakeOIDCIdP struct {
-	S *httptest.Server
+	S  *httptest.Server
+	pk *key.PrivateKey
 }
 
 // NewFakeOIDCIdP creates a new instance of a configurable IdP.
 func NewFakeOIDCIdP(t *testing.T, tls bool) *FakeOIDCIdP {
-	var s FakeOIDCIdP
+	priv, err := key.GeneratePrivateKey()
+	if err != nil {
+		t.Fatalf("failed to generate private key, error=%v", err)
+	}
+
+	s := FakeOIDCIdP{
+		pk: priv,
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", s.configurationHandler)
+	mux.HandleFunc("/jwks", func(w http.ResponseWriter, r *http.Request) {
+		d := struct {
+			Keys []jose.JWK `json:"keys"`
+		}{
+			Keys: []jose.JWK{priv.JWK()},
+		}
+		json.NewEncoder(w).Encode(&d)
+	})
 	mux.HandleFunc("/userinfo", func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 	})
