@@ -15,9 +15,8 @@
 package v1
 
 import (
-	"encoding/json"
-
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -79,14 +78,12 @@ func (l *TeleportBotV1) StatusConditions() *[]metav1.Condition {
 
 // Marshal serializes a spec into binary data.
 func (spec *TeleportBotV1Spec) Marshal() ([]byte, error) {
-	// TODO(noah): use protojson??
-	return json.Marshal(spec)
+	return proto.Marshal((*machineidv1.BotSpec)(spec))
 }
 
 // Unmarshal deserializes a spec from binary data.
 func (spec *TeleportBotV1Spec) Unmarshal(data []byte) error {
-	// TODO(noah): use protojson??
-	return json.Unmarshal(data, spec)
+	return proto.Unmarshal(data, (*machineidv1.BotSpec)(spec))
 }
 
 // UnmarshalJSON delegates unmarshaling of the BotSpec to protojson, which is
