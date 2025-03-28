@@ -164,7 +164,7 @@ func (s *DiscordSuiteOSS) TestMessagePosting() {
 	matches := requestReasonRegexp.FindAllStringSubmatch(messages[0].Text, -1)
 	require.Len(t, matches, 1)
 	require.Len(t, matches[0], 3)
-	assert.Equal(t, "because of "+strings.Repeat("A", 489), matches[0][1])
+	assert.Equal(t, "because of "+strings.Repeat("A", 389), matches[0][1])
 	assert.Equal(t, " (truncated)", matches[0][2])
 
 	status, err := parseMessageField(messages[0], "Status")
@@ -690,7 +690,7 @@ func (s *DiscordSuiteOSS) TestMessagePostingWithAMR() {
 	matches := requestReasonRegexp.FindAllStringSubmatch(messages[0].Text, -1)
 	require.Len(t, matches, 1)
 	require.Len(t, matches[0], 3)
-	assert.Equal(t, "because of "+strings.Repeat("A", 489), matches[0][1])
+	assert.Equal(t, "because of "+strings.Repeat("A", 389), matches[0][1])
 	assert.Equal(t, " (truncated)", matches[0][2])
 
 	status, err := parseMessageField(messages[0], "Status")
