@@ -198,7 +198,7 @@ func TestClientStore(t *testing.T) {
 		require.Equal(t, keyRing.TrustedCerts, retrievedTrustedCerts)
 
 		// Getting the key from the key store should have no trusted certs.
-		retrievedKeyRing, err := clientStore.KeyStore.GetKeyRing(idx, WithAllCerts...)
+		retrievedKeyRing, err := clientStore.KeyStore.GetKeyRing(idx, clientStore.hwKeyService, WithAllCerts...)
 		require.NoError(t, err)
 		expectKeyRing := keyRing.Copy()
 		expectKeyRing.TrustedCerts = nil
@@ -464,7 +464,7 @@ func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
 			for _, kubeClusterName := range kubeClusterNames {
 				go func() {
 					defer wg.Done()
-					keyRing, err := fsKeyStore.GetKeyRing(keyRing.KeyRingIndex, WithKubeCerts{})
+					keyRing, err := fsKeyStore.GetKeyRing(keyRing.KeyRingIndex, nil /*hwks*/, WithKubeCerts{})
 					require.NoError(b, err)
 					require.NotNil(b, keyRing.KubeTLSCredentials[kubeClusterName].PrivateKey)
 					require.NotEmpty(b, keyRing.KubeTLSCredentials[kubeClusterName].Cert)
