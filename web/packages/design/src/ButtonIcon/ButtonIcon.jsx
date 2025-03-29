@@ -20,7 +20,7 @@ import styled from 'styled-components';
 
 import { alignSelf, color, space } from 'design/system';
 
-const sizeMap = {
+export const buttonSizes = {
   0: {
     fontSize: '12px',
     height: '24px',
@@ -38,10 +38,10 @@ const sizeMap = {
   },
 };
 
-const defaultSize = sizeMap[1];
+const defaultSize = buttonSizes[1];
 
 const size = props => {
-  return sizeMap[props.size] || defaultSize;
+  return buttonSizes[props.size] || defaultSize;
 };
 
 const ButtonIcon = props => {
