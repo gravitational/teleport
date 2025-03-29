@@ -136,10 +136,10 @@ require (
 	github.com/googleapis/gax-go/v2 v2.14.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/grafana/pyroscope-go v1.2.0
-	github.com/gravitational/license v0.0.0-20240313232707-8312e719d624
+	github.com/gravitational/license v0.0.0-20250329001817-070456fa8ec1
 	github.com/gravitational/roundtrip v1.0.2
 	github.com/gravitational/teleport/api v0.0.0
-	github.com/gravitational/trace v1.5.0
+	github.com/gravitational/trace v1.5.1
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.0.1
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.0
 	github.com/guptarohit/asciigraph v0.7.3
@@ -214,7 +214,7 @@ require (
 	golang.org/x/crypto v0.36.0
 	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8
 	golang.org/x/mod v0.23.0
-	golang.org/x/net v0.37.0
+	golang.org/x/net v0.38.0
 	golang.org/x/oauth2 v0.27.0
 	golang.org/x/sync v0.12.0
 	golang.org/x/sys v0.31.0
@@ -311,7 +311,6 @@ require (
 	github.com/charmbracelet/x/ansi v0.8.0 // indirect
 	github.com/charmbracelet/x/exp/strings v0.0.0-20240722160745-212f7b056ed0 // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
-	github.com/cloudflare/cfssl v1.6.4 // indirect
 	github.com/cncf/xds/go v0.0.0-20241223141626-cff3c89139a3 // indirect
 	github.com/containerd/containerd v1.7.27 // indirect
 	github.com/containerd/errdefs v0.3.0 // indirect
@@ -530,7 +529,6 @@ require (
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/transparency-dev/merkle v0.0.2 // indirect
 	github.com/vbatts/tar-split v0.11.6 // indirect
-	github.com/weppos/publicsuffix-go v0.30.3-0.20240510084413-5f1d03393b3d // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.2 // indirect
@@ -544,8 +542,6 @@ require (
 	github.com/yuin/gopher-lua v1.1.1 // indirect
 	github.com/zeebo/errs v1.4.0 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
-	github.com/zmap/zcrypto v0.0.0-20231219022726-a1f61fb1661c // indirect
-	github.com/zmap/zlint/v3 v3.6.0 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.18 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
