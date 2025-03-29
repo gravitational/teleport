@@ -389,7 +389,7 @@ func (rc *ResourceCommand) Create(ctx context.Context, client *authclient.Client
 
 // createTrustedCluster implements `tctl create cluster.yaml` command
 func (rc *ResourceCommand) createTrustedCluster(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	tc, err := services.UnmarshalTrustedCluster(raw.Raw)
+	tc, err := services.UnmarshalTrustedCluster(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -427,7 +427,7 @@ func (rc *ResourceCommand) createTrustedCluster(ctx context.Context, client *aut
 
 // createCertAuthority creates certificate authority
 func (rc *ResourceCommand) createCertAuthority(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	certAuthority, err := services.UnmarshalCertAuthority(raw.Raw)
+	certAuthority, err := services.UnmarshalCertAuthority(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -440,7 +440,7 @@ func (rc *ResourceCommand) createCertAuthority(ctx context.Context, client *auth
 
 // createGithubConnector creates a Github connector
 func (rc *ResourceCommand) createGithubConnector(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	connector, err := services.UnmarshalGithubConnector(raw.Raw)
+	connector, err := services.UnmarshalGithubConnector(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -470,7 +470,7 @@ func (rc *ResourceCommand) createGithubConnector(ctx context.Context, client *au
 
 // updateGithubConnector updates an existing Github connector.
 func (rc *ResourceCommand) updateGithubConnector(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	connector, err := services.UnmarshalGithubConnector(raw.Raw)
+	connector, err := services.UnmarshalGithubConnector(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -484,7 +484,7 @@ func (rc *ResourceCommand) updateGithubConnector(ctx context.Context, client *au
 
 // createRole implements `tctl create role.yaml` command.
 func (rc *ResourceCommand) createRole(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	role, err := services.UnmarshalRole(raw.Raw)
+	role, err := services.UnmarshalRole(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -519,7 +519,7 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client *authclient.Cl
 }
 
 func (rc *ResourceCommand) updateRole(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	role, err := services.UnmarshalRole(raw.Raw)
+	role, err := services.UnmarshalRole(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -579,7 +579,7 @@ func warnAboutDynamicLabelsInDenyRule(logger utils.Logger, r types.Role) {
 
 // createUser implements `tctl create user.yaml` command.
 func (rc *ResourceCommand) createUser(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	user, err := services.UnmarshalUser(raw.Raw)
+	user, err := services.UnmarshalUser(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -617,7 +617,7 @@ func (rc *ResourceCommand) createUser(ctx context.Context, client *authclient.Cl
 
 func (rc *ResourceCommand) createBot(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	bot := &machineidv1pb.Bot{}
-	if err := protojson.Unmarshal(raw.Raw, bot); err != nil {
+	if err := (protojson.UnmarshalOptions{}).Unmarshal(raw.Raw, bot); err != nil {
 		return trace.Wrap(err)
 	}
 	if rc.IsForced() {
@@ -689,7 +689,7 @@ func (rc *ResourceCommand) createDatabaseObject(ctx context.Context, client *aut
 
 // updateUser implements `tctl create user.yaml` command.
 func (rc *ResourceCommand) updateUser(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	user, err := services.UnmarshalUser(raw.Raw)
+	user, err := services.UnmarshalUser(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -704,7 +704,7 @@ func (rc *ResourceCommand) updateUser(ctx context.Context, client *authclient.Cl
 
 // createAuthPreference implements `tctl create cap.yaml` command.
 func (rc *ResourceCommand) createAuthPreference(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	newAuthPref, err := services.UnmarshalAuthPreference(raw.Raw)
+	newAuthPref, err := services.UnmarshalAuthPreference(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -725,7 +725,7 @@ func (rc *ResourceCommand) createAuthPreference(ctx context.Context, client *aut
 }
 
 func (rc *ResourceCommand) updateAuthPreference(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	newAuthPref, err := services.UnmarshalAuthPreference(raw.Raw)
+	newAuthPref, err := services.UnmarshalAuthPreference(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -747,7 +747,7 @@ func (rc *ResourceCommand) updateAuthPreference(ctx context.Context, client *aut
 
 // createClusterNetworkingConfig implements `tctl create netconfig.yaml` command.
 func (rc *ResourceCommand) createClusterNetworkingConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	newNetConfig, err := services.UnmarshalClusterNetworkingConfig(raw.Raw)
+	newNetConfig, err := services.UnmarshalClusterNetworkingConfig(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -769,7 +769,7 @@ func (rc *ResourceCommand) createClusterNetworkingConfig(ctx context.Context, cl
 
 // updateClusterNetworkingConfig
 func (rc *ResourceCommand) updateClusterNetworkingConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	newNetConfig, err := services.UnmarshalClusterNetworkingConfig(raw.Raw)
+	newNetConfig, err := services.UnmarshalClusterNetworkingConfig(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -814,7 +814,7 @@ func (rc *ResourceCommand) createClusterMaintenanceConfig(ctx context.Context, c
 
 // createSessionRecordingConfig implements `tctl create recconfig.yaml` command.
 func (rc *ResourceCommand) createSessionRecordingConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	newRecConfig, err := services.UnmarshalSessionRecordingConfig(raw.Raw)
+	newRecConfig, err := services.UnmarshalSessionRecordingConfig(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -835,7 +835,7 @@ func (rc *ResourceCommand) createSessionRecordingConfig(ctx context.Context, cli
 }
 
 func (rc *ResourceCommand) updateSessionRecordingConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	newRecConfig, err := services.UnmarshalSessionRecordingConfig(raw.Raw)
+	newRecConfig, err := services.UnmarshalSessionRecordingConfig(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -857,7 +857,7 @@ func (rc *ResourceCommand) updateSessionRecordingConfig(ctx context.Context, cli
 
 // createExternalAuditStorage implements `tctl create external_audit_storage` command.
 func (rc *ResourceCommand) createExternalAuditStorage(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	draft, err := services.UnmarshalExternalAuditStorage(raw.Raw)
+	draft, err := services.UnmarshalExternalAuditStorage(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -878,7 +878,7 @@ func (rc *ResourceCommand) createExternalAuditStorage(ctx context.Context, clien
 
 // createLock implements `tctl create lock.yaml` command.
 func (rc *ResourceCommand) createLock(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	lock, err := services.UnmarshalLock(raw.Raw)
+	lock, err := services.UnmarshalLock(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -904,7 +904,7 @@ func (rc *ResourceCommand) createLock(ctx context.Context, client *authclient.Cl
 
 // createNetworkRestrictions implements `tctl create net_restrict.yaml` command.
 func (rc *ResourceCommand) createNetworkRestrictions(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	newNetRestricts, err := services.UnmarshalNetworkRestrictions(raw.Raw)
+	newNetRestricts, err := services.UnmarshalNetworkRestrictions(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -917,7 +917,7 @@ func (rc *ResourceCommand) createNetworkRestrictions(ctx context.Context, client
 }
 
 func (rc *ResourceCommand) createWindowsDesktop(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	wd, err := services.UnmarshalWindowsDesktop(raw.Raw)
+	wd, err := services.UnmarshalWindowsDesktop(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -931,7 +931,7 @@ func (rc *ResourceCommand) createWindowsDesktop(ctx context.Context, client *aut
 }
 
 func (rc *ResourceCommand) createAppServer(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	appServer, err := services.UnmarshalAppServer(raw.Raw)
+	appServer, err := services.UnmarshalAppServer(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -946,7 +946,7 @@ func (rc *ResourceCommand) createAppServer(ctx context.Context, client *authclie
 }
 
 func (rc *ResourceCommand) createApp(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	app, err := services.UnmarshalApp(raw.Raw)
+	app, err := services.UnmarshalApp(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -968,7 +968,7 @@ func (rc *ResourceCommand) createApp(ctx context.Context, client *authclient.Cli
 }
 
 func (rc *ResourceCommand) createKubeCluster(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	cluster, err := services.UnmarshalKubeCluster(raw.Raw)
+	cluster, err := services.UnmarshalKubeCluster(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -990,7 +990,7 @@ func (rc *ResourceCommand) createKubeCluster(ctx context.Context, client *authcl
 }
 
 func (rc *ResourceCommand) createCrownJewel(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	crownJewel, err := services.UnmarshalCrownJewel(raw.Raw)
+	crownJewel, err := services.UnmarshalCrownJewel(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1012,7 +1012,7 @@ func (rc *ResourceCommand) createCrownJewel(ctx context.Context, client *authcli
 }
 
 func (rc *ResourceCommand) createUserTask(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	resource, err := services.UnmarshalUserTask(raw.Raw)
+	resource, err := services.UnmarshalUserTask(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1034,7 +1034,7 @@ func (rc *ResourceCommand) createUserTask(ctx context.Context, client *authclien
 }
 
 func (rc *ResourceCommand) createSPIFFEFederation(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	in, err := services.UnmarshalSPIFFEFederation(raw.Raw)
+	in, err := services.UnmarshalSPIFFEFederation(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1051,7 +1051,7 @@ func (rc *ResourceCommand) createSPIFFEFederation(ctx context.Context, client *a
 }
 
 func (rc *ResourceCommand) createWorkloadIdentity(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	in, err := services.UnmarshalWorkloadIdentity(raw.Raw)
+	in, err := services.UnmarshalWorkloadIdentity(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1077,7 +1077,7 @@ func (rc *ResourceCommand) createWorkloadIdentity(ctx context.Context, client *a
 }
 
 func (rc *ResourceCommand) updateCrownJewel(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
-	in, err := services.UnmarshalCrownJewel(resource.Raw)
+	in, err := services.UnmarshalCrownJewel(resource.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1089,7 +1089,7 @@ func (rc *ResourceCommand) updateCrownJewel(ctx context.Context, client *authcli
 }
 
 func (rc *ResourceCommand) updateUserTask(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
-	in, err := services.UnmarshalUserTask(resource.Raw)
+	in, err := services.UnmarshalUserTask(resource.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1101,7 +1101,7 @@ func (rc *ResourceCommand) updateUserTask(ctx context.Context, client *authclien
 }
 
 func (rc *ResourceCommand) createDatabase(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	database, err := services.UnmarshalDatabase(raw.Raw)
+	database, err := services.UnmarshalDatabase(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1124,7 +1124,7 @@ func (rc *ResourceCommand) createDatabase(ctx context.Context, client *authclien
 }
 
 func (rc *ResourceCommand) createToken(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	token, err := services.UnmarshalProvisionToken(raw.Raw)
+	token, err := services.UnmarshalProvisionToken(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1138,7 +1138,7 @@ func (rc *ResourceCommand) createToken(ctx context.Context, client *authclient.C
 }
 
 func (rc *ResourceCommand) createInstaller(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	inst, err := services.UnmarshalInstaller(raw.Raw)
+	inst, err := services.UnmarshalInstaller(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1152,7 +1152,7 @@ func (rc *ResourceCommand) createInstaller(ctx context.Context, client *authclie
 }
 
 func (rc *ResourceCommand) createUIConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	uic, err := services.UnmarshalUIConfig(raw.Raw)
+	uic, err := services.UnmarshalUIConfig(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1165,7 +1165,7 @@ func (rc *ResourceCommand) createUIConfig(ctx context.Context, client *authclien
 }
 
 func (rc *ResourceCommand) createNode(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	server, err := services.UnmarshalServer(raw.Raw, types.KindNode)
+	server, err := services.UnmarshalServer(raw.Raw, types.KindNode, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1193,7 +1193,7 @@ func (rc *ResourceCommand) createNode(ctx context.Context, client *authclient.Cl
 }
 
 func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	conn, err := services.UnmarshalOIDCConnector(raw.Raw)
+	conn, err := services.UnmarshalOIDCConnector(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1222,7 +1222,7 @@ func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client *auth
 
 // updateGithubConnector updates an existing OIDC connector.
 func (rc *ResourceCommand) updateOIDCConnector(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	connector, err := services.UnmarshalOIDCConnector(raw.Raw)
+	connector, err := services.UnmarshalOIDCConnector(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1236,7 +1236,7 @@ func (rc *ResourceCommand) updateOIDCConnector(ctx context.Context, client *auth
 
 func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	// Create services.SAMLConnector from raw YAML to extract the connector name.
-	conn, err := services.UnmarshalSAMLConnector(raw.Raw)
+	conn, err := services.UnmarshalSAMLConnector(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1268,7 +1268,7 @@ func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client *auth
 
 func (rc *ResourceCommand) updateSAMLConnector(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	// Create services.SAMLConnector from raw YAML to extract the connector name.
-	conn, err := services.UnmarshalSAMLConnector(raw.Raw)
+	conn, err := services.UnmarshalSAMLConnector(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1309,7 +1309,7 @@ func (rc *ResourceCommand) createLoginRule(ctx context.Context, client *authclie
 
 func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	// Create services.SAMLIdPServiceProvider from raw YAML to extract the service provider name.
-	sp, err := services.UnmarshalSAMLIdPServiceProvider(raw.Raw)
+	sp, err := services.UnmarshalSAMLIdPServiceProvider(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1385,7 +1385,7 @@ func (rc *ResourceCommand) createDevice(ctx context.Context, client *authclient.
 }
 
 func (rc *ResourceCommand) createOktaImportRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	importRule, err := services.UnmarshalOktaImportRule(raw.Raw)
+	importRule, err := services.UnmarshalOktaImportRule(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1406,7 +1406,7 @@ func (rc *ResourceCommand) createOktaImportRule(ctx context.Context, client *aut
 }
 
 func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	integration, err := services.UnmarshalIntegration(raw.Raw)
+	integration, err := services.UnmarshalIntegration(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1454,7 +1454,7 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authcl
 }
 
 func (rc *ResourceCommand) createDiscoveryConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	discoveryConfig, err := services.UnmarshalDiscoveryConfig(raw.Raw)
+	discoveryConfig, err := services.UnmarshalDiscoveryConfig(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1479,7 +1479,7 @@ func (rc *ResourceCommand) createDiscoveryConfig(ctx context.Context, client *au
 }
 
 func (rc *ResourceCommand) createAccessList(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	accessList, err := services.UnmarshalAccessList(raw.Raw)
+	accessList, err := services.UnmarshalAccessList(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1503,7 +1503,7 @@ func (rc *ResourceCommand) createAccessList(ctx context.Context, client *authcli
 }
 
 func (rc *ResourceCommand) createServerInfo(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	si, err := services.UnmarshalServerInfo(raw.Raw)
+	si, err := services.UnmarshalServerInfo(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1531,7 +1531,7 @@ func (rc *ResourceCommand) createServerInfo(ctx context.Context, client *authcli
 }
 
 func (rc *ResourceCommand) createStaticHostUser(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
-	hostUser, err := services.UnmarshalProtoResource[*userprovisioningpb.StaticHostUser](resource.Raw)
+	hostUser, err := services.UnmarshalProtoResource[*userprovisioningpb.StaticHostUser](resource.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1552,7 +1552,7 @@ func (rc *ResourceCommand) createStaticHostUser(ctx context.Context, client *aut
 }
 
 func (rc *ResourceCommand) updateStaticHostUser(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
-	hostUser, err := services.UnmarshalProtoResource[*userprovisioningpb.StaticHostUser](resource.Raw)
+	hostUser, err := services.UnmarshalProtoResource[*userprovisioningpb.StaticHostUser](resource.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3472,7 +3472,7 @@ $ tctl rm %s`,
 }
 
 func (rc *ResourceCommand) createAuditQuery(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	in, err := services.UnmarshalAuditQuery(raw.Raw)
+	in, err := services.UnmarshalAuditQuery(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3488,7 +3488,7 @@ func (rc *ResourceCommand) createAuditQuery(ctx context.Context, client *authcli
 }
 
 func (rc *ResourceCommand) createSecurityReport(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	in, err := services.UnmarshalSecurityReport(raw.Raw)
+	in, err := services.UnmarshalSecurityReport(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3504,7 +3504,7 @@ func (rc *ResourceCommand) createSecurityReport(ctx context.Context, client *aut
 }
 
 func (rc *ResourceCommand) createAccessMonitoringRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	in, err := services.UnmarshalAccessMonitoringRule(raw.Raw)
+	in, err := services.UnmarshalAccessMonitoringRule(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3526,7 +3526,7 @@ func (rc *ResourceCommand) createAccessMonitoringRule(ctx context.Context, clien
 }
 
 func (rc *ResourceCommand) updateAccessMonitoringRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	in, err := services.UnmarshalAccessMonitoringRule(raw.Raw)
+	in, err := services.UnmarshalAccessMonitoringRule(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3538,7 +3538,7 @@ func (rc *ResourceCommand) updateAccessMonitoringRule(ctx context.Context, clien
 }
 
 func (rc *ResourceCommand) createVnetConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	vnetConfig, err := services.UnmarshalProtoResource[*vnet.VnetConfig](raw.Raw)
+	vnetConfig, err := services.UnmarshalProtoResource[*vnet.VnetConfig](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3557,7 +3557,7 @@ func (rc *ResourceCommand) createVnetConfig(ctx context.Context, client *authcli
 }
 
 func (rc *ResourceCommand) updateVnetConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	vnetConfig, err := services.UnmarshalProtoResource[*vnet.VnetConfig](raw.Raw)
+	vnetConfig, err := services.UnmarshalProtoResource[*vnet.VnetConfig](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3625,7 +3625,7 @@ func (rc *ResourceCommand) updateAccessGraphSettings(ctx context.Context, client
 }
 
 func (rc *ResourceCommand) createAutoUpdateConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	config, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateConfig](raw.Raw)
+	config, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateConfig](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3651,7 +3651,7 @@ func (rc *ResourceCommand) createAutoUpdateConfig(ctx context.Context, client *a
 }
 
 func (rc *ResourceCommand) updateAutoUpdateConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	config, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateConfig](raw.Raw)
+	config, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateConfig](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3671,7 +3671,7 @@ func (rc *ResourceCommand) updateAutoUpdateConfig(ctx context.Context, client *a
 }
 
 func (rc *ResourceCommand) createAutoUpdateVersion(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	version, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateVersion](raw.Raw)
+	version, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateVersion](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3697,7 +3697,7 @@ func (rc *ResourceCommand) createAutoUpdateVersion(ctx context.Context, client *
 }
 
 func (rc *ResourceCommand) updateAutoUpdateVersion(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	version, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateVersion](raw.Raw)
+	version, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateVersion](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3717,7 +3717,7 @@ func (rc *ResourceCommand) updateAutoUpdateVersion(ctx context.Context, client *
 }
 
 func (rc *ResourceCommand) createAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	rollout, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateAgentRollout](raw.Raw)
+	rollout, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateAgentRollout](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3743,7 +3743,7 @@ func (rc *ResourceCommand) createAutoUpdateAgentRollout(ctx context.Context, cli
 }
 
 func (rc *ResourceCommand) updateAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	rollout, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateAgentRollout](raw.Raw)
+	rollout, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateAgentRollout](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}

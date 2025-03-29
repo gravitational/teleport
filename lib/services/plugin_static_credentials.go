@@ -74,14 +74,17 @@ func UnmarshalPluginStaticCredentials(data []byte, opts ...MarshalOption) (types
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	h, err := unmarshalHeaderWithProtoJSON(data)
-	if err != nil {
+	var h types.MessageWithHeader
+	// every field but one is unknown to [types.MessageWithHeader] so this
+	// unmarshal must discard unknown fields
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(data, protoadapt.MessageV2Of(&h)); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
-	switch h.Version {
+
+	switch h.ResourceHeader.Version {
 	case types.V1:
 		var pluginStaticCredentials types.PluginStaticCredentialsV1
-		if err := protojson.Unmarshal(data, protoadapt.MessageV2Of(&pluginStaticCredentials)); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: !cfg.DisallowUnknown}).Unmarshal(data, protoadapt.MessageV2Of(&pluginStaticCredentials)); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
 		if err := pluginStaticCredentials.CheckAndSetDefaults(); err != nil {

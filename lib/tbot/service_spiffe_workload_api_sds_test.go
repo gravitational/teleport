@@ -200,7 +200,7 @@ func TestSDS_FetchSecrets(t *testing.T) {
 			}
 
 			want := &discoveryv3pb.DiscoveryResponse{}
-			require.NoError(t, protojson.Unmarshal(golden.Get(t), want))
+			require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(golden.Get(t), want))
 			require.Empty(t, cmp.Diff(res, want, protocmp.Transform()))
 		})
 	}
