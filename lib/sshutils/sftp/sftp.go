@@ -123,43 +123,43 @@ type FileSystem interface {
 	// Type returns whether the filesystem is "local" or "remote".
 	Type() string
 	// Glob returns matching files of a glob pattern.
-	Glob(ctx context.Context, pattern string) ([]string, error)
+	Glob(pattern string) ([]string, error)
 	// Stat returns info about a file.
-	Stat(ctx context.Context, path string) (os.FileInfo, error)
+	Stat(path string) (os.FileInfo, error)
 	// ReadDir returns information about files contained within a directory.
-	ReadDir(ctx context.Context, path string) ([]os.FileInfo, error)
+	ReadDir(path string) ([]os.FileInfo, error)
 	// Open opens a file for reading.
-	Open(ctx context.Context, path string) (File, error)
+	Open(path string) (File, error)
 	// Create creates a new file for writing.
-	Create(ctx context.Context, path string, size int64) (File, error)
+	Create(path string, size int64) (File, error)
 	// Mkdir creates a directory.
-	Mkdir(ctx context.Context, path string) error
+	Mkdir(path string) error
 	// Chmod sets file permissions.
-	Chmod(ctx context.Context, path string, mode os.FileMode) error
+	Chmod(path string, mode os.FileMode) error
 	// Chtimes sets file access and modification time.
-	Chtimes(ctx context.Context, path string, atime, mtime time.Time) error
+	Chtimes(path string, atime, mtime time.Time) error
 	// OpenFile opens a file with the given flags.
-	OpenFile(ctx context.Context, path string, flags int) (File, error)
+	OpenFile(path string, flags int) (File, error)
 	// Rename renames a file.
-	Rename(ctx context.Context, oldpath, newpath string) error
+	Rename(oldpath, newpath string) error
 	// Lstat returns info about a file or symlink.
-	Lstat(ctx context.Context, name string) (os.FileInfo, error)
+	Lstat(name string) (os.FileInfo, error)
 	// RemoveAll recursively removes a file or directory.
-	RemoveAll(ctx context.Context, path string) error
+	RemoveAll(path string) error
 	// Link creates a new link.
-	Link(ctx context.Context, oldname, newname string) error
+	Link(oldname, newname string) error
 	// Symlink creates a new symlink.
-	Symlink(ctx context.Context, oldname, newname string) error
+	Symlink(oldname, newname string) error
 	// Remove removes a file or (empty) directory.
-	Remove(ctx context.Context, name string) error
+	Remove(name string) error
 	// Chown changes a file's owner and/or group.
-	Chown(ctx context.Context, name string, uid, gid int) error
+	Chown(name string, uid, gid int) error
 	// Truncate truncates a file's contents.
-	Truncate(ctx context.Context, name string, size int64) error
+	Truncate(name string, size int64) error
 	// Readlink gets the destination for a symlink.
-	Readlink(ctx context.Context, name string) (string, error)
+	Readlink(name string) (string, error)
 	// Getwd gets the current working directory.
-	Getwd(ctx context.Context) (string, error)
+	Getwd() (string, error)
 }
 
 // CreateUploadConfig returns a Config ready to upload files over SFTP.
@@ -375,12 +375,12 @@ func (c *Config) initFS(client *sftp.Client) error {
 	var haveRemoteFS bool
 	srcFS, srcOK := c.srcFS.(*RemoteFS)
 	if srcOK {
-		srcFS.c = client
+		srcFS.Client = client
 		haveRemoteFS = true
 	}
 	dstFS, dstOK := c.dstFS.(*RemoteFS)
 	if dstOK {
-		dstFS.c = client
+		dstFS.Client = client
 		haveRemoteFS = true
 	}
 	// this will only happen in tests
@@ -475,7 +475,7 @@ func (c *Config) transfer(ctx context.Context) error {
 		// specified a file path containing glob pattern characters but
 		// means the literal path without globbing, in which case we'll
 		// use the raw source path as the sole match below.
-		matches, err := c.srcFS.Glob(ctx, srcPath)
+		matches, err := c.srcFS.Glob(srcPath)
 		if err != nil {
 			return trace.Wrap(err, "error matching glob pattern %q", srcPath)
 		}
@@ -491,7 +491,7 @@ func (c *Config) transfer(ctx context.Context) error {
 		matchedPaths = append(matchedPaths, matches...)
 
 		for _, match := range matches {
-			fi, err := c.srcFS.Stat(ctx, match)
+			fi, err := c.srcFS.Stat(match)
 			if err != nil {
 				return trace.Wrap(err, "could not access %s path %q", c.srcFS.Type(), match)
 			}
@@ -507,7 +507,7 @@ func (c *Config) transfer(ctx context.Context) error {
 	// validate destination path and create it if necessary
 	var dstIsDir bool
 	c.dstPath = path.Clean(c.dstPath)
-	dstInfo, err := c.dstFS.Stat(ctx, c.dstPath)
+	dstInfo, err := c.dstFS.Stat(c.dstPath)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			return trace.NotFound("error accessing %s path %q: %v", c.dstFS.Type(), c.dstPath, err)
@@ -515,10 +515,10 @@ func (c *Config) transfer(ctx context.Context) error {
 		// if there are multiple source paths and the destination path
 		// doesn't exist, create it as a directory
 		if len(matchedPaths) > 1 {
-			if err := c.dstFS.Mkdir(ctx, c.dstPath); err != nil {
+			if err := c.dstFS.Mkdir(c.dstPath); err != nil {
 				return trace.Errorf("error creating %s directory %q: %w", c.dstFS.Type(), c.dstPath, err)
 			}
-			if err := c.dstFS.Chmod(ctx, c.dstPath, defaults.DirectoryPermissions); err != nil {
+			if err := c.dstFS.Chmod(c.dstPath, defaults.DirectoryPermissions); err != nil {
 				return trace.Errorf("error setting permissions of %s directory %q: %w", c.dstFS.Type(), c.dstPath, err)
 			}
 			dstIsDir = true
@@ -565,15 +565,15 @@ func (c *Config) transfer(ctx context.Context) error {
 func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
 	c.Log.DebugContext(ctx, "transferring contents of directory", "source_fs", c.srcFS.Type(), "source_path", srcPath, "dest_fs", c.dstFS.Type(), "dest_path", dstPath)
 
-	err := c.dstFS.Mkdir(ctx, dstPath)
+	err := c.dstFS.Mkdir(dstPath)
 	if err != nil && !errors.Is(err, os.ErrExist) {
 		return trace.Errorf("error creating %s directory %q: %w", c.dstFS.Type(), dstPath, err)
 	}
-	if err := c.dstFS.Chmod(ctx, dstPath, srcFileInfo.Mode()); err != nil {
+	if err := c.dstFS.Chmod(dstPath, srcFileInfo.Mode()); err != nil {
 		return trace.Errorf("error setting permissions of %s directory %q: %w", c.dstFS.Type(), dstPath, err)
 	}
 
-	infos, err := c.srcFS.ReadDir(ctx, srcPath)
+	infos, err := c.srcFS.ReadDir(srcPath)
 	if err != nil {
 		return trace.Errorf("error reading %s directory %q: %w", c.srcFS.Type(), srcPath, err)
 	}
@@ -596,7 +596,7 @@ func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFi
 	// set modification and access times last so creating sub dirs/files
 	// doesn't update the times
 	if c.opts.PreserveAttrs {
-		err := c.dstFS.Chtimes(ctx, dstPath, getAtime(srcFileInfo), srcFileInfo.ModTime())
+		err := c.dstFS.Chtimes(dstPath, getAtime(srcFileInfo), srcFileInfo.ModTime())
 		if err != nil {
 			return trace.Errorf("error changing times of %s directory %q: %w", c.dstFS.Type(), dstPath, err)
 		}
@@ -609,19 +609,19 @@ func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFi
 func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
 	c.Log.DebugContext(ctx, "transferring file", "source_fs", c.srcFS.Type(), "source_file", srcPath, "dest_fs", c.dstFS.Type(), "dest_file", dstPath)
 
-	srcFile, err := c.srcFS.Open(ctx, srcPath)
+	srcFile, err := c.srcFS.Open(srcPath)
 	if err != nil {
 		return trace.Errorf("error opening %s file %q: %w", c.srcFS.Type(), srcPath, err)
 	}
 	defer srcFile.Close()
 
-	dstFile, err := c.dstFS.Create(ctx, dstPath, srcFileInfo.Size())
+	dstFile, err := c.dstFS.Create(dstPath, srcFileInfo.Size())
 	if err != nil {
 		return trace.Errorf("error creating %s file %q: %w", c.dstFS.Type(), dstPath, err)
 	}
 	defer dstFile.Close()
 
-	if err := c.dstFS.Chmod(ctx, dstPath, srcFileInfo.Mode()); err != nil {
+	if err := c.dstFS.Chmod(dstPath, srcFileInfo.Mode()); err != nil {
 		return trace.Errorf("error setting permissions of %s file %q: %w", c.dstFS.Type(), dstPath, err)
 	}
 
@@ -657,7 +657,7 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 	}
 
 	if c.opts.PreserveAttrs {
-		err := c.dstFS.Chtimes(ctx, dstPath, getAtime(srcFileInfo), srcFileInfo.ModTime())
+		err := c.dstFS.Chtimes(dstPath, getAtime(srcFileInfo), srcFileInfo.ModTime())
 		if err != nil {
 			return trace.Errorf("error changing times of %s file %q: %w", c.dstFS.Type(), dstPath, err)
 		}
@@ -773,25 +773,25 @@ func setstat(req *sftp.Request, fs FileSystem) error {
 		atime := time.Unix(int64(attrs.Atime), 0)
 		mtime := time.Unix(int64(attrs.Mtime), 0)
 
-		err := fs.Chtimes(req.Context(), req.Filepath, atime, mtime)
+		err := fs.Chtimes(req.Filepath, atime, mtime)
 		if err != nil {
 			return err
 		}
 	}
 	if attrFlags.Permissions {
-		err := fs.Chmod(req.Context(), req.Filepath, attrs.FileMode())
+		err := fs.Chmod(req.Filepath, attrs.FileMode())
 		if err != nil {
 			return err
 		}
 	}
 	if attrFlags.UidGid {
-		err := fs.Chown(req.Context(), req.Filepath, int(attrs.UID), int(attrs.GID))
+		err := fs.Chown(req.Filepath, int(attrs.UID), int(attrs.GID))
 		if err != nil {
 			return err
 		}
 	}
 	if attrFlags.Size {
-		err := fs.Truncate(req.Context(), req.Filepath, int64(attrs.Size))
+		err := fs.Truncate(req.Filepath, int64(attrs.Size))
 		if err != nil {
 			return err
 		}
@@ -813,37 +813,37 @@ func HandleFilecmd(req *sftp.Request, filesys FileSystem) error {
 		if req.Target == "" {
 			return os.ErrInvalid
 		}
-		return filesys.Rename(req.Context(), req.Filepath, req.Target)
+		return filesys.Rename(req.Filepath, req.Target)
 	case MethodRmdir:
-		fi, err := filesys.Lstat(req.Context(), req.Filepath)
+		fi, err := filesys.Lstat(req.Filepath)
 		if err != nil {
 			return err
 		}
 		if !fi.IsDir() {
 			return fmt.Errorf("%q is not a directory", req.Filepath)
 		}
-		return filesys.RemoveAll(req.Context(), req.Filepath)
+		return filesys.RemoveAll(req.Filepath)
 	case MethodMkdir:
-		return filesys.Mkdir(req.Context(), req.Filepath)
+		return filesys.Mkdir(req.Filepath)
 	case MethodLink:
 		if req.Target == "" {
 			return os.ErrInvalid
 		}
-		return filesys.Link(req.Context(), req.Target, req.Filepath)
+		return filesys.Link(req.Target, req.Filepath)
 	case MethodSymlink:
 		if req.Target == "" {
 			return os.ErrInvalid
 		}
-		return filesys.Symlink(req.Context(), req.Target, req.Filepath)
+		return filesys.Symlink(req.Target, req.Filepath)
 	case MethodRemove:
-		fi, err := filesys.Lstat(req.Context(), req.Filepath)
+		fi, err := filesys.Lstat(req.Filepath)
 		if err != nil {
 			return err
 		}
 		if fi.IsDir() {
 			return fmt.Errorf("%q is a directory", req.Filepath)
 		}
-		return filesys.Remove(req.Context(), req.Filepath)
+		return filesys.Remove(req.Filepath)
 	default:
 		return sftp.ErrSSHFxOpUnsupported
 	}
@@ -901,19 +901,19 @@ func HandleFilelist(req *sftp.Request, filesys FileSystem) (sftp.ListerAt, error
 	}
 	switch req.Method {
 	case MethodList:
-		entries, err := filesys.ReadDir(req.Context(), req.Filepath)
+		entries, err := filesys.ReadDir(req.Filepath)
 		if err != nil {
 			return nil, err
 		}
 		return listerAt(entries), nil
 	case MethodStat:
-		fi, err := filesys.Stat(req.Context(), req.Filepath)
+		fi, err := filesys.Stat(req.Filepath)
 		if err != nil {
 			return nil, err
 		}
 		return listerAt{fi}, nil
 	case MethodReadlink:
-		dst, err := filesys.Readlink(req.Context(), req.Filepath)
+		dst, err := filesys.Readlink(req.Filepath)
 		if err != nil {
 			return nil, err
 		}

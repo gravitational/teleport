@@ -62,7 +62,7 @@ func NewSFTPProxy(
 		return nil, trace.Wrap(err)
 	}
 	remoteFS := sftputils.NewRemoteFilesystem(client)
-	wd, err := remoteFS.Getwd(scx.CancelContext())
+	wd, err := remoteFS.Getwd()
 	if err != nil {
 		logger.WarnContext(scx.CancelContext(), `Unable to get working directory, defaulting to "/"`)
 	}
@@ -140,7 +140,7 @@ func (h *proxyHandlers) Fileread(req *sftp.Request) (_ io.ReaderAt, err error) {
 	if !req.Pflags().Read {
 		return nil, os.ErrInvalid
 	}
-	f, err := h.remoteFS.Open(req.Context(), req.Filepath)
+	f, err := h.remoteFS.Open(req.Filepath)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +156,7 @@ func (h *proxyHandlers) Filewrite(req *sftp.Request) (_ io.WriterAt, err error) 
 	if !req.Pflags().Write {
 		return nil, os.ErrInvalid
 	}
-	f, err := h.remoteFS.Create(req.Context(), req.Filepath, 0)
+	f, err := h.remoteFS.Create(req.Filepath, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +172,7 @@ func (h *proxyHandlers) OpenFile(req *sftp.Request) (_ sftp.WriterAtReaderAt, re
 		return nil, os.ErrInvalid
 	}
 
-	f, err := h.remoteFS.OpenFile(req.Context(), req.Filepath, sftputils.ParseFlags(req))
+	f, err := h.remoteFS.OpenFile(req.Filepath, sftputils.ParseFlags(req))
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +212,7 @@ func (h *proxyHandlers) Filelist(req *sftp.Request) (_ sftp.ListerAt, err error)
 }
 
 func (h *proxyHandlers) sendSFTPEvent(req *sftp.Request, reqErr error) {
-	wd, err := h.remoteFS.Getwd(req.Context())
+	wd, err := h.remoteFS.Getwd()
 	if err != nil {
 		h.logger.WarnContext(req.Context(), "Unable to get working directory", "error", err)
 		// Emit event without working directory.

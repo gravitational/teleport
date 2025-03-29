@@ -19,7 +19,6 @@
 package sftp
 
 import (
-	"context"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -36,26 +35,15 @@ func (l localFS) Type() string {
 	return "local"
 }
 
-func (l localFS) Glob(ctx context.Context, pattern string) ([]string, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-
+func (l localFS) Glob(pattern string) ([]string, error) {
 	return filepath.Glob(pattern)
 }
 
-func (l localFS) Stat(ctx context.Context, path string) (os.FileInfo, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
+func (l localFS) Stat(path string) (os.FileInfo, error) {
 	return os.Stat(path)
 }
 
-func (l localFS) ReadDir(ctx context.Context, path string) ([]os.FileInfo, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-
+func (l localFS) ReadDir(path string) ([]os.FileInfo, error) {
 	entries, err := os.ReadDir(path)
 	if err != nil {
 		return nil, err
@@ -80,10 +68,7 @@ func (l localFS) ReadDir(ctx context.Context, path string) ([]os.FileInfo, error
 	return fileInfos, nil
 }
 
-func (l localFS) Open(ctx context.Context, path string) (File, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
+func (l localFS) Open(path string) (File, error) {
 
 	f, err := os.Open(path)
 	if err != nil {
@@ -93,22 +78,15 @@ func (l localFS) Open(ctx context.Context, path string) (File, error) {
 	return &fileWrapper{File: f}, nil
 }
 
-func (l localFS) Create(ctx context.Context, path string, _ int64) (File, error) {
-	return l.OpenFile(ctx, path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
+func (l localFS) Create(path string, _ int64) (File, error) {
+	return l.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
 }
 
-func (l localFS) OpenFile(ctx context.Context, path string, flags int) (File, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
+func (l localFS) OpenFile(path string, flags int) (File, error) {
 	return os.OpenFile(path, flags, defaults.FilePermissions)
 }
 
-func (l localFS) Mkdir(ctx context.Context, path string) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-
+func (l localFS) Mkdir(path string) error {
 	err := os.MkdirAll(path, defaults.DirectoryPermissions)
 	if err != nil && !os.IsExist(err) {
 		return err
@@ -117,86 +95,50 @@ func (l localFS) Mkdir(ctx context.Context, path string) error {
 	return nil
 }
 
-func (l localFS) Chmod(ctx context.Context, path string, mode os.FileMode) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
+func (l localFS) Chmod(path string, mode os.FileMode) error {
 	return os.Chmod(path, mode)
 }
 
-func (l localFS) Chtimes(ctx context.Context, path string, atime, mtime time.Time) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
+func (l localFS) Chtimes(path string, atime, mtime time.Time) error {
 	return os.Chtimes(path, atime, mtime)
 }
 
-func (l localFS) Rename(ctx context.Context, oldpath, newpath string) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
+func (l localFS) Rename(oldpath, newpath string) error {
 	return os.Rename(oldpath, newpath)
 }
 
-func (l localFS) Lstat(ctx context.Context, name string) (os.FileInfo, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
+func (l localFS) Lstat(name string) (os.FileInfo, error) {
 	return os.Lstat(name)
 }
 
-func (l localFS) RemoveAll(ctx context.Context, path string) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
+func (l localFS) RemoveAll(path string) error {
 	return os.RemoveAll(path)
 }
 
-func (l localFS) Link(ctx context.Context, oldname, newname string) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
+func (l localFS) Link(oldname, newname string) error {
 	return os.Link(oldname, newname)
 }
 
-func (l localFS) Symlink(ctx context.Context, oldname, newname string) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
+func (l localFS) Symlink(oldname, newname string) error {
 	return os.Symlink(oldname, newname)
 }
 
-func (l localFS) Remove(ctx context.Context, name string) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
+func (l localFS) Remove(name string) error {
 	return os.Remove(name)
 }
 
-func (l localFS) Chown(ctx context.Context, name string, uid, gid int) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
+func (l localFS) Chown(name string, uid, gid int) error {
 	return os.Chown(name, uid, gid)
 }
 
-func (l localFS) Truncate(ctx context.Context, name string, size int64) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
+func (l localFS) Truncate(name string, size int64) error {
 	return os.Truncate(name, size)
 }
 
-func (l localFS) Readlink(ctx context.Context, name string) (string, error) {
-	if err := ctx.Err(); err != nil {
-		return "", err
-	}
+func (l localFS) Readlink(name string) (string, error) {
 	return os.Readlink(name)
 }
 
-func (l localFS) Getwd(ctx context.Context) (string, error) {
-	if err := ctx.Err(); err != nil {
-		return "", err
-	}
+func (l localFS) Getwd() (string, error) {
 	return os.Getwd()
 }

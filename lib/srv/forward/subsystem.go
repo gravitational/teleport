@@ -69,13 +69,13 @@ func parseRemoteSubsystem(ctx context.Context, subsystemName string, serverConte
 	}
 	if subsystemName == teleport.SFTPSubsystem {
 		return &remoteSFTPSubsystem{
-			remoteSubsystem: r,
+			subsystem: r,
 		}
 	}
 	return r
 }
 
-// Name is the name of the subsystem.
+// Name returns the name of the subsystem.
 func (r *remoteSubsystem) Name() string {
 	return r.subsystemName
 }
@@ -134,7 +134,7 @@ func (r *remoteSubsystem) Start(ctx context.Context, channel ssh.Channel) error 
 func (r *remoteSubsystem) Wait() error {
 	var lastErr error
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		select {
 		case err := <-r.errorCh:
 			if err != nil && !errors.Is(err, io.EOF) {
@@ -179,20 +179,25 @@ func (r *remoteSubsystem) emitAuditEvent(ctx context.Context, err error) {
 }
 
 type remoteSFTPSubsystem struct {
-	*remoteSubsystem
-	proxy *SFTPProxy
+	subsystem *remoteSubsystem
+	proxy     *SFTPProxy
 }
 
-// Start will begin execution of the remote subsystem on the passed in channel.
+// Name returns the name of the subsystem.
+func (r *remoteSFTPSubsystem) Name() string {
+	return r.subsystem.Name()
+}
+
+// Start will begin execution of the remote SFTP subsystem on the passed in channel.
 func (r *remoteSFTPSubsystem) Start(ctx context.Context, channel ssh.Channel) error {
-	proxy, err := NewSFTPProxy(r.serverContext, channel, r.logger)
+	proxy, err := NewSFTPProxy(r.subsystem.serverContext, channel, r.subsystem.logger)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	r.proxy = proxy
 
 	go func() {
-		defer r.serverContext.RemoteSession.Close()
+		defer r.subsystem.serverContext.RemoteSession.Close()
 		errCh := make(chan error)
 		go func() {
 			errCh <- proxy.Serve()
@@ -210,25 +215,25 @@ func (r *remoteSFTPSubsystem) Start(ctx context.Context, channel ssh.Channel) er
 				err = trace.Errorf("SFTP server timed out while closing")
 			}
 		}
-		r.errorCh <- err
+		r.subsystem.errorCh <- err
 	}()
 
 	return nil
 }
 
-// Wait waits until the remote subsystem has finished execution.
+// Wait waits until the remote SFTP subsystem has finished execution.
 func (r *remoteSFTPSubsystem) Wait() error {
 	var err error
 	select {
-	case err = <-r.errorCh:
+	case err = <-r.subsystem.errorCh:
 		if err != nil && !errors.Is(err, io.EOF) {
-			r.logger.WarnContext(r.ctx, "Connection problem", "error", err)
+			r.subsystem.logger.WarnContext(r.subsystem.ctx, "Connection problem", "error", err)
 		}
-	case <-r.ctx.Done():
+	case <-r.subsystem.ctx.Done():
 		err = trace.ConnectionProblem(nil, "context is closing")
 	}
 
 	// emit an event to the audit log with the result of execution
-	r.emitAuditEvent(r.ctx, err)
+	r.subsystem.emitAuditEvent(r.subsystem.ctx, err)
 	return trace.Wrap(err)
 }

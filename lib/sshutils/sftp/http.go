@@ -19,7 +19,6 @@
 package sftp
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"io/fs"
@@ -59,34 +58,22 @@ func (h *httpFS) Type() string {
 	return "local"
 }
 
-func (h *httpFS) Glob(ctx context.Context, _ string) ([]string, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-
+func (h *httpFS) Glob(_ string) ([]string, error) {
 	return []string{h.fileName}, nil
 }
 
-func (h *httpFS) Stat(ctx context.Context, _ string) (fs.FileInfo, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-
+func (h *httpFS) Stat(_ string) (fs.FileInfo, error) {
 	return httpFileInfo{
 		name: path.Base(h.fileName),
 		size: h.fileSize,
 	}, nil
 }
 
-func (h *httpFS) ReadDir(_ context.Context, _ string) ([]fs.FileInfo, error) {
+func (h *httpFS) ReadDir(_ string) ([]fs.FileInfo, error) {
 	return nil, errDirsNotSupported
 }
 
-func (h *httpFS) Open(ctx context.Context, path string) (File, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-
+func (h *httpFS) Open(path string) (File, error) {
 	if h.reader == nil {
 		return nil, trace.BadParameter("missing reader")
 	}
@@ -100,11 +87,7 @@ func (h *httpFS) Open(ctx context.Context, path string) (File, error) {
 	}, nil
 }
 
-func (h *httpFS) Create(ctx context.Context, p string, size int64) (File, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-
+func (h *httpFS) Create(p string, size int64) (File, error) {
 	filename := path.Base(p)
 	contentLength := strconv.FormatInt(size, 10)
 	header := h.writer.Header()
@@ -125,68 +108,68 @@ func (h *httpFS) Create(ctx context.Context, p string, size int64) (File, error)
 	}, nil
 }
 
-func (h *httpFS) OpenFile(ctx context.Context, p string, flags int) (File, error) {
+func (h *httpFS) OpenFile(p string, flags int) (File, error) {
 	switch flags & 3 {
 	case os.O_RDWR:
 		return nil, trace.BadParameter("read-write files not supported for http")
 	case os.O_RDONLY:
-		return h.Open(ctx, p)
+		return h.Open(p)
 	case os.O_WRONLY:
-		return h.Create(ctx, p, 0)
+		return h.Create(p, 0)
 	default:
 		return nil, trace.BadParameter("invalid flags")
 	}
 }
 
-func (h *httpFS) Mkdir(_ context.Context, _ string) error {
+func (h *httpFS) Mkdir(_ string) error {
 	return errDirsNotSupported
 }
 
-func (h *httpFS) Chmod(_ context.Context, _ string, _ os.FileMode) error {
+func (h *httpFS) Chmod(_ string, _ os.FileMode) error {
 	return nil
 }
 
-func (h *httpFS) Chtimes(_ context.Context, _ string, _, _ time.Time) error {
+func (h *httpFS) Chtimes(_ string, _, _ time.Time) error {
 	return nil
 }
 
-func (h *httpFS) Rename(_ context.Context, _, _ string) error {
+func (h *httpFS) Rename(_, _ string) error {
 	return nil
 }
 
-func (h *httpFS) Lstat(ctx context.Context, name string) (os.FileInfo, error) {
-	return h.Stat(ctx, name)
+func (h *httpFS) Lstat(name string) (os.FileInfo, error) {
+	return h.Stat(name)
 }
 
-func (h *httpFS) RemoveAll(_ context.Context, _ string) error {
+func (h *httpFS) RemoveAll(_ string) error {
 	return errDirsNotSupported
 }
 
-func (h *httpFS) Link(_ context.Context, _, _ string) error {
+func (h *httpFS) Link(_, _ string) error {
 	return nil
 }
 
-func (h *httpFS) Symlink(_ context.Context, _, _ string) error {
+func (h *httpFS) Symlink(_, _ string) error {
 	return nil
 }
 
-func (h *httpFS) Remove(_ context.Context, _ string) error {
+func (h *httpFS) Remove(_ string) error {
 	return nil
 }
 
-func (h *httpFS) Chown(_ context.Context, _ string, _, _ int) error {
+func (h *httpFS) Chown(_ string, _, _ int) error {
 	return nil
 }
 
-func (h *httpFS) Truncate(_ context.Context, _ string, _ int64) error {
+func (h *httpFS) Truncate(_ string, _ int64) error {
 	return nil
 }
 
-func (h *httpFS) Readlink(_ context.Context, _ string) (string, error) {
+func (h *httpFS) Readlink(_ string) (string, error) {
 	return "", nil
 }
 
-func (h *httpFS) Getwd(_ context.Context) (string, error) {
+func (h *httpFS) Getwd() (string, error) {
 	return "", nil
 }
 
