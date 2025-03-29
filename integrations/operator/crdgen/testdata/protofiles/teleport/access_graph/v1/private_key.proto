@@ -1,0 +1,67 @@
+// Copyright 2024 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.access_graph.v1;
+
+import "teleport/header/v1/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1;accessgraphv1";
+
+// The `PrivateKey` message represents a private key entry for a specific local user.
+// It serves as a reference to a private key located on a user's laptop. Note that it *NEVER* contains the private key itself.
+// Instead, it stores metadata related to the key, including the fingerprint of the public key, the device trust identifier, and the public key mode.
+// The Teleport Access Graph uses this metadata to assess whether a particular private key is authorized to access a user on the node without using Teleport.
+message PrivateKey {
+  // metadata is the PrivateKey's metadata.
+  teleport.header.v1.Metadata metadata = 1;
+  // kind is a resource kind.
+  string kind = 2;
+  // sub_kind is an optional resource sub kind, used in some resources.
+  string sub_kind = 3;
+  // version is version.
+  string version = 4;
+  // Spec is a PrivateKey specification.
+  PrivateKeySpec spec = 5;
+}
+
+// PrivateKeySpec is the private key spec.
+message PrivateKeySpec {
+  // device_id is the device trust identifier of the device that owns the key.
+  string device_id = 1;
+  // public_key_fingerprint is the SHA256 of the SSH public key corresponding to
+  // the private key.
+  string public_key_fingerprint = 2;
+  // public_key_mode is the public key mode.
+  PublicKeyMode public_key_mode = 3;
+}
+
+// PublicKeyMode is the mode of the public key.
+// The public key can be derived from the private key, stored in a separate file, or the private key was password protected
+// and we could not extract the public key from it or from the file.
+enum PublicKeyMode {
+  // PUBLIC_KEY_MODE_UNSPECIFIED is an invalid state.
+  PUBLIC_KEY_MODE_UNSPECIFIED = 0;
+  // PUBLIC_KEY_MODE_DERIVED is the state where the public key is derived from the private key.
+  PUBLIC_KEY_MODE_DERIVED = 1;
+  // PUBLIC_KEY_MODE_PUB_FILE is a state where the public key is stored in a separate file from the private key.
+  // The private key is password protected and we could not extract the public key from it.
+  // This mode is used when the private key is password protected and there is a <key>.pub file next to the private key
+  // that contains the public key.
+  PUBLIC_KEY_MODE_PUB_FILE = 2;
+  // PUBLIC_KEY_MODE_PROTECTED is a state where the private key is password protected and we could not extract the public key from it
+  // or from the .pub file.
+  PUBLIC_KEY_MODE_PROTECTED = 3;
+}
