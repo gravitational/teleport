@@ -81,7 +81,7 @@ func getMFACredentialsFromContext(ctx context.Context) (*proto.MFAAuthenticateRe
 	}
 
 	var mfaChallengeResponse proto.MFAAuthenticateResponse
-	if err := jsonpb.Unmarshal(bytes.NewReader(mfaChallengeResponseJSON), &mfaChallengeResponse); err != nil {
+	if err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(mfaChallengeResponseJSON), &mfaChallengeResponse); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

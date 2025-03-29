@@ -90,7 +90,7 @@ func (s *Struct) UnmarshalJSON(data []byte) error {
 	if len(data) == 0 {
 		return nil
 	}
-	err := jsonpb.Unmarshal(bytes.NewReader(data), &s.Struct)
+	err := (&jsonpb.Unmarshaler{}).Unmarshal(bytes.NewReader(data), &s.Struct)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -104,7 +104,7 @@ func EncodeMap(msg map[string]interface{}) (*Struct, error) {
 		return nil, trace.Wrap(err)
 	}
 	pbs := types.Struct{}
-	if err = jsonpb.Unmarshal(bytes.NewReader(data), &pbs); err != nil {
+	if err = (&jsonpb.Unmarshaler{}).Unmarshal(bytes.NewReader(data), &pbs); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &Struct{Struct: pbs}, nil
@@ -117,7 +117,7 @@ func EncodeMapStrings(msg map[string][]string) (*Struct, error) {
 		return nil, trace.Wrap(err)
 	}
 	pbs := types.Struct{}
-	if err = jsonpb.Unmarshal(bytes.NewReader(data), &pbs); err != nil {
+	if err = (&jsonpb.Unmarshaler{}).Unmarshal(bytes.NewReader(data), &pbs); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &Struct{Struct: pbs}, nil

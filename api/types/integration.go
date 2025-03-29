@@ -403,7 +403,7 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 	integration.ResourceHeader = d.ResourceHeader
 	if len(d.Spec.Credentials) != 0 {
 		var credentials PluginCredentialsV1
-		if err := protojson.Unmarshal(d.Spec.Credentials, protoadapt.MessageV2Of(&credentials)); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(d.Spec.Credentials, protoadapt.MessageV2Of(&credentials)); err != nil {
 			return trace.Wrap(err)
 		}
 		integration.Spec.Credentials = &credentials
