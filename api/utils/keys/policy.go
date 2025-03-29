@@ -66,17 +66,17 @@ func (requiredPolicy PrivateKeyPolicy) IsSatisfiedBy(keyPolicy PrivateKeyPolicy)
 	case PrivateKeyPolicyHardwareKey:
 		return keyPolicy.IsHardwareKeyPolicy()
 	case PrivateKeyPolicyHardwareKeyTouch:
-		return keyPolicy.isHardwareKeyTouchVerified()
+		return keyPolicy.IsHardwareKeyTouchVerified()
 	case PrivateKeyPolicyHardwareKeyPIN:
-		return keyPolicy.isHardwareKeyPINVerified()
+		return keyPolicy.IsHardwareKeyPINVerified()
 	case PrivateKeyPolicyHardwareKeyTouchAndPIN:
-		return keyPolicy.isHardwareKeyTouchVerified() && keyPolicy.isHardwareKeyPINVerified()
+		return keyPolicy.IsHardwareKeyTouchVerified() && keyPolicy.IsHardwareKeyPINVerified()
 	}
 
 	return false
 }
 
-func (p PrivateKeyPolicy) isHardwareKeyTouchVerified() bool {
+func (p PrivateKeyPolicy) IsHardwareKeyTouchVerified() bool {
 	switch p {
 	case PrivateKeyPolicyHardwareKeyTouch, PrivateKeyPolicyHardwareKeyTouchAndPIN:
 		return true
@@ -84,7 +84,7 @@ func (p PrivateKeyPolicy) isHardwareKeyTouchVerified() bool {
 	return false
 }
 
-func (p PrivateKeyPolicy) isHardwareKeyPINVerified() bool {
+func (p PrivateKeyPolicy) IsHardwareKeyPINVerified() bool {
 	switch p {
 	case PrivateKeyPolicyHardwareKeyPIN, PrivateKeyPolicyHardwareKeyTouchAndPIN:
 		return true
@@ -111,7 +111,7 @@ func (p PrivateKeyPolicy) IsHardwareKeyPolicy() bool {
 // of the connection, during the TLS/SSH handshake. For long term connections, MFA should
 // be re-verified through other methods (e.g. webauthn).
 func (p PrivateKeyPolicy) MFAVerified() bool {
-	return p.isHardwareKeyTouchVerified() || p.isHardwareKeyPINVerified()
+	return p.IsHardwareKeyTouchVerified() || p.IsHardwareKeyPINVerified()
 }
 
 func (p PrivateKeyPolicy) validate() error {
@@ -188,4 +188,14 @@ func IsPrivateKeyPolicyError(err error) bool {
 		return false
 	}
 	return privateKeyPolicyErrRegex.MatchString(err.Error())
+}
+
+// AttestationData is attested information about the hardware private key matching the public key.
+type AttestationData struct {
+	// PublicKeyDER is the public key in PKIX, ASN.1 DER form.
+	PublicKeyDER []byte `json:"public_key"`
+	// PrivateKeyPolicy specifies the private key policy supported by the associated private key.
+	PrivateKeyPolicy PrivateKeyPolicy `json:"private_key_policy"`
+	// SerialNumber is the serial number of the Attested hardware key.
+	SerialNumber uint32 `json:"serial_number"`
 }

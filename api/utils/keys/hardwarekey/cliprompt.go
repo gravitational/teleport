@@ -1,5 +1,3 @@
-//go:build piv && !pivtest
-
 // Copyright 2024 Gravitational, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,22 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package keys
+package hardwarekey
 
 import (
 	"context"
 	"fmt"
 	"os"
 
-	"github.com/go-piv/piv-go/piv"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils/prompt"
 )
 
-type cliPrompt struct{}
+var (
+	// defaultPIN for the PIV applet. The PIN is used to change the Management Key,
+	// and slots can optionally require it to perform signing operations.
+	defaultPIN = "123456"
+	// defaultPUK for the PIV applet. The PUK is only used to reset the PIN when
+	// the card's PIN retries have been exhausted.
+	defaultPUK = "12345678"
+)
 
-func (c *cliPrompt) AskPIN(ctx context.Context, requirement PINPromptRequirement) (string, error) {
+type CLIPrompt struct{}
+
+func (c *CLIPrompt) AskPIN(ctx context.Context, requirement PINPromptRequirement) (string, error) {
 	message := "Enter your YubiKey PIV PIN"
 	if requirement == PINOptional {
 		message = "Enter your YubiKey PIV PIN [blank to use default PIN]"
@@ -38,12 +44,12 @@ func (c *cliPrompt) AskPIN(ctx context.Context, requirement PINPromptRequirement
 	return password, trace.Wrap(err)
 }
 
-func (c *cliPrompt) Touch(_ context.Context) error {
+func (c *CLIPrompt) Touch(_ context.Context) error {
 	_, err := fmt.Fprintln(os.Stderr, "Tap your YubiKey")
 	return trace.Wrap(err)
 }
 
-func (c *cliPrompt) ChangePIN(ctx context.Context) (*PINAndPUK, error) {
+func (c *CLIPrompt) ChangePIN(ctx context.Context) (*PINAndPUK, error) {
 	var pinAndPUK = &PINAndPUK{}
 	for {
 		fmt.Fprintf(os.Stderr, "Please set a new 6-8 character PIN.\n")
@@ -61,8 +67,8 @@ func (c *cliPrompt) ChangePIN(ctx context.Context) (*PINAndPUK, error) {
 			continue
 		}
 
-		if newPIN == piv.DefaultPIN {
-			fmt.Fprintf(os.Stderr, "The default PIN %q is not supported.\n", piv.DefaultPIN)
+		if newPIN == defaultPIN {
+			fmt.Fprintf(os.Stderr, "The default PIN %q is not supported.\n", defaultPIN)
 			continue
 		}
 
@@ -82,8 +88,8 @@ func (c *cliPrompt) ChangePIN(ctx context.Context) (*PINAndPUK, error) {
 	pinAndPUK.PUK = puk
 
 	switch puk {
-	case piv.DefaultPUK:
-		fmt.Fprintf(os.Stderr, "The default PUK %q is not supported.\n", piv.DefaultPUK)
+	case defaultPUK:
+		fmt.Fprintf(os.Stderr, "The default PUK %q is not supported.\n", defaultPUK)
 		fallthrough
 	case "":
 		for {
@@ -102,8 +108,8 @@ func (c *cliPrompt) ChangePIN(ctx context.Context) (*PINAndPUK, error) {
 				continue
 			}
 
-			if newPUK == piv.DefaultPUK {
-				fmt.Fprintf(os.Stderr, "The default PUK %q is not supported.\n", piv.DefaultPUK)
+			if newPUK == defaultPUK {
+				fmt.Fprintf(os.Stderr, "The default PUK %q is not supported.\n", defaultPUK)
 				continue
 			}
 
@@ -120,11 +126,7 @@ func (c *cliPrompt) ChangePIN(ctx context.Context) (*PINAndPUK, error) {
 	return pinAndPUK, nil
 }
 
-func (c *cliPrompt) ConfirmSlotOverwrite(ctx context.Context, message string) (bool, error) {
+func (c *CLIPrompt) ConfirmSlotOverwrite(ctx context.Context, message string) (bool, error) {
 	confirmation, err := prompt.Confirmation(ctx, os.Stderr, prompt.Stdin(), message)
 	return confirmation, trace.Wrap(err)
-}
-
-func isPINLengthValid(pin string) bool {
-	return len(pin) >= 6 && len(pin) <= 8
 }
