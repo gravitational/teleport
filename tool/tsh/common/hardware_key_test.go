@@ -23,7 +23,6 @@ package common
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -384,7 +383,7 @@ func TestHardwareKeyApp(t *testing.T) {
 	var info appConfigInfo
 	require.NoError(t, json.Unmarshal(confOut.Bytes(), &info))
 
-	clientCert, err := tls.LoadX509KeyPair(info.Cert, info.Key)
+	clientCert, err := keys.LoadX509KeyPair(info.Cert, info.Key)
 	require.NoError(t, err)
 
 	resp, err := testDummyAppConn(fmt.Sprintf("https://%v", proxyAddr.Addr), clientCert)
@@ -461,7 +460,7 @@ func TestHardwareKeyApp(t *testing.T) {
 
 	require.NoError(t, json.Unmarshal(confOut.Bytes(), &info))
 
-	clientCert, err = tls.LoadX509KeyPair(info.Cert, info.Key)
+	clientCert, err = keys.LoadX509KeyPair(info.Cert, info.Key)
 	require.NoError(t, err)
 
 	resp, err = testDummyAppConn(fmt.Sprintf("https://%v", proxyAddr.Addr), clientCert)
