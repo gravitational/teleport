@@ -31,16 +31,16 @@ Users often prefer to use third-party SSH clients to connect to Teleport hosts.
 These clients may be built into tools like VSCode or PuTTY or WinSCP.
 Teleport currently offers partial support for third-party SSH clients with the
 `tsh config` command which outputs an OpenSSH configuration file.
-However, third-party SSH clients do not support advanced features per-session
-MFA or hardware keys.
+However, third-party SSH clients do not support advanced features including
+per-session MFA or user hardware keys.
 
 [Per-session MFA](https://goteleport.com/docs/admin-guides/access-controls/guides/per-session-mfa/)
 requires the client to request and use a new SSH certificate for
 each session, and the OpenSSH client does not know to request and use this
 session certificate.
 Even though the generated OpenSSH config uses a ProxyCommand that calls `tsh` to
-dial the target SSH host, the `tsh` doesn't handle per-session MFA here because
-the third-party SSH client is still ultimately responsible for authenticating to the
+dial the target SSH host, `tsh` can't handle per-session MFA here because the
+third-party SSH client is still ultimately responsible for authenticating to the
 host with the local SSH certificate from disk.
 
 Third-party SSH clients are unable to use
@@ -52,7 +52,7 @@ VNet SSH will simplify access for third-party SSH clients by avoiding the need
 for custom OpenSSH configuration.
 The third-party clients will not need to use any SSH certificate, they will
 connect directly to the local VNet process without any user authentication
-provided by the SSH client.
+required from the SSH client.
 The VNet process will "terminate" the incoming SSH connection from the
 third-party client, and dial an outbound SSH connection to the target SSH host,
 then proxy the connection between the two.
@@ -203,17 +203,23 @@ Including the `ssh` subdomain has two benefits:
 #### Trusted host key
 
 For VNet to terminate the incoming SSH connection from the SSH client it needs
-to use an SSH host key, and that host key needs to be trusted by the client.
+to use an SSH host certificate, and that host cert needs to be trusted by the client.
 
-When VNet is started it will generate an Ed25519 keypair to use as the host key.
-The key will be used only for the lifetime of the current VNet process, every
-time VNet starts a brand new key will be used.
+When VNet is started it will generate an Ed25519 keypair to use as a certificate
+authority (CA).
+The CA key will be used only for the lifetime of the current VNet process, every
+time VNet starts a brand new CA key will be used.
 This is to avoid the need to persist the private key anywhere.
 The private key will remain in memory and never be written to disk, so that it
 cannot be found and used by another process.
 
-In order for third-party SSH clients to trust this host key, VNet will add an
-entry to ~/.ssh/known-hosts with its own public key.
+For each new connection to a unique hostname, the CA will be used to sign a new
+host certificate matching the hostname.
+The host certificate and key will be used to terminate the incoming SSH
+connection.
+
+In order for third-party SSH clients to trust this CA, VNet will add an
+entry to ~/.ssh/known-hosts with its own CA public key.
 The entry will be valid for all DNS zones that VNet is serving, this includes
 `*.ssh.<proxy public addr>` and `*.ssh.<custom dns zone>` for all clusters the
 user is currently logged-in to, see [DNS names](#dns-names).
@@ -221,7 +227,7 @@ For a user logged in to `teleport.example.com` and `teleport2.example.com` with
 custom DNS zone `example.internal`, the entry would look like:
 
 ```
-*.ssh.teleport.example.com,*.ssh.teleport2.example.com,*.ssh.example.internal ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHK1sKZTW6njOZXK7mhpS7h6Hre/uKmE/UfLD1mQGTiR # Teleport VNet
+@cert-authority *.ssh.teleport.example.com,*.ssh.teleport2.example.com,*.ssh.example.internal ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHK1sKZTW6njOZXK7mhpS7h6Hre/uKmE/UfLD1mQGTiR type=host # Teleport VNet
 ```
 
 Because the user may log in or out of clusters and new DNS zones may be added,
