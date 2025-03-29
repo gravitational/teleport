@@ -49,26 +49,26 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 			},
 		},
 		{
-			description: "automatic_approval name required",
+			description: "automatic_approval desired_state required",
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
-				amr.Spec.AutomaticApproval.Name = ""
+				amr.Spec.AutomaticApproval.DesiredState = ""
 			},
 			assertErr: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "automatic_approval plugin name is missing")
+				require.ErrorContains(t, err, "automatic_approval desired state is missing")
 			},
 		},
 		{
-			description: "notification or automatic_approval required",
+			description: "notification or automatic approval rules required",
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
 				amr.Spec.Notification = nil
 				amr.Spec.AutomaticApproval = nil
 			},
 			assertErr: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "notification or automatic_approval must be configured")
+				require.ErrorContains(t, err, "notification or automatic approval rule must be configured")
 			},
 		},
 		{
-			description: "allow automatic_approvals to be nil",
+			description: "allow automatic approval to be nil",
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
 				amr.Spec.AutomaticApproval = nil
 			},
@@ -78,6 +78,14 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 			description: "allow notifications to be nil",
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
 				amr.Spec.Notification = nil
+			},
+			assertErr: require.NoError,
+		},
+		{
+			description: "allow notification and automatic_approval name to be omitted",
+			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
+				amr.Spec.Notification = nil
+				amr.Spec.AutomaticApproval.Name = ""
 			},
 			assertErr: require.NoError,
 		},
@@ -94,7 +102,8 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 				Name: "fakePlugin",
 			},
 			AutomaticApproval: &accessmonitoringrulesv1.AutomaticApproval{
-				Name: "fakePlugin",
+				Name:         "fakePlugin",
+				DesiredState: types.AccessRequestStateApproved,
 			},
 		},
 	}

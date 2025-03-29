@@ -99,11 +99,18 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"automatic_approval": {
-					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"name": {
-						Description: "name is the name of the plugin to which this configuration should apply. Set this value to `teleport` to manage automatic approvals natively within Teleport.",
-						Optional:    true,
-						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-					}}),
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"desired_state": {
+							Description: "desired_state is the desired state of the access request. Set the `approved` state to automatically approve the access request.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"name": {
+							Description: "name is the name of the plugin to which this configuration should apply. Omit this value if the rule should be monitored internally by Teleport.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
 					Description: "automatic_approval defines the plugin configuration for automatic approvals. Both notification and automatic_approval may be set within the same access_monitoring_rule. If both fields are set, the rule handler will manage notifications and automatic approvals for the same set of access events. Separate plugins may be used if both notifications and automatic_approvals is set.",
 					Optional:    true,
 				},
@@ -504,6 +511,23 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 													t = string(v.Value)
 												}
 												obj.Name = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["desired_state"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.automatic_approval.desired_state"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.automatic_approval.desired_state", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.DesiredState = t
 											}
 										}
 									}
@@ -1078,6 +1102,28 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 											v.Value = string(obj.Name)
 											v.Unknown = false
 											tf.Attrs["name"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["desired_state"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.automatic_approval.desired_state"})
+										} else {
+											v, ok := tf.Attrs["desired_state"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.automatic_approval.desired_state", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.automatic_approval.desired_state", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.DesiredState) == ""
+											}
+											v.Value = string(obj.DesiredState)
+											v.Unknown = false
+											tf.Attrs["desired_state"] = v
 										}
 									}
 								}

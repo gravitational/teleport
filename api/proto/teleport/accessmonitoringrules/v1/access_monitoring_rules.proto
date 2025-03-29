@@ -70,8 +70,11 @@ message Notification {
 // AutomaticApproval contains configurations for plugin automatic approval rules.
 message AutomaticApproval {
   // name is the name of the plugin to which this configuration should apply.
-  // Set this value to `teleport` to manage automatic approvals natively within Teleport.
+  // Omit this value if the rule should be monitored internally by Teleport.
   string name = 1;
+  // desired_state is the desired state of the access request.
+  // Set the `approved` state to automatically approve the access request.
+  string desired_state = 2;
 }
 
 // CreateAccessMonitoringRuleRequest is the request for CreateAccessMonitoringRule.

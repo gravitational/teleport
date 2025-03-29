@@ -41,7 +41,8 @@ Optional:
 
 Optional:
 
-- `name` (String) name is the name of the plugin to which this configuration should apply. Set this value to `teleport` to manage automatic approvals natively within Teleport.
+- `desired_state` (String) desired_state is the desired state of the access request. Set the `approved` state to automatically approve the access request.
+- `name` (String) name is the name of the plugin to which this configuration should apply. Omit this value if the rule should be monitored internally by Teleport.
 
 
 ### Nested Schema for `spec.notification`
