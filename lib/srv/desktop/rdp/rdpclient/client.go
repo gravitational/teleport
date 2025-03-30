@@ -74,11 +74,14 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"log/slog"
+	"net"
 	"os"
 	"runtime/cgo"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 	"unsafe"
 
@@ -345,6 +348,27 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 		nextHostID = nextHostID[uint32Len:]
 	}
 
+	c.cfg.Logger.InfoContext(ctx, "dialing RDP host from Go!")
+	rdpConn, err := net.Dial("tcp", c.cfg.Addr)
+	if err != nil {
+		return trace.Wrap(err, "dialing from Go")
+	}
+	defer rdpConn.Close()
+
+	fds, err := syscall.Socketpair(syscall.AF_LOCAL, syscall.SOCK_STREAM, 0)
+	if err != nil {
+		return trace.Wrap(err, "socketpair")
+	}
+
+	conn, err := net.FileConn(os.NewFile(uintptr(fds[0]), "c0"))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer conn.Close()
+
+	go io.Copy(rdpConn, conn)
+	go io.Copy(conn, rdpConn)
+
 	res := C.client_run(
 		C.uintptr_t(c.handle),
 		C.CGOConnectParams{
@@ -366,6 +390,8 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
 			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
 			client_id:               cHostID,
+
+			fd: C.int32_t(fds[1]),
 		},
 	)
 

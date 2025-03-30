@@ -66,6 +66,7 @@ use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 use std::net::ToSocketAddrs;
+use std::os::fd::FromRawFd;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 use tokio::io::{split, ReadHalf, WriteHalf};
@@ -134,14 +135,12 @@ impl Client {
             .next()
             .ok_or(ClientError::UnknownAddress)?;
 
-        let stream = match tokio::time::timeout(
-            RDP_CONNECT_TIMEOUT,
-            TokioTcpStream::connect(&server_socket_addr),
-        )
-        .await
-        {
-            Ok(stream) => stream?,
-            Err(_) => return Err(ClientError::Tcp(IoError::from(IoErrorKind::TimedOut))),
+        println!("!!!!!! using existing connection");
+        let stream = unsafe {
+            let std_stream = std::net::TcpStream::from_raw_fd(params.fd);
+            std_stream.set_nonblocking(true);
+            let stream = TokioTcpStream::from_std(std_stream)?;
+            stream
         };
 
         // Create a framed stream for use by connect_begin
@@ -1482,6 +1481,8 @@ pub struct ConnectParams {
     pub ad: bool,
     pub nla: bool,
     pub client_id: [u32; 4],
+
+    pub fd: i32,
 }
 
 #[derive(Debug)]
