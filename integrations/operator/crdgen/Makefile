@@ -1,7 +1,8 @@
 PROTOS = \
 	teleport/loginrule/v1/loginrule.proto \
 	teleport/accesslist/v1/accesslist.proto \
-	teleport/legacy/types/types.proto
+	teleport/legacy/types/types.proto \
+	teleport/samlidp/v1/samlidp.proto
 
 libfiles := $(wildcard *.go)
 
@@ -70,4 +71,3 @@ debug-dump-request:
 			--dump_out="." \
 			"$${proto}"; \
 	done
-
