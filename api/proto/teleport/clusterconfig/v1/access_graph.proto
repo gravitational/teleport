@@ -32,6 +32,9 @@ message AccessGraphConfig {
   bool insecure = 4;
   // secrets_scan_config is used to configure the parameters for the secrets scanning functionality.
   AccessGraphSecretsScanConfiguration secrets_scan_config = 5;
+  // audit_logs_enabled is a flag that indicates whether the access graph
+  // service should process audit logs.
+  bool audit_logs_enabled = 6;
 }
 
 // AccessGraphSecretsScanConfiguration controls the secrets scanning service parameters.

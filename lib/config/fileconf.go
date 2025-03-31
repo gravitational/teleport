@@ -832,6 +832,8 @@ type AccessGraph struct {
 	CA string `yaml:"ca"`
 	// Insecure is true if the AccessGraph service should not verify the CA.
 	Insecure bool `yaml:"insecure"`
+	// AuditLogsEnabled is true if the access graph service should process audit logs.
+	AuditLogsEnabled bool `yaml:"audit_logs_enabled"`
 }
 
 // Opsgenie represents the configuration for the Opsgenie plugin.

@@ -40,6 +40,7 @@ const (
 	AccessGraphService_GetFile_FullMethodName            = "/accessgraph.v1alpha.AccessGraphService/GetFile"
 	AccessGraphService_EventsStream_FullMethodName       = "/accessgraph.v1alpha.AccessGraphService/EventsStream"
 	AccessGraphService_EventsStreamV2_FullMethodName     = "/accessgraph.v1alpha.AccessGraphService/EventsStreamV2"
+	AccessGraphService_AuditLogStream_FullMethodName     = "/accessgraph.v1alpha.AccessGraphService/AuditLogStream"
 	AccessGraphService_Register_FullMethodName           = "/accessgraph.v1alpha.AccessGraphService/Register"
 	AccessGraphService_ReplaceCAs_FullMethodName         = "/accessgraph.v1alpha.AccessGraphService/ReplaceCAs"
 	AccessGraphService_AWSEventsStream_FullMethodName    = "/accessgraph.v1alpha.AccessGraphService/AWSEventsStream"
@@ -71,6 +72,28 @@ type AccessGraphServiceClient interface {
 	// This stream works the same way as EventsStream, but it returns a stream of events
 	// instead of a single response.
 	EventsStreamV2(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[EventsStreamV2Request, EventsStreamV2Response], error)
+	// AuditLogStream establishes a bidirectional stream for exporting audit log
+	// events from a client (teleport) to a server (access-graph).
+	//
+	// This stream handles:
+	//   - Sending batches of audit log events (sourced by 'search' or 'bulk').
+	//   - Transmitting resume state information alongside events to ensure reliable
+	//     exporting, allowing clients to resume after disconnections without losing
+	//     data or sending duplicates.
+	//   - Server providing the initial resume state to the client upon connection.
+	//   - Client-initiated synchronization of bulk resume state to purge expired
+	//     dates.
+	//
+	// Flow:
+	//  1. Client initiates the stream.
+	//  2. Server sends an initial `AuditLogResponse` containing the appropriate
+	//     `resume_state` (Search or Bulk) for the client to start or resume from,
+	//     plus a `start_date`.
+	//  3. Client sends `AuditLogRequest` messages:
+	//     - Containing `AuditLogEvents` (batches of events and current resume
+	//     state/update).
+	//     - OR containing `BulkStateSync` (requests to prune old bulk state).
+	AuditLogStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AuditLogStreamRequest, AuditLogStreamResponse], error)
 	// Register submits a new tenant representing this Teleport cluster to the TAG service,
 	// identified by its HostCA certificate.
 	// The method is idempotent: it succeeds if the tenant has already registered and has the specific CA associated.
@@ -154,6 +177,19 @@ func (c *accessGraphServiceClient) EventsStreamV2(ctx context.Context, opts ...g
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AccessGraphService_EventsStreamV2Client = grpc.BidiStreamingClient[EventsStreamV2Request, EventsStreamV2Response]
 
+func (c *accessGraphServiceClient) AuditLogStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AuditLogStreamRequest, AuditLogStreamResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[2], AccessGraphService_AuditLogStream_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[AuditLogStreamRequest, AuditLogStreamResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_AuditLogStreamClient = grpc.BidiStreamingClient[AuditLogStreamRequest, AuditLogStreamResponse]
+
 func (c *accessGraphServiceClient) Register(ctx context.Context, in *RegisterRequest, opts ...grpc.CallOption) (*RegisterResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RegisterResponse)
@@ -176,7 +212,7 @@ func (c *accessGraphServiceClient) ReplaceCAs(ctx context.Context, in *ReplaceCA
 
 func (c *accessGraphServiceClient) AWSEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[AWSEventsStreamRequest, AWSEventsStreamResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[2], AccessGraphService_AWSEventsStream_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[3], AccessGraphService_AWSEventsStream_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +225,7 @@ type AccessGraphService_AWSEventsStreamClient = grpc.ClientStreamingClient[AWSEv
 
 func (c *accessGraphServiceClient) GitlabEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[GitlabEventsStreamRequest, GitlabEventsStreamResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[3], AccessGraphService_GitlabEventsStream_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[4], AccessGraphService_GitlabEventsStream_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -202,7 +238,7 @@ type AccessGraphService_GitlabEventsStreamClient = grpc.BidiStreamingClient[Gitl
 
 func (c *accessGraphServiceClient) EntraEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[EntraEventsStreamRequest, EntraEventsStreamResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[4], AccessGraphService_EntraEventsStream_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[5], AccessGraphService_EntraEventsStream_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -215,7 +251,7 @@ type AccessGraphService_EntraEventsStreamClient = grpc.BidiStreamingClient[Entra
 
 func (c *accessGraphServiceClient) AzureEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AzureEventsStreamRequest, AzureEventsStreamResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[5], AccessGraphService_AzureEventsStream_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[6], AccessGraphService_AzureEventsStream_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +264,7 @@ type AccessGraphService_AzureEventsStreamClient = grpc.BidiStreamingClient[Azure
 
 func (c *accessGraphServiceClient) NetIQEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[NetIQEventsStreamRequest, NetIQEventsStreamResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[6], AccessGraphService_NetIQEventsStream_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[7], AccessGraphService_NetIQEventsStream_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -261,6 +297,28 @@ type AccessGraphServiceServer interface {
 	// This stream works the same way as EventsStream, but it returns a stream of events
 	// instead of a single response.
 	EventsStreamV2(grpc.BidiStreamingServer[EventsStreamV2Request, EventsStreamV2Response]) error
+	// AuditLogStream establishes a bidirectional stream for exporting audit log
+	// events from a client (teleport) to a server (access-graph).
+	//
+	// This stream handles:
+	//   - Sending batches of audit log events (sourced by 'search' or 'bulk').
+	//   - Transmitting resume state information alongside events to ensure reliable
+	//     exporting, allowing clients to resume after disconnections without losing
+	//     data or sending duplicates.
+	//   - Server providing the initial resume state to the client upon connection.
+	//   - Client-initiated synchronization of bulk resume state to purge expired
+	//     dates.
+	//
+	// Flow:
+	//  1. Client initiates the stream.
+	//  2. Server sends an initial `AuditLogResponse` containing the appropriate
+	//     `resume_state` (Search or Bulk) for the client to start or resume from,
+	//     plus a `start_date`.
+	//  3. Client sends `AuditLogRequest` messages:
+	//     - Containing `AuditLogEvents` (batches of events and current resume
+	//     state/update).
+	//     - OR containing `BulkStateSync` (requests to prune old bulk state).
+	AuditLogStream(grpc.BidiStreamingServer[AuditLogStreamRequest, AuditLogStreamResponse]) error
 	// Register submits a new tenant representing this Teleport cluster to the TAG service,
 	// identified by its HostCA certificate.
 	// The method is idempotent: it succeeds if the tenant has already registered and has the specific CA associated.
@@ -309,6 +367,9 @@ func (UnimplementedAccessGraphServiceServer) EventsStream(grpc.ClientStreamingSe
 }
 func (UnimplementedAccessGraphServiceServer) EventsStreamV2(grpc.BidiStreamingServer[EventsStreamV2Request, EventsStreamV2Response]) error {
 	return status.Errorf(codes.Unimplemented, "method EventsStreamV2 not implemented")
+}
+func (UnimplementedAccessGraphServiceServer) AuditLogStream(grpc.BidiStreamingServer[AuditLogStreamRequest, AuditLogStreamResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method AuditLogStream not implemented")
 }
 func (UnimplementedAccessGraphServiceServer) Register(context.Context, *RegisterRequest) (*RegisterResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Register not implemented")
@@ -401,6 +462,13 @@ func _AccessGraphService_EventsStreamV2_Handler(srv interface{}, stream grpc.Ser
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AccessGraphService_EventsStreamV2Server = grpc.BidiStreamingServer[EventsStreamV2Request, EventsStreamV2Response]
+
+func _AccessGraphService_AuditLogStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AccessGraphServiceServer).AuditLogStream(&grpc.GenericServerStream[AuditLogStreamRequest, AuditLogStreamResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_AuditLogStreamServer = grpc.BidiStreamingServer[AuditLogStreamRequest, AuditLogStreamResponse]
 
 func _AccessGraphService_Register_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RegisterRequest)
@@ -506,6 +574,12 @@ var AccessGraphService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "EventsStreamV2",
 			Handler:       _AccessGraphService_EventsStreamV2_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "AuditLogStream",
+			Handler:       _AccessGraphService_AuditLogStream_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},
