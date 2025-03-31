@@ -15,20 +15,28 @@ performing backups.
 
 ## Data to back up
 
-You must back up the following Auth Service data. The cluster state backend is a
-key-value store for dynamic resources, audit events, and other state data. The
-session recording backend is an Amazon S3-compatible object store:
+You must back up data that the Auth Service manages across its three backends:
+
+- Cluster state backend
+- Audit event backend
+- Session recording backend
+
+See [Storage Backends](../../../reference/backends.mdx) for more information on
+Teleport backends.
+
+The following table summarizes the kinds of backend data the Auth Service
+maintains:
 
 | What | Where |
 | - | - |
 | Local Users (not SSO) | Cluster state backend |
 | Certificate Authorities | Cluster state backend |
-| Dynamic resources ([more information below](#dynamic-resources)) | Cluster state backend |
+| Dynamic resources ([more information below](#versioning-dynamic-resources-with-infrastructure-as-code)) | Cluster state backend |
 | teleport.yaml | File system |
 | teleport.service | File system |
 | license.pem | File system |
 | TLS key/certificate | File system or third-party service (e.g., AWS Certificate Manager)|
-| Audit log | Cluster state backend |
+| Audit log | Audit event backend |
 | Session recordings | Session recording backend |
 
 ## Backing up Teleport backends
@@ -38,7 +46,12 @@ backends depends on the solution you use for each backend. The following table
 includes instructions for backing up each backend solution. For backends not
 listed here, consult the documentation for your backend:
 
-### Cluster state backends
+### Cluster state and audit event backends
+
+For the most part, you can use the same solution for both cluster state and
+audit events, setting aside a separate table for each kind of backend. The
+exception is etcd, which can only function as a cluster state backend. (See a
+full explanation in [Storage Backends](../../../reference/backends.mdx#etcd).)
 
 | Backend | Recommended backup strategy |
 | - | - |
@@ -88,9 +101,9 @@ dynamic resources:
 ## Cloning a backend
 
 You can clone a Teleport Auth Service backend by instructing Teleport to
-retrieve all dynamic resources from one backend and apply them against another
-backend. You can use this operation to, for example, migrate dynamic resources
-to a new backend or back up dynamic resources from one region to another. 
+retrieve all items from one backend and store them in another backend. You can
+use this operation to, for example, migrate data to a new backend or back up
+data from one region to another. 
 
 This operation uses the `teleport backend clone` command with a configuration
 file that includes information about the source and destination backends. The
@@ -105,13 +118,13 @@ Kubernetes pod that usually runs the Teleport Auth Service, you can expect the
    ```yaml
      # src is the configuration for the backend where data is cloned from.
      src: 
-       type: sqlite
-       path: /var/lib/teleport_data
-     # dst is the configuration for the backend where data is cloned to.
-     dst:
        type: dynamodb
        region: us-east-1
        table: teleport_backend
+     # dst is the configuration for the backend where data is cloned to.
+     dst:
+       type: sqlite
+       path: /var/lib/teleport_data
      # parallel is the amount of backend data cloned in parallel.
      # If a clone operation is taking too long consider increasing this value.
      parallel: 100
@@ -121,6 +134,8 @@ Kubernetes pod that usually runs the Teleport Auth Service, you can expect the
      force: false
    ```
 
+   This example clones backend data in Amazon DynamoDB to a SQLite database.
+
 1. Update the `src` and `dst` sections of the clone configuration file to
    include information about the source and destination backends. Possible
    values of `src` and `dst` are the same as the `teleport.storage` section in
@@ -128,18 +143,7 @@ Kubernetes pod that usually runs the Teleport Auth Service, you can expect the
    Backends](../../../reference/backends.mdx) reference for the configuration
    fields to assign for each backend.
 
-1. Scale your Auth Service pool down to a single instance in order to avoid
-   inconsistent data.
-
-1. Stop the Teleport Auth Service. For example, on a Linux host running a
-   Teleport binary installed through a package manager, run the following
-   command:
-
-   ```code
-   $ sudo systemctl stop teleport
-   ```
-
-1. Run the following command on your Auth Service instance to execute the clone
+1. Run the following command on an Auth Service instance to execute the clone
    operation. The value of the `-c` flag is the configuration file you created
    earlier:
    
@@ -147,9 +151,7 @@ Kubernetes pod that usually runs the Teleport Auth Service, you can expect the
    $ sudo teleport backend clone -c clone.yaml
    ```
 
-After the clone operation is complete, you can either:
-
-- Start the Teleport Auth Service again with the existing backend (e.g., if you
-  are using `teleport backend clone` to back up dynamic resources).
-- Update the Teleport Auth Service configuration file to point to the new
-  backend (the `teleport.storage` section) and start the Teleport Auth Service.
+You can run the `teleport backend clone` command on an Auth Service instance
+without stopping your cluster. The command retrieves each item from the source
+backend and writes it to the destination backend. Any items created on the
+source backend after the initial retrieval will not be included in the clone.
