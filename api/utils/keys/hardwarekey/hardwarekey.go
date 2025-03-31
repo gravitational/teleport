@@ -44,16 +44,17 @@ type Service interface {
 type Signer struct {
 	service Service
 	Ref     *PrivateKeyRef
-	keyInfo ContextualKeyInfo
+	KeyInfo ContextualKeyInfo
 }
 
 // NewSigner returns a [Signer] for the given service and ref.
-// keyInfo is an optional argument to supply additional contextual info.
+// keyInfo is an optional argument to supply additional contextual info
+// used to add additional context to prompts, e.g. ProxyHost.
 func NewSigner(s Service, ref *PrivateKeyRef, keyInfo ContextualKeyInfo) *Signer {
 	return &Signer{
 		service: s,
 		Ref:     ref,
-		keyInfo: keyInfo,
+		KeyInfo: keyInfo,
 	}
 }
 
@@ -64,7 +65,7 @@ func (h *Signer) Public() crypto.PublicKey {
 
 // Sign implements [crypto.Signer].
 func (h *Signer) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
-	return h.service.Sign(context.TODO(), h.Ref, h.keyInfo, rand, digest, opts)
+	return h.service.Sign(context.TODO(), h.Ref, h.KeyInfo, rand, digest, opts)
 }
 
 // GetAttestation returns the hardware private key attestation details.
@@ -91,7 +92,7 @@ func (h *Signer) WarmupHardwareKey(ctx context.Context) error {
 	// We don't actually need to hash the digest, just make it match the hash size.
 	digest := make([]byte, hash.Size())
 
-	_, err := h.service.Sign(ctx, h.Ref, h.keyInfo, rand.Reader, digest, hash)
+	_, err := h.service.Sign(ctx, h.Ref, h.KeyInfo, rand.Reader, digest, hash)
 	return trace.Wrap(err, "failed to perform warmup signature with hardware private key")
 }
 
@@ -238,8 +239,6 @@ type PrivateKeyConfig struct {
 }
 
 // ContextualKeyInfo contains contextual information associated with a hardware [PrivateKey].
-// TODO(Joerger): This is not hardware key specific, so it may be better placed in a more general package
-// if it is used more broadly, though moving this to the keys package would cause an import cycle.
 type ContextualKeyInfo struct {
 	// ProxyHost is the root proxy hostname that the key is associated with.
 	ProxyHost string
