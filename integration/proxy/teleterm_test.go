@@ -248,7 +248,7 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 		// db cert has expired.
 		Clock:         fakeClock,
 		WebauthnLogin: webauthnLogin,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
+		HardwareKeyPromptConstructor: func() hardwarekey.Prompt {
 			return nil
 		},
 	})
@@ -882,7 +882,7 @@ func testTeletermAppGatewayTargetPortValidation(t *testing.T, pack *appaccess.Pa
 		storage, err := clusters.NewStorage(clusters.Config{
 			Dir:                tc.KeysDir,
 			InsecureSkipVerify: tc.InsecureSkipVerify,
-			HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
+			HardwareKeyPromptConstructor: func() hardwarekey.Prompt {
 				return nil
 			},
 		})

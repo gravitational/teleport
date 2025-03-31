@@ -258,7 +258,7 @@ func testAddingRootCluster(t *testing.T, pack *dbhelpers.DatabasePack, creds *he
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                t.TempDir(),
 		InsecureSkipVerify: true,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
+		HardwareKeyPromptConstructor: func() hardwarekey.Prompt {
 			return nil
 		},
 	})
@@ -293,7 +293,7 @@ func testListRootClustersReturnsLoggedInUser(t *testing.T, pack *dbhelpers.Datab
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
+		HardwareKeyPromptConstructor: func() hardwarekey.Prompt {
 			return nil
 		},
 	})
@@ -378,7 +378,7 @@ func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
+		HardwareKeyPromptConstructor: func() hardwarekey.Prompt {
 			return nil
 		},
 	})
@@ -433,7 +433,7 @@ func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *help
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
+		HardwareKeyPromptConstructor: func() hardwarekey.Prompt {
 			return nil
 		},
 	})
@@ -504,7 +504,7 @@ func testClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.
 		Dir:                tc.KeysDir,
 		Clock:              storageFakeClock,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
+		HardwareKeyPromptConstructor: func() hardwarekey.Prompt {
 			return nil
 		},
 	})
@@ -766,7 +766,7 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 			storage, err := clusters.NewStorage(clusters.Config{
 				Dir:                t.TempDir(),
 				InsecureSkipVerify: true,
-				HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
+				HardwareKeyPromptConstructor: func() hardwarekey.Prompt {
 					return nil
 				},
 			})
@@ -885,7 +885,7 @@ func testCreateConnectMyComputerToken(t *testing.T, pack *dbhelpers.DatabasePack
 		InsecureSkipVerify: tc.InsecureSkipVerify,
 		Clock:              fakeClock,
 		WebauthnLogin:      webauthnLogin,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
+		HardwareKeyPromptConstructor: func() hardwarekey.Prompt {
 			return nil
 		},
 	})
@@ -948,7 +948,7 @@ func testWaitForConnectMyComputerNodeJoin(t *testing.T, pack *dbhelpers.Database
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
+		HardwareKeyPromptConstructor: func() hardwarekey.Prompt {
 			return nil
 		},
 	})
@@ -1035,7 +1035,7 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
+		HardwareKeyPromptConstructor: func() hardwarekey.Prompt {
 			return nil
 		},
 	})
@@ -1265,7 +1265,7 @@ func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
 			storage, err := clusters.NewStorage(clusters.Config{
 				Dir:                tc.KeysDir,
 				InsecureSkipVerify: tc.InsecureSkipVerify,
-				HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
+				HardwareKeyPromptConstructor: func() hardwarekey.Prompt {
 					return nil
 				},
 			})
