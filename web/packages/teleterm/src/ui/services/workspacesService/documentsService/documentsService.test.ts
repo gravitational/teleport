@@ -231,7 +231,11 @@ describe('openExistingOrAddNew', () => {
     const service = createService([docCluster, docPty]);
 
     const addNew = jest.fn();
-    service.openExistingOrAddNew(d => d.kind === 'doc.terminal_shell', addNew);
+    const actualDocUri = service.openExistingOrAddNew(
+      d => d.kind === 'doc.terminal_shell',
+      addNew
+    );
+    expect(actualDocUri).toEqual(docPty.uri);
     expect(service.getLocation()).toEqual(docPty.uri);
     expect(addNew).not.toHaveBeenCalled();
   });
@@ -240,7 +244,7 @@ describe('openExistingOrAddNew', () => {
     const docCluster = makeDocumentCluster();
     const service = createService([docCluster]);
 
-    service.openExistingOrAddNew(
+    const actualDocUri = service.openExistingOrAddNew(
       d => d.kind === 'doc.terminal_tsh_node',
       () =>
         service.createTshNodeDocument(makeServer().uri, {
@@ -248,6 +252,7 @@ describe('openExistingOrAddNew', () => {
         })
     );
     const activeDoc = service.getActive();
+    expect(actualDocUri).toEqual(activeDoc.uri);
     expect(activeDoc.kind).toEqual('doc.terminal_tsh_node');
   });
 });
