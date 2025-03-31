@@ -3,32 +3,32 @@ authors: Bernard Kim (bernard@goteleport.com)
 state: draft
 ---
 
-# RFD 0201 - Native Auto Approval
+# RFD 0201 - Native Automatic Review
 
 ## Required Approvers
 * Engineering: @r0mant && @fheinecke
 * Product: @klizhentas && @roraback
 
 ## What
-This document describes how Teleport will support native automatic approvals for
+This document describes how Teleport will support native automatic reviews for
 access requests.
 
 ## Why
-Currently, Teleport supports automatic approvals of access requests, but support
-is limited. Automatic approvals requires a separate plugin, and only a subset of
-the plugins support automatic approvals. Requesting users do not wish to
+Currently, Teleport supports automatic reviews of access requests, but support
+is limited. Automatic reviews requires a separate plugin, and only a subset of
+the plugins support automatic reviews. Requesting users do not wish to
 integrate with a separate service just to utilize this feature. Teleport does
 also enable users to build their own access request plugins, but users do not
 want the responsibility of building and maintaining a separate piece of
 software. They believe this should be a supported use case built-in to Teleport.
 In order to support a wider range of use cases, Teleport should support
-automatic approvals natively.
+automatic reviews natively.
 
-The initial use case for automatic approvals was to support on-call engineers.
-Automatic approvals can be configured to allow on-call engineers to troubleshoot
-production issues when access request approvers are not available.
+The initial use case for automatic reviews was to support on-call engineers.
+Automatic reviews can be configured to allow on-call engineers to troubleshoot
+production issues when access request reviewers are not available.
 
-Automatic approvals also enables teams to enforce zero standing privileges,
+Automatic reviews also enables teams to enforce zero standing privileges,
 while allowing users to get access to their pre approved resources for a limited
 period of time. Access lists could be used to achieve similar behavior, but some
 users prefer the just-in-time access request flow.
@@ -40,41 +40,41 @@ enforce the same gated access, but it would reduce a lot of friction if access
 requests can be automatically approved in the dev environment.
 
 ## Goals
-1. Native support for automatic approvals. Integration with external service is
+1. Native support for automatic reviews. Integration with external service is
 not required.
-2. Automatic approvals can be configured to allow users with certain traits to
+2. Automatic reviews can be configured to allow users with certain traits to
 be automatically approved. For example, all `L1` engineers on team `Cloud` in
 location `Seattle` are pre-approved for the access request.
-3. Automatic approvals can be configured to approve access to select resources.
+3. Automatic reviews can be configured to approve access to select resources.
 For example, the requesting user is pre-approved to access all resources in the
 `dev` environment.
-4. Automatic approvals can be configured using Access Monitoring Rules.
-5. Automatic approvals can be configured using the Teleport Web UI.
-6. Automatic approval rules are easily reviewable through the Teleport Web UI.
+4. Automatic reviews can be configured using Access Monitoring Rules.
+5. Automatic reviews can be configured using the Teleport Web UI.
+6. Automatic review rules are easily reviewable through the Teleport Web UI.
 7. User experience is the focus. The feature should be easy to use and configure.
 8. Implementation should be compatible with future plugin interface refactoring.
-9. Support configuration of automatic approvals using the Terraform provider.
-10. Support automatic approval of access requests created by a Machine ID bot
+9. Support configuration of automatic reviews using the Terraform provider.
+10. Support automatic reviews of access requests created by a Machine ID bot
 user.
 
 Note: Access monitoring rules do not currently support access requests by
 resources, in any capacity. It will require more than just extending the access
 monitoring rule predicate language to support this use case. Goal [3] will be
 left out of scope for this RFD. It probably deserves its own separate RFD. As a
-workaround to support this use case, auto approval rules can be configured to
+workaround to support this use case, automatic review rules can be configured to
 approve a role that only has the permission to access resources in a specific
 environment. Resources can be mapped to an environment using a label, and
 roles can be allowed access to specific resources with a label selector.
 
 Note: Development is in progress to refactor the access plugins and implement a
 unified set of interfaces. This will help achieve feature parity across access
-plugins. Auto approval support for other plugins is out of scope for this RFD,
-but it is something to consider while we decide how to implement native auto
-approvals. This is why [8] is included in the goals list. See
+plugins. Automatic review support for other plugins is out of scope for this RFD,
+but it is something to consider while we decide how to implement native automatic
+reviews. This is why [8] is included in the goals list. See
 https://github.com/gravitational/teleport/issues/47150 for more details.
 
 Note: Regarding goal [10], if access requests are compatible with bot users,
-then automatic approvals will be compatible with bot users. However, access
+then automatic reviews will be compatible with bot users. However, access
 requests are not quite compatible with bot users right now. The Teleport access
 request validation logic uses only the user's "statically assigned" roles to
 check if the user is permitted to create an access request.
@@ -100,37 +100,35 @@ traits, and based on the resource's labels.
 
 ## Web UI Access Monitoring Rules
 The Teleport Web UI now provides a more user friendly approach to configuring
-auto approvals. Users are now able to navigate to the **Access Requests**
-page and configure auto approvals, similarly to how notification routing is
+automatic reviews. Users are now able to navigate to the **Access Requests**
+page and configure automatic reviews, similarly to how notification routing is
 configured.
 
-A new `Create Automatic Approval Rule` form can now be used to configure rules
-for automatic approvals.
-- `Match Condition` configures the `access_monitoring_rule.spec.condition` field.
-  - `Role Name` input accepts a set of roles. These roles configure which
+A new `Create New Automatic Review Rule` form can now be used to configure rules
+for automatic reviews.
+- `Access Request Condition` configures the `access_monitoring_rule.spec.selector.condition` field.
+  - `Requested Roles` input accepts a set of roles. These roles configure which
     requested roles will be automatically approved.
-  - `Requester Traits` input accepts a map of traits. These are used to match a
+  - `User Traits` input accepts a map of traits. These are used to match a
     requesting user's Teleport traits.
-- `Automatic Approvals` configures the `access_monitoring_rule.spec.automatic_approval`
-  field.
-  - `Plugin Name` selects which plugin/service is responsible for handling the
-    automatic approvals for matching access requests.
 - `Notifications` optionally configures `access_monitoring_rules.spec.notification`
-  field.
+  field. The initial implementation will not include the notifications section,
+  but we'd like to support configuration of both automatic reviews and notifications
+  within the same rule.
 
-![create-amr](assets/0201-create-auto-approval.png)
+![create-amr](assets/0201-create-amr.png)
 
 Note: We have considered using one single form for configuring both
-notification rules and automatic approval rules, but the match conditions for
-notification rules cannot be applied to automatic approval rules. Teleport must
-enforce a stricter match condition for automatic approval rules compared to
+notification rules and automatic review rules, but the match conditions for
+notification rules cannot be applied to automatic review rules. Teleport must
+enforce a stricter match condition for automatic review rules compared to
 notification rules.
 
 The submitted form will be converted into an access monitoring rule that would
 look like the following yaml. More details about the access monitoring rule
 changes will be provided in following sections.
 
-The `Role Name` input is converted into a `contains_all` expression. In this
+The `Requested Roles` input is converted into a `contains_all` expression. In this
 example, we have the roles "cloud-dev" and "cloud-stage". The set of requested
 roles that can match this condition are either `set("cloud-dev")`, `set("cloud-stage")`,
 or `set("cloud-dev", "cloud-stage")`.
@@ -152,48 +150,57 @@ metadata:
 spec:
   subjects:
     - access_request
-  condition: >
-    contains_all(set("cloud-dev", "cloud-stage"), access_request.spec.roles) &&
-    contains_any(user.traits["level"], set("L1", "L2")) &&
-    contains_any(user.traits["team"], set("Cloud")) &&
-    contains_any(user.traits["location"], set("Seattle"))
-  automatic_approval:
-    desired_state: approved
+  selector:
+    condition: >
+      contains_all(set("cloud-dev", "cloud-stage"), access_request.spec.roles) &&
+      contains_any(user.traits["level"], set("L1", "L2")) &&
+      contains_any(user.traits["team"], set("Cloud")) &&
+      contains_any(user.traits["location"], set("Seattle"))
+  desired_state: reviewed
   notification:
     name: slack
     recipients: ["#dev-cloud"]
+  automatic_review:
+    integration: builtin
+    decision: approved
 ```
 
 The `Access Monitoring Rules` overview page will be modified to display both
-notification rules, as well as automatic approval rules. This page will allow
-user to see a quick overview of the automatic approvals currently enabled. The
-overview simply displays the access monitoring rule name, plugin/integration
-name, and the roles that are automatically approved. Users will need to click
-on the **View** button to see the actual conditions for auto approval.
+notification rules, as well as automatic review rules. This page will allow
+user to see a quick overview of the automatic reviews currently enabled. The
+overview simply displays the access monitoring rule name, the type of rule,
+and the plugin/integration name. Users will need to click on the **View** button
+to see the actual conditions for automatic reviews.
 
 ![view-amr](assets/0201-view-amr.png)
 
 ## Details
 This feature will be supported by a new internal Teleport service. This
-automatic approval service will function similarly to existing access plugins.
+automatic review service will function similarly to existing access plugins.
 It will be running as part of the Teleport Auth Service by default.
 
-The automatic approval service relies on a similar workflow that supports access
+The automatic review service relies on a similar workflow that supports access
 request notification routing with access monitoring rules. The service watches
 for Access Monitoring Rule (AMR) events and Access Request (AR) events. If an
 incoming AR matches an existing AMR condition, then the service will attempt to
-automatically approve the request.
+automatically review the request.
 
 ### Access Monitoring Rule
-The AMR now supports a configurable `automatic_approval` spec.
-- `automatic_approval.name` specifies an external plugin/integration that is
-responsible for monitoring the automatic approval rule. This value may be
-omitted to indicate that the automatic approval rule should be monitored by Teleport.
-- `automatic_approval.desired_state` specifies the desired state of the access
-request. For now, the only acceptable value will be `approved` to indicate that
-the access request should be automatically approved.
+There are a number of changes required for the `access_monitoring_rule` resource.
+- `spec.condition` is moved to the `spec.selector.condition` field. This is to
+help remove abiguity between the resource selection conditions and the desired
+state of the resource.
+- `spec.desired_state` field is added to specify the desired state of the
+resource. The only accepted value for now will be `reviewed` indicating that the
+access request should be automatically reviewed.
+- `spec.automatic_review.integration` field specifies the integration
+responsible for monitoring the rule. The initial implementation only supports
+the `builtin` value. This indicates that Teleport is responsible for monitoring
+the rule.
+- `spec.automatic_review.decision` field specifies the propsed state of the
+access request review. This can be either `approved` or `denied`.
 
-The AMR conditions now also support a `user.traits` variable.  This variable
+The AMR conditions now also support a `user.traits` variable. This variable
 maps a trait name to a set of values. This allows users to specify arbitrary
 user traits, such as, "level", "team", "location", etc...  These traits can then
 be used to identity whether a user is on-call, or if the user is pre-approved
@@ -202,7 +209,7 @@ for the access request.
 The AMR conditions now also support the `contains_all(list, items)` operator.
 This operator returns true if `list` contains an exact match for all elements of
 `items`. This operator allows users to configure a more restrictive condition
-for automatic approvals.
+for automatic reviews.
 
 ```yaml
 # This AMR would allow users with traits "level"="L1" and "team"="Cloud" and
@@ -214,54 +221,57 @@ metadata:
 spec:
   subjects:
     - access_request
-  condition: >
-    contains_all(set("cloud-dev"), access_request.spec.roles) &&
-    contains_any(user.traits["level"], set("L1")) &&
-    contains_any(user.traits["team"], set("Cloud")) &&
-    contains_any(user.traits["location"], set("Seattle"))
-  automatic_approval:
-    desired_state: approved
+  selector:
+    condition: >
+      contains_all(set("cloud-dev"), access_request.spec.roles) &&
+      contains_any(user.traits["level"], set("L1")) &&
+      contains_any(user.traits["team"], set("Cloud")) &&
+      contains_any(user.traits["location"], set("Seattle"))
+  desired_state: reviewed
+  automatic_review:
+    integration: builtin
+    decision: approved
 ```
 
-### Internal automatic approval service
-The automatic approval service implements the same functionality as the other
-access request plugins. When a new AR is observed, the automatic approval
+### Internal automatic review service
+The automatic review service implements the same functionality as the other
+access request plugins. When a new AR is observed, the automatic review
 service will check if the AR matches any AMR conditions and then attempt to
-automatically approve the AR. Before checking if the AR matches any AMRs, the
-automatic approval service makes a request to Teleport, requesting additional
+automatically review the AR. Before checking if the AR matches any AMRs, the
+automatic review service makes a request to Teleport, requesting additional
 information about the AR user. This info should contain the user traits.
 
-The auto approval flow will look like this:
+The automatic review flow will look like this:
 ```mermaid
 sequenceDiagram
     participant requester
     participant teleport
-    participant automatic_approval_service
+    participant automatic_review_service
 
     requester->>teleport: tsh request create --roles='cloud-dev'
-    automatic_approval_service->>teleport: watch(AMR, AR)
-    automatic_approval_service->>teleport: requestUser(requester)
-    teleport->>automatic_approval_service: responseUser(requester)
-    automatic_approval_service->>automatic_approval_service: isConditionMatched(AMR, AR, requester.annotations)
-    automatic_approval_service->>teleport: approve AR
+    automatic_review_service->>teleport: watch(AMR, AR)
+    automatic_review_service->>teleport: requestUser(requester)
+    teleport->>automatic_review_service: responseUser(requester)
+    automatic_review_service->>automatic_review_service: isConditionMatched(AMR, AR, requester.annotations)
+    automatic_review_service->>teleport: approve AR
     requester->>teleport: tsh login --request-id=<request-id>
 ```
-1. The automatic approval serivce is initialized and watches for ARs from Teleport.
-2. When a user creates an AR, and after the automatic approval service observes
-the event, the automatic approval service requests additional information about
+1. The automatic review serivce is initialized and watches for ARs from Teleport.
+2. When a user creates an AR, and after the automatic review service observes
+the event, the automatic review service requests additional information about
 the user.
-3. The automatic approval service then checks to see if the AR matches any
-existing AMRs. The automatic approval service provides the additional user
+3. The automatic review service then checks to see if the AR matches any
+existing AMRs. The automatic review service provides the additional user
 traits received from Teleport before the AMR condition is evaluated.
-4. If the AR matches the AMR, the plugin submits an approval request for the AR.
+4. If the AR matches the AMR, the plugin submits a review for the AR.
 
 ## Security & Auditability
-Automatic approvals is already a supported feature, although it is currently
+Automatic reviews are already a supported feature, although it is currently
 only supported when integrated with an external incident management system. The
-same security concerns apply with built-in auto approvals, as they apply to auto
-approvals with an external plugin.
+same security concerns apply with built-in automatic reviews, as they apply to
+automatic reviews with an external plugin.
 
-Automatic approvals are submitted using the system user `@teleport-access-approval-bot`.
+Automatic reviews are submitted using the system user `@teleport-access-approval-bot`.
 Audit log events `access_request.review` are created whenever an access request
 is reviewed, including automatically reviewed requests. The event contains the
 same information as regular access request reviews.
@@ -285,7 +295,7 @@ same information as regular access request reviews.
 
 ## Observability
 Anonymized metrics will be collected for access requests. These metrics will
-allow us track automatic approval usage, and with which plugin it is being used.
+allow us track automatic review usage, and with which plugin it is being used.
 - `access_request.create`: Specifies an access request create event.
   - `cluster_name`: Specifies the anonymized cluster name.
   - `requester_name`: Specifies the anonymized requesting user name.
@@ -295,16 +305,16 @@ allow us track automatic approval usage, and with which plugin it is being used.
   - `cluster_name`: Specifies the anonymized cluster name.
   - `reviewer_name`: Specifies the anonymized reviewer user name.
   - `is_auto_approved`: Is true if request was automatically reviewed.
-  - `plugin`: Specifies the plugin/service that submitted the automatic approval request.
+  - `plugin`: Specifies the plugin/service that submitted the automatic review request.
 
 ## Implementation Plan
-1. Extend the Access Monitoring Rule to support the `automatic_approval` field
+1. Extend the Access Monitoring Rule to support the `automatic_review` field
 and the `user.traits` variable.
-2. Implement the automatic approvals service.
-3. Deploy the automatic approvals service as part of Teleport initialization.
-4. Update WebUI to allow users to create and view automatic approvals.
+2. Implement the automatic review service.
+3. Deploy the automatic review service as part of Teleport initialization.
+4. Update WebUI to allow users to create and view automatic reviews.
 5. Update the Terraform resource schema to allow configuration of automatic
-approvals with the Terraform provider.
+reviews with the Terraform provider.
 6. Enable metrics for access requests.
-7. Release guide on how to configure automatic approvals using Access
+7. Release guide on how to configure automatic reviews using Access
 Monitoring Rules.
