@@ -86,7 +86,7 @@ func (s *MockHardwareKeyService) NewPrivateKey(ctx context.Context, config Priva
 	}
 
 	// generating a new key with PIN/touch requirements requires the corresponding prompt.
-	if err := s.tryPrompt(ctx, config.Policy); err != nil {
+	if err := s.tryPrompt(ctx, config.Policy, config.ContextualKeyInfo); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -116,7 +116,7 @@ func (s *MockHardwareKeyService) NewPrivateKey(ctx context.Context, config Priva
 
 // Sign performs a cryptographic signature using the specified hardware
 // private key and provided signature parameters.
-func (s *MockHardwareKeyService) Sign(ctx context.Context, ref *PrivateKeyRef, _ ContextualKeyInfo, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
+func (s *MockHardwareKeyService) Sign(ctx context.Context, ref *PrivateKeyRef, keyInfo ContextualKeyInfo, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
 	s.fakeHardwarePrivateKeysMux.Lock()
 	defer s.fakeHardwarePrivateKeysMux.Unlock()
 
@@ -128,14 +128,14 @@ func (s *MockHardwareKeyService) Sign(ctx context.Context, ref *PrivateKeyRef, _
 		return nil, trace.NotFound("key not found in slot %d", ref.SlotKey)
 	}
 
-	if err := s.tryPrompt(ctx, ref.Policy); err != nil {
+	if err := s.tryPrompt(ctx, ref.Policy, keyInfo); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return priv.Sign(rand, digest, opts)
 }
 
-func (s *MockHardwareKeyService) tryPrompt(ctx context.Context, policy PromptPolicy) error {
+func (s *MockHardwareKeyService) tryPrompt(ctx context.Context, policy PromptPolicy, keyInfo ContextualKeyInfo) error {
 	if s.prompt == nil || (!policy.PINRequired && !policy.TouchRequired) {
 		return nil
 	}
@@ -143,14 +143,14 @@ func (s *MockHardwareKeyService) tryPrompt(ctx context.Context, policy PromptPol
 	if policy.PINRequired {
 		ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 		defer cancel()
-		if _, err := s.prompt.AskPIN(ctx, PINRequired); err != nil {
+		if _, err := s.prompt.AskPIN(ctx, PINRequired, keyInfo); err != nil {
 			return trace.Wrap(err, "failed to handle pin prompt")
 		}
 		// We don't actually check the PIN for the current tests, any input is sufficient to unblock the prompt.
 	}
 
 	if policy.TouchRequired {
-		if err := s.prompt.Touch(ctx); err != nil {
+		if err := s.prompt.Touch(ctx, keyInfo); err != nil {
 			return trace.Wrap(err)
 		}
 		select {

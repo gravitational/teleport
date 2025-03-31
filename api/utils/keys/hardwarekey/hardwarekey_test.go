@@ -54,8 +54,7 @@ func TestPrivateKey_EncodeDecode(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	priv := hardwarekey.NewPrivateKey(s, hwPriv.Ref)
-	encoded, err := hardwarekey.EncodePrivateKey(priv)
+	encoded, err := hardwarekey.EncodePrivateKey(hwPriv)
 	require.NoError(t, err)
 
 	decodedPriv, err := hardwarekey.DecodePrivateKey(s, encoded, contextualKeyInfo)
