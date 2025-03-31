@@ -69,7 +69,7 @@
     "react-select-event": "^5.5.1",
     "storybook": "^8.6.3",
     "typescript": "^5.8.2",
-    "vite": "^6.2.3"
+    "vite": "^6.2.4"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.18.6",
