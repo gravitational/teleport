@@ -41,18 +41,25 @@ func TestPrivateKey_EncodeDecode(t *testing.T) {
 
 	ctx := context.Background()
 	s := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
+
+	contextualKeyInfo := hardwarekey.ContextualKeyInfo{
+		ProxyHost:   "billy.io",
+		Username:    "Billy@billy.io",
+		ClusterName: "billy.io",
+	}
+
 	hwSigner, err := s.NewPrivateKey(ctx, hardwarekey.PrivateKeyConfig{
-		Policy: hardwarekey.PromptPolicyNone,
+		Policy:            hardwarekey.PromptPolicyNone,
+		ContextualKeyInfo: contextualKeyInfo,
 	})
 	require.NoError(t, err)
 
-	priv := hardwarekey.NewSigner(s, hwSigner.Ref)
-	encoded, err := hardwarekey.EncodeSigner(priv)
+	encoded, err := hardwarekey.EncodeSigner(hwSigner)
 	require.NoError(t, err)
 
-	decodedPriv, err := hardwarekey.DecodeSigner(s, encoded)
+	decodedSigner, err := hardwarekey.DecodeSigner(s, encoded, contextualKeyInfo)
 	require.NoError(t, err)
-	require.Equal(t, hwSigner, decodedPriv)
+	require.Equal(t, hwSigner, decodedSigner)
 }
 
 // TestPrivateKey_Prompt tests hardware key service PIN/Touch logic with a mocked service.
