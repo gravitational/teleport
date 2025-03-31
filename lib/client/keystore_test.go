@@ -61,7 +61,9 @@ func TestKeyStore(t *testing.T) {
 	// create a test software and hardware key.
 	idx := KeyRingIndex{"test.proxy.com", "test-user", "root"}
 	softKeyRing := s.makeSignedKeyRing(t, idx, false)
-	hwPriv, err := keys.NewHardwarePrivateKey(ctx, hwks, hardwarekey.PrivateKeyConfig{})
+	hwPriv, err := keys.NewHardwarePrivateKey(ctx, hwks, hardwarekey.PrivateKeyConfig{
+		ContextualKeyInfo: idx.contextualKeyInfo(),
+	})
 	require.NoError(t, err)
 	hardKeyRing := NewKeyRing(hwPriv, hwPriv)
 	hardKeyRing.KeyRingIndex = idx
@@ -98,11 +100,18 @@ func TestKeyStore(t *testing.T) {
 				expectKeyRing.DBTLSCredentials = make(map[string]TLSCredential)
 				assertEqualKeyRings(t, expectKeyRing, retrievedKeyRing)
 
-				// check for the key, now without cluster name
+				// Get the key, now without cluster name. It should retrieve the key without certs
+				// and without a cluster name in the KeyRingIndex or ContextualKeyInfo (hardware keys).
 				retrievedKeyRing, err = keyStore.GetKeyRing(KeyRingIndex{idx.ProxyHost, idx.Username, ""}, hwks)
 				require.NoError(t, err)
 				expectKeyRing.ClusterName = ""
 				expectKeyRing.Cert = nil
+				if hwPriv, ok := expectKeyRing.TLSPrivateKey.Signer.(*hardwarekey.Signer); ok {
+					hwPriv.KeyInfo.ClusterName = ""
+				}
+				if hwPriv, ok := expectKeyRing.SSHPrivateKey.Signer.(*hardwarekey.Signer); ok {
+					hwPriv.KeyInfo.ClusterName = ""
+				}
 				assertEqualKeyRings(t, expectKeyRing, retrievedKeyRing)
 
 				// delete the key
