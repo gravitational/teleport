@@ -468,3 +468,5 @@ export type CreateOrOverwriteGithubServer = CreateOrOverwriteGitServerBase & {
 };
 
 export type CreateOrOverwriteGitServer = CreateOrOverwriteGithubServer;
+
+export type AccessMonitoringRuleState = 'reviewed';
