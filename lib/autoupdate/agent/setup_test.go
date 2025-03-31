@@ -134,7 +134,9 @@ func TestNewNamespace(t *testing.T) {
 			}
 			require.NoError(t, err)
 			ns.log = nil
-			ns.updaterIDFile = strings.Replace(ns.updaterIDFile, os.TempDir(), "/TMP/", 1)
+			ns.updaterIDFile = strings.Replace(ns.updaterIDFile,
+				strings.TrimSuffix(os.TempDir(), "/"), "/TMP", 1,
+			)
 			require.Equal(t, p.ns, ns)
 		})
 	}
