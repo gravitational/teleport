@@ -73,9 +73,10 @@ func (a *DockerAttestor) Attest(ctx context.Context, pid int) (*workloadidentity
 	return &workloadidentityv1pb.WorkloadAttrsDocker{
 		Attested: true,
 		Container: &workloadidentityv1pb.WorkloadAttrsDockerContainer{
-			Name:   container.Name,
-			Image:  container.Config.Image,
-			Labels: container.Config.Labels,
+			Name:        container.Name,
+			Image:       container.Config.Image,
+			ImageDigest: container.Image,
+			Labels:      container.Config.Labels,
 		},
 	}, nil
 }
