@@ -73,12 +73,11 @@ type databaseExecClient interface {
 }
 
 type databaseExecCommand struct {
-	cf                     *CLIConf
-	tc                     *client.TeleportClient
-	client                 databaseExecClient
-	makeCommand            func(context.Context, *databaseInfo, string, string) (*exec.Cmd, error)
-	prefixedOutputHintOnce sync.Once
-	summary                databaseExecSummary
+	cf          *CLIConf
+	tc          *client.TeleportClient
+	client      databaseExecClient
+	makeCommand func(context.Context, *databaseInfo, string, string) (*exec.Cmd, error)
+	summary     databaseExecSummary
 }
 
 func newDatabaseExecCommand(cf *CLIConf) (*databaseExecCommand, error) {
