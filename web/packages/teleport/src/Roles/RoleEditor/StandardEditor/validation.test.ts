@@ -78,11 +78,13 @@ describe('validateRoleEditorModel', () => {
           },
         ],
         roleVersion: defaultRoleVersion,
+        hideValidationErrors: false,
       },
       {
         kind: 'node',
         labels: [{ name: 'foo', value: 'bar' }],
         logins: [{ label: 'root', value: 'root' }],
+        hideValidationErrors: false,
       },
       {
         kind: 'app',
@@ -90,6 +92,7 @@ describe('validateRoleEditorModel', () => {
         awsRoleARNs: ['some-arn'],
         azureIdentities: ['some-azure-id'],
         gcpServiceAccounts: ['some-gcp-acct'],
+        hideValidationErrors: false,
       },
       {
         kind: 'db',
@@ -98,11 +101,13 @@ describe('validateRoleEditorModel', () => {
         names: [],
         users: [],
         dbServiceLabels: [{ name: 'asdf', value: 'qwer' }],
+        hideValidationErrors: false,
       },
       {
         kind: 'windows_desktop',
         labels: [{ name: 'foo', value: 'bar' }],
         logins: [],
+        hideValidationErrors: false,
       },
     ];
     model.rules = [
@@ -111,6 +116,7 @@ describe('validateRoleEditorModel', () => {
         resources: [{ label: ResourceKind.Node, value: ResourceKind.Node }],
         verbs: [{ label: '*', value: '*' }],
         where: '',
+        hideValidationErrors: false,
       },
     ];
     const result = validateRoleEditorModel(model, undefined, undefined);
@@ -135,6 +141,7 @@ describe('validateRoleEditorModel', () => {
         kind: 'node',
         labels: [{ name: 'foo', value: '' }],
         logins: [],
+        hideValidationErrors: false,
       },
     ];
     const result = validateRoleEditorModel(model, undefined, undefined);
@@ -160,6 +167,7 @@ describe('validateRoleEditorModel', () => {
           },
         ],
         roleVersion: defaultRoleVersion,
+        hideValidationErrors: false,
       },
     ];
     const result = validateRoleEditorModel(model, undefined, undefined);
@@ -201,6 +209,7 @@ describe('validateRoleEditorModel', () => {
               roleVersion,
             },
           ],
+          hideValidationErrors: false,
         },
       ];
       const result = validateRoleEditorModel(model, undefined, undefined);
@@ -220,6 +229,7 @@ describe('validateRoleEditorModel', () => {
         resources: [],
         verbs: [{ label: '*', value: '*' }],
         where: '',
+        hideValidationErrors: false,
       },
     ];
     const result = validateRoleEditorModel(model, undefined, undefined);
@@ -240,7 +250,12 @@ describe('validateRoleEditorModel', () => {
 
 describe('validateResourceAccess', () => {
   it('reuses previously computed results', () => {
-    const resource: ResourceAccess = { kind: 'node', labels: [], logins: [] };
+    const resource: ResourceAccess = {
+      kind: 'node',
+      labels: [],
+      logins: [],
+      hideValidationErrors: false,
+    };
     const result1 = validateResourceAccess(resource, undefined, undefined);
     const result2 = validateResourceAccess(resource, resource, result1);
     expect(result2).toBe(result1);
@@ -254,6 +269,7 @@ describe('validateAdminRule', () => {
       resources: [],
       verbs: [],
       where: '',
+      hideValidationErrors: false,
     };
     const result1 = validateAdminRule(rule, undefined, undefined);
     const result2 = validateAdminRule(rule, rule, result1);

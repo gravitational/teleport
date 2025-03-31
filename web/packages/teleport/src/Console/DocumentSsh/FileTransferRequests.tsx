@@ -21,12 +21,10 @@ import styled from 'styled-components';
 import { Box, Button, ButtonBorder, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
 
-import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
-import {
-  FileTransferRequest,
-  isOwnRequest,
-} from 'teleport/Console/DocumentSsh/useFileTransfer';
 import { UserContext } from 'teleport/services/user';
+
+import { useConsoleContext } from '../consoleContextProvider';
+import { FileTransferRequest, isOwnRequest } from './useFileTransfer';
 
 type FileTransferRequestsProps = {
   requests: FileTransferRequest[];
