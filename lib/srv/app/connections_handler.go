@@ -175,6 +175,7 @@ type ConnectionsHandler struct {
 	httpServer *http.Server
 	tlsConfig  *tls.Config
 	tcpServer  *tcpServer
+	mcpServer  *mcpServer
 
 	// cache holds sessionChunk objects for in-flight app sessions.
 	cache *utils.FnCache
@@ -272,6 +273,13 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		return nil, trace.Wrap(err)
 	}
 	c.tcpServer = tcpServer
+
+	// mcp
+	c.mcpServer = &mcpServer{
+		emitter: c.cfg.Emitter,
+		hostID:  c.cfg.HostID,
+		log:     c.log,
+	}
 
 	// Make copy of server's TLS configuration and update it with the specific
 	// functionality this server needs, like requiring client certificates.
@@ -634,6 +642,11 @@ func (c *ConnectionsHandler) handleHTTPApp(ctx context.Context, conn net.Conn) e
 
 // handleTCPApp handles connection for a TCP application.
 func (c *ConnectionsHandler) handleTCPApp(ctx context.Context, conn net.Conn, identity *tlsca.Identity, app types.Application) error {
+	// TODO(greedy52) hack it for now
+	if _, ok := app.GetLabel("mcp.run"); ok {
+		c.log.DebugContext(ctx, "=== handling MCP app", "app", app.GetName())
+		return trace.Wrap(c.mcpServer.handleConnection(ctx, conn, identity, app))
+	}
 	err := c.tcpServer.handleConnection(ctx, conn, identity, app)
 	if err != nil {
 		return trace.Wrap(err)

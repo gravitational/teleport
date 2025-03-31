@@ -970,6 +970,11 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	proxyKube := newProxyKubeCommand(proxy)
 
+	// MCP.
+	mcp := app.Command("mcp", "one sheep")
+	mcpStart := mcp.Command("start", "two sheep")
+	mcpStart.Arg("name", "three sheep").Required().StringVar(&cf.AppName)
+
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
 	db.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
@@ -1568,6 +1573,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onProxyCommandGCloud(&cf)
 	case proxyKube.FullCommand():
 		err = proxyKube.run(&cf)
+
+	case mcpStart.FullCommand():
+		err = onMCPStart(&cf)
 
 	case dbList.FullCommand():
 		err = onListDatabases(&cf)
