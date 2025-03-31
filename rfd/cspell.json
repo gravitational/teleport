@@ -188,7 +188,6 @@
     "SSOMFA",
     "STIG",
     "STIGs",
-    "Sudia",
     "SVID",
     "Sify",
     "Skrzętnicki",
@@ -202,6 +201,7 @@
     "Statfs",
     "Subconditions",
     "Submatch",
+    "Sudia",
     "Sudia",
     "Sycqsbqf",
     "TBLPROPERTIES",
@@ -556,8 +556,8 @@
     "nowait",
     "oazahf",
     "objc",
-    "octocats",
     "ocid",
+    "octocats",
     "offboarding",
     "olekukonko",
     "omitempty",
@@ -646,6 +646,7 @@
     "relogin",
     "renameio",
     "replaceall",
+    "replicaset",
     "reprepro",
     "requestable",
     "resolv",
@@ -831,6 +832,7 @@
     "westus",
     "wildcarding",
     "winhello",
+    "wintun",
     "wireframes",
     "workloadidentity",
     "worktree",
@@ -841,6 +843,7 @@
     "xeyes",
     "xinding",
     "ykpiv",
-    "yubihsm"
+    "yubihsm",
+    "memguard"
   ]
 }

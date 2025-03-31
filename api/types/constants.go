@@ -498,6 +498,9 @@ const (
 	// KindHeadlessAuthentication is a headless authentication resource.
 	KindHeadlessAuthentication = "headless_authentication"
 
+	// KindHealthCheckConfig is the resource for health check configuration.
+	KindHealthCheckConfig = "health_check_config"
+
 	// KindAccessGraph is the RBAC kind for access graph.
 	KindAccessGraph = "access_graph"
 
@@ -610,6 +613,10 @@ const (
 	// KindWorkloadIdentityX509Revocation is the WorkloadIdentityX509Revocation
 	// resource.
 	KindWorkloadIdentityX509Revocation = "workload_identity_x509_revocation"
+
+	// KindWorkloadIdentityX509IssuerOverride is the kind of
+	// teleport.workloadidentity.v1.X509IssuerOverride.
+	KindWorkloadIdentityX509IssuerOverride = "workload_identity_x509_issuer_override"
 
 	// KindGitServer represents a Git server that can proxy git commands.
 	KindGitServer = "git_server"

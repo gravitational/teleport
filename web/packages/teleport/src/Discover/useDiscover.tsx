@@ -52,7 +52,6 @@ import {
   userEventService,
 } from 'teleport/services/userEvent';
 
-import { ServiceDeployMethod } from './Database/common';
 import { ResourceViewConfig, View } from './flow';
 import { getOverview } from './Overview/Overview';
 import { viewConfigs } from './resourceViewConfigs';
@@ -553,6 +552,16 @@ export type NodeMeta = BaseMeta & {
   node: Node;
 };
 
+export type DatabaseServiceDeploy =
+  | {
+      method: 'auto';
+      selectedSecurityGroups: string[];
+      selectedSubnetIds: string[];
+    }
+  | {
+      method: 'manual' | 'skipped';
+    };
+
 // DbMeta describes the fields for a db resource
 // that needs to be preserved throughout the flow.
 export type DbMeta = BaseMeta & {
@@ -561,10 +570,10 @@ export type DbMeta = BaseMeta & {
   db?: Database;
   selectedAwsRdsDb?: AwsRdsDatabase;
   /**
-   * serviceDeployedMethod flag will be undefined if user skipped
-   * deploying service (service already existed).
+   * Only defined after the database service deploy step,
+   * before this step, it will be undefined.
    */
-  serviceDeployedMethod?: ServiceDeployMethod;
+  serviceDeploy?: DatabaseServiceDeploy;
 };
 
 // KubeMeta describes the fields for a kube resource
