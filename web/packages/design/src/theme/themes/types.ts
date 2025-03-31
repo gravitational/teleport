@@ -289,12 +289,15 @@ export type SharedStyles = {
   dockedAssistWidth: number;
   boxShadow: string[];
   breakpoints: {
-    mobile: number;
-    tablet: number;
-    desktop: number;
-    small: number;
-    medium: number;
-    large: number;
+    /** @deprecated Use the "small" breakpoint instead. */
+    mobile: string;
+    /** @deprecated Use the "medium" breakpoint instead. */
+    tablet: string;
+    /** @deprecated Use the "large" breakpoint instead. */
+    desktop: string;
+    small: string;
+    medium: string;
+    large: string;
   };
   topBarHeight: number[];
   space: number[];
