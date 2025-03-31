@@ -218,18 +218,17 @@ const auth = {
     return api.put(cfg.api.changeUserPasswordPath, data);
   },
 
-  headlessSSOGet(transactionId: string) {
-    return api.get(cfg.getHeadlessSsoPath(transactionId))
-      .then((json: any) => {
-        json = json || {};
+  headlessSsoGet(transactionId: string) {
+    return api.get(cfg.getHeadlessSsoPath(transactionId)).then((json: any) => {
+      json = json || {};
 
-        return {
-          clientIpAddress: json.client_ip_address,
-        };
-      });
+      return {
+        clientIpAddress: json.client_ip_address,
+      };
+    });
   },
 
-  headlessSSOAccept(transactionId: string) {
+  headlessSsoAccept(transactionId: string) {
     return auth
       .getMfaChallenge({ scope: MfaChallengeScope.HEADLESS_LOGIN })
       .then(challenge => auth.getMfaChallengeResponse(challenge))
