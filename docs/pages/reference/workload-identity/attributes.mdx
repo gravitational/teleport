@@ -267,14 +267,15 @@ See the
 [Workload API and Workload Attestation reference](./workload-identity-api-and-workload-attestation.mdx#Podman)
 for more information.
 
-| Attribute                          | Description                                         |
-|------------------------------------|-----------------------------------------------------|
-| `workload.podman.attested`         | Whether the workload passed Podman attestation.     |
-| `workload.podman.container.name`   | Name of the container.                              |
-| `workload.podman.container.image`  | Image name of the container (e.g. `ubuntu:latest`). |
-| `workload.podman.container.labels` | Labels of the container.                            |
-| `workload.podman.pod.name`         | Name of the pod.                                    |
-| `workload.podman.pod.labels`       | Labels of the pod.                                  |
+| Attribute                                | Description                                           |
+|------------------------------------------|-------------------------------------------------------|
+| `workload.podman.attested`               | Whether the workload passed Podman attestation.       |
+| `workload.podman.container.name`         | Name of the container.                                |
+| `workload.podman.container.image`        | Image name of the container (e.g. `ubuntu:latest`).   |
+| `workload.podman.container.image_digest` | Image digest of the container (e.g. `sha256:<hash>`). |
+| `workload.podman.container.labels`       | Labels of the container.                              |
+| `workload.podman.pod.name`               | Name of the pod.                                      |
+| `workload.podman.pod.labels`             | Labels of the pod.                                    |
 
 ## User attributes
 
