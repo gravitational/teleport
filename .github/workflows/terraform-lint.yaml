@@ -16,6 +16,8 @@ on:
 jobs:
   terraform-lint:
     uses: gravitational/shared-workflows/.github/workflows/terraform-lint.yaml@main
+    with:
+      tflint_config_path: $GITHUB_WORKSPACE/.tflint.hcl
     permissions:
       actions: read
       contents: read
