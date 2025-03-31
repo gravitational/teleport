@@ -31,9 +31,11 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+	libproto "google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -511,4 +513,22 @@ func makeNameOrDiscoveredNamePredicate(name string) string {
 	return fmt.Sprintf("(%v) || (%v)",
 		matchName, matchDiscoveredName,
 	)
+}
+
+// workloadAttrsForLog returns a string representation of the given WorkloadAttrs
+// for logging purposes.
+func workloadAttrsForLog(orig *workloadidentityv1.WorkloadAttrs) string {
+	// Strip the actual sigstore attributes out because they contain large binary
+	// encoded bundles, and replace with a simple count.
+	//
+	// TODO: we should find a better way to encode workload attributes in logs
+	// than prototext which, apart from anything, injects random whitespace.
+	clone := libproto.Clone(orig).(*workloadidentityv1.WorkloadAttrs)
+	clone.Sigstore = nil
+
+	output := clone.String()
+	if l := len(orig.GetSigstore().GetPayloads()); l != 0 {
+		output = fmt.Sprintf("%s  sigstore:{payloads:{count:%d}}", output, l)
+	}
+	return output
 }
