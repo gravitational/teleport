@@ -35,6 +35,18 @@ message WorkloadAttrsKubernetes {
   string pod_uid = 5;
   // The labels of the workload pod.
   map<string, string> labels = 6;
+  // Details of the workload container.
+  optional WorkloadAttrsKubernetesContainer container = 7;
+}
+
+// Attributes of the container sourced from the Kubernetes workload attestation.
+message WorkloadAttrsKubernetesContainer {
+  // The name of the container.
+  string name = 1;
+  // The name of the image the container is running.
+  string image = 2;
+  // The exact image digest the container is running.
+  string image_digest = 3;
 }
 
 // Attributes sourced from the Unix workload attestor.
