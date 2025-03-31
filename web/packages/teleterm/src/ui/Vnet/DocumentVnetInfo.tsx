@@ -22,7 +22,7 @@ import styled from 'styled-components';
 import { Box, Button, Flex, H1, Stack } from 'design';
 import { NewTab } from 'design/Icon';
 import { H2, H3, P1, P2 } from 'design/Text/Text';
-import { DemoTerminal, topBarColor } from 'shared/components/DemoTerminal';
+import { DemoTerminal } from 'shared/components/DemoTerminal';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
@@ -152,9 +152,7 @@ export function DocumentVnetInfo(props: {
               title={userAtHost}
               text={curlWithVnet(proxyHostname)}
               width="100%"
-              css={`
-                box-shadow: ${props => props.theme.boxShadow[2]};
-              `}
+              boxShadow={2}
             />
           </ComparisonOption>
 
@@ -167,20 +165,18 @@ export function DocumentVnetInfo(props: {
               </P2>
             </TextPart>
 
-            <Box
-              flex={demoFlex}
-              borderRadius={2}
-              css={`
-                box-shadow: ${props => props.theme.boxShadow[2]};
-                // DemoTerminal has rounded corners. If this Stack didn't have a background,
-                // there would be gaps between these two DemoTerminals. Using a background with
-                // the same color as DemoTerminal's top bar masks those gaps.
-                background-color: ${props => topBarColor(props.theme)};
-              `}
-            >
-              <DemoTerminal title={userAtHost} text={proxyWithoutVnet} />
-              <DemoTerminal title={userAtHost} text={curlWithoutVnet} />
-            </Box>
+            <Stack flex={demoFlex} gap={2} fullWidth>
+              <DemoTerminal
+                title={userAtHost}
+                text={proxyWithoutVnet}
+                boxShadow={2}
+              />
+              <DemoTerminal
+                title={userAtHost}
+                text={curlWithoutVnet}
+                boxShadow={2}
+              />
+            </Stack>
           </ComparisonOption>
         </UseCaseSection>
 

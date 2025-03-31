@@ -17,13 +17,11 @@
  */
 
 import { ComponentPropsWithoutRef } from 'react';
-import styled, { useTheme } from 'styled-components';
+import styled, { DefaultTheme, useTheme } from 'styled-components';
 
 import Box from 'design/Box';
 import Flex, { Stack } from 'design/Flex';
-import { darken } from 'design/theme/utils/colorManipulator';
-
-import { topBarColor } from './helpers';
+import { darken, emphasize } from 'design/theme/utils/colorManipulator';
 
 /**
  * DemoTerminal is meant for showing examples of terminal output.
@@ -101,3 +99,6 @@ const CircleButton = styled(Box)<{ $color: string }>`
   background-color: ${props => props.$color};
   border: 1px solid ${props => darken(props.$color, 0.2)};
 `;
+
+const topBarColor = (theme: DefaultTheme): string =>
+  emphasize(theme.colors.levels.deep, 0.2);

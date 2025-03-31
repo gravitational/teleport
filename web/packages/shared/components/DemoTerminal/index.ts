@@ -17,4 +17,3 @@
  */
 
 export { DemoTerminal } from './DemoTerminal';
-export * from './helpers';
