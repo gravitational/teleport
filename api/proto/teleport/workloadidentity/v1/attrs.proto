@@ -107,6 +107,8 @@ message WorkloadAttrsDockerContainer {
   string image = 2;
   // The labels attached to the container.
   map<string, string> labels = 3;
+  // The exact image digest the container is running.
+  string image_digest = 4;
 }
 
 // Attributes sourced from the Systemd workload attestor.
