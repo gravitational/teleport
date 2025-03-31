@@ -41,7 +41,7 @@ func (s *unavailableYubiKeyPIVService) NewPrivateKey(_ context.Context, _ hardwa
 
 // Sign performs a cryptographic signature using the specified hardware
 // private key and provided signature parameters.
-func (s *unavailableYubiKeyPIVService) Sign(_ context.Context, _ *hardwarekey.PrivateKeyRef, _ io.Reader, _ []byte, _ crypto.SignerOpts) ([]byte, error) {
+func (s *unavailableYubiKeyPIVService) Sign(_ context.Context, _ *hardwarekey.PrivateKeyRef, _ hardwarekey.ContextualKeyInfo, _ io.Reader, _ []byte, _ crypto.SignerOpts) ([]byte, error) {
 	return nil, trace.Wrap(errPIVUnavailable)
 }
 

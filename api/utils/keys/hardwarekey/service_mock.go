@@ -82,7 +82,7 @@ func (s *MockHardwareKeyService) NewPrivateKey(ctx context.Context, config Priva
 	}
 
 	if priv, ok := s.fakeHardwarePrivateKeys[keySlot]; ok {
-		return NewPrivateKey(s, priv.ref), nil
+		return NewPrivateKey(s, priv.ref, config.ContextualKeyInfo), nil
 	}
 
 	// generating a new key with PIN/touch requirements requires the corresponding prompt.
@@ -111,12 +111,12 @@ func (s *MockHardwareKeyService) NewPrivateKey(ctx context.Context, config Priva
 		ref:    ref,
 	}
 
-	return NewPrivateKey(s, ref), nil
+	return NewPrivateKey(s, ref, config.ContextualKeyInfo), nil
 }
 
 // Sign performs a cryptographic signature using the specified hardware
 // private key and provided signature parameters.
-func (s *MockHardwareKeyService) Sign(ctx context.Context, ref *PrivateKeyRef, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
+func (s *MockHardwareKeyService) Sign(ctx context.Context, ref *PrivateKeyRef, _ ContextualKeyInfo, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
 	s.fakeHardwarePrivateKeysMux.Lock()
 	defer s.fakeHardwarePrivateKeysMux.Unlock()
 
