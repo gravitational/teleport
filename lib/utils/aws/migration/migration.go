@@ -27,6 +27,22 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// NewCredentialsAdapter adapts an AWS SDK v2 credentials provider to v1
+// credentials.
+func NewCredentialsAdapter(providerV2 awsv2.CredentialsProvider) *credentials.Credentials {
+	return credentials.NewCredentials(NewProviderAdapter(providerV2))
+}
+
+// NewProviderAdapter returns a [ProviderAdapter] that can be used as an AWS SDK
+// v1 credentials provider.
+func NewProviderAdapter(providerV2 awsv2.CredentialsProvider) *ProviderAdapter {
+	return &ProviderAdapter{
+		providerV2: providerV2,
+	}
+}
+
+var _ credentials.ProviderWithContext = (*ProviderAdapter)(nil)
+
 // ProviderAdapter adapts an [awsv2.CredentialsProvider] to an AWS SDK v1
 // credentials provider.
 type ProviderAdapter struct {
