@@ -73,7 +73,7 @@ const (
 )
 
 var (
-	initTime = time.Now()
+	initTime = time.Now().UTC()
 )
 
 // SetRequiredUmask sets the umask to match the systemd umask that the teleport-update service will execute with.
@@ -753,7 +753,7 @@ func (u *Updater) Update(ctx context.Context, now bool) error {
 		}
 	}
 	cfg.Status.LastUpdate = &LastUpdate{
-		Time:   initTime,
+		Time:   initTime.Truncate(time.Millisecond),
 		Target: target,
 	}
 	updateErr := u.update(ctx, cfg, target, false, resp.AGPL)
