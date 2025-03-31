@@ -53,6 +53,11 @@ type MarshalConfig struct {
 
 	// Expires is an optional expiry time
 	Expires time.Time
+
+	// DisallowUnknown will, for resources stored in protojson, disallow unknown
+	// fields when unmarshaling. This is useful if a resource is being parsed
+	// from user-specified data rather than persistent cluster state storage.
+	DisallowUnknown bool
 }
 
 // GetVersion returns explicitly provided version or sets latest as default
@@ -110,6 +115,16 @@ func WithVersion(v string) MarshalOption {
 		default:
 			return trace.BadParameter("version '%v' is not supported", v)
 		}
+	}
+}
+
+// DisallowUnknown will, for resources stored in protojson, disallow unknown
+// fields when unmarshaling. This is useful if a resource is being parsed
+// from user-specified data rather than persistent cluster state storage.
+func DisallowUnknown() MarshalOption {
+	return func(c *MarshalConfig) error {
+		c.DisallowUnknown = true
+		return nil
 	}
 }
 
@@ -708,22 +723,34 @@ func init() {
 		return ap, nil
 	})
 	RegisterResourceUnmarshaler(types.KindBot, func(bytes []byte, option ...MarshalOption) (types.Resource, error) {
+		cfg, err := CollectOptions(option)
+		if err != nil {
+			return nil, err
+		}
 		b := &machineidv1pb.Bot{}
-		if err := protojson.Unmarshal(bytes, b); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: !cfg.DisallowUnknown}).Unmarshal(bytes, b); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return types.Resource153ToLegacy(b), nil
 	})
 	RegisterResourceUnmarshaler(types.KindAutoUpdateConfig, func(bytes []byte, option ...MarshalOption) (types.Resource, error) {
+		cfg, err := CollectOptions(option)
+		if err != nil {
+			return nil, err
+		}
 		c := &autoupdatev1pb.AutoUpdateConfig{}
-		if err := protojson.Unmarshal(bytes, c); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: !cfg.DisallowUnknown}).Unmarshal(bytes, c); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return types.Resource153ToLegacy(c), nil
 	})
 	RegisterResourceUnmarshaler(types.KindAutoUpdateVersion, func(bytes []byte, option ...MarshalOption) (types.Resource, error) {
+		cfg, err := CollectOptions(option)
+		if err != nil {
+			return nil, err
+		}
 		v := &autoupdatev1pb.AutoUpdateVersion{}
-		if err := protojson.Unmarshal(bytes, v); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: !cfg.DisallowUnknown}).Unmarshal(bytes, v); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return types.Resource153ToLegacy(v), nil
@@ -899,7 +926,7 @@ func UnmarshalProtoResource[T ProtoResourcePtr[U], U any](data []byte, opts ...M
 		return nil, trace.Wrap(err)
 	}
 	var resource T = new(U)
-	err = protojson.Unmarshal(data, resource)
+	err = protojson.UnmarshalOptions{DiscardUnknown: !cfg.DisallowUnknown}.Unmarshal(data, resource)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -9271,7 +9271,7 @@ func TestForwardingTraces(t *testing.T) {
 				require.Len(t, spans, 1)
 
 				var data tracepb.TracesData
-				require.NoError(t, protojson.Unmarshal([]byte(rawSpan), &data))
+				require.NoError(t, protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal([]byte(rawSpan), &data))
 
 				// compare the spans, but ignore the ids since we know that the rawSpan
 				// has hex encoded ids and protojson.Unmarshal will give us an invalid value
