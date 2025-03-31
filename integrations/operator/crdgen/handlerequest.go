@@ -219,6 +219,7 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 			name: "WorkloadIdentity",
 			opts: []resourceSchemaOption{
 				withVersionOverride(types.V1),
+				withVersionInKindOverride(),
 			},
 		},
 	}

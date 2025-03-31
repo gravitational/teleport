@@ -92,15 +92,15 @@ func (l workloadIdentityClient) Delete(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
-// NewWorkloadIdentityReconciler instantiates a new Kubernetes controller
+// NewWorkloadIdentityV1Reconciler instantiates a new Kubernetes controller
 // reconciling WorkloadIdentity resources
-func NewWorkloadIdentityReconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewWorkloadIdentityV1Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
 	workloadIdentityClient := &workloadIdentityClient{
 		teleportClient: tClient,
 	}
 
 	resourceReconciler, err := reconcilers.NewTeleportResource153Reconciler[
-		*workloadidentityv1.WorkloadIdentity, *resourcesv1.TeleportWorkloadIdentity,
+		*workloadidentityv1.WorkloadIdentity, *resourcesv1.TeleportWorkloadIdentityV1,
 	](
 		client,
 		workloadIdentityClient,

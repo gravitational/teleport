@@ -2,23 +2,24 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   creationTimestamp: null
-  name: teleportworkloadidentities.resources.teleport.dev
+  name: teleportworkloadidentitiesv1.resources.teleport.dev
 spec:
   group: resources.teleport.dev
   names:
-    kind: TeleportWorkloadIdentity
-    listKind: TeleportWorkloadIdentityList
-    plural: teleportworkloadidentities
+    kind: TeleportWorkloadIdentityV1
+    listKind: TeleportWorkloadIdentityV1List
+    plural: teleportworkloadidentitiesv1
     shortNames:
-    - workloadidentity
-    - workloadidentities
-    singular: teleportworkloadidentity
+    - workloadidentityv1
+    - workloadidentitiesv1
+    singular: teleportworkloadidentityv1
   scope: Namespaced
   versions:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: WorkloadIdentity is the Schema for the workloadidentities API
+        description: WorkloadIdentityV1 is the Schema for the workloadidentitiesv1
+          API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
