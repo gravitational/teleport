@@ -43,7 +43,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
-	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -371,22 +370,4 @@ func (r *ResponseStatusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 		return nil, nil, errors.New("hijack not supported")
 	}
 	return h.Hijack()
-}
-
-// TODO(kimlisa): DELETE IN v19.0 (csrf)
-// Deprecated: do not use (only here to support backwards compat for old plugin endpoints)
-// WithCSRFProtection ensures that request to unauthenticated API is checked against CSRF attacks
-func WithCSRFProtection(fn HandlerFunc) httprouter.Handle {
-	handlerFn := MakeHandler(fn)
-	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-		if r.Method != http.MethodGet && r.Method != http.MethodHead {
-			errForm := csrf.VerifyFormField(r)
-			if errForm != nil {
-				slog.WarnContext(r.Context(), "unable to validate CSRF token", "form_error", errForm)
-				trace.WriteError(w, trace.AccessDenied("access denied"))
-				return
-			}
-		}
-		handlerFn(w, r, p)
-	}
 }

@@ -5274,19 +5274,42 @@ func readEtagFromAppHash(fs http.FileSystem) (string, error) {
 	return etag, nil
 }
 
-// TODO(kimlisa): DELETE IN v19.0 (csrf)
-// Deprecated: do not use (only here to support backwards compat for old plugin endpoints)
 // WithAuthCookieAndCSRF ensures that a request is authenticated
 // for plain old non-AJAX requests (does not check the Bearer header).
-// It enforces CSRF checks (except for "safe" methods).
+// It enforces CSRF checks.
+//
+// TODO(kimlisa): DELETE IN v19.0 (csrf)
+// Deprecated: do not use (only here to support backwards compat for old plugin endpoints)
 func (h *Handler) WithAuthCookieAndCSRF(fn ContextHandler) httprouter.Handle {
-	f := func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	// formFieldName is the default form field to inspect.
+	const formFieldName = "csrf_token"
+
+	// verifyFormField checks if HTTP form value matches the cookie.
+	verifyFormField := func(r *http.Request) error {
+		token := r.FormValue(formFieldName)
+		if len(token) == 0 {
+			return trace.BadParameter("cannot retrieve CSRF token from form field %q", formFieldName)
+		}
+
+		err := csrf.VerifyToken(token, r)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	}
+
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		sctx, err := h.AuthenticateRequest(w, r, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return fn(w, r, p, sctx)
-	}
 
-	return httplib.WithCSRFProtection(f)
+		errForm := verifyFormField(r)
+		if errForm != nil {
+			slog.WarnContext(r.Context(), "unable to validate CSRF token", "form_error", errForm)
+			return nil, trace.AccessDenied("access denied")
+		}
+		return fn(w, r, p, sctx)
+	})
 }
