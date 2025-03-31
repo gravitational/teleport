@@ -286,7 +286,7 @@ func (s *Storage) makeDefaultClientConfig(rootClusterURI uri.ResourceURI) *clien
 	cfg.InsecureSkipVerify = s.InsecureSkipVerify
 	cfg.AddKeysToAgent = s.AddKeysToAgent
 	cfg.WebauthnLogin = s.WebauthnLogin
-	cfg.CustomHardwareKeyPrompt = s.HardwareKeyPromptConstructor()
+	cfg.CustomHardwareKeyPrompt = s.CustomHardwareKeyPrompt
 	cfg.DTAuthnRunCeremony = dtauthn.NewCeremony().Run
 	cfg.DTAutoEnroll = dtenroll.AutoEnroll
 	return cfg
