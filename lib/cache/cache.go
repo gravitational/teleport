@@ -645,18 +645,21 @@ func legacyReadCache[R any](cache *Cache, kind types.WatchKind, getReader func(c
 // legacyReadGuard holds a reference to a read-only "backend" R. If the referenced backed is the cache, then legacyReadGuard
 // also holds the release function for the read lock, and ensures that it is not double-called.
 type legacyReadGuard[R any] struct {
-	reader   R
-	release  func()
-	released bool
+	reader  R
+	once    sync.Once
+	release func()
 }
 
-// Release releases the read lock if it is held.  This method
-// can be called multiple times, but is not thread-safe.
+// Release releases the read lock if it is held. This method
+// can be called multiple times.
 func (r *legacyReadGuard[R]) Release() {
-	if r.release != nil && !r.released {
+	r.once.Do(func() {
+		if r.release == nil {
+			return
+		}
+
 		r.release()
-		r.released = true
-	}
+	})
 }
 
 // IsCacheRead checks if this readGuard holds a cache reference.
