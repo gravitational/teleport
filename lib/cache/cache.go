@@ -574,9 +574,9 @@ func (c *Cache) setReadStatus(ok bool, confirmedKinds map[resourceKind]types.Wat
 
 // readLegacyCollectionCache acquires the cache read lock and uses getReader() to select the appropriate target for read
 // operations on resources of the specified collection. The returned guard *must* be released to prevent deadlocks.
-func readLegacyCollectionCache[R any](cache *Cache, collection collectionReader[R]) (rg legacyReadGuard[R], err error) {
+func readLegacyCollectionCache[R any](cache *Cache, collection collectionReader[R]) (legacyReadGuard[R], error) {
 	if collection == nil {
-		return rg, trace.BadParameter("cannot read from an uninitialized cache collection")
+		return legacyReadGuard[R]{}, trace.BadParameter("cannot read from an uninitialized cache collection")
 	}
 	return legacyReadCache(cache, collection.watchKind(), collection.getReader)
 }
