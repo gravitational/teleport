@@ -128,12 +128,12 @@ func (g *workloadIdentityTestingPrimitives) DeleteTeleportResource(
 func (g *workloadIdentityTestingPrimitives) CreateKubernetesResource(
 	ctx context.Context, name string,
 ) error {
-	bot := &resourcesv1.TeleportWorkloadIdentity{
+	bot := &resourcesv1.TeleportWorkloadIdentityV1{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: g.setup.Namespace.Name,
 		},
-		Spec: (*resourcesv1.TeleportWorkloadIdentitySpec)(workloadIdentitySpec),
+		Spec: (*resourcesv1.TeleportWorkloadIdentityV1Spec)(workloadIdentitySpec),
 	}
 	return trace.Wrap(g.setup.K8sClient.Create(ctx, bot))
 }
@@ -141,7 +141,7 @@ func (g *workloadIdentityTestingPrimitives) CreateKubernetesResource(
 func (g *workloadIdentityTestingPrimitives) DeleteKubernetesResource(
 	ctx context.Context, name string,
 ) error {
-	bot := &resourcesv1.TeleportWorkloadIdentity{
+	bot := &resourcesv1.TeleportWorkloadIdentityV1{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: g.setup.Namespace.Name,
@@ -152,8 +152,8 @@ func (g *workloadIdentityTestingPrimitives) DeleteKubernetesResource(
 
 func (g *workloadIdentityTestingPrimitives) GetKubernetesResource(
 	ctx context.Context, name string,
-) (*resourcesv1.TeleportWorkloadIdentity, error) {
-	bot := &resourcesv1.TeleportWorkloadIdentity{}
+) (*resourcesv1.TeleportWorkloadIdentityV1, error) {
+	bot := &resourcesv1.TeleportWorkloadIdentityV1{}
 	obj := kclient.ObjectKey{
 		Name:      name,
 		Namespace: g.setup.Namespace.Name,
@@ -175,7 +175,7 @@ func (g *workloadIdentityTestingPrimitives) ModifyKubernetesResource(
 
 func (g *workloadIdentityTestingPrimitives) CompareTeleportAndKubernetesResource(
 	tResource *workloadidentityv1.WorkloadIdentity,
-	kubeResource *resourcesv1.TeleportWorkloadIdentity,
+	kubeResource *resourcesv1.TeleportWorkloadIdentityV1,
 ) (bool, string) {
 	diff := cmp.Diff(
 		tResource,
@@ -189,7 +189,7 @@ func TestWorkloadIdentityCreation(t *testing.T) {
 	test := &workloadIdentityTestingPrimitives{}
 	testlib.ResourceCreationTest[
 		*workloadidentityv1.WorkloadIdentity,
-		*resourcesv1.TeleportWorkloadIdentity,
+		*resourcesv1.TeleportWorkloadIdentityV1,
 	](t, test)
 }
 
@@ -197,7 +197,7 @@ func TestWorkloadIdentityDeletionDrift(t *testing.T) {
 	test := &workloadIdentityTestingPrimitives{}
 	testlib.ResourceDeletionDriftTest[
 		*workloadidentityv1.WorkloadIdentity,
-		*resourcesv1.TeleportWorkloadIdentity,
+		*resourcesv1.TeleportWorkloadIdentityV1,
 	](t, test)
 }
 
@@ -205,6 +205,6 @@ func TestWorkloadIdentityUpdate(t *testing.T) {
 	test := &workloadIdentityTestingPrimitives{}
 	testlib.ResourceUpdateTest[
 		*workloadidentityv1.WorkloadIdentity,
-		*resourcesv1.TeleportWorkloadIdentity,
+		*resourcesv1.TeleportWorkloadIdentityV1,
 	](t, test)
 }
