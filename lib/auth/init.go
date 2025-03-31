@@ -38,11 +38,13 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/ai/embedding"
+	"github.com/gravitational/teleport/lib/auth/autoupdate/autoupdatev1"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/migration"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -1133,13 +1135,23 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 func applyResources(ctx context.Context, service *Services, resources []types.Resource) error {
 	var err error
 	for _, resource := range resources {
-		switch r := resource.(type) {
+		// Unwrap "new style" resources.
+		// We always want to switch over the underlying type.
+		var res any = resource
+		if w, ok := res.(interface{ Unwrap() types.Resource153 }); ok {
+			res = w.Unwrap()
+		}
+		switch r := res.(type) {
 		case types.ProvisionToken:
 			err = service.Provisioner.UpsertToken(ctx, r)
 		case types.ClusterNetworkingConfig:
 			err = service.ClusterConfiguration.SetClusterNetworkingConfig(ctx, r)
 		case types.AuthPreference:
 			err = service.ClusterConfiguration.SetAuthPreference(ctx, r)
+		case *autoupdatev1pb.AutoUpdateConfig:
+			_, err = autoupdatev1.UpsertAutoUpdateConfig(ctx, service, r)
+		case *autoupdatev1pb.AutoUpdateVersion:
+			_, err = autoupdatev1.UpsertAutoUpdateVersion(ctx, service, r)
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}
