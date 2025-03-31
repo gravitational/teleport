@@ -17,10 +17,9 @@ Okta app and the sync.
 
 In Teleport, the Okta Access List synchronizer looks for any Okta group with
 members or any Okta application with individual assignments that matches filters
-that you can optionally supply during Okta integration enrollment. Access Lists
-will not be created for groups or applications without any assignments.
-
-The synchronizer creates the following resources for each matched Okta group or application:
+that you can optionally supply during Okta integration enrollment. The
+synchronizer creates the following resources for each matched Okta group or
+application:
 
 - A role for members that grants access to the group/application.
 - A role for owners that grants the ability to review access to the group/application.
@@ -30,10 +29,10 @@ The synchronizer creates the following resources for each matched Okta group or 
 It should be noted that the Access List sync waits until the Okta groups and Okta applications
 has finished syncing as Teleport resources, so it may not start synchronizing immediately on startup.
 
-Only Okta User Groups with assignments will be imported as an Access List. If an Okta User
-Group has no assignments, it will not be imported until it has assignments. If the last
-user is removed from the Access List, the Access List will be removed from Teleport on the
-next sync.
+Only Okta user groups with assignments will be imported as Teleport Access
+Lists. If an Okta User Group has no assignments, it will not be imported until
+it has assignments. If the last user is removed from the Access List, the Access
+List will be removed from Teleport on the next sync.
 
 ## Prerequisites
 
