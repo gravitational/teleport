@@ -80,21 +80,13 @@ func (l *TeleportBotV1) StatusConditions() *[]metav1.Condition {
 	return &l.Status.Conditions
 }
 
-// Marshal serializes a spec into binary data.
-func (spec *TeleportBotV1Spec) Marshal() ([]byte, error) {
-	return proto.Marshal((*machineidv1.BotSpec)(spec))
-}
-
-// Unmarshal deserializes a spec from binary data.
-func (spec *TeleportBotV1Spec) Unmarshal(data []byte) error {
-	return proto.Unmarshal(data, (*machineidv1.BotSpec)(spec))
-}
-
 // UnmarshalJSON delegates unmarshaling of the BotSpec to protojson, which is
 // necessary for the BotSpec (and other Proto RFD153 resources) to be
 // unmarshaled correctly from the unstructured object.
 func (spec *TeleportBotV1Spec) UnmarshalJSON(data []byte) error {
-	return protojson.Unmarshal(data, (*machineidv1.BotSpec)(spec))
+	return protojson.UnmarshalOptions{
+		DiscardUnknown: true,
+	}.Unmarshal(data, (*machineidv1.BotSpec)(spec))
 }
 
 // MarshalJSON delegates marshaling of the BotSpec to protojson, which is
