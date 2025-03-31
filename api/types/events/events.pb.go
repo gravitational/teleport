@@ -5469,7 +5469,7 @@ type DatabaseSessionQuery struct {
 	// Database contains database related metadata.
 	DatabaseMetadata `protobuf:"bytes,4,opt,name=Database,proto3,embedded=Database" json:""`
 	// DatabaseQuery is the executed query string.
-	DatabaseQuery string `protobuf:"bytes,5,opt,name=DatabaseCommand,proto3" json:"db_query"`
+	DatabaseQuery string `protobuf:"bytes,5,opt,name=DatabaseQuery,proto3" json:"db_query"`
 	// DatabaseQueryParameters are the query parameters for prepared statements.
 	DatabaseQueryParameters []string `protobuf:"bytes,6,rep,name=DatabaseQueryParameters,proto3" json:"db_query_parameters,omitempty"`
 	// Status indicates whether the query was successfully sent to the database.
@@ -72403,7 +72403,7 @@ func (m *DatabaseSessionQuery) Unmarshal(dAtA []byte) error {
 			iNdEx = postIndex
 		case 5:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field DatabaseCommand", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field DatabaseQuery", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {

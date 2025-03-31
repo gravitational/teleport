@@ -860,7 +860,7 @@ func Test_querier_fetchResults(t *testing.T) {
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(tt.wantEvents, gotEvents, cmpopts.EquateEmpty(),
 				// Expect the database query to be trimmed
-				cmpopts.IgnoreFields(apievents.DatabaseSessionQuery{}, "DatabaseCommand")))
+				cmpopts.IgnoreFields(apievents.DatabaseSessionQuery{}, "DatabaseQuery")))
 			require.Equal(t, tt.wantKeyset, gotKeyset)
 		})
 	}
