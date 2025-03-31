@@ -17,6 +17,7 @@
  */
 
 import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
+import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 import {
   AuthSettings,
   ClientVersionStatus,
@@ -68,7 +69,7 @@ export const makeKube = (props: Partial<tsh.Kube> = {}): tsh.Kube => ({
   ...props,
 });
 
-export const makeApp = (props: Partial<tsh.App> = {}): tsh.App => ({
+export const makeApp = (props: Partial<App> = {}): App => ({
   name: 'foo',
   labels: [],
   endpointUri: 'tcp://localhost:3000',
