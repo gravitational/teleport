@@ -24,14 +24,14 @@ import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connection
 import { useVnetContext } from './vnetContext';
 
 /**
- * VnetLauncher is a function that manages VNet start when:
+ * VnetAppLauncher is a function that manages VNet start when:
  *
  * - The user clicks "Connect" next to a TCP app or selects one of the ports from the menu.
  * - The user selects a TCP app through the search bar.
  */
-export type VnetLauncher = (addrToCopy: string) => Promise<void>;
+export type VnetAppLauncher = (addrToCopy: string) => Promise<void>;
 
-export const useVnetLauncher = (): VnetLauncher => {
+export const useVnetAppLauncher = (): VnetAppLauncher => {
   const { notificationsService } = useAppContext();
   const { start, status, startAttempt } = useVnetContext();
   const { open } = useConnectionsContext();

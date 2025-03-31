@@ -55,7 +55,7 @@ import {
 import { IAppContext } from 'teleterm/ui/types';
 import { DatabaseUri, routing } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
-import { useVnetContext, useVnetLauncher } from 'teleterm/ui/Vnet';
+import { useVnetContext, useVnetAppLauncher } from 'teleterm/ui/Vnet';
 
 export function ConnectServerActionButton(props: {
   server: Server;
@@ -119,7 +119,7 @@ export function ConnectKubeActionButton(props: {
 export function ConnectAppActionButton(props: { app: App }): React.JSX.Element {
   const appContext = useAppContext();
   const { isSupported: isVnetSupported } = useVnetContext();
-  const launchVnet = useVnetLauncher();
+  const launchVnet = useVnetAppLauncher();
 
   function connectWithVnet(targetPort?: number): void {
     void launchVnet(appToAddrToCopy(props.app, targetPort));
