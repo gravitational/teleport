@@ -21,3 +21,4 @@ import darkTheme from './themes/darkTheme';
 import lightTheme from './themes/lightTheme';
 
 export { darkTheme, lightTheme, bblpTheme };
+export { breakpointsPx } from './themes/sharedStyles';
