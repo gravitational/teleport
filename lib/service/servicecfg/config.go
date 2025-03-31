@@ -329,6 +329,9 @@ type AccessGraphConfig struct {
 
 	// Insecure is true if the connection to the Access Graph service should be insecure
 	Insecure bool
+
+	// AuditLogsEnabled is true if the access graph service should process audit logs.
+	AuditLogsEnabled bool
 }
 
 // RoleAndIdentityEvent is a role and its corresponding identity event.

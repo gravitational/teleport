@@ -50,8 +50,11 @@ type AccessGraphConfig struct {
 	Insecure bool `protobuf:"varint,4,opt,name=insecure,proto3" json:"insecure,omitempty"`
 	// secrets_scan_config is used to configure the parameters for the secrets scanning functionality.
 	SecretsScanConfig *AccessGraphSecretsScanConfiguration `protobuf:"bytes,5,opt,name=secrets_scan_config,json=secretsScanConfig,proto3" json:"secrets_scan_config,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// audit_logs_enabled is a flag that indicates whether the access graph
+	// service should process audit logs.
+	AuditLogsEnabled bool `protobuf:"varint,6,opt,name=audit_logs_enabled,json=auditLogsEnabled,proto3" json:"audit_logs_enabled,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *AccessGraphConfig) Reset() {
@@ -119,6 +122,13 @@ func (x *AccessGraphConfig) GetSecretsScanConfig() *AccessGraphSecretsScanConfig
 	return nil
 }
 
+func (x *AccessGraphConfig) GetAuditLogsEnabled() bool {
+	if x != nil {
+		return x.AuditLogsEnabled
+	}
+	return false
+}
+
 // AccessGraphSecretsScanConfiguration controls the secrets scanning service parameters.
 type AccessGraphSecretsScanConfiguration struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -169,13 +179,14 @@ var File_teleport_clusterconfig_v1_access_graph_proto protoreflect.FileDescripto
 
 const file_teleport_clusterconfig_v1_access_graph_proto_rawDesc = "" +
 	"\n" +
-	",teleport/clusterconfig/v1/access_graph.proto\x12\x19teleport.clusterconfig.v1\"\xe3\x01\n" +
+	",teleport/clusterconfig/v1/access_graph.proto\x12\x19teleport.clusterconfig.v1\"\x91\x02\n" +
 	"\x11AccessGraphConfig\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x18\n" +
 	"\aaddress\x18\x02 \x01(\tR\aaddress\x12\x0e\n" +
 	"\x02ca\x18\x03 \x01(\fR\x02ca\x12\x1a\n" +
 	"\binsecure\x18\x04 \x01(\bR\binsecure\x12n\n" +
-	"\x13secrets_scan_config\x18\x05 \x01(\v2>.teleport.clusterconfig.v1.AccessGraphSecretsScanConfigurationR\x11secretsScanConfig\"O\n" +
+	"\x13secrets_scan_config\x18\x05 \x01(\v2>.teleport.clusterconfig.v1.AccessGraphSecretsScanConfigurationR\x11secretsScanConfig\x12,\n" +
+	"\x12audit_logs_enabled\x18\x06 \x01(\bR\x10auditLogsEnabled\"O\n" +
 	"#AccessGraphSecretsScanConfiguration\x12(\n" +
 	"\x10ssh_scan_enabled\x18\x01 \x01(\bR\x0esshScanEnabledB^Z\\github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1;clusterconfigv1b\x06proto3"
 
