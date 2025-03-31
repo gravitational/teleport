@@ -27,4 +27,5 @@ export type CreateRequest = {
   maxDuration?: Date;
   requestTTL?: Date;
   dryRun?: boolean;
+  longTerm?: boolean;
 };

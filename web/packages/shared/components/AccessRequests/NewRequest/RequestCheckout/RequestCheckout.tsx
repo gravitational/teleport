@@ -36,6 +36,7 @@ import {
   P3,
   Subtitle2,
   Text,
+  Toggle,
 } from 'design';
 import { Danger } from 'design/Alert';
 import Table, { Cell } from 'design/DataTable';
@@ -168,8 +169,11 @@ export function RequestCheckout<T extends PendingListItem>({
   onStartTimeChange,
   fetchKubeNamespaces,
   updateNamespacesForKubeCluster,
+  longTerm,
+  setLongTerm,
 }: RequestCheckoutProps<T>) {
   const [reason, setReason] = useState('');
+  // const [longTerm, setLongTerm] = useState(false);
 
   function updateReason(reason: string) {
     setReason(reason);
@@ -186,6 +190,7 @@ export function RequestCheckout<T extends PendingListItem>({
       maxDuration: maxDuration ? new Date(maxDuration.value) : null,
       requestTTL: pendingRequestTtl ? new Date(pendingRequestTtl.value) : null,
       start: startTime,
+      longTerm,
     });
   }
 
@@ -418,7 +423,7 @@ export function RequestCheckout<T extends PendingListItem>({
                       fetchAttempt={fetchResourceRequestRolesAttempt}
                     />
                   )}
-                  <Box mt={6} mb={1}>
+                  <Box mt={4}>
                     <SelectReviewers
                       reviewers={
                         dryRunResponse?.reviewers.map(r => r.name) ?? []
@@ -427,8 +432,23 @@ export function RequestCheckout<T extends PendingListItem>({
                       setSelectedReviewers={setSelectedReviewers}
                     />
                   </Box>
-                  <Flex mt={6} flexDirection="column" gap={1}>
-                    {dryRunResponse && (
+                  <Flex flexDirection="column" gap={2} mt={4}>
+                    <Text bold>Request type</Text>
+                    <Toggle
+                      isToggled={longTerm}
+                      onToggle={() => setLongTerm(v => !v)}
+                    >
+                      <Flex flexDirection="column" ml={3}>
+                        <Text>Long-term Access</Text>
+                        <Text color="text.slightlyMuted" fontSize={1}>
+                          You&#39;ll need to be added to an Access List
+                        </Text>
+                      </Flex>
+                    </Toggle>
+                  </Flex>
+                  <Divider />
+                  <Flex flexDirection="column" gap={1}>
+                    {dryRunResponse && !longTerm && (
                       <Box mb={1}>
                         <AssumeStartTime
                           start={startTime}
@@ -447,7 +467,7 @@ export function RequestCheckout<T extends PendingListItem>({
                       updateReason={updateReason}
                       requireReason={requireReason}
                     />
-                    {dryRunResponse && maxDuration && (
+                    {dryRunResponse && maxDuration && !longTerm && (
                       <AdditionalOptions
                         selectedMaxDurationTimestamp={maxDuration.value}
                         setPendingRequestTtl={setPendingRequestTtl}
@@ -456,16 +476,15 @@ export function RequestCheckout<T extends PendingListItem>({
                         pendingRequestTtlOptions={pendingRequestTtlOptions}
                       />
                     )}
+                    <Divider />
                     <Flex
-                      py={4}
+                      pb={4}
                       gap={2}
                       css={`
                         position: sticky;
                         bottom: 0;
                         background: ${({ theme }) =>
                           theme.colors.levels.sunken};
-                        border-top: 1px solid
-                          ${props => props.theme.colors.spotBackground[1]};
                       `}
                     >
                       <ButtonPrimary
@@ -500,6 +519,15 @@ export function RequestCheckout<T extends PendingListItem>({
     </Validation>
   );
 }
+
+const Divider = styled.div`
+  width: 100%;
+  height: 1px;
+  pointer-events: none;
+  background-color: ${props => props.theme.colors.spotBackground[1]};
+  margin-top: ${props => props.theme.space[4]}px;
+  margin-bottom: ${props => props.theme.space[4]}px;
+`;
 
 function AppsGrantedAccess({ apps }: { apps: string[] }) {
   const [expanded, setExpanded] = useState(true);
@@ -734,7 +762,7 @@ function TextBox({
 
   return (
     <LabelInput hasError={hasError}>
-      {labelText}
+      <Text mb={1}>{labelText}</Text>
       <Box
         as="textarea"
         height="80px"
@@ -750,6 +778,7 @@ function TextBox({
         css={`
           outline: none;
           background: transparent;
+          font-size: ${props => props.theme.fontSizes[2]}px;
 
           &::placeholder {
             color: ${({ theme }) => theme.colors.text.muted};
@@ -930,6 +959,8 @@ export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
     numRequestedResources: number;
     selectedResourceRequestRoles: string[];
     dryRunResponse: AccessRequest;
+    longTerm: boolean;
+    setLongTerm: React.Dispatch<React.SetStateAction<boolean>>;
     Header?: () => JSX.Element;
     startTime: Date;
     onStartTimeChange(t?: Date): void;
