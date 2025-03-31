@@ -606,7 +606,7 @@ func (u *Updater) Status(ctx context.Context) (Status, error) {
 	out.UpdateSpec = cfg.Spec
 	out.UpdateStatus = cfg.Status
 	idBytes, err := os.ReadFile(out.IDFile)
-	if err != nil {
+	if err == nil {
 		out.ID = string(bytes.TrimSpace(idBytes))
 	}
 	out.IDFile = ""
