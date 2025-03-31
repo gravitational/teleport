@@ -601,7 +601,7 @@ func (u *Updater) Status(ctx context.Context) (Status, error) {
 		return out, trace.Wrap(err)
 	}
 	if cfg.Spec.Proxy == "" {
-		return out, ErrNotInstalled
+		return out, trace.Wrap(ErrNotInstalled)
 	}
 	out.UpdateSpec = cfg.Spec
 	out.UpdateStatus = cfg.Status

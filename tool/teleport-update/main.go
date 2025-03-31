@@ -465,12 +465,12 @@ func cmdStatus(ctx context.Context, ccfg *cliConfig) error {
 		return trace.Wrap(err, "failed to initialize updater")
 	}
 	status, err := updater.Status(ctx)
-	if err != nil {
-		return trace.Wrap(err, "failed to get status")
-	}
 	if errors.Is(err, autoupdate.ErrNotInstalled) {
 		plog.InfoContext(ctx, "Teleport is not installed by teleport-update with this suffix.")
 		return nil
+	}
+	if err != nil {
+		return trace.Wrap(err, "failed to get status")
 	}
 	enc := yaml.NewEncoder(os.Stdout)
 	return trace.Wrap(enc.Encode(status))
