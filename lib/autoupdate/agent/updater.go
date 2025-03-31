@@ -230,7 +230,6 @@ type Updater struct {
 	TeardownNamespace func(ctx context.Context) error
 	// LogConfigWarnings logs warnings related to the configuration Namespace.
 	LogConfigWarnings func(ctx context.Context, pathDir string)
-
 	// EnsureUpdaterID generates and/or retrieves an ID for the updater, ensuring it is persisted.
 	// This ID is read by the Teleport agent and used to schedule progressive updates.
 	EnsureUpdaterID func() (string, error)
