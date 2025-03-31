@@ -167,14 +167,12 @@ important considerations when using these attributes in your rules:
 - `tbot` can only reliably determine the a process' executable path if it's
   running in the same mount namespace. The `binary_path` attribute will likely
   be incorrect if the workload is containerized.
-
 - Because `/proc/$pid/exe` is a symlink to an *inode* rather than a regular path,
   it's usually an accurate representation of what the process is executing even
   if the binary has been replaced on disk (e.g. during a rolling deployment).
   However, network filesystems do not guarantee inode stability, so if the
   process's executable is on a network mount, it's possible for `binary_hash` to
   be out of date.
-
 - By default, `tbot` will only checksum binaries smaller than 1GiB. To change
   this, increase `attestors.unix.binary_hash_max_size_bytes`.
 
