@@ -19,6 +19,7 @@ jobs:
     with:
       # TODO: Fix Terraform linting issues and stop using force to pass the job.
       tflint_force: true
+      tflint_config_path: $GITHUB_WORKSPACE/.tflint.hcl
     permissions:
       actions: read
       contents: read
