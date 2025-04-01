@@ -326,6 +326,8 @@ export const eventCodes = {
   HEALTH_CHECK_CONFIG_CREATE: 'THCC001I',
   HEALTH_CHECK_CONFIG_UPDATE: 'THCC002I',
   HEALTH_CHECK_CONFIG_DELETE: 'THCC003I',
+  MCP_REQUEST: 'TMCP001I',
+  MCP_NOTIFICATION: 'TMCP002I',
 } as const;
 
 /**
@@ -1869,6 +1871,18 @@ export type RawEvents = {
   [eventCodes.HEALTH_CHECK_CONFIG_DELETE]: RawEvent<
     typeof eventCodes.HEALTH_CHECK_CONFIG_DELETE,
     HasName
+  >;
+  [eventCodes.MCP_REQUEST]: RawEvent<
+    typeof eventCodes.MCP_REQUEST,
+    {
+      method: string;
+    }
+  >;
+  [eventCodes.MCP_NOTIFICATION]: RawEvent<
+    typeof eventCodes.MCP_NOTIFICATION,
+    {
+      method: string;
+    }
   >;
 };
 

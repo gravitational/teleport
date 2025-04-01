@@ -4811,6 +4811,8 @@ message OneOf {
     events.HealthCheckConfigDelete HealthCheckConfigDelete = 207;
     WorkloadIdentityX509IssuerOverrideCreate WorkloadIdentityX509IssuerOverrideCreate = 208;
     WorkloadIdentityX509IssuerOverrideDelete WorkloadIdentityX509IssuerOverrideDelete = 209;
+    events.AppSessionMCPRequest MCPRequest = 210;
+    events.AppSessionMCPNotification MCPNotification = 211;
   }
 }
 
@@ -8314,5 +8316,64 @@ message WorkloadIdentityX509IssuerOverrideDelete {
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
+  ];
+}
+
+message AppSessionMCPRequest {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // https://modelcontextprotocol.io/docs/concepts/transports#requests
+  string JSONRPC = 4 [(gogoproto.jsontag) = "jsonrpc"];
+  string RPCID = 5 [(gogoproto.jsontag) = "rpc_id"];
+  string RPCMethod = 6 [(gogoproto.jsontag) = "rpc_method"];
+  google.protobuf.Struct RPCParams = 7 [
+    (gogoproto.jsontag) = "rpc_params,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
+}
+
+message AppSessionMCPNotification {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // https://modelcontextprotocol.io/docs/concepts/transports#notifications
+  string JSONRPC = 4 [(gogoproto.jsontag) = "jsonrpc"];
+  string RPCMethod = 5 [(gogoproto.jsontag) = "rpc_method"];
+  google.protobuf.Struct RPCParams = 6 [
+    (gogoproto.jsontag) = "rpc_params,omitempty",
+    (gogoproto.casttype) = "Struct"
   ];
 }

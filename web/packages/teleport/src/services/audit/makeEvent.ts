@@ -2129,6 +2129,20 @@ export const formatters: Formatters = {
       return `User [${user}] deleted a health check config [${name}]`;
     },
   },
+  [eventCodes.MCP_REQUEST]: {
+    type: 'mcp.request',
+    desc: 'MCP Request',
+    format: ({ user, method }) => {
+      return `User [${user}] sent an MCP request [${method}]`;
+    },
+  },
+  [eventCodes.MCP_NOTIFICATION]: {
+    type: 'mcp.notification',
+    desc: 'MCP Notification',
+    format: ({ user, method }) => {
+      return `User [${user}] sent an MCP notification [${method}]`;
+    },
+  },
 };
 
 const unknownFormatter = {

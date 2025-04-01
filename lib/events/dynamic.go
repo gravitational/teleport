@@ -508,6 +508,11 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case HealthCheckConfigDeleteEvent:
 		e = &events.HealthCheckConfigDelete{}
 
+	case AppSessionMCPRequestEvent:
+		e = &events.MCPRequest{}
+	case AppSessionMCPNotificationEvent:
+		e = &events.MCPNotification{}
+
 	case WorkloadIdentityX509IssuerOverrideCreateEvent:
 		e = &events.WorkloadIdentityX509IssuerOverrideCreate{}
 	case WorkloadIdentityX509IssuerOverrideDeleteEvent:

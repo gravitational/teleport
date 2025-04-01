@@ -2524,3 +2524,13 @@ func (m *WorkloadIdentityX509IssuerOverrideCreate) TrimToMaxSize(int) AuditEvent
 func (m *WorkloadIdentityX509IssuerOverrideDelete) TrimToMaxSize(int) AuditEvent {
 	return m
 }
+
+// TODO(gavin): implement
+func (m *MCPRequest) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+// TODO(gavin): implement
+func (m *MCPNotification) TrimToMaxSize(int) AuditEvent {
+	return m
+}

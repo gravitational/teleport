@@ -727,6 +727,11 @@ const (
 	// sync attempt failure code.
 	AWSICResourceSyncFailureCode = "TAIC001E"
 
+	// MCPRequestCode is the code for a Model Context Protocol (MCP) request.
+	MCPRequestCode = "TMCP001I"
+	// MCPNotificationCode is the code for a Model Context Protocol (MCP) notification.
+	MCPNotificationCode = "TMCP002I"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )

@@ -425,6 +425,13 @@ const (
 	// a request via app access session.
 	AppSessionDynamoDBRequestEvent = "app.session.dynamodb.request"
 
+	// AppSessionMCPRequestEvent is emitted when a Model Context Protocol (MCP)
+	// request is made.
+	AppSessionMCPRequestEvent = "app.session.mcp.request"
+	// AppSessionMCPNotificationEvent is emitted when a Model Context Protocol
+	// (MCP) notification is sent.
+	AppSessionMCPNotificationEvent = "app.session.mcp.notification"
+
 	// DatabaseCreateEvent is emitted when a database resource is created.
 	DatabaseCreateEvent = "db.create"
 	// DatabaseUpdateEvent is emitted when a database resource is updated.

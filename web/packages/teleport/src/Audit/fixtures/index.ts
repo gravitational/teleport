@@ -21,6 +21,49 @@ import { makeEvent } from 'teleport/services/audit';
 // events contains sample JSON's of ALL supported event types
 export const events = [
   {
+    cluster_name: 'root.com',
+    code: 'TMCP001I',
+    event: 'app.session.mcp.request',
+    ei: 2,
+    jsonrpc: '2.0',
+    rpc_id: '1',
+    rpc_method: 'tools/call',
+    rpc_params: {
+      name: 'list_directory',
+      arguments: {
+        path: '~/claude/local',
+      },
+      _meta: {
+        progressToken: 0,
+      },
+    },
+    sid: '6593cf87-9839-4f18-abf8-c54873aaeb4e',
+    time: '2022-12-23T19:14:07.763Z',
+    uid: '12345678-46e9-4110-a773-2c88278d08ca',
+    user: 'alice@example.com',
+  },
+  {
+    cluster_name: 'root.com',
+    code: 'TMCP001I',
+    event: 'app.session.mcp.notification',
+    ei: 1,
+    jsonrpc: '2.0',
+    rpc_method: 'tools/call',
+    rpc_params: {
+      name: 'list_directory',
+      arguments: {
+        path: '~/claude/local',
+      },
+      _meta: {
+        progressToken: 0,
+      },
+    },
+    sid: '6593cf87-9839-4f18-abf8-c54873aaeb4e',
+    time: '2022-12-23T19:14:07.763Z',
+    uid: '12345678-46e9-4110-a773-2c88278d08ca',
+    user: 'alice@example.com',
+  },
+  {
     args: {
       database: 'projects/project-id/instances/instance-id/databases/prod-db',
       session_count: 100,
