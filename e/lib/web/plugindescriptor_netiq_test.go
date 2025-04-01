@@ -120,6 +120,7 @@ func TestNetIQPluginInstall(t *testing.T) {
 				"identityVaultPassword": {testCase.identityVaultPassword},
 				"oAuthClientID":         {testCase.oAuthClientID},
 				"oAuthClientSecret":     {testCase.oAuthClientSecret},
+				"csrf_token":            {webPack.csrfToken},
 			}
 
 			if testCase.insecureSkipVerify {
