@@ -134,6 +134,7 @@ import (
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/mcp"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -5155,6 +5156,22 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	})
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// MCP on proxy stuff
+	mcpServer, err := mcp.NewProxyServer(process.ExitContext(), &mcp.ProxyServerConfig{
+		AccessPoint: accessPoint,
+		AuthClient:  conn.Client,
+		Authorizer:  authorizer,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if alpnRouter != nil {
+		alpnRouter.Add(alpnproxy.HandlerDecs{
+			Handler:   mcpServer.HandleConnection,
+			MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolMCP),
+		})
 	}
 
 	// authMiddleware authenticates request assuming TLS client authentication
