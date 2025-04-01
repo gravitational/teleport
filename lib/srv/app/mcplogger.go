@@ -10,7 +10,7 @@ import (
 )
 
 // mcpMessageToEvent handles a single JSON-RPC message and either returns audit event (possibly empty) or error.
-func mcpMessageToEvent(event *events.MCPRequest, line string) (bool, error) {
+func mcpMessageToEvent(event *events.AppSessionMCPRequest, line string) (bool, error) {
 	var rawMessage json.RawMessage
 	err := json.Unmarshal([]byte(line), &rawMessage)
 	if err != nil {
@@ -42,8 +42,13 @@ func mcpMessageToEvent(event *events.MCPRequest, line string) (bool, error) {
 		return false, nil // Return nil for notifications
 	}
 
-	event.Method = string(baseMessage.Method)
-	event.Body = line
+	event.RPCMethod = string(baseMessage.Method)
+
+	s := &events.Struct{}
+	if err := s.UnmarshalJSON(rawMessage); err != nil {
+		return false, trace.Wrap(err)
+	}
+	event.RPCParams = s
 
 	switch baseMessage.Method {
 	case mcp.MethodInitialize:

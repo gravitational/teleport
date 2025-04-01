@@ -84,7 +84,7 @@ func (d *dumpWriter) emitAuditEvent(msg string) {
 		return
 	}
 
-	event := &apievents.MCPRequest{}
+	event := &apievents.AppSessionMCPRequest{}
 
 	emitEvent, err := mcpMessageToEvent(event, msg)
 	if err != nil {
