@@ -63,7 +63,7 @@ var (
 echo "Configuring the Teleport agent"
 
 set +x
-sudo teleport ` + strings.Join(argsList, " ")
+sudo teleport ` + strings.Join(argsList, " ") + " $@"
 
 	argsList = []string{
 		"install", "autodiscover-node",

@@ -262,6 +262,14 @@ export interface DocumentVnetDiagReport extends DocumentBase {
   report: Report;
 }
 
+export interface DocumentVnetInfo extends DocumentBase {
+  kind: 'doc.vnet_info';
+  // VNet itself is not bound to any workspace, but a document must belong to a workspace. Also, it
+  // must be possible to determine the relation between a document and a cluster just by looking at
+  // the document fields, hence why rootClusterUri is defined here.
+  rootClusterUri: uri.RootClusterUri;
+}
+
 /**
  * Document to authorize a web session with device trust.
  * Unlike other documents, it is not persisted on disk.
@@ -297,6 +305,7 @@ export type Document =
   | DocumentTerminal
   | DocumentConnectMyComputer
   | DocumentVnetDiagReport
+  | DocumentVnetInfo
   | DocumentAuthorizeWebSession;
 
 /**
