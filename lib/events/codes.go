@@ -133,8 +133,6 @@ const (
 	// AppSessionDynamoDBRequestCode is the application request/response code.
 	AppSessionDynamoDBRequestCode = "T2013I"
 
-	MCPRequestCode = "MR001I"
-
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"
 	// AppUpdateCode is the app.update event code.
@@ -727,10 +725,10 @@ const (
 	// sync attempt failure code.
 	AWSICResourceSyncFailureCode = "TAIC001E"
 
-	// MCPRequestCode is the code for a Model Context Protocol (MCP) request.
-	MCPRequestCode = "TMCP001I"
-	// MCPNotificationCode is the code for a Model Context Protocol (MCP) notification.
-	MCPNotificationCode = "TMCP002I"
+	// AppSessionMCPRequestCode is the code for a Model Context Protocol (MCP) request.
+	AppSessionMCPRequestCode = "TMCP001I"
+	// AppSessionMCPNotificationCode is the code for a Model Context Protocol (MCP) notification.
+	AppSessionMCPNotificationCode = "TMCP002I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

@@ -44,20 +44,12 @@ export const events = [
   },
   {
     cluster_name: 'root.com',
-    code: 'TMCP001I',
+    code: 'TMCP002I',
     event: 'app.session.mcp.notification',
     ei: 1,
     jsonrpc: '2.0',
-    rpc_method: 'tools/call',
-    rpc_params: {
-      name: 'list_directory',
-      arguments: {
-        path: '~/claude/local',
-      },
-      _meta: {
-        progressToken: 0,
-      },
-    },
+    rpc_method: 'initialized',
+    rpc_params: {},
     sid: '6593cf87-9839-4f18-abf8-c54873aaeb4e',
     time: '2022-12-23T19:14:07.763Z',
     uid: '12345678-46e9-4110-a773-2c88278d08ca',

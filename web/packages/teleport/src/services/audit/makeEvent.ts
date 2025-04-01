@@ -2129,18 +2129,18 @@ export const formatters: Formatters = {
       return `User [${user}] deleted a health check config [${name}]`;
     },
   },
-  [eventCodes.MCP_REQUEST]: {
-    type: 'mcp.request',
-    desc: 'MCP Request',
-    format: ({ user, method }) => {
-      return `User [${user}] sent an MCP request [${method}]`;
+  [eventCodes.APP_SESSION_MCP_REQUEST]: {
+    type: 'app.session.mcp.request',
+    desc: 'App Session MCP Request',
+    format: ({ user, rpc_method }) => {
+      return `User [${user}] sent an MCP request [${rpc_method}]`;
     },
   },
-  [eventCodes.MCP_NOTIFICATION]: {
-    type: 'mcp.notification',
-    desc: 'MCP Notification',
-    format: ({ user, method }) => {
-      return `User [${user}] sent an MCP notification [${method}]`;
+  [eventCodes.APP_SESSION_MCP_NOTIFICATION]: {
+    type: 'app.session.mcp.notification',
+    desc: 'App Session MCP Notification',
+    format: ({ user, rpc_method }) => {
+      return `User [${user}] sent an MCP notification [${rpc_method}]`;
     },
   },
 };

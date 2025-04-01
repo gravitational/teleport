@@ -97,8 +97,8 @@ func (d *dumpWriter) emitAuditEvent(msg string) {
 	}
 
 	event.Metadata = apievents.Metadata{
-		Type: events.MCPRequestEvent,
-		Code: events.MCPRequestCode,
+		Type: events.AppSessionMCPRequestEvent,
+		Code: events.AppSessionMCPRequestCode,
 	}
 
 	d.logger.InfoContext(d.ctx, "event", "val", event)
