@@ -18,12 +18,10 @@ pub mod global;
 
 use crate::rdpdr::tdp;
 use crate::{
-    cgo_handle_fastpath_pdu, cgo_handle_rdp_connection_activated, cgo_handle_remote_copy, ssl,
+    cgo_handle_fastpath_pdu, cgo_handle_rdp_connection_activated, cgo_handle_remote_copy,
     CGOErrCode, CGOKeyboardEvent, CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel,
     CGOSyncKeys, CgoHandle,
 };
-#[cfg(feature = "fips")]
-use boring::error::ErrorStack;
 use bytes::BytesMut;
 use ironrdp_cliprdr::{Cliprdr, CliprdrClient, CliprdrSvcMessages};
 use ironrdp_connector::connection_activation::ConnectionActivationState;
@@ -64,12 +62,11 @@ use log::debug;
 use rand::{Rng, TryRngCore};
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
-use std::io::{Error as IoError, ErrorKind as IoErrorKind};
+use std::io::Error as IoError;
 use std::net::ToSocketAddrs;
-use std::os::fd::FromRawFd;
+use std::os::fd::OwnedFd;
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::time::Duration;
-use tokio::io::{split, ReadHalf, WriteHalf};
+use tokio::io::{split, AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::sync::mpsc::{channel, error::SendError, Receiver, Sender};
 use tokio::task::JoinError;
@@ -78,12 +75,7 @@ use crate::cliprdr::{ClipboardFn, TeleportCliprdrBackend};
 use crate::license::GoLicenseCache;
 use crate::rdpdr::scard::SCARD_DEVICE_ID;
 use crate::rdpdr::TeleportRdpdrBackend;
-use crate::ssl::TlsStream;
-#[cfg(feature = "fips")]
-use tokio_boring::HandshakeError;
 use url::Url;
-
-const RDP_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// The "Microsoft::Windows::RDS::DisplayControl" DVC is opened
 /// by the server. Until it does so, we withhold the latest screen
@@ -128,7 +120,7 @@ impl Client {
     }
 
     /// Initializes the RDP connection with the given [`ConnectParams`].
-    async fn connect(cgo_handle: CgoHandle, params: ConnectParams) -> ClientResult<Self> {
+    async fn connect(cgo_handle: CgoHandle, mut params: ConnectParams) -> ClientResult<Self> {
         let server_addr = params.addr.clone();
         let server_socket_addr = server_addr
             .to_socket_addrs()?
@@ -136,12 +128,22 @@ impl Client {
             .ok_or(ClientError::UnknownAddress)?;
 
         println!("!!!!!! using existing connection");
-        let stream = unsafe {
-            let std_stream = std::net::TcpStream::from_raw_fd(params.fd);
-            std_stream.set_nonblocking(true);
-            let stream = TokioTcpStream::from_std(std_stream)?;
-            stream
-        };
+
+        let std_stream = std::net::TcpStream::from(
+            params
+                .conn_fd
+                .take()
+                .ok_or_else(|| ClientError::InternalError("missing conn fd".into()))?,
+        );
+        let stream = { TokioTcpStream::from_std(std_stream)? };
+
+        let tls_std_stream = std::os::unix::net::UnixStream::from(
+            params
+                .tls_fd
+                .take()
+                .ok_or_else(|| ClientError::InternalError("missing tls fd".into()))?,
+        );
+        let mut tls_stream = tokio::net::UnixStream::from_std(tls_std_stream)?;
 
         // Create a framed stream for use by connect_begin
         let mut framed = ironrdp_tokio::TokioFramed::new(stream);
@@ -205,15 +207,22 @@ impl Client {
         let should_upgrade = ironrdp_tokio::connect_begin(&mut framed, &mut connector).await?;
 
         // Take the stream back out of the framed object for upgrading
-        let initial_stream = framed.into_inner_no_leftover();
-        let (upgraded_stream, server_public_key) =
-            ssl::upgrade(initial_stream, &server_socket_addr.ip().to_string()).await?;
+        let _ = framed.into_inner_no_leftover();
+
+        tls_stream.write_all(&[0]).await?;
+
+        let server_public_key = {
+            let len = tls_stream.read_u32_le().await?;
+            let mut buf = vec![0u8; len.try_into().unwrap()];
+            tls_stream.read_exact(&mut buf).await?;
+            buf
+        };
 
         // Upgrade the stream
         let upgraded = ironrdp_tokio::mark_as_upgraded(should_upgrade, &mut connector);
 
         // Frame the stream again for use by connect_finalize
-        let mut rdp_stream = ironrdp_tokio::TokioFramed::new(upgraded_stream);
+        let mut rdp_stream = ironrdp_tokio::TokioFramed::new(tls_stream);
 
         let mut network_client = crate::network_client::NetworkClient::new();
         let kerberos_config = params
@@ -242,7 +251,8 @@ impl Client {
             connection_result.io_channel_id,
             connection_result.user_channel_id,
             connection_result.desktop_size,
-        )?;
+        )
+        .await?;
 
         // Take the stream back out of the framed object for splitting.
         let rdp_stream = rdp_stream.into_inner_no_leftover();
@@ -406,7 +416,7 @@ impl Client {
                                                 io_channel_id,
                                                 user_channel_id,
                                                 desktop_size,
-                                            )?;
+                                            ).await?;
                                             break;
                                         }
                                     }
@@ -548,13 +558,13 @@ impl Client {
         Ok(vec![])
     }
 
-    fn send_connection_activated(
+    async fn send_connection_activated(
         cgo_handle: CgoHandle,
         io_channel_id: u16,
         user_channel_id: u16,
         desktop_size: DesktopSize,
     ) -> ClientResult<()> {
-        unsafe {
+        tokio::task::spawn_blocking(move || unsafe {
             ClientResult::from(cgo_handle_rdp_connection_activated(
                 cgo_handle,
                 io_channel_id,
@@ -562,7 +572,9 @@ impl Client {
                 desktop_size.width,
                 desktop_size.height,
             ))
-        }
+        })
+        .await
+        .unwrap()
     }
 
     async fn update_clipboard(
@@ -1402,8 +1414,8 @@ impl FunctionReceiver {
     }
 }
 
-type RdpReadStream = Framed<TokioStream<ReadHalf<TlsStream<TokioTcpStream>>>>;
-type RdpWriteStream = Framed<TokioStream<WriteHalf<TlsStream<TokioTcpStream>>>>;
+type RdpReadStream = Framed<TokioStream<ReadHalf<tokio::net::UnixStream>>>;
+type RdpWriteStream = Framed<TokioStream<WriteHalf<tokio::net::UnixStream>>>;
 
 fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> Config {
     Config {
@@ -1482,7 +1494,8 @@ pub struct ConnectParams {
     pub nla: bool,
     pub client_id: [u32; 4],
 
-    pub fd: i32,
+    pub conn_fd: Option<OwnedFd>,
+    pub tls_fd: Option<OwnedFd>,
 }
 
 #[derive(Debug)]
@@ -1500,10 +1513,6 @@ pub enum ClientError {
     UnknownAddress,
     InputEventError(InputEventError),
     UrlError(url::ParseError),
-    #[cfg(feature = "fips")]
-    ErrorStack(ErrorStack),
-    #[cfg(feature = "fips")]
-    HandshakeError(HandshakeError<TokioTcpStream>),
 }
 
 impl std::error::Error for ClientError {}
@@ -1542,10 +1551,6 @@ impl Display for ClientError {
             ClientError::EncodeError(e) => Display::fmt(e, f),
             ClientError::PduError(e) => Display::fmt(e, f),
             ClientError::UrlError(e) => Display::fmt(e, f),
-            #[cfg(feature = "fips")]
-            ClientError::ErrorStack(e) => Display::fmt(e, f),
-            #[cfg(feature = "fips")]
-            ClientError::HandshakeError(e) => Display::fmt(e, f),
         }
     }
 }
@@ -1607,20 +1612,6 @@ impl From<PduError> for ClientError {
 impl From<ClientError> for PduError {
     fn from(e: ClientError) -> Self {
         pdu_other_err!("", source:e)
-    }
-}
-
-#[cfg(feature = "fips")]
-impl From<ErrorStack> for ClientError {
-    fn from(e: ErrorStack) -> Self {
-        ClientError::ErrorStack(e)
-    }
-}
-
-#[cfg(feature = "fips")]
-impl From<HandshakeError<TokioTcpStream>> for ClientError {
-    fn from(e: HandshakeError<TokioTcpStream>) -> Self {
-        ClientError::HandshakeError(e)
     }
 }
 

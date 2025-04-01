@@ -72,10 +72,12 @@ import "C"
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net"
 	"os"
 	"runtime/cgo"
@@ -87,11 +89,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
 func init() {
@@ -355,19 +359,72 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 	}
 	defer rdpConn.Close()
 
-	fds, err := syscall.Socketpair(syscall.AF_LOCAL, syscall.SOCK_STREAM, 0)
-	if err != nil {
-		return trace.Wrap(err, "socketpair")
-	}
-
-	conn, err := net.FileConn(os.NewFile(uintptr(fds[0]), "c0"))
+	rdpConnDupe, err := dupeConn(rdpConn.(*net.TCPConn))
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer conn.Close()
 
-	go io.Copy(rdpConn, conn)
-	go io.Copy(conn, rdpConn)
+	left, right, err := uds.NewSocketpair(uds.SocketTypeStream)
+	if err != nil {
+		_ = unix.Close(int(rdpConnDupe))
+		return trace.Wrap(err)
+	}
+
+	leftDupe, err := dupeConn(left)
+	if err != nil {
+		_ = unix.Close(int(rdpConnDupe))
+		return trace.Wrap(err)
+	}
+	_ = left.Close()
+
+	go func() {
+		defer rdpConn.Close()
+		defer right.Close()
+		n, err := right.Read(make([]byte, 1))
+		if err != nil || n < 1 {
+			c.cfg.Logger.ErrorContext(ctx, "missed TLS upgrade signal", "error", err)
+			return
+		}
+
+		rdpConnTLS := tls.Client(rdpConn, &tls.Config{
+			InsecureSkipVerify: true, //#nosec
+		})
+		if err := func() error {
+			handshakeCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			defer cancel()
+			return rdpConnTLS.HandshakeContext(handshakeCtx)
+		}(); err != nil {
+			c.cfg.Logger.ErrorContext(ctx, "TLS handshake failed", "error", err)
+			return
+		}
+
+		spki := rdpConnTLS.ConnectionState().PeerCertificates[0].RawSubjectPublicKeyInfo
+		if len(spki) > math.MaxUint32 {
+			panic("spki length greater than uint32")
+		}
+		if _, err := right.Write(binary.LittleEndian.AppendUint32(nil, uint32(len(spki)))); err != nil {
+			c.cfg.Logger.ErrorContext(ctx, "failed to pass SPKI to rdp client", "error", err)
+			return
+		}
+		if _, err := right.Write(spki); err != nil {
+			c.cfg.Logger.ErrorContext(ctx, "failed to pass SPKI to rdp client", "error", err)
+			return
+		}
+
+		var wg sync.WaitGroup
+		defer wg.Wait()
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			_, err := io.Copy(right, rdpConnTLS)
+			c.cfg.Logger.DebugContext(ctx, "finished copying from tls connection to rdp client", "error", err)
+		}()
+		go func() {
+			defer wg.Done()
+			_, err := io.Copy(rdpConnTLS, right)
+			c.cfg.Logger.DebugContext(ctx, "finished copying from rdp client to tls connection", "error", err)
+		}()
+	}()
 
 	res := C.client_run(
 		C.uintptr_t(c.handle),
@@ -391,7 +448,8 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
 			client_id:               cHostID,
 
-			fd: C.int32_t(fds[1]),
+			conn_fd: C.int(rdpConnDupe),
+			tls_fd:  C.int(leftDupe),
 		},
 	)
 
@@ -426,6 +484,28 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 	c.sendTDPAlert(message, tdp.SeverityError)
 
 	return nil
+}
+
+func dupeConn(c syscall.Conn) (int32, error) {
+	sc, err := c.SyscallConn()
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	var dupe int32
+	var ctrlErr error
+	if err := sc.Control(func(fd uintptr) {
+		d, err := unix.FcntlInt(fd, unix.F_DUPFD_CLOEXEC, 0)
+		if err != nil {
+			ctrlErr = err
+		}
+		dupe = int32(d)
+	}); err != nil {
+		return 0, trace.Wrap(err)
+	}
+	if ctrlErr != nil {
+		return 0, trace.Wrap(ctrlErr)
+	}
+	return dupe, nil
 }
 
 func (c *Client) stopRustRDP() error {

@@ -40,6 +40,7 @@ use rdpdr::tdp::{
 use std::ffi::CString;
 use std::fmt::Debug;
 use std::io::ErrorKind;
+use std::os::fd::{FromRawFd, OwnedFd, RawFd};
 use std::os::raw::c_char;
 use std::ptr;
 use util::{from_c_string, from_go_array};
@@ -49,7 +50,6 @@ mod license;
 mod network_client;
 mod piv;
 mod rdpdr;
-mod ssl;
 mod util;
 
 /// rdpclient_init_log should be called at initialization time to set up
@@ -93,6 +93,10 @@ pub unsafe extern "C" fn free_string(ptr: *mut c_char) {
 #[no_mangle]
 pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectParams) -> CGOResult {
     trace!("client_run");
+
+    let conn_fd = unsafe { OwnedFd::from_raw_fd(params.conn_fd) };
+    let tls_fd = unsafe { OwnedFd::from_raw_fd(params.tls_fd) };
+
     // Convert from C to Rust types.
     let username = from_c_string(params.go_username);
     let addr = from_c_string(params.go_addr);
@@ -126,7 +130,8 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
             allow_directory_sharing: params.allow_directory_sharing,
             show_desktop_wallpaper: params.show_desktop_wallpaper,
             client_id: params.client_id,
-            fd: params.fd,
+            conn_fd: Some(conn_fd),
+            tls_fd: Some(tls_fd),
         },
     ) {
         Ok(res) => CGOResult {
@@ -513,7 +518,8 @@ pub struct CGOConnectParams {
     allow_directory_sharing: bool,
     show_desktop_wallpaper: bool,
     client_id: [u32; 4],
-    fd: i32,
+    conn_fd: RawFd,
+    tls_fd: RawFd,
 }
 
 /// CGOKeyboardEvent is a CGO-compatible version of KeyboardEvent that we pass back to Go.
