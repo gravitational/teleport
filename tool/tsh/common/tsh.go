@@ -971,9 +971,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyKube := newProxyKubeCommand(proxy)
 
 	// MCP.
-	mcp := app.Command("mcp", "one sheep")
-	mcpStart := mcp.Command("start", "two sheep")
-	mcpStart.Arg("name", "three sheep").Required().StringVar(&cf.AppName)
+	mcp := app.Command("mcp", "MCP server stuff")
+	mcpStart := mcp.Command("start", "start proxy for particular MCP server")
+	mcpStart.Arg("name", "Name of the MCP server").Required().StringVar(&cf.AppName)
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
