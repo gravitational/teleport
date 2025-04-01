@@ -68,7 +68,7 @@ func NewYubiKeyService(ctx context.Context, prompt hardwarekey.Prompt) *YubiKeyS
 	}
 
 	if prompt == nil {
-		prompt = &hardwarekey.CLIPrompt{}
+		prompt = hardwarekey.NewStdCLIPrompt()
 	}
 
 	return &YubiKeyService{

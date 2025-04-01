@@ -47,7 +47,7 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	s := piv.NewYubiKeyService(ctx, &hardwarekey.CLIPrompt{})
+	s := piv.NewYubiKeyService(ctx, hardwarekey.NewStdCLIPrompt())
 
 	y, err := piv.FindYubiKey(0)
 	require.NoError(t, err)
@@ -70,7 +70,7 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 		keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
 	} {
 		for _, customSlot := range []bool{true, false} {
-			t.Run(fmt.Sprintf("policy:%q", policy), func(t *testing.T) {
+			t.Run(fmt.Sprintf("policy:%+v", policy), func(t *testing.T) {
 				t.Run(fmt.Sprintf("custom slot:%v", customSlot), func(t *testing.T) {
 					resetYubikey(t, y)
 					setupPINPrompt(t, y)
@@ -126,7 +126,7 @@ func TestOverwritePrompt(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	s := piv.NewYubiKeyService(ctx, &hardwarekey.CLIPrompt{})
+	s := piv.NewYubiKeyService(ctx, hardwarekey.NewStdCLIPrompt())
 
 	y, err := piv.FindYubiKey(0)
 	require.NoError(t, err)

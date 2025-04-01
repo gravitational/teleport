@@ -17,6 +17,7 @@ package hardwarekey
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/gravitational/trace"
@@ -25,55 +26,75 @@ import (
 )
 
 var (
-	// defaultPIN for the PIV applet. The PIN is used to change the Management Key,
+	// DefaultPIN for the PIV applet. The PIN is used to change the Management Key,
 	// and slots can optionally require it to perform signing operations.
-	defaultPIN = "123456"
-	// defaultPUK for the PIV applet. The PUK is only used to reset the PIN when
+	DefaultPIN = "123456"
+	// DefaultPUK for the PIV applet. The PUK is only used to reset the PIN when
 	// the card's PIN retries have been exhausted.
-	defaultPUK = "12345678"
+	DefaultPUK = "12345678"
 )
 
-type CLIPrompt struct{}
+type cliPrompt struct {
+	writer io.Writer
+	reader prompt.StdinReader
+}
 
-func (c *CLIPrompt) AskPIN(ctx context.Context, requirement PINPromptRequirement) (string, error) {
+// NewStdCLIPrompt returns a new CLIPrompt with stderr and stdout.
+func NewStdCLIPrompt() *cliPrompt {
+	return &cliPrompt{
+		writer: os.Stderr,
+		reader: prompt.Stdin(),
+	}
+}
+
+// NewStdCLIPrompt returns a new CLIPrompt with the given writer and reader.
+// Used in tests.
+func NewCLIPrompt(w io.Writer, r prompt.StdinReader) *cliPrompt {
+	return &cliPrompt{
+		writer: w,
+		reader: r,
+	}
+}
+
+func (c *cliPrompt) AskPIN(ctx context.Context, requirement PINPromptRequirement) (string, error) {
 	message := "Enter your YubiKey PIV PIN"
 	if requirement == PINOptional {
 		message = "Enter your YubiKey PIV PIN [blank to use default PIN]"
 	}
-	password, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), message)
+	password, err := prompt.Password(ctx, c.writer, c.reader, message)
 	return password, trace.Wrap(err)
 }
 
-func (c *CLIPrompt) Touch(_ context.Context) error {
-	_, err := fmt.Fprintln(os.Stderr, "Tap your YubiKey")
+func (c *cliPrompt) Touch(_ context.Context) error {
+	_, err := fmt.Fprintln(c.writer, "Tap your YubiKey")
 	return trace.Wrap(err)
 }
 
-func (c *CLIPrompt) ChangePIN(ctx context.Context) (*PINAndPUK, error) {
+func (c *cliPrompt) ChangePIN(ctx context.Context) (*PINAndPUK, error) {
 	var pinAndPUK = &PINAndPUK{}
 	for {
-		fmt.Fprintf(os.Stderr, "Please set a new 6-8 character PIN.\n")
-		newPIN, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Enter your new YubiKey PIV PIN")
+		fmt.Fprintf(c.writer, "Please set a new 6-8 character PIN.\n")
+		newPIN, err := prompt.Password(ctx, c.writer, c.reader, "Enter your new YubiKey PIV PIN")
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		newPINConfirm, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Confirm your new YubiKey PIV PIN")
+		newPINConfirm, err := prompt.Password(ctx, c.writer, c.reader, "Confirm your new YubiKey PIV PIN")
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		if newPIN != newPINConfirm {
-			fmt.Fprintf(os.Stderr, "PINs do not match.\n")
+			fmt.Fprintf(c.writer, "PINs do not match.\n")
 			continue
 		}
 
-		if newPIN == defaultPIN {
-			fmt.Fprintf(os.Stderr, "The default PIN %q is not supported.\n", defaultPIN)
+		if newPIN == DefaultPIN {
+			fmt.Fprintf(c.writer, "The default PIN %q is not supported.\n", DefaultPIN)
 			continue
 		}
 
 		if !isPINLengthValid(newPIN) {
-			fmt.Fprintf(os.Stderr, "PIN must be 6-8 characters long.\n")
+			fmt.Fprintf(c.writer, "PIN must be 6-8 characters long.\n")
 			continue
 		}
 
@@ -81,40 +102,40 @@ func (c *CLIPrompt) ChangePIN(ctx context.Context) (*PINAndPUK, error) {
 		break
 	}
 
-	puk, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Enter your YubiKey PIV PUK to reset PIN [blank to use default PUK]")
+	puk, err := prompt.Password(ctx, c.writer, c.reader, "Enter your YubiKey PIV PUK to reset PIN [blank to use default PUK]")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	pinAndPUK.PUK = puk
 
 	switch puk {
-	case defaultPUK:
-		fmt.Fprintf(os.Stderr, "The default PUK %q is not supported.\n", defaultPUK)
+	case DefaultPUK:
+		fmt.Fprintf(c.writer, "The default PUK %q is not supported.\n", DefaultPUK)
 		fallthrough
 	case "":
 		for {
-			fmt.Fprintf(os.Stderr, "Please set a new 6-8 character PUK (used to reset PIN).\n")
-			newPUK, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Enter your new YubiKey PIV PUK")
+			fmt.Fprintf(c.writer, "Please set a new 6-8 character PUK (used to reset PIN).\n")
+			newPUK, err := prompt.Password(ctx, c.writer, c.reader, "Enter your new YubiKey PIV PUK")
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			newPUKConfirm, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), "Confirm your new YubiKey PIV PUK")
+			newPUKConfirm, err := prompt.Password(ctx, c.writer, c.reader, "Confirm your new YubiKey PIV PUK")
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 
 			if newPUK != newPUKConfirm {
-				fmt.Fprintf(os.Stderr, "PUKs do not match.\n")
+				fmt.Fprintf(c.writer, "PUKs do not match.\n")
 				continue
 			}
 
-			if newPUK == defaultPUK {
-				fmt.Fprintf(os.Stderr, "The default PUK %q is not supported.\n", defaultPUK)
+			if newPUK == DefaultPUK {
+				fmt.Fprintf(c.writer, "The default PUK %q is not supported.\n", DefaultPUK)
 				continue
 			}
 
 			if !isPINLengthValid(newPUK) {
-				fmt.Fprintf(os.Stderr, "PUK must be 6-8 characters long.\n")
+				fmt.Fprintf(c.writer, "PUK must be 6-8 characters long.\n")
 				continue
 			}
 
@@ -126,7 +147,7 @@ func (c *CLIPrompt) ChangePIN(ctx context.Context) (*PINAndPUK, error) {
 	return pinAndPUK, nil
 }
 
-func (c *CLIPrompt) ConfirmSlotOverwrite(ctx context.Context, message string) (bool, error) {
-	confirmation, err := prompt.Confirmation(ctx, os.Stderr, prompt.Stdin(), message)
+func (c *cliPrompt) ConfirmSlotOverwrite(ctx context.Context, message string) (bool, error) {
+	confirmation, err := prompt.Confirmation(ctx, c.writer, c.reader, message)
 	return confirmation, trace.Wrap(err)
 }

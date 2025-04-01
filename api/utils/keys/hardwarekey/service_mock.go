@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 )
@@ -40,20 +41,24 @@ type hardwareKeySlot struct {
 	slot         PIVSlotKey
 }
 
-type mockHardwareKeyService struct {
+type MockHardwareKeyService struct {
+	prompt    Prompt
+	mockTouch chan struct{}
+
 	fakeHardwarePrivateKeys    map[hardwareKeySlot]*fakeHardwarePrivateKey
 	fakeHardwarePrivateKeysMux *sync.Mutex
 }
 
 // NewMockHardwareKeyService returns a [mockHardwareKeyService] for use in tests.
-func NewMockHardwareKeyService() *mockHardwareKeyService {
-	return &mockHardwareKeyService{
+func NewMockHardwareKeyService() *MockHardwareKeyService {
+	return &MockHardwareKeyService{
+		mockTouch:                  make(chan struct{}),
 		fakeHardwarePrivateKeys:    map[hardwareKeySlot]*fakeHardwarePrivateKey{},
 		fakeHardwarePrivateKeysMux: &sync.Mutex{},
 	}
 }
 
-func (s *mockHardwareKeyService) NewPrivateKey(ctx context.Context, config PrivateKeyConfig) (*PrivateKey, error) {
+func (s *MockHardwareKeyService) NewPrivateKey(ctx context.Context, config PrivateKeyConfig) (*PrivateKey, error) {
 	s.fakeHardwarePrivateKeysMux.Lock()
 	defer s.fakeHardwarePrivateKeysMux.Unlock()
 
@@ -76,6 +81,11 @@ func (s *mockHardwareKeyService) NewPrivateKey(ctx context.Context, config Priva
 
 	if priv, ok := s.fakeHardwarePrivateKeys[keySlot]; ok {
 		return NewPrivateKey(s, priv.ref), nil
+	}
+
+	// generating a new key with PIN/touch requirements requires the corresponding prompt.
+	if err := s.tryPrompt(ctx, config.Policy); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
@@ -104,7 +114,7 @@ func (s *mockHardwareKeyService) NewPrivateKey(ctx context.Context, config Priva
 
 // Sign performs a cryptographic signature using the specified hardware
 // private key and provided signature parameters.
-func (s *mockHardwareKeyService) Sign(ctx context.Context, ref *PrivateKeyRef, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
+func (s *MockHardwareKeyService) Sign(ctx context.Context, ref *PrivateKeyRef, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
 	s.fakeHardwarePrivateKeysMux.Lock()
 	defer s.fakeHardwarePrivateKeysMux.Unlock()
 
@@ -116,13 +126,51 @@ func (s *mockHardwareKeyService) Sign(ctx context.Context, ref *PrivateKeyRef, r
 		return nil, trace.NotFound("key not found in slot %d", ref.SlotKey)
 	}
 
+	if err := s.tryPrompt(ctx, ref.Policy); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return priv.Sign(rand, digest, opts)
 }
 
-func (s *mockHardwareKeyService) SetPrompt(prompt Prompt) {}
+func (s *MockHardwareKeyService) tryPrompt(ctx context.Context, policy PromptPolicy) error {
+	if !policy.PINRequired && !policy.TouchRequired {
+		return nil
+	}
+
+	if s.prompt == nil {
+		return trace.BadParameter("must provide a prompt to test a hardware key with a pin or touch policy")
+	}
+
+	if policy.PINRequired {
+		ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+		if _, err := s.prompt.AskPIN(ctx, PINRequired); err != nil {
+			return trace.Wrap(err, "failed to handle pin prompt")
+		}
+		// We don't actually check the PIN for the current tests, any input is sufficient.
+	}
+
+	if policy.TouchRequired {
+		if err := s.prompt.Touch(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		select {
+		case <-s.mockTouch:
+		case <-time.After(100 * time.Millisecond):
+			return trace.Wrap(context.DeadlineExceeded, "failed to handle touch prompt")
+		}
+	}
+
+	return nil
+}
+
+func (s *MockHardwareKeyService) SetPrompt(prompt Prompt) {
+	s.prompt = prompt
+}
 
 // TODO(Joerger): DELETE IN v19.0.0
-func (s *mockHardwareKeyService) GetMissingKeyRefDetails(ref *PrivateKeyRef) error {
+func (s *MockHardwareKeyService) GetMissingKeyRefDetails(ref *PrivateKeyRef) error {
 	s.fakeHardwarePrivateKeysMux.Lock()
 	defer s.fakeHardwarePrivateKeysMux.Unlock()
 
@@ -136,4 +184,8 @@ func (s *mockHardwareKeyService) GetMissingKeyRefDetails(ref *PrivateKeyRef) err
 
 	*ref = *priv.ref
 	return nil
+}
+
+func (s *MockHardwareKeyService) MockTouch() {
+	s.mockTouch <- struct{}{}
 }

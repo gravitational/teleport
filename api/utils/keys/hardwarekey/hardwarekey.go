@@ -47,7 +47,7 @@ type Service interface {
 // PrivateKey is a hardware private key implementation of [crypto.Signer].
 type PrivateKey struct {
 	service Service
-	ref     *PrivateKeyRef
+	Ref     *PrivateKeyRef
 }
 
 // NewPrivateKey returns a [PrivateKey] for the given service and ref.
@@ -55,13 +55,13 @@ type PrivateKey struct {
 func NewPrivateKey(s Service, ref *PrivateKeyRef) *PrivateKey {
 	return &PrivateKey{
 		service: s,
-		ref:     ref,
+		Ref:     ref,
 	}
 }
 
 // Encode the hardware private key ref in a format understood by other Teleport clients.
 func (p *PrivateKey) Encode() ([]byte, error) {
-	return p.ref.encode()
+	return p.Ref.encode()
 }
 
 // DecodePrivateKey decodes an encoded hardware private key for the given service.
@@ -89,28 +89,28 @@ func DecodePrivateKey(s Service, encodedKey []byte) (*PrivateKey, error) {
 
 // Public implements [crypto.Signer].
 func (h *PrivateKey) Public() crypto.PublicKey {
-	return h.ref.PublicKey
+	return h.Ref.PublicKey
 }
 
 // Sign implements [crypto.Signer].
 func (h *PrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
 	// When context.TODO() is passed, the service should replace this with its own parent context.
-	return h.service.Sign(context.TODO(), h.ref, rand, digest, opts)
+	return h.service.Sign(context.TODO(), h.Ref, rand, digest, opts)
 }
 
 // GetAttestation returns the hardware private key attestation details.
 func (h *PrivateKey) GetAttestationStatement() *AttestationStatement {
-	return h.ref.AttestationStatement
+	return h.Ref.AttestationStatement
 }
 
 // GetPrivateKeyPolicy returns the PrivateKeyPolicy satisfied by this key.
 func (h *PrivateKey) GetPromptPolicy() PromptPolicy {
-	return h.ref.Policy
+	return h.Ref.Policy
 }
 
 // WarmupHardwareKey performs a bogus sign() call to prompt the user for PIN/touch (if needed).
 func (h *PrivateKey) WarmupHardwareKey(ctx context.Context) error {
-	if !h.ref.Policy.PINRequired && !h.ref.Policy.TouchRequired {
+	if !h.Ref.Policy.PINRequired && !h.Ref.Policy.TouchRequired {
 		return nil
 	}
 
@@ -118,7 +118,7 @@ func (h *PrivateKey) WarmupHardwareKey(ctx context.Context) error {
 	// ed25519 hardware keys outside of the mocked PIV service, but we may extend support in
 	// the future as newer keys are being made with ed25519 support (YubiKey 5.7.x, SoloKey).
 	hash := sha512.Sum512(make([]byte, 512))
-	_, err := h.service.Sign(ctx, h.ref, rand.Reader, hash[:], crypto.SHA512)
+	_, err := h.service.Sign(ctx, h.Ref, rand.Reader, hash[:], crypto.SHA512)
 	return trace.Wrap(err, "failed to perform warmup signature with hardware private key")
 }
 

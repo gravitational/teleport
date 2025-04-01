@@ -78,13 +78,13 @@ func (p PINAndPUK) Validate() error {
 	if !isPINLengthValid(p.PIN) {
 		return trace.BadParameter("PIN must be 6-8 characters long")
 	}
-	if p.PIN == defaultPIN {
+	if p.PIN == DefaultPIN {
 		return trace.BadParameter("The default PIN is not supported")
 	}
 	if !isPINLengthValid(p.PUK) {
 		return trace.BadParameter("PUK must be 6-8 characters long")
 	}
-	if p.PUK == defaultPUK {
+	if p.PUK == DefaultPUK {
 		return trace.BadParameter("The default PUK is not supported")
 	}
 	return nil
