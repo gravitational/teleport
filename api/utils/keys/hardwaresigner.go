@@ -76,7 +76,7 @@ func (ar *AttestationStatement) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements custom protobuf json unmarshaling.
 func (ar *AttestationStatement) UnmarshalJSON(buf []byte) error {
-	return jsonpb.Unmarshal(bytes.NewReader(buf), ar.ToProto())
+	return (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(buf), ar.ToProto())
 }
 
 // AttestationData is verified attestation data for a public key.

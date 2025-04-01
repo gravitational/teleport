@@ -1,5 +1,9 @@
 # Changelog
 
+## 17.4.1 (03/28/25)
+
+* Fix a bug causing the discovery service to fail to configure teleport on discovered nodes when managed updates v2 are enabled. [#53543](https://github.com/gravitational/teleport/pull/53543)
+
 ## 17.4.0 (03/27/25)
 
 ### Database access for Oracle RDS

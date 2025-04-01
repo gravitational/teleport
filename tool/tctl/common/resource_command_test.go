@@ -2375,11 +2375,11 @@ version: v1
 	rawResources := mustDecodeJSON[[]services.UnknownResource](t, buf)
 	require.Len(t, rawResources, 1)
 	var resource autoupdate.AutoUpdateConfig
-	require.NoError(t, protojson.Unmarshal(rawResources[0].Raw, &resource))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(rawResources[0].Raw, &resource))
 
 	var expected autoupdate.AutoUpdateConfig
 	expectedJSON := mustTranscodeYAMLToJSON(t, bytes.NewReader([]byte(resourceYAML)))
-	require.NoError(t, protojson.Unmarshal(expectedJSON, &expected))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(expectedJSON, &expected))
 
 	require.Empty(t, cmp.Diff(
 		&expected,
@@ -2420,11 +2420,11 @@ version: v1
 	rawResources := mustDecodeJSON[[]services.UnknownResource](t, buf)
 	require.Len(t, rawResources, 1)
 	var resource autoupdate.AutoUpdateVersion
-	require.NoError(t, protojson.Unmarshal(rawResources[0].Raw, &resource))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(rawResources[0].Raw, &resource))
 
 	var expected autoupdate.AutoUpdateVersion
 	expectedJSON := mustTranscodeYAMLToJSON(t, bytes.NewReader([]byte(resourceYAML)))
-	require.NoError(t, protojson.Unmarshal(expectedJSON, &expected))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(expectedJSON, &expected))
 
 	require.Empty(t, cmp.Diff(
 		&expected,
@@ -2476,11 +2476,11 @@ version: v1
 	rawResources := mustDecodeJSON[[]services.UnknownResource](t, buf)
 	require.Len(t, rawResources, 1)
 	var resource autoupdate.AutoUpdateAgentRollout
-	require.NoError(t, protojson.Unmarshal(rawResources[0].Raw, &resource))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(rawResources[0].Raw, &resource))
 
 	var expected autoupdate.AutoUpdateAgentRollout
 	expectedJSON := mustTranscodeYAMLToJSON(t, bytes.NewReader([]byte(resourceYAML)))
-	require.NoError(t, protojson.Unmarshal(expectedJSON, &expected))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(expectedJSON, &expected))
 
 	require.Empty(t, cmp.Diff(
 		&expected,
@@ -2596,14 +2596,17 @@ func TestPluginResourceWrapper(t *testing.T) {
 				Spec: types.PluginSpecV1{
 					Settings: &types.PluginSpecV1_AwsIc{
 						AwsIc: &types.PluginAWSICSettings{
-							IntegrationName: apicommon.OriginAWSIdentityCenter,
-							Region:          "ap-south-2",
-							Arn:             "some:arn",
+							Credentials: &types.AWSICCredentials{
+								Source: &types.AWSICCredentials_System{
+									System: &types.AWSICCredentialSourceSystem{},
+								},
+							},
+							Region: "ap-south-2",
+							Arn:    "some:arn",
 							ProvisioningSpec: &types.AWSICProvisioningSpec{
 								BaseUrl: "https://scim.example.com/v2",
 							},
 							AccessListDefaultOwners: []string{"root"},
-							CredentialsSource:       types.AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_SYSTEM,
 							UserSyncFilters: []*types.AWSICUserSyncFilter{
 								{Labels: map[string]string{types.OriginLabel: types.OriginOkta}},
 								{Labels: map[string]string{types.OriginLabel: types.OriginEntraID}},

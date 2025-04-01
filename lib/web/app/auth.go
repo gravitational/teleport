@@ -184,9 +184,7 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 
 	// Validate that the caller is asking for a session that exists and that they have the secret
 	// session token for.
-	ws, err := h.c.AccessPoint.GetAppSession(r.Context(), types.GetAppSessionRequest{
-		SessionID: req.CookieValue,
-	})
+	ws, err := h.getAppSessionFromAccessPoint(r.Context(), req.CookieValue)
 	if err != nil {
 		h.log.WithError(err).Warn("Request failed: session does not exist.")
 		return trace.AccessDenied("access denied")
