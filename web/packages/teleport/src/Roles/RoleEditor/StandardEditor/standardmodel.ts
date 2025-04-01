@@ -53,6 +53,13 @@ import {
 import { RoleEditorModelValidationResult } from './validation';
 import { defaultOptions } from './withDefaults';
 
+export enum StandardEditorTab {
+  Overview,
+  Resources,
+  AdminRules,
+  Options,
+}
+
 export type StandardEditorModel = {
   /**
    * The role model. Can be undefined if there was an unhandled error when
@@ -70,6 +77,8 @@ export type StandardEditorModel = {
    * role.
    */
   validationResult?: RoleEditorModelValidationResult;
+  currentTab: StandardEditorTab;
+  disabledTabs: { [t in StandardEditorTab]: boolean };
 };
 
 /**

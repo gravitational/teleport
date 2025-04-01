@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { produce } from 'immer';
-import { useCallback, useId, useState } from 'react';
+import { useCallback, useId } from 'react';
 import styled from 'styled-components';
 
 import { Box, ButtonPrimary, ButtonSecondary, Flex } from 'design';
@@ -37,6 +36,7 @@ import {
   OptionsModel,
   roleEditorModelToRole,
   StandardEditorModel,
+  StandardEditorTab,
 } from './standardmodel';
 import { ActionType, StandardModelDispatcher } from './useStandardModel';
 
@@ -60,20 +60,10 @@ export const StandardEditor = ({
   dispatch,
 }: StandardEditorProps) => {
   const isEditing = !!originalRole;
-  const { roleModel, validationResult } = standardEditorModel;
+  const { roleModel, validationResult, currentTab, disabledTabs } =
+    standardEditorModel;
   const modelValid = validationResult.isValid;
 
-  enum StandardEditorTab {
-    Overview,
-    Resources,
-    AdminRules,
-    Options,
-  }
-
-  const [currentTab, setCurrentTab] = useState(StandardEditorTab.Overview);
-  const [disabledTabs, setDisabledTabs] = useState(
-    isEditing ? [false, false, false, false] : [false, true, true, true]
-  );
   const idPrefix = useId();
 
   const validator = useValidation();
@@ -104,6 +94,10 @@ export const StandardEditor = ({
     [dispatch]
   );
 
+  const setCurrentTab = (newTab: StandardEditorTab) => {
+    dispatch({ type: ActionType.SetCurrentTab, payload: newTab });
+  };
+
   const validateAndGoToNextTab = useCallback(() => {
     const nextTabIndex = currentTab + 1;
     const valid = validate();
@@ -112,12 +106,7 @@ export const StandardEditor = ({
     }
     validator.reset();
     setCurrentTab(nextTabIndex);
-    setDisabledTabs(prevEnabledTabs =>
-      produce(prevEnabledTabs, et => {
-        et[nextTabIndex] = false;
-      })
-    );
-  }, [currentTab, validate, validator, setCurrentTab, setDisabledTabs]);
+  }, [currentTab, validate, validator, setCurrentTab]);
 
   const goToPreviousTab = useCallback(
     () => setCurrentTab(currentTab - 1),
