@@ -61,6 +61,7 @@ export const StandardEditor = ({
 }: StandardEditorProps) => {
   const isEditing = !!originalRole;
   const { roleModel, validationResult } = standardEditorModel;
+  const modelValid = validationResult.isValid;
 
   enum StandardEditorTab {
     Overview,
@@ -81,12 +82,21 @@ export const StandardEditor = ({
     dispatch({ type: 'reset-to-standard' });
   }
 
-  function handleSave() {
-    if (!validator.validate()) {
-      return;
+  const validate = useCallback(() => {
+    // Enable instant validation messages.
+    validator.validate();
+    // Show validation errors on newly added sections.
+    dispatch({ type: 'show-validation-errors' });
+    // The model validation result is always up to date, so we don't need to
+    // wait until the above action gets dispatched.
+    return modelValid;
+  }, [validator, dispatch, modelValid]);
+
+  const handleSave = useCallback(() => {
+    if (validate()) {
+      onSave?.(roleEditorModelToRole(roleModel));
     }
-    onSave?.(roleEditorModelToRole(standardEditorModel.roleModel));
-  }
+  }, [validate, onSave, roleModel]);
 
   const setOptions = useCallback(
     (options: OptionsModel) =>
@@ -96,7 +106,7 @@ export const StandardEditor = ({
 
   const validateAndGoToNextTab = useCallback(() => {
     const nextTabIndex = currentTab + 1;
-    const valid = validator.validate();
+    const valid = validate();
     if (!valid) {
       return;
     }
@@ -107,7 +117,7 @@ export const StandardEditor = ({
         et[nextTabIndex] = false;
       })
     );
-  }, [currentTab, setCurrentTab, setDisabledTabs, validator]);
+  }, [currentTab, validate, validator, setCurrentTab, setDisabledTabs]);
 
   const goToPreviousTab = useCallback(
     () => setCurrentTab(currentTab - 1),
@@ -146,12 +156,17 @@ export const StandardEditor = ({
             tabSpec(
               StandardEditorTab.Resources,
               validator.state.validating &&
-                validationResult.resources.some(s => !s.valid)
+                validationResult.resources.some(
+                  (s, i) =>
+                    !s.valid && !roleModel.resources[i].hideValidationErrors
+                )
             ),
             tabSpec(
               StandardEditorTab.AdminRules,
               validator.state.validating &&
-                validationResult.rules.some(s => !s.valid)
+                validationResult.rules.some(
+                  (s, i) => !s.valid && !roleModel.rules[i].hideValidationErrors
+                )
             ),
             tabSpec(StandardEditorTab.Options, false),
           ]}

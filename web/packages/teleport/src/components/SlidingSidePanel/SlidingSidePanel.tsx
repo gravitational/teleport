@@ -78,7 +78,7 @@ export const SlidingSidePanel = styled(Box)<Props>`
 
   top: ${p => p.theme.topBarHeight[0]}px;
   padding-bottom: ${p => p.theme.topBarHeight[0] + p.theme.space[2]}px;
-  @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
+  @media screen and (min-width: ${p => p.theme.breakpoints.small}) {
     top: ${p => p.theme.topBarHeight[1]}px;
     padding-bottom: ${p => p.theme.topBarHeight[1] + p.theme.space[2]}px;
   }

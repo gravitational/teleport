@@ -36,6 +36,7 @@ import {
   makeDocumentPtySession,
   makeDocumentTshNode,
   makeDocumentVnetDiagReport,
+  makeDocumentVnetInfo,
 } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
 
 import { TabHostContainer } from './TabHost';
@@ -58,6 +59,7 @@ const allDocuments = [
   makeDocumentPtySession(),
   makeDocumentAuthorizeWebSession(),
   makeDocumentVnetDiagReport(),
+  makeDocumentVnetInfo(),
 ];
 
 const cluster = makeRootCluster();

@@ -175,6 +175,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
             { label: 'cthulhu', value: 'cthulhu' },
             { label: 'sandman', value: 'sandman' },
           ],
+          hideValidationErrors: false,
         },
       ],
     },
@@ -221,6 +222,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
             'account1@some-project.iam.gserviceaccount.com',
             'account2@some-project.iam.gserviceaccount.com',
           ],
+          hideValidationErrors: false,
         },
       ],
     },
@@ -260,6 +262,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
             { label: 'auditor', value: 'auditor' },
           ],
           dbServiceLabels: [{ name: 'foo', value: 'bar' }],
+          hideValidationErrors: false,
         },
       ],
     },
@@ -287,6 +290,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
             { label: 'alice', value: 'alice' },
             { label: 'bob', value: 'bob' },
           ],
+          hideValidationErrors: false,
         },
       ],
     },
@@ -312,6 +316,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
             { label: 'illuminati', value: 'illuminati' },
             { label: 'reptilians', value: 'reptilians' },
           ],
+          hideValidationErrors: false,
         },
       ],
     },
@@ -622,6 +627,7 @@ describe('roleToRoleEditorModel', () => {
     resources: [],
     users: [],
     roleVersion: defaultRoleVersion,
+    hideValidationErrors: false,
   });
 
   test('unknown and invalid fields are reported as conversion errors', () => {
@@ -760,6 +766,7 @@ describe('roleToRoleEditorModel', () => {
         {
           kind: 'git_server',
           organizations: [{ label: 'foo', value: 'foo' }],
+          hideValidationErrors: false,
         },
       ],
       rules: [
@@ -902,6 +909,7 @@ describe('roleToRoleEditorModel', () => {
             { label: 'bob', value: 'bob' },
           ],
           roleVersion: defaultRoleVersion,
+          hideValidationErrors: false,
         },
       ],
     } as RoleEditorModel);
@@ -929,6 +937,7 @@ describe('roleToRoleEditorModel', () => {
           awsRoleARNs: [],
           azureIdentities: [],
           gcpServiceAccounts: [],
+          hideValidationErrors: false,
         },
       ],
     } as RoleEditorModel);
@@ -967,18 +976,21 @@ describe('roleToRoleEditorModel', () => {
           ],
           verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
           where: '',
+          hideValidationErrors: false,
         },
         {
           id: expect.any(String),
           resources: [resourceKindOptionsMap.get(ResourceKind.Lock)],
           verbs: [verbOptionsMap.get('create')],
           where: '',
+          hideValidationErrors: false,
         },
         {
           id: expect.any(String),
           resources: [resourceKindOptionsMap.get(ResourceKind.Session)],
           verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
           where: 'contains(session.participants, user.metadata.name)',
+          hideValidationErrors: false,
         },
       ],
     } as RoleEditorModel);
@@ -1005,6 +1017,7 @@ describe('roleToRoleEditorModel', () => {
             { label: 'foo', value: 'foo' },
             { label: 'bar', value: 'bar' },
           ],
+          hideValidationErrors: false,
         },
       ],
     } as RoleEditorModel);
@@ -1093,6 +1106,7 @@ describe('roleEditorModelToRole', () => {
               { label: 'bob', value: 'bob' },
             ],
             roleVersion: defaultRoleVersion,
+            hideValidationErrors: false,
           },
         ],
       })
@@ -1136,18 +1150,21 @@ describe('roleEditorModelToRole', () => {
             ],
             verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
             where: '',
+            hideValidationErrors: false,
           },
           {
             id: 'dummy-id-2',
             resources: [resourceKindOptionsMap.get(ResourceKind.Lock)],
             verbs: [verbOptionsMap.get('create')],
             where: '',
+            hideValidationErrors: false,
           },
           {
             id: expect.any(String),
             resources: [resourceKindOptionsMap.get(ResourceKind.Session)],
             verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
             where: 'contains(session.participants, user.metadata.name)',
+            hideValidationErrors: false,
           },
         ],
       })
