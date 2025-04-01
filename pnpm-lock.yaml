@@ -413,7 +413,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
       babel-plugin-transform-import-meta:
-        specifier: ^2.3.2
+        specifier: ^2.2.1
         version: 2.3.2(@babel/core@7.26.10)
       babel-plugin-transform-vite-meta-env:
         specifier: ^1.0.3
