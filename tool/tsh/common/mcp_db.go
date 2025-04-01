@@ -19,32 +19,32 @@
 package common
 
 import (
-	"io"
 	"net"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	listenerutils "github.com/gravitational/teleport/lib/utils/listener"
 )
 
-func onMCPStart(cf *CLIConf) error {
-	cf.OverrideStdout = io.Discard
-
-	err := onAppLogin(cf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+func onMCPStartDB(cf *CLIConf) error {
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// TODO(greedy52) currently assumes app login is done
-	cert, err := loadAppCertificate(tc, cf.AppName)
+	keyRing, err := tc.LocalAgent().GetCoreKeyRing()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cred := client.TLSCredential{
+		PrivateKey: keyRing.TLSPrivateKey,
+		Cert:       keyRing.TLSCert,
+	}
+	cert, err := cred.TLSCertificate()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -55,7 +55,7 @@ func onMCPStart(cf *CLIConf) error {
 
 	lp, err := alpnproxy.NewLocalProxy(
 		makeBasicLocalProxyConfig(cf.Context, tc, listener, tc.InsecureSkipVerify),
-		alpnproxy.WithALPNProtocol(alpncommon.ProtocolTCP),
+		alpnproxy.WithALPNProtocol(alpncommon.ProtocolMCP),
 		alpnproxy.WithClientCert(cert),
 		alpnproxy.WithClusterCAsIfConnUpgrade(cf.Context, tc.RootClusterCACertPool),
 	)
