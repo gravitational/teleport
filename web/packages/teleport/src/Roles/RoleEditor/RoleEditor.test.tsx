@@ -112,13 +112,10 @@ test('rendering and switching tabs for new role', async () => {
   expect(screen.getByRole('button', { name: 'Create Role' })).toBeEnabled();
 
   await user.click(getStandardEditorTab());
-  await screen.findByLabelText('Role Name *');
+  await screen.findByLabelText('Max Session TTL');
   expect(
     screen.queryByRole('button', { name: /Reset to Standard Settings/i })
   ).not.toBeInTheDocument();
-  await forwardToTab('Resources');
-  await forwardToTab('Admin Rules');
-  await forwardToTab('Options');
   expect(screen.getByRole('button', { name: 'Create Role' })).toBeEnabled();
 }, 10000);
 

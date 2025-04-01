@@ -38,6 +38,7 @@ import {
   RoleEditorModel,
   roleToRoleEditorModel,
   StandardEditorModel,
+  StandardEditorTab,
 } from './standardmodel';
 import { validateRoleEditorModel } from './validation';
 
@@ -56,6 +57,7 @@ export const useStandardModel = (
   useImmerReducer(reduce, originalRole, initializeState);
 
 const initializeState = (originalRole?: Role): StandardEditorModel => {
+  const isEditing = !!originalRole;
   const role = originalRole ?? newRole();
   const roleModel = safelyConvertRoleToEditorModel(role);
   return {
@@ -64,6 +66,10 @@ const initializeState = (originalRole?: Role): StandardEditorModel => {
     isDirty: !originalRole, // New role is dirty by default.
     validationResult:
       roleModel && validateRoleEditorModel(roleModel, undefined, undefined),
+    currentTab: StandardEditorTab.Overview,
+    disabledTabs: isEditing
+      ? [false, false, false, false]
+      : [false, true, true, true],
   };
 };
 
@@ -82,6 +88,7 @@ const safelyConvertRoleToEditorModel = (
 export type StandardModelDispatcher = Dispatch<StandardModelAction>;
 
 export enum ActionType {
+  SetCurrentTab = 'SetCurrentTab',
   SetModel = 'SetModel',
   ResetToStandard = 'ResetToStandard',
   SetMetadata = 'SetMetadata',
@@ -99,6 +106,7 @@ export enum ActionType {
 }
 
 type StandardModelAction =
+  | SetCurrentTabAction
   | SetModelAction
   | ResetToStandardAction
   | SetMetadataAction
@@ -115,6 +123,10 @@ type StandardModelAction =
   | EnableValidationAction;
 
 /** Sets the entire model. */
+type SetCurrentTabAction = {
+  type: ActionType.SetCurrentTab;
+  payload: StandardEditorTab;
+};
 type SetModelAction = { type: ActionType.SetModel; payload: RoleEditorModel };
 type ResetToStandardAction = {
   type: ActionType.ResetToStandard;
@@ -175,6 +187,11 @@ const reduce = (
   // This reduce uses Immer, so we modify the model draft directly.
   // TODO(bl-nero): add immutability to the model data types.
   switch (type) {
+    case ActionType.SetCurrentTab:
+      state.currentTab = payload;
+      state.disabledTabs[payload] = false;
+      break;
+
     case ActionType.SetModel:
       state.roleModel = payload;
       break;
