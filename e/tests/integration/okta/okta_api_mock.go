@@ -363,11 +363,16 @@ func (m *mockOktaAPIClient) CreateApplication(_ context.Context, body okta.App, 
 	defer m.mu.Unlock()
 	appID := uuid.NewString()
 
-	links := map[string]interface{}{
-		"appLinks": []interface{}{
-			map[string]interface{}{
-				"name": "applink-name",
-				"href": "https://www.link.com",
+	defaultLinks := map[string]any{
+		"metadata": map[string]string{
+			"href": "https://12345.okta.com/api/v1/apps/12345/sso/saml/metadata",
+			"type": "application/xml",
+		},
+		"appLinks": []any{
+			map[string]any{
+				"name": "1234_oktaappname_1_link",
+				"href": "https://12345.okta.com/home/api/1234_oktaappname_1//12345/someRandom697",
+				"type": "text/html",
 			},
 		},
 	}
@@ -376,22 +381,19 @@ func (m *mockOktaAPIClient) CreateApplication(_ context.Context, body okta.App, 
 		t.Id = appID
 		t.Status = "ACTIVE"
 		if t.Links == nil {
-			t.Links = links
+			t.Links = defaultLinks
 		}
 	case *okta.SamlApplication:
 		t.Id = appID
 		t.Status = "ACTIVE"
-		t.Links = map[string]any{
-			"metadata": map[string]string{
-				"href": "https://12345.okta.com/api/v1/apps/12345/sso/saml/metadata",
-				"type": "application/xml",
-			},
+		if t.Links == nil {
+			t.Links = defaultLinks
 		}
 	case *okta.BookmarkApplication:
 		t.Id = appID
 		t.Status = "ACTIVE"
 		if t.Links == nil {
-			t.Links = links
+			t.Links = defaultLinks
 		}
 	default:
 		panic(fmt.Sprintf("unexpected Okta application type %T", t))

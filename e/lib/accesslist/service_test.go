@@ -1042,6 +1042,7 @@ func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
 			AccessLists:       storage,
 			LockGetter:        locks,
 			AccessListReviews: storage,
+			Plugins:           local.NewPluginsService(backend),
 			Emitter:           emitter,
 			UsageEvents:       usageEvents,
 			UsageReporter:     usageReporter,

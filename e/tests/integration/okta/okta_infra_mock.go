@@ -91,9 +91,8 @@ func createOktaSetup(t *testing.T, ctx context.Context, oktaClient *mockOktaAPIC
 		ctx:    ctx,
 	}
 	for i := 0; i < defaultOptions.usersCount; i++ {
-		oktaInfra.Users = append(oktaInfra.Users, &oktaUserType{
-			createOktaUser(t, ctx, oktaInfra.client, fmt.Sprintf("user-%d", i)),
-		})
+		user, _ := createOktaUser(t, ctx, oktaInfra.client, fmt.Sprintf("user-%d", i))
+		oktaInfra.Users = append(oktaInfra.Users, &oktaUserType{user})
 	}
 	for i := 0; i < defaultOptions.appCount; i++ {
 		oktaInfra.Apps = append(oktaInfra.Apps, createOktaApp(t, ctx, oktaInfra.client, fmt.Sprintf("app-%d", i)))
@@ -203,14 +202,22 @@ func createOktaApp(t *testing.T, ctx context.Context, client *mockOktaAPIClient,
 func createOktaSAMLAPP(t *testing.T, ctx context.Context, client *mockOktaAPIClient, name string) *okta.SamlApplication {
 	samlAPP := okta.NewSamlApplication()
 	samlAPP.Id = uuid.New().String()
+	samlAPP.Name = name
+	samlAPP.Label = name
 	samlAPP.Status = "ACTIVE"
 	samlAPP.Links = map[string]any{
 		"metadata": map[string]string{
 			"href": "https://12345.okta.com/api/v1/apps/12345/sso/saml/metadata",
 			"type": "application/xml",
 		},
+		"appLinks": []any{
+			map[string]any{
+				"name": "1234_oktaappname_1_link",
+				"href": "https://12345.okta.com/home/api/1234_oktaappname_1//12345/someRandom697",
+				"type": "text/html",
+			},
+		},
 	}
-	samlAPP.Name = name
 	application, _, err := client.CreateApplication(ctx, samlAPP, nil)
 	require.NoError(t, err)
 	app, ok := application.(*okta.SamlApplication)
@@ -231,8 +238,8 @@ func createOktaGroup(t *testing.T, ctx context.Context, client *mockOktaAPIClien
 	return group
 }
 
-func createOktaUser(t *testing.T, ctx context.Context, client *mockOktaAPIClient, name string) *okta.User {
-	email := fmt.Sprintf("%s@example.com", name)
+func createOktaUser(t *testing.T, ctx context.Context, client *mockOktaAPIClient, name string) (user *okta.User, email string) {
+	email = fmt.Sprintf("%s@example.com", name)
 	u := &okta.CreateUserRequest{
 		Credentials: &okta.UserCredentials{
 			Password: &okta.PasswordCredential{
@@ -249,7 +256,7 @@ func createOktaUser(t *testing.T, ctx context.Context, client *mockOktaAPIClient
 	qp := query.NewQueryParams(query.WithActivate(true))
 	oktaUser, _, err := client.CreateUser(ctx, *u, qp)
 	require.NoError(t, err, "Creating a new user should not error")
-	return oktaUser
+	return oktaUser, email
 }
 
 func mustGetAppIDbyAppLabel(t *testing.T, sut *common.SUT, oktaInfra *oktaInfraSetup) string {

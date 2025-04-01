@@ -309,6 +309,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 			AccessLists:       p.authServer.AuthServer,
 			LockGetter:        p.authServer.AuthServer,
 			AccessListReviews: p.authServer.AuthServer,
+			Plugins:           p.plugins,
 			Emitter:           p.authServer.Emitter,
 			UsageEvents:       p.authServer.AuthServer,
 			UsageReporter:     p.authServer.AuthServer,

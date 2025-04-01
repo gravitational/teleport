@@ -12,6 +12,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/e/lib/okta/common/sso"
+	oktaplugin "github.com/gravitational/teleport/e/lib/okta/plugin"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 )
@@ -237,37 +238,32 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *oktapb.UpdateInteg
 }
 
 func (s *Service) updateIntegration(ctx context.Context, req *oktapb.UpdateIntegrationRequest) (*oktapb.UpdateIntegrationResponse, error) {
-	plugin, err := s.pluginBackend.GetPlugin(ctx, types.PluginTypeOkta, true)
+	plugin, err := oktaplugin.Get(ctx, s.pluginBackend, true /* withSecrets */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	pluginV1, ok := plugin.(*types.PluginV1)
-	if !ok {
-		return nil, trace.BadParameter("plugin.(%T) is not of type PluginV1", plugin)
-	}
-	if err = validateUpdateIntegrationRequest(req, pluginV1); err != nil {
+	if err = validateUpdateIntegrationRequest(req, plugin); err != nil {
 		return nil, trace.Wrap(err, "request validation")
 	}
 
 	if req.GetApiCredentials() != nil {
 		err := s.validateClientCredentials(ctx, &createOktaClientParams{
 			credsFromReq:     req.GetApiCredentials(),
-			oktaOrganization: pluginV1.Spec.GetOkta().OrgUrl,
+			oktaOrganization: plugin.Spec.GetOkta().OrgUrl,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "validating request Okta credentials")
 		}
 	}
 
-	if err := s.updatePluginOktaSpec(ctx, req, pluginV1); err != nil {
+	if err := s.updatePluginOktaSpec(ctx, req, plugin); err != nil {
 		return nil, trace.Wrap(err, "updating plugin Okta settings")
 	}
-	if err := s.updatePluginCredentials(ctx, req, pluginV1); err != nil {
+	if err := s.updatePluginCredentials(ctx, req, plugin); err != nil {
 		return nil, trace.Wrap(err, "updating plugin credentials")
 	}
 
-	updatedPlugin, err := s.pluginBackend.UpdatePlugin(ctx, pluginV1)
+	updatedPlugin, err := s.pluginBackend.UpdatePlugin(ctx, plugin)
 	if err != nil {
 		return nil, trace.Wrap(err, "updating plugin in backend")
 	}

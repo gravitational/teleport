@@ -5,7 +5,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
 )
 
 func TestAccessListEqual(t *testing.T) {
@@ -103,6 +105,44 @@ func TestAccessListEqual(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			got := accessListEqual(tc.first, tc.second)
 			require.Equal(t, tc.wantEqual, got)
+		})
+	}
+}
+
+func Test_isOktaAccessListModificationAllowed(t *testing.T) {
+	tests := []struct {
+		name                    string
+		first                   *accesslist.AccessList
+		second                  *accesslist.AccessList
+		wantModificationAllowed bool
+	}{
+		{
+			name: "labels, including okta orign label, cannot be modified",
+			first: &accesslist.AccessList{
+				ResourceHeader: header.ResourceHeader{
+					Metadata: header.Metadata{
+						Labels: map[string]string{
+							types.OriginLabel: types.OriginOkta,
+						},
+					},
+				},
+			},
+			second: &accesslist.AccessList{
+				ResourceHeader: header.ResourceHeader{
+					Metadata: header.Metadata{
+						Labels: map[string]string{},
+					},
+				},
+			},
+			wantModificationAllowed: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := isOktaAccessListModificationAllowed(tc.first, tc.second)
+			require.Equal(t, tc.wantModificationAllowed, got)
+
 		})
 	}
 }

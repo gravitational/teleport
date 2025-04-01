@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
@@ -41,9 +42,6 @@ const (
 
 	// eventMemberBatches is the number of members to emit per event. This will batch member events emitted by this service.
 	eventMemberBatches = 50
-
-	// oktaErrorMsg is the message to display when the modification of an Okta access list is attempted.
-	oktaErrorMsg = "Okta sourced access lists cannot be modified"
 
 	componentAccessListService = "access_list_crud_service"
 )
@@ -77,6 +75,9 @@ type ServiceConfig struct {
 
 	// AccessListReviews is the access list reviews service to use.
 	AccessListReviews services.AccessListReviews
+
+	// Plugins is the plugins service to use.
+	Plugins services.Plugins
 
 	// Emitter is the event emitter to use.
 	Emitter apievents.Emitter
@@ -126,6 +127,10 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 		return trace.BadParameter("accesslistreviews service is missing")
 	}
 
+	if c.Plugins == nil {
+		c.Plugins = local.NewPluginsService(c.Backend)
+	}
+
 	if c.Emitter == nil {
 		return trace.BadParameter("emitter is missing")
 	}
@@ -160,6 +165,7 @@ type Service struct {
 	authorizer        authz.Authorizer
 	accessLists       services.AccessLists
 	accessListReviews services.AccessListReviews
+	plugins           services.Plugins
 	usageEvents       UsageEventsClient
 	usageReporter     usagereporter.UsageReporter
 	emitter           apievents.Emitter
@@ -184,6 +190,7 @@ func NewService(ctx context.Context, cfg ServiceConfig) (*Service, error) {
 		authorizer:        cfg.Authorizer,
 		accessLists:       cfg.AccessLists,
 		accessListReviews: cfg.AccessListReviews,
+		plugins:           cfg.Plugins,
 		usageEvents:       cfg.UsageEvents,
 		usageReporter:     cfg.UsageReporter,
 		emitter:           cfg.Emitter,
@@ -522,8 +529,8 @@ func (s *Service) updateOrUpsertAccessList(ctx context.Context, accessList *acce
 		return nil, trace.Wrap(err)
 	}
 
-	if !oktaModificationAllowed(*authCtx, oldAccessList, newAccessList) {
-		return nil, trace.AccessDenied("%s", oktaErrorMsg)
+	if err := s.checkModificationAllowed(*authCtx, oldAccessList, newAccessList); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
@@ -855,6 +862,10 @@ func (s *Service) UpsertAccessListMember(ctx context.Context, req *accesslistv1.
 		return nil, trace.Wrap(err)
 	}
 
+	if err := s.checkMembersModificationAllowedByName(ctx, *authCtx, req.Member.Spec.AccessList); err != nil {
+		return nil, trace.Wrap(err, "adding and updating members not allowed for Access List %q", req.Member.Spec.AccessList)
+	}
+
 	resp, accessListName, updated, upsertErr := s.upsertAccessListMember(ctx, authCtx, member, s.accessLists.UpsertAccessListMember)
 
 	var joinTime time.Time
@@ -895,6 +906,10 @@ func (s *Service) UpdateAccessListMember(ctx context.Context, req *accesslistv1.
 
 	if member.Kind == accesslist.MembershipKindList {
 		return nil, trace.BadParameter("Access List Member entries of kind 'list' cannot be updated")
+	}
+
+	if err := s.checkMembersModificationAllowedByName(ctx, *authCtx, req.Member.Spec.AccessList); err != nil {
+		return nil, trace.Wrap(err, "updating members not allowed for Access List %q", req.Member.Spec.AccessList)
 	}
 
 	resp, accessListName, updated, upsertErr := s.upsertAccessListMember(ctx, authCtx, member, s.accessLists.UpdateAccessListMember)
@@ -1122,6 +1137,10 @@ func (s *Service) DeleteAccessListMember(ctx context.Context, req *accesslistv1.
 		return nil, trace.Wrap(err)
 	}
 
+	if err := s.checkMembersModificationAllowedByName(ctx, *authCtx, req.AccessList); err != nil {
+		return nil, trace.Wrap(err, "deleting members not allowed for Access List %q", req.AccessList)
+	}
+
 	resp, deleteErr := s.deleteAccessListMember(ctx, req)
 
 	s.emitDeleteAccessListMemberEvent(ctx, username, req.AccessList, deleteErr,
@@ -1213,6 +1232,10 @@ func (s *Service) DeleteAllAccessListMembersForAccessList(ctx context.Context, r
 	username, err := getUsername(authCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if err := s.checkMembersModificationAllowedByName(ctx, *authCtx, req.AccessList); err != nil {
+		return nil, trace.Wrap(err, "deleting members not allowed for Access List %q", req.AccessList)
 	}
 
 	resp, deleteErr := s.deleteAllAccessListMembersForAccessList(ctx, req)
@@ -1338,8 +1361,8 @@ func (s *Service) UpsertAccessListWithMembers(ctx context.Context, req *accessli
 	return resp, trace.Wrap(upsertErr)
 }
 
-// modifiedMembers will be used to house the exact modifications made to the members to emit and event later.
-type modifiedMembers struct {
+// memberChanges will be used to house the exact modifications made to the members to emit and event later.
+type memberChanges struct {
 	created []*accesslist.AccessListMember
 	updated []*accesslist.AccessListMember
 	deleted []*accesslist.AccessListMember
@@ -1349,7 +1372,7 @@ type modifiedMembers struct {
 // whether the access list was updated, the modified members, and an error.
 func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *authz.Context,
 	req *accesslistv1.UpsertAccessListWithMembersRequest) (resp *accesslistv1.UpsertAccessListWithMembersResponse, updated,
-	accessListModified bool, modified *modifiedMembers, err error,
+	accessListModified bool, modified *memberChanges, err error,
 ) {
 	newAccessList, err := conv.FromProto(req.AccessList)
 	if err != nil {
@@ -1390,8 +1413,10 @@ func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *auth
 		return nil, updated, accessListModified, nil, trace.Wrap(authErrNew)
 	}
 
-	if accessListModified && !oktaModificationAllowed(*authCtx, oldAccessList, newAccessList) {
-		return nil, updated, accessListModified, nil, trace.AccessDenied("%s", oktaErrorMsg)
+	if accessListModified {
+		if err := s.checkModificationAllowed(*authCtx, oldAccessList, newAccessList); err != nil {
+			return nil, updated, accessListModified, nil, trace.Wrap(err)
+		}
 	}
 
 	hasRBAC := authErrOld == nil && authErrNew == nil
@@ -1438,6 +1463,15 @@ func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *auth
 		members = append(members, m)
 	}
 
+	if areMembersModified(oldMembers, members) {
+		err = s.checkMembersModificationAllowed(ctx, *authCtx, oldAccessList)
+		if trace.IsAccessDenied(err) {
+			return nil, updated, accessListModified, nil, trace.Wrap(err, "forbidden Access List %q members modification", oldAccessList.GetName())
+		} else if err != nil {
+			return nil, updated, accessListModified, nil, trace.Wrap(err, "checking if Access List %q members modification is allowed", oldAccessList.GetName())
+		}
+	}
+
 	// Call the API.
 	updatedAccessList, updatedMembers, err := s.accessLists.UpsertAccessListWithMembers(ctx, newAccessList, members)
 	if err != nil {
@@ -1445,7 +1479,7 @@ func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *auth
 	}
 
 	// Figure out the member modifications for event emitting.
-	modified = getModifiedMembers(oldMembers, updatedMembers)
+	modified = getMemberChanges(oldMembers, updatedMembers)
 
 	// Get a list of all users, to compute eligibility's.
 	users, err := getAllUsers(ctx, s.cache, s.userPageSize)
@@ -1522,14 +1556,30 @@ func (s *Service) getAccessListMemberMap(ctx context.Context, accessListName str
 	return members, nil
 }
 
-// getModifiedMembers will get the modified members of the access list by comparing to the given old member map. If the old member
+func areMembersModified(oldMembers map[string]*accesslist.AccessListMember, newMembers []*accesslist.AccessListMember) bool {
+	if len(newMembers) != len(oldMembers) {
+		return true
+	}
+	for _, member := range newMembers {
+		_, ok := oldMembers[member.Spec.Name]
+		if !ok {
+			return true
+		}
+	}
+
+	return false
+}
+
+// getMemberChanges will get the modified members of the access list by comparing to the given old member map. If the old member
 // map is nil, modified members will be nil.
-func getModifiedMembers(oldMembers map[string]*accesslist.AccessListMember, updatedMembers []*accesslist.AccessListMember) *modifiedMembers {
+//
+// Caution: oldMembers list is modified in the process.
+func getMemberChanges(oldMembers map[string]*accesslist.AccessListMember, updatedMembers []*accesslist.AccessListMember) *memberChanges {
 	if oldMembers == nil {
 		return nil
 	}
 
-	modified := &modifiedMembers{}
+	modified := &memberChanges{}
 	for _, member := range updatedMembers {
 		memberName := member.GetName()
 		if _, ok := oldMembers[memberName]; ok {
@@ -1572,30 +1622,6 @@ func (s *Service) hasUserRBAC(ctx context.Context, authCtx *authz.Context, verb 
 	}
 
 	return authErr == nil
-}
-
-// oktaModificationAllowed will return true if an Okta modification is allowed. If the access list is not an Okta object,
-// this will return true.
-func oktaModificationAllowed(authCtx authz.Context, oldAccessList, newAccessList *accesslist.AccessList) bool {
-	hasOktaOrigin := false
-	// If *either* of the supplied access lists are marked as okta origin, the
-	// special Okta rules start applying
-	for _, accessList := range []*accesslist.AccessList{oldAccessList, newAccessList} {
-		if accessList != nil && accessList.Origin() == types.OriginOkta {
-			hasOktaOrigin = true
-			break
-		}
-	}
-
-	if !hasOktaOrigin {
-		return true
-	}
-
-	if authz.HasBuiltinRole(authCtx, string(types.RoleOkta)) {
-		return true
-	}
-
-	return isOktaAccessListModificationAllowed(oldAccessList, newAccessList)
 }
 
 // isOwnerOfAccessList checks if this user owns this access list.
@@ -2071,6 +2097,39 @@ func (s *Service) runAccessListIneligibleReconciler(ctx context.Context) error {
 			s.logger.ErrorContext(ctx, "Error running access list ineligible reconciler", "error", err)
 		}
 	}
+}
+
+// checkModificationAllowed returns AccessDenied error if modifications applied from the old to the
+// new Access List are not allowed. It can return any other error.
+func (s *Service) checkModificationAllowed(authCtx authz.Context, oldAccessList, newAccessList *accesslist.AccessList) error {
+	if !oktaModificationAllowed(authCtx, oldAccessList, newAccessList) {
+		return trace.AccessDenied("Okta sourced Access Lists cannot be modified")
+	}
+
+	return nil
+}
+
+// checkMembersModificationAllowedByName returns AccessDenied if Access List members' modifications are
+// not allowed. It can return any other error.
+func (s *Service) checkMembersModificationAllowedByName(ctx context.Context, authCtx authz.Context, accessListName string) error {
+	accessList, err := s.accessLists.GetAccessList(ctx, accessListName)
+	if err != nil {
+		return trace.Wrap(err, "getting Access List")
+	}
+
+	err = s.checkMembersModificationAllowed(ctx, authCtx, accessList)
+	return trace.Wrap(err)
+}
+
+// checkMembersModificationAllowed returns AccessDenied if Access List members' modifications are
+// not allowed. It can return any other error.
+func (s *Service) checkMembersModificationAllowed(ctx context.Context, authCtx authz.Context, accessList *accesslist.AccessList) error {
+	if allowed, err := oktaMembersModificationAllowed(ctx, authCtx, s.plugins, accessList); err != nil {
+		return trace.Wrap(err, "running Okta-specific member modification checks")
+	} else if !allowed {
+		return trace.BadParameter("Okta-sourced Access List members modification not allowed when bidirectional sync is disabled")
+	}
+	return nil
 }
 
 type StillEligibleFields struct {

@@ -15,6 +15,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/okta"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
@@ -41,7 +42,7 @@ func TestAccessListSync(t *testing.T) {
 	oktaApiClient.setRoundTripper(httpMock)
 
 	// Create a user in Okta.
-	user := createOktaUser(t, ctx, oktaApiClient, "oktan@test.com")
+	user, _ := createOktaUser(t, ctx, oktaApiClient, "oktan@test.com")
 	// Create Okta app with multiple embed links.
 	appLinks := []oktaApplicationEmbedLink{
 		{Name: "Power Dot", Href: "https://powerdot.mysoft365.example.com"},
@@ -70,6 +71,7 @@ func TestAccessListSync(t *testing.T) {
 		EnableAccessListSync: true,
 		AccessListSettings: &oktav1.AccessListSettings{
 			DefaultOwner: []string{"alice-admin"},
+			AppFilters:   []string{"my-soft-*"},
 		},
 	})
 	require.NoError(t, err)
@@ -97,14 +99,21 @@ func TestAccessListSync(t *testing.T) {
 			// Ensure there is app server for each Okta app embed link.
 			appServers, err := sut.Teleport.Process.GetAuthServer().GetApplicationServers(ctx, defaults.Namespace)
 			require.NoError(t, err)
-			require.Len(t, appServers, 3)
+			require.Len(t, appServers, 4) // 3 for app links + 1 for the connector SAML app
+			var mySoft365AppServers []types.AppServer
 			for _, appServer := range appServers {
+				if appServer.GetAllLabels()["teleport.internal/okta-app-name"] == "my-soft-365" {
+					mySoft365AppServers = append(mySoft365AppServers, appServer)
+				}
+			}
+			require.Len(t, mySoft365AppServers, 3) // for each app link
+			for _, appServer := range mySoft365AppServers {
 				labels := appServer.GetAllLabels()
 				require.Equal(t, "my-soft-365", labels["teleport.internal/okta-app-name"], "app with labels: %v", labels)
 				require.Equal(t, app.Id, labels["teleport.internal/okta-app-id"], "app with labels: %v", labels)
 			}
 			var appServerDescriptions []string
-			for _, appServer := range appServers {
+			for _, appServer := range mySoft365AppServers {
 				description, _ := appServer.GetLabel("teleport.internal/okta-app-description")
 				appServerDescriptions = append(appServerDescriptions, description)
 			}
@@ -125,7 +134,8 @@ func TestAccessListSync(t *testing.T) {
 	t.Run("after assigning user to application", func(t *testing.T) {
 		// Assign user to application so we have Access List and corresponding access and review
 		// system roles created.
-		oktaApiClient.AssignUserToApplication(ctx, app.Id, oktasdk.AppUser{Id: user.Id})
+		_, _, err := oktaApiClient.AssignUserToApplication(ctx, app.Id, oktasdk.AppUser{Id: user.Id})
+		require.NoError(t, err)
 
 		// Wait for Access List sync.
 		mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent)
