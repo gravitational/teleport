@@ -51,6 +51,7 @@ import {
   DocumentTshNode,
   DocumentTshNodeWithServerId,
   DocumentVnetDiagReport,
+  DocumentVnetInfo,
   WebSessionRequest,
 } from './types';
 
@@ -269,6 +270,19 @@ export class DocumentsService {
     };
   }
 
+  createVnetInfoDocument(opts: {
+    rootClusterUri: RootClusterUri;
+  }): DocumentVnetInfo {
+    const uri = routing.getDocUri({ docId: unique() });
+
+    return {
+      uri,
+      kind: 'doc.vnet_info',
+      title: 'VNet',
+      rootClusterUri: opts.rootClusterUri,
+    };
+  }
+
   openConnectMyComputerDocument(opts: {
     // URI of the root cluster could be passed to the `DocumentsService`
     // constructor and then to the document, instead of being taken from the parameter.
@@ -477,6 +491,25 @@ export class DocumentsService {
 
   filter(uri: string) {
     return this.getState().documents.filter(i => i.uri !== uri);
+  }
+
+  /**
+   * Finds an existing doc using findExisting and opens it. If there's no existing doc, uses
+   * createNew to add a new doc and then opens it.
+   */
+  openExistingOrAddNew(
+    findExisting: (doc: Document) => boolean,
+    createNew: () => Document
+  ): void {
+    const existingDoc = this.getDocuments().find(findExisting);
+    if (existingDoc) {
+      this.open(existingDoc.uri);
+      return;
+    }
+
+    const newDoc = createNew();
+    this.add(newDoc);
+    this.open(newDoc.uri);
   }
 
   getTshNodeDocuments() {
