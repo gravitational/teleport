@@ -373,7 +373,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	for _, cluster := range cfg.Clusters {
 		select {
 		case sender := <-inventoryHandle.Sender():
-			server, err := testCtx.KubeServer.getServerInfo(cluster.Name)
+			server, err := testCtx.KubeServer.GetServerInfo(cluster.Name)
 			require.NoError(t, err)
 			require.NoError(t, sender.Send(ctx, proto.InventoryHeartbeat{
 				KubernetesServer: server,
