@@ -25,10 +25,12 @@ import (
 	"net"
 	"os/exec"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	apitypes "github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -44,32 +46,58 @@ func (s *mcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 	s.log.DebugContext(ctx, "Running mcp", "app", app.GetName(),
 		"cmd", app.GetMCPCommand(), "args", app.GetMCPArgs())
 
+	mkWriter := func(handleName string) *dumpWriter {
+		return newDumpWriter(ctx, handleName, s.emitter, s.log, identity)
+	}
+
 	// TODO hijack the input/output and parse with SDK?
 	cmd := exec.CommandContext(ctx, app.GetMCPCommand(), app.GetMCPArgs()...)
-	cmd.Stdin = io.TeeReader(clientConn, &dumpWriter{
-		ctx:    ctx,
-		logger: s.log.With("stdio", "in"),
-	})
-	cmd.Stdout = io.MultiWriter(utils.NewSyncWriter(clientConn), &dumpWriter{
-		ctx:    ctx,
-		logger: s.log.With("stdio", "out"),
-	})
-	cmd.Stderr = &dumpWriter{
-		ctx:    ctx,
-		logger: s.log.With("stdio", "err"),
-	}
+	cmd.Stdin = io.TeeReader(clientConn, mkWriter("in"))
+	cmd.Stdout = io.MultiWriter(utils.NewSyncWriter(clientConn), mkWriter("out"))
+	cmd.Stderr = mkWriter("err")
 	if err := cmd.Start(); err != nil {
 		return trace.Wrap(err)
 	}
 	return cmd.Wait()
 }
 
+func newDumpWriter(ctx context.Context, handleName string, emitter apievents.Emitter, log *slog.Logger, identity *tlsca.Identity) *dumpWriter {
+	return &dumpWriter{
+		ctx:      ctx,
+		logger:   log.With("stdio", handleName),
+		emitter:  emitter,
+		identity: identity,
+	}
+}
+
 type dumpWriter struct {
-	ctx    context.Context
-	logger *slog.Logger
+	ctx      context.Context
+	logger   *slog.Logger
+	identity *tlsca.Identity
+	emitter  apievents.Emitter
+}
+
+func (d *dumpWriter) emitAuditEvent(msg string) {
+	if err := d.emitter.EmitAuditEvent(d.ctx, &apievents.DatabaseSessionQuery{
+		Metadata: apievents.Metadata{
+			Type: events.DatabaseSessionQueryEvent,
+			Code: events.DatabaseSessionQueryCode,
+		},
+		UserMetadata:            d.identity.GetUserMetadata(),
+		SessionMetadata:         d.identity.GetSessionMetadata(uuid.New().String()),
+		DatabaseMetadata:        apievents.DatabaseMetadata{},
+		DatabaseQuery:           msg,
+		DatabaseQueryParameters: nil,
+		Status: apievents.Status{
+			Success: true,
+		},
+	}); err != nil {
+		d.logger.WarnContext(d.ctx, "Failed to emit MCP call event.", "error", err)
+	}
 }
 
 func (d *dumpWriter) Write(p []byte) (int, error) {
+	d.emitAuditEvent(string(p))
 	d.logger.DebugContext(d.ctx, "=== dump", "data", string(p))
 	return len(p), nil
 }
