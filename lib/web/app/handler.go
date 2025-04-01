@@ -400,7 +400,7 @@ func (h *Handler) getAppSessionFromAccessPoint(ctx context.Context, sessionID st
 	}
 	// Do an extra check in case expired app session is still cached.
 	if ws.Expiry().Before(h.c.Clock.Now()) {
-		h.logger.DebugContext(ctx, "Session expired")
+		h.log.Debug(ctx, "Session expired")
 		return nil, trace.AccessDenied("invalid session")
 	}
 	return ws, nil
