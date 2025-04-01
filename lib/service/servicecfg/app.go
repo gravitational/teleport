@@ -54,6 +54,12 @@ type AppsConfig struct {
 	MonitorCloseChannel chan struct{}
 }
 
+type MCPServer struct {
+	Name    string
+	Command string
+	Args    []string
+}
+
 // App is the specific application that will be proxied by the application
 // service. This needs to exist because if the "config" package tries to
 // directly create a services.App it will get into circular imports.
@@ -108,6 +114,9 @@ type App struct {
 	// If this field is not empty, URI is expected to contain no port number and start with the tcp
 	// protocol.
 	TCPPorts []PortRange
+
+	MCPCommand string
+	MCPArgs    []string
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)

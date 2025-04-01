@@ -6135,6 +6135,8 @@ func (process *TeleportProcess) initApps() {
 				UseAnyProxyPublicAddr: app.UseAnyProxyPublicAddr,
 				CORS:                  makeApplicationCORS(app.CORS),
 				TCPPorts:              makeApplicationTCPPorts(app.TCPPorts),
+				MCPCommand:            app.MCPCommand,
+				MCPArgs:               app.MCPArgs,
 			})
 			if err != nil {
 				return trace.Wrap(err)

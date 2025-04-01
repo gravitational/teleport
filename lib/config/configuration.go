@@ -1916,6 +1916,8 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			Cloud:                 application.Cloud,
 			RequiredAppNames:      application.RequiredApps,
 			UseAnyProxyPublicAddr: application.UseAnyProxyPublicAddr,
+			MCPCommand:            application.MCPCommand,
+			MCPArgs:               application.MCPArgs,
 		}
 
 		if application.CORS != nil {

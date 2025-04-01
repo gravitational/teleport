@@ -971,9 +971,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyKube := newProxyKubeCommand(proxy)
 
 	// MCP.
-	mcp := app.Command("mcp", "MCP server stuff")
+	mcp := app.Command("mcp", "View and control available MCP servers")
 	mcpStart := mcp.Command("start", "start proxy for particular MCP server")
 	mcpStart.Arg("name", "Name of the MCP server").Required().StringVar(&cf.AppName)
+	lsMCP := mcp.Command("ls", "List available MCP servers")
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
@@ -1535,6 +1536,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onStatus(&cf)
 	case lsApps.FullCommand():
 		err = onApps(&cf)
+	case lsMCP.FullCommand():
+		err = onMCP(&cf)
 	case lsRecordings.FullCommand():
 		err = onRecordings(&cf)
 	case exportRecordings.FullCommand():
@@ -2887,6 +2890,36 @@ func printNodesAsText[T types.Server](output io.Writer, nodes []T, verbose bool)
 		return trace.Wrap(err)
 	}
 
+	return nil
+}
+
+func showMCP(apps []types.Application, active []tlsca.RouteToApp, w io.Writer, format string, verbose bool) error {
+	format = strings.ToLower(format)
+	switch format {
+	case teleport.Text, "":
+		appListings := make([]appListing, 0, len(apps))
+		for _, app := range apps {
+			appListings = append(appListings, appListing{App: app})
+		}
+
+		if err := writeAppTable(w, appListings, appTableConfig{
+			listAll: false, // showApps lists apps from a single cluster.
+			active:  active,
+			verbose: verbose,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeApps(apps, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := fmt.Fprintln(w, out); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		return trace.BadParameter("unsupported format %q", format)
+	}
 	return nil
 }
 
@@ -5381,6 +5414,50 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, newRequests []s
 	if err := updateKubeConfigOnLogin(cf, tc); err != nil {
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+func onMCP(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Get a list of all applications.
+	var apps []types.Application
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		apps, err = tc.ListApps(cf.Context, nil /* custom filter */)
+		return err
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Retrieve profile to be able to show which apps user is logged into.
+	// profile, err := tc.ProfileStatus()
+	// if err != nil {
+	// 	return trace.Wrap(err)
+	// }
+
+	// Filter MCP servers
+	var mcp []types.Application
+	for _, app := range apps {
+		if app.IsMCP() {
+			mcp = append(mcp, app)
+		}
+	}
+
+	// Sort by app name.
+	sort.Slice(apps, func(i, j int) bool {
+		return apps[i].GetName() < apps[j].GetName()
+	})
+
+	t := asciitable.MakeTable([]string{"Name", "Command", "Args"})
+	for _, app := range mcp {
+		t.AddRow([]string{app.GetName(), app.GetMCPCommand(), fmt.Sprintf("%v", app.GetMCPArgs())})
+	}
+
+	fmt.Fprintf(os.Stdout, t.AsBuffer().String())
 	return nil
 }
 

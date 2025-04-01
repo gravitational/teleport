@@ -97,6 +97,10 @@ type Application interface {
 	SetTCPPorts([]*PortRange)
 	// GetIdentityCenter fetches identity center info for the app, if any.
 	GetIdentityCenter() *AppIdentityCenter
+
+	IsMCP() bool
+	GetMCPCommand() string
+	GetMCPArgs() []string
 }
 
 // NewAppV3 creates a new app resource.
@@ -284,6 +288,18 @@ func (a *AppV3) IsTCP() bool {
 
 func IsAppTCP(uri string) bool {
 	return strings.HasPrefix(uri, "tcp://")
+}
+
+func (a *AppV3) IsMCP() bool {
+	return a.Spec.MCPCommand != ""
+}
+
+func (a *AppV3) GetMCPCommand() string {
+	return a.Spec.MCPCommand
+}
+
+func (a *AppV3) GetMCPArgs() []string {
+	return a.Spec.MCPArgs
 }
 
 // GetProtocol returns the application protocol.

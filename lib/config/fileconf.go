@@ -2050,6 +2050,12 @@ type Apps struct {
 	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`
 }
 
+type MCPServer struct {
+	Name    string   `yaml:"name"`
+	Command string   `yaml:"command"`
+	Args    []string `yaml:"args"`
+}
+
 // App is the specific application that will be proxied by the application
 // service.
 type App struct {
@@ -2104,6 +2110,9 @@ type App struct {
 	// If this field is not empty, URI is expected to contain no port number and start with the tcp
 	// protocol.
 	TCPPorts []PortRange `yaml:"tcp_ports,omitempty"`
+
+	MCPCommand string   `yaml:"mcp_command,omitempty"`
+	MCPArgs    []string `yaml:"mcp_args,omitempty"`
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
