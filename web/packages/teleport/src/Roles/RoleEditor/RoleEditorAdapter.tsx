@@ -83,7 +83,9 @@ export function RoleEditorAdapter({
         borderLeft={1}
         borderColor={theme.colors.interactive.tonal.neutral[0]}
         backgroundColor={theme.colors.levels.surface}
-        width="550px"
+        width="35%"
+        minWidth="494px"
+        maxWidth="672px"
       >
         {convertAttempt.status === 'processing' && (
           <Flex

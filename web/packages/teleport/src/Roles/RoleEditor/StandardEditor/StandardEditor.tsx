@@ -139,6 +139,7 @@ export const StandardEditor = ({
       <Box mb={3} mx={3}>
         <SlideTabs
           appearance="round"
+          size="medium"
           hideStatusIconOnActiveTab
           tabs={[
             tabSpec(
