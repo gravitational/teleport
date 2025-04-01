@@ -975,7 +975,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	mcpStart := mcp.Command("start", "start proxy for particular MCP server")
 	mcpStart.Arg("name", "Name of the MCP server").Required().StringVar(&cf.AppName)
 	lsMCP := mcp.Command("ls", "List available MCP servers")
-
 	mcpStartDB := mcp.Command("start-db", "star wars")
 
 	// Databases.
