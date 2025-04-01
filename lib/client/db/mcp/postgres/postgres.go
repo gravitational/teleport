@@ -20,11 +20,12 @@ type Session struct {
 }
 
 type NewSessionConfig struct {
+	MCPServer *mcpserver.MCPServer
 	RawDBConn net.Conn
 	Route     clientproto.RouteToDatabase
 }
 
-func NewSession(ctx context.Context, cfg NewSessionConfig, mcpServer *mcpserver.MCPServer) (*Session, error) {
+func NewSession(ctx context.Context, cfg NewSessionConfig) (*Session, error) {
 	pgConfig, err := buildConfig(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -36,7 +37,7 @@ func NewSession(ctx context.Context, cfg NewSessionConfig, mcpServer *mcpserver.
 	}
 
 	sess := &Session{conn: pgConn}
-	mcpServer.AddTool(queryTool, sess.QueryToolHandler)
+	cfg.MCPServer.AddTool(queryTool, sess.QueryToolHandler)
 
 	// TODO add resources support. Note: the current MCP SDK doesn't support
 	// dynamic resources: https://github.com/mark3labs/mcp-go/issues/51
