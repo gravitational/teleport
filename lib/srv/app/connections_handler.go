@@ -642,8 +642,7 @@ func (c *ConnectionsHandler) handleHTTPApp(ctx context.Context, conn net.Conn) e
 
 // handleTCPApp handles connection for a TCP application.
 func (c *ConnectionsHandler) handleTCPApp(ctx context.Context, conn net.Conn, identity *tlsca.Identity, app types.Application) error {
-	// TODO(greedy52) hack it for now
-	if _, ok := app.GetLabel("mcp.run"); ok {
+	if app.IsMCP() {
 		c.log.DebugContext(ctx, "=== handling MCP app", "app", app.GetName())
 		return trace.Wrap(c.mcpServer.handleConnection(ctx, conn, identity, app))
 	}

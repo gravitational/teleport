@@ -26,7 +26,6 @@ import (
 	"os/exec"
 
 	"github.com/gravitational/trace"
-	"github.com/mattn/go-shellwords"
 
 	apitypes "github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -42,21 +41,11 @@ type mcpServer struct {
 
 // handleConnection handles connection from an MCP application.
 func (s *mcpServer) handleConnection(ctx context.Context, clientConn net.Conn, identity *tlsca.Identity, app apitypes.Application) error {
-	// TODO define this in types.Application properly?
-	cmdToRun, ok := app.GetLabel("mcp.run")
-	if !ok {
-		return trace.BadParameter("missing mcp.run")
-	}
-
-	parts, err := shellwords.Parse(cmdToRun)
-	if err != nil {
-		return trace.BadParameter("cannot parse mcp.run: %v", err)
-	}
-
-	s.log.DebugContext(ctx, "Running mcp", "app", app.GetName(), "cmd", parts)
+	s.log.DebugContext(ctx, "Running mcp", "app", app.GetName(),
+		"cmd", app.GetMCPCommand(), "args", app.GetMCPArgs())
 
 	// TODO hijack the input/output and parse with SDK?
-	cmd := exec.CommandContext(ctx, parts[0], parts[1:]...)
+	cmd := exec.CommandContext(ctx, app.GetMCPCommand(), app.GetMCPArgs()...)
 	cmd.Stdin = io.TeeReader(clientConn, &dumpWriter{
 		ctx:    ctx,
 		logger: s.log.With("stdio", "in"),
