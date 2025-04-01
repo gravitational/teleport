@@ -150,7 +150,8 @@ export const VnetContextProvider: FC<
 
   const [startAttempt, start] = useAsync(
     useCallback(async () => {
-      await notifyAboutDaemonBackgroundItem(appCtx);
+      const { didBackgroundItemRequireEnablement } =
+        await checkDaemonBackgroundItemStatus(appCtx);
 
       try {
         await vnet.start({});
@@ -159,9 +160,21 @@ export const VnetContextProvider: FC<
           throw error;
         }
       }
+
+      if (didBackgroundItemRequireEnablement) {
+        // On the first start of VNet on macOS, the user needs to enable the background item for the
+        // VNet daemon. vnet.start does not resolve until that happens.
+        //
+        // Enabling the background item requires the user to switch focus away from Connect. If they
+        // started VNet through the "Connect" button next to a TCP app, it means that once we return
+        // from this function, Connect is going to attempt to copy the address of the app to the
+        // clipboard. This won't work unless Connect has focus, hence forcing focus here.
+        mainProcessClient.forceFocusWindow();
+      }
+
       setStatus({ value: 'running' });
       setAppState({ autoStart: true, hasEverStarted: true });
-    }, [vnet, setAppState, appCtx])
+    }, [vnet, setAppState, appCtx, mainProcessClient])
   );
 
   const [diagnosticsAttempt, runDiagnostics, setDiagnosticsAttempt] = useAsync(
@@ -486,7 +499,9 @@ export const useVnetContext = () => {
   return context;
 };
 
-const notifyAboutDaemonBackgroundItem = async (ctx: IAppContext) => {
+const checkDaemonBackgroundItemStatus = async (
+  ctx: IAppContext
+): Promise<{ didBackgroundItemRequireEnablement: boolean }> => {
   const { vnet, notificationsService } = ctx;
 
   let backgroundItemStatus: BackgroundItemStatus;
@@ -497,7 +512,7 @@ const notifyAboutDaemonBackgroundItem = async (ctx: IAppContext) => {
     // vnet.getBackgroundItemStatus returns UNIMPLEMENTED if tsh was compiled without the
     // vnetdaemon build tag.
     if (isTshdRpcError(error, 'UNIMPLEMENTED')) {
-      return;
+      return { didBackgroundItemRequireEnablement: false };
     }
 
     throw error;
@@ -508,10 +523,11 @@ const notifyAboutDaemonBackgroundItem = async (ctx: IAppContext) => {
     backgroundItemStatus === BackgroundItemStatus.NOT_SUPPORTED ||
     backgroundItemStatus === BackgroundItemStatus.UNSPECIFIED
   ) {
-    return;
+    return { didBackgroundItemRequireEnablement: false };
   }
 
   notificationsService.notifyInfo(
     'Please enable the background item for tsh.app in System Settings > General > Login Items to start VNet.'
   );
+  return { didBackgroundItemRequireEnablement: true };
 };
