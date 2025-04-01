@@ -1629,7 +1629,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	}
 
 	// cache the generic answer to avoid doing work for each request
-	resp, err := utils.FnCacheGet[*webclient.PingResponse](r.Context(), h.findEndpointCache, cacheKey, func(ctx context.Context) (*webclient.PingResponse, error) {
+	resp, err := utils.FnCacheGet(r.Context(), h.findEndpointCache, cacheKey, func(ctx context.Context) (*webclient.PingResponse, error) {
 		proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
