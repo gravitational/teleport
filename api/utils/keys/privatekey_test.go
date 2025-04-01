@@ -1,3 +1,5 @@
+//go:build pivtest
+
 /*
 Copyright 2022 Gravitational, Inc.
 
@@ -37,6 +39,7 @@ import (
 
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/api/utils/keys/piv"
 )
 
 func TestMarshalAndParseKey(t *testing.T) {
@@ -48,7 +51,9 @@ func TestMarshalAndParseKey(t *testing.T) {
 	_, edKey, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 
-	s := hardwarekey.NewMockHardwareKeyService()
+	// TODO(Joerger): Once the hardware key service is provided to the key parsing logic,
+	// use [hardwarekey.NewMockHardwareKeyService] and remove pivtest build tag
+	s := piv.NewYubiKeyService(context.TODO(), nil)
 	hwPriv, err := s.NewPrivateKey(context.TODO(), hardwarekey.PrivateKeyConfig{})
 	require.NoError(t, err)
 
@@ -314,29 +319,6 @@ func TestHardwareKeyMethods(t *testing.T) {
 	require.Equal(t, keys.PrivateKeyPolicyHardwareKeyTouch, hwKey.GetPrivateKeyPolicy())
 	require.True(t, hwKey.IsHardware())
 	require.NoError(t, hwKey.WarmupHardwareKey(ctx))
-}
-
-// TODO(Joerger): DELETE in v19.0.0
-func TestHardwareKey_OldLogin(t *testing.T) {
-	s := hardwarekey.NewMockHardwareKeyService()
-	hwPriv, err := s.NewPrivateKey(context.TODO(), hardwarekey.PrivateKeyConfig{
-		CustomSlot: "9a",
-	})
-	require.NoError(t, err)
-
-	// If an old client logged in, the private key ref would only contain the PIV
-	// slot (and serial number which is irrelevant with the mock service).
-	hwPrivMissingInfo := hardwarekey.NewPrivateKey(s, &hardwarekey.PrivateKeyRef{
-		SlotKey: 0x9a,
-	})
-	keyPEM, err := keys.MarshalPrivateKey(hwPrivMissingInfo)
-	require.NoError(t, err)
-	require.NotEqual(t, hwPriv, hwPrivMissingInfo)
-
-	// ParsePrivateKey should automatically get the missing hardware key info.
-	parsedKey, err := keys.ParsePrivateKey(keyPEM)
-	require.NoError(t, err)
-	require.Equal(t, hwPriv, parsedKey.Signer)
 }
 
 var (

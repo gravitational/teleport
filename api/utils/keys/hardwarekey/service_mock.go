@@ -52,6 +52,7 @@ type MockHardwareKeyService struct {
 // NewMockHardwareKeyService returns a [mockHardwareKeyService] for use in tests.
 func NewMockHardwareKeyService() *MockHardwareKeyService {
 	return &MockHardwareKeyService{
+		prompt:                     NewStdCLIPrompt(),
 		mockTouch:                  make(chan struct{}),
 		fakeHardwarePrivateKeys:    map[hardwareKeySlot]*fakeHardwarePrivateKey{},
 		fakeHardwarePrivateKeysMux: &sync.Mutex{},

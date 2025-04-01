@@ -17,16 +17,16 @@
 package hardwarekey_test
 
 import (
-	"bytes"
 	"context"
 	"crypto"
 	"crypto/rand"
 	"crypto/sha512"
 	"fmt"
-	"strings"
+	"io"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
@@ -126,9 +126,9 @@ func TestPrivateKey_Prompt(t *testing.T) {
 
 func doWithPrompt[T any](t *testing.T, s *hardwarekey.MockHardwareKeyService, policy hardwarekey.PromptPolicy, fn func() T) T {
 	// Mock a CLI prompt.
-	promptWriter := bytes.NewBuffer([]byte{})
+	pipeReader, pipeWriter := io.Pipe()
 	promptReader := prompt.NewFakeReader()
-	s.SetPrompt(hardwarekey.NewCLIPrompt(promptWriter, promptReader))
+	s.SetPrompt(hardwarekey.NewCLIPrompt(pipeWriter, promptReader))
 
 	out := make(chan T)
 	go func() {
@@ -136,17 +136,19 @@ func doWithPrompt[T any](t *testing.T, s *hardwarekey.MockHardwareKeyService, po
 	}()
 
 	if policy.PINRequired {
-		require.Eventually(t, func() bool {
-			return strings.Contains(promptWriter.String(), "Enter your YubiKey PIV PIN")
-		}, 100*time.Millisecond, 10*time.Millisecond)
+		out := make([]byte, 100)
+		_, err := pipeReader.Read(out)
+		assert.NoError(t, err)
+		assert.Contains(t, string(out), "Enter your YubiKey PIV PIN")
 		// mock service doesn't actually check the pin, it just waits for input.
 		promptReader.AddString("")
 	}
 
 	if policy.TouchRequired {
-		require.Eventually(t, func() bool {
-			return strings.Contains(promptWriter.String(), "Tap your YubiKey")
-		}, 100*time.Millisecond, 10*time.Millisecond)
+		out := make([]byte, 100)
+		_, err := pipeReader.Read(out)
+		assert.NoError(t, err)
+		assert.Contains(t, string(out), "Tap your YubiKey")
 		// mock touch.
 		s.MockTouch()
 	}

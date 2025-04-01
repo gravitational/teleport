@@ -391,6 +391,16 @@ func MarshalPrivateKey(key crypto.Signer) ([]byte, error) {
 			Bytes: der,
 		})
 		return privPEM, nil
+	case *hardwarekey.PrivateKey:
+		encodedKey, err := privateKey.Encode()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		privPEM := pem.EncodeToMemory(&pem.Block{
+			Type:  pivYubiKeyPrivateKeyType,
+			Bytes: encodedKey,
+		})
+		return privPEM, nil
 	default:
 		return nil, trace.BadParameter("unsupported private key type %T", key)
 	}
