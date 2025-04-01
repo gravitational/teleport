@@ -1,6 +1,7 @@
 module github.com/gravitational/teleport/api
 
-go 1.23.0
+go 1.23.7
+
 toolchain go1.24.1
 
 require (
