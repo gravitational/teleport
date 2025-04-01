@@ -123,11 +123,21 @@ func (e *Engine) getServerOptions(ctx context.Context, sessionCtx *common.Sessio
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return []topology.ServerOption{
+	var extraOptions []topology.ServerOption
+	if clientCfg.LoadBalanced != nil && *clientCfg.LoadBalanced {
+		// Load balanced connections require a custom server pool
+		// configuration.
+		extraOptions = append(extraOptions,
+			topology.WithServerLoadBalanced(func(b bool) bool {
+				return *clientCfg.LoadBalanced
+			},
+			))
+	}
+	return append([]topology.ServerOption{
 		topology.WithConnectionOptions(func(opts ...topology.ConnectionOption) []topology.ConnectionOption {
 			return connectionOptions
 		}),
-	}, nil
+	}, extraOptions...), nil
 }
 
 // getConnectionOptions constructs connection options for connecting to a MongoDB server.
@@ -140,7 +150,19 @@ func (e *Engine) getConnectionOptions(ctx context.Context, sessionCtx *common.Se
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return []topology.ConnectionOption{
+	var extraOptions []topology.ConnectionOption
+	var loadBalanced bool
+	if clientCfg.LoadBalanced != nil && *clientCfg.LoadBalanced {
+		// Load balanced connections require a custom connection pool
+		// configuration.
+		extraOptions = append(extraOptions,
+			topology.WithConnectionLoadBalanced(func(b bool) bool {
+				return *clientCfg.LoadBalanced
+			},
+			))
+		loadBalanced = true
+	}
+	return append([]topology.ConnectionOption{
 		topology.WithTLSConfig(func(*tls.Config) *tls.Config {
 			return tlsConfig
 		}),
@@ -157,9 +179,9 @@ func (e *Engine) getConnectionOptions(ctx context.Context, sessionCtx *common.Se
 				// client connecting to Teleport will get an error when they try
 				// to send its own metadata since client metadata is immutable.
 				&handshaker{},
-				&auth.HandshakeOptions{Authenticator: authenticator, HTTPClient: clientCfg.HTTPClient})
+				&auth.HandshakeOptions{Authenticator: authenticator, HTTPClient: clientCfg.HTTPClient, LoadBalanced: loadBalanced})
 		}),
-	}, nil
+	}, extraOptions...), nil
 }
 
 func (e *Engine) getAuthenticator(ctx context.Context, sessionCtx *common.Session) (auth.Authenticator, error) {
