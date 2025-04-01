@@ -1,7 +1,7 @@
 module "teleport" {
-  source                = "./teleport"
+  source                = "./agent-installation"
   agent_count           = var.agent_count
-  agent_roles           = var.agent_roles
+  agent_labels          = var.agent_labels
   proxy_service_address = var.proxy_service_address
   teleport_edition      = var.teleport_edition
   teleport_version      = var.teleport_version
