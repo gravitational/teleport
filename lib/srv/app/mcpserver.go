@@ -45,15 +45,18 @@ func (s *mcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 	s.log.DebugContext(ctx, "Running mcp", "app", app.GetName(),
 		"cmd", app.GetMCPCommand(), "args", app.GetMCPArgs())
 
-	mkWriter := func(handleName string) *dumpWriter {
-		return newDumpWriter(ctx, handleName, s.emitter, s.log, identity)
+	mkWriter := func(handleName string, emitEvents bool) *dumpWriter {
+		if emitEvents {
+			return newDumpWriter(ctx, handleName, s.emitter, s.log, identity)
+		}
+		return newDumpWriter(ctx, handleName, nil, s.log, identity)
 	}
 
 	// TODO hijack the input/output and parse with SDK?
 	cmd := exec.CommandContext(ctx, app.GetMCPCommand(), app.GetMCPArgs()...)
-	cmd.Stdin = io.TeeReader(clientConn, mkWriter("in"))
-	cmd.Stdout = io.MultiWriter(utils.NewSyncWriter(clientConn), mkWriter("out"))
-	cmd.Stderr = mkWriter("err")
+	cmd.Stdin = io.TeeReader(clientConn, mkWriter("in", true))
+	cmd.Stdout = io.MultiWriter(utils.NewSyncWriter(clientConn), mkWriter("out", false))
+	cmd.Stderr = mkWriter("err", false)
 	if err := cmd.Start(); err != nil {
 		return trace.Wrap(err)
 	}
