@@ -68,10 +68,6 @@ export type RoleDiffProps = {
   roleDiffElement: React.ReactNode;
   updateRoleDiff: (role: Role) => void;
 
-  /** @deprecated Use {@link RoleDiffProps.roleDiffAttempt} instead. */
-  // TODO(bl-nero): Remove this property once the Enterprise code is updated.
-  errorMessage?: string;
-
   /**
    * State of the attempt to fetch the information required by the role diff
    * visualizer. Required to show an error message in the editor UI.
