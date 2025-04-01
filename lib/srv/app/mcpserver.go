@@ -25,7 +25,6 @@ import (
 	"net"
 	"os/exec"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	apitypes "github.com/gravitational/teleport/api/types"
@@ -78,22 +77,32 @@ type dumpWriter struct {
 }
 
 func (d *dumpWriter) emitAuditEvent(msg string) {
-	if err := d.emitter.EmitAuditEvent(d.ctx, &apievents.DatabaseSessionQuery{
-		Metadata: apievents.Metadata{
-			Type: events.DatabaseSessionQueryEvent,
-			Code: events.DatabaseSessionQueryCode,
-		},
-		UserMetadata:            d.identity.GetUserMetadata(),
-		SessionMetadata:         d.identity.GetSessionMetadata(uuid.New().String()),
-		DatabaseMetadata:        apievents.DatabaseMetadata{},
-		DatabaseQuery:           msg,
-		DatabaseQueryParameters: nil,
-		Status: apievents.Status{
-			Success: true,
-		},
-	}); err != nil {
-		d.logger.WarnContext(d.ctx, "Failed to emit MCP call event.", "error", err)
+	if d.emitter == nil {
+		return
 	}
+
+	event := &apievents.MCPRequest{}
+
+	emitEvent, err := mcpMessageToEvent(event, msg)
+	if err != nil {
+		d.logger.WarnContext(d.ctx, "Failed to parse RPC message", "error", err)
+		return
+	}
+
+	if !emitEvent {
+		return
+	}
+
+	event.Metadata = apievents.Metadata{
+		Type: events.MCPRequestEvent,
+		Code: events.MCPRequestCode,
+	}
+
+	d.logger.InfoContext(d.ctx, "event", "val", event)
+
+	// if err := d.emitter.EmitAuditEvent(d.ctx, event); err != nil {
+	// 	d.logger.WarnContext(d.ctx, "Failed to emit MCP call event.", "error", err)
+	// }
 }
 
 func (d *dumpWriter) Write(p []byte) (int, error) {

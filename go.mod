@@ -160,6 +160,7 @@ require (
 	github.com/keys-pub/go-libfido2 v1.5.3-0.20220306005615-8ab03fb1ec27 // replaced
 	github.com/lib/pq v1.10.9
 	github.com/mailgun/mailgun-go/v4 v4.22.1
+	github.com/mark3labs/mcp-go v0.17.0
 	github.com/mattn/go-shellwords v1.0.12
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/mdlayher/netlink v1.7.2
@@ -444,7 +445,6 @@ require (
 	github.com/magiconair/properties v1.8.9 // indirect
 	github.com/mailgun/errors v0.4.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/mark3labs/mcp-go v0.17.0 // indirect
 	github.com/mattermost/xml-roundtrip-validator v0.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

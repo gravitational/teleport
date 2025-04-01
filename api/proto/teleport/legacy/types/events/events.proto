@@ -2975,6 +2975,37 @@ message AppSessionChunk {
   ];
 }
 
+message MCPRequest {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // App is a common application resource metadata.
+  AppMetadata App = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  string SessionID = 4 [(gogoproto.jsontag) = "session_id"];
+
+  // Method is the request method.
+  string Method = 5 [(gogoproto.jsontag) = "method"];
+
+  // Body is the request JSON-RPC body.
+  string Body = 8 [(gogoproto.jsontag) = "body"];
+}
+
 // AppSessionRequest is an HTTP request and response.
 message AppSessionRequest {
   // Metadata is a common event metadata

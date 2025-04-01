@@ -133,6 +133,8 @@ const (
 	// AppSessionDynamoDBRequestCode is the application request/response code.
 	AppSessionDynamoDBRequestCode = "T2013I"
 
+	MCPRequestCode = "MR001I"
+
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"
 	// AppUpdateCode is the app.update event code.
