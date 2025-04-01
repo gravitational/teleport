@@ -65,13 +65,14 @@ func parseRemoteSubsystem(ctx context.Context, subsystemName string, serverConte
 		serverContext: serverContext,
 		subsystemName: subsystemName,
 		ctx:           ctx,
-		errorCh:       make(chan error, 3),
 	}
 	if subsystemName == teleport.SFTPSubsystem {
+		r.errorCh = make(chan error, 1) // one error for the sftp proxy as a whole
 		return &remoteSFTPSubsystem{
 			subsystem: r,
 		}
 	}
+	r.errorCh = make(chan error, 3) // one error each for stdin, stdout, and stderr
 	return r
 }
 
