@@ -1,5 +1,11 @@
 # Changelog
 
+## 17.4.2 (04/01/25)
+
+* Reduced resource consumption and improve latency of `tsh ssh`. [#53645](https://github.com/gravitational/teleport/pull/53645)
+* Fixed an issue where expired app session won't redirect to login page when Teleport is using DynamoDB backend. [#53591](https://github.com/gravitational/teleport/pull/53591)
+* Workload ID: Support for adding custom claims to JWT-SVIDs. [#53585](https://github.com/gravitational/teleport/pull/53585)
+
 ## 17.4.1 (03/28/25)
 
 * Fix a bug causing the discovery service to fail to configure teleport on discovered nodes when managed updates v2 are enabled. [#53543](https://github.com/gravitational/teleport/pull/53543)
