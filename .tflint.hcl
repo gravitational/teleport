@@ -1,5 +1,6 @@
 config {
   ignore_module = {
-    "teleport" = true
+    "./agent-installation" = true
+    "./azure"              = true
   }
 }
