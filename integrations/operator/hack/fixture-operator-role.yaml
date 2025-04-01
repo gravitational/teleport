@@ -83,7 +83,7 @@ spec:
           - delete
       - resources:
           - bot
-      - verbs:
+        verbs:
           - list
           - create
           - read
