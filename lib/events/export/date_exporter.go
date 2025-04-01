@@ -96,12 +96,8 @@ func (cfg *DateExporterConfig) CheckAndSetDefaults() error {
 		cfg.PollInterval = 16 * time.Second
 	}
 	if cfg.BatchExport != nil {
-		if cfg.BatchExport.MaxDelay == 0 {
-			cfg.BatchExport.MaxDelay = time.Second * 5
-		}
-		if cfg.BatchExport.MaxSize == 0 {
-			cfg.BatchExport.MaxSize = 2 * 1024 * 1024 // 2MiB
-		}
+		cfg.BatchExport.MaxDelay = cmp.Or(cfg.BatchExport.MaxDelay, 5 * time.Second)
+		cfg.BatchExport.MaxSize = cmp.Or(cfg.BatchExport.MaxSize, 2 * 1024 * 1024 /* 2MiB */)
 	}
 	return nil
 }
