@@ -855,6 +855,14 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_HealthCheckConfigDelete{
 			HealthCheckConfigDelete: e,
 		}
+	case *AppSessionMCPRequest:
+		out.Event = &OneOf_AppSessionMCPRequest{
+			AppSessionMCPRequest: e,
+		}
+	case *AppSessionMCPNotification:
+		out.Event = &OneOf_AppSessionMCPNotification{
+			AppSessionMCPNotification: e,
+		}
 	case *WorkloadIdentityX509IssuerOverrideCreate:
 		out.Event = &OneOf_WorkloadIdentityX509IssuerOverrideCreate{
 			WorkloadIdentityX509IssuerOverrideCreate: e,

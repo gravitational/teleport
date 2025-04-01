@@ -4780,8 +4780,8 @@ message OneOf {
     events.HealthCheckConfigDelete HealthCheckConfigDelete = 207;
     WorkloadIdentityX509IssuerOverrideCreate WorkloadIdentityX509IssuerOverrideCreate = 208;
     WorkloadIdentityX509IssuerOverrideDelete WorkloadIdentityX509IssuerOverrideDelete = 209;
-    events.AppSessionMCPRequest MCPRequest = 210;
-    events.AppSessionMCPNotification MCPNotification = 211;
+    events.AppSessionMCPRequest AppSessionMCPRequest = 210;
+    events.AppSessionMCPNotification AppSessionMCPNotification = 211;
   }
 }
 

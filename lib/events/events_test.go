@@ -260,6 +260,8 @@ var eventsMap = map[string]apievents.AuditEvent{
 	HealthCheckConfigCreateEvent:                  &apievents.HealthCheckConfigCreate{},
 	HealthCheckConfigUpdateEvent:                  &apievents.HealthCheckConfigUpdate{},
 	HealthCheckConfigDeleteEvent:                  &apievents.HealthCheckConfigDelete{},
+	AppSessionMCPRequestEvent:                     &apievents.AppSessionMCPRequest{},
+	AppSessionMCPNotificationEvent:                &apievents.AppSessionMCPNotification{},
 }
 
 // TestJSON tests JSON marshal events
