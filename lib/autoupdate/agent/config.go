@@ -248,7 +248,6 @@ func validateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
 // Status of the agent auto-updates system.
 type Status struct {
 	UpdateSpec   `yaml:",inline"`
-	ID           string `yaml:"id,omitempty"`
 	UpdateStatus `yaml:",inline"`
 	FindResp     `yaml:",inline"`
 }
@@ -263,4 +262,6 @@ type FindResp struct {
 	Jitter time.Duration `yaml:"jitter"`
 	// AGPL installations cannot use the official CDN.
 	AGPL bool `yaml:"agpl,omitempty"`
+	// ID provided to the updater.
+	ID string `yaml:"id,omitempty"`
 }

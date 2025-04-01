@@ -24,6 +24,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -587,6 +588,20 @@ func (u *Updater) removeWithoutSystem(ctx context.Context, cfg *UpdateConfig) er
 	return nil
 }
 
+// readID returns the update ID, if present on disk.
+// Errors will be logged.
+func (u *Updater) readID(ctx context.Context, path string) string {
+	idBytes, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return ""
+	}
+	if err != nil {
+		u.Log.ErrorContext(ctx, "Failed to read update ID file.", "path", path, errorKey, err)
+		return ""
+	}
+	return string(bytes.TrimSpace(idBytes))
+}
+
 // Status returns all available local and remote fields related to agent auto-updates.
 // Status is safe to run concurrently with other Updater commands.
 // Status does not write files, and therefore does not require SetRequiredUmask.
@@ -605,11 +620,6 @@ func (u *Updater) Status(ctx context.Context) (Status, error) {
 	}
 	out.UpdateSpec = cfg.Spec
 	out.UpdateStatus = cfg.Status
-	idBytes, err := os.ReadFile(out.IDFile)
-	if err == nil {
-		out.ID = string(bytes.TrimSpace(idBytes))
-	}
-	out.IDFile = ""
 
 	// Lookup target version from the proxy.
 	resp, err := u.find(ctx, cfg)
@@ -617,6 +627,7 @@ func (u *Updater) Status(ctx context.Context) (Status, error) {
 		return out, trace.Wrap(err)
 	}
 	out.FindResp = resp
+	out.IDFile = "" // actual ID is is find response
 	return out, nil
 }
 
@@ -781,12 +792,14 @@ func (u *Updater) find(ctx context.Context, cfg *UpdateConfig) (FindResp, error)
 	if err != nil {
 		return FindResp{}, trace.Wrap(err, "failed to parse proxy server address")
 	}
+	id := u.readID(ctx, cfg.Status.IDFile)
 	resp, err := webclient.Find(&webclient.Config{
 		Context:     ctx,
 		ProxyAddr:   addr.Addr,
 		Insecure:    u.InsecureSkipVerify,
 		Timeout:     30 * time.Second,
 		UpdateGroup: cfg.Spec.Group,
+		UpdateHost:  id,
 		Pool:        u.Pool,
 	})
 	if err != nil {
@@ -813,6 +826,7 @@ func (u *Updater) find(ctx context.Context, cfg *UpdateConfig) (FindResp, error)
 		InWindow: resp.AutoUpdate.AgentAutoUpdate,
 		Jitter:   time.Duration(jitterSec) * time.Second,
 		AGPL:     agpl,
+		ID:       id,
 	}, nil
 }
 
