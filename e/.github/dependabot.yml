@@ -13,7 +13,6 @@ updates:
           - "minor"
           - "patch"
     reviewers:
-      - codingllama
       - fheinecke
       - rosstimothy
       - zmb3
@@ -30,7 +29,6 @@ updates:
           - "minor"
           - "patch"
     reviewers:
-      - codingllama
       - probakowski
       - rosstimothy
       - zmb3
