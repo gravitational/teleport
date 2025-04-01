@@ -1,0 +1,75 @@
+// Copyright 2024 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.decision.v1alpha1;
+
+import "google/protobuf/duration.proto";
+import "teleport/decision/v1alpha1/denial_metadata.proto";
+import "teleport/decision/v1alpha1/permit_metadata.proto";
+import "teleport/decision/v1alpha1/request_metadata.proto";
+import "teleport/decision/v1alpha1/resource.proto";
+import "teleport/decision/v1alpha1/ssh_identity.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpb";
+
+// EvaluateSSHAccessRequest describes a request to evaluate whether or not a
+// given ssh access attempt should be permitted.
+message EvaluateSSHAccessRequest {
+  // Metadata holds common authorization decision request fields.
+  RequestMetadata metadata = 1;
+
+  // User describes the teleport user requesting access.
+  SSHIdentity ssh_identity = 2;
+
+  // Node references the target node the user is attempting to access.
+  Resource node = 3;
+}
+
+// EvaluateSSHAccessResponse describes the result of an SSH access evaluation.
+message EvaluateSSHAccessResponse {
+  oneof decision {
+    SSHAccessPermit permit = 1;
+    SSHAccessDenial denial = 2;
+  }
+}
+
+// SSHAccessPermit describes the parameters/constraints of a permissible SSH
+// access attempt.
+message SSHAccessPermit {
+  PermitMetadata metadata = 1;
+  repeated string logins = 2;
+  bool forward_agent = 3;
+  google.protobuf.Duration max_session_ttl = 4;
+  bool port_forwarding = 5;
+  int64 client_idle_timeout = 6;
+  bool disconnect_expired_cert = 7;
+  repeated string bpf = 8;
+  bool x11_forwarding = 9;
+  int64 max_connections = 10;
+  int64 max_sessions = 11;
+  string lock = 12;
+  bool create_host_user = 13;
+  bool ssh_file_copy = 14;
+  string create_host_user_mode = 15;
+  string create_host_user_shell = 16;
+  repeated string host_groups = 17;
+  repeated string host_sudoers = 18;
+}
+
+// SSHAccessDenial describes an SSH access denial.
+message SSHAccessDenial {
+  DenialMetadata metadata = 1;
+}
