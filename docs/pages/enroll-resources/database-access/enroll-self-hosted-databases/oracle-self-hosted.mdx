@@ -183,8 +183,8 @@ audit events from Oracle Audit Trail:
 ```sql
 CREATE USER teleport IDENTIFIED EXTERNALLY AS 'CN=teleport';
 GRANT CREATE SESSION TO teleport;
-GRANT SELECT ON dba_audit_trail TO teleport;
-GRANT SELECT ON V_$SESSION TO teleport;
+GRANT SELECT ON SYS.DBA_AUDIT_TRAIL TO teleport;
+GRANT SELECT ON SYS.V_$SESSION TO teleport;
 ```
 
 Enable the table in Oracle Audit Trail:
@@ -202,8 +202,8 @@ AUDIT ALL STATEMENTS by alice BY access;
 You must enable auditing for each Teleport user that will be used to connect to Oracle.
 Additionally you can create a different audit policy for each user.
 
-Edit the Database Service configuration you created earlier pull audit logs from
-Oracle Audit Trail:
+Edit the Database Service configuration you created earlier to pull audit logs from 
+the Oracle Audit Trail:
 
 ```yaml
 db_service:
@@ -211,7 +211,7 @@ db_service:
   databases:
   - name: "oracle"
     protocol: "oracle"
-    uri: oracle.example.com:2484"
+    uri: "oracle.example.com:2484"
     oracle:
       audit_user: "teleport"
 ```
