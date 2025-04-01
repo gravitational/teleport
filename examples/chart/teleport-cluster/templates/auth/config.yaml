@@ -139,6 +139,14 @@ data:
               - read
               - update
               - delete
+          - resources:
+              - bot
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
       deny: {}
     version: v7
     ---
