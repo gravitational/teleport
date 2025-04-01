@@ -20,23 +20,7 @@ import styled from 'styled-components';
 
 import { alignSelf, color, space } from 'design/system';
 
-export const buttonSizes = {
-  0: {
-    fontSize: '12px',
-    height: '24px',
-    width: '24px',
-  },
-  1: {
-    fontSize: '16px',
-    height: '32px',
-    width: '32px',
-  },
-  2: {
-    fontSize: '24px',
-    height: '48px',
-    width: '48px',
-  },
-};
+import { buttonSizes } from './constants';
 
 const defaultSize = buttonSizes[1];
 

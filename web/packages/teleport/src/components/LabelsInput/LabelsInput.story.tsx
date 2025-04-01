@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Meta } from '@storybook/react';
 import { useState } from 'react';
-import styled from 'styled-components';
 
 import Box from 'design/Box';
 import { ButtonSecondary } from 'design/Button';
@@ -25,60 +25,62 @@ import Validation from 'shared/components/Validation';
 
 import { Label, LabelsInput } from './LabelsInput';
 
-export default {
+const meta: Meta = {
   title: 'Teleport/LabelsInput',
+  decorators: Story => (
+    <Box width="456px">
+      <Story />
+    </Box>
+  ),
 };
+export default meta;
 
 export const Default = () => {
   const [labels, setLables] = useState<Label[]>([]);
 
   return (
-    <Wrapper>
-      <Validation>
-        {({ validator }) => (
+    <Validation>
+      {({ validator }) => (
+        <div>
           <div>
-            <div>
-              <LabelsInput labels={labels} setLabels={setLables} />
-            </div>
-            <ButtonSecondary
-              mt={6}
-              onClick={() => {
-                if (!validator.validate()) {
-                  return;
-                }
-              }}
-            >
-              Test Validation For Empty Inputs
-            </ButtonSecondary>
+            <LabelsInput labels={labels} setLabels={setLables} />
           </div>
-        )}
-      </Validation>
-    </Wrapper>
+          <ButtonSecondary
+            mt={6}
+            onClick={() => {
+              if (!validator.validate()) {
+                return;
+              }
+            }}
+          >
+            Test Validation For Empty Inputs
+          </ButtonSecondary>
+        </div>
+      )}
+    </Validation>
   );
 };
 
 export const Custom = () => {
   const [labels, setLables] = useState<Label[]>([]);
   return (
-    <Wrapper>
-      <Validation>
-        <LabelsInput
-          labels={labels}
-          setLabels={setLables}
-          legend="List of Labels"
-          tooltipContent="List of labels, 'nuff said"
-          labelKey={{
-            fieldName: 'Custom Key Name',
-            placeholder: 'custom key placeholder',
-          }}
-          labelVal={{
-            fieldName: 'Custom Value',
-            placeholder: 'custom value placeholder',
-          }}
-          adjective="Custom Adjective"
-        />
-      </Validation>
-    </Wrapper>
+    <Validation>
+      <LabelsInput
+        labels={labels}
+        setLabels={setLables}
+        legend="List of Labels"
+        tooltipContent="List of labels, 'nuff said"
+        labelKey={{
+          fieldName: 'Custom Key Name',
+          placeholder: 'custom key placeholder',
+        }}
+        labelVal={{
+          fieldName: 'Custom Value',
+          placeholder: 'custom value placeholder',
+        }}
+        adjective="Custom Adjective"
+      />
+    </Validation>
   );
 };
 
@@ -87,41 +89,31 @@ export const Disabled = () => {
     { name: 'some-name', value: 'some-value' },
   ]);
   return (
-    <Wrapper>
-      <Validation>
-        <LabelsInput labels={labels} setLabels={setLables} disableBtns={true} />
-      </Validation>
-    </Wrapper>
+    <Validation>
+      <LabelsInput labels={labels} setLabels={setLables} disableBtns={true} />
+    </Validation>
   );
 };
 
 export const AutoFocus = () => {
   const [labels, setLables] = useState<Label[]>([{ name: '', value: '' }]);
   return (
-    <Wrapper>
-      <Validation>
-        <LabelsInput labels={labels} setLabels={setLables} autoFocus={true} />
-      </Validation>
-    </Wrapper>
+    <Validation>
+      <LabelsInput labels={labels} setLabels={setLables} autoFocus={true} />
+    </Validation>
   );
 };
 
 export const AtLeastOneRequired = () => {
   const [labels, setLables] = useState<Label[]>([{ name: '', value: '' }]);
   return (
-    <Wrapper>
-      <Validation>
-        <LabelsInput
-          legend="Labels"
-          labels={labels}
-          setLabels={setLables}
-          required={true}
-        />
-      </Validation>
-    </Wrapper>
+    <Validation>
+      <LabelsInput
+        legend="Labels"
+        labels={labels}
+        setLabels={setLables}
+        required={true}
+      />
+    </Validation>
   );
 };
-
-const Wrapper = styled(Box)`
-  width: 456px;
-`;

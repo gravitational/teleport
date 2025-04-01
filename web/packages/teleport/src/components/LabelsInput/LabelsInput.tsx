@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
 
 import { ButtonIcon, ButtonSecondary, Flex } from 'design';
-import { buttonSizes } from 'design/ButtonIcon/ButtonIcon';
+import { buttonSizes } from 'design/ButtonIcon';
 import * as Icons from 'design/Icon';
 import { inputGeometry } from 'design/Input/Input';
 import { LabelContent } from 'design/LabelInput/LabelInput';
@@ -103,7 +103,6 @@ export function LabelsInput({
 }) {
   const validator = useValidation() as Validator;
   const validationResult: LabelListValidationResult = useRule(rule(labels));
-  const theme = useTheme();
 
   function addLabel() {
     setLabels([...labels, { name: '', value: '' }]);
@@ -237,10 +236,7 @@ export function LabelsInput({
                       `}
                       disabled={disableBtns}
                     >
-                      <Icons.Cross
-                        color={theme.colors.text.muted}
-                        size="small"
-                      />
+                      <Icons.Cross color="text.muted" size="small" />
                     </ButtonIcon>
                   </Flex>
                 </td>
