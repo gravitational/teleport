@@ -19,6 +19,7 @@
 package common
 
 import (
+	"io"
 	"net"
 
 	"github.com/gravitational/trace"
@@ -29,6 +30,13 @@ import (
 )
 
 func onMCPStart(cf *CLIConf) error {
+	cf.OverrideStdout = io.Discard
+
+	err := onAppLogin(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)

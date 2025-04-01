@@ -1536,8 +1536,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onStatus(&cf)
 	case lsApps.FullCommand():
 		err = onApps(&cf)
-	case lsMCP.FullCommand():
-		err = onMCP(&cf)
 	case lsRecordings.FullCommand():
 		err = onRecordings(&cf)
 	case exportRecordings.FullCommand():
@@ -1579,6 +1577,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	case mcpStart.FullCommand():
 		err = onMCPStart(&cf)
+	case lsMCP.FullCommand():
+		err = onMCPList(&cf)
 
 	case dbList.FullCommand():
 		err = onListDatabases(&cf)
@@ -5417,7 +5417,7 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, newRequests []s
 	return nil
 }
 
-func onMCP(cf *CLIConf) error {
+func onMCPList(cf *CLIConf) error {
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
