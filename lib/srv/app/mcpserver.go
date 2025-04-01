@@ -103,9 +103,9 @@ func (d *dumpWriter) emitAuditEvent(msg string) {
 
 	d.logger.InfoContext(d.ctx, "event", "val", event)
 
-	// if err := d.emitter.EmitAuditEvent(d.ctx, event); err != nil {
-	// 	d.logger.WarnContext(d.ctx, "Failed to emit MCP call event.", "error", err)
-	// }
+	if err := d.emitter.EmitAuditEvent(d.ctx, event); err != nil {
+		d.logger.WarnContext(d.ctx, "Failed to emit MCP call event.", "error", err)
+	}
 }
 
 func (d *dumpWriter) Write(p []byte) (int, error) {
