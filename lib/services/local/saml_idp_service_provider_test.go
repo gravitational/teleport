@@ -30,6 +30,7 @@ import (
 	"github.com/crewjam/saml/samlsp"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	preset "github.com/gravitational/teleport/api/types/samlsp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -623,4 +624,67 @@ func TestDeleteSAMLServiceProviderWhenReferencedByPlugin(t *testing.T) {
 	require.NoError(t, pluginService.CreatePlugin(ctx, fixtures.NewMattermostPlugin(t)))
 	require.NoError(t, pluginService.DeletePlugin(ctx, types.PluginTypeAWSIdentityCenter))
 	require.NoError(t, samlService.DeleteSAMLIdPServiceProvider(ctx, sp.GetName()))
+}
+
+func TestGenerateAndSetEntityDescriptorPerPreset(t *testing.T) {
+	testCase := []struct {
+		name             string
+		spName           string
+		preset           string
+		wantNameIDFormat saml.NameIDFormat
+	}{
+		{
+			name:             "default",
+			spName:           "sp1",
+			preset:           preset.Unspecified,
+			wantNameIDFormat: saml.UnspecifiedNameIDFormat,
+		},
+		{
+			name:             "MicrosoftEntraID preset",
+			spName:           "sp2",
+			preset:           preset.MicrosoftEntraID,
+			wantNameIDFormat: saml.PersistentNameIDFormat,
+		},
+	}
+	ctx := context.Background()
+	backend, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	for _, tc := range testCase {
+		t.Run(tc.name, func(t *testing.T) {
+			service, err := NewSAMLIdPServiceProviderService(backend)
+			require.NoError(t, err)
+
+			sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
+				Name: tc.spName,
+			}, types.SAMLIdPServiceProviderSpecV1{
+				ACSURL:   fmt.Sprintf("https://entity-id-%v", tc.spName),
+				EntityID: fmt.Sprintf("entity-id-%v", tc.spName),
+				Preset:   tc.preset,
+			})
+			require.NoError(t, err)
+			err = service.CreateSAMLIdPServiceProvider(ctx, sp)
+			require.NoError(t, err)
+
+			spFromBackend, err := service.GetSAMLIdPServiceProvider(ctx, sp.GetName())
+			require.NoError(t, err)
+			ed, err := samlsp.ParseMetadata([]byte(spFromBackend.GetEntityDescriptor()))
+			require.NoError(t, err)
+			getFirstNameID := func(t *testing.T, ed *saml.EntityDescriptor) saml.NameIDFormat {
+				for _, spSSODescriptor := range ed.SPSSODescriptors {
+					for _, acs := range spSSODescriptor.AssertionConsumerServices {
+						if acs.Binding == "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" {
+							require.NotEmpty(t, spSSODescriptor.NameIDFormats)
+							return spSSODescriptor.NameIDFormats[0]
+						}
+					}
+				}
+				return ""
+			}
+			require.Equal(t, tc.wantNameIDFormat, getFirstNameID(t, ed))
+		})
+	}
 }
