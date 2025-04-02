@@ -25,8 +25,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/hex"
-	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -221,47 +219,6 @@ type YubiKeyPrivateKey struct {
 	attestation     *piv.Attestation
 }
 
-// yubiKeyPrivateKeyData is marshalable data used to retrieve a specific yubiKey PIV private key.
-type yubiKeyPrivateKeyData struct {
-	SerialNumber uint32                 `json:"serial_number"`
-	SlotKey      hardwarekey.PIVSlotKey `json:"slot_key"`
-}
-
-func parseYubiKeyPrivateKeyData(keyDataBytes []byte, prompt hardwarekey.Prompt) (*PrivateKey, error) {
-	if prompt == nil {
-		prompt = hardwarekey.NewStdCLIPrompt()
-	}
-	cachedKeysMu.Lock()
-	defer cachedKeysMu.Unlock()
-
-	var keyData yubiKeyPrivateKeyData
-	if err := json.Unmarshal(keyDataBytes, &keyData); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	pivSlot, err := parsePIVSlot(keyData.SlotKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// If the program has already retrieved and cached this key, return it.
-	if key, ok := cachedKeys[pivSlot]; ok {
-		return key, nil
-	}
-
-	y, err := FindYubiKey(keyData.SerialNumber, prompt)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	priv, err := y.getPrivateKey(pivSlot)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return priv, nil
-}
-
 // Public returns the public key corresponding to this private key.
 func (y *YubiKeyPrivateKey) Public() crypto.PublicKey {
 	return y.slotCert.PublicKey
@@ -441,31 +398,6 @@ func abandonableSign(ctx context.Context, signer crypto.Signer, rand io.Reader, 
 	}
 }
 
-func (y *YubiKeyPrivateKey) toPrivateKey() (*PrivateKey, error) {
-	keyPEM, err := y.keyPEM()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return NewPrivateKey(y, keyPEM)
-}
-
-func (y *YubiKeyPrivateKey) keyPEM() ([]byte, error) {
-	keyDataBytes, err := json.Marshal(yubiKeyPrivateKeyData{
-		SerialNumber: y.serialNumber,
-		SlotKey:      hardwarekey.PIVSlotKey(y.pivSlot.Key),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return pem.EncodeToMemory(&pem.Block{
-		Type:    pivYubiKeyPrivateKeyType,
-		Headers: nil,
-		Bytes:   keyDataBytes,
-	}), nil
-}
-
 // GetAttestationStatement returns an AttestationStatement for this YubiKeyPrivateKey.
 func (y *YubiKeyPrivateKey) GetAttestationStatement() *hardwarekey.AttestationStatement {
 	return &hardwarekey.AttestationStatement{
@@ -601,12 +533,7 @@ func (y *YubiKey) getPrivateKey(slot piv.Slot) (*PrivateKey, error) {
 		attestation:     attestation,
 	}
 
-	keyPEM, err := priv.keyPEM()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	key, err := NewPrivateKey(priv, keyPEM)
+	key, err := NewSoftwarePrivateKey(priv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
