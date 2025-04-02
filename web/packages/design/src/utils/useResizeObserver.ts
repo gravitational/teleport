@@ -47,7 +47,7 @@ import {
  */
 export const useResizeObserver = <T extends HTMLElement = HTMLElement>(
   callback: (entry: ResizeObserverEntry) => void,
-  { fireOnZeroHeight = true } = {}
+  { fireOnZeroHeight = false } = {}
 ): RefCallback<T> => {
   const callbackRef = useRef(callback);
   const elementRef = useRef<T | null>(null);
