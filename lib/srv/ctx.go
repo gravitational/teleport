@@ -417,7 +417,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	case identityContext.AccessPermit != nil:
 		clientIdleTimeout = durationToGoDuration(identityContext.AccessPermit.ClientIdleTimeout)
 	case identityContext.ProxyingPermit != nil:
-		clientIdleTimeout = identityContext.ProxyingPermit.clientIdleTimeout
+		clientIdleTimeout = identityContext.ProxyingPermit.ClientIdleTimeout
 	default:
 		return nil, trace.BadParameter("identityContext must have either AccessPermit or ProxyingPermit set")
 		//panic("identityContext must have either AccessPermit or ProxyingPermit set")

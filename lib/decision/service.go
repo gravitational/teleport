@@ -204,10 +204,7 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 		return nil, trace.Wrap(err)
 	}
 
-	lockTargets, err := services.SSHAccessLockTargets(localClusterName, req.Node.Name, req.OsUser, accessInfo, ident)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	lockTargets := services.SSHAccessLockTargets(localClusterName, req.Node.Name, req.OsUser, accessInfo, ident)
 
 	permit := &decisionpb.SSHAccessPermit{
 		Metadata: &decisionpb.PermitMetadata{
@@ -222,7 +219,7 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 		SessionRecordingMode: string(accessChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH)),
 		LockingMode:          string(accessChecker.LockingMode(authPref.GetLockingMode())),
 		PrivateKeyPolicy:     string(privateKeyPolicy),
-		LockTargets:          lockTargetsToProto(lockTargets),
+		LockTargets:          LockTargetsToProto(lockTargets),
 		// TODO: a *lot* more needs to go here
 	}
 
@@ -358,66 +355,44 @@ func durationFromGoDuration(d time.Duration) *durationpb.Duration {
 	return durationpb.New(d)
 }
 
-/*
-message LockTarget {
-  // User specifies the name of a Teleport user.
-  string user = 1;
-
-  // Role specifies the name of an RBAC role known to the root cluster.
-  // In remote clusters, this constraint is evaluated before translating to local roles.
-  string role = 2;
-
-  // Login specifies the name of a local UNIX user.
-  string login = 3;
-
-  // MFADevice specifies the UUID of a user MFA device.
-  string mfa_device = 4;
-
-  // WindowsDesktop specifies the name of a Windows desktop.
-  string windows_desktop = 5;
-
-  // AccessRequest specifies the UUID of an access request.
-  string access_request = 6;
-
-  // Device is the device ID of a trusted device.
-  // Requires Teleport Enterprise.
-  string device = 7;
-
-  // ServerID is the host id of the Teleport instance.
-  string server_id = 8;
-}
-*/
-
-func lockTargetsToProto(targets []types.LockTarget) []*decisionpb.LockTarget {
+func LockTargetsToProto(targets []types.LockTarget) []*decisionpb.LockTarget {
 	protoTargets := make([]*decisionpb.LockTarget, 0, len(targets))
 	for _, target := range targets {
-		protoTargets = append(protoTargets, &decisionpb.LockTarget{
-			User:           target.User,
-			Role:           target.Role,
-			Login:          target.Login,
-			MfaDevice:      target.MFADevice,
-			WindowsDesktop: target.WindowsDesktop,
-			AccessRequest:  target.AccessRequest,
-			Device:         target.Device,
-			ServerId:       target.ServerID,
-		})
+		protoTargets = append(protoTargets, lockTargetToProto(target))
 	}
 	return protoTargets
 }
 
-func lockTargetsFromProto(targets []*decisionpb.LockTarget) []types.LockTarget {
+func lockTargetToProto(target types.LockTarget) *decisionpb.LockTarget {
+	return &decisionpb.LockTarget{
+		User:           target.User,
+		Role:           target.Role,
+		Login:          target.Login,
+		MfaDevice:      target.MFADevice,
+		WindowsDesktop: target.WindowsDesktop,
+		AccessRequest:  target.AccessRequest,
+		Device:         target.Device,
+		ServerId:       target.ServerID,
+	}
+}
+
+func LockTargetsFromProto(targets []*decisionpb.LockTarget) []types.LockTarget {
 	lockTargets := make([]types.LockTarget, 0, len(targets))
 	for _, target := range targets {
-		lockTargets = append(lockTargets, types.LockTarget{
-			User:           target.User,
-			Role:           target.Role,
-			Login:          target.Login,
-			MFADevice:      target.MfaDevice,
-			WindowsDesktop: target.WindowsDesktop,
-			AccessRequest:  target.AccessRequest,
-			Device:         target.Device,
-			ServerID:       target.ServerId,
-		})
+		lockTargets = append(lockTargets, lockTargetFromProto(target))
 	}
 	return lockTargets
+}
+
+func lockTargetFromProto(target *decisionpb.LockTarget) types.LockTarget {
+	return types.LockTarget{
+		User:           target.User,
+		Role:           target.Role,
+		Login:          target.Login,
+		MFADevice:      target.MfaDevice,
+		WindowsDesktop: target.WindowsDesktop,
+		AccessRequest:  target.AccessRequest,
+		Device:         target.Device,
+		ServerID:       target.ServerId,
+	}
 }

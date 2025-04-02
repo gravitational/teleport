@@ -32,13 +32,16 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/connectmycomputer"
+	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
@@ -706,7 +709,11 @@ type ahLoginChecker struct {
 const extIntSSHProxyingPermit = "proxying-permit"
 
 type sshProxyingPermit struct {
-	clientIdleTimeout time.Duration
+	ClientIdleTimeout time.Duration
+	LockingMode       constants.LockingMode
+	PrivateKeyPolicy  keys.PrivateKeyPolicy
+	LockTargets       []types.LockTarget
+	MaxConnections    int64
 }
 
 func (a *ahLoginChecker) evaluateSSHProxying(ident *sshca.Identity, ca types.CertAuthority, clusterName string, osUser string) (*sshProxyingPermit, error) {
@@ -730,8 +737,25 @@ func (a *ahLoginChecker) evaluateSSHProxying(ident *sshca.Identity, ca types.Cer
 		return nil, trace.Wrap(err)
 	}
 
+	// load auth preference (used during calculation of locking mode)
+	authPref, err := a.c.AccessPoint.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	privateKeyPolicy, err := accessChecker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	lockTargets := services.SSHAccessLockTargets(clusterName, a.c.Server.HostUUID() /* id of underlying proxy */, osUser, accessInfo, ident)
+
 	return &sshProxyingPermit{
-		clientIdleTimeout: accessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		ClientIdleTimeout: accessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		LockingMode:       accessChecker.LockingMode(authPref.GetLockingMode()),
+		PrivateKeyPolicy:  privateKeyPolicy,
+		LockTargets:       lockTargets,
+		MaxConnections:    accessChecker.MaxConnections(),
 	}, nil
 }
 
@@ -759,30 +783,28 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 		return nil, trace.Wrap(err)
 	}
 
-	// we don't need to check the RBAC for the node if they are only allowed to join sessions
+	var isModeratedSessionJoin bool
+	// custom moderated session join permissions allow bypass of the standard node access checks
 	if osUser == teleport.SSHSessionJoinPrincipal &&
 		auth.RoleSupportsModeratedSessions(accessChecker.Roles()) {
 
-		// allow joining if cluster wide MFA is not required
-		if state.MFARequired == services.MFARequiredNever {
-			return nil, nil
-		}
-
-		// only allow joining if the MFA ceremony was completed
-		// first if cluster wide MFA is enabled
-		if state.MFAVerified {
-			return nil, nil
+		// bypass of standard node access checks can only proceed if MFA is not required and/or
+		// the MFA ceremony was already completed.
+		if state.MFARequired == services.MFARequiredNever || state.MFAVerified {
+			isModeratedSessionJoin = true
 		}
 	}
 
-	// check if roles allow access to server
-	if err := accessChecker.CheckAccess(
-		target,
-		state,
-		services.NewLoginMatcher(osUser),
-	); err != nil {
-		return nil, trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
-			ident.Username, ca.GetClusterName(), osUser, clusterName, err)
+	if !isModeratedSessionJoin {
+		// perform the primary node access check in all cases except for moderated session join
+		if err := accessChecker.CheckAccess(
+			target,
+			state,
+			services.NewLoginMatcher(osUser),
+		); err != nil {
+			return nil, trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
+				ident.Username, ca.GetClusterName(), osUser, clusterName, err)
+		}
 	}
 
 	// load net config (used during calculation of client idle timeout)
@@ -791,12 +813,30 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 		return nil, trace.Wrap(err)
 	}
 
+	// load auth preference (used during calculation of locking mode)
+	authPref, err := a.c.AccessPoint.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	privateKeyPolicy, err := accessChecker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	lockTargets := services.SSHAccessLockTargets(clusterName, target.GetName(), osUser, accessInfo, ident)
+
 	return &decisionpb.SSHAccessPermit{
-		ForwardAgent:      accessChecker.CheckAgentForward(osUser) == nil,
-		X11Forwarding:     accessChecker.PermitX11Forwarding(),
-		SshFileCopy:       accessChecker.CanCopyFiles(),
-		PortForwardMode:   accessChecker.SSHPortForwardMode(),
-		ClientIdleTimeout: durationFromGoDuration(accessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())),
+		ForwardAgent:         accessChecker.CheckAgentForward(osUser) == nil,
+		X11Forwarding:        accessChecker.PermitX11Forwarding(),
+		MaxConnections:       accessChecker.MaxConnections(),
+		SshFileCopy:          accessChecker.CanCopyFiles(),
+		PortForwardMode:      accessChecker.SSHPortForwardMode(),
+		ClientIdleTimeout:    durationFromGoDuration(accessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())),
+		SessionRecordingMode: string(accessChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH)),
+		LockingMode:          string(accessChecker.LockingMode(authPref.GetLockingMode())),
+		PrivateKeyPolicy:     string(privateKeyPolicy),
+		LockTargets:          decision.LockTargetsToProto(lockTargets),
 		// TODO(fspmarshall): fully replace all uses of `AccessChecker` with permit fields
 	}, nil
 }

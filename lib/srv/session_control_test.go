@@ -137,8 +137,8 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 		},
 		TeleportUser: "alpaca",
 		Login:        "alpaca",
-		AccessChecker: &mockAccessChecker{
-			keyPolicy: keys.PrivateKeyPolicyNone,
+		AccessPermit: &decisionpb.SSHAccessPermit{
+			PrivateKeyPolicy: string(keys.PrivateKeyPolicyNone),
 		},
 	}
 
@@ -244,9 +244,9 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 				},
 				TeleportUser: "alpaca",
 				Login:        "alpaca",
-				AccessChecker: mockAccessChecker{
-					keyPolicy:      keys.PrivateKeyPolicyNone,
-					maxConnections: 1,
+				AccessPermit: &decisionpb.SSHAccessPermit{
+					PrivateKeyPolicy: string(keys.PrivateKeyPolicyNone),
+					MaxConnections:   1,
 				},
 			},
 			assertion: func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockRecorderEmitter) {
@@ -282,9 +282,9 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 				},
 				TeleportUser: "alpaca",
 				Login:        "alpaca",
-				AccessChecker: mockAccessChecker{
-					keyPolicy:      keys.PrivateKeyPolicyNone,
-					maxConnections: 1,
+				AccessPermit: &decisionpb.SSHAccessPermit{
+					PrivateKeyPolicy: string(keys.PrivateKeyPolicyNone),
+					MaxConnections:   1,
 				},
 			},
 			assertion: func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockRecorderEmitter) {
@@ -325,9 +325,9 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 				},
 				TeleportUser: "alpaca",
 				Login:        "alpaca",
-				AccessChecker: mockAccessChecker{
-					keyPolicy:      keys.PrivateKeyPolicyHardwareKey,
-					maxConnections: 1,
+				AccessPermit: &decisionpb.SSHAccessPermit{
+					PrivateKeyPolicy: string(keys.PrivateKeyPolicyHardwareKey),
+					MaxConnections:   1,
 				},
 			},
 			assertion: func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockRecorderEmitter) {
@@ -369,9 +369,9 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 				},
 				TeleportUser: "alpaca",
 				Login:        "alpaca",
-				AccessChecker: mockAccessChecker{
-					keyPolicy:      keys.PrivateKeyPolicyNone,
-					maxConnections: 1,
+				AccessPermit: &decisionpb.SSHAccessPermit{
+					PrivateKeyPolicy: string(keys.PrivateKeyPolicyNone),
+					MaxConnections:   1,
 				},
 			},
 			assertion: func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockRecorderEmitter) {
@@ -421,9 +421,9 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 				},
 				TeleportUser: "alpaca",
 				Login:        "alpaca",
-				AccessChecker: mockAccessChecker{
-					keyPolicy:      keys.PrivateKeyPolicyNone,
-					maxConnections: 0,
+				AccessPermit: &decisionpb.SSHAccessPermit{
+					PrivateKeyPolicy: string(keys.PrivateKeyPolicyNone),
+					MaxConnections:   0,
 				},
 			},
 			assertion: func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockRecorderEmitter) {
