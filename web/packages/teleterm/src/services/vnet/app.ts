@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2024 Gravitational, Inc.
+ * Copyright (C) 2025 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,23 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback } from 'react';
+import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 
-import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
-
-import { useVnetContext } from './vnetContext';
-
-export const useVnetLauncher = (): (() => Promise<[void, Error]>) => {
-  const { start, status, startAttempt } = useVnetContext();
-  const { open } = useConnectionsContext();
-
-  return useCallback(() => {
-    if (status.value === 'running' || startAttempt.status === 'processing') {
-      return Promise.resolve([undefined, undefined]);
-    }
-
-    open('vnet');
-
-    return start();
-  }, [status, startAttempt.status, open, start]);
-};
+/**
+ * Given a complete app, returns its public address mean to be used with VNet. Appends the target
+ * port if given.
+ */
+export const appToAddrToCopy = (app: App, targetPort?: number | undefined) =>
+  targetPort ? `${app.publicAddr}:${targetPort}` : app.publicAddr;

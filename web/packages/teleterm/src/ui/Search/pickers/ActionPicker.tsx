@@ -22,6 +22,7 @@ import styled from 'styled-components';
 import { Box, ButtonBorder, Label as DesignLabel, Flex, Text } from 'design';
 import * as icons from 'design/Icon';
 import { Cross as CloseIcon } from 'design/Icon';
+import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
 import { Highlight } from 'shared/components/Highlight';
 import {
@@ -816,7 +817,7 @@ export function AppItem(props: SearchResultItem<SearchResultApp>) {
 
 function getAppItemCopy(
   $appName: React.JSX.Element,
-  app: tsh.App,
+  app: App,
   requiresRequest: boolean,
   isVnetSupported: boolean
 ) {

@@ -219,6 +219,7 @@ export function makeDocumentVnetInfo(
     uri: '/docs/vnet-info',
     title: 'VNet',
     rootClusterUri,
+    targetAddress: undefined,
     ...props,
   };
 }

@@ -102,6 +102,10 @@ export type VnetContext = {
    * show a warning state.
    */
   showDiagWarningIndicator: boolean;
+  /**
+   * Whether VNet has started successfully at least once.
+   */
+  hasEverStarted: boolean;
 };
 
 export type VnetStatus =
@@ -128,9 +132,13 @@ export const VnetContextProvider: FC<
     'workspacesService',
     useCallback(state => state.isInitialized, [])
   );
-  const [{ autoStart }, setAppState] = usePersistedState('vnet', {
-    autoStart: false,
-  });
+  const [{ autoStart, hasEverStarted }, setAppState] = usePersistedState(
+    'vnet',
+    {
+      autoStart: false,
+      hasEverStarted: false,
+    }
+  );
   const { isOpenRef: isConnectionsPanelOpenRef } = useConnectionsContext();
 
   const platform = useMemo(
@@ -152,7 +160,7 @@ export const VnetContextProvider: FC<
         }
       }
       setStatus({ value: 'running' });
-      setAppState({ autoStart: true });
+      setAppState({ autoStart: true, hasEverStarted: true });
     }, [vnet, setAppState, appCtx])
   );
 
@@ -202,7 +210,7 @@ export const VnetContextProvider: FC<
         value: 'stopped',
         reason: { value: 'regular-shutdown-or-not-started' },
       });
-      setAppState({ autoStart: false });
+      setAppState(state => ({ ...state, autoStart: false }));
       setDiagnosticsAttempt(makeEmptyAttempt());
       setHasDismissedDiagnosticsAlert(false);
     }, [
@@ -303,7 +311,7 @@ export const VnetContextProvider: FC<
         // Turn off autostart if starting fails. Otherwise the user wouldn't be able to turn off
         // autostart by themselves.
         if (error) {
-          setAppState({ autoStart: false });
+          setAppState(state => ({ ...state, autoStart: false }));
         }
       }
     };
@@ -458,6 +466,7 @@ export const VnetContextProvider: FC<
         reinstateDiagnosticsAlert,
         openReport: rootClusterUri ? openReport : undefined,
         showDiagWarningIndicator,
+        hasEverStarted,
       }}
     >
       {children}
