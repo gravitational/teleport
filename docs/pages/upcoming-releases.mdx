@@ -15,6 +15,7 @@ We plan to release the following versions in the coming months:
 | Version | Date                        |
 |---------|-----------------------------|
 | 17.4.0  | Week of March 24th, 2025    |
+| 17.4.1  | Week of March 31st, 2025    |
 | 17.5.0  | Week of May 19th, 2025      |
 | 18.0.0  | Week of May 26th, 2025      |
 
@@ -33,11 +34,6 @@ We continue to support the following major versions of Teleport:
 Teleport database access will support connecting to Oracle RDS with Kerberos
 authentication.
 
-#### Okta integration read-only mode
-
-Teleport Okta integration will support read-only mode that does not back-propagate
-changes from Teleport to Okta.
-
 #### AWS integration status dashboard
 
 Teleport web UI will provide detailed status dashboard for AWS integration as
@@ -50,12 +46,14 @@ Teleport will support registering the same host twice - once as a domain-joined
 machine, and one as a standalone machine. This will allow Teleport users to connect
 as Active Directory users and local users to the same host.
 
+### 17.4.1
+
+#### Okta integration read-only mode
+
+Teleport Okta integration will support read-only mode that does not back-propagate
+changes from Teleport to Okta.
+
 ### 17.5.0
-
-#### Encrypted session recordings
-
-Teleport will provide the ability to integrate with Hardware Security Modules
-(HSMs) in order to encrypt session recordings prior to uploading them to storage.
 
 #### Azure Console via SAML IdP
 
@@ -72,6 +70,11 @@ Teleport VNet will add native support for SSH, enabling any SSH client to connec
 to Teleport SSH servers with zero configuration. Advanced Teleport features like
 per-session MFA will have first-class support for a seamless user experience.
 
+#### Encrypted session recordings
+
+Teleport will provide the ability to integrate with Hardware Security Modules
+(HSMs) in order to encrypt session recordings prior to uploading them to storage.
+
 ### 18.0.0
 
 #### Identity Activity Center
@@ -87,8 +90,8 @@ The key deliverables for Teleport Cloud in the next quarter:
 
 | Week of               | Description                                                    |
 |-----------------------|----------------------------------------------------------------|
-| March 31, 2025       | Teleport 17.4 will begin rollout on Cloud.                      |
-| March 31, 2025       | Teleport 17.4 agents will begin rollout to eligible tenants.    |
+| March 31, 2025        | Teleport 17.4 will begin rollout on Cloud.                      |
+| March 31, 2025        | Teleport 17.4 agents will begin rollout to eligible tenants.    |
 
 ## Production readiness
 

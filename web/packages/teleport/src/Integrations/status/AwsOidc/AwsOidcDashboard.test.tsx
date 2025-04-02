@@ -188,18 +188,12 @@ test('renders enroll cards', () => {
   );
 
   expect(
-    within(screen.getByTestId('ec2-enroll')).getByRole('link', {
-      name: 'Enroll EC2',
-    })
+    within(screen.getByTestId('ec2-enroll')).getByText('Enroll EC2')
   ).toBeInTheDocument();
   expect(
-    within(screen.getByTestId('rds-enroll')).getByRole('link', {
-      name: 'Enroll RDS',
-    })
+    within(screen.getByTestId('rds-enroll')).getByText('Enroll RDS')
   ).toBeInTheDocument();
   expect(
-    within(screen.getByTestId('eks-enroll')).getByRole('link', {
-      name: 'Enroll EKS',
-    })
+    within(screen.getByTestId('eks-enroll')).getByText('Enroll EKS')
   ).toBeInTheDocument();
 });

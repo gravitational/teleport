@@ -2,6 +2,7 @@
   "language": "en",
   "version": "0.2",
   "words": [
+    "aabbccddeegg",
     "keepalive",
     "AADUSER",
     "ABCDEFGHIJKL",
@@ -281,6 +282,7 @@
     "acpi",
     "actionstest",
     "adcli",
+    "addent",
     "addlock",
     "addrepo",
     "addserver",
@@ -607,6 +609,7 @@
     "kinit",
     "klist",
     "knownhosts",
+    "ktutil",
     "kube",
     "kubeclustername",
     "kubeconfig",
