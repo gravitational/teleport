@@ -26,6 +26,7 @@ import (
 	"errors"
 	"io/fs"
 	"log/slog"
+	"math/rand/v2"
 	"net/http"
 	"os"
 	"os/exec"
@@ -756,9 +757,9 @@ func (u *Updater) Update(ctx context.Context, now bool) error {
 	default:
 		u.Log.InfoContext(ctx, "Update available. Initiating update.", targetKey, target, activeKey, active)
 	}
-	if !now {
+	if !now && resp.Jitter > 0 {
 		select {
-		case <-time.After(resp.Jitter):
+		case <-time.After(time.Duration(rand.Int64N(int64(resp.Jitter)))):
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
 		}
