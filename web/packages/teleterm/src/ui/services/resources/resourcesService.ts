@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
+
 import {
   resourceOneOfIsApp,
   resourceOneOfIsDatabase,
@@ -229,7 +231,7 @@ export type SearchResultKube = {
 };
 export type SearchResultApp = {
   kind: 'app';
-  resource: types.App & { addrWithProtocol: string };
+  resource: App & { addrWithProtocol: string };
   requiresRequest: boolean;
 };
 
@@ -271,4 +273,4 @@ export type UnifiedResourceResponse =
       requiresRequest: boolean;
     }
   | { kind: 'kube'; resource: types.Kube; requiresRequest: boolean }
-  | { kind: 'app'; resource: types.App; requiresRequest: boolean };
+  | { kind: 'app'; resource: App; requiresRequest: boolean };

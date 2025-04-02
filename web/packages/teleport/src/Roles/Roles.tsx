@@ -54,8 +54,17 @@ import { RoleList } from './RoleList';
 import templates from './templates';
 import { State, useRoles } from './useRoles';
 
+export enum RoleDiffState {
+  Disabled,
+  Error,
+  PolicyEnabled,
+  LoadingSettings,
+  WaitingForSync,
+  DemoReady,
+}
+
 /** Optional set of props to render the role diff visualizer. */
-type RoleDiffProps = {
+export type RoleDiffProps = {
   roleDiffElement: React.ReactNode;
   updateRoleDiff: (role: Role) => void;
 
@@ -71,6 +80,9 @@ type RoleDiffProps = {
   // updated.
   roleDiffAttempt?: Attempt<unknown>;
   clearRoleDiffAttempt?: () => void;
+  enableDemoMode?: () => void;
+  roleDiffState?: RoleDiffState;
+  roleDiffErrorMessage?: string;
 };
 
 export type RolesProps = {
