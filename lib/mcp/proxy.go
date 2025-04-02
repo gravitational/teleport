@@ -27,15 +27,12 @@ import (
 	"os/exec"
 
 	"github.com/gravitational/trace"
-	"github.com/mark3labs/mcp-go/server"
 	"github.com/mattn/go-shellwords"
 
 	"github.com/gravitational/teleport"
-	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
-	pgmcp "github.com/gravitational/teleport/lib/client/db/mcp/postgres"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -102,20 +99,20 @@ func (s *ProxyServer) HandleConnection(ctx context.Context, conn net.Conn) error
 		return trace.Wrap(err)
 	}
 
-	mcpServer := server.NewMCPServer("teleport", teleport.Version)
+	// mcpServer := server.NewMCPServer("teleport", teleport.Version)
 
-	// Add PostgreSQL MCP stuff.
-	// TODO add MCP servers based on what the user has access to.
-	sess, err := pgmcp.NewSession(ctx, pgmcp.NewSessionConfig{
-		MCPServer: mcpServer,
-		// TODO
-		RawDBConn: nil,
-		Route:     clientproto.RouteToDatabase{},
-	})
-	defer sess.Close(ctx)
+	// // Add PostgreSQL MCP stuff.
+	// // TODO add MCP servers based on what the user has access to.
+	// sess, err := pgmcp.NewSession(ctx, pgmcp.NewSessionConfig{
+	// 	MCPServer: mcpServer,
+	// 	// TODO
+	// 	RawDBConn: nil,
+	// 	Route:     clientproto.RouteToDatabase{},
+	// })
+	// defer sess.Close(ctx)
 
-	err = server.NewStdioServer(mcpServer).Listen(ctx, tlsConn, tlsConn)
-	s.logger.DebugContext(ctx, "MCP session terminated", "error", err)
+	// err = server.NewStdioServer(mcpServer).Listen(ctx, tlsConn, tlsConn)
+	// s.logger.DebugContext(ctx, "MCP session terminated", "error", err)
 
 	// TODO replace me with real impl
 	cmdToRun := os.Getenv("TELEPORT_MCP_RUN_POSTGRES")
