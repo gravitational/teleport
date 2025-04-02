@@ -21,11 +21,11 @@ import { MemoryRouter } from 'react-router';
 
 import { Box } from 'design';
 import { Info } from 'design/Alert';
+import { InfoGuidePanelProvider } from 'shared/components/InfoGuide';
 
 import { getOSSFeatures } from 'teleport/features';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { ContextProvider } from 'teleport/index';
-import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';

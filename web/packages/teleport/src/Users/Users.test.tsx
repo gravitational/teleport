@@ -26,9 +26,9 @@ import {
   testQueryClient,
   userEvent,
 } from 'design/utils/testing';
+import { InfoGuidePanelProvider } from 'shared/components/InfoGuide';
 
 import { ContextProvider } from 'teleport';
-import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { Access } from 'teleport/services/user';
 import { successGetUsers } from 'teleport/test/helpers/users';

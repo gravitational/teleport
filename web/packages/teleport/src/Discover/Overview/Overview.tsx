@@ -19,6 +19,7 @@
 import { Link as InternalLink } from 'react-router-dom';
 
 import { Mark } from 'design';
+import { InfoGuideConfig } from 'shared/components/InfoGuide';
 
 import {
   InfoExternalTextLink,
@@ -29,7 +30,6 @@ import {
   ReferenceLinks,
 } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import cfg from 'teleport/config';
-import { InfoGuideConfig } from 'teleport/Main/InfoGuideContext';
 import { DiscoverGuideId } from 'teleport/services/userPreferences/discoverPreference';
 
 import { SelectResourceSpec } from '../SelectResource/resources';

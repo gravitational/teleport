@@ -19,9 +19,9 @@
 import { MemoryRouter } from 'react-router';
 
 import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
+import { InfoGuidePanelProvider } from 'shared/components/InfoGuide';
 
 import { ContextProvider } from 'teleport';
-import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { yamlService } from 'teleport/services/yaml';
 

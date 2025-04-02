@@ -19,9 +19,9 @@ import userEvent from '@testing-library/user-event';
 import selectEvent from 'react-select-event';
 
 import { act, fireEvent, render, screen, tick } from 'design/utils/testing';
+import { InfoGuidePanelProvider } from 'shared/components/InfoGuide';
 
 import { ContextProvider } from 'teleport';
-import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import makeJoinToken from 'teleport/services/joinToken/makeJoinToken';
 
