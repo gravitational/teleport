@@ -33,6 +33,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 )
 
@@ -294,7 +295,7 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 
 	switch block.Type {
 	case pivYubiKeyPrivateKeyType:
-		hwKeyService := NewYubiKeyService(appliedOpts.CustomHardwareKeyPrompt)
+		hwKeyService := piv.NewYubiKeyService(appliedOpts.CustomHardwareKeyPrompt)
 		hwPrivateKey, err := hardwarekey.DecodePrivateKey(hwKeyService, block.Bytes)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse hardware private key")

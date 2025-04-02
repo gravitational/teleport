@@ -72,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/touchid"
@@ -4003,7 +4004,7 @@ func (tc *TeleportClient) GetNewLoginKeyRing(ctx context.Context) (keyRing *KeyR
 		if tc.PIVSlot != "" {
 			log.DebugContext(ctx, "Using PIV slot specified by client or server settings", "piv_slot", tc.PIVSlot)
 		}
-		priv, err := keys.NewHardwarePrivateKey(ctx, keys.NewYubiKeyService(tc.CustomHardwareKeyPrompt), hardwarekey.PrivateKeyConfig{
+		priv, err := keys.NewHardwarePrivateKey(ctx, piv.NewYubiKeyService(tc.CustomHardwareKeyPrompt), hardwarekey.PrivateKeyConfig{
 			Policy:     tc.PrivateKeyPolicy.GetPromptPolicy(),
 			CustomSlot: tc.PIVSlot,
 		})
