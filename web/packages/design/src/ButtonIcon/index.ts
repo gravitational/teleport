@@ -18,4 +18,6 @@
 
 import ButtonIcon from './ButtonIcon';
 
+export { buttonSizes } from './constants';
+
 export default ButtonIcon;
