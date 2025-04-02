@@ -114,6 +114,39 @@ func NewHardwarePrivateKey(ctx context.Context, s hardwarekey.Service, keyConfig
 	return NewPrivateKey(hwPrivateKey, keyPEM)
 }
 
+// GetAttestationStatement returns this key's AttestationStatement. If the key is
+// not a [hardwarekey.PrivateKey], this method returns nil.
+func (k *PrivateKey) GetAttestationStatement() *hardwarekey.AttestationStatement {
+	if hwpk, ok := k.Signer.(*hardwarekey.PrivateKey); ok {
+		return hwpk.GetAttestationStatement()
+	}
+	// Just return a nil attestation statement and let this key fail any attestation checks.
+	return nil
+}
+
+// GetPrivateKeyPolicy returns this key's PrivateKeyPolicy.
+func (k *PrivateKey) GetPrivateKeyPolicy() PrivateKeyPolicy {
+	if hwpk, ok := k.Signer.(*hardwarekey.PrivateKey); ok {
+		return PrivateKeyPolicyFromPromptPolicy(hwpk.GetPromptPolicy())
+	}
+
+	return PrivateKeyPolicyNone
+}
+
+// IsHardware returns true if [k] is a [hardwarekey.PrivateKey].
+func (k *PrivateKey) IsHardware() bool {
+	_, ok := k.Signer.(*hardwarekey.PrivateKey)
+	return ok
+}
+
+// WarmupHardwareKey checks if this is a [hardwarekey.PrivateKey] and warms it up if it is.
+func (k *PrivateKey) WarmupHardwareKey(ctx context.Context) error {
+	if hwpk, ok := k.Signer.(*hardwarekey.PrivateKey); ok {
+		return hwpk.WarmupHardwareKey(ctx)
+	}
+	return nil
+}
+
 // SSHPublicKey returns the ssh.PublicKey representation of the public key.
 func (k *PrivateKey) SSHPublicKey() ssh.PublicKey {
 	return k.sshPub
