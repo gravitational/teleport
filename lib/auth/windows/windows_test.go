@@ -90,7 +90,7 @@ func TestGenerateCredentials(t *testing.T) {
 			certb, keyb, err := GenerateWindowsDesktopCredentials(ctx, &GenerateCredentialsRequest{
 				Username:           user,
 				Domain:             domain,
-				TTL:                CertTTL,
+				TTL:                5 * time.Minute,
 				ClusterName:        clusterName,
 				ActiveDirectorySID: test.activeDirectorySID,
 				AuthClient:         client,
