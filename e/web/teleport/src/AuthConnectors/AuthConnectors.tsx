@@ -19,7 +19,7 @@ import {
 } from 'teleport/AuthConnectors/styles/AuthConnectors.styles';
 import { FeatureBox, FeatureHeaderTitle } from 'teleport/components/Layout';
 import { Route, Switch } from 'teleport/components/Router';
-import { InfoGuideWrapper } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
+import { InfoGuideButton } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import useResources from 'teleport/components/useResources';
 import {
   DefaultAuthConnector,
@@ -134,14 +134,14 @@ export function AuthConnectors() {
       <ResponsiveFeatureHeader>
         <FeatureHeaderTitle>Auth Connectors</FeatureHeaderTitle>
         {(!showAuthConnectorsCTA || !isEmpty) && (
-          <InfoGuideWrapper guide={<InfoGuide />}>
+          <InfoGuideButton config={{ guide: <InfoGuide /> }}>
             <ResponsiveAddButton
               fill="border"
               onClick={() => history.push(cfg.routes.ssoNewConnectorList)}
             >
               Add Auth Connector
             </ResponsiveAddButton>
-          </InfoGuideWrapper>
+          </InfoGuideButton>
         )}
       </ResponsiveFeatureHeader>
       {fetchAttempt.status === 'error' && (

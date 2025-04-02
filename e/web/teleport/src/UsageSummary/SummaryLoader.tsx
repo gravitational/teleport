@@ -13,7 +13,7 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import {
-  InfoGuideWrapper,
+  InfoGuideButton,
   InfoParagraph,
   InfoTitle,
   ReferenceLinks,
@@ -42,7 +42,7 @@ export const SummaryLoader = (): React.ReactElement => {
           <Box>
             <FeatureHeader alignItems="center" justifyContent="space-between">
               <FeatureHeaderTitle>Usage Reporting</FeatureHeaderTitle>
-              <InfoGuideWrapper guide={<InfoGuide />} />
+              <InfoGuideButton config={{ guide: <InfoGuide /> }} />
             </FeatureHeader>
 
             {attempt.status === 'failed' && (
