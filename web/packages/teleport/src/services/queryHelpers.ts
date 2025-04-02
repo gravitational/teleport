@@ -20,36 +20,9 @@ import * as reactQuery from '@tanstack/react-query';
 import {
   type DataTag,
   type DefaultError,
-  type UseMutationOptions,
-  type UseMutationResult,
   type UseQueryOptions,
   type UseQueryResult,
 } from '@tanstack/react-query';
-
-export type MutationHook<
-  TVariables = void,
-  TData = unknown,
-  TError = DefaultError,
-> = (
-  options?: Omit<UseMutationOptions<TData, TError, TVariables>, 'mutationFn'>
-) => UseMutationResult<TData, TError, TVariables>;
-
-export function wrapMutation<
-  TVariables = void,
-  TData = unknown,
-  TError = DefaultError,
->(
-  mutationFn: (variables: TVariables) => Promise<TData>
-): MutationHook<TVariables, TData, TError> {
-  return function wrappedMutation(
-    options?: Omit<UseMutationOptions<TData, TError, TVariables>, 'mutationFn'>
-  ) {
-    return reactQuery.useMutation<TData, TError, TVariables>({
-      mutationFn,
-      ...options,
-    });
-  };
-}
 
 export type QueryHook<
   TData = unknown,
@@ -80,7 +53,167 @@ type QueryFn<TData, TVariables> = TVariables extends void
   ? SignalOnlyQueryFn<TData>
   : VariablesQueryFn<TData, TVariables>;
 
-export function wrapQuery<
+/**
+ * createQueryHook is a utility function to create a TanStack Query `useQuery`
+ * hook from a service method.
+ *
+ * This is useful for quickly creating a query, with the variables passed through
+ * to the service method automatically added to the query key.
+ *
+ * This function creates both the wrapped `useQuery` hook, a method to generate
+ * the query key from a given set of variables, and the query key itself.
+ *
+ * The generated query key is tagged with the data type and error type, so that
+ * when using the query key to manually change query data, the type of the
+ * data is automatically inferred.
+ *
+ * This is useful for being able to update the results of a query when needed
+ * (e.g. during mutations), without having to recreate the query key and have
+ * it defined in multiple places.
+ *
+ * This function expects the service method to be a function that looks like either:
+ *   (signal?: AbortSignal) => Promise<TData>
+ *     or
+ *   (variables: TVariables, signal?: AbortSignal) => Promise<TData>
+ *
+ * If you are using this function with a service method that takes multiple arguments,
+ * create a new type for the variables and use that as the first argument instead.
+ *
+ * For example:
+ *
+ * ```ts
+ * function createUser(
+ *   user: User,
+ *   excludeUserField: ExcludeUserField,
+ *   mfaResponse?: MfaChallengeResponse
+ * ) { }
+ * ```
+ *
+ * would become:
+ *
+ * ```ts
+ * function createUser({ user, excludeUserField, mfaResponse }: CreateUserVariables) {}
+ * ```
+ *
+ * You can also add the signal as the last argument if it is missing.
+ *
+ * @example
+ *
+ * This example shows how to create a query hook for fetching users. This
+ * endpoint takes no variables, so there is no need to export the `createQueryKey`
+ * method, as the query key will always be the same.
+ *
+ * ```tsx
+ * const { queryKey: GetUsersQueryKey, useQuery: useGetUsers } = wrapQuery(
+ *   ['users', 'get'],
+ *   userService.fetchUsers
+ * );
+ * ```
+ *
+ * Usage:
+ *
+ * ```tsx
+ * function UserList() {
+ *   const queryClient = useQueryClient();
+ *
+ *   const { data, error, isPending } = useGetUsers();
+ *
+ *   const handleRemoveUser = useCallback((userId: string) => {
+ *     queryClient.setQueryData(GetUsersQueryKey, previous => {
+ *       // previous is automatically inferred as User[]
+ *
+ *       return previous.filter(user => user.id !== userId);
+ *     });
+ *   }, []);
+ * }
+ * ```
+ *
+ * This is instead of doing this:
+ *
+ * ```tsx
+ * const queryKey = ['users', 'get'];
+ *
+ * function UserList() {
+ *   const { data, error, isPending } = useQuery({
+ *     queryKey,
+ *     queryFn: () => userService.fetchUsers(), // TanStack Query passes the context first, so we need to ignore it by wrapping the function call.
+ *   });
+ *
+ *   const handleRemoveUser = useCallback((userId: string) => {
+ *     queryClient.setQueryData(queryKey, (previous: User[]) => {
+ *       return previous.filter(user => user.id !== userId);
+ *     });
+ *   }, []);
+ * }
+ * ```
+ *
+ * @example
+ *
+ * This example shows how to create a query hook for fetching a user. This endpoint
+ * takes the user ID as a variable, so we would need to export the `createQueryKey`
+ * method as well.
+ *
+ * ```tsx
+ * const {
+ *   createQueryKey: createGetUserQueryKey,
+ *   queryKey: GetUsersQueryKey,
+ *   useQuery: useGetUsers
+ * } = wrapQuery(
+ *   ['user', 'get'],
+ *   userService.fetchUser
+ * );
+ * ```
+ *
+ * `userService.fetchUser` would look like `(userId: string, signal: AbortSignal) => Promise<User>`.
+ *
+ * Usage:
+ *
+ * ```tsx
+ * function UserDetails({ userId }: { userId: string }) {
+ *   const queryClient = useQueryClient();
+
+ *   const { data, error, isPending } = useGetUser(userId);
+ *
+ *   const handleNameChange = useCallback((name: string) => {
+ *     const queryKey = createGetUserQueryKey(userId);
+ *
+ *     queryClient.setQueryData(queryKey, previous => {
+ *       // previous is automatically inferred as User
+ *
+ *       return {
+ *         ...previous,
+ *         name,
+ *       };
+ *     });
+ *   }, [userId]);
+ * }
+ * ```
+ *
+ * This is instead of doing this:
+ *
+ * ```tsx
+ * function UserDetails({ userId }: { userId: string }) {
+ *   // memoize the query key to avoid creating a new one and a new
+ *   // `handleNameChange` function on every render.
+ *   const queryKey = useMemo(() => ['user', 'get', userId], [userId]);
+ *
+ *   const { data, error, isPending } = useQuery({
+ *     queryKey,
+ *     queryFn: ({ signal }) => userService.fetchUser(userId, signal),
+ *   }):
+ *
+ *   const handleNameChange = useCallback((name: string) => {
+ *     queryClient.setQueryData(queryKey, (previous: User) => {
+ *       return {
+ *         ...previous,
+ *         name,
+ *       };
+ *     });
+ *   }, [queryKey]);
+ * }
+ * ```
+ */
+export function createQueryHook<
   TData = unknown,
   TVariables = void,
   TError = DefaultError,
