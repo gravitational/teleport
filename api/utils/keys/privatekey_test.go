@@ -48,10 +48,17 @@ func TestMarshalAndParseKey(t *testing.T) {
 	_, edKey, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 
+	// TODO(Joerger): Once the hardware key service is provided to the key parsing logic,
+	// use [hardwarekey.NewMockHardwareKeyService] and remove pivtest build tag
+	s := keys.NewYubiKeyService(nil)
+	hwPriv, err := s.NewPrivateKey(context.TODO(), hardwarekey.PrivateKeyConfig{})
+	require.NoError(t, err)
+
 	for keyType, key := range map[string]crypto.Signer{
-		"rsa":     rsaKey,
-		"ecdsa":   ecKey,
-		"ed25519": edKey,
+		"rsa":      rsaKey,
+		"ecdsa":    ecKey,
+		"ed25519":  edKey,
+		"hardware": hwPriv,
 	} {
 		t.Run(keyType, func(t *testing.T) {
 			keyPEM, err := keys.MarshalPrivateKey(key)
@@ -299,9 +306,9 @@ func TestHardwareKeyMethods(t *testing.T) {
 	require.NoError(t, key.WarmupHardwareKey(ctx))
 
 	// Test hardware key methods with a mocked hardware key.
-	s := hardwarekey.NewMockHardwareKeyService()
+	s := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
 	hwKey, err := keys.NewHardwarePrivateKey(ctx, s, hardwarekey.PrivateKeyConfig{
-		Policy: hardwarekey.PromptPolicyNone,
+		Policy: hardwarekey.PromptPolicyTouch,
 	})
 	require.NoError(t, err)
 
