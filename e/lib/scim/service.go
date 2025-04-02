@@ -3,6 +3,7 @@ package scim
 import (
 	"context"
 	"log/slog"
+	"net/http"
 
 	"github.com/elimity-com/scim/schema"
 	"github.com/gravitational/trace"
@@ -15,6 +16,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -47,6 +49,7 @@ type Service struct {
 	logger              *slog.Logger
 	clock               clockwork.Clock
 	identity            IdentityService
+	httpClient          *http.Client
 }
 
 // defaultShimFactoryMap is the default set of known compatibility shims
@@ -71,6 +74,7 @@ type Config struct {
 	ShimFactories       map[types.PluginType]shimFactory
 	Clock               clockwork.Clock
 	IdentityService     IdentityService
+	HTTPClient          *http.Client
 }
 
 func (cfg *Config) CheckAndSetDefaults() error {
@@ -126,6 +130,14 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		cfg.Clock = clockwork.NewRealClock()
 	}
 
+	if cfg.HTTPClient == nil {
+		httpClient, err := defaults.HTTPClient()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.HTTPClient = httpClient
+	}
+
 	return nil
 }
 
@@ -153,6 +165,7 @@ func NewService(cfg *Config) (*Service, error) {
 		creds:               cfg.CredentialsService,
 		logger:              logger,
 		clock:               cfg.Clock,
+		httpClient:          cfg.HTTPClient,
 
 		resourceTypes: map[string]resourceTypeHandler{
 			"Users": {

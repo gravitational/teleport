@@ -250,7 +250,17 @@ func (p *Plugin) scimCreateResource(w http.ResponseWriter, r *http.Request, para
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	writeSCIMResponse(w, http.StatusOK, body)
+	// Return 201 Created status code
+	//
+	// According to SCIM RFC https://datatracker.ietf.org/doc/html/rfc7644#section-3.3
+	//
+	// When the service provider successfully creates the new resource, an
+	// HTTP response SHALL be returned with HTTP status code 201 (Created).
+	//
+	// This is consistent with Okta behavior
+	// https://developer.okta.com/docs/api/openapi/okta-scim/guides/scim-20/#create-the-user
+	// when 201 is returned when a new user is created.
+	writeSCIMResponse(w, http.StatusCreated, body)
 	return nil
 }
 

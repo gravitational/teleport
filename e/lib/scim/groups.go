@@ -3,7 +3,6 @@ package scim
 import (
 	"context"
 	"log/slog"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -22,10 +21,9 @@ import (
 )
 
 const (
-	groupNameAttribute = "groupName"
-	logFieldGroupId    = "group_id"
-	addedBySCIM        = "scim"
-	lockTTL            = 5 * time.Second
+	groupNameAttribute        = "groupName"
+	groupDisplayNameAttribute = "displayName"
+	logFieldGroupId           = "group_id"
 )
 
 type groupHandler struct {
@@ -146,7 +144,6 @@ func (gh *groupHandler) resourceToAccessList(r *scimpb.Resource, shim providerSh
 				AccessList: acl.GetName(),
 				Name:       m.Value,
 				Joined:     gh.clock.Now(),
-				AddedBy:    addedBySCIM,
 			},
 		}
 		members[i] = newMember
@@ -156,7 +153,6 @@ func (gh *groupHandler) resourceToAccessList(r *scimpb.Resource, shim providerSh
 
 // createNewAccessList creates a new AccessList amd adds it to the cluster backend.
 func (gh *groupHandler) createNewAccessList(ctx context.Context, shim providerShim, acl *accesslist.AccessList) (*accesslist.AccessList, error) {
-
 	if err := shim.onCreatingAccessList(ctx, acl); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -285,7 +281,10 @@ func (gh *groupHandler) list(ctx context.Context, shim providerShim, filter filt
 				continue
 			}
 
-			filterAttribs := map[string]string{groupNameAttribute: accessList.GetName()}
+			filterAttribs := map[string]string{
+				groupNameAttribute:        accessList.GetName(),
+				groupDisplayNameAttribute: accessList.Spec.Title,
+			}
 			if err := evaluateFilter(filter, filterAttribs); err != nil {
 				continue
 			}

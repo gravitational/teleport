@@ -363,6 +363,9 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 		CertAuthorityGetter: p.authServer.AuthServer,
 		JWTSignerGetter:     p.authServer.AuthServer.GetKeyStore(),
 		Logger:              logger,
+		HTTPClient: &http.Client{
+			Transport: p.HTTPTransport,
+		},
 	})
 	if err != nil {
 		return trace.Wrap(err, "registering SCIM service")

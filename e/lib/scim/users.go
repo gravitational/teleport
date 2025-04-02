@@ -55,15 +55,14 @@ func (uh *userHandler) update(ctx context.Context, shim providerShim, r *scimpb.
 		return nil, trace.NotFound("%s", r.Id)
 	}
 
-	if user.GetRevision() != r.Meta.Version {
-		return nil, trace.CompareFailed("invalid revision: %q != %q", user.GetRevision(), r.Meta.Version)
+	if user.GetRevision() != r.GetMeta().GetVersion() {
+		return nil, trace.CompareFailed("invalid revision: %q != %q", user.GetRevision(), r.GetMeta().GetVersion())
 	}
 
 	updatedUser, saveUpdatedUser, err := shim.onUpdatingUser(ctx, user, r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	if saveUpdatedUser {
 		updatedUser, err = uh.users.UpdateUser(ctx, updatedUser)
 		if err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"math"
+	"net/http"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -44,6 +45,7 @@ type oktaShim struct {
 	clock               clockwork.Clock
 	logger              *slog.Logger
 	identity            IdentityService
+	httpClient          *http.Client
 }
 
 // Static assertion that the oktaShim implements the `shim` interface
@@ -75,6 +77,7 @@ func newOktaShim(ctx context.Context, plugin types.Plugin, service *Service) (pr
 		jwtSignerGetter:     service.jwtSignerGetter,
 		plugin:              p,
 		logger:              log,
+		httpClient:          service.httpClient,
 	}, nil
 }
 
@@ -392,7 +395,7 @@ func (s *oktaShim) createUserFromResource(ctx context.Context, res *scimpb.Resou
 	if res.Attributes == nil {
 		return nil, trace.BadParameter("Missing resource attributes")
 	}
-	scimAttribs := res.Attributes.AsMap()
+	scimAttribs := res.GetAttributes().AsMap()
 	username := res.Id
 	if username == "" {
 		var err error
@@ -408,7 +411,7 @@ func (s *oktaShim) createUserFromResource(ctx context.Context, res *scimpb.Resou
 	user.SetStaticLabels(map[string]string{
 		types.OriginLabel:         types.OriginOkta,
 		eteleport.OktaOrgURLLabel: s.plugin.Spec.GetOkta().OrgUrl,
-		eteleport.OktaUserIDLabel: res.ExternalId,
+		eteleport.OktaUserIDLabel: res.GetExternalId(),
 	})
 	user.SetCreatedBy(types.CreatedBy{
 		User: types.UserRef{
@@ -418,9 +421,12 @@ func (s *oktaShim) createUserFromResource(ctx context.Context, res *scimpb.Resou
 		Connector: &types.ConnectorRef{
 			ID:       pluginSettings.SsoConnectorId,
 			Type:     constants.SAML,
-			Identity: res.ExternalId,
+			Identity: res.GetExternalId(),
 		},
 	})
+
+	user.SetRevision(res.GetMeta().GetVersion())
+
 	if err := s.evaluateSAMLConnector(ctx, user); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -573,6 +579,7 @@ func (s *oktaShim) oktaClient(ctx context.Context) (*oktasdk.Client, error) {
 		oktasdk.WithRequestTimeout(okta.RequestTimeoutSeconds),
 		oktasdk.WithRateLimitMaxRetries(math.MaxInt32),
 		oktasdk.WithScopes(oktaAPIScopes),
+		oktasdk.WithHttpClientPtr(s.httpClient),
 	)
 
 	_, apiClient, err := oktasdk.NewClient(ctx, oktaOpts...)
