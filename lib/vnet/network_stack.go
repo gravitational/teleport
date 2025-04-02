@@ -718,12 +718,3 @@ func protocolVersion(b byte) (tcpip.NetworkProtocolNumber, bool) {
 	}
 	return 0, false
 }
-
-// NetworkStackInfo is used to pass information about some aspects of the network stack outside
-// of the goroutine or the process that manages [networkStack].
-type NetworkStackInfo struct {
-	// IfaceName is the name of the interface used by VNet.
-	IfaceName string
-	// IPv6Prefix is the IPv6 prefix under which VNet assigns addresses for apps and the DNS nameserver.
-	IPv6Prefix string
-}

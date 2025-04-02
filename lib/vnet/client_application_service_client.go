@@ -59,14 +59,6 @@ func (c *clientApplicationServiceClient) close() error {
 	return trace.Wrap(c.conn.Close())
 }
 
-// Ping pings the client application.
-func (c *clientApplicationServiceClient) Ping(ctx context.Context) error {
-	if _, err := c.clt.Ping(ctx, &vnetv1.PingRequest{}); err != nil {
-		return trace.Wrap(err, "calling Ping rpc")
-	}
-	return nil
-}
-
 // Authenticate process authenticates the client application process.
 func (c *clientApplicationServiceClient) AuthenticateProcess(ctx context.Context, pipePath string) error {
 	resp, err := c.clt.AuthenticateProcess(ctx, &vnetv1.AuthenticateProcessRequest{
@@ -79,6 +71,23 @@ func (c *clientApplicationServiceClient) AuthenticateProcess(ctx context.Context
 	if resp.Version != api.Version {
 		return trace.BadParameter("version mismatch, user process version is %s, admin process version is %s",
 			resp.Version, api.Version)
+	}
+	return nil
+}
+
+func (c *clientApplicationServiceClient) ReportNetworkStackInfo(ctx context.Context, nsi *vnetv1.NetworkStackInfo) error {
+	if _, err := c.clt.ReportNetworkStackInfo(ctx, &vnetv1.ReportNetworkStackInfoRequest{
+		NetworkStackInfo: nsi,
+	}); err != nil {
+		return trace.Wrap(err, "calling ReportNetworkStackInfo rpc")
+	}
+	return nil
+}
+
+// Ping pings the client application.
+func (c *clientApplicationServiceClient) Ping(ctx context.Context) error {
+	if _, err := c.clt.Ping(ctx, &vnetv1.PingRequest{}); err != nil {
+		return trace.Wrap(err, "calling Ping rpc")
 	}
 	return nil
 }
