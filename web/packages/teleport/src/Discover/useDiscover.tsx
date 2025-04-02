@@ -53,7 +53,7 @@ import {
 } from 'teleport/services/userEvent';
 
 import { ResourceViewConfig, View } from './flow';
-import { getOverview } from './Overview/Overview';
+import { getDiscoverInfoGuideConfig, getOverview } from './Overview/Overview';
 import { viewConfigs } from './resourceViewConfigs';
 import { SelectResourceSpec } from './SelectResource/resources';
 import { EViewConfigs } from './types';
@@ -136,7 +136,7 @@ export function DiscoverProvider({
 }: React.PropsWithChildren<DiscoverProviderProps>) {
   const history = useHistory();
   const location = useLocation<DiscoverUrlLocationState>();
-  const { infoGuideElement, setInfoGuideElement } = useInfoGuide();
+  const { infoGuideConfig, setInfoGuideConfig } = useInfoGuide();
 
   const [currentStep, setCurrentStep] = useState(0);
   const [agentMeta, setAgentMeta] = useState<AgentMeta>();
@@ -355,7 +355,9 @@ export function DiscoverProvider({
     setIndexedViews(indexedViews);
     setResourceSpec(resource);
     setCurrentStep(targetViewIndex);
-    setInfoGuideElement(getOverview({ resourceSpec: resource }));
+    // Open the guide for the user when starting the flow.
+    const overview = getOverview({ resourceSpec: resource });
+    setInfoGuideConfig(getDiscoverInfoGuideConfig(overview));
   }
 
   // nextStep takes the user to next screen and sends reporting events.
@@ -442,8 +444,8 @@ export function DiscoverProvider({
     setResourceSpec(null);
     setIndexedViews([]);
 
-    if (infoGuideElement) {
-      setInfoGuideElement(null);
+    if (infoGuideConfig) {
+      setInfoGuideConfig(null);
     }
   }
 
