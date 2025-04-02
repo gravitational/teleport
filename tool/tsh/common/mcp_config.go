@@ -105,17 +105,8 @@ func onMCPConfig(cf *CLIConf) error {
 			if len(mcpServer.Args) < 3 {
 				return trace.BadParameter("missing args for entry %q: %q", mcpServer, mcpServer.Args[1])
 			}
-			// TODO Better way?
-			var resourceName string
-			for _, arg := range mcpServer.Args[3:] {
-				if strings.HasPrefix(arg, "-") {
-					continue
-				}
-				resourceName = arg
-			}
 			rows = append(rows, mcpConfigTableRow{
-				Type:            "Database",
-				ResourceName:    resourceName,
+				Type:            "Teleport Databases",
 				LocalServerName: localName,
 				Args:            strings.Join(mcpServer.Args[3:], " "),
 			})
@@ -174,23 +165,6 @@ func onMCPConfigUpdate(cf *CLIConf) error {
 }
 
 func onMCPConfigUpdateDB(cf *CLIConf) error {
-	tc, err := makeClient(cf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	profile, err := tc.ProfileStatus()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	routes, err := profile.DatabasesForCluster(tc.SiteName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	dbInfo, err := getDatabaseInfo(cf, tc, routes)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	config, all, err := openClaudeDesktopConfig(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -199,17 +173,8 @@ func onMCPConfigUpdateDB(cf *CLIConf) error {
 		config.MCPServers = make(map[string]claudeDesktopConfigMCPServer)
 	}
 
-	localName := "teleport-database-" + dbInfo.ServiceName
-	args := []string{"mcp", "start-db", cf.DatabaseService}
-	if dbInfo.RouteToDatabase.Username != "" {
-		args = append(args, "--db-user", dbInfo.RouteToDatabase.Username)
-	}
-	if dbInfo.RouteToDatabase.Database != "" {
-		args = append(args, "--db-name", dbInfo.RouteToDatabase.Database)
-	}
-	if len(dbInfo.RouteToDatabase.Roles) > 0 {
-		args = append(args, "--db-rows", strings.Join(dbInfo.RouteToDatabase.Roles, ","))
-	}
+	localName := "teleport-databases"
+	args := []string{"mcp", "start-db", "--query", cf.PredicateExpression}
 
 	config.MCPServers[localName] = claudeDesktopConfigMCPServer{
 		Command: cf.executablePath,

@@ -68,8 +68,8 @@ The response is a list of audit events found in that time period, maximum 100
 per call. If more events are available, it will return a "next_key"" to be used
 as "start_key"" in the next call for pagination.
 `),
-			mcp.WithString("from", mcp.Required()),
-			mcp.WithString("to", mcp.Required()),
+			mcp.WithString("from", mcp.Required(), mcp.Description("oldest date of returned events, in RFC3339 format")),
+			mcp.WithString("to", mcp.Required(), mcp.Description("newest date of returned events, in RFC3339 format")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			fromStr, ok := request.Params.Arguments["from"].(string)
